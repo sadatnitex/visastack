@@ -73,14 +73,14 @@ export default async function PrivacyPage() {
     <section className="section container">
       <PageHeader
         eyebrow="Privacy"
-        title="Your data rights"
+        title="Your Data Rights"
         description="Export everything, review your consent history, or delete your account."
       />
 
       <div className="grid">
         <article className="card">
           <p className="card-kicker">Portability</p>
-          <h2 className="card-title">Export your data</h2>
+          <h2 className="card-title">Export Your Data</h2>
           <p className="card-body u-mb-125">
             Download a complete, structured snapshot of your account: identity, consents,
             applicants, Master Profile facts with full history, document metadata, and your audit
@@ -99,7 +99,7 @@ export default async function PrivacyPage() {
 
         <article className="card">
           <p className="card-kicker">Erasure</p>
-          <h2 className="card-title">Delete your account</h2>
+          <h2 className="card-title">Delete Your Account</h2>
           <p className="card-body u-mb-125">
             Deletion is reversible during a 7-day grace window, then permanent. Your audit trail is
             preserved and anonymized. An active legal hold blocks deletion until released.
@@ -110,9 +110,9 @@ export default async function PrivacyPage() {
 
       <article className="card u-mt-150">
         <p className="card-kicker">Transparency</p>
-        <h2 className="card-title">Consent history</h2>
+        <h2 className="card-title">Consent History</h2>
         {data.history.length === 0 ? (
-          <EmptyState icon="activity" title="No changes yet">
+          <EmptyState icon="activity" title="No Changes Yet">
             Each time you turn a permission on or off, it is recorded here with the date.
           </EmptyState>
         ) : (

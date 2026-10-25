@@ -26,12 +26,12 @@ export function CountriesView({ href }: { readonly href: string }) {
     <>
       <PageHeader
         eyebrow="Countries"
-        title="Visa rules for a Bangladeshi passport"
+        title="Visa Rules for a Bangladeshi Passport"
         description="What an ordinary Bangladeshi passport needs to enter each country. Every fact shows where it came from and when it was checked."
       />
       <p className="notice">
         {researched} of {items.length} countries have their rules filled in. The rest are marked
-        "Not yet researched", which does not mean no visa is needed. Rules change, so always confirm
+        "Not Yet Researched", which does not mean no visa is needed. Rules change, so always confirm
         on the official page before you apply. This is guidance, not legal advice, and the
         destination decides your application.
       </p>

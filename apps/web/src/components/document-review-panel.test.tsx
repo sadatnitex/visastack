@@ -45,7 +45,7 @@ describe('document review without exposing bytes', () => {
         ]}
       />,
     );
-    expect(html).toContain('Open secure preview');
+    expect(html).toContain('Open Secure Preview');
     expect(html).toContain('name="documentId" value="d2"');
     expect(html).toContain('name="applicantId" value="a1"');
     expect(html).not.toContain('<iframe');

@@ -47,11 +47,11 @@ describe('AttentionList', () => {
 describe('EmptyState and Disclosure', () => {
   it('explains an empty area and offers the next action', () => {
     const html = renderToStaticMarkup(
-      <EmptyState title="No documents yet" action={{ href: '/up', label: 'Add a document' }}>
+      <EmptyState title="No Documents Yet" action={{ href: '/up', label: 'Add a Document' }}>
         Papers you reuse across applications live here.
       </EmptyState>,
     );
-    expect(html).toContain('No documents yet');
+    expect(html).toContain('No Documents Yet');
     expect(html).toContain('href="/up"');
   });
 
@@ -69,12 +69,12 @@ describe('EmptyState and Disclosure', () => {
 describe('Checklist', () => {
   const html = renderToStaticMarkup(
     <Checklist
-      title="Set up your account"
+      title="Set Up Your Account"
       items={[
         { key: 'a', label: 'Allow processing', done: true, href: '#permissions' },
         {
           key: 'b',
-          label: 'Add an applicant',
+          label: 'Add an Applicant',
           hint: 'Start with yourself',
           done: false,
           href: '/app/applicants',
@@ -101,7 +101,7 @@ describe('EmptyState icon', () => {
     expect(plain).toContain('icon-tile');
     expect(plain).toContain('<svg');
     const named = renderToStaticMarkup(
-      <EmptyState title="No alerts yet" icon="bell">
+      <EmptyState title="No Alerts Yet" icon="bell">
         A reason.
       </EmptyState>,
     );

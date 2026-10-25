@@ -50,7 +50,7 @@ export function CaseDetailsForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="serviceCategory">
-          Service category
+          Service Category
         </label>
         <input
           id="serviceCategory"
@@ -63,7 +63,7 @@ export function CaseDetailsForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="travelStartDate">
-          Travel dates
+          Travel Dates
         </label>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <input
@@ -86,7 +86,7 @@ export function CaseDetailsForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="targetDeadline">
-          Target deadline
+          Target Deadline
         </label>
         <input
           id="targetDeadline"
@@ -110,7 +110,7 @@ export function CaseDetailsForm({
       <div>
         <SubmitButton
           pending={pending}
-          idle="Save case details"
+          idle="Save Case Details"
           busy="Saving…"
           className="btn btn-secondary"
         />
@@ -137,7 +137,7 @@ export function ItineraryForm({
         type="text"
         defaultValue={itineraryRef ?? ''}
         className="input"
-        aria-label="Itinerary reference"
+        aria-label="Itinerary Reference"
         placeholder="e.g. Smith Family Europe 2026"
       />
       <div>
@@ -196,14 +196,14 @@ export function SnapshotButton({
 const STATE_LABELS: Record<string, string> = {
   DRAFT: 'Draft',
   INTAKE: 'Intake',
-  IN_REVIEW: 'In review',
-  AWAITING_APPLICANT: 'Awaiting applicant',
-  SUBMISSION_READY: 'Submission ready',
+  IN_REVIEW: 'In Review',
+  AWAITING_APPLICANT: 'Awaiting Applicant',
+  SUBMISSION_READY: 'Submission Ready',
   SUBMITTED: 'Submitted',
-  IN_PROGRESS: 'In progress',
-  READY_FOR_REVIEW: 'Ready for review',
-  UNDER_REVIEW: 'Under review',
-  READY_TO_EXPORT: 'Ready to export',
+  IN_PROGRESS: 'In Progress',
+  READY_FOR_REVIEW: 'Ready for Review',
+  UNDER_REVIEW: 'Under Review',
+  READY_TO_EXPORT: 'Ready to Export',
   LOCKED: 'Locked',
   CLOSED: 'Closed',
   CANCELLED: 'Cancelled',

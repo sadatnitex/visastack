@@ -17,14 +17,14 @@
 export const STAGE_LABELS: Record<string, string> = {
   DRAFT: 'Draft',
   INTAKE: 'Intake',
-  IN_REVIEW: 'In review',
-  AWAITING_APPLICANT: 'Awaiting applicant',
-  SUBMISSION_READY: 'Submission ready',
+  IN_REVIEW: 'In Review',
+  AWAITING_APPLICANT: 'Awaiting Applicant',
+  SUBMISSION_READY: 'Submission Ready',
   SUBMITTED: 'Submitted',
-  IN_PROGRESS: 'In progress',
-  READY_FOR_REVIEW: 'Ready for review',
-  UNDER_REVIEW: 'Under review',
-  READY_TO_EXPORT: 'Ready to export',
+  IN_PROGRESS: 'In Progress',
+  READY_FOR_REVIEW: 'Ready for Review',
+  UNDER_REVIEW: 'Under Review',
+  READY_TO_EXPORT: 'Ready to Export',
   LOCKED: 'Locked',
   CLOSED: 'Closed',
   CANCELLED: 'Cancelled',
@@ -71,7 +71,7 @@ export function CaseSearchForm({
           Stage
         </label>
         <select id="stage" name="stage" defaultValue={stage} className="input">
-          <option value="">Any stage</option>
+          <option value="">Any Stage</option>
           {Object.entries(STAGE_LABELS).map(([value, label]) => (
             <option key={value} value={value}>
               {label}

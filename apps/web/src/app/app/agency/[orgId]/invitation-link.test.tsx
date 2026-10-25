@@ -31,7 +31,7 @@ describe('private invitation link sharing', () => {
   it('copies the exact link and announces success only after clipboard approval', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
-    await click('Copy link');
+    await click('Copy Link');
     expect(writeText).toHaveBeenCalledWith(url);
     expect(container.querySelector('output')?.textContent).toContain('Link copied');
   });
@@ -40,7 +40,7 @@ describe('private invitation link sharing', () => {
       value: { writeText: vi.fn().mockRejectedValue(new Error('Denied')) },
       configurable: true,
     });
-    await click('Copy link');
+    await click('Copy Link');
     const field = container.querySelector('input');
     expect(document.activeElement).toBe(field);
     expect(field?.selectionEnd).toBe(url.length);
@@ -49,9 +49,9 @@ describe('private invitation link sharing', () => {
   it('offers the exact invitation to the native share sheet without opening another service automatically', async () => {
     const share = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'share', { value: share, configurable: true });
-    await click('Share link');
+    await click('Share Link');
     expect(share).toHaveBeenCalledWith(
-      expect.objectContaining({ url, title: 'VisaStack invitation' }),
+      expect.objectContaining({ url, title: 'VisaStack Invitation' }),
     );
   });
 });

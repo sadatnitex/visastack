@@ -11,7 +11,7 @@ import { AcceptSharingInvitationForm } from './accept-form';
 const sharingInvitationFlag = 'PERSONAL_SHARING_INVITATIONS_ENABLED';
 
 export const metadata: Metadata = {
-  title: 'Review shared access',
+  title: 'Review Shared Access',
   robots: { index: false, follow: false },
   referrer: 'no-referrer',
 };
@@ -30,23 +30,23 @@ export default async function SharingInvitationPage({
     if (!result.ok)
       return (
         <section className="section">
-          <h1 className="section-title">Invitation unavailable</h1>
+          <h1 className="section-title">Invitation Unavailable</h1>
           <p>{result.error.message}</p>
           <p>Ask the sender for a new link or sign in with the invited email address.</p>
           <Link
             className="btn btn-secondary"
             href={`/auth/sign-in?next=${encodeURIComponent(`/app/sharing-invitations/accept?token=${token}`)}`}
           >
-            Sign in with the invited email
+            Sign In with the Invited Email
           </Link>
-          <Link href="/app">Return to your workspace</Link>
+          <Link href="/app">Return to Your Workspace</Link>
         </section>
       );
     const invite = result.value;
     const consent = await getConsents(db, accountId);
     return (
       <section className="section">
-        <h1 className="section-title">Review shared access</h1>
+        <h1 className="section-title">Review Shared Access</h1>
         <article className="card">
           <p>Opening this invitation grants no access. Review everything before accepting.</p>
           <dl className="rows">
@@ -59,7 +59,7 @@ export default async function SharingInvitationPage({
               <dd>{invite.actions.map(humanizeCode).join(', ')}</dd>
             </div>
             <div className="row">
-              <dt>Profile categories</dt>
+              <dt>Profile Categories</dt>
               <dd>{invite.categories?.map(humanizeCode).join(', ') || 'All profile categories'}</dd>
             </div>
             <div className="row">
@@ -73,11 +73,11 @@ export default async function SharingInvitationPage({
               </dd>
             </div>
             <div className="row">
-              <dt>Access ends</dt>
+              <dt>Access Ends</dt>
               <dd>{formatTimestampDate(invite.grantExpiryAt)}</dd>
             </div>
             <div className="row">
-              <dt>Invitation expires</dt>
+              <dt>Invitation Expires</dt>
               <dd>{formatTimestampDate(invite.expiresAt)}</dd>
             </div>
           </dl>
@@ -87,10 +87,10 @@ export default async function SharingInvitationPage({
           ) : (
             <p>
               Review and turn on the required consent above to continue.{' '}
-              <Link href="/privacy">Read the privacy policy</Link>.
+              <Link href="/privacy">Read the Privacy Policy</Link>.
             </p>
           )}
-          <Link href="/app">Leave without accepting</Link>
+          <Link href="/app">Leave Without Accepting</Link>
         </article>
       </section>
     );

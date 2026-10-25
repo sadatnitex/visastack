@@ -34,7 +34,7 @@ export function RunAiExtractionButton({
         <input type="hidden" name="documentVersionId" value={documentVersionId} />
         <SubmitButton
           pending={pending}
-          idle="Read details from this document"
+          idle="Read Details from This Document"
           busy="Reading details…"
           className="btn btn-secondary"
           style={{ padding: '0.3rem 0.9rem', fontSize: 'var(--text-small)' }}
@@ -70,7 +70,7 @@ export function RunOcrButton({
         <input type="hidden" name="documentVersionId" value={documentVersionId} />
         <SubmitButton
           pending={pending}
-          idle="Read text from this scan"
+          idle="Read Text from This Scan"
           busy="Reading text…"
           className="btn btn-secondary"
           style={{ padding: '0.3rem 0.9rem', fontSize: 'var(--text-small)' }}
@@ -116,7 +116,7 @@ export function OcrResultView({
             className="badge badge-neutral"
             title="The first reader timed out or was too busy, so a backup reader was used. Please check the result."
           >
-            Fallback provider used
+            Fallback Provider Used
           </span>
         </p>
       ) : null}
@@ -217,7 +217,7 @@ export function AiProposalReview({
               style={{ marginLeft: '0.4rem' }}
               title="This exact quote could not be confirmed in the source document text."
             >
-              Unverified quote
+              Unverified Quote
             </span>
           ) : null}
         </p>

@@ -121,7 +121,7 @@ export default async function AdminComplaintsPage() {
       {data.canViewFeedback ? (
         <article className="card">
           <p className="card-kicker">Oversight</p>
-          <h2 className="card-title">Private feedback</h2>
+          <h2 className="card-title">Private Feedback</h2>
           <p className="card-body u-mb-100">
             Never visible to the agency being reviewed, and never a public review or ranking.
           </p>

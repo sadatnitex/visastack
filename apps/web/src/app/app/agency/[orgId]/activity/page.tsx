@@ -6,7 +6,7 @@ import { formatTimestampDate } from '../../../../../lib/format-date';
 import { withSession } from '../../../../../lib/session';
 import { loadOrgAccess, loadVisibleCaseList } from '../console-data';
 
-export const metadata: Metadata = { title: 'Agency case activity' };
+export const metadata: Metadata = { title: 'Agency Case Activity' };
 
 export const dynamic = 'force-dynamic';
 
@@ -49,7 +49,7 @@ export default async function AgencyActivityPage({
     <>
       <PageHeader
         as="h2"
-        title="Case activity"
+        title="Case Activity"
         description="Recent notes on cases you can access. This is case activity, not a complete organization audit log."
       />
       <article className="card">
@@ -74,7 +74,7 @@ export default async function AgencyActivityPage({
             ))}
           </div>
         ) : (
-          <EmptyState icon="activity" title="No case activity recorded">
+          <EmptyState icon="activity" title="No Case Activity Recorded">
             New case notes appear here when your team records them on an accessible case.
           </EmptyState>
         )}

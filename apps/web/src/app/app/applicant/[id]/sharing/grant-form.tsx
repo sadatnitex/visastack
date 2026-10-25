@@ -23,11 +23,11 @@ const END_DATE = new Intl.DateTimeFormat('en-GB', {
 
 /** Curated, launch-safe permission set (read + collaborate; no original download / manage). */
 const SHAREABLE_ACTIONS: ReadonlyArray<{ value: string; label: string; defaultOn?: boolean }> = [
-  { value: 'VIEW_METADATA', label: 'See document details', defaultOn: true },
-  { value: 'PREVIEW', label: 'Preview documents', defaultOn: true },
-  { value: 'DOWNLOAD_REDACTED', label: 'Download redacted copies' },
+  { value: 'VIEW_METADATA', label: 'See Document Details', defaultOn: true },
+  { value: 'PREVIEW', label: 'Preview Documents', defaultOn: true },
+  { value: 'DOWNLOAD_REDACTED', label: 'Download Redacted Copies' },
   { value: 'COMMENT', label: 'Comment' },
-  { value: 'PROPOSE_EDIT', label: 'Propose edits' },
+  { value: 'PROPOSE_EDIT', label: 'Propose Edits' },
 ];
 
 function toggled(current: readonly string[], value: string, on: boolean): string[] {
@@ -157,7 +157,7 @@ export function GrantForm({
 
       <div className="field-row">
         <label className="field-label" htmlFor="recipientEmail">
-          Recipient email
+          Recipient Email
         </label>
         <input
           id="recipientEmail"
@@ -322,7 +322,7 @@ export function GrantForm({
 
       <div className="field-row">
         <label className="field-label" htmlFor="expiryDays">
-          Expires after (days)
+          Expires After (Days)
         </label>
         <input
           id="expiryDays"
@@ -388,12 +388,12 @@ export function GrantForm({
           }}
           aria-disabled={pending || undefined}
         >
-          Review and confirm
+          Review and Confirm
         </button>
         <SubmitButton
           unavailable={!reviewed || actions.length === 0}
           pending={pending}
-          idle="Confirm sharing request"
+          idle="Confirm Sharing Request"
           busy="Sharing…"
           className="btn btn-primary"
         />

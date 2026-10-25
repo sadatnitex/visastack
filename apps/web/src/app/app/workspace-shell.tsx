@@ -147,7 +147,7 @@ function WorkspaceSelector({
             {agency.name}
           </Link>
         ))}
-        {access.platform ? <Link href="/app/admin">Platform operations</Link> : null}
+        {access.platform ? <Link href="/app/admin">Platform Operations</Link> : null}
       </nav>
     </details>
   );
@@ -181,7 +181,7 @@ export function WorkspaceShell({
             <p className="workspace-assurance">
               <Icon name="shield" size={18} />
               <span>
-                <b>You control access</b>
+                <b>You Control Access</b>
                 <small>Sharing follows your saved permissions.</small>
               </span>
             </p>
@@ -192,7 +192,7 @@ export function WorkspaceShell({
               className="workspace-tools"
               open={nav.tools.some((item) => isCurrentPath(pathname, item))}
             >
-              <summary>More tools</summary>
+              <summary>More Tools</summary>
               <nav className="app-shell-links" aria-label="Contextual tools">
                 {nav.tools.map((item) => (
                   <Link

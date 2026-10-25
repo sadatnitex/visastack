@@ -21,9 +21,9 @@ describe('the error screen inside the signed-in area', () => {
     expect(text).toContain('you may need to enter it again');
     // It must not claim that nothing was lost: a half-typed form may be.
     expect(text).not.toContain('lost or damaged');
-    expect(text).toContain('Try again');
+    expect(text).toContain('Try Again');
     expect(text).toContain('Go to your overview');
-    expect(text).not.toContain('Back to home');
+    expect(text).not.toContain('Back to Home');
     expect(text).toContain('Get help');
     expect(text).toContain('quote reference 99');
   });

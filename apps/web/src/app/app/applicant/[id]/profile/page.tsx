@@ -145,8 +145,8 @@ export default async function ApplicantProfilePage({
     <div className="master-profile">
       <PageHeader
         as="h2"
-        eyebrow="Your canonical record"
-        title="My profile"
+        eyebrow="Your Canonical Record"
+        title="My Profile"
         description="One reusable set of details. Every saved change stays in your history."
         actions={
           data.coreGranted ? (
@@ -155,7 +155,7 @@ export default async function ApplicantProfilePage({
             </a>
           ) : (
             <Link className="btn btn-secondary" href="/app#permissions">
-              Review permissions
+              Review Permissions
             </Link>
           )
         }
@@ -213,7 +213,7 @@ export default async function ApplicantProfilePage({
             <EmptyState
               icon="lock"
               title="Choose whether to save your profile"
-              action={{ href: '/app#permissions', label: 'Review permissions' }}
+              action={{ href: '/app#permissions', label: 'Review Permissions' }}
             >
               Turn on “Let VisaStack process my details” on Home to edit this profile. Existing
               values are not changed.
@@ -225,7 +225,7 @@ export default async function ApplicantProfilePage({
           </p>
         </article>
         <aside className="split-rail" aria-label="Profile health and latest changes">
-          <h3>Profile health</h3>
+          <h3>Profile Health</h3>
           <article className="card rows">
             <div className="row">
               <span>Confirmed by applicant</span>
@@ -243,9 +243,9 @@ export default async function ApplicantProfilePage({
               These are distinct recorded states, not an overall verification score. Check field
               details for agency reviews and issuer confirmations.
             </p>
-            <Link href={`/app/applicant/${id}/expiry`}>Check document expiry →</Link>
+            <Link href={`/app/applicant/${id}/expiry`}>Check Document Expiry →</Link>
           </article>
-          <h3>Latest changes</h3>
+          <h3>Latest Changes</h3>
           <article className="card">
             {changes.length ? (
               <ol className="traveller-activity">
@@ -262,19 +262,19 @@ export default async function ApplicantProfilePage({
                 ))}
               </ol>
             ) : (
-              <EmptyState icon="activity" title="No saved changes yet">
+              <EmptyState icon="activity" title="No Saved Changes Yet">
                 Your saved field versions will appear here.
               </EmptyState>
             )}
-            <Link href={`/app/applicant/${id}/history`}>All profile history →</Link>
+            <Link href={`/app/applicant/${id}/history`}>All Profile History →</Link>
           </article>
           <div className="profile-review-note">
-            <strong>You decide what becomes a fact</strong>
+            <strong>You Decide What Becomes a Fact</strong>
             <p>
               AI suggestions do not change your profile until you approve them. Human and issuer
               assurance remain separate.
             </p>
-            <Link href={`/app/applicant/${id}/documents`}>Review document suggestions →</Link>
+            <Link href={`/app/applicant/${id}/documents`}>Review Document Suggestions →</Link>
           </div>
         </aside>
       </div>

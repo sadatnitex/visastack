@@ -14,8 +14,8 @@ describe('the public invitation page (v1.2 B09: neutral, no bearer access)', () 
     ['a malformed token', { kind: 'client', token: 'short' }],
   ])('shows only a neutral message for %s', async (_label, params) => {
     const text = textOf(await render(params));
-    expect(text).toContain('Incomplete invitation link');
-    expect(text).not.toContain('Create an account');
+    expect(text).toContain('Incomplete Invitation Link');
+    expect(text).not.toContain('Create an Account');
   });
 
   it('asks a client to use the invited email and returns them to the invitation after sign-in', async () => {

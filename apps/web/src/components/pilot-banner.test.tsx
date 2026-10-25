@@ -8,22 +8,22 @@ describe('the banner every page carries', () => {
     const text = textOf(
       await renderServer(<PilotBanner mode="controlled_pilot" registrationOpen />),
     );
-    expect(text).toContain('VisaStack public beta');
+    expect(text).toContain('VisaStack Public Beta');
     expect(text).toContain('Free to use at your own risk.');
     expect(text).toContain('virus scanning of uploads');
     expect(text).not.toContain('made-up details');
     expect(text).not.toContain('Invite-only');
     const smoke = readFileSync(new URL('../../scripts/smoke.mjs', import.meta.url), 'utf8');
-    expect(smoke).toContain('VisaStack public beta');
+    expect(smoke).toContain('VisaStack Public Beta');
   });
   it('says in plain words that the pilot is a test version for made-up or blacked-out information', async () => {
     const html = await renderServer(<PilotBanner mode="controlled_pilot" />);
     const text = textOf(html);
-    expect(text).toContain('VisaStack private pilot');
+    expect(text).toContain('VisaStack Private Pilot');
     expect(text).toContain('Invite-only test version.');
     expect(text).toContain('made-up details');
     expect(text).toContain('permanently blacked out');
-    expect(text).toContain('What works today');
+    expect(text).toContain('What Works Today');
     expect(html).toContain('href="/status"');
   });
 
@@ -37,7 +37,7 @@ describe('the banner every page carries', () => {
 
   it('says a development build is not for real personal data', async () => {
     const text = textOf(await renderServer(<PilotBanner mode="development" />));
-    expect(text).toContain('VisaStack test build');
+    expect(text).toContain('VisaStack Test Build');
     expect(text).toContain('Not for real personal data.');
   });
 

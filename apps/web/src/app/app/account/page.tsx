@@ -40,7 +40,7 @@ export default async function AccountPage() {
         </article>
 
         <article className="card">
-          <p className="card-kicker">Data rights</p>
+          <p className="card-kicker">Data Rights</p>
           <h2 className="card-title">Privacy</h2>
           <p className="card-body u-mb-125">
             Export your data, review consent history, or delete your account.
@@ -65,7 +65,7 @@ export default async function AccountPage() {
               ) : null}
               {data.isAdmin ? (
                 <Link className="row row-link" href="/app/admin">
-                  <span className="row-key">Platform administration</span>
+                  <span className="row-key">Platform Administration</span>
                   <span className="muted" aria-hidden="true">
                     →
                   </span>
@@ -77,7 +77,7 @@ export default async function AccountPage() {
 
         <article className="card">
           <p className="card-kicker">Session</p>
-          <h2 className="card-title">Signed in</h2>
+          <h2 className="card-title">Signed In</h2>
           <p className="card-body u-mb-125">Sign out of this device.</p>
           <form
             action={async () => {

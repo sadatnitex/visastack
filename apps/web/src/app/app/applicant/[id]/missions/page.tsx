@@ -14,14 +14,14 @@ export const dynamic = 'force-dynamic';
 const STATE_LABELS: Record<string, string> = {
   DRAFT: 'Draft',
   INTAKE: 'Intake',
-  IN_REVIEW: 'In review',
-  AWAITING_APPLICANT: 'Awaiting applicant',
-  SUBMISSION_READY: 'Submission ready',
+  IN_REVIEW: 'In Review',
+  AWAITING_APPLICANT: 'Awaiting Applicant',
+  SUBMISSION_READY: 'Submission Ready',
   SUBMITTED: 'Submitted',
-  IN_PROGRESS: 'In progress',
-  READY_FOR_REVIEW: 'Ready for review',
-  UNDER_REVIEW: 'Under review',
-  READY_TO_EXPORT: 'Ready to export',
+  IN_PROGRESS: 'In Progress',
+  READY_FOR_REVIEW: 'Ready for Review',
+  UNDER_REVIEW: 'Under Review',
+  READY_TO_EXPORT: 'Ready to Export',
   LOCKED: 'Locked',
   CLOSED: 'Closed',
   CANCELLED: 'Cancelled',
@@ -50,17 +50,17 @@ export default async function MissionsPage({
     <>
       <PageHeader
         eyebrow="Cases"
-        title="Visa cases"
+        title="Visa Cases"
         description="A case assembles this applicant's evidence against a published requirement pack."
         as="h2"
       />
 
       <div className="grid">
         <article className="card">
-          <p className="card-kicker">Your cases</p>
-          <h2 className="card-title">Active &amp; past</h2>
+          <p className="card-kicker">Your Cases</p>
+          <h2 className="card-title">Active &amp; Past</h2>
           {data.missions.length === 0 ? (
-            <EmptyState icon="briefcase" title="No cases yet">
+            <EmptyState icon="briefcase" title="No Cases Yet">
               A case checks this person's documents against the requirements of one visa route.
               Start one on the right.
             </EmptyState>
@@ -85,7 +85,7 @@ export default async function MissionsPage({
 
         <article className="card">
           <p className="card-kicker">New</p>
-          <h2 className="card-title">Start a case</h2>
+          <h2 className="card-title">Start a Case</h2>
           {data.coreGranted ? (
             <CreateMissionForm applicantId={id} />
           ) : (

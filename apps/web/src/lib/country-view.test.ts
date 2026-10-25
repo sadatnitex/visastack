@@ -36,7 +36,7 @@ function sourceOf() {
 describe('plain words for the entry rules', () => {
   it('names every status, and never says "no visa needed" for one not yet researched', () => {
     for (const status of ENTRY_ORDER) expect(ENTRY_LABEL[status].length).toBeGreaterThan(3);
-    expect(ENTRY_LABEL.NOT_FOUND).toBe('Not yet researched');
+    expect(ENTRY_LABEL.NOT_FOUND).toBe('Not Yet Researched');
     expect(ENTRY_LABEL.NOT_FOUND.toLowerCase()).not.toContain('no visa');
   });
 

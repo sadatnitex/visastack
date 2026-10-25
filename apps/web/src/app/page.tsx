@@ -28,8 +28,8 @@ interface PhoneFile {
 
 const PHONE_FILES: readonly PhoneFile[] = [
   { name: 'Passport', detail: 'Current record · Version 2', tag: 'Current' },
-  { name: 'Employment letter', detail: 'Added to Japan case', tag: 'Added' },
-  { name: 'Bank statement', detail: 'Newer copy requested', tag: 'Update', warning: true },
+  { name: 'Employment Letter', detail: 'Added to Japan case', tag: 'Added' },
+  { name: 'Bank Statement', detail: 'Newer copy requested', tag: 'Update', warning: true },
 ];
 
 interface Float {
@@ -46,26 +46,26 @@ const FLOATS: readonly Float[] = [
   {
     id: 'c1-fc1',
     icon: '⌛',
-    title: 'Document needs updating',
+    title: 'Document Needs Updating',
     detail: 'Bank statement · Japan case',
     warning: true,
   },
   {
     id: 'c1-fc2',
     icon: '▤',
-    title: 'Previous version kept',
+    title: 'Previous Version Kept',
     detail: 'History stays available to you',
   },
   {
     id: 'c1-fc3',
     icon: '◷',
-    title: 'Reminder before it expires',
+    title: 'Reminder Before It Expires',
     detail: 'Passport · sample record',
   },
   {
     id: 'c1-fc4',
     icon: '◉',
-    title: 'Access ends 30 November',
+    title: 'Access Ends 30 November',
     detail: 'Three selected records shared',
   },
 ];
@@ -92,7 +92,7 @@ interface Step {
 
 const STEPS: readonly Step[] = [
   {
-    title: 'Add your details once',
+    title: 'Add Your Details Once',
     body: 'Fill in your profile and upload your documents. Each change is saved with its date, so you can always see what was added and when.',
     icon: 'upload',
   },
@@ -127,8 +127,8 @@ const AUDIENCES: readonly Audience[] = [
     icon: 'user',
   },
   {
-    who: 'For agencies',
-    title: 'Stop chasing documents by message',
+    who: 'For Agencies',
+    title: 'Stop Chasing Documents by Message',
     points: [
       'Ask a client for a specific document and see when it arrives',
       'Open a case and see at once what is missing or overdue',
@@ -154,20 +154,20 @@ const HORIZONS: readonly {
   readonly state: 'now' | 'next' | 'later';
 }[] = [
   {
-    label: 'In the pilot today',
-    title: 'The core of one profile',
+    label: 'In the Pilot Today',
+    title: 'The Core of One Profile',
     body: 'Your profile with saved versions, a private document vault, document checks against official requirements, and sharing with agencies.',
     state: 'now',
   },
   {
-    label: 'Being switched on',
-    title: 'Help that stays in your hands',
+    label: 'Being Switched On',
+    title: 'Help That Stays in Your Hands',
     body: 'AI suggestions from your documents and earlier warnings before papers expire, each switched on step by step. The status page shows exactly what works today.',
     state: 'next',
   },
   {
     label: 'Where we are heading',
-    title: 'One trusted file for every journey',
+    title: 'One Trusted File for Every Journey',
     body: 'We are working toward a single, verified file that follows a person across visa routes and countries, and gives agencies a calm, clear way to work with it.',
     state: 'later',
   },
@@ -201,7 +201,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             quote reference <strong>{authError}</strong>.
           </p>
         ) : null}
-        <p className="c1-nudge">{betaOpen ? 'Free public beta' : 'Invite-only pilot'}</p>
+        <p className="c1-nudge">{betaOpen ? 'Free Public Beta' : 'Invite-Only Pilot'}</p>
         <h1 className="c1-headline" id="land-hero-title">
           {HERO_HEADLINE_FIRST}
           <br />
@@ -219,7 +219,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             </span>
           </a>
           <Link className="c1-pill c1-pill-light" href="/status">
-            See what works today
+            See What Works Today
           </Link>
         </div>
         <p className="c1-meta">One personal record. Separate cases. Explicit sharing.</p>
@@ -263,7 +263,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               </div>
               <div className="c1-phonepanel">
                 <p className="c1-next-label">NEXT ACTION</p>
-                <b className="c1-next-title">Replace bank statement</b>
+                <b className="c1-next-title">Replace Bank Statement</b>
                 <p className="c1-next-detail">Requested for your Japan visitor visa case.</p>
                 <span className="c1-capsule">Review request →</span>
               </div>
@@ -319,7 +319,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               </h3>
               <p>Find your current documents and see their earlier versions.</p>
               <div className="c1-miniui" aria-hidden="true">
-                <b>Personal record</b>
+                <b>Personal Record</b>
                 <div className="c1-fileline">
                   <span className="c1-fileico">▤</span>
                   <span className="c1-fileinfo">
@@ -377,7 +377,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       <section className="land-section land-problem" aria-labelledby="land-problem-title">
         <div className="land-wrap">
           <div className="land-head">
-            <p className="land-kicker">The problem</p>
+            <p className="land-kicker">The Problem</p>
             <h2 className="land-h2" id="land-problem-title">
               Every visa starts with the same scramble
             </h2>
@@ -416,9 +416,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       <section className="land-section" id="how-it-works" aria-labelledby="land-how-title">
         <div className="land-wrap">
           <div className="land-head">
-            <p className="land-kicker">Three simple steps</p>
+            <p className="land-kicker">Three Simple Steps</p>
             <h2 className="land-h2" id="land-how-title">
-              How it works
+              How It Works
             </h2>
             <p className="land-sub">Three steps, and the first one only happens once.</p>
           </div>
@@ -447,9 +447,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       >
         <div className="land-wrap">
           <div className="land-head">
-            <p className="land-kicker">What works today</p>
+            <p className="land-kicker">What Works Today</p>
             <h2 className="land-h2" id="land-cap-title">
-              Switched on step by step
+              Switched On Step by Step
             </h2>
             <p className="land-sub">
               {betaOpen ? 'VisaStack is in public beta' : 'VisaStack is in a private pilot'}, so
@@ -457,7 +457,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               Checking a file shows how complete it is, never a guess at your chances of approval.
             </p>
             <p className="land-trust-link">
-              <Link href="/status">See what works today</Link>
+              <Link href="/status">See What Works Today</Link>
             </p>
           </div>
         </div>
@@ -496,9 +496,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       <section className="land-section land-trust" aria-labelledby="land-trust-title">
         <div className="land-wrap">
           <div className="land-head">
-            <p className="land-kicker">Trust, built in</p>
+            <p className="land-kicker">Trust, Built In</p>
             <h2 className="land-h2" id="land-trust-title">
-              How VisaStack treats your information
+              How VisaStack Treats Your Information
             </h2>
             <p className="land-sub">
               These promises are built into how the product works, not options you have to switch
@@ -516,7 +516,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             ))}
           </ul>
           <p className="land-trust-link">
-            <Link href="/trust">Read our public trust page</Link>
+            <Link href="/trust">Read Our Public Trust Page</Link>
           </p>
         </div>
       </section>
@@ -524,7 +524,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       <section className="land-section" aria-labelledby="land-road-title">
         <div className="land-wrap">
           <div className="land-head">
-            <p className="land-kicker">The road ahead</p>
+            <p className="land-kicker">The Road Ahead</p>
             <h2 className="land-h2" id="land-road-title">
               Honest about where we are
             </h2>
@@ -566,7 +566,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                 <Icon name="arrow" size={18} />
               </a>
               <Link className="btn land-btn land-btn-ghost" href="/status">
-                See what works today
+                See What Works Today
               </Link>
             </div>
           </div>

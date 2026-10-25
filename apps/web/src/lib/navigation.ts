@@ -28,7 +28,7 @@ export const PRIMARY_NAV: readonly NavLink[] = [
     // A person's workspace and their case pages sit outside `/app/applicants`.
     alsoCurrentFor: ['/app/applicant/', '/app/mission/'],
   },
-  { href: '/app/shared', label: 'Shared with me' },
+  { href: '/app/shared', label: 'Shared with Me' },
   { href: '/app/notifications', label: 'Alerts' },
   { href: '/app/privacy', label: 'Privacy' },
   { href: '/app/countries', label: 'Countries' },
@@ -68,7 +68,7 @@ export function agencyTabs(orgId: string, access: { readonly admin: boolean }): 
     { href: `${base}/clients`, label: 'Clients', adminOnly: true },
     { href: `${base}/cases`, label: 'Cases' },
     { href: `${base}/team`, label: 'Team', adminOnly: true },
-    { href: `${base}/plan`, label: 'Usage & billing' },
+    { href: `${base}/plan`, label: 'Usage & Billing' },
     { href: `${base}/settings`, label: 'Settings', adminOnly: true },
   ];
   return tabs

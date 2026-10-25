@@ -8,7 +8,7 @@ const detail = (iso2: string) => renderServer(CountryPage({ params: Promise.reso
 describe('the country list page', () => {
   it('says how many countries are filled in and that the rest do not mean no visa is needed', async () => {
     const text = textOf(await renderServer(CountriesPage()));
-    expect(text).toContain('Visa rules for a Bangladeshi passport');
+    expect(text).toContain('Visa Rules for a Bangladeshi Passport');
     expect(text).toMatch(/\d+ of 156 countries have their rules filled in/);
     expect(text).toContain('does not mean no visa is needed');
     expect(text).toContain('not legal advice');
@@ -20,7 +20,7 @@ describe('a country page', () => {
     const html = await detail('gb');
     const text = textOf(html);
     expect(text).toContain('United Kingdom');
-    expect(text).toContain('Visa needed before you travel');
+    expect(text).toContain('Visa Needed Before You Travel');
     expect(text).toContain('Up to 180 days');
     expect(text).toContain('BDT 22,450');
     expect(text).toMatch(/Checked on \d+ \w+ 2026/);
@@ -36,7 +36,7 @@ describe('a country page', () => {
 
   it('gives every Schengen state the shared Schengen visa type', async () => {
     const text = textOf(await detail('at'));
-    expect(text).toContain('Visa types');
+    expect(text).toContain('Visa Types');
     expect(text).toMatch(/Schengen/i);
   });
 
@@ -47,9 +47,9 @@ describe('a country page', () => {
 
   it('says a country not yet researched is not yet researched, and never that no visa is needed', async () => {
     const text = textOf(await detail('kw'));
-    expect(text).toContain('Not yet researched');
+    expect(text).toContain('Not Yet Researched');
     expect(text).toContain('does not mean no visa is needed');
-    expect(text).not.toContain('No visa needed');
+    expect(text).not.toContain('No Visa Needed');
   });
 
   it('is case-insensitive about the code, and not found for an unknown one', async () => {

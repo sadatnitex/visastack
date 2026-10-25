@@ -83,8 +83,8 @@ describe('Platform > Access', () => {
   it('shows who holds a role and the state of every pilot invitation', async () => {
     const html = await renderServer(Page());
     const text = textOf(html);
-    expect(text).toContain('Platform roles');
-    expect(text).toContain('Platform owner');
+    expect(text).toContain('Platform Roles');
+    expect(text).toContain('Platform Owner');
     expect(text).toContain('Founder');
     expect(text).toContain('Pending');
     expect(text).toContain('Accepted');
@@ -117,12 +117,12 @@ describe('Platform > Access', () => {
   });
 
   it('explains legacy references without claiming current Neon sign-in is missing', async () => {
-    expect(textOf(await renderServer(Page()))).not.toContain('Legacy sign-in references');
+    expect(textOf(await renderServer(Page()))).not.toContain('Legacy Sign-In References');
     mocks.reportUnboundAccounts.mockResolvedValue([
       { id: 'a1', email: 'old@example.com', createdAt: new Date('2026-08-01'), applicantCount: 2 },
     ]);
     const text = textOf(await renderServer(Page()));
-    expect(text).toContain('Legacy sign-in references');
+    expect(text).toContain('Legacy Sign-In References');
     expect(text).toContain('even when its current sign-in works');
     expect(text).not.toContain('resolves itself');
     expect(text).not.toContain('column becomes required');
@@ -144,6 +144,6 @@ describe('Platform > Access', () => {
     const text = textOf(await renderServer(Page()));
     expect(text).toContain('Some sections could not be loaded');
     expect(text).toContain('invitations');
-    expect(text).toContain('Platform owner');
+    expect(text).toContain('Platform Owner');
   });
 });

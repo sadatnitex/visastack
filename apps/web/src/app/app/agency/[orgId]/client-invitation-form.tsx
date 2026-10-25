@@ -32,7 +32,7 @@ export function ClientInvitationForm({
       <input type="hidden" name="organizationId" value={organizationId} />
       <div className="field-row">
         <label className="field-label" htmlFor="displayName">
-          Traveller name
+          Traveller Name
         </label>
         <input
           id="displayName"
@@ -45,7 +45,7 @@ export function ClientInvitationForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="contactDestination">
-          Client email address
+          Client Email Address
         </label>
         <input
           id="contactDestination"
@@ -63,7 +63,7 @@ export function ClientInvitationForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="requestedRoute">
-          Requested route (optional)
+          Requested Route (Optional)
         </label>
         <input
           id="requestedRoute"
@@ -75,7 +75,7 @@ export function ClientInvitationForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="caseOwnerAccountId">
-          Case owner
+          Case Owner
         </label>
         <select id="caseOwnerAccountId" name="caseOwnerAccountId" className="input" required>
           {activeMembers.map((m) => (
@@ -88,7 +88,7 @@ export function ClientInvitationForm({
       <div>
         <SubmitButton
           pending={pending}
-          idle="Invite client"
+          idle="Invite Client"
           busy="Creating…"
           className="btn btn-secondary"
         />

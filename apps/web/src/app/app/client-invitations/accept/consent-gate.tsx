@@ -49,9 +49,9 @@ function ConsentToggle({
           <input type="hidden" name="granted" value="true" />
           <SubmitButton
             pending={pending}
-            idle="Turn on"
+            idle="Turn On"
             busy="Turning on…"
-            label={`Turn on: ${label}`}
+            label={`Turn On: ${label}`}
             className="btn btn-primary"
             style={{ padding: '0.35rem 1rem', fontSize: 'var(--text-small)' }}
           />

@@ -40,13 +40,13 @@ export default async function AdminAuditPage() {
 
           <article className="card u-mt-150" id="admin-audit">
             <p className="card-kicker">Transparency</p>
-            <h2 className="card-title">Recent audit events</h2>
+            <h2 className="card-title">Recent Audit Events</h2>
             <p className="card-body u-mb-100">
               The last {data.auditEvents.length} entries of the platform's append-only, hash-chained
               audit trail - every sensitive action across every tenant, newest first.
             </p>
             {data.auditEvents.length === 0 ? (
-              <EmptyState title="No audit events yet" icon="activity">
+              <EmptyState title="No Audit Events Yet" icon="activity">
                 Sensitive actions across the platform are recorded here as they happen.
               </EmptyState>
             ) : (

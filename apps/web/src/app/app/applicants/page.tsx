@@ -26,18 +26,18 @@ export default async function ApplicantsPage() {
     <section className="section container">
       <PageHeader
         eyebrow="Applicants"
-        title="People on your account"
+        title="People on Your Account"
         description="Yourself and anyone you manage records for - family members or a minor under your guardianship."
       />
 
       <div className="grid">
         <article className="card">
-          <p className="card-kicker">All applicants</p>
+          <p className="card-kicker">All Applicants</p>
           <h2 className="card-title">
             {data.applicants.length} {data.applicants.length === 1 ? 'person' : 'people'}
           </h2>
           {data.applicants.length === 0 ? (
-            <EmptyState icon="users" title="No applicants yet">
+            <EmptyState icon="users" title="No Applicants Yet">
               Add yourself first. Your passport details and documents are entered once and reused
               for every application.
             </EmptyState>
@@ -62,7 +62,7 @@ export default async function ApplicantsPage() {
 
         <article className="card">
           <p className="card-kicker">New</p>
-          <h2 className="card-title">Add an applicant</h2>
+          <h2 className="card-title">Add an Applicant</h2>
           {data.coreGranted ? (
             <AddApplicantForm />
           ) : (

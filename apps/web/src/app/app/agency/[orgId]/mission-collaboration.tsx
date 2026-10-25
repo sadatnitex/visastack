@@ -366,7 +366,7 @@ export function MissionCollaboration({
               </option>
             ))}
           </select>
-          <input name="dueDate" type="date" className="input" aria-label="Due date (optional)" />
+          <input name="dueDate" type="date" className="input" aria-label="Due Date (Optional)" />
           <SubmitButton
             pending={taskCreatePending}
             idle="Add"
@@ -511,7 +511,7 @@ export function MissionCollaboration({
                   className={`badge ${n.visibility === 'AGENCY_INTERNAL' ? 'badge-warning' : 'badge-success'}`}
                   style={{ fontSize: 'var(--text-caption)', marginRight: '0.35rem' }}
                 >
-                  {n.visibility === 'AGENCY_INTERNAL' ? 'Internal' : 'Shared with traveller'}
+                  {n.visibility === 'AGENCY_INTERNAL' ? 'Internal' : 'Shared with Traveller'}
                 </span>
                 <span>{n.body}</span>{' '}
                 <span className="muted u-fs-075">
@@ -543,8 +543,8 @@ export function MissionCollaboration({
             <option value="" disabled>
               Visibility…
             </option>
-            <option value="AGENCY_INTERNAL">Internal (this org only)</option>
-            <option value="TRAVELLER_SHARED">Shared with traveller</option>
+            <option value="AGENCY_INTERNAL">Internal (This Org Only)</option>
+            <option value="TRAVELLER_SHARED">Shared with Traveller</option>
           </select>
           <SubmitButton
             pending={notePending}
@@ -626,7 +626,7 @@ export function MissionCollaboration({
                 name="reason"
                 type="text"
                 className="input"
-                placeholder="Reason (optional)"
+                placeholder="Reason (Optional)"
                 aria-label="Decision reason"
               />
               <SubmitButton
@@ -739,7 +739,7 @@ export function MissionCollaboration({
             />
             <SubmitButton
               pending={issuerPending}
-              idle="Record confirmation"
+              idle="Record Confirmation"
               busy="Recording…"
               className="btn btn-secondary u-btn-sm"
             />

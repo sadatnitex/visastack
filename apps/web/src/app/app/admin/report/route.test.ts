@@ -13,7 +13,7 @@ it('refuses the current actor when the independent service permission check deni
   const response = await GET();
   expect(response.status).toBe(403);
   expect(response.headers.get('Cache-Control')).toBe('private, no-store');
-  expect(await response.text()).not.toContain('Registered accounts');
+  expect(await response.text()).not.toContain('Registered Accounts');
   expect(mocks.getPlatformOverview.mock.calls[0]?.[1]).toEqual({
     accountId: 'trusted-role',
     email: 'synthetic@example.test',

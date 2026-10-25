@@ -27,13 +27,13 @@ interface BannerCopy {
  */
 export const PILOT_BANNER_COPY = {
   controlled_pilot: {
-    label: 'VisaStack private pilot',
+    label: 'VisaStack Private Pilot',
     detail:
       'Invite-only test version. Please use made-up details, or documents with all personal information permanently blacked out.',
     short: 'Test version. Made-up details only.',
   },
   development: {
-    label: 'VisaStack test build',
+    label: 'VisaStack Test Build',
     detail: 'Test build. Not for real personal data.',
     short: 'Not for real personal data.',
   },
@@ -50,7 +50,7 @@ export function PilotBanner({
   const copy =
     mode === 'controlled_pilot' && registrationOpen
       ? {
-          label: 'VisaStack public beta',
+          label: 'VisaStack Public Beta',
           detail:
             'Free to use at your own risk. Some protections, such as virus scanning of uploads, are not switched on yet.',
           short: 'Free, at your own risk.',
@@ -65,7 +65,7 @@ export function PilotBanner({
       <span className="pilot-banner-detail">{copy.detail}</span>
       <span className="pilot-banner-short">{copy.short}</span>
       <a className="pilot-banner-link" href="/status">
-        What works today
+        What Works Today
       </a>
     </section>
   );

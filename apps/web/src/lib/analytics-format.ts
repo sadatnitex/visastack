@@ -1,12 +1,13 @@
+import { humanizeCode } from './format-code';
+
 /**
  * Presentation helpers for the admin analytics card (Commercial V1 OPS-04).
  * Pure functions, no I/O, so the wording and the arithmetic are unit-tested.
  */
 
-/** `IN_REVIEW` -> `In review`. Labels in the event log are UPPER_SNAKE tokens. */
+/** `IN_REVIEW` -> `In Review`. Labels in the event log are UPPER_SNAKE tokens, read as terms. */
 export function humanizeLabel(token: string): string {
-  const words = token.toLowerCase().replace(/_/g, ' ').trim();
-  return words.length === 0 ? words : words.charAt(0).toUpperCase() + words.slice(1);
+  return humanizeCode(token);
 }
 
 /** A span of seconds as at most two units, largest first: `2 d 3 h`, `45 min`, `30 s`. */

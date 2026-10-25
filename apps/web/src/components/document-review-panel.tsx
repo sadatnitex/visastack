@@ -31,12 +31,12 @@ export function DocumentReviewPanel({
   const selected = matches.find((document) => document.id === selectedId) ?? matches[0];
   return (
     <aside className="card document-review-panel" aria-label="Document details">
-      <p className="card-kicker">Your document</p>
-      <h2 className="card-title">Review and preview</h2>
+      <p className="card-kicker">Your Document</p>
+      <h2 className="card-title">Review and Preview</h2>
       {documents.length ? (
         <>
           <label className="field-label" htmlFor="review-document-search">
-            Find a document
+            Find a Document
           </label>
           <input
             className="input"
@@ -81,7 +81,7 @@ export function DocumentReviewPanel({
               <input type="hidden" name="applicantId" value={applicantId} />
               <input type="hidden" name="documentId" value={selected.id} />
               <button type="submit" className="btn btn-primary">
-                Open secure preview
+                Open Secure Preview
               </button>
             </form>
           ) : (

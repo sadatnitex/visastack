@@ -7,10 +7,10 @@ import { CountryBrowser, type CountryBrowserItem } from './country-browser';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const filters = [
-  { status: 'VISA_REQUIRED', label: 'Visa needed', statusLabel: 'Visa needed before you travel' },
-  { status: 'E_VISA', label: 'E-visa', statusLabel: 'Online visa (e-visa)' },
-  { status: 'VISA_FREE', label: 'No visa needed', statusLabel: 'No visa needed' },
-  { status: 'NOT_FOUND', label: 'Not yet researched', statusLabel: 'Not yet researched' },
+  { status: 'VISA_REQUIRED', label: 'Visa Needed', statusLabel: 'Visa Needed Before You Travel' },
+  { status: 'E_VISA', label: 'E-Visa', statusLabel: 'Online Visa (E-Visa)' },
+  { status: 'VISA_FREE', label: 'No Visa Needed', statusLabel: 'No Visa Needed' },
+  { status: 'NOT_FOUND', label: 'Not Yet Researched', statusLabel: 'Not Yet Researched' },
 ] as const;
 const items: CountryBrowserItem[] = [
   {
@@ -77,23 +77,23 @@ describe('the country list controls', () => {
   });
 
   it('filters by entry rule and shows each rule in plain words on the row', () => {
-    press('E-visa');
+    press('E-Visa');
     expect(names()).toEqual(['Vietnam']);
-    expect(container.textContent).toContain('Online visa (e-visa)');
+    expect(container.textContent).toContain('Online Visa (E-Visa)');
   });
 
   it('shows not-yet-researched countries as such, with a warning tone, never as no visa needed', () => {
-    press('Not yet researched');
+    press('Not Yet Researched');
     expect(names()).toEqual(['Kuwait']);
-    expect(container.querySelector('.badge-warning')?.textContent).toBe('Not yet researched');
-    expect(container.textContent).not.toContain('No visa needed');
+    expect(container.querySelector('.badge-warning')?.textContent).toBe('Not Yet Researched');
+    expect(container.textContent).not.toContain('No Visa Needed');
   });
 
   it('hides a filter that no country matches', () => {
     expect(
       [...container.querySelectorAll('button')].some(
         (b) =>
-          b.textContent?.includes('No visa needed') &&
+          b.textContent?.includes('No Visa Needed') &&
           b.getAttribute('aria-pressed') !== null &&
           b.textContent?.includes('0'),
       ),
@@ -113,14 +113,14 @@ describe('the country list controls', () => {
     type('vn');
     expect(names()).toEqual(['Vietnam']);
     type('zzz');
-    expect(container.textContent).toContain('No countries match');
+    expect(container.textContent).toContain('No Countries Match');
   });
 
   it('flags a country that needs checking on its row', () => {
     const japan = [...container.querySelectorAll('.country-row')].find((r) =>
       r.textContent?.includes('Japan'),
     );
-    expect(japan?.textContent).toContain('Needs checking');
+    expect(japan?.textContent).toContain('Needs Checking');
   });
 });
 

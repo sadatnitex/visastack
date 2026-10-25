@@ -39,12 +39,12 @@ export function CreateMissionForm({ applicantId }: { readonly applicantId: strin
         />
       </div>
       <Disclosure
-        title="Add more details (optional)"
+        title="Add More Details (Optional)"
         hint="Purpose, family trip label, dates and deadline"
       >
         <div className="field-row">
           <label className="field-label" htmlFor="purpose">
-            Purpose (optional)
+            Purpose (Optional)
           </label>
           <input
             id="purpose"
@@ -56,7 +56,7 @@ export function CreateMissionForm({ applicantId }: { readonly applicantId: strin
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="itineraryRef">
-            Family trip label (optional)
+            Family Trip Label (Optional)
           </label>
           <input
             id="itineraryRef"
@@ -80,7 +80,7 @@ export function CreateMissionForm({ applicantId }: { readonly applicantId: strin
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="serviceCategory">
-            Service category (optional)
+            Service Category (Optional)
           </label>
           <input
             id="serviceCategory"
@@ -92,7 +92,7 @@ export function CreateMissionForm({ applicantId }: { readonly applicantId: strin
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="travelStartDate">
-            Travel dates (optional)
+            Travel Dates (Optional)
           </label>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <input
@@ -113,7 +113,7 @@ export function CreateMissionForm({ applicantId }: { readonly applicantId: strin
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="targetDeadline">
-            Target deadline (optional)
+            Target Deadline (Optional)
           </label>
           <input id="targetDeadline" name="targetDeadline" type="date" className="input" />
         </div>
@@ -121,7 +121,7 @@ export function CreateMissionForm({ applicantId }: { readonly applicantId: strin
       <div>
         <SubmitButton
           pending={pending}
-          idle="Create case"
+          idle="Create Case"
           busy="Creating…"
           className="btn btn-primary"
         />

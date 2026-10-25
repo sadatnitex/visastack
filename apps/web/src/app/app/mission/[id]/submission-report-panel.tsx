@@ -10,9 +10,9 @@ const INITIAL: ActionState = { ok: true, message: '' };
 const CHANNEL_LABELS: Record<string, string> = {
   EMBASSY_PORTAL: 'Embassy / consulate portal',
   EMAIL: 'Email',
-  IN_PERSON: 'In person',
+  IN_PERSON: 'In Person',
   COURIER: 'Courier',
-  VISA_APPLICATION_CENTER: 'Visa application centre',
+  VISA_APPLICATION_CENTER: 'Visa Application Centre',
   OTHER: 'Other',
 };
 
@@ -39,7 +39,7 @@ export function SubmissionReportPanel({
   return (
     <article className="card">
       <p className="card-kicker">Filing</p>
-      <h2 className="card-title">Submission report</h2>
+      <h2 className="card-title">Submission Report</h2>
       {submissions.length > 0 ? (
         <div className="rows u-mb-125">
           {submissions.map((s) => (
@@ -97,7 +97,7 @@ export function SubmissionReportPanel({
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor="externalReference">
-              Reference number (optional)
+              Reference Number (Optional)
             </label>
             <input
               id="externalReference"
@@ -116,7 +116,7 @@ export function SubmissionReportPanel({
           <div>
             <SubmitButton
               pending={pending}
-              idle="Report submission"
+              idle="Report Submission"
               busy="Recording…"
               className="btn btn-secondary"
             />
@@ -125,7 +125,7 @@ export function SubmissionReportPanel({
         </form>
       ) : (
         <p className="muted u-fs-085">
-          This case must reach "Submission ready" (with a live acknowledgement) before a submission
+          This case must reach "Submission Ready" (with a live acknowledgement) before a submission
           can be reported.
         </p>
       )}

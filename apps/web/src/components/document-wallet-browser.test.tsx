@@ -97,7 +97,7 @@ describe('real wallet metadata controls and selected detail slots', () => {
     expect(container.querySelector('output')?.textContent).toContain(
       '0 documents match. Page 1 of 1',
     );
-    expect(container.textContent).toContain('No documents match');
+    expect(container.textContent).toContain('No Documents Match');
   });
 });
 
@@ -144,7 +144,7 @@ describe('documents with no kind set', () => {
   it('lists only those documents when "Not set yet" is chosen', () => {
     const select = container.querySelector('select') as HTMLSelectElement;
     expect([...select.options].map((option) => option.textContent)).toEqual([
-      'All categories',
+      'All Categories',
       'Identity',
       'Not set yet',
     ]);

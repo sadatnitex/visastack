@@ -76,7 +76,7 @@ describe('page titles', () => {
       staticTitle.exec(pages.find((p) => p.file === file)?.source ?? '')?.[1];
     expect(titleOf('app/applicants/page.tsx')).toBe('Applicants');
     expect(titleOf('app/notifications/page.tsx')).toBe('Alerts');
-    expect(titleOf('app/shared/page.tsx')).toBe('Shared with me');
+    expect(titleOf('app/shared/page.tsx')).toBe('Shared with Me');
     expect(titleOf('app/applicant/[id]/documents/page.tsx')).toBe('Documents');
     expect(titleOf('app/applicant/[id]/missions/page.tsx')).toBe('Cases');
   });

@@ -36,7 +36,7 @@ export default function GlobalError({
         }}
       >
         <main style={{ maxWidth: '32rem' }}>
-          <h1 style={{ fontSize: '1.5rem', marginBottom: '0.75rem' }}>Something went wrong</h1>
+          <h1 style={{ fontSize: '1.5rem', marginBottom: '0.75rem' }}>Something Went Wrong</h1>
           <p style={{ color: '#6e6e73', marginBottom: '1.5rem' }}>
             An unexpected error interrupted the page. Please try again.
           </p>
@@ -53,7 +53,7 @@ export default function GlobalError({
               cursor: 'pointer',
             }}
           >
-            Try again
+            Try Again
           </button>
           {error.digest ? (
             <p style={{ marginTop: '1.5rem', fontSize: 'var(--text-small)', color: '#86868b' }}>

@@ -29,7 +29,7 @@ export function AgencyWorkspaceHeading({
             <span aria-hidden="true">{'←'}</span> Agency overview
           </Link>
         ) : null}
-        <span className="eyebrow">Agency workspace</span>
+        <span className="eyebrow">Agency Workspace</span>
         <h1 className="page-title">{brand.name}</h1>
         <p className="page-description">Your clients, cases and team in one place.</p>
         <p className="agency-hero-attribution">Powered by VisaStack</p>
@@ -37,7 +37,7 @@ export function AgencyWorkspaceHeading({
       <div className="page-actions">
         {overview && admin ? (
           <Link className="btn btn-primary" href={`${base}/clients`}>
-            Invite traveller
+            Invite Traveller
           </Link>
         ) : null}
         {status}

@@ -20,40 +20,40 @@ const ICONS: Readonly<Record<string, IconName>> = {
 
 const CONTEXT_ICONS: Readonly<Record<string, IconName>> = {
   Overview: 'home',
-  'My profile': 'user',
+  'My Profile': 'user',
   Documents: 'folder',
-  'Visa cases': 'briefcase',
+  'Visa Cases': 'briefcase',
   Sharing: 'share',
   Notifications: 'bell',
   Countries: 'globe',
   Settings: 'settings',
-  'Agency settings': 'settings',
-  'Platform settings': 'settings',
-  'Help & support': 'shield',
+  'Agency Settings': 'settings',
+  'Platform Settings': 'settings',
+  'Help & Support': 'shield',
   Clients: 'users',
   Cases: 'briefcase',
-  'Evidence requests': 'clipboard',
+  'Evidence Requests': 'clipboard',
   Team: 'users',
-  'Activity log': 'activity',
-  'Case activity': 'activity',
+  'Activity Log': 'activity',
+  'Case Activity': 'activity',
   Members: 'users',
   Organizations: 'building',
   Activity: 'activity',
   Providers: 'folder',
-  'Costs & plans': 'briefcase',
+  'Costs & Plans': 'briefcase',
   Security: 'shield',
 };
 
 /** How many links stay on the bar at the bottom of a phone; the rest sit under "More". */
 const BAR_LINKS = 4;
 const MOBILE_LABELS: Readonly<Record<string, string>> = {
-  'My profile': 'Profile',
-  'Visa cases': 'Cases',
-  'Choose a traveller': 'Travellers',
-  'Add a traveller': 'Add traveller',
-  'Evidence requests': 'Requests',
-  'Activity log': 'Activity',
-  'Case activity': 'Activity',
+  'My Profile': 'Profile',
+  'Visa Cases': 'Cases',
+  'Choose a Traveller': 'Travellers',
+  'Add a Traveller': 'Add Traveller',
+  'Evidence Requests': 'Requests',
+  'Activity Log': 'Activity',
+  'Case Activity': 'Activity',
 };
 
 /**
@@ -177,7 +177,7 @@ export function AppNav({
               {pathname.startsWith('/app/admin')
                 ? 'Platform workspace'
                 : pathname.startsWith('/app/agency')
-                  ? 'Agency workspace'
+                  ? 'Agency Workspace'
                   : 'Personal workspace'}
             </b>
             <small>{accountLabel ?? 'Account details'}</small>
@@ -208,7 +208,7 @@ export function AppNav({
       </div>
       <div className="app-more" id={panelId} ref={panelRef}>
         <div className="app-more-heading">
-          <strong>Workspace navigation</strong>
+          <strong>Workspace Navigation</strong>
           <button
             type="button"
             className="btn btn-secondary"
@@ -254,8 +254,8 @@ export function WorkspaceToolbar({
   const finderId = useId();
   const destinations = [
     ...PRIMARY_NAV,
-    { href: '/app/agency', label: 'Agency workspace' },
-    ...(isAdmin ? [{ href: '/app/admin', label: 'Platform administration' }] : []),
+    { href: '/app/agency', label: 'Agency Workspace' },
+    ...(isAdmin ? [{ href: '/app/admin', label: 'Platform Administration' }] : []),
   ];
   const matches = destinations.filter((item) =>
     item.label.toLowerCase().includes(query.trim().toLowerCase()),
@@ -274,9 +274,9 @@ export function WorkspaceToolbar({
     return () => document.removeEventListener('keydown', shortcut);
   }, []);
   const context = pathname.startsWith('/app/admin')
-    ? 'Platform administration'
+    ? 'Platform Administration'
     : pathname.startsWith('/app/agency')
-      ? 'Agency workspace'
+      ? 'Agency Workspace'
       : 'Personal workspace';
   return (
     <header className="workspace-toolbar">
@@ -287,7 +287,7 @@ export function WorkspaceToolbar({
       <div className="workspace-finder">
         <Icon name="search" size={19} />
         <label className="sr-only" htmlFor={finderId}>
-          Find a page
+          Find a Page
         </label>
         <input
           id={finderId}
@@ -323,7 +323,7 @@ export function WorkspaceToolbar({
         <Link href="/app/notifications" aria-label="Notifications">
           <Icon name="bell" size={20} />
         </Link>
-        <Link href="/app/account" aria-label="Your account">
+        <Link href="/app/account" aria-label="Your Account">
           <Icon name="user" size={20} />
           {accountLabel ? <span className="workspace-identity">{accountLabel}</span> : null}
         </Link>

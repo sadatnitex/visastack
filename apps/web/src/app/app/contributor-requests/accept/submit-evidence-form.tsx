@@ -46,7 +46,7 @@ export function SubmitEvidenceForm({
           </label>
           <SubmitButton
             pending={pending}
-            idle="Submit document"
+            idle="Submit Document"
             busy="Uploading…"
             className="btn btn-primary"
           />

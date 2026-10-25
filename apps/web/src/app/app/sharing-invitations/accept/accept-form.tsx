@@ -16,7 +16,7 @@ export function AcceptSharingInvitationForm({ token }: { readonly token: string 
         <input type="checkbox" name="confirm" value="true" required /> I have reviewed the purpose,
         permissions, document scope and expiry and agree to this access.
       </label>
-      <SubmitButton pending={pending} idle="Accept shared access" busy="Accepting..." />
+      <SubmitButton pending={pending} idle="Accept Shared Access" busy="Accepting..." />
       <FormMessage result={state} />
     </form>
   );

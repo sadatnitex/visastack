@@ -31,7 +31,7 @@ export function InviteForm() {
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="inviteReason">
-          Reason (optional)
+          Reason (Optional)
         </label>
         <input
           id="inviteReason"
@@ -55,10 +55,10 @@ export function InviteForm() {
 }
 
 const PLATFORM_ROLE_OPTIONS = [
-  { value: 'PLATFORM_OWNER', label: 'Platform owner' },
-  { value: 'SECURITY_ADMIN', label: 'Security admin' },
-  { value: 'COMPLIANCE_ADMIN', label: 'Compliance admin' },
-  { value: 'SUPPORT_ADMIN', label: 'Support admin' },
+  { value: 'PLATFORM_OWNER', label: 'Platform Owner' },
+  { value: 'SECURITY_ADMIN', label: 'Security Admin' },
+  { value: 'COMPLIANCE_ADMIN', label: 'Compliance Admin' },
+  { value: 'SUPPORT_ADMIN', label: 'Support Admin' },
 ] as const;
 
 export function GrantRoleForm() {
@@ -109,7 +109,7 @@ export function GrantRoleForm() {
       <div>
         <SubmitButton
           pending={pending}
-          idle="Grant role"
+          idle="Grant Role"
           busy="Granting…"
           className="btn btn-primary"
         />
@@ -125,7 +125,7 @@ export function RetentionPolicyForm() {
     <form action={formAction} className="field-list">
       <div className="field-row">
         <label className="field-label" htmlFor="docType">
-          Document type
+          Document Type
         </label>
         <input
           id="docType"
@@ -139,7 +139,7 @@ export function RetentionPolicyForm() {
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="retentionDays">
-          Retention (days)
+          Retention (Days)
         </label>
         <input
           id="retentionDays"
@@ -154,7 +154,7 @@ export function RetentionPolicyForm() {
       <div>
         <SubmitButton
           pending={pending}
-          idle="Set policy"
+          idle="Set Policy"
           busy="Saving…"
           className="btn btn-primary"
         />
@@ -207,7 +207,7 @@ export function LegalHoldForm({ applicants }: LegalHoldFormProps) {
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="reviewAt">
-          Review by
+          Review By
         </label>
         <input id="reviewAt" name="reviewAt" type="date" required className="input" />
       </div>
@@ -222,9 +222,9 @@ export function LegalHoldForm({ applicants }: LegalHoldFormProps) {
           defaultValue="applicant"
           onChange={(e) => setScope(e.target.value as 'applicant' | 'mission' | 'document')}
         >
-          <option value="applicant">Whole applicant (default)</option>
-          <option value="mission">One case only</option>
-          <option value="document">One document only</option>
+          <option value="applicant">Whole Applicant (Default)</option>
+          <option value="mission">One Case Only</option>
+          <option value="document">One Document Only</option>
         </select>
       </div>
       {scope === 'mission' ? (
@@ -260,7 +260,7 @@ export function LegalHoldForm({ applicants }: LegalHoldFormProps) {
       <div>
         <SubmitButton
           pending={pending}
-          idle="Place legal hold"
+          idle="Place Legal Hold"
           busy="Placing…"
           className="btn btn-danger"
         />

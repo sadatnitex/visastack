@@ -74,14 +74,14 @@ export const dynamic = 'force-dynamic';
 const STATE_LABELS: Record<string, string> = {
   DRAFT: 'Draft',
   INTAKE: 'Intake',
-  IN_REVIEW: 'In review',
-  AWAITING_APPLICANT: 'Awaiting applicant',
-  SUBMISSION_READY: 'Submission ready',
+  IN_REVIEW: 'In Review',
+  AWAITING_APPLICANT: 'Awaiting Applicant',
+  SUBMISSION_READY: 'Submission Ready',
   SUBMITTED: 'Submitted',
-  IN_PROGRESS: 'In progress',
-  READY_FOR_REVIEW: 'Ready for review',
-  UNDER_REVIEW: 'Under review',
-  READY_TO_EXPORT: 'Ready to export',
+  IN_PROGRESS: 'In Progress',
+  READY_FOR_REVIEW: 'Ready for Review',
+  UNDER_REVIEW: 'Under Review',
+  READY_TO_EXPORT: 'Ready to Export',
   LOCKED: 'Locked',
   CLOSED: 'Closed',
   CANCELLED: 'Cancelled',
@@ -95,9 +95,9 @@ const PACKET_STATES: ReadonlySet<string> = new Set(['READY_TO_EXPORT', 'LOCKED',
 // RUL-04's four case-level outcomes (directive §10 case-readiness experience),
 // never averaged from the per-requirement states below.
 const OVERALL_STATE_META: Record<OverallReadinessState, { label: string; tone: string }> = {
-  READY_FOR_APPLICANT_REVIEW: { label: 'Ready for review', tone: 'badge-success' },
-  NEEDS_REVIEW: { label: 'Needs review', tone: 'badge-warning' },
-  NEEDS_ACTION: { label: 'Needs action', tone: 'badge-danger' },
+  READY_FOR_APPLICANT_REVIEW: { label: 'Ready for Review', tone: 'badge-success' },
+  NEEDS_REVIEW: { label: 'Needs Review', tone: 'badge-warning' },
+  NEEDS_ACTION: { label: 'Needs Action', tone: 'badge-danger' },
   MANUAL_ONLY: { label: 'Manual · not automatically assessed', tone: 'badge-neutral' },
 };
 
@@ -120,7 +120,7 @@ const REQUIREMENT_STATE_META: Record<
     order: 1,
   },
   EXPIRING_STALE: {
-    label: 'Out Of Date',
+    label: 'Out of Date',
     tone: 'badge-danger',
     next: 'The evidence on file is too old for this route. Add a current version.',
     order: 2,
@@ -160,17 +160,17 @@ const NEXT_STEP_COPY: Record<
   missing: {
     title: (count) => `Fix ${plural(count, 'required item', 'required items')}`,
     body: 'Some required items are missing, out of date or do not match.',
-    action: 'See what needs fixing',
+    action: 'See What Needs Fixing',
   },
   unconfirmed: {
     title: (count) => `Confirm ${plural(count, 'item', 'items')}`,
     body: 'Whether these apply depends on case details that are not confirmed yet.',
-    action: 'See what to confirm',
+    action: 'See What to Confirm',
   },
   tasks: {
     title: (count) => `Finish ${plural(count, 'open task', 'open tasks')}`,
     body: 'Your open tasks are listed under Tasks, appointments and letters.',
-    action: 'Open tasks',
+    action: 'Open Tasks',
   },
 };
 
@@ -520,7 +520,7 @@ export default async function MissionPage({
       ? [
           {
             kind: 'changed' as const,
-            label: 'Changed since confirmed',
+            label: 'Changed Since Confirmed',
             href: '#snapshots',
             count: 1,
             tone: 'danger' as const,
@@ -613,7 +613,7 @@ export default async function MissionPage({
           </p>
           <SnapshotButton
             missionId={mission.id}
-            label="Take a new snapshot"
+            label="Take a New Snapshot"
             primary
             align="start"
           />
@@ -623,7 +623,7 @@ export default async function MissionPage({
       {nextStep && nextStep.kind !== 'changed' ? (
         <section className="case-next-step" aria-labelledby="case-next-step-heading">
           <h2 className="case-next-step-kicker" id="case-next-step-heading">
-            Next step
+            Next Step
           </h2>
           <p className="case-next-step-title">
             {NEXT_STEP_COPY[nextStep.kind].title(nextStep.count)}
@@ -718,7 +718,7 @@ export default async function MissionPage({
                 ) : null}
                 {data.requirementDetails.length > 0 ? (
                   <>
-                    <h3 className="case-checklist-heading">Evidence checklist</h3>
+                    <h3 className="case-checklist-heading">Evidence Checklist</h3>
                     {REQUIREMENT_GROUPS.map((group) => {
                       const groupRows = data.requirementDetails.filter((r) =>
                         group.states.includes(r.state),
@@ -771,7 +771,7 @@ export default async function MissionPage({
                                         <>
                                           {' '}
                                           <Link href={`/app/applicant/${data.applicantId}/profile`}>
-                                            Resolve on profile →
+                                            Resolve on Profile →
                                           </Link>
                                         </>
                                       ) : null}
@@ -805,7 +805,7 @@ export default async function MissionPage({
                                       className="badge badge-danger"
                                       style={{ alignSelf: 'flex-start' }}
                                     >
-                                      Source currently unreachable - under review
+                                      Source Currently Unreachable - Under Review
                                     </span>
                                   ) : null}
                                   {data.explanationConfigured &&
@@ -870,7 +870,7 @@ export default async function MissionPage({
           </Disclosure>
 
           <Disclosure
-            title="Tasks, appointments and letters"
+            title="Tasks, Appointments and Letters"
             hint="Open when you need to make a change"
           >
             <div className="grid u-mt-150" id="work">
@@ -895,13 +895,13 @@ export default async function MissionPage({
 
           <div id="notes">
             <Disclosure
-              title="Contributors and notes from your agency"
+              title="Contributors and Notes from Your Agency"
               hint="Ask a sponsor for one document, read shared notes"
             >
               <div className="grid">
                 <article className="card">
                   <p className="card-kicker">Delegate</p>
-                  <h2 className="card-title">Ask a contributor</h2>
+                  <h2 className="card-title">Ask a Contributor</h2>
                   <p className="card-body u-mb-125">
                     Ask a sponsor or family member - who never gets a wallet, profile, or case view
                     of any kind - for exactly one named document. They see only what you type below
@@ -915,7 +915,7 @@ export default async function MissionPage({
 
                 <article className="card">
                   <p className="card-kicker">Collaboration</p>
-                  <h2 className="card-title">Notes from your agency</h2>
+                  <h2 className="card-title">Notes from Your Agency</h2>
                   <p className="card-body u-mb-125">
                     Notes an agency working this case has chosen to share with you. An agency's own
                     internal notes are never shown here.
@@ -946,7 +946,7 @@ export default async function MissionPage({
             </Disclosure>
           </div>
 
-          <Disclosure title="Submission and outcome" hint="Open when you need to make a change">
+          <Disclosure title="Submission and Outcome" hint="Open when you need to make a change">
             <div className="grid u-mt-150" id="outcome">
               <SubmissionReportPanel
                 missionId={mission.id}
@@ -963,7 +963,7 @@ export default async function MissionPage({
 
           <div className="u-mt-150">
             <Disclosure
-              title="Problems and feedback"
+              title="Problems and Feedback"
               hint="Raise a complaint or give feedback on this case"
             >
               <div className="grid">
@@ -980,7 +980,7 @@ export default async function MissionPage({
         <aside className="split-rail" aria-label="About this case">
           <article className="card">
             <p className="card-kicker">Case</p>
-            <h2 className="card-title">Case details</h2>
+            <h2 className="card-title">Case Details</h2>
             <p className="card-body">
               {mission.jurisdiction || 'Jurisdiction not set'}
               {mission.serviceCategory ? ` · ${mission.serviceCategory}` : ''}
@@ -992,7 +992,7 @@ export default async function MissionPage({
               {mission.travelEndDate ? ` to ${formatDateOnly(mission.travelEndDate)}` : ''}
             </p>
             <details className="case-details-edit">
-              <summary>Edit case details</summary>
+              <summary>Edit Case Details</summary>
               <CaseDetailsForm
                 missionId={mission.id}
                 jurisdiction={mission.jurisdiction}
@@ -1006,7 +1006,7 @@ export default async function MissionPage({
           </article>
           <article className="card">
             <p className="card-kicker">Requirements</p>
-            <h2 className="card-title">Requirement pack</h2>
+            <h2 className="card-title">Requirement Pack</h2>
             {mission.packVersionId && data.packInfo ? (
               <>
                 <div
@@ -1052,7 +1052,7 @@ export default async function MissionPage({
           </article>
           <article className="card">
             <p className="card-kicker">Workflow</p>
-            <h2 className="card-title">Advance the case</h2>
+            <h2 className="card-title">Advance the Case</h2>
             {nextStates.length === 0 ? (
               <p className="card-body">This case is in a terminal state.</p>
             ) : (
@@ -1084,7 +1084,7 @@ export default async function MissionPage({
                         Version {snap.version}
                         {isPacket ? (
                           <span className="badge badge-success" style={{ marginLeft: '0.5rem' }}>
-                            Application packet
+                            Application Packet
                           </span>
                         ) : null}
                       </span>
@@ -1098,8 +1098,8 @@ export default async function MissionPage({
             )}
           </article>
           <article className="card">
-            <p className="card-kicker">Family trip</p>
-            <h2 className="card-title">Itinerary reference</h2>
+            <p className="card-kicker">Family Trip</p>
+            <h2 className="card-title">Itinerary Reference</h2>
             <p className="card-body u-mb-100">
               An optional label linking this case to another family member's, purely for display.
               Access and permissions stay entirely separate per case.

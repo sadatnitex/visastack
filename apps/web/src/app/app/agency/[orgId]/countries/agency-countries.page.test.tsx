@@ -11,7 +11,7 @@ const detail = (iso2: string) =>
 describe('country rules inside the agency workspace', () => {
   it('shows the same list, with every country linking to its page in the agency workspace', async () => {
     const html = await list();
-    expect(textOf(html)).toContain('Visa rules for a Bangladeshi passport');
+    expect(textOf(html)).toContain('Visa Rules for a Bangladeshi Passport');
     expect(html).toContain('href="/app/agency/org-1/countries/gb"');
     expect(html).not.toContain('href="/app/countries/gb"');
   });

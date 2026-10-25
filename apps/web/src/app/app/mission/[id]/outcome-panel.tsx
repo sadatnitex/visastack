@@ -52,7 +52,7 @@ export function OutcomePanel({
   return (
     <article className="card">
       <p className="card-kicker">Decision</p>
-      <h2 className="card-title">Case outcome</h2>
+      <h2 className="card-title">Case Outcome</h2>
       <p className="card-body u-mb-100">
         The official wording and your own reading of a decision are kept separate - this is never
         blended into a single summary, and recording an outcome never changes this case's workflow
@@ -107,13 +107,13 @@ export function OutcomePanel({
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="decisionDate">
-            Decision date
+            Decision Date
           </label>
           <input id="decisionDate" name="decisionDate" type="date" className="input" required />
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="officialWording">
-            Official wording (optional)
+            Official Wording (Optional)
           </label>
           <textarea
             id="officialWording"
@@ -125,7 +125,7 @@ export function OutcomePanel({
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="agencyInterpretation">
-            Your interpretation (optional)
+            Your Interpretation (Optional)
           </label>
           <textarea
             id="agencyInterpretation"
@@ -138,7 +138,7 @@ export function OutcomePanel({
         {evidenceOptions.length > 0 ? (
           <div className="field-row">
             <label className="field-label" htmlFor="evidenceDocumentId">
-              Evidence (optional)
+              Evidence (Optional)
             </label>
             <select
               id="evidenceDocumentId"
@@ -158,7 +158,7 @@ export function OutcomePanel({
         <div>
           <SubmitButton
             pending={pending}
-            idle="Record outcome"
+            idle="Record Outcome"
             busy="Recording…"
             className="btn btn-secondary"
           />

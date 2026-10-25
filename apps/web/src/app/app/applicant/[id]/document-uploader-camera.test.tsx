@@ -18,7 +18,7 @@ describe('DocumentUploader camera button', () => {
     });
     const input = host.querySelector('input[type="file"]') as HTMLInputElement;
     const camera = Array.from(host.querySelectorAll('button')).find(
-      (button) => button.textContent === 'Take a photo',
+      (button) => button.textContent === 'Take a Photo',
     ) as HTMLButtonElement;
     expect(input.hasAttribute('capture')).toBe(false);
 

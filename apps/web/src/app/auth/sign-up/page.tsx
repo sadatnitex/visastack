@@ -7,7 +7,7 @@ import { signUpAction } from '../actions';
 import { AuthShell, ErrorLine, TextField } from '../auth-ui';
 import { SignupContext } from './signup-context';
 
-export const metadata: Metadata = { title: 'Create an account' };
+export const metadata: Metadata = { title: 'Create an Account' };
 export const dynamic = 'force-dynamic';
 
 const ERRORS: Record<string, string> = {
@@ -28,14 +28,14 @@ export default async function SignUpPage({
   const signupForm = createSignupForm();
   return (
     <AuthShell
-      title="Create your account"
+      title="Create Your Account"
       variant="signup"
-      eyebrow={isPublicBetaOpen() ? 'Public beta · Free account' : 'Private pilot'}
+      eyebrow={isPublicBetaOpen() ? 'Public Beta · Free Account' : 'Private Pilot'}
       utility={
         <>
           Already have an account?{' '}
           <Link href={`/auth/sign-in?next=${encodeURIComponent(safeReturnPath(next))}`}>
-            Sign in
+            Sign In
           </Link>
         </>
       }
@@ -45,9 +45,9 @@ export default async function SignUpPage({
         <p className="card-body signup-invite-note">Access is by invitation.</p>
       ) : null}
       <ol className="auth-steps" aria-label="The three steps">
-        <li aria-current="step">1 Create your account</li>
-        <li>2 Confirm your email</li>
-        <li>3 Sign in</li>
+        <li aria-current="step">1 Create Your Account</li>
+        <li>2 Confirm Your Email</li>
+        <li>3 Sign In</li>
       </ol>
       <p className="notice u-mb-100">
         VisaStack is a free public beta. If you add real details or documents, you do so at your own
@@ -57,7 +57,7 @@ export default async function SignUpPage({
       {e === 'exists' && (
         <p className="card-body">
           <Link href={`/auth/sign-in?next=${encodeURIComponent(safeReturnPath(next))}`}>
-            Sign in
+            Sign In
           </Link>{' '}
           or <Link href="/auth/forgot-password">reset your password</Link>.
         </p>
@@ -67,16 +67,16 @@ export default async function SignUpPage({
           <input type="hidden" name="next" value={safeReturnPath(next)} />
           <input type="hidden" name="signupForm" value={signupForm} />
           <div hidden aria-hidden="true">
-            <label htmlFor="signup-website">Leave this field empty</label>
+            <label htmlFor="signup-website">Leave This Field Empty</label>
             <input id="signup-website" name="website" autoComplete="off" tabIndex={-1} />
           </div>
           <SignupContext />
-          <TextField id="name" name="name" label="Your name" autoComplete="name" maxLength={120} />
+          <TextField id="name" name="name" label="Your Name" autoComplete="name" maxLength={120} />
           <TextField
             id="email"
             name="email"
             type="email"
-            label="Email address"
+            label="Email Address"
             autoComplete="email"
             required
             maxLength={254}
@@ -86,7 +86,7 @@ export default async function SignUpPage({
             id="password"
             name="password"
             type="password"
-            label="Password (at least 8 characters)"
+            label="Password (At Least 8 Characters)"
             autoComplete="new-password"
             required
             minLength={8}
@@ -101,7 +101,7 @@ export default async function SignUpPage({
             This acknowledgement does not enable marketing, AI processing or sharing with an agency.
           </p>
           <button type="submit" className="btn btn-primary">
-            Create free account
+            Create Free Account
           </button>
         </form>
       </div>

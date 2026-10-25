@@ -58,7 +58,7 @@ describe('workspace chrome uses existing actor-scoped authorization reads', () =
       { id: 'child', displayName: 'Synthetic Child', relationship: 'MINOR_GUARDIAN' },
     ]);
     const data = await loadWorkspaceChrome({} as never, actor);
-    expect(data.accountName).toBe('Your account');
+    expect(data.accountName).toBe('Your Account');
     expect(data.platform).toBeNull();
   });
   it('carries only concern permissions proven by the current server checks', async () => {

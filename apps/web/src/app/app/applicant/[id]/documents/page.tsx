@@ -116,7 +116,7 @@ function processingTone(status: string | null): string {
 const LIFECYCLE_BADGES: Record<DocumentLifecycleStatus, { label: string; tone: string }> = {
   UNKNOWN: { label: 'Expiry not confirmed', tone: 'badge-neutral' },
   CURRENT: { label: 'Current', tone: 'badge-success' },
-  EXPIRING: { label: 'Expiring soon', tone: 'badge-warning' },
+  EXPIRING: { label: 'Expiring Soon', tone: 'badge-warning' },
   EXPIRED: { label: 'Expired', tone: 'badge-danger' },
   SUPERSEDED: { label: 'Superseded', tone: 'badge-neutral' },
 };
@@ -242,7 +242,7 @@ export default async function ApplicantDocumentsPage({
     <>
       <PageHeader
         as="h2"
-        eyebrow="Your private wallet"
+        eyebrow="Your Private Wallet"
         title="Documents"
         description="Keep reusable evidence together. Processing, review and expiry are separate signals."
         actions={
@@ -396,7 +396,7 @@ export default async function ApplicantDocumentsPage({
                         <input type="hidden" name="applicantId" value={id} />
                         <input type="hidden" name="documentId" value={doc.id} />
                         <button type="submit" className="btn btn-secondary">
-                          Download original
+                          Download Original
                         </button>
                       </form>
                     ) : null}
@@ -413,7 +413,7 @@ export default async function ApplicantDocumentsPage({
                     <input type="hidden" name="documentId" value={doc.id} />
                     <input type="hidden" name="versionId" value={doc.latestVersionId} />
                     <button className="btn btn-secondary" type="submit">
-                      Read this file again
+                      Read This File Again
                     </button>
                   </form>
                 ) : null}
@@ -449,7 +449,7 @@ export default async function ApplicantDocumentsPage({
                   <input type="hidden" name="applicantId" value={id} />
                   <input type="hidden" name="documentId" value={doc.id} />
                   <label className="muted u-fs-075" htmlFor={`date-${doc.id}`}>
-                    Document date
+                    Document Date
                   </label>
                   <input
                     id={`date-${doc.id}`}
@@ -669,7 +669,7 @@ export default async function ApplicantDocumentsPage({
         })}
       />
       <details className="wallet-upload-disclosure">
-        <summary className="btn btn-secondary">Upload a document</summary>
+        <summary className="btn btn-secondary">Upload a Document</summary>
         <div id="document-upload">
           {/*
            * Only upload and new processing/extraction are gated on core
@@ -711,14 +711,14 @@ export default async function ApplicantDocumentsPage({
 
               <article className="card u-mb-150">
                 <p className="card-kicker">Upload</p>
-                <h2 className="card-title">Add a document</h2>
+                <h2 className="card-title">Add a Document</h2>
                 <p className="card-body u-mb-125">
                   Documents are stored privately and pass a structural safety scan before they can
                   be previewed.
                 </p>
                 <div className="u-mb-125">
                   <UsageMeter
-                    label="Evidence storage"
+                    label="Evidence Storage"
                     usedBytes={data.evidenceBytes}
                     limitBytes={data.quota.maxApplicantEvidenceBytes}
                   />

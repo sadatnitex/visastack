@@ -46,13 +46,13 @@ export function CreatePackForm() {
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="description">
-          Description (optional)
+          Description (Optional)
         </label>
         <input id="description" name="description" type="text" className="input" />
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="jurisdiction">
-          Jurisdiction (optional)
+          Jurisdiction (Optional)
         </label>
         <input
           id="jurisdiction"
@@ -64,7 +64,7 @@ export function CreatePackForm() {
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="route">
-          Route (optional)
+          Route (Optional)
         </label>
         <input
           id="route"
@@ -76,7 +76,7 @@ export function CreatePackForm() {
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="purpose">
-          Purpose (optional)
+          Purpose (Optional)
         </label>
         <input
           id="purpose"
@@ -93,7 +93,7 @@ export function CreatePackForm() {
       <div>
         <SubmitButton
           pending={pending}
-          idle="Create pack"
+          idle="Create Pack"
           busy="Creating…"
           className="btn btn-primary"
         />
@@ -163,10 +163,10 @@ export function AddRequirementForm({
         approval. Custom checklists keep the manual approval path.
       </p>
       {[
-        { name: 'sourceUrl', label: 'Source link', type: 'url', maxLength: 2048 },
-        { name: 'sourceTitle', label: 'Source title', type: 'text', maxLength: 240 },
+        { name: 'sourceUrl', label: 'Source Link', type: 'url', maxLength: 2048 },
+        { name: 'sourceTitle', label: 'Source Title', type: 'text', maxLength: 240 },
         { name: 'publisher', label: 'Publisher', type: 'text', maxLength: 160 },
-        { name: 'observedDate', label: 'Date source checked', type: 'date', maxLength: 10 },
+        { name: 'observedDate', label: 'Date Source Checked', type: 'date', maxLength: 10 },
       ].map((field) => (
         <div className="field-row" key={field.name}>
           <label className="field-label" htmlFor={field.name}>
@@ -183,7 +183,7 @@ export function AddRequirementForm({
       ))}
       <div className="field-row">
         <label className="field-label" htmlFor="maxAgeDays">
-          Max age in days (document only)
+          Max Age in Days (Document Only)
         </label>
         <input
           id="maxAgeDays"
@@ -202,7 +202,7 @@ export function AddRequirementForm({
       <div>
         <SubmitButton
           pending={pending}
-          idle="Add requirement"
+          idle="Add Requirement"
           busy="Adding…"
           className="btn btn-secondary"
         />
@@ -239,14 +239,14 @@ export function RequirementSourceReviewForm({
       {[
         {
           name: 'sourceUrl',
-          label: 'Source link',
+          label: 'Source Link',
           type: 'url',
           value: sourceUrl ?? '',
           maxLength: 2048,
         },
         {
           name: 'sourceTitle',
-          label: 'Source title',
+          label: 'Source Title',
           type: 'text',
           value: sourceTitle ?? '',
           maxLength: 240,
@@ -260,7 +260,7 @@ export function RequirementSourceReviewForm({
         },
         {
           name: 'observedDate',
-          label: 'Date source checked',
+          label: 'Date Source Checked',
           type: 'date',
           value: observedDate,
           maxLength: 10,
@@ -284,7 +284,7 @@ export function RequirementSourceReviewForm({
       <div>
         <SubmitButton
           pending={pending}
-          idle="Save source review"
+          idle="Save Source Review"
           busy="Saving…"
           className="btn btn-secondary"
         />
@@ -301,7 +301,7 @@ export function VerifyChecksumForm({ packVersionId }: { readonly packVersionId: 
       <input type="hidden" name="packVersionId" value={packVersionId} />
       <SubmitButton
         pending={pending}
-        idle="Verify checksum"
+        idle="Verify Checksum"
         busy="Verifying…"
         className="btn btn-secondary u-btn-sm"
       />
@@ -352,7 +352,7 @@ export function PublicTrustContentForm({
       <input type="hidden" name="packVersionId" value={packVersionId} />
       <div className="field-row">
         <label className="field-label" htmlFor="routeDescription">
-          Route description
+          Route Description
         </label>
         <textarea
           id="routeDescription"
@@ -365,7 +365,7 @@ export function PublicTrustContentForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="officialFeeAmount">
-          Official fee amount (optional)
+          Official Fee Amount (Optional)
         </label>
         <input
           id="officialFeeAmount"
@@ -379,7 +379,7 @@ export function PublicTrustContentForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="officialFeeCurrency">
-          Currency (ISO code)
+          Currency (ISO Code)
         </label>
         <input
           id="officialFeeCurrency"
@@ -392,7 +392,7 @@ export function PublicTrustContentForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="officialChannelName">
-          Official application channel name
+          Official Application Channel Name
         </label>
         <input
           id="officialChannelName"
@@ -405,7 +405,7 @@ export function PublicTrustContentForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="officialChannelUrl">
-          Official application channel URL
+          Official Application Channel URL
         </label>
         <input
           id="officialChannelUrl"
@@ -418,7 +418,7 @@ export function PublicTrustContentForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="officialReportingUrl">
-          Official fraud-reporting URL (optional)
+          Official Fraud-Reporting URL (Optional)
         </label>
         <input
           id="officialReportingUrl"
@@ -432,7 +432,7 @@ export function PublicTrustContentForm({
       <div>
         <SubmitButton
           pending={pending}
-          idle="Save public trust content"
+          idle="Save Public Trust Content"
           busy="Saving…"
           className="btn btn-secondary"
         />
@@ -449,7 +449,7 @@ export function SetDocumentExpiryPolicyForm() {
     <form action={formAction} className="field-list">
       <div className="field-row">
         <label className="field-label" htmlFor="expiry-docType">
-          Document type
+          Document Type
         </label>
         <input
           id="expiry-docType"
@@ -463,7 +463,7 @@ export function SetDocumentExpiryPolicyForm() {
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="expiry-thresholdDays">
-          Reminder thresholds (days, comma-separated)
+          Reminder Thresholds (Days, Comma-Separated)
         </label>
         <input
           id="expiry-thresholdDays"
@@ -477,7 +477,7 @@ export function SetDocumentExpiryPolicyForm() {
       <div>
         <SubmitButton
           pending={pending}
-          idle="Save thresholds"
+          idle="Save Thresholds"
           busy="Saving…"
           className="btn btn-secondary"
         />

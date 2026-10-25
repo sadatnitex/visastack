@@ -34,15 +34,15 @@ export const dynamic = 'force-dynamic';
 const URGENCY_BADGE: Record<ExpiryUrgency, { label: string; tone: string }> = {
   unknown: { label: 'Unknown', tone: 'badge-neutral' },
   ok: { label: 'OK', tone: 'badge-success' },
-  reminder: { label: 'Expiring soon', tone: 'badge-warning' },
+  reminder: { label: 'Expiring Soon', tone: 'badge-warning' },
   expired: { label: 'Expired', tone: 'badge-danger' },
 };
 
 const STALENESS_BADGE: Record<StalenessStatus, { label: string; tone: string }> = {
-  not_applicable: { label: 'No freshness rule', tone: 'badge-neutral' },
-  unknown: { label: 'Freshness unknown', tone: 'badge-neutral' },
+  not_applicable: { label: 'No Freshness Rule', tone: 'badge-neutral' },
+  unknown: { label: 'Freshness Unknown', tone: 'badge-neutral' },
   fresh: { label: 'Fresh', tone: 'badge-success' },
-  stale: { label: 'Too old for this route', tone: 'badge-danger' },
+  stale: { label: 'Too Old for This Route', tone: 'badge-danger' },
 };
 
 export default async function ExpiryCentrePage({
@@ -107,13 +107,13 @@ export default async function ExpiryCentrePage({
 
       <div className="grid">
         <article className="card">
-          <p className="card-kicker">Intrinsic expiry</p>
+          <p className="card-kicker">Intrinsic Expiry</p>
           <h2 className="card-title">Documents</h2>
           {data.intrinsic.length === 0 ? (
             <EmptyState
               icon="file"
-              title="No documents yet"
-              action={{ href: `/app/applicant/${id}/documents`, label: 'Add a document' }}
+              title="No Documents Yet"
+              action={{ href: `/app/applicant/${id}/documents`, label: 'Add a Document' }}
             >
               Documents with an expiry date, such as a passport, appear here so you hear about them
               before they run out.
@@ -162,14 +162,14 @@ export default async function ExpiryCentrePage({
         </article>
 
         <article className="card">
-          <p className="card-kicker">Case-specific freshness</p>
-          <h2 className="card-title">Route rules</h2>
+          <p className="card-kicker">Case-Specific Freshness</p>
+          <h2 className="card-title">Route Rules</h2>
           <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '0.75rem' }}>
             Some requirements demand evidence dated within a set window, separate from the
             document's own expiry.
           </p>
           {data.freshnessRows.length === 0 ? (
-            <EmptyState icon="calendar" title="No date rules yet">
+            <EmptyState icon="calendar" title="No Date Rules Yet">
               Some visa routes need a document dated within a set window, such as a bank statement
               from the last 30 days. They appear here once a case uses such a route.
             </EmptyState>
@@ -200,10 +200,10 @@ export default async function ExpiryCentrePage({
         </article>
 
         <article className="card">
-          <p className="card-kicker">Verification expiry</p>
-          <h2 className="card-title">Issuer confirmations</h2>
+          <p className="card-kicker">Verification Expiry</p>
+          <h2 className="card-title">Issuer Confirmations</h2>
           {data.verifications.length === 0 ? (
-            <EmptyState icon="check" title="No confirmations yet">
+            <EmptyState icon="check" title="No Confirmations Yet">
               When an issuer, such as a bank or employer, confirms a document, the confirmation and
               how long it stays valid appear here.
             </EmptyState>

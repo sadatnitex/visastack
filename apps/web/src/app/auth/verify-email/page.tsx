@@ -4,7 +4,7 @@ import { safeReturnPath } from '../../../lib/neon-recency';
 import { resendConfirmationAction } from '../actions';
 import { AuthShell, ErrorLine, Notice, TextField } from '../auth-ui';
 
-export const metadata: Metadata = { title: 'Confirm your email address' };
+export const metadata: Metadata = { title: 'Confirm Your Email Address' };
 export const dynamic = 'force-dynamic';
 
 const ERRORS: Record<string, string> = {
@@ -19,11 +19,11 @@ export default async function VerifyEmailPage({
   const { e, s, next } = await searchParams;
   const error = e ? ERRORS[e] : undefined;
   return (
-    <AuthShell title="Confirm your email address">
+    <AuthShell title="Confirm Your Email Address">
       <ol className="auth-steps" aria-label="The three steps">
-        <li>1 Create your account</li>
-        <li aria-current="step">2 Confirm your email</li>
-        <li>3 Sign in</li>
+        <li>1 Create Your Account</li>
+        <li aria-current="step">2 Confirm Your Email</li>
+        <li>3 Sign In</li>
       </ol>
       <p className="card-body">
         {s === '1'
@@ -39,20 +39,20 @@ export default async function VerifyEmailPage({
             id="email"
             name="email"
             type="email"
-            label="Email address"
+            label="Email Address"
             autoComplete="email"
             required
             maxLength={254}
             errorId={error ? 'verify-error' : undefined}
           />
           <button type="submit" className="btn btn-primary">
-            Send the link again
+            Send the Link Again
           </button>
         </form>
       </div>
       <p className="card-body">
         <Link href={`/auth/sign-in?next=${encodeURIComponent(safeReturnPath(next))}`}>
-          Back to sign in
+          Back to Sign In
         </Link>
       </p>
     </AuthShell>

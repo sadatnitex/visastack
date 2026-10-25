@@ -133,7 +133,7 @@ export async function loadPendingClientInvitations(
   return result.ok ? result.value.filter((i) => i.status === 'PENDING') : [];
 }
 
-/** The applicants the "Request evidence" form can target: only ever shown to an administrator. */
+/** The applicants the "Request Evidence" form can target: only ever shown to an administrator. */
 export async function loadApplicants(db: Db, orgId: string, access: Pick<OrgAccess, 'admin'>) {
   return access.admin ? listApplicantsForOrganization(db, orgId) : [];
 }

@@ -31,7 +31,7 @@ import {
   WithdrawVersionButton,
 } from '../pack-version-buttons';
 
-export const metadata: Metadata = { title: 'Rule pack' };
+export const metadata: Metadata = { title: 'Rule Pack' };
 
 export const dynamic = 'force-dynamic';
 
@@ -198,7 +198,7 @@ export default async function PackDetailPage({
                         ) : null}
                         {isDraft ? (
                           <details>
-                            <summary>Record source review</summary>
+                            <summary>Record Source Review</summary>
                             <RequirementSourceReviewForm
                               packId={data.pack.id}
                               requirementId={req.id}
@@ -297,11 +297,11 @@ export default async function PackDetailPage({
                         </p>
                         <div className="rows" style={{ marginBottom: '0.75rem' }}>
                           <div className="row">
-                            <span className="row-key">Route description</span>
+                            <span className="row-key">Route Description</span>
                             <span className="row-val">{version.routeDescription ?? 'Not set'}</span>
                           </div>
                           <div className="row">
-                            <span className="row-key">Official fee</span>
+                            <span className="row-key">Official Fee</span>
                             <span className="row-val">
                               {version.officialFeeMinorUnits !== null &&
                               version.officialFeeCurrency !== null
@@ -315,7 +315,7 @@ export default async function PackDetailPage({
                                   className="badge badge-danger"
                                   style={{ marginLeft: '0.5rem' }}
                                 >
-                                  Marked stale
+                                  Marked Stale
                                 </span>
                               ) : null}
                             </span>
@@ -367,7 +367,7 @@ export default async function PackDetailPage({
       {data.versions.length >= 2 ? (
         <article className="card u-mt-150">
           <p className="card-kicker">RUL-05</p>
-          <h2 className="card-title">Compare versions</h2>
+          <h2 className="card-title">Compare Versions</h2>
           <p className="muted" style={{ margin: '0.35rem 0 1rem', fontSize: 'var(--text-small)' }}>
             See exactly which requirements were added, removed, or changed between two versions of
             this pack.

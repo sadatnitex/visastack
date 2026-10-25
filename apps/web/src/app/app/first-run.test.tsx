@@ -36,7 +36,7 @@ describe('first-run "Who is this record for?"', () => {
   it('starts with Me and sends the choice with the radio itself', () => {
     act(() => root.render(<AddApplicantForm firstRun />));
     expect(container.textContent).toContain('Who is this record for?');
-    expect(container.textContent).toContain('Name as on the passport');
+    expect(container.textContent).toContain('Name as on the Passport');
     expect(posted()).toEqual([
       ['whoFor', 'SELF'],
       ['displayName', ''],
@@ -89,7 +89,7 @@ describe('first-run "Who is this record for?"', () => {
   it('the existing form is unchanged without firstRun, and needs no router', () => {
     act(() => root.render(<AddApplicantForm />));
     expect(container.querySelector('select[name="relationship"]')).not.toBeNull();
-    expect(container.querySelector('button[type="submit"]')?.textContent).toBe('Add applicant');
+    expect(container.querySelector('button[type="submit"]')?.textContent).toBe('Add Applicant');
     expect(container.textContent).not.toContain('Who is this record for?');
   });
 });

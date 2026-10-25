@@ -160,14 +160,14 @@ export default async function AdminOrganizationPage({
         </Link>
       </div>
       <PageHeader
-        eyebrow="Organization admin"
+        eyebrow="Organization Admin"
         title={data.org.name}
         description={<>Status: {organizationStatusLabel(data.org.status)}</>}
       />
 
       <article className="card u-mb-150">
         <p className="card-kicker">Commerce</p>
-        <h2 className="card-title">Plan &amp; subscription</h2>
+        <h2 className="card-title">Plan &amp; Subscription</h2>
         <p className="card-body u-mb-100">
           {data.currentPlan
             ? `Currently on ${data.currentPlan.name}.`
@@ -226,14 +226,14 @@ export default async function AdminOrganizationPage({
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem' }}>
           <div style={{ flex: '1 1 18rem' }}>
             <h3 style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>
-              Activate a plan
+              Activate a Plan
             </h3>
             <ActivatePlanForm organizationId={orgId} plans={data.activePlans} />
           </div>
           {data.currentPlan && !data.pendingDowngrade ? (
             <div style={{ flex: '1 1 18rem' }}>
               <h3 style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>
-                Schedule a downgrade
+                Schedule a Downgrade
               </h3>
               <ScheduleDowngradeForm organizationId={orgId} plans={data.activePlans} />
             </div>
@@ -324,13 +324,13 @@ export default async function AdminOrganizationPage({
             ))}
           </div>
         )}
-        <h3 style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>Create an invoice</h3>
+        <h3 style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>Create an Invoice</h3>
         <CreateInvoiceForm organizationId={orgId} plans={data.activePlans} />
       </article>
 
       <article className="card">
         <p className="card-kicker">Commerce</p>
-        <h2 className="card-title">Commercial overrides</h2>
+        <h2 className="card-title">Commercial Overrides</h2>
         <p className="card-body u-mb-100">
           A time-limited bypass of this organization's commercial capacity caps and any billing
           suspension. Never bypasses security, consent, or release gates.
@@ -368,7 +368,7 @@ export default async function AdminOrganizationPage({
             })}
           </div>
         )}
-        <h3 style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>Grant an override</h3>
+        <h3 style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>Grant an Override</h3>
         <GrantOverrideForm organizationId={orgId} />
       </article>
     </section>

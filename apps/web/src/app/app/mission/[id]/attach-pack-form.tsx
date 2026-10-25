@@ -32,7 +32,7 @@ export function AttachPackForm({
         className="input"
         defaultValue=""
         required
-        aria-label="Requirement pack"
+        aria-label="Requirement Pack"
       >
         <option value="" disabled>
           Choose a requirement pack…
@@ -46,7 +46,7 @@ export function AttachPackForm({
       <div>
         <SubmitButton
           pending={pending}
-          idle="Attach pack"
+          idle="Attach Pack"
           busy="Attaching…"
           className="btn btn-primary"
         />

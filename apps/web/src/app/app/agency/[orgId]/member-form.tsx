@@ -14,7 +14,7 @@ export function AddMemberForm({ organizationId }: { readonly organizationId: str
       <input type="hidden" name="organizationId" value={organizationId} />
       <div className="field-row">
         <label className="field-label" htmlFor="memberEmail">
-          Member email
+          Member Email
         </label>
         <input
           id="memberEmail"
@@ -31,14 +31,14 @@ export function AddMemberForm({ organizationId }: { readonly organizationId: str
         </label>
         <select id="role" name="role" className="input" defaultValue="REVIEWER">
           <option value="ADMIN">Admin</option>
-          <option value="CASE_MANAGER">Case manager</option>
+          <option value="CASE_MANAGER">Case Manager</option>
           <option value="REVIEWER">Reviewer</option>
         </select>
       </div>
       <div>
         <SubmitButton
           pending={pending}
-          idle="Add member"
+          idle="Add Member"
           busy="Adding…"
           className="btn btn-secondary"
         />

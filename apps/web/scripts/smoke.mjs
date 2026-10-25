@@ -101,10 +101,10 @@ async function main() {
     record(
       'Landing page shows the pilot banner',
       html.includes('pilot-banner') &&
-        (html.includes('VisaStack private pilot') ||
-          html.includes('VisaStack test build') ||
-          html.includes('VisaStack public beta')),
-      'looking for .pilot-banner + "VisaStack private pilot"/"VisaStack test build"',
+        (html.includes('VisaStack Private Pilot') ||
+          html.includes('VisaStack Test Build') ||
+          html.includes('VisaStack Public Beta')),
+      'looking for .pilot-banner + "VisaStack Private Pilot"/"VisaStack Test Build"',
     );
   } catch (error) {
     record('Landing page renders', false, String(error));
@@ -127,7 +127,7 @@ async function main() {
       'Public route catalog renders when the database is ready',
       res.status === 200 &&
         html.includes('<html') &&
-        (!databaseReady || /<h1[^>]*>Maintained route information<\/h1>/.test(html)),
+        (!databaseReady || /<h1[^>]*>Maintained Route Information<\/h1>/.test(html)),
       `status=${res.status} databaseReady=${Boolean(databaseReady)}`,
     );
   } catch (error) {

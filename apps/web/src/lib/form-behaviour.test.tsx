@@ -153,7 +153,7 @@ describe('an upload that takes a while', () => {
     });
     expect(actions.upload).toHaveBeenCalledTimes(1);
     expect(button.hasAttribute('aria-disabled')).toBe(false);
-    expect(button.textContent).toBe('Upload document');
+    expect(button.textContent).toBe('Upload Document');
     expect(polite.textContent).toBe('Uploaded passport.pdf.');
     expect(document.activeElement).toBe(button);
   });

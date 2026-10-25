@@ -42,7 +42,7 @@ export function NextStepCard({
     >
       <div className="next-step-text">
         <p className="card-kicker" style={{ marginBottom: '0.25rem' }}>
-          Next step
+          Next Step
         </p>
         <h2 className="next-step-title" id="next-step-title">
           {title}
@@ -164,7 +164,7 @@ export function Checklist({
   const done = items.filter((item) => item.done).length;
   return (
     <article className="card u-mb-150">
-      <p className="card-kicker">Get started</p>
+      <p className="card-kicker">Get Started</p>
       <h2 className="card-title">{title}</h2>
       <div className="meter-label">
         <span>

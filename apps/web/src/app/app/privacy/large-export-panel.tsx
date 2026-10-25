@@ -89,7 +89,7 @@ export function LargeExportPanel({ jobs }: LargeExportPanelProps) {
         <form action={action}>
           <SubmitButton
             pending={pending}
-            idle="Request large export (with files)"
+            idle="Request Large Export (With Files)"
             busy="Requesting…"
             className="btn btn-secondary"
           />

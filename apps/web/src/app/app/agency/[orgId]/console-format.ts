@@ -4,7 +4,7 @@
  */
 
 export const ORG_STATUS: Record<string, { label: string; tone: string }> = {
-  PENDING_VERIFICATION: { label: 'Pending verification', tone: 'badge-warning' },
+  PENDING_VERIFICATION: { label: 'Pending Verification', tone: 'badge-warning' },
   ACTIVE: { label: 'Active', tone: 'badge-success' },
   SUSPENDED: { label: 'Suspended', tone: 'badge-danger' },
   REJECTED: { label: 'Rejected', tone: 'badge-danger' },
@@ -14,9 +14,9 @@ export const ORG_STATUS: Record<string, { label: string; tone: string }> = {
 export const REQ_STATUS: Record<string, { label: string; tone: string }> = {
   OPEN: { label: 'Open', tone: 'badge-warning' },
   RECEIVED: { label: 'Submitted', tone: 'badge-neutral' },
-  UNDER_REVIEW: { label: 'Under review', tone: 'badge-neutral' },
+  UNDER_REVIEW: { label: 'Under Review', tone: 'badge-neutral' },
   ACCEPTED: { label: 'Accepted', tone: 'badge-success' },
-  NEEDS_REPLACEMENT: { label: 'Needs replacement', tone: 'badge-warning' },
+  NEEDS_REPLACEMENT: { label: 'Needs Replacement', tone: 'badge-warning' },
   CANCELLED: { label: 'Cancelled', tone: 'badge-neutral' },
   // Legacy: no longer written, but a pre-Part-4 request row may still hold one.
   FULFILLED: { label: 'Fulfilled', tone: 'badge-success' },

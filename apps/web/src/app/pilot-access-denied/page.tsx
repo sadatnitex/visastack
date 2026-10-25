@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { createIdentityPort } from '../../lib/providers';
 import { reportServerError } from '../../lib/server-error';
 
-export const metadata: Metadata = { title: 'Invite-only pilot' };
+export const metadata: Metadata = { title: 'Invite-Only Pilot' };
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +33,7 @@ export default async function PilotAccessDeniedPage() {
 
   return (
     <section className="section container center">
-      <span className="eyebrow">Controlled pilot</span>
+      <span className="eyebrow">Controlled Pilot</span>
       <h1 className="section-title" style={{ margin: '0.5rem 0 0' }}>
         This pilot is invite-only
       </h1>
@@ -57,7 +57,7 @@ export default async function PilotAccessDeniedPage() {
           </button>
         </form>
         <Link className="btn btn-secondary" href="/">
-          Back to home
+          Back to Home
         </Link>
       </div>
     </section>

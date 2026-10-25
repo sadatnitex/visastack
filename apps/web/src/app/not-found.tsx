@@ -12,7 +12,7 @@ export default function NotFound() {
     <section className="section container center">
       <span className="eyebrow">Not found</span>
       <h1 className="section-title" style={{ margin: '0.5rem 0 0' }}>
-        We couldn't find that page
+        We Couldn't Find That Page
       </h1>
       <p className="section-sub" style={{ margin: '0.75rem auto 1.5rem', maxWidth: '34rem' }}>
         The link may be out of date, or the record may have been removed or revoked. Check the
@@ -27,7 +27,7 @@ export default function NotFound() {
           Go to workspace
         </a>
         <Link className="btn btn-secondary" href="/">
-          Back to home
+          Back to Home
         </Link>
       </div>
     </section>

@@ -48,7 +48,7 @@ function chooseSome(group: 'profileScope' | 'documentScope') {
 }
 function review() {
   const button = [...container.querySelectorAll('button')].find(
-    (node) => node.textContent === 'Review and confirm',
+    (node) => node.textContent === 'Review and Confirm',
   );
   if (!button) throw new Error('Missing review');
   act(() => button.click());

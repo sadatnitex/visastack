@@ -1,18 +1,18 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader } from '../../../components/ui';
-export const metadata: Metadata = { title: 'Help and support' };
+export const metadata: Metadata = { title: 'Help and Support' };
 export default function HelpPage() {
   return (
     <section className="section container workspace-help">
       <PageHeader
-        eyebrow="Help and support"
-        title="Find your next step"
+        eyebrow="Help and Support"
+        title="Find Your Next Step"
         description="Guidance for your records, case work and account."
       />
       <div className="help-guide-grid">
         <article className="card">
-          <h2 className="card-title">Your records</h2>
+          <h2 className="card-title">Your Records</h2>
           <p>
             Choose a traveller to open their profile, document wallet, cases and sharing controls.
             Each workspace stays connected to the selected person.
@@ -20,26 +20,26 @@ export default function HelpPage() {
           <Link href="/app/applicants">Choose or manage travellers</Link>
         </article>
         <article className="card">
-          <h2 className="card-title">Your agency</h2>
+          <h2 className="card-title">Your Agency</h2>
           <p>
             Choose an agency you belong to from the account menu. Administrators manage clients,
             requests and team access. Team members work on cases assigned to them.
           </p>
-          <Link href="/app/agency">Find your agency workspace</Link>
+          <Link href="/app/agency">Find Your Agency Workspace</Link>
         </article>
         <article className="card">
-          <h2 className="card-title">Account and privacy</h2>
+          <h2 className="card-title">Account and Privacy</h2>
           <p>
             Account settings, consent, shared access and privacy requests are available from your
             account menu. Signing out ends this session.
           </p>
-          <Link href="/app/account">Account settings</Link>
-          <Link href="/app/privacy">Privacy and consent</Link>
-          <Link href="/app/shared">Shared with me</Link>
+          <Link href="/app/account">Account Settings</Link>
+          <Link href="/app/privacy">Privacy and Consent</Link>
+          <Link href="/app/shared">Shared with Me</Link>
         </article>
       </div>
       <article className="card help-questions">
-        <h2 className="card-title">Common questions</h2>
+        <h2 className="card-title">Common Questions</h2>
         <details>
           <summary>Why can I not open a document yet?</summary>
           <p>
@@ -71,8 +71,8 @@ export default function HelpPage() {
             verification link, or request another password-reset link. Delivery to a mail server
             does not guarantee inbox placement.
           </p>
-          <Link href="/auth/verify-email">Resend confirmation</Link>
-          <Link href="/auth/forgot-password">Request a password-reset link</Link>
+          <Link href="/auth/verify-email">Resend Confirmation</Link>
+          <Link href="/auth/forgot-password">Request a Password-Reset Link</Link>
         </details>
         <details>
           <summary>Why is a feature unavailable?</summary>
@@ -81,7 +81,7 @@ export default function HelpPage() {
             The page explains the missing requirement. Current release and service limitations are
             published on the status page.
           </p>
-          <Link href="/status">What works today and service status</Link>
+          <Link href="/status">What Works Today and Service Status</Link>
         </details>
       </article>
     </section>

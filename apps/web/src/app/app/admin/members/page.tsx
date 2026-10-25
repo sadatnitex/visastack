@@ -6,7 +6,7 @@ import { bootstrapAdminEmails } from '../../../../lib/admin';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
 
-export const metadata: Metadata = { title: 'Platform members' };
+export const metadata: Metadata = { title: 'Platform Members' };
 
 export const dynamic = 'force-dynamic';
 
@@ -31,13 +31,13 @@ export default async function PlatformMembersPage({
       <section className="section container">
         <PageHeader title="Members" />
         <p className="notice notice-warn">{result.error.message}</p>
-        <Link href="/app/admin/members">Open the first page</Link>
+        <Link href="/app/admin/members">Open the First Page</Link>
       </section>
     );
   return (
     <section className="section container">
       <PageHeader
-        eyebrow="Platform operations"
+        eyebrow="Platform Operations"
         title="Members"
         description="Registered accounts, separate from platform staff roles. Verification does not grant administrator access."
       />
@@ -55,9 +55,9 @@ export default async function PlatformMembersPage({
         </div>
       </article>
       <nav aria-label="Member pages" className="workspace-pagination">
-        <Link href="/app/admin/members">First page</Link>
+        <Link href="/app/admin/members">First Page</Link>
         {result.value.next ? (
-          <Link href={`/app/admin/members?after=${result.value.next}`}>Next page</Link>
+          <Link href={`/app/admin/members?after=${result.value.next}`}>Next Page</Link>
         ) : null}
       </nav>
     </section>

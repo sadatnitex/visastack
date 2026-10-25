@@ -22,11 +22,11 @@ export default async function NotificationsPage() {
 
   return (
     <section className="section container">
-      <PageHeader eyebrow="Alerts" title="Updates on your cases" />
+      <PageHeader eyebrow="Alerts" title="Updates on Your Cases" />
 
       <article className="card">
         {notifications.length === 0 ? (
-          <EmptyState icon="bell" title="No alerts yet">
+          <EmptyState icon="bell" title="No Alerts Yet">
             Updates about your cases, requests for evidence and documents nearing expiry will appear
             here, each with a button that takes you to what needs doing.
           </EmptyState>
@@ -75,7 +75,7 @@ export default async function NotificationsPage() {
                         className="btn btn-secondary"
                         style={{ padding: '0.3rem 0.9rem', fontSize: 'var(--text-small)' }}
                       >
-                        Mark read
+                        Mark Read
                       </button>
                     </form>
                   ) : null}

@@ -26,7 +26,7 @@ export function SourceNote({ source }: { readonly source: DestinationSource | nu
       ))}
       {source?.exactWords ? (
         <details className="source-note-words">
-          <summary>Words copied from the source</summary>
+          <summary>Words Copied from the Source</summary>
           <p>{source.exactWords}</p>
         </details>
       ) : null}

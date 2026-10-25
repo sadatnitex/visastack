@@ -75,7 +75,7 @@ export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProp
         <form action={cancelAction}>
           <SubmitButton
             pending={cancelPending}
-            idle="Cancel deletion"
+            idle="Cancel Deletion"
             busy="Cancelling…"
             className="btn btn-primary"
           />
@@ -145,7 +145,7 @@ export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProp
           htmlFor="del-reason"
           style={{ display: 'block', marginBottom: '0.4rem' }}
         >
-          Reason (optional)
+          Reason (Optional)
         </label>
         <input
           id="del-reason"
@@ -164,7 +164,7 @@ export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProp
             <div className="cta-row u-mt-050">
               <SubmitButton
                 pending={reqPending}
-                idle="Yes, schedule deletion"
+                idle="Yes, Schedule Deletion"
                 busy="Scheduling…"
                 className="btn btn-danger"
               />
@@ -179,7 +179,7 @@ export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProp
           </div>
         ) : (
           <button type="button" className="btn btn-danger" onClick={() => setConfirming(true)}>
-            Request account deletion
+            Request Account Deletion
           </button>
         )}
         <FormMessage result={reqState} />

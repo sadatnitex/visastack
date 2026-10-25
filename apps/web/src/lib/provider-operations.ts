@@ -37,14 +37,14 @@ function rawRows(
     value !== undefined && Number.isFinite(value) && value >= 0;
   return [
     {
-      label: 'Application email',
+      label: 'Application Email',
       reading: email ? 'Configuration present' : 'Not configured',
       source: 'Configuration',
       detail:
         'Case and workspace notices use this sender. Sign-in and password messages use separate authentication settings. Configuration does not confirm delivery.',
     },
     {
-      label: 'Email delivery receipts',
+      label: 'Email Delivery Receipts',
       reading:
         email && configured(['RESEND_WEBHOOK_SECRET'])
           ? 'Verification secret present'
@@ -54,7 +54,7 @@ function rawRows(
         'Provider acceptance is different from delivery. Receipt endpoint registration and signed events must also be verified.',
     },
     {
-      label: 'Document storage',
+      label: 'Document Storage',
       reading:
         read('STORAGE_PROVIDER') === 'r2' &&
         configured(['R2_ENDPOINT_URL', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY'])
@@ -65,14 +65,14 @@ function rawRows(
         'The configured client still needs a successful private object operation. A credential being present does not prove permission or bucket access.',
     },
     {
-      label: 'Tracked evidence storage',
+      label: 'Tracked Evidence Storage',
       reading: measured(input.evidenceBytes) ? `${input.evidenceBytes} bytes` : 'Unavailable',
       source: measured(input.evidenceBytes) ? 'Application records' : 'Not measured',
       detail:
         'This count excludes database archives, document backups and provider overhead. It is not total billed storage or free-plan headroom.',
     },
     {
-      label: 'AI environment key',
+      label: 'AI Environment Key',
       reading:
         (!read('AI_PROVIDER') || read('AI_PROVIDER') === 'openai') && configured(['OPENAI_API_KEY'])
           ? 'Environment key present'
@@ -82,14 +82,14 @@ function rawRows(
         'This reading covers environment configuration only. Existing administration settings can select a database-managed provider, and the enable switch, consent, budget and human review still govern processing. Manual case preparation stays available.',
     },
     {
-      label: 'Tracked AI usage',
+      label: 'Tracked AI Usage',
       reading: measured(input.aiCostUnits) ? `${input.aiCostUnits} cost units` : 'Unavailable',
       source: measured(input.aiCostUnits) ? 'Application records' : 'Not measured',
       detail:
         'Application cost units do not independently verify an invoice, token allowance or current provider price.',
     },
     {
-      label: 'Encryption key recovery',
+      label: 'Encryption Key Recovery',
       reading: configured(['KMS_LOCAL_MASTER_KEY_BASE64'])
         ? 'Key present; recovery unverified'
         : 'Key not configured',
@@ -98,14 +98,14 @@ function rawRows(
         'A live key does not prove independent recovery, escrow or rotation. Retain a separate tested recovery procedure before sensitive-data activation.',
     },
     {
-      label: 'Backup recovery',
+      label: 'Backup Recovery',
       reading: 'Recovery evidence required',
       source: 'Not measured',
       detail:
         'A database-only restore does not recover documents, encryption keys, access revocations or deletion history. Do not infer full recovery from backup credentials.',
     },
     {
-      label: 'Provider bills and free-plan headroom',
+      label: 'Provider Bills and Free-Plan Headroom',
       reading: 'Not measured here',
       source: 'Not measured',
       detail:
@@ -123,14 +123,14 @@ function plain(
     headline: 'This is not counted here. Check the provider account itself.',
   };
   switch (row.label) {
-    case 'Application email':
+    case 'Application Email':
       return row.reading === 'Configuration present'
         ? {
             standing: 'Set Up',
             headline: 'A sender is set up. That does not prove emails arrive.',
           }
         : { standing: 'Not Set Up', headline: 'No application email sender is set up yet.' };
-    case 'Email delivery receipts':
+    case 'Email Delivery Receipts':
       return row.reading === 'Verification secret present'
         ? {
             standing: 'Set Up',
@@ -138,7 +138,7 @@ function plain(
               'Receipt checking is switched on. Delivery is unproven until a real receipt arrives.',
           }
         : { standing: 'Not Set Up', headline: 'Delivery receipts are not being checked yet.' };
-    case 'Document storage':
+    case 'Document Storage':
       return row.reading === 'Configuration present'
         ? {
             standing: 'Set Up',
@@ -149,14 +149,14 @@ function plain(
             standing: 'Not Set Up',
             headline: 'Storage settings are incomplete. Check them before real documents are used.',
           };
-    case 'Tracked evidence storage':
+    case 'Tracked Evidence Storage':
       return input.evidenceBytes !== undefined && row.source === 'Application records'
         ? {
             standing: 'Recorded',
             headline: `${formatFileSize(input.evidenceBytes)} of files are recorded. This is not your storage bill.`,
           }
         : { standing: 'Not Measured', headline: 'Storage use could not be counted.' };
-    case 'AI environment key':
+    case 'AI Environment Key':
       return row.reading === 'Environment key present'
         ? {
             standing: 'Set Up',
@@ -168,21 +168,21 @@ function plain(
             headline:
               'No AI key is set in the environment. A provider chosen in settings may still apply.',
           };
-    case 'Tracked AI usage':
+    case 'Tracked AI Usage':
       return row.source === 'Application records'
         ? {
             standing: 'Recorded',
             headline: 'Usage is recorded in the app. It is not the provider invoice.',
           }
         : { standing: 'Not Measured', headline: 'AI usage could not be counted.' };
-    case 'Encryption key recovery':
+    case 'Encryption Key Recovery':
       return row.reading === 'Key not configured'
         ? { standing: 'Not Set Up', headline: 'No encryption key is set.' }
         : {
             standing: 'Not Proven',
             headline: 'A key is in place. Nobody has proven it can be recovered.',
           };
-    case 'Backup recovery':
+    case 'Backup Recovery':
       return {
         standing: 'Not Proven',
         headline:

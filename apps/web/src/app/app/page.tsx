@@ -101,9 +101,9 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
       attention.push({
         href: `/app/applicant/${row.applicant.id}/evidence`,
         applicantName: row.applicant.displayName,
-        label: 'Evidence requests waiting for a reply',
+        label: 'Evidence Requests Waiting for a Reply',
         why: 'An agency has asked for a document. Reply with a file from your documents.',
-        action: 'Open requests',
+        action: 'Open Requests',
         count: row.openRequests,
       });
     }
@@ -111,9 +111,9 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
       attention.push({
         href: `/app/applicant/${row.applicant.id}/documents`,
         applicantName: row.applicant.displayName,
-        label: 'Suggested details waiting for your decision',
+        label: 'Suggested Details Waiting for Your Decision',
         why: 'Details were read from a document. Nothing is added to the profile until you approve it.',
-        action: 'Review suggestions',
+        action: 'Review Suggestions',
         count: row.pendingProposals,
       });
     }
@@ -125,9 +125,9 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
     attention.push({
       href: '/app/shared',
       applicantName: '',
-      label: 'Sharing invitations waiting for your answer',
+      label: 'Sharing Invitations Waiting for Your Answer',
       why: 'Someone wants to share their information with you. Nothing is shared until you accept.',
-      action: 'See invitations',
+      action: 'See Invitations',
       count: pendingGrants,
     });
   }
@@ -239,21 +239,21 @@ export default async function AppPage({
   const setupSteps = [
     {
       key: 'consent',
-      label: 'Allow core processing',
+      label: 'Allow Core Processing',
       hint: 'Needed before anything can be saved. You can turn it off at any time.',
       done: coreGranted,
       href: '#permissions',
     },
     {
       key: 'applicant',
-      label: 'Add an applicant',
+      label: 'Add an Applicant',
       hint: 'Start with yourself, or someone you manage records for.',
       done: data.applicants.length > 0,
       href: '/app/applicants',
     },
     {
       key: 'document',
-      label: 'Add a first document',
+      label: 'Add a First Document',
       hint: 'A passport page is the usual start.',
       done: data.perApplicant.some((row) => row.documentCount > 0),
       href: firstApplicant
@@ -262,7 +262,7 @@ export default async function AppPage({
     },
     {
       key: 'case',
-      label: 'Start a case',
+      label: 'Start a Case',
       hint: 'Check your documents against one visa route.',
       done: data.perApplicant.some((row) => row.activeMissions > 0),
       href: firstApplicant
@@ -278,7 +278,7 @@ export default async function AppPage({
   const first = data.attention[0];
   const nextStep = !coreGranted
     ? {
-        title: 'Turn on core processing to begin',
+        title: 'Turn On Core Processing to Begin',
         why: 'VisaStack cannot create applicant or profile records until you allow this. You can turn it off again at any time.',
         href: '#permissions',
         action: 'Choose permissions',
@@ -297,13 +297,13 @@ export default async function AppPage({
             title: firstTodo.label,
             why: firstTodo.hint,
             href: firstTodo.href,
-            action: firstTodo.key === 'applicant' ? 'Add an applicant' : 'Continue',
+            action: firstTodo.key === 'applicant' ? 'Add an Applicant' : 'Continue',
           }
         : {
             title: 'You are up to date',
             why: 'Nothing is waiting for you. Open an applicant to add documents or start a case.',
             href: '/app/applicants',
-            action: 'View applicants',
+            action: 'View Applicants',
             tone: 'ok' as const,
           };
 
@@ -312,7 +312,7 @@ export default async function AppPage({
       <div className="u-mb-150">
         <span className="eyebrow">Home</span>
         <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-          Welcome back
+          Welcome Back
         </h1>
         <p className="muted" style={{ margin: '0.35rem 0 0', overflowWrap: 'anywhere' }}>
           Signed in as {data.email}
@@ -322,13 +322,13 @@ export default async function AppPage({
       <NextStepCard {...nextStep} />
 
       {setupSteps.some((step) => !step.done) ? (
-        <Checklist title="Set up your account" items={setupSteps} />
+        <Checklist title="Set Up Your Account" items={setupSteps} />
       ) : null}
 
       {coreGranted && data.attention.length > 1 ? (
         <article className="card u-mb-150">
-          <p className="card-kicker">Also waiting</p>
-          <h2 className="card-title">Needs your attention</h2>
+          <p className="card-kicker">Also Waiting</p>
+          <h2 className="card-title">Needs Your Attention</h2>
           <AttentionList
             items={data.attention.slice(1).map((item, i) => ({
               key: `${item.href}-${i}`,
@@ -343,13 +343,13 @@ export default async function AppPage({
 
       {coreGranted ? (
         <article className="card u-mb-150">
-          <p className="card-kicker">People and cases</p>
-          <h2 className="card-title">Your applicants</h2>
+          <p className="card-kicker">People and Cases</p>
+          <h2 className="card-title">Your Applicants</h2>
           {data.perApplicant.length === 0 ? (
             <EmptyState
               icon="users"
-              title="No applicants yet"
-              action={{ href: '/app/applicants', label: 'Add an applicant' }}
+              title="No Applicants Yet"
+              action={{ href: '/app/applicants', label: 'Add an Applicant' }}
             >
               An applicant is one person whose passport details and documents you keep here and
               reuse for each visa application.
@@ -396,7 +396,7 @@ export default async function AppPage({
        */}
       <div id="permissions">
         <Disclosure
-          title="Permissions you control"
+          title="Permissions You Control"
           hint={`${grantedCount} of ${CONSENT_TYPES.length} on`}
           open={!coreGranted}
         >

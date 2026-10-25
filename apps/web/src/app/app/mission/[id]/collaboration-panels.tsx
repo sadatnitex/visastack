@@ -76,7 +76,7 @@ export function TasksPanel({
                 </span>
                 {task.status === 'IN_PROGRESS' ? (
                   <span className="badge badge-neutral" style={{ fontSize: 'var(--text-caption)' }}>
-                    In progress
+                    In Progress
                   </span>
                 ) : null}
                 {task.dueDate ? (
@@ -166,7 +166,7 @@ export function TasksPanel({
           name="dueDate"
           type="date"
           className="input"
-          aria-label="Due date (optional)"
+          aria-label="Due Date (Optional)"
           style={{ maxWidth: '9rem' }}
         />
         <input
@@ -368,8 +368,8 @@ export function LettersPanel({
   const [state, formAction, pending] = useActionState(generateLetterAction, INITIAL);
   return (
     <article className="card">
-      <p className="card-kicker">Grounded documents</p>
-      <h2 className="card-title">Cover letters</h2>
+      <p className="card-kicker">Grounded Documents</p>
+      <h2 className="card-title">Cover Letters</h2>
       <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '1rem' }}>
         Generated strictly from confirmed, eligible evidence - nothing is invented. Not AI-written;
         deterministic and versioned.
@@ -402,7 +402,7 @@ export function LettersPanel({
         <SubmitButton
           pending={pending}
           unavailable={!canGenerate}
-          idle="Generate new version"
+          idle="Generate New Version"
           busy="Generating…"
           className="btn btn-secondary"
         />
@@ -501,8 +501,8 @@ export function EvidenceSelectionPanel({
                           <input type="hidden" name="selectionId" value={selectionId} />
                           <SubmitButton
                             pending={unselectPending}
-                            idle="Selected - remove"
-                            busy="Selected - remove"
+                            idle="Selected - Remove"
+                            busy="Selected - Remove"
                             className="btn btn-secondary u-btn-xs"
                           />
                         </form>
@@ -561,8 +561,8 @@ export function EvidenceSelectionPanel({
                           <input type="hidden" name="selectionId" value={selectionId} />
                           <SubmitButton
                             pending={unselectPending}
-                            idle="Selected - remove"
-                            busy="Selected - remove"
+                            idle="Selected - Remove"
+                            busy="Selected - Remove"
                             className="btn btn-secondary u-btn-xs"
                           />
                         </form>

@@ -40,7 +40,7 @@ import { expect, test } from '@playwright/test';
  *     (new, `.serial` — every test shares and mutates the same account's
  *     consent/deletion state, so they run in order, never overlapping):
  *     consent granting, document upload + real processing (polled via page
- *     reload, accepting AWAITING_REVIEW/"Needs review" as a genuine success
+ *     reload, accepting AWAITING_REVIEW/"Needs Review" as a genuine success
  *     terminal state — Codex review round 1), filename review, best-effort
  *     AI proposal review, mission creation, a sharing SAFETY check (sharing
  *     to an address with no VisaStack account fails with a clear error and
@@ -78,7 +78,7 @@ import { expect, test } from '@playwright/test';
  *   - **Wrong label everywhere.** `createApplicant` and the two original
  *     tests that create an applicant inline all matched
  *     `/display name|applicant name/i`, but the real form's accessible
- *     label is "Full name" (`add-applicant-form.tsx`) — every applicant-
+ *     label is "Full Name" (`add-applicant-form.tsx`) - every applicant-
  *     creating test, old and new, would have failed at its very first step.
  *   - **Processing-status success/failure were conflated.** The round-1 fix
  *     still treated "needs attention"/"failed"/"rejected" as an acceptable
@@ -152,7 +152,7 @@ async function ensureConsent(page: import('@playwright/test').Page, title: strin
   await page.goto('/app');
   const row = page.locator('.row', { hasText: title });
   await expect(row).toBeVisible();
-  const grantButton = row.getByRole('button', { name: 'Turn on' });
+  const grantButton = row.getByRole('button', { name: 'Turn On' });
   if (await grantButton.isVisible().catch(() => false)) {
     await grantButton.click();
     await expect(row.getByRole('button', { name: 'Turn off' })).toBeVisible({ timeout: 10_000 });
@@ -161,7 +161,7 @@ async function ensureConsent(page: import('@playwright/test').Page, title: strin
 
 /**
  * Creates a fresh applicant from /app/applicants and returns its detail-page
- * URL. The visible label is "Full name" (Codex review, PR-E2, round 2 —
+ * URL. The visible label is "Full Name" (Codex review, PR-E2, round 2 -
  * `apps/web/src/app/app/add-applicant-form.tsx:16-25`; confirmed by reading
  * the component directly), not "display name"/"applicant name" as every
  * pre-existing test in this file (including two the original, unedited
@@ -249,7 +249,7 @@ test.describe('authenticated workspace journey', () => {
     await expect(page).toHaveURL(/\/app\/applicants$/);
 
     const applicantName = `E2E Synthetic ${Date.now()}`;
-    // "Full name" is the form's real accessible label (Codex review,
+    // "Full Name" is the form's real accessible label (Codex review,
     // PR-E2, round 2 — apps/web/src/app/app/add-applicant-form.tsx:16-25).
     await page.getByLabel(/full name/i).fill(applicantName);
     await page.getByRole('button', { name: /create applicant|add applicant/i }).click();
@@ -342,7 +342,7 @@ test.describe
       await page.goto('/app');
       const sharingRow = page.locator('.row', { hasText: 'Let me share with others' });
       await sharingRow.getByRole('button', { name: 'Turn off' }).click();
-      await expect(sharingRow.getByRole('button', { name: 'Turn on' })).toBeVisible({
+      await expect(sharingRow.getByRole('button', { name: 'Turn On' })).toBeVisible({
         timeout: 10_000,
       });
       const coreRow = page.locator('.row', { hasText: 'Let VisaStack process my details' });
@@ -350,7 +350,7 @@ test.describe
 
       // Re-grant sharing so later tests in this file that depend on it
       // (grant creation below) aren't left broken by this test's own cleanup.
-      await sharingRow.getByRole('button', { name: 'Turn on' }).click();
+      await sharingRow.getByRole('button', { name: 'Turn On' }).click();
       await expect(sharingRow.getByRole('button', { name: 'Turn off' })).toBeVisible({
         timeout: 10_000,
       });
@@ -392,13 +392,13 @@ test.describe
         mimeType: 'text/plain',
         buffer: Buffer.from(syntheticContent, 'utf-8'),
       });
-      await page.getByRole('button', { name: 'Upload document' }).click();
+      await page.getByRole('button', { name: 'Upload Document' }).click();
       const documentsUrl = page.url();
 
       // Real processing (scan -> normalize -> classify), never faked progress
       // (master directive §7 "PR 7") -- polls via real page reloads (see
       // waitForSuccessfulProcessingStatus's own doc comment) for a terminal
-      // status, treating AWAITING_REVIEW ("Needs review") as a genuine
+      // status, treating AWAITING_REVIEW ("Needs Review") as a genuine
       // success terminal state (Codex review, PR-E2, round 1: for a normal,
       // safe, non-auto-approved upload, AWAITING_REVIEW is exactly where
       // processIntake is SUPPOSED to stop, pending the human review this
@@ -426,7 +426,7 @@ test.describe
       await page.goto(`${applicantUrl}/missions`);
       const missionTitle = `E2E Mission ${Date.now()}`;
       await page.getByLabel('What is this case for?').fill(missionTitle);
-      await page.getByRole('button', { name: 'Create case' }).click();
+      await page.getByRole('button', { name: 'Create Case' }).click();
       await expect(page.getByText(missionTitle)).toBeVisible({ timeout: 10_000 });
     });
 
@@ -452,10 +452,10 @@ test.describe
 
       await page.goto(`${applicantUrl}/sharing`);
       const unownedEmail = `e2e-unowned-${Date.now()}@example.invalid`;
-      await page.getByLabel('Recipient email').fill(unownedEmail);
+      await page.getByLabel('Recipient Email').fill(unownedEmail);
       await page.getByLabel('Purpose').fill('E2E unowned-recipient safety check');
-      await page.getByRole('button', { name: 'Review and confirm' }).click();
-      await page.getByRole('button', { name: 'Confirm sharing request' }).click();
+      await page.getByRole('button', { name: 'Review and Confirm' }).click();
+      await page.getByRole('button', { name: 'Confirm Sharing Request' }).click();
 
       await expect(page.getByText(/no visastack account found/i)).toBeVisible({ timeout: 10_000 });
       // No grant row for this address -- the failed attempt left no trace to
@@ -494,7 +494,7 @@ test.describe
       // request and the cancel below fails -- a flaky assertion, a browser
       // crash, a network blip -- an unguarded version of this test leaves
       // the account genuinely scheduled for deletion; a CI retry would then
-      // find "Cancel deletion" instead of "Request account deletion" and
+      // find "Cancel Deletion" instead of "Request Account Deletion" and
       // never reach cancellation either, and after enough such failures the
       // 7-day grace window could elapse for real, permanently deleting the
       // only configured test account and disabling every future
@@ -507,17 +507,17 @@ test.describe
       await page.goto('/app/privacy');
       if (
         await page
-          .getByRole('button', { name: 'Cancel deletion' })
+          .getByRole('button', { name: 'Cancel Deletion' })
           .isVisible()
           .catch(() => false)
       ) {
-        await page.getByRole('button', { name: 'Cancel deletion' }).click();
+        await page.getByRole('button', { name: 'Cancel Deletion' }).click();
         await expect(page.getByText(/deletion pending/i)).toBeHidden({ timeout: 10_000 });
       }
 
       try {
-        await page.getByRole('button', { name: 'Request account deletion' }).click();
-        await page.getByRole('button', { name: 'Yes, schedule deletion' }).click();
+        await page.getByRole('button', { name: 'Request Account Deletion' }).click();
+        await page.getByRole('button', { name: 'Yes, Schedule Deletion' }).click();
         await expect(page.getByText(/deletion pending/i)).toBeVisible({ timeout: 10_000 });
       } finally {
         // Unconditional: runs whether the assertions above passed, failed,
@@ -525,14 +525,14 @@ test.describe
         // await, so a page already mid-navigation/closed can't turn this
         // cleanup step itself into an unhandled rejection that skips the
         // cancel click.
-        const cancelButton = page.getByRole('button', { name: 'Cancel deletion' });
+        const cancelButton = page.getByRole('button', { name: 'Cancel Deletion' });
         if (await cancelButton.isVisible().catch(() => false)) {
           await cancelButton.click();
         }
       }
 
       await expect(page.getByText(/deletion pending/i)).toBeHidden({ timeout: 10_000 });
-      await expect(page.getByRole('button', { name: 'Request account deletion' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Request Account Deletion' })).toBeVisible();
     });
   });
 
@@ -575,10 +575,10 @@ test.describe
 
       // First grant: created and revoked before the recipient ever accepts.
       await page.goto(`${sharedFixture.applicantUrl}/sharing`);
-      await page.getByLabel('Recipient email').fill(email2 ?? '');
+      await page.getByLabel('Recipient Email').fill(email2 ?? '');
       await page.getByLabel('Purpose').fill('E2E revoke before acceptance');
-      await page.getByRole('button', { name: 'Review and confirm' }).click();
-      await page.getByRole('button', { name: 'Confirm sharing request' }).click();
+      await page.getByRole('button', { name: 'Review and Confirm' }).click();
+      await page.getByRole('button', { name: 'Confirm Sharing Request' }).click();
       const pendingRow = page.locator('.row', { hasText: 'E2E revoke before acceptance' });
       await expect(pendingRow).toBeVisible({ timeout: 10_000 });
       await pendingRow.getByRole('button', { name: 'Revoke' }).click();
@@ -592,7 +592,7 @@ test.describe
       const recipient = await secondSession(browser, baseURL);
       try {
         await recipient.page.goto('/app/shared');
-        await expect(recipient.page.getByRole('button', { name: 'Accept access' })).toHaveCount(0);
+        await expect(recipient.page.getByRole('button', { name: 'Accept Access' })).toHaveCount(0);
       } finally {
         await recipient.context.close();
       }
@@ -600,11 +600,11 @@ test.describe
       // Second grant, kept for the following tests: view-only, one permission.
       sharedFixture.grantPurpose = `E2E narrow share ${Date.now()}`;
       await page.goto(`${sharedFixture.applicantUrl}/sharing`);
-      await page.getByLabel('Recipient email').fill(email2 ?? '');
+      await page.getByLabel('Recipient Email').fill(email2 ?? '');
       await page.getByLabel('Purpose').fill(sharedFixture.grantPurpose);
-      await page.getByLabel('Preview documents').uncheck();
-      await page.getByRole('button', { name: 'Review and confirm' }).click();
-      await page.getByRole('button', { name: 'Confirm sharing request' }).click();
+      await page.getByLabel('Preview Documents').uncheck();
+      await page.getByRole('button', { name: 'Review and Confirm' }).click();
+      await page.getByRole('button', { name: 'Confirm Sharing Request' }).click();
       await expect(page.locator('.row', { hasText: sharedFixture.grantPurpose })).toBeVisible({
         timeout: 10_000,
       });
@@ -621,13 +621,13 @@ test.describe
         const row = page.locator('.row', { hasText: sharedFixture.grantPurpose });
         await expect(row).toContainText(/awaiting your acceptance/i);
         await expect(row).toContainText('1 permission');
-        await row.getByRole('button', { name: 'Accept access' }).click();
+        await row.getByRole('button', { name: 'Accept Access' }).click();
         await page.goto('/app/shared');
         await page
           .locator('.row', { hasText: sharedFixture.grantPurpose })
-          .getByRole('link', { name: 'Open workspace' })
+          .getByRole('link', { name: 'Open Workspace' })
           .click();
-        await expect(page.getByText('Shared workspace')).toBeVisible();
+        await expect(page.getByText('Shared Workspace')).toBeVisible();
         // View-only: nothing that needs a permission the grant does not carry.
         await expect(page.getByRole('button', { name: /upload|propose|download/i })).toHaveCount(0);
         await expect(page.getByText(sharedFixture.applicantName).first()).toBeVisible();
@@ -650,7 +650,7 @@ test.describe
         await second.page.goto('/app/shared');
         const workspaceLink = second.page
           .locator('.row', { hasText: sharedFixture.grantPurpose })
-          .getByRole('link', { name: 'Open workspace' });
+          .getByRole('link', { name: 'Open Workspace' });
         const workspaceUrl = new URL(
           (await workspaceLink.getAttribute('href')) ?? '',
           second.page.url(),
@@ -667,7 +667,7 @@ test.describe
         await expect(
           second.page.getByText(/couldn.t find that page|paused|not available/i),
         ).toBeVisible();
-        await expect(second.page.getByText('Shared workspace')).toHaveCount(0);
+        await expect(second.page.getByText('Shared Workspace')).toHaveCount(0);
 
         await page.goto(`${sharedFixture.applicantUrl}/sharing`);
         await page
@@ -678,7 +678,7 @@ test.describe
           page.locator('.row', { hasText: sharedFixture.grantPurpose }),
         ).not.toContainText(/paused/i, { timeout: 10_000 });
         await second.page.goto(workspaceUrl);
-        await expect(second.page.getByText('Shared workspace')).toBeVisible();
+        await expect(second.page.getByText('Shared Workspace')).toBeVisible();
       } finally {
         await second.context.close();
       }
@@ -691,7 +691,7 @@ test.describe
     }) => {
       test.skip(!hasAgencyFixture, blockedAgencyReason);
       // The first identity (agency admin) shares the case it just created with the agency; the agency
-      // admin accepts it from "Shared with me", then assigns the second identity (a member) to it.
+      // admin accepts it from "Shared with Me", then assigns the second identity (a member) to it.
       await signIn(page);
       await page.goto(`/app/agency/${agencyOrgId}/team`);
       await expect(page.getByText(email2 ?? '').first()).toBeVisible();

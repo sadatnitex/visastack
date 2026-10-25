@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: 'Your invitation',
+  title: 'Your Invitation',
   robots: { index: false, follow: false },
   referrer: 'no-referrer',
 };
@@ -22,7 +22,7 @@ export default async function InvitationPage({
   ) {
     return (
       <section className="section container">
-        <h1 className="section-title">Incomplete invitation link</h1>
+        <h1 className="section-title">Incomplete Invitation Link</h1>
         <p>Ask the person who invited you for a new link.</p>
       </section>
     );
@@ -36,13 +36,13 @@ export default async function InvitationPage({
   const next = encodeURIComponent(`${path}?token=${token}`);
   return (
     <section className="section container">
-      <span className="eyebrow">VisaStack invitation</span>
+      <span className="eyebrow">VisaStack Invitation</span>
       <h1 className="section-title">
         {kind === 'team'
           ? 'Join an agency team'
           : kind === 'sharing'
-            ? 'Review shared access'
-            : 'Work with an agency'}
+            ? 'Review Shared Access'
+            : 'Work with an Agency'}
       </h1>
       <ol className="auth-steps" aria-label="What happens next">
         <li aria-current="step">1 Create an account or sign in</li>
@@ -63,23 +63,23 @@ export default async function InvitationPage({
         </p>
         <div className="action-row">
           <Link className="btn btn-primary" href={`/auth/sign-up?next=${next}`}>
-            Create an account
+            Create an Account
           </Link>
           <Link className="btn btn-secondary" href={`/auth/sign-in?next=${next}`}>
-            Sign in
+            Sign In
           </Link>
         </div>
         <p className="card-body">
           Already signed in?{' '}
           {kind === 'team' ? (
-            <Link href={`/app/invitations/accept?token=${token}`}>Review your invitation</Link>
+            <Link href={`/app/invitations/accept?token=${token}`}>Review Your Invitation</Link>
           ) : kind === 'sharing' ? (
             <Link href={`/app/sharing-invitations/accept?token=${token}`}>
-              Review your invitation
+              Review Your Invitation
             </Link>
           ) : (
             <Link href={`/app/client-invitations/accept?token=${token}`}>
-              Review your invitation
+              Review Your Invitation
             </Link>
           )}
         </p>

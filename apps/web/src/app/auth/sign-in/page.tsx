@@ -4,7 +4,7 @@ import { safeReturnPath } from '../../../lib/neon-recency';
 import { signInAction } from '../actions';
 import { AuthShell, ErrorLine, Notice, TextField } from '../auth-ui';
 
-export const metadata: Metadata = { title: 'Sign in' };
+export const metadata: Metadata = { title: 'Sign In' };
 export const dynamic = 'force-dynamic';
 
 const ERRORS: Record<string, string> = {
@@ -26,7 +26,7 @@ export default async function SignInPage({
   const error = e ? ERRORS[e] : undefined;
   const notice = n ? NOTICES[n] : undefined;
   return (
-    <AuthShell title="Sign in">
+    <AuthShell title="Sign In">
       {notice ? <Notice>{notice}</Notice> : null}
       <ErrorLine id="signin-error" message={error} />
       <div className="card u-mb-100">
@@ -36,7 +36,7 @@ export default async function SignInPage({
             id="email"
             name="email"
             type="email"
-            label="Email address"
+            label="Email Address"
             autoComplete="email"
             required
             maxLength={254}
@@ -53,7 +53,7 @@ export default async function SignInPage({
             maxLength={128}
           />
           <button type="submit" className="btn btn-primary">
-            Sign in
+            Sign In
           </button>
         </form>
       </div>
@@ -63,7 +63,7 @@ export default async function SignInPage({
       <p className="card-body">
         New here?{' '}
         <Link href={`/auth/sign-up?next=${encodeURIComponent(safeReturnPath(next))}`}>
-          Create an account
+          Create an Account
         </Link>
       </p>
     </AuthShell>

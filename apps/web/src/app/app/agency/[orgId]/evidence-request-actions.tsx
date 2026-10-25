@@ -58,7 +58,7 @@ export function EvidenceRequestActions({
             <input type="hidden" name="requestId" value={requestId} />
             <SubmitButton
               pending={reviewPending}
-              idle="Start review"
+              idle="Start Review"
               busy="Starting…"
               className="btn btn-secondary"
               style={{ padding: '0.3rem 0.75rem', fontSize: 'var(--text-small)' }}
@@ -85,7 +85,7 @@ export function EvidenceRequestActions({
             setReasonOutcome((v) => (v === 'NEEDS_REPLACEMENT' ? null : 'NEEDS_REPLACEMENT'))
           }
         >
-          Needs replacement
+          Needs Replacement
         </button>
         <button
           type="button"
@@ -103,14 +103,14 @@ export function EvidenceRequestActions({
             setReasonOutcome((v) => (v === 'CORRECTION_PROPOSED' ? null : 'CORRECTION_PROPOSED'))
           }
         >
-          Propose correction
+          Propose Correction
         </button>
         <form action={cancelAction}>
           <input type="hidden" name="organizationId" value={organizationId} />
           <input type="hidden" name="requestId" value={requestId} />
           <SubmitButton
             pending={cancelPending}
-            idle="Cancel request"
+            idle="Cancel Request"
             busy="Cancelling…"
             className="btn btn-secondary"
             style={{ padding: '0.3rem 0.75rem', fontSize: 'var(--text-small)' }}

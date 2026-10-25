@@ -3,11 +3,11 @@ import Link from 'next/link';
 import { signOutCurrentUser } from '../../../lib/sign-out';
 import { AuthShell } from '../auth-ui';
 
-export const metadata: Metadata = { title: 'Account access needs verification' };
+export const metadata: Metadata = { title: 'Account Access Needs Verification' };
 
 export default function AccountRecoveryPage() {
   return (
-    <AuthShell title="Account access needs verification">
+    <AuthShell title="Account Access Needs Verification">
       <p className="card-body">
         We could not safely connect this sign-in to an account. Your records have not been changed.
         Sign out and try the account you previously used. If you still cannot get access, ask the
@@ -29,7 +29,7 @@ export default function AccountRecoveryPage() {
           </button>
         </form>
         <Link className="btn btn-secondary" href="/">
-          Back to home
+          Back to Home
         </Link>
       </div>
     </AuthShell>

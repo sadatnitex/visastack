@@ -24,12 +24,12 @@ async function signIn(page: Page, role: string) {
   await page.goto('/auth/sign-in');
   await expect(page).toHaveURL(/\/auth\/sign-in/);
   await page
-    .getByLabel('Email address', { exact: true })
+    .getByLabel('Email Address', { exact: true })
     .fill(configured(`NEON_STAGING_${role}_EMAIL`));
   await page
     .getByLabel('Password', { exact: true })
     .fill(configured(`NEON_STAGING_${role}_PASSWORD`));
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.getByRole('button', { name: 'Sign In', exact: true }).click();
   await expect(page).toHaveURL(/\/app(?:\/|$)/);
   sessions.set(role, await page.context().cookies());
 }
@@ -75,7 +75,7 @@ test('a different Neon identity cannot open the traveller record', async ({ page
   const response = await page.goto(`/app/applicant/${person}/profile`);
   // Next can start streaming the authenticated layout before notFound is raised.
   expect([200, 404]).toContain(response?.status());
-  await expect(page.getByRole('heading', { name: "We couldn't find that page" })).toBeVisible();
+  await expect(page.getByRole('heading', { name: "We Couldn't Find That Page" })).toBeVisible();
   await expect(page.locator('.profile-identity-banner')).toHaveCount(0);
   await expect(page.locator('meta[name="robots"]').last()).toHaveAttribute('content', /noindex/);
 });

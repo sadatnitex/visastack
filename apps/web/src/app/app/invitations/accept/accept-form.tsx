@@ -13,7 +13,7 @@ export function AcceptInvitationForm({ token }: { readonly token: string }) {
       <input type="hidden" name="token" value={token} />
       <SubmitButton
         pending={pending}
-        idle="Accept and join"
+        idle="Accept and Join"
         busy="Joining…"
         className="btn btn-primary"
       />

@@ -24,7 +24,7 @@ export default async function ResetPasswordPage({
           message="That link has expired or is not valid. Ask for a new one."
         />
         <p className="card-body">
-          <Link href="/auth/forgot-password">Send me a new link</Link>
+          <Link href="/auth/forgot-password">Send Me a New Link</Link>
         </p>
       </AuthShell>
     );
@@ -41,7 +41,7 @@ export default async function ResetPasswordPage({
             id="password"
             name="password"
             type="password"
-            label="New password (at least 8 characters)"
+            label="New Password (At Least 8 Characters)"
             autoComplete="new-password"
             required
             minLength={8}
@@ -52,14 +52,14 @@ export default async function ResetPasswordPage({
             id="confirm"
             name="confirm"
             type="password"
-            label="Type the new password again"
+            label="Type the New Password Again"
             autoComplete="new-password"
             required
             minLength={8}
             maxLength={128}
           />
           <button type="submit" className="btn btn-primary">
-            Change password
+            Change Password
           </button>
         </form>
       </div>

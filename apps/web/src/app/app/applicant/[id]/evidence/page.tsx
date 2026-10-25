@@ -22,9 +22,9 @@ export const dynamic = 'force-dynamic';
 const STATUS_BADGE: Record<string, { label: string; tone: string }> = {
   OPEN: { label: 'Open', tone: 'badge-warning' },
   RECEIVED: { label: 'Submitted', tone: 'badge-neutral' },
-  UNDER_REVIEW: { label: 'Under review', tone: 'badge-neutral' },
+  UNDER_REVIEW: { label: 'Under Review', tone: 'badge-neutral' },
   ACCEPTED: { label: 'Accepted', tone: 'badge-success' },
-  NEEDS_REPLACEMENT: { label: 'Needs replacement', tone: 'badge-warning' },
+  NEEDS_REPLACEMENT: { label: 'Needs Replacement', tone: 'badge-warning' },
   CANCELLED: { label: 'Cancelled', tone: 'badge-neutral' },
   // Legacy statuses: no longer written by new requests, but a request
   // created before Commercial V1 Part 4 §10's state model may still hold one.
@@ -50,7 +50,7 @@ function dueLabel(
   if (!AWAITING_SUBMISSION.has(status)) return null;
   const days = daysUntilDateOnly(dueDate);
   if (days < 0) return { label: `Overdue by ${plural(-days, 'day')}`, tone: 'danger' };
-  if (days === 0) return { label: 'Due today', tone: 'warning' };
+  if (days === 0) return { label: 'Due Today', tone: 'warning' };
   if (days <= 7) return { label: `Due in ${plural(days, 'day')}`, tone: 'warning' };
   return { label: `Due in ${plural(days, 'day')}`, tone: 'neutral' };
 }
@@ -127,8 +127,8 @@ export default async function EvidencePage({
   return (
     <>
       <PageHeader
-        eyebrow="Evidence requests"
-        title="Requests from agencies"
+        eyebrow="Evidence Requests"
+        title="Requests from Agencies"
         description="An agency request is that organisation asking you for something, never an official visa requirement on its own. You decide what to submit, and can reuse anything already in your wallet."
         as="h2"
       />
@@ -144,7 +144,7 @@ export default async function EvidencePage({
 
       <article className="card">
         {data.requests.length === 0 ? (
-          <EmptyState icon="clipboard" title="No evidence requests">
+          <EmptyState icon="clipboard" title="No Evidence Requests">
             When an agency asks for a document or a detail, it appears here with what is needed,
             why, and the date it is needed by.
           </EmptyState>

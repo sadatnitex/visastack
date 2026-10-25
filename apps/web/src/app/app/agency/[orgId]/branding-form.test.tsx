@@ -52,7 +52,7 @@ describe('BrandingForm', () => {
   it('shows the uploaded logo in the preview and offers to remove it', async () => {
     const host = await mount({ accentColor: '#1f4e79', logoUrl: LOGO });
     expect(host.querySelector('.brand-preview img')?.getAttribute('src')).toBe(LOGO);
-    expect(host.textContent).toContain('Remove logo');
+    expect(host.textContent).toContain('Remove Logo');
     expect(host.textContent).toContain('Replace');
   });
 

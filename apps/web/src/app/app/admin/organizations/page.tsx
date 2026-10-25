@@ -10,12 +10,12 @@ import { OrgReviewButtons, OrgSuspendButton, OrgTerminateButton } from '../actio
 import { AdminRestricted } from '../admin-restricted';
 import { FailedSectionsBanner } from '../failed-sections-banner';
 
-export const metadata: Metadata = { title: 'Platform organizations' };
+export const metadata: Metadata = { title: 'Platform Organizations' };
 
 export const dynamic = 'force-dynamic';
 
 const ORG_STATUS: Record<string, { label: string; tone: string }> = {
-  PENDING_VERIFICATION: { label: 'Pending verification', tone: 'badge-warning' },
+  PENDING_VERIFICATION: { label: 'Pending Verification', tone: 'badge-warning' },
   ACTIVE: { label: 'Active', tone: 'badge-success' },
   SUSPENDED: { label: 'Suspended', tone: 'badge-danger' },
   REJECTED: { label: 'Rejected', tone: 'badge-danger' },
@@ -55,7 +55,7 @@ export default async function AdminOrganizationsPage() {
             <p className="card-kicker">Verification</p>
             <h2 className="card-title">Organizations</h2>
             {data.orgs.length === 0 ? (
-              <EmptyState title="No organizations yet" icon="building">
+              <EmptyState title="No Organizations Yet" icon="building">
                 Organizations appear here when an agency registers and asks to be verified.
               </EmptyState>
             ) : (

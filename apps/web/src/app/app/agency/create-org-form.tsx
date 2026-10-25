@@ -22,7 +22,7 @@ export function CreateOrgForm() {
       <div>
         <SubmitButton
           pending={pending}
-          idle="Create organization"
+          idle="Create Organization"
           busy="Creating…"
           className="btn btn-primary"
         />

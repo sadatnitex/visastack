@@ -23,7 +23,7 @@ export function ReconcileButtons() {
           <input type="hidden" name="mode" value="dry-run" />
           <SubmitButton
             pending={dryRunPending}
-            idle="Scan for drift (dry run)"
+            idle="Scan for Drift (Dry Run)"
             busy="Scanning…"
             className="btn btn-secondary"
           />
@@ -43,7 +43,7 @@ export function ReconcileButtons() {
           <input type="hidden" name="mode" value="mutate" />
           <SubmitButton
             pending={mutatePending}
-            idle="Clean up dangling references"
+            idle="Clean Up Dangling References"
             busy="Cleaning…"
             className="btn btn-danger"
           />

@@ -8,7 +8,7 @@ import { documentTypeLabel } from '../../../../lib/labels';
 import { fieldLabel } from '../../../../lib/master-profile';
 import { withSession } from '../../../../lib/session';
 
-export const metadata: Metadata = { title: 'Shared record' };
+export const metadata: Metadata = { title: 'Shared Record' };
 
 export const dynamic = 'force-dynamic';
 
@@ -34,7 +34,7 @@ export default async function SharedWorkspacePage({
         </Link>
       </div>
       <PageHeader
-        eyebrow="Shared workspace"
+        eyebrow="Shared Workspace"
         title={workspace.applicantDisplayName}
         description={
           <>
@@ -63,9 +63,9 @@ export default async function SharedWorkspacePage({
       <div className="grid">
         <article className="card">
           <p className="card-kicker">Profile</p>
-          <h2 className="card-title">Shared fields</h2>
+          <h2 className="card-title">Shared Fields</h2>
           {workspace.fields.length === 0 ? (
-            <EmptyState icon="user" title="No profile details shared">
+            <EmptyState icon="user" title="No Profile Details Shared">
               This person has not shared any profile details with you for this purpose.
             </EmptyState>
           ) : (
@@ -82,9 +82,9 @@ export default async function SharedWorkspacePage({
 
         <article className="card">
           <p className="card-kicker">Document Vault</p>
-          <h2 className="card-title">Shared documents</h2>
+          <h2 className="card-title">Shared Documents</h2>
           {workspace.documents.length === 0 ? (
-            <EmptyState icon="file" title="No documents shared">
+            <EmptyState icon="file" title="No Documents Shared">
               This person has not shared any documents with you for this purpose.
             </EmptyState>
           ) : (
