@@ -89,6 +89,20 @@ async function photoWithGps(width = 900, height = 600): Promise<Uint8Array> {
 describe('SharpPhotoReencoder', () => {
   const reencoder = new SharpPhotoReencoder();
 
+  it('refuses a photo that takes longer than its time limit', async () => {
+    const large = new Uint8Array(
+      await sharp({
+        create: { width: 6000, height: 4000, channels: 3, background: { r: 9, g: 9, b: 9 } },
+      })
+        .jpeg()
+        .toBuffer(),
+    );
+    const hurried = new SharpPhotoReencoder({ timeoutMs: 1 });
+    await expect(
+      hurried.reencode({ bytes: large, size: SIZE, maxInputPixels: PIXELS }),
+    ).rejects.toThrow('took too long');
+  });
+
   it('strips EXIF location data while producing a square JPEG', async () => {
     const input = await photoWithGps();
     // The fixture really carries the location the re-encode must remove.
