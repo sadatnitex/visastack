@@ -5779,6 +5779,11 @@ body:has(.auth-shell) > .footer {
 .case-alert-body {
   color: var(--text);
 }
+.case-journey-reminder {
+  margin: -0.5rem 0 1.25rem;
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
 .case-next-step-kicker {
   margin: 0;
   font-weight: 400;

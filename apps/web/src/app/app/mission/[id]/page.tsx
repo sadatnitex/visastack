@@ -634,6 +634,11 @@ export default async function MissionPage({
           </a>
         </section>
       ) : null}
+      {/* Owner-approved wording, 25 Oct 2026. */}
+      <p className="case-journey-reminder">
+        Preparing a file is not the same as submitting it. VisaStack does not submit applications or
+        predict decisions.
+      </p>
       {/* WP-V4 places the request triage summary directly under the next step. */}
 
       <div className="case-context-strip">

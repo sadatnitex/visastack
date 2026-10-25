@@ -305,4 +305,17 @@ describe('case journey view (WP-X1)', () => {
     setUp({ openTasks: 1 });
     expect(textOf(await render())).toMatch(/Finish 1 open task(?!s)/);
   });
+
+  it('reminds that a prepared file is not a submission, after the next step, on every case', async () => {
+    const reminder =
+      'Preparing a file is not the same as submitting it. VisaStack does not submit applications or predict decisions.';
+    for (const options of [{}, { openTasks: 1 }, { dirty: true }]) {
+      setUp(options);
+      const html = await render();
+      expect(textOf(html)).toContain(reminder);
+      const at = html.indexOf('class="case-journey-reminder"');
+      expect(at).toBeGreaterThan(html.indexOf('aria-label="Actual case workflow state"'));
+      expect(at).toBeLessThan(html.indexOf('class="case-context-strip"'));
+    }
+  });
 });

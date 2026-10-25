@@ -7,7 +7,7 @@ Keep this file between 250 and 400 words. Memory between sessions; evidence live
 - Branch: `claude/prog-x1-case`, rebased on `c53d95f`
 - Current package: WP-X1 case journey view
 - Packages merged: WP-A0 (#230), security (#232), public beta wording (#233), WP-L1 (#234), WP-B1 (#235), WP-C1 (#236), WP-P0 (#237), WP-V1 (#238), WP-V2 (#239)
-- Owner decisions: D1 to D16, CR13 and CR14 approved. Pending: revised first-run preview (before WP-V3); email-only client invitations; wording of the case reminder line (prepared is not submitted, no approval odds); a before or after tax detail for amounts (catalogue, D14); hiding the what-can-happen-next sentence on phones (WP-X1, reversible)
+- Owner decisions: D1 to D16, CR13 and CR14 approved. Pending: revised first-run preview (before WP-V3); email-only client invitations; a before or after tax detail for amounts (catalogue, D14); hiding the what-can-happen-next sentence on phones (WP-X1, reversible)
 - Completed ledger ids: as before plus X02, X04 and X06 after values for the case page
 - Files touched (WP-X1): case `page.tsx`, its new `page.test.tsx` (characterization first, then the new behaviour), `mission-buttons.tsx` (snapshot button label, style and alignment props; allowlist line added under the autonomous mandate), `globals.css` (WP-X1 block), ledger, this file, known-issues
 - Checks on the WP-X1 head: audit exit 0, lint, typecheck, full tests, web suite and build pass; Playwright matches the sign-in baseline here. Independent review: two passes, nothing blocking left
