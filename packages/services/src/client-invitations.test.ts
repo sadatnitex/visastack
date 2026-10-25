@@ -9,10 +9,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import { createApplicant, listApplicants } from './applicants';
 import {
-  EMAIL_PATTERN,
   acceptClientInvitation,
   createClientInvitation,
-  isEmailAddress,
   listClientInvitations,
   previewClientInvitation,
   revokeClientInvitation,
@@ -20,6 +18,7 @@ import {
 } from './client-invitations';
 import { setConsent } from './consent';
 import { type Db, schema as dbSchema } from './db';
+import { EMAIL_PATTERN, isEmailAddress } from './email-address';
 import { addMembership, createOrganization, reviewOrganization } from './organizations';
 import { RATE_LIMITS } from './rate-limit';
 import { exhaustRateLimit } from './rate-limit.test-support';
@@ -287,10 +286,12 @@ describe('client invitations - agency invites a traveller as a new client (Comme
         .set({ expiresAt: new Date(0) })
         .where(eq(dbSchema.clientInvitations.id, created.value.invitation.id));
 
-      const result = await previewClientInvitation(db, created.value.rawToken, adminId);
+      // Only the invited person learns the invitation's state.
+      const janeId = await consentedTraveller(db, 'jane@example.com');
+      const result = await previewClientInvitation(db, created.value.rawToken, janeId);
       expect(isErr(result)).toBe(true);
       if (isErr(result)) expect(result.error.message).toContain('expired');
-    });
+    }, 30_000);
 
     it('reports invalid for an already-accepted invitation', async () => {
       const created = await invite();
@@ -642,6 +643,64 @@ describe('client invitations - agency invites a traveller as a new client (Comme
         applicantChoice: { kind: 'new' },
       });
       expect(isOk(accepted)).toBe(true);
+    }, 30_000);
+
+    it('refuses a malformed address when the invitation is created, and says no email was queued for a phone contact', async () => {
+      for (const contactDestination of [
+        'jane@example.com.',
+        'Jane <jane@example.com>',
+        'jane@example..com',
+        'jane@localhost',
+        'jane@example.com, bob@example.com',
+      ]) {
+        const refused = await invite({ contactDestination });
+        expect(isErr(refused) && refused.error.code).toBe('invalid');
+      }
+      const phone = await invite({ contactDestination: '+880 1711 000000' });
+      expect(isOk(phone) && phone.value.emailQueued).toBe(false);
+    });
+
+    it('binds a malformed stored address to nobody rather than opening it to anyone (fails closed)', async () => {
+      const created = await invite();
+      if (!isOk(created)) throw new Error('setup failed');
+      // An address stored before creation-time validation existed.
+      await db
+        .update(dbSchema.clientInvitations)
+        .set({ contactDestination: 'jane@example.com.' })
+        .where(eq(dbSchema.clientInvitations.id, created.value.invitation.id));
+      for (const email of ['jane@example.com', 'anyone@example.com']) {
+        const viewer = await consentedTraveller(db, email);
+        const preview = await previewClientInvitation(db, created.value.rawToken, viewer);
+        expect(isErr(preview) && preview.error.code).toBe('forbidden');
+      }
+    }, 30_000);
+
+    it('tells someone else nothing about whether the invitation was revoked, and audits the attempt without personal details', async () => {
+      const created = await invite();
+      if (!isOk(created)) throw new Error('setup failed');
+      await db
+        .update(dbSchema.clientInvitations)
+        .set({ status: 'REVOKED' })
+        .where(eq(dbSchema.clientInvitations.id, created.value.invitation.id));
+      const strangerId = await consentedTraveller(db, 'someone-else@example.com');
+      const preview = await previewClientInvitation(db, created.value.rawToken, strangerId);
+      const accepted = await acceptClientInvitation(db, {
+        actorAccountId: strangerId,
+        rawToken: created.value.rawToken,
+        applicantChoice: { kind: 'new' },
+      });
+      const neutral = 'Use the email address that received this invitation.';
+      expect(isErr(preview) && preview.error.message).toBe(neutral);
+      expect(isErr(accepted) && accepted.error.message).toBe(neutral);
+      const events = await db
+        .select()
+        .from(dbSchema.auditEvents)
+        .where(eq(dbSchema.auditEvents.eventType, 'CLIENT_INVITATION_WRONG_RECIPIENT'));
+      expect(events.map((e) => (e.metadata as { stage: string }).stage).sort()).toEqual([
+        'accept',
+        'preview',
+      ]);
+      expect(JSON.stringify(events)).not.toMatch(/jane|someone-else|Jane Traveller/i);
     }, 30_000);
 
     it('keeps a phone-contact invitation claimable by the signed-in holder (unverifiable contact, recorded residual)', async () => {

@@ -333,10 +333,9 @@ export async function inviteClientAction(
     const acceptUrl = `${resolveBaseUrl()}/invitation?kind=client&token=${invited.value.rawToken}`;
     return {
       ok: true,
-      message:
-        encryption && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactDestination)
-          ? 'Invitation created. Email queued. You can also copy the link below. It expires in 7 days.'
-          : 'Invitation created. Email is unavailable for this invitation. Copy and share the link below. It expires in 7 days.',
+      message: invited.value.emailQueued
+        ? 'Invitation created. Email queued. You can also copy the link below. It expires in 7 days.'
+        : 'Invitation created. Email is unavailable for this invitation. Copy and share the link below. It expires in 7 days.',
       invitationUrl: acceptUrl,
     } satisfies ActionState;
   });

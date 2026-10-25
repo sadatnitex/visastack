@@ -5,6 +5,7 @@ import { assignMember, isActiveMember } from './agency';
 import { createApplicant, getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
+import { isEmailAddress } from './email-address';
 import { type ServiceError, serviceError } from './errors';
 import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
@@ -38,19 +39,15 @@ export type ClientInvitation = typeof schema.clientInvitations.$inferSelect;
 
 const DEFAULT_EXPIRY_DAYS = 7;
 
-// Domain labels exclude dots, so no two parts can match the same characters
-// and checking is linear in the length (no slow backtracking on hostile input).
-export const EMAIL_PATTERN = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/;
-const MAX_EMAIL_LENGTH = 254;
-
-export function isEmailAddress(value: string): boolean {
-  return value.length <= MAX_EMAIL_LENGTH && EMAIL_PATTERN.test(value);
-}
-
-/** The address an invitation is bound to, or undefined for a phone contact (not verifiable). */
+/**
+ * The address an invitation is bound to, or undefined for a phone contact
+ * (not verifiable). Fails closed: any contact containing "@" is treated as an
+ * address and must match exactly, so a malformed one (a trailing dot, a name
+ * in angle brackets) binds to nobody instead of opening to anyone.
+ */
 function boundEmail(contactDestination: string): string | undefined {
   const value = contactDestination.trim().toLowerCase();
-  return isEmailAddress(value) ? value : undefined;
+  return value.includes('@') ? value : undefined;
 }
 
 /** Whether `accountId` may see and accept an invitation sent to `contactDestination`. */
@@ -73,6 +70,28 @@ async function isIntendedRecipient(
 
 /** The same neutral refusal sharing invitations give: it names no person, route or case. */
 const WRONG_RECIPIENT_MESSAGE = 'Use the email address that received this invitation.';
+
+/** Audits a refused wrong-account attempt: ids only, never an address or a name. */
+async function recordWrongRecipient(
+  db: Db,
+  actorAccountId: string,
+  invitationId: string,
+  organizationId: string,
+  stage: 'preview' | 'accept',
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    await appendAuditEvent(tx, {
+      eventType: 'CLIENT_INVITATION_WRONG_RECIPIENT',
+      actorAccountId,
+      method: 'MANUAL',
+      result: 'DENIED',
+      resourceType: 'client_invitation',
+      resourceId: invitationId,
+      reason: 'wrong_recipient',
+      metadata: { organizationId, stage },
+    });
+  });
+}
 
 /**
  * What an agency actually receives once a client invitation is accepted:
@@ -110,6 +129,8 @@ export interface CreatedClientInvitation {
   readonly invitation: ClientInvitation;
   /** The raw, unhashed token. Exists only here and in whatever link the caller hands to the invitee, never logged or persisted in plaintext. */
   readonly rawToken: string;
+  /** Whether an invitation email was queued; when false the agency shares the link itself. */
+  readonly emailQueued: boolean;
 }
 
 /** Invite a traveller as a new client (org OWNER/ADMIN only, matching `assignMember`'s own authority requirement for the case-owner assignment this invitation produces on acceptance). */
@@ -130,6 +151,11 @@ export async function createClientInvitation(
   const contactDestination = input.contactDestination.trim();
   if (contactDestination.length === 0) {
     return err(serviceError('invalid', 'a contact destination is required'));
+  }
+  // An address must be a real one: a malformed address would bind the
+  // invitation to nobody (see boundEmail) and no email could be sent.
+  if (contactDestination.includes('@') && !isEmailAddress(contactDestination.toLowerCase())) {
+    return err(serviceError('invalid', 'Enter a valid email address, or a phone number.'));
   }
 
   const rateLimit = await checkRateLimits(db, [
@@ -184,7 +210,8 @@ export async function createClientInvitation(
       resourceId: invitation.id,
       metadata: { organizationId: input.organizationId },
     });
-    if (input.encryption && isEmailAddress(contactDestination)) {
+    const emailQueued = input.encryption !== undefined && isEmailAddress(contactDestination);
+    if (input.encryption && emailQueued) {
       await queueInvitationEmail(tx, {
         kind: 'client',
         invitationId: invitation.id,
@@ -194,7 +221,7 @@ export async function createClientInvitation(
         encryption: input.encryption,
       });
     }
-    return ok({ invitation, rawToken });
+    return ok({ invitation, rawToken, emailQueued });
   });
 }
 
@@ -225,6 +252,7 @@ export async function previewClientInvitation(
   const row = first(
     await db
       .select({
+        id: schema.clientInvitations.id,
         organizationId: schema.clientInvitations.organizationId,
         organizationName: schema.organizations.name,
         contactDestination: schema.clientInvitations.contactDestination,
@@ -241,14 +269,16 @@ export async function previewClientInvitation(
       .limit(1),
   );
   if (!row) return err(serviceError('not_found', 'invitation not found'));
+  // First, so someone else's link says nothing about whether it was used, revoked or expired.
+  if (!(await isIntendedRecipient(db, row.contactDestination, viewerAccountId))) {
+    await recordWrongRecipient(db, viewerAccountId, row.id, row.organizationId, 'preview');
+    return err(serviceError('forbidden', WRONG_RECIPIENT_MESSAGE));
+  }
   if (row.status !== 'PENDING') {
     return err(serviceError('invalid', 'this invitation has already been used or revoked'));
   }
   if (row.expiresAt.getTime() < Date.now()) {
     return err(serviceError('invalid', 'this invitation has expired'));
-  }
-  if (!(await isIntendedRecipient(db, row.contactDestination, viewerAccountId))) {
-    return err(serviceError('forbidden', WRONG_RECIPIENT_MESSAGE));
   }
   return ok({
     organizationId: row.organizationId,
@@ -305,15 +335,23 @@ export async function acceptClientInvitation(
       .limit(1),
   );
   if (!invitation) return err(serviceError('not_found', 'invitation not found'));
+  // Checked first, before anything is claimed or created: a forwarded link
+  // cannot spend the invitation or learn whether it was used, revoked or expired.
+  if (!(await isIntendedRecipient(db, invitation.contactDestination, input.actorAccountId))) {
+    await recordWrongRecipient(
+      db,
+      input.actorAccountId,
+      invitation.id,
+      invitation.organizationId,
+      'accept',
+    );
+    return err(serviceError('forbidden', WRONG_RECIPIENT_MESSAGE));
+  }
   if (invitation.status !== 'PENDING') {
     return err(serviceError('invalid', 'this invitation has already been used or revoked'));
   }
   if (invitation.expiresAt.getTime() < Date.now()) {
     return err(serviceError('invalid', 'this invitation has expired'));
-  }
-  // Checked before anything is claimed or created: a forwarded link cannot spend the invitation.
-  if (!(await isIntendedRecipient(db, invitation.contactDestination, input.actorAccountId))) {
-    return err(serviceError('forbidden', WRONG_RECIPIENT_MESSAGE));
   }
   if (input.applicantChoice.kind === 'existing') {
     const applicant = await getApplicant(db, input.applicantChoice.applicantId);
