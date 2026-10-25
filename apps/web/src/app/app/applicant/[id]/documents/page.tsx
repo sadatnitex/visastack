@@ -1,6 +1,7 @@
 import { ORIGINAL_DOCUMENT_KEYS, resolveDocumentType } from '@visastack/core/catalogue';
 import { type MessageKey, type Translator, createTranslator } from '@visastack/i18n';
 import {
+  DEFAULT_DOCUMENT_PROTECTION,
   type DocumentLifecycleStatus,
   classifyExpiry,
   documentCategory,
@@ -9,6 +10,7 @@ import {
   getLatestOcrRun,
   getWalletView,
   hasConsent,
+  isRestrictedDocumentType,
   isServableProcessingState,
   listApplicantProfile,
   listDocumentsDetailed,
@@ -18,6 +20,7 @@ import {
   listPendingProposals,
   loadUploadQuotaConfig,
   mbLabel,
+  readDocumentProtectionSettings,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -216,7 +219,13 @@ export default async function ApplicantDocumentsPage({
     );
     const ocrRuns = new Map(documentRows.map((doc, i) => [doc.id, ocrRunLists[i]] as const));
     const confirmed = confirmedValues(profile, encryption !== undefined);
+    // The live protection rule, for the card's fresh sign-in warning. If it cannot be read, the
+    // built-in rule applies, which protects every file whose kind is not known yet.
+    const protection = await readDocumentProtectionSettings(db).catch(
+      () => DEFAULT_DOCUMENT_PROTECTION,
+    );
     return {
+      protection,
       displayName: applicant.displayName ?? 'Unknown',
       documents: documentRows,
       recordsUnavailable: !documents.ok || !wallet.ok,
@@ -255,6 +264,10 @@ export default async function ApplicantDocumentsPage({
   // While the server is still scanning or reading a file, keep this page up to date by
   // itself: nobody has to reload, and nobody uploads the file again because nothing seemed
   // to happen (directive Part 9 section 3).
+  // Kinds that need a fresh sign-in check, for the card's warning while a person edits the kind.
+  const protectedKinds = documentGroups
+    .flatMap((group) => group.choices.map((choice) => choice.key))
+    .filter((key) => isRestrictedDocumentType(key, data.protection));
   const anyProcessing = data.documents.some((doc) => isStillProcessing(doc.processingStatus));
 
   return (
@@ -332,7 +345,12 @@ export default async function ApplicantDocumentsPage({
           );
           // What we think this document is and what to call it: nothing is saved until the
           // person accepts (owner request 2026-10-25).
-          const suggestion = documentSuggestionView(doc, waitingKind, data.displayName);
+          const suggestion = documentSuggestionView(
+            doc,
+            waitingKind,
+            data.displayName,
+            data.protection,
+          );
           const needsReview =
             (doc.docType === 'PASSPORT' && lifecycle === 'UNKNOWN') ||
             doc.safetyStatus === 'QUARANTINED' ||
@@ -539,6 +557,7 @@ export default async function ApplicantDocumentsPage({
                     applicantId={id}
                     suggestion={suggestion}
                     groups={documentGroups}
+                    protectedKinds={protectedKinds}
                   />
                 ) : doc.classification?.reviewRequired ? (
                   <p className="muted u-fs-075">

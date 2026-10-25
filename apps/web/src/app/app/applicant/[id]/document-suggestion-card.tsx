@@ -30,15 +30,22 @@ function isOtherKind(key: string): boolean {
  * catalogue and change the name, then save; Skip changes nothing. Shows no document content: only
  * the kind, the suggested name and where the Record will list it.
  */
+/** Said before Accept whenever accepting would take away the fresh sign-in check (owner decision 2026-10-25). */
+export const REMOVES_FRESH_SIGN_IN =
+  'Accepting means this file no longer needs a fresh sign-in check before it opens.';
+
 export function DocumentSuggestionCard({
   applicantId,
   suggestion,
   groups,
+  protectedKinds,
 }: {
   readonly applicantId: string;
   readonly suggestion: DocumentSuggestionView;
   /** The catalogue's kinds, grouped, for Edit (built on the server). */
   readonly groups: readonly ChoiceGroup[];
+  /** The kinds that need a fresh sign-in check under the live settings (built on the server). */
+  readonly protectedKinds: readonly string[];
 }) {
   const [state, formAction, pending] = useActionState(decideDocumentSuggestionAction, INITIAL);
   const [editing, setEditing] = useState(suggestion.kind === null);
@@ -88,6 +95,13 @@ export function DocumentSuggestionCard({
             ) : null}
           </dl>
         )}
+        {(
+          editing
+            ? suggestion.protectedNow && kind !== '' && !protectedKinds.includes(kind)
+            : suggestion.removesFreshSignIn
+        ) ? (
+          <p className="notice notice-warn u-fs-085">{REMOVES_FRESH_SIGN_IN}</p>
+        ) : null}
         <p className="muted u-fs-085">Nothing is saved until you accept.</p>
         <form ref={formRef} action={formAction} className="finding-form">
           <input type="hidden" name="applicantId" value={applicantId} />

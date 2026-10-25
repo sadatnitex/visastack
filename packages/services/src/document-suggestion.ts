@@ -1,7 +1,11 @@
 import { type Result, err, ok } from '@visastack/core';
 import { resolveDocumentType } from '@visastack/core/catalogue/documents';
 import { and, desc, eq } from 'drizzle-orm';
-import { AuthorizedApplicant } from './access';
+import {
+  AuthorizedApplicant,
+  type DocumentProtectionSettings,
+  isRestrictedDocumentType,
+} from './access';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { decideDocumentName, proposeDocumentName } from './document-naming';
@@ -54,6 +58,24 @@ export interface DocumentSuggestionOutcome {
   readonly docType: string | null;
   /** The document's name after the decision. */
   readonly approvedName: string | null;
+}
+
+/**
+ * True when accepting `suggestedKind` would take away the fresh sign-in check this file needs
+ * today before it opens: it is protected now (its kind is protected, or not known yet) and the
+ * suggested kind is not, under the platform's live protection settings. The card says so in
+ * plain words before the person accepts (owner decision 2026-10-25).
+ */
+export function acceptingRemovesFreshSignIn(
+  settings: DocumentProtectionSettings,
+  currentDocType: string | null,
+  suggestedKind: string | null,
+): boolean {
+  if (!suggestedKind) return false;
+  return (
+    isRestrictedDocumentType(currentDocType, settings) &&
+    !isRestrictedDocumentType(suggestedKind, settings)
+  );
 }
 
 /** A refusal found inside the transaction: thrown to roll everything back, then returned. */

@@ -5,20 +5,27 @@ import { createMigratedPglite } from '@visastack/db/testing';
 import { and, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { accountPrincipal, isRestrictedDocumentType, requireAccess } from './access';
+import { accountPrincipal, requireAccess } from './access';
 import { provisionAccount } from './accounts';
 import {
   type AiClassifyInput,
   type AiClassifyOutcome,
   type AiClassifyPort,
   type AiUsage,
+  rejectDocumentTypeProposal,
+  runClassification,
   suggestDocumentKind,
 } from './ai';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { listNameVersions, proposeDocumentName } from './document-naming';
-import { cleanDocumentName, decideDocumentSuggestion } from './document-suggestion';
+import { readDocumentProtectionSettings } from './document-protection';
+import {
+  acceptingRemovesFreshSignIn,
+  cleanDocumentName,
+  decideDocumentSuggestion,
+} from './document-suggestion';
 import { addDocumentVersion, registerDocument, setDocumentType } from './documents';
 import type { DocumentConverterPort, ExtractionOutcome } from './extraction';
 import { type ContentLimitsPort, type MalwareScannerPort, processIntake } from './intake';
@@ -208,11 +215,7 @@ describe('the AI suggests what a document is and what to call it', () => {
     db = await freshDb();
   });
 
-  const RESTRICTED_KINDS = CATALOGUE_DOCUMENTS.map((entry) => entry.key)
-    .filter((key) => isRestrictedDocumentType(key))
-    .sort();
-
-  it('for a file of unknown kind, offers only kinds that keep it protected, and saves nothing', async () => {
+  it('offers every catalogue kind for a file of unknown kind, and saves nothing', async () => {
     const s = await seed(db, { text: UNCLEAR_TEXT });
     const earlier = await proposeDocumentName(db, {
       documentId: s.documentId,
@@ -226,10 +229,9 @@ describe('the AI suggests what a document is and what to call it', () => {
     });
     expect(isOk(result) && result.value.status).toBe('suggested');
     expect(calls).toHaveLength(1);
-    const offered = [...(calls[0]?.allowedTypes ?? [])].sort();
-    expect(offered).toEqual(RESTRICTED_KINDS);
-    expect(offered).toContain('PASSPORT');
-    expect(offered).not.toContain('HOTEL_BOOKING');
+    expect([...(calls[0]?.allowedTypes ?? [])].sort()).toEqual(
+      CATALOGUE_DOCUMENTS.map((entry) => entry.key).sort(),
+    );
 
     const names = await listNameVersions(db, s.documentId);
     expect(names.map((n) => [n.decision, n.proposedName, n.reason])).toEqual([
@@ -244,15 +246,75 @@ describe('the AI suggests what a document is and what to call it', () => {
     expect(row.approvedName).toBeNull();
   });
 
-  it('never offers a kind that would loosen the protection of a file of unknown kind', async () => {
+  it('offers an unprotected kind for a file of unknown kind, still waiting for Accept', async () => {
     const s = await seed(db, { text: UNCLEAR_TEXT });
     const result = await suggestDocumentKind(
       await proofFor(db, s.accountId, s.documentId),
       suggests('HOTEL_BOOKING').ai,
       { documentVersionId: s.versionId, ...limits },
     );
-    expect(isOk(result) && result.value.status).toBe('no_suggestion');
-    expect(await typeProposals(db, s.versionId)).toHaveLength(0);
+    expect(isOk(result) && result.value.status).toBe('suggested');
+    const [proposal] = await typeProposals(db, s.versionId);
+    expect(proposal).toMatchObject({ suggestedType: 'HOTEL_BOOKING', status: 'PENDING' });
+    expect((await documentRow(db, s.documentId)).docType).toBeNull();
+    // The card warns before Accept: this kind would drop the fresh sign-in check.
+    const settings = await readDocumentProtectionSettings(db);
+    expect(acceptingRemovesFreshSignIn(settings, null, 'HOTEL_BOOKING')).toBe(true);
+    expect(acceptingRemovesFreshSignIn(settings, null, 'PASSPORT')).toBe(false);
+  });
+
+  it('never reuses a reading made from another list of kinds', async () => {
+    const s = await seed(db, { text: UNCLEAR_TEXT });
+    const rulesList = suggests('BANK_STATEMENT');
+    const first = await runClassification(db, rulesList.ai, {
+      actorAccountId: s.accountId,
+      applicantId: s.applicantId,
+      documentVersionId: s.versionId,
+      text: UNCLEAR_TEXT,
+      budgetLimitUnits: 1000,
+    });
+    if (!isOk(first) || !first.value.proposal) throw new Error('no rules-list reading');
+    await rejectDocumentTypeProposal(db, {
+      actorAccountId: s.accountId,
+      proposalId: first.value.proposal.id,
+    });
+    const catalogueList = suggests('BANK_STATEMENT');
+    const second = await suggestDocumentKind(
+      await proofFor(db, s.accountId, s.documentId),
+      catalogueList.ai,
+      { documentVersionId: s.versionId, ...limits },
+    );
+    expect(isOk(second) && second.value.status).toBe('suggested');
+    // Same text, same model: only the list of kinds differs, and the provider is asked again.
+    expect(catalogueList.calls).toHaveLength(1);
+    const runs = await db
+      .select({ cacheKey: schema.aiClassificationRuns.cacheKey })
+      .from(schema.aiClassificationRuns)
+      .where(eq(schema.aiClassificationRuns.documentVersionId, s.versionId));
+    expect(new Set(runs.map((run) => run.cacheKey)).size).toBe(2);
+  });
+
+  it('follows the protection switches platform admins have stored', async () => {
+    await db.insert(schema.documentProtectionSettings).values({
+      scope: 'DOCUMENT_TYPE',
+      key: 'HOTEL_BOOKING',
+      restricted: true,
+      reason: 'test: bookings carry passport details',
+    });
+    let settings = await readDocumentProtectionSettings(db);
+    expect(acceptingRemovesFreshSignIn(settings, null, 'HOTEL_BOOKING')).toBe(false);
+    expect(acceptingRemovesFreshSignIn(settings, null, 'FLIGHT_BOOKING')).toBe(true);
+
+    await db.insert(schema.documentProtectionSettings).values({
+      scope: 'UNKNOWN_TYPE',
+      key: 'unknown',
+      restricted: false,
+      reason: 'test: unknown files open without a fresh sign-in',
+    });
+    settings = await readDocumentProtectionSettings(db);
+    expect(acceptingRemovesFreshSignIn(settings, null, 'FLIGHT_BOOKING')).toBe(false);
+    expect(acceptingRemovesFreshSignIn(settings, 'PASSPORT', 'FLIGHT_BOOKING')).toBe(true);
+    expect(acceptingRemovesFreshSignIn(settings, 'PASSPORT', null)).toBe(false);
   });
 
   it('never asks the AI about a confident rules kind, whatever the document text says', async () => {

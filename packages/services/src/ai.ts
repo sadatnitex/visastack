@@ -3,12 +3,7 @@ import type { FactStatus, ProposalType } from '@visastack/core';
 import { type Result, err, isOk, ok } from '@visastack/core';
 import { CATALOGUE_DOCUMENTS, isRepeatingFieldKey } from '@visastack/core/catalogue';
 import { and, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
-import {
-  AuthorizedApplicant,
-  DEFAULT_DOCUMENT_PROTECTION,
-  isRestrictedDocumentType,
-} from './access';
-import { loadDocumentProtectionSettings } from './access/restricted-documents';
+import { AuthorizedApplicant } from './access';
 import { scopeFieldKeys } from './ai-field-scope';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
@@ -2335,13 +2330,12 @@ export async function suggestDocumentKind(
     ...(input.cacheMaxAgeDays !== undefined ? { cacheMaxAgeDays: input.cacheMaxAgeDays } : {}),
     ...(input.killSwitchCheck ? { killSwitchCheck: input.killSwitchCheck } : {}),
   };
-  // A file whose kind is not known yet is protected like a passport or a medical scan (unless
-  // platform admins switched that off). The AI may then only suggest a kind that keeps that
-  // protection: a suggestion that would loosen it is never offered.
-  const protection = await loadDocumentProtectionSettings(db, DEFAULT_DOCUMENT_PROTECTION);
-  const kinds = isRestrictedDocumentType(null, protection)
-    ? CATALOGUE_DOCUMENT_KINDS.filter((kind) => isRestrictedDocumentType(kind, protection))
-    : CATALOGUE_DOCUMENT_KINDS;
+  // Any catalogue kind may be suggested (owner decision 2026-10-25); it is saved only on Accept,
+  // and the card says so plainly when accepting would remove the fresh sign-in check
+  // (`acceptingRemovesFreshSignIn`, document-suggestion.ts). The list offered is part of the
+  // cache key, so a reading made from another list is never reused for this one.
+  const kinds = CATALOGUE_DOCUMENT_KINDS;
+  if (kinds.length === 0) return ok({ status: 'no_suggestion' });
   const reservation = await reserveClassificationSlot(db, ai, runInput, kinds);
   const summary =
     reservation.kind === 'final'

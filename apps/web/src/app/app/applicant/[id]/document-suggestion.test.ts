@@ -1,5 +1,17 @@
+import {
+  DEFAULT_DOCUMENT_PROTECTION,
+  type DocumentProtectionSettings,
+  applyDocumentProtectionOverrides,
+} from '@visastack/services';
 import { describe, expect, it } from 'vitest';
 import { type DocumentSuggestionInput, documentSuggestionView } from './document-suggestion';
+
+const suggestionOf = (
+  d: DocumentSuggestionInput,
+  k: Parameters<typeof documentSuggestionView>[1],
+  n: string,
+  protection: DocumentProtectionSettings = DEFAULT_DOCUMENT_PROTECTION,
+) => documentSuggestionView(d, k, n, protection);
 
 const doc = (overrides: Partial<DocumentSuggestionInput> = {}): DocumentSuggestionInput => ({
   id: 'd1',
@@ -15,7 +27,7 @@ const aiKind = { id: 'k1', suggestedType: 'PASSPORT', confidence: 99 };
 
 describe('the suggestion a document is waiting on', () => {
   it('shows the rules kind, the waiting name and where the Record lists it', () => {
-    expect(documentSuggestionView(doc(), undefined, 'Anna Eriksson')).toEqual({
+    expect(suggestionOf(doc(), undefined, 'Anna Eriksson')).toEqual({
       documentId: 'd1',
       nameVersionId: 'n1',
       typeProposalId: null,
@@ -26,15 +38,17 @@ describe('the suggestion a document is waiting on', () => {
       clear: false,
       proposedName: 'Bank Statement - Anna Eriksson.pdf',
       nameAfterKind: ' - Anna Eriksson.pdf',
+      protectedNow: true,
+      removesFreshSignIn: false,
     });
     const sure = doc({
       classification: { classifiedType: 'PASSPORT', confidence: 100, reviewRequired: false },
     });
-    expect(documentSuggestionView(sure, undefined, 'Anna')?.clear).toBe(true);
+    expect(suggestionOf(sure, undefined, 'Anna')?.clear).toBe(true);
   });
 
   it('puts a waiting AI kind first, and an AI kind always reads Please Check', () => {
-    const view = documentSuggestionView(doc(), aiKind, 'Anna Eriksson');
+    const view = suggestionOf(doc(), aiKind, 'Anna Eriksson');
     expect(view).toMatchObject({
       kind: 'PASSPORT',
       recordGroup: 'Travel Documents',
@@ -45,19 +59,43 @@ describe('the suggestion a document is waiting on', () => {
   });
 
   it('never offers to undo a kind the person set', () => {
-    const view = documentSuggestionView(doc({ docType: 'SALARY_SLIP' }), aiKind, 'Anna');
+    const view = suggestionOf(doc({ docType: 'SALARY_SLIP' }), aiKind, 'Anna');
     expect(view).toMatchObject({ kind: 'SALARY_SLIP', source: 'rules', typeProposalId: null });
     expect(
-      documentSuggestionView(
-        doc({ docType: 'SALARY_SLIP', pendingNameVersion: null }),
-        aiKind,
-        'A',
-      ),
+      suggestionOf(doc({ docType: 'SALARY_SLIP', pendingNameVersion: null }), aiKind, 'A'),
     ).toBeNull();
   });
 
+  it("never pairs the person's own kind with a name made for another kind", () => {
+    const remade = suggestionOf(doc({ docType: 'SALARY_SLIP' }), undefined, 'Anna Eriksson');
+    expect(remade).toMatchObject({
+      kind: 'SALARY_SLIP',
+      nameVersionId: 'n1',
+      proposedName: 'Salary Slip - Anna Eriksson.pdf',
+    });
+    const fits = suggestionOf(doc({ docType: 'BANK_STATEMENT' }), undefined, 'Anna Eriksson');
+    expect(fits?.proposedName).toBe('Bank Statement - Anna Eriksson.pdf');
+  });
+
+  it('warns when accepting would drop the fresh sign-in check, following the live switches', () => {
+    const booking = { id: 'k2', suggestedType: 'HOTEL_BOOKING', confidence: 90 };
+    const unknown = doc({ pendingNameVersion: null, classification: null });
+    expect(suggestionOf(unknown, booking, 'Anna')).toMatchObject({
+      protectedNow: true,
+      removesFreshSignIn: true,
+    });
+    expect(suggestionOf(unknown, aiKind, 'Anna')?.removesFreshSignIn).toBe(false);
+    const unknownOpen = applyDocumentProtectionOverrides(DEFAULT_DOCUMENT_PROTECTION, [
+      { scope: 'UNKNOWN_TYPE', key: 'unknown', restricted: false },
+    ]);
+    expect(suggestionOf(unknown, booking, 'Anna', unknownOpen)).toMatchObject({
+      protectedNow: false,
+      removesFreshSignIn: false,
+    });
+  });
+
   it('builds a name from the kind when only a kind is waiting', () => {
-    const view = documentSuggestionView(
+    const view = suggestionOf(
       doc({ pendingNameVersion: null, classification: null }),
       { id: 'k1', suggestedType: 'BIRTH_CERTIFICATE', confidence: 70 },
       'Anna Eriksson',
@@ -67,12 +105,12 @@ describe('the suggestion a document is waiting on', () => {
   });
 
   it('is nothing when nothing is waiting, or the file is not past its safety checks', () => {
-    expect(documentSuggestionView(doc({ pendingNameVersion: null }), undefined, 'Anna')).toBeNull();
+    expect(suggestionOf(doc({ pendingNameVersion: null }), undefined, 'Anna')).toBeNull();
     for (const unsafe of [
       { safetyStatus: 'QUARANTINED', processingStatus: 'NEEDS_ATTENTION' },
       { safetyStatus: 'CLEAN', processingStatus: 'EXTRACTING' },
     ]) {
-      expect(documentSuggestionView(doc(unsafe), aiKind, 'Anna')).toBeNull();
+      expect(suggestionOf(doc(unsafe), aiKind, 'Anna')).toBeNull();
     }
   });
 });

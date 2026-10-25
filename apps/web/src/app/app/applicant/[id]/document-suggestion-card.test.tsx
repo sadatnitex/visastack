@@ -32,6 +32,8 @@ const suggestion: DocumentSuggestionView = {
   clear: false,
   proposedName: 'Employment Certificate - Anna Eriksson.pdf',
   nameAfterKind: ' - Anna Eriksson.pdf',
+  protectedNow: true,
+  removesFreshSignIn: false,
 };
 const groups = [
   {
@@ -46,7 +48,14 @@ const groups = [
 
 function render(view: DocumentSuggestionView = suggestion) {
   act(() =>
-    root.render(<DocumentSuggestionCard applicantId="a1" suggestion={view} groups={groups} />),
+    root.render(
+      <DocumentSuggestionCard
+        applicantId="a1"
+        suggestion={view}
+        groups={groups}
+        protectedKinds={['BANK_STATEMENT', 'OTHER_FINANCIAL_DOCUMENT']}
+      />,
+    ),
   );
 }
 
@@ -120,6 +129,28 @@ describe('the kind and name card', () => {
     });
     choose('BANK_STATEMENT');
     expect(input()?.value).toBe('Mine');
+  });
+
+  it('says plainly before Accept when accepting drops the fresh sign-in check', () => {
+    const warning =
+      'Accepting means this file no longer needs a fresh sign-in check before it opens.';
+    render();
+    expect(host.textContent).not.toContain(warning);
+    render({ ...suggestion, removesFreshSignIn: true });
+    expect(host.textContent).toContain(warning);
+    const edit = [...host.querySelectorAll('button')].find((b) => b.textContent === 'Edit');
+    act(() => edit?.click());
+    const select = host.querySelector<HTMLSelectElement>('select[name="docType"]');
+    act(() => {
+      if (!select) return;
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set?.call(
+        select,
+        'BANK_STATEMENT',
+      );
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    // A protected kind keeps the check: no warning.
+    expect(host.textContent).not.toContain(warning);
   });
 
   it('reads a confident rules kind as Clear without the AI badge', () => {

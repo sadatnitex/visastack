@@ -694,6 +694,7 @@ export {
   type DocumentSuggestionInput,
   type DocumentSuggestionOutcome,
   MAX_DOCUMENT_NAME_LENGTH,
+  acceptingRemovesFreshSignIn,
   cleanDocumentName,
   decideDocumentSuggestion,
 } from './document-suggestion';

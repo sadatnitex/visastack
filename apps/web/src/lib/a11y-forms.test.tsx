@@ -237,6 +237,7 @@ const DOCS: readonly Case[] = [
     <DocumentSuggestionCard
       applicantId="a1"
       groups={fixtureDocumentGroups}
+      protectedKinds={['PASSPORT']}
       suggestion={{
         documentId: 'd1',
         nameVersionId: 'n1',
@@ -248,6 +249,8 @@ const DOCS: readonly Case[] = [
         clear: true,
         proposedName: 'Bank Statement - Anna Eriksson.pdf',
         nameAfterKind: ' - Anna Eriksson.pdf',
+        protectedNow: true,
+        removesFreshSignIn: true,
       }}
     />
   )),
@@ -255,6 +258,7 @@ const DOCS: readonly Case[] = [
     <DocumentSuggestionCard
       applicantId="a1"
       groups={fixtureDocumentGroups}
+      protectedKinds={['PASSPORT']}
       suggestion={{
         documentId: 'd2',
         nameVersionId: 'n2',
@@ -266,6 +270,8 @@ const DOCS: readonly Case[] = [
         clear: false,
         proposedName: 'Document - Anna Eriksson.pdf',
         nameAfterKind: ' - Anna Eriksson.pdf',
+        protectedNow: true,
+        removesFreshSignIn: true,
       }}
     />
   )),

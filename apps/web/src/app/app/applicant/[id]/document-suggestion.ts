@@ -1,4 +1,12 @@
-import { CLEAR_PROPOSAL_CONFIDENCE, buildProposedName, extensionOf } from '@visastack/services';
+import {
+  CLEAR_PROPOSAL_CONFIDENCE,
+  type DocumentProtectionSettings,
+  acceptingRemovesFreshSignIn,
+  buildProposedName,
+  documentKindLabel,
+  extensionOf,
+  isRestrictedDocumentType,
+} from '@visastack/services';
 import { documentTypeLabel } from '../../../../lib/labels';
 import { recordGroupOfDocType } from './record-groups';
 
@@ -26,6 +34,10 @@ export interface DocumentSuggestionView {
   readonly proposedName: string;
   /** What a suggested name puts after the kind (" - Anna Eriksson.pdf"), so Edit can rename for another kind. */
   readonly nameAfterKind: string;
+  /** The file needs a fresh sign-in check before it opens today (its kind is protected, or not known yet). */
+  readonly protectedNow: boolean;
+  /** Accepting the suggested kind would take that check away: the card says so before Accept. */
+  readonly removesFreshSignIn: boolean;
 }
 
 export interface DocumentSuggestionInput {
@@ -62,6 +74,7 @@ export function documentSuggestionView(
   doc: DocumentSuggestionInput,
   waitingKind: WaitingKind | undefined,
   primarySubject: string,
+  protection: DocumentProtectionSettings,
 ): DocumentSuggestionView | null {
   if (doc.safetyStatus !== 'CLEAN' || !DECIDABLE_STATES.has(doc.processingStatus ?? '')) {
     return null;
@@ -89,6 +102,12 @@ export function documentSuggestionView(
     extension,
   }).slice('Document'.length);
 
+  const builtForKind = buildProposedName({ classifiedType: kind, primarySubject, extension });
+  // A name is only ever shown, and saved, with the kind it was made for. When the person set a
+  // kind themselves and the waiting name was made for another one, it is remade for theirs.
+  const waitingNameFits =
+    nameVersion !== null &&
+    (!doc.docType || startsWithKind(nameVersion.proposedName, documentKindLabel(doc.docType)));
   return {
     documentId: doc.id,
     nameVersionId: nameVersion?.id ?? null,
@@ -98,9 +117,16 @@ export function documentSuggestionView(
     recordGroup: kind ? recordGroupOfDocType(kind) : null,
     source: aiKind ? 'ai' : 'rules',
     clear,
-    proposedName:
-      nameVersion?.proposedName ??
-      buildProposedName({ classifiedType: kind, primarySubject, extension }),
+    proposedName: waitingNameFits && nameVersion ? nameVersion.proposedName : builtForKind,
     nameAfterKind,
+    protectedNow: isRestrictedDocumentType(doc.docType, protection),
+    removesFreshSignIn: acceptingRemovesFreshSignIn(protection, doc.docType, kind),
   };
+}
+
+/** True when a name begins with this kind's label as a whole part ("Passport - ...", "Passport.pdf"). */
+function startsWithKind(name: string, label: string): boolean {
+  if (!name.startsWith(label)) return false;
+  const rest = name.slice(label.length);
+  return rest === '' || rest.startsWith(' - ') || rest.startsWith('.');
 }
