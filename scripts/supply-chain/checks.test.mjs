@@ -276,7 +276,7 @@ test('isolated restore allows only manual main code and recovery secrets', () =>
 
 test('the live signed-in check keeps its test account secrets to main, after a deployment or by hand', () => {
   const safe =
-    "on:\n  deployment_status:\n  workflow_dispatch:\njobs:\n  live:\n    environment: live-check\n    env:\n      LIVE_CHECK_EMAIL: ${{ secrets.LIVE_CHECK_EMAIL }}\n      LIVE_CHECK_PASSWORD: ${{ secrets.LIVE_CHECK_PASSWORD }}\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          persist-credentials: false\n";
+    'on:\n  deployment_status:\n  workflow_dispatch:\njobs:\n  live:\n    environment: live-check\n    env:\n      LIVE_CHECK_EMAIL: ${{ secrets.LIVE_CHECK_EMAIL }}\n      LIVE_CHECK_PASSWORD: ${{ secrets.LIVE_CHECK_PASSWORD }}\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          persist-credentials: false\n';
   const filename = '.github/workflows/live-signed-in-check.yml';
   assert.equal(checkPreviewCredentials(repo({ [filename]: safe })).status, 'passed');
   for (const bad of [
