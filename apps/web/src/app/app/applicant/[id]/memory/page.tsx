@@ -147,7 +147,7 @@ export default async function ApplicationMemoryPage({
                                 className="btn btn-secondary"
                                 href={`/app/applicant/${id}/memory/compare?snapshot=${event.snapshotId}`}
                               >
-                                Compare With Today
+                                Compare with Today
                               </Link>
                             </span>
                           ) : null}
