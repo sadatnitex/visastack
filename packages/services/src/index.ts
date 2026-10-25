@@ -587,6 +587,21 @@ export {
 } from './expiry';
 
 export {
+  type CaseReadinessEntry,
+  type CoverageEntry,
+  type CoverageKind,
+  type EvidenceMapEntry,
+  type ExpiryEntry,
+  type InsightDocumentRef,
+  type InsightSection,
+  type MismatchEntry,
+  type OriginalsCase,
+  type TravellerInsights,
+  buildTravellerInsights,
+} from './insights';
+export { type TravellerInsightsOptions, getTravellerInsights } from './insights-read';
+
+export {
   type EnqueueNotificationInput,
   type InAppNotificationView,
   type Notification,
