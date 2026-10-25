@@ -6210,9 +6210,6 @@ body:has(.auth-shell) > .footer {
   gap: 12px;
   margin-top: 8px;
 }
-.finding-form .btn {
-  justify-self: start;
-}
 .finding-value {
   display: grid;
   gap: 4px;
@@ -6241,6 +6238,9 @@ body:has(.auth-shell) > .footer {
 .finding-skip .btn,
 .document-findings-bulk .btn {
   min-height: 44px;
+}
+.finding-form .btn {
+  justify-self: start;
 }
 .finding-skip {
   display: inline-block;

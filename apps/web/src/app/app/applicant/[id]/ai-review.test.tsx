@@ -232,6 +232,7 @@ describe('check what we found', () => {
   });
 
   it('holds every card while all clear details are being saved, so nothing is decided twice', async () => {
+    vi.mocked(actions.decideProposalAction).mockClear();
     let finish: (value: { ok: boolean; message: string }) => void = () => undefined;
     vi.mocked(actions.acceptClearDetailsAction).mockImplementation(
       () =>
@@ -254,6 +255,19 @@ describe('check what we found', () => {
     expect(
       cardButtons().every((b) => b.getAttribute('aria-disabled') === 'true' && !b.disabled),
     ).toBe(true);
+    // Visible text and spoken names stay the same while held.
+    const accept = host.querySelector('.finding-card button[value="approve"]') as HTMLButtonElement;
+    expect(accept.textContent).toBe('Accept');
+    expect(accept.getAttribute('aria-label')).toBe('Accept: Given Name');
+    expect(host.querySelector('.finding-skip button')?.getAttribute('aria-label')).toBe(
+      'Skip: Given Name',
+    );
+    // A click on a held card decides nothing.
+    await act(async () => {
+      accept.click();
+      (host.querySelector('.finding-skip button') as HTMLButtonElement).click();
+    });
+    expect(actions.decideProposalAction).not.toHaveBeenCalled();
     await act(async () => {
       finish({ ok: true, message: 'Saved 2 details to your profile.' });
     });
