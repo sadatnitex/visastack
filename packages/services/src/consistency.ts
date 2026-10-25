@@ -66,7 +66,7 @@ export const CONSISTENCY_REASON_TEXT: Readonly<Record<ConsistencyReason, string>
   value_missing: 'One side has no value to compare.',
   currency_unknown: 'The currency is not recorded for one side.',
   different_currency: 'The amounts are in different currencies.',
-  basis_unknown: 'It is not recorded whether one amount is before or after tax.',
+  basis_unknown: 'It is not recorded whether the amounts are before or after tax.',
   different_basis: 'One amount is before tax and the other after tax.',
   known_alias: 'One name is a recorded other name.',
   fixed_fact_differs: 'This detail should not change over time, but the two differ.',
@@ -118,17 +118,25 @@ function classification(result: ConsistencyResult, reason: ConsistencyReason): C
   return { result, reason };
 }
 
-/** Compares two recorded contexts where null means "not recorded". */
+/** Compares two recorded contexts. Null means not recorded, so a missing side is unknown, never "same". */
 function contextCheck(
   prior: string | null | undefined,
   current: string | null | undefined,
 ): 'same' | 'unknown' | 'different' {
   const a = prior ?? null;
   const b = current ?? null;
-  // A field that records no context on either side is not split by it.
-  if (a === null && b === null) return 'same';
   if (a === null || b === null) return 'unknown';
   return fold(a) === fold(b) ? 'same' : 'different';
+}
+
+/** The same number written differently ("80,000" and "80000"); the stored strings are untouched. */
+function sameAmount(prior: string, current: string): boolean {
+  const number = (value: string) => {
+    const digits = value.replace(/[\s,_]/g, '');
+    return /^-?\d+(?:\.\d+)?$/.test(digits) ? Number(digits) : Number.NaN;
+  };
+  const a = number(prior);
+  return !Number.isNaN(a) && a === number(current);
 }
 
 /** Pure classification of one prior declaration against one current value. */
@@ -137,19 +145,25 @@ export function classifyDeclarationChange(input: ClassifyDeclarationInput): Clas
   if (prior.value === null || current.value === null) {
     return classification('INSUFFICIENT_INFORMATION', 'value_missing');
   }
-  if (prior.value === current.value) return classification('CONSISTENT', 'same_value');
-  if (fold(prior.value) === fold(current.value)) {
-    return classification('CONSISTENT', 'same_value_different_formatting');
-  }
-
   if (AMOUNT_FIELDS.has(fieldKey)) {
+    // Currency first: the same number in two currencies is not the same amount.
     const currency = contextCheck(prior.currency, current.currency);
-    if (currency === 'unknown')
-      return classification('INSUFFICIENT_INFORMATION', 'currency_unknown');
     if (currency === 'different') return classification('CONTEXT_DIFFERENCE', 'different_currency');
+    if (prior.value === current.value) return classification('CONSISTENT', 'same_value');
+    if (sameAmount(prior.value, current.value)) {
+      return classification('CONSISTENT', 'same_value_different_formatting');
+    }
+    if (currency === 'unknown') {
+      return classification('INSUFFICIENT_INFORMATION', 'currency_unknown');
+    }
     const basis = contextCheck(prior.basis, current.basis);
     if (basis === 'unknown') return classification('INSUFFICIENT_INFORMATION', 'basis_unknown');
     if (basis === 'different') return classification('CONTEXT_DIFFERENCE', 'different_basis');
+  }
+
+  if (prior.value === current.value) return classification('CONSISTENT', 'same_value');
+  if (fold(prior.value) === fold(current.value)) {
+    return classification('CONSISTENT', 'same_value_different_formatting');
   }
 
   if (NAME_FIELDS.has(fieldKey) && input.knownAliases) {
@@ -203,13 +217,75 @@ export interface CompareFactVersionsInput {
   readonly applicantId: string;
   /** The exact prior version, for example one a case snapshot recorded. */
   readonly priorFactVersionId: string;
-  /** Defaults to the fact's current version. Must belong to the same fact. */
+  /** Defaults to the fact's current version. Must belong to the same fact and be no older than the prior one. */
   readonly currentFactVersionId?: string;
+  /**
+   * When the prior declaration was made, for example the snapshot's creation
+   * time. Related details such as currency are read as of then. Defaults to
+   * the last moment the prior version was the current one.
+   */
+  readonly priorAsOf?: Date;
   /** Required when either side is a protected value. */
   readonly encryption?: KeyManagementPort;
 }
 
 const VERSION_NOT_FOUND = 'That version is not available.';
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Versions saved before WP-V2 got the save time as their effective date when
+ * none was given. A date within seconds of the save time is that default, not
+ * something a person entered (the form only takes a calendar date), so it is
+ * read as not known. Stored data is unchanged.
+ */
+const LEGACY_DEFAULT_WINDOW_MS = 5_000;
+function knownEffectiveDate(version: FactVersion): Date | null {
+  const effective = version.effectiveFrom;
+  if (!effective) return null;
+  return Math.abs(effective.getTime() - version.createdAt.getTime()) < LEGACY_DEFAULT_WINDOW_MS
+    ? null
+    : effective;
+}
+
+/**
+ * The currency that went with an amount version: the one in force when the
+ * amount was saved, or, when none was set yet (the form asks for the amount
+ * first), the first one entered while that amount was still current. So both
+ * save orders work, and a currency changed ahead of a new amount does not
+ * leak back onto the old one. A caller with a snapshot time passes priorAsOf
+ * instead, which is exact.
+ */
+async function currencyDeclaredWith(
+  db: Db,
+  currencyFactId: string,
+  amount: FactVersion,
+): Promise<FactVersion | undefined> {
+  const atSave = await versionAsOf(db, currencyFactId, amount.createdAt);
+  if (atSave) return atSave;
+  const until = await lastCurrentMoment(db, amount);
+  const versions = await db
+    .select()
+    .from(schema.factVersions)
+    .where(eq(schema.factVersions.factId, currencyFactId))
+    .orderBy(asc(schema.factVersions.createdAt));
+  return versions.find(
+    (v) =>
+      v.createdAt.getTime() > amount.createdAt.getTime() &&
+      v.createdAt.getTime() <= until.getTime(),
+  );
+}
+
+/** The last moment a version was the current one: just before the next version, or now. */
+async function lastCurrentMoment(db: Db, version: FactVersion): Promise<Date> {
+  const versions = await db
+    .select({ id: schema.factVersions.id, createdAt: schema.factVersions.createdAt })
+    .from(schema.factVersions)
+    .where(eq(schema.factVersions.factId, version.factId))
+    .orderBy(asc(schema.factVersions.createdAt));
+  const index = versions.findIndex((v) => v.id === version.id);
+  const next = index >= 0 ? versions[index + 1] : undefined;
+  return next ? new Date(next.createdAt.getTime() - 1) : new Date();
+}
 
 async function reveal(
   db: Db,
@@ -305,6 +381,13 @@ export async function compareFactVersions(
     return err(serviceError('forbidden', 'You do not have access to this history.'));
   }
 
+  if (
+    !UUID.test(input.priorFactVersionId) ||
+    (input.currentFactVersionId !== undefined && !UUID.test(input.currentFactVersionId))
+  ) {
+    return err(serviceError('not_found', VERSION_NOT_FOUND));
+  }
+
   const priorRow = first(
     await db
       .select({
@@ -338,8 +421,11 @@ export async function compareFactVersions(
       .where(and(eq(schema.factVersions.id, currentId), eq(schema.factVersions.factId, fact.id)))
       .limit(1),
   );
-  if (!current) return err(serviceError('not_found', VERSION_NOT_FOUND));
   const prior = priorRow.version;
+  // The "current" side may not be older than the prior one.
+  if (!current || current.createdAt.getTime() < prior.createdAt.getTime()) {
+    return err(serviceError('not_found', VERSION_NOT_FOUND));
+  }
 
   const priorValue = await reveal(db, prior, input.encryption);
   if (!priorValue.ok) return priorValue;
@@ -357,17 +443,11 @@ export async function compareFactVersions(
       fact.repeatingRecordKey,
     );
     if (currencyFact) {
-      const isCurrent = current.id === fact.currentVersionId;
-      const priorCurrencyVersion = await versionAsOf(db, currencyFact.fact.id, prior.createdAt);
-      const currentCurrencyVersion = isCurrent
-        ? first(
-            await db
-              .select()
-              .from(schema.factVersions)
-              .where(eq(schema.factVersions.id, currencyFact.fact.currentVersionId ?? ''))
-              .limit(1),
-          )
-        : await versionAsOf(db, currencyFact.fact.id, current.createdAt);
+      const currencyFactId = currencyFact.fact.id;
+      const priorCurrencyVersion = input.priorAsOf
+        ? await versionAsOf(db, currencyFactId, input.priorAsOf)
+        : await currencyDeclaredWith(db, currencyFactId, prior);
+      const currentCurrencyVersion = await currencyDeclaredWith(db, currencyFactId, current);
       if (priorCurrencyVersion) {
         const value = await reveal(db, priorCurrencyVersion, input.encryption);
         if (!value.ok) return value;
@@ -407,10 +487,14 @@ export async function compareFactVersions(
 
   const { result, reason } = classifyDeclarationChange({
     fieldKey,
-    prior: { value: priorValue.value, effectiveFrom: prior.effectiveFrom, currency: priorCurrency },
+    prior: {
+      value: priorValue.value,
+      effectiveFrom: knownEffectiveDate(prior),
+      currency: priorCurrency,
+    },
     current: {
       value: currentValue.value,
-      effectiveFrom: current.effectiveFrom,
+      effectiveFrom: knownEffectiveDate(current),
       currency: currentCurrency,
     },
     knownAliases,
@@ -438,7 +522,7 @@ export async function compareFactVersions(
   ): ComparedVersion => ({
     factVersionId: version.id,
     value,
-    effectiveFrom: version.effectiveFrom ? version.effectiveFrom.toISOString() : null,
+    effectiveFrom: knownEffectiveDate(version)?.toISOString() ?? null,
     recordedAt: version.createdAt.toISOString(),
     status: version.status,
     explanation: version.reason,

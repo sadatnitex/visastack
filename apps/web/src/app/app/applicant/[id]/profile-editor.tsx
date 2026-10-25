@@ -259,13 +259,13 @@ function FieldRow({
         <SubmitButton pending={pending} idle="Save" busy="Saving…" className="btn btn-secondary" />
       </div>
       <details className="field-backdate">
-        <summary className="muted">Backdate this entry</summary>
+        <summary className="muted">Add the date this became true</summary>
         <div className="field-control">
           <input
             type="date"
             name="effectiveFrom"
             className="input"
-            aria-label={`When ${field.label.toLowerCase()} became true, if not today`}
+            aria-label={`When ${field.label.toLowerCase()} became true. Leave blank if you are not sure.`}
             {...fieldProblem(state, 'effectiveFrom', messageId)}
           />
         </div>

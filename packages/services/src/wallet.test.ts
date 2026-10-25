@@ -7,11 +7,18 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
+import { decideAcknowledgement, getLiveAcknowledgement } from './acknowledgements';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { addDocumentVersion, registerDocument } from './documents';
-import { attachPackVersion, createMission, listTasks, selectEvidence } from './missions';
+import {
+  attachPackVersion,
+  createMission,
+  listTasks,
+  selectEvidence,
+  snapshotMission,
+} from './missions';
 import { createOrganization, reviewOrganization } from './organizations';
 import {
   addPackVersion,
@@ -335,17 +342,46 @@ describe('supersedeDocument (EVI-04)', () => {
           .where(eq(schema.missions.id, mission.value.id))
       )[0]?.revision;
     const revisionBefore = await revisionOf();
-
-    const superseded = await supersedeDocument(db, {
+    // The applicant confirms the prepared file before the document is replaced.
+    const snapshot = await snapshotMission(db, {
       actorAccountId: account.id,
-      oldDocumentId: oldDoc.value.id,
-      newDocumentId: newDoc.value.id,
+      missionId: mission.value.id,
     });
-    expect(isOk(superseded)).toBe(true);
-    if (isOk(superseded)) expect(superseded.value.flaggedMissionIds).toEqual([mission.value.id]);
-    // A replaced document is a material change (v1.2 E03, W0-04): the case revision moves,
-    // so a live acknowledgement made with the old document no longer stands.
+    if (!isOk(snapshot)) throw new Error('snapshot');
+    const acknowledged = await decideAcknowledgement(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      snapshotId: snapshot.value.id,
+      expectedSnapshotChecksum: snapshot.value.checksum,
+      decision: 'ACKNOWLEDGED',
+      stepUpSatisfied: true,
+    });
+    expect(isOk(acknowledged)).toBe(true);
+    expect(await getLiveAcknowledgement(db, mission.value.id)).toBeDefined();
+
+    // Two simultaneous attempts: exactly one supersedes.
+    const attempts = await Promise.all([
+      supersedeDocument(db, {
+        actorAccountId: account.id,
+        oldDocumentId: oldDoc.value.id,
+        newDocumentId: newDoc.value.id,
+      }),
+      supersedeDocument(db, {
+        actorAccountId: account.id,
+        oldDocumentId: oldDoc.value.id,
+        newDocumentId: newDoc.value.id,
+      }),
+    ]);
+    const succeeded = attempts.filter((r) => isOk(r));
+    expect(succeeded).toHaveLength(1);
+    const superseded = succeeded[0];
+    if (superseded && isOk(superseded)) {
+      expect(superseded.value.flaggedMissionIds).toEqual([mission.value.id]);
+    }
+    // A replaced document is a material change (v1.2 E03, W0-04): the case revision moves
+    // once, and the acknowledgement made with the old document no longer stands.
     expect(await revisionOf()).toBe((revisionBefore ?? 0) + 1);
+    expect(await getLiveAcknowledgement(db, mission.value.id)).toBeUndefined();
 
     const tasks = await listTasks(db, account.id, mission.value.id);
     expect(isOk(tasks)).toBe(true);

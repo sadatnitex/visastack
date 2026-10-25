@@ -83,10 +83,55 @@ describe('classifyDeclarationChange (v1.2 T10, R05)', () => {
     expect(
       classify({
         fieldKey: 'monthly_salary',
-        prior: { value: '80000', effectiveFrom: day('2023-01-01'), currency: 'BDT' },
-        current: { value: '95000', effectiveFrom: day('2025-01-01'), currency: 'BDT' },
+        prior: {
+          value: '80000',
+          effectiveFrom: day('2023-01-01'),
+          currency: 'BDT',
+          basis: 'GROSS',
+        },
+        current: {
+          value: '95000',
+          effectiveFrom: day('2025-01-01'),
+          currency: 'BDT',
+          basis: 'GROSS',
+        },
       }).result,
     ).toBe('LEGITIMATE_CHANGE');
+  });
+
+  it('amounts with no recorded currency or tax basis are insufficient information, never assumed the same', () => {
+    expect(
+      classify({
+        fieldKey: 'monthly_salary',
+        prior: { value: '80000', effectiveFrom: day('2023-01-01') },
+        current: { value: '1200', effectiveFrom: day('2025-01-01') },
+      }),
+    ).toEqual({ result: 'INSUFFICIENT_INFORMATION', reason: 'currency_unknown' });
+    expect(
+      classify({
+        fieldKey: 'monthly_salary',
+        prior: { value: '80000', effectiveFrom: day('2023-01-01'), currency: 'BDT' },
+        current: { value: '95000', effectiveFrom: day('2025-01-01'), currency: 'BDT' },
+      }),
+    ).toEqual({ result: 'INSUFFICIENT_INFORMATION', reason: 'basis_unknown' });
+  });
+
+  it('the same number written differently is consistent, but not across currencies', () => {
+    const base = { fieldKey: 'monthly_salary' };
+    expect(
+      classify({
+        ...base,
+        prior: { value: '80,000', effectiveFrom: null, currency: 'BDT' },
+        current: { value: '80000', effectiveFrom: null, currency: 'BDT' },
+      }),
+    ).toEqual({ result: 'CONSISTENT', reason: 'same_value_different_formatting' });
+    expect(
+      classify({
+        ...base,
+        prior: { value: '1000', effectiveFrom: null, currency: 'USD' },
+        current: { value: '1000', effectiveFrom: null, currency: 'BDT' },
+      }).reason,
+    ).toBe('different_currency');
   });
 
   it('gross versus net is a context difference, never a contradiction', () => {
@@ -350,6 +395,76 @@ describe('compareFactVersions (v1.2 R05, R06)', () => {
     expect(compared.value.result).toBe('CONTEXT_DIFFERENCE');
     expect(compared.value.prior.currency).toBe('BDT');
     expect(compared.value.current.currency).toBe('USD');
+    // A caller with the snapshot time gets the currency in force at that moment instead.
+    const atSnapshot = await compareFactVersions(db, {
+      actorAccountId: me.accountId,
+      applicantId: me.applicantId,
+      priorFactVersionId: before.id,
+      priorAsOf: new Date(),
+    });
+    expect(isOk(atSnapshot) && atSnapshot.value.prior.currency).toBe('USD');
+  }, 30_000);
+
+  it('reads the currency for each side as of when it was declared, whatever order the details were saved in', async () => {
+    const me = await owner('me@example.com');
+    // Amount first, currency on the next save: the order the form invites.
+    const before = await save(me, 'monthly_salary', '80000', { effectiveFrom: day('2023-01-01') });
+    await save(me, 'monthly_salary_currency', 'BDT');
+    await save(me, 'monthly_salary', '95000', { effectiveFrom: day('2025-01-01') });
+    const compared = await compareFactVersions(db, {
+      actorAccountId: me.accountId,
+      applicantId: me.applicantId,
+      priorFactVersionId: before.id,
+    });
+    expect(isOk(compared)).toBe(true);
+    if (!isOk(compared)) return;
+    expect(compared.value.prior.currency).toBe('BDT');
+    expect(compared.value.current.currency).toBe('BDT');
+    // No tax basis is recorded anywhere yet, so the honest answer is insufficient information.
+    expect(compared.value.reason).toBe('basis_unknown');
+  }, 30_000);
+
+  it('an amount with no currency recorded at all is insufficient information', async () => {
+    const me = await owner('me@example.com');
+    const before = await save(me, 'monthly_salary', '80000', { effectiveFrom: day('2023-01-01') });
+    await save(me, 'monthly_salary', '1200', { effectiveFrom: day('2025-01-01') });
+    const compared = await compareFactVersions(db, {
+      actorAccountId: me.accountId,
+      applicantId: me.applicantId,
+      priorFactVersionId: before.id,
+    });
+    expect(isOk(compared) && compared.value.reason).toBe('currency_unknown');
+  }, 30_000);
+
+  it('reads an effective date equal to the save time (the old default) as not known', async () => {
+    const me = await owner('me@example.com');
+    const old = await save(me, 'employer_name', 'Acme Ltd', { effectiveFrom: new Date() });
+    await save(me, 'employer_name', 'Beta Ltd', { effectiveFrom: day('2030-01-01') });
+    const compared = await compareFactVersions(db, {
+      actorAccountId: me.accountId,
+      applicantId: me.applicantId,
+      priorFactVersionId: old.id,
+    });
+    expect(isOk(compared) && compared.value.reason).toBe('date_unknown');
+    expect(isOk(compared) && compared.value.prior.effectiveFrom).toBeNull();
+  }, 30_000);
+
+  it('refuses a "current" version older than the prior one, and a malformed id, with the usual answer', async () => {
+    const me = await owner('me@example.com');
+    const older = await save(me, 'employer_name', 'Acme Ltd', { effectiveFrom: day('2020-01-01') });
+    const newer = await save(me, 'employer_name', 'Beta Ltd', { effectiveFrom: day('2022-01-01') });
+    for (const attempt of [
+      { priorFactVersionId: newer.id, currentFactVersionId: older.id },
+      { priorFactVersionId: 'not-a-uuid' },
+      { priorFactVersionId: older.id, currentFactVersionId: 'x' },
+    ]) {
+      const result = await compareFactVersions(db, {
+        actorAccountId: me.accountId,
+        applicantId: me.applicantId,
+        ...attempt,
+      });
+      expect(isErr(result) && result.error.message).toBe('That version is not available.');
+    }
   }, 30_000);
 
   it('uses recorded other names for a name difference', async () => {
