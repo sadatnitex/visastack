@@ -19,6 +19,7 @@ import {
   getApplicant,
   getLatestExtractedText,
   isAiDispatchAllowed,
+  isValidDocumentDateString,
   loadUploadQuotaConfig,
   mbLabel,
   prepareDocumentKind,
@@ -53,6 +54,7 @@ import { createKeyManagementPort, createPreviewRenderer } from '../../../../lib/
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
 import { permitsPdfAdmission, validateUploadBytes } from '../../../../lib/upload-preflight';
+import { describeClearAcceptance } from './ai-review-messages';
 
 /** Result surfaced back to the client for inline feedback. */
 export interface ActionState {
@@ -699,9 +701,17 @@ export async function decideProposalAction(
   }
   let effectiveFrom: Date | undefined;
   if (decision === 'approve' && resolutionRaw === 'changed') {
+    // A real calendar day (no 31 February rolling into March), and not in the future.
     const parsed = new Date(`${effectiveFromRaw}T00:00:00Z`);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveFromRaw) || Number.isNaN(parsed.getTime())) {
-      return { ok: false, message: 'Enter the date it changed.', field: 'effectiveFrom' };
+    if (
+      !isValidDocumentDateString(effectiveFromRaw) ||
+      parsed.toISOString().slice(0, 10) !== effectiveFromRaw
+    ) {
+      return {
+        ok: false,
+        message: 'Enter the date it changed. It cannot be in the future.',
+        field: 'effectiveFrom',
+      };
     }
     effectiveFrom = parsed;
   }
@@ -778,15 +788,7 @@ export async function acceptClearDetailsAction(
       ...(encryption ? { encryption } : {}),
     });
     if (!accepted.ok) return { ok: false, message: accepted.error.message } satisfies ActionState;
-    const { approved, leftForReview } = accepted.value;
-    const saved = approved === 1 ? 'Saved 1 detail' : `Saved ${approved} details`;
-    return {
-      ok: true,
-      message:
-        leftForReview > 0
-          ? `${saved}. ${leftForReview === 1 ? '1 is' : `${leftForReview} are`} left for you to check.`
-          : `${saved} to your profile.`,
-    } satisfies ActionState;
+    return { ok: true, message: describeClearAcceptance(accepted.value) } satisfies ActionState;
   });
 
   if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');

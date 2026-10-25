@@ -11,6 +11,7 @@ import {
   approveProposal,
   isClearReading,
   listPendingProposals,
+  rejectProposal,
   runExtraction,
 } from './ai';
 import { createApplicant } from './applicants';
@@ -25,7 +26,8 @@ import {
 } from './profile';
 
 /** The document text the stub "reads"; a quote counts as found only when it is in here word for word. */
-const TEXT = 'Name: Ayesha Rahman. Occupation: Engineer. City: Dhaka. Passport A1234567.';
+const TEXT =
+  'Name: Ayesha Rahman. Occupation: Engineer. City: Dhaka. Passport A1234567. Employer: Acme Ltd. Address City: Sylhet. Born 1990-01-05.';
 
 const stubAi: AiExtractionPort = {
   async extract() {
@@ -68,6 +70,29 @@ const stubAi: AiExtractionPort = {
             value: 'Dhaka',
             confidence: 0.96,
             evidenceSnippet: 'Dhaka',
+          },
+          // The quote is real, but the value is not in it.
+          {
+            type: 'NEW',
+            fieldKey: 'employer',
+            value: 'Globex',
+            confidence: 0.95,
+            evidenceSnippet: 'Employer:',
+          },
+          // Part of a repeating record (an address): saved per record, never in bulk.
+          {
+            type: 'NEW',
+            fieldKey: 'address_city',
+            value: 'Sylhet',
+            confidence: 0.95,
+            evidenceSnippet: 'Sylhet',
+          },
+          {
+            type: 'NEW',
+            fieldKey: 'date_of_birth',
+            value: '1990-01-05',
+            confidence: 0.95,
+            evidenceSnippet: '1990-01-05',
           },
         ],
         usage: {
@@ -125,13 +150,25 @@ async function seed(email: string) {
     objectKey: `obj-${email}`,
   });
   if (!isOk(version)) throw new Error('version');
-  for (const key of ['given_name', 'family_name', 'occupation', 'city']) {
+  for (const key of [
+    'given_name',
+    'family_name',
+    'occupation',
+    'city',
+    'employer',
+    'address_city',
+  ]) {
     await registerFieldDefinition(db, { key, dataType: 'string', sensitivity: 'STANDARD' });
   }
   await registerFieldDefinition(db, {
     key: 'passport_number',
     dataType: 'string',
     sensitivity: 'RESTRICTED',
+  });
+  await registerFieldDefinition(db, {
+    key: 'date_of_birth',
+    dataType: 'date',
+    sensitivity: 'STANDARD',
   });
   const applicantId = applicant.value.id;
   const run = await runExtraction(db, stubAi, {
@@ -172,15 +209,22 @@ describe('accepting all clear details at once', () => {
     if (!isOk(result)) return;
     // Only the given name: the others are an unfound quote, low confidence, a restricted field and
     // a difference with a confirmed value.
-    expect(result.value).toEqual({ approved: 1, leftForReview: 4 });
+    expect(result.value).toEqual({ approved: 2, leftForReview: 6, alreadyDecided: 0 });
     const left = (await listPendingProposals(db, applicantId)).map(
       ({ proposal }) => proposal.fieldKey,
     );
-    expect(left.sort()).toEqual(['city', 'family_name', 'occupation', 'passport_number']);
+    expect(left.sort()).toEqual([
+      'address_city',
+      'city',
+      'employer',
+      'family_name',
+      'occupation',
+      'passport_number',
+    ]);
     expect(left).not.toContain('given_name');
     expect(
       isClearReading(pending.find((p) => p.proposal.id === idOf('given_name'))?.proposal as never, [
-        { verified: true },
+        { verified: true, snippet: 'Name: Ayesha' },
       ]),
     ).toBe(true);
   }, 60_000);
@@ -199,7 +243,11 @@ describe('accepting all clear details at once', () => {
       applicantId: other.applicantId,
       proposalIds: [owner.idOf('given_name')],
     });
-    expect(isOk(mixed) && mixed.value).toEqual({ approved: 0, leftForReview: 1 });
+    expect(isOk(mixed) && mixed.value).toEqual({
+      approved: 0,
+      leftForReview: 1,
+      alreadyDecided: 0,
+    });
     expect(
       (await listPendingProposals(db, owner.applicantId)).some(
         ({ proposal }) => proposal.fieldKey === 'given_name',
@@ -274,5 +322,59 @@ describe('settling a difference with a value already on file', () => {
       .from(schema.factVersions)
       .where(eq(schema.factVersions.factId, approved.value.fact.id));
     expect(versions.map((version) => version.value).sort()).toEqual(['Chittagong', 'Dhaka']);
+  }, 60_000);
+});
+
+describe('decisions that must not happen twice or go wrong', () => {
+  it('a reading decided elsewhere first is not decided again', async () => {
+    const { accountId, applicantId, idOf } = await seed('twice@example.com');
+    const first = await approveProposal(db, {
+      actorAccountId: accountId,
+      proposalId: idOf('given_name'),
+    });
+    expect(isOk(first)).toBe(true);
+    const again = await rejectProposal(db, {
+      actorAccountId: accountId,
+      proposalId: idOf('given_name'),
+    });
+    expect(isErr(again) && again.error.code).toBe('invalid');
+    const bulk = await approveClearProposals(db, {
+      actorAccountId: accountId,
+      applicantId,
+      proposalIds: [idOf('given_name')],
+    });
+    expect(isOk(bulk) && bulk.value).toEqual({ approved: 0, leftForReview: 0, alreadyDecided: 1 });
+  }, 60_000);
+
+  it('refuses "it changed" for a date of birth', async () => {
+    const { accountId, idOf } = await seed('fixed@example.com');
+    const refused = await approveProposal(db, {
+      actorAccountId: accountId,
+      proposalId: idOf('date_of_birth'),
+      resolution: 'changed',
+      effectiveFrom: new Date('2020-01-01T00:00:00Z'),
+    });
+    expect(isErr(refused) && refused.error.code).toBe('invalid');
+  }, 60_000);
+
+  it('says why nothing was saved when processing consent was withdrawn', async () => {
+    const { accountId, applicantId, idOf } = await seed('withdrawn@example.com');
+    await setConsent(db, {
+      actorAccountId: accountId,
+      accountId,
+      type: 'CORE_PROCESSING',
+      granted: false,
+    });
+    const bulk = await approveClearProposals(db, {
+      actorAccountId: accountId,
+      applicantId,
+      proposalIds: [idOf('given_name')],
+    });
+    expect(isErr(bulk)).toBe(true);
+    expect(
+      (await listPendingProposals(db, applicantId)).some(
+        ({ proposal }) => proposal.fieldKey === 'given_name',
+      ),
+    ).toBe(true);
   }, 60_000);
 });

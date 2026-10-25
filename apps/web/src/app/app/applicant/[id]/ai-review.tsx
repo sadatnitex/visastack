@@ -1,7 +1,8 @@
 'use client';
 
-import { useActionState, useId, useState } from 'react';
+import { useActionState, useCallback, useId, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { humanizeFieldKey } from '../../../../lib/field-key-label';
 import { documentTypeLabel } from '../../../../lib/labels';
 import { profileField } from '../../../../lib/profile-fields';
 import {
@@ -175,6 +176,10 @@ export interface AiProposalViewModel {
    * or null when a value exists but is protected and not shown here.
    */
   readonly difference?: { readonly current: string | null };
+  /** A detail that never changes over time (a date of birth): "it changed" is not offered. */
+  readonly fixed?: boolean;
+  /** Part of a repeating record (one address among several): always decided one at a time. */
+  readonly repeating?: boolean;
 }
 
 /** A reading still waiting for the person: accept, change, settle a difference, or skip. */
@@ -182,9 +187,15 @@ export function AiProposalReview({
   applicantId,
   proposal,
   canApprove,
+  onEditedChange,
+  onResult,
 }: {
   readonly applicantId: string;
   readonly proposal: AiProposalViewModel;
+  /** Tells the list when the value was changed, so it is no longer accepted in bulk as read. */
+  readonly onEditedChange?: (id: string, edited: boolean) => void;
+  /** Hands the outcome to the list, which stays on screen after this card is gone. */
+  readonly onResult?: (result: ActionState) => void;
   /**
    * Approving writes to the Master Profile, which the service layer refuses without
    * CORE_PROCESSING consent; this keeps the screen honest about that. Skipping never changes the
@@ -192,7 +203,15 @@ export function AiProposalReview({
    */
   readonly canApprove: boolean;
 }) {
-  const [state, formAction, pending] = useActionState(decideProposalAction, INITIAL);
+  const [state, formAction, pending] = useActionState(
+    async (previous: ActionState, formData: FormData) => {
+      const result = await decideProposalAction(previous, formData);
+      // A success removes this card; the list keeps the message. A refusal stays on the card.
+      if (result.ok) onResult?.(result);
+      return result;
+    },
+    INITIAL,
+  );
   const [editedValue, setEditedValue] = useState(proposal.value ?? '');
   const [choice, setChoice] = useState('');
   const headingId = useId();
@@ -200,7 +219,9 @@ export function AiProposalReview({
   const dateId = useId();
   const mappable = proposal.type !== 'UNMAPPED' && Boolean(proposal.fieldKey);
   const label = mappable
-    ? (proposal.fieldLabel ?? profileField(proposal.fieldKey as string)?.label ?? 'Detail')
+    ? (proposal.fieldLabel ??
+      profileField(proposal.fieldKey as string)?.label ??
+      humanizeFieldKey(proposal.fieldKey as string))
     : 'Detail We Could Not Place';
   const quote = proposal.evidence[0];
   const unverified = quote?.verified === false;
@@ -257,7 +278,10 @@ export function AiProposalReview({
               name="correctedValue"
               className="input"
               value={editedValue}
-              onChange={(event) => setEditedValue(event.target.value)}
+              onChange={(event) => {
+                setEditedValue(event.target.value);
+                onEditedChange?.(proposal.id, event.target.value !== (proposal.value ?? ''));
+              }}
             />
             <small className="muted">Change it if it is not right before you accept.</small>
           </div>
@@ -266,7 +290,7 @@ export function AiProposalReview({
           <fieldset className="finding-difference">
             <legend>
               {difference.current === null ? (
-                'Your profile already has a protected value for this. Which should it keep?'
+                'Your profile already has a different value for this, hidden here to keep it private. Which is right?'
               ) : (
                 <>
                   Your profile has <q>{difference.current}</q>. Which is right?
@@ -284,22 +308,31 @@ export function AiProposalReview({
               />
               Use This Document&rsquo;s Value
             </label>
-            <label>
-              <input
-                type="radio"
-                name="resolution"
-                value="changed"
-                checked={choice === 'changed'}
-                onChange={() => setChoice('changed')}
-              />
-              Both Are Right, It Changed
-            </label>
-            {choice === 'changed' ? (
+            {proposal.fixed ? null : (
+              <label>
+                <input
+                  type="radio"
+                  name="resolution"
+                  value="changed"
+                  checked={choice === 'changed'}
+                  onChange={() => setChoice('changed')}
+                />
+                Both Are Right, It Changed
+              </label>
+            )}
+            {choice === 'changed' && !proposal.fixed ? (
               <div className="finding-value">
                 <label className="field-label" htmlFor={dateId}>
                   Date It Changed
                 </label>
-                <input id={dateId} type="date" name="effectiveFrom" className="input" required />
+                <input
+                  id={dateId}
+                  type="date"
+                  name="effectiveFrom"
+                  className="input"
+                  max={new Date().toISOString().slice(0, 10)}
+                  required
+                />
               </div>
             ) : null}
             <label>
@@ -340,7 +373,7 @@ export function AiProposalReview({
           label={`Skip: ${label}`}
         />
       </form>
-      <FormMessage result={state} />
+      <FormMessage result={state.ok ? INITIAL : state} />
     </article>
   );
 }
@@ -358,13 +391,45 @@ export function DocumentFindings({
   readonly proposals: readonly AiProposalViewModel[];
   readonly canApprove: boolean;
 }) {
-  const [state, formAction, pending] = useActionState(acceptClearDetailsAction, INITIAL);
-  if (proposals.length === 0) return null;
+  // The latest outcome, kept here: a card disappears once decided, and its message with it.
+  const [lastResult, setLastResult] = useState<ActionState>(INITIAL);
+  const [edited, setEdited] = useState<ReadonlySet<string>>(new Set());
+  const [, formAction, pending] = useActionState(
+    async (previous: ActionState, formData: FormData) => {
+      const result = await acceptClearDetailsAction(previous, formData);
+      setLastResult(result);
+      return result;
+    },
+    INITIAL,
+  );
+  const markEdited = useCallback((id: string, isEdited: boolean) => {
+    setEdited((previous) => {
+      if (previous.has(id) === isEdited) return previous;
+      const next = new Set(previous);
+      if (isEdited) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+  if (proposals.length === 0) {
+    return lastResult === INITIAL ? null : (
+      <div className="document-findings">
+        <FormMessage result={lastResult} />
+      </div>
+    );
+  }
   const rank = (proposal: AiProposalViewModel) =>
     proposal.difference ? 0 : proposal.clear ? 2 : 1;
   const ordered = [...proposals].sort((a, b) => rank(a) - rank(b));
   const clearIds = proposals
-    .filter((proposal) => proposal.clear && !proposal.sensitive && !proposal.difference)
+    .filter(
+      (proposal) =>
+        proposal.clear &&
+        !proposal.sensitive &&
+        !proposal.difference &&
+        !proposal.repeating &&
+        !edited.has(proposal.id),
+    )
     .map((proposal) => proposal.id);
   const count = proposals.length;
   return (
@@ -388,18 +453,20 @@ export function DocumentFindings({
             className="btn btn-primary"
           />
           <small className="muted">
-            Sensitive details and anything that differs from your profile stay here for you to check
-            one by one.
+            Sensitive details, anything you changed, and anything that differs from your profile
+            stay here for you to check one by one.
           </small>
-          <FormMessage result={state} />
         </form>
       ) : null}
+      <FormMessage result={lastResult} />
       {ordered.map((proposal) => (
         <AiProposalReview
           key={proposal.id}
           applicantId={applicantId}
           proposal={proposal}
           canApprove={canApprove}
+          onEditedChange={markEdited}
+          onResult={setLastResult}
         />
       ))}
     </div>

@@ -1,12 +1,14 @@
 import { createHash } from 'node:crypto';
 import type { FactStatus, ProposalType } from '@visastack/core';
 import { type Result, err, isOk, ok } from '@visastack/core';
-import { and, desc, eq, gte, isNull, lt, sql } from 'drizzle-orm';
+import { isRepeatingFieldKey } from '@visastack/core/catalogue';
+import { and, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { scopeFieldKeys } from './ai-field-scope';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { CLASSIFIABLE_DOCUMENT_TYPES } from './classification';
 import { hasConsent } from './consent';
+import { isFixedFieldKey } from './consistency';
 import { type Db, first, required, schema } from './db';
 import { proposeDocumentName } from './document-naming';
 import { type ServiceError, serviceError } from './errors';
@@ -20,7 +22,13 @@ import type {
 } from './ocr';
 import type { KeyManagementPort } from './ports';
 import { recordProductEvent } from './product-events';
-import { type EditFactResult, editFact, getCurrentFactVersion } from './profile';
+import {
+  type EditFactResult,
+  type FactVersion,
+  editFact,
+  getCurrentFactVersion,
+  revealFactVersionValue,
+} from './profile';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
 
 /**
@@ -2578,6 +2586,33 @@ async function findExistingFactId(
   return first(rows)?.id;
 }
 
+/** Carries a refusal out of a transaction so everything written inside it is rolled back. */
+class DecisionAborted extends Error {
+  constructor(readonly result: Result<unknown, ServiceError>) {
+    super('decision aborted');
+  }
+}
+
+/**
+ * Whether a reading differs from a value the person or a reviewer stands behind. A protected
+ * value is decrypted to compare when a key service is given; without one it counts as different,
+ * so nothing is ever assumed equal.
+ */
+async function differsFromTrusted(
+  db: Db,
+  current: FactVersion | undefined,
+  value: string | null,
+  encryption?: KeyManagementPort,
+): Promise<boolean> {
+  if (!current || !TRUSTED_FACT_STATUSES.includes(current.status)) return false;
+  if (current.protectedKeyVersion !== null) {
+    if (!encryption) return true;
+    const revealed = await revealFactVersionValue(db, encryption, current);
+    return !revealed.ok || revealed.value !== value;
+  }
+  return current.value !== value;
+}
+
 export interface ApproveProposalInput {
   readonly actorAccountId: string;
   readonly proposalId: string;
@@ -2645,6 +2680,9 @@ export async function approveProposal(
   if (input.resolution === 'changed' && !input.effectiveFrom) {
     return err(serviceError('invalid', 'say when the detail changed'));
   }
+  if (input.resolution === 'changed' && proposal.fieldKey && isFixedFieldKey(proposal.fieldKey)) {
+    return err(serviceError('invalid', 'this detail does not change over time'));
+  }
 
   const run = required(
     first(
@@ -2669,8 +2707,7 @@ export async function approveProposal(
     const currentVersion = await getCurrentFactVersion(db, existingFactId);
     if (
       currentVersion &&
-      currentVersion.value !== finalValue &&
-      TRUSTED_FACT_STATUSES.includes(currentVersion.status)
+      (await differsFromTrusted(db, currentVersion, finalValue, input.encryption))
     ) {
       conflict = { factId: existingFactId, previousFactVersionId: currentVersion.id };
     }
@@ -2685,76 +2722,102 @@ export async function approveProposal(
   // decision AFTER the fact has already changed rolls back the fact change
   // too, instead of leaving the proposal stuck PENDING forever against an
   // already-mutated profile.
-  return db.transaction(async (tx) => {
-    const editResult = await editFact(tx, {
-      actorAccountId: input.actorAccountId,
-      applicantId: proposal.applicantId,
-      fieldKey,
-      value: finalValue,
-      status: conflict ? 'CONFLICTED' : 'DOCUMENT_SUPPORTED',
-      method: 'DOCUMENT',
-      sourceDocumentVersionId: proposal.documentVersionId,
-      modelVersion: run.modelVersion,
-      promptVersion: run.promptVersion,
-      reason: 'ai_proposal_approved',
-      ...(input.resolution === 'changed' && input.effectiveFrom
-        ? { effectiveFrom: input.effectiveFrom }
-        : {}),
-      ...(repeatingRecordKey ? { repeatingRecordKey } : {}),
-      ...(input.encryption ? { encryption: input.encryption } : {}),
-    });
-    if (!isOk(editResult)) return editResult;
-
-    const { version } = editResult.value;
-    await tx
-      .update(schema.fieldProposals)
-      .set({
-        status: 'APPROVED',
-        decidedByAccountId: input.actorAccountId,
-        decidedAt: new Date(),
-        factVersionId: version.id,
-      })
-      .where(eq(schema.fieldProposals.id, proposal.id));
-
-    if (correctedValue && correctedValue !== proposal.value) {
-      await tx.insert(schema.correctionFeedback).values({
-        fieldProposalId: proposal.id,
-        originalValue: proposal.value,
-        correctedValue,
+  // The decision is claimed first, inside the transaction: of two decisions on the same reading
+  // (two tabs, two devices), only one finds it still pending; the other changes nothing.
+  try {
+    return await db.transaction(async (tx) => {
+      const claimed = await tx
+        .update(schema.fieldProposals)
+        .set({
+          status: 'APPROVED',
+          decidedByAccountId: input.actorAccountId,
+          decidedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(schema.fieldProposals.id, proposal.id),
+            eq(schema.fieldProposals.status, 'PENDING'),
+          ),
+        )
+        .returning({ id: schema.fieldProposals.id });
+      if (claimed.length === 0) {
+        throw new DecisionAborted(
+          err(serviceError('invalid', 'this proposal has already been decided')),
+        );
+      }
+      const editResult = await editFact(tx, {
+        actorAccountId: input.actorAccountId,
+        applicantId: proposal.applicantId,
+        fieldKey,
+        value: finalValue,
+        status: conflict ? 'CONFLICTED' : 'DOCUMENT_SUPPORTED',
+        method: 'DOCUMENT',
+        sourceDocumentVersionId: proposal.documentVersionId,
+        modelVersion: run.modelVersion,
+        promptVersion: run.promptVersion,
+        reason: 'ai_proposal_approved',
+        ...(input.resolution === 'changed' && input.effectiveFrom
+          ? { effectiveFrom: input.effectiveFrom }
+          : {}),
+        ...(repeatingRecordKey ? { repeatingRecordKey } : {}),
+        ...(input.encryption ? { encryption: input.encryption } : {}),
       });
-    }
+      // Undo the claim with everything else when the write is refused.
+      if (!isOk(editResult)) throw new DecisionAborted(editResult);
 
-    if (conflict) {
-      await tx.insert(schema.conflicts).values({
-        fieldProposalId: proposal.id,
-        factId: conflict.factId,
-        previousFactVersionId: conflict.previousFactVersionId,
-        newFactVersionId: version.id,
-        note: `AI proposed "${finalValue}" but the current confirmed value differs`,
+      const { version } = editResult.value;
+      await tx
+        .update(schema.fieldProposals)
+        .set({ factVersionId: version.id })
+        .where(eq(schema.fieldProposals.id, proposal.id));
+
+      if (correctedValue && correctedValue !== proposal.value) {
+        await tx.insert(schema.correctionFeedback).values({
+          fieldProposalId: proposal.id,
+          originalValue: proposal.value,
+          correctedValue,
+        });
+      }
+
+      if (conflict) {
+        await tx.insert(schema.conflicts).values({
+          fieldProposalId: proposal.id,
+          factId: conflict.factId,
+          previousFactVersionId: conflict.previousFactVersionId,
+          newFactVersionId: version.id,
+          note: `AI proposed "${finalValue}" but the current confirmed value differs`,
+        });
+      }
+
+      // OPS-04 AI acceptance/correction: whether the reviewer took the proposal
+      // as given or changed it first. The values themselves (the proposal and the
+      // correction) stay in `correction_feedback` and never reach analytics.
+      await recordProductEvent(tx, {
+        eventType:
+          correctedValue && correctedValue !== proposal.value
+            ? 'AI_PROPOSAL_CORRECTED'
+            : 'AI_PROPOSAL_ACCEPTED',
+        accountId: input.actorAccountId,
+        dimension: 'EXTRACTION',
       });
-    }
 
-    // OPS-04 AI acceptance/correction: whether the reviewer took the proposal
-    // as given or changed it first. The values themselves (the proposal and the
-    // correction) stay in `correction_feedback` and never reach analytics.
-    await recordProductEvent(tx, {
-      eventType:
-        correctedValue && correctedValue !== proposal.value
-          ? 'AI_PROPOSAL_CORRECTED'
-          : 'AI_PROPOSAL_ACCEPTED',
-      accountId: input.actorAccountId,
-      dimension: 'EXTRACTION',
+      return editResult;
     });
-
-    return editResult;
-  });
+  } catch (error) {
+    if (error instanceof DecisionAborted)
+      return error.result as Result<EditFactResult, ServiceError>;
+    throw error;
+  }
 }
 
 /**
- * A reading counts as clear when the model was confident and every quoted phrase was found, word
- * for word, in the document's own text. Anything else asks the person to look closely.
+ * A reading counts as clear when the model was confident, every quoted phrase was found word for
+ * word in the document's own text, and the value itself appears in one of those phrases. Anything
+ * else asks the person to look closely.
  */
 export const CLEAR_PROPOSAL_CONFIDENCE = 85;
+
+const normaliseForMatch = (text: string): string => text.toLowerCase().replace(/\s+/g, ' ').trim();
 
 export function isClearReading(
   proposal: {
@@ -2763,15 +2826,17 @@ export function isClearReading(
     readonly value: string | null;
     readonly confidence: number;
   },
-  evidence: readonly { readonly verified: boolean | null }[],
+  evidence: readonly { readonly verified: boolean | null; readonly snippet: string }[],
 ): boolean {
+  const value = proposal.value ? normaliseForMatch(proposal.value) : '';
   return (
     proposal.type !== 'UNMAPPED' &&
     Boolean(proposal.fieldKey) &&
-    Boolean(proposal.value?.trim()) &&
+    value.length > 0 &&
     proposal.confidence >= CLEAR_PROPOSAL_CONFIDENCE &&
     evidence.length > 0 &&
-    evidence.every((item) => item.verified === true)
+    evidence.every((item) => item.verified === true) &&
+    evidence.some((item) => normaliseForMatch(item.snippet).includes(value))
   );
 }
 
@@ -2784,15 +2849,19 @@ export interface ApproveClearProposalsInput {
 
 export interface ApproveClearProposalsResult {
   readonly approved: number;
-  /** Proposals that were not clear, sensitive, different from a confirmed value, or already decided. */
+  /** Readings that are not clear, are sensitive, belong to a repeating record, or differ from a confirmed value. */
   readonly leftForReview: number;
+  /** Readings already decided (another tab, a double press): not counted as waiting. */
+  readonly alreadyDecided: number;
 }
 
 /**
  * "Accept all clear details" for one person: approves, one by one through `approveProposal`, only
- * the readings that are clear, for a field of STANDARD sensitivity, and that do not differ from a
- * value already confirmed. Every other proposal stays pending for a one-at-a-time decision. The
- * page's choice of ids is never trusted: each rule is checked again here.
+ * clear readings for an everyday (STANDARD) field that is not part of a repeating record and does
+ * not differ from a confirmed value. Every other reading stays pending for a one-at-a-time
+ * decision. The page's choice of ids is never trusted: each rule is checked again here. When
+ * nothing could be saved because of a refusal (consent withdrawn, for example), that refusal is
+ * returned rather than a count.
  */
 export async function approveClearProposals(
   db: Db,
@@ -2803,52 +2872,70 @@ export async function approveClearProposals(
   if (applicant.ownerAccountId !== input.actorAccountId) {
     return err(serviceError('forbidden', 'not authorized to decide these proposals'));
   }
-  let approved = 0;
-  let leftForReview = 0;
-  for (const proposalId of new Set(input.proposalIds)) {
-    const proposal = first(
-      await db
-        .select()
-        .from(schema.fieldProposals)
-        .where(eq(schema.fieldProposals.id, proposalId))
-        .limit(1),
+  const ids = [...new Set(input.proposalIds)];
+  if (ids.length === 0) return ok({ approved: 0, leftForReview: 0, alreadyDecided: 0 });
+  // Loaded together, once, rather than one query per reading.
+  const proposals = await db
+    .select()
+    .from(schema.fieldProposals)
+    .where(
+      and(
+        inArray(schema.fieldProposals.id, ids),
+        eq(schema.fieldProposals.applicantId, input.applicantId),
+      ),
     );
-    if (
-      !proposal ||
-      proposal.applicantId !== input.applicantId ||
-      proposal.status !== 'PENDING' ||
-      !proposal.fieldKey
-    ) {
-      leftForReview += 1;
-      continue;
-    }
-    const evidence = await db
-      .select({ verified: schema.evidenceLocations.verified })
-      .from(schema.evidenceLocations)
-      .where(eq(schema.evidenceLocations.fieldProposalId, proposal.id));
-    const definition = first(
-      await db
-        .select({ sensitivity: schema.fieldDefinitions.sensitivity })
+  const evidence = proposals.length
+    ? await db
+        .select({
+          fieldProposalId: schema.evidenceLocations.fieldProposalId,
+          verified: schema.evidenceLocations.verified,
+          snippet: schema.evidenceLocations.snippet,
+        })
+        .from(schema.evidenceLocations)
+        .where(
+          inArray(
+            schema.evidenceLocations.fieldProposalId,
+            proposals.map((proposal) => proposal.id),
+          ),
+        )
+    : [];
+  const keys = [
+    ...new Set(proposals.flatMap((proposal) => (proposal.fieldKey ? [proposal.fieldKey] : []))),
+  ];
+  const definitions = keys.length
+    ? await db
+        .select({
+          key: schema.fieldDefinitions.key,
+          sensitivity: schema.fieldDefinitions.sensitivity,
+        })
         .from(schema.fieldDefinitions)
-        .where(eq(schema.fieldDefinitions.key, proposal.fieldKey))
-        .limit(1),
-    );
-    if (!isClearReading(proposal, evidence) || definition?.sensitivity !== 'STANDARD') {
+        .where(inArray(schema.fieldDefinitions.key, keys))
+    : [];
+  const sensitivityOf = new Map(definitions.map((row) => [row.key, row.sensitivity] as const));
+
+  let approved = 0;
+  let leftForReview = ids.length - proposals.length;
+  let alreadyDecided = 0;
+  let refusal: ServiceError | undefined;
+  for (const proposal of proposals) {
+    if (proposal.status !== 'PENDING') {
+      alreadyDecided += 1;
+      continue;
+    }
+    const fieldKey = proposal.fieldKey;
+    const quotes = evidence.filter((item) => item.fieldProposalId === proposal.id);
+    if (
+      !fieldKey ||
+      !isClearReading(proposal, quotes) ||
+      sensitivityOf.get(fieldKey) !== 'STANDARD' ||
+      isRepeatingFieldKey(fieldKey)
+    ) {
       leftForReview += 1;
       continue;
     }
-    const existingFactId = await findExistingFactId(
-      db,
-      proposal.applicantId,
-      proposal.fieldKey,
-      null,
-    );
+    const existingFactId = await findExistingFactId(db, proposal.applicantId, fieldKey, null);
     const current = existingFactId ? await getCurrentFactVersion(db, existingFactId) : undefined;
-    if (
-      current &&
-      TRUSTED_FACT_STATUSES.includes(current.status) &&
-      current.value !== proposal.value
-    ) {
+    if (await differsFromTrusted(db, current, proposal.value, input.encryption)) {
       leftForReview += 1;
       continue;
     }
@@ -2857,10 +2944,17 @@ export async function approveClearProposals(
       proposalId: proposal.id,
       ...(input.encryption ? { encryption: input.encryption } : {}),
     });
-    if (result.ok) approved += 1;
-    else leftForReview += 1;
+    if (result.ok) {
+      approved += 1;
+    } else if (result.error.message === 'this proposal has already been decided') {
+      alreadyDecided += 1;
+    } else {
+      refusal ??= result.error;
+      leftForReview += 1;
+    }
   }
-  return ok({ approved, leftForReview });
+  if (approved === 0 && refusal) return err(refusal);
+  return ok({ approved, leftForReview, alreadyDecided });
 }
 
 export interface RejectProposalInput {
@@ -2893,20 +2987,24 @@ export async function rejectProposal(
   }
 
   return db.transaction(async (tx) => {
-    const updated = required(
-      first(
-        await tx
-          .update(schema.fieldProposals)
-          .set({
-            status: 'REJECTED',
-            decidedByAccountId: input.actorAccountId,
-            decidedAt: new Date(),
-          })
-          .where(eq(schema.fieldProposals.id, input.proposalId))
-          .returning(),
-      ),
-      'field proposal',
+    // Only a still-pending reading can be set aside: a decision made meanwhile elsewhere wins.
+    const updated = first(
+      await tx
+        .update(schema.fieldProposals)
+        .set({
+          status: 'REJECTED',
+          decidedByAccountId: input.actorAccountId,
+          decidedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(schema.fieldProposals.id, input.proposalId),
+            eq(schema.fieldProposals.status, 'PENDING'),
+          ),
+        )
+        .returning(),
     );
+    if (!updated) return err(serviceError('invalid', 'this proposal has already been decided'));
     await appendAuditEvent(tx, {
       eventType: 'AI_PROPOSAL_REJECTED',
       actorAccountId: input.actorAccountId,

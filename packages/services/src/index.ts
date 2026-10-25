@@ -110,6 +110,7 @@ export {
   CONSISTENCY_RESULTS,
   classifyDeclarationChange,
   compareFactVersions,
+  isFixedFieldKey,
 } from './consistency';
 export type {
   AmountBasis,

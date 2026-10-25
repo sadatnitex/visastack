@@ -9,9 +9,7 @@ import {
   getLatestOcrRun,
   getWalletView,
   hasConsent,
-  isClearReading,
   isServableProcessingState,
-  isTrustedFactStatus,
   listApplicantProfile,
   listDocumentsDetailed,
   listIssuerVerificationsForDocument,
@@ -34,15 +32,12 @@ import {
   isOcrConfigured,
 } from '../../../../../lib/ai';
 import { getPlatformCapabilities } from '../../../../../lib/capabilities';
+import { confirmedValues, findingViewModel } from '../../../../../lib/document-findings';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { documentTypeLabel } from '../../../../../lib/labels';
 import { getLocale } from '../../../../../lib/locale';
-import {
-  categoryLabel,
-  evidenceDocumentGroups,
-  fieldLabel,
-  savableField,
-} from '../../../../../lib/master-profile';
+import { categoryLabel, evidenceDocumentGroups } from '../../../../../lib/master-profile';
+import { createKeyManagementPort } from '../../../../../lib/providers';
 import { isStillProcessing } from '../../../../../lib/resilience';
 import { withSession } from '../../../../../lib/session';
 import {
@@ -164,6 +159,7 @@ export default async function ApplicantDocumentsPage({
   const documentGroups = evidenceDocumentGroups();
 
   const data = await withSession(async ({ db, accountId }) => {
+    const encryption = createKeyManagementPort();
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
     const [
@@ -175,7 +171,7 @@ export default async function ApplicantDocumentsPage({
       classificationConfigured,
       inconsistencyConfigured,
       evidenceBytes,
-      pendingProposals,
+      [pendingProposals, profile],
       pendingClassificationProposals,
       pendingInconsistencyFlags,
       wallet,
@@ -188,7 +184,14 @@ export default async function ApplicantDocumentsPage({
       isClassificationConfigured(db),
       isInconsistencyConfigured(db),
       getApplicantEvidenceBytes(db, id),
-      listPendingProposals(db, id),
+      // What the profile already holds, read only when there are readings to compare it with.
+      listPendingProposals(db, id).then(
+        async (proposals) =>
+          [
+            proposals,
+            proposals.length > 0 ? await listApplicantProfile(db, id, encryption) : [],
+          ] as const,
+      ),
       listPendingDocumentTypeProposals(db, id),
       listPendingInconsistencyFlags(db, id),
       getWalletView(db, { actorAccountId: accountId, applicantId: id }),
@@ -212,15 +215,7 @@ export default async function ApplicantDocumentsPage({
       ),
     );
     const ocrRuns = new Map(documentRows.map((doc, i) => [doc.id, ocrRunLists[i]] as const));
-    // What the profile already holds, read only when there are readings to compare it with.
-    const profile = pendingProposals.length > 0 ? await listApplicantProfile(db, id) : [];
-    const currentValues = new Map(
-      profile
-        .filter((entry) => entry.repeatingRecordKey === null && entry.status !== null)
-        .filter((entry) => isTrustedFactStatus(entry.status as never))
-        // A protected value is never shown here: null says "there is one" without revealing it.
-        .map((entry) => [entry.fieldKey, entry.isProtected ? null : entry.value] as const),
-    );
+    const confirmed = confirmedValues(profile, encryption !== undefined);
     return {
       documents: documentRows,
       recordsUnavailable: !documents.ok || !wallet.ok,
@@ -233,7 +228,7 @@ export default async function ApplicantDocumentsPage({
       inconsistencyConfigured,
       evidenceBytes,
       pendingProposals,
-      currentValues,
+      confirmed,
       pendingClassificationProposals,
       pendingInconsistencyFlags,
       quota: loadUploadQuotaConfig(),
@@ -566,37 +561,9 @@ export default async function ApplicantDocumentsPage({
                       <DocumentFindings
                         applicantId={id}
                         canApprove={data.coreGranted}
-                        proposals={proposalsForDoc.map(({ proposal, evidence }) => {
-                          const field = proposal.fieldKey
-                            ? savableField(proposal.fieldKey)
-                            : undefined;
-                          const hasCurrent =
-                            proposal.fieldKey !== null && data.currentValues.has(proposal.fieldKey);
-                          const current = proposal.fieldKey
-                            ? data.currentValues.get(proposal.fieldKey)
-                            : undefined;
-                          // A protected value is not shown here (null): treat it as a difference to settle.
-                          const differs =
-                            hasCurrent && (current === null || current !== proposal.value);
-                          return {
-                            id: proposal.id,
-                            type: proposal.type,
-                            fieldKey: proposal.fieldKey,
-                            ...(proposal.fieldKey && fieldLabel(proposal.fieldKey)
-                              ? { fieldLabel: fieldLabel(proposal.fieldKey) as string }
-                              : {}),
-                            value: proposal.value,
-                            confidence: proposal.confidence,
-                            rationale: proposal.rationale,
-                            evidence: evidence.map((e) => ({
-                              snippet: e.snippet,
-                              verified: e.verified,
-                            })),
-                            clear: isClearReading(proposal, evidence),
-                            sensitive: field !== undefined && field.sensitivity !== 'STANDARD',
-                            ...(differs ? { difference: { current: current ?? null } } : {}),
-                          };
-                        })}
+                        proposals={proposalsForDoc.map((reading) =>
+                          findingViewModel(reading, data.confirmed),
+                        )}
                       />
                     </>
                   );
