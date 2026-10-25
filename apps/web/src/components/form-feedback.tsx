@@ -136,7 +136,8 @@ export function SubmitButton({
       type="submit"
       name={name}
       value={value}
-      aria-label={pending ? undefined : label}
+      // Dropped only while the visible text changes to the busy wording, so a held button keeps its name.
+      aria-label={pending && busy !== idle ? undefined : label}
       title={title}
       className={className}
       style={style}
