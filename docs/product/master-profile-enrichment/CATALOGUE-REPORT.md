@@ -329,8 +329,8 @@ Distinct documents stay distinct. Exact duplicates are merged and kept as aliase
 |---|---|---|---|---|---|---|
 | PASSPORT | Passport | universal | 120 | original | PASSPORT_BIO_PAGE | visastack |
 | NID | National ID Card | bangladesh |  |  | NATIONAL_ID, NID_CARD, SMART_CARD | bidesh365 |
-| BIRTH_CERTIFICATE | Birth Certificate | bangladesh |  | translation | BIRTH_REGISTRATION, BIRTH_RECORD | bidesh365 |
-| MARRIAGE_CERTIFICATE | Marriage Certificate | universal |  | translation | NIKAH_NAMA, MARRIAGE_REGISTRATION, WEDDING_CERTIFICATE | bidesh365 |
+| BIRTH_CERTIFICATE | Birth Certificate | bangladesh |  | translation, original | BIRTH_REGISTRATION, BIRTH_RECORD | bidesh365 |
+| MARRIAGE_CERTIFICATE | Marriage Certificate | universal |  | translation, original | NIKAH_NAMA, MARRIAGE_REGISTRATION, WEDDING_CERTIFICATE | bidesh365 |
 | DIVORCE_CERTIFICATE | Divorce Certificate | universal |  | translation | DIVORCE_DECREE, DISSOLUTION_OF_MARRIAGE | bidesh365 |
 | DEATH_CERTIFICATE | Death Certificate | universal |  | translation | DEATH_REGISTRATION | bidesh365 |
 | ADOPTION_CERTIFICATE | Adoption Certificate | settle |  | notarisation | ADOPTION_PAPER, ADOPTION_PAPERS, LEGAL_GUARDIANSHIP | bidesh365 |
@@ -372,12 +372,12 @@ Distinct documents stay distinct. Exact duplicates are merged and kept as aliase
 
 | Key | Name | Pack | Valid for (months) | Needs | Aliases | Origin |
 |---|---|---|---|---|---|---|
-| BANK_STATEMENT | Bank Statement | universal | 1 |  | ACCOUNT_STATEMENT, TRANSACTION_HISTORY | visastack |
-| SOLVENCY_CERTIFICATE | Bank Solvency Certificate | universal | 1 |  | BALANCE_CERTIFICATE, FUNDS_CONFIRMATION | bidesh365 |
+| BANK_STATEMENT | Bank Statement | universal | 1 | original | ACCOUNT_STATEMENT, TRANSACTION_HISTORY | visastack |
+| SOLVENCY_CERTIFICATE | Bank Solvency Certificate | universal | 1 | original | BALANCE_CERTIFICATE, FUNDS_CONFIRMATION | bidesh365 |
 | TAX_RETURN | Tax Return | universal |  |  | ITR, TAX_FILING | bidesh365 |
 | TIN_CERTIFICATE | Tax Identification Number Certificate | bangladesh |  |  | TAX_IDENTIFICATION_NUMBER | bidesh365 |
 | SALARY_SLIP | Salary Slip | universal | 3 |  | PAYSLIP, PAY_SLIP, WAGE_SLIP, PAY_STUB | bidesh365 |
-| SALARY_CERTIFICATE | Salary Certificate | universal |  |  |  | bidesh365 |
+| SALARY_CERTIFICATE | Salary Certificate | universal |  | original |  | bidesh365 |
 | INCOME_CERTIFICATE | Income Certificate | universal |  |  | INCOME_PROOF | bidesh365 |
 | PENSION_STATEMENT | Pension Statement | universal |  |  | RETIREMENT_FUND, PROVIDENT_FUND | bidesh365 |
 | INVESTMENT_PROOF | Investment Proof | universal |  |  | FDR, FIXED_DEPOSIT, SHARES | bidesh365 |
@@ -389,9 +389,9 @@ Distinct documents stay distinct. Exact duplicates are merged and kept as aliase
 | CREDIT_CARD_STATEMENT | Credit Card Statement | universal |  |  | CREDIT_STATEMENT | bidesh365 |
 | CREDIT_REPORT | Credit Report | universal |  |  | CREDIT_BUREAU_REPORT | bidesh365 |
 | PROPERTY_DEED | Property Deed | universal |  | translation | LAND_DEED, HOUSE_DEED, TITLE_DEED, LAND_TITLE, PROPERTY_OWNERSHIP | bidesh365 |
-| SPONSORSHIP_LETTER | Sponsorship Letter | universal |  |  | SPONSOR_LETTER | bidesh365 |
+| SPONSORSHIP_LETTER | Sponsorship Letter | universal |  | original | SPONSOR_LETTER | bidesh365 |
 | FINANCIAL_GUARANTEE | Financial Guarantee | universal |  |  | BANK_GUARANTEE | bidesh365 |
-| AFFIDAVIT_OF_SUPPORT | Affidavit of Support | universal |  | notarisation | I_134, FINANCIAL_AFFIDAVIT | bidesh365 |
+| AFFIDAVIT_OF_SUPPORT | Affidavit of Support | universal |  | notarisation, original | I_134, FINANCIAL_AFFIDAVIT | bidesh365 |
 | GRANT_LETTER | Grant Letter | study |  |  | GRANT_AWARD_LETTER | bidesh365 |
 | GIFT_DEED | Gift Deed | universal |  |  |  | proposed |
 | SALE_DEED | Sale Deed | universal |  |  |  | proposed |
@@ -403,8 +403,8 @@ Distinct documents stay distinct. Exact duplicates are merged and kept as aliase
 | DIVIDEND_STATEMENT | Dividend Statement | universal |  |  |  | proposed |
 | TAX_RESIDENCY_CERTIFICATE | Tax Residency Certificate | universal |  |  |  | proposed |
 | JOINT_ACCOUNT_STATEMENT | Joint Account Statement | settle |  |  |  | proposed |
-| BANK_REFERENCE_LETTER | Bank Reference Letter | universal |  |  |  | proposed |
-| TAX_ACKNOWLEDGEMENT_SLIP | Tax Return Acknowledgement Slip | bangladesh |  |  | TAX_ACK_SLIP, TAX_RETURN_ACKNOWLEDGEMENT, TAX_ACKNOWLEDGEMENT_RECEIPT | bidesh365 |
+| BANK_REFERENCE_LETTER | Bank Reference Letter | universal |  | original |  | proposed |
+| TAX_ACKNOWLEDGEMENT_SLIP | Tax Return Acknowledgement Slip | bangladesh |  | original | TAX_ACK_SLIP, TAX_RETURN_ACKNOWLEDGEMENT, TAX_ACKNOWLEDGEMENT_RECEIPT | bidesh365 |
 | ASSET_VALUATION_REPORT | Asset Valuation Report | universal |  |  | ASSET_VALUATION | bidesh365 |
 | OTHER_FINANCIAL_DOCUMENT | Other Financial Document | (none) |  |  |  | owner_vision |
 
@@ -412,9 +412,9 @@ Distinct documents stay distinct. Exact duplicates are merged and kept as aliase
 
 | Key | Name | Pack | Valid for (months) | Needs | Aliases | Origin |
 |---|---|---|---|---|---|---|
-| EMPLOYMENT_CERTIFICATE | Employment Certificate | professional | 3 |  | EMPLOYMENT_LETTER, JOB_LETTER | visastack |
-| NOC_EMPLOYER | Employer No Objection Letter | professional | 3 |  | EMPLOYER_NOC, LEAVE_NOC | bidesh365 |
-| LEAVE_APPROVAL | Leave Approval | professional |  |  | LEAVE_SANCTION, VACATION_APPROVAL | bidesh365 |
+| EMPLOYMENT_CERTIFICATE | Employment Certificate | professional | 3 | original | EMPLOYMENT_LETTER, JOB_LETTER | visastack |
+| NOC_EMPLOYER | Employer No Objection Letter | professional | 3 | original | EMPLOYER_NOC, LEAVE_NOC | bidesh365 |
+| LEAVE_APPROVAL | Leave Approval | professional |  | original | LEAVE_SANCTION, VACATION_APPROVAL | bidesh365 |
 | APPOINTMENT_LETTER | Appointment Letter | professional |  |  | OFFER_LETTER, JOINING_LETTER | bidesh365 |
 | EXPERIENCE_CERTIFICATE | Experience Certificate | professional |  |  | WORK_EXPERIENCE, SERVICE_CERTIFICATE | bidesh365 |
 | EMPLOYMENT_CONTRACT | Employment Contract | professional |  |  | CONTRACT, JOB_CONTRACT, SERVICE_AGREEMENT | bidesh365 |
@@ -449,8 +449,8 @@ Distinct documents stay distinct. Exact duplicates are merged and kept as aliase
 | Key | Name | Pack | Valid for (months) | Needs | Aliases | Origin |
 |---|---|---|---|---|---|---|
 | EDUCATION_CERTIFICATE | Education Certificate | professional |  |  | DEGREE, DIPLOMA | bidesh365 |
-| DEGREE_CERTIFICATE | Degree Certificate | professional |  | translation | BACHELOR, MASTER, PHD | bidesh365 |
-| TRANSCRIPT | Transcript | professional |  | translation | MARK_SHEET, GRADE_SHEET, ACADEMIC_RECORD, ACADEMIC_TRANSCRIPT | bidesh365 |
+| DEGREE_CERTIFICATE | Degree Certificate | professional |  | translation, original | BACHELOR, MASTER, PHD | bidesh365 |
+| TRANSCRIPT | Transcript | professional |  | translation, original | MARK_SHEET, GRADE_SHEET, ACADEMIC_RECORD, ACADEMIC_TRANSCRIPT | bidesh365 |
 | ENROLLMENT_LETTER | Enrollment Letter | study | 6 |  | ENROLLMENT_CERTIFICATE, STUDENT_STATUS_LETTER | bidesh365 |
 | STUDENT_ID | Student ID Card | study |  |  | STUDENT_CARD | bidesh365 |
 | ADMISSION_LETTER | Admission Letter | study |  |  | ACCEPTANCE_LETTER, OFFER_OF_ADMISSION | bidesh365 |
@@ -480,12 +480,12 @@ Distinct documents stay distinct. Exact duplicates are merged and kept as aliase
 
 | Key | Name | Pack | Valid for (months) | Needs | Aliases | Origin |
 |---|---|---|---|---|---|---|
-| APPROVED_MEDICAL_CENTRE_RESULT | Approved Medical Centre Result | labour_migration |  |  |  | proposed |
-| MEDICAL_REPORT | Medical Report | medical | 6 |  | HEALTH_REPORT, MEDICAL_EXAM | bidesh365 |
+| APPROVED_MEDICAL_CENTRE_RESULT | Approved Medical Centre Result | labour_migration |  | original |  | proposed |
+| MEDICAL_REPORT | Medical Report | medical | 6 | original | HEALTH_REPORT, MEDICAL_EXAM | bidesh365 |
 | MEDICAL_CERTIFICATE | Medical Certificate | medical | 3 |  | HEALTH_CERTIFICATE | bidesh365 |
-| VACCINATION_CERTIFICATE | Vaccination Certificate | medical |  |  | IMMUNIZATION_RECORD, VACCINE_CARD | bidesh365 |
-| TB_TEST_CERTIFICATE | TB Test Certificate | medical | 6 |  | TUBERCULOSIS_TEST, CHEST_XRAY | bidesh365 |
-| YELLOW_FEVER_CERTIFICATE | Yellow Fever Certificate | medical |  |  | ICV, YELLOW_CARD, YELLOW_FEVER_CARD | bidesh365 |
+| VACCINATION_CERTIFICATE | Vaccination Certificate | medical |  | original | IMMUNIZATION_RECORD, VACCINE_CARD | bidesh365 |
+| TB_TEST_CERTIFICATE | TB Test Certificate | medical | 6 | original | TUBERCULOSIS_TEST, CHEST_XRAY | bidesh365 |
+| YELLOW_FEVER_CERTIFICATE | Yellow Fever Certificate | medical |  | original | ICV, YELLOW_CARD, YELLOW_FEVER_CARD | bidesh365 |
 | COVID_CERTIFICATE | COVID-19 Certificate | medical |  |  | VACCINE_PASSPORT, COVID_TEST | bidesh365 |
 | FIT_TO_TRAVEL | Fit to Travel Certificate | medical | 1 |  | TRAVEL_FITNESS, FITNESS_CERTIFICATE | bidesh365 |
 | MEDICAL_INSURANCE | Medical Insurance | medical |  |  | HEALTH_INSURANCE | bidesh365 |
@@ -501,15 +501,15 @@ Distinct documents stay distinct. Exact duplicates are merged and kept as aliase
 
 | Key | Name | Pack | Valid for (months) | Needs | Aliases | Origin |
 |---|---|---|---|---|---|---|
-| POLICE_CLEARANCE | Police Clearance | declarations | 6 | legalisation | PCC, GOOD_CONDUCT, CRIMINAL_RECORD_CHECK | bidesh365 |
+| POLICE_CLEARANCE | Police Clearance | declarations | 6 | legalisation, original | PCC, GOOD_CONDUCT, CRIMINAL_RECORD_CHECK | bidesh365 |
 | CHARACTER_CERTIFICATE | Character Certificate | declarations |  |  |  | bidesh365 |
 | COURT_ORDER | Court Order | declarations |  | translation | COURT_JUDGMENT, LEGAL_ORDER | bidesh365 |
 | LEGAL_DOCUMENT | Legal Document | declarations |  |  | LEGAL_PAPER | bidesh365 |
 | POWER_OF_ATTORNEY | Power of Attorney | universal |  | notarisation | POA, ATTORNEY_LETTER | bidesh365 |
 | AFFIDAVIT | Affidavit | universal |  | notarisation | SWORN_STATEMENT | bidesh365 |
 | STATUTORY_DECLARATION | Statutory Declaration | universal |  | notarisation | STAT_DEC, LEGAL_DECLARATION | bidesh365 |
-| NOC_GOVERNMENT | Government No Objection Letter | official_travel |  |  | GOVERNMENT_NOC, MINISTRY_NOC | bidesh365 |
-| GO_LETTER | Government Order | official_travel |  |  | GO, OFFICIAL_ORDER, GOVERNMENT_ORDER | bidesh365 |
+| NOC_GOVERNMENT | Government No Objection Letter | official_travel |  | original | GOVERNMENT_NOC, MINISTRY_NOC | bidesh365 |
+| GO_LETTER | Government Order | official_travel |  | original | GO, OFFICIAL_ORDER, GOVERNMENT_ORDER | bidesh365 |
 | DEPUTATION_ORDER | Deputation Order | official_travel |  |  | POSTING_ORDER | bidesh365 |
 | MINISTRY_APPROVAL | Ministry Approval | official_travel |  |  | MINISTRY_CLEARANCE, MINISTRY_LETTER | bidesh365 |
 | OTHER_LEGAL_DOCUMENT | Other Legal or Clearance Document | (none) |  |  |  | owner_vision |
@@ -518,14 +518,14 @@ Distinct documents stay distinct. Exact duplicates are merged and kept as aliase
 
 | Key | Name | Pack | Valid for (months) | Needs | Aliases | Origin |
 |---|---|---|---|---|---|---|
-| PARENTAL_CONSENT | Parental Consent | universal |  | notarisation | PARENT_PERMISSION, GUARDIAN_CONSENT, CONSENT_FORM | bidesh365 |
-| MINOR_TRAVEL_CONSENT | Minor Travel Consent | universal |  |  |  | bidesh365 |
+| PARENTAL_CONSENT | Parental Consent | universal |  | notarisation, original | PARENT_PERMISSION, GUARDIAN_CONSENT, CONSENT_FORM | bidesh365 |
+| MINOR_TRAVEL_CONSENT | Minor Travel Consent | universal |  | original |  | bidesh365 |
 | FAMILY_REGISTER | Family Register | universal |  | translation | HOUSEHOLD_REGISTER, HUKOU, FAMILY_REGISTRATION | bidesh365 |
 | CUSTODY_ORDER | Custody Order | universal |  |  | CUSTODY_AGREEMENT, CUSTODY_DOCUMENT | bidesh365 |
 | RELATIONSHIP_PROOF | Relationship Proof | settle |  |  | RELATIONSHIP_EVIDENCE | bidesh365 |
 | DEPENDENT_PROOF | Dependent Proof | universal |  |  | DEPENDENCY_PROOF, DEPENDENT_DOCUMENT | bidesh365 |
 | SPOUSE_PASSPORT | Spouse Passport | universal |  |  | PARTNER_PASSPORT | bidesh365 |
-| CHILD_BIRTH_CERTIFICATE | Child Birth Certificate | universal |  | translation |  | bidesh365 |
+| CHILD_BIRTH_CERTIFICATE | Child Birth Certificate | universal |  | translation, original |  | bidesh365 |
 | PHOTO_FAMILY | Photo Family | settle |  |  | FAMILY_PHOTOGRAPH | bidesh365 |
 | COMMUNICATION_RECORD | Communication Record | settle |  |  | CALL_HISTORY, MESSAGE_HISTORY | proposed |
 | HOME_STUDY_REPORT | Home Study Report | settle |  |  |  | proposed |
@@ -537,7 +537,7 @@ Distinct documents stay distinct. Exact duplicates are merged and kept as aliase
 
 | Key | Name | Pack | Valid for (months) | Needs | Aliases | Origin |
 |---|---|---|---|---|---|---|
-| INVITATION_LETTER | Invitation Letter | universal |  |  | HOST_LETTER | bidesh365 |
+| INVITATION_LETTER | Invitation Letter | universal |  | original | HOST_LETTER | bidesh365 |
 | HOST_ID | Host ID Card | universal |  |  | SPONSOR_ID | bidesh365 |
 | HOST_PASSPORT | Host Passport | universal |  |  | SPONSOR_PASSPORT | bidesh365 |
 | HOST_RESIDENCE_PROOF | Host Residence Proof | universal |  |  | HOST_ADDRESS_PROOF | bidesh365 |

@@ -553,6 +553,55 @@ function OtherItems({
   );
 }
 
+/** The kinds of document that back a section, with what is on file and a way to add one. */
+function SectionDocuments({
+  applicantId,
+  documents,
+  search,
+}: {
+  readonly applicantId: string;
+  readonly documents: NonNullable<EditorSection['documents']>;
+  readonly search: string;
+}) {
+  const headingId = useId();
+  const shown = documents.filter((document) => matchesSearch(document.label, search));
+  if (shown.length === 0) return null;
+  return (
+    <section className="section-documents" aria-labelledby={headingId}>
+      <h5 id={headingId}>Documents for This Section</h5>
+      <ul>
+        {shown.map((document) => (
+          <li key={document.key}>
+            <div>
+              <b>{document.label}</b>
+              {document.original ? (
+                <small className="muted">
+                  Usually handed in as the original when you apply. Upload a clear scan or photo
+                  here so it is ready to share.
+                </small>
+              ) : null}
+            </div>
+            {document.uploaded === null ? null : (
+              <span
+                className={`badge ${document.uploaded > 0 ? 'badge-success' : 'badge-neutral'}`}
+              >
+                {document.uploaded > 0 ? 'Uploaded' : 'Not Uploaded Yet'}
+              </span>
+            )}
+            <Link
+              className="btn btn-secondary"
+              href={`/app/applicant/${applicantId}/documents?type=${document.key}#document-upload`}
+            >
+              {document.uploaded ? 'Add Another' : 'Upload'}
+              <span className="sr-only"> {document.label}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function SectionFields({
   applicantId,
   section,
@@ -738,6 +787,11 @@ function SectionCard({
           <p className="muted profile-section-progress">
             {section.answered} of {section.total} details counted
           </p>
+          <SectionDocuments
+            applicantId={applicantId}
+            documents={section.documents ?? []}
+            search={search}
+          />
           <SectionFields
             applicantId={applicantId}
             section={section}

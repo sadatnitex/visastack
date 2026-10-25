@@ -1,10 +1,13 @@
+import { resolveDocumentType } from '@visastack/core/catalogue';
 import {
   type FactAssuranceView,
   getApplicant,
   getProfileSectionState,
+  getWalletView,
   hasConsent,
   listApplicantAssurance,
   listApplicantProfile,
+  listDocumentsDetailed,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -60,17 +63,38 @@ export default async function ApplicantProfilePage({
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
-    const [profile, coreGranted, assurance, sectionChoices] = await Promise.all([
+    const [profile, coreGranted, assurance, sectionChoices, documents] = await Promise.all([
       listApplicantProfile(db, id),
       hasConsent(db, accountId, 'CORE_PROCESSING'),
       listApplicantAssurance(db, { actorAccountId: accountId, applicantId: id }),
       getProfileSectionState(db, id),
+      Promise.all([
+        getWalletView(db, { actorAccountId: accountId, applicantId: id }),
+        listDocumentsDetailed(db, accountId, id),
+      ]),
     ]);
+    // How many usable copies of each kind are in the wallet, so each section can say what backs
+    // it. Usable: shown in the wallet, not expired or replaced, and not failed or quarantined.
+    // When either list cannot load, the counts stay unknown rather than reading as "none".
+    const [wallet, detailed] = documents;
+    let uploadedDocumentTypes: Map<string, number> | undefined;
+    if (wallet.ok && detailed.ok) {
+      const safety = new Map(detailed.value.map((d) => [d.id, d.safetyStatus] as const));
+      uploadedDocumentTypes = new Map<string, number>();
+      for (const { document, status } of wallet.value) {
+        if (status === 'EXPIRED' || status === 'SUPERSEDED') continue;
+        const scan = safety.get(document.id);
+        if (!scan || scan === 'QUARANTINED' || scan === 'FAILED') continue;
+        const kind = document.docType ? resolveDocumentType(document.docType)?.key : undefined;
+        if (kind) uploadedDocumentTypes.set(kind, (uploadedDocumentTypes.get(kind) ?? 0) + 1);
+      }
+    }
     return {
       applicant,
       profile,
       coreGranted,
       sectionChoices,
+      uploadedDocumentTypes,
       // EVI-05: per-fact assurance is owner-only, same as the profile
       // itself. A denial here (a caller who somehow isn't the owner) just
       // means no breakdown renders, never a page error.
@@ -123,6 +147,7 @@ export default async function ApplicantProfilePage({
     notApplicable: data.sectionChoices.notApplicable,
     noneDeclared: data.sectionChoices.noneDeclared,
     suggestFor,
+    uploadedDocumentTypes: data.uploadedDocumentTypes,
   });
   const completeness = view.percent;
   const changes = [...data.profile]

@@ -51,6 +51,8 @@ export function DocumentUploader({
   applicantId,
   virusScanning = false,
   kindGroups = [],
+  initialKind = '',
+  originalKinds = [],
 }: {
   readonly applicantId: string;
   /**
@@ -58,6 +60,10 @@ export function DocumentUploader({
    * Choosing one when uploading files the document under the right sharing category from the start.
    */
   readonly kindGroups?: readonly ChoiceGroup[];
+  /** A kind chosen before the form opened, for example from a profile section's Upload link. */
+  readonly initialKind?: string;
+  /** Kinds embassies usually want handed in as the original. */
+  readonly originalKinds?: readonly string[];
   /**
    * The configured per-file limit. Not shown to people for now: the website host may refuse a large
    * file before the app sees it, so a number here could be wrong. It returns once an upload test on
@@ -72,7 +78,7 @@ export function DocumentUploader({
   const messageId = useId();
   const kindId = useId();
   const kindNameId = useId();
-  const [kind, setKind] = useState('');
+  const [kind, setKind] = useState(initialKind);
   const formRef = useRef<HTMLFormElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   /** Set by the camera button so the next file picker opens the phone camera, then cleared. */
@@ -174,6 +180,12 @@ export function DocumentUploader({
             Choosing it now files the document under the right sharing category. You can change it
             later.
           </p>
+          {originalKinds.includes(kind) ? (
+            <p className="muted u-fs-075" data-testid="original-needed-note">
+              Embassies usually want this handed in as the original when you apply. Upload a clear
+              scan or photo here so it is ready to share, and keep the original safe.
+            </p>
+          ) : null}
         </div>
       ) : null}
       <SubmitButton

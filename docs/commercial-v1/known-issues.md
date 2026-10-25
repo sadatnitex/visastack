@@ -5377,3 +5377,9 @@ Documentation only. The bidesh365 master profile (54 sections) was compared with
 - Guard: `title-case.test.ts` scans the interface source for headings, card titles, field labels, label, idle, title and eyebrow props, and both sides of a label choice. It does not cover labels longer than six words or built from variables; those were checked by the one-off sweep.
 - Review (/code-review high) fixed half-converted choices, the smoke script fixture, "vs." and a lone capital "A", and found 22 more labels once the guard read both sides of a choice.
 - Checks on the final code: web tests, Playwright 202/202 and smoke 11/11 before the last rebase; the rebase onto the first-run and tax basis changes converted their new labels and tests.
+
+### 2026-10-25, documents behind the profile details
+
+- Owner request 25 Oct 2026: a slip or certificate number is not enough; the document itself must be on file, and many must be handed in as originals while scans (such as visa stamps) are enough for others.
+- Shipped: each open profile section lists the kinds of document that back its details (from the catalogue's `supports` links), shows "Uploaded" or "Not Uploaded Yet", and links to the upload form with that kind already chosen. 26 more catalogue document types are marked as usually needed in original; the profile and the upload form say so in plain words ("usually"), never as a rule. No database change.
+- Checks: master profile view, profile editor and upload form tests cover the list, the counts, the link and the original note; the view test was proved to fail when the original flag is dropped.

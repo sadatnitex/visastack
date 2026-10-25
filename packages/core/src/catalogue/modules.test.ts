@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { PROFILE_PACKS } from '../domain';
-import { resolveDocumentType } from './document-lookup';
+import {
+  ORIGINAL_DOCUMENT_KEYS,
+  documentsSupportingFields,
+  resolveDocumentType,
+} from './document-lookup';
 import { CATALOGUE_DOCUMENTS } from './documents';
 import { CATALOGUE_FIELDS } from './fields';
 import { CATALOGUE_DOCUMENT_GROUPS, CATALOGUE_LAYERS, PROPOSED_PACKS } from './layers';
@@ -237,5 +241,28 @@ describe('Bangladesh tax acknowledgement slip', () => {
     expect(doc?.pack).toBe('bangladesh');
     expect(doc?.group).toBe('financial');
     for (const key of fields) expect(doc?.supports, key).toContain(key);
+  });
+});
+
+describe('document lookup for links and the upload form', () => {
+  it('reads names from a web address safely: edge underscores, very long text, unknown names', () => {
+    expect(resolveDocumentType('__tax acknowledgement slip__')?.key).toBe(
+      'TAX_ACKNOWLEDGEMENT_SLIP',
+    );
+    expect(resolveDocumentType('_'.repeat(50_000))).toBeUndefined();
+    const started = Date.now();
+    resolveDocumentType(`${'_'.repeat(100_000)}x`);
+    expect(Date.now() - started).toBeLessThan(500);
+    expect(resolveDocumentType('not a document')).toBeUndefined();
+  });
+
+  it('marks the documents usually handed in as originals, and finds the ones behind a field', () => {
+    expect(ORIGINAL_DOCUMENT_KEYS.has('TAX_ACKNOWLEDGEMENT_SLIP')).toBe(true);
+    expect(ORIGINAL_DOCUMENT_KEYS.has('PASSPORT')).toBe(true);
+    expect(ORIGINAL_DOCUMENT_KEYS.has('VISA_STAMP')).toBe(false);
+    const keys = documentsSupportingFields(['tax_ack_slip_number']).map((document) => document.key);
+    expect(keys).toContain('TAX_ACKNOWLEDGEMENT_SLIP');
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(documentsSupportingFields([])).toEqual([]);
   });
 });

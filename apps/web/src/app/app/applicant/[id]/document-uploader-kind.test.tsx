@@ -30,6 +30,21 @@ async function mount(props: Partial<Parameters<typeof DocumentUploader>[0]> = {}
 }
 
 describe('choosing the kind of document on the upload form', () => {
+  it('starts on a kind chosen from a profile section, and says when the original is usually needed', async () => {
+    const host = await mount({
+      kindGroups: groups,
+      initialKind: 'PASSPORT',
+      originalKinds: ['PASSPORT'],
+    });
+    const select = host.querySelector('select[name="docType"]') as HTMLSelectElement;
+    expect(select.value).toBe('PASSPORT');
+    expect(host.querySelector('[data-testid="original-needed-note"]')?.textContent).toContain(
+      'handed in as the original',
+    );
+    const other = await mount({ kindGroups: groups, originalKinds: ['PASSPORT'] });
+    expect(other.querySelector('[data-testid="original-needed-note"]')).toBeNull();
+  });
+
   it('offers the kinds, optional, with "Not sure yet" first and a note on why to choose', async () => {
     const host = await mount({ kindGroups: groups });
     const select = host.querySelector('select[name="docType"]') as HTMLSelectElement;

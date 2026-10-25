@@ -12,6 +12,7 @@ const service = vi.hoisted(() => ({
   computeReadiness: vi.fn(),
   listApplicantAssurance: vi.fn(),
   getProfileSectionState: vi.fn(),
+  getWalletView: vi.fn(),
 }));
 vi.mock('@visastack/services', () => service);
 vi.mock('./session', () => ({
@@ -42,6 +43,7 @@ beforeEach(() => {
   service.listApplicantProfile.mockResolvedValue([]);
   service.hasConsent.mockResolvedValue(true);
   service.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [] });
+  service.getWalletView.mockResolvedValue({ ok: true, value: [] });
   service.listPendingProposals.mockResolvedValue([]);
   service.listMissions.mockResolvedValue({ ok: true, value: [] });
   service.listEvidenceRequestsForApplicant.mockResolvedValue({ ok: true, value: [] });

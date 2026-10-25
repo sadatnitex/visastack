@@ -7,10 +7,12 @@ import {
   CATALOGUE_PURPOSE_FAMILIES,
   MODULE_FIELDS,
   type ModuleField,
+  ORIGINAL_DOCUMENT_KEYS,
   OTHER_OPTION,
   PROPOSED_PACKS,
   amountKeyOfTaxBasis,
   computeCompletion,
+  documentsSupportingFields,
   knownFieldOptions,
 } from '@visastack/core/catalogue';
 import type {
@@ -109,6 +111,8 @@ export interface MasterProfileInput {
   readonly noneDeclared: ReadonlySet<string>;
   /** A purpose family chosen to see suggestions for, or null. */
   readonly suggestFor: string | null;
+  /** How many documents of each catalogue kind the person has uploaded. */
+  readonly uploadedDocumentTypes?: ReadonlyMap<string, number> | undefined;
 }
 
 /**
@@ -226,6 +230,19 @@ export function buildMasterProfileView(input: MasterProfileInput): MasterProfile
         return resolved ? [resolved] : [];
       });
 
+      // The kinds of document that back this section's details, from the catalogue's own links.
+      const documents = open
+        ? documentsSupportingFields(fields.map((field) => field.key)).map((document) => ({
+            key: document.key,
+            label: document.label,
+            original: ORIGINAL_DOCUMENT_KEYS.has(document.key),
+            // Unknown (the count could not load) is never shown as "not uploaded".
+            uploaded: input.uploadedDocumentTypes
+              ? (input.uploadedDocumentTypes.get(document.key) ?? 0)
+              : null,
+          }))
+        : [];
+
       sections.push({
         key: module.key,
         label: module.label,
@@ -243,6 +260,7 @@ export function buildMasterProfileView(input: MasterProfileInput): MasterProfile
         groups,
         notApplicable: counted.filter((f) => input.notApplicable.has(f.key)).map((f) => f.key),
         previewLabels,
+        documents,
         otherItem: {
           pack: module.pack,
           sectionFieldKey: itemFieldKey('section'),
