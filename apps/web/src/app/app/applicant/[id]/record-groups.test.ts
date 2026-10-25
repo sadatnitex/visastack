@@ -12,11 +12,19 @@ const layer = (key: string) => CATALOGUE_LAYERS.find((item) => item.key === key)
 
 describe('Record groups for documents', () => {
   it('put a document beside the profile area that holds the same things', () => {
-    expect(recordGroupOfDocType('PASSPORT')).toBe(layer('identity'));
-    expect(recordGroupOfDocType('PASSPORT')).toBe('Identity and Civil Status');
+    expect(recordGroupOfDocType('BIRTH_CERTIFICATE')).toBe(layer('identity'));
+    expect(recordGroupOfDocType('BIRTH_CERTIFICATE')).toBe('Identity and Civil Status');
     expect(recordGroupOfDocType('BANK_STATEMENT')).toBe(layer('money'));
     expect(recordGroupOfDocType('BANK_STATEMENT')).toBe('Money');
     expect(recordGroupOfDocType('MEDICAL_REPORT')).toBe(layer('health'));
+  });
+
+  it('put the documents a person travels on beside the travel details (owner, 2026-10-25)', () => {
+    for (const kind of ['PASSPORT', 'TRAVEL_DOCUMENT', 'EMERGENCY_TRAVEL', 'RESIDENCE_PERMIT']) {
+      expect(recordGroupOfDocType(kind), kind).toBe(layer('travel_documents'));
+    }
+    expect(layer('travel_documents')).toBe('Travel Documents');
+    expect(recordGroupOfDocType('NID')).toBe(layer('identity'));
   });
 
   it('keep the catalogue group name where no profile area matches', () => {

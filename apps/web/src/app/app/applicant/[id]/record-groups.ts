@@ -16,7 +16,7 @@ export const OTHER_DOCUMENTS = 'Other Documents';
 
 /**
  * A document group that holds the same things as a profile area uses that area's name, so a
- * passport sits beside the identity details and a bank statement beside the money details.
+ * birth certificate sits beside the identity details and a bank statement beside the money details.
  * Every other group keeps the catalogue's own document group name.
  */
 const SAME_AS_PROFILE_AREA: Partial<
@@ -35,6 +35,20 @@ const GROUP_LABELS = new Map(
   CATALOGUE_DOCUMENT_GROUPS.map((group) => [group.key, group.label] as const),
 );
 
+/**
+ * Documents a person travels on sit beside the Passport and other travel details, not beside the
+ * identity details, even though the catalogue files them with identity papers (owner decision
+ * 2026-10-25). This changes only where the Record lists them; which documents need a fresh sign-in
+ * check still follows the catalogue group, so a passport stays protected.
+ */
+const TRAVEL_DOCUMENT_KINDS: ReadonlySet<string> = new Set([
+  'PASSPORT',
+  'TRAVEL_DOCUMENT',
+  'EMERGENCY_TRAVEL',
+  'LAISSEZ_PASSER',
+  'RESIDENCE_PERMIT',
+]);
+
 /** The plain name of a catalogue document group, as the Record shows it. */
 export function documentGroupLabel(group: DocumentGroupKey): string {
   const area = SAME_AS_PROFILE_AREA[group];
@@ -45,7 +59,11 @@ export function documentGroupLabel(group: DocumentGroupKey): string {
 /** The Record group for a document of this kind. */
 export function recordGroupOfDocType(docType: string | null): string {
   const type = docType ? resolveDocumentType(docType) : undefined;
-  return type ? documentGroupLabel(type.group) : OTHER_DOCUMENTS;
+  if (!type) return OTHER_DOCUMENTS;
+  if (TRAVEL_DOCUMENT_KINDS.has(type.key)) {
+    return LAYER_LABELS.get('travel_documents') ?? documentGroupLabel(type.group);
+  }
+  return documentGroupLabel(type.group);
 }
 
 /** A detail that holds the end of a document's validity (passport expiry, visa validity and the like). */

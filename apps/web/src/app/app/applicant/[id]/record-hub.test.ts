@@ -168,7 +168,7 @@ describe('each item: its title opens it, and at most one further action', () => 
     expect(item?.facts).toEqual(['2 of 5 details saved']);
   });
 
-  it('Go to Cases is offered for a profile section only once it holds a saved answer', () => {
+  it('every profile section offers Update Details, opening its own place in the profile', () => {
     const items = buildRecordItems({
       applicantId: person,
       details: [
@@ -176,8 +176,14 @@ describe('each item: its title opens it, and at most one further action', () => 
       ],
       documents: [],
     });
-    expect(items[0]?.action).toBeNull();
-    expect(build([])[0]?.action).toEqual({ label: 'Go to Cases', href: `${base}/missions` });
+    expect(items[0]?.action).toEqual({
+      label: 'Update Details',
+      href: `${base}/profile#section-education`,
+    });
+    expect(build([])[0]?.action).toEqual({
+      label: 'Update Details',
+      href: `${base}/profile#section-employment`,
+    });
   });
 
   it('a document without a kind falls back to the upload form and its own group', () => {
@@ -186,6 +192,24 @@ describe('each item: its title opens it, and at most one further action', () => 
     ]);
     expect(item?.group).toBe('Other Documents');
     expect(item?.action?.href).toBe(`${base}/documents#document-upload`);
+  });
+
+  it('a checked document whose kind needs a choice is never ready, and opens to choose it', () => {
+    const [, item] = build([
+      doc({
+        typeKey: null,
+        typeLabel: null,
+        groupLabel: 'Other Documents',
+        review: { expiryMissing: false, kindNeedsCheck: true, namePending: false },
+      }),
+    ]);
+    expect(item?.status.label).toBe('Needs Your Check');
+    expect(item?.usable).toBe(false);
+    expect(item?.facts).toContain('Kind needs your check');
+    expect(item?.action).toEqual({
+      label: 'Choose the Kind',
+      href: `${base}/documents?document=40000000-0000-4000-8000-000000000001`,
+    });
   });
 });
 

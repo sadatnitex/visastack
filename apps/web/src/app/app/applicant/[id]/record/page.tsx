@@ -109,7 +109,8 @@ export default async function ApplicantRecordPage({
           // The documents page's extra review signals.
           review: {
             expiryMissing: document.docType === 'PASSPORT' && !document.expiresAt,
-            kindNeedsCheck: summary?.classification?.reviewRequired === true,
+            // A document with no kind yet waits for the person to choose one (owner decision 2026-10-25).
+            kindNeedsCheck: !document.docType || summary?.classification?.reviewRequired === true,
             namePending: (summary?.pendingNameVersion ?? null) !== null,
           },
           version: summary?.latestVersionNumber ?? null,

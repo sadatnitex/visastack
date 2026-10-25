@@ -5455,3 +5455,10 @@ Documentation only. The bidesh365 master profile (54 sections) was compared with
 - "Expiry not confirmed" showed on a bank statement. Expiry wording now shows only for kinds whose catalogue entry reads an expiry or validity detail (passport, visa, residence and work permits, insurance, clearances and the like), or when an expiry date was saved. National ID cards are not in that list: their catalogue entry reads no expiry detail.
 - The Record section tabs are rendered by the traveller layout above every Record page, the hub included; a layout test now proves it and a sections test covers `/record`. The coordinator's preview rendered the page without the layout, which is why the tabs were missing there.
 - Each new guard was broken on purpose and went red.
+
+### 2026-10-25, WP-V3 part 2: owner answers on the Record hub preview
+
+- Passports and the other documents a person travels on (travel documents, emergency travel papers, laissez-passer, residence permits) now sit under Travel Documents, beside the Passport details, instead of under Identity and Civil Status. Only where the Record lists them changed: which documents need a fresh sign-in check still follows the catalogue group, so a passport stays protected.
+- Every open profile section on the Record now offers Update Details, which opens that section of the profile. Go to Cases is gone from the Record.
+- A document with no kind yet shows Needs Your Check, is never counted as ready to use or offered for sharing on the Record, and its action is Choose the Kind, which opens the document where the kind is chosen.
+- Tests: record groups, record hub, record browser and page tests updated; 78 Record tests pass. Owner preview re-rendered with the real page and stylesheet.

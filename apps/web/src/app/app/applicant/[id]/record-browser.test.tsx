@@ -143,7 +143,7 @@ describe('the Record browser', () => {
       link.getAttribute('aria-label'),
     );
     expect(actions).toEqual([
-      'Go to Cases: About You',
+      'Update Details: About You',
       'Share: Synthetic Passport',
       'Update or Replace: Synthetic Bank Letter',
     ]);

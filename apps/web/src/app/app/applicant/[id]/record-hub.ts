@@ -7,9 +7,6 @@
  * already checks who may use it: the record only gathers what the owner can already see.
  */
 
-/** The applicant's cases page, relative to the record base path. */
-const CASES_PATH = '/missions';
-
 export type RecordTone = 'success' | 'warning' | 'danger' | 'neutral';
 export type DocumentLifecycle = 'UNKNOWN' | 'CURRENT' | 'EXPIRING' | 'EXPIRED' | 'SUPERSEDED';
 
@@ -35,7 +32,10 @@ export interface RecordDocumentInput {
   readonly review: {
     /** A passport whose expiry date is not set. */
     readonly expiryMissing: boolean;
-    /** The automatic sorting asked for a person to confirm the kind. */
+    /**
+     * No kind is set yet, or the automatic sorting asked for a person to confirm it. Either way
+     * the copy is not ready to use until the person chooses (owner decision 2026-10-25).
+     */
     readonly kindNeedsCheck: boolean;
     /** A proposed new name waits for the person's decision. */
     readonly namePending: boolean;
@@ -154,7 +154,9 @@ function documentItem(base: string, doc: RecordDocumentInput): RecordItem {
       : null
     : state.usable
       ? { label: 'Share', href: share }
-      : { label: 'Update or Replace', href: replace };
+      : doc.checked && doc.review.kindNeedsCheck
+        ? { label: 'Choose the Kind', href: view }
+        : { label: 'Update or Replace', href: replace };
   const facts = [
     ...reviewReasons(doc.review),
     doc.version !== null ? `Version ${doc.version}` : null,
@@ -191,6 +193,7 @@ function documentItem(base: string, doc: RecordDocumentInput): RecordItem {
 function detailsItem(base: string, section: RecordDetailsInput): RecordItem {
   const complete = section.total > 0 && section.answered >= section.total;
   const facts = [`${section.answered} of ${section.total} details saved`];
+  const profile = `${base}/profile#section-${encodeURIComponent(section.key)}`;
   return {
     id: `details:${section.key}`,
     kind: 'details',
@@ -207,10 +210,9 @@ function detailsItem(base: string, section: RecordDetailsInput): RecordItem {
     needsAttention: false,
     previousVersion: false,
     facts,
-    href: `${base}/profile#section-${encodeURIComponent(section.key)}`,
-    // Cases match their requirements against saved details, so only a section with answers
-    // offers the way to them. It opens the case list; it does not attach anything.
-    action: section.answered > 0 ? { label: 'Go to Cases', href: `${base}${CASES_PATH}` } : null,
+    href: profile,
+    // Every open section offers the way to fill it in or correct it (owner decision 2026-10-25).
+    action: { label: 'Update Details', href: profile },
     searchText: [section.label, section.groupLabel, ...facts].join(' ').toLocaleLowerCase(),
   };
 }

@@ -194,9 +194,12 @@ describe('documents on the Record', () => {
       value: [summary('passport'), summary('statement'), summary('unsorted')],
     });
     const { html, items: list } = await items();
-    expect(byTitle(list, 'Synthetic passport')?.group).toBe('Identity and Civil Status');
+    expect(byTitle(list, 'Synthetic passport')?.group).toBe('Travel Documents');
     expect(byTitle(list, 'Synthetic statement')?.group).toBe('Money');
     expect(byTitle(list, 'Synthetic unsorted')?.group).toBe('Other Documents');
+    // A document with no kind yet is not ready to use until the person chooses one.
+    expect(byTitle(list, 'Synthetic unsorted')?.status.label).toBe('Needs Your Check');
+    expect(byTitle(list, 'Synthetic unsorted')?.action?.label).toBe('Choose the Kind');
     expect(html).not.toContain('Universal');
     const statement = byTitle(list, 'Synthetic statement')?.facts ?? [];
     expect(statement.some((fact) => /expir/i.test(fact))).toBe(false);
