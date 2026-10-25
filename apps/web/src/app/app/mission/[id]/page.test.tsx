@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { renderServer, stub, textOf } from '../../../../lib/next-mocks.test-support';
+import { renderServer, stub, stubProps, textOf } from '../../../../lib/next-mocks.test-support';
 
 const ok = <T,>(value: T) => ({ ok: true as const, value });
 
@@ -274,6 +274,12 @@ describe('case journey view (WP-X1)', () => {
     expect(tracker).toBeLessThan(alert);
     expect(alert).toBeLessThan(strip);
     expect(html.slice(alert, strip)).toContain('data-stub="SnapshotButton"');
+    // The alert's button is the primary, clearly named one; the header keeps its defaults.
+    expect(stubProps(html, 'SnapshotButton')).toEqual([
+      { missionId: 'synthetic-case' },
+      { missionId: 'synthetic-case', label: 'Take a new snapshot', primary: true, align: 'start' },
+    ]);
+    expect(html.slice(alert, strip)).not.toContain('role=');
   });
 
   it('the first item wins: required items to fix come before open tasks, with plain counts', async () => {
