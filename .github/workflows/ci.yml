@@ -14,41 +14,160 @@ concurrency:
 permissions:
   contents: read
 
+# Layout: independent jobs run side by side, and one final job carries the required check name
+# "Lint · Build · Typecheck · Test", passing only when every other job passed. Until 2026-10-25
+# this was one serial job of about 25-35 minutes, almost all of it the test step.
+#
+# Every job checks out the exact commit under test (master directive §8: "A deployment test may
+# not check out tests from another revision"). Without an explicit ref, actions/checkout on a
+# pull_request event uses GitHub's synthetic refs/pull/N/merge commit, not the PR's head SHA (the
+# commit Vercel builds as the preview and the one that becomes the merge parent). On push,
+# github.sha already is the deployed commit, so the fallback is a no-op there.
+
 jobs:
-  verify:
-    name: Lint · Build · Typecheck · Test
+  static:
+    name: Lint and audit
     runs-on: ubuntu-latest
-    # Was 15, then 30: both too tight for the suite's growing size, in the
-    # identical way each time. The 15->30 bump (2026-09-22, PR #82, commit
-    # 3df132c) was cancelled by this exact ceiling mid-run, not by any real
-    # failure. A 2026-09-28 run (PR #146, commit 58b9e6a) hit the SAME wall
-    # again at the new ceiling: Test alone ran ~26m18s before being killed,
-    # and every immediately preceding merged PR's own CI run that same day
-    # had already crept to 27-29 minutes total -- packages/services' own
-    # suite (~11min locally by this point, after several chunks' worth of
-    # new adapters/tests) is the dominant cost, visibly slower again on this
-    # runner class. 60 keeps a real ceiling (a genuine hang still gets
-    # killed) with enough margin for continued suite growth across the many
-    # Part 8/9/10 chunks still ahead, not just today's size -- doubling
-    # again, matching the 15->30 bump's own shape, rather than picking the
-    # bare minimum that survives this one measurement.
-    timeout-minutes: 60
+    timeout-minutes: 15
     steps:
-      # Explicit ref (master directive §8: "A deployment test may not check
-      # out tests from another revision"). Without this, actions/checkout on
-      # a pull_request event defaults to GitHub's synthetic
-      # refs/pull/N/merge commit -- an ephemeral preview of the PR merged
-      # onto whatever main currently is, NOT the PR's actual head SHA (the
-      # exact commit Vercel builds as the preview deployment, and the exact
-      # commit that becomes the merge parent). On push (post-merge), github.sha
-      # already IS the exact commit deployed to production, so the fallback
-      # below is a no-op there -- this only changes pull_request behavior.
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # GHAS-free dependency vulnerability gate (works on private repos).
+      # Hard gate on what we actually ship (production deps); dev-tooling
+      # advisories are surfaced but do not block, since they never deploy.
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level high
+
+      - name: Audit dev dependencies (informational)
+        run: pnpm audit --dev --audit-level high || true
+
+      - name: Lint & format check
+        run: pnpm run lint
+
+      - name: Supply-chain checks, self-tests
+        run: node --test scripts/supply-chain/checks.test.mjs
+
+      - name: Repository script self-tests
+        # The same list `pnpm test` runs locally, so local and CI cannot drift apart.
+        run: pnpm run test:node
+
+  build:
+    name: Build and typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           # Full history so the secret scan can read every past commit.
           fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Reuses Next.js compilation work between runs. Keyed on the lockfile and the app's
+      # sources; a stale or missing cache only costs time, never correctness.
+      - name: Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: apps/web/.next/cache
+          key: nextjs-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/web/src/**', 'packages/*/src/**') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+            nextjs-${{ runner.os }}-
+
+      # Build first: Next.js generates next-env.d.ts and .next/types,
+      # which the typecheck step depends on.
+      - name: Build
+        run: pnpm run build
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Authentication redirect guard checks
+        run: node --test apps/web/tests/auth-redirect.node.mjs
+
+      # Scans that really run on this private repository (CodeQL and
+      # dependency review do not). Needs the production build above for the
+      # browser bundle check. A skipped check fails the job here: skipped is
+      # reported on its own and is never counted as a pass.
+      - name: Supply-chain checks, scans
+        run: node scripts/supply-chain/scan.mjs --no-skips --json supply-chain-report.json
+
+      - name: Upload supply-chain report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: supply-chain-report
+          path: supply-chain-report.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+  test-services:
+    name: Test services (${{ matrix.shard }}/3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The service suite is the largest by far, so it is split by file into three shards that
+      # run at the same time. Every shard runs the whole of its share; nothing is skipped.
+      - name: Test
+        run: pnpm --filter @visastack/services exec vitest run --shard=${{ matrix.shard }}/3 --maxWorkers=2
+
+  test-packages:
+    name: Test web and other packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -109,51 +228,22 @@ jobs:
           echo "::warning::clamd did not become ready in time; live scanner verification will be skipped"
           exit 0
 
-      # GHAS-free dependency vulnerability gate (works on private repos).
-      # Hard gate on what we actually ship (production deps); dev-tooling
-      # advisories are surfaced but do not block, since they never deploy.
-      - name: Audit production dependencies
-        run: pnpm audit --prod --audit-level high
-
-      - name: Audit dev dependencies (informational)
-        run: pnpm audit --dev --audit-level high || true
-
-      - name: Lint & format check
-        run: pnpm run lint
-
-      # Build first: Next.js generates next-env.d.ts and .next/types,
-      # which the typecheck step depends on.
-      - name: Build
-        run: pnpm run build
-
-      - name: Typecheck
-        run: pnpm run typecheck
-
-      - name: Authentication redirect guard checks
-        run: node --test apps/web/tests/auth-redirect.node.mjs
-
-      # Scans that really run on this private repository (CodeQL and
-      # dependency review do not). Needs the production build above for the
-      # browser bundle check. A skipped check fails the job here: skipped is
-      # reported on its own and is never counted as a pass.
-      - name: Supply-chain checks, self-tests
-        run: node --test scripts/supply-chain/checks.test.mjs
-
-      - name: Supply-chain checks, scans
-        run: node scripts/supply-chain/scan.mjs --no-skips --json supply-chain-report.json
-
-      - name: Upload supply-chain report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: supply-chain-report
-          path: supply-chain-report.json
-          if-no-files-found: ignore
-          retention-days: 30
-
       - name: Test
-        # Keep all suites and root self-tests. Bound concurrent database-heavy packages
-        # and use two Vitest workers rather than the runner's one-worker default.
+        # Bound concurrent database-heavy packages and use two Vitest workers rather than the
+        # runner's one-worker default.
+        run: pnpm exec turbo run test --filter=!@visastack/services --concurrency=2 -- --maxWorkers=2
+
+  verify:
+    # The required status check. Keep this name: branch protection matches on it.
+    name: Lint · Build · Typecheck · Test
+    if: always()
+    needs: [static, build, test-services, test-packages]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every job passed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
         run: |
-          pnpm exec turbo run test --concurrency=2 -- --maxWorkers=2
-          node --test scripts/check-flat-design.test.mjs scripts/check-route-navigation.test.mjs scripts/check-staging-target.test.mjs scripts/check-authenticated-results.test.mjs infra/cloudflare/job-scheduler.test.mjs scripts/country-packs/validate-intake.test.mjs scripts/country-packs/build-destinations.test.mjs scripts/country-packs/fetch-pages.test.mjs
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$RESULTS" | jq -e 'all(.[]; .result == "success")' > /dev/null

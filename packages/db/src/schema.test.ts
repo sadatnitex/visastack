@@ -10,14 +10,14 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { describe, expect, it } from 'vitest';
 import { computeAuditHash, verifyAuditChain } from './audit';
 import * as schema from './schema';
+import { createMigratedPglite } from './testing';
 
 const migrationsFolder = fileURLToPath(new URL('../migrations', import.meta.url));
 
 /** Spin up an isolated in-memory Postgres with the migrations applied. */
 async function freshDb() {
-  const client = new PGlite();
+  const client = await createMigratedPglite();
   const db = drizzle(client, { schema });
-  await migrate(db, { migrationsFolder });
   return db;
 }
 

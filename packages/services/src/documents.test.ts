@@ -1,12 +1,10 @@
-import { fileURLToPath } from 'node:url';
-import { PGlite } from '@electric-sql/pglite';
 import { isErr, isOk } from '@visastack/core';
 import { resolveDocumentType } from '@visastack/core/catalogue/documents';
 import { schema } from '@visastack/db';
+import { createMigratedPglite } from '@visastack/db/testing';
 import type { Membership } from '@visastack/policy';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
-import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
@@ -37,8 +35,6 @@ import { acceptGrant, createGrant } from './sharing';
 import type { AccessRef, IssueReadRefInput, StoragePort } from './storage';
 import { SUPPORT_ACCESS_PURPOSE, createSupportGrant } from './support-access';
 
-const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
-
 const TEST_ACCESS_TOKEN_SECRET = 'test-access-token-secret';
 
 /** Deterministic in-memory storage port — no S3, no network. */
@@ -56,9 +52,8 @@ class FakeStorage implements StoragePort {
 }
 
 async function freshDb(): Promise<Db> {
-  const client = new PGlite();
+  const client = await createMigratedPglite();
   const db = drizzle(client, { schema });
-  await migrate(db, { migrationsFolder });
   return db as unknown as Db;
 }
 

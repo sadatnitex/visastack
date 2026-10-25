@@ -1,10 +1,8 @@
-import { fileURLToPath } from 'node:url';
-import { PGlite } from '@electric-sql/pglite';
 import { isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
+import { createMigratedPglite } from '@visastack/db/testing';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
-import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
@@ -15,8 +13,6 @@ import type { DocumentConverterPort } from './extraction';
 import type { ContentLimitsPort, MalwareScannerPort } from './intake';
 import { enqueueIntakeJob, listFailedJobs, retryFailedJob, runIntakeWorker } from './jobs';
 
-const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
-
 // A valid ICAO TD3 specimen (check digits computed to validate) -- confident
 // PASSPORT classification, reviewRequired: false, so a naming proposal is
 // actually generated (pipeline.test.ts uses the identical fixture).
@@ -24,9 +20,8 @@ const MRZ_L1 = 'P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<';
 const MRZ_L2 = 'L898902C36UTO7408122F1204159ZE184226B<<<<<10';
 
 async function freshDb(): Promise<Db> {
-  const client = new PGlite();
+  const client = await createMigratedPglite();
   const db = drizzle(client, { schema });
-  await migrate(db, { migrationsFolder });
   return db as unknown as Db;
 }
 
