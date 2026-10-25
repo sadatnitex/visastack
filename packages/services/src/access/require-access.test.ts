@@ -212,6 +212,16 @@ describe('requireAccess - central applicant authorization gate', () => {
     expect(isRestrictedDocumentType('PASSPORT')).toBe(true);
     expect(isRestrictedDocumentType('BANK_STATEMENT')).toBe(true);
     expect(isRestrictedDocumentType('EMPLOYMENT_CERTIFICATE')).toBe(false);
+    for (const medical of [
+      'MEDICAL_REPORT',
+      'VACCINATION_CERTIFICATE',
+      'MENTAL_HEALTH_CERTIFICATE',
+      'PRESCRIPTION',
+      'APPROVED_MEDICAL_CENTRE_RESULT',
+      'OTHER_MEDICAL_DOCUMENT',
+    ]) {
+      expect(isRestrictedDocumentType(medical), medical).toBe(true);
+    }
     expect(isRestrictedDocumentType(null)).toBe(false);
     const passport = await registerDocument(db, {
       actorAccountId: ownerId,

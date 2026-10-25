@@ -29,6 +29,7 @@ export {
   StaffScope,
   SystemScope,
   EACH_GRANT,
+  RESTRICTED_DOCUMENT_CATEGORIES,
   RESTRICTED_DOCUMENT_TYPES,
   SYSTEM_JOBS,
   StepUpProof,

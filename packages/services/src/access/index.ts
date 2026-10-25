@@ -25,6 +25,7 @@ export {
   AuthorizedApplicant,
   CONTRIBUTOR_ACTIONS,
   EACH_GRANT,
+  RESTRICTED_DOCUMENT_CATEGORIES,
   RESTRICTED_DOCUMENT_TYPES,
   isRestrictedDocumentType,
   requireAccess,

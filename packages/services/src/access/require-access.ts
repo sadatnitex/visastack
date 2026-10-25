@@ -171,9 +171,11 @@ export interface RequireAccessOptions {
 
 /**
  * Document types whose preview or download needs a recent identity
- * confirmation: identity, tax and bank documents (SEC-03 names
- * passport, NID, tax and bank identifiers). Matched on the catalogue's
- * standard key, so an alias of one of these is restricted too.
+ * confirmation: identity, tax and bank documents (SEC-03 names passport,
+ * NID, tax and bank identifiers) and, by owner decision 2026-10-25, every
+ * medical document: the whole medical category plus the medical types filed
+ * elsewhere. Matched on the catalogue's standard key, so an alias of one of
+ * these is restricted too.
  */
 export const RESTRICTED_DOCUMENT_TYPES: ReadonlySet<string> = new Set([
   'PASSPORT',
@@ -188,12 +190,22 @@ export const RESTRICTED_DOCUMENT_TYPES: ReadonlySet<string> = new Set([
   'BUSINESS_BANK_STATEMENT',
   'HOST_BANK_STATEMENT',
   'BANK_REFERENCE_LETTER',
+  'APPROVED_MEDICAL_CENTRE_RESULT',
+  'OTHER_MEDICAL_DOCUMENT',
 ]);
+
+/** Every document type in these catalogue categories is restricted, including ones added later. */
+export const RESTRICTED_DOCUMENT_CATEGORIES: ReadonlySet<string> = new Set(['medical']);
 
 export function isRestrictedDocumentType(docType: string | null): boolean {
   if (!docType) return false;
-  const key = resolveDocumentType(docType)?.key ?? docType;
-  return RESTRICTED_DOCUMENT_TYPES.has(key);
+  const known = resolveDocumentType(docType);
+  const key = known?.key ?? docType;
+  if (RESTRICTED_DOCUMENT_TYPES.has(key)) return true;
+  if (!known) return false;
+  return [known.pack, known.group].some(
+    (category) => typeof category === 'string' && RESTRICTED_DOCUMENT_CATEGORIES.has(category),
+  );
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
