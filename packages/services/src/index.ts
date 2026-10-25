@@ -85,6 +85,7 @@ export {
   getAccountByWorkosUserId,
   provisionAccount,
   reportUnboundAccounts,
+  ACTIVITY_TOUCH_THROTTLE_MS,
   touchAccountActivity,
 } from './accounts';
 export {

@@ -337,13 +337,14 @@ export async function reportUnboundAccounts(db: Db): Promise<readonly UnboundAcc
   }));
 }
 
-/** Only re-touch a genuinely stale timestamp -- bounds write volume on every authenticated request to roughly one per hour per account. */
-const ACTIVITY_TOUCH_THROTTLE_MS = 60 * 60 * 1000;
+/** Only re-touch a genuinely stale timestamp -- bounds write volume to roughly one per hour per account. The web session layer skips the call entirely inside the same window (it imports this value), so the two can never drift apart. */
+export const ACTIVITY_TOUCH_THROTTLE_MS = 60 * 60 * 1000;
 
 /**
  * Records that this account is still active (Part 7 §11 inactive-account
- * policy). Called from `withSession` on every authenticated request, but
- * the WHERE clause makes the actual write conditional and race-free (no
+ * policy). Called from `withSession`: inline when an inactivity notice is
+ * pending, otherwise after the response and only once the stored timestamp
+ * is older than ACTIVITY_TOUCH_THROTTLE_MS. Either way the WHERE clause makes the actual write conditional and race-free (no
  * separate read-then-write): a request lands as a no-op unless either the
  * last touch is over an hour old, or an inactivity notice is currently
  * pending -- clearing that flag immediately on return, even mid-throttle-
