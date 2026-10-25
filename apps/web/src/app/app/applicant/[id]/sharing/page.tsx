@@ -193,12 +193,16 @@ export default async function SharingPage({
                           partsWhen: 'atSharing',
                         })}
                         tense={
-                          grant.status === 'ACTIVE'
-                            ? 'live'
-                            : grant.status === 'PAUSED' || grant.status === 'PENDING_ACCEPTANCE'
-                              ? 'notYet'
-                              : 'ended'
+                          grant.status === 'REVOKED' ||
+                          grant.status === 'EXPIRED' ||
+                          (grant.expiryAt !== null &&
+                            new Date(grant.expiryAt).getTime() <= Date.now())
+                            ? 'ended'
+                            : grant.status === 'ACTIVE'
+                              ? 'live'
+                              : 'notYet'
                         }
+                        revoked={grant.status === 'REVOKED'}
                         endsOn={grant.expiryAt ? formatTimestampDate(grant.expiryAt) : null}
                       />
                       {grant.acceptedAt ? (

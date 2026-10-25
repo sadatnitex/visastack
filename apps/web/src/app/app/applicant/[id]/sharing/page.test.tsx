@@ -118,7 +118,7 @@ describe('grant cards describe each grant in rows (WP-X2)', () => {
         {
           ...grant('ACTIVE'),
           actions: ['VIEW_METADATA', 'PREVIEW'],
-          expiryAt: new Date('2026-11-24'),
+          expiryAt: new Date('2099-11-24'),
         },
         grant('PAUSED'),
         { ...grant('REVOKED'), documentIds: null, actions: ['VIEW_METADATA', 'PREVIEW'] },
@@ -134,10 +134,22 @@ describe('grant cards describe each grant in rows (WP-X2)', () => {
     // A document-limited grant shows no profile details.
     expect(active).toContain('none of your profile details');
     expect(paused).toContain('They could');
-    expect(paused).toContain('Details only. They cannot open these.');
+    expect(paused).toContain('They cannot see these without Preview documents.');
     expect(revoked).toContain('They could');
     expect(revoked).toContain('Ended');
-    expect(revoked).not.toContain('They can');
+    expect(revoked).not.toMatch(/They can(?!not)/);
     expect(cards[2]).not.toContain('scope-row-warning');
+    expect(revoked).toContain('when you revoked it');
+  });
+
+  it('a grant past its end date reads as ended even before its status catches up', async () => {
+    mocks.listAccessForApplicantDetailed.mockResolvedValue({
+      ok: true,
+      value: [{ ...grant('ACTIVE'), expiryAt: new Date('2020-01-01') }],
+    });
+    const card = textOf((await render()).split('class="row sharing-grant"')[1] ?? '');
+    expect(card).toContain('They could');
+    expect(card).toContain('Ended');
+    expect(card).not.toMatch(/They can(?!not)/);
   });
 });

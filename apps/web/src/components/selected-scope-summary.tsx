@@ -16,14 +16,14 @@ export type ProfileScope =
   | { readonly kind: 'nothing' };
 
 export type DocumentScope =
-  | { readonly kind: 'every'; readonly detailsOnly?: boolean }
+  | { readonly kind: 'every'; readonly notVisible?: boolean }
   /** Documents in the chosen parts; `when` says whether that is now or as at sharing. */
-  | { readonly kind: 'inParts'; readonly when: 'now' | 'atSharing'; readonly detailsOnly?: boolean }
+  | { readonly kind: 'inParts'; readonly when: 'now' | 'atSharing'; readonly notVisible?: boolean }
   | {
       readonly kind: 'chosen';
       readonly names: readonly string[];
       readonly onlyInParts: boolean;
-      readonly detailsOnly?: boolean;
+      readonly notVisible?: boolean;
     }
   | { readonly kind: 'nothing' }
   /** No documents row at all (a case grant, or no documents exist). */
@@ -45,6 +45,8 @@ export interface SelectedScopeSummaryProps {
   /** Extra detail after the end date, such as "in 30 days, the default". */
   readonly endsNote?: string;
   readonly tense?: GrantTense;
+  /** Ended by revoking: the planned end date is not when it ended, so none is shown. */
+  readonly revoked?: boolean;
 }
 
 /** Wording this component writes itself, shown with a capital first letter. Values people typed are left exactly as typed. */
@@ -74,7 +76,7 @@ function profileText(profile: ProfileScope): ReactNode {
     case 'whole':
       return <Phrase>your whole profile</Phrase>;
     case 'case':
-      return <Phrase>one specific case</Phrase>;
+      return <Phrase>one specific case (nothing from it is shown to them yet)</Phrase>;
     case 'nothing':
       return <Phrase>none of your profile details</Phrase>;
     case 'parts':
@@ -134,8 +136,8 @@ export function SelectedScopeSummary(props: SelectedScopeSummaryProps) {
         {documents.kind === 'omit' ? null : (
           <Row
             term={
-              documents.kind !== 'nothing' && documents.detailsOnly
-                ? 'Document details'
+              documents.kind !== 'nothing' && documents.notVisible
+                ? 'Chosen documents'
                 : tense === 'live'
                   ? 'Can open'
                   : 'Could open'
@@ -143,13 +145,17 @@ export function SelectedScopeSummary(props: SelectedScopeSummaryProps) {
             warning={warn && documents.kind === 'every'}
           >
             {documentText(documents)}
-            {documents.kind !== 'nothing' && documents.detailsOnly ? (
-              <span className="scope-row-note">Details only. They cannot open these.</span>
+            {documents.kind !== 'nothing' && documents.notVisible ? (
+              <span className="scope-row-note">
+                They cannot see these without Preview documents.
+              </span>
             ) : null}
           </Row>
         )}
         <Row term={tense === 'ended' ? 'Ended' : 'Ends on'} warning={warn && props.endsOn === null}>
-          {props.endsOn === null ? (
+          {props.revoked ? (
+            <Phrase>when you revoked it</Phrase>
+          ) : props.endsOn === null ? (
             <Phrase>no end date</Phrase>
           ) : (
             <>
@@ -169,10 +175,11 @@ export function SelectedScopeSummary(props: SelectedScopeSummaryProps) {
 /**
  * What a grant actually allows, from its stored or chosen scope, following
  * the access rules: specific documents exclude every profile detail; profile
- * details need "see document details"; opening documents needs "preview
- * documents" or a download permission, and with "see document details" alone
- * the documents show their details but cannot be opened; with both parts and
- * documents chosen, only chosen documents inside those parts open.
+ * details need "see document details"; documents show only with "preview
+ * documents" (the recipient's list checks nothing else), so without it no
+ * document shows and chosen ones are named but marked as not visible; with
+ * both parts and documents chosen, only chosen documents inside those parts
+ * open; a case grant shows nothing yet.
  */
 export function describeGrantScope(input: {
   readonly actions: readonly string[];
@@ -183,7 +190,8 @@ export function describeGrantScope(input: {
   readonly partsWhen: 'now' | 'atSharing';
 }): { readonly profile: ProfileScope; readonly documents: DocumentScope } {
   const canSeeDetails = input.actions.includes('VIEW_METADATA');
-  const canOpen = input.actions.includes('PREVIEW') || input.actions.includes('DOWNLOAD_REDACTED');
+  // The recipient's document list is filtered by Preview alone.
+  const canOpen = input.actions.includes('PREVIEW');
   const specificDocuments = input.documentNames.length > 0;
   const profile: ProfileScope = input.caseGrant
     ? { kind: 'case' }
@@ -192,23 +200,21 @@ export function describeGrantScope(input: {
       : input.partLabels.length > 0
         ? { kind: 'parts', labels: input.partLabels }
         : { kind: 'whole' };
-  // With only "see document details", the documents in scope show their
-  // details but cannot be opened; with neither permission nothing shows.
-  const detailsOnly = !canOpen;
+  // Without Preview no document shows; chosen ones are still named, marked as not visible.
   const documents: DocumentScope =
     input.caseGrant || !input.hasDocuments
       ? { kind: 'omit' }
-      : !canOpen && !canSeeDetails
-        ? { kind: 'nothing' }
-        : specificDocuments
-          ? {
-              kind: 'chosen',
-              names: input.documentNames,
-              onlyInParts: input.partLabels.length > 0,
-              detailsOnly,
-            }
+      : specificDocuments
+        ? {
+            kind: 'chosen',
+            names: input.documentNames,
+            onlyInParts: input.partLabels.length > 0,
+            notVisible: !canOpen,
+          }
+        : !canOpen
+          ? { kind: 'nothing' }
           : input.partLabels.length > 0
-            ? { kind: 'inParts', when: input.partsWhen, detailsOnly }
-            : { kind: 'every', detailsOnly };
+            ? { kind: 'inParts', when: input.partsWhen }
+            : { kind: 'every' };
   return { profile, documents };
 }

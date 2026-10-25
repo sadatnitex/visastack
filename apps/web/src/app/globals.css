@@ -5859,10 +5859,7 @@ body:has(.auth-shell) > .footer {
 .scope-row-warning {
   background: var(--warning-bg);
 }
-.scope-summary-download {
-  color: var(--warning);
-  font-weight: 600;
-}
+
 .scope-row-warning dd {
   color: var(--warning);
   font-weight: 600;
@@ -5879,4 +5876,9 @@ body:has(.auth-shell) > .footer {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.1rem;
   }
+}
+.scope-summary .scope-summary-download,
+.sharing-scope-review .scope-summary-download {
+  color: var(--warning);
+  font-weight: 600;
 }

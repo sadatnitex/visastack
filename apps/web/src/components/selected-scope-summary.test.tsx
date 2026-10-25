@@ -90,8 +90,22 @@ describe('describeGrantScope follows the access rules', () => {
         kind: 'chosen',
         names: ['Passport summary'],
         onlyInParts: false,
-        detailsOnly: false,
+        notVisible: false,
       },
+    });
+  });
+
+  it('documents show only with Preview: download or details alone open nothing', () => {
+    expect(scope({ actions: ['VIEW_METADATA', 'DOWNLOAD_REDACTED'] }).documents).toEqual({
+      kind: 'nothing',
+    });
+    expect(
+      scope({ actions: ['VIEW_METADATA'], documentNames: ['Passport summary'] }).documents,
+    ).toEqual({
+      kind: 'chosen',
+      names: ['Passport summary'],
+      onlyInParts: false,
+      notVisible: true,
     });
   });
 
@@ -100,7 +114,7 @@ describe('describeGrantScope follows the access rules', () => {
       kind: 'chosen',
       names: ['Payslip'],
       onlyInParts: true,
-      detailsOnly: false,
+      notVisible: false,
     });
   });
 
@@ -108,13 +122,9 @@ describe('describeGrantScope follows the access rules', () => {
     expect(scope({ actions: ['PREVIEW'] }).profile).toEqual({ kind: 'nothing' });
     expect(scope({ actions: ['COMMENT'] }).documents).toEqual({ kind: 'nothing' });
     expect(scope({ actions: ['VIEW_METADATA', 'COMMENT'] }).documents).toEqual({
-      kind: 'every',
-      detailsOnly: true,
+      kind: 'nothing',
     });
-    expect(scope({ actions: ['VIEW_METADATA', 'DOWNLOAD_REDACTED'] }).documents).toEqual({
-      kind: 'every',
-      detailsOnly: false,
-    });
+    expect(scope({ actions: ['PREVIEW'] }).documents).toEqual({ kind: 'every' });
   });
 
   it('a case grant shows one case and no documents row; parts on a card are as at sharing', () => {
@@ -125,19 +135,30 @@ describe('describeGrantScope follows the access rules', () => {
     expect(scope({ partLabels: ['Identity'], partsWhen: 'atSharing' }).documents).toEqual({
       kind: 'inParts',
       when: 'atSharing',
-      detailsOnly: false,
     });
     expect(scope({ hasDocuments: false }).documents).toEqual({ kind: 'omit' });
   });
 
-  it('with details only, names the documents and says they cannot be opened', async () => {
+  it('without Preview, names chosen documents and says they cannot see them', async () => {
     const html = await render({
       ...NARROW,
       ...scope({ actions: ['VIEW_METADATA'], documentNames: ['Passport summary'] }),
     });
-    expect(row(html, 'Document details')?.text).toBe(
-      'Passport summary Details only. They cannot open these.',
+    expect(row(html, 'Chosen documents')?.text).toBe(
+      'Passport summary They cannot see these without Preview documents.',
     );
     expect(row(html, 'Can open')).toBeUndefined();
+  });
+
+  it('a revoked grant says it ended when revoked, not on its planned date', async () => {
+    const html = await render({ ...NARROW, tense: 'ended', revoked: true });
+    expect(row(html, 'Ended')?.text).toBe('when you revoked it');
+  });
+
+  it('a case grant says nothing from it is shown yet', async () => {
+    const html = await render({ ...NARROW, ...scope({ caseGrant: true }) });
+    expect(row(html, 'Can see')?.text).toBe(
+      'one specific case (nothing from it is shown to them yet)',
+    );
   });
 });
