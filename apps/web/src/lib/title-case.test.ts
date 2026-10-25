@@ -52,16 +52,18 @@ function isTerm(text: string): boolean {
   if (words.length < 2 || words.length > 6 || !/^[A-Z]/.test(t)) return false;
   if (/[{}<>=/\\@]|https?:/.test(t)) return false;
   if (/^(Loading|Choose|Select|Pick|Search) /.test(t) || STATEMENT.test(t)) return false;
-  return !/\s(my|I)\s|\smy$/.test(t);
+  return !(/\s(my|I)\s/.test(t) || /\smy$/.test(t));
 }
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const path = join(dir, entry.name);
     if (entry.isDirectory()) return sourceFiles(path);
-    return /\.tsx?$/.test(entry.name) && !/\.test\.|test-support|loading\.tsx$/.test(entry.name)
-      ? [path]
-      : [];
+    const skipped =
+      entry.name.includes('.test.') ||
+      entry.name.includes('test-support') ||
+      entry.name.endsWith('loading.tsx');
+    return /\.tsx?$/.test(entry.name) && !skipped ? [path] : [];
   });
 }
 
