@@ -1,12 +1,13 @@
 import type { AccountId, AgencyId, ApplicantId, DocumentId, Result } from '@visastack/core';
 import { err, ok } from '@visastack/core';
 import { authorize } from '@visastack/policy';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import type { Document } from './documents';
 import { type ServiceError, serviceError } from './errors';
+import { incrementMaterialRevision } from './material-revision';
 import { createTask } from './missions';
 import { documentCategory, loadGrantsForPolicy } from './sharing';
 
@@ -238,19 +239,34 @@ export async function supersedeDocument(
     return err(serviceError('invalid', 'this document has already been superseded'));
   }
 
-  const affectedMissions = await db
-    .selectDistinct({ missionId: schema.missions.id })
-    .from(schema.selectedEvidence)
-    .innerJoin(schema.missions, eq(schema.missions.id, schema.selectedEvidence.missionId))
-    .where(eq(schema.selectedEvidence.documentId, input.oldDocumentId));
-
   return db.transaction(async (tx) => {
-    await tx
+    // Conditional, so two simultaneous requests cannot both supersede (and
+    // both bump the revision and add a task): only one update finds the row
+    // still unsuperseded.
+    const updated = await tx
       .update(schema.documents)
       .set({ supersededByDocumentId: input.newDocumentId })
-      .where(eq(schema.documents.id, input.oldDocumentId));
+      .where(
+        and(
+          eq(schema.documents.id, input.oldDocumentId),
+          isNull(schema.documents.supersededByDocumentId),
+        ),
+      )
+      .returning({ id: schema.documents.id });
+    if (updated.length === 0) {
+      return err(serviceError('invalid', 'this document has already been superseded'));
+    }
+    const affectedMissions = await tx
+      .selectDistinct({ missionId: schema.missions.id })
+      .from(schema.selectedEvidence)
+      .innerJoin(schema.missions, eq(schema.missions.id, schema.selectedEvidence.missionId))
+      .where(eq(schema.selectedEvidence.documentId, input.oldDocumentId));
 
     for (const { missionId } of affectedMissions) {
+      // A replaced document is a material change (v1.2 E03): bump the case
+      // revision in this same transaction, which also voids a live
+      // acknowledgement made with the old document. Snapshots stay exact.
+      await incrementMaterialRevision(tx, missionId);
       await createTask(tx, {
         actorAccountId: input.actorAccountId,
         missionId,

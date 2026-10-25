@@ -15,6 +15,7 @@ import {
 } from './acknowledgements';
 import { addFamilyMember, createApplicant } from './applicants';
 import { setConsent } from './consent';
+import { compareFactVersions } from './consistency';
 import type { Db } from './db';
 import {
   attachPackVersion,
@@ -479,6 +480,65 @@ describe('TRU-02 (Commercial V1 Part 7 §3): acknowledgement entity', () => {
     expect(ackRow?.invalidatedAt).not.toBeNull();
     expect(rejRow?.invalidatedAt).toBeNull();
     expect(await getLiveAcknowledgement(db, missionId)).toBeUndefined();
+  });
+
+  it('a prior snapshot and its acknowledgement stay exact after a later change, and the old value is still comparable (v1.2 T12, E03)', async () => {
+    const { account, applicantId, missionId, snapshotId, checksum } = await setUp(db);
+    const acknowledged = await decideAcknowledgement(db, {
+      actorAccountId: account.id,
+      missionId,
+      snapshotId,
+      expectedSnapshotChecksum: checksum,
+      decision: 'ACKNOWLEDGED',
+      stepUpSatisfied: true,
+    });
+    if (!isOk(acknowledged)) throw new Error('acknowledge');
+    const snapshotBefore = await db
+      .select()
+      .from(schema.missionSnapshots)
+      .where(eq(schema.missionSnapshots.id, snapshotId));
+    const [ackBefore] = await db
+      .select()
+      .from(schema.acknowledgements)
+      .where(eq(schema.acknowledgements.id, acknowledged.value.id));
+
+    const edited = await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: 'passport.number',
+      value: 'A2',
+    });
+    expect(isOk(edited)).toBe(true);
+
+    // The snapshot row is unchanged, content and checksum alike.
+    const snapshotAfter = await db
+      .select()
+      .from(schema.missionSnapshots)
+      .where(eq(schema.missionSnapshots.id, snapshotId));
+    expect(snapshotAfter).toEqual(snapshotBefore);
+    // The acknowledgement keeps everything it attested to; only invalidatedAt is set.
+    const [ackAfter] = await db
+      .select()
+      .from(schema.acknowledgements)
+      .where(eq(schema.acknowledgements.id, acknowledged.value.id));
+    expect(ackAfter?.invalidatedAt).not.toBeNull();
+    expect({ ...ackAfter, invalidatedAt: null }).toEqual({ ...ackBefore, invalidatedAt: null });
+
+    // The exact version the snapshot recorded can be compared with the current one.
+    const content = snapshotBefore[0]?.content as { facts: { factVersionId: string }[] };
+    const recordedVersionId = content.facts[0]?.factVersionId;
+    if (!recordedVersionId) throw new Error('snapshot recorded no fact version');
+    const compared = await compareFactVersions(db, {
+      actorAccountId: account.id,
+      applicantId,
+      priorFactVersionId: recordedVersionId,
+    });
+    expect(isOk(compared)).toBe(true);
+    if (!isOk(compared)) return;
+    expect(compared.value.prior.value).toBe('A1');
+    expect(compared.value.current.value).toBe('A2');
+    // Neither save gave a date, so the honest answer is that it cannot tell.
+    expect(compared.value.result).toBe('INSUFFICIENT_INFORMATION');
   });
 
   it('getLiveAcknowledgement tracks the latest valid ACKNOWLEDGED snapshot across a reject -> new-snapshot -> acknowledge cycle', async () => {

@@ -384,11 +384,10 @@ describe('master profile — manual edit is versioned, atomic, authorized', () =
     if (isErr(result)) expect(result.error.code).toBe('invalid');
   });
 
-  it('defaults effectiveFrom to now, but honors an explicit backdated value (master directive §7 "PR 8")', async () => {
+  it('stores an omitted effectiveFrom as not known, and honors an explicit backdated value (master directive §7 "PR 8"; v1.2 E03)', async () => {
     const { account, applicant } = await seedApplicant('p6@example.com');
     await registerFieldDefinition(db, { key: 'address.line', dataType: 'string' });
 
-    const before = new Date();
     const undated = await editFact(db, {
       actorAccountId: account.id,
       applicantId: applicant.id,
@@ -397,7 +396,8 @@ describe('master profile — manual edit is versioned, atomic, authorized', () =
     });
     expect(isOk(undated)).toBe(true);
     if (!isOk(undated)) return;
-    expect(undated.value.version.effectiveFrom?.getTime()).toBeGreaterThanOrEqual(before.getTime());
+    // Unknown stays unknown: the save time is never presented as the date it became true.
+    expect(undated.value.version.effectiveFrom).toBeNull();
 
     const backdated = new Date('2020-01-15T00:00:00Z');
     const dated = await editFact(db, {
