@@ -24,3 +24,16 @@ docs/commercial-v1/known-issues.md
 # create-applicant action reads the first-run radios itself, so the form works before scripts load.
 apps/web/src/app/app/actions.ts
 apps/web/src/app/app/actions.test.ts
+# Added 25 Oct 2026 for WP-V3 part 3 (Application Memory and prior versus current). In scope by the
+# package text: "services files named by the ledger" (U06, E03 rows name consistency.ts and the
+# snapshot, submission and outcome records) and "show the changed-fields list inside the WP-X1
+# alert", which lives on the case page.
+packages/services/src/application-memory.ts
+packages/services/src/application-memory.test.ts
+packages/services/src/consistency.ts
+packages/services/src/index.ts
+apps/web/src/app/app/mission/[id]/page.tsx
+apps/web/src/app/app/mission/[id]/page.test.tsx
+apps/web/src/app/app/mission/[id]/changes-since-confirmed.tsx
+apps/web/src/lib/application-memory-labels.ts
+apps/web/src/lib/application-memory-labels.test.ts
