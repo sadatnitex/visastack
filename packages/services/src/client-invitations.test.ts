@@ -9,8 +9,10 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import { createApplicant, listApplicants } from './applicants';
 import {
+  EMAIL_PATTERN,
   acceptClientInvitation,
   createClientInvitation,
+  isEmailAddress,
   listClientInvitations,
   previewClientInvitation,
   revokeClientInvitation,
@@ -556,6 +558,35 @@ describe('client invitations - agency invites a traveller as a new client (Comme
         applicantChoice: { kind: 'new' },
       });
       expect(isOk(retry)).toBe(true);
+    });
+  });
+
+  describe('email address check', () => {
+    it('accepts ordinary addresses and refuses malformed ones', () => {
+      for (const ok of ['jane@example.com', 'jane.doe+visa@mail.example.co.uk', 'a@b.cd']) {
+        expect(isEmailAddress(ok)).toBe(true);
+      }
+      for (const bad of [
+        'jane',
+        'jane@',
+        '@example.com',
+        'jane@example',
+        'jane@@example.com',
+        'a b@example.com',
+        'jane@example..com',
+        'jane@.example.com',
+        '+880 1711 000000',
+      ]) {
+        expect(isEmailAddress(bad)).toBe(false);
+      }
+      expect(isEmailAddress(`${'a'.repeat(250)}@b.cd`)).toBe(false);
+    });
+
+    it('stays fast on hostile input (CodeQL polynomial regular expression)', () => {
+      const hostile = `!@!.${'!.'.repeat(20_000)}!`;
+      const started = performance.now();
+      EMAIL_PATTERN.test(`${hostile} `);
+      expect(performance.now() - started).toBeLessThan(200);
     });
   });
 

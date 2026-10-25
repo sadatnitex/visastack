@@ -23,7 +23,8 @@ export async function createSharingInvitation(
   Result<{ readonly invitation: SharingInvitation; readonly rawToken: string }, ServiceError>
 > {
   const email = input.email.trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)
+  // Length first, then a pattern whose parts cannot overlap: linear on hostile input.
+  if (email.length > 254 || !/^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/.test(email))
     return err(serviceError('invalid', 'Enter a valid recipient email.'));
   const account = first(
     await db

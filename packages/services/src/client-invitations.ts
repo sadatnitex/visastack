@@ -38,12 +38,19 @@ export type ClientInvitation = typeof schema.clientInvitations.$inferSelect;
 
 const DEFAULT_EXPIRY_DAYS = 7;
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Domain labels exclude dots, so no two parts can match the same characters
+// and checking is linear in the length (no slow backtracking on hostile input).
+export const EMAIL_PATTERN = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/;
+const MAX_EMAIL_LENGTH = 254;
+
+export function isEmailAddress(value: string): boolean {
+  return value.length <= MAX_EMAIL_LENGTH && EMAIL_PATTERN.test(value);
+}
 
 /** The address an invitation is bound to, or undefined for a phone contact (not verifiable). */
 function boundEmail(contactDestination: string): string | undefined {
   const value = contactDestination.trim().toLowerCase();
-  return EMAIL_PATTERN.test(value) ? value : undefined;
+  return isEmailAddress(value) ? value : undefined;
 }
 
 /** Whether `accountId` may see and accept an invitation sent to `contactDestination`. */
@@ -177,7 +184,7 @@ export async function createClientInvitation(
       resourceId: invitation.id,
       metadata: { organizationId: input.organizationId },
     });
-    if (input.encryption && EMAIL_PATTERN.test(contactDestination)) {
+    if (input.encryption && isEmailAddress(contactDestination)) {
       await queueInvitationEmail(tx, {
         kind: 'client',
         invitationId: invitation.id,
