@@ -147,3 +147,35 @@ describe('overdue tasks include started ones (WP-V4, W0 ledger H4)', () => {
     expect(overdueTasks([late, { status: 'OPEN', dueDate: null, id: 't2' }], NOW)).toEqual([late]);
   });
 });
+
+describe('dashboard counts agree with Do Next (WP-V4 review)', () => {
+  it('counts open and sent-back requests as waiting on the applicant', () => {
+    expect(
+      summarizeAttention({
+        admin: true,
+        cases: [],
+        requests: [
+          { status: 'OPEN' },
+          { status: 'NEEDS_REPLACEMENT' },
+          { status: 'RECEIVED' },
+          { status: 'ACCEPTED' },
+        ],
+        now: NOW,
+      }).openRequests,
+    ).toBe(2);
+  });
+
+  it('treats a due date as a calendar day: a task due today is not past due until the day ends', () => {
+    const today = '2026-10-05T00:00:00.000Z';
+    const yesterday = '2026-10-04T00:00:00.000Z';
+    const lateTonight = new Date('2026-10-05T23:59:00.000Z');
+    expect(countOverdueTasks([{ status: 'OPEN', dueDate: today }], lateTonight)).toBe(0);
+    expect(countOverdueTasks([{ status: 'OPEN', dueDate: yesterday }], lateTonight)).toBe(1);
+    expect(
+      countOverdueTasks(
+        [{ status: 'IN_PROGRESS', dueDate: today }],
+        new Date('2026-10-06T00:01:00.000Z'),
+      ),
+    ).toBe(1);
+  });
+});

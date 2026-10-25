@@ -17,7 +17,7 @@
  * "Nobody assigned" as its owner.
  */
 
-import { evidenceRequestTriageGroup } from '@visastack/services';
+import { type TriageDocumentState, evidenceRequestTriageGroup } from '@visastack/services';
 import {
   daysUntilDateOnly,
   formatDateOnly,
@@ -83,6 +83,8 @@ export interface DoNextRequest {
   readonly respondedAt?: Date | string | null;
   readonly createdAt?: Date | string;
   readonly requestedByAccountId?: string | null;
+  /** The answered file's newest state, when loaded; see `loadEvidenceRequests`. */
+  readonly respondingDocumentState?: TriageDocumentState | null;
 }
 
 export interface DoNextInput {
@@ -159,7 +161,7 @@ export function buildDoNext(input: DoNextInput): DoNextItem[] {
   // Rows 1 and 2: requests. Administrator data only, whatever was passed in.
   if (input.admin) {
     for (const request of input.requests) {
-      const group = evidenceRequestTriageGroup(request);
+      const group = evidenceRequestTriageGroup(request, request.respondingDocumentState);
       if (group === null || group === 'REVIEWED') continue;
       const caseRow = request.missionId ? caseById.get(request.missionId) : undefined;
       if (request.missionId && !caseRow) continue; // a case not in view, or closed
@@ -182,6 +184,8 @@ export function buildDoNext(input: DoNextInput): DoNextItem[] {
       if (group === 'MISSING' || group === 'NEEDS_CORRECTION') {
         if (!request.dueDate || daysUntilDateOnly(request.dueDate, now) >= 0) continue;
         const sentBack = request.status === 'NEEDS_REPLACEMENT';
+        // Received, but the newest version of the file failed its checks or is gone.
+        const unusable = !sentBack && group === 'NEEDS_CORRECTION';
         const due = formatDateOnly(request.dueDate);
         ranked.push({
           primary: time(request.dueDate),
@@ -195,7 +199,9 @@ export function buildDoNext(input: DoNextInput): DoNextItem[] {
             owner,
             reason: sentBack
               ? `Sent back for a fix and was due ${due}. No new version yet.`
-              : `Was due ${due} and has not arrived.`,
+              : unusable
+                ? `The file sent could not be used and it was due ${due}.`
+                : `Was due ${due} and has not arrived.`,
             action: {
               kind: 'follow-up',
               label: 'Review Follow-up Message',
@@ -203,7 +209,7 @@ export function buildDoNext(input: DoNextInput): DoNextItem[] {
                 travellerName: traveller,
                 itemLabel: label,
                 kind: request.kind,
-                status: sentBack ? 'NEEDS_REPLACEMENT' : 'OPEN',
+                status: sentBack || unusable ? 'NEEDS_REPLACEMENT' : 'OPEN',
                 dueDate: request.dueDate,
                 caseTitle: caseRow?.title ?? null,
                 agencyNote: request.message ?? null,
@@ -213,8 +219,8 @@ export function buildDoNext(input: DoNextInput): DoNextItem[] {
             },
           },
         });
-      } else {
-        // RECEIVED (or PROCESSING, when a caller knows the file is still being checked).
+      } else if (group === 'RECEIVED') {
+        // Processing is left out: a file still being checked is not ready for review yet.
         const when = request.respondedAt ? ` ${formatTimestampDate(request.respondedAt)}` : '';
         ranked.push({
           primary: 0,

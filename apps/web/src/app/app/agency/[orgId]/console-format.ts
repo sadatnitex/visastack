@@ -1,3 +1,5 @@
+import { daysUntilDateOnly } from '../../../../lib/format-date';
+
 /**
  * Pure helpers shared by the agency console's pages (Dashboard, Clients, Cases,
  * Team, Settings). No React and no database, so they are unit-tested directly.
@@ -64,15 +66,31 @@ export function nextApproachingDate(
  */
 export const LIVE_TASK_STATUSES: ReadonlySet<string> = new Set(['OPEN', 'IN_PROGRESS']);
 
-/** A case's tasks that are still live and past their due date. */
+/**
+ * A case's tasks that are still live and past their due date. A due date is a calendar day
+ * (entered as a date and stored as UTC midnight), so a task is past due only once its due day has
+ * ended, the same day rule evidence requests use (`daysUntilDateOnly`, WP-V4 ADR-0015). A task
+ * due today is not yet past due.
+ */
 export function overdueTasks<
   T extends { readonly status: string; readonly dueDate: string | null },
 >(tasks: readonly T[], now: Date = new Date()): T[] {
-  const nowIso = now.toISOString();
   return tasks.filter(
-    (t) => LIVE_TASK_STATUSES.has(t.status) && t.dueDate !== null && t.dueDate < nowIso,
+    (t) =>
+      LIVE_TASK_STATUSES.has(t.status) &&
+      t.dueDate !== null &&
+      daysUntilDateOnly(t.dueDate, now) < 0,
   );
 }
+
+/**
+ * Request statuses that wait on the traveller: a first request, and one sent back for a fix.
+ * The Dashboard count, the Waiting on Traveller view and Do Next all use this one rule.
+ */
+export const WAITING_ON_TRAVELLER_STATUSES: ReadonlySet<string> = new Set([
+  'OPEN',
+  'NEEDS_REPLACEMENT',
+]);
 
 /** How many of a case's tasks are still live and past their due date. */
 export function countOverdueTasks(
@@ -87,7 +105,7 @@ export interface AttentionSummary {
   readonly cases: number;
   /** Visible cases with nobody assigned. Only an administrator can assign, so only they are told. */
   readonly needAssignment: number | null;
-  /** Evidence requests still waiting on the applicant. Administrators only (the list is administrator data). */
+  /** Evidence requests still waiting on the applicant (open or sent back for a fix). Administrators only (the list is administrator data). */
   readonly openRequests: number | null;
   /** Live (open or started) tasks past their due date across the visible cases. */
   readonly overdueTasks: number;
@@ -96,7 +114,8 @@ export interface AttentionSummary {
 /**
  * The few counts shown at the top of the Dashboard. Each is computed from data
  * the console already loads, with the same definitions the per-case badges use
- * (overdue = open or started and past its due date; needs assignment = no assignee at all),
+ * (overdue = open or started and its due day has ended; waiting on the applicant = open or sent
+ * back for a fix; needs assignment = no assignee at all),
  * so a number here always agrees with what the Cases tab shows.
  */
 export function summarizeAttention(input: {
@@ -114,7 +133,9 @@ export function summarizeAttention(input: {
     needAssignment: input.admin
       ? input.cases.filter((c) => c.assignments.length === 0).length
       : null,
-    openRequests: input.admin ? input.requests.filter((r) => r.status === 'OPEN').length : null,
+    openRequests: input.admin
+      ? input.requests.filter((r) => WAITING_ON_TRAVELLER_STATUSES.has(r.status)).length
+      : null,
     overdueTasks: input.cases.reduce((sum, c) => sum + countOverdueTasks(c.tasks, now), 0),
   };
 }

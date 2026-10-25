@@ -85,6 +85,21 @@ describe('follow-up message', () => {
       'Call +880 1712 345678',
       'IBAN GB29 NWBK 6016 1331 9268 19',
       'Reference 3f2a1b9c-1d2e-4f50-8a6b-7c8d9e0f1a2b',
+      // WP-V4 review cases: other digit forms, split numbers, and spelled-out emails.
+      'Bangla digits \u09e6\u09e7\u09ed\u09e7\u09e8\u09e9\u09ea\u09eb\u09ec\u09ed\u09ee',
+      'Full-width \uff10\uff11\uff17\uff11\uff12\uff13\uff14\uff15',
+      'Passport A0123 4567 please',
+      'Call (017) 1234 5678 today',
+      'Account 0123/4567/89',
+      'Account 0123_4567_89',
+      'Account 01.23.45.67.89',
+      'Account [0123] [4567] 89',
+      'Card 1234 5678 9012 3456',
+      'Write to rahim at gmail dot com',
+      'Write to rahim(at)gmail(dot)com',
+      'Write to rahim [at] mail [dot] org',
+      'Write to rahim\uff20example.test',
+      'See \uff57\uff57\uff57\uff0eexample\uff0etest',
     ]) {
       const message = buildFollowUpMessage({ ...base, agencyNote: note });
       expect(message.usedAgencyNote, note).toBe(false);
@@ -97,9 +112,11 @@ describe('follow-up message', () => {
   it('keeps ordinary dates and small numbers in a note', () => {
     const message = buildFollowUpMessage({
       ...base,
-      agencyNote: 'Bring 2 copies and the letter dated 10 12 2026, e.g. the signed one.',
+      agencyNote: 'Bring 2 copies and the letter dated 10 December 2026, e.g. the signed one.',
     });
     expect(message.usedAgencyNote).toBe(true);
+    // Eight digits close together are treated as a long number, even a date: the safe side.
+    expect(containsUnsafeDetail('dated 10/12/2026')).toBe(true);
   });
 
   it('drops any other field holding an unsafe detail for a plain stand-in', () => {
@@ -125,6 +142,20 @@ describe('follow-up message', () => {
       'Due: 2 November 2026\n',
     );
     expect(buildFollowUpMessage({ ...base, dueDate: null }).text).not.toContain('Due:');
+  });
+
+  it('swaps every long dash form for a hyphen', () => {
+    for (const code of [0x2012, 0x2013, 0x2014, 0x2015, 0x2212, 0x2e3a, 0x2e3b, 0xfe58]) {
+      const dash = String.fromCodePoint(code);
+      const message = buildFollowUpMessage({
+        ...base,
+        caseTitle: `UK ${dash} Visitor`,
+        agencyNote: `Six months ${dash} stamped.`,
+      });
+      expect(message.text, code.toString(16)).toContain('Case: UK - Visitor');
+      expect(message.text, code.toString(16)).toContain('Six months - stamped.');
+      expect(message.text, code.toString(16)).not.toContain(dash);
+    }
   });
 
   it('swaps long dashes for hyphens in every field, not only in the note', () => {

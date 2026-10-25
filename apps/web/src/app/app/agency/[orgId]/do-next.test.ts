@@ -231,3 +231,67 @@ describe('Do next ranking (ADR-0015)', () => {
     expect(item.action.message.text).toContain('What we need: Bank Statement');
   });
 });
+
+describe('Do next uses the answered file and the calendar-day rule (WP-V4 review)', () => {
+  const cases = [caseRow({ missionId: 'm1' })];
+
+  it('keeps a received item whose newest file is unsafe, gone or still being checked out of the review row', () => {
+    const items = buildDoNext(
+      input({
+        cases,
+        requests: [
+          requestRow({
+            id: 'r-quarantined',
+            status: 'RECEIVED',
+            respondingDocumentState: {
+              processingStatus: 'NEEDS_ATTENTION',
+              safetyStatus: 'QUARANTINED',
+            },
+          }),
+          requestRow({ id: 'r-erased', status: 'UNDER_REVIEW', respondingDocumentState: null }),
+          requestRow({
+            id: 'r-processing',
+            status: 'RECEIVED',
+            respondingDocumentState: { processingStatus: 'SCANNING', safetyStatus: 'PENDING' },
+          }),
+          requestRow({
+            id: 'r-clean',
+            status: 'RECEIVED',
+            respondingDocumentState: { processingStatus: 'AWAITING_REVIEW', safetyStatus: 'CLEAN' },
+          }),
+        ],
+      }),
+    );
+    expect(items.map((item) => item.key)).toEqual(['request:r-clean']);
+  });
+
+  it('lists an unusable file that is past due as a past-due item asking for a new version', () => {
+    const [item] = buildDoNext(
+      input({
+        cases,
+        requests: [
+          requestRow({
+            id: 'r-bad',
+            status: 'RECEIVED',
+            dueDate: day(-2),
+            respondingDocumentState: null,
+          }),
+        ],
+      }),
+    );
+    expect(item?.tier).toBe(1);
+    expect(item?.reason).toMatch(/^The file sent could not be used and it was due /);
+    if (item?.action.kind !== 'follow-up') throw new Error('expected a follow-up action');
+    expect(item.action.message.text).toContain('needs a new version');
+  });
+
+  it('does not list a task due today as overdue, and lists it the day after', () => {
+    const dueToday = [caseRow({ missionId: 'm1', tasks: [{ status: 'OPEN', dueDate: day(0) }] })];
+    expect(buildDoNext(input({ cases: dueToday }))).toEqual([]);
+    expect(
+      buildDoNext(input({ cases: dueToday, now: new Date('2026-10-26T00:30:00.000Z') })).map(
+        (item) => item.key,
+      ),
+    ).toEqual(['case:m1']);
+  });
+});

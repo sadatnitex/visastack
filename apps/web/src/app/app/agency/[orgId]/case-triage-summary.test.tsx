@@ -51,3 +51,53 @@ describe('where a case stands', () => {
     expect(text).toContain('Items asked of the traveller are shown to agency administrators.');
   });
 });
+
+describe('where a case stands, for someone who cannot see requests (WP-V4 review)', () => {
+  it('calls a complete checklist Checklist Complete, never Ready for Review', async () => {
+    const member = view({}, false);
+    expect(member.state).toBe('READY_FOR_REVIEW');
+    expect(member.stateLabel).toBe('Checklist Complete');
+    const text = textOf(await renderServer(<CaseTriageSummary view={member} headingId="t" />));
+    expect(text).toContain('Checklist Complete');
+    expect(text).not.toContain('Ready for Review');
+    expect(view({}, true).stateLabel).toBe('Ready for Review');
+  });
+
+  it('uses the answered file state, so an unsafe newer version is never Received', () => {
+    const triage = view({
+      readiness: {
+        overallState: 'READY_FOR_APPLICANT_REVIEW',
+        requirementResults: [
+          {
+            packRequirementId: 'q1',
+            kind: 'DOCUMENT',
+            key: 'PASSPORT',
+            optional: false,
+            state: 'SATISFIED',
+          },
+        ],
+      },
+      decisions: [],
+      requests: [
+        {
+          id: 'r1',
+          missionId: 'm1',
+          packRequirementId: 'q1',
+          kind: 'DOCUMENT',
+          fieldKey: null,
+          docType: 'PASSPORT',
+          status: 'RECEIVED',
+          dueDate: null,
+          createdAt: '2026-10-01T00:00:00.000Z',
+        },
+      ],
+      documentStates: new Map([
+        ['r1', { processingStatus: 'NEEDS_ATTENTION', safetyStatus: 'QUARANTINED' } as const],
+      ]),
+    });
+    expect(triage.groups.map((g) => [g.group, g.items[0]?.notes])).toEqual([
+      ['NEEDS_CORRECTION', ['Could Not Be Used']],
+    ]);
+    expect(triage.state).toBe('NOT_READY');
+  });
+});

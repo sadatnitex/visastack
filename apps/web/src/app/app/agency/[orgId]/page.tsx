@@ -14,7 +14,12 @@ import {
   loadOrgAccess,
   loadUnassignedQueue,
 } from './console-data';
-import { countOverdueTasks, nextApproachingDate, summarizeAttention } from './console-format';
+import {
+  WAITING_ON_TRAVELLER_STATUSES,
+  countOverdueTasks,
+  nextApproachingDate,
+  summarizeAttention,
+} from './console-format';
 import { buildDoNext } from './do-next';
 import { DoNextList } from './do-next-list';
 
@@ -170,6 +175,8 @@ export default async function AgencyDashboardPage({
         openRequests: forCase.filter((r) => r.status === 'OPEN').length,
         // "Review issues": evidence a reviewer already looked at and sent back for replacement.
         reviewIssues: forCase.filter((r) => r.status === 'NEEDS_REPLACEMENT').length,
+        waitingOnTraveller: forCase.filter((r) => WAITING_ON_TRAVELLER_STATUSES.has(r.status))
+          .length,
         overdueTasks: countOverdueTasks(mission.tasks),
         approaching: nextApproachingDate(mission.targetDeadline, mission.travelStartDate),
         assignedToMe: mission.assignments.some((a) => a.memberAccountId === data.viewerAccountId),
@@ -198,7 +205,7 @@ export default async function AgencyDashboardPage({
     {
       key: 'waiting',
       label: 'Waiting on Traveller',
-      test: (row) => row.openRequests + row.reviewIssues > 0,
+      test: (row) => row.waitingOnTraveller > 0,
     },
     { key: 'unassigned', label: 'Unassigned', test: (row) => row.mission.assignments.length === 0 },
   ];
@@ -647,7 +654,7 @@ export default async function AgencyDashboardPage({
             ) : null}
             <Stat label="Cases you can see" value={summary.cases} />
           </div>
-          {needsYou === 0 ? (
+          {needsYou === 0 && doNext.length === 0 ? (
             <p className="stat-note">
               Nothing is overdue, unassigned or waiting on an applicant right now.
             </p>

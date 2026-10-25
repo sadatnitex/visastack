@@ -88,7 +88,8 @@ describe('agency Dashboard', () => {
     expect(text).toContain('What Needs You First');
     expect(text).toMatch(/Cases you can see 2/);
     expect(text).toMatch(/Cases with Nobody Assigned 1/);
-    expect(text).toMatch(/Evidence Requests Waiting on the Applicant 1/);
+    // WP-V4 review: an open request and one sent back for a fix both wait on the applicant.
+    expect(text).toMatch(/Evidence Requests Waiting on the Applicant 2/);
     expect(text).toMatch(/Overdue Tasks 1/);
   });
 
@@ -294,5 +295,51 @@ describe('agency Dashboard: Do Next (WP-V4)', () => {
     const waiting = textOf(await renderServer(Page(pageProps({ quick: 'waiting' }))));
     expect(waiting).toContain('Canada Visitor');
     expect(waiting).not.toMatch(/Rahim Uddin · UK Standard Visitor/);
+  });
+});
+
+describe('agency Dashboard: counts and Do Next agree (WP-V4 review)', () => {
+  it('never says nothing needs a response while Do Next lists an item', async () => {
+    mocks.loadUnassignedQueue.mockResolvedValue([]);
+    mocks.loadCases.mockResolvedValue({ admin: true, cases: [inGoodShape] });
+    mocks.loadEvidenceRequests.mockResolvedValue([
+      {
+        id: 'r-in',
+        applicantId: 'ap2',
+        missionId: 'm2',
+        kind: 'DOCUMENT',
+        docType: 'PASSPORT',
+        status: 'RECEIVED',
+        createdAt: new Date('2026-10-01T00:00:00.000Z'),
+      },
+    ]);
+    const listed = textOf(await renderServer(Page(pageProps())));
+    expect(listed).toContain('Waiting for Review');
+    expect(listed).not.toContain('Nothing is overdue, unassigned or waiting on an applicant');
+    mocks.loadEvidenceRequests.mockResolvedValue([]);
+    const empty = textOf(await renderServer(Page(pageProps())));
+    expect(empty).toContain('Nothing needs you first right now.');
+    expect(empty).toContain('Nothing is overdue, unassigned or waiting on an applicant');
+  });
+
+  it('counts a sent-back request in the waiting number, the Waiting on Traveller view and Do Next alike', async () => {
+    mocks.loadUnassignedQueue.mockResolvedValue([]);
+    mocks.loadCases.mockResolvedValue({ admin: true, cases: [inGoodShape] });
+    mocks.loadEvidenceRequests.mockResolvedValue([
+      {
+        id: 'r-back',
+        applicantId: 'ap2',
+        missionId: 'm2',
+        kind: 'DOCUMENT',
+        docType: 'PASSPORT',
+        status: 'NEEDS_REPLACEMENT',
+        dueDate: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
+        createdAt: new Date('2026-10-01T00:00:00.000Z'),
+      },
+    ]);
+    const text = textOf(await renderServer(Page(pageProps())));
+    expect(text).toMatch(/Evidence Requests Waiting on the Applicant 1/);
+    expect(text).toContain('Waiting on Traveller 1');
+    expect(text).toMatch(/Sent back for a fix and was due/);
   });
 });

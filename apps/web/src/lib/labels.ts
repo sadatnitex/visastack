@@ -132,6 +132,12 @@ export const CASE_TRIAGE_STATE_LABELS: Readonly<Record<CaseTriageState, string>>
   NO_CHECKLIST: 'No Checklist Attached',
 };
 
+/**
+ * The complete-checklist line for someone who cannot see the agency's requests. Without them we
+ * cannot say nothing is still waiting, so we never call the case Ready for Review for them.
+ */
+export const CHECKLIST_COMPLETE_LABEL = 'Checklist Complete';
+
 /** Short notes beside an item's group. They explain the group and never replace it. */
 export const TRIAGE_INDICATOR_LABELS: Readonly<Record<TriageIndicator, string>> = {
   OPTIONAL: 'Optional',

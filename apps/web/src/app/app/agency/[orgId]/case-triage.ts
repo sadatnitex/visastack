@@ -13,6 +13,7 @@ import {
 import { formatDateOnly } from '../../../../lib/format-date';
 import {
   CASE_TRIAGE_STATE_LABELS,
+  CHECKLIST_COMPLETE_LABEL,
   TRIAGE_GROUP_LABELS,
   TRIAGE_INDICATOR_LABELS,
 } from '../../../../lib/labels';
@@ -68,7 +69,12 @@ export function caseTriageView(
   })).filter((entry) => entry.items.length > 0);
   return {
     state: summary.state,
-    stateLabel: CASE_TRIAGE_STATE_LABELS[summary.state],
+    // Someone who cannot see requests cannot know nothing else is waiting, so a complete
+    // checklist is only that for them, never Ready for Review (the administrator's view).
+    stateLabel:
+      summary.state === 'READY_FOR_REVIEW' && !options.requestsIncluded
+        ? CHECKLIST_COMPLETE_LABEL
+        : CASE_TRIAGE_STATE_LABELS[summary.state],
     groups,
     requestsLeftOut: !options.requestsIncluded,
   };

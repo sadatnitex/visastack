@@ -85,6 +85,13 @@ export default async function AgencyCasesPage({
                   decisions: mission.decisions,
                   // Belt and braces: only an administrator's requests ever reach the summary.
                   requests: data.admin ? data.requests : [],
+                  documentStates: new Map(
+                    data.requests.flatMap((r) =>
+                      data.admin && r.respondingDocumentState !== undefined
+                        ? [[r.id, r.respondingDocumentState] as const]
+                        : [],
+                    ),
+                  ),
                 }),
                 {
                   requirementLabels: new Map(mission.requirements.map((r) => [r.id, r.label])),
