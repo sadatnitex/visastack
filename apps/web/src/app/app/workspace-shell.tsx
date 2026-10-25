@@ -85,7 +85,7 @@ function WorkspaceSelector({
     : kind === 'platform'
       ? 'Platform'
       : kind === 'unavailable'
-        ? 'Choose'
+        ? 'No access'
         : name;
   const spoken = isPerson
     ? `${restOfName(name)}, acting as this person, ${caption}`
@@ -94,6 +94,7 @@ function WorkspaceSelector({
     <details
       ref={selector}
       className={compact ? 'workspace-selector workspace-chip' : 'workspace-selector'}
+      data-initials={compact && !isPerson ? 'false' : undefined}
       onKeyDown={(event) => {
         if (event.key === 'Escape' && selector.current?.open) {
           selector.current.open = false;
@@ -117,7 +118,7 @@ function WorkspaceSelector({
         {compact ? (
           // Visible: a short label. Read aloud: the visible words first, then the full context.
           <>
-            <span>
+            <span className="workspace-chip-label">
               <b dir="auto">{chipText || caption}</b>
               <span className="sr-only">{spoken}</span>
             </span>

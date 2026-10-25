@@ -149,6 +149,15 @@ describe('phone navigation and the context chip (WP-X3)', () => {
     expect(chip()?.querySelector('.workspace-avatar')).toBeNull();
   });
 
+  it('labels a context with no access plainly, without initials, and lets the label shrink', () => {
+    route.pathname = '/app/applicant/30000000-0000-4000-8000-000000000009';
+    mount(FULL);
+    expect(chip()?.querySelector('b')?.textContent).toBe('No access');
+    expect(chip()?.querySelector('.workspace-avatar')).toBeNull();
+    expect(chip()?.getAttribute('data-initials')).toBe('false');
+    expect(chip()?.querySelector('summary > .workspace-chip-label b')).not.toBeNull();
+  });
+
   it('stays open when a choice inside its own list is tapped', () => {
     mount(FULL);
     const details = chip();
@@ -183,5 +192,12 @@ describe('the chip is a phone-only part of the stylesheet', () => {
     );
     expect(searchLayers.length).toBeGreaterThan(0);
     expect(listLayer).toBeGreaterThan(Math.max(...searchLayers));
+    // Help leaves the phone top bar only because the account menu still offers it.
+    expect(css).toMatch(/\.record-toolbar-shortcuts a\[href="\/app\/help"\] \{\s*display: none;/);
+    const { readFileSync: read } = await import('node:fs');
+    const toolbar = read(`${process.cwd()}/src/app/app/workspace-record-toolbar.tsx`, 'utf8');
+    expect(toolbar).toContain('<Link href="/app/help">Help & support</Link>');
+    // The label trims by its own class, not by position after the initials.
+    expect(css).toMatch(/\.workspace-chip \.workspace-chip-label \{\s*min-width: 0;\s*flex: 1;/);
   });
 });

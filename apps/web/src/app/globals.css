@@ -5910,6 +5910,14 @@ body:has(.auth-shell) > .footer {
     width: 32px;
     height: 32px;
   }
+  /* The label shrinks and trims whether or not initials come first. */
+  .workspace-chip .workspace-chip-label {
+    min-width: 0;
+    flex: 1;
+  }
+  .workspace-chip[data-initials="false"] summary {
+    padding-left: 12px;
+  }
   .workspace-chip b {
     overflow: hidden;
     white-space: nowrap;
@@ -5960,5 +5968,9 @@ body:has(.auth-shell) > .footer {
   }
   .record-toolbar .record-account summary .account-icon-mobile {
     display: flex;
+  }
+  /* Help stays one tap away in the account menu; its icon here gives the context label room. */
+  .record-toolbar .record-toolbar-shortcuts a[href="/app/help"] {
+    display: none;
   }
 }
