@@ -159,6 +159,38 @@ describe('traveller insights: mismatches', () => {
     expect(result.mismatches.map((m) => m.key)).toEqual(['m1', 'm2']);
   });
 
+  it('names a saved conflict by section only when its passport was replaced or its source is unknown', () => {
+    const result = buildTravellerInsights(
+      input({
+        documents: [
+          doc('old-pass', 'PASSPORT', { lifecycle: 'SUPERSEDED' }),
+          doc('job', 'EMPLOYMENT_CERTIFICATE'),
+        ],
+        facts: [
+          // Read from a passport that has since been replaced.
+          fact('passport_number', 'BX7319046', {
+            status: 'CONFLICTED',
+            sourceDocumentId: 'old-pass',
+          }),
+          // Read from a document not among the traveller's own (hidden from the wallet).
+          fact('date_of_birth', '1987-03-14', { status: 'CONFLICTED', sourceDocumentId: 'hidden' }),
+          // No source recorded at all.
+          fact('family_name', 'Rahman', { status: 'CONFLICTED' }),
+          // An everyday document still names its detail.
+          fact('job_title', 'Engineer', { status: 'CONFLICTED', sourceDocumentId: 'job' }),
+        ],
+      }),
+    );
+    expect(
+      result.mismatches.map((m) => [m.fieldKey, m.section?.key, m.document?.id ?? null]),
+    ).toEqual([
+      [null, 'passport', null],
+      [null, 'identity_basics', null],
+      [null, 'identity_basics', null],
+      ['job_title', 'employment', 'job'],
+    ]);
+  });
+
   it('names the detail for an everyday document', () => {
     const result = buildTravellerInsights(
       input({

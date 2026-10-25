@@ -377,11 +377,14 @@ export function buildTravellerInsights(input: InsightsInput): TravellerInsights 
     .sort((a, b) => b.backedCount - a.backedCount);
 
   // 2. Mismatches: only that two values differ, and where. Values never leave this function.
+  // Every document given, replaced ones included: restriction is decided by the document's own kind.
+  const sourceById = new Map(input.documents.map((document) => [document.id, document] as const));
   const mismatches: MismatchEntry[] = [];
   const mismatchKeys = new Set<string>();
   const addMismatch = (
     dedupeKey: string,
     document: InsightDocumentRef | null,
+    restricted: boolean,
     fieldKey: string,
     source: MismatchEntry['source'],
   ): void => {
@@ -390,19 +393,24 @@ export function buildTravellerInsights(input: InsightsInput): TravellerInsights 
     mismatches.push({
       key: `m${mismatches.length + 1}`,
       document,
-      // A restricted document's details are named by section only.
-      fieldKey: document?.restricted ? null : fieldKey,
+      // A detail from a restricted (or unknown) document is named by section only.
+      fieldKey: restricted ? null : fieldKey,
       section: sectionOf(fieldKey),
       source,
     });
   };
   for (const fact of input.facts) {
     if (fact.status !== 'CONFLICTED') continue;
-    // A value from a replaced document is still a conflict on the profile; the document goes unnamed.
+    // A value from a replaced document is still a conflict on the profile; the document goes
+    // unnamed, but its own kind still decides whether the detail may be named. A source that is
+    // not among the traveller's documents (hidden from the wallet, or none recorded) counts as
+    // restricted.
     const document = fact.sourceDocumentId ? (refs.get(fact.sourceDocumentId) ?? null) : null;
+    const source = fact.sourceDocumentId ? sourceById.get(fact.sourceDocumentId) : undefined;
     addMismatch(
       `saved:${fact.fieldKey}:${fact.repeatingRecordKey ?? ''}`,
       document,
+      source ? isRestrictedDocumentType(source.docType) : true,
       fact.fieldKey,
       'saved_conflict',
     );
@@ -429,6 +437,7 @@ export function buildTravellerInsights(input: InsightsInput): TravellerInsights 
     addMismatch(
       `reading:${reading.documentId}:${reading.fieldKey}`,
       document,
+      document.restricted,
       reading.fieldKey,
       'pending_reading',
     );
