@@ -2,6 +2,7 @@
 
 import { useActionState, useCallback, useId, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { StatusBadge } from '../../../../components/ui';
 import { humanizeFieldKey } from '../../../../lib/field-key-label';
 import { documentTypeLabel } from '../../../../lib/labels';
 import { profileField } from '../../../../lib/profile-fields';
@@ -189,9 +190,12 @@ export function AiProposalReview({
   canApprove,
   onEditedChange,
   onResult,
+  locked = false,
 }: {
   readonly applicantId: string;
   readonly proposal: AiProposalViewModel;
+  /** Accepting all clear details is running: this card's buttons refuse clicks until it finishes (focus stays put). */
+  readonly locked?: boolean;
   /** Tells the list when the value was changed, so it is no longer accepted in bulk as read. */
   readonly onEditedChange?: (id: string, edited: boolean) => void;
   /** Hands the outcome to the list, which stays on screen after this card is gone. */
@@ -236,10 +240,10 @@ export function AiProposalReview({
     >
       <header className="finding-card-head">
         <h4 id={headingId}>{label}</h4>
-        <span className={`badge ${clear ? 'badge-success' : 'badge-warning'}`}>
+        <StatusBadge tone={clear ? 'success' : 'warning'}>
           {clear ? 'Clear' : 'Please Check'}
-        </span>
-        {proposal.sensitive ? <span className="badge badge-neutral">Sensitive</span> : null}
+        </StatusBadge>
+        {proposal.sensitive ? <StatusBadge tone="neutral">Sensitive</StatusBadge> : null}
       </header>
       {quote ? (
         <p className="finding-source">
@@ -349,9 +353,9 @@ export function AiProposalReview({
         ) : null}
         {mappable && canApprove ? (
           <SubmitButton
-            pending={pending}
+            pending={pending || locked}
             idle={difference ? 'Save My Choice' : 'Accept'}
-            busy="Saving…"
+            busy={pending ? 'Saving…' : difference ? 'Save My Choice' : 'Accept'}
             className="btn btn-primary"
             name="proposalAction"
             value="approve"
@@ -364,9 +368,9 @@ export function AiProposalReview({
         <input type="hidden" name="applicantId" value={applicantId} />
         <input type="hidden" name="proposalId" value={proposal.id} />
         <SubmitButton
-          pending={pending}
+          pending={pending || locked}
           idle="Skip"
-          busy="Skipping…"
+          busy={pending ? 'Skipping…' : 'Skip'}
           className="btn btn-secondary"
           name="proposalAction"
           value="reject"
@@ -467,6 +471,7 @@ export function DocumentFindings({
           canApprove={canApprove}
           onEditedChange={markEdited}
           onResult={setLastResult}
+          locked={pending}
         />
       ))}
     </div>

@@ -6166,9 +6166,8 @@ body:has(.auth-shell) > .footer {
 }
 /* Check What We Found: readings from one document, decided one at a time or all clear at once. */
 .document-findings {
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-sm);
-  padding: 16px;
+  border-top: 1px solid var(--hairline-soft);
+  padding-top: 16px;
   margin-top: 12px;
 }
 .document-findings > h3 {
@@ -6182,33 +6181,37 @@ body:has(.auth-shell) > .footer {
   gap: 8px 12px;
   margin: 12px 0 4px;
 }
+/* Every card keeps the same indent; only a reading to check shows the warning stripe. */
 .finding-card {
-  border-top: 1px solid var(--hairline);
-  padding: 12px 0;
+  border-top: 1px solid var(--hairline-soft);
+  border-left: 4px solid transparent;
+  padding: 12px 0 12px 12px;
 }
 .finding-card[data-clarity="check"] {
-  border-left: 3px solid var(--warning);
-  padding-left: 12px;
+  border-left-color: var(--warning);
 }
 .finding-card-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 8px;
+  gap: 8px;
 }
 .finding-card-head h4 {
   margin: 0;
   font-size: var(--text-body);
 }
 .finding-source {
-  margin: 6px 0;
+  margin: 8px 0;
   font-size: var(--text-small);
   overflow-wrap: anywhere;
 }
 .finding-form {
   display: grid;
-  gap: 10px;
-  margin-top: 6px;
+  gap: 12px;
+  margin-top: 8px;
+}
+.finding-form .btn {
+  justify-self: start;
 }
 .finding-value {
   display: grid;
@@ -6242,7 +6245,4 @@ body:has(.auth-shell) > .footer {
 .finding-skip {
   display: inline-block;
   margin-top: 8px;
-}
-.finding-form + .finding-skip {
-  margin-left: 0;
 }

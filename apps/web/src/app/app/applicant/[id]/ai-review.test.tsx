@@ -230,4 +230,33 @@ describe('check what we found', () => {
     expect(host.querySelector('.finding-card')).toBeNull();
     expect(host.querySelector('output')?.textContent).toBe('Saved to your profile.');
   });
+
+  it('holds every card while all clear details are being saved, so nothing is decided twice', async () => {
+    let finish: (value: { ok: boolean; message: string }) => void = () => undefined;
+    vi.mocked(actions.acceptClearDetailsAction).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    render([
+      finding({ id: 'a', fieldLabel: 'Given Name' }),
+      finding({ id: 'b', fieldLabel: 'Occupation' }),
+    ]);
+    const cardButtons = () =>
+      [...host.querySelectorAll('.finding-card button')] as HTMLButtonElement[];
+    expect(cardButtons().every((b) => b.getAttribute('aria-disabled') !== 'true')).toBe(true);
+    await act(async () => {
+      (host.querySelector('.document-findings-bulk button') as HTMLButtonElement).click();
+    });
+    expect(cardButtons().length).toBeGreaterThan(0);
+    // Busy, not disabled: keyboard focus stays where it was.
+    expect(
+      cardButtons().every((b) => b.getAttribute('aria-disabled') === 'true' && !b.disabled),
+    ).toBe(true);
+    await act(async () => {
+      finish({ ok: true, message: 'Saved 2 details to your profile.' });
+    });
+    expect(cardButtons().every((b) => b.getAttribute('aria-disabled') !== 'true')).toBe(true);
+  });
 });
