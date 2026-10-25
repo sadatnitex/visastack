@@ -94,6 +94,29 @@ describe('agency Clients', () => {
     ]);
   });
 
+  it('marks an older invitation sent to a phone number as one nobody can accept', async () => {
+    mocks.loadPendingClientInvitations.mockResolvedValue([
+      {
+        id: 'ci1',
+        displayName: 'Karim Hossain',
+        contactDestination: 'karim@example.com',
+        expiresAt: '2026-11-01T00:00:00Z',
+      },
+      {
+        id: 'ci2',
+        displayName: 'Rina Akter',
+        contactDestination: '+880 1711 000000',
+        expiresAt: '2026-11-01T00:00:00Z',
+      },
+    ]);
+    const text = textOf(await renderServer(Page(props)));
+    expect(text).toContain('Cannot be accepted');
+    expect(text).toContain('revoke and invite again by email');
+    // Only the phone row: the email invitation still reads as invited.
+    expect(text.match(/Cannot be accepted/g)).toHaveLength(1);
+    expect(text).toMatch(/Invited . expires/);
+  });
+
   it('gives the invitation form the team it can assign, active or not', async () => {
     const [form] = stubProps<{ organizationId: string; members: unknown }>(
       await renderServer(Page(props)),

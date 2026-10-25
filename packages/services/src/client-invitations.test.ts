@@ -747,6 +747,12 @@ describe('client invitations - agency invites a traveller as a new client (Comme
         .where(eq(dbSchema.clientInvitations.id, created.value.invitation.id));
       expect(row?.status).toBe('PENDING');
       expect(await db.select().from(dbSchema.missions)).toHaveLength(0);
+      const refusals = await db
+        .select()
+        .from(dbSchema.auditEvents)
+        .where(eq(dbSchema.auditEvents.eventType, 'CLIENT_INVITATION_WRONG_RECIPIENT'));
+      expect(refusals.length).toBeGreaterThan(0);
+      expect(refusals.every((e) => e.reason === 'phone_invitation')).toBe(true);
     }, 30_000);
 
     it('an account already working with this agency still cannot claim an invitation sent to someone else (T04)', async () => {

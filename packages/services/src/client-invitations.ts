@@ -58,7 +58,8 @@ async function isIntendedRecipient(
   // Fails closed: a phone contact binds to nobody, and a malformed address
   // (a trailing dot, a name in angle brackets) matches no account exactly.
   if (!isEmailInvitationContact(contactDestination)) return false;
-  const bound = contactDestination.trim().toLowerCase();
+  // One character form on both sides, so an accented address typed two ways still matches.
+  const bound = contactDestination.trim().normalize('NFC').toLowerCase();
   const account = first(
     await db
       .select({ email: schema.accounts.email })
@@ -66,7 +67,7 @@ async function isIntendedRecipient(
       .where(eq(schema.accounts.id, accountId))
       .limit(1),
   );
-  return account?.email.trim().toLowerCase() === bound;
+  return account?.email.trim().normalize('NFC').toLowerCase() === bound;
 }
 
 /** The same neutral refusal sharing invitations give: it names no person, route or case. */
@@ -94,6 +95,7 @@ async function recordWrongRecipient(
   invitationId: string,
   organizationId: string,
   stage: 'preview' | 'accept',
+  contactDestination: string,
 ): Promise<void> {
   try {
     const already = first(
@@ -119,7 +121,10 @@ async function recordWrongRecipient(
         result: 'DENIED',
         resourceType: 'client_invitation',
         resourceId: invitationId,
-        reason: 'wrong_recipient',
+        // A phone invitation is refused for everyone, not because of the account.
+        reason: isEmailInvitationContact(contactDestination)
+          ? 'wrong_recipient'
+          : 'phone_invitation',
         metadata: { organizationId, stage },
       });
     });
@@ -308,7 +313,14 @@ export async function previewClientInvitation(
   if (!row) return err(serviceError('not_found', 'invitation not found'));
   // First, so someone else's link says nothing about whether it was used, revoked or expired.
   if (!(await isIntendedRecipient(db, row.contactDestination, viewerAccountId))) {
-    await recordWrongRecipient(db, viewerAccountId, row.id, row.organizationId, 'preview');
+    await recordWrongRecipient(
+      db,
+      viewerAccountId,
+      row.id,
+      row.organizationId,
+      'preview',
+      row.contactDestination,
+    );
     return err(serviceError('forbidden', refusalFor(row.contactDestination)));
   }
   if (row.status !== 'PENDING') {
@@ -381,6 +393,7 @@ export async function acceptClientInvitation(
       invitation.id,
       invitation.organizationId,
       'accept',
+      invitation.contactDestination,
     );
     return err(serviceError('forbidden', refusalFor(invitation.contactDestination)));
   }
