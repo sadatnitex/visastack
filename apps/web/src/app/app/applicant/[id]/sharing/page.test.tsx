@@ -61,7 +61,7 @@ describe('actual authorized sharing composition', () => {
       value: [grant('ACTIVE'), grant('PENDING_ACCEPTANCE')],
     });
     const html = await render();
-    expect(textOf(html)).toContain('1 active grants');
+    expect(textOf(html)).toContain('1 active grant. ');
     expect(textOf(html)).toContain('Passport summary');
     const ops = stubProps<{ ops: { op: string }[] }>(html, 'GrantOpButtons');
     expect(ops[0]?.ops.map((op) => op.op)).toEqual(['pause', 'revoke']);

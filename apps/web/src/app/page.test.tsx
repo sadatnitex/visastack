@@ -153,7 +153,7 @@ describe('the public home page (Harbor C1, WP-L1)', () => {
       'Every visa starts with the same scramble',
       'Three Simple Steps',
       'Switched On Step by Step',
-      'Calmer for the traveller, clearer for the agency',
+      'Calmer for the Traveller, Clearer for the Agency',
       'How VisaStack Treats Your Information',
       'Honest about where we are',
       'Stop starting from zero.',
@@ -164,7 +164,7 @@ describe('the public home page (Harbor C1, WP-L1)', () => {
 
   it('shows the before and after', async () => {
     const text = textOf(await render());
-    expect(text).toContain('Without one profile');
+    expect(text).toContain('Without One Profile');
     expect(text).toContain('With VisaStack');
   });
 

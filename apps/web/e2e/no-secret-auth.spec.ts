@@ -8,7 +8,7 @@ test('account recovery explains verification without exposing an account', async
   await expect(
     page.getByText('Resetting a password confirms access to your email.', { exact: false }),
   ).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Sign Out', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Back to Home', exact: true })).toHaveAttribute(
     'href',
     '/',

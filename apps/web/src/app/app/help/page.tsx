@@ -17,7 +17,7 @@ export default function HelpPage() {
             Choose a traveller to open their profile, document wallet, cases and sharing controls.
             Each workspace stays connected to the selected person.
           </p>
-          <Link href="/app/applicants">Choose or manage travellers</Link>
+          <Link href="/app/applicants">Choose or Manage Travellers</Link>
         </article>
         <article className="card">
           <h2 className="card-title">Your Agency</h2>

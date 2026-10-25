@@ -236,7 +236,7 @@ describe('wallet ownership, explicit selection and truthful safety state', () =>
       ],
     });
     const html = await render('unsafe');
-    expect(html).toMatch(/Ready to use<\/span><strong>0<\/strong>/);
+    expect(html).toMatch(/Ready to Use<\/span><strong>0<\/strong>/);
     expect(textOf(html)).toContain('Preview is blocked');
     expect(html).not.toContain('>Preview</button>');
   });

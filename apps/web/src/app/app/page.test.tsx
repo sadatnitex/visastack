@@ -86,6 +86,17 @@ describe('home (characterization before WP-V3)', () => {
     ]);
   });
 
+  it('gives each permission name and its meaning their own element, so they never run together', async () => {
+    data.consents = { CORE_PROCESSING: { grantedAt: new Date() } };
+    data.applicants = [SELF];
+    const html = await renderServer(Page({}));
+    expect(html).toContain(
+      '<span class="consent-name">Let VisaStack Process My Details</span> <span class="consent-meaning">Needed before',
+    );
+    expect(html.match(/class="consent-name"/g)).toHaveLength(6);
+    expect(html.match(/class="consent-meaning"/g)).toHaveLength(6);
+  });
+
   it('puts what someone is waiting on first, and lists the rest', async () => {
     data.consents = { CORE_PROCESSING: { grantedAt: new Date() } };
     data.applicants = [SELF];
@@ -133,7 +144,7 @@ describe('task-first first run (WP-V3, D8)', () => {
     expect(html).toContain('href="/app?setup=later"');
   });
 
-  it('"Not now" shows the ordinary home with every consent control', async () => {
+  it('"Not Now" shows the ordinary home with every consent control', async () => {
     const html = await page({ setup: 'later' });
     expect(textOf(html)).toContain('Permissions You Control');
     expect(stubProps(html, 'ConsentButton')).toHaveLength(6);
@@ -173,13 +184,13 @@ describe('task-first first run (WP-V3, D8)', () => {
     const html = await page({ next });
     expect(textOf(html)).toContain('Step 2 of 2');
     expect(stubProps(html, 'AddApplicantForm')).toHaveLength(1);
-    // "Not now" goes to the task too, rather than leaving the invitation behind.
+    // "Not Now" goes to the task too, rather than leaving the invitation behind.
     expect(html).toContain(`href="${next.replaceAll('&', '&amp;')}"`);
     data.applicants = [SELF];
     await expect(page({ next })).rejects.toThrow(`NEXT_REDIRECT:${next}`);
   });
 
-  it('"Not now" also skips the welcome redirect', async () => {
+  it('"Not Now" also skips the welcome redirect', async () => {
     data.consents = CORE;
     const text = textOf(await page({ setup: 'later', welcome: '1' }));
     expect(text).toContain('Welcome Back');
@@ -215,15 +226,15 @@ describe('task-first first run (WP-V3, D8)', () => {
     let html = await page({ welcome: '1' });
     let text = textOf(html);
     expect(text).toContain('What do you want to do?');
-    expect(text).toContain('Update or find my records');
-    expect(text).not.toContain('Complete a request');
+    expect(text).toContain('Update or Find My Records');
+    expect(text).not.toContain('Complete a Request');
     expect(text).not.toContain('Prepare a brief');
     expect(html).toContain(`href="/app/applicant/${SELF.id}"`);
     expect(html).toContain('href="/app"');
     data.openRequests = 1;
     html = await page({ welcome: '1' });
     text = textOf(html);
-    expect(text).toContain('Complete a request');
+    expect(text).toContain('Complete a Request');
     expect(html).toContain(`href="/app/applicant/${SELF.id}/evidence"`);
   });
 
@@ -266,7 +277,7 @@ describe('task-first first run (WP-V3, D8)', () => {
     data.applicants = [SELF];
     data.pendingGrants = 1;
     const html = await page({ welcome: '1' });
-    expect(textOf(html)).toContain('Complete a request');
+    expect(textOf(html)).toContain('Complete a Request');
     expect(html).toContain('href="/app/shared"');
   });
 });

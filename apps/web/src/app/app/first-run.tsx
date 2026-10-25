@@ -49,7 +49,7 @@ export function FirstRunConsent({
         text="Allow core processing"
       />
       <p className="first-run-later">
-        <Link href={laterHref}>Not now</Link>
+        <Link href={laterHref}>Not Now</Link>
       </p>
       <p className="muted first-run-note">
         Without it you can still browse countries and read help.{' '}
@@ -68,7 +68,7 @@ export function FirstRunName({ laterHref = SETUP_LATER_HREF }: { readonly laterH
       </h1>
       <AddApplicantForm firstRun />
       <p className="first-run-later">
-        <Link href={laterHref}>Not now</Link>
+        <Link href={laterHref}>Not Now</Link>
       </p>
     </section>
   );
@@ -91,20 +91,20 @@ export function FirstRunTask({ requestHref, recordsHref }: FirstRunTaskProps) {
         {requestHref ? (
           <li>
             <Link href={requestHref}>
-              <b>Complete a request</b>
+              <b>Complete a Request</b>
               <span>An agency asked you for something</span>
             </Link>
           </li>
         ) : null}
         <li>
           <Link href={recordsHref}>
-            <b>Update or find my records</b>
+            <b>Update or Find My Records</b>
             <span>Documents, details and dates</span>
           </Link>
         </li>
       </ul>
       <p className="first-run-later">
-        <Link href="/app">Skip for now</Link>
+        <Link href="/app">Skip for Now</Link>
       </p>
     </section>
   );

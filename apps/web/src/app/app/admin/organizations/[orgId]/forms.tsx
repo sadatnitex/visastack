@@ -184,7 +184,7 @@ export function ScheduleDowngradeForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="downgrade-effectiveAt">
-          Effective date (optional -- defaults to 14 days out)
+          Effective Date (Optional -- Defaults to 14 Days Out)
         </label>
         <input id="downgrade-effectiveAt" name="effectiveAt" type="date" className="input" />
       </div>

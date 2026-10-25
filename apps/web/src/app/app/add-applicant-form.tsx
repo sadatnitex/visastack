@@ -13,7 +13,7 @@ const INITIAL: ActionState = { ok: true, message: '' };
 
 /**
  * Adds an applicant. With `firstRun`, the same action and values are presented as the first-run
- * question "Who is this record for?" (Me, or Someone I manage, which then asks Family member or
+ * question "Who is this record for?" (Me, or Someone I Manage, which then asks Family Member or
  * Minor and the authority confirmation). The page moves on by itself once the applicant exists.
  */
 export function AddApplicantForm({ firstRun = false }: { readonly firstRun?: boolean } = {}) {
@@ -31,7 +31,7 @@ type ManagedKind = 'FAMILY_MEMBER' | 'MINOR_GUARDIAN';
  * The first-run form sends what the person chose with the radios themselves (whoFor, and
  * managedKind for someone they manage), so it works the same before the page has finished
  * loading or without scripts; the server works out the relationship from them. The second
- * question and the authority confirmation show only for Someone I manage, by style alone.
+ * question and the authority confirmation show only for Someone I Manage, by style alone.
  */
 function FirstRunApplicantForm() {
   const [state, formAction, pending] = useActionState(createApplicantAction, INITIAL);
@@ -70,7 +70,7 @@ function FirstRunApplicantForm() {
             }}
           />
           <span>
-            <b>Someone I manage</b>
+            <b>Someone I Manage</b>
             <small>A family member</small>
           </span>
         </label>
@@ -88,7 +88,7 @@ function FirstRunApplicantForm() {
               {...fieldProblem(state, 'managedKind', messageId)}
             />
             <span>
-              <b>Family member</b>
+              <b>Family Member</b>
               <small>Adult relative</small>
             </span>
           </label>
@@ -101,7 +101,7 @@ function FirstRunApplicantForm() {
               onChange={() => setManagedKind('MINOR_GUARDIAN')}
             />
             <span>
-              <b>Minor (guardian)</b>
+              <b>Minor (Guardian)</b>
               <small>A child in my care</small>
             </span>
           </label>

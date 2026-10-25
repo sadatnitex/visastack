@@ -86,7 +86,7 @@ export default async function AccountPage() {
             }}
           >
             <button type="submit" className="btn btn-secondary">
-              Sign out
+              Sign Out
             </button>
           </form>
         </article>

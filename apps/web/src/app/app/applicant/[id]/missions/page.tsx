@@ -90,7 +90,7 @@ export default async function MissionsPage({
             <CreateMissionForm applicantId={id} />
           ) : (
             <p className="card-body">
-              Turn on <strong>Let VisaStack process my details</strong> on Home to create cases.
+              Turn on <strong>Let VisaStack Process My Details</strong> on Home to create cases.
             </p>
           )}
         </article>

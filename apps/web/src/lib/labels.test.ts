@@ -18,6 +18,7 @@ import {
   titleCase,
 } from './labels';
 
+import { toTitleCase } from './title-case';
 const TABLES: ReadonlyArray<
   readonly [string, readonly string[], Readonly<Record<string, string>>]
 > = [
@@ -39,8 +40,10 @@ describe('plain labels for stored codes', () => {
         const label = labels[value] ?? '';
         expect(label, value).not.toBe(value);
         expect(label, value).not.toMatch(/[_]|^[A-Z0-9 ]+$/);
-        // Stand-alone labels have every word capitalised.
-        expect(label, value).toMatch(/^([A-Z][a-z]*)( [A-Z][a-z]*)*$/);
+        // Stand-alone labels are names in Title Case: every word capitalised apart from small
+        // joining words ("Waiting for Review"), and only letters and spaces.
+        expect(label, value).toMatch(/^[A-Z][A-Za-z ]*$/);
+        expect(label, value).toBe(toTitleCase(label));
       }
     });
   }

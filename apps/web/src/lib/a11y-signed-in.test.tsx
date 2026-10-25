@@ -227,7 +227,7 @@ describe('what each state says, in plain words', () => {
 
   it('shows a pending share as waiting for the person, with the one action that moves it on', async () => {
     const text = textOf(await shellMarkup(SCREENS[3] as Screen));
-    expect(text).toContain('Awaiting your acceptance');
+    expect(text).toContain('Awaiting Your Acceptance');
     expect(text).toContain('Accept Access');
     expect(text).toContain('Open Workspace');
     expect(text).toContain('Revoked');
@@ -242,7 +242,7 @@ describe('what each state says, in plain words', () => {
 
   it('explains why adding a person is not offered yet', async () => {
     expect(textOf(await shellMarkup(SCREENS[5] as Screen))).toContain(
-      'Let VisaStack process my details',
+      'Let VisaStack Process My Details',
     );
   });
 

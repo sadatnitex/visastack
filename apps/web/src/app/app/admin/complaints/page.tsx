@@ -73,7 +73,7 @@ export default async function AdminComplaintsPage() {
           ← Admin
         </Link>
       </div>
-      <PageHeader eyebrow="Quality" title={<>Complaint &amp; feedback triage</>} />
+      <PageHeader eyebrow="Quality" title={<>Complaint &amp; Feedback Triage</>} />
 
       <article className="card u-mb-150">
         <p className="card-kicker">Oversight</p>

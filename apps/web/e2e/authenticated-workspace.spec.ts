@@ -333,19 +333,19 @@ test.describe
       page,
     }) => {
       await signIn(page);
-      await ensureConsent(page, 'Let VisaStack process my details');
-      await ensureConsent(page, 'Let me share with others');
+      await ensureConsent(page, 'Let VisaStack Process My Details');
+      await ensureConsent(page, 'Let Me Share with Others');
 
       // Revoking one must never require re-granting the other (finding #22,
       // post-programme defect register) -- verified directly here, not just
       // at the unit level.
       await page.goto('/app');
-      const sharingRow = page.locator('.row', { hasText: 'Let me share with others' });
+      const sharingRow = page.locator('.row', { hasText: 'Let Me Share with Others' });
       await sharingRow.getByRole('button', { name: 'Turn off' }).click();
       await expect(sharingRow.getByRole('button', { name: 'Turn On' })).toBeVisible({
         timeout: 10_000,
       });
-      const coreRow = page.locator('.row', { hasText: 'Let VisaStack process my details' });
+      const coreRow = page.locator('.row', { hasText: 'Let VisaStack Process My Details' });
       await expect(coreRow.getByRole('button', { name: 'Turn off' })).toBeVisible();
 
       // Re-grant sharing so later tests in this file that depend on it
@@ -367,7 +367,7 @@ test.describe
       // timeout before ever reaching its real (successful) terminal state.
       test.setTimeout(120_000);
       await signIn(page);
-      await ensureConsent(page, 'Let VisaStack process my details');
+      await ensureConsent(page, 'Let VisaStack Process My Details');
       const applicantUrl = await createApplicant(page, 'E2E Evidence');
 
       await page.goto(`${applicantUrl}/documents`);
@@ -420,7 +420,7 @@ test.describe
 
     test('creates a mission', async ({ page }) => {
       await signIn(page);
-      await ensureConsent(page, 'Let VisaStack process my details');
+      await ensureConsent(page, 'Let VisaStack Process My Details');
       const applicantUrl = await createApplicant(page, 'E2E Mission');
 
       await page.goto(`${applicantUrl}/missions`);
@@ -446,8 +446,8 @@ test.describe
       // testing over this same, real safety guard, checking the app never
       // silently no-ops or half-creates a grant for an address nobody owns.
       await signIn(page);
-      await ensureConsent(page, 'Let VisaStack process my details');
-      await ensureConsent(page, 'Let me share with others');
+      await ensureConsent(page, 'Let VisaStack Process My Details');
+      await ensureConsent(page, 'Let Me Share with Others');
       const applicantUrl = await createApplicant(page, 'E2E Sharing Safety');
 
       await page.goto(`${applicantUrl}/sharing`);
@@ -465,7 +465,7 @@ test.describe
 
     test('views fact history for an applicant', async ({ page }) => {
       await signIn(page);
-      await ensureConsent(page, 'Let VisaStack process my details');
+      await ensureConsent(page, 'Let VisaStack Process My Details');
       const applicantUrl = await createApplicant(page, 'E2E History');
 
       await page.goto(`${applicantUrl}/history`);
@@ -567,8 +567,8 @@ test.describe
       baseURL,
     }) => {
       await signIn(page);
-      await ensureConsent(page, 'Let VisaStack process my details');
-      await ensureConsent(page, 'Let me share with others');
+      await ensureConsent(page, 'Let VisaStack Process My Details');
+      await ensureConsent(page, 'Let Me Share with Others');
       sharedFixture.applicantUrl = await createApplicant(page, 'E2E Cross Account');
       sharedFixture.applicantName =
         (await page.locator('h1').first().textContent())?.trim() ?? 'E2E Cross Account';
@@ -582,7 +582,7 @@ test.describe
       const pendingRow = page.locator('.row', { hasText: 'E2E revoke before acceptance' });
       await expect(pendingRow).toBeVisible({ timeout: 10_000 });
       await pendingRow.getByRole('button', { name: 'Revoke' }).click();
-      await pendingRow.getByRole('button', { name: 'Yes, revoke access' }).click();
+      await pendingRow.getByRole('button', { name: 'Yes, Revoke Access' }).click();
       await expect(page.locator('.row', { hasText: 'E2E revoke before acceptance' })).toContainText(
         /revoked/i,
         { timeout: 10_000 },

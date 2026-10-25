@@ -44,27 +44,27 @@ describe('the status page', () => {
     );
     // The answer comes before the list, the explanation and the refresh controls.
     expect(html.indexOf('Everything is working')).toBeLessThan(html.indexOf('You can use now'));
-    expect(html.indexOf('Everything is working')).toBeLessThan(html.indexOf('Check now'));
+    expect(html.indexOf('Everything is working')).toBeLessThan(html.indexOf('Check Now'));
   });
 
   it('lists each feature by name with what state it is in, and what is not switched on yet', () => {
     const text = textOf(render());
-    expect(text).toContain('Signing in Working');
-    expect(text).toContain('Uploading documents Working');
-    expect(text).toContain('AI suggestions from documents Not Set Up Yet');
-    expect(text).toContain('Virus scanning of uploads Not Set Up Yet');
-    expect(text).toContain('Downloading original files Switched Off for Now');
+    expect(text).toContain('Signing In Working');
+    expect(text).toContain('Uploading Documents Working');
+    expect(text).toContain('AI Suggestions from Documents Not Set Up Yet');
+    expect(text).toContain('Virus Scanning of Uploads Not Set Up Yet');
+    expect(text).toContain('Downloading Original Files Switched Off for Now');
   });
 
   it('splits features into what can be used now and what is not switched on yet', () => {
     const html = render();
     const now = html.slice(html.indexOf('You can use now'), html.indexOf('Not switched on yet'));
     const later = html.slice(html.indexOf('Not switched on yet'));
-    expect(textOf(now)).toContain('Signing in');
+    expect(textOf(now)).toContain('Signing In');
     expect(textOf(now)).not.toContain('Virus scanning');
-    expect(textOf(later)).toContain('Virus scanning of uploads');
-    expect(textOf(later)).toContain('Downloading original files');
-    expect(textOf(later)).not.toContain('Signing in');
+    expect(textOf(later)).toContain('Virus Scanning of Uploads');
+    expect(textOf(later)).toContain('Downloading Original Files');
+    expect(textOf(later)).not.toContain('Signing In');
   });
 
   it('never prints a raw key, a state code, a path or a tool name', () => {
@@ -109,7 +109,7 @@ describe('the status page', () => {
     // A `disabled` button cannot be focused, so a keyboard user resting on it would lose their
     // place every time the page re-checks by itself.
     expect(html).not.toMatch(/<button[^>]*\sdisabled/);
-    expect(textOf(render())).toContain('Check now');
+    expect(textOf(render())).toContain('Check Now');
     expect(render()).not.toContain('aria-disabled');
   });
 

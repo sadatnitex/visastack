@@ -173,7 +173,7 @@ export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProp
                 className="btn btn-secondary"
                 onClick={() => setConfirming(false)}
               >
-                Keep my account
+                Keep My Account
               </button>
             </div>
           </div>

@@ -21,6 +21,7 @@ import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-
 import { grantStatusBadge } from '../../../../../lib/grant-status';
 import { getLocale } from '../../../../../lib/locale';
 import { categoryLabel, newCategoriesWithData } from '../../../../../lib/master-profile';
+import { plural } from '../../../../../lib/plural';
 import { withSession } from '../../../../../lib/session';
 import { revokeSharingInvitationAction } from './actions';
 import { GrantForm } from './grant-form';
@@ -44,7 +45,7 @@ const ACTION_LABELS: Record<string, string> = {
   DOWNLOAD_REDACTED: 'Download Redacted Copies',
   DOWNLOAD_PACK: 'Download the Application Pack',
   EXPORT_PROFILE: 'Export the Full Profile',
-  SHARE: 'Re-share access',
+  SHARE: 'Re-Share Access',
   MANAGE: 'Manage the Case',
 };
 
@@ -111,12 +112,12 @@ export default async function SharingPage({
     <>
       <PageHeader
         eyebrow="Sharing"
-        title={<>Sharing &amp; access</>}
+        title={<>Sharing &amp; Access</>}
         description="You control every grant. Access is purpose-bound, takes effect only once accepted, and can be paused or revoked at any time."
         as="h2"
         actions={
           <a className="btn btn-primary" href="#new-sharing-request">
-            New sharing request
+            New Sharing Request
           </a>
         }
       />
@@ -125,10 +126,10 @@ export default async function SharingPage({
         <div className="sharing-access-column">
           <article className="card">
             <p className="card-kicker">Controlled Collaboration</p>
-            <h2 className="card-title">Who has access</h2>
+            <h2 className="card-title">Who Has Access</h2>
             <p className="card-body">
               {data.accessAvailable
-                ? `${data.grants.filter((grant) => grant.status === 'ACTIVE').length} active grants. Pending, paused and ended grants are labelled separately below.`
+                ? `${plural(data.grants.filter((grant) => grant.status === 'ACTIVE').length, 'active grant')}. Pending, paused and ended grants are labelled separately below.`
                 : 'Access records are unavailable. Reload before making changes.'}
             </p>
             {data.grants.length > 0 ? (

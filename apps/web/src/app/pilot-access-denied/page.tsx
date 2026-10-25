@@ -53,7 +53,7 @@ export default async function PilotAccessDeniedPage() {
           }}
         >
           <button type="submit" className="btn btn-primary">
-            Sign out
+            Sign Out
           </button>
         </form>
         <Link className="btn btn-secondary" href="/">

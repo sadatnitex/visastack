@@ -125,7 +125,7 @@ describe('Platform > Privacy', () => {
   it('separates a job blocked by a hold from one that failed', async () => {
     const html = await renderServer(Page());
     const text = textOf(html);
-    expect(text).toContain('Blocked by hold');
+    expect(text).toContain('Blocked by Hold');
     expect(text).toContain('5/5 attempts');
     expect(text).toContain('Account deletion');
     expect(text).toContain('Retention purge');

@@ -111,7 +111,7 @@ export function StatusView({
             if (!loading) onRefresh();
           }}
         >
-          {loading ? 'Checking…' : 'Check now'}
+          {loading ? 'Checking…' : 'Check Now'}
         </button>
       </div>
     </section>

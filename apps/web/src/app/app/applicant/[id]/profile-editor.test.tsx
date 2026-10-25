@@ -142,7 +142,7 @@ describe('section cards keep every real editing path', () => {
   it('adds an additional passport without overwriting the existing record', () => {
     act(() => tab('Travel Documents').click());
     const add = [...container.querySelectorAll('button')].find((button) =>
-      button.textContent?.includes('+ Add historical / additional passport'),
+      button.textContent?.includes('Add Historical / Additional Passport'),
     );
     if (!add) throw new Error('Missing add-record action');
     act(() => add.click());

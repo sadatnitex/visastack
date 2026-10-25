@@ -18,11 +18,11 @@ export function PublicTrustStory() {
           </p>
           <a href="/app" className="btn btn-primary">
             <Icon name="plus" size={17} />
-            Start with your own profile
+            Start with Your Own Profile
           </a>
         </div>
         <aside className="trust-control" aria-label="Example of sharing permissions">
-          <p className="trust-example-label">Illustration with made-up details</p>
+          <p className="trust-example-label">Illustration with Made-Up Details</p>
           <div className="trust-window-head">
             <h2>Sharing Permissions</h2>
             <span className="trust-control-chip">You Choose</span>
@@ -109,7 +109,7 @@ export function PublicTrustStory() {
       <div className="trust-bottom">
         <span>Clear boundaries. Human control. No approval guarantees.</span>
         <Link href="/privacy">
-          View privacy details <Icon name="arrow" size={16} />
+          View Privacy Details <Icon name="arrow" size={16} />
         </Link>
       </div>
     </section>
