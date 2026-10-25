@@ -10,6 +10,7 @@ import type {
 import { type Result, err, ok } from '@visastack/core';
 import { authorize } from '@visastack/policy';
 import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
+import { AuthorizedApplicant } from './access/require-access';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { isDocumentVersionUsable } from './documents';
@@ -1837,6 +1838,11 @@ export interface CaseTriageInput {
    * case, so it is never counted here (W0 structural flag 2).
    */
   readonly requests: readonly TriageRequestInput[];
+  /**
+   * The responding document's latest state per request id, where the caller loaded it
+   * (`listRespondingDocumentStatesForOrg`). A request not in the map is judged by its status.
+   */
+  readonly documentStates?: ReadonlyMap<string, TriageDocumentState | null>;
 }
 
 export interface CaseTriageItem {
@@ -1883,9 +1889,11 @@ export function summarizeCaseTriage(input: CaseTriageInput): CaseTriageSummary {
     }
   }
 
+  const groupOf = (request: TriageRequestInput) =>
+    evidenceRequestTriageGroup(request, input.documentStates?.get(request.id));
   const live = input.requests
     .filter((r) => r.missionId === input.missionId)
-    .filter((r) => evidenceRequestTriageGroup(r) !== null)
+    .filter((r) => groupOf(r) !== null)
     .sort((a, b) => ms(a.createdAt) - ms(b.createdAt) || a.id.localeCompare(b.id));
   // The newest live request per checklist item decides that item.
   const requestForRequirement = new Map<string, TriageRequestInput>();
@@ -1901,7 +1909,7 @@ export function summarizeCaseTriage(input: CaseTriageInput): CaseTriageSummary {
     const fromChecklist = requirementTriageGroup(result.state, decision);
     if (fromChecklist === null) continue;
     const request = requestForRequirement.get(result.packRequirementId);
-    const fromRequest = request ? evidenceRequestTriageGroup(request) : null;
+    const fromRequest = request ? groupOf(request) : null;
     let group = fromChecklist;
     let indicators = requirementIndicators(result.state, result.optional, decision);
     let dueDate: string | null = null;
@@ -1927,7 +1935,7 @@ export function summarizeCaseTriage(input: CaseTriageInput): CaseTriageSummary {
   }
   for (const request of live) {
     if (request.packRequirementId && requirementIds.has(request.packRequirementId)) continue;
-    const group = evidenceRequestTriageGroup(request);
+    const group = groupOf(request);
     if (group === null) continue;
     items.push({
       key: `request:${request.id}`,
@@ -1961,6 +1969,85 @@ export function summarizeCaseTriage(input: CaseTriageInput): CaseTriageSummary {
   } else state = 'NOT_READY';
 
   return { state, items, counts };
+}
+
+/**
+ * The latest version state of each document a traveller sent in answer to this organization's
+ * requests, for the triage groups (W0 ledger 2.1 step 4): a newer version still being checked
+ * reads as Processing, and one that is unsafe, failed or erased reads as Needs Correction, never
+ * as Received.
+ *
+ * Gated: `access` must be a genuine `requireAccess` proof of MANAGE on one case (covering that
+ * case's requests) or on the traveller as a whole (covering requests made for the traveller in
+ * general), issued to a member of `organizationId`. Requests are administrator data, so anyone
+ * else gets an empty map, never an error. Keys are request ids; a `null` value means the
+ * document can no longer be used (no version left, or erased).
+ */
+export async function listRespondingDocumentStatesForOrg(
+  access: AuthorizedApplicant<'MANAGE'>,
+  organizationId: string,
+): Promise<ReadonlyMap<string, TriageDocumentState | null>> {
+  const states = new Map<string, TriageDocumentState | null>();
+  if (!AuthorizedApplicant.isGenuine(access, 'MANAGE')) return states;
+  const { actor, resource, tx } = access;
+  if (actor.kind !== 'organization_member') return states;
+  if (actor.membership.organizationId !== organizationId) return states;
+  if (!(await isOrgAdmin(tx, actor.accountId, organizationId))) return states;
+  if (resource.kind === 'document') return states;
+
+  const scope =
+    resource.kind === 'mission'
+      ? eq(schema.evidenceRequests.missionId, resource.mission.id)
+      : isNull(schema.evidenceRequests.missionId);
+  const requests = await tx
+    .select({
+      id: schema.evidenceRequests.id,
+      documentId: schema.evidenceRequests.respondingDocumentId,
+    })
+    .from(schema.evidenceRequests)
+    .where(
+      and(
+        eq(schema.evidenceRequests.organizationId, organizationId),
+        eq(schema.evidenceRequests.applicantId, resource.applicantId),
+        eq(schema.evidenceRequests.kind, 'DOCUMENT'),
+        inArray(schema.evidenceRequests.status, ['RECEIVED', 'UNDER_REVIEW']),
+        isNotNull(schema.evidenceRequests.respondingDocumentId),
+        scope,
+      ),
+    );
+  const documentIds = [...new Set(requests.flatMap((r) => (r.documentId ? [r.documentId] : [])))];
+  if (documentIds.length === 0) return states;
+
+  const versions = await tx
+    .select({
+      documentId: schema.documentVersions.documentId,
+      versionNumber: schema.documentVersions.versionNumber,
+      safetyStatus: schema.documentVersions.safetyStatus,
+      processingStatus: schema.documentVersions.processingStatus,
+      storageObjectId: schema.documentVersions.storageObjectId,
+    })
+    .from(schema.documentVersions)
+    .where(inArray(schema.documentVersions.documentId, documentIds));
+  const latest = new Map<string, (typeof versions)[number]>();
+  for (const version of versions) {
+    const best = latest.get(version.documentId);
+    if (!best || version.versionNumber > best.versionNumber)
+      latest.set(version.documentId, version);
+  }
+  const erased = await activeOrVerifiedErasureStorageObjectIds(
+    tx,
+    [...latest.values()].map((v) => v.storageObjectId),
+  );
+  for (const request of requests) {
+    const version = request.documentId ? latest.get(request.documentId) : undefined;
+    states.set(
+      request.id,
+      !version || erased.has(version.storageObjectId)
+        ? null
+        : { processingStatus: version.processingStatus, safetyStatus: version.safetyStatus },
+    );
+  }
+  return states;
 }
 
 /** An applicant who has granted this organization something — the legitimate targets for an evidence request. */

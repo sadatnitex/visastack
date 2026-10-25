@@ -4,6 +4,8 @@ import { createMigratedPglite } from '@visastack/db/testing';
 import { and, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { EACH_GRANT, accountPrincipal, requireAccess } from './access';
+import type { AuthorizedApplicant } from './access';
 import { provisionAccount } from './accounts';
 import {
   type TRIAGE_GROUPS,
@@ -30,6 +32,7 @@ import {
   listMissionRequirementsForOrg,
   listMissionsForOrganization,
   listNotes,
+  listRespondingDocumentStatesForOrg,
   listTasksForOrg,
   listUnassignedActiveMissions,
   listVisibleMissionsForMember,
@@ -3266,6 +3269,36 @@ describe('E02 agency triage mapping (Programme X WP-V4, R03)', () => {
     );
   });
 
+  it('uses the answered file state when the caller has it, so an unsafe or gone file is never Received', () => {
+    const base = {
+      missionId: 'm1',
+      manualMode: false,
+      readiness: readiness('SATISFIED'),
+      decisions: [],
+      requests: [request({ id: 'r1', status: 'RECEIVED' })],
+    };
+    expect(summarizeCaseTriage(base).items[0]?.group).toBe('RECEIVED');
+    const unsafe = summarizeCaseTriage({
+      ...base,
+      documentStates: new Map([
+        ['r1', { processingStatus: 'NEEDS_ATTENTION', safetyStatus: 'QUARANTINED' } as const],
+      ]),
+    });
+    expect(unsafe.items[0]?.group).toBe('NEEDS_CORRECTION');
+    expect(unsafe.items[0]?.indicators).toEqual(['COULD_NOT_BE_USED']);
+    expect(unsafe.state).toBe('NOT_READY');
+    const gone = summarizeCaseTriage({ ...base, documentStates: new Map([['r1', null]]) });
+    expect(gone.items[0]?.group).toBe('NEEDS_CORRECTION');
+    const checking = summarizeCaseTriage({
+      ...base,
+      documentStates: new Map([
+        ['r1', { processingStatus: 'SCANNING', safetyStatus: 'PENDING' } as const],
+      ]),
+    });
+    expect(checking.items[0]?.group).toBe('PROCESSING');
+    expect(checking.state).toBe('NOT_READY');
+  });
+
   describe('case open date', () => {
     let db: Db;
     beforeEach(async () => {
@@ -3296,6 +3329,147 @@ describe('E02 agency triage mapping (Programme X WP-V4, R03)', () => {
       await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
       const { missions } = await listVisibleMissionsForMember(db, org.value.id, agentAcc.value.id);
       expect(missions[0]?.createdAt).toBe(mission.value.createdAt.toISOString());
+    });
+  });
+
+  describe('responding document state (gated)', () => {
+    let db: Db;
+    beforeEach(async () => {
+      db = await freshDb();
+    });
+
+    it('reads the newest version of each answered file, so an unsafe or erased newer version never reads as Received, for administrators only', async () => {
+      const { account, applicantId } = await consentedApplicant(db, 'triage-doc@example.com');
+      const mission = await createMission(db, {
+        actorAccountId: account.id,
+        applicantId,
+        title: 'Triage doc case',
+      });
+      if (!isOk(mission)) throw new Error('mission');
+      const agentAcc = await provisionAccount(db, { email: 'triage-doc-agent@acme.com' });
+      if (!isOk(agentAcc)) throw new Error('provision');
+      const memberAcc = await provisionAccount(db, { email: 'triage-doc-member@acme.com' });
+      if (!isOk(memberAcc)) throw new Error('provision');
+      const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+      if (!isOk(org)) throw new Error('org');
+      await activateOrg(db, org.value.id);
+      await addMembership(db, {
+        actorAccountId: agentAcc.value.id,
+        organizationId: org.value.id,
+        accountId: memberAcc.value.id,
+        role: 'CASE_MANAGER',
+      });
+      const grant = await createGrant(db, {
+        actorAccountId: account.id,
+        applicantId,
+        recipientOrganizationId: org.value.id,
+        actions: ['MANAGE'],
+        purpose: 'collaboration',
+      });
+      if (!isOk(grant)) throw new Error('grant');
+      await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
+      const organizationId = org.value.id;
+      const agentId = agentAcc.value.id;
+
+      async function answered(missionId: string | undefined, key: string) {
+        const req = await requestEvidence(db, {
+          actorAccountId: agentId,
+          organizationId,
+          applicantId,
+          ...(missionId ? { missionId } : {}),
+          kind: 'DOCUMENT',
+          docType: 'bank_statement',
+        });
+        if (!isOk(req)) throw new Error('request');
+        const doc = await registerDocument(db, {
+          actorAccountId: account.id,
+          applicantId,
+          originalName: `${key}.pdf`,
+          docType: 'bank_statement',
+        });
+        if (!isOk(doc)) throw new Error('doc');
+        await addDocumentVersion(db, {
+          actorAccountId: account.id,
+          documentId: doc.value.id,
+          bucket: 'CLEAN',
+          objectKey: `k-${key}`,
+          safetyStatus: 'CLEAN',
+          processingStatus: 'AWAITING_REVIEW',
+        });
+        const submitted = await submitEvidenceResponse(db, {
+          actorAccountId: account.id,
+          requestId: req.value.id,
+          documentId: doc.value.id,
+        });
+        if (!isOk(submitted)) throw new Error('submit');
+        return { requestId: req.value.id, documentId: doc.value.id };
+      }
+      const wide = await answered(undefined, 'wide');
+      const onCase = await answered(mission.value.id, 'case');
+      // A newer version of the general request's file fails the safety check.
+      await addDocumentVersion(db, {
+        actorAccountId: account.id,
+        documentId: wide.documentId,
+        bucket: 'QUARANTINE',
+        objectKey: 'k-wide-2',
+        safetyStatus: 'QUARANTINED',
+        processingStatus: 'NEEDS_ATTENTION',
+      });
+
+      const proof = async (
+        accountId: string,
+        ref: { applicantId: string } | { missionId: string },
+      ) => {
+        const result = await requireAccess(db, accountPrincipal(accountId), 'MANAGE', ref, {
+          purpose: EACH_GRANT,
+          actingFor: { organizationId },
+        });
+        if (!isOk(result)) throw new Error(`access refused: ${result.error.message}`);
+        return result.value;
+      };
+
+      const forTraveller = await listRespondingDocumentStatesForOrg(
+        await proof(agentId, { applicantId }),
+        organizationId,
+      );
+      expect([...forTraveller.keys()]).toEqual([wide.requestId]);
+      const wideState = forTraveller.get(wide.requestId);
+      expect(wideState).toEqual({
+        processingStatus: 'NEEDS_ATTENTION',
+        safetyStatus: 'QUARANTINED',
+      });
+      expect(evidenceRequestTriageGroup({ status: 'RECEIVED', kind: 'DOCUMENT' }, wideState)).toBe(
+        'NEEDS_CORRECTION',
+      );
+
+      const forCase = await listRespondingDocumentStatesForOrg(
+        await proof(agentId, { missionId: mission.value.id }),
+        organizationId,
+      );
+      expect([...forCase.entries()]).toEqual([
+        [onCase.requestId, { processingStatus: 'AWAITING_REVIEW', safetyStatus: 'CLEAN' }],
+      ]);
+
+      // A member who is not an administrator gets nothing, with no error.
+      const asMember = await listRespondingDocumentStatesForOrg(
+        await proof(memberAcc.value.id, { missionId: mission.value.id }),
+        organizationId,
+      );
+      expect(asMember.size).toBe(0);
+      // A proof for another organization, or a forged one, gets nothing.
+      expect(
+        (
+          await listRespondingDocumentStatesForOrg(
+            await proof(agentId, { applicantId }),
+            'other-org',
+          )
+        ).size,
+      ).toBe(0);
+      const forged = {
+        tx: db,
+        actor: { kind: 'organization_member' },
+      } as unknown as AuthorizedApplicant<'MANAGE'>;
+      expect((await listRespondingDocumentStatesForOrg(forged, organizationId)).size).toBe(0);
     });
   });
 });
