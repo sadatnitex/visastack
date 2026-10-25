@@ -52,6 +52,7 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
   vi.unstubAllGlobals();
+  route.pathname = '/app';
 });
 
 const chip = () =>
@@ -143,8 +144,29 @@ describe('phone navigation and the context chip (WP-X3)', () => {
     route.pathname = '/app/admin';
     act(() => root.render(<span />));
     mount({ ...FULL, platform: { owner: true, ai: false, complaints: false } });
-    expect(chip()?.querySelector('b')?.textContent).toBe('Platform operations');
-    route.pathname = '/app';
+    expect(chip()?.querySelector('b')?.textContent).toBe('Platform');
+    expect(chip()?.querySelector('summary')?.textContent).toContain('Platform operations');
+    expect(chip()?.querySelector('.workspace-avatar')).toBeNull();
+  });
+
+  it('stays open when a choice inside its own list is tapped', () => {
+    mount(FULL);
+    const details = chip();
+    act(() => {
+      if (details) details.open = true;
+    });
+    act(() => {
+      details?.querySelector('nav a')?.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    });
+    expect(details?.open).toBe(true);
+  });
+
+  it('reads the full context aloud without repeating the visible words', () => {
+    route.pathname = '/app/agency/20000000-0000-4000-8000-000000000001';
+    mount(FULL);
+    expect(chip()?.querySelector('summary')?.textContent).toBe(
+      'Synthetic Agency, current workspace: Agency workspace',
+    );
   });
 });
 
@@ -154,5 +176,12 @@ describe('the chip is a phone-only part of the stylesheet', () => {
     const css = readFileSync(`${process.cwd()}/src/app/globals.css`, 'utf8');
     expect(css).toMatch(/\.workspace-chip \{\s*display: none;/);
     expect(css).toMatch(/@media \(max-width: 1023px\) \{\s*\.workspace-chip \{\s*display: block;/);
+    // The open list must sit above the phone search panel, or search covers it.
+    const listLayer = Number(/\.workspace-chip nav \{[^}]*z-index: (\d+)/.exec(css)?.[1]);
+    const searchLayers = [...css.matchAll(/\.record-search \{[^}]*z-index: (\d+)/g)].map((m) =>
+      Number(m[1]),
+    );
+    expect(searchLayers.length).toBeGreaterThan(0);
+    expect(listLayer).toBeGreaterThan(Math.max(...searchLayers));
   });
 });

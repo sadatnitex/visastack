@@ -5921,7 +5921,8 @@ body:has(.auth-shell) > .footer {
     top: calc(100% + 6px);
     left: 12px;
     right: 12px;
-    z-index: 60;
+    /* Above the phone search panel (60), so an open list is never covered by it. */
+    z-index: 61;
     background: #ffffff;
     border: 1px solid var(--hairline-soft);
     border-radius: 14px;

@@ -77,14 +77,19 @@ function WorkspaceSelector({
     document.addEventListener('pointerdown', outside);
     return () => document.removeEventListener('pointerdown', outside);
   }, [compact]);
-  // A person's first name is enough to recognise them; an agency, the platform
-  // or an unavailable context keeps its full wording (shortened by the layout).
+  // A person's first name is enough to recognise them. Other contexts get a
+  // short label that fits a phone and drop the initials so the label has room; the full wording is still read aloud.
   const isPerson = kind === 'personal' && access.travellers.some((t) => t.name === name);
   const chipText = isPerson
     ? firstWord(name)
-    : kind === 'platform' || kind === 'unavailable'
-      ? caption
-      : name;
+    : kind === 'platform'
+      ? 'Platform'
+      : kind === 'unavailable'
+        ? 'Choose'
+        : name;
+  const spoken = isPerson
+    ? `${restOfName(name)}, acting as this person, ${caption}`
+    : `, current workspace: ${[name, caption].filter((part) => part !== chipText).join(', ')}`;
   return (
     <details
       ref={selector}
@@ -98,26 +103,23 @@ function WorkspaceSelector({
       }}
     >
       <summary aria-controls={id}>
-        <span className="workspace-avatar" aria-hidden="true">
-          {name
-            .trim()
-            .split(/\s+/)
-            .slice(0, 2)
-            .map((part) => part.charAt(0))
-            .join('')
-            .toUpperCase()}
-        </span>
+        {compact && !isPerson ? null : (
+          <span className="workspace-avatar" aria-hidden="true">
+            {name
+              .trim()
+              .split(/\s+/)
+              .slice(0, 2)
+              .map((part) => part.charAt(0))
+              .join('')
+              .toUpperCase()}
+          </span>
+        )}
         {compact ? (
           // Visible: a short label. Read aloud: the visible words first, then the full context.
           <>
             <span>
               <b dir="auto">{chipText || caption}</b>
-              <span className="sr-only">
-                {isPerson
-                  ? `${restOfName(name)}, acting as this person, `
-                  : ', current workspace: '}
-                {isPerson ? caption : `${name}, ${caption}`}
-              </span>
+              <span className="sr-only">{spoken}</span>
             </span>
             <Icon name="chevronDown" size={12} />
           </>
