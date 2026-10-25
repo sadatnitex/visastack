@@ -201,3 +201,11 @@ describe('agency Clients', () => {
     expect(mocks.loadEvidenceRequests).not.toHaveBeenCalled();
   });
 });
+
+describe('agency Clients: Do Next links (WP-V4)', () => {
+  it('gives each request a place Do Next can link to', async () => {
+    const html = await renderServer(Page(props));
+    expect(html).toContain('id="request-r1"');
+    expect(html).toContain('id="request-r2"');
+  });
+});
