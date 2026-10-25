@@ -1,4 +1,5 @@
 import {
+  type CategorySwitchView,
   type ProtectionSwitchView,
   RESTRICTED_DOCUMENT_TYPES,
   getDocumentProtectionOverview,
@@ -22,19 +23,51 @@ const OFF_MEANS = 'These documents open without a fresh sign-in check.';
 const UNKNOWN_WARNING =
   'Documents that are not sorted yet could be passports, bank statements or medical records, so turning this off can expose them without a check.';
 
+const UNAVAILABLE =
+  'Document protection settings are not available yet. The standard protection rules are in force.';
+
 function onOff(restricted: boolean): string {
   return restricted ? 'On' : 'Off';
 }
 
+function documents(count: number): string {
+  return count === 1 ? '1 document' : `${count} documents`;
+}
+
+/**
+ * What a category switch does, including the documents in it set one by one
+ * the other way, so the card never claims more or less than is true.
+ */
+function categoryMeaning(category: CategorySwitchView): string {
+  if (category.restricted) {
+    const switchedOff = category.types.filter((t) => t.overridden && !t.restricted).length;
+    return switchedOff === 0
+      ? ON_MEANS
+      : `Asks for a fresh sign-in check, except ${documents(switchedOff)} switched off one by one.`;
+  }
+  const stillProtected = category.types.filter((t) => t.restricted).length;
+  if (stillProtected === 0) return OFF_MEANS;
+  return `${OFF_MEANS} ${documents(stillProtected)} in this group ${
+    stillProtected === 1 ? 'is' : 'are'
+  } still protected.`;
+}
+
 /** Who last changed a switch, when, and why; or that it uses the standard setting. */
-function LastChange({ view }: { readonly view: ProtectionSwitchView }) {
+function LastChange({
+  view,
+  resetLabel = 'Standard setting',
+}: {
+  readonly view: ProtectionSwitchView;
+  /** What the switch does once reset; for a document it depends on its category. */
+  readonly resetLabel?: string;
+}) {
   if (!view.overridden) {
     return <p className="muted u-fs-085">Standard setting, never changed.</p>;
   }
   return (
     <p className="muted u-fs-085">
       Changed by {view.changedByEmail ?? 'a former admin'}
-      {view.changedAt ? ` on ${formatTimestamp(view.changedAt)}` : ''}. Standard setting:{' '}
+      {view.changedAt ? ` on ${formatTimestamp(view.changedAt)}` : ''}. {resetLabel}:{' '}
       {onOff(view.defaultRestricted)}.{view.reason ? ` Reason: ${view.reason}` : ''}
     </p>
   );
@@ -48,9 +81,14 @@ export default async function DocumentProtectionPage() {
       { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
       'DOCUMENT_PROTECTION_MANAGE',
     );
-    if (!staff.ok) return null;
+    if (!staff.ok) return { kind: 'restricted' as const };
     const overview = await getDocumentProtectionOverview(db, staff.value);
-    return overview.ok ? overview.value : null;
+    if (overview.ok) return { kind: 'ready' as const, overview: overview.value };
+    // For example the settings table does not exist yet because its
+    // migration has not run: the gate is then restricting every document.
+    return overview.error.code === 'forbidden'
+      ? { kind: 'restricted' as const }
+      : { kind: 'unavailable' as const };
   });
 
   return (
@@ -61,31 +99,33 @@ export default async function DocumentProtectionPage() {
         title="Document Protection"
         description="Choose which documents need a fresh sign-in check before anyone, including the traveller, previews or downloads them. Change a switch when travellers or agencies tell you a check is missing or getting in the way."
       />
-      {!data ? (
+      {data.kind === 'restricted' ? (
         <AdminRestricted />
+      ) : data.kind === 'unavailable' ? (
+        <output className="notice notice-warn">{UNAVAILABLE}</output>
       ) : (
         <>
           <article className="card u-mb-150" id="unsorted-documents">
             <p className="card-kicker">Not Sorted Yet</p>
-            <h2 className="card-title">{data.unknown.label}</h2>
-            <p className="card-body">{data.unknown.description}</p>
+            <h2 className="card-title">{data.overview.unknown.label}</h2>
+            <p className="card-body">{data.overview.unknown.description}</p>
             <p>
-              <StatusBadge tone={data.unknown.restricted ? 'success' : 'warning'}>
-                Sign-in check {onOff(data.unknown.restricted)}
+              <StatusBadge tone={data.overview.unknown.restricted ? 'success' : 'warning'}>
+                Sign-in check {onOff(data.overview.unknown.restricted)}
               </StatusBadge>{' '}
-              {data.unknown.restricted ? ON_MEANS : OFF_MEANS}
+              {data.overview.unknown.restricted ? ON_MEANS : OFF_MEANS}
             </p>
-            {data.unknown.restricted ? null : (
+            {data.overview.unknown.restricted ? null : (
               <p className="notice notice-warn">{UNKNOWN_WARNING}</p>
             )}
-            <LastChange view={data.unknown} />
+            <LastChange view={data.overview.unknown} />
             <ProtectionSwitch
               scope="UNKNOWN_TYPE"
-              switchKey={data.unknown.key}
-              name={data.unknown.label}
-              restricted={data.unknown.restricted}
-              defaultRestricted={data.unknown.defaultRestricted}
-              overridden={data.unknown.overridden}
+              switchKey={data.overview.unknown.key}
+              name={data.overview.unknown.label}
+              restricted={data.overview.unknown.restricted}
+              defaultRestricted={data.overview.unknown.defaultRestricted}
+              overridden={data.overview.unknown.overridden}
               offWarning={UNKNOWN_WARNING}
             />
           </article>
@@ -96,7 +136,7 @@ export default async function DocumentProtectionPage() {
             single document beats its category.
           </p>
           <div className="grid">
-            {data.categories.map((category) => (
+            {data.overview.categories.map((category) => (
               <article className="card" key={category.key} id={`category-${category.key}`}>
                 <h3 className="card-title">{category.label}</h3>
                 <p className="card-body">{category.description}</p>
@@ -104,7 +144,7 @@ export default async function DocumentProtectionPage() {
                   <StatusBadge tone={category.restricted ? 'success' : 'warning'}>
                     Sign-in check {onOff(category.restricted)}
                   </StatusBadge>{' '}
-                  {category.restricted ? ON_MEANS : OFF_MEANS}
+                  {categoryMeaning(category)}
                 </p>
                 <LastChange view={category} />
                 <ProtectionSwitch
@@ -135,7 +175,7 @@ export default async function DocumentProtectionPage() {
                               ? 'On for this document by standard setting.'
                               : `Follows ${category.label}.`}
                         </p>
-                        {type.overridden ? <LastChange view={type} /> : null}
+                        {type.overridden ? <LastChange view={type} resetLabel="If reset" /> : null}
                         <ProtectionSwitch
                           scope="DOCUMENT_TYPE"
                           switchKey={type.key}

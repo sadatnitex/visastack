@@ -12,7 +12,7 @@ import { setDocumentProtectionAction } from './actions';
 export interface ProtectionSwitchProps {
   readonly scope: 'CATEGORY' | 'DOCUMENT_TYPE' | 'UNKNOWN_TYPE';
   readonly switchKey: string;
-  /** The name of what the switch covers, used in the button names. */
+  /** The name of what the switch covers, used in the button and field names. */
   readonly name: string;
   readonly restricted: boolean;
   readonly defaultRestricted: boolean;
@@ -22,11 +22,15 @@ export interface ProtectionSwitchProps {
 }
 
 const REASON_MAX = 500;
+const REASON_HINT = 'Say why, without names or document details.';
+
+type Removal = 'off' | 'default';
 
 /**
- * One on/off control. Turning protection on saves straight away. Turning it
- * off (or going back to a standard setting that is off) first asks for
- * confirmation on the page, then the server asks for a fresh sign-in check.
+ * One on/off control. Turning protection on saves straight away, with an
+ * optional reason. Removing protection (turning off, or going back to a
+ * standard setting that is off) first opens a confirmation on the page with
+ * a required reason, then the server asks for a fresh sign-in check.
  */
 export function ProtectionSwitch({
   scope,
@@ -38,51 +42,77 @@ export function ProtectionSwitch({
   offWarning,
 }: ProtectionSwitchProps) {
   const [state, formAction, pending] = useActionState(setDocumentProtectionAction, NO_RESULT);
-  const [confirming, setConfirming] = useState<'off' | 'default' | null>(null);
-  const confirmButton = useRef<HTMLButtonElement>(null);
+  const [confirming, setConfirming] = useState<Removal | null>(null);
+  const [reason, setReason] = useState('');
+  const reasonInput = useRef<HTMLInputElement>(null);
+  const openers = useRef<Record<Removal, HTMLButtonElement | null>>({ off: null, default: null });
+  const returnFocusTo = useRef<Removal | null>(null);
   const id = useId();
   const reasonId = `${id}-reason`;
+  const hintId = `${id}-hint`;
   const messageId = `${id}-message`;
   const warningId = `${id}-warning`;
   const resetLoosens = overridden && restricted && !defaultRestricted;
 
   useEffect(() => {
-    if (confirming) confirmButton.current?.focus();
+    if (confirming) {
+      reasonInput.current?.focus();
+    } else if (returnFocusTo.current) {
+      openers.current[returnFocusTo.current]?.focus();
+      returnFocusTo.current = null;
+    }
   }, [confirming]);
   useEffect(() => {
     if (state.ok && state.message) setConfirming(null);
   }, [state]);
 
+  const problem = fieldProblem(state, 'reason', messageId);
+  const describedBy = [confirming ? warningId : null, hintId, problem['aria-describedby']]
+    .filter(Boolean)
+    .join(' ');
+
   return (
     <form action={formAction} className="field-list">
       <input type="hidden" name="scope" value={scope} />
       <input type="hidden" name="key" value={switchKey} />
+
+      {confirming ? (
+        <p id={warningId} className="notice notice-warn">
+          Turn off the sign-in check for {name}? Anyone who can already see these documents will be
+          able to preview and download them without confirming it is them first.
+          {offWarning ? ` ${offWarning}` : ''}
+        </p>
+      ) : null}
+
       <div className="field-row">
         <label className="field-label" htmlFor={reasonId}>
-          Reason (optional)
+          {confirming ? 'Reason' : 'Reason (optional)'}
+          <span className="sr-only"> for {name}</span>
         </label>
         <input
+          ref={reasonInput}
           id={reasonId}
           name="reason"
           type="text"
           maxLength={REASON_MAX}
           className="input"
-          placeholder="For example, what travellers or agencies told you"
-          {...fieldProblem(state, 'reason', messageId)}
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          required={confirming !== null}
+          aria-required={confirming !== null ? true : undefined}
+          aria-invalid={problem['aria-invalid']}
+          aria-describedby={describedBy}
         />
+        <p id={hintId} className="muted u-fs-085">
+          {REASON_HINT}
+        </p>
       </div>
 
       {confirming ? (
-        <div className="notice notice-warn">
-          <p id={warningId}>
-            Turn off the sign-in check for {name}? Anyone who can already see these documents will
-            be able to preview and download them without confirming it is them first.
-            {offWarning ? ` ${offWarning}` : ''}
-          </p>
+        <>
           <input type="hidden" name="confirmed" value="yes" />
           <div className="page-actions">
             <button
-              ref={confirmButton}
               type="submit"
               name="choice"
               value={confirming}
@@ -95,15 +125,25 @@ export function ProtectionSwitch({
             >
               {pending ? 'Saving…' : 'Yes, Turn Off'}
             </button>
-            <button type="button" className="btn btn-secondary" onClick={() => setConfirming(null)}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                returnFocusTo.current = confirming;
+                setConfirming(null);
+              }}
+            >
               Cancel
             </button>
           </div>
-        </div>
+        </>
       ) : (
         <div className="page-actions">
           {restricted ? (
             <button
+              ref={(node) => {
+                openers.current.off = node;
+              }}
               type="button"
               className="btn btn-secondary"
               aria-label={`Turn Off for ${name}`}
@@ -125,6 +165,9 @@ export function ProtectionSwitch({
           {overridden ? (
             resetLoosens ? (
               <button
+                ref={(node) => {
+                  openers.current.default = node;
+                }}
                 type="button"
                 className="btn btn-secondary"
                 aria-label={`Use Standard Setting for ${name}`}

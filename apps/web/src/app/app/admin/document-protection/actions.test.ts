@@ -32,7 +32,12 @@ const SCOPE = { kind: 'staff', platformAction: 'DOCUMENT_PROTECTION_MANAGE' };
 const INITIAL = { ok: true, message: '' };
 const changed = {
   ok: true,
-  value: { changed: true, restrictedBefore: true, restrictedAfter: false },
+  value: {
+    changed: true,
+    confirmationRequired: false,
+    restrictedBefore: true,
+    restrictedAfter: false,
+  },
 };
 const stepUpNeeded = { ok: false, error: { code: 'step_up_required', message: 'x' } };
 
@@ -87,6 +92,7 @@ describe('setDocumentProtectionAction', () => {
         scope: 'CATEGORY',
         key: 'medical',
         restricted: false,
+        removalConfirmed: true,
         reason: 'Agencies asked for it',
         stepUpSatisfied: false,
       },
@@ -94,6 +100,7 @@ describe('setDocumentProtectionAction', () => {
         scope: 'CATEGORY',
         key: 'medical',
         restricted: false,
+        removalConfirmed: true,
         reason: 'Agencies asked for it',
         stepUpSatisfied: true,
       },
@@ -109,6 +116,58 @@ describe('setDocumentProtectionAction', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/app/admin/document-protection');
   });
 
+  it('asks for confirmation when going back to a standard setting removes protection', async () => {
+    mocks.setDocumentProtection.mockResolvedValue({
+      ok: true,
+      value: {
+        changed: false,
+        confirmationRequired: true,
+        restrictedBefore: true,
+        restrictedAfter: false,
+      },
+    });
+    const result = await setDocumentProtectionAction(INITIAL, form({ choice: 'default' }));
+    expect(result).toEqual({
+      ok: false,
+      message: 'Confirm that you want to turn this protection off.',
+    });
+    expect(mocks.setDocumentProtection.mock.calls[0]?.[2]).toMatchObject({
+      restricted: null,
+      removalConfirmed: false,
+    });
+    expect(mocks.tryEstablishStepUp).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it('refuses to remove protection without a reason', async () => {
+    for (const reason of ['', '   ']) {
+      const result = await setDocumentProtectionAction(
+        INITIAL,
+        form({ choice: 'off', confirmed: 'yes', reason }),
+      );
+      expect(result).toEqual({
+        ok: false,
+        message: 'Say why you are removing this protection before saving.',
+        field: 'reason',
+      });
+    }
+    expect(mocks.setDocumentProtection).not.toHaveBeenCalled();
+    // A reset that removes protection is refused by the service the same way.
+    mocks.setDocumentProtection.mockResolvedValue({
+      ok: false,
+      error: {
+        code: 'invalid',
+        message: 'Say why you are removing this protection before saving.',
+      },
+    });
+    const reset = await setDocumentProtectionAction(
+      INITIAL,
+      form({ choice: 'default', confirmed: 'yes' }),
+    );
+    expect(reset).toMatchObject({ ok: false, field: 'reason' });
+    expect(mocks.tryEstablishStepUp).not.toHaveBeenCalled();
+  });
+
   it('sends the admin to the sign-in check when their session is not fresh', async () => {
     mocks.setDocumentProtection.mockResolvedValue(stepUpNeeded);
     mocks.tryEstablishStepUp.mockResolvedValue({
@@ -116,7 +175,10 @@ describe('setDocumentProtectionAction', () => {
       reauthUrl: '/auth/reauth',
     });
     await expect(
-      setDocumentProtectionAction(INITIAL, form({ choice: 'off', confirmed: 'yes' })),
+      setDocumentProtectionAction(
+        INITIAL,
+        form({ choice: 'off', confirmed: 'yes', reason: 'Feedback' }),
+      ),
     ).rejects.toThrow('NEXT_REDIRECT:/auth/reauth');
     expect(mocks.setDocumentProtection).toHaveBeenCalledTimes(1);
   });
@@ -126,7 +188,7 @@ describe('setDocumentProtectionAction', () => {
     mocks.tryEstablishStepUp.mockResolvedValue({ kind: 'not_configured' });
     const result = await setDocumentProtectionAction(
       INITIAL,
-      form({ choice: 'off', confirmed: 'yes' }),
+      form({ choice: 'off', confirmed: 'yes', reason: 'Feedback' }),
     );
     expect(result).toEqual({ ok: false, message: 'Step-up is not configured here.' });
     expect(mocks.setDocumentProtection).toHaveBeenCalledTimes(1);
@@ -168,7 +230,12 @@ describe('setDocumentProtectionAction', () => {
   it('says nothing changed when the switch already works that way', async () => {
     mocks.setDocumentProtection.mockResolvedValue({
       ok: true,
-      value: { changed: false, restrictedBefore: true, restrictedAfter: true },
+      value: {
+        changed: false,
+        confirmationRequired: false,
+        restrictedBefore: true,
+        restrictedAfter: true,
+      },
     });
     const result = await setDocumentProtectionAction(INITIAL, form({ choice: 'on' }));
     expect(result.message).toBe('Nothing to change. This switch already works this way.');

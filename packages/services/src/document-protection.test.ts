@@ -19,6 +19,7 @@ import { setConsent } from './consent';
 import type { Db } from './db';
 import {
   DOCUMENT_PROTECTION_AUDIT_EVENT,
+  DOCUMENT_PROTECTION_REASON_REQUIRED,
   type SetDocumentProtectionInput,
   getDocumentProtectionOverview,
   readDocumentProtectionSettings,
@@ -64,10 +65,15 @@ describe('document protection switches', () => {
   }
 
   async function change(
-    input: Omit<SetDocumentProtectionInput, 'stepUpSatisfied'> & { stepUpSatisfied?: boolean },
+    input: Omit<SetDocumentProtectionInput, 'stepUpSatisfied' | 'removalConfirmed'> & {
+      stepUpSatisfied?: boolean;
+      removalConfirmed?: boolean;
+    },
   ) {
     return setDocumentProtection(db, await scopeFor(securityAuth), {
       stepUpSatisfied: false,
+      removalConfirmed: true,
+      reason: 'Feedback from agencies',
       ...input,
     });
   }
@@ -191,6 +197,7 @@ describe('document protection switches', () => {
       scope: 'DOCUMENT_TYPE',
       key: 'EMPLOYMENT_CERTIFICATE',
       restricted: true,
+      removalConfirmed: true,
       stepUpSatisfied: true,
     } as const;
     const genuine = await scopeFor(securityAuth);
@@ -210,6 +217,83 @@ describe('document protection switches', () => {
 
     expect(await db.select().from(schema.documentProtectionSettings)).toHaveLength(0);
     expect(await auditRows()).toHaveLength(0);
+  });
+
+  it('needs the on-page confirmation for any change that removes protection, checked first', async () => {
+    const unconfirmed = (input: { scope: 'CATEGORY'; key: string; restricted: boolean | null }) =>
+      change({ ...input, removalConfirmed: false, stepUpSatisfied: true });
+    const off = await unconfirmed({ scope: 'CATEGORY', key: 'medical', restricted: false });
+    expect(isOk(off) && off.value).toMatchObject({ changed: false, confirmationRequired: true });
+    // Before the sign-in check, so an unconfirmed change never sends anyone to sign in.
+    const offNoStepUp = await change({
+      scope: 'CATEGORY',
+      key: 'medical',
+      restricted: false,
+      removalConfirmed: false,
+    });
+    expect(isOk(offNoStepUp) && offNoStepUp.value.confirmationRequired).toBe(true);
+    // Adding protection, and a reset that keeps it, need no confirmation.
+    const on = await unconfirmed({
+      scope: 'CATEGORY',
+      key: 'employment_business',
+      restricted: true,
+    });
+    expect(isOk(on) && on.value).toMatchObject({ changed: true, confirmationRequired: false });
+    const reset = await unconfirmed({
+      scope: 'CATEGORY',
+      key: 'employment_business',
+      restricted: null,
+    });
+    // This reset removes protection, so it needs confirmation like turning off.
+    expect(isOk(reset) && reset.value).toMatchObject({
+      changed: false,
+      confirmationRequired: true,
+    });
+    expect(isOk(await change({ scope: 'CATEGORY', key: 'medical', restricted: true }))).toBe(true);
+    const keepsProtection = await unconfirmed({
+      scope: 'CATEGORY',
+      key: 'medical',
+      restricted: null,
+    });
+    expect(isOk(keepsProtection) && keepsProtection.value.changed).toBe(true);
+    const stored = await db.select().from(schema.documentProtectionSettings);
+    expect(stored.map((row) => `${row.key}:${row.restricted}`)).toEqual([
+      'employment_business:true',
+    ]);
+    expect(await auditRows()).toHaveLength(3);
+  });
+
+  it('refuses to remove protection without a reason, before the sign-in check', async () => {
+    for (const reason of ['', '   ']) {
+      for (const restricted of [false, null] as const) {
+        if (restricted === null) {
+          await change({ scope: 'CATEGORY', key: 'employment_business', restricted: true });
+        }
+        const key = restricted === null ? 'employment_business' : 'medical';
+        const result = await change({ scope: 'CATEGORY', key, restricted, reason });
+        expect(isErr(result) && result.error, `${key}:${reason}`).toEqual({
+          code: 'invalid',
+          message: DOCUMENT_PROTECTION_REASON_REQUIRED,
+        });
+      }
+    }
+    // A reason given with only the step-up missing gets the step-up answer.
+    expect(errorCode(await change({ scope: 'CATEGORY', key: 'medical', restricted: false }))).toBe(
+      'step_up_required',
+    );
+    // Turning protection on keeps the reason optional.
+    const on = await change({
+      scope: 'CATEGORY',
+      key: 'education_qualifications',
+      restricted: true,
+      reason: '',
+    });
+    expect(isOk(on) && on.value.changed).toBe(true);
+    const stored = await db.select().from(schema.documentProtectionSettings);
+    expect(stored.map((row) => `${row.key}:${row.restricted}:${row.reason}`).sort()).toEqual([
+      'education_qualifications:true:null',
+      'employment_business:true:Feedback from agencies',
+    ]);
   });
 
   it('asks for a fresh sign-in to remove protection, never to add it', async () => {
@@ -247,17 +331,19 @@ describe('document protection switches', () => {
     ).toBe(true);
   });
 
-  it('writes one audit event per change with the reason, and none for a repeat', async () => {
+  it('writes one audit event per change, never with the reason text, and none for a repeat', async () => {
     const security = await scopeFor(securityAuth);
     const first = await setDocumentProtection(db, security, {
       scope: 'CATEGORY',
       key: 'medical',
       restricted: false,
       reason: 'Agencies asked for fewer sign-in checks on vaccination cards',
+      removalConfirmed: true,
       stepUpSatisfied: true,
     });
     expect(isOk(first) && first.value).toEqual({
       changed: true,
+      confirmationRequired: false,
       restrictedBefore: true,
       restrictedAfter: false,
     });
@@ -266,6 +352,7 @@ describe('document protection switches', () => {
       key: 'medical',
       restricted: false,
       reason: 'Agencies asked for fewer sign-in checks on vaccination cards',
+      removalConfirmed: true,
       stepUpSatisfied: true,
     });
     expect(isOk(repeat) && repeat.value.changed).toBe(false);
@@ -275,7 +362,7 @@ describe('document protection switches', () => {
       actorAccountId: securityAuth.accountId,
       resourceType: 'document_protection_setting',
       resourceId: 'CATEGORY:medical',
-      reason: 'Agencies asked for fewer sign-in checks on vaccination cards',
+      reason: null,
       metadata: {
         scope: 'CATEGORY',
         key: 'medical',
@@ -285,11 +372,14 @@ describe('document protection switches', () => {
         stepUp: true,
       },
     });
+    // The free text stays in the settings table only, never in the audit chain.
+    expect(JSON.stringify(rows[0])).not.toContain('vaccination cards');
     const [stored] = await db.select().from(schema.documentProtectionSettings);
     expect(stored).toMatchObject({
       scope: 'CATEGORY',
       key: 'medical',
       restricted: false,
+      reason: 'Agencies asked for fewer sign-in checks on vaccination cards',
       changedByAccountId: securityAuth.accountId,
     });
     expect(isOk(await change({ scope: 'CATEGORY', key: 'medical', restricted: null }))).toBe(true);
@@ -425,21 +515,49 @@ describe('document protection switches', () => {
       expect(isOk(await preview(db, unknownDoc))).toBe(true);
     });
 
-    it('falls back to the built-in rule when the switches cannot be read, without spoiling the transaction', async () => {
+    it('restricts every document when the switches cannot be read, reports it, and keeps the transaction usable', async () => {
       const medical = await documentOf('MEDICAL_REPORT');
+      const employment = await documentOf('EMPLOYMENT_CERTIFICATE');
+      const unknownDoc = await documentOf('SOMETHING_NOBODY_KNOWS');
       await change({ scope: 'CATEGORY', key: 'medical', restricted: false, stepUpSatisfied: true });
+      await change({
+        scope: 'UNKNOWN_TYPE',
+        key: 'unknown',
+        restricted: false,
+        stepUpSatisfied: true,
+      });
       expect(isOk(await preview(db, medical))).toBe(true);
+      expect(isOk(await preview(db, employment))).toBe(true);
 
       await db.execute(
         sql`alter table document_protection_settings rename to document_protection_settings_gone`,
       );
-      const settings = await loadDocumentProtectionSettings(db, DEFAULT_DOCUMENT_PROTECTION);
-      expect(isRestrictedDocumentType('MEDICAL_REPORT', settings)).toBe(true);
-      await db.transaction(async (tx) => {
-        expect(errorCode(await preview(tx, medical))).toBe('step_up_required');
-        // The same transaction still works after the failed read.
-        expect(errorCode(await preview(tx, medical))).toBe('step_up_required');
-      });
+      const reported = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      try {
+        const settings = await loadDocumentProtectionSettings(db, DEFAULT_DOCUMENT_PROTECTION);
+        for (const docType of ['MEDICAL_REPORT', 'EMPLOYMENT_CERTIFICATE', 'SALARY_SLIP', null]) {
+          expect(isRestrictedDocumentType(docType, settings), String(docType)).toBe(true);
+        }
+        // Not the built-in defaults: those leave everyday documents open.
+        expect(
+          isRestrictedDocumentType('EMPLOYMENT_CERTIFICATE', DEFAULT_DOCUMENT_PROTECTION),
+        ).toBe(false);
+        expect(reported).toHaveBeenCalledWith(
+          expect.stringContaining('[document-protection] switches could not be read'),
+        );
+        await db.transaction(async (tx) => {
+          for (const id of [medical, employment, unknownDoc]) {
+            expect(errorCode(await preview(tx, id))).toBe('step_up_required');
+          }
+          // The same transaction still works after the failed reads.
+          expect(errorCode(await preview(tx, employment))).toBe('step_up_required');
+        });
+        // The admin page gets a clear "not available" answer instead of an error.
+        const overview = await getDocumentProtectionOverview(db, await scopeFor(securityAuth));
+        expect(errorCode(overview)).toBe('upstream_error');
+      } finally {
+        reported.mockRestore();
+      }
     });
   });
 });

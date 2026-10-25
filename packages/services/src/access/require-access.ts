@@ -309,7 +309,7 @@ async function loadResource(tx: Db, key: RefKey, id: string): Promise<LoadedReso
       // wallet use, so a category-scoped grant covers the same documents here.
       const category = documentCategory(document.docType);
       // The rule as platform admins have set it, read in this transaction;
-      // the built-in defaults if it cannot be read.
+      // every document restricted if it cannot be read.
       const protection = await loadDocumentProtectionSettings(tx, DEFAULT_DOCUMENT_PROTECTION);
       return {
         applicant,

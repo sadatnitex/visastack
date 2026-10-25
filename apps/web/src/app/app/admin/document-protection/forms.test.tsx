@@ -30,6 +30,35 @@ const button = (text: string) => {
 };
 
 describe('the document protection switch', () => {
+  it('gives every reason field its own name when several switches share a page', () => {
+    act(() =>
+      root.render(
+        <>
+          <ProtectionSwitch
+            scope="CATEGORY"
+            switchKey="medical"
+            name="Medical"
+            restricted
+            defaultRestricted
+            overridden={false}
+          />
+          <ProtectionSwitch
+            scope="CATEGORY"
+            switchKey="financial"
+            name="Financial"
+            restricted
+            defaultRestricted
+            overridden={false}
+          />
+        </>,
+      ),
+    );
+    const names = [...container.querySelectorAll('label')].map((l) => l.textContent);
+    expect(names).toEqual(['Reason (optional) for Medical', 'Reason (optional) for Financial']);
+    const ids = [...container.querySelectorAll('input[name="reason"]')].map((i) => i.id);
+    expect(new Set(ids).size).toBe(2);
+  });
+
   it('asks for confirmation, with the warning, before turning protection off', () => {
     act(() =>
       root.render(
@@ -55,7 +84,18 @@ describe('the document protection switch', () => {
     expect(confirm.getAttribute('type')).toBe('submit');
     expect(confirm.getAttribute('name')).toBe('choice');
     expect(confirm.getAttribute('value')).toBe('off');
-    expect(document.activeElement).toBe(confirm);
+    // Focus lands on the reason, which is now required, and which reads the warning.
+    const reason = container.querySelector<HTMLInputElement>('input[name="reason"]');
+    expect(document.activeElement).toBe(reason);
+    expect(reason?.required).toBe(true);
+    expect(container.querySelector(`label[for="${reason?.id}"]`)?.textContent).toBe(
+      'Reason for Documents Not Sorted Yet',
+    );
+    const described = (reason?.getAttribute('aria-describedby') ?? '').split(' ');
+    expect(described.map((x) => document.getElementById(x)?.textContent)).toEqual([
+      expect.stringContaining('Turn off the sign-in check'),
+      'Say why, without names or document details.',
+    ]);
     const warning = document.getElementById(confirm.getAttribute('aria-describedby') ?? '');
     expect(warning?.textContent).toContain(
       'Turn off the sign-in check for Documents Not Sorted Yet?',
@@ -66,6 +106,10 @@ describe('the document protection switch', () => {
     act(() => button('Cancel').click());
     expect(container.textContent).not.toContain('Yes, Turn Off');
     expect(container.querySelector('input[name="confirmed"]')).toBeNull();
+    // Focus goes back to the button that opened the confirmation.
+    expect(document.activeElement).toBe(button('Turn Off'));
+    // Back to optional once nothing is being removed.
+    expect(container.querySelector<HTMLInputElement>('input[name="reason"]')?.required).toBe(false);
   });
 
   it('turns protection on straight away and offers the standard setting when changed', () => {
@@ -88,7 +132,14 @@ describe('the document protection switch', () => {
     const standard = button('Use Standard Setting');
     expect(standard.getAttribute('type')).toBe('submit');
     expect(standard.getAttribute('value')).toBe('default');
-    expect(container.querySelector('label')?.textContent).toBe('Reason (optional)');
+    // Visible "Reason (optional)", with the switch name for screen readers.
+    const label = container.querySelector('label');
+    expect(label?.textContent).toBe('Reason (optional) for Medical');
+    expect(label?.querySelector('.sr-only')?.textContent).toBe(' for Medical');
+    const reason = container.querySelector<HTMLInputElement>('input[name="reason"]');
+    expect(reason?.required).toBe(false);
+    expect(reason?.getAttribute('placeholder')).toBeNull();
+    expect(container.textContent).toContain('Say why, without names or document details.');
   });
 
   it('confirms before going back to a standard setting that removes protection', () => {
@@ -108,5 +159,8 @@ describe('the document protection switch', () => {
     expect(standard.getAttribute('type')).toBe('button');
     act(() => standard.click());
     expect(button('Yes, Turn Off').getAttribute('value')).toBe('default');
+    expect(container.querySelector<HTMLInputElement>('input[name="reason"]')?.required).toBe(true);
+    act(() => button('Cancel').click());
+    expect(document.activeElement).toBe(button('Use Standard Setting'));
   });
 });

@@ -97,8 +97,29 @@ function overview(unknownRestricted: boolean) {
         description: 'Bank, tax, income, savings, property and sponsorship records.',
         restricted: true,
         defaultRestricted: true,
-        restrictedTypeCount: 0,
-        types: [],
+        restrictedTypeCount: 1,
+        types: [
+          {
+            ...base,
+            scope: 'DOCUMENT_TYPE',
+            key: 'SALARY_SLIP',
+            label: 'Salary Slip',
+            restricted: false,
+            defaultRestricted: true,
+            overridden: true,
+            reason: 'Agencies see these every day',
+            changedAt: new Date('2026-10-22T08:00:00Z'),
+            changedByEmail: 'security@example.com',
+          },
+          {
+            ...base,
+            scope: 'DOCUMENT_TYPE',
+            key: 'BANK_STATEMENT',
+            label: 'Bank Statement',
+            restricted: true,
+            defaultRestricted: true,
+          },
+        ],
       },
     ],
   };
@@ -166,11 +187,46 @@ describe('Platform > Settings > Document Protection', () => {
       'DOCUMENT_TYPE:VACCINATION_CERTIFICATE',
       'DOCUMENT_TYPE:OTHER_MEDICAL_DOCUMENT',
       'CATEGORY:financial',
+      'DOCUMENT_TYPE:SALARY_SLIP',
+      'DOCUMENT_TYPE:BANK_STATEMENT',
     ]);
     expect(switches[0]?.offWarning).toContain(
       'could be passports, bank statements or medical records',
     );
     expect(switches.slice(1).every((s) => s.offWarning === undefined)).toBe(true);
+  });
+
+  it('says when a group is on but some documents in it were switched off one by one', async () => {
+    const text = textOf(await renderServer(Page()));
+    expect(text).toContain(
+      'Asks for a fresh sign-in check, except 1 document switched off one by one.',
+    );
+  });
+
+  it('says when a group is off but some documents in it are still protected', async () => {
+    const text = textOf(await renderServer(Page()));
+    expect(text).toContain(
+      'These documents open without a fresh sign-in check. 1 document in this group is still protected.',
+    );
+  });
+
+  it('labels what a document switch does once reset, which depends on its group', async () => {
+    const text = textOf(await renderServer(Page()));
+    expect(text).toContain('Changed by security@example.com on');
+    expect(text).toContain('If reset: On. Reason: Agencies see these every day');
+  });
+
+  it('shows a plain notice when the settings cannot be read yet', async () => {
+    mocks.getDocumentProtectionOverview.mockResolvedValue({
+      ok: false,
+      error: { code: 'upstream_error', message: 'x' },
+    });
+    const html = await renderServer(Page());
+    expect(textOf(html)).toContain(
+      'Document protection settings are not available yet. The standard protection rules are in force.',
+    );
+    expect(textOf(html)).not.toContain('This area is restricted');
+    expect(stubProps(html, 'ProtectionSwitch')).toEqual([]);
   });
 
   it('warns clearly while the unsorted-documents check is off', async () => {

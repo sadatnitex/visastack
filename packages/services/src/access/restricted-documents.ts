@@ -1,4 +1,4 @@
-import { resolveDocumentType } from '@visastack/core/catalogue/documents';
+import { CATALOGUE_DOCUMENTS, resolveDocumentType } from '@visastack/core/catalogue/documents';
 import { type Db, schema } from '../db';
 
 /**
@@ -103,11 +103,34 @@ export async function readDocumentProtectionOverrides(
   return rows;
 }
 
+/** Every catalogue group and sharing pack key, so a "restrict everything" rule covers every known type. */
+const EVERY_CATEGORY: ReadonlySet<string> = new Set(
+  CATALOGUE_DOCUMENTS.flatMap((document) =>
+    document.pack === null ? [document.group] : [document.group, document.pack],
+  ),
+);
+
+/**
+ * The rule used when the admin switches cannot be read: every document,
+ * known or not, needs a sign-in check. Not the built-in defaults, because
+ * those would silently drop protection an admin added.
+ */
+export function restrictEveryDocument(
+  defaults: DocumentProtectionSettings,
+): DocumentProtectionSettings {
+  return Object.freeze({
+    restrictedCategories: new Set([...defaults.restrictedCategories, ...EVERY_CATEGORY]),
+    restrictedTypes: new Set(defaults.restrictedTypes),
+    unrestrictedTypes: new Set<string>(),
+    unknownTypesRestricted: true,
+  });
+}
+
 /**
  * The effective rule, read inside the caller's transaction. The read runs in
- * its own savepoint, so a failure cannot spoil the caller's transaction, and
- * a failure falls back to `defaults` (fail closed: never "nothing is
- * restricted").
+ * its own savepoint, so a failure cannot spoil the caller's transaction. If
+ * the switches cannot be read, the failure is reported and every document
+ * needs a sign-in check until they can (`restrictEveryDocument`).
  */
 export async function loadDocumentProtectionSettings(
   tx: Db,
@@ -116,7 +139,11 @@ export async function loadDocumentProtectionSettings(
   try {
     const overrides = await tx.transaction(async (inner) => readDocumentProtectionOverrides(inner));
     return applyDocumentProtectionOverrides(defaults, overrides);
-  } catch {
-    return defaults;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(
+      `[document-protection] switches could not be read; every document needs a sign-in check until they can: ${message}`,
+    );
+    return restrictEveryDocument(defaults);
   }
 }

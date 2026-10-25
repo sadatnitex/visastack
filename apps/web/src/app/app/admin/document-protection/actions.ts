@@ -2,6 +2,7 @@
 
 import {
   DOCUMENT_PROTECTION_REASON_MAX,
+  DOCUMENT_PROTECTION_REASON_REQUIRED,
   type DocumentProtectionScope,
   setDocumentProtection,
   staffPrincipal,
@@ -24,6 +25,18 @@ const DENIED: FormResult = {
   message: 'Only a security admin or platform owner can change document protection.',
 };
 
+const CONFIRM_FIRST: FormResult = {
+  ok: false,
+  message: 'Confirm that you want to turn this protection off.',
+};
+
+/** Owner decision 2026-10-25: removing protection always needs a reason. */
+const REASON_FIRST: FormResult = {
+  ok: false,
+  message: DOCUMENT_PROTECTION_REASON_REQUIRED,
+  field: 'reason',
+};
+
 const DONE: Record<Choice, string> = {
   on: 'Saved. Travellers and agencies now confirm it is them before opening these documents.',
   off: 'Saved. These documents now open without a fresh sign-in check.',
@@ -32,9 +45,10 @@ const DONE: Record<Choice, string> = {
 
 /**
  * Turn one document protection switch on or off, or back to the standard
- * setting. Removing protection must be confirmed on the page and then needs a
- * fresh sign-in check (the same re-check the other admin pages use); the
- * service decides when one is needed and records every change.
+ * setting. Removing protection must be confirmed on the page, needs a reason,
+ * and then a fresh sign-in check (the same re-check the other admin pages
+ * use); the service decides when a change removes protection, against the
+ * live state, and records every change.
  */
 export async function setDocumentProtectionAction(
   _prev: FormResult,
@@ -54,9 +68,12 @@ export async function setDocumentProtectionAction(
       field: 'reason',
     };
   }
-  if (choice === 'off' && formData.get('confirmed') !== 'yes') {
-    return { ok: false, message: 'Confirm that you want to turn this protection off.' };
-  }
+  const removalConfirmed = formData.get('confirmed') === 'yes';
+  // Turning off always removes protection. Going back to a standard setting
+  // may too; the service checks that against the live state and refuses an
+  // unconfirmed removal the same way.
+  if (choice === 'off' && !removalConfirmed) return CONFIRM_FIRST;
+  if (choice === 'off' && reason.length === 0) return REASON_FIRST;
   const restricted = choice === 'default' ? null : choice === 'on';
 
   return withSession(async ({ db, accountId, email }) => {
@@ -66,7 +83,7 @@ export async function setDocumentProtectionAction(
       'DOCUMENT_PROTECTION_MANAGE',
     );
     if (!staff.ok) return DENIED;
-    const input = { scope, key, restricted, ...(reason ? { reason } : {}) };
+    const input = { scope, key, restricted, removalConfirmed, ...(reason ? { reason } : {}) };
 
     let result = await setDocumentProtection(db, staff.value, { ...input, stepUpSatisfied: false });
     if (!result.ok && result.error.code === 'step_up_required') {
@@ -82,11 +99,14 @@ export async function setDocumentProtectionAction(
     }
     if (!result.ok) {
       if (result.error.code === 'forbidden') return DENIED;
+      // Going back to a standard setting that is off is a removal too.
+      if (result.error.message === DOCUMENT_PROTECTION_REASON_REQUIRED) return REASON_FIRST;
       return {
         ok: false,
         message: 'This change could not be saved. Reload the page and try again.',
       };
     }
+    if (result.value.confirmationRequired) return CONFIRM_FIRST;
     if (!result.value.changed) {
       return { ok: true, message: 'Nothing to change. This switch already works this way.' };
     }

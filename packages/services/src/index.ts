@@ -54,6 +54,7 @@ export {
   type SetDocumentProtectionInput,
   DOCUMENT_PROTECTION_AUDIT_EVENT,
   DOCUMENT_PROTECTION_REASON_MAX,
+  DOCUMENT_PROTECTION_REASON_REQUIRED,
   DOCUMENT_PROTECTION_UNKNOWN_KEY,
   getDocumentProtectionOverview,
   readDocumentProtectionSettings,

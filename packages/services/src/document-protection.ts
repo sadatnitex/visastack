@@ -37,6 +37,9 @@ export type DocumentProtectionRow = typeof schema.documentProtectionSettings.$in
 export const DOCUMENT_PROTECTION_AUDIT_EVENT = 'DOCUMENT_PROTECTION_CHANGED';
 export const DOCUMENT_PROTECTION_UNKNOWN_KEY = schema.DOCUMENT_PROTECTION_UNKNOWN_KEY;
 export const DOCUMENT_PROTECTION_REASON_MAX = schema.DOCUMENT_PROTECTION_REASON_MAX;
+/** The refusal when protection would be removed without a reason (owner decision 2026-10-25). */
+export const DOCUMENT_PROTECTION_REASON_REQUIRED =
+  'Say why you are removing this protection before saving.';
 
 /**
  * How long a staff scope stays usable for a change. A scope is minted by a
@@ -110,6 +113,8 @@ export interface SetDocumentProtectionInput {
   /** On, off, or `null` to remove the switch and go back to the default. */
   readonly restricted: boolean | null;
   readonly reason?: string;
+  /** True only when the admin confirmed on the page that protection may be removed. */
+  readonly removalConfirmed: boolean;
   /** True only after a genuine, recent identity re-check (lib/step-up.ts). */
   readonly stepUpSatisfied: boolean;
 }
@@ -117,6 +122,8 @@ export interface SetDocumentProtectionInput {
 export interface DocumentProtectionChange {
   /** False when the request matched what is already stored, so nothing was written. */
   readonly changed: boolean;
+  /** True when the change would remove protection and `removalConfirmed` was not set; nothing was written. */
+  readonly confirmationRequired: boolean;
   readonly restrictedBefore: boolean;
   readonly restrictedAfter: boolean;
 }
@@ -124,8 +131,11 @@ export interface DocumentProtectionChange {
 /**
  * Turn one switch on or off, or back to its default. Any change that leaves
  * the switch not restricting when it restricted before needs
- * `stepUpSatisfied`; turning protection on never does. Every write is audited
- * in the same transaction, with the reason.
+ * `removalConfirmed`, a reason, and then `stepUpSatisfied`; turning
+ * protection on never does, and its reason stays optional. Every write is audited in the same transaction. The reason is kept
+ * only in the settings table: the audit event records what changed, never
+ * the free text, so a name or document detail typed there cannot enter the
+ * permanent audit chain.
  */
 export async function setDocumentProtection(
   db: Db,
@@ -170,9 +180,22 @@ export async function setDocumentProtection(
         : current !== undefined &&
           current.restricted === input.restricted &&
           (current.reason ?? '') === reason;
-    if (unchanged) return ok({ changed: false, restrictedBefore, restrictedAfter });
+    if (unchanged) {
+      return ok({ changed: false, confirmationRequired: false, restrictedBefore, restrictedAfter });
+    }
 
-    if (restrictedBefore && !restrictedAfter && !input.stepUpSatisfied) {
+    const removesProtection = restrictedBefore && !restrictedAfter;
+    // Checked here, against the live state, so going back to a standard
+    // setting that is off needs the same confirmation as turning off.
+    if (removesProtection && !input.removalConfirmed) {
+      return ok({ changed: false, confirmationRequired: true, restrictedBefore, restrictedAfter });
+    }
+    // Owner decision 2026-10-25: removing protection always needs a reason,
+    // asked for before the sign-in check so nobody signs in again for nothing.
+    if (removesProtection && reason.length === 0) {
+      return err(serviceError('invalid', DOCUMENT_PROTECTION_REASON_REQUIRED));
+    }
+    if (removesProtection && !input.stepUpSatisfied) {
       return err(
         serviceError('step_up_required', 'removing document protection needs a fresh sign-in'),
       );
@@ -210,7 +233,6 @@ export async function setDocumentProtection(
       result: 'ALLOWED',
       resourceType: 'document_protection_setting',
       resourceId: `${input.scope}:${input.key}`,
-      reason: reason.length > 0 ? reason : null,
       metadata: {
         scope: input.scope,
         key: input.key,
@@ -220,7 +242,7 @@ export async function setDocumentProtection(
         stepUp: input.stepUpSatisfied,
       },
     });
-    return ok({ changed: true, restrictedBefore, restrictedAfter });
+    return ok({ changed: true, confirmationRequired: false, restrictedBefore, restrictedAfter });
   });
 }
 
@@ -257,13 +279,24 @@ export async function getDocumentProtectionOverview(
 ): Promise<Result<DocumentProtectionOverview, ServiceError>> {
   const denied = staffScopeProblem(staff);
   if (denied) return err(denied);
-  const rows = await db
-    .select({ row: schema.documentProtectionSettings, email: schema.accounts.email })
-    .from(schema.documentProtectionSettings)
-    .leftJoin(
-      schema.accounts,
-      eq(schema.accounts.id, schema.documentProtectionSettings.changedByAccountId),
+  let rows: { row: DocumentProtectionRow; email: string | null }[];
+  try {
+    // A savepoint, so a missing table (migration not run yet) cannot spoil
+    // the caller's transaction.
+    rows = await db.transaction(async (inner) =>
+      inner
+        .select({ row: schema.documentProtectionSettings, email: schema.accounts.email })
+        .from(schema.documentProtectionSettings)
+        .leftJoin(
+          schema.accounts,
+          eq(schema.accounts.id, schema.documentProtectionSettings.changedByAccountId),
+        ),
     );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[document-protection] settings could not be read: ${message}`);
+    return err(serviceError('upstream_error', 'document protection settings are not available'));
+  }
   const stored = rows.map((r) => r.row);
   const settings = applyDocumentProtectionOverrides(
     DEFAULT_DOCUMENT_PROTECTION,
