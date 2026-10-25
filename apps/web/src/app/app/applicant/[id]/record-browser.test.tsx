@@ -27,7 +27,9 @@ const document = (id: string, name: string, overrides: Record<string, unknown> =
   groupLabel: 'Identity',
   lifecycle: 'CURRENT' as const,
   safetyStatus: 'CLEAN',
-  processingStatus: 'APPROVED',
+  processingStatus: 'AWAITING_REVIEW',
+  checked: true,
+  review: { expiryMissing: false, kindNeedsCheck: false, namePending: false },
   version: 1,
   updatedLabel: null,
   expiresLabel: null,
@@ -85,6 +87,15 @@ describe('the Record browser', () => {
     expect(container.querySelector('label input[type="search"]')).not.toBeNull();
     expect(container.querySelector('label select')).not.toBeNull();
     expect(container.querySelector('output')?.textContent).toBe('3 records shown');
+    // Each group is named by its own heading, and the filters are announced as one group.
+    for (const section of container.querySelectorAll('section.record-hub-group')) {
+      const heading = section.querySelector('h3');
+      expect(section.getAttribute('aria-label')).toBeNull();
+      expect(section.getAttribute('aria-labelledby')).toBe(heading?.id);
+    }
+    const filters = container.querySelector('fieldset');
+    expect(filters?.querySelector('legend')?.textContent).toBe('Record Filters');
+    expect(filters?.querySelectorAll('button')).toHaveLength(5);
   });
 
   it('narrows by metadata and says plainly when nothing matches', () => {
@@ -145,14 +156,15 @@ describe('the Record section links', () => {
 });
 
 describe('the Record styles fit a 320px phone', () => {
-  it('sit in one marked block at the end of the stylesheet, wrap, and keep 44px targets', async () => {
+  it('sit in one marked block, wrap, and keep 44px targets', async () => {
     const { readFileSync } = await import('node:fs');
     const css = readFileSync(`${process.cwd()}/src/app/globals.css`, 'utf8');
     const start = css.indexOf('/* WP-V3 part 2:');
     expect(start).toBeGreaterThan(0);
-    const block = css.slice(start);
-    // Nothing from another package follows the block.
-    expect(block.slice(1)).not.toMatch(/\/\* WP-[A-Z0-9]+ /);
+    // The block runs to the next package's marked block, wherever this one sits in the file.
+    const next = css.slice(start + 1).search(/\/\* WP-[A-Z0-9]+/);
+    const block = next < 0 ? css.slice(start) : css.slice(start, start + 1 + next);
+    expect(block).toContain('.record-hub-filter-set {');
     expect(block).toMatch(/\.record-sections \{[^}]*flex-wrap: wrap;/);
     expect(block).toMatch(/\.record-sections a \{[^}]*min-height: 44px;/);
     expect(block).toMatch(/\.record-hub-actions \{[^}]*flex-wrap: wrap;/);

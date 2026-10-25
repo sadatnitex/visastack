@@ -20,6 +20,7 @@ export function RecordBrowser({ items }: { readonly items: readonly RecordItem[]
   const [filter, setFilter] = useState<RecordFilter>('all');
   const searchId = useId();
   const groupId = useId();
+  const groupsId = useId();
   const groups = [...new Set(items.map((item) => item.group))];
   const matches = filterRecordItems(items, { query, group, filter });
   const counts = Object.fromEntries(
@@ -32,19 +33,22 @@ export function RecordBrowser({ items }: { readonly items: readonly RecordItem[]
 
   return (
     <div className="record-hub">
-      <div className="wallet-overview-strip record-hub-filters" aria-label="Record filters">
-        {RECORD_FILTERS.map(({ key, label }) => (
-          <button
-            key={key}
-            type="button"
-            aria-pressed={filter === key}
-            onClick={() => setFilter(key)}
-          >
-            <span>{label}</span>
-            <strong>{counts[key]}</strong>
-          </button>
-        ))}
-      </div>
+      <fieldset className="record-hub-filter-set">
+        <legend className="sr-only">Record Filters</legend>
+        <div className="wallet-overview-strip record-hub-filters">
+          {RECORD_FILTERS.map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={filter === key}
+              onClick={() => setFilter(key)}
+            >
+              <span>{label}</span>
+              <strong>{counts[key]}</strong>
+            </button>
+          ))}
+        </div>
+      </fieldset>
       <div className="wallet-filter-controls record-hub-controls">
         <label htmlFor={searchId}>
           Search Your Record
@@ -82,9 +86,13 @@ export function RecordBrowser({ items }: { readonly items: readonly RecordItem[]
           Nothing matches. Clear the search or choose another group or filter.
         </p>
       ) : (
-        shownGroups.map((name) => (
-          <section key={name} className="card record-hub-group" aria-label={name}>
-            <h3>{name}</h3>
+        shownGroups.map((name, index) => (
+          <section
+            key={name}
+            className="card record-hub-group"
+            aria-labelledby={`${groupsId}-${index}`}
+          >
+            <h3 id={`${groupsId}-${index}`}>{name}</h3>
             <ul className="record-hub-list">
               {matches
                 .filter((item) => item.group === name)

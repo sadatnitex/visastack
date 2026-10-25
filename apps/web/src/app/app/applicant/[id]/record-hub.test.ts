@@ -19,7 +19,10 @@ function doc(overrides: Partial<RecordDocumentInput> = {}): RecordDocumentInput 
     groupLabel: 'Identity',
     lifecycle: 'CURRENT',
     safetyStatus: 'CLEAN',
-    processingStatus: 'APPROVED',
+    // The pipeline's normal finished state; nothing in production sets APPROVED today.
+    processingStatus: 'AWAITING_REVIEW',
+    checked: true,
+    review: { expiryMissing: false, kindNeedsCheck: false, namePending: false },
     version: 2,
     updatedLabel: '1 Oct 2026',
     expiresLabel: '1 Oct 2030',
@@ -52,8 +55,10 @@ describe('Record sections', () => {
 });
 
 describe('document state never overstates what a file can be used for', () => {
-  it('only a checked, current copy is ready to use', () => {
+  it('a scanned, finished copy is ready to use, as Cases and downloads treat it', () => {
     expect(documentState(doc()).usable).toBe(true);
+    expect(documentState(doc()).status.label).toBe('Current Version');
+    expect(documentState(doc({ processingStatus: 'APPROVED' })).usable).toBe(true);
     expect(documentState(doc({ lifecycle: 'EXPIRING' })).usable).toBe(true);
     expect(documentState(doc({ lifecycle: 'UNKNOWN' })).status.label).toBe('Current Version');
   });
@@ -62,21 +67,56 @@ describe('document state never overstates what a file can be used for', () => {
     ['refused', { processingStatus: 'REJECTED' }, 'Cannot Be Used'],
     ['failed', { processingStatus: 'FAILED' }, 'Cannot Be Used'],
     ['held back by the safety check', { safetyStatus: 'QUARANTINED' }, 'Cannot Be Used'],
-    ['still being checked', { processingStatus: 'EXTRACTING' }, 'Still Being Checked'],
-    ['not yet scanned', { safetyStatus: 'PENDING' }, 'Still Being Checked'],
-    ['waiting for review', { processingStatus: 'AWAITING_REVIEW' }, 'Waiting for Your Review'],
+    ['whose scan failed', { safetyStatus: 'FAILED' }, 'Cannot Be Used'],
+    ['not yet scanned', { safetyStatus: 'PENDING', checked: false }, 'Still Being Checked'],
+    ['still being read', { processingStatus: 'EXTRACTING', checked: false }, 'Still Being Checked'],
     ['expired', { lifecycle: 'EXPIRED' }, 'Expired'],
     ['replaced', { lifecycle: 'SUPERSEDED' }, 'Previous Version'],
+    [
+      'passport with no expiry date',
+      { review: { expiryMissing: true, kindNeedsCheck: false, namePending: false } },
+      'Needs Your Check',
+    ],
+    [
+      'kind waiting for a check',
+      { review: { expiryMissing: false, kindNeedsCheck: true, namePending: false } },
+      'Needs Your Check',
+    ],
+    [
+      'new name waiting for a decision',
+      { review: { expiryMissing: false, kindNeedsCheck: false, namePending: true } },
+      'Needs Your Check',
+    ],
   ] as const)('a %s file is not ready to use', (_name, overrides, label) => {
     const state = documentState(doc(overrides as Partial<RecordDocumentInput>));
     expect(state.usable).toBe(false);
     expect(state.status.label).toBe(label);
   });
 
-  it('a problem outranks a good expiry date', () => {
-    expect(documentState(doc({ processingStatus: 'REJECTED', lifecycle: 'CURRENT' })).usable).toBe(
-      false,
+  it('checks in order: problem, then expired or replaced, then still being checked, then review', () => {
+    const review = { expiryMissing: false, kindNeedsCheck: true, namePending: false };
+    expect(
+      documentState(doc({ processingStatus: 'REJECTED', lifecycle: 'EXPIRED' })).status.label,
+    ).toBe('Cannot Be Used');
+    // An expired passport shows Expired, even while its kind also waits for a check.
+    expect(documentState(doc({ lifecycle: 'EXPIRED', review })).status.label).toBe('Expired');
+    // A replaced copy shows Previous Version, even while it is still being checked.
+    expect(documentState(doc({ lifecycle: 'SUPERSEDED', checked: false })).status.label).toBe(
+      'Previous Version',
     );
+    expect(documentState(doc({ checked: false, review })).status.label).toBe('Still Being Checked');
+  });
+
+  it('the review reasons are shown on the record', () => {
+    const [, item] = build([
+      doc({ review: { expiryMissing: true, kindNeedsCheck: true, namePending: true } }),
+    ]);
+    expect(item?.facts.slice(0, 3)).toEqual([
+      'Expiry date not set',
+      'Kind needs your check',
+      'New name waiting for your decision',
+    ]);
+    expect(item?.needsAttention).toBe(true);
   });
 });
 
@@ -87,7 +127,10 @@ describe('actions point only at existing pages', () => {
       { label: 'View', href: `${base}/documents?document=40000000-0000-4000-8000-000000000001` },
       { label: 'Update or Replace', href: `${base}/documents?type=passport#document-upload` },
       { label: 'Use in Case', href: `${base}/missions` },
-      { label: 'Share', href: `${base}/sharing` },
+      {
+        label: 'Share',
+        href: `${base}/sharing?document=40000000-0000-4000-8000-000000000001#new-sharing-request`,
+      },
     ]);
   });
 
@@ -118,6 +161,21 @@ describe('actions point only at existing pages', () => {
       href: `${base}/profile#section-employment`,
     });
     expect(item?.facts).toEqual(['2 of 5 details saved']);
+  });
+
+  it('Use in Case is offered for a profile section only once it holds a saved answer', () => {
+    const items = buildRecordItems({
+      applicantId: person,
+      details: [
+        { key: 'education', label: 'Education', groupLabel: 'Study', answered: 0, total: 3 },
+      ],
+      documents: [],
+    });
+    expect(items[0]?.actions.map((action) => action.label)).toEqual(['View or Update']);
+    expect(build([])[0]?.actions.map((action) => action.label)).toEqual([
+      'View or Update',
+      'Use in Case',
+    ]);
   });
 
   it('a document without a kind falls back to the upload form and its own group', () => {

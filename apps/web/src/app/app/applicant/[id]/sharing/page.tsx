@@ -50,10 +50,14 @@ const ACTION_LABELS: Record<string, string> = {
 
 export default async function SharingPage({
   params,
+  searchParams,
 }: {
   readonly params: Promise<{ id: string }>;
+  /** `document`: one document to start the new sharing request with, from Share on the Record. */
+  readonly searchParams?: Promise<{ readonly document?: string | string[] }>;
 }) {
   const { id } = await params;
+  const { document: documentParam } = (await searchParams) ?? {};
   const t = createTranslator(await getLocale());
 
   const data = await withSession(async ({ db, accountId }) => {
@@ -351,6 +355,10 @@ export default async function SharingPage({
               }))}
               extraCategories={data.extraCategories}
               unsortedDocuments={data.documents.filter((d) => !documentCategory(d.docType)).length}
+              {...(typeof documentParam === 'string' &&
+              data.documents.some((d) => d.id === documentParam)
+                ? { initialDocumentId: documentParam }
+                : {})}
             />
           ) : (
             <p role="alert">

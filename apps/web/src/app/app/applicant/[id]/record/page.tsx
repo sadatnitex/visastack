@@ -4,6 +4,7 @@ import {
   getApplicant,
   getProfileSectionState,
   getWalletView,
+  isServableProcessingState,
   listApplicantProfile,
   listDocumentsDetailed,
 } from '@visastack/services';
@@ -18,7 +19,7 @@ import { withSession } from '../../../../../lib/session';
 import { RecordBrowser } from '../record-browser';
 import { type RecordDetailsInput, type RecordDocumentInput, buildRecordItems } from '../record-hub';
 
-export const metadata: Metadata = { title: 'Record' };
+export const metadata: Metadata = { title: 'All Records' };
 
 export const dynamic = 'force-dynamic';
 
@@ -100,6 +101,17 @@ export default async function ApplicantRecordPage({
           lifecycle: status,
           safetyStatus: summary?.safetyStatus ?? null,
           processingStatus: summary?.processingStatus ?? null,
+          // The services' own servable rule, the one that gates preview and download.
+          checked:
+            summary?.safetyStatus === 'CLEAN' &&
+            summary.processingStatus !== null &&
+            isServableProcessingState(summary.processingStatus),
+          // The documents page's extra review signals.
+          review: {
+            expiryMissing: document.docType === 'PASSPORT' && !document.expiresAt,
+            kindNeedsCheck: summary?.classification?.reviewRequired === true,
+            namePending: (summary?.pendingNameVersion ?? null) !== null,
+          },
           version: summary?.latestVersionNumber ?? null,
           updatedLabel: summary?.updatedAt ? formatTimestampDate(summary.updatedAt) : null,
           expiresLabel: document.expiresAt ? formatTimestampDate(document.expiresAt) : null,
@@ -118,7 +130,7 @@ export default async function ApplicantRecordPage({
     <div className="stack record-hub-page">
       <PageHeader
         as="h2"
-        title="Personal Record"
+        title="All Records"
         description={`Everything saved for ${data.applicant.displayName}, in one place. Find a detail or a document, see which copy is current, then use it in a case or share it.`}
         actions={
           <>

@@ -170,7 +170,9 @@ export function workspaceNavigation(
         ],
     tools: [
       { href: '/app/shared', label: 'Shared with Me' },
-      { href: '/app', label: 'Account and Permissions', exact: true },
+      // The account page is also Home's page, so this opens its permissions section; only one
+      // link (Home) is ever current on /app.
+      { href: '/app#permissions', label: 'Account and Permissions' },
       ...(base ? [{ href: `${base}/evidence`, label: 'Evidence Requests' }] : []),
     ],
     settings,

@@ -23,6 +23,20 @@ export interface RecordDocumentInput {
   readonly lifecycle: DocumentLifecycle;
   readonly safetyStatus: string | null;
   readonly processingStatus: string | null;
+  /**
+   * Decided on the server with the services' own servable rule (a CLEAN scan and a processing
+   * state the services allow to be opened), the same check that gates preview and download.
+   */
+  readonly checked: boolean;
+  /** The documents page's extra review signals: each one keeps a copy from reading as ready. */
+  readonly review: {
+    /** A passport whose expiry date is not set. */
+    readonly expiryMissing: boolean;
+    /** The automatic sorting asked for a person to confirm the kind. */
+    readonly kindNeedsCheck: boolean;
+    /** A proposed new name waits for the person's decision. */
+    readonly namePending: boolean;
+  };
   readonly version: number | null;
   readonly updatedLabel: string | null;
   readonly expiresLabel: string | null;
@@ -53,7 +67,7 @@ export interface RecordItem {
   readonly title: string;
   readonly type: string | null;
   readonly status: { readonly label: string; readonly tone: RecordTone };
-  /** True only for a checked, current copy. Anything still being checked, refused, expired or replaced is false. */
+  /** True only for a checked, current copy with nothing waiting for a person's check. */
   readonly usable: boolean;
   readonly needsAttention: boolean;
   readonly previousVersion: boolean;
@@ -65,70 +79,57 @@ export interface RecordItem {
 export const NOT_SORTED_GROUP = 'Kind Not Set Yet';
 
 const PROBLEM_STATES = new Set(['REJECTED', 'FAILED', 'NEEDS_ATTENTION', 'QUARANTINED']);
+const PROBLEM_SCANS = new Set(['QUARANTINED', 'FAILED']);
 
-/** What the record says about a document. Order matters: a problem outranks every date. */
+/** The review signals, in words, as they appear on the record. */
+export function reviewReasons(review: RecordDocumentInput['review']): readonly string[] {
+  return [
+    review.expiryMissing ? 'Expiry date not set' : null,
+    review.kindNeedsCheck ? 'Kind needs your check' : null,
+    review.namePending ? 'New name waiting for your decision' : null,
+  ].filter((reason): reason is string => reason !== null);
+}
+
+type DocumentStateView = Pick<
+  RecordItem,
+  'status' | 'usable' | 'needsAttention' | 'previousVersion'
+>;
+const stateOf = (
+  label: string,
+  tone: RecordTone,
+  usable: boolean,
+  needsAttention: boolean,
+  previousVersion = false,
+): DocumentStateView => ({ status: { label, tone }, usable, needsAttention, previousVersion });
+
+/**
+ * What the record says about a document. Order matters: a refused or held-back file first, then
+ * an expired or replaced copy, then one still being checked, then one waiting for a person's
+ * check. Only what is left is ready to use.
+ */
 export function documentState(
-  doc: Pick<RecordDocumentInput, 'lifecycle' | 'safetyStatus' | 'processingStatus'>,
-): Pick<RecordItem, 'status' | 'usable' | 'needsAttention' | 'previousVersion'> {
-  if (doc.safetyStatus === 'QUARANTINED' || PROBLEM_STATES.has(doc.processingStatus ?? '')) {
-    return {
-      status: { label: 'Cannot Be Used', tone: 'danger' },
-      usable: false,
-      needsAttention: true,
-      previousVersion: doc.lifecycle === 'SUPERSEDED',
-    };
+  doc: Pick<
+    RecordDocumentInput,
+    'lifecycle' | 'safetyStatus' | 'processingStatus' | 'checked' | 'review'
+  >,
+): DocumentStateView {
+  if (PROBLEM_SCANS.has(doc.safetyStatus ?? '') || PROBLEM_STATES.has(doc.processingStatus ?? '')) {
+    return stateOf('Cannot Be Used', 'danger', false, true, doc.lifecycle === 'SUPERSEDED');
   }
-  if (doc.processingStatus === 'AWAITING_REVIEW') {
-    return {
-      status: { label: 'Waiting for Your Review', tone: 'warning' },
-      usable: false,
-      needsAttention: true,
-      previousVersion: doc.lifecycle === 'SUPERSEDED',
-    };
-  }
-  if (doc.safetyStatus !== 'CLEAN' || doc.processingStatus !== 'APPROVED') {
-    return {
-      status: { label: 'Still Being Checked', tone: 'neutral' },
-      usable: false,
-      needsAttention: false,
-      previousVersion: doc.lifecycle === 'SUPERSEDED',
-    };
-  }
-  switch (doc.lifecycle) {
-    case 'SUPERSEDED':
-      return {
-        status: { label: 'Previous Version', tone: 'neutral' },
-        usable: false,
-        needsAttention: false,
-        previousVersion: true,
-      };
-    case 'EXPIRED':
-      return {
-        status: { label: 'Expired', tone: 'danger' },
-        usable: false,
-        needsAttention: true,
-        previousVersion: false,
-      };
-    case 'EXPIRING':
-      return {
-        status: { label: 'Expiring Soon', tone: 'warning' },
-        usable: true,
-        needsAttention: true,
-        previousVersion: false,
-      };
-    default:
-      return {
-        status: { label: 'Current Version', tone: 'success' },
-        usable: true,
-        needsAttention: false,
-        previousVersion: false,
-      };
-  }
+  if (doc.lifecycle === 'SUPERSEDED')
+    return stateOf('Previous Version', 'neutral', false, false, true);
+  if (doc.lifecycle === 'EXPIRED') return stateOf('Expired', 'danger', false, true);
+  if (!doc.checked) return stateOf('Still Being Checked', 'neutral', false, false);
+  if (reviewReasons(doc.review).length > 0)
+    return stateOf('Needs Your Check', 'warning', false, true);
+  if (doc.lifecycle === 'EXPIRING') return stateOf('Expiring Soon', 'warning', true, true);
+  return stateOf('Current Version', 'success', true, false);
 }
 
 function documentItem(base: string, doc: RecordDocumentInput): RecordItem {
   const state = documentState(doc);
   const view = `${base}/documents?document=${encodeURIComponent(doc.id)}`;
+  const share = `${base}/sharing?document=${encodeURIComponent(doc.id)}#new-sharing-request`;
   const replace = doc.typeKey
     ? `${base}/documents?type=${encodeURIComponent(doc.typeKey)}#document-upload`
     : `${base}/documents#document-upload`;
@@ -143,10 +144,11 @@ function documentItem(base: string, doc: RecordDocumentInput): RecordItem {
     actions.push({ label: 'Update or Replace', href: replace });
     if (state.usable) {
       actions.push({ label: 'Use in Case', href: `${base}/missions` });
-      actions.push({ label: 'Share', href: `${base}/sharing` });
+      actions.push({ label: 'Share', href: share });
     }
   }
   const facts = [
+    ...reviewReasons(doc.review),
     doc.version !== null ? `Version ${doc.version}` : null,
     doc.updatedLabel ? `Saved ${doc.updatedLabel}` : null,
     doc.expiresLabel ? `Expires ${doc.expiresLabel}` : 'Expiry not confirmed',
@@ -194,7 +196,8 @@ function detailsItem(base: string, section: RecordDetailsInput): RecordItem {
         label: 'View or Update',
         href: `${base}/profile#section-${encodeURIComponent(section.key)}`,
       },
-      { label: 'Use in Case', href: `${base}/missions` },
+      // Cases match their requirements against saved details, so only a section with answers is offered.
+      ...(section.answered > 0 ? [{ label: 'Use in Case', href: `${base}/missions` }] : []),
     ],
     searchText: [section.label, section.groupLabel, ...facts].join(' ').toLocaleLowerCase(),
   };

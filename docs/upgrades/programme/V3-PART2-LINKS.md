@@ -19,12 +19,14 @@ Only the traveller workspace changed. The agency and platform workspaces are unc
 | Notifications | More | Notifications | More | `/app/notifications` |
 | Countries | More | Countries | More | `/app/countries` |
 | Shared with Me | More Tools | Shared with Me | More Tools | `/app/shared` |
-| Account Overview | More Tools | Account and Permissions | More Tools | `/app` |
+| Account Overview | More Tools | Account and Permissions | More Tools | `/app` before, `/app#permissions` after (the same page, opened at Permissions You Control) |
 | Evidence Requests | More Tools | Evidence Requests | More Tools | `/app/applicant/[id]/evidence` |
 | Dates & Expiry | More Tools | Dates & Expiry | Record section | `/app/applicant/[id]/expiry` |
 | History | More Tools | History | Record section | `/app/applicant/[id]/history` |
 
-Record sections are the links shown at the top of every Record page: All Records, Profile, Documents, Dates & Expiry, History. On any of those pages the Record tab is the current tab. Every address that worked before still works, and every earlier destination is still at most one step from the navigation.
+Record sections are the links shown at the top of every Record page: All Records, Profile, Documents, Dates & Expiry, History. On any of those pages the Record tab is the current tab. The hub is called Record on the tab and All Records on its section link and its heading. Every address that worked before still works, and every earlier destination is still at most one step from the navigation.
+
+On `/app` only Home is the current link. Account and Permissions opens the permissions section of that same page, so the page never has two current names.
 
 ## Personal space with no traveller yet
 
@@ -35,7 +37,7 @@ Record sections are the links shown at the top of every Record page: All Records
 | Notifications | unchanged | `/app/notifications` |
 | Countries | unchanged | `/app/countries` |
 | Shared with Me (More Tools) | unchanged | `/app/shared` |
-| Account Overview (More Tools) | Account and Permissions | `/app` |
+| Account Overview (More Tools) | Account and Permissions | `/app#permissions` (the same page as Home, opened at Permissions You Control) |
 
 There is no Record, Cases or Sharing tab until a traveller exists, because those pages belong to a person.
 
@@ -46,8 +48,10 @@ Built only from data the owner's own profile and documents pages already read, t
 - Groups: open profile sections under their profile group, and documents under their category (or "Kind Not Set Yet").
 - Search by names, kinds, groups, states, cases and who it is shared with. File contents are not searched.
 - Filters: Everything, Profile Details, Ready to Use, Needs Attention, Previous Versions, and a Group choice.
-- Actions on a ready document: View (`documents?document=`), Update or Replace (`documents?type=...#document-upload`), Use in Case (`missions`), Share (`sharing`). A file still being checked, refused, expired or replaced is never offered for a case or for sharing. A previous version offers View and Open the Current Version.
-- Actions on a profile section: View or Update (`profile#section-...`), Use in Case (`missions`).
+- Ready to use means: a CLEAN scan and a processing state the services allow to be opened (`isServableProcessingState`, the rule that gates preview and download; the normal finished state is AWAITING_REVIEW), decided on the server, and none of the documents page's review signals (a passport with no expiry date, a kind the sorting asked a person to confirm, a new name waiting for a decision).
+- States are decided in this order: Cannot Be Used (refused, failed, held back or a failed scan), then Previous Version or Expired, then Still Being Checked, then Needs Your Check, then Expiring Soon or Current Version.
+- Actions on a ready document: View (`documents?document=`), Update or Replace (`documents?type=...#document-upload`), Use in Case (`missions`), Share (`sharing?document=<id>#new-sharing-request`, which starts the new request on "Only the documents I choose" with that one document ticked; the person still reviews and confirms, and the server checks the scope as before). A document that is not ready is never offered for a case or for sharing. A previous version offers View and Open the Current Version.
+- Actions on a profile section: View or Update (`profile#section-...`), and Use in Case (`missions`) only once the section holds a saved answer, because cases match their requirements against saved details.
 
 ## Evidence
 

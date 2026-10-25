@@ -293,3 +293,55 @@ describe('grant review brief (WP-X2)', () => {
     expect(container.querySelector('.scope-summary-download')).toBeNull();
   });
 });
+
+describe('a document chosen before arriving (WP-V3 part 2)', () => {
+  function mountWith(initialDocumentId: string) {
+    act(() =>
+      root.render(
+        <GrantForm
+          applicantId="owned-person"
+          initialDocumentId={initialDocumentId}
+          documents={[
+            { id: 'passport', displayName: 'Passport summary' },
+            { id: 'statement', displayName: 'Redacted statement' },
+          ]}
+        />,
+      ),
+    );
+  }
+  const radios = () =>
+    [...container.querySelectorAll<HTMLInputElement>('input[name="documentScope"]')].map(
+      (input) => input.checked,
+    );
+  const ticked = () =>
+    [...container.querySelectorAll<HTMLInputElement>('input[name="documentId"]')]
+      .filter((input) => input.checked)
+      .map((input) => input.value);
+
+  it('starts on "Only the documents I choose" with just that document ticked', () => {
+    act(() => root.unmount());
+    root = createRoot(container);
+    mountWith('statement');
+    expect(radios()).toEqual([false, true]);
+    expect(ticked()).toEqual(['statement']);
+  });
+
+  it('an unknown document leaves the form as it always starts', () => {
+    act(() => root.unmount());
+    root = createRoot(container);
+    mountWith('someone-else');
+    expect(radios()).toEqual([true, false]);
+    expect(ticked()).toEqual([]);
+  });
+
+  it('the chosen document is carried in the review, which is still required', () => {
+    act(() => root.unmount());
+    root = createRoot(container);
+    mountWith('statement');
+    ready();
+    review();
+    const summary = container.querySelector('.sharing-scope-review .scope-summary')?.textContent;
+    expect(summary).toContain('Redacted statement');
+    expect(summary).not.toContain('Passport summary');
+  });
+});

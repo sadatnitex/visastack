@@ -93,4 +93,19 @@ describe('the four-tab shell (WP-V3 part 2)', () => {
       'Countries',
     ]);
   });
+
+  it('on the account page only Home is current, though Account and Permissions opens it too', () => {
+    for (const access of [FULL, NONE]) {
+      act(() => root.render(<span />));
+      route.pathname = '/app';
+      mount(access);
+      const current = [...container.querySelectorAll('.app-shell-nav a[aria-current="page"]')];
+      expect(current.map((a) => a.textContent?.trim())).toHaveLength(1);
+      expect(current[0]?.getAttribute('aria-label')).toBe('Home');
+      const tool = [...container.querySelectorAll('.workspace-tools nav a')].find(
+        (a) => a.textContent === 'Account and Permissions',
+      );
+      expect(tool?.getAttribute('href')).toBe('/app#permissions');
+    }
+  });
 });

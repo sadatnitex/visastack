@@ -6277,6 +6277,12 @@ body:has(.auth-shell) > .footer {
 .record-hub-item {
   min-width: 0;
 }
+.record-hub-filter-set {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
 .record-hub-filters {
   grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
 }

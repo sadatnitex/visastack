@@ -194,7 +194,7 @@ describe('workspace navigation link list (characterization)', () => {
     ]);
     expect(pairs(nav.tools)).toEqual([
       ['Shared with Me', '/app/shared'],
-      ['Account and Permissions', '/app'],
+      ['Account and Permissions', '/app#permissions'],
       ['Evidence Requests', `${base}/evidence`],
     ]);
     expect(nav.settings).toEqual([]);
@@ -217,7 +217,7 @@ describe('workspace navigation link list (characterization)', () => {
     ]);
     expect(pairs(nav.tools)).toEqual([
       ['Shared with Me', '/app/shared'],
-      ['Account and Permissions', '/app'],
+      ['Account and Permissions', '/app#permissions'],
     ]);
   });
 
@@ -295,8 +295,11 @@ const BEFORE_EMPTY: readonly (readonly [string, string])[] = [
 describe('no destination is lost by the four-tab change', () => {
   it('every earlier traveller destination is still a tab, a tool or a Record section', () => {
     const nav = workspaceNavigation(base, linkAccess);
+    // A link to a section of a page still reaches that page.
     const offered = new Set(
-      [...nav.primary, ...nav.tools, ...recordSections(self)].map((link) => link.href),
+      [...nav.primary, ...nav.tools, ...recordSections(self)].map(
+        (link) => link.href.split('#')[0],
+      ),
     );
     for (const [label, href] of BEFORE_TRAVELLER) {
       expect(offered.has(href), `${label} (${href})`).toBe(true);
@@ -305,7 +308,7 @@ describe('no destination is lost by the four-tab change', () => {
 
   it('every earlier destination with no traveller is still offered', () => {
     const nav = workspaceNavigation('/app', none);
-    const offered = new Set([...nav.primary, ...nav.tools].map((link) => link.href));
+    const offered = new Set([...nav.primary, ...nav.tools].map((link) => link.href.split('#')[0]));
     for (const [label, href] of BEFORE_EMPTY) {
       expect(offered.has(href), `${label} (${href})`).toBe(true);
     }
@@ -325,5 +328,18 @@ describe('no destination is lost by the four-tab change', () => {
     expect(
       nav.primary.filter((link) => isCurrentPath(`${base}/evidence`, link)).map((l) => l.label),
     ).toEqual([]);
+  });
+
+  it('the account page has one name in the navigation: only Home is current on /app', () => {
+    for (const [who, nav] of [
+      ['a traveller', workspaceNavigation('/app', linkAccess)],
+      ['no traveller yet', workspaceNavigation('/app', none)],
+    ] as const) {
+      const current = [...nav.primary, ...nav.tools].filter((link) => isCurrentPath('/app', link));
+      expect(
+        current.map((link) => link.label),
+        who,
+      ).toEqual(['Home']);
+    }
   });
 });
