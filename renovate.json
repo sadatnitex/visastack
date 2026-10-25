@@ -1,0 +1,82 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Weekly grouped dependency updates. Nothing merges on its own: every PR goes through CI and the owner's merge word.",
+  "extends": ["config:recommended"],
+  "timezone": "Etc/UTC",
+  "schedule": ["before 6am on monday"],
+  "labels": ["dependencies"],
+  "automerge": false,
+  "platformAutomerge": false,
+  "rangeStrategy": "bump",
+  "separateMajorMinor": true,
+  "minimumReleaseAge": "3 days",
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/examples/**",
+    "**/__tests__/**",
+    "**/test/**",
+    "**/tests/**",
+    "**/__fixtures__/**",
+    "docs/design/harbor-v2/**"
+  ],
+  "lockFileMaintenance": {
+    "enabled": false
+  },
+  "vulnerabilityAlerts": {
+    "labels": ["dependencies", "security"],
+    "automerge": false
+  },
+  "packageRules": [
+    {
+      "description": "All non-major devDependency updates in one weekly PR.",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "groupName": "non-major dev dependencies",
+      "groupSlug": "non-major-dev"
+    },
+    {
+      "description": "All non-major production dependency updates in one weekly PR.",
+      "matchDepTypes": ["dependencies"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "groupName": "non-major production dependencies",
+      "groupSlug": "non-major-prod"
+    },
+    {
+      "description": "GitHub Actions used by the workflows, in one weekly PR (pinned digests included).",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions",
+      "groupSlug": "github-actions"
+    },
+    {
+      "description": "pnpm overrides are hand-set security floors with an upper bound (CLAUDE.md section 7). Never touch them.",
+      "matchDepTypes": ["pnpm.overrides", "overrides", "resolutions"],
+      "enabled": false
+    },
+    {
+      "description": "0.x packages (drizzle-orm, drizzle-kit, the Neon driver) can break on a minor bump, so those get their own PR instead of riding in a group.",
+      "matchCurrentVersion": "/^[\\^~v]?0\\./",
+      "matchUpdateTypes": ["minor"],
+      "groupName": null
+    },
+    {
+      "description": "The Node and pnpm versions (engines, packageManager, .nvmrc, the pnpm setup action) are an owner decision, not a routine update.",
+      "matchDepTypes": ["engines", "packageManager"],
+      "enabled": false
+    },
+    {
+      "matchManagers": ["nvm"],
+      "enabled": false
+    },
+    {
+      "matchDepNames": ["node", "pnpm"],
+      "enabled": false
+    }
+  ],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 1,
+  "major": {
+    "dependencyDashboardApproval": true
+  }
+}
