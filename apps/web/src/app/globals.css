@@ -6392,8 +6392,8 @@ body:has(.auth-shell) > .footer {
   }
 }
 
-/* ------------------------------------------------------------------------------------------------
- * AI insights Phase 2: Document Insights page (applicant/[id]/insights).
+/* WP-AI2 insights (AI data plan Phase 2): Document Insights page (applicant/[id]/insights). Marked
+ * like the package blocks so each block's own guard test ends where the next block starts.
  * Flat Harbor Blue cards from the shared tokens; every target at least 44px; rows wrap instead of
  * scrolling sideways, down to 320px wide.
  * ---------------------------------------------------------------------------------------------- */
