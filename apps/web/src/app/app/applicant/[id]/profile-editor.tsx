@@ -1001,7 +1001,7 @@ export function ProfileEditor({
   layersRef.current = view.layers;
   useEffect(() => {
     const follow = () => {
-      const match = /^#section-([a-z0-9_]+)$/.exec(window.location.hash);
+      const match = window.location.hash.match(/^#section-([a-z0-9_]+)$/);
       const key = match?.[1];
       if (!key) return;
       const layer = layersRef.current.find((l) =>
