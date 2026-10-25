@@ -5352,3 +5352,9 @@ Documentation only. The bidesh365 master profile (54 sections) was compared with
 ### 2026-10-25, Phase 2 faster CI: review on takeover
 
 - The PR was taken over from the parallel session at the owner's request and reviewed again (/code-review high). Fixed: the required summary job now always runs, so a cancelled run turns the check red instead of being skipped (GitHub counts a skipped required check as passed); the last seven service test files that migrated by hand now start from the snapshot; the snapshot builder lives apart from the Vitest-only helper, so the global setup loads no worker code; the migrations folder is written down in one place (`packages/db/src/paths.ts`), used by the migration script, the snapshot and the migration tests; the outcome privacy check also looks for "paragraph" and "Refused under", so a cut-down citation still counts as a leak.
+
+### 2026-10-25, the Sliced V everywhere
+
+- Owner request 25 Oct 2026: the header mark, the favicon and the other marks show the Sliced V, not the single bolder V. The brand pack reserved the sliced mark for 32px and up and used the single V below that (and in the landing header, decision D12); the owner's instruction replaces that choice.
+- Shipped: `BrandMark` draws the pack's `visastack-app-icon.svg` (blue tile, white V in slices; reversed on the dark sign-in panel by CSS as before); every placement is at least 32px (phone header, workspace and toolbar marks were 28px); `icon.svg` is the same sliced tile; `favicon.ico` holds 16 and 32 px drawn down from the pack's 512 px sliced icon plus the pack's 48 px file. Home-screen, apple and share images already used the sliced V and are unchanged.
+- Trade-off reported to the owner: at 16 px in a browser tab the slices are only a few pixels apart and can read as a solid V on low-density screens.

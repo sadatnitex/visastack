@@ -191,7 +191,7 @@ a:hover {
 .brand:hover {
   text-decoration: none;
 }
-/* A small mark: two stacked bars, the stack in the name. Decorative. */
+/* The Sliced V tile from the brand pack. Decorative: the name beside it is read aloud. */
 .brand-mark {
   display: inline-block;
   width: 34px;
@@ -3074,8 +3074,9 @@ body:has(.auth-shell) > .footer {
     gap: 9px;
   }
   .workspace-brand .brand-mark {
-    width: 28px;
-    height: 28px;
+    /* The sliced mark is never shown under 32px (brand pack). */
+    width: 32px;
+    height: 32px;
   }
   .workspace-finder,
   .workspace-context {
@@ -3110,8 +3111,9 @@ body:has(.auth-shell) > .footer {
     gap: 9px;
   }
   .nav .brand-mark {
-    width: 28px;
-    height: 28px;
+    /* The sliced mark is never shown under 32px (brand pack). */
+    width: 32px;
+    height: 32px;
   }
   .site-navigation .nav-links {
     display: none;
@@ -4497,8 +4499,9 @@ body:has(.auth-shell) > .footer {
     gap: 8px;
   }
   .record-toolbar .brand-mark {
-    width: 28px;
-    height: 28px;
+    /* The sliced mark is never shown under 32px (brand pack). */
+    width: 32px;
+    height: 32px;
   }
   .record-plan-badge {
     display: none;
