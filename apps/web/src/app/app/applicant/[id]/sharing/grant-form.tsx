@@ -4,10 +4,22 @@ import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
 import { InvitationLink } from '../../../../../components/invitation-link';
+import {
+  SelectedScopeSummary,
+  describeGrantScope,
+} from '../../../../../components/selected-scope-summary';
 import { PACK_LABELS, PACK_ORDER } from '../../../../../lib/profile-fields';
 import { type ActionState, createGrantAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
+
+/** Every grant ends; with no days given the service applies its 30-day default. */
+const DEFAULT_EXPIRY_DAYS = 30;
+const END_DATE = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+});
 
 /** Curated, launch-safe permission set (read + collaborate; no original download / manage). */
 const SHAREABLE_ACTIONS: ReadonlyArray<{ value: string; label: string; defaultOn?: boolean }> = [
@@ -60,27 +72,37 @@ export function GrantForm({
   const [selectedDocuments, setSelectedDocuments] = useState<readonly string[]>([]);
   const [expiryDays, setExpiryDays] = useState('');
 
-  const scopeLabel =
-    categories.length === 0
-      ? 'your whole profile'
-      : categories
-          .map(
-            (c) =>
-              PACK_LABELS[c as keyof typeof PACK_LABELS] ??
-              extraCategories.find((extra) => extra.key === c)?.label ??
-              c,
-          )
-          .join(', ');
-  const docsLabel =
-    documents.length === 0
-      ? null
-      : selectedDocuments.length === 0
-        ? 'every document'
-        : documents
-            .filter((document) => selectedDocuments.includes(document.id))
-            .map((document) => document.displayName)
-            .join(', ');
-  const canDownload = actions.includes('DOWNLOAD_REDACTED');
+  const categoryLabels = categories.map(
+    (c) =>
+      PACK_LABELS[c as keyof typeof PACK_LABELS] ??
+      extraCategories.find((extra) => extra.key === c)?.label ??
+      c,
+  );
+  // Owner decision 25 Oct 2026: download wording only when Preview is also
+  // ticked, since without Preview no document shows to the recipient at all.
+  const canDownload = actions.includes('DOWNLOAD_REDACTED') && actions.includes('PREVIEW');
+  const scope = describeGrantScope({
+    actions,
+    caseGrant: false,
+    partLabels: categoryLabels,
+    documentNames: documents
+      .filter((document) => selectedDocuments.includes(document.id))
+      .map((document) => document.displayName),
+    hasDocuments: documents.length > 0,
+    partsWhen: 'now',
+  });
+  // The calendar date is worked out in the browser after it loads, in the
+  // person's own time zone, so the server and the browser never disagree.
+  const [today, setToday] = useState<number | null>(null);
+  useEffect(() => setToday(Date.now()), []);
+  const days = Number(expiryDays) > 0 ? Number(expiryDays) : DEFAULT_EXPIRY_DAYS;
+  const endsOn =
+    today === null
+      ? `${days} day${days === 1 ? '' : 's'} from today`
+      : END_DATE.format(new Date(today + days * 24 * 60 * 60 * 1000));
+  const endsNote = expiryDays
+    ? `in ${expiryDays} day${expiryDays === '1' ? '' : 's'}`
+    : `in ${DEFAULT_EXPIRY_DAYS} days, the default`;
 
   function reviewScope() {
     if (!form.current?.reportValidity()) return;
@@ -319,23 +341,37 @@ export function GrantForm({
 
       <div className="sharing-scope-review" ref={review} tabIndex={-1} aria-live="polite">
         <h3>{reviewed ? 'Confirm this access' : 'Your access summary'}</h3>
-        <strong>{recipientEmail || 'This recipient'}</strong> will be able to{' '}
-        {actions.length === 0
-          ? 'do nothing yet - select at least one permission'
-          : actions
-              .map((a) => SHAREABLE_ACTIONS.find((s) => s.value === a)?.label.toLowerCase())
-              .filter(Boolean)
-              .join(', ')}
-        {purpose ? <> for “{purpose}”</> : null}, scoped to {scopeLabel}
-        {docsLabel ? <> ({docsLabel})</> : null}.{' '}
-        {canDownload
-          ? 'Redacted copies may be downloaded; original downloads are not included. '
-          : 'Downloads are not included. '}
-        {expiryDays
-          ? `Access expires in ${expiryDays} day${expiryDays === '1' ? '' : 's'}. `
-          : 'Access expires in 30 days (the default) unless you set a different duration. '}
-        They must accept before anything is visible to them. You can pause or revoke future access
-        at any time; copies already downloaded cannot be recalled.
+        <SelectedScopeSummary
+          recipient={recipientEmail || 'This recipient'}
+          purpose={purpose || null}
+          permissions={
+            actions.length === 0
+              ? ['nothing yet - select at least one permission']
+              : actions
+                  .map((a) => SHAREABLE_ACTIONS.find((s) => s.value === a)?.label.toLowerCase())
+                  .filter((label): label is string => Boolean(label))
+          }
+          profile={scope.profile}
+          documents={scope.documents}
+          endsOn={endsOn}
+          endsNote={endsNote}
+        />
+        <p className="scope-summary-note">
+          {canDownload
+            ? 'Redacted copies may be downloaded; original downloads are not included. '
+            : 'Downloads are not included. '}
+          They must accept before anything is visible to them.{' '}
+          {canDownload
+            ? 'You can pause or revoke access at any time.'
+            : 'You can pause or revoke future access at any time; copies already downloaded cannot be recalled.'}
+        </p>
+        {canDownload ? (
+          // Owner-approved wording, 25 Oct 2026; shown only when downloads are allowed.
+          <p className="scope-summary-download">
+            Revoking ends access on VisaStack. It cannot take back copies someone already
+            downloaded.
+          </p>
+        ) : null}
       </div>
 
       {reviewError ? (

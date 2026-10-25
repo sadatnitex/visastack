@@ -109,3 +109,47 @@ describe('actual authorized sharing composition', () => {
     expect(textOf(html)).toContain('Document records are unavailable');
   });
 });
+
+describe('grant cards describe each grant in rows (WP-X2)', () => {
+  it('reads live access in the present tense and ended access in the past, never as live', async () => {
+    mocks.listAccessForApplicantDetailed.mockResolvedValue({
+      ok: true,
+      value: [
+        {
+          ...grant('ACTIVE'),
+          actions: ['VIEW_METADATA', 'PREVIEW'],
+          expiryAt: new Date('2099-11-24'),
+        },
+        grant('PAUSED'),
+        { ...grant('REVOKED'), documentIds: null, actions: ['VIEW_METADATA', 'PREVIEW'] },
+      ],
+    });
+    const html = await render();
+    const cards = html.split('class="row sharing-grant"').slice(1);
+    expect(cards).toHaveLength(3);
+    const [active, paused, revoked] = cards.map((card) => textOf(card));
+    expect(active).toContain('They can');
+    expect(active).toContain('Can open');
+    expect(active).toContain('Passport summary');
+    // A document-limited grant shows no profile details.
+    expect(active).toContain('none of your profile details');
+    expect(paused).toContain('They could');
+    expect(paused).toContain('They cannot see these without Preview documents.');
+    expect(revoked).toContain('They could');
+    expect(revoked).toContain('Ended');
+    expect(revoked).not.toMatch(/They can(?!not)/);
+    expect(cards[2]).not.toContain('scope-row-warning');
+    expect(revoked).toContain('when you revoked it');
+  });
+
+  it('a grant past its end date reads as ended even before its status catches up', async () => {
+    mocks.listAccessForApplicantDetailed.mockResolvedValue({
+      ok: true,
+      value: [{ ...grant('ACTIVE'), expiryAt: new Date('2020-01-01') }],
+    });
+    const card = textOf((await render()).split('class="row sharing-grant"')[1] ?? '');
+    expect(card).toContain('They could');
+    expect(card).toContain('Ended');
+    expect(card).not.toMatch(/They can(?!not)/);
+  });
+});

@@ -5822,3 +5822,66 @@ body:has(.auth-shell) > .footer {
     white-space: nowrap;
   }
 }
+
+/* WP-X2 grant review brief (approved preview). Plain rows for what is being
+   shared; broad choices (whole profile, every document, no end date) in the
+   existing warning tone. Colours are existing Harbor tokens. */
+.scope-summary dl {
+  margin: 0.5rem 0 0;
+  display: grid;
+  gap: 0.35rem;
+}
+.scope-row {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--radius-sm);
+}
+.scope-row dt {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.scope-row dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+/* Capitalise only wording the summary writes itself, never what people typed. */
+.scope-phrase {
+  display: inline-block;
+}
+.scope-phrase::first-letter {
+  text-transform: uppercase;
+}
+.scope-row-note {
+  display: block;
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+.scope-row-warning {
+  background: var(--warning-bg);
+}
+
+.scope-row-warning dd {
+  color: var(--warning);
+  font-weight: 600;
+}
+.scope-summary-private,
+.scope-summary-note,
+.scope-summary-download {
+  margin: 0.6rem 0 0;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+@media (max-width: 480px) {
+  .scope-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.1rem;
+  }
+}
+.scope-summary .scope-summary-download,
+.sharing-scope-review .scope-summary-download {
+  color: var(--warning);
+  font-weight: 600;
+}

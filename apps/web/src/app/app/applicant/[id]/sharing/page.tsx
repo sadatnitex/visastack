@@ -11,6 +11,10 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import {
+  SelectedScopeSummary,
+  describeGrantScope,
+} from '../../../../../components/selected-scope-summary';
 import { EmptyState, PageHeader, StatusBadge } from '../../../../../components/ui';
 import { humanizeCode } from '../../../../../lib/format-code';
 import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
@@ -168,44 +172,43 @@ export default async function SharingPage({
                         </span>
                         <span className={`badge ${badge.tone}`}>{badge.label}</span>
                       </div>
-                      <p style={{ margin: 0, fontSize: 'var(--text-small)' }}>
-                        {grant.recipient.label}{' '}
-                        {grant.status === 'ACTIVE' ? 'can' : 'would be able to'}{' '}
-                        {grant.actions.map((a) => (ACTION_LABELS[a] ?? a).toLowerCase()).join(', ')}{' '}
-                        {grant.missionId
-                          ? 'for one specific case'
-                          : grant.categories && grant.categories.length > 0
-                            ? `in ${grant.categories.map((c) => categoryLabel(c)).join(', ')}`
-                            : 'across your whole profile'}
-                        {grant.documentIds && grant.documentIds.length > 0
-                          ? `, limited to ${grant.documentIds.length} specific document${grant.documentIds.length === 1 ? '' : 's'}`
-                          : ''}
-                        {grant.expiryAt ? `, until ${formatTimestampDate(grant.expiryAt)}` : ''}.
-                      </p>
-                      <p className="muted" style={{ margin: 0, fontSize: 'var(--text-small)' }}>
-                        Purpose: {grant.purpose}
-                        {grant.acceptedAt
-                          ? ` · accepted ${formatTimestampDate(grant.acceptedAt)}`
-                          : ''}
-                      </p>
-                      {grant.documentIds && grant.documentIds.length > 0 ? (
-                        <ul
-                          className="sharing-document-scope"
-                          aria-label="Documents included in this grant"
-                        >
-                          {grant.documentIds.map((documentId) => {
+                      <SelectedScopeSummary
+                        purpose={grant.purpose}
+                        permissions={grant.actions.map((a) =>
+                          (ACTION_LABELS[a] ?? a).toLowerCase(),
+                        )}
+                        {...describeGrantScope({
+                          actions: grant.actions,
+                          caseGrant: Boolean(grant.missionId),
+                          partLabels: (grant.categories ?? []).map((c) => categoryLabel(c)),
+                          documentNames: (grant.documentIds ?? []).map((documentId) => {
                             const document = data.documents.find(
                               (record) => record.id === documentId,
                             );
-                            return (
-                              <li key={documentId}>
-                                {document
-                                  ? (document.approvedName ?? document.originalName)
-                                  : 'Document details unavailable'}
-                              </li>
-                            );
-                          })}
-                        </ul>
+                            return document
+                              ? (document.approvedName ?? document.originalName)
+                              : 'Document details unavailable';
+                          }),
+                          hasDocuments: true,
+                          partsWhen: 'atSharing',
+                        })}
+                        tense={
+                          grant.status === 'REVOKED' ||
+                          grant.status === 'EXPIRED' ||
+                          (grant.expiryAt !== null &&
+                            new Date(grant.expiryAt).getTime() <= Date.now())
+                            ? 'ended'
+                            : grant.status === 'ACTIVE'
+                              ? 'live'
+                              : 'notYet'
+                        }
+                        revoked={grant.status === 'REVOKED'}
+                        endsOn={grant.expiryAt ? formatTimestampDate(grant.expiryAt) : null}
+                      />
+                      {grant.acceptedAt ? (
+                        <p className="muted" style={{ margin: 0, fontSize: 'var(--text-small)' }}>
+                          Accepted {formatTimestampDate(grant.acceptedAt)}
+                        </p>
                       ) : null}
                       {canPause || canResume || canRevoke ? (
                         <p className="muted" style={{ margin: 0, fontSize: 'var(--text-small)' }}>
