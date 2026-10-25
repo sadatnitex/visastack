@@ -184,6 +184,8 @@ function gateDeclarations(program: ts.Program, checker: ts.TypeChecker): Set<ts.
 }
 
 function isGateType(type: ts.Type, gateDecls: Set<ts.Node>): boolean {
+  // The class itself (`typeof AuthorizedApplicant`) is not a proof: only an instance is.
+  if (type.getConstructSignatures().length > 0) return false;
   const symbols = [type.aliasSymbol, type.getSymbol()];
   if (symbols.some((s) => (s?.declarations ?? []).some((d) => gateDecls.has(d)))) return true;
   // A union of gate types (for example SystemScope | StaffScope) counts; a
@@ -194,27 +196,54 @@ function isGateType(type: ts.Type, gateDecls: Set<ts.Node>): boolean {
 
 type FunctionLike = ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression;
 
-function exportedFunctions(
-  checker: ts.TypeChecker,
-  sf: ts.SourceFile,
-): Map<string, FunctionLike[]> {
-  const result = new Map<string, FunctionLike[]>();
+interface ExportShape {
+  /** The functions whose parameters decide compliance (every one must take a gate). */
+  readonly fns: FunctionLike[];
+  /** The nodes scanned for applicant-owned tables. */
+  readonly roots: ts.Node[];
+  /**
+   * The export cannot be judged by its parameters (a class, `export const f = g`,
+   * `g.bind(...)`, a call returning a function): if it reaches applicant data it
+   * fails, because the ratchet cannot see a gate on it.
+   */
+  readonly opaque: boolean;
+}
+
+function exportedFunctions(checker: ts.TypeChecker, sf: ts.SourceFile): Map<string, ExportShape> {
+  const result = new Map<string, ExportShape>();
   const moduleSymbol = checker.getSymbolAtLocation(sf);
   if (!moduleSymbol) return result;
   for (const exported of checker.getExportsOfModule(moduleSymbol)) {
     const target = resolve(checker, exported);
     const fns: FunctionLike[] = [];
+    const roots: ts.Node[] = [];
+    let opaque = false;
     for (const decl of target?.declarations ?? []) {
       // Re-exports are judged in the module that declares them.
       if (decl.getSourceFile() !== sf) continue;
-      if (ts.isFunctionDeclaration(decl)) fns.push(decl);
-      if (ts.isVariableDeclaration(decl) && decl.initializer) {
+      if (ts.isFunctionDeclaration(decl)) {
+        fns.push(decl);
+        roots.push(decl);
+      } else if (ts.isClassDeclaration(decl)) {
+        opaque = true;
+        roots.push(decl);
+      } else if (ts.isVariableDeclaration(decl) && decl.initializer) {
         const init = unwrapExpression(decl.initializer);
-        if (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) fns.push(init);
-        else if (ts.isCallExpression(init)) fns.push(...wrappedFunctions(init));
+        if (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) {
+          fns.push(init);
+          roots.push(init);
+        } else if (
+          checker.getTypeAtLocation(decl).getCallSignatures().length > 0 ||
+          ts.isCallExpression(init)
+        ) {
+          const wrapped = ts.isCallExpression(init) ? wrappedFunctions(init) : [];
+          if (wrapped.length > 0) fns.push(...wrapped);
+          else opaque = true;
+          roots.push(init);
+        }
       }
     }
-    if (fns.length > 0) result.set(exported.name, fns);
+    if (roots.length > 0) result.set(exported.name, { fns, roots, opaque });
   }
   return result;
 }
@@ -243,6 +272,50 @@ function importedTableAliases(sf: ts.SourceFile, tableNames: Set<string>): Set<s
     }
   }
   return aliases;
+}
+
+/**
+ * Module-level names that stand for an owned table: `const docs = schema.documents`
+ * and `const { documents } = schema`. A destructured name spelled like a table
+ * counts whatever it came from (fails closed).
+ */
+function moduleTableAliases(
+  sf: ts.SourceFile,
+  tableNames: Set<string>,
+  tableDecls: Set<ts.Node>,
+  checker: ts.TypeChecker,
+): { names: Set<string>; decls: Set<ts.Node> } {
+  const names = new Set<string>();
+  const decls = new Set<ts.Node>();
+  for (const statement of sf.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const decl of statement.declarationList.declarations) {
+      if (ts.isObjectBindingPattern(decl.name)) {
+        for (const element of decl.name.elements) {
+          const property = element.propertyName ?? element.name;
+          if (
+            ts.isIdentifier(property) &&
+            tableNames.has(property.text) &&
+            ts.isIdentifier(element.name)
+          ) {
+            names.add(element.name.text);
+            decls.add(element);
+          }
+        }
+        continue;
+      }
+      if (!ts.isIdentifier(decl.name) || !decl.initializer) continue;
+      const init = unwrapExpression(decl.initializer);
+      const named = ts.isPropertyAccessExpression(init) ? init.name : init;
+      if (!ts.isIdentifier(named) || !tableNames.has(named.text)) continue;
+      const symbol = resolve(checker, checker.getSymbolAtLocation(named));
+      if ((symbol?.declarations ?? []).some((d) => tableDecls.has(d))) {
+        names.add(decl.name.text);
+        decls.add(decl);
+      }
+    }
+  }
+  return { names, decls };
 }
 
 /** Local name to imported name for each `import { a as b }` in `sf`. */
@@ -308,6 +381,24 @@ function touchesOwnedTable(scan: FileScan, root: ts.Node): boolean {
     // Only identifiers spelled like a table, a renamed table import, or a
     // private helper are resolved, which keeps the checker away from
     // unrelated expressions.
+    // `db.query.documents` (the relational query API) and `schema['documents']`.
+    if (
+      ts.isPropertyAccessExpression(node) &&
+      scan.candidateNames.has(node.name.text) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === 'query'
+    ) {
+      touches = true;
+      return;
+    }
+    if (
+      ts.isElementAccessExpression(node) &&
+      ts.isStringLiteralLike(node.argumentExpression) &&
+      scan.candidateNames.has(node.argumentExpression.text)
+    ) {
+      touches = true;
+      return;
+    }
     if (ts.isIdentifier(node)) {
       if (
         scan.candidateNames.has(node.text) ||
@@ -349,13 +440,17 @@ function touchesOwnedTable(scan: FileScan, root: ts.Node): boolean {
 }
 
 function complies(checker: ts.TypeChecker, fns: FunctionLike[], gateDecls: Set<ts.Node>): boolean {
-  return fns.some((fn) =>
-    fn.parameters.some(
-      (param) =>
-        param.questionToken === undefined &&
-        param.initializer === undefined &&
-        isGateType(checker.getTypeAtLocation(param), gateDecls),
-    ),
+  // Every overload and every wrapped function must take a gate, not just one of them.
+  return (
+    fns.length > 0 &&
+    fns.every((fn) =>
+      fn.parameters.some(
+        (param) =>
+          param.questionToken === undefined &&
+          param.initializer === undefined &&
+          isGateType(checker.getTypeAtLocation(param), gateDecls),
+      ),
+    )
   );
 }
 
@@ -402,7 +497,7 @@ function analyse(): Analysis {
   interface ExportedFn {
     readonly id: string;
     readonly name: string;
-    readonly fns: FunctionLike[];
+    readonly shape: ExportShape;
     readonly decls: ts.Node[];
     readonly scan: FileScan;
     readonly inAccess: boolean;
@@ -415,10 +510,15 @@ function analyse(): Analysis {
     if (sf.isDeclarationFile || !fileName.startsWith(srcDir + path.sep) || isTestFile(fileName)) {
       continue;
     }
+    const aliases = moduleTableAliases(sf, tables.names, tables.decls, checker);
     const scan: FileScan = {
       checker,
-      tableDecls: tables.decls,
-      candidateNames: new Set([...tables.names, ...importedTableAliases(sf, tables.names)]),
+      tableDecls: new Set([...tables.decls, ...aliases.decls]),
+      candidateNames: new Set([
+        ...tables.names,
+        ...importedTableAliases(sf, tables.names),
+        ...aliases.names,
+      ]),
       helpers: privateHelpers(sf),
       memo: new Map(),
       ungatedNames,
@@ -426,14 +526,14 @@ function analyse(): Analysis {
       importAliases: renamedImports(sf),
     };
     const moduleSymbol = checker.getSymbolAtLocation(sf);
-    for (const [name, fns] of exportedFunctions(checker, sf)) {
+    for (const [name, shape] of exportedFunctions(checker, sf)) {
       const symbol = moduleSymbol
         ? checker.getExportsOfModule(moduleSymbol).find((e) => e.name === name)
         : undefined;
       exported.push({
         id: `${moduleId(fileName)}#${name}`,
         name,
-        fns,
+        shape,
         decls: (resolve(checker, symbol)?.declarations ?? []).filter(
           (d) => d.getSourceFile() === sf,
         ),
@@ -452,8 +552,9 @@ function analyse(): Analysis {
     for (const entry of exported) {
       if (violations.has(entry.id) || entry.inAccess) continue;
       entry.scan.memo.clear();
-      const touches = entry.fns.some((fn) => touchesOwnedTable(entry.scan, fn));
-      if (touches && !complies(checker, entry.fns, gateDecls)) {
+      const touches = entry.shape.roots.some((root) => touchesOwnedTable(entry.scan, root));
+      const gated = !entry.shape.opaque && complies(checker, entry.shape.fns, gateDecls);
+      if (touches && !gated) {
         violations.add(entry.id);
         ungatedNames.add(entry.name);
         for (const decl of entry.decls) ungatedDecls.add(decl);
@@ -506,7 +607,7 @@ describe('access gate enforcement ratchet', () => {
     const newViolations = [...analysis.violations].filter((id) => !baselineSet.has(id)).sort();
     expect(
       newViolations,
-      `These exported functions touch applicant-owned tables without a gate parameter (AuthorizedApplicant, SystemScope, StaffScope or Principal). Take one via requireAccess instead of adding them to the baseline:\n${JSON.stringify(newViolations, null, 2)}`,
+      `These exported functions touch applicant-owned tables without a gate parameter (AuthorizedApplicant, SystemScope or StaffScope). Take one via requireAccess instead of adding them to the baseline:\n${JSON.stringify(newViolations, null, 2)}`,
     ).toEqual([]);
 
     const stale = baseline.filter((id) => !analysis.violations.has(id));

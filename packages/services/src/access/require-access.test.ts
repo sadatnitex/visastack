@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { type Result, isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
+import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -110,7 +111,9 @@ describe('requireAccess - central applicant authorization gate', () => {
     const document = await registerDocument(db, {
       actorAccountId: ownerId,
       applicantId,
-      originalName: 'statement.pdf',
+      originalName: 'certificate.pdf',
+      // An everyday document: an unclassified or identity one needs a step-up to preview.
+      docType: 'EMPLOYMENT_CERTIFICATE',
     });
     if (!isOk(document)) throw new Error('document');
     documentId = document.value.id;
@@ -222,7 +225,17 @@ describe('requireAccess - central applicant authorization gate', () => {
     ]) {
       expect(isRestrictedDocumentType(medical), medical).toBe(true);
     }
-    expect(isRestrictedDocumentType(null)).toBe(false);
+    // Not known yet, so it could be a passport: restricted until classified.
+    expect(isRestrictedDocumentType(null)).toBe(true);
+    expect(isRestrictedDocumentType('SOMETHING_NOBODY_KNOWS')).toBe(true);
+    for (const identity of [
+      'OTHER_IDENTITY_DOCUMENT',
+      'BIRTH_CERTIFICATE',
+      'REFUGEE_DOCUMENT',
+      'JOINT_ACCOUNT_STATEMENT',
+    ]) {
+      expect(isRestrictedDocumentType(identity), identity).toBe(true);
+    }
     const passport = await registerDocument(db, {
       actorAccountId: ownerId,
       applicantId,
@@ -563,6 +576,30 @@ describe('requireAccess - central applicant authorization gate', () => {
         accountId: sponsorId,
         contributorRequestId,
       });
+    // A claimed request still ends when its link expires.
+    const [{ expiresAt }] = (await db
+      .select({ expiresAt: schema.contributorRequests.expiresAt })
+      .from(schema.contributorRequests)
+      .where(eq(schema.contributorRequests.id, contributorRequestId))) as [{ expiresAt: Date }];
+    await db
+      .update(schema.contributorRequests)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(schema.contributorRequests.id, contributorRequestId));
+    expect(
+      errorCode(
+        await requireAccess(
+          db,
+          sponsor,
+          'PROPOSE_EDIT',
+          { missionId },
+          { purpose: 'x', contributorRequestId },
+        ),
+      ),
+    ).toBe('forbidden');
+    await db
+      .update(schema.contributorRequests)
+      .set({ expiresAt })
+      .where(eq(schema.contributorRequests.id, contributorRequestId));
     // A case-scoped request never reaches the whole profile (policy law 5).
     expect(
       errorCode(
@@ -582,7 +619,7 @@ describe('requireAccess - central applicant authorization gate', () => {
         await requireAccess(
           db,
           sponsor,
-          'PREVIEW',
+          'VIEW_METADATA',
           { missionId },
           { purpose: 'x', contributorRequestId },
         ),
@@ -934,6 +971,129 @@ describe('requireAccess - central applicant authorization gate', () => {
         ),
       ).toBe('forbidden');
     }
+  });
+
+  it('checks previews and downloads one document at a time', async () => {
+    const owner = accountPrincipal(ownerId);
+    for (const ref of [{ applicantId }, { missionId }]) {
+      for (const action of ['PREVIEW', 'DOWNLOAD_ORIGINAL', 'DOWNLOAD_REDACTED'] as const) {
+        expect(errorCode(await requireAccess(db, owner, action, ref, { purpose: 'self' }))).toBe(
+          'invalid',
+        );
+      }
+    }
+  });
+
+  it('issues a proof whose records cannot be changed afterwards', async () => {
+    const proof = await requireAccess(
+      db,
+      accountPrincipal(ownerId),
+      'PREVIEW',
+      { documentId },
+      { purpose: 'self' },
+    );
+    if (!isOk(proof)) throw new Error('proof');
+    const applicant = proof.value.applicant as { id: string };
+    expect(() => {
+      applicant.id = randomUUID();
+    }).toThrow(TypeError);
+    const resource = proof.value.resource;
+    if (resource.kind !== 'document') throw new Error('kind');
+    const document = resource.document as { applicantId: string };
+    expect(() => {
+      document.applicantId = randomUUID();
+    }).toThrow(TypeError);
+    expect(proof.value.applicant.id).toBe(applicantId);
+  });
+
+  it('lets a step-up lapse when its token runs out, and refuses ids in upper case', async () => {
+    const owner = accountPrincipal(ownerId);
+    const stepUp = stepUpFor(ownerId, 'DOWNLOAD_ORIGINAL', documentId);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(Date.now() + 10 * 60 * 1000));
+    const late = await requireAccess(
+      db,
+      owner,
+      'DOWNLOAD_ORIGINAL',
+      { documentId },
+      { purpose: 'self', stepUp },
+    );
+    vi.useRealTimers();
+    expect(errorCode(late)).toBe('step_up_required');
+    expect(
+      errorCode(
+        await requireAccess(
+          db,
+          accountPrincipal(ownerId.toUpperCase()),
+          'VIEW_METADATA',
+          {
+            applicantId,
+          },
+          { purpose: 'self' },
+        ),
+      ),
+    ).toBe('forbidden');
+    expect(
+      errorCode(
+        await requireAccess(
+          db,
+          owner,
+          'VIEW_METADATA',
+          { applicantId: applicantId.toUpperCase() },
+          {
+            purpose: 'self',
+          },
+        ),
+      ),
+    ).toBe('not_found');
+  });
+
+  it('never lets an organization grant that names one person reach every member', async () => {
+    const { agentId, organizationId, grantId } = await orgWithGrant({ actions: ['VIEW_METADATA'] });
+    const colleagueId = await account(db, 'colleague@agency.example.com');
+    const added = await addMembership(db, {
+      actorAccountId: agentId,
+      organizationId,
+      accountId: colleagueId,
+      role: 'REVIEWER',
+    });
+    expect(isOk(added)).toBe(true);
+    const colleague = accountPrincipal(colleagueId);
+    const before = await requireAccess(
+      db,
+      colleague,
+      'VIEW_METADATA',
+      { applicantId },
+      {
+        purpose: 'visa-review',
+      },
+    );
+    expect(isOk(before)).toBe(true);
+    // The database allows a row naming both; the gate then lets only that person through.
+    await db
+      .update(schema.grants)
+      .set({ recipientAccountId: agentId })
+      .where(eq(schema.grants.id, grantId));
+    const after = await requireAccess(
+      db,
+      colleague,
+      'VIEW_METADATA',
+      { applicantId },
+      {
+        purpose: 'visa-review',
+      },
+    );
+    expect(errorCode(after)).toBe('forbidden');
+    const named = await requireAccess(
+      db,
+      accountPrincipal(agentId),
+      'VIEW_METADATA',
+      {
+        applicantId,
+      },
+      { purpose: 'visa-review' },
+    );
+    expect(isOk(named)).toBe(true);
   });
 
   it('issues proofs nothing else can copy or construct', async () => {

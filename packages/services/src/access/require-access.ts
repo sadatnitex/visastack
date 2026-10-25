@@ -98,6 +98,17 @@ interface ProofFields<A extends PermissionAction> {
   readonly purpose: AccessPurpose;
 }
 
+/** Freezes every nested record, so a proof's applicant or document cannot be changed after it is issued. */
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const key of Object.keys(value as object)) {
+      deepFreeze((value as Record<string, unknown>)[key]);
+    }
+  }
+  return value;
+}
+
 // Module-private minting: the constructor refuses to run unless this flag is
 // set, and only the function assigned in the static block (never exported)
 // sets it.
@@ -122,9 +133,9 @@ export class AuthorizedApplicant<A extends PermissionAction> {
     if (!minting) throw new Error('an AuthorizedApplicant can only be issued by requireAccess()');
     this.#action = fields.action;
     this.tx = fields.tx;
-    this.applicant = fields.applicant;
+    this.applicant = deepFreeze(fields.applicant);
     this.actor = fields.actor;
-    this.resource = fields.resource;
+    this.resource = deepFreeze(fields.resource);
     this.action = fields.action;
     this.purpose = fields.purpose;
     Object.freeze(this);
@@ -190,25 +201,39 @@ export const RESTRICTED_DOCUMENT_TYPES: ReadonlySet<string> = new Set([
   'BUSINESS_BANK_STATEMENT',
   'HOST_BANK_STATEMENT',
   'BANK_REFERENCE_LETTER',
+  'JOINT_ACCOUNT_STATEMENT',
   'APPROVED_MEDICAL_CENTRE_RESULT',
   'OTHER_MEDICAL_DOCUMENT',
 ]);
 
-/** Every document type in these catalogue categories is restricted, including ones added later. */
-export const RESTRICTED_DOCUMENT_CATEGORIES: ReadonlySet<string> = new Set(['medical']);
+/**
+ * Every document type in these catalogue categories or groups is restricted,
+ * including ones added later: medical documents, and identity and civil-status
+ * documents (passports, ID cards, birth, marriage, refugee and similar papers).
+ */
+export const RESTRICTED_DOCUMENT_CATEGORIES: ReadonlySet<string> = new Set([
+  'medical',
+  'identity_civil',
+]);
 
+/**
+ * Fails closed: a document whose type is not known yet (not classified, or a
+ * name the catalogue does not recognise) is treated as restricted, because it
+ * could be a passport or a medical scan.
+ */
 export function isRestrictedDocumentType(docType: string | null): boolean {
-  if (!docType) return false;
+  if (!docType) return true;
   const known = resolveDocumentType(docType);
-  const key = known?.key ?? docType;
-  if (RESTRICTED_DOCUMENT_TYPES.has(key)) return true;
-  if (!known) return false;
+  if (!known) return true;
+  if (RESTRICTED_DOCUMENT_TYPES.has(known.key)) return true;
   return [known.pack, known.group].some(
     (category) => typeof category === 'string' && RESTRICTED_DOCUMENT_CATEGORIES.has(category),
   );
 }
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Lower case only, as the database writes them: string comparisons and uuid
+// comparisons then always agree.
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 function isUuid(value: unknown): value is string {
   return typeof value === 'string' && UUID_PATTERN.test(value);
@@ -373,7 +398,9 @@ async function contributorPermits(
     !isInFlightContributorRow(request, {
       actorAccountId: principal.accountId,
       applicantId: loaded.applicant.id,
-    })
+    }) ||
+    // A claimed request still ends when its link expires.
+    request.expiresAt.getTime() <= Date.now()
   ) {
     return false;
   }
@@ -447,6 +474,13 @@ export async function requireAccess<A extends PermissionAction>(
   if (principal.kind !== 'account') return err(denied('default_deny'));
   if (!isUuid(principal.accountId)) return err(denied('default_deny'));
   if (!isUuid(target.id)) return err(serviceError('not_found', 'record not found'));
+  // Previews and downloads are decided one document at a time, so the
+  // restricted-document rule and the step-up binding always apply.
+  if ((action === 'PREVIEW' || action.startsWith('DOWNLOAD_')) && target.key !== 'documentId') {
+    return err(
+      serviceError('invalid', 'previews and downloads are checked one document at a time'),
+    );
+  }
 
   const loaded = await loadResource(tx, target.key, target.id);
   if (!loaded) return err(serviceError('not_found', 'record not found'));
@@ -513,7 +547,13 @@ export async function requireAccess<A extends PermissionAction>(
           organizationActive: membership.organization.status === 'ACTIVE',
         },
       },
-      grants: grants.filter((g) => g.recipientOrganizationId === organizationId),
+      // A grant to this organization only; one that also names a person
+      // reaches that person alone, never every member.
+      grants: grants.filter(
+        (g) =>
+          g.recipientOrganizationId === organizationId &&
+          (g.recipientAccountId === undefined || g.recipientAccountId === accountId),
+      ),
     });
   }
   if (actingFor === undefined || actingFor === 'individual') {

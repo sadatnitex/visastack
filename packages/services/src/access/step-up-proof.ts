@@ -13,19 +13,32 @@ import { type StepUpAssuranceFields, verifyStepUpAssurance } from '../step-up';
  */
 
 let minting = false;
-let mint: (accountId: string, action: PermissionAction, resourceId: string) => StepUpProof;
+let mint: (
+  accountId: string,
+  action: PermissionAction,
+  resourceId: string,
+  expiresAtMs: number,
+) => StepUpProof;
 
 export class StepUpProof {
   readonly #brand = 'StepUpProof';
   readonly accountId: string;
   readonly action: PermissionAction;
   readonly resourceId: string;
+  /** When the signed token it came from runs out; the proof runs out with it. */
+  readonly expiresAtMs: number;
 
-  private constructor(accountId: string, action: PermissionAction, resourceId: string) {
+  private constructor(
+    accountId: string,
+    action: PermissionAction,
+    resourceId: string,
+    expiresAtMs: number,
+  ) {
     if (!minting) throw new Error('a StepUpProof can only be made by verifyStepUp()');
     this.accountId = accountId;
     this.action = action;
     this.resourceId = resourceId;
+    this.expiresAtMs = expiresAtMs;
     Object.freeze(this);
   }
 
@@ -47,15 +60,16 @@ export class StepUpProof {
       StepUpProof.isGenuine(value) &&
       value.accountId === expected.accountId &&
       value.action === expected.action &&
-      value.resourceId === expected.resourceId
+      value.resourceId === expected.resourceId &&
+      value.expiresAtMs > Date.now()
     );
   }
 
   static {
-    mint = (accountId, action, resourceId) => {
+    mint = (accountId, action, resourceId, expiresAtMs) => {
       minting = true;
       try {
-        return new StepUpProof(accountId, action, resourceId);
+        return new StepUpProof(accountId, action, resourceId, expiresAtMs);
       } finally {
         minting = false;
       }
@@ -78,5 +92,5 @@ export function verifyStepUp(
 ): StepUpProof | undefined {
   if (secret.length === 0) return undefined;
   if (!verifyStepUpAssurance(secret, token, expected)) return undefined;
-  return mint(expected.accountId, expected.action, expected.resourceId);
+  return mint(expected.accountId, expected.action, expected.resourceId, token.exp * 1000);
 }
