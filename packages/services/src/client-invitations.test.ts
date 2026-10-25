@@ -624,6 +624,33 @@ describe('client invitations - agency invites a traveller as a new client (Comme
       });
       expect(isOk(accepted)).toBe(true);
     }, 30_000);
+
+    it('an account already working with this agency still cannot claim an invitation sent to someone else (T04)', async () => {
+      const own = await invite({ contactDestination: 'client@example.com' });
+      const forJane = await invite();
+      if (!isOk(own) || !isOk(forJane)) throw new Error('setup failed');
+      const clientId = await consentedTraveller(db, 'client@example.com');
+      const first = await acceptClientInvitation(db, {
+        actorAccountId: clientId,
+        rawToken: own.value.rawToken,
+        applicantChoice: { kind: 'new' },
+      });
+      expect(isOk(first)).toBe(true);
+
+      const second = await acceptClientInvitation(db, {
+        actorAccountId: clientId,
+        rawToken: forJane.value.rawToken,
+        applicantChoice: { kind: 'new' },
+      });
+      expect(isErr(second)).toBe(true);
+      if (isErr(second)) expect(second.error.code).toBe('forbidden');
+      expect(await listApplicants(db, clientId)).toHaveLength(1);
+      const [row] = await db
+        .select()
+        .from(dbSchema.clientInvitations)
+        .where(eq(dbSchema.clientInvitations.id, forJane.value.invitation.id));
+      expect(row?.status).toBe('PENDING');
+    }, 30_000);
   });
 
   describe('revokeClientInvitation', () => {

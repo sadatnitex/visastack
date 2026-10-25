@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderServer, textOf } from '../../lib/next-mocks.test-support';
-import InvitationPage from './page';
+import InvitationPage, { metadata } from './page';
 
 const TOKEN = 'a'.repeat(43);
 const render = (searchParams: { kind?: string; token?: string }) =>
@@ -30,5 +30,9 @@ describe('the public invitation page (v1.2 B09: neutral, no bearer access)', () 
     const text = textOf(await render({ kind: 'client', token: TOKEN }));
     expect(text).toContain('Opening the link does not accept it.');
     expect(text).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
+  });
+
+  it('never sends the link, token included, to another site as a referrer', () => {
+    expect(metadata.referrer).toBe('no-referrer');
   });
 });
