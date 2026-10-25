@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 // Tests here start an in-process Postgres for each case. Under a busy machine (all packages
@@ -5,6 +6,8 @@ import { defineConfig } from 'vitest/config';
 // limits are explicit and generous. A genuinely hung test still fails, just after a minute.
 export default defineConfig({
   test: {
+    // Migrates one database for the whole run; every test database starts from its snapshot.
+    globalSetup: [fileURLToPath(new URL('../db/src/test-global-setup.ts', import.meta.url))],
     hookTimeout: 60_000,
     testTimeout: 60_000,
   },

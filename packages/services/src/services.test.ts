@@ -17,8 +17,6 @@ import {
   registerFieldDefinition,
 } from './profile';
 
-// The db migrations live in the @visastack/db package.
-
 async function freshDb(): Promise<Db> {
   const client = await createMigratedPglite();
   const db = drizzle(client, { schema });

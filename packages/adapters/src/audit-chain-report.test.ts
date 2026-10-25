@@ -1,20 +1,14 @@
-import { fileURLToPath } from 'node:url';
-import { PGlite } from '@electric-sql/pglite';
 import { isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
+import { createMigratedPglite } from '@visastack/db/testing';
 import { provisionAccount } from '@visastack/services';
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
-import { migrate } from 'drizzle-orm/pglite/migrator';
 import { describe, expect, it } from 'vitest';
 import { runAuditChainVerification } from './audit-chain-report';
 
-const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
-
 async function freshDb() {
-  const db = drizzle(new PGlite(), { schema });
-  await migrate(db, { migrationsFolder });
-  return db;
+  return drizzle(await createMigratedPglite(), { schema });
 }
 
 type TestDb = Awaited<ReturnType<typeof freshDb>>;

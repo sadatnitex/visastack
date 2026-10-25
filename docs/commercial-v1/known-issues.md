@@ -5288,3 +5288,19 @@ Documentation only. The bidesh365 master profile (54 sections) was compared with
 - Unchanged: what any context grants, the full selector in the sidebar and More sheet, routes and permissions. The chip reads the same access list and grants nothing.
 - Independent pre-merge review (Opus agent), two passes: the first found the list running off the right edge, a chip that stayed open over other menus, misleading first-word labels for agencies and weak tests; the second found the list under the search panel, labels cut to a few letters, a label that no longer trimmed without initials, and repeated spoken words. All fixed before merge; tests proved to fail when the fixes are removed.
 - Not verified: the live signed-in phone bar (the live signed-in check covers it once merged), slow network.
+
+### 2026-10-25, Quality window Phase 1: sign-in and scheduler hardening (PR 243, merged)
+
+- Baseline audit in four areas (architecture and backend, frontend, quality system, security against ease of use). Every finding was checked against the code before acting; three were not acted on: the "purpose check always passes" finding is by design (each share is evaluated against its own purpose label, and the suggested change would block legitimate agency access), the account-exists message on the share form needs the owner's invitations decision, and passing the reauthentication proof down to services belongs with the central permission gate.
+- Sign-in proxy: the browser may POST only `sign-out` through `/api/auth/*`. Sign-in, sign-up, recovery, reset and confirmation are server actions behind the attempt limits; before this, a script could post to `/api/auth/sign-in/email` directly and skip them. An exact-path allowlist also refuses `..` and encoded tricks (a first deny-list draft missed them; caught by code review before push).
+- Scheduled jobs: one shared gate (`apps/web/src/lib/cron-auth.ts`, constant-time comparison, neutral 503 reply) replaces 16 plain comparisons; a guard test fails if any job route checks its credential another way.
+- `postcss` override bounded below 9. Two web tests that loaded the jobs module inside a 5 s test now load it once in `beforeAll` (under full-suite load they timed out and leaked into the next test).
+- Not verified: whether Neon Auth's own endpoint applies its own attempt limits when called directly, bypassing this app entirely.
+
+### 2026-10-25, Quality window Phase 2: faster CI
+
+- Test databases start from a migrated snapshot. `@visastack/db/testing` provides `createMigratedPglite()`; a Vitest global setup (`packages/db/src/test-global-setup.ts`, registered in the services, adapters and db configs) migrates once per test run and every test database loads that copy (about 0.4 s instead of about 1.5 s; each is still independent). 64 test files switched; tests of the migrations themselves, and six files that migrate once in `beforeAll`, keep migrating by hand.
+- Measured locally before the global setup was added: the services suite alone went from 2,441 s to 1,266 s of test time (1,469 tests, all passing).
+- CI runs as parallel jobs: lint and audit, build and typecheck, three service test shards, and web plus the other packages. The final job keeps the required check name "Lint · Build · Typecheck · Test" and passes only when every job passed; a run cancelled by a newer commit shows as cancelled, not failed. ClamAV is installed only in the job whose live scanner test uses it.
+- One `pnpm run test:node` list of repository script self-tests is used by both `pnpm test` and CI. The UI-ratchet and allowed-paths self-tests now run in CI; before, they ran in neither or only locally.
+- New tests that need a migrated database should use `createMigratedPglite()`.

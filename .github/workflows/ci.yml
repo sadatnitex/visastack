@@ -90,17 +90,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Reuses Next.js compilation work between runs. Keyed on the lockfile and the app's
-      # sources; a stale or missing cache only costs time, never correctness.
-      - name: Next.js build cache
-        uses: actions/cache@v4
-        with:
-          path: apps/web/.next/cache
-          key: nextjs-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/web/src/**', 'packages/*/src/**') }}
-          restore-keys: |
-            nextjs-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
-            nextjs-${{ runner.os }}-
-
       # Build first: Next.js generates next-env.d.ts and .next/types,
       # which the typecheck step depends on.
       - name: Build
@@ -157,7 +146,7 @@ jobs:
       # The service suite is the largest by far, so it is split by file into three shards that
       # run at the same time. Every shard runs the whole of its share; nothing is skipped.
       - name: Test
-        run: pnpm --filter @visastack/services exec vitest run --shard=${{ matrix.shard }}/3 --maxWorkers=2
+        run: pnpm --filter @visastack/services test --shard=${{ matrix.shard }}/3 --maxWorkers=2
 
   test-packages:
     name: Test web and other packages
@@ -236,7 +225,9 @@ jobs:
   verify:
     # The required status check. Keep this name: branch protection matches on it.
     name: Lint · Build · Typecheck · Test
-    if: always()
+    # Runs even when a job failed or was skipped (so the check goes red), but not for a run that
+    # was cancelled because a newer commit superseded it.
+    if: ${{ !cancelled() }}
     needs: [static, build, test-services, test-packages]
     runs-on: ubuntu-latest
     timeout-minutes: 5
