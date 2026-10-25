@@ -6370,6 +6370,19 @@ body:has(.auth-shell) > .footer {
 .record-hub-note {
   max-width: 68ch;
 }
+/* A group's empty profile sections: one quiet line of links at the end of the group. Inline
+   links in a sentence, so they wrap with the text. */
+.record-hub-nothing-saved {
+  margin: var(--space-3) 0 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--hairline-soft);
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+.record-hub-group h3 + .record-hub-nothing-saved {
+  padding-top: 0;
+  border-top: 0;
+}
 @media (max-width: 760px) {
   .record-hub-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));

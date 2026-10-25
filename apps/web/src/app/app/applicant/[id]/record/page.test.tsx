@@ -178,3 +178,30 @@ describe('the Record while it loads', () => {
     expect(textOf(html)).toContain('Loading your record');
   });
 });
+
+describe('documents on the Record', () => {
+  it('sit in plain groups beside their profile area, and only kinds with an end date mention expiry', async () => {
+    mocks.getWalletView.mockResolvedValue({
+      ok: true,
+      value: [
+        walletRow('passport', { docType: 'PASSPORT' }),
+        walletRow('statement', { docType: 'BANK_STATEMENT', expiresAt: null }, 'UNKNOWN'),
+        walletRow('unsorted', { docType: null, expiresAt: null }, 'UNKNOWN'),
+      ],
+    });
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [summary('passport'), summary('statement'), summary('unsorted')],
+    });
+    const { html, items: list } = await items();
+    expect(byTitle(list, 'Synthetic passport')?.group).toBe('Identity and Civil Status');
+    expect(byTitle(list, 'Synthetic statement')?.group).toBe('Money');
+    expect(byTitle(list, 'Synthetic unsorted')?.group).toBe('Other Documents');
+    expect(html).not.toContain('Universal');
+    const statement = byTitle(list, 'Synthetic statement')?.facts ?? [];
+    expect(statement.some((fact) => /expir/i.test(fact))).toBe(false);
+    expect(
+      byTitle(list, 'Synthetic passport')?.facts.some((fact) => fact.startsWith('Expires')),
+    ).toBe(true);
+  });
+});

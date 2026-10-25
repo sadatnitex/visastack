@@ -8,6 +8,8 @@ import {
   type RecordFilter,
   type RecordItem,
   filterRecordItems,
+  layoutRecordPage,
+  recordFilterCount,
 } from './record-hub';
 
 /** The same page length as the documents wallet. */
@@ -38,16 +40,19 @@ export function RecordBrowser({
   const groupsId = useId();
   const groups = [...new Set(items.map((item) => item.group))];
   const matches = filterRecordItems(items, { query, group, filter });
-  const pageCount = Math.max(1, Math.ceil(matches.length / PAGE_SIZE));
-  const activePage = Math.min(page, pageCount - 1);
-  const visible = matches.slice(activePage * PAGE_SIZE, (activePage + 1) * PAGE_SIZE);
+  const {
+    groups: shownGroups,
+    rowCount,
+    pageCount,
+    activePage,
+  } = layoutRecordPage(matches, {
+    filter,
+    page,
+    pageSize: PAGE_SIZE,
+  });
   const counts = Object.fromEntries(
-    RECORD_FILTERS.map(({ key }) => [
-      key,
-      filterRecordItems(items, { query: '', group: 'all', filter: key }).length,
-    ]),
+    RECORD_FILTERS.map(({ key }) => [key, recordFilterCount(items, key)]),
   ) as Record<RecordFilter, number>;
-  const shownGroups = groups.filter((name) => visible.some((item) => item.group === name));
   const unavailable = (key: RecordFilter) => !documentsLoaded && DOCUMENT_FILTERS.has(key);
 
   return (
@@ -112,10 +117,10 @@ export function RecordBrowser({
         </label>
       </div>
       <output className="muted record-hub-count" aria-live="polite">
-        {matches.length === 1 ? '1 item matches.' : `${matches.length} items match.`}
+        {rowCount === 1 ? '1 item matches.' : `${rowCount} items match.`}
         {pageCount > 1 ? ` Page ${activePage + 1} of ${pageCount}.` : null}
       </output>
-      {matches.length === 0 ? (
+      {shownGroups.length === 0 ? (
         // When documents did not load, the alert above already explains the short list.
         documentsLoaded ? (
           <p className="notice record-hub-empty">
@@ -123,17 +128,16 @@ export function RecordBrowser({
           </p>
         ) : null
       ) : (
-        shownGroups.map((name, index) => (
+        shownGroups.map(({ name, rows, nothingSaved }, index) => (
           <section
             key={name}
             className="card record-hub-group"
             aria-labelledby={`${groupsId}-${index}`}
           >
             <h3 id={`${groupsId}-${index}`}>{name}</h3>
-            <ul className="record-hub-list">
-              {visible
-                .filter((item) => item.group === name)
-                .map((item) => (
+            {rows.length ? (
+              <ul className="record-hub-list">
+                {rows.map((item) => (
                   <li key={item.id} className="record-hub-item" data-kind={item.kind}>
                     <div className="record-hub-item-head">
                       <Link className="record-hub-item-title" href={item.href} dir="auto">
@@ -160,7 +164,19 @@ export function RecordBrowser({
                     ) : null}
                   </li>
                 ))}
-            </ul>
+              </ul>
+            ) : null}
+            {nothingSaved.length ? (
+              <p className="muted record-hub-nothing-saved">
+                Nothing saved yet:{' '}
+                {nothingSaved.map((item, position) => (
+                  <span key={item.id}>
+                    {position > 0 ? ', ' : null}
+                    <Link href={item.href}>{item.title}</Link>
+                  </span>
+                ))}
+              </p>
+            ) : null}
           </section>
         ))
       )}

@@ -5,6 +5,8 @@ import {
   buildRecordItems,
   documentState,
   filterRecordItems,
+  layoutRecordPage,
+  recordFilterCount,
 } from './record-hub';
 
 const person = '10000000-0000-4000-8000-000000000001';
@@ -26,6 +28,7 @@ function doc(overrides: Partial<RecordDocumentInput> = {}): RecordDocumentInput 
     version: 2,
     updatedLabel: '1 Oct 2026',
     expiresLabel: '1 Oct 2030',
+    expiryApplies: true,
     replacedBy: null,
     usedIn: [],
     sharedWith: [],
@@ -179,9 +182,9 @@ describe('each item: its title opens it, and at most one further action', () => 
 
   it('a document without a kind falls back to the upload form and its own group', () => {
     const [, item] = build([
-      doc({ typeKey: null, typeLabel: null, groupLabel: null, checked: false }),
+      doc({ typeKey: null, typeLabel: null, groupLabel: '', checked: false }),
     ]);
-    expect(item?.group).toBe('Kind Not Set Yet');
+    expect(item?.group).toBe('Other Documents');
     expect(item?.action?.href).toBe(`${base}/documents#document-upload`);
   });
 });
@@ -228,5 +231,82 @@ describe('metadata search and filters', () => {
     expect(by('ready')).toEqual(['Synthetic Passport']);
     expect(by('attention')).toEqual(['Synthetic Payslip']);
     expect(by('details')).toEqual(['Employment']);
+  });
+});
+
+describe('expiry facts', () => {
+  it('a kind with an end date says when it ends, or that the date is not confirmed', () => {
+    expect(build([doc()])[1]?.facts).toContain('Expires 1 Oct 2030');
+    expect(build([doc({ expiresLabel: null })])[1]?.facts).toContain('Expiry not confirmed');
+  });
+  it('a kind without one says nothing about expiry', () => {
+    const facts = build([doc({ expiresLabel: null, expiryApplies: false })])[1]?.facts ?? [];
+    expect(facts.some((fact) => /expir/i.test(fact))).toBe(false);
+  });
+});
+
+describe('empty profile sections do not crowd documents off the page', () => {
+  const empties = Array.from({ length: 9 }, (_, index) => ({
+    key: `empty_${index}`,
+    label: `Empty Section ${index + 1}`,
+    groupLabel: index < 5 ? 'Identity' : 'Money',
+    answered: 0,
+    total: 3,
+  }));
+  const documents = Array.from({ length: 5 }, (_, index) =>
+    doc({
+      id: `40000000-0000-4000-8000-00000000010${index}`,
+      name: `Synthetic Document ${index + 1}`,
+      groupLabel: index < 3 ? 'Identity' : 'Money',
+    }),
+  );
+  const items = buildRecordItems({
+    applicantId: person,
+    details: [
+      { key: 'saved', label: 'Saved Section', groupLabel: 'Identity', answered: 2, total: 3 },
+      ...empties,
+    ],
+    documents,
+  });
+  const all = filterRecordItems(items, { query: '', group: 'all', filter: 'all' });
+
+  it('every document and saved section fits on page one; empty sections are not rows or counted', () => {
+    const layout = layoutRecordPage(all, { filter: 'all', page: 0, pageSize: 5 });
+    expect(layout.rowCount).toBe(6);
+    expect(layout.pageCount).toBe(2);
+    const page = layout.groups.flatMap((group) => group.rows.map((item) => item.title));
+    expect(page).not.toContain('Empty Section 1');
+    expect(page).toEqual([
+      'Saved Section',
+      'Synthetic Document 1',
+      'Synthetic Document 2',
+      'Synthetic Document 3',
+      'Synthetic Document 4',
+    ]);
+    expect(recordFilterCount(items, 'all')).toBe(6);
+  });
+
+  it("names a group's empty sections once, at its end, on the page with its last row", () => {
+    const first = layoutRecordPage(all, { filter: 'all', page: 0, pageSize: 5 });
+    const second = layoutRecordPage(all, { filter: 'all', page: 1, pageSize: 5 });
+    const named = (layout: typeof first, name: string) =>
+      layout.groups.find((group) => group.name === name)?.nothingSaved.map((item) => item.title);
+    expect(named(first, 'Identity')).toHaveLength(5);
+    expect(named(first, 'Money')).toEqual([]);
+    expect(named(second, 'Money')).toEqual([
+      'Empty Section 6',
+      'Empty Section 7',
+      'Empty Section 8',
+      'Empty Section 9',
+    ]);
+    expect(named(second, 'Identity')).toBeUndefined();
+  });
+
+  it('the Profile Details filter still lists every open section as a row', () => {
+    const details = filterRecordItems(items, { query: '', group: 'all', filter: 'details' });
+    const layout = layoutRecordPage(details, { filter: 'details', page: 0, pageSize: 12 });
+    expect(layout.rowCount).toBe(10);
+    expect(layout.groups.every((group) => group.nothingSaved.length === 0)).toBe(true);
+    expect(recordFilterCount(items, 'details')).toBe(10);
   });
 });

@@ -21,8 +21,8 @@ export interface RecordDocumentInput {
   readonly typeLabel: string | null;
   /** The catalogue key of the kind, used to open the upload form for the same kind. */
   readonly typeKey: string | null;
-  /** The category, in words, or null when the kind is not set. */
-  readonly groupLabel: string | null;
+  /** The Record group, in words, decided on the server from the catalogue (`record-groups.ts`). */
+  readonly groupLabel: string;
   readonly lifecycle: DocumentLifecycle;
   readonly safetyStatus: string | null;
   readonly processingStatus: string | null;
@@ -43,6 +43,8 @@ export interface RecordDocumentInput {
   readonly version: number | null;
   readonly updatedLabel: string | null;
   readonly expiresLabel: string | null;
+  /** True when a document of this kind has an end date of its own, so a missing date is worth saying. */
+  readonly expiryApplies: boolean;
   /** The newer document that replaced this one, when there is one. */
   readonly replacedBy: { readonly id: string; readonly name: string } | null;
   readonly usedIn: readonly string[];
@@ -74,6 +76,8 @@ export interface RecordItem {
   readonly usable: boolean;
   readonly needsAttention: boolean;
   readonly previousVersion: boolean;
+  /** A profile section with nothing saved yet. Listed by name only, outside the item count. */
+  readonly empty: boolean;
   readonly facts: readonly string[];
   /** Where the item's title leads: the item's own page (a document, or its place in the profile). */
   readonly href: string;
@@ -82,7 +86,7 @@ export interface RecordItem {
   readonly searchText: string;
 }
 
-export const NOT_SORTED_GROUP = 'Kind Not Set Yet';
+export const NOT_SORTED_GROUP = 'Other Documents';
 
 const PROBLEM_STATES = new Set(['REJECTED', 'FAILED', 'NEEDS_ATTENTION', 'QUARANTINED']);
 const PROBLEM_SCANS = new Set(['QUARANTINED', 'FAILED']);
@@ -155,15 +159,21 @@ function documentItem(base: string, doc: RecordDocumentInput): RecordItem {
     ...reviewReasons(doc.review),
     doc.version !== null ? `Version ${doc.version}` : null,
     doc.updatedLabel ? `Saved ${doc.updatedLabel}` : null,
-    doc.expiresLabel ? `Expires ${doc.expiresLabel}` : 'Expiry not confirmed',
+    // Only a kind with an end date of its own says anything about expiry.
+    doc.expiresLabel
+      ? `Expires ${doc.expiresLabel}`
+      : doc.expiryApplies
+        ? 'Expiry not confirmed'
+        : null,
     doc.replacedBy ? `Replaced by ${doc.replacedBy.name}` : null,
     doc.usedIn.length ? `Used in ${doc.usedIn.join(', ')}` : 'Not used in a case yet',
     doc.sharedWith.length ? `Shared with ${doc.sharedWith.join(', ')}` : 'Not shared',
   ].filter((fact): fact is string => fact !== null);
-  const group = doc.groupLabel ?? NOT_SORTED_GROUP;
+  const group = doc.groupLabel || NOT_SORTED_GROUP;
   return {
     id: `document:${doc.id}`,
     kind: 'document',
+    empty: false,
     group,
     title: doc.name,
     type: doc.typeLabel,
@@ -184,6 +194,7 @@ function detailsItem(base: string, section: RecordDetailsInput): RecordItem {
   return {
     id: `details:${section.key}`,
     kind: 'details',
+    empty: section.answered === 0,
     group: section.groupLabel,
     title: section.label,
     type: null,
@@ -246,4 +257,57 @@ export function filterRecordItems(
               : item.previousVersion)) &&
       words.every((word) => item.searchText.includes(word)),
   );
+}
+
+/** One group as a page of the Record shows it. */
+export interface RecordPageGroup {
+  readonly name: string;
+  /** Documents and profile sections with saved details, as full rows. */
+  readonly rows: readonly RecordItem[];
+  /** The group's empty profile sections, named on one quiet line at the end of the group. */
+  readonly nothingSaved: readonly RecordItem[];
+}
+
+/**
+ * Lay one page of the Record out. Empty profile sections would crowd documents off the first
+ * page, so outside the Profile Details filter they are not rows: they are named on one line at
+ * the end of their group and are left out of the count and the paging. The Profile Details
+ * filter lists every open section as a row.
+ */
+export function layoutRecordPage(
+  matches: readonly RecordItem[],
+  options: { readonly filter: RecordFilter; readonly page: number; readonly pageSize: number },
+): {
+  readonly groups: readonly RecordPageGroup[];
+  readonly rowCount: number;
+  readonly pageCount: number;
+  readonly activePage: number;
+} {
+  const condense = options.filter !== 'details';
+  const rows = condense ? matches.filter((item) => !item.empty) : matches;
+  const pageCount = Math.max(1, Math.ceil(rows.length / options.pageSize));
+  const activePage = Math.min(Math.max(options.page, 0), pageCount - 1);
+  const start = activePage * options.pageSize;
+  const visible = new Set(rows.slice(start, start + options.pageSize));
+  const names = [...new Set(matches.map((item) => item.group))];
+  const groups: RecordPageGroup[] = [];
+  for (const name of names) {
+    const groupRows = rows.filter((item) => item.group === name);
+    const shownRows = groupRows.filter((item) => visible.has(item));
+    const empties = condense ? matches.filter((item) => item.empty && item.group === name) : [];
+    // The quiet line goes on the page that shows the group's last row, or the last page when
+    // the group has no rows at all.
+    const last = groupRows.at(-1);
+    const linePage = last ? Math.floor(rows.indexOf(last) / options.pageSize) : pageCount - 1;
+    const nothingSaved = linePage === activePage ? empties : [];
+    if (shownRows.length || nothingSaved.length)
+      groups.push({ name, rows: shownRows, nothingSaved });
+  }
+  return { groups, rowCount: rows.length, pageCount, activePage };
+}
+
+/** How many items a filter holds, counted as the page counts them. */
+export function recordFilterCount(items: readonly RecordItem[], filter: RecordFilter): number {
+  const matches = filterRecordItems(items, { query: '', group: 'all', filter });
+  return filter === 'details' ? matches.length : matches.filter((item) => !item.empty).length;
 }

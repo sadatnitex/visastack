@@ -1,6 +1,5 @@
 import { resolveDocumentType } from '@visastack/core/catalogue';
 import {
-  documentCategory,
   getApplicant,
   getProfileSectionState,
   getWalletView,
@@ -14,9 +13,10 @@ import { notFound } from 'next/navigation';
 import { PageHeader } from '../../../../../components/ui';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { documentTypeLabel } from '../../../../../lib/labels';
-import { buildMasterProfileView, categoryLabel } from '../../../../../lib/master-profile';
+import { buildMasterProfileView } from '../../../../../lib/master-profile';
 import { withSession } from '../../../../../lib/session';
 import { RecordBrowser } from '../record-browser';
+import { docTypeCarriesExpiry, recordGroupOfDocType } from '../record-groups';
 import { type RecordDetailsInput, type RecordDocumentInput, buildRecordItems } from '../record-hub';
 
 export const metadata: Metadata = { title: 'All Records' };
@@ -82,7 +82,6 @@ export default async function ApplicantRecordPage({
   const documents: RecordDocumentInput[] = documentsLoaded
     ? walletRows.map(({ document, status, usedInMissions, accessibleTo }) => {
         const summary = summaries.get(document.id);
-        const category = documentCategory(document.docType);
         const isOther =
           document.docType === 'OTHER' || (document.docType ?? '').startsWith('OTHER_');
         const replacedName = document.supersededByDocumentId
@@ -97,7 +96,8 @@ export default async function ApplicantRecordPage({
               : documentTypeLabel(document.docType)
             : null,
           typeKey: document.docType ? (resolveDocumentType(document.docType)?.key ?? null) : null,
-          groupLabel: category ? categoryLabel(category) : null,
+          // The catalogue's document group, named as the matching profile area where there is one.
+          groupLabel: recordGroupOfDocType(document.docType),
           lifecycle: status,
           safetyStatus: summary?.safetyStatus ?? null,
           processingStatus: summary?.processingStatus ?? null,
@@ -115,6 +115,7 @@ export default async function ApplicantRecordPage({
           version: summary?.latestVersionNumber ?? null,
           updatedLabel: summary?.updatedAt ? formatTimestampDate(summary.updatedAt) : null,
           expiresLabel: document.expiresAt ? formatTimestampDate(document.expiresAt) : null,
+          expiryApplies: docTypeCarriesExpiry(document.docType),
           replacedBy:
             document.supersededByDocumentId && replacedName
               ? { id: document.supersededByDocumentId, name: replacedName }

@@ -33,6 +33,7 @@ const document = (id: string, name: string, overrides: Record<string, unknown> =
   version: 1,
   updatedLabel: null,
   expiresLabel: null,
+  expiryApplies: true,
   replacedBy: null,
   usedIn: [],
   sharedWith: [],
@@ -181,6 +182,39 @@ describe('the Record browser', () => {
   });
 });
 
+describe('empty profile sections on the Record', () => {
+  const withEmpty = buildRecordItems({
+    applicantId: person,
+    details: [
+      { key: 'personal', label: 'About You', groupLabel: 'You', answered: 1, total: 4 },
+      { key: 'passport', label: 'Passport', groupLabel: 'You', answered: 0, total: 5 },
+      { key: 'visas', label: 'Visas You Have Held', groupLabel: 'You', answered: 0, total: 3 },
+    ],
+    documents: [document('40000000-0000-4000-8000-000000000001', 'Synthetic Passport')],
+  });
+
+  it('are named on one quiet line at the end of their group, each a link to its place', () => {
+    act(() => root.render(<RecordBrowser items={withEmpty} />));
+    expect(titles()).toEqual(['About You', 'Synthetic Passport']);
+    expect(container.querySelector('output')?.textContent).toBe('2 items match.');
+    const line = container.querySelector('.record-hub-group .record-hub-nothing-saved');
+    expect(line?.textContent).toBe('Nothing saved yet: Passport, Visas You Have Held');
+    expect([...(line?.querySelectorAll('a') ?? [])].map((a) => a.getAttribute('href'))).toEqual([
+      `${base}/profile#section-passport`,
+      `${base}/profile#section-visas`,
+    ]);
+    expect(line?.parentElement?.lastElementChild).toBe(line);
+    expect(filterButton('Everything')?.querySelector('strong')?.textContent).toBe('2');
+  });
+
+  it('are full rows under the Profile Details filter', () => {
+    act(() => root.render(<RecordBrowser items={withEmpty} />));
+    act(() => filterButton('Profile Details')?.click());
+    expect(titles()).toEqual(['About You', 'Passport', 'Visas You Have Held']);
+    expect(container.querySelector('.record-hub-nothing-saved')).toBeNull();
+  });
+});
+
 describe('the Record section links', () => {
   it('use the shared section tabs on each Record page, with the current section marked', () => {
     route.pathname = `${base}/expiry`;
@@ -195,6 +229,13 @@ describe('the Record section links', () => {
       'History',
     ]);
     expect(container.querySelector('a[aria-current="page"]')?.textContent).toBe('Dates & Expiry');
+  });
+
+  it('show on the hub itself, with All Records marked', () => {
+    route.pathname = `${base}/record`;
+    act(() => root.render(<RecordSections applicantId={person} />));
+    expect(container.querySelector('nav.subnav[aria-label="Record Sections"]')).not.toBeNull();
+    expect(container.querySelector('a[aria-current="page"]')?.textContent).toBe('All Records');
   });
 
   it('stay off pages that are not part of Record', () => {
@@ -228,6 +269,9 @@ describe('the Record styles fit a 320px phone and use the shared tokens', () => 
     );
     expect(block).toMatch(/\.record-hub-item \{[^}]*border-top: 1px solid var\(--hairline-soft\);/);
     expect(block).toMatch(/\.record-hub-group h3 \{[^}]*font-size: var\(--text-lead\);/);
+    expect(block).toMatch(
+      /\.record-hub-nothing-saved \{[^}]*border-top: 1px solid var\(--hairline-soft\);[^}]*font-size: var\(--text-small\);/,
+    );
     expect(block).toMatch(/\.record-hub-actions \{[^}]*flex-wrap: wrap;/);
     expect(block).toMatch(/\.record-hub-actions \.btn \{[^}]*min-height: 44px;/);
     expect(block).toMatch(/\.record-hub-filters button \{[^}]*min-height: 44px;/);

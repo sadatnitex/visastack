@@ -5436,3 +5436,11 @@ Documentation only. The bidesh365 master profile (54 sections) was compared with
 - Each row's title opens the item; each row has at most one further action: Share for a ready document, Update or Replace for one that is not ready, Open the Current Version for an old copy, Go to Cases (renamed from Use in Case, since it only opens the case list) for a profile section with saved answers.
 - New loading outline for the Record. Dividers use the soft hairline; spacing uses the shared spacing scale; group headings use the lead size; tokens only, no raw colours.
 - Each new guard was broken on purpose and went red.
+
+### 2026-10-25, WP-V3 part 2: Record groups, empty sections, expiry wording
+
+- Documents were grouped under the sharing pack name ("Universal"). They now sit under the catalogue's document group, named as the matching profile area where there is one (Identity and Civil Status, Travel Documents, Money, Qualifications, Health, People), otherwise by the catalogue group's own plain name; no kind or an unknown kind goes under Other Documents. The mapping is in `apps/web/src/app/app/applicant/[id]/record-groups.ts` and runs on the server, so the catalogue stays out of the browser.
+- Empty profile sections no longer crowd documents off page one: outside the Profile Details filter they are named on one quiet line at the end of their group, each a link to that section, and are not counted or paged. Profile Details still lists every open section.
+- "Expiry not confirmed" showed on a bank statement. Expiry wording now shows only for kinds whose catalogue entry reads an expiry or validity detail (passport, visa, residence and work permits, insurance, clearances and the like), or when an expiry date was saved. National ID cards are not in that list: their catalogue entry reads no expiry detail.
+- The Record section tabs are rendered by the traveller layout above every Record page, the hub included; a layout test now proves it and a sections test covers `/record`. The coordinator's preview rendered the page without the layout, which is why the tabs were missing there.
+- Each new guard was broken on purpose and went red.
