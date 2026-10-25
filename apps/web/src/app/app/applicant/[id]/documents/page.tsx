@@ -9,6 +9,7 @@ import {
   getLatestOcrRun,
   getWalletView,
   hasConsent,
+  isPassportPhotoType,
   isServableProcessingState,
   listApplicantProfile,
   listDocumentsDetailed,
@@ -25,6 +26,7 @@ import { notFound } from 'next/navigation';
 import { AutoRefresh } from '../../../../../components/auto-refresh';
 import { DocumentWalletBrowser } from '../../../../../components/document-wallet-browser';
 import { PageHeader } from '../../../../../components/ui';
+import { VisaPhotoSizes } from '../../../../../components/visa-photo-sizes';
 import {
   createAiExtractor,
   isClassificationConfigured,
@@ -425,6 +427,13 @@ export default async function ApplicantDocumentsPage({
                     ) : null}
                   </span>
                 </div>
+                {previewable && isPassportPhotoType(doc.docType) ? (
+                  <VisaPhotoSizes
+                    documentId={doc.id}
+                    returnTo={`/app/applicant/${id}/documents?document=${doc.id}`}
+                    canDownload
+                  />
+                ) : null}
                 {(doc.classification?.reviewRequired === true ||
                   !doc.classification ||
                   (doc.docType === 'PASSPORT' && !doc.expiresAt)) &&

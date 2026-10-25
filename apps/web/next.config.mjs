@@ -51,6 +51,9 @@ const nextConfig = {
     '@napi-rs/canvas-darwin-x64',
     '@napi-rs/canvas-darwin-arm64',
     '@napi-rs/canvas-win32-x64-msvc',
+    // Visa photo sizes (packages/adapters/src/photo-sizer.ts): sharp is the same kind of native
+    // module, reached the same transitive way, so it gets the same two-part treatment.
+    'sharp',
   ],
   webpack: (config, { isServer }) => {
     if (isServer) {
@@ -62,7 +65,7 @@ const nextConfig = {
       config.externals = [
         ...existing,
         ({ request }, callback) => {
-          if (request && /^@napi-rs\/canvas/.test(request)) {
+          if (request && /^(?:@napi-rs\/canvas|sharp$)/.test(request)) {
             return callback(null, `commonjs ${request}`);
           }
           callback();

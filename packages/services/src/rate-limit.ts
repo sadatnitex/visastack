@@ -59,6 +59,11 @@ export const RATE_LIMITS = {
   AUTH_EMAIL_SEND_IP: { limit: 10, windowMs: HOUR_MS },
   /** One shared bucket per actor across all five AI Gateway tasks (extraction, OCR, classification, explanation, inconsistency check). */
   AI_RUN: { limit: 150, windowMs: HOUR_MS },
+  /**
+   * Visa photo sizes: one shared bucket per person for the checks and each size made. Each request
+   * decodes and re-encodes an image, so it is bounded even though ordinary downloads are not.
+   */
+  PHOTO_SIZE: { limit: 120, windowMs: HOUR_MS },
 } as const satisfies Record<string, RateLimitConfig>;
 
 export type RateLimitDecision =

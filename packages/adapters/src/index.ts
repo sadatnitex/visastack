@@ -42,6 +42,13 @@ export {
 export { BuiltinPreviewRenderer } from './preview-renderer';
 
 export {
+  PHOTO_SIZER_LIMIT_INPUT_PIXELS,
+  PHOTO_SIZER_TIMEOUT_SECONDS,
+  createPhotoSizer,
+  setJpegDensity,
+} from './photo-sizer';
+
+export {
   BuiltinContentLimitsChecker,
   type BuiltinContentLimitsCheckerOptions,
   type ContentLimitsConfig,

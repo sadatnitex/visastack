@@ -1,0 +1,175 @@
+import 'server-only';
+import { createPhotoSizer } from '@visastack/adapters';
+import { type CropInput, clampCropInput } from '@visastack/core/photo-specs';
+import {
+  type ActingFor,
+  type AuthorizedApplicant,
+  type Db,
+  EACH_GRANT,
+  type PhotoSizingDeps,
+  type RequireAccessOptions,
+  type ServiceError,
+  accountPrincipal,
+  requireAccess,
+} from '@visastack/services';
+import { safeReturnPath } from './neon-recency';
+import { establishStepUpProof } from './step-up';
+import { createStorage } from './storage';
+
+/**
+ * Shared request handling for the two visa photo routes (api/documents/photo-check and
+ * api/documents/photo-size): same-origin JSON bodies only, the central access gate with the exact
+ * permission the service needs, a step-up when the document is restricted, and plain answers.
+ */
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+export const NO_STORE_HEADERS: Readonly<Record<string, string>> = Object.freeze({
+  'Cache-Control': 'private, no-store',
+  'X-Content-Type-Options': 'nosniff',
+});
+
+export function jsonResponse(body: Record<string, unknown>, status: number): Response {
+  return Response.json(body, { status, headers: { ...NO_STORE_HEADERS } });
+}
+
+export interface PhotoRequest {
+  readonly documentId: string;
+  readonly actingFor: ActingFor | undefined;
+  readonly returnTo: string;
+  readonly specId: string | undefined;
+  readonly crop: CropInput | undefined;
+}
+
+/** A cross-site page must never be able to spend someone's session on this. */
+export function isSameOrigin(request: Request): boolean {
+  return request.headers.get('origin') === new URL(request.url).origin;
+}
+
+/** Reads and validates the JSON body. Undefined for anything malformed. */
+export async function readPhotoRequest(request: Request): Promise<PhotoRequest | undefined> {
+  if (request.headers.get('content-type')?.split(';')[0]?.trim() !== 'application/json') {
+    return undefined;
+  }
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return undefined;
+  }
+  if (typeof body !== 'object' || body === null) return undefined;
+  const fields = body as {
+    readonly documentId?: unknown;
+    readonly actingFor?: unknown;
+    readonly returnTo?: unknown;
+    readonly specId?: unknown;
+    readonly offsetX?: unknown;
+    readonly offsetY?: unknown;
+    readonly zoom?: unknown;
+  };
+  const documentId = typeof fields.documentId === 'string' ? fields.documentId : '';
+  if (!UUID.test(documentId)) return undefined;
+  const acting = fields.actingFor;
+  let actingFor: ActingFor | undefined;
+  if (acting === undefined || acting === null || acting === '') actingFor = undefined;
+  else if (acting === 'individual') actingFor = 'individual';
+  else if (typeof acting === 'string' && UUID.test(acting)) actingFor = { organizationId: acting };
+  else return undefined;
+  const returnTo = safeReturnPath(typeof fields.returnTo === 'string' ? fields.returnTo : '');
+  const specId = typeof fields.specId === 'string' ? fields.specId : undefined;
+  const hasCrop =
+    fields.offsetX !== undefined || fields.offsetY !== undefined || fields.zoom !== undefined;
+  const crop = hasCrop
+    ? clampCropInput({
+        offsetX: fields.offsetX,
+        offsetY: fields.offsetY,
+        zoom: fields.zoom,
+      })
+    : undefined;
+  if (hasCrop && !crop) return undefined;
+  return { documentId, actingFor, returnTo, specId, crop };
+}
+
+export type PhotoAuthorization<A extends 'PREVIEW' | 'DOWNLOAD_REDACTED'> =
+  | { readonly kind: 'ok'; readonly access: AuthorizedApplicant<A> }
+  | { readonly kind: 'response'; readonly response: Response };
+
+/**
+ * The central access gate, with every grant judged against its own purpose (the same question the
+ * shared workspace asks). A restricted document gets a step-up: at once when the session is fresh,
+ * otherwise the caller is told where to confirm it is them.
+ */
+export async function authorizePhoto<A extends 'PREVIEW' | 'DOWNLOAD_REDACTED'>(
+  db: Db,
+  accountId: string,
+  action: A,
+  input: PhotoRequest,
+): Promise<PhotoAuthorization<A>> {
+  const principal = accountPrincipal(accountId);
+  const ref = { documentId: input.documentId };
+  const options: RequireAccessOptions = {
+    purpose: EACH_GRANT,
+    ...(input.actingFor !== undefined ? { actingFor: input.actingFor } : {}),
+  };
+  let result = await requireAccess(db, principal, action, ref, options);
+  if (!result.ok && result.error.code === 'step_up_required') {
+    const stepUp = await establishStepUpProof(
+      { accountId, action, resourceId: input.documentId },
+      input.returnTo,
+    );
+    if (stepUp.kind === 'reauth_required') {
+      return {
+        kind: 'response',
+        response: jsonResponse(
+          {
+            message: 'Confirm it is you to use this photo.',
+            reauthUrl: stepUp.reauthUrl,
+          },
+          401,
+        ),
+      };
+    }
+    if (stepUp.kind === 'not_configured') {
+      return {
+        kind: 'response',
+        response: jsonResponse({ message: 'This is not available here yet.' }, 503),
+      };
+    }
+    result = await requireAccess(db, principal, action, ref, { ...options, stepUp: stepUp.proof });
+  }
+  if (!result.ok) return { kind: 'response', response: errorResponse(result.error) };
+  return { kind: 'ok', access: result.value };
+}
+
+/** Plain words for every refusal; the reason itself stays in the audit trail. */
+export function errorResponse(error: ServiceError): Response {
+  switch (error.code) {
+    case 'rate_limited':
+      return jsonResponse(
+        { message: 'Too many photo requests in a short time. Try again in a while.' },
+        429,
+      );
+    case 'invalid':
+      return jsonResponse(
+        {
+          message:
+            'This photo cannot be sized. Use a JPEG or PNG file saved as a Photograph, and choose one of the listed sizes.',
+        },
+        400,
+      );
+    case 'not_found':
+      return jsonResponse({ message: 'We could not find this photo.' }, 404);
+    default:
+      return jsonResponse(
+        {
+          message:
+            'This photo is not available to you, or it is still being checked. Try again soon.',
+        },
+        403,
+      );
+  }
+}
+
+export function photoSizingDeps(db: Db): PhotoSizingDeps {
+  return { storage: createStorage(db), sizer: createPhotoSizer() };
+}

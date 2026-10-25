@@ -1,8 +1,9 @@
-import { getRecipientWorkspace } from '@visastack/services';
+import { getRecipientWorkspace, isPassportPhotoType } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { EmptyState, PageHeader } from '../../../../components/ui';
+import { VisaPhotoSizes } from '../../../../components/visa-photo-sizes';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { documentTypeLabel } from '../../../../lib/labels';
 import { fieldLabel } from '../../../../lib/master-profile';
@@ -99,10 +100,20 @@ export default async function SharedWorkspacePage({
                   </div>
                 ))}
               </div>
+              {workspace.documents
+                .filter((doc) => isPassportPhotoType(doc.docType))
+                .map((doc) => (
+                  <VisaPhotoSizes
+                    key={`photo-${doc.id}`}
+                    documentId={doc.id}
+                    returnTo={`/app/shared/${grantId}`}
+                    actingFor={workspace.grant.recipientOrganizationId ?? 'individual'}
+                    canDownload={workspace.grant.actions.includes('DOWNLOAD_REDACTED')}
+                  />
+                ))}
               <p className="muted u-fs-085">
-                Document preview isn't available yet. Real redacted renditions for third-party
-                viewing are a separate, upcoming milestone. This list shows only which documents
-                your grant covers.
+                Other documents cannot be previewed here yet. This list shows which documents your
+                grant covers. A shared passport photo can be sized for a visa application above.
               </p>
             </>
           )}
