@@ -8,7 +8,6 @@ import type {
   Result,
 } from '@visastack/core';
 import { err, ok } from '@visastack/core';
-import { resolveDocumentType } from '@visastack/core/catalogue/documents';
 import {
   type Actor,
   type Decision,
@@ -26,6 +25,11 @@ import { listMembershipsForAccount } from '../organizations';
 import { documentCategory, loadGrantsForPolicy } from '../sharing';
 import { loadSupportGrantsForPolicy } from '../support-access';
 import type { AccountPrincipal, Principal } from './principal';
+import {
+  type DocumentProtectionSettings,
+  documentTypeRestricted,
+  loadDocumentProtectionSettings,
+} from './restricted-documents';
 import { StepUpProof } from './step-up-proof';
 
 /**
@@ -214,6 +218,7 @@ export const RESTRICTED_DOCUMENT_TYPES: ReadonlySet<string> = new Set([
 export const RESTRICTED_DOCUMENT_CATEGORIES: ReadonlySet<string> = new Set([
   'medical',
   'identity_civil',
+  'financial',
 ]);
 
 /**
@@ -221,15 +226,23 @@ export const RESTRICTED_DOCUMENT_CATEGORIES: ReadonlySet<string> = new Set([
  * name the catalogue does not recognise) is treated as restricted, because it
  * could be a passport or a medical scan.
  */
-export function isRestrictedDocumentType(docType: string | null): boolean {
-  if (!docType) return true;
-  const known = resolveDocumentType(docType);
-  if (!known) return true;
-  if (RESTRICTED_DOCUMENT_TYPES.has(known.key)) return true;
-  return [known.pack, known.group].some(
-    (category) => typeof category === 'string' && RESTRICTED_DOCUMENT_CATEGORIES.has(category),
-  );
+export function isRestrictedDocumentType(
+  docType: string | null,
+  settings: DocumentProtectionSettings = DEFAULT_DOCUMENT_PROTECTION,
+): boolean {
+  return documentTypeRestricted(docType, settings);
 }
+
+/**
+ * The built-in rule above, as settings. Platform admins can switch any part
+ * of it on or off (document-protection.ts); an absent switch means this.
+ */
+export const DEFAULT_DOCUMENT_PROTECTION: DocumentProtectionSettings = Object.freeze({
+  restrictedCategories: RESTRICTED_DOCUMENT_CATEGORIES,
+  restrictedTypes: RESTRICTED_DOCUMENT_TYPES,
+  unrestrictedTypes: new Set<string>(),
+  unknownTypesRestricted: true,
+});
 
 // Lower case only, as the database writes them: string comparisons and uuid
 // comparisons then always agree.
@@ -293,6 +306,9 @@ async function loadResource(tx: Db, key: RefKey, id: string): Promise<LoadedReso
       // Same document-to-category mapping the shared-workspace view and the
       // wallet use, so a category-scoped grant covers the same documents here.
       const category = documentCategory(document.docType);
+      // The rule as platform admins have set it, read in this transaction;
+      // the built-in defaults if it cannot be read.
+      const protection = await loadDocumentProtectionSettings(tx, DEFAULT_DOCUMENT_PROTECTION);
       return {
         applicant,
         resource: { kind: 'document', applicantId: applicant.id, document },
@@ -300,7 +316,7 @@ async function loadResource(tx: Db, key: RefKey, id: string): Promise<LoadedReso
           applicantId: applicant.id as ApplicantId,
           documentId: document.id as DocumentId,
           ...(category !== undefined ? { category } : {}),
-          ...(isRestrictedDocumentType(document.docType) ? { restricted: true } : {}),
+          ...(isRestrictedDocumentType(document.docType, protection) ? { restricted: true } : {}),
         },
       };
     }

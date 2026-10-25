@@ -53,6 +53,7 @@ const standIn = vi.hoisted(
 vi.mock('../app/app/actions', standIn);
 vi.mock('../app/app/admin/actions', standIn);
 vi.mock('../app/app/admin/ai-settings/actions', standIn);
+vi.mock('../app/app/admin/document-protection/actions', standIn);
 vi.mock('../app/app/admin/complaints/actions', standIn);
 vi.mock('../app/app/admin/organizations/[orgId]/actions', standIn);
 vi.mock('../app/app/admin/packs/actions', standIn);
@@ -75,6 +76,7 @@ const { ConsentButton } = await import('../app/app/consent-button');
 const adminButtons = await import('../app/app/admin/action-buttons');
 const adminForms = await import('../app/app/admin/admin-forms');
 const aiSettings = await import('../app/app/admin/ai-settings/forms');
+const protectionForms = await import('../app/app/admin/document-protection/forms');
 const complaintForms = await import('../app/app/admin/complaints/forms');
 const organisationForms = await import('../app/app/admin/organizations/[orgId]/forms');
 const packForms = await import('../app/app/admin/packs/pack-forms');
@@ -1175,6 +1177,30 @@ const ADMIN: readonly Case[] = [
   { name: 'roll back the AI configuration', element: () => <aiSettings.RollbackConfigButton /> },
   { name: 'switch AI off in an emergency', element: () => <aiSettings.EmergencyDisableButton /> },
   row('revoke an AI key', () => <aiSettings.RevokeKeyButton configId={rowId()} />),
+  {
+    ...row('document protection switch (on)', () => (
+      <protectionForms.ProtectionSwitch
+        scope="CATEGORY"
+        switchKey="medical"
+        name="Medical"
+        restricted
+        defaultRestricted
+        overridden={false}
+      />
+    )),
+    fields: ['reason'],
+  },
+  row('document protection switch (off, changed by an admin)', () => (
+    <protectionForms.ProtectionSwitch
+      scope="UNKNOWN_TYPE"
+      switchKey="unknown"
+      name="Documents Not Sorted Yet"
+      restricted={false}
+      defaultRestricted
+      overridden
+      offWarning="These could be passports."
+    />
+  )),
   row('assign a complaint', () => <complaintForms.AssignComplaintForm complaintId={rowId()} />),
   row('update a complaint (open)', () => (
     <complaintForms.UpdateComplaintStatusForm complaintId={rowId()} currentStatus="OPEN" />

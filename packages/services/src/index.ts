@@ -29,17 +29,36 @@ export {
   StaffScope,
   SystemScope,
   EACH_GRANT,
+  type DocumentProtectionOverride,
+  type DocumentProtectionSettings,
+  DEFAULT_DOCUMENT_PROTECTION,
   RESTRICTED_DOCUMENT_CATEGORIES,
   RESTRICTED_DOCUMENT_TYPES,
   SYSTEM_JOBS,
   StepUpProof,
   accountPrincipal,
+  applyDocumentProtectionOverrides,
   isRestrictedDocumentType,
   requireAccess,
   staffPrincipal,
   systemPrincipal,
   verifyStepUp,
 } from './access';
+export {
+  type CategorySwitchView,
+  type DocumentProtectionChange,
+  type DocumentProtectionOverview,
+  type DocumentProtectionRow,
+  type DocumentProtectionScope,
+  type ProtectionSwitchView,
+  type SetDocumentProtectionInput,
+  DOCUMENT_PROTECTION_AUDIT_EVENT,
+  DOCUMENT_PROTECTION_REASON_MAX,
+  DOCUMENT_PROTECTION_UNKNOWN_KEY,
+  getDocumentProtectionOverview,
+  readDocumentProtectionSettings,
+  setDocumentProtection,
+} from './document-protection';
 export { type ServiceError, type ServiceErrorCode, serviceError } from './errors';
 
 export {

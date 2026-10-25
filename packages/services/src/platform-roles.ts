@@ -119,7 +119,8 @@ export type PlatformAction =
   | 'PACK_MANAGE'
   | 'COMPLAINT_MANAGE'
   | 'FEEDBACK_VIEW'
-  | 'AI_SETTINGS_MANAGE';
+  | 'AI_SETTINGS_MANAGE'
+  | 'DOCUMENT_PROTECTION_MANAGE';
 
 const ACTION_ROLES: Readonly<Record<PlatformAction, Exclude<PlatformRole, 'PLATFORM_OWNER'>>> = {
   RETENTION_POLICY_SET: 'COMPLIANCE_ADMIN',
@@ -135,6 +136,10 @@ const ACTION_ROLES: Readonly<Record<PlatformAction, Exclude<PlatformRole, 'PLATF
   // non-overlapping concern the way QUALITY_ADMIN was for complaints/
   // feedback, so this extends SECURITY_ADMIN rather than adding a sixth role.
   AI_SETTINGS_MANAGE: 'SECURITY_ADMIN',
+  // Which documents need a fresh sign-in check before preview or download
+  // (document-protection.ts) is an access-security rule, the same family as
+  // the actions above, so it extends SECURITY_ADMIN rather than adding a role.
+  DOCUMENT_PROTECTION_MANAGE: 'SECURITY_ADMIN',
   PROCESSING_JOB_RETRY: 'SUPPORT_ADMIN',
   ORPHAN_RECONCILE: 'SUPPORT_ADMIN',
   PACK_MANAGE: 'SUPPORT_ADMIN',
