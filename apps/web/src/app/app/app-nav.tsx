@@ -180,12 +180,12 @@ export function AppNav({
           <span>
             <b>
               {pathname.startsWith('/app/admin')
-                ? 'Platform workspace'
+                ? 'Platform Workspace'
                 : pathname.startsWith('/app/agency')
                   ? 'Agency Workspace'
-                  : 'Personal workspace'}
+                  : 'Personal Workspace'}
             </b>
-            <small>{accountLabel ?? 'Account details'}</small>
+            <small>{accountLabel ?? 'Account Details'}</small>
           </span>
         </Link>
       )}
@@ -282,7 +282,7 @@ export function WorkspaceToolbar({
     ? 'Platform Administration'
     : pathname.startsWith('/app/agency')
       ? 'Agency Workspace'
-      : 'Personal workspace';
+      : 'Personal Workspace';
   return (
     <header className="workspace-toolbar">
       <Link href="/" className="brand workspace-brand">

@@ -60,7 +60,7 @@ export default async function AdminOrganizationsPage() {
               </EmptyState>
             ) : (
               <table className="data-table u-mt-050">
-                <caption className="sr-only">Organizations on the platform</caption>
+                <caption className="sr-only">Organizations on the Platform</caption>
                 <thead>
                   <tr>
                     <th scope="col">Organization</th>

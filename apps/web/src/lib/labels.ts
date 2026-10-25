@@ -1,6 +1,7 @@
 import type { MembershipRole, OrganizationStatus } from '@visastack/core';
 import { documentTypeName } from '@visastack/core/catalogue/documents';
 import type { schema } from '@visastack/db';
+import type { CaseTriageState, TriageGroup, TriageIndicator } from '@visastack/services';
 
 /**
  * Plain words for the codes the database stores. Display only: nothing here is ever saved,
@@ -35,7 +36,7 @@ export const MEMBERSHIP_ROLE_LABELS: Readonly<Record<MembershipRole, string>> = 
 };
 
 export const ORGANIZATION_STATUS_LABELS: Readonly<Record<OrganizationStatus, string>> = {
-  PENDING_VERIFICATION: 'Waiting For Review',
+  PENDING_VERIFICATION: 'Waiting for Review',
   ACTIVE: 'Active',
   SUSPENDED: 'Suspended',
   REJECTED: 'Not Approved',
@@ -111,6 +112,44 @@ export const invoiceStatusLabel = (code: string) => pick(INVOICE_STATUS_LABELS, 
 export const aiConfigStatusLabel = (code: string) => pick(AI_CONFIG_STATUS_LABELS, code);
 export const auditResultLabel = (code: string) => pick(AUDIT_RESULT_LABELS, code);
 export const aiProviderLabel = (code: string) => pick(AI_PROVIDER_LABELS, code);
+/**
+ * The agency triage groups (Programme X E02, PROGRAMME.md section 8): one primary group per item.
+ * Received is never Reviewed, and Ready for Review is a statement about the whole case.
+ */
+export const TRIAGE_GROUP_LABELS: Readonly<Record<TriageGroup, string>> = {
+  MISSING: 'Missing',
+  PROCESSING: 'Processing',
+  RECEIVED: 'Received or Awaiting Confirmation',
+  NEEDS_CORRECTION: 'Needs Correction or Clarification',
+  REVIEWED: 'Reviewed',
+};
+
+/** The case-level line above a triage summary. Completeness only, never a chance of approval. */
+export const CASE_TRIAGE_STATE_LABELS: Readonly<Record<CaseTriageState, string>> = {
+  READY_FOR_REVIEW: 'Ready for Review',
+  NOT_READY: 'Not Ready for Review',
+  CHECKED_BY_HAND: 'Checked by Hand',
+  NO_CHECKLIST: 'No Checklist Attached',
+};
+
+/**
+ * The complete-checklist line for someone who cannot see the agency's requests. Without them we
+ * cannot say nothing is still waiting, so we never call the case Ready for Review for them.
+ */
+export const CHECKLIST_COMPLETE_LABEL = 'Checklist Complete';
+
+/** Short notes beside an item's group. They explain the group and never replace it. */
+export const TRIAGE_INDICATOR_LABELS: Readonly<Record<TriageIndicator, string>> = {
+  OPTIONAL: 'Optional',
+  OUT_OF_DATE: 'Out of Date',
+  ANSWER_NEEDED: 'Answer Needed First',
+  DOES_NOT_MATCH: 'Does Not Match Other Details',
+  NOT_ACCEPTED: 'Not Accepted',
+  SENT_BACK: 'Sent Back for a Fix',
+  REVIEW_STARTED: 'Review Started',
+  COULD_NOT_BE_USED: 'Could Not Be Used',
+};
+
 /** "bank_statement" and "BANK_STATEMENT" both give "Bank Statement". */
 export const documentTypeLabel = (code: string) =>
   documentTypeName(code) ?? pick(DOCUMENT_TYPE_LABELS, code.toUpperCase());
@@ -125,29 +164,29 @@ export const CONSENT_PLAIN: Readonly<
   Record<string, { readonly name: string; readonly meaning: string }>
 > = {
   CORE_PROCESSING: {
-    name: 'Let VisaStack process my details',
+    name: 'Let VisaStack Process My Details',
     meaning: 'Needed before documents are stored and your profile can be filled.',
   },
   AI_EXTRACTION: {
-    name: 'Let AI read details from my documents',
+    name: 'Let AI Read Details from My Documents',
     meaning:
       'The text of a document is sent to an AI service to suggest values. You approve each one.',
   },
   AI_OCR: {
-    name: 'Let AI read text from my scans',
+    name: 'Let AI Read Text from My Scans',
     meaning:
       'The picture of a scan is sent to an AI service to read it. This shares more than text alone.',
   },
   SHARING: {
-    name: 'Let me share with others',
+    name: 'Let Me Share with Others',
     meaning: 'Needed before anything is shared with an agency or another person.',
   },
   MARKETING: {
-    name: 'Send me news and offers',
+    name: 'Send Me News and Offers',
     meaning: 'Optional. You can use VisaStack without it.',
   },
   ISSUER_CONTACT: {
-    name: 'Let an agency check a document with its issuer',
+    name: 'Let an Agency Check a Document with Its Issuer',
     meaning:
       'An agency may contact a bank, university or other issuer to confirm a fact or document for you.',
   },

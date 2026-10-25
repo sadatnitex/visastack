@@ -3,6 +3,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { formatTimestampDate } from '../lib/format-date';
+import { agree, plural } from '../lib/plural';
 import { EmptyState, StatusBadge } from './ui';
 
 export interface WalletBrowserDocument {
@@ -25,6 +26,13 @@ export interface WalletBrowserDocument {
   readonly details: ReactNode;
 }
 type Filter = 'all' | 'ready' | 'review' | 'expiring';
+/** The summary tiles above the list, which also filter it. Names, so Title Case. */
+const FILTER_LABELS: Readonly<Record<Filter, string>> = {
+  all: 'All Documents',
+  ready: 'Ready to Use',
+  review: 'Needs Review',
+  expiring: 'Expiring Soon',
+};
 const PAGE_SIZE = 12;
 /** The filter choice for documents that no category holds yet. */
 const NOT_SORTED = '__not-sorted__';
@@ -73,14 +81,7 @@ export function DocumentWalletBrowser({
   return (
     <>
       <div className="wallet-overview-strip" aria-label="Document state filters">
-        {(
-          [
-            ['all', 'All documents'],
-            ['ready', 'Ready to use'],
-            ['review', 'Need review'],
-            ['expiring', 'Expiring Soon'],
-          ] as const
-        ).map(([key, label]) => (
+        {(Object.entries(FILTER_LABELS) as [Filter, string][]).map(([key, label]) => (
           <button
             key={key}
             type="button"
@@ -114,11 +115,11 @@ export function DocumentWalletBrowser({
                     {value}
                   </option>
                 ))}
-                {notSorted > 0 ? <option value={NOT_SORTED}>Not set yet</option> : null}
+                {notSorted > 0 ? <option value={NOT_SORTED}>Not Set Yet</option> : null}
               </select>
             </label>
             <label>
-              Search documents
+              Search Documents
               <input
                 className="input"
                 type="search"
@@ -145,14 +146,14 @@ export function DocumentWalletBrowser({
                     setPage(0);
                   }}
                 >
-                  Show {notSorted === 1 ? 'it' : 'them'}
+                  Show {notSorted === 1 ? 'It' : 'Them'}
                 </button>
               )}
             </p>
           ) : null}
           <output className="muted">
-            {matches.length} document{matches.length === 1 ? '' : 's'} match. Page {activePage + 1}{' '}
-            of {pageCount}.
+            {plural(matches.length, 'document')} {agree(matches.length, 'matches', 'match')}. Page{' '}
+            {activePage + 1} of {pageCount}.
           </output>
           {visible.length ? (
             <ul className="wallet-metadata-list">
@@ -194,7 +195,7 @@ export function DocumentWalletBrowser({
                   </button>
                   {selectedId === doc.id ? (
                     <a className="wallet-detail-jump" href="#wallet-selected-document">
-                      View selected details →
+                      View Selected Details →
                     </a>
                   ) : null}
                 </li>
@@ -267,7 +268,7 @@ export function DocumentWalletBrowser({
           ) : (
             <EmptyState
               icon="alert"
-              title={selectedId ? 'Selected document is unavailable' : 'Choose a document'}
+              title={selectedId ? 'Selected Document Is Unavailable' : 'Choose a Document'}
             >
               Select an available row to review its metadata and authorized actions.
             </EmptyState>

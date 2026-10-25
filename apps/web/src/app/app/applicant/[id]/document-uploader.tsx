@@ -138,8 +138,8 @@ export function DocumentUploader({
         </output>
       ) : null}
       {kindGroups.length > 0 ? (
-        <div className="document-type-form">
-          <label className="muted u-fs-075" htmlFor={kindId}>
+        <div className="field-stack">
+          <label className="field-label" htmlFor={kindId}>
             Kind of Document (Optional)
           </label>
           <select
@@ -150,7 +150,7 @@ export function DocumentUploader({
             onChange={(event) => setKind(event.currentTarget.value)}
             {...fieldProblem(state, 'docType', messageId)}
           >
-            <option value="">Not sure yet</option>
+            <option value="">Not Sure Yet</option>
             {kindGroups.map((group) => (
               <optgroup key={group.key} label={group.label}>
                 {group.choices.map((choice) => (
@@ -163,8 +163,8 @@ export function DocumentUploader({
           </select>
           {isOtherKind(kind) ? (
             <>
-              <label className="muted u-fs-075" htmlFor={kindNameId}>
-                What is it?
+              <label className="field-label" htmlFor={kindNameId}>
+                Name for an Other Type
               </label>
               <input
                 id={kindNameId}
@@ -176,7 +176,7 @@ export function DocumentUploader({
               />
             </>
           ) : null}
-          <p className="muted u-fs-075">
+          <p className="field-hint">
             Choosing it now files the document under the right sharing category. You can change it
             later.
           </p>

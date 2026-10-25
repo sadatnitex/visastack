@@ -11,7 +11,7 @@ export default function TermsPage() {
       <p className="card-body">
         Version {SIGNUP_TERMS_VERSION}. These beta terms await legal review.
       </p>
-      <h2>Free public beta, at your own risk</h2>
+      <h2>Free Public Beta, at Your Own Risk</h2>
       <p>
         VisaStack is a free public beta, provided as it is. You may use your own details and
         documents, at your own risk: some protections, such as virus scanning of uploads, are not

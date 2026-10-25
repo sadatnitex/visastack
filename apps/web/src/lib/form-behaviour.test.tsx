@@ -198,7 +198,7 @@ describe('an upload that takes a while', () => {
 });
 
 describe('the status page re-checking by itself', () => {
-  it('keeps keyboard focus on "Check now" while a check runs, so nobody loses their place', async () => {
+  it('keeps keyboard focus on "Check Now" while a check runs, so nobody loses their place', async () => {
     vi.useFakeTimers();
     const second = gate<unknown>();
     const answer = { ok: true, status: 200, json: async () => ({ status: 'ready', platform: {} }) };
@@ -214,7 +214,7 @@ describe('the status page re-checking by itself', () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     const button = $<HTMLButtonElement>('button');
-    expect(button.textContent).toBe('Check now');
+    expect(button.textContent).toBe('Check Now');
     button.focus();
     expect(document.activeElement).toBe(button);
 
@@ -229,7 +229,7 @@ describe('the status page re-checking by itself', () => {
     expect(document.activeElement).toBe(button);
 
     await act(async () => second.resolve(answer));
-    expect(button.textContent).toBe('Check now');
+    expect(button.textContent).toBe('Check Now');
     expect(document.activeElement).toBe(button);
   });
 });

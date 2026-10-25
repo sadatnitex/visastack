@@ -17,6 +17,8 @@ import {
   unassignMemberAction,
   updateTaskForOrgAction,
 } from './actions';
+import type { CaseTriageView } from './case-triage';
+import { CaseTriageSummary } from './case-triage-summary';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
@@ -105,6 +107,8 @@ interface MissionCollaborationProps {
   readonly issuerVerifications: readonly IssuerVerificationView[];
   /** Only an assigned member can record a decision — self-attestation by the applicant is never allowed. */
   readonly viewerAssigned: boolean;
+  /** Where the case stands in the E02 groups (WP-V4), already in words. */
+  readonly triage?: CaseTriageView;
 }
 
 export function MissionCollaboration({
@@ -122,6 +126,7 @@ export function MissionCollaboration({
   decisions,
   issuerVerifications,
   viewerAssigned,
+  triage,
 }: MissionCollaborationProps) {
   const [noteState, noteAction, notePending] = useActionState(addNoteAction, INITIAL);
   const [assignState, assignAction, assignPending] = useActionState(assignMemberAction, INITIAL);
@@ -178,6 +183,8 @@ export function MissionCollaboration({
         <span className="row-key">{title}</span>
         <span className="muted u-fs-085">{applicantName}</span>
       </div>
+
+      {triage ? <CaseTriageSummary view={triage} headingId={`triage-${missionId}`} /> : null}
 
       <div style={{ marginTop: '0.6rem' }}>
         <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
@@ -278,7 +285,6 @@ export function MissionCollaboration({
                     <select
                       name="assigneeAccountId"
                       className="input"
-                      style={{ padding: '0.15rem 0.4rem', fontSize: 'var(--text-caption)' }}
                       defaultValue={t.assigneeAccountId ?? ''}
                       aria-label="Reassign task"
                     >

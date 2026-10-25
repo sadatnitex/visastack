@@ -50,10 +50,10 @@ export function RunAiExtractionButton({
 
 /** Directive §9's own named review signals, given short human-readable labels. */
 const REVIEW_ISSUE_LABELS: Record<string, string> = {
-  low_quality: 'Low image quality',
-  ambiguous_date: 'Ambiguous date',
-  unsupported_script: 'Unsupported script',
-  missing_text: 'No legible text found',
+  low_quality: 'Low Image Quality',
+  ambiguous_date: 'Ambiguous Date',
+  unsupported_script: 'Unsupported Script',
+  missing_text: 'No Legible Text Found',
 };
 
 /** Manually trigger AI OCR for one document (image/scanned PDF) - a separate, larger disclosure than AI extraction, so its own explicit action. */
@@ -523,7 +523,7 @@ export function RunInconsistencyCheckButton({
         <input type="hidden" name="documentVersionId" value={documentVersionId} />
         <SubmitButton
           pending={pending}
-          idle="Look for mismatches in my details"
+          idle="Look for Mismatches in My Details"
           busy="Looking for mismatches…"
           className="btn btn-secondary"
           style={{ padding: '0.3rem 0.9rem', fontSize: 'var(--text-small)' }}

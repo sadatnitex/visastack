@@ -18,11 +18,11 @@ export function PublicTrustStory() {
           </p>
           <a href="/app" className="btn btn-primary">
             <Icon name="plus" size={17} />
-            Start with your own profile
+            Start with Your Own Profile
           </a>
         </div>
         <aside className="trust-control" aria-label="Example of sharing permissions">
-          <p className="trust-example-label">Illustration with made-up details</p>
+          <p className="trust-example-label">Illustration with Made-Up Details</p>
           <div className="trust-window-head">
             <h2>Sharing Permissions</h2>
             <span className="trust-control-chip">You Choose</span>
@@ -79,7 +79,7 @@ export function PublicTrustStory() {
           <span className="trust-feature-icon">
             <Icon name="eye" size={24} />
           </span>
-          <h2 className="card-title">Know who can see what</h2>
+          <h2 className="card-title">Know Who Can See What</h2>
           <p className="card-body">
             Access starts after acceptance. You can stop future access, but cannot erase copies
             already downloaded.
@@ -89,7 +89,7 @@ export function PublicTrustStory() {
           <span className="trust-feature-icon">
             <Icon name="clipboard" size={24} />
           </span>
-          <h2 className="card-title">A history you can review</h2>
+          <h2 className="card-title">A History You Can Review</h2>
           <p className="card-body">
             Changes are recorded as new versions. Review your history and request export or
             deletion, subject to legal retention.
@@ -109,7 +109,7 @@ export function PublicTrustStory() {
       <div className="trust-bottom">
         <span>Clear boundaries. Human control. No approval guarantees.</span>
         <Link href="/privacy">
-          View privacy details <Icon name="arrow" size={16} />
+          View Privacy Details <Icon name="arrow" size={16} />
         </Link>
       </div>
     </section>

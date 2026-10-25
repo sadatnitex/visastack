@@ -178,7 +178,7 @@ export function WorkspaceRecordToolbar({
       >
         <Icon name="search" size={19} />
         <label className="sr-only" htmlFor={inputId}>
-          Search accessible profiles, cases and document names
+          Search Accessible Profiles, Cases and Document Names
         </label>
         <input
           id={inputId}

@@ -42,7 +42,7 @@ describe('createApplicantAction with the first-run radios', () => {
     expect(created.calls[0]).toMatchObject({ relationship: 'SELF', authorityConfirmed: false });
   });
 
-  it('Someone I manage uses the chosen kind and still requires the authority confirmation', async () => {
+  it('Someone I Manage uses the chosen kind and still requires the authority confirmation', async () => {
     const missing = await createApplicantAction(
       INITIAL,
       form([
@@ -69,7 +69,7 @@ describe('createApplicantAction with the first-run radios', () => {
     });
   });
 
-  it('Someone I manage with no kind chosen asks for one instead of saving as Me', async () => {
+  it('Someone I Manage with no kind chosen asks for one instead of saving as Me', async () => {
     const result = await createApplicantAction(
       INITIAL,
       form([

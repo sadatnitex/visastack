@@ -50,7 +50,7 @@ export function CountryBrowser({
     <>
       <div className="country-filters" aria-label="Filter by entry rule">
         <button type="button" aria-pressed={choice === 'all'} onClick={() => setChoice('all')}>
-          <span>All countries</span>
+          <span>All Countries</span>
           <strong>{count('all')}</strong>
         </button>
         {filters
@@ -68,7 +68,7 @@ export function CountryBrowser({
           ))}
       </div>
       <label className="country-search">
-        Search countries
+        Search Countries
         <input
           className="input"
           type="search"

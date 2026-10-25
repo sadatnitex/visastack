@@ -57,7 +57,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
     <html lang={locale} className={`${inter.variable} ${bengali.variable}`}>
       <body>
         <a className="skip-link" href="#main">
-          Skip to content
+          Skip to Content
         </a>
         {!signedIn ? (
           <PilotBanner mode={deploymentMode} registrationOpen={isPublicBetaOpen()} />

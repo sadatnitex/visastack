@@ -43,7 +43,7 @@ beforeEach(() => {
         }}
         signOut={
           <form>
-            <button type="submit">Sign out</button>
+            <button type="submit">Sign Out</button>
           </form>
         }
       />,
@@ -157,6 +157,6 @@ describe('actual toolbar component behavior, without provider-backed acceptance 
     ).toBe('/app/notifications');
     expect(container.textContent).toContain('Traveller Free');
     expect(container.textContent).not.toContain('Founding Access');
-    expect(container.querySelector('.record-account form button')?.textContent).toBe('Sign out');
+    expect(container.querySelector('.record-account form button')?.textContent).toBe('Sign Out');
   });
 });
