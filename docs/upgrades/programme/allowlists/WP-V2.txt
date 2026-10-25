@@ -20,3 +20,7 @@ docs/upgrades/programme/**
 docs/commercial-v1/known-issues.md
 # PROPOSED, only with owner approval of an additive migration: packages/db/src/schema.ts, packages/db/migrations/**
 # Reason: conflicts.field_proposal_id is NOT NULL (schema.ts:1878), so a general conflict cannot be stored without an AI proposal.
+# Added 25 Oct 2026 under the owner's autonomous-work mandate (reported in the PR): v1.2 E03 requires
+# unknown dates to stay unknown, which replaces the older "effectiveFrom defaults to now" rule that this
+# one existing test asserted. The test is updated to the new rule, not removed.
+packages/services/src/services.test.ts

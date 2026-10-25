@@ -139,11 +139,11 @@ export interface EditFactInput {
   readonly promptVersion?: string;
   /**
    * When this value became (or becomes) true — distinct from `createdAt`,
-   * which is when the version was recorded. Defaults to now: most edits
-   * describe the applicant's current reality, not a backdated or
-   * future-dated one. Master directive §7 "PR 8" — every fact must support
-   * an effective date; the schema column existed but nothing wrote to it
-   * before this.
+   * which is when the version was recorded. Master directive §7 "PR 8":
+   * every fact must support an effective date. Omitted means not known and
+   * is stored as null (v1.2 E03, WP-V2): unknown dates stay unknown, so a
+   * later comparison reports Insufficient information instead of treating
+   * the save time as the date it became true.
    */
   readonly effectiveFrom?: Date;
   /**
@@ -317,7 +317,7 @@ export async function editFact(
             sourceDocumentVersionId: input.sourceDocumentVersionId ?? null,
             modelVersion: input.modelVersion ?? null,
             promptVersion: input.promptVersion ?? null,
-            effectiveFrom: input.effectiveFrom ?? new Date(),
+            effectiveFrom: input.effectiveFrom ?? null,
             approvedAt: new Date(),
           })
           .returning(),

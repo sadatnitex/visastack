@@ -104,6 +104,24 @@ export {
   registerFieldDefinitions,
   revealFactVersionValue,
 } from './profile';
+export {
+  CONSISTENCY_LABELS,
+  CONSISTENCY_REASON_TEXT,
+  CONSISTENCY_RESULTS,
+  classifyDeclarationChange,
+  compareFactVersions,
+} from './consistency';
+export type {
+  AmountBasis,
+  Classification,
+  ClassifyDeclarationInput,
+  CompareFactVersionsInput,
+  ComparedVersion,
+  ConsistencyReason,
+  ConsistencyResult,
+  DeclarationComparison,
+  DeclarationSide,
+} from './consistency';
 
 export {
   type ProfileSectionState,
