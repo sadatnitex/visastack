@@ -127,6 +127,19 @@ describe('follow-up message', () => {
     expect(buildFollowUpMessage({ ...base, dueDate: null }).text).not.toContain('Due:');
   });
 
+  it('swaps long dashes for hyphens in every field, not only in the note', () => {
+    const message = buildFollowUpMessage({
+      ...base,
+      caseTitle: `UK ${LONG_DASH} Standard Visitor`,
+      organizationName: `Harbor ${EN_DASH} Travel`,
+      itemLabel: `Bank ${LONG_DASH} Statement`,
+    });
+    expect(message.text).toContain('Case: UK - Standard Visitor');
+    expect(message.text).toContain('Harbor - Travel');
+    expect(message.text).toContain('What we need: Bank - Statement');
+    expectClean(message.text);
+  });
+
   it('gives the same text for the same input', () => {
     expect(buildFollowUpMessage(base)).toEqual(buildFollowUpMessage({ ...base }));
   });
