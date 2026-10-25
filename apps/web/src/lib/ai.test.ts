@@ -559,6 +559,17 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
       expect(revealAiProviderApiKey).not.toHaveBeenCalled();
     });
 
+    it('when on and refusing, the status answer says AI is switched off, the same as the live call', async () => {
+      settingIs(true);
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig());
+      const ai = await import('./ai');
+
+      expect(await ai.resolveAiExtractionAvailability(db, true)).toBe('disabled');
+      settingIs(false);
+      expect(await ai.resolveAiExtractionAvailability(db, true)).toBe('available');
+    });
+
     it('when on, runs a primary recorded as not training but drops a fallback recorded as training', async () => {
       settingIs(true);
       recordedTerms({ 'config-1': notTraining, 'fallback-1': mayTrain });

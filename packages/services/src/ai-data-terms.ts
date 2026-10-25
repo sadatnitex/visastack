@@ -5,7 +5,12 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 
-const { AI_PROVIDER_TIERS, AI_TERMS_TEXT_MAX, AI_TRAINING_ANSWERS } = schema;
+// Plain copies of the schema's constants (ai-data-terms.test.ts pins them equal): reading
+// `schema` at module load would break every package whose tests replace @visastack/db with a
+// partial mock.
+export const AI_PROVIDER_TIERS = ['FREE', 'PAID'] as const;
+export const AI_TRAINING_ANSWERS = ['YES', 'NO', 'UNKNOWN'] as const;
+export const AI_TERMS_TEXT_MAX = 500;
 
 /** How long a staff scope stays good for: minted for one request, never kept. Same window as document protection. */
 const STAFF_SCOPE_MAX_AGE_MS = 5 * 60 * 1000;

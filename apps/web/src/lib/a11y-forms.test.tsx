@@ -1222,6 +1222,15 @@ const ADMIN: readonly Case[] = [
   { name: 'roll back the AI configuration', element: () => <aiSettings.RollbackConfigButton /> },
   { name: 'switch AI off in an emergency', element: () => <aiSettings.EmergencyDisableButton /> },
   row('revoke an AI key', () => <aiSettings.RevokeKeyButton configId={rowId()} />),
+  row('record AI provider data terms', () => <aiSettings.RecordTermsForm configId={rowId()} />),
+  {
+    name: 'turn the AI data setting on',
+    element: () => <aiSettings.DataRuleForm requireNoTraining={false} />,
+  },
+  {
+    name: 'turn the AI data setting off',
+    element: () => <aiSettings.DataRuleForm requireNoTraining={true} />,
+  },
   {
     ...row('document protection switch (on)', () => (
       <protectionForms.ProtectionSwitch

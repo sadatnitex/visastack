@@ -23,6 +23,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { bootstrapAdminEmails, hasPlatformPermission } from '../../../../lib/admin';
 import { resolveTestAdapter, usdToUnits } from '../../../../lib/ai';
+import { clearAiCapabilityCache } from '../../../../lib/capabilities';
 import { createKeyManagementPort } from '../../../../lib/providers';
 import { withSession } from '../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../lib/step-up';
@@ -49,6 +50,12 @@ const AI_SETTINGS_PATH = '/app/admin/ai-settings';
 // purgeExpiredDocumentsAction (../actions.ts) already uses for an identical
 // no-target-id, platform-wide mutation.
 const PLATFORM_WIDE_RESOURCE_ID = 'platform-wide';
+
+/** After a settings change: refresh this page and drop this server's cached AI capability answer (other servers catch up within a minute). */
+function settingsChanged(): void {
+  clearAiCapabilityCache();
+  revalidatePath(AI_SETTINGS_PATH);
+}
 
 function actor(accountId: string, email: string): PlatformAuthInput {
   return { accountId, email, bootstrapEmails: bootstrapAdminEmails() };
@@ -204,7 +211,7 @@ export async function createDraftAiProviderConfigAction(
       message: `Draft configuration created (${provider} / ${model}).`,
     } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(AI_SETTINGS_PATH);
+  if (result.ok) settingsChanged();
   return result;
 }
 
@@ -237,7 +244,7 @@ export async function activateAiProviderConfigAction(
     if (!activated.ok) return { ok: false, message: activated.error.message } satisfies ActionState;
     return { ok: true, message: 'Configuration activated.' } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(AI_SETTINGS_PATH);
+  if (result.ok) settingsChanged();
   return result;
 }
 
@@ -271,7 +278,7 @@ export async function rollbackAiProviderConfigAction(
       message: 'Rolled back to the last eligible configuration.',
     } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(AI_SETTINGS_PATH);
+  if (result.ok) settingsChanged();
   return result;
 }
 
@@ -300,7 +307,7 @@ export async function emergencyDisableAiProviderConfigAction(
     if (!disabled.ok) return { ok: false, message: disabled.error.message } satisfies ActionState;
     return { ok: true, message: 'AI extraction disabled platform-wide.' } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(AI_SETTINGS_PATH);
+  if (result.ok) settingsChanged();
   return result;
 }
 
@@ -333,7 +340,7 @@ export async function revokeAiProviderConfigKeyAction(
     if (!revoked.ok) return { ok: false, message: revoked.error.message } satisfies ActionState;
     return { ok: true, message: 'API key revoked.' } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(AI_SETTINGS_PATH);
+  if (result.ok) settingsChanged();
   return result;
 }
 

@@ -7,6 +7,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { type StaffScope, staffPrincipal } from './access/principal';
 import { provisionAccount } from './accounts';
 import {
+  AI_PROVIDER_TIERS,
+  AI_TERMS_TEXT_MAX,
+  AI_TRAINING_ANSWERS,
   type AiDataMode,
   type AiProviderDataTerms,
   aiProviderTermsFor,
@@ -400,5 +403,13 @@ describe('a deploy that lands before the migration', () => {
       const still = await tx.select().from(schema.aiProviderConfigs);
       expect(still).toHaveLength(1);
     });
+  });
+});
+
+describe('the copies of the schema constants', () => {
+  it('match the schema exactly', () => {
+    expect(AI_PROVIDER_TIERS).toEqual(schema.AI_PROVIDER_TIERS);
+    expect(AI_TRAINING_ANSWERS).toEqual(schema.AI_TRAINING_ANSWERS);
+    expect(AI_TERMS_TEXT_MAX).toBe(schema.AI_TERMS_TEXT_MAX);
   });
 });
