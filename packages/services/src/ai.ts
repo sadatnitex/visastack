@@ -2576,6 +2576,13 @@ async function findExistingFactId(
 export interface ApproveProposalInput {
   readonly actorAccountId: string;
   readonly proposalId: string;
+  /**
+   * How the person settled a difference with the value already on file: take the document's
+   * value, or keep both because the detail changed (then `effectiveFrom` says when). Without a
+   * resolution a difference is saved as CONFLICTED with a conflict record, as before.
+   */
+  readonly resolution?: 'use_document' | 'changed';
+  readonly effectiveFrom?: Date;
   /** Edit-before-approve: applied instead of the proposed value when set and different. */
   readonly correctedValue?: string;
   readonly repeatingRecordKey?: string;
@@ -2630,6 +2637,9 @@ export async function approveProposal(
   const correctedValue = input.correctedValue?.trim();
   const finalValue = correctedValue || proposal.value;
   if (!finalValue) return err(serviceError('invalid', 'proposal has no value to approve'));
+  if (input.resolution === 'changed' && !input.effectiveFrom) {
+    return err(serviceError('invalid', 'say when the detail changed'));
+  }
 
   const run = required(
     first(
@@ -2660,6 +2670,8 @@ export async function approveProposal(
       conflict = { factId: existingFactId, previousFactVersionId: currentVersion.id };
     }
   }
+  // The person looked at both values and chose: nothing is left to settle.
+  if (input.resolution) conflict = undefined;
 
   // Atomic approval (master directive §7 "PR 8"): the fact write and the
   // proposal decision (status, correction feedback, conflict record) must
@@ -2680,6 +2692,9 @@ export async function approveProposal(
       modelVersion: run.modelVersion,
       promptVersion: run.promptVersion,
       reason: 'ai_proposal_approved',
+      ...(input.resolution === 'changed' && input.effectiveFrom
+        ? { effectiveFrom: input.effectiveFrom }
+        : {}),
       ...(repeatingRecordKey ? { repeatingRecordKey } : {}),
       ...(input.encryption ? { encryption: input.encryption } : {}),
     });
@@ -2728,6 +2743,119 @@ export async function approveProposal(
 
     return editResult;
   });
+}
+
+/**
+ * A reading counts as clear when the model was confident and every quoted phrase was found, word
+ * for word, in the document's own text. Anything else asks the person to look closely.
+ */
+export const CLEAR_PROPOSAL_CONFIDENCE = 85;
+
+export function isClearReading(
+  proposal: {
+    readonly type: string;
+    readonly fieldKey: string | null;
+    readonly value: string | null;
+    readonly confidence: number;
+  },
+  evidence: readonly { readonly verified: boolean | null }[],
+): boolean {
+  return (
+    proposal.type !== 'UNMAPPED' &&
+    Boolean(proposal.fieldKey) &&
+    Boolean(proposal.value?.trim()) &&
+    proposal.confidence >= CLEAR_PROPOSAL_CONFIDENCE &&
+    evidence.length > 0 &&
+    evidence.every((item) => item.verified === true)
+  );
+}
+
+export interface ApproveClearProposalsInput {
+  readonly actorAccountId: string;
+  readonly applicantId: string;
+  readonly proposalIds: readonly string[];
+  readonly encryption?: KeyManagementPort;
+}
+
+export interface ApproveClearProposalsResult {
+  readonly approved: number;
+  /** Proposals that were not clear, sensitive, different from a confirmed value, or already decided. */
+  readonly leftForReview: number;
+}
+
+/**
+ * "Accept all clear details" for one person: approves, one by one through `approveProposal`, only
+ * the readings that are clear, for a field of STANDARD sensitivity, and that do not differ from a
+ * value already confirmed. Every other proposal stays pending for a one-at-a-time decision. The
+ * page's choice of ids is never trusted: each rule is checked again here.
+ */
+export async function approveClearProposals(
+  db: Db,
+  input: ApproveClearProposalsInput,
+): Promise<Result<ApproveClearProposalsResult, ServiceError>> {
+  const applicant = await getApplicant(db, input.applicantId);
+  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (applicant.ownerAccountId !== input.actorAccountId) {
+    return err(serviceError('forbidden', 'not authorized to decide these proposals'));
+  }
+  let approved = 0;
+  let leftForReview = 0;
+  for (const proposalId of new Set(input.proposalIds)) {
+    const proposal = first(
+      await db
+        .select()
+        .from(schema.fieldProposals)
+        .where(eq(schema.fieldProposals.id, proposalId))
+        .limit(1),
+    );
+    if (
+      !proposal ||
+      proposal.applicantId !== input.applicantId ||
+      proposal.status !== 'PENDING' ||
+      !proposal.fieldKey
+    ) {
+      leftForReview += 1;
+      continue;
+    }
+    const evidence = await db
+      .select({ verified: schema.evidenceLocations.verified })
+      .from(schema.evidenceLocations)
+      .where(eq(schema.evidenceLocations.fieldProposalId, proposal.id));
+    const definition = first(
+      await db
+        .select({ sensitivity: schema.fieldDefinitions.sensitivity })
+        .from(schema.fieldDefinitions)
+        .where(eq(schema.fieldDefinitions.key, proposal.fieldKey))
+        .limit(1),
+    );
+    if (!isClearReading(proposal, evidence) || definition?.sensitivity !== 'STANDARD') {
+      leftForReview += 1;
+      continue;
+    }
+    const existingFactId = await findExistingFactId(
+      db,
+      proposal.applicantId,
+      proposal.fieldKey,
+      null,
+    );
+    const current = existingFactId ? await getCurrentFactVersion(db, existingFactId) : undefined;
+    if (
+      current &&
+      TRUSTED_FACT_STATUSES.includes(current.status) &&
+      current.value !== proposal.value
+    ) {
+      leftForReview += 1;
+      continue;
+    }
+    const result = await approveProposal(db, {
+      actorAccountId: input.actorAccountId,
+      proposalId: proposal.id,
+      ...(input.encryption ? { encryption: input.encryption } : {}),
+    });
+    if (result.ok) approved += 1;
+    else leftForReview += 1;
+  }
+  return ok({ approved, leftForReview });
 }
 
 export interface RejectProposalInput {
