@@ -222,7 +222,7 @@ export default async function ApplicantOverviewPage({
           </div>
           <article className="card traveller-featured-case">
             {!data.missions.ok ? (
-              <EmptyState icon="alert" title="Cases are unavailable">
+              <EmptyState icon="alert" title="Cases Are Unavailable">
                 Refresh to try again.
               </EmptyState>
             ) : data.featured ? (
@@ -334,7 +334,7 @@ export default async function ApplicantOverviewPage({
             ) : (
               <EmptyState
                 icon="alert"
-                title={data.missions.ok ? 'No Upcoming Case Dates' : 'Dates are unavailable'}
+                title={data.missions.ok ? 'No Upcoming Case Dates' : 'Dates Are Unavailable'}
               >
                 Set a target deadline or travel date in a case. Appointments remain in the
                 individual case calendar.

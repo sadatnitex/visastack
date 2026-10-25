@@ -3,6 +3,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { formatTimestampDate } from '../lib/format-date';
+import { agree, plural } from '../lib/plural';
 import { EmptyState, StatusBadge } from './ui';
 
 export interface WalletBrowserDocument {
@@ -145,14 +146,14 @@ export function DocumentWalletBrowser({
                     setPage(0);
                   }}
                 >
-                  Show {notSorted === 1 ? 'it' : 'them'}
+                  Show {notSorted === 1 ? 'It' : 'Them'}
                 </button>
               )}
             </p>
           ) : null}
           <output className="muted">
-            {matches.length} document{matches.length === 1 ? '' : 's'} match. Page {activePage + 1}{' '}
-            of {pageCount}.
+            {plural(matches.length, 'document')} {agree(matches.length, 'matches', 'match')}. Page{' '}
+            {activePage + 1} of {pageCount}.
           </output>
           {visible.length ? (
             <ul className="wallet-metadata-list">
@@ -267,7 +268,7 @@ export function DocumentWalletBrowser({
           ) : (
             <EmptyState
               icon="alert"
-              title={selectedId ? 'Selected document is unavailable' : 'Choose a Document'}
+              title={selectedId ? 'Selected Document Is Unavailable' : 'Choose a Document'}
             >
               Select an available row to review its metadata and authorized actions.
             </EmptyState>

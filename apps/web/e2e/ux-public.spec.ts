@@ -561,7 +561,7 @@ test.describe('route information page (answers with data or says plainly it is u
         clientWidth: document.documentElement.clientWidth,
       }));
       expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
-      const unavailable = page.getByText('Route information is not available right now');
+      const unavailable = page.getByText('Route Information Is Not Available Right Now');
       if (await unavailable.count()) {
         await expect(page.getByRole('link', { name: 'Try Again' })).toBeVisible();
         await expect(page.getByRole('link', { name: 'Back to Home' })).toBeVisible();

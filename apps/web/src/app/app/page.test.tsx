@@ -114,7 +114,7 @@ describe('home (characterization before WP-V3)', () => {
     data.documents = 1;
     data.missions = 1;
     const text = textOf(await renderServer(Page({})));
-    expect(text).toContain('You are up to date');
+    expect(text).toContain('You Are Up to Date');
     expect(text).not.toContain('Set up your account');
   });
 });

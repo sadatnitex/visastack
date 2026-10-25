@@ -65,8 +65,11 @@ const TERM_TAGS = new Set([
   'caption',
 ]);
 const NAME_TAGS = new Set(['button', 'option', 'optgroup', 'Link', 'a', 'StatusBadge']);
-const TERM_CLASS =
-  /\b(card-title|card-kicker|section-title|section-label|eyebrow|field-label|row-key|empty-state-title)\b/;
+const TERM_CLASS = /\b(card-kicker|section-title|section-label|eyebrow|field-label|row-key)\b/;
+/** Card titles are names even when they hold a verb ("You Are Up to Date", "Start a Case"). */
+const TITLE_CLASS = /\b(card-title|empty-state-title)\b/;
+/** Components whose title prop is a card title. */
+const TITLE_COMPONENTS = new Set(['NextStepCard', 'EmptyState', 'Disclosure', 'Checklist']);
 const NAME_CLASS =
   /(^|[\s"'`])(badge|pill|btn|tab|chip|[a-z0-9-]*-(label|kicker|metric|tab|filter|chip))(?=[\s"'`]|$)/;
 const TERM_PROPS = new Set(['title', 'eyebrow', 'kicker', 'heading']);
@@ -101,6 +104,10 @@ function looksLikeWords(text: string): boolean {
 function isName(text: string): boolean {
   const t = bare(text);
   return looksLikeWords(t) && !NAME_STATEMENT.test(t) && !SUBJECT.test(t);
+}
+
+function isCardTitle(text: string): boolean {
+  return looksLikeWords(text);
 }
 
 function isTerm(text: string): boolean {
@@ -158,7 +165,7 @@ function attribute(element: ts.JsxOpeningLikeElement, name: string): string {
   );
 }
 
-type Kind = 'term' | 'name' | null;
+type Kind = 'title' | 'term' | 'name' | null;
 
 /** Whether a node holds any words of its own (an icon does not). */
 function hasWords(node: ts.Node): boolean {
@@ -179,6 +186,7 @@ function kindOf(element: ts.JsxElement): Kind {
     ts.isJsxElement(element.parent) &&
     element.parent.children.some((c) => ts.isJsxText(c) && /[A-Za-z]/.test(c.text));
   if (inSentence) return null;
+  if (TITLE_CLASS.test(className)) return 'title';
   if (NAME_TAGS.has(tag) || NAME_CLASS.test(className)) return 'name';
   if (TERM_TAGS.has(tag) || TERM_CLASS.test(className)) return 'term';
   // The label of a summary tile, tab or choice: the first span, strong or b inside a button, a
@@ -194,13 +202,48 @@ function kindOf(element: ts.JsxElement): Kind {
   return null;
 }
 
+/**
+ * Every wording an element's text can show: its text pieces joined with each choice its
+ * expressions can make ("Show {n === 1 ? 'it' : 'them'}" reads "Show it" or "Show them"). An
+ * expression with no plain wording (a name from data) makes the text unknown, so it is skipped.
+ */
+function spoken(words: readonly (ts.JsxText | ts.JsxExpression)[]): string[] {
+  let texts = [''];
+  for (const word of words) {
+    // A fallback after data ("{name ?? 'Unknown'}") is only part of the wording when it stands alone.
+    const fallback =
+      ts.isJsxExpression(word) &&
+      word.expression !== undefined &&
+      ts.isBinaryExpression(word.expression) &&
+      words.length > 1;
+    const choices = ts.isJsxText(word) ? [word.text] : fallback ? [] : literals(word);
+    if (choices.length === 0 || texts.length * choices.length > 16) return [];
+    texts = texts.flatMap((text) => choices.map((choice) => `${text}${choice}`));
+  }
+  return texts;
+}
+
+/** A title prop on a card component, or the title of a next step ({ title, action }). */
+function isCardTitleProp(node: ts.PropertyAssignment | ts.JsxAttribute): boolean {
+  if (ts.isJsxAttribute(node)) {
+    const element = node.parent.parent;
+    return TITLE_COMPONENTS.has(element.tagName.getText());
+  }
+  const object = node.parent;
+  return (
+    ts.isObjectLiteralExpression(object) &&
+    object.properties.some((p) => p.name?.getText() === 'action')
+  );
+}
+
 function offenders(file: string): string[] {
   if (file.endsWith('profile-fields.ts')) return [];
   const sf = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
   const found: string[] = [];
   const check = (node: ts.Node, text: string, kind: Kind) => {
     const shown = bare(decode(text));
-    const judged = kind === 'name' ? isName(shown) : isTerm(shown);
+    const judged =
+      kind === 'title' ? isCardTitle(shown) : kind === 'name' ? isName(shown) : isTerm(shown);
     if (kind && judged && !isTitleCase(shown)) {
       const { line } = sf.getLineAndCharacterOfPosition(node.getStart());
       found.push(`${relative(SRC, file)}:${line + 1} "${shown}"`);
@@ -215,9 +258,9 @@ function offenders(file: string): string[] {
         (c): c is ts.JsxText | ts.JsxExpression => ts.isJsxText(c) || ts.isJsxExpression(c),
       );
       const mixed = parts.some((c) => !ts.isJsxText(c) && !ts.isJsxExpression(c) && hasWords(c));
-      if (kind && !mixed && words.length === 1 && words[0]) {
-        for (const text of ts.isJsxText(words[0]) ? [words[0].text] : literals(words[0]))
-          check(words[0], text, kind);
+      const first = words[0];
+      if (kind && !mixed && first) {
+        for (const text of spoken(words)) check(first, text, kind);
       }
     }
     if (
@@ -225,7 +268,11 @@ function offenders(file: string): string[] {
       node.initializer &&
       (TERM_PROPS.has(node.name.getText()) || NAME_PROPS.has(node.name.getText()))
     ) {
-      const kind: Kind = NAME_PROPS.has(node.name.getText()) ? 'name' : 'term';
+      const kind: Kind = NAME_PROPS.has(node.name.getText())
+        ? 'name'
+        : node.name.getText() === 'title' && isCardTitleProp(node)
+          ? 'title'
+          : 'term';
       for (const text of literals(node.initializer)) check(node, text, kind);
     }
     if (

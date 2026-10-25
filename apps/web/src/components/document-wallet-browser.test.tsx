@@ -79,7 +79,7 @@ describe('real wallet metadata controls and selected detail slots', () => {
       ),
     );
     expect(container.querySelector('aside')?.textContent).toContain(
-      'Selected document is unavailable',
+      'Selected Document Is Unavailable',
     );
     expect(container.querySelector('aside')?.textContent).not.toContain('Authorized details for');
   });
@@ -148,8 +148,19 @@ describe('documents with no kind set', () => {
       'Identity',
       'Not Set Yet',
     ]);
-    act(() => button('Show them').click());
+    expect(container.textContent).toContain('3 documents match. Page 1 of 1.');
+    act(() => button('Show Them').click());
     expect(container.querySelectorAll('.wallet-metadata-list li')).toHaveLength(2);
     expect(container.textContent).not.toContain('Sorted file');
+  });
+
+  it('counts one match in agreeing words', () => {
+    act(() =>
+      root.render(
+        <DocumentWalletBrowser applicantId="synthetic-person" documents={unsorted.slice(1, 2)} />,
+      ),
+    );
+    expect(container.textContent).toContain('1 document matches. Page 1 of 1.');
+    expect(button('Show It')).toBeTruthy();
   });
 });

@@ -143,7 +143,7 @@ export default async function SharingPage({
                 We could not load sharing records. This does not mean nobody has access.
               </p>
             ) : data.grants.length === 0 ? (
-              <EmptyState icon="shield" title="Nobody has access yet">
+              <EmptyState icon="shield" title="Nobody Has Access Yet">
                 Your profile and documents are private. When you share with someone, they appear
                 here with what they can see and until when.
               </EmptyState>

@@ -72,7 +72,7 @@ describe('actual authorized sharing composition', () => {
     mocks.listAccessForApplicantDetailed.mockResolvedValue({ ok: false });
     const text = textOf(await render());
     expect(text).toContain('This does not mean nobody has access');
-    expect(text).not.toContain('Nobody has access yet');
+    expect(text).not.toContain('Nobody Has Access Yet');
   });
   it('offers a new category only once it holds a saved detail, and never a category with nothing in it', async () => {
     const none = await render();

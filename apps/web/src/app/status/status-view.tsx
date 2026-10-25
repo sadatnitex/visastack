@@ -84,13 +84,13 @@ export function StatusView({
         <>
           {usable.length > 0 ? (
             <article className="card u-mb-125">
-              <h2 className="card-title">You can use now</h2>
+              <h2 className="card-title">You Can Use Now</h2>
               {featureList(usable)}
             </article>
           ) : null}
           {notYet.length > 0 ? (
             <article className="card u-mb-125">
-              <h2 className="card-title">Not switched on yet</h2>
+              <h2 className="card-title">Not Switched On Yet</h2>
               {featureList(notYet)}
             </article>
           ) : null}

@@ -15,7 +15,7 @@ import { notFound } from 'next/navigation';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { buildMasterProfileView, fieldLabel } from '../../../../../lib/master-profile';
-import { plural } from '../../../../../lib/plural';
+import { agree, plural } from '../../../../../lib/plural';
 import { withSession } from '../../../../../lib/session';
 import { type FieldAssurance, ProfileEditor } from '../profile-editor';
 
@@ -225,8 +225,9 @@ export default async function ApplicantProfilePage({
         <article className="card split-main">
           {conflictedCount > 0 ? (
             <p className="notice notice-warn" role="alert">
-              {conflictedCount} field{conflictedCount === 1 ? '' : 's'} have conflicting proposed
-              values. Review the fields marked <strong>Conflicted</strong> before relying on them.
+              {plural(conflictedCount, 'field')} {agree(conflictedCount, 'has', 'have')} conflicting
+              proposed values. Review the fields marked <strong>Conflicted</strong> before relying
+              on them.
             </p>
           ) : null}
           {data.coreGranted ? (

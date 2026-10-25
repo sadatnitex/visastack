@@ -79,7 +79,7 @@ export function PublicTrustStory() {
           <span className="trust-feature-icon">
             <Icon name="eye" size={24} />
           </span>
-          <h2 className="card-title">Know who can see what</h2>
+          <h2 className="card-title">Know Who Can See What</h2>
           <p className="card-body">
             Access starts after acceptance. You can stop future access, but cannot erase copies
             already downloaded.
@@ -89,7 +89,7 @@ export function PublicTrustStory() {
           <span className="trust-feature-icon">
             <Icon name="clipboard" size={24} />
           </span>
-          <h2 className="card-title">A history you can review</h2>
+          <h2 className="card-title">A History You Can Review</h2>
           <p className="card-body">
             Changes are recorded as new versions. Review your history and request export or
             deletion, subject to legal retention.

@@ -256,7 +256,7 @@ describe('every public page, as a whole page', () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     trust.down = true;
     const html = renderToStaticMarkup(await TrustCatalogPage());
-    expect(html).toContain('Route information is not available right now');
+    expect(html).toContain('Route Information Is Not Available Right Now');
     expect(html).toContain('href="/trust"');
     expect(html).not.toContain('database unreachable');
     const route = renderToStaticMarkup(
@@ -264,7 +264,7 @@ describe('every public page, as a whole page', () => {
         params: Promise.resolve({ packKey: 'uk.standard-visitor' }),
       })) as ReactElement,
     );
-    expect(route).toContain('Route information is not available right now');
+    expect(route).toContain('Route Information Is Not Available Right Now');
     expect(log).toHaveBeenCalled();
     log.mockRestore();
   });

@@ -13,7 +13,7 @@ export function TrustUnavailable({ withinPage = false }: { readonly withinPage?:
       <article className="card" aria-labelledby="trust-unavailable-title">
         <p className="card-kicker">Route Information</p>
         <Heading className="card-title" id="trust-unavailable-title">
-          Route information is not available right now
+          Route Information Is Not Available Right Now
         </Heading>
         <p className="card-body">
           We could not load this page. This is on our side, and nothing you entered anywhere is

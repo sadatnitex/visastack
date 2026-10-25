@@ -160,7 +160,7 @@ describe('Platform > Privacy', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     mocks.listErasureJobsNeedingAttention.mockRejectedValue(new Error('relation does not exist'));
     const text = textOf(await renderServer(Page()));
-    expect(text).toContain('Some sections could not be loaded');
+    expect(text).toContain('Some Sections Could Not Be Loaded');
     expect(text).toContain('erasure jobs');
     expect(text).toContain('Court order');
   });

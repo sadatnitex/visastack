@@ -301,7 +301,7 @@ export default async function AppPage({
             action: firstTodo.key === 'applicant' ? 'Add an Applicant' : 'Continue',
           }
         : {
-            title: 'You are up to date',
+            title: 'You Are Up to Date',
             why: 'Nothing is waiting for you. Open an applicant to add documents or start a case.',
             href: '/app/applicants',
             action: 'View Applicants',

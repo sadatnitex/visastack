@@ -43,7 +43,7 @@ describe('the status page', () => {
       '<output class="badge badge-success status-verdict">Everything is working</output>',
     );
     // The answer comes before the list, the explanation and the refresh controls.
-    expect(html.indexOf('Everything is working')).toBeLessThan(html.indexOf('You can use now'));
+    expect(html.indexOf('Everything is working')).toBeLessThan(html.indexOf('You Can Use Now'));
     expect(html.indexOf('Everything is working')).toBeLessThan(html.indexOf('Check Now'));
   });
 
@@ -58,8 +58,8 @@ describe('the status page', () => {
 
   it('splits features into what can be used now and what is not switched on yet', () => {
     const html = render();
-    const now = html.slice(html.indexOf('You can use now'), html.indexOf('Not switched on yet'));
-    const later = html.slice(html.indexOf('Not switched on yet'));
+    const now = html.slice(html.indexOf('You Can Use Now'), html.indexOf('Not Switched On Yet'));
+    const later = html.slice(html.indexOf('Not Switched On Yet'));
     expect(textOf(now)).toContain('Signing In');
     expect(textOf(now)).not.toContain('Virus scanning');
     expect(textOf(later)).toContain('Virus Scanning of Uploads');
