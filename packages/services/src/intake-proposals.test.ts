@@ -9,7 +9,7 @@ import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { listNameVersions } from './document-naming';
-import { addDocumentVersion, registerDocument } from './documents';
+import { addDocumentVersion, getDocumentTypeOfVersion, registerDocument } from './documents';
 import type { DocumentConverterPort, ExtractionOutcome } from './extraction';
 import { type ContentLimitsPort, type MalwareScannerPort, processIntake } from './intake';
 
@@ -167,6 +167,9 @@ describe('what intake proposes for a person to check', () => {
       documentVersionId: versionId,
     });
     expect((await documentRow(db, documentId)).docType).toBeNull();
+    // An AI reading still narrows to what a bank statement holds, as it did when the kind was
+    // set by itself, without the kind being saved.
+    expect(await getDocumentTypeOfVersion(db, versionId)).toBe('BANK_STATEMENT');
   });
 
   it('suggests a passport name from the machine-readable lines and fills issuer and expiry', async () => {
@@ -202,6 +205,7 @@ describe('what intake proposes for a person to check', () => {
     });
     expect(await listNameVersions(db, documentId)).toHaveLength(0);
     expect((await documentRow(db, documentId)).docType).toBeNull();
+    expect(await getDocumentTypeOfVersion(db, versionId)).toBeNull();
     const [classification] = await classificationsOf(db, versionId);
     expect(classification).toMatchObject({ classifiedType: null, reviewRequired: true });
   });

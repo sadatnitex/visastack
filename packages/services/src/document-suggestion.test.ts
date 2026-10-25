@@ -302,6 +302,49 @@ describe('the AI suggests what a document is and what to call it', () => {
     expect(await listNameVersions(db, s.documentId)).toHaveLength(0);
   });
 
+  it('never suggests anything for a file put back in quarantine after it was read', async () => {
+    const s = await seed(db);
+    await db
+      .update(schema.documentVersions)
+      .set({ safetyStatus: 'QUARANTINED', processingStatus: 'NEEDS_ATTENTION' })
+      .where(eq(schema.documentVersions.id, s.versionId));
+    const { ai, calls } = suggests('BANK_STATEMENT');
+    const result = await suggestDocumentKind(await proofFor(db, s.accountId, s.documentId), ai, {
+      documentVersionId: s.versionId,
+      ...limits,
+    });
+    expect(isErr(result) && result.error.message).toBe(
+      'this file has not finished its safety checks',
+    );
+    expect(calls).toHaveLength(0);
+    expect(await typeProposals(db, s.versionId)).toHaveLength(0);
+  });
+
+  it('accepts a proof for the applicant, but never for a file of another applicant', async () => {
+    const s = await seed(db);
+    const other = await seed(db, { email: 'other-owner@example.com' });
+    const applicantProof = await requireAccess(
+      db,
+      accountPrincipal(s.accountId),
+      'MANAGE',
+      { applicantId: s.applicantId },
+      { purpose: 'self' },
+    );
+    if (!isOk(applicantProof)) throw new Error('access');
+    const own = await suggestDocumentKind(applicantProof.value, suggests('BANK_STATEMENT').ai, {
+      documentVersionId: s.versionId,
+      ...limits,
+    });
+    expect(isOk(own) && own.value.status).toBe('suggested');
+    const { ai, calls } = suggests('BANK_STATEMENT');
+    const foreign = await suggestDocumentKind(applicantProof.value, ai, {
+      documentVersionId: other.versionId,
+      ...limits,
+    });
+    expect(isErr(foreign) && foreign.error.code).toBe('not_found');
+    expect(calls).toHaveLength(0);
+  });
+
   it('spends nothing when the kind is already set or a suggestion is already waiting', async () => {
     const s = await seed(db, { text: UNCLEAR_TEXT });
     const first = suggests('NID');

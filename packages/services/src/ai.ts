@@ -12,6 +12,7 @@ import { hasConsent } from './consent';
 import { isFixedFieldKey } from './consistency';
 import { type Db, first, required, schema } from './db';
 import { type DocumentNameVersion, proposeDocumentName } from './document-naming';
+import { getDocumentTypeOfVersion } from './documents';
 import { type ServiceError, serviceError } from './errors';
 import { getLatestExtractedText } from './intake';
 import { buildProposedName, extensionOf } from './naming';
@@ -1115,17 +1116,12 @@ async function reserveExtractionSlot(
     const registeredFieldKeys = (
       await tx.select({ key: schema.fieldDefinitions.key }).from(schema.fieldDefinitions)
     ).map((r) => r.key);
-    const documentRow = first(
-      await tx
-        .select({ docType: schema.documents.docType })
-        .from(schema.documentVersions)
-        .innerJoin(schema.documents, eq(schema.documents.id, schema.documentVersions.documentId))
-        .where(eq(schema.documentVersions.id, input.documentVersionId))
-        .limit(1),
-    );
+    // The kind the person set, or the rules' confident one still waiting for them: a narrowing
+    // only, never a saved kind (owner request 2026-10-25 left intake suggesting, not setting it).
+    const readAsKind = await getDocumentTypeOfVersion(tx, input.documentVersionId);
     // Narrowed to what this kind of document carries, so the model is never offered, and a person
     // never sees a proposal for, a field the document cannot hold.
-    const fieldScope = scopeFieldKeys(registeredFieldKeys, documentRow?.docType ?? null);
+    const fieldScope = scopeFieldKeys(registeredFieldKeys, readAsKind);
     const allowedFieldKeys = fieldScope.keys;
 
     const contentHash = createHash('sha256').update(input.text).digest('hex');

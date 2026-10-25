@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  buildProposedName,
-  documentKindLabel,
-  extensionOf,
-  sanitizeNameComponent,
-} from './naming';
+import { buildProposedName, documentKindLabel, extensionOf, sanitizeNameComponent } from './naming';
 
 describe('sanitizeNameComponent', () => {
   it('strips path-traversal sequences and separators', () => {

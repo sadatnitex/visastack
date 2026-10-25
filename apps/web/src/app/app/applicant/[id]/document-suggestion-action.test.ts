@@ -5,6 +5,9 @@ const mocks = vi.hoisted(() => ({
   decideDocumentSuggestion: vi.fn(),
   suggestDocumentKind: vi.fn(),
   resolveAiClassifier: vi.fn(),
+  resolveAiExtractor: vi.fn(),
+  runExtraction: vi.fn(),
+  reportServerError: vi.fn(),
 }));
 
 vi.mock('@visastack/services', async (importOriginal) => ({
@@ -12,14 +15,21 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   requireAccess: mocks.requireAccess,
   decideDocumentSuggestion: mocks.decideDocumentSuggestion,
   suggestDocumentKind: mocks.suggestDocumentKind,
+  runExtraction: mocks.runExtraction,
+  getApplicant: async () => ({ id: 'a-1', ownerAccountId: 'owner-1' }),
+  getLatestExtractedText: async () => 'some text',
   isAiDispatchAllowed: async () => true,
 }));
 vi.mock('../../../../lib/ai', () => ({
   resolveAiClassifier: mocks.resolveAiClassifier,
-  resolveAiExtractor: vi.fn(),
+  resolveAiExtractor: mocks.resolveAiExtractor,
   resolveAiInconsistencyChecker: vi.fn(),
   resolveOcrAdapter: vi.fn(),
 }));
+vi.mock('../../../../lib/field-registry', () => ({
+  ensureDocumentFieldsRegistered: async () => 0,
+}));
+vi.mock('../../../../lib/server-error', () => ({ reportServerError: mocks.reportServerError }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
 vi.mock('next/server', () => ({ after: (fn: () => unknown) => void fn }));
@@ -33,7 +43,8 @@ vi.mock('../../../../lib/session', () => ({
     fn({ db: {}, accountId: 'owner-1' }),
 }));
 
-const { decideDocumentSuggestionAction, runClassificationAction } = await import('./actions');
+const { decideDocumentSuggestionAction, runAiExtractionAction, runClassificationAction } =
+  await import('./actions');
 
 const initial = { ok: true, message: '' };
 const proof = { applicant: { id: 'a-1' } };
@@ -202,5 +213,46 @@ describe('asking the AI what a document is', () => {
     mocks.resolveAiClassifier.mockResolvedValue(undefined);
     expect(await classify()).toMatchObject({ ok: false });
     expect(mocks.suggestDocumentKind).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('reading details from a document', () => {
+  const read = () => {
+    const data = new FormData();
+    data.set('applicantId', 'a-1');
+    data.set('documentVersionId', 'v-1');
+    return runAiExtractionAction(initial, data);
+  };
+  beforeEach(() => {
+    mocks.resolveAiExtractor.mockResolvedValue({ ai: {}, limits: { budgetLimitUnits: 1 } });
+    mocks.runExtraction.mockResolvedValue({ ok: true, value: { proposals: [{}, {}] } });
+  });
+
+  it('also asks what kind of document it is, and says so', async () => {
+    mocks.resolveAiClassifier.mockResolvedValue({ ai: {}, limits: { budgetLimitUnits: 1 } });
+    mocks.suggestDocumentKind.mockResolvedValue({ ok: true, value: { status: 'suggested' } });
+    expect(await read()).toEqual({
+      ok: true,
+      message:
+        'AI extraction proposed 2 field(s) for review. It also suggested what kind of document this is and a name for it. Check them below.',
+    });
+  });
+
+  it('keeps the details it read when asking for the kind fails or breaks', async () => {
+    mocks.resolveAiClassifier.mockResolvedValue({ ai: {}, limits: { budgetLimitUnits: 1 } });
+    mocks.suggestDocumentKind.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'upstream_error', message: 'timeout' },
+    });
+    expect(await read()).toEqual({
+      ok: true,
+      message: 'AI extraction proposed 2 field(s) for review.',
+    });
+    mocks.resolveAiClassifier.mockRejectedValueOnce(new Error('key store unavailable'));
+    expect(await read()).toEqual({
+      ok: true,
+      message: 'AI extraction proposed 2 field(s) for review.',
+    });
+    expect(mocks.reportServerError).toHaveBeenCalledTimes(1);
   });
 });

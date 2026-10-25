@@ -494,7 +494,12 @@ export async function recordDocumentReview(
   });
 }
 
-/** The document type of the file a version belongs to, or null when it has none yet. */
+/**
+ * The kind of document a version is read as: the kind the person set, or, while that is still
+ * waiting for them, the rules' own confident classification of this file. Used only to narrow
+ * which details an AI reading looks for (the same narrowing intake's automatic kind used to give
+ * before owner request 2026-10-25); it never saves a kind. Null when neither exists.
+ */
 export async function getDocumentTypeOfVersion(
   db: Db,
   documentVersionId: string,
@@ -507,7 +512,20 @@ export async function getDocumentTypeOfVersion(
       .where(eq(schema.documentVersions.id, documentVersionId))
       .limit(1),
   );
-  return row?.docType ?? null;
+  if (!row) return null;
+  if (row.docType) return row.docType;
+  const rules = first(
+    await db
+      .select({
+        classifiedType: schema.documentClassifications.classifiedType,
+        reviewRequired: schema.documentClassifications.reviewRequired,
+      })
+      .from(schema.documentClassifications)
+      .where(eq(schema.documentClassifications.documentVersionId, documentVersionId))
+      .orderBy(desc(schema.documentClassifications.createdAt))
+      .limit(1),
+  );
+  return rules && !rules.reviewRequired ? rules.classifiedType : null;
 }
 
 /**

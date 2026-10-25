@@ -54,6 +54,7 @@ import { ensureDocumentFieldsRegistered } from '../../../../lib/field-registry';
 import { triggerIntakeWorker } from '../../../../lib/jobs';
 import { savableField } from '../../../../lib/master-profile';
 import { createKeyManagementPort, createPreviewRenderer } from '../../../../lib/providers';
+import { reportServerError } from '../../../../lib/server-error';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
 import { permitsPdfAdmission, validateUploadBytes } from '../../../../lib/upload-preflight';
@@ -514,7 +515,13 @@ export async function runAiExtractionAction(
     });
     // The same reading also says what kind of document this is and suggests a name (owner
     // request 2026-10-25). Its own failure never undoes or hides the details read above.
-    const kind = await suggestKindWithAi(db, accountId, applicantId, documentVersionId);
+    let kind: Awaited<ReturnType<typeof suggestKindWithAi>>;
+    try {
+      kind = await suggestKindWithAi(db, accountId, applicantId, documentVersionId);
+    } catch (error) {
+      reportServerError('runAiExtractionAction', error, { step: 'kind suggestion' });
+      kind = undefined;
+    }
     if (!run.ok) return { ok: false, message: run.error.message } satisfies ActionState;
     return {
       ok: true,
