@@ -9,7 +9,8 @@ import {
   isSchemaApplied,
   resolveDatabaseUrl,
 } from '@visastack/db';
-import { getPlatformCapabilities } from './capabilities';
+import type { Db } from '@visastack/services';
+import { type getPlatformCapabilities, resolvePlatformCapabilities } from './capabilities';
 import { evaluateCommercialReadiness, evaluateOperationalReadiness } from './commercial-readiness';
 import { getDeploymentMode } from './deployment-mode';
 import { NEON_AUTH_ENV_VARS, isPresent, isSignInConfigured } from './env';
@@ -65,6 +66,9 @@ export async function evaluateReadiness(): Promise<ReadinessReport> {
 
   let db: ReadinessReport['db'] = { connected: false, schemaApplied: false };
   let migrations: MigrationReadiness = { checked: false };
+  // The connected, migrated database, handed to the live capability lookups
+  // (AI settings live there); left unset whenever the database is not usable.
+  let liveDb: Db | undefined;
 
   const connectionString = resolveDatabaseUrl(process.env);
   if (connectionString) {
@@ -72,6 +76,7 @@ export async function evaluateReadiness(): Promise<ReadinessReport> {
       const client = createNeonDb(connectionString);
       await checkConnection(client);
       db = { connected: true, schemaApplied: await isSchemaApplied(client) };
+      if (db.schemaApplied) liveDb = client as unknown as Db;
       try {
         migrations = {
           checked: true,
@@ -126,7 +131,7 @@ export async function evaluateReadiness(): Promise<ReadinessReport> {
 
   const operational = evaluateOperationalReadiness({ databaseReady: coreReady });
   const platform = {
-    ...getPlatformCapabilities(),
+    ...(await resolvePlatformCapabilities(liveDb)),
     ...(!operational.ready ? { realApplicantData: 'disabled' as const } : {}),
   };
 

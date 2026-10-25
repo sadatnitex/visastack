@@ -50,6 +50,19 @@ function readPositiveIntEnv(name: string, fallback: number): number {
  * feature, never crash.
  */
 export function createAiExtractor(): AiExtractionPort | undefined {
+  const options = envAiExtractorOptions();
+  return options ? new OpenAiExtractionAdapter(options) : undefined;
+}
+
+type EnvAiExtractorOptions = ConstructorParameters<typeof OpenAiExtractionAdapter>[0];
+
+/**
+ * The environment-variable half of `createAiExtractor`, without building the
+ * adapter: the settings it would use, or undefined when the environment does
+ * not turn AI on. Kept separate so `selectAiExtractionSource` can answer "is
+ * AI usable" through the very same rules without constructing a client.
+ */
+function envAiExtractorOptions(): EnvAiExtractorOptions | undefined {
   if (readEnv('AI_ENABLED') !== 'true') return undefined;
   const provider = readEnv('AI_PROVIDER');
   if (provider && provider !== 'openai') return undefined; // only the OpenAI adapter exists so far.
@@ -59,13 +72,23 @@ export function createAiExtractor(): AiExtractionPort | undefined {
   const model = readEnv('OPENAI_MODEL_PRIMARY');
   const projectId = readEnv('OPENAI_PROJECT_ID');
   const reasoningEffort = readEnv('OPENAI_REASONING_EFFORT');
-  return new OpenAiExtractionAdapter({
+  return {
     apiKey,
     ...(model ? { model } : {}),
     ...(projectId ? { projectId } : {}),
     ...(reasoningEffort ? { reasoningEffort } : {}),
     storeResponses: readEnv('OPENAI_STORE_RESPONSES') === 'true',
-  });
+  };
+}
+
+/**
+ * True when the environment alone turns AI extraction on (the fresh-install
+ * path, before anyone has used the admin AI settings). The synchronous
+ * capability registry uses this; the live answer, which also consults the
+ * database-managed settings, is `resolveAiExtractionAvailability` below.
+ */
+export function isEnvAiExtractionConfigured(): boolean {
+  return envAiExtractorOptions() !== undefined;
 }
 
 /** The six operational caps below, resolved from whichever source currently governs them (env vars, or an ACTIVE DB config's own columns). */
@@ -197,13 +220,43 @@ async function resolveFallbackExtractor(
   return { ai: buildAdapterForConfig(target, apiKey) };
 }
 
+/**
+ * Where AI extraction would come from right now, decided once for both the
+ * live call (`resolveAiExtractor`) and the "is AI usable" answer
+ * (`resolveAiExtractionAvailability`), so the two can never disagree. Reads
+ * the database but never decrypts a key. `none` carries the capability state
+ * to report: `disabled` when an admin has engaged with AI settings but nothing
+ * is ACTIVE (an emergency disable or a rollback to nothing), `unconfigured`
+ * when no usable configuration exists.
+ */
+type AiExtractionSource =
+  | { readonly kind: 'database'; readonly config: AiProviderConfig }
+  | { readonly kind: 'environment'; readonly options: EnvAiExtractorOptions }
+  | { readonly kind: 'none'; readonly state: 'disabled' | 'unconfigured' };
+
+async function selectAiExtractionSource(
+  db: Db,
+  encryptionAvailable: boolean,
+): Promise<AiExtractionSource> {
+  if (await hasAnyAiProviderConfig(db)) {
+    const config = await getActiveAiProviderConfig(db);
+    if (!config) return { kind: 'none', state: 'disabled' };
+    if (!encryptionAvailable || !IMPLEMENTED_PROVIDERS.has(config.provider)) {
+      return { kind: 'none', state: 'unconfigured' };
+    }
+    return { kind: 'database', config };
+  }
+  const options = envAiExtractorOptions();
+  return options ? { kind: 'environment', options } : { kind: 'none', state: 'unconfigured' };
+}
+
 export async function resolveAiExtractor(
   db: Db,
   encryption: KeyManagementPort | undefined,
 ): Promise<ResolvedAiExtractor | undefined> {
-  if (await hasAnyAiProviderConfig(db)) {
-    const config = await getActiveAiProviderConfig(db);
-    if (!config || !encryption || !IMPLEMENTED_PROVIDERS.has(config.provider)) return undefined;
+  const source = await selectAiExtractionSource(db, encryption !== undefined);
+  if (source.kind === 'database' && encryption) {
+    const { config } = source;
     const apiKey = await revealAiProviderApiKey(db, encryption, config);
     const fallback = await resolveFallbackExtractor(db, encryption, config);
     return {
@@ -212,8 +265,27 @@ export async function resolveAiExtractor(
       ...(fallback ? { fallback } : {}),
     };
   }
-  const ai = createAiExtractor();
-  return ai ? { ai, limits: limitsFromConfig(undefined) } : undefined;
+  if (source.kind === 'environment') {
+    return { ai: new OpenAiExtractionAdapter(source.options), limits: limitsFromConfig(undefined) };
+  }
+  return undefined;
+}
+
+/** The capability states `resolveAiExtractionAvailability` can report. */
+export type AiExtractionAvailability = 'available' | 'disabled' | 'unconfigured';
+
+/**
+ * Whether `resolveAiExtractor` would hand back a working extractor right now,
+ * answered by the same `selectAiExtractionSource` decision but without
+ * decrypting any key: for display gates such as the public status page. It
+ * says only a state word, never which provider, model or key is in use.
+ */
+export async function resolveAiExtractionAvailability(
+  db: Db,
+  encryptionAvailable: boolean,
+): Promise<AiExtractionAvailability> {
+  const source = await selectAiExtractionSource(db, encryptionAvailable);
+  return source.kind === 'none' ? source.state : 'available';
 }
 
 /**

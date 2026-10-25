@@ -26,6 +26,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
 vi.mock('../../../../../lib/ai', () => ({
   createAiExtractor: () => undefined,
   isClassificationConfigured: async () => false,
+  isEnvAiExtractionConfigured: () => false,
   isInconsistencyConfigured: async () => false,
   isOcrConfigured: async () => false,
 }));

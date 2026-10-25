@@ -1,13 +1,15 @@
 'use client';
 
+import type { PermissionAction } from '@visastack/core';
 import { useRouter } from 'next/navigation';
-import { useActionState, useEffect, useRef, useState } from 'react';
+import { Fragment, useActionState, useEffect, useRef, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
 import { InvitationLink } from '../../../../../components/invitation-link';
 import {
   SelectedScopeSummary,
   describeGrantScope,
 } from '../../../../../components/selected-scope-summary';
+import { PERMISSION_ACTION_LABELS } from '../../../../../lib/labels';
 import { PACK_LABELS, PACK_ORDER } from '../../../../../lib/profile-fields';
 import { type ActionState, createGrantAction } from './actions';
 
@@ -21,14 +23,25 @@ const END_DATE = new Intl.DateTimeFormat('en-GB', {
   year: 'numeric',
 });
 
-/** Curated, launch-safe permission set (read + collaborate; no original download / manage). */
-const SHAREABLE_ACTIONS: ReadonlyArray<{ value: string; label: string; defaultOn?: boolean }> = [
-  { value: 'VIEW_METADATA', label: 'See Document Details', defaultOn: true },
-  { value: 'PREVIEW', label: 'Preview Documents', defaultOn: true },
-  { value: 'DOWNLOAD_REDACTED', label: 'Download Redacted Copies' },
-  { value: 'COMMENT', label: 'Comment' },
-  { value: 'PROPOSE_EDIT', label: 'Propose Edits' },
-];
+/**
+ * Curated, launch-safe permission set (read + collaborate; no original download / manage).
+ * Names come from the one permission table (`lib/labels.ts`). A `note` is shown under its
+ * box, outside the label, and tied to it with `aria-describedby`, so it is read once.
+ */
+const SHAREABLE_ACTIONS: ReadonlyArray<{
+  value: PermissionAction;
+  label: string;
+  defaultOn?: boolean;
+  note?: string;
+}> = (
+  [
+    { value: 'VIEW_METADATA', defaultOn: true },
+    { value: 'PREVIEW', defaultOn: true },
+    { value: 'DOWNLOAD_REDACTED', note: 'Visa photo sizes now; redacted documents later' },
+    { value: 'COMMENT' },
+    { value: 'PROPOSE_EDIT' },
+  ] as const
+).map((action) => ({ ...action, label: PERMISSION_ACTION_LABELS[action.value] }));
 
 function toggled(current: readonly string[], value: string, on: boolean): string[] {
   return on ? [...current, value] : current.filter((v) => v !== value);
@@ -200,20 +213,32 @@ export function GrantForm({
       <fieldset className="fieldset">
         <legend className="field-label">Permissions</legend>
         <div className="checks">
-          {SHAREABLE_ACTIONS.map((action) => (
-            <label className="check" key={action.value}>
-              <input
-                type="checkbox"
-                name="action"
-                value={action.value}
-                defaultChecked={action.defaultOn ?? false}
-                onChange={(e) =>
-                  setActions((prev) => toggled(prev, action.value, e.target.checked))
-                }
-              />
-              <span>{action.label}</span>
-            </label>
-          ))}
+          {SHAREABLE_ACTIONS.map((action) => {
+            const noteId = action.note ? `grant-action-${action.value}-note` : undefined;
+            return (
+              <Fragment key={action.value}>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    name="action"
+                    value={action.value}
+                    defaultChecked={action.defaultOn ?? false}
+                    aria-describedby={noteId}
+                    onChange={(e) =>
+                      setActions((prev) => toggled(prev, action.value, e.target.checked))
+                    }
+                  />
+                  <span>{action.label}</span>
+                </label>
+                {/* Outside the label, so it is the description only and is not read twice. */}
+                {action.note ? (
+                  <p id={noteId} className="muted u-fs-075 u-m-0">
+                    {action.note}
+                  </p>
+                ) : null}
+              </Fragment>
+            );
+          })}
         </div>
       </fieldset>
 
@@ -371,7 +396,7 @@ export function GrantForm({
         />
         <p className="scope-summary-note">
           {canDownload
-            ? 'Redacted copies may be downloaded; original downloads are not included. '
+            ? 'Safe copies may be downloaded; original downloads are not included. '
             : 'Downloads are not included. '}
           They must accept before anything is visible to them.{' '}
           {canDownload
