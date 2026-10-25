@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
 import type { FactStatus, ProposalType } from '@visastack/core';
 import { type Result, err, isOk, ok } from '@visastack/core';
-import { isRepeatingFieldKey } from '@visastack/core/catalogue';
+import { CATALOGUE_DOCUMENTS, isRepeatingFieldKey } from '@visastack/core/catalogue';
 import { and, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
+import { AuthorizedApplicant } from './access';
 import { scopeFieldKeys } from './ai-field-scope';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
@@ -10,8 +11,9 @@ import { CLASSIFIABLE_DOCUMENT_TYPES } from './classification';
 import { hasConsent } from './consent';
 import { isFixedFieldKey } from './consistency';
 import { type Db, first, required, schema } from './db';
-import { proposeDocumentName } from './document-naming';
+import { type DocumentNameVersion, proposeDocumentName } from './document-naming';
 import { type ServiceError, serviceError } from './errors';
+import { getLatestExtractedText } from './intake';
 import { buildProposedName, extensionOf } from './naming';
 import type {
   AiOcrCacheKeyComponents,
@@ -773,6 +775,7 @@ function computeCacheKey(
   parserVersion: string,
   cacheKeyComponents: AiCacheKeyComponents,
   scopedFieldKeys?: readonly string[],
+  kindVocabulary?: readonly string[],
 ): string {
   const parts = [
     contentHash,
@@ -786,6 +789,9 @@ function computeCacheKey(
   // A reading limited to a document type's fields must never be served to, or from, a reading
   // with a different list. Unscoped readings keep their existing key, so nothing already cached moves.
   if (scopedFieldKeys) parts.push(`fields:${[...scopedFieldKeys].sort().join(',')}`);
+  // Same rule for the list of kinds a document may be given: a suggestion made from the short
+  // rules list is never served for the full catalogue list, or the other way round.
+  if (kindVocabulary) parts.push(`kinds:${[...kindVocabulary].sort().join(',')}`);
   return createHash('sha256').update(parts.join('|')).digest('hex');
 }
 
@@ -1554,11 +1560,23 @@ type ClassificationReservation =
       readonly cacheKey: string;
     };
 
+/**
+ * Which kinds the model may choose from. `rules` is `runClassification`'s original list (the
+ * kinds the deterministic classifier itself can produce) and keeps its existing cache keys;
+ * `catalogue` is every kind in the document catalogue (owner request 2026-10-25), used by
+ * `suggestDocumentKind`.
+ */
+type KindVocabulary = 'rules' | 'catalogue';
+
+/** Every kind in the document catalogue, by its standard key. */
+const CATALOGUE_DOCUMENT_KINDS: readonly string[] = CATALOGUE_DOCUMENTS.map((entry) => entry.key);
+
 /** Phase 1 (RESERVE) -- structurally mirrors `reserveExtractionSlot`; see that function's own doc comment (on `runExtraction`) for the full reasoning behind every check and lock here. */
 async function reserveClassificationSlot(
   db: Db,
   ai: AiClassifyPort,
   input: RunClassificationInput,
+  vocabulary: KindVocabulary = 'rules',
 ): Promise<ClassificationReservation> {
   return db.transaction(async (tx): Promise<ClassificationReservation> => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('visastack:ai-platform-budget'))`);
@@ -1600,10 +1618,17 @@ async function reserveClassificationSlot(
       }
     }
 
-    const allowedTypes = CLASSIFIABLE_DOCUMENT_TYPES;
+    const allowedTypes =
+      vocabulary === 'catalogue' ? CATALOGUE_DOCUMENT_KINDS : CLASSIFIABLE_DOCUMENT_TYPES;
     const contentHash = createHash('sha256').update(input.text).digest('hex');
     const parserVersion = (await latestParserVersion(tx, input.documentVersionId)) ?? 'unknown';
-    const cacheKey = computeCacheKey(contentHash, parserVersion, ai.classifyCacheKeyComponents());
+    const cacheKey = computeCacheKey(
+      contentHash,
+      parserVersion,
+      ai.classifyCacheKeyComponents(),
+      undefined,
+      vocabulary === 'catalogue' ? CATALOGUE_DOCUMENT_KINDS : undefined,
+    );
 
     const cacheMaxAgeDays = input.cacheMaxAgeDays ?? DEFAULT_CACHE_MAX_AGE_DAYS;
     const cacheCutoff = new Date(Date.now() - cacheMaxAgeDays * 24 * 60 * 60 * 1000);
@@ -2146,6 +2171,251 @@ export async function listPendingDocumentTypeProposals(
       ),
     )
     .orderBy(desc(schema.documentTypeProposals.createdAt));
+}
+
+// --- AI naming and sorting, saved only after the person approves (owner request 2026-10-25) ---
+//
+// When the person runs an AI reading of a document they own, the AI also says what kind of
+// document it is, chosen from the WHOLE document catalogue, and a name is suggested from that
+// kind. Nothing is saved here: the kind waits as a PENDING `document_type_proposals` row and the
+// name as a PENDING `document_name_versions` row, until the person accepts, edits or skips both
+// together (`decideDocumentSuggestion`, document-suggestion.ts). The name is built by the same
+// rules as every other suggested name (`buildProposedName`): the kind's plain label and the
+// applicant's own name, never anything the model wrote, so a document number, date of birth or
+// any other detail from inside the document can never end up in it.
+
+export interface SuggestDocumentKindInput {
+  readonly documentVersionId: string;
+  readonly budgetLimitUnits: number;
+  readonly perDocumentBudgetLimitUnits?: number;
+  readonly maxAttemptsPerDocument?: number;
+  readonly maxPagesPerDocument?: number;
+  readonly maxConcurrentCalls?: number;
+  readonly cacheMaxAgeDays?: number;
+  readonly killSwitchCheck?: () => Promise<boolean>;
+}
+
+export type DocumentKindSuggestion =
+  /** A kind from the catalogue, waiting for the person, with the name suggested for it. */
+  | {
+      readonly status: 'suggested';
+      readonly proposal: DocumentTypeProposalRow;
+      readonly nameVersion: DocumentNameVersion;
+    }
+  /** The model could not tell, or named something outside the catalogue: the earlier suggestion, if any, stays. */
+  | { readonly status: 'no_suggestion' }
+  /** The person already said what kind of document this is: nothing to suggest, nothing spent. */
+  | { readonly status: 'kind_already_set' }
+  /** A suggestion for this file is already waiting for the person: nothing spent. */
+  | { readonly status: 'already_suggested'; readonly proposal: DocumentTypeProposalRow };
+
+/** File states that passed the safety scan and the content checks: anything else never gets a suggestion. */
+const SUGGESTIBLE_PROCESSING_STATES: ReadonlySet<string> = new Set(['AWAITING_REVIEW', 'APPROVED']);
+
+/**
+ * Ask the AI what kind of document this file is, and suggest a name for it. The owner only,
+ * through the access gate: a proof for the applicant, or for the document the file belongs to,
+ * made by `requireAccess` on the top-level database handle, not inside a transaction, because
+ * the provider call must never hold one open. A file of any other applicant or document is
+ * reported as not found.
+ * Shares every limit the other AI tasks use (consent, platform and per-document budget, attempt
+ * cap, cache, kill switch, rate limit). A failed provider call returns an error and leaves any
+ * earlier suggestion exactly as it was.
+ */
+export async function suggestDocumentKind(
+  proof: AuthorizedApplicant<'MANAGE'>,
+  ai: AiClassifyPort,
+  input: SuggestDocumentKindInput,
+): Promise<Result<DocumentKindSuggestion, ServiceError>> {
+  if (
+    !AuthorizedApplicant.isGenuine(proof, 'MANAGE') ||
+    proof.actor.kind !== 'applicant_owner' ||
+    proof.resource.kind === 'mission'
+  ) {
+    return err(serviceError('forbidden', 'only the owner can ask what kind of document this is'));
+  }
+  const db = proof.tx;
+  const ownerAccountId = proof.applicant.ownerAccountId;
+
+  // The file must be one of this applicant's own, and the very document the proof names when it
+  // names one.
+  const row = first(
+    await db
+      .select({
+        documentId: schema.documents.id,
+        docType: schema.documents.docType,
+        originalName: schema.documents.originalName,
+        safetyStatus: schema.documentVersions.safetyStatus,
+        processingStatus: schema.documentVersions.processingStatus,
+      })
+      .from(schema.documentVersions)
+      .innerJoin(schema.documents, eq(schema.documents.id, schema.documentVersions.documentId))
+      .where(
+        and(
+          eq(schema.documentVersions.id, input.documentVersionId),
+          eq(schema.documents.applicantId, proof.applicant.id),
+          ...(proof.resource.kind === 'document'
+            ? [eq(schema.documents.id, proof.resource.document.id)]
+            : []),
+        ),
+      )
+      .limit(1),
+  );
+  if (!row) return err(serviceError('not_found', 'document version not found'));
+  if (row.safetyStatus !== 'CLEAN' || !SUGGESTIBLE_PROCESSING_STATES.has(row.processingStatus)) {
+    return err(serviceError('invalid', 'this file has not finished its safety checks'));
+  }
+  if (!(await hasConsent(db, ownerAccountId, 'CORE_PROCESSING'))) {
+    return err(serviceError('consent_required', 'processing consent is required'));
+  }
+  if (!(await hasConsent(db, ownerAccountId, 'AI_EXTRACTION'))) {
+    return err(serviceError('consent_required', 'AI extraction consent is required'));
+  }
+  if (row.docType) return ok({ status: 'kind_already_set' });
+
+  const pending = first(
+    await db
+      .select()
+      .from(schema.documentTypeProposals)
+      .where(
+        and(
+          eq(schema.documentTypeProposals.documentVersionId, input.documentVersionId),
+          eq(schema.documentTypeProposals.status, 'PENDING'),
+        ),
+      )
+      .orderBy(desc(schema.documentTypeProposals.createdAt))
+      .limit(1),
+  );
+  if (pending) return ok({ status: 'already_suggested', proposal: pending });
+
+  const text = await getLatestExtractedText(db, input.documentVersionId);
+  if (!text) return err(serviceError('invalid', 'there is no text from this file to read yet'));
+
+  // After the no-op answers above on purpose, exactly like runClassification: asking again
+  // about a document that needs nothing spends nothing.
+  const rateLimited = await aiRateLimitRefusal(db, ownerAccountId);
+  if (rateLimited) return err(rateLimited);
+
+  const runInput: RunClassificationInput = {
+    actorAccountId: ownerAccountId,
+    applicantId: proof.applicant.id,
+    documentVersionId: input.documentVersionId,
+    text,
+    budgetLimitUnits: input.budgetLimitUnits,
+    ...(input.perDocumentBudgetLimitUnits !== undefined
+      ? { perDocumentBudgetLimitUnits: input.perDocumentBudgetLimitUnits }
+      : {}),
+    ...(input.maxAttemptsPerDocument !== undefined
+      ? { maxAttemptsPerDocument: input.maxAttemptsPerDocument }
+      : {}),
+    ...(input.maxPagesPerDocument !== undefined
+      ? { maxPagesPerDocument: input.maxPagesPerDocument }
+      : {}),
+    ...(input.maxConcurrentCalls !== undefined
+      ? { maxConcurrentCalls: input.maxConcurrentCalls }
+      : {}),
+    ...(input.cacheMaxAgeDays !== undefined ? { cacheMaxAgeDays: input.cacheMaxAgeDays } : {}),
+    ...(input.killSwitchCheck ? { killSwitchCheck: input.killSwitchCheck } : {}),
+  };
+  const reservation = await reserveClassificationSlot(db, ai, runInput, 'catalogue');
+  const summary =
+    reservation.kind === 'final'
+      ? reservation.outcome
+      : (
+          await dispatchAndReconcileClassification(
+            db,
+            ai,
+            runInput,
+            reservation.runId,
+            reservation.allowedTypes,
+            reservation.cacheKey,
+          )
+        ).result;
+  if (!summary.ok) return summary;
+  const proposal = summary.value.proposal;
+  if (!proposal) return ok({ status: 'no_suggestion' });
+
+  const nameVersion = await db.transaction((tx) =>
+    nameForSuggestedKind(tx, {
+      documentId: row.documentId,
+      documentVersionId: input.documentVersionId,
+      kind: proposal.suggestedType,
+      primarySubject: proof.applicant.displayName ?? 'Unknown',
+      originalName: row.originalName,
+    }),
+  );
+  return ok({ status: 'suggested', proposal, nameVersion });
+}
+
+/**
+ * The name to show beside a suggested kind. When the rules already suggested a name for the same
+ * kind, that one stays: it was built from the same kind and may carry details the rules checked
+ * (a passport's issuing country and expiry, verified by its check digits). Otherwise any name
+ * still waiting is set aside as replaced, so only one suggestion is ever waiting, and a new one
+ * is made from the suggested kind.
+ */
+async function nameForSuggestedKind(
+  tx: Db,
+  input: {
+    readonly documentId: string;
+    readonly documentVersionId: string;
+    readonly kind: string;
+    readonly primarySubject: string;
+    readonly originalName: string;
+  },
+): Promise<DocumentNameVersion> {
+  const waiting = await tx
+    .select()
+    .from(schema.documentNameVersions)
+    .where(
+      and(
+        eq(schema.documentNameVersions.documentId, input.documentId),
+        eq(schema.documentNameVersions.decision, 'PENDING'),
+      ),
+    )
+    .orderBy(desc(schema.documentNameVersions.versionNumber))
+    .for('update');
+  const rules = first(
+    await tx
+      .select({
+        classifiedType: schema.documentClassifications.classifiedType,
+        reviewRequired: schema.documentClassifications.reviewRequired,
+      })
+      .from(schema.documentClassifications)
+      .where(eq(schema.documentClassifications.documentVersionId, input.documentVersionId))
+      .orderBy(desc(schema.documentClassifications.createdAt))
+      .limit(1),
+  );
+  const latest = waiting[0];
+  if (latest && rules && !rules.reviewRequired && rules.classifiedType === input.kind) {
+    return latest;
+  }
+  if (waiting.length > 0) {
+    await tx
+      .update(schema.documentNameVersions)
+      .set({
+        decision: 'REJECTED',
+        reason: 'replaced by a newer suggestion',
+        decidedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.documentNameVersions.documentId, input.documentId),
+          eq(schema.documentNameVersions.decision, 'PENDING'),
+        ),
+      );
+  }
+  const proposed = await proposeDocumentName(tx, {
+    documentId: input.documentId,
+    proposedName: buildProposedName({
+      classifiedType: input.kind,
+      primarySubject: input.primarySubject,
+      extension: extensionOf(input.originalName),
+    }),
+    reason: 'suggested from the AI reading of this document',
+  });
+  if (!proposed.ok) throw new Error(`name suggestion failed: ${proposed.error.message}`);
+  return proposed.value;
 }
 
 export interface RunOcrInput {

@@ -675,6 +675,7 @@ export {
 export {
   type NameComponentsInput,
   buildProposedName,
+  documentKindLabel,
   extensionOf,
   sanitizeNameComponent,
 } from './naming';
@@ -689,6 +690,13 @@ export {
   listNameVersions,
   proposeDocumentName,
 } from './document-naming';
+export {
+  type DocumentSuggestionInput,
+  type DocumentSuggestionOutcome,
+  MAX_DOCUMENT_NAME_LENGTH,
+  cleanDocumentName,
+  decideDocumentSuggestion,
+} from './document-suggestion';
 
 export {
   type FailedJobSummary,
@@ -727,7 +735,9 @@ export {
   type ApproveProposalInput,
   type DecideInconsistencyFlagInput,
   type DocumentInconsistencyFlagRow,
+  type DocumentKindSuggestion,
   type DocumentTypeProposalRow,
+  type SuggestDocumentKindInput,
   type EvidenceLocationRow,
   type FieldProposal,
   type FieldProposalRow,
@@ -768,6 +778,7 @@ export {
   rejectDocumentTypeProposal,
   rejectProposal,
   runClassification,
+  suggestDocumentKind,
   runExtraction,
   runInconsistencyCheck,
   runOcr,

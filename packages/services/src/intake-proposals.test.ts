@@ -159,12 +159,14 @@ describe('what intake proposes for a person to check', () => {
     });
   });
 
-  it('sets the kind of a confident bank statement by itself (behaviour before 2026-10-25)', async () => {
+  // Deliberate change (owner request 2026-10-25): before it, a confident classification set the
+  // kind by itself. Now the kind waits for the person, like the name.
+  it('leaves the kind of a confident bank statement unset until the person accepts it', async () => {
     const { documentId, versionId } = await seed(db);
     await processIntake(db, cleanScanner, extractorFor(BANK_TEXT), withinLimits, {
       documentVersionId: versionId,
     });
-    expect((await documentRow(db, documentId)).docType).toBe('BANK_STATEMENT');
+    expect((await documentRow(db, documentId)).docType).toBeNull();
   });
 
   it('suggests a passport name from the machine-readable lines and fills issuer and expiry', async () => {
@@ -179,7 +181,8 @@ describe('what intake proposes for a person to check', () => {
     const row = await documentRow(db, documentId);
     expect(row.issuer).toBe('UTO');
     expect(row.expiresAt?.toISOString().slice(0, 10)).toBe('2012-04-15');
-    expect(row.docType).toBe('PASSPORT');
+    // Deliberate change (owner request 2026-10-25): the kind is no longer set by itself.
+    expect(row.docType).toBeNull();
   });
 
   it('keeps a kind the person already chose, but still suggests a name from what it read', async () => {

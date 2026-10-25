@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildProposedName, extensionOf, sanitizeNameComponent } from './naming';
+import {
+  buildProposedName,
+  documentKindLabel,
+  extensionOf,
+  sanitizeNameComponent,
+} from './naming';
 
 describe('sanitizeNameComponent', () => {
   it('strips path-traversal sequences and separators', () => {
@@ -50,6 +55,16 @@ describe('buildProposedName', () => {
       extension: 'pdf',
     });
     expect(name).toBe('Bank Statement - Nazmus Sadat.pdf');
+  });
+
+  it('names every catalogue kind in words, never as its key', () => {
+    const name = buildProposedName({
+      classifiedType: 'BUSINESS_BANK_STATEMENT',
+      primarySubject: 'Nazmus Sadat',
+      extension: 'pdf',
+    });
+    expect(name).toBe('Business Bank Statement - Nazmus Sadat.pdf');
+    expect(documentKindLabel('NOT_IN_THE_CATALOGUE')).toBe('NOT_IN_THE_CATALOGUE');
   });
 
   it('falls back to "Document" for an unclassified type', () => {
