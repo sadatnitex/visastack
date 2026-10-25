@@ -6843,6 +6843,205 @@ body:has(.auth-shell) > .footer {
   }
 }
 
+/* WP-V3 part 3: Application Memory and the then-and-now view (v1.2 B08, E03).
+   The changed-details list inside the WP-X1 changed-case alert, the case
+   timeline, and the side-by-side comparison of one detail. Flat Harbor style:
+   existing tokens only, no shadows, links and buttons at least 44px tall, and
+   long names wrap so nothing scrolls sideways at 320px. */
+.case-changes {
+  margin: 0 0 0.75rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--warning);
+}
+.case-changes-title {
+  font-weight: 600;
+  font-size: var(--text-small);
+  color: var(--text);
+}
+.case-changes-note {
+  font-size: var(--text-small);
+  color: var(--text);
+  margin-top: 0.25rem;
+}
+.case-changes-list,
+.then-now-changes {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+}
+.case-changes-list li,
+.then-now-changes li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 0.75rem;
+  min-height: 44px;
+  font-size: var(--text-small);
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.case-changes-list li:last-child,
+.then-now-changes li:last-child {
+  border-bottom: 0;
+}
+.case-change-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.case-change-name {
+  font-weight: 600;
+}
+.case-change-link,
+.case-changes-all,
+.case-memory-link a,
+.memory-case .card-title a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--accent-strong);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.case-changes-all {
+  font-size: var(--text-small);
+}
+.case-memory-link {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  margin: 0.25rem 0 0;
+}
+
+.memory-cases {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.memory-case-meta,
+.memory-case-note {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  margin: 0.25rem 0 0.75rem;
+  overflow-wrap: anywhere;
+}
+.memory-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 1rem;
+  border-left: 2px solid var(--hairline);
+}
+.memory-event {
+  position: relative;
+  display: grid;
+  gap: 0.15rem;
+  padding: 0 0 1rem;
+}
+.memory-event::before {
+  content: "";
+  position: absolute;
+  left: calc(-1rem - 6px);
+  top: 0.35rem;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  border: 2px solid var(--brand);
+}
+.memory-event-confirmed::before {
+  background: var(--success);
+  border-color: var(--success);
+}
+.memory-event-reported_submitted::before,
+.memory-event-outcome::before {
+  background: var(--brand);
+}
+.memory-event-date {
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
+.memory-event-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.memory-event-note {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.memory-event-actions,
+.then-now-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.then-now-card,
+.then-now-result,
+.then-now-next {
+  margin-bottom: var(--space-4);
+}
+.then-now-kicker {
+  margin: 0;
+  font-size: var(--text-caption);
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+.then-now-result-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.35rem 0 0;
+}
+.then-now-review,
+.then-now-note {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  margin: 0.5rem 0 0;
+}
+.then-now-sides {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.then-now-facts {
+  display: grid;
+  grid-template-columns: minmax(0, 9rem) minmax(0, 1fr);
+  gap: 0.4rem 0.75rem;
+  margin: 0.5rem 0 0;
+  font-size: var(--text-small);
+}
+.then-now-facts dt {
+  color: var(--text-secondary);
+}
+.then-now-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.then-now-value {
+  font-weight: 600;
+}
+.then-now-assertion {
+  display: block;
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
+@media (max-width: 400px) {
+  .then-now-facts {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.1rem;
+  }
+  .then-now-facts dd {
+    margin-bottom: 0.4rem;
+  }
+}
+/* WP-V3 part 3 (review): shares of the whole record sit above the cases. */
+.memory-shares {
+  margin-bottom: var(--space-4);
+}
+
 /* WP-AI3 naming and sorting: the one card that shows what we think a document is, its suggested
    name and where the Record lists it. It reuses the Check What We Found card; only the two facts
    and the button row are new. Buttons stay at least 44px tall and everything wraps on a phone. */
