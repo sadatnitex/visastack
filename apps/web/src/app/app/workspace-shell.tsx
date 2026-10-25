@@ -30,14 +30,21 @@ export function WorkspaceCaseSubject({ route, applicantId }: Subject) {
   return null;
 }
 
+/**
+ * Who you are acting as, and the places you can switch to. The phone top bar
+ * shows a compact copy (WP-X3) so this is visible without opening More; both
+ * read the same access and navigation, and neither grants anything.
+ */
 function WorkspaceSelector({
   access,
   name,
   caption,
+  compact = false,
 }: {
   readonly access: WorkspaceAccess;
   readonly name: string;
   readonly caption: string;
+  readonly compact?: boolean;
 }) {
   const id = useId();
   const pathname = usePathname();
@@ -49,7 +56,7 @@ function WorkspaceSelector({
   return (
     <details
       ref={selector}
-      className="workspace-selector"
+      className={compact ? 'workspace-selector workspace-chip' : 'workspace-selector'}
       onKeyDown={(event) => {
         if (event.key === 'Escape' && selector.current?.open) {
           selector.current.open = false;
@@ -68,11 +75,23 @@ function WorkspaceSelector({
             .join('')
             .toUpperCase()}
         </span>
-        <span>
-          <b>{name}</b>
-          <small>{caption}</small>
-        </span>
-        <Icon name="chevron" size={16} />
+        {compact ? (
+          // The chip shows the first name; screen readers hear the full name and context.
+          <span>
+            <b aria-hidden="true">{name.trim().split(/\s+/)[0]}</b>
+            <span className="sr-only">
+              Acting as {name}, {caption}
+            </span>
+          </span>
+        ) : (
+          <>
+            <span>
+              <b>{name}</b>
+              <small>{caption}</small>
+            </span>
+            <Icon name="chevron" size={16} />
+          </>
+        )}
       </summary>
       <nav id={id} aria-label="Available workspaces">
         <p>Personal space</p>
@@ -150,6 +169,9 @@ export function WorkspaceShell({
         <div className="app-main">
           <WorkspaceRecordToolbar
             key={`${nav.kind}:${nav.primary[0]?.href ?? 'none'}`}
+            contextChip={
+              <WorkspaceSelector access={access} name={nav.name} caption={nav.caption} compact />
+            }
             accountName={accountName}
             access={access}
             navigation={nav}

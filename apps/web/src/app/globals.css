@@ -5885,3 +5885,77 @@ body:has(.auth-shell) > .footer {
   color: var(--warning);
   font-weight: 600;
 }
+/* WP-X3 context chip: a compact copy of the workspace selector in the phone
+   top bar, so who you are acting as shows without opening More. Hidden where
+   the sidebar already shows the full selector. Existing tokens only. */
+.workspace-chip {
+  display: none;
+}
+@media (max-width: 1023px) {
+  .workspace-chip {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    border-radius: var(--radius-pill);
+  }
+  .workspace-chip summary {
+    min-height: 44px;
+    padding: 4px 10px 4px 4px;
+    gap: 6px;
+  }
+  .workspace-chip .workspace-avatar {
+    width: 32px;
+    height: 32px;
+  }
+  .workspace-chip b {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow-wrap: normal;
+  }
+  .workspace-chip nav {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 70;
+    width: min(18rem, calc(100vw - 24px));
+    background: #ffffff;
+    border: 1px solid var(--hairline-soft);
+    border-radius: 14px;
+  }
+}
+.account-icon-mobile {
+  display: none;
+}
+@media (max-width: 1023px) {
+  .workspace-chip summary > .icon {
+    flex: none;
+  }
+  .record-toolbar .record-toolbar-spacer {
+    display: none;
+  }
+}
+@media (max-width: 400px) {
+  .record-toolbar {
+    gap: 2px;
+  }
+  .workspace-chip summary {
+    padding-right: 8px;
+  }
+  .record-toolbar .record-account summary > .icon {
+    display: none;
+  }
+  .workspace-chip .workspace-avatar {
+    width: 28px;
+    height: 28px;
+  }
+}
+@media (max-width: 600px) {
+  .record-toolbar .record-account summary .account-name-mobile {
+    display: none;
+  }
+  .record-toolbar .record-account summary .account-icon-mobile {
+    display: flex;
+  }
+}
