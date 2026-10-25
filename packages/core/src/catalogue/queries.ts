@@ -14,6 +14,17 @@ export function isKnownFieldKey(key: string): boolean {
   return ALL_FIELD_KEYS.has(key);
 }
 
+const REPEATING_FIELD_KEYS: ReadonlySet<string> = new Set(
+  [...LEGACY_FIELD_SNAPSHOT, ...CATALOGUE_FIELDS]
+    .filter((field) => field.group !== undefined)
+    .map((field) => field.key),
+);
+
+/** A field that belongs to a repeating record (an address, an earlier passport), saved per record. */
+export function isRepeatingFieldKey(key: string): boolean {
+  return REPEATING_FIELD_KEYS.has(key);
+}
+
 export function catalogueFieldsInLayer(layer: LayerKey): readonly CatalogueField[] {
   return CATALOGUE_FIELDS.filter((field) => field.layer === layer);
 }

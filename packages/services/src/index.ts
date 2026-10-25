@@ -110,6 +110,7 @@ export {
   CONSISTENCY_RESULTS,
   classifyDeclarationChange,
   compareFactVersions,
+  isFixedFieldKey,
 } from './consistency';
 export type {
   AmountBasis,
@@ -697,9 +698,14 @@ export {
   type RunInconsistencyCheckSummary,
   type RunOcrInput,
   type RunOcrSummary,
+  type ApproveClearProposalsResult,
+  CLEAR_PROPOSAL_CONFIDENCE,
   acknowledgeInconsistencyFlag,
+  approveClearProposals,
   approveDocumentTypeProposal,
   approveProposal,
+  isClearReading,
+  isTrustedFactStatus,
   countAiClassificationAttempts,
   countAiExtractionAttempts,
   countAiInconsistencyAttempts,

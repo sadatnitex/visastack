@@ -176,6 +176,8 @@ interface FieldRowProps {
   readonly updatedAt?: string | null | undefined;
   readonly effectiveFrom?: string | null | undefined;
   readonly assurance?: FieldAssurance | undefined;
+  /** The document this value was read from, when it came from one. */
+  readonly sourceDocumentId?: string | null | undefined;
   /** Called with the chosen option, so a choice that accepts "Other" can open its text box at once. */
   readonly onChoice?: ((choice: string) => void) | undefined;
 }
@@ -194,6 +196,7 @@ function FieldRow({
   updatedAt,
   effectiveFrom,
   assurance,
+  sourceDocumentId,
   onChoice,
 }: FieldRowProps) {
   const [state, formAction, pending] = useActionState(saveFactAction, INITIAL);
@@ -276,6 +279,16 @@ function FieldRow({
       {updatedAt ? (
         <p className="muted u-fs-075-m0">Last confirmed {formatDate(updatedAt)}</p>
       ) : null}
+      {sourceDocumentId ? (
+        <p className="u-fs-075-m0">
+          <Link
+            href={`/app/applicant/${applicantId}/documents?document=${encodeURIComponent(sourceDocumentId)}`}
+            aria-label={`Where this came from: the document ${field.label} was read from`}
+          >
+            Where This Came From
+          </Link>
+        </p>
+      ) : null}
       {assurance ? <AssuranceDetail assurance={assurance} /> : null}
       <FormMessage id={messageId} result={state} />
     </form>
@@ -288,6 +301,8 @@ export interface ProfileValue {
   readonly status: string | null;
   readonly updatedAt?: string | null;
   readonly effectiveFrom?: string | null;
+  /** The document the current value was read from, when it came from one. */
+  readonly sourceDocumentId?: string | null;
 }
 
 type RepeatingValues = Readonly<Record<string, Readonly<Record<string, ProfileValue>>>>;
@@ -321,6 +336,7 @@ function FieldWithOther({
         updatedAt={current?.updatedAt}
         effectiveFrom={current?.effectiveFrom}
         assurance={current ? assurance.get(current.factId) : undefined}
+        sourceDocumentId={current?.sourceDocumentId}
         onChoice={detail ? setChoice : undefined}
       />
       {detail && (choice === OTHER_CHOICE || detailCurrent?.value) ? (
