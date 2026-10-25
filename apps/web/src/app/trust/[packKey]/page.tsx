@@ -90,7 +90,7 @@ export default async function PublicTrustRoutePage({
       <div className="grid">
         <article className="card">
           <p className="card-kicker">Route</p>
-          <h2 className="card-title">What this route is</h2>
+          <h2 className="card-title">What This Route Is</h2>
           <p className="card-body">{route.routeDescription}</p>
           {route.effectiveDate ? (
             <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '0.75rem' }}>
@@ -119,7 +119,7 @@ export default async function PublicTrustRoutePage({
             </>
           ) : (
             <>
-              <span className="badge badge-warning">Not currently verified</span>
+              <span className="badge badge-warning">Not Currently Verified</span>
               <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '0.5rem' }}>
                 We do not show a fee amount here unless it is currently verified. Confirm the exact,
                 current fee at the official channel below before paying anyone.

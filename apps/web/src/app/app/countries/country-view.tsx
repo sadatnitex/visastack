@@ -79,7 +79,7 @@ function RouteCard({ route }: { readonly route: DestinationRoute }) {
         {route.fraudReportingUrl ? (
           <Fact label="Report a Scam">
             <a href={route.fraudReportingUrl} target="_blank" rel="noopener noreferrer">
-              Official reporting page
+              Official Reporting Page
             </a>
           </Fact>
         ) : null}
@@ -140,7 +140,7 @@ function Facts({ destination }: { readonly destination: Destination }) {
               <>
                 {' '}
                 <a href={destination.applyUrl} target="_blank" rel="noopener noreferrer">
-                  Official page
+                  Official Page
                 </a>
               </>
             ) : null}

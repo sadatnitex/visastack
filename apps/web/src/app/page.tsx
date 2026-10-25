@@ -388,7 +388,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           </div>
           <div className="land-versus">
             <div className="land-versus-col land-versus-before">
-              <p className="land-versus-label">Without one profile</p>
+              <p className="land-versus-label">Without One Profile</p>
               <ul>
                 {BEFORE.map((line) => (
                   <li key={line}>
@@ -468,7 +468,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <div className="land-head">
             <p className="land-kicker">Who it is for</p>
             <h2 className="land-h2" id="land-who-title">
-              Calmer for the traveller, clearer for the agency
+              Calmer for the Traveller, Clearer for the Agency
             </h2>
           </div>
           <div className="land-who">
@@ -541,7 +541,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             {HORIZONS.map((horizon) => (
               <li className={`land-horizon land-horizon-${horizon.state}`} key={horizon.title}>
                 <p className="land-horizon-label">
-                  {horizon.state === 'now' && betaOpen ? 'Available in beta' : horizon.label}
+                  {horizon.state === 'now' && betaOpen ? 'Available in Beta' : horizon.label}
                 </p>
                 <h3 className="land-h3">{horizon.title}</h3>
                 <p className="land-body">{horizon.body}</p>

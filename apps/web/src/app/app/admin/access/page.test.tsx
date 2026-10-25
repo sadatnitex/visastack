@@ -142,7 +142,7 @@ describe('Platform > Access', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     mocks.listInvitations.mockRejectedValue(new Error('relation does not exist'));
     const text = textOf(await renderServer(Page()));
-    expect(text).toContain('Some sections could not be loaded');
+    expect(text).toContain('Some Sections Could Not Be Loaded');
     expect(text).toContain('invitations');
     expect(text).toContain('Platform Owner');
   });

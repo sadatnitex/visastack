@@ -88,7 +88,7 @@ export default async function PrivacyPage() {
           </p>
           <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
             <a href="/app/privacy/export" className="btn btn-primary" download>
-              Download export (JSON)
+              Download Export (JSON)
             </a>
             <a href="/app/privacy/export?format=csv" className="btn btn-secondary" download>
               Download export (CSV/ZIP)

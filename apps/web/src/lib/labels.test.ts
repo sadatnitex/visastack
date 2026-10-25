@@ -1,16 +1,20 @@
 import { MEMBERSHIP_ROLES, ORGANIZATION_STATUSES } from '@visastack/core';
 import { schema } from '@visastack/db';
+import { TRIAGE_GROUPS } from '@visastack/services';
 import { describe, expect, it } from 'vitest';
 import {
   AI_CONFIG_STATUS_LABELS,
   AUDIT_RESULT_LABELS,
   BILLING_STATUS_LABELS,
+  CASE_TRIAGE_STATE_LABELS,
   COMPLAINT_STATUS_LABELS,
   DOCUMENT_TYPE_LABELS,
   INVOICE_STATUS_LABELS,
   MEMBERSHIP_ROLE_LABELS,
   ORGANIZATION_STATUS_LABELS,
   REVIEW_DECISION_LABELS,
+  TRIAGE_GROUP_LABELS,
+  TRIAGE_INDICATOR_LABELS,
   aiProviderLabel,
   documentTypeLabel,
   eventTypeLabel,
@@ -18,6 +22,7 @@ import {
   titleCase,
 } from './labels';
 
+import { toTitleCase } from './title-case';
 const TABLES: ReadonlyArray<
   readonly [string, readonly string[], Readonly<Record<string, string>>]
 > = [
@@ -39,8 +44,10 @@ describe('plain labels for stored codes', () => {
         const label = labels[value] ?? '';
         expect(label, value).not.toBe(value);
         expect(label, value).not.toMatch(/[_]|^[A-Z0-9 ]+$/);
-        // Stand-alone labels have every word capitalised.
-        expect(label, value).toMatch(/^([A-Z][a-z]*)( [A-Z][a-z]*)*$/);
+        // Stand-alone labels are names in Title Case: every word capitalised apart from small
+        // joining words ("Waiting for Review"), and only letters and spaces.
+        expect(label, value).toMatch(/^[A-Z][A-Za-z ]*$/);
+        expect(label, value).toBe(toTitleCase(label));
       }
     });
   }
@@ -80,5 +87,30 @@ describe('consent names', () => {
       expect(consentName(type)).toBe(entry?.name);
     }
     expect(consentName('SOMETHING_NEW')).toBe('Something New');
+  });
+});
+
+describe('agency triage words (Programme X E02)', () => {
+  it('names each of the five item groups once, in the programme vocabulary', () => {
+    expect(Object.keys(TRIAGE_GROUP_LABELS).sort()).toEqual([...TRIAGE_GROUPS].sort());
+    expect(TRIAGE_GROUPS.map((group) => TRIAGE_GROUP_LABELS[group])).toEqual([
+      'Missing',
+      'Processing',
+      'Received or Awaiting Confirmation',
+      'Needs Correction or Clarification',
+      'Reviewed',
+    ]);
+    expect(CASE_TRIAGE_STATE_LABELS.READY_FOR_REVIEW).toBe('Ready for Review');
+  });
+
+  it('never uses a word that claims more than the product knows', () => {
+    const words = [
+      ...Object.values(TRIAGE_GROUP_LABELS),
+      ...Object.values(CASE_TRIAGE_STATE_LABELS),
+      ...Object.values(TRIAGE_INDICATOR_LABELS),
+    ].join(' | ');
+    expect(words).not.toMatch(/verified|approved|guarantee|submitted/i);
+    // A received item is not reviewed: only the Reviewed group may say so.
+    expect(TRIAGE_GROUP_LABELS.RECEIVED).not.toMatch(/review/i);
   });
 });

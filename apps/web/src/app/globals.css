@@ -4211,22 +4211,6 @@ body:has(.auth-shell) > .footer {
 .wallet-document-actions {
   margin-bottom: 1rem;
 }
-.document-type-form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem;
-}
-.document-type-form > p {
-  flex-basis: 100%;
-  margin: 0;
-}
-.document-type-form .input {
-  width: auto;
-  max-width: 100%;
-  padding: 0.2rem 0.5rem;
-  font-size: var(--text-small);
-}
 .wallet-ai-notice {
   margin-top: 1rem;
   padding: 1rem;
@@ -6389,6 +6373,473 @@ body:has(.auth-shell) > .footer {
   /* Five cells in two columns: the last one spans the row, so no empty cell shows. */
   .record-hub-filters button:last-child {
     grid-column: 1 / -1;
+  }
+}
+
+/* WP-AI2 insights (AI data plan Phase 2): Document Insights page (applicant/[id]/insights). Marked
+ * like the package blocks so each block's own guard test ends where the next block starts.
+ * Flat Harbor Blue cards from the shared tokens; every target at least 44px; rows wrap instead of
+ * scrolling sideways, down to 320px wide.
+ * ---------------------------------------------------------------------------------------------- */
+.insights-summary {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+}
+.insights-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius);
+  min-width: 0;
+}
+.insights-summary-value {
+  font-size: var(--text-title);
+  font-weight: 650;
+  line-height: 1.1;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.insights-summary-label {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.insights-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  align-items: start;
+}
+.insights-card {
+  min-width: 0;
+}
+.insights-note {
+  margin: 0 0 8px;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.insights-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.insights-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  min-height: 44px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.insights-row:last-child {
+  border-bottom: none;
+}
+.insights-row-stack {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.insights-row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+.insights-row-link {
+  min-height: 44px;
+  justify-content: center;
+  color: var(--text);
+}
+.insights-row-link:hover {
+  text-decoration: none;
+}
+.insights-row-link:hover .insights-row-label {
+  text-decoration: underline;
+}
+.insights-row-label {
+  overflow-wrap: anywhere;
+}
+.insights-row-detail {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.insights-group + .insights-group {
+  margin-top: 12px;
+}
+.insights-group-title {
+  margin: 8px 0 0;
+  font-size: var(--text-small);
+  font-weight: 650;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.insights-action {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.insights-card > .insights-action {
+  margin-top: 12px;
+}
+.insights-row-end {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* WP-UI1 form controls and Title Case sweep: every single-line field is one family. Text
+   inputs, dropdowns and date fields share one height, border, radius and padding; a dropdown
+   draws its own arrow in the theme's secondary ink with room so a long choice never runs under
+   it; a field with its Save button beside it lines up and wraps cleanly on a 320px phone. The
+   height is 48px: above the 44px target, on the 8px rhythm, and within a pixel of the field
+   height in the approved reference. The arrow is two hard-edged gradient strokes rather than an
+   image, so it follows the colour tokens and needs no image source in the content policy. */
+:root {
+  --control-height: 48px;
+  --control-radius: 12px;
+  --control-padding-x: 0.8rem;
+  --control-arrow-room: 2.5rem;
+}
+.input {
+  border-radius: var(--control-radius);
+  padding-inline: var(--control-padding-x);
+}
+.input:where(
+    input:not([type="file"], [type="checkbox"], [type="radio"], [type="range"], [type="color"]),
+    select:not([multiple], [size])
+  ) {
+  height: var(--control-height);
+  min-height: var(--control-height);
+  padding-block: 0;
+  line-height: 1.25;
+}
+.input:where(select:not([multiple], [size])) {
+  appearance: none;
+  padding-inline-end: var(--control-arrow-room);
+  text-overflow: ellipsis;
+  background-color: var(--bg-elevated);
+  /* A same-site file (the security policy allows images from the site itself; the flat rule
+     allows no gradients). Drawn in the --text-secondary colour. */
+  background-image: url("/icons/select-chevron.svg");
+  background-position: right 16px center;
+  background-size: 12px 8px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+/* Windows high contrast drops background images: give the dropdown its native arrow back. */
+@media (forced-colors: active) {
+  .input:where(select:not([multiple], [size])) {
+    appearance: auto;
+    background-image: none;
+  }
+}
+.input:where(select:disabled) {
+  cursor: not-allowed;
+}
+/* A label, its field and a short hint, stacked with one gap. A grid, so a flex rule from the
+   surrounding panel (such as wrapping) cannot change how the rows measure. */
+.field-stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  min-width: 0;
+}
+.field-stack + .field-stack {
+  margin-top: var(--space-4);
+}
+.field-stack > p {
+  margin: 0;
+}
+/* A field and the button that saves it, on one line; the button drops below on a narrow phone. */
+.field-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.field-inline > .input {
+  flex: 1 1 11rem;
+  width: auto;
+  min-width: 0;
+  margin: 0;
+}
+.field-inline > .btn {
+  flex: 0 0 auto;
+  min-height: var(--control-height);
+}
+.field-stack > .input {
+  width: 100%;
+  margin: 0;
+}
+/* Buttons that sit beside a field elsewhere match its height too. */
+.field-control > .btn,
+.profile-suggest-pick > .btn {
+  min-height: var(--control-height);
+}
+.field-hint {
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
+/* Home permissions: the name of each permission, then what it means on its own line. */
+.consent-text {
+  display: flex;
+  flex: 1 1 18rem;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.consent-name {
+  font-weight: 600;
+  color: var(--text);
+}
+.consent-meaning {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+
+/* WP-V4 agency (Programme X): Do Next list, follow-up message, and where a
+   case stands in the triage groups. Existing tokens only, flat Harbor Blue,
+   44px targets, nothing wider than its container at 320px.
+   ========================================================================== */
+.do-next {
+  margin-block: 16px;
+}
+.do-next-intro {
+  margin-bottom: 12px;
+  color: var(--text-secondary);
+}
+.do-next-empty {
+  margin: 0;
+  color: var(--text-secondary);
+}
+.do-next-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+}
+.do-next-item {
+  display: grid;
+  gap: 6px;
+  padding: 14px 0 14px 12px;
+  border-bottom: 1px solid var(--hairline-soft);
+  border-left: 3px solid var(--hairline);
+  min-width: 0;
+}
+.do-next-item:last-child {
+  border-bottom: 0;
+}
+.do-next-tier-1 {
+  border-left-color: var(--danger);
+}
+.do-next-tier-2 {
+  border-left-color: var(--accent);
+}
+.do-next-tier-3 {
+  border-left-color: var(--warning);
+}
+.do-next-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  min-width: 0;
+}
+.do-next-tier {
+  font-size: var(--text-caption);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-secondary);
+}
+.do-next-title {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.do-next-context {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.do-next-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 2px 12px;
+  font-size: var(--text-small);
+}
+.do-next-facts > div {
+  display: contents;
+}
+.do-next-facts dt {
+  color: var(--text-secondary);
+}
+.do-next-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.do-next-action {
+  min-width: 0;
+}
+.do-next-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.do-next-more {
+  margin: 12px 0 0;
+  font-size: var(--text-small);
+}
+.do-next-follow-up {
+  min-width: 0;
+}
+.do-next-follow-up-toggle {
+  cursor: pointer;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--selected-text);
+}
+.do-next-follow-up-toggle::before {
+  content: "+";
+}
+.do-next-follow-up[open] > .do-next-follow-up-toggle::before {
+  content: "-";
+}
+.do-next-follow-up-body {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  min-width: 0;
+}
+.do-next-follow-up-hint {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--warning-bg);
+  color: var(--text);
+  font-size: var(--text-small);
+}
+.do-next-follow-up-text {
+  width: 100%;
+  max-width: 100%;
+  min-height: 10rem;
+  resize: vertical;
+  font: inherit;
+  font-size: var(--text-small);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  user-select: text;
+}
+.do-next-follow-up-note {
+  margin: 0;
+  font-size: var(--text-small);
+}
+.do-next-follow-up .btn {
+  min-height: 44px;
+}
+.do-next-follow-up-status {
+  display: block;
+  min-height: 1.25rem;
+  font-size: var(--text-small);
+  color: var(--success);
+}
+.case-triage {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  min-width: 0;
+}
+.case-triage-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.case-triage-title {
+  margin: 0;
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+.case-triage-empty {
+  margin: 8px 0 0;
+  font-size: var(--text-small);
+}
+.case-triage-groups,
+.case-triage-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.case-triage-groups {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+.case-triage-group-name {
+  margin: 0 0 4px;
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.case-triage-count {
+  display: inline-block;
+  min-width: 1.5rem;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--brand-bg);
+  color: var(--selected-text);
+  text-align: center;
+}
+.case-triage-items li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  padding: 4px 0;
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+.case-triage-notes {
+  color: var(--text-secondary);
+}
+@media (max-width: 480px) {
+  .do-next-item {
+    padding-left: 10px;
+  }
+  .do-next-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .do-next-facts dd {
+    margin-bottom: 4px;
+  }
+  .do-next-link,
+  .do-next-follow-up .btn {
+    width: 100%;
+    justify-content: center;
   }
 }
 

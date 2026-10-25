@@ -53,7 +53,7 @@ export default async function AccountPage() {
         {data.hasAgencyAccess || data.isAdmin ? (
           <article className="card">
             <p className="card-kicker">Roles</p>
-            <h2 className="card-title">Other areas you can access</h2>
+            <h2 className="card-title">Other Areas You Can Access</h2>
             <div className="rows u-mt-050">
               {data.hasAgencyAccess ? (
                 <Link className="row row-link" href="/app/agency">
@@ -86,7 +86,7 @@ export default async function AccountPage() {
             }}
           >
             <button type="submit" className="btn btn-secondary">
-              Sign out
+              Sign Out
             </button>
           </form>
         </article>

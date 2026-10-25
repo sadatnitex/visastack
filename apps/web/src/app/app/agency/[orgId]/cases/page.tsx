@@ -1,7 +1,9 @@
+import { summarizeCaseTriage } from '@visastack/services';
 import type { Metadata } from 'next';
 import { EmptyState } from '../../../../../components/ui';
 import { withSession } from '../../../../../lib/session';
-import { loadCases, loadMembers, loadOrgAccess } from '../console-data';
+import { caseTriageView } from '../case-triage';
+import { loadCases, loadEvidenceRequests, loadMembers, loadOrgAccess } from '../console-data';
 import { MissionCollaboration } from '../mission-collaboration';
 
 export const metadata: Metadata = { title: 'Agency Cases' };
@@ -26,8 +28,12 @@ export default async function AgencyCasesPage({
     // The layout explains the "no role" case; there is nothing to load for it.
     if (!access?.member) return null;
     const members = await loadMembers(db, accountId, orgId, access);
-    const { cases } = await loadCases(db, accountId, orgId, members);
-    return { admin: access.admin, members, cases };
+    // Requests are administrator data: loadEvidenceRequests returns none for anyone else.
+    const [{ cases }, requests] = await Promise.all([
+      loadCases(db, accountId, orgId, members),
+      loadEvidenceRequests(db, accountId, orgId, access, { withFileStates: true }),
+    ]);
+    return { admin: access.admin, members, cases, requests };
   });
   if (!data) return null;
 
@@ -71,6 +77,27 @@ export default async function AgencyCasesPage({
               decisions={mission.decisions}
               issuerVerifications={mission.issuerVerifications}
               viewerAssigned={mission.viewerAssigned}
+              triage={caseTriageView(
+                summarizeCaseTriage({
+                  missionId: mission.missionId,
+                  manualMode: mission.manualMode,
+                  readiness: mission.readiness,
+                  decisions: mission.decisions,
+                  // Belt and braces: only an administrator's requests ever reach the summary.
+                  requests: data.admin ? data.requests : [],
+                  documentStates: new Map(
+                    data.requests.flatMap((r) =>
+                      data.admin && r.respondingDocumentState !== undefined
+                        ? [[r.id, r.respondingDocumentState] as const]
+                        : [],
+                    ),
+                  ),
+                }),
+                {
+                  requirementLabels: new Map(mission.requirements.map((r) => [r.id, r.label])),
+                  requestsIncluded: data.admin,
+                },
+              )}
             />
           ))}
         </div>

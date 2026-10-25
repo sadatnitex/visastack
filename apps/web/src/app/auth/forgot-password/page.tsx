@@ -69,7 +69,7 @@ function RecoveryForm({ error, resend = false }: { error?: string | undefined; r
         errorId={error ? 'forgot-error' : undefined}
       />
       <button type="submit" className="btn btn-primary">
-        {resend ? 'Send another link' : 'Send me a link'}
+        {resend ? 'Send Another Link' : 'Send Me a Link'}
       </button>
     </form>
   );

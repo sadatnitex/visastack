@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { resetPasswordAction } from '../actions';
 import { AuthShell, ErrorLine, TextField } from '../auth-ui';
 
-export const metadata: Metadata = { title: 'Choose a new password' };
+export const metadata: Metadata = { title: 'Choose a New Password' };
 // The email link carries a one-time code, so the form page tells the browser not to pass it on.
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +18,7 @@ export default async function ResetPasswordPage({
   const { token, e, error: linkError } = await searchParams;
   if (!token || linkError) {
     return (
-      <AuthShell title="Choose a new password">
+      <AuthShell title="Choose a New Password">
         <ErrorLine
           id="reset-error"
           message="That link has expired or is not valid. Ask for a new one."
@@ -31,7 +31,7 @@ export default async function ResetPasswordPage({
   }
   const error = e ? ERRORS[e] : undefined;
   return (
-    <AuthShell title="Choose a new password">
+    <AuthShell title="Choose a New Password">
       <meta name="referrer" content="no-referrer" />
       <ErrorLine id="reset-error" message={error} />
       <div className="card u-mb-100">
