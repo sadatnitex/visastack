@@ -43,6 +43,7 @@ vi.mock('../actions', () => ({
 }));
 vi.mock('../ai-review', () => ({
   AiProposalReview: stub('AiProposalReview'),
+  DocumentFindings: stub('DocumentFindings'),
   DocumentTypeProposalReview: stub('DocumentTypeProposalReview'),
   InconsistencyFlagReview: stub('InconsistencyFlagReview'),
   OcrResultView: stub('OcrResultView'),

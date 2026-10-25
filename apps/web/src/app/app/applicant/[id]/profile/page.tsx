@@ -110,6 +110,7 @@ export default async function ApplicantProfilePage({
     readonly status: string | null;
     readonly updatedAt: string | null;
     readonly effectiveFrom: string | null;
+    readonly sourceDocumentId: string | null;
   }
   const values: Record<string, EntryValue> = {};
   const repeatingValues: Record<string, Record<string, EntryValue>> = {};
@@ -120,6 +121,7 @@ export default async function ApplicantProfilePage({
       status: entry.status,
       updatedAt: entry.updatedAt,
       effectiveFrom: entry.effectiveFrom,
+      sourceDocumentId: entry.sourceDocumentId,
     };
     if (entry.repeatingRecordKey === null) {
       values[entry.fieldKey] = v;

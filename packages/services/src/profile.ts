@@ -445,6 +445,10 @@ export interface ProfileEntry {
   readonly method: string | null;
   readonly updatedAt: string | null;
   readonly effectiveFrom: string | null;
+  /** True for a SENSITIVE/RESTRICTED value stored encrypted (its `value` may be a placeholder). */
+  readonly isProtected: boolean;
+  /** The document the current value was read from, when it came from one. */
+  readonly sourceDocumentId: string | null;
 }
 
 /** Shown instead of a real value when a row is protected but no decryption port was supplied — never a silent empty string. */
@@ -483,6 +487,7 @@ export async function listApplicantProfile(
       method: schema.factVersions.method,
       updatedAt: schema.factVersions.createdAt,
       effectiveFrom: schema.factVersions.effectiveFrom,
+      sourceDocumentId: schema.documentVersions.documentId,
     })
     .from(schema.facts)
     .innerJoin(
@@ -490,6 +495,10 @@ export async function listApplicantProfile(
       eq(schema.facts.fieldDefinitionId, schema.fieldDefinitions.id),
     )
     .leftJoin(schema.factVersions, eq(schema.facts.currentVersionId, schema.factVersions.id))
+    .leftJoin(
+      schema.documentVersions,
+      eq(schema.factVersions.sourceDocumentVersionId, schema.documentVersions.id),
+    )
     .where(eq(schema.facts.applicantId, applicantId))
     .orderBy(asc(schema.fieldDefinitions.key));
 
@@ -526,6 +535,8 @@ export async function listApplicantProfile(
         method: row.method,
         updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
         effectiveFrom: row.effectiveFrom ? row.effectiveFrom.toISOString() : null,
+        isProtected: row.protectedKeyVersion !== null,
+        sourceDocumentId: row.sourceDocumentId ?? null,
       };
     }),
   );
