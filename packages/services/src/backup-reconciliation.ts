@@ -305,9 +305,12 @@ async function forceMissionRetentionPurged(newDb: Db, resourceId: string): Promi
  * bookkeeping (an `erasureJobs` row) on the restored branch -- see this
  * module's own doc comment for why that is deliberate, not an oversight.
  *
- * `ACCOUNT_DELETION` reason: `finalizeVerifiedJob`'s real logic
- * unconditionally deletes exactly the one `storageObjects` row, no sibling
- * gating -- forced here identically.
+ * `ACCOUNT_DELETION` and `PROFILE_PHOTO_REMOVAL` reasons: `finalizeVerifiedJob`'s
+ * real logic unconditionally deletes exactly the one `storageObjects` row, no
+ * sibling gating -- forced here identically. For a removed or replaced profile
+ * photo that also removes any restored `applicant_photos` row still pointing
+ * at those erased bytes (its foreign key cascades), so a restore can never
+ * bring back a photo whose bytes are gone.
  *
  * `RETENTION_PURGE` reason: the document id is never recoverable from the
  * audit event's own columns (`auditEvents` has no such column), so this
@@ -336,7 +339,7 @@ async function forceErasureVerified(
   metadata: unknown,
 ): Promise<boolean> {
   const reason = (metadata as { reason?: string } | null)?.reason;
-  if (reason === 'ACCOUNT_DELETION') {
+  if (reason === 'ACCOUNT_DELETION' || reason === 'PROFILE_PHOTO_REMOVAL') {
     const deleted = await newDb
       .delete(schema.storageObjects)
       .where(eq(schema.storageObjects.id, resourceId))

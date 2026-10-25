@@ -4,6 +4,8 @@ export interface TravellerContext {
   readonly id: string;
   readonly name: string;
   readonly relationship: string;
+  /** The traveller's profile photo address, when they have one and the viewer may see it (WP-PH1). */
+  readonly photo?: string | null;
 }
 
 export interface AgencyContext {
@@ -26,6 +28,8 @@ export interface WorkspaceNavigation {
   readonly kind: 'personal' | 'agency' | 'platform' | 'unavailable';
   readonly name: string;
   readonly caption: string;
+  /** The current traveller's photo, shown in place of their initials (WP-PH1). */
+  readonly photo?: string;
   readonly primary: readonly NavLink[];
   readonly tools: readonly NavLink[];
   readonly settings: readonly NavLink[];
@@ -137,6 +141,7 @@ export function workspaceNavigation(
   return {
     kind: 'personal',
     name: person?.name ?? (casePath ? 'Visa Case' : 'Personal Space'),
+    ...(person?.photo ? { photo: person.photo } : {}),
     caption:
       person?.relationship === 'SELF'
         ? 'Personal Space'

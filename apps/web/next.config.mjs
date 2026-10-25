@@ -51,6 +51,9 @@ const nextConfig = {
     '@napi-rs/canvas-darwin-x64',
     '@napi-rs/canvas-darwin-arm64',
     '@napi-rs/canvas-win32-x64-msvc',
+    // Profile photo re-encoding (WP-PH1): a native image library, kept external like the canvas
+    // above so the deployed function loads the real package and its platform binary.
+    'sharp',
   ],
   webpack: (config, { isServer }) => {
     if (isServer) {
@@ -62,7 +65,7 @@ const nextConfig = {
       config.externals = [
         ...existing,
         ({ request }, callback) => {
-          if (request && /^@napi-rs\/canvas/.test(request)) {
+          if (request && (/^@napi-rs\/canvas/.test(request) || request === 'sharp')) {
             return callback(null, `commonjs ${request}`);
           }
           callback();
