@@ -106,16 +106,6 @@ function FirstRunApplicantForm() {
             </span>
           </label>
         </fieldset>
-        <label className="first-run-authority">
-          <input
-            type="checkbox"
-            name="authorityConfirmed"
-            value="true"
-            required={managed}
-            {...fieldProblem(state, 'authorityConfirmed', messageId)}
-          />
-          <span>{AUTHORITY_SENTENCE}</span>
-        </label>
       </div>
       <div>
         <label className="field-label" htmlFor="displayName">
@@ -129,6 +119,18 @@ function FirstRunApplicantForm() {
           className="input"
           {...fieldProblem(state, 'displayName', messageId)}
         />
+      </div>
+      <div className="first-run-managed">
+        <label className="first-run-authority">
+          <input
+            type="checkbox"
+            name="authorityConfirmed"
+            value="true"
+            required={managed}
+            {...fieldProblem(state, 'authorityConfirmed', messageId)}
+          />
+          <span>{AUTHORITY_SENTENCE}</span>
+        </label>
       </div>
       <SubmitButton pending={pending} idle="Continue" busy="Saving…" className="btn btn-primary" />
       <FormMessage id={messageId} result={state} />
