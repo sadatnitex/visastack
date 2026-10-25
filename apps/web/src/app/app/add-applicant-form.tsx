@@ -11,7 +11,137 @@ import { type ActionState, createApplicantAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
-export function AddApplicantForm() {
+/**
+ * Adds an applicant. With `firstRun`, the same action and values are presented as the first-run
+ * question "Who is this record for?" (Me, or Someone I manage, which then asks Family member or
+ * Minor and the authority confirmation). The page moves on by itself once the applicant exists.
+ */
+export function AddApplicantForm({ firstRun = false }: { readonly firstRun?: boolean } = {}) {
+  return firstRun ? <FirstRunApplicantForm /> : <ApplicantForm />;
+}
+
+/** The authority statement both forms ask for: one sentence, so a wording change reaches both. */
+const AUTHORITY_SENTENCE =
+  'I confirm I have authority to create and manage this record on their behalf. This is never assumed from a shared name or address.';
+
+type WhoFor = 'SELF' | 'MANAGED';
+type ManagedKind = 'FAMILY_MEMBER' | 'MINOR_GUARDIAN';
+
+/**
+ * The first-run form sends what the person chose with the radios themselves (whoFor, and
+ * managedKind for someone they manage), so it works the same before the page has finished
+ * loading or without scripts; the server works out the relationship from them. The second
+ * question and the authority confirmation show only for Someone I manage, by style alone.
+ */
+function FirstRunApplicantForm() {
+  const [state, formAction, pending] = useActionState(createApplicantAction, INITIAL);
+  const [whoFor, setWhoFor] = useState<WhoFor>('SELF');
+  const [managedKind, setManagedKind] = useState<ManagedKind | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const messageId = useId();
+  useFocusInvalidField(formRef, state);
+  const managed = whoFor === 'MANAGED';
+  return (
+    <form ref={formRef} action={formAction} className="first-run-form">
+      <fieldset className="first-run-choice">
+        <legend className="field-label">Who is this record for?</legend>
+        <label>
+          <input
+            type="radio"
+            name="whoFor"
+            value="SELF"
+            checked={!managed}
+            onChange={() => setWhoFor('SELF')}
+          />
+          <span>
+            <b>Me</b>
+            <small>My own papers</small>
+          </span>
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="whoFor"
+            value="MANAGED"
+            checked={managed}
+            onChange={() => {
+              setWhoFor('MANAGED');
+              setManagedKind((kind) => kind ?? 'FAMILY_MEMBER');
+            }}
+          />
+          <span>
+            <b>Someone I manage</b>
+            <small>A family member</small>
+          </span>
+        </label>
+      </fieldset>
+      <div className="first-run-managed">
+        <fieldset className="first-run-choice">
+          <legend className="field-label">How are they related to you?</legend>
+          <label>
+            <input
+              type="radio"
+              name="managedKind"
+              value="FAMILY_MEMBER"
+              checked={managedKind === 'FAMILY_MEMBER'}
+              onChange={() => setManagedKind('FAMILY_MEMBER')}
+              {...fieldProblem(state, 'managedKind', messageId)}
+            />
+            <span>
+              <b>Family member</b>
+              <small>Adult relative</small>
+            </span>
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="managedKind"
+              value="MINOR_GUARDIAN"
+              checked={managedKind === 'MINOR_GUARDIAN'}
+              onChange={() => setManagedKind('MINOR_GUARDIAN')}
+            />
+            <span>
+              <b>Minor (guardian)</b>
+              <small>A child in my care</small>
+            </span>
+          </label>
+        </fieldset>
+      </div>
+      <div>
+        <label className="field-label" htmlFor="displayName">
+          Name as on the passport
+        </label>
+        <input
+          id="displayName"
+          name="displayName"
+          required
+          autoComplete={managed ? 'off' : 'name'}
+          className="input"
+          {...fieldProblem(state, 'displayName', messageId)}
+        />
+      </div>
+      <div className="first-run-managed">
+        <label className="first-run-authority">
+          <input
+            type="checkbox"
+            name="authorityConfirmed"
+            value="true"
+            required={managed}
+            {...fieldProblem(state, 'authorityConfirmed', messageId)}
+          />
+          <span>{AUTHORITY_SENTENCE}</span>
+        </label>
+      </div>
+      <SubmitButton pending={pending} idle="Continue" busy="Saving…" className="btn btn-primary" />
+      <FormMessage id={messageId} result={state} />
+      <p className="muted first-run-note">
+        You can change this later. Nothing is shared with anyone.
+      </p>
+    </form>
+  );
+}
+
+function ApplicantForm() {
   const [state, formAction, pending] = useActionState(createApplicantAction, INITIAL);
   const [relationship, setRelationship] = useState('SELF');
   const formRef = useRef<HTMLFormElement>(null);
@@ -72,10 +202,7 @@ export function AddApplicantForm() {
             required
             {...fieldProblem(state, 'authorityConfirmed', messageId)}
           />
-          <span>
-            I confirm I have authority to create and manage this record on their behalf. This is
-            never assumed from a shared name or address.
-          </span>
+          <span>{AUTHORITY_SENTENCE}</span>
         </label>
       ) : null}
       <SubmitButton

@@ -7,11 +7,13 @@ import {
   listDocuments,
   listEvidenceRequestsForApplicant,
   listGrantsForRecipientAccount,
+  listMembershipsForAccount,
   listMissions,
   listPendingProposals,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import {
   AttentionList,
   Checklist,
@@ -20,10 +22,13 @@ import {
   NextStepCard,
   StatusBadge,
 } from '../../components/ui';
+import { isPlatformAdmin } from '../../lib/admin';
 import { CONSENT_PLAIN } from '../../lib/labels';
 import { getLocale } from '../../lib/locale';
+import { safeReturnPath } from '../../lib/neon-recency';
 import { withSession } from '../../lib/session';
 import { ConsentButton } from './consent-button';
+import { FirstRunConsent, FirstRunName, FirstRunTask, SETUP_LATER_HREF } from './first-run';
 
 export const metadata: Metadata = { title: 'Overview' };
 
@@ -50,13 +55,22 @@ interface AttentionItem {
   readonly count: number;
 }
 
-async function loadDashboard(db: Db, accountId: string, email: string) {
-  const [consents, incomingGrants, applicants] = await Promise.all([
+/** What first run needs to decide, read before anything heavier. */
+async function loadBasics(db: Db, accountId: string, email: string) {
+  const [consents, incomingGrants, applicants, memberships, platformAdmin] = await Promise.all([
     getConsents(db, accountId),
     listGrantsForRecipientAccount(db, accountId),
     listApplicants(db, accountId),
+    listMembershipsForAccount(db, accountId),
+    isPlatformAdmin(db, { accountId, email }),
   ]);
+  return { consents, incomingGrants, applicants, memberships, platformAdmin };
+}
 
+type Basics = Awaited<ReturnType<typeof loadBasics>>;
+
+async function loadDashboard(db: Db, accountId: string, email: string, basics: Basics) {
+  const { consents, incomingGrants, applicants } = basics;
   const perApplicant = await Promise.all(
     applicants.map(async (applicant) => {
       const [docs, proposals, missions, evidenceRequests] = await Promise.all([
@@ -127,12 +141,99 @@ async function loadDashboard(db: Db, accountId: string, email: string) {
   };
 }
 
-export default async function AppPage() {
+interface SearchParams {
+  readonly next?: string | string[];
+  readonly setup?: string | string[];
+  readonly welcome?: string | string[];
+}
+
+/**
+ * A task to return to after first run: a workspace page (such as an invitation's accept page),
+ * never home itself and never anything else on the site, or null when there is none.
+ */
+function returnTask(value: string | string[] | undefined): string | null {
+  // Encoded dots or slashes have no place in a task link; refusing them closes "%2e%2e" tricks.
+  if (typeof value !== 'string' || /%2e|%2f|%5c/i.test(value)) return null;
+  const safe = safeReturnPath(value);
+  if (safe === '/app') return null;
+  // Resolve "." and ".." the way a browser will, then check the path that would actually load.
+  let url: URL;
+  try {
+    url = new URL(safe, 'https://visastack.invalid');
+  } catch {
+    return null;
+  }
+  if (url.origin !== 'https://visastack.invalid') return null;
+  // Workspace pages only: the public invitation page asks a signed-in person to sign in again.
+  return url.pathname.startsWith('/app/') ? `${url.pathname}${url.search}` : null;
+}
+
+export default async function AppPage({
+  searchParams,
+}: { readonly searchParams?: Promise<SearchParams> }) {
+  const params: SearchParams = (await searchParams) ?? {};
   const locale = await getLocale();
   const t = createTranslator(locale);
-  const data = await withSession(({ db, accountId, email }) => loadDashboard(db, accountId, email));
-  const coreGranted = Boolean(data.consents.CORE_PROCESSING);
-  const grantedCount = CONSENT_TYPES.filter((type) => Boolean(data.consents[type])).length;
+  const task = returnTask(params.next);
+  const later = params.setup === 'later';
+  const decided = await withSession(async ({ db, accountId, email }) => {
+    const basics = await loadBasics(db, accountId, email);
+    const coreGranted = Boolean(basics.consents.CORE_PROCESSING);
+    const grantedCount = CONSENT_TYPES.filter((type) => Boolean(basics.consents[type])).length;
+    // First run (WP-V3, D8) is only for someone new: no records, no agency or platform role and
+    // nothing shared with them, so agency staff and people who only receive shared access are
+    // never sent through it. Someone who turned core processing off later, with another consent
+    // still on, gets the ordinary home so every consent control stays in reach.
+    const newcomer =
+      basics.applicants.length === 0 &&
+      basics.memberships.every((membership) => !membership.active) &&
+      !basics.platformAdmin &&
+      basics.incomingGrants.length === 0;
+    if (!later && newcomer && !coreGranted && grantedCount === 0) {
+      return { screen: 'consent' as const };
+    }
+    if (!later && newcomer && coreGranted) return { screen: 'name' as const };
+    // Set up: the task someone came for comes first, before any heavier reading.
+    if (coreGranted && basics.applicants.length > 0 && task) return { screen: 'task' as const };
+    return {
+      screen: 'home' as const,
+      coreGranted,
+      grantedCount,
+      data: await loadDashboard(db, accountId, email, basics),
+    };
+  });
+
+  // "Not now" with a task goes to that task (it has its own checks); otherwise to the ordinary home.
+  const laterHref = task ?? SETUP_LATER_HREF;
+  if (decided.screen === 'consent')
+    return <FirstRunConsent locale={locale} laterHref={laterHref} />;
+  if (decided.screen === 'name') {
+    // Ask the name on the page that comes next, so once the applicant is saved the refreshed page
+    // is already "what do you want to do?" (or, with a task, goes straight to it).
+    if (!task && params.welcome !== '1') redirect('/app?welcome=1');
+    return <FirstRunName laterHref={laterHref} />;
+  }
+  if (decided.screen === 'task' && task) redirect(task);
+  if (decided.screen !== 'home') redirect('/app');
+  const { coreGranted, grantedCount, data } = decided;
+  if (coreGranted && data.applicants.length > 0 && params.welcome === '1') {
+    // Ask what they want to do once, offering only destinations that exist.
+    const waiting = data.perApplicant.find((row) => row.openRequests > 0);
+    const shared = data.attention.find((item) => item.href === '/app/shared');
+    const first = data.perApplicant[0];
+    return (
+      <FirstRunTask
+        requestHref={
+          waiting
+            ? `/app/applicant/${waiting.applicant.id}/evidence`
+            : shared
+              ? '/app/shared'
+              : null
+        }
+        recordsHref={first ? `/app/applicant/${first.applicant.id}` : '/app/applicants'}
+      />
+    );
+  }
 
   const firstApplicant = data.perApplicant[0];
   const setupSteps = [
