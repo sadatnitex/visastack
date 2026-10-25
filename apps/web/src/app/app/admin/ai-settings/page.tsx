@@ -1,19 +1,25 @@
 import {
   type AiProviderConfig,
+  aiProviderTermsFor,
   hasAnyAiProviderConfig,
   listAiProviderConfigHistory,
+  loadAiDataRuleSetting,
+  loadAiProviderDataTerms,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader } from '../../../../components/ui';
 import { bootstrapAdminEmails, hasPlatformPermission } from '../../../../lib/admin';
 import { unitsToUsd } from '../../../../lib/ai';
+import { currentAiDataMode } from '../../../../lib/ai-data-rule';
 import { formatTimestamp } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
+import { DataTermsPanel, TermsRows } from './data-terms';
 import {
   ActivateConfigButton,
   CreateDraftConfigForm,
   EmergencyDisableButton,
+  RecordTermsForm,
   RevokeKeyButton,
   RollbackConfigButton,
   RunEvaluationButton,
@@ -52,11 +58,23 @@ export default async function AiSettingsPage() {
       bootstrapEmails: bootstrapAdminEmails(),
     });
     const history = historyResult.ok ? historyResult.value : [];
+    const active = history.find((config) => config.status === 'ACTIVE');
+    const fallback = active?.fallbackEnabled
+      ? history.find((config) => config.id === active.fallbackProviderConfigId)
+      : undefined;
     return {
+      active,
+      fallback,
       authorized: true as const,
       history,
       hasAny: await hasAnyAiProviderConfig(db),
-      hasActive: history.some((config) => config.status === 'ACTIVE'),
+      hasActive: active !== undefined,
+      terms: await loadAiProviderDataTerms(
+        db,
+        history.map((config) => config.id),
+      ),
+      setting: await loadAiDataRuleSetting(db),
+      mode: currentAiDataMode(),
     };
   });
 
@@ -108,6 +126,15 @@ export default async function AiSettingsPage() {
           until a configuration below is activated or rolled back to.
         </div>
       ) : null}
+
+      <DataTermsPanel
+        mode={data.mode}
+        setting={data.setting}
+        termsAvailable={data.terms.available}
+        active={data.active}
+        fallback={data.fallback}
+        termsFor={(configId) => aiProviderTermsFor(data.terms, configId)}
+      />
 
       <article className="card u-mb-150">
         <p className="card-kicker">New Configuration</p>
@@ -231,6 +258,7 @@ export default async function AiSettingsPage() {
                       </span>
                     </div>
                   ) : null}
+                  <TermsRows terms={aiProviderTermsFor(data.terms, config.id)} />
                   <div className="row">
                     <span className="row-key">Created</span>
                     <span className="muted u-fs-085">{formatTimestamp(config.createdAt)}</span>
@@ -246,6 +274,10 @@ export default async function AiSettingsPage() {
                     {canRevoke ? <RevokeKeyButton configId={config.id} /> : null}
                   </div>
                 ) : null}
+                <details className="u-mt-100">
+                  <summary className="muted">Record Data Terms</summary>
+                  <RecordTermsForm configId={config.id} />
+                </details>
               </article>
             );
           })}

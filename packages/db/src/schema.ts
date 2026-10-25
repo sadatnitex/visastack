@@ -15,6 +15,7 @@ import {
   boolean,
   check,
   customType,
+  date,
   index,
   integer,
   jsonb,
@@ -1864,6 +1865,96 @@ export const aiProviderConfigs = pgTable(
     disabledAt: timestamp('disabled_at', { withTimezone: true }),
   },
   (table) => [index('ai_provider_configs_status_idx').on(table.status)],
+);
+
+// --- AI provider data terms (owner decision 2026-10-25) ---------------------
+// What the provider account behind one configuration does with what VisaStack
+// sends it, as read from the provider's own terms on `checked_on` by a
+// platform admin. A side table rather than new columns on
+// ai_provider_configs on purpose: every read of that table selects all of its
+// columns, so adding columns there would break the whole AI gateway in the
+// window between a deploy and its migration, while a missing side table only
+// reads as "unknown terms". Append-only: the newest row per configuration is
+// the one in force; older rows stay as the record of what the platform
+// believed when. No row means "unknown", which the gateway refuses whenever
+// real applicant data is enabled (packages/services/src/ai-data-terms.ts).
+export const AI_PROVIDER_TIERS = ['FREE', 'PAID'] as const;
+export const AI_TRAINING_ANSWERS = ['YES', 'NO', 'UNKNOWN'] as const;
+export const AI_TERMS_TEXT_MAX = 500;
+
+export const aiProviderConfigTerms = pgTable(
+  'ai_provider_config_terms',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    configId: uuid('config_id')
+      .notNull()
+      .references(() => aiProviderConfigs.id, { onDelete: 'cascade' }),
+    tier: text('tier', { enum: AI_PROVIDER_TIERS }).notNull(),
+    trainsOnInputs: text('trains_on_inputs', { enum: AI_TRAINING_ANSWERS }).notNull(),
+    retentionDays: integer('retention_days'),
+    region: text('region'),
+    termsUrl: text('terms_url'),
+    checkedOn: date('checked_on', { mode: 'string' }).notNull(),
+    notes: text('notes'),
+    recordedByAccountId: uuid('recorded_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('ai_provider_config_terms_config_idx').on(table.configId, table.createdAt),
+    check('ai_provider_config_terms_tier_valid', sql`${table.tier} in ('FREE', 'PAID')`),
+    check(
+      'ai_provider_config_terms_training_valid',
+      sql`${table.trainsOnInputs} in ('YES', 'NO', 'UNKNOWN')`,
+    ),
+    check(
+      'ai_provider_config_terms_retention_range',
+      sql`${table.retentionDays} is null or ${table.retentionDays} between 0 and 3650`,
+    ),
+    check(
+      'ai_provider_config_terms_region_length',
+      sql`${table.region} is null or char_length(${table.region}) <= 120`,
+    ),
+    check(
+      'ai_provider_config_terms_url_valid',
+      sql`${table.termsUrl} is null or (${table.termsUrl} like 'https://%' and char_length(${table.termsUrl}) <= 500)`,
+    ),
+    check(
+      'ai_provider_config_terms_notes_length',
+      sql`${table.notes} is null or char_length(${table.notes}) <= 500`,
+    ),
+    check(
+      'ai_provider_config_terms_no_needs_source',
+      sql`${table.trainsOnInputs} <> 'NO' or ${table.termsUrl} is not null`,
+    ),
+  ],
+);
+
+// --- "Only Use AI Providers That Do Not Train on Inputs" (owner 2026-10-25) --
+// One platform switch, off by default: when on, the AI gateway uses a
+// configuration only if its newest ai_provider_config_terms row says the
+// provider does not train on inputs. Append-only like the terms: the newest
+// row is the setting in force, older rows are its history, and every change
+// is also written to the audit chain. No row (or no table yet) means off.
+export const aiDataRuleSettings = pgTable(
+  'ai_data_rule_settings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    requireNoTraining: boolean('require_no_training').notNull(),
+    reason: text('reason'),
+    changedByAccountId: uuid('changed_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('ai_data_rule_settings_created_idx').on(table.createdAt),
+    check(
+      'ai_data_rule_settings_reason_length',
+      sql`${table.reason} is null or char_length(${table.reason}) <= 500`,
+    ),
+  ],
 );
 
 // Recorded when approving a proposal would overwrite an already-trusted fact

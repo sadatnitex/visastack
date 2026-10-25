@@ -807,6 +807,30 @@ export {
 } from './ocr';
 
 export {
+  type AiDataMode,
+  type AiDataRuleSetting,
+  type AiProviderDataTerms,
+  type AiProviderDataTermsState,
+  type AiProviderTier,
+  type AiProviderUseDecision,
+  type AiProviderUseInput,
+  type AiTermsConcern,
+  type AiTrainingAnswer,
+  type RecordAiProviderDataTermsInput,
+  type SetAiDataRuleSettingInput,
+  AI_TERMS_RECHECK_DAYS,
+  aiProviderTermsFor,
+  aiTermsConcern,
+  decideAiProviderUse,
+  isAiTermsCheckDue,
+  loadAiDataRuleSetting,
+  loadAiProviderDataTerms,
+  recordAiProviderDataTerms,
+  setAiDataRuleSetting,
+  unknownAiProviderDataTerms,
+} from './ai-data-terms';
+
+export {
   type ActivateAiProviderConfigInput,
   type AiProviderConfig,
   type CreateDraftAiProviderConfigInput,

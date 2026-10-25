@@ -21,6 +21,7 @@ import {
   hasAnyAiProviderConfig,
   revealAiProviderApiKey,
 } from '@visastack/services';
+import { isAiDataUseAllowed } from './ai-data-rule';
 
 /** Variable-keyed env read (satisfies both TS index-signature and Biome rules). */
 function readEnv(name: string): string | undefined {
@@ -193,6 +194,8 @@ async function resolveFallbackExtractor(
   if (target.provider === primary.provider) return undefined;
   if (!target.dataPolicyApproved || target.keyRevokedAt !== null) return undefined;
   if (!IMPLEMENTED_PROVIDERS.has(target.provider)) return undefined;
+  // The data-terms rule applies to the fallback exactly as to the primary.
+  if (!(await isAiDataUseAllowed(db, target))) return undefined;
   const apiKey = await revealAiProviderApiKey(db, encryption, target);
   return { ai: buildAdapterForConfig(target, apiKey) };
 }
@@ -204,6 +207,7 @@ export async function resolveAiExtractor(
   if (await hasAnyAiProviderConfig(db)) {
     const config = await getActiveAiProviderConfig(db);
     if (!config || !encryption || !IMPLEMENTED_PROVIDERS.has(config.provider)) return undefined;
+    if (!(await isAiDataUseAllowed(db, config))) return undefined;
     const apiKey = await revealAiProviderApiKey(db, encryption, config);
     const fallback = await resolveFallbackExtractor(db, encryption, config);
     return {
@@ -213,7 +217,8 @@ export async function resolveAiExtractor(
     };
   }
   const ai = createAiExtractor();
-  return ai ? { ai, limits: limitsFromConfig(undefined) } : undefined;
+  if (!ai || !(await isAiDataUseAllowed(db, undefined))) return undefined;
+  return { ai, limits: limitsFromConfig(undefined) };
 }
 
 /**
@@ -271,6 +276,7 @@ export async function resolveAiClassifier(
   if (!(await hasAnyAiProviderConfig(db))) return undefined;
   const config = await getActiveAiProviderConfig(db);
   if (!config || !encryption || !IMPLEMENTED_PROVIDERS.has(config.provider)) return undefined;
+  if (!(await isAiDataUseAllowed(db, config))) return undefined;
   const apiKey = await revealAiProviderApiKey(db, encryption, config);
   return { ai: buildAdapterForConfig(config, apiKey), limits: limitsFromConfig(config) };
 }
@@ -294,6 +300,7 @@ export async function resolveAiExplainer(
   if (!(await hasAnyAiProviderConfig(db))) return undefined;
   const config = await getActiveAiProviderConfig(db);
   if (!config || !encryption || !IMPLEMENTED_PROVIDERS.has(config.provider)) return undefined;
+  if (!(await isAiDataUseAllowed(db, config))) return undefined;
   const apiKey = await revealAiProviderApiKey(db, encryption, config);
   return { ai: buildAdapterForConfig(config, apiKey), limits: limitsFromConfig(config) };
 }
@@ -317,6 +324,7 @@ export async function resolveAiInconsistencyChecker(
   if (!(await hasAnyAiProviderConfig(db))) return undefined;
   const config = await getActiveAiProviderConfig(db);
   if (!config || !encryption || !IMPLEMENTED_PROVIDERS.has(config.provider)) return undefined;
+  if (!(await isAiDataUseAllowed(db, config))) return undefined;
   const apiKey = await revealAiProviderApiKey(db, encryption, config);
   return { ai: buildAdapterForConfig(config, apiKey), limits: limitsFromConfig(config) };
 }
@@ -397,6 +405,8 @@ async function resolveFallbackOcrAdapter(
   if (target.provider === primary.provider) return undefined;
   if (!target.dataPolicyApproved || target.keyRevokedAt !== null) return undefined;
   if (!IMPLEMENTED_OCR_PROVIDERS.has(target.provider)) return undefined;
+  // The data-terms rule applies to the fallback exactly as to the primary.
+  if (!(await isAiDataUseAllowed(db, target))) return undefined;
   const apiKey = await revealAiProviderApiKey(db, encryption, target);
   return { ai: buildOcrAdapterForConfig(target, apiKey) };
 }
@@ -408,6 +418,7 @@ export async function resolveOcrAdapter(
   if (!(await hasAnyAiProviderConfig(db))) return undefined;
   const config = await getActiveAiProviderConfig(db);
   if (!config || !encryption || !IMPLEMENTED_OCR_PROVIDERS.has(config.provider)) return undefined;
+  if (!(await isAiDataUseAllowed(db, config))) return undefined;
   const apiKey = await revealAiProviderApiKey(db, encryption, config);
   const fallback = await resolveFallbackOcrAdapter(db, encryption, config);
   return {
@@ -429,28 +440,38 @@ export async function resolveOcrAdapter(
 export async function isOcrConfigured(db: Db): Promise<boolean> {
   if (!(await hasAnyAiProviderConfig(db))) return false;
   const config = await getActiveAiProviderConfig(db);
-  return Boolean(config && IMPLEMENTED_OCR_PROVIDERS.has(config.provider));
+  return Boolean(
+    config &&
+      IMPLEMENTED_OCR_PROVIDERS.has(config.provider) &&
+      (await isAiDataUseAllowed(db, config)),
+  );
 }
 
 /** Cheap "is AI classification available" check for page rendering (Part 8 AI-01 item 2) -- mirrors `isOcrConfigured`'s identical shape, never decrypting a key just to show a boolean. */
 export async function isClassificationConfigured(db: Db): Promise<boolean> {
   if (!(await hasAnyAiProviderConfig(db))) return false;
   const config = await getActiveAiProviderConfig(db);
-  return Boolean(config && IMPLEMENTED_PROVIDERS.has(config.provider));
+  return Boolean(
+    config && IMPLEMENTED_PROVIDERS.has(config.provider) && (await isAiDataUseAllowed(db, config)),
+  );
 }
 
 /** Cheap "is AI readiness-gap explanation available" check (Part 8 AI-01 item 5) -- mirrors `isClassificationConfigured`'s identical shape (same `IMPLEMENTED_PROVIDERS` set), named separately for a reader's clarity at the call site. */
 export async function isExplanationConfigured(db: Db): Promise<boolean> {
   if (!(await hasAnyAiProviderConfig(db))) return false;
   const config = await getActiveAiProviderConfig(db);
-  return Boolean(config && IMPLEMENTED_PROVIDERS.has(config.provider));
+  return Boolean(
+    config && IMPLEMENTED_PROVIDERS.has(config.provider) && (await isAiDataUseAllowed(db, config)),
+  );
 }
 
 /** Cheap "is AI inconsistency checking available" check (Part 8 AI-01 item 4) -- mirrors `isClassificationConfigured`/`isExplanationConfigured`'s identical shape (same `IMPLEMENTED_PROVIDERS` set), named separately for a reader's clarity at the call site. */
 export async function isInconsistencyConfigured(db: Db): Promise<boolean> {
   if (!(await hasAnyAiProviderConfig(db))) return false;
   const config = await getActiveAiProviderConfig(db);
-  return Boolean(config && IMPLEMENTED_PROVIDERS.has(config.provider));
+  return Boolean(
+    config && IMPLEMENTED_PROVIDERS.has(config.provider) && (await isAiDataUseAllowed(db, config)),
+  );
 }
 
 /**

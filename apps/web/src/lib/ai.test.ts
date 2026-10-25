@@ -24,6 +24,11 @@ const hasAnyAiProviderConfig = vi.fn();
 const getActiveAiProviderConfig = vi.fn();
 const revealAiProviderApiKey = vi.fn();
 const getAiProviderConfigForFallback = vi.fn();
+// The data-terms rule's two reads (packages/services/src/ai-data-terms.ts):
+// by default the setting is off and nothing is recorded, matching a fresh
+// install; the data-terms tests below override them.
+const loadAiDataRuleSetting = vi.fn();
+const loadAiProviderDataTerms = vi.fn();
 
 vi.mock('@visastack/services', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@visastack/services')>();
@@ -33,10 +38,13 @@ vi.mock('@visastack/services', async (importOriginal) => {
     getActiveAiProviderConfig: (...args: unknown[]) => getActiveAiProviderConfig(...args),
     revealAiProviderApiKey: (...args: unknown[]) => revealAiProviderApiKey(...args),
     getAiProviderConfigForFallback: (...args: unknown[]) => getAiProviderConfigForFallback(...args),
+    loadAiDataRuleSetting: (...args: unknown[]) => loadAiDataRuleSetting(...args),
+    loadAiProviderDataTerms: (...args: unknown[]) => loadAiProviderDataTerms(...args),
   };
 });
 
 const ENV_KEYS = [
+  'DEPLOYMENT_MODE',
   'AI_ENABLED',
   'AI_PROVIDER',
   'OPENAI_API_KEY',
@@ -70,6 +78,15 @@ beforeAll(async () => {
 }, 120_000);
 
 beforeEach(() => {
+  loadAiDataRuleSetting.mockReset();
+  loadAiDataRuleSetting.mockResolvedValue({
+    requireNoTraining: false,
+    changedAt: null,
+    changedByAccountId: null,
+    source: 'default',
+  });
+  loadAiProviderDataTerms.mockReset();
+  loadAiProviderDataTerms.mockResolvedValue({ available: true, byConfigId: new Map() });
   for (const key of ENV_KEYS) ORIGINAL[key] = process.env[key];
   for (const key of ENV_KEYS) unsetEnv(key);
 });
@@ -492,6 +509,110 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
       const limits = await resolveAiLimits(db);
 
       expect(limits.budgetLimitUnits).toBe(2_000_000);
+    });
+  });
+
+  describe('data terms: "Only Use AI Providers That Do Not Train on Inputs"', () => {
+    const notTraining = {
+      recorded: true,
+      tier: 'PAID',
+      trainsOnInputs: 'NO',
+      retentionDays: 30,
+      region: null,
+      termsUrl: 'https://example.com/terms',
+      checkedOn: '2026-10-25',
+      notes: null,
+      recordedAt: new Date(),
+    };
+    const mayTrain = { ...notTraining, tier: 'FREE', trainsOnInputs: 'YES' };
+
+    function settingIs(on: boolean) {
+      loadAiDataRuleSetting.mockResolvedValue({
+        requireNoTraining: on,
+        changedAt: null,
+        changedByAccountId: null,
+        source: 'saved',
+      });
+    }
+    function recordedTerms(byId: Record<string, object>) {
+      loadAiProviderDataTerms.mockImplementation(async (_db: unknown, ids: readonly string[]) => ({
+        available: true,
+        byConfigId: new Map(
+          ids.flatMap((id) => (byId[id] ? [[id, { configId: id, ...byId[id] }] as const] : [])),
+        ),
+      }));
+    }
+
+    it('when on, refuses every AI task on a configuration with no recorded terms, without unlocking its key', async () => {
+      settingIs(true);
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(fakeConfig());
+      const ai = await import('./ai');
+
+      expect(await ai.resolveAiExtractor(db, encryption)).toBeUndefined();
+      expect(await ai.resolveOcrAdapter(db, encryption)).toBeUndefined();
+      expect(await ai.resolveAiClassifier(db, encryption)).toBeUndefined();
+      expect(await ai.resolveAiExplainer(db, encryption)).toBeUndefined();
+      expect(await ai.resolveAiInconsistencyChecker(db, encryption)).toBeUndefined();
+      expect(await ai.isOcrConfigured(db)).toBe(false);
+      expect(await ai.isClassificationConfigured(db)).toBe(false);
+      expect(revealAiProviderApiKey).not.toHaveBeenCalled();
+    });
+
+    it('when on, runs a primary recorded as not training but drops a fallback recorded as training', async () => {
+      settingIs(true);
+      recordedTerms({ 'config-1': notTraining, 'fallback-1': mayTrain });
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(
+        fakeConfig({ fallbackEnabled: true, fallbackProviderConfigId: 'fallback-1' }),
+      );
+      getAiProviderConfigForFallback.mockResolvedValue(
+        fakeConfig({ id: 'fallback-1', provider: 'anthropic', status: 'SUPERSEDED' }),
+      );
+      revealAiProviderApiKey.mockResolvedValue('sk-from-db');
+      const { resolveAiExtractor, resolveOcrAdapter } = await import('./ai');
+
+      const resolved = await resolveAiExtractor(db, encryption);
+      expect(resolved).toBeDefined();
+      expect(resolved?.fallback).toBeUndefined();
+      expect((await resolveOcrAdapter(db, encryption))?.fallback).toBeUndefined();
+      // Only the primary's key was ever unlocked.
+      for (const call of revealAiProviderApiKey.mock.calls) {
+        expect((call[2] as AiProviderConfig).id).toBe('config-1');
+      }
+    });
+
+    it('when on, refuses the older environment-variable path, which has no recorded terms', async () => {
+      settingIs(true);
+      hasAnyAiProviderConfig.mockResolvedValue(false);
+      setEnv('AI_ENABLED', 'true');
+      setEnv('OPENAI_API_KEY', 'sk-env-test');
+      const { resolveAiExtractor } = await import('./ai');
+      expect(await resolveAiExtractor(db, encryption)).toBeUndefined();
+    });
+
+    it('when off, keeps AI running on a provider that may train, even with real applicant data on', async () => {
+      settingIs(false);
+      recordedTerms({ 'config-1': mayTrain, 'fallback-1': mayTrain });
+      setEnv('DEPLOYMENT_MODE', 'commercial');
+      hasAnyAiProviderConfig.mockResolvedValue(true);
+      getActiveAiProviderConfig.mockResolvedValue(
+        fakeConfig({ fallbackEnabled: true, fallbackProviderConfigId: 'fallback-1' }),
+      );
+      getAiProviderConfigForFallback.mockResolvedValue(
+        fakeConfig({ id: 'fallback-1', provider: 'anthropic', status: 'SUPERSEDED' }),
+      );
+      revealAiProviderApiKey.mockResolvedValue('sk-from-db');
+      const { resolveAiExtractor } = await import('./ai');
+      const { checkAiDataTerms } = await import('./ai-data-rule');
+
+      const resolved = await resolveAiExtractor(db, encryption);
+      expect(resolved).toBeDefined();
+      expect(resolved?.fallback).toBeDefined();
+      // The admin page is warned instead.
+      const check = await checkAiDataTerms(db, fakeConfig());
+      expect(check.mode).toBe('real_applicant_data');
+      expect(check.decision).toEqual({ allowed: true, warning: 'trains_on_inputs' });
     });
   });
 

@@ -225,6 +225,7 @@ export class AnthropicExtractionAdapter
 
   cacheKeyComponents(): AiCacheKeyComponents {
     return {
+      provider: PROVIDER,
       model: this.model,
       promptVersion: this.promptVersion,
       schemaVersion: SCHEMA_VERSION,
@@ -375,6 +376,7 @@ export class AnthropicExtractionAdapter
 
   classifyCacheKeyComponents(): AiCacheKeyComponents {
     return {
+      provider: PROVIDER,
       model: this.model,
       promptVersion: CLASSIFY_PROMPT_VERSION,
       schemaVersion: CLASSIFY_SCHEMA_VERSION,
@@ -518,6 +520,7 @@ export class AnthropicExtractionAdapter
 
   explainCacheKeyComponents(): AiCacheKeyComponents {
     return {
+      provider: PROVIDER,
       model: this.model,
       promptVersion: EXPLAIN_PROMPT_VERSION,
       schemaVersion: EXPLAIN_SCHEMA_VERSION,
@@ -659,6 +662,7 @@ export class AnthropicExtractionAdapter
 
   inconsistencyCacheKeyComponents(): AiCacheKeyComponents {
     return {
+      provider: PROVIDER,
       model: this.model,
       promptVersion: INCONSISTENCY_PROMPT_VERSION,
       schemaVersion: INCONSISTENCY_SCHEMA_VERSION,

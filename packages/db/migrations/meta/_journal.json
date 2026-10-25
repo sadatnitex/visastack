@@ -617,6 +617,13 @@
       "when": 1792936958267,
       "tag": "0087_document_protection_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1792950504550,
+      "tag": "0088_ai_provider_data_terms",
+      "breakpoints": true
     }
   ]
 }

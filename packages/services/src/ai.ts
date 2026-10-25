@@ -131,6 +131,14 @@ export type AiExtractionOutcome =
     };
 
 export interface AiCacheKeyComponents {
+  /**
+   * Which provider gives the answer (owner request 2026-10-25). Part of every
+   * cache key, so a reading cached from one provider is never served as
+   * another's, even when an admin types the same model name for both. Every
+   * real adapter sets it; it is optional only so older test doubles keep
+   * their keys.
+   */
+  readonly provider?: string;
   readonly model: string;
   readonly promptVersion: string;
   readonly schemaVersion: string;
@@ -768,6 +776,11 @@ async function latestParserVersion(db: Db, documentVersionId: string): Promise<s
  */
 const TASK_VERSION = 'field_extraction_v1';
 
+/** The provider part of a cache key: empty for a test double that names none, so its keys stay as they were. */
+function providerKeyPart(components: { readonly provider?: string }): readonly string[] {
+  return components.provider ? [`provider:${components.provider}`] : [];
+}
+
 function computeCacheKey(
   contentHash: string,
   parserVersion: string,
@@ -782,6 +795,7 @@ function computeCacheKey(
     cacheKeyComponents.promptVersion,
     cacheKeyComponents.schemaVersion,
     cacheKeyComponents.reasoningEffort ?? '',
+    ...providerKeyPart(cacheKeyComponents),
   ];
   // A reading limited to a document type's fields must never be served to, or from, a reading
   // with a different list. Unscoped readings keep their existing key, so nothing already cached moves.
@@ -803,7 +817,12 @@ function computeOcrCacheKey(
   contentHash: string,
   cacheKeyComponents: AiOcrCacheKeyComponents,
 ): string {
-  const parts = [contentHash, cacheKeyComponents.model, cacheKeyComponents.promptVersion];
+  const parts = [
+    contentHash,
+    cacheKeyComponents.model,
+    cacheKeyComponents.promptVersion,
+    ...providerKeyPart(cacheKeyComponents),
+  ];
   return createHash('sha256').update(parts.join('|')).digest('hex');
 }
 
@@ -3083,6 +3102,7 @@ function computeExplanationCacheKey(
     components.promptVersion,
     components.schemaVersion,
     components.reasoningEffort ?? '',
+    ...providerKeyPart(components),
   ];
   return createHash('sha256').update(parts.join('|')).digest('hex');
 }
@@ -3428,6 +3448,7 @@ function computeInconsistencyCacheKey(
     cacheKeyComponents.promptVersion,
     cacheKeyComponents.schemaVersion,
     cacheKeyComponents.reasoningEffort ?? '',
+    ...providerKeyPart(cacheKeyComponents),
   ];
   return createHash('sha256').update(parts.join('|')).digest('hex');
 }

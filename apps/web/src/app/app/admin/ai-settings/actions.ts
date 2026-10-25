@@ -2,15 +2,21 @@
 
 import { passesThresholds, runEvaluationSuite } from '@visastack/adapters';
 import {
+  type AiProviderTier,
+  type AiTrainingAnswer,
   type PlatformAuthInput,
+  type RecordAiProviderDataTermsInput,
   activateAiProviderConfig,
   createDraftAiProviderConfig,
   emergencyDisableAiProviderConfig,
   getAiProviderConfigById,
   recordAiProviderConfigEvaluation,
   recordAiProviderConfigTest,
+  recordAiProviderDataTerms,
   revokeAiProviderConfigKey,
   rollbackAiProviderConfig,
+  setAiDataRuleSetting,
+  staffPrincipal,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -60,6 +66,38 @@ function parsePositiveInt(raw: FormDataEntryValue | null): number | undefined {
   return parsed === undefined ? undefined : Math.floor(parsed);
 }
 
+type TermsFields = Omit<RecordAiProviderDataTermsInput, 'stepUpSatisfied' | 'configId'>;
+
+/**
+ * Reads the Provider Data Terms fields. `undefined` when the plan was left as
+ * "Not Recorded Yet" (draft form only); a string when something is missing.
+ */
+function parseTermsFields(formData: FormData): TermsFields | string | undefined {
+  const tier = String(formData.get('termsTier') ?? '').trim();
+  if (tier.length === 0) return undefined;
+  if (tier !== 'FREE' && tier !== 'PAID') return 'Choose Free or Paid.';
+  const trains = String(formData.get('termsTrains') ?? 'UNKNOWN').trim();
+  if (trains !== 'YES' && trains !== 'NO' && trains !== 'UNKNOWN') {
+    return 'Choose whether the provider may train on what it is sent.';
+  }
+  const checkedOn = String(formData.get('termsCheckedOn') ?? '').trim();
+  if (checkedOn.length === 0) return 'Enter the date you checked the terms.';
+  const retentionRaw = String(formData.get('termsRetentionDays') ?? '').trim();
+  const retentionDays = retentionRaw.length > 0 ? Number(retentionRaw) : undefined;
+  const region = String(formData.get('termsRegion') ?? '').trim();
+  const termsUrl = String(formData.get('termsUrl') ?? '').trim();
+  const notes = String(formData.get('termsNotes') ?? '').trim();
+  return {
+    tier: tier as AiProviderTier,
+    trainsOnInputs: trains as AiTrainingAnswer,
+    checkedOn,
+    ...(retentionDays !== undefined ? { retentionDays } : {}),
+    ...(region ? { region } : {}),
+    ...(termsUrl ? { termsUrl } : {}),
+    ...(notes ? { notes } : {}),
+  };
+}
+
 /** Save a new DRAFT AI provider configuration. Has no effect on live traffic until activated. Security-admin + step-up gated (Part 8 §5). */
 export async function createDraftAiProviderConfigAction(
   _prev: ActionState,
@@ -89,6 +127,8 @@ export async function createDraftAiProviderConfigAction(
   if (fallbackEnabled && fallbackProviderConfigId.length === 0) {
     return { ok: false, message: 'Choose a fallback configuration to enable fallback.' };
   }
+  const terms = parseTermsFields(formData);
+  if (typeof terms === 'string') return { ok: false, message: terms };
 
   const result = await withSession(async ({ db, accountId, email }) => {
     if (!(await hasPlatformPermission(db, { accountId, email }, 'AI_SETTINGS_MANAGE'))) {
@@ -133,6 +173,21 @@ export async function createDraftAiProviderConfigAction(
       ...(notes ? { notes } : {}),
     });
     if (!draft.ok) return { ok: false, message: draft.error.message } satisfies ActionState;
+    if (terms) {
+      const staff = await staffPrincipal(db, actor(accountId, email), 'AI_SETTINGS_MANAGE');
+      if (!staff.ok) return DENIED;
+      const recorded = await recordAiProviderDataTerms(db, staff.value, {
+        stepUpSatisfied: true,
+        configId: draft.value.id,
+        ...terms,
+      });
+      if (!recorded.ok) {
+        return {
+          ok: true,
+          message: `Draft configuration created (${provider} / ${model}), but its data terms were not saved: ${recorded.error.message}.`,
+        } satisfies ActionState;
+      }
+    }
     return {
       ok: true,
       message: `Draft configuration created (${provider} / ${model}).`,
@@ -417,4 +472,91 @@ export async function runAiProviderConfigEvaluationAction(
     });
     return { ok: passed, message } satisfies ActionState;
   });
+}
+
+/**
+ * Record a fresh reading of a provider's data terms for one configuration
+ * (owner decision 2026-10-25). Security admin and a fresh sign-in check;
+ * saved as a new entry and written to the audit history.
+ */
+export async function recordAiProviderTermsAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const configId = String(formData.get('configId') ?? '').trim();
+  if (configId.length === 0) return { ok: false, message: 'Missing configuration id.' };
+  const terms = parseTermsFields(formData);
+  if (terms === undefined) return { ok: false, message: 'Choose Free or Paid.' };
+  if (typeof terms === 'string') return { ok: false, message: terms };
+
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'AI_SETTINGS_MANAGE'))) {
+      return DENIED;
+    }
+    const stepUp = await tryEstablishStepUp(
+      { accountId, action: 'AI_SETTINGS_RECORD_TERMS', resourceId: configId },
+      AI_SETTINGS_PATH,
+    );
+    if (stepUp.kind === 'not_configured') {
+      return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
+    }
+    if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
+
+    const staff = await staffPrincipal(db, actor(accountId, email), 'AI_SETTINGS_MANAGE');
+    if (!staff.ok) return DENIED;
+    const recorded = await recordAiProviderDataTerms(db, staff.value, {
+      stepUpSatisfied: true,
+      configId,
+      ...terms,
+    });
+    if (!recorded.ok) return { ok: false, message: recorded.error.message } satisfies ActionState;
+    return { ok: true, message: 'Data terms saved.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(AI_SETTINGS_PATH);
+  return result;
+}
+
+/**
+ * Turn "Only Use AI Providers That Do Not Train on Inputs" on or off (owner
+ * decision 2026-10-25: off by default). Security admin and a fresh sign-in
+ * check; takes effect on the next AI call and is written to the audit
+ * history.
+ */
+export async function setAiDataRuleAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const requireNoTraining = formData.get('requireNoTraining') === 'on';
+  const reason = String(formData.get('reason') ?? '').trim();
+
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'AI_SETTINGS_MANAGE'))) {
+      return DENIED;
+    }
+    const stepUp = await tryEstablishStepUp(
+      { accountId, action: 'AI_SETTINGS_DATA_RULE', resourceId: PLATFORM_WIDE_RESOURCE_ID },
+      AI_SETTINGS_PATH,
+    );
+    if (stepUp.kind === 'not_configured') {
+      return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
+    }
+    if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
+
+    const staff = await staffPrincipal(db, actor(accountId, email), 'AI_SETTINGS_MANAGE');
+    if (!staff.ok) return DENIED;
+    const saved = await setAiDataRuleSetting(db, staff.value, {
+      stepUpSatisfied: true,
+      requireNoTraining,
+      ...(reason ? { reason } : {}),
+    });
+    if (!saved.ok) return { ok: false, message: saved.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: requireNoTraining
+        ? 'Turned on. AI now runs only on providers recorded as not training on inputs.'
+        : 'Turned off. AI runs on the active provider whatever its data terms.',
+    } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(AI_SETTINGS_PATH);
+  return result;
 }
