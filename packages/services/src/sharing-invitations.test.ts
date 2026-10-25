@@ -1,10 +1,9 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
-import { PGlite } from '@electric-sql/pglite';
+import type { PGlite } from '@electric-sql/pglite';
 import { schema } from '@visastack/db';
+import { createMigratedPglite } from '@visastack/db/testing';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
-import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
@@ -21,7 +20,7 @@ import {
 } from './sharing-invitations';
 
 describe('personal sharing before registration', () => {
-  const client = new PGlite();
+  let client: PGlite;
   let db: Db;
   let owner: string;
   let applicantId: string;
@@ -54,10 +53,8 @@ describe('personal sharing before registration', () => {
     encryption,
   });
   beforeAll(async () => {
+    client = await createMigratedPglite();
     const handle = drizzle(client, { schema });
-    await migrate(handle, {
-      migrationsFolder: fileURLToPath(new URL('../../db/migrations', import.meta.url)),
-    });
     db = handle as unknown as Db;
     const account = await provisionAccount(db, { email: 'sharing-owner@example.test' });
     if (!account.ok) throw new Error('Fixture failed');

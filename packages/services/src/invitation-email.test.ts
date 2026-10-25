@@ -1,10 +1,9 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
-import { PGlite } from '@electric-sql/pglite';
+import type { PGlite } from '@electric-sql/pglite';
 import { schema } from '@visastack/db';
+import { createMigratedPglite } from '@visastack/db/testing';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
-import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import { createClientInvitation, revokeClientInvitation } from './client-invitations';
@@ -37,7 +36,7 @@ const encryption: KeyManagementPort = {
 };
 
 describe('invitation delivery before registration', () => {
-  const client = new PGlite();
+  let client: PGlite;
   let db: Db;
   let owner: string;
   let org: string;
@@ -58,10 +57,8 @@ describe('invitation delivery before registration', () => {
   const run = () =>
     runNotificationWorker(db, emailPort, 'https://app.example.test', { encryption });
   beforeAll(async () => {
+    client = await createMigratedPglite();
     const handle = drizzle(client, { schema });
-    await migrate(handle, {
-      migrationsFolder: fileURLToPath(new URL('../../db/migrations', import.meta.url)),
-    });
     db = handle as unknown as Db;
     const account = await provisionAccount(db, { email: 'owner@example.test' });
     if (!account.ok) throw new Error('Account setup failed');

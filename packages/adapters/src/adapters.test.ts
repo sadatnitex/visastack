@@ -1,7 +1,6 @@
-import { fileURLToPath } from 'node:url';
-import { PGlite } from '@electric-sql/pglite';
 import { isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
+import { createMigratedPglite } from '@visastack/db/testing';
 import {
   type Db,
   addDocumentVersion,
@@ -12,7 +11,6 @@ import {
   setConsent,
 } from '@visastack/services';
 import { drizzle } from 'drizzle-orm/pglite';
-import { migrate } from 'drizzle-orm/pglite/migrator';
 import JSZip from 'jszip';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { verifyBlobToken } from './blob-token';
@@ -21,13 +19,11 @@ import { NeonBlobStorage } from './neon-blob';
 import { BasicSafetyScanner } from './scanner';
 import { DeterministicTextExtractor } from './text-extraction';
 
-const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
 const SECRET = 'test-signing-secret';
 
 async function freshDb(): Promise<Db> {
-  const client = new PGlite();
+  const client = await createMigratedPglite();
   const db = drizzle(client, { schema });
-  await migrate(db, { migrationsFolder });
   return db as unknown as Db;
 }
 

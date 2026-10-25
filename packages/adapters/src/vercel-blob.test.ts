@@ -1,14 +1,11 @@
-import { fileURLToPath } from 'node:url';
-import { PGlite } from '@electric-sql/pglite';
 import { schema } from '@visastack/db';
+import { createMigratedPglite } from '@visastack/db/testing';
 import type { Db } from '@visastack/services';
 import { drizzle } from 'drizzle-orm/pglite';
-import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { verifyBlobToken } from './blob-token';
 import { VercelPrivateBlobStorage } from './vercel-blob';
 
-const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
 const SECRET = 'test-signing-secret';
 
 /**
@@ -28,9 +25,8 @@ vi.mock('@vercel/blob', () => ({
 }));
 
 async function freshDb(): Promise<Db> {
-  const client = new PGlite();
+  const client = await createMigratedPglite();
   const db = drizzle(client, { schema });
-  await migrate(db, { migrationsFolder });
   return db as unknown as Db;
 }
 

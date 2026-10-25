@@ -1,10 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
-import { PGlite } from '@electric-sql/pglite';
+import type { PGlite } from '@electric-sql/pglite';
 import { schema } from '@visastack/db';
+import { createMigratedPglite } from '@visastack/db/testing';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
-import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
@@ -14,7 +13,7 @@ import { addDocumentVersion, registerDocument } from './documents';
 import { requestDocumentReExtraction } from './jobs';
 
 describe('owner-requested reading of a previously checked file', () => {
-  const client = new PGlite();
+  let client: PGlite;
   let db: Db;
   let owner: string;
   let other: string;
@@ -24,10 +23,8 @@ describe('owner-requested reading of a previously checked file', () => {
     return result.value;
   };
   beforeAll(async () => {
+    client = await createMigratedPglite();
     const handle = drizzle(client, { schema });
-    await migrate(handle, {
-      migrationsFolder: fileURLToPath(new URL('../../db/migrations', import.meta.url)),
-    });
     db = handle as unknown as Db;
     owner = value(await provisionAccount(db, { email: 'reader-owner@example.test' })).id;
     other = value(await provisionAccount(db, { email: 'reader-other@example.test' })).id;

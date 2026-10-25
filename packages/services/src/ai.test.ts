@@ -1,11 +1,9 @@
 import { randomBytes } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
-import { PGlite } from '@electric-sql/pglite';
 import { type Result, isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
+import { createMigratedPglite } from '@visastack/db/testing';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
-import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import {
@@ -47,12 +45,9 @@ import { editFact, getCurrentFactVersion, registerFieldDefinition } from './prof
 import { RATE_LIMITS } from './rate-limit';
 import { exhaustRateLimit } from './rate-limit.test-support';
 
-const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
-
 async function freshDb(): Promise<Db> {
-  const client = new PGlite();
+  const client = await createMigratedPglite();
   const db = drizzle(client, { schema });
-  await migrate(db, { migrationsFolder });
   return db as unknown as Db;
 }
 

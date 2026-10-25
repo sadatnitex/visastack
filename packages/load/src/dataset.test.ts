@@ -1,7 +1,6 @@
-import { fileURLToPath } from 'node:url';
-import { PGlite } from '@electric-sql/pglite';
 import { isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
+import { createMigratedPglite } from '@visastack/db/testing';
 import {
   type Db,
   listApplicantProfile,
@@ -13,21 +12,17 @@ import {
 } from '@visastack/services';
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
-import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { type DatasetManifest, TINY_SHAPE, makeRandom, seedDataset, skewedCounts } from './dataset';
 import { rowsOf } from './rows';
-
-const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
 
 describe('dataset generator (tiny shape, in-memory database)', () => {
   let db: Db;
   let manifest: DatasetManifest;
 
   beforeAll(async () => {
-    const client = new PGlite();
+    const client = await createMigratedPglite();
     const handle = drizzle(client, { schema });
-    await migrate(handle, { migrationsFolder });
     db = handle as unknown as Db;
     manifest = await seedDataset(db, TINY_SHAPE);
   }, 120_000);

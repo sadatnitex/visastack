@@ -1,10 +1,8 @@
-import { fileURLToPath } from 'node:url';
-import { PGlite } from '@electric-sql/pglite';
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
+import { createMigratedPglite } from '@visastack/db/testing';
 import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
-import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
@@ -36,8 +34,6 @@ import type {
   StoredBytes,
 } from './storage';
 
-const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
-
 /** Deterministic in-memory blob store — no S3, no network. */
 class FakeBlobStore implements BlobStore {
   private readonly objects = new Map<string, StoredBytes>();
@@ -56,9 +52,8 @@ class FakeBlobStore implements BlobStore {
 }
 
 async function freshDb(): Promise<Db> {
-  const client = new PGlite();
+  const client = await createMigratedPglite();
   const db = drizzle(client, { schema });
-  await migrate(db, { migrationsFolder });
   return db as unknown as Db;
 }
 

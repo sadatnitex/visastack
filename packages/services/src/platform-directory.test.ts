@@ -1,24 +1,19 @@
-import { fileURLToPath } from 'node:url';
-import { PGlite } from '@electric-sql/pglite';
 import { isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
+import { createMigratedPglite } from '@visastack/db/testing';
 import { drizzle } from 'drizzle-orm/pglite';
-import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import type { Db } from './db';
 import { listPlatformMembers } from './platform-directory';
 import { grantPlatformRole, revokePlatformRole } from './platform-roles';
 
-const client = new PGlite();
+const client = await createMigratedPglite();
 const embeddedDb = drizzle(client, { schema });
 const db = embeddedDb as unknown as Db;
 let owner: { accountId: string; email: string; bootstrapEmails: string[] };
 let staff: { accountId: string; email: string; bootstrapEmails: string[] };
 beforeAll(async () => {
-  await migrate(embeddedDb, {
-    migrationsFolder: fileURLToPath(new URL('../../db/migrations', import.meta.url)),
-  });
   const a = await provisionAccount(db, { email: 'directory-owner@example.test' });
   const b = await provisionAccount(db, { email: 'directory-staff@example.test' });
   if (!isOk(a) || !isOk(b)) throw new Error('synthetic accounts');

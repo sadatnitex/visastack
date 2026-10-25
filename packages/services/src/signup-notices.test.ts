@@ -1,9 +1,7 @@
-import { fileURLToPath } from 'node:url';
-import { PGlite } from '@electric-sql/pglite';
 import { schema } from '@visastack/db';
+import { createMigratedPglite } from '@visastack/db/testing';
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
-import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Db } from './db';
 import { pruneExpiredRateLimitBuckets } from './rate-limit';
@@ -25,11 +23,7 @@ const input = {
 describe('signup notice acknowledgement', () => {
   let db: Db;
   beforeEach(async () => {
-    const client = new PGlite();
-    const handle = drizzle(client, { schema });
-    await migrate(handle, {
-      migrationsFolder: fileURLToPath(new URL('../../db/migrations', import.meta.url)),
-    });
+    const handle = drizzle(await createMigratedPglite(), { schema });
     db = handle as unknown as Db;
   });
 

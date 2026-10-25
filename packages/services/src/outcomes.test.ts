@@ -1,9 +1,7 @@
-import { fileURLToPath } from 'node:url';
-import { PGlite } from '@electric-sql/pglite';
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
+import { createMigratedPglite } from '@visastack/db/testing';
 import { drizzle } from 'drizzle-orm/pglite';
-import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
@@ -15,12 +13,9 @@ import { createOrganization, reviewOrganization } from './organizations';
 import { listOutcomesForMission, recordOutcome } from './outcomes';
 import { acceptGrant, createGrant } from './sharing';
 
-const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
-
 async function freshDb(): Promise<Db> {
-  const client = new PGlite();
+  const client = await createMigratedPglite();
   const db = drizzle(client, { schema });
-  await migrate(db, { migrationsFolder });
   return db as unknown as Db;
 }
 
@@ -312,7 +307,18 @@ describe('OPS-04 (Commercial V1 Part 9): outcome analytics', () => {
       dedupeKey: null,
     });
     const stored = JSON.stringify(events[0]);
-    for (const leaked of ['320', 'breach', 'overstayed', 'appeal', 'proportionality']) {
+    // Each fragment contains a character a random id or timestamp can never hold (a bracket, or a
+    // letter outside 0-9a-f), so the check cannot fail by chance. A bare '320' once matched a
+    // random id ('...2141b3209fbb') and failed CI.
+    for (const leaked of [
+      '320(11)',
+      'paragraph',
+      'Refused under',
+      'breach',
+      'overstayed',
+      'appeal',
+      'proportionality',
+    ]) {
       expect(stored).not.toContain(leaked);
     }
   });

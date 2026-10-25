@@ -1,14 +1,12 @@
-import { fileURLToPath } from 'node:url';
-import { PGlite } from '@electric-sql/pglite';
 import { schema } from '@visastack/db';
+import { createMigratedPglite } from '@visastack/db/testing';
 import { drizzle } from 'drizzle-orm/pglite';
-import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import type { Db } from './db';
 import { getPlatformOverview } from './platform-overview';
 import { grantPlatformRole, revokePlatformRole } from './platform-roles';
-const client = new PGlite();
+const client = await createMigratedPglite();
 const embedded = drizzle(client, { schema });
 const db = embedded as unknown as Db;
 let owner: { accountId: string; email: string; bootstrapEmails: string[] };
@@ -16,9 +14,6 @@ let outsider: typeof owner;
 let roleId: string;
 const now = new Date('2026-10-11T12:00:00Z');
 beforeAll(async () => {
-  await migrate(embedded, {
-    migrationsFolder: fileURLToPath(new URL('../../db/migrations', import.meta.url)),
-  });
   const a = await provisionAccount(db, { email: 'overview-owner@example.test' });
   const b = await provisionAccount(db, { email: 'overview-outsider@example.test' });
   if (!a.ok || !b.ok) throw new Error('Synthetic identities');
