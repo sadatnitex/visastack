@@ -217,6 +217,9 @@ export function VisaPhotoSizes({ documentId, returnTo, actingFor }: VisaPhotoSiz
     setCrop((c) => ({ ...c, zoom: clamp(c.zoom + dz, CROP_ZOOM_MIN, CROP_ZOOM_MAX) }));
 
   const startDownload = async () => {
+    // aria-disabled (not disabled) keeps the button focusable while it works, so a second press
+    // has to be ignored here.
+    if (download.kind === 'working') return;
     setDownload({ kind: 'working' });
     try {
       const response = await fetch('/api/documents/photo-size', {
@@ -419,7 +422,7 @@ export function VisaPhotoSizes({ documentId, returnTo, actingFor }: VisaPhotoSiz
                 type="button"
                 className="btn btn-primary visa-photo-download"
                 onClick={startDownload}
-                disabled={download.kind === 'working'}
+                aria-disabled={download.kind === 'working' ? true : undefined}
               >
                 Download This Size
               </button>
