@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 describe('the retired sign-in callback', () => {
   it.each(['', '?code=stale&state=stale&returnTo=https%3A%2F%2Fother.example.test'])(
@@ -14,15 +14,13 @@ describe('the retired sign-in callback', () => {
   );
 
   it('does so even if a leftover setting still names the old provider', async () => {
-    const previous = process.env['IDENTITY_PROVIDER'];
-    process.env['IDENTITY_PROVIDER'] = 'workos';
+    vi.stubEnv('IDENTITY_PROVIDER', 'workos');
     try {
       const { GET } = await import('./route');
       const response = await GET(new NextRequest('https://example.test/callback?code=test'));
       expect(response.headers.get('location')).toBe('https://example.test/auth/sign-in');
     } finally {
-      if (previous === undefined) delete process.env['IDENTITY_PROVIDER'];
-      else process.env['IDENTITY_PROVIDER'] = previous;
+      vi.unstubAllEnvs();
     }
   });
 });
