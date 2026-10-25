@@ -101,11 +101,16 @@ describe('the Record hub page', () => {
       expect(textOf(html)).not.toContain('You have not added a document yet');
       expect(list.length).toBeGreaterThan(0);
       expect(list.every((item) => item.kind === 'details')).toBe(true);
+      const [browser] = stubProps<{ documentsLoaded: boolean }>(html, 'RecordBrowser');
+      expect(browser?.documentsLoaded).toBe(false);
     }
   });
 
   it('uses one name for the page and its section link', async () => {
     const { html } = await items();
+    expect(stubProps<{ documentsLoaded: boolean }>(html, 'RecordBrowser')[0]?.documentsLoaded).toBe(
+      true,
+    );
     expect(textOf(html)).toContain('All Records');
     expect(textOf(html)).not.toContain('Personal Record');
   });
@@ -144,15 +149,11 @@ describe('the Record hub page', () => {
     const { items: list } = await items();
     const finished = byTitle(list, 'Synthetic finished');
     expect(finished?.usable).toBe(true);
-    expect(finished?.actions.map((action) => action.label)).toEqual([
-      'View',
-      'Update or Replace',
-      'Use in Case',
-      'Share',
-    ]);
-    expect(finished?.actions.at(-1)?.href).toBe(
-      `/app/applicant/${person}/sharing?document=finished#new-sharing-request`,
-    );
+    expect(finished?.href).toBe(`/app/applicant/${person}/documents?document=finished`);
+    expect(finished?.action).toEqual({
+      label: 'Share',
+      href: `/app/applicant/${person}/sharing?document=finished#new-sharing-request`,
+    });
     const expected: Record<string, string> = {
       'Synthetic unscanned': 'Still Being Checked',
       'Synthetic held': 'Cannot Be Used',
@@ -165,10 +166,15 @@ describe('the Record hub page', () => {
       const item = byTitle(list, title);
       expect(item?.status.label, title).toBe(label);
       expect(item?.usable, title).toBe(false);
-      expect(
-        item?.actions.map((action) => action.label),
-        title,
-      ).not.toContain('Share');
+      expect(item?.action?.label, title).not.toBe('Share');
     }
+  });
+});
+
+describe('the Record while it loads', () => {
+  it('shows the list outline, labelled for what is coming', async () => {
+    const { default: Loading } = await import('./loading');
+    const html = await renderServer(Loading());
+    expect(textOf(html)).toContain('Loading your record');
   });
 });

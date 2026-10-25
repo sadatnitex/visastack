@@ -75,7 +75,10 @@ export interface RecordItem {
   readonly needsAttention: boolean;
   readonly previousVersion: boolean;
   readonly facts: readonly string[];
-  readonly actions: readonly RecordAction[];
+  /** Where the item's title leads: the item's own page (a document, or its place in the profile). */
+  readonly href: string;
+  /** At most one further action, the most useful one for the item's state. Others live on the item page. */
+  readonly action: RecordAction | null;
   readonly searchText: string;
 }
 
@@ -136,20 +139,18 @@ function documentItem(base: string, doc: RecordDocumentInput): RecordItem {
   const replace = doc.typeKey
     ? `${base}/documents?type=${encodeURIComponent(doc.typeKey)}#document-upload`
     : `${base}/documents#document-upload`;
-  const actions: RecordAction[] = [{ label: 'View', href: view }];
-  // An old copy is kept for the record; the actions that would reuse it point at its replacement.
-  if (state.previousVersion && doc.replacedBy) {
-    actions.push({
-      label: 'Open the Current Version',
-      href: `${base}/documents?document=${encodeURIComponent(doc.replacedBy.id)}`,
-    });
-  } else if (!state.previousVersion) {
-    actions.push({ label: 'Update or Replace', href: replace });
-    if (state.usable) {
-      actions.push({ label: 'Use in Case', href: `${base}${CASES_PATH}` });
-      actions.push({ label: 'Share', href: share });
-    }
-  }
+  // One further action, chosen by state: a ready copy can be shared; an old copy points at its
+  // replacement instead of being reused; anything else can be updated or replaced.
+  const action: RecordAction | null = state.previousVersion
+    ? doc.replacedBy
+      ? {
+          label: 'Open the Current Version',
+          href: `${base}/documents?document=${encodeURIComponent(doc.replacedBy.id)}`,
+        }
+      : null
+    : state.usable
+      ? { label: 'Share', href: share }
+      : { label: 'Update or Replace', href: replace };
   const facts = [
     ...reviewReasons(doc.review),
     doc.version !== null ? `Version ${doc.version}` : null,
@@ -168,7 +169,8 @@ function documentItem(base: string, doc: RecordDocumentInput): RecordItem {
     type: doc.typeLabel,
     ...state,
     facts,
-    actions,
+    href: view,
+    action,
     searchText: [doc.name, doc.typeLabel, group, state.status.label, ...facts]
       .filter(Boolean)
       .join(' ')
@@ -194,14 +196,10 @@ function detailsItem(base: string, section: RecordDetailsInput): RecordItem {
     needsAttention: false,
     previousVersion: false,
     facts,
-    actions: [
-      {
-        label: 'View or Update',
-        href: `${base}/profile#section-${encodeURIComponent(section.key)}`,
-      },
-      // Cases match their requirements against saved details, so only a section with answers is offered.
-      ...(section.answered > 0 ? [{ label: 'Use in Case', href: `${base}${CASES_PATH}` }] : []),
-    ],
+    href: `${base}/profile#section-${encodeURIComponent(section.key)}`,
+    // Cases match their requirements against saved details, so only a section with answers
+    // offers the way to them. It opens the case list; it does not attach anything.
+    action: section.answered > 0 ? { label: 'Go to Cases', href: `${base}${CASES_PATH}` } : null,
     searchText: [section.label, section.groupLabel, ...facts].join(' ').toLocaleLowerCase(),
   };
 }

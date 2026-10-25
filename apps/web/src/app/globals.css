@@ -6247,31 +6247,10 @@ body:has(.auth-shell) > .footer {
   margin-left: 0;
 }
 
-/* WP-V3 part 2: four-tab shell and the Personal Record hub. The Record sections bar sits above
-   each Record page; the hub reuses the wallet filter strip and controls. Every control is at
-   least 44px tall, and everything wraps, so nothing scrolls sideways on a 320px phone. */
-.record-sections {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 0 0 1.25rem;
-}
-.record-sections a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  padding: 0 16px;
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-pill);
-  color: var(--text);
-  font-size: var(--text-small);
-  font-weight: 600;
-  text-decoration: none;
-}
-.record-sections a[aria-current="page"] {
-  border-color: var(--accent);
-  background: var(--brand-bg);
-}
+/* WP-V3 part 2: four-tab shell and the Personal Record hub. The Record sections use the shared
+   .subnav tabs. The hub has its own five-cell filter strip (one hairline between cells, never two),
+   reuses the wallet's Category and Search controls and pagination, and keeps every control at
+   least 44px tall. Everything wraps, so nothing scrolls sideways on a 320px phone. */
 .record-hub,
 .record-hub-group,
 .record-hub-item {
@@ -6283,22 +6262,58 @@ body:has(.auth-shell) > .footer {
   padding: 0;
   border: 0;
 }
+/* The cells sit on the strip's own background with a 1px gap, so each divider is one hairline
+   whatever the number of columns. */
 .record-hub-filters {
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  margin: var(--space-5) 0;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: var(--hairline-soft);
+  overflow: hidden;
 }
 .record-hub-filters button {
-  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
   min-width: 0;
+  min-height: 44px;
+  padding: var(--space-4);
+  border: 0;
+  border-radius: 0;
+  background: var(--bg-elevated);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
   overflow-wrap: anywhere;
+  cursor: pointer;
 }
-.record-hub-controls {
-  grid-template-columns: minmax(0, 1fr) minmax(8rem, 0.6fr);
+.record-hub-filters button[aria-pressed="true"] {
+  background: var(--brand-bg);
+}
+.record-hub-filters button:disabled {
+  color: var(--text-secondary);
+  cursor: default;
+}
+.record-hub-filters strong {
+  font-size: var(--text-title);
+}
+.record-hub-filter-unavailable {
+  font-size: var(--text-small);
+}
+.record-hub-count {
+  display: block;
+  margin-bottom: var(--space-3);
 }
 .record-hub-group {
-  margin-top: 1rem;
+  margin-top: var(--space-4);
 }
 .record-hub-group h3 {
-  margin: 0 0 0.75rem;
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-lead);
 }
 .record-hub-list,
 .record-hub-facts {
@@ -6307,8 +6322,8 @@ body:has(.auth-shell) > .footer {
   padding: 0;
 }
 .record-hub-item {
-  padding: 1rem 0;
-  border-top: 1px solid var(--hairline);
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--hairline-soft);
 }
 .record-hub-item:first-child {
   border-top: 0;
@@ -6319,17 +6334,21 @@ body:has(.auth-shell) > .footer {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
 }
-.record-hub-item-head strong {
+.record-hub-item-title {
+  display: inline-flex;
+  align-items: center;
   min-width: 0;
+  min-height: 44px;
+  font-weight: 650;
   overflow-wrap: anywhere;
 }
 .record-hub-facts {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 16px;
-  margin-top: 0.5rem;
+  gap: var(--space-1) var(--space-4);
+  margin-top: var(--space-2);
   color: var(--text-secondary);
   font-size: var(--text-small);
 }
@@ -6340,8 +6359,8 @@ body:has(.auth-shell) > .footer {
 .record-hub-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 0.75rem;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
 }
 .record-hub-actions .btn {
   min-height: 44px;
@@ -6355,11 +6374,8 @@ body:has(.auth-shell) > .footer {
   .record-hub-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .record-hub-controls {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .record-hub-actions .btn {
-    flex: 1 1 calc(50% - 8px);
-    padding: 0 12px;
+  /* Five cells in two columns: the last one spans the row, so no empty cell shows. */
+  .record-hub-filters button:last-child {
+    grid-column: 1 / -1;
   }
 }

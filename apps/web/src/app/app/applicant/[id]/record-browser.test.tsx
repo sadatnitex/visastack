@@ -66,7 +66,7 @@ afterEach(() => {
 });
 
 const titles = () =>
-  [...container.querySelectorAll('.record-hub-item strong')].map((node) => node.textContent);
+  [...container.querySelectorAll('.record-hub-item-title')].map((node) => node.textContent);
 function type(value: string) {
   const input = container.querySelector<HTMLInputElement>('input[type="search"]');
   if (!input) throw new Error('search box missing');
@@ -76,17 +76,29 @@ function type(value: string) {
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
 }
+const filterButton = (label: string) =>
+  [...container.querySelectorAll<HTMLButtonElement>('.record-hub-filters button')].find((button) =>
+    button.textContent?.startsWith(label),
+  );
 
 describe('the Record browser', () => {
-  it('lists details and documents in their groups with labelled search and group controls', () => {
+  it('follows the wallet pattern: filters, Category, then Search, then a visible count', () => {
     act(() => root.render(<RecordBrowser items={items} />));
     expect(titles()).toEqual(['About You', 'Synthetic Passport', 'Synthetic Bank Letter']);
     expect(
       [...container.querySelectorAll('.record-hub-group h3')].map((h) => h.textContent),
     ).toEqual(['You', 'Identity', 'Money']);
-    expect(container.querySelector('label input[type="search"]')).not.toBeNull();
-    expect(container.querySelector('label select')).not.toBeNull();
-    expect(container.querySelector('output')?.textContent).toBe('3 records shown');
+    const labels = [...container.querySelectorAll('.wallet-filter-controls label')];
+    expect(labels.map((label) => label.firstChild?.textContent?.trim())).toEqual([
+      'Category',
+      'Search Your Record',
+    ]);
+    expect(labels[0]?.querySelector('select')?.options[0]?.textContent).toBe('All Categories');
+    expect(labels[1]?.querySelector('input[type="search"]')).not.toBeNull();
+    const count = container.querySelector('output');
+    expect(count?.textContent).toBe('3 items match.');
+    expect(count?.getAttribute('aria-live')).toBe('polite');
+    expect(count?.className).not.toContain('sr-only');
     // Each group is named by its own heading, and the filters are announced as one group.
     for (const section of container.querySelectorAll('section.record-hub-group')) {
       const heading = section.querySelector('h3');
@@ -96,12 +108,14 @@ describe('the Record browser', () => {
     const filters = container.querySelector('fieldset');
     expect(filters?.querySelector('legend')?.textContent).toBe('Record Filters');
     expect(filters?.querySelectorAll('button')).toHaveLength(5);
+    expect(filters?.querySelector('.wallet-overview-strip')).toBeNull();
   });
 
   it('narrows by metadata and says plainly when nothing matches', () => {
     act(() => root.render(<RecordBrowser items={items} />));
     type('bank');
     expect(titles()).toEqual(['Synthetic Bank Letter']);
+    expect(container.querySelector('output')?.textContent).toBe('1 item matches.');
     type('no such record');
     expect(titles()).toEqual([]);
     expect(container.querySelector('.record-hub-empty')?.textContent).toContain('Nothing matches');
@@ -109,36 +123,73 @@ describe('the Record browser', () => {
 
   it('the Ready to Use filter leaves out a refused file', () => {
     act(() => root.render(<RecordBrowser items={items} />));
-    const ready = [
-      ...container.querySelectorAll<HTMLButtonElement>('.record-hub-filters button'),
-    ].find((button) => button.textContent?.startsWith('Ready to Use'));
+    const ready = filterButton('Ready to Use');
     act(() => ready?.click());
     expect(ready?.getAttribute('aria-pressed')).toBe('true');
     expect(titles()).toEqual(['Synthetic Passport']);
   });
 
-  it('every action is a link to an existing page of this person, named for its record', () => {
+  it('each title opens its item, with at most one further action per row', () => {
     act(() => root.render(<RecordBrowser items={items} />));
-    const links = [...container.querySelectorAll<HTMLAnchorElement>('.record-hub-actions a')];
-    expect(links.length).toBeGreaterThan(0);
-    for (const link of links) expect(link.getAttribute('href')?.startsWith(base)).toBe(true);
-    expect(links.map((link) => link.getAttribute('aria-label'))).toContain(
+    const rows = [...container.querySelectorAll('.record-hub-item')];
+    for (const row of rows) {
+      expect(
+        row.querySelector('.record-hub-item-title')?.getAttribute('href')?.startsWith(base),
+      ).toBe(true);
+      expect(row.querySelectorAll('.record-hub-actions a').length).toBeLessThanOrEqual(1);
+    }
+    const actions = [...container.querySelectorAll('.record-hub-actions a')].map((link) =>
+      link.getAttribute('aria-label'),
+    );
+    expect(actions).toEqual([
+      'Go to Cases: About You',
       'Share: Synthetic Passport',
+      'Update or Replace: Synthetic Bank Letter',
+    ]);
+  });
+
+  it('when documents did not load, their filters say so instead of counting zero', () => {
+    const details = items.filter((item) => item.kind === 'details');
+    act(() => root.render(<RecordBrowser items={details} documentsLoaded={false} />));
+    for (const label of ['Ready to Use', 'Needs Attention', 'Previous Versions']) {
+      const button = filterButton(label);
+      expect(button?.disabled, label).toBe(true);
+      expect(button?.textContent, label).toContain('Not available right now');
+      expect(button?.querySelector('strong'), label).toBeNull();
+    }
+    expect(filterButton('Everything')?.disabled).toBe(false);
+    type('no such record');
+    expect(container.querySelector('.record-hub-empty')).toBeNull();
+  });
+
+  it('pages a long record twelve at a time, as the wallet does', () => {
+    const many = Array.from({ length: 13 }, (_, index) =>
+      document(
+        `40000000-0000-4000-8000-0000000001${String(index).padStart(2, '0')}`,
+        `Synthetic File ${index + 1}`,
+      ),
     );
-    expect(links.map((link) => link.getAttribute('aria-label'))).not.toContain(
-      'Share: Synthetic Bank Letter',
-    );
+    const long = buildRecordItems({ applicantId: person, details: [], documents: many });
+    act(() => root.render(<RecordBrowser items={long} />));
+    expect(titles()).toHaveLength(12);
+    expect(container.querySelector('output')?.textContent).toBe('13 items match. Page 1 of 2.');
+    const next = [
+      ...container.querySelectorAll<HTMLButtonElement>('.wallet-pagination button'),
+    ].find((button) => button.textContent === 'Next');
+    act(() => next?.click());
+    expect(titles()).toEqual(['Synthetic File 13']);
   });
 });
 
 describe('the Record section links', () => {
-  it('show on each Record page with the current section marked', () => {
+  it('use the shared section tabs on each Record page, with the current section marked', () => {
     route.pathname = `${base}/expiry`;
     act(() => root.render(<RecordSections applicantId={person} />));
-    const links = [...container.querySelectorAll('nav[aria-label="Record sections"] a')];
-    expect(links.map((a) => a.textContent)).toEqual([
+    const nav = container.querySelector('nav.subnav[aria-label="Record Sections"]');
+    expect(nav).not.toBeNull();
+    expect([...(nav?.querySelectorAll('a') ?? [])].map((a) => a.textContent)).toEqual([
       'All Records',
-      'Profile',
+      'My Profile',
       'Documents',
       'Dates & Expiry',
       'History',
@@ -155,8 +206,8 @@ describe('the Record section links', () => {
   });
 });
 
-describe('the Record styles fit a 320px phone', () => {
-  it('sit in one marked block, wrap, and keep 44px targets', async () => {
+describe('the Record styles fit a 320px phone and use the shared tokens', () => {
+  it('sit in one marked block, wrap, keep 44px targets, and draw single hairlines', async () => {
     const { readFileSync } = await import('node:fs');
     const css = readFileSync(`${process.cwd()}/src/app/globals.css`, 'utf8');
     const start = css.indexOf('/* WP-V3 part 2:');
@@ -165,14 +216,28 @@ describe('the Record styles fit a 320px phone', () => {
     const next = css.slice(start + 1).search(/\/\* WP-[A-Z0-9]+/);
     const block = next < 0 ? css.slice(start) : css.slice(start, start + 1 + next);
     expect(block).toContain('.record-hub-filter-set {');
-    expect(block).toMatch(/\.record-sections \{[^}]*flex-wrap: wrap;/);
-    expect(block).toMatch(/\.record-sections a \{[^}]*min-height: 44px;/);
+    // The one-off pill tabs are gone; the section tabs are the shared .subnav.
+    expect(css).not.toMatch(/\.record-sections\b/);
+    // Its own five-cell strip: one hairline between cells, the last cell spanning on a phone.
+    expect(block).toMatch(
+      /\.record-hub-filters \{[^}]*grid-template-columns: repeat\(5, minmax\(0, 1fr\)\);[^}]*gap: 1px;[^}]*background: var\(--hairline-soft\);/,
+    );
+    expect(block).toMatch(/\.record-hub-filters button \{[^}]*border: 0;/);
+    expect(block).toMatch(
+      /@media \(max-width: 760px\) \{[^@]*\.record-hub-filters \{\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[^@]*\.record-hub-filters button:last-child \{\s*grid-column: 1 \/ -1;/,
+    );
+    expect(block).toMatch(/\.record-hub-item \{[^}]*border-top: 1px solid var\(--hairline-soft\);/);
+    expect(block).toMatch(/\.record-hub-group h3 \{[^}]*font-size: var\(--text-lead\);/);
     expect(block).toMatch(/\.record-hub-actions \{[^}]*flex-wrap: wrap;/);
     expect(block).toMatch(/\.record-hub-actions \.btn \{[^}]*min-height: 44px;/);
     expect(block).toMatch(/\.record-hub-filters button \{[^}]*min-height: 44px;/);
-    expect(block).toMatch(
-      /@media \(max-width: 760px\) \{[^@]*\.record-hub-controls \{\s*grid-template-columns: minmax\(0, 1fr\);/,
-    );
+    expect(block).toMatch(/\.record-hub-item-title \{[^}]*min-height: 44px;/);
+    // Tokens only: no raw colours, and spacing on the shared scale.
+    expect(block).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/);
+    for (const rule of block.matchAll(/(?:margin|padding|gap)[a-z-]*:\s*([^;]+);/g)) {
+      const value = rule[1] ?? '';
+      expect(value, rule[0]).toMatch(/^(?:0|1px|var\(--space-\d\))(?: (?:0|var\(--space-\d\)))*$/);
+    }
     // No fixed width anywhere in the block that could push a phone screen sideways.
     expect(block).not.toMatch(/(?:^|[\s;{])width:\s*\d{3,}px/);
     expect(block).not.toMatch(/white-space:\s*nowrap/);

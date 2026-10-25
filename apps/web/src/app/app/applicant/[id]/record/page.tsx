@@ -160,7 +160,7 @@ export default async function ApplicantRecordPage({
           a passport or other document whenever you have it.
         </p>
       ) : null}
-      <RecordBrowser items={items} />
+      <RecordBrowser items={items} documentsLoaded={documentsLoaded} />
       {closedSections > 0 ? (
         <p className="muted">
           {closedSections === 1

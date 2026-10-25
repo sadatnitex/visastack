@@ -120,50 +120,52 @@ describe('document state never overstates what a file can be used for', () => {
   });
 });
 
-describe('actions point only at existing pages', () => {
-  it('a ready document offers View, Update or Replace, Use in Case and Share', () => {
+describe('each item: its title opens it, and at most one further action', () => {
+  const view = `${base}/documents?document=40000000-0000-4000-8000-000000000001`;
+
+  it('a ready document opens its page from the title and offers Share for that document', () => {
     const [, item] = build([doc()]);
-    expect(item?.actions).toEqual([
-      { label: 'View', href: `${base}/documents?document=40000000-0000-4000-8000-000000000001` },
-      { label: 'Update or Replace', href: `${base}/documents?type=passport#document-upload` },
-      { label: 'Use in Case', href: `${base}/missions` },
-      {
-        label: 'Share',
-        href: `${base}/sharing?document=40000000-0000-4000-8000-000000000001#new-sharing-request`,
-      },
-    ]);
+    expect(item?.href).toBe(view);
+    expect(item?.action).toEqual({
+      label: 'Share',
+      href: `${base}/sharing?document=40000000-0000-4000-8000-000000000001#new-sharing-request`,
+    });
   });
 
-  it('a file that cannot be used is never offered for a case or for sharing', () => {
-    const [, item] = build([doc({ processingStatus: 'REJECTED' })]);
-    expect(item?.actions.map((action) => action.label)).toEqual(['View', 'Update or Replace']);
+  it('a document that is not ready offers Update or Replace, never Share', () => {
+    for (const overrides of [
+      { processingStatus: 'REJECTED' },
+      { checked: false },
+      { lifecycle: 'EXPIRED' as const },
+      { review: { expiryMissing: true, kindNeedsCheck: false, namePending: false } },
+    ]) {
+      const [, item] = build([doc(overrides as Partial<RecordDocumentInput>)]);
+      expect(item?.action).toEqual({
+        label: 'Update or Replace',
+        href: `${base}/documents?type=passport#document-upload`,
+      });
+    }
   });
 
   it('a previous version points at its replacement instead of being reused', () => {
-    const [, item] = build([
-      doc({
-        lifecycle: 'SUPERSEDED',
-        replacedBy: { id: '40000000-0000-4000-8000-000000000002', name: 'Synthetic Passport 2' },
-      }),
-    ]);
+    const replacedBy = { id: '40000000-0000-4000-8000-000000000002', name: 'Synthetic Passport 2' };
+    const [, item] = build([doc({ lifecycle: 'SUPERSEDED', replacedBy })]);
     expect(item?.previousVersion).toBe(true);
-    expect(item?.actions.map((action) => action.label)).toEqual([
-      'View',
-      'Open the Current Version',
-    ]);
+    expect(item?.action).toEqual({
+      label: 'Open the Current Version',
+      href: `${base}/documents?document=40000000-0000-4000-8000-000000000002`,
+    });
     expect(item?.facts).toContain('Replaced by Synthetic Passport 2');
+    expect(build([doc({ lifecycle: 'SUPERSEDED' })])[1]?.action).toBeNull();
   });
 
   it('a profile section opens its own place in the profile', () => {
     const [item] = build([]);
-    expect(item?.actions[0]).toEqual({
-      label: 'View or Update',
-      href: `${base}/profile#section-employment`,
-    });
+    expect(item?.href).toBe(`${base}/profile#section-employment`);
     expect(item?.facts).toEqual(['2 of 5 details saved']);
   });
 
-  it('Use in Case is offered for a profile section only once it holds a saved answer', () => {
+  it('Go to Cases is offered for a profile section only once it holds a saved answer', () => {
     const items = buildRecordItems({
       applicantId: person,
       details: [
@@ -171,17 +173,16 @@ describe('actions point only at existing pages', () => {
       ],
       documents: [],
     });
-    expect(items[0]?.actions.map((action) => action.label)).toEqual(['View or Update']);
-    expect(build([])[0]?.actions.map((action) => action.label)).toEqual([
-      'View or Update',
-      'Use in Case',
-    ]);
+    expect(items[0]?.action).toBeNull();
+    expect(build([])[0]?.action).toEqual({ label: 'Go to Cases', href: `${base}/missions` });
   });
 
   it('a document without a kind falls back to the upload form and its own group', () => {
-    const [, item] = build([doc({ typeKey: null, typeLabel: null, groupLabel: null })]);
+    const [, item] = build([
+      doc({ typeKey: null, typeLabel: null, groupLabel: null, checked: false }),
+    ]);
     expect(item?.group).toBe('Kind Not Set Yet');
-    expect(item?.actions[1]?.href).toBe(`${base}/documents#document-upload`);
+    expect(item?.action?.href).toBe(`${base}/documents#document-upload`);
   });
 });
 

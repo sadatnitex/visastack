@@ -200,7 +200,7 @@ describe('workspace navigation link list (characterization)', () => {
     expect(nav.settings).toEqual([]);
     expect(pairs(recordSections(self))).toEqual([
       ['All Records', `${base}/record`],
-      ['Profile', `${base}/profile`],
+      ['My Profile', `${base}/profile`],
       ['Documents', `${base}/documents`],
       ['Dates & Expiry', `${base}/expiry`],
       ['History', `${base}/history`],

@@ -10,66 +10,85 @@ import {
   filterRecordItems,
 } from './record-hub';
 
+/** The same page length as the documents wallet. */
+const PAGE_SIZE = 12;
+
+/** Filters that only documents can match; they have nothing to count when documents did not load. */
+const DOCUMENT_FILTERS: ReadonlySet<RecordFilter> = new Set(['ready', 'attention', 'previous']);
+
 /**
  * Find anything in the Personal Record by its details (WP-V3 part 2). The list arrives from the
- * server already limited to what the owner can see; searching and filtering only narrow it.
+ * server already limited to what the owner can see; searching and filtering only narrow it. The
+ * controls follow the documents wallet: state filters, then Category, then Search, then a count.
  */
-export function RecordBrowser({ items }: { readonly items: readonly RecordItem[] }) {
+export function RecordBrowser({
+  items,
+  documentsLoaded = true,
+}: {
+  readonly items: readonly RecordItem[];
+  /** False when the documents could not be read, so document counts are unknown, not zero. */
+  readonly documentsLoaded?: boolean;
+}) {
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState('all');
   const [filter, setFilter] = useState<RecordFilter>('all');
+  const [page, setPage] = useState(0);
   const searchId = useId();
   const groupId = useId();
   const groupsId = useId();
   const groups = [...new Set(items.map((item) => item.group))];
   const matches = filterRecordItems(items, { query, group, filter });
+  const pageCount = Math.max(1, Math.ceil(matches.length / PAGE_SIZE));
+  const activePage = Math.min(page, pageCount - 1);
+  const visible = matches.slice(activePage * PAGE_SIZE, (activePage + 1) * PAGE_SIZE);
   const counts = Object.fromEntries(
     RECORD_FILTERS.map(({ key }) => [
       key,
       filterRecordItems(items, { query: '', group: 'all', filter: key }).length,
     ]),
   ) as Record<RecordFilter, number>;
-  const shownGroups = groups.filter((name) => matches.some((item) => item.group === name));
+  const shownGroups = groups.filter((name) => visible.some((item) => item.group === name));
+  const unavailable = (key: RecordFilter) => !documentsLoaded && DOCUMENT_FILTERS.has(key);
 
   return (
     <div className="record-hub">
       <fieldset className="record-hub-filter-set">
         <legend className="sr-only">Record Filters</legend>
-        <div className="wallet-overview-strip record-hub-filters">
+        <div className="record-hub-filters">
           {RECORD_FILTERS.map(({ key, label }) => (
             <button
               key={key}
               type="button"
               aria-pressed={filter === key}
-              onClick={() => setFilter(key)}
+              disabled={unavailable(key)}
+              onClick={() => {
+                setFilter(key);
+                setPage(0);
+              }}
             >
               <span>{label}</span>
-              <strong>{counts[key]}</strong>
+              {unavailable(key) ? (
+                <span className="record-hub-filter-unavailable">Not available right now</span>
+              ) : (
+                <strong>{counts[key]}</strong>
+              )}
             </button>
           ))}
         </div>
       </fieldset>
-      <div className="wallet-filter-controls record-hub-controls">
-        <label htmlFor={searchId}>
-          Search Your Record
-          <input
-            id={searchId}
-            className="input"
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Names, kinds, groups or cases"
-          />
-        </label>
+      <div className="wallet-filter-controls">
         <label htmlFor={groupId}>
-          Group
+          Category
           <select
             id={groupId}
             className="input"
             value={group}
-            onChange={(event) => setGroup(event.target.value)}
+            onChange={(event) => {
+              setGroup(event.target.value);
+              setPage(0);
+            }}
           >
-            <option value="all">All Groups</option>
+            <option value="all">All Categories</option>
             {groups.map((name) => (
               <option key={name} value={name}>
                 {name}
@@ -77,14 +96,32 @@ export function RecordBrowser({ items }: { readonly items: readonly RecordItem[]
             ))}
           </select>
         </label>
+        <label htmlFor={searchId}>
+          Search Your Record
+          <input
+            id={searchId}
+            className="input"
+            type="search"
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setPage(0);
+            }}
+            placeholder="Names, kinds, categories or cases"
+          />
+        </label>
       </div>
-      <output className="sr-only" aria-live="polite">
-        {matches.length === 1 ? '1 record shown' : `${matches.length} records shown`}
+      <output className="muted record-hub-count" aria-live="polite">
+        {matches.length === 1 ? '1 item matches.' : `${matches.length} items match.`}
+        {pageCount > 1 ? ` Page ${activePage + 1} of ${pageCount}.` : null}
       </output>
       {matches.length === 0 ? (
-        <p className="notice record-hub-empty">
-          Nothing matches. Clear the search or choose another group or filter.
-        </p>
+        // When documents did not load, the alert above already explains the short list.
+        documentsLoaded ? (
+          <p className="notice record-hub-empty">
+            Nothing matches. Clear the search or choose another category or filter.
+          </p>
+        ) : null
       ) : (
         shownGroups.map((name, index) => (
           <section
@@ -94,12 +131,14 @@ export function RecordBrowser({ items }: { readonly items: readonly RecordItem[]
           >
             <h3 id={`${groupsId}-${index}`}>{name}</h3>
             <ul className="record-hub-list">
-              {matches
+              {visible
                 .filter((item) => item.group === name)
                 .map((item) => (
                   <li key={item.id} className="record-hub-item" data-kind={item.kind}>
                     <div className="record-hub-item-head">
-                      <strong dir="auto">{item.title}</strong>
+                      <Link className="record-hub-item-title" href={item.href} dir="auto">
+                        {item.title}
+                      </Link>
                       <StatusBadge tone={item.status.tone}>{item.status.label}</StatusBadge>
                     </div>
                     {item.type ? <p className="muted">{item.type}</p> : null}
@@ -108,24 +147,43 @@ export function RecordBrowser({ items }: { readonly items: readonly RecordItem[]
                         <li key={fact}>{fact}</li>
                       ))}
                     </ul>
-                    <div className="record-hub-actions">
-                      {item.actions.map((action) => (
+                    {item.action ? (
+                      <div className="record-hub-actions">
                         <Link
-                          key={action.label}
                           className="btn btn-secondary"
-                          href={action.href}
-                          aria-label={`${action.label}: ${item.title}`}
+                          href={item.action.href}
+                          aria-label={`${item.action.label}: ${item.title}`}
                         >
-                          {action.label}
+                          {item.action.label}
                         </Link>
-                      ))}
-                    </div>
+                      </div>
+                    ) : null}
                   </li>
                 ))}
             </ul>
           </section>
         ))
       )}
+      {pageCount > 1 ? (
+        <div className="wallet-pagination" aria-label="Record pages">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={activePage === 0}
+            onClick={() => setPage(activePage - 1)}
+          >
+            Previous
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={activePage + 1 === pageCount}
+            onClick={() => setPage(activePage + 1)}
+          >
+            Next
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

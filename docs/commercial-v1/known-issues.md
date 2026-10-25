@@ -5427,3 +5427,12 @@ Documentation only. The bidesh365 master profile (54 sections) was compared with
 - On `/app` only Home is current. Account and Permissions now opens `/app#permissions`, the permissions section of the same page.
 - One name for the hub page: the tab is Record; the section link and the heading are All Records.
 - Tests added: a test for the Record page (not found for a non-owner before any read; documents could not be loaded; the server rule with realistic states), sharing preselection tests for the page and the form, and a one-current-link test on `/app`. The stylesheet test no longer depends on the block being last. Each new guard was broken on purpose and went red.
+
+### 2026-10-25, WP-V3 part 2: design fidelity fixes
+
+- Record sections now use the product's shared section tabs (`SubNav`, one underlined row that scrolls the current tab into view) instead of a one-off row of pills, which is deleted. They show only on Record pages, above the page heading, as other section tabs do. My Profile keeps its own areas as a side list (a picker on a phone), so no page shows two rows of tabs. The section link now reads My Profile, matching that page's heading.
+- The Record filter strip has its own five-cell grid: one hairline between cells, five across on a laptop, two across on a phone with the last cell spanning the row. When documents could not be loaded, the document filters say "Not available right now" instead of counting zero, and the "Nothing matches" notice is left out.
+- The controls follow the documents wallet: Category before Search, a visible "N items match" count that is also read out, and pages of twelve.
+- Each row's title opens the item; each row has at most one further action: Share for a ready document, Update or Replace for one that is not ready, Open the Current Version for an old copy, Go to Cases (renamed from Use in Case, since it only opens the case list) for a profile section with saved answers.
+- New loading outline for the Record. Dividers use the soft hairline; spacing uses the shared spacing scale; group headings use the lead size; tokens only, no raw colours.
+- Each new guard was broken on purpose and went red.
