@@ -7,6 +7,9 @@
  * already checks who may use it: the record only gathers what the owner can already see.
  */
 
+/** The applicant's cases page, relative to the record base path. */
+const CASES_PATH = '/missions';
+
 export type RecordTone = 'success' | 'warning' | 'danger' | 'neutral';
 export type DocumentLifecycle = 'UNKNOWN' | 'CURRENT' | 'EXPIRING' | 'EXPIRED' | 'SUPERSEDED';
 
@@ -143,7 +146,7 @@ function documentItem(base: string, doc: RecordDocumentInput): RecordItem {
   } else if (!state.previousVersion) {
     actions.push({ label: 'Update or Replace', href: replace });
     if (state.usable) {
-      actions.push({ label: 'Use in Case', href: `${base}/missions` });
+      actions.push({ label: 'Use in Case', href: `${base}${CASES_PATH}` });
       actions.push({ label: 'Share', href: share });
     }
   }
@@ -197,7 +200,7 @@ function detailsItem(base: string, section: RecordDetailsInput): RecordItem {
         href: `${base}/profile#section-${encodeURIComponent(section.key)}`,
       },
       // Cases match their requirements against saved details, so only a section with answers is offered.
-      ...(section.answered > 0 ? [{ label: 'Use in Case', href: `${base}/missions` }] : []),
+      ...(section.answered > 0 ? [{ label: 'Use in Case', href: `${base}${CASES_PATH}` }] : []),
     ],
     searchText: [section.label, section.groupLabel, ...facts].join(' ').toLocaleLowerCase(),
   };
