@@ -9,6 +9,8 @@ const data = vi.hoisted(() => ({
   proposals: 0,
   missions: 0,
   pendingGrants: 0,
+  memberships: [] as { active: boolean }[],
+  platformAdmin: false,
 }));
 
 vi.mock('../../lib/session', () => ({
@@ -16,6 +18,7 @@ vi.mock('../../lib/session', () => ({
     fn({ db: {}, accountId: 'acct-1', email: 'me@example.com' }),
 }));
 vi.mock('../../lib/locale', () => ({ getLocale: async () => 'en' }));
+vi.mock('../../lib/admin', () => ({ isPlatformAdmin: async () => data.platformAdmin }));
 vi.mock('@visastack/services', () => ({
   getConsents: async () => data.consents,
   listApplicants: async () => data.applicants,
@@ -23,6 +26,7 @@ vi.mock('@visastack/services', () => ({
     Array.from({ length: data.pendingGrants }, () => ({
       grant: { status: 'PENDING_ACCEPTANCE' },
     })),
+  listMembershipsForAccount: async () => data.memberships,
   listDocuments: async () => ({ ok: true, value: Array.from({ length: data.documents }) }),
   listPendingProposals: async () => Array.from({ length: data.proposals }),
   listMissions: async () => ({
@@ -55,6 +59,8 @@ beforeEach(() => {
   data.proposals = 0;
   data.missions = 0;
   data.pendingGrants = 0;
+  data.memberships = [];
+  data.platformAdmin = false;
 });
 
 describe('home (characterization before WP-V3)', () => {
@@ -163,7 +169,7 @@ describe('task-first first run (WP-V3, D8)', () => {
 
   it('with a valid return path, finishes the two screens and goes to that task instead', async () => {
     data.consents = CORE;
-    const next = '/invitation?kind=client&token=abc';
+    const next = '/app/client-invitations/accept?token=abc';
     const html = await page({ next });
     expect(textOf(html)).toContain('Step 2 of 2');
     expect(stubProps(html, 'AddApplicantForm')).toHaveLength(1);
@@ -196,6 +202,7 @@ describe('task-first first run (WP-V3, D8)', () => {
       '/app/%2e%2e/api/x',
       '/app%2f..%2fapi/x',
       '/invitation/../api/x',
+      '/invitation?kind=client&token=abc',
     ]) {
       const text = textOf(await page({ next }));
       expect(text).toContain('Welcome back');
@@ -227,5 +234,39 @@ describe('task-first first run (WP-V3, D8)', () => {
     expect(text).not.toMatch(/Step [12] of 2/);
     expect(text).not.toContain('What do you want to do?');
     expect(text).toContain('Welcome back');
+  });
+
+  it('never sends agency staff, platform staff or someone with shared access through first run', async () => {
+    for (const setup of [
+      () => {
+        data.memberships = [{ active: true }];
+      },
+      () => {
+        data.platformAdmin = true;
+      },
+      () => {
+        data.pendingGrants = 1;
+      },
+    ]) {
+      data.memberships = [];
+      data.platformAdmin = false;
+      data.pendingGrants = 0;
+      setup();
+      data.consents = {};
+      expect(textOf(await page())).not.toContain('Step 1 of 2');
+      data.consents = CORE;
+      const text = textOf(await page());
+      expect(text).not.toContain('Step 2 of 2');
+      expect(text).toContain('Welcome back');
+    }
+  });
+
+  it('offers a waiting sharing invitation as the request to complete', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.pendingGrants = 1;
+    const html = await page({ welcome: '1' });
+    expect(textOf(html)).toContain('Complete a request');
+    expect(html).toContain('href="/app/shared"');
   });
 });

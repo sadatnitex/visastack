@@ -25,7 +25,7 @@ afterEach(() => {
 const posted = () => {
   const form = container.querySelector('form');
   if (!form) throw new Error('form');
-  return [...new FormData(form).entries()].filter(([k]) => k !== 'whoFor' && k !== 'managedKind');
+  return [...new FormData(form).entries()].map(([k, v]) => [k, String(v)]);
 };
 const radio = (label: string) =>
   [...container.querySelectorAll('label')]
@@ -33,40 +33,57 @@ const radio = (label: string) =>
     ?.querySelector('input');
 
 describe('first-run "Who is this record for?"', () => {
-  it('starts with Me and sends the same value as the existing form (SELF)', () => {
+  it('starts with Me and sends the choice with the radio itself', () => {
     act(() => root.render(<AddApplicantForm firstRun />));
     expect(container.textContent).toContain('Who is this record for?');
     expect(container.textContent).toContain('Name as on the passport');
     expect(posted()).toEqual([
-      ['relationship', 'SELF'],
+      ['whoFor', 'SELF'],
       ['displayName', ''],
     ]);
-    expect(container.querySelector('input[name="authorityConfirmed"]')).toBeNull();
-    const submit = container.querySelector<HTMLButtonElement>('button[type="submit"]');
-    expect(submit?.textContent).toBe('Continue');
-    // Ready once mounted: Continue is not held back after the page has loaded.
-    expect(submit?.disabled).toBe(false);
+    expect(container.querySelector('input[name="relationship"]')).toBeNull();
+    const authority = container.querySelector<HTMLInputElement>('input[name="authorityConfirmed"]');
+    expect(authority?.required).toBe(false);
+    expect(container.querySelector('button[type="submit"]')?.textContent).toBe('Continue');
   });
 
-  it('Someone I manage reveals Family member or Minor and the authority confirmation', () => {
+  it('Someone I manage sends Family member or Minor and requires the authority confirmation', () => {
     act(() => root.render(<AddApplicantForm firstRun />));
     act(() => radio('Someone I manage')?.click());
     expect(container.textContent).toContain('Family member');
     expect(container.textContent).toContain('Minor (guardian)');
-    const authority = container.querySelector<HTMLInputElement>('input[name="authorityConfirmed"]');
-    expect(authority?.required).toBe(true);
-    expect(posted()[0]).toEqual(['relationship', 'FAMILY_MEMBER']);
+    expect(
+      container.querySelector<HTMLInputElement>('input[name="authorityConfirmed"]')?.required,
+    ).toBe(true);
+    expect(posted().slice(0, 2)).toEqual([
+      ['whoFor', 'MANAGED'],
+      ['managedKind', 'FAMILY_MEMBER'],
+    ]);
     act(() => radio('Minor (guardian)')?.click());
-    expect(posted()[0]).toEqual(['relationship', 'MINOR_GUARDIAN']);
+    expect(posted()[1]).toEqual(['managedKind', 'MINOR_GUARDIAN']);
     act(() => radio('Me')?.click());
-    expect(posted()[0]).toEqual(['relationship', 'SELF']);
-    expect(container.querySelector('input[name="authorityConfirmed"]')).toBeNull();
+    expect(posted()[0]).toEqual(['whoFor', 'SELF']);
   });
 
-  it('holds Continue back until the page is ready, so an early tap cannot save the wrong person', async () => {
+  it('works before the page has loaded its scripts: the markup alone carries the choice', async () => {
     const { renderToString } = await import('react-dom/server');
     const html = renderToString(<AddApplicantForm firstRun />);
-    expect(html).toMatch(/<button[^>]*type="submit"[^>]*disabled/);
+    // A real radio named whoFor, already on Me, and a submit button that is not held back.
+    const markup = document.createElement('div');
+    markup.innerHTML = html;
+    expect(
+      markup.querySelector('input[name="whoFor"][value="SELF"]')?.hasAttribute('checked'),
+    ).toBe(true);
+    expect(markup.querySelector('button[type="submit"]')?.hasAttribute('disabled')).toBe(false);
+    // The second question is in the page and shown by style, not by script.
+    expect(
+      markup.querySelector('input[name="managedKind"][value="MINOR_GUARDIAN"]'),
+    ).not.toBeNull();
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(`${process.cwd()}/src/app/globals.css`, 'utf8');
+    expect(css).toMatch(
+      /\.first-run-form:not\(:has\(input\[name="whoFor"\]\[value="MANAGED"\]:checked\)\) \.first-run-managed \{\s*display: none;/,
+    );
   });
 
   it('the existing form is unchanged without firstRun, and needs no router', () => {

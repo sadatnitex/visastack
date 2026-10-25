@@ -6052,6 +6052,15 @@ body:has(.auth-shell) > .footer {
   color: var(--text-secondary);
   font-size: var(--text-small);
 }
+/* The second question shows only for Someone I manage, by style alone, so it works without scripts. */
+.first-run-form:not(:has(input[name="whoFor"][value="MANAGED"]:checked)) .first-run-managed {
+  display: none;
+}
+.first-run-managed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
 .first-run-authority {
   display: flex;
   gap: 0.5rem;

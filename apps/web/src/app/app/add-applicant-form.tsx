@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useId, useRef, useState } from 'react';
+import { useActionState, useId, useRef, useState } from 'react';
 import {
   FormMessage,
   SubmitButton,
@@ -20,17 +20,27 @@ export function AddApplicantForm({ firstRun = false }: { readonly firstRun?: boo
   return firstRun ? <FirstRunApplicantForm /> : <ApplicantForm />;
 }
 
+/** The authority statement both forms ask for: one sentence, so a wording change reaches both. */
+const AUTHORITY_SENTENCE =
+  'I confirm I have authority to create and manage this record on their behalf. This is never assumed from a shared name or address.';
+
+type WhoFor = 'SELF' | 'MANAGED';
+type ManagedKind = 'FAMILY_MEMBER' | 'MINOR_GUARDIAN';
+
+/**
+ * The first-run form sends what the person chose with the radios themselves (whoFor, and
+ * managedKind for someone they manage), so it works the same before the page has finished
+ * loading or without scripts; the server works out the relationship from them. The second
+ * question and the authority confirmation show only for Someone I manage, by style alone.
+ */
 function FirstRunApplicantForm() {
   const [state, formAction, pending] = useActionState(createApplicantAction, INITIAL);
-  const [relationship, setRelationship] = useState('SELF');
+  const [whoFor, setWhoFor] = useState<WhoFor>('SELF');
+  const [managedKind, setManagedKind] = useState<ManagedKind | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const messageId = useId();
-  // The choice lives in this component's state, so Continue waits until the page is ready: a tap
-  // before then would otherwise send the default (Me) for someone looking after a relative.
-  const [ready, setReady] = useState(false);
-  useEffect(() => setReady(true), []);
   useFocusInvalidField(formRef, state);
-  const managed = relationship !== 'SELF';
+  const managed = whoFor === 'MANAGED';
   return (
     <form ref={formRef} action={formAction} className="first-run-form">
       <fieldset className="first-run-choice">
@@ -41,7 +51,7 @@ function FirstRunApplicantForm() {
             name="whoFor"
             value="SELF"
             checked={!managed}
-            onChange={() => setRelationship('SELF')}
+            onChange={() => setWhoFor('SELF')}
           />
           <span>
             <b>Me</b>
@@ -54,7 +64,10 @@ function FirstRunApplicantForm() {
             name="whoFor"
             value="MANAGED"
             checked={managed}
-            onChange={() => setRelationship('FAMILY_MEMBER')}
+            onChange={() => {
+              setWhoFor('MANAGED');
+              setManagedKind((kind) => kind ?? 'FAMILY_MEMBER');
+            }}
           />
           <span>
             <b>Someone I manage</b>
@@ -62,7 +75,7 @@ function FirstRunApplicantForm() {
           </span>
         </label>
       </fieldset>
-      {managed ? (
+      <div className="first-run-managed">
         <fieldset className="first-run-choice">
           <legend className="field-label">How are they related to you?</legend>
           <label>
@@ -70,8 +83,9 @@ function FirstRunApplicantForm() {
               type="radio"
               name="managedKind"
               value="FAMILY_MEMBER"
-              checked={relationship === 'FAMILY_MEMBER'}
-              onChange={() => setRelationship('FAMILY_MEMBER')}
+              checked={managedKind === 'FAMILY_MEMBER'}
+              onChange={() => setManagedKind('FAMILY_MEMBER')}
+              {...fieldProblem(state, 'managedKind', messageId)}
             />
             <span>
               <b>Family member</b>
@@ -83,8 +97,8 @@ function FirstRunApplicantForm() {
               type="radio"
               name="managedKind"
               value="MINOR_GUARDIAN"
-              checked={relationship === 'MINOR_GUARDIAN'}
-              onChange={() => setRelationship('MINOR_GUARDIAN')}
+              checked={managedKind === 'MINOR_GUARDIAN'}
+              onChange={() => setManagedKind('MINOR_GUARDIAN')}
             />
             <span>
               <b>Minor (guardian)</b>
@@ -92,8 +106,17 @@ function FirstRunApplicantForm() {
             </span>
           </label>
         </fieldset>
-      ) : null}
-      <input type="hidden" name="relationship" value={relationship} />
+        <label className="first-run-authority">
+          <input
+            type="checkbox"
+            name="authorityConfirmed"
+            value="true"
+            required={managed}
+            {...fieldProblem(state, 'authorityConfirmed', messageId)}
+          />
+          <span>{AUTHORITY_SENTENCE}</span>
+        </label>
+      </div>
       <div>
         <label className="field-label" htmlFor="displayName">
           Name as on the passport
@@ -107,28 +130,7 @@ function FirstRunApplicantForm() {
           {...fieldProblem(state, 'displayName', messageId)}
         />
       </div>
-      {managed ? (
-        <label className="first-run-authority">
-          <input
-            type="checkbox"
-            name="authorityConfirmed"
-            value="true"
-            required
-            {...fieldProblem(state, 'authorityConfirmed', messageId)}
-          />
-          <span>
-            I confirm I have authority to create and manage this record on their behalf. This is
-            never assumed from a shared name or address.
-          </span>
-        </label>
-      ) : null}
-      <SubmitButton
-        pending={pending}
-        unavailable={!ready}
-        idle="Continue"
-        busy="Saving…"
-        className="btn btn-primary"
-      />
+      <SubmitButton pending={pending} idle="Continue" busy="Saving…" className="btn btn-primary" />
       <FormMessage id={messageId} result={state} />
       <p className="muted first-run-note">
         You can change this later. Nothing is shared with anyone.
@@ -198,10 +200,7 @@ function ApplicantForm() {
             required
             {...fieldProblem(state, 'authorityConfirmed', messageId)}
           />
-          <span>
-            I confirm I have authority to create and manage this record on their behalf. This is
-            never assumed from a shared name or address.
-          </span>
+          <span>{AUTHORITY_SENTENCE}</span>
         </label>
       ) : null}
       <SubmitButton

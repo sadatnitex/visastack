@@ -20,3 +20,7 @@ docs/upgrades/programme/**
 docs/commercial-v1/known-issues.md
 # PROPOSED from the ledger: packages/services/src/profile.ts (authorized history projection), packages/services/src/consistency.ts (from WP-V2)
 # Note: profile-fields.ts is frozen by the Master Profile handoff until its Phase 2. Ask before editing.
+# Added 25 Oct 2026 under the owner's autonomous mandate (code review of WP-V3 part 1): the
+# create-applicant action reads the first-run radios itself, so the form works before scripts load.
+apps/web/src/app/app/actions.ts
+apps/web/src/app/app/actions.test.ts

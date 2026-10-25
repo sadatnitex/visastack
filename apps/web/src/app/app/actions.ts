@@ -51,13 +51,28 @@ export async function createApplicantAction(
   formData: FormData,
 ): Promise<ActionState> {
   const displayName = String(formData.get('displayName') ?? '').trim();
-  const relationshipRaw = String(formData.get('relationship') ?? 'SELF');
+  // The first-run form names the choice with its radios (whoFor, then managedKind), so it works
+  // before the page has loaded its scripts; the existing form sends `relationship` directly.
+  const whoFor = formData.get('whoFor');
+  let relationshipRaw = String(formData.get('relationship') ?? 'SELF');
+  if (whoFor === 'SELF') relationshipRaw = 'SELF';
+  if (whoFor === 'MANAGED') {
+    relationshipRaw = String(formData.get('managedKind') ?? '');
+    if (relationshipRaw !== 'FAMILY_MEMBER' && relationshipRaw !== 'MINOR_GUARDIAN') {
+      return {
+        ok: false,
+        message: 'Choose Family member or Minor (guardian).',
+        field: 'managedKind',
+      };
+    }
+  }
   const relationship: ApplicantRelationship = RELATIONSHIPS.includes(
     relationshipRaw as ApplicantRelationship,
   )
     ? (relationshipRaw as ApplicantRelationship)
     : 'SELF';
-  const authorityConfirmed = formData.get('authorityConfirmed') === 'true';
+  const authorityConfirmed =
+    relationship !== 'SELF' && formData.get('authorityConfirmed') === 'true';
   if (displayName.length === 0)
     return { ok: false, message: 'Enter a name.', field: 'displayName' };
   if (relationship !== 'SELF' && !authorityConfirmed) {
