@@ -6392,8 +6392,7 @@ body:has(.auth-shell) > .footer {
   }
 }
 
-/* ==========================================================================
-   WP-V4 agency (Programme X): Do Next list, follow-up message, and where a
+/* WP-V4 agency (Programme X): Do Next list, follow-up message, and where a
    case stands in the triage groups. Existing tokens only, flat Harbor Blue,
    44px targets, nothing wider than its container at 320px.
    ========================================================================== */
