@@ -1010,6 +1010,7 @@ export {
   type CreatedClientInvitation,
   acceptClientInvitation,
   createClientInvitation,
+  isAcceptableInvitationContact,
   listClientInvitations,
   previewClientInvitation,
   revokeClientInvitation,

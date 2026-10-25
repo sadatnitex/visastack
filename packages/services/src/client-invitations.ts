@@ -26,8 +26,9 @@ import { acceptGrant, createGrant } from './sharing';
  * account signed in with that same address may see the invitation's details or accept it. A
  * forwarded link or an unrelated account gets a neutral refusal that names no person, route or
  * case, and the check happens at acceptance, never at creation, so it reveals nothing to the
- * agency. A phone contact cannot be verified, so such an invitation stays claimable by any
- * signed-in holder of the link (recorded in known-issues as a residual).
+ * agency. Invitations go to an email address only (owner decision, 25 Oct 2026): a phone
+ * number cannot be checked against the signed-in account, so an older invitation stored with
+ * one can no longer be opened or accepted by anyone; the agency sends a new one by email.
  *
  * The agency supplies only a minimal display name/contact/route/case-owner; the accepting
  * traveller alone chooses which of their own applicant profiles (existing or newly created) the
@@ -40,27 +41,17 @@ export type ClientInvitation = typeof schema.clientInvitations.$inferSelect;
 const DEFAULT_EXPIRY_DAYS = 7;
 
 /**
- * The address an invitation is bound to, or undefined for a phone contact
- * (not verifiable). Fails closed: any contact containing "@" is treated as an
- * address and must match exactly, so a malformed one (a trailing dot, a name
- * in angle brackets) binds to nobody instead of opening to anyone.
+ * Whether a stored contact can still be accepted by someone: a valid email address, checked the
+ * same way as at creation. Anything else (a phone number saved before invitations became
+ * email-only, or a malformed address saved before creation-time checks) binds to nobody.
  */
-function boundEmail(contactDestination: string): string | undefined {
-  const value = contactDestination.trim().toLowerCase();
-  return value.includes('@') ? value : undefined;
+export function isAcceptableInvitationContact(contactDestination: string): boolean {
+  return isEmailAddress(contactDestination.trim().toLowerCase());
 }
 
-/**
- * A contact is either an email address or something shaped like a phone
- * number (digits with the usual +, spaces, dashes, dots and brackets; 7 to 15
- * digits), so free text such as "jane at example.com" cannot slip through as
- * an unbound contact.
- */
-function isValidContact(contact: string): boolean {
-  if (contact.includes('@')) return isEmailAddress(contact.toLowerCase());
-  if (contact.length > 32 || !/^\+?[0-9\s().-]+$/.test(contact)) return false;
-  const digits = contact.replace(/[^0-9]/g, '').length;
-  return digits >= 7 && digits <= 15;
+/** A contact saved before invitations became email-only (no address at all). */
+function isPhoneContact(contactDestination: string): boolean {
+  return !contactDestination.includes('@');
 }
 
 /** Whether `accountId` may see and accept an invitation sent to `contactDestination`. */
@@ -69,8 +60,11 @@ async function isIntendedRecipient(
   contactDestination: string,
   accountId: string,
 ): Promise<boolean> {
-  const bound = boundEmail(contactDestination);
-  if (!bound) return true;
+  // Fails closed: a phone contact binds to nobody, and a malformed address
+  // (a trailing dot, a name in angle brackets) matches no account exactly.
+  if (isPhoneContact(contactDestination)) return false;
+  // Compared exactly as account emails are stored (trimmed, lower case), like team invitations.
+  const bound = contactDestination.trim().toLowerCase();
   const account = first(
     await db
       .select({ email: schema.accounts.email })
@@ -84,11 +78,35 @@ async function isIntendedRecipient(
 /** The same neutral refusal sharing invitations give: it names no person, route or case. */
 const WRONG_RECIPIENT_MESSAGE = 'Use the email address that received this invitation.';
 
+/** For an older invitation sent to a phone number: what to do instead, naming nothing else. */
+const PHONE_INVITATION_MESSAGE =
+  'This invitation can no longer be used. Ask the agency to send you a new one by email.';
+
+const ALREADY_USED_MESSAGE = 'this invitation has already been used or revoked';
+
 /**
- * Audits a refused wrong-account attempt: ids only, never an address or a
- * name. Once per account, invitation and stage, so refreshing a page cannot
- * fill the permanent audit log. A failure to record never changes the
- * refusal the person sees.
+ * Why someone was refused, worked out once. A phone invitation is refused for everyone, so its
+ * status says nothing about any person: someone reopening one they already accepted is told it
+ * was used, not to ask for a new one (which would create a second case for the same client).
+ */
+function refusalOf(invitation: {
+  readonly contactDestination: string;
+  readonly status: string;
+}): { readonly reason: 'wrong_recipient' | 'phone_invitation'; readonly message: string } {
+  if (!isPhoneContact(invitation.contactDestination)) {
+    return { reason: 'wrong_recipient', message: WRONG_RECIPIENT_MESSAGE };
+  }
+  return {
+    reason: 'phone_invitation',
+    message: invitation.status === 'PENDING' ? PHONE_INVITATION_MESSAGE : ALREADY_USED_MESSAGE,
+  };
+}
+
+/**
+ * Audits a refused attempt (someone else's invitation, or an older phone invitation nobody can
+ * accept, told apart by `reason`): ids only, never an address or a name. Once per account,
+ * invitation and stage, so refreshing a page cannot fill the permanent audit log. A failure to
+ * record never changes the refusal the person sees.
  */
 async function recordWrongRecipient(
   db: Db,
@@ -96,6 +114,7 @@ async function recordWrongRecipient(
   invitationId: string,
   organizationId: string,
   stage: 'preview' | 'accept',
+  reason: 'wrong_recipient' | 'phone_invitation',
 ): Promise<void> {
   try {
     const already = first(
@@ -121,7 +140,7 @@ async function recordWrongRecipient(
         result: 'DENIED',
         resourceType: 'client_invitation',
         resourceId: invitationId,
-        reason: 'wrong_recipient',
+        reason,
         metadata: { organizationId, stage },
       });
     });
@@ -190,9 +209,12 @@ export async function createClientInvitation(
     return err(serviceError('invalid', 'a contact destination is required'));
   }
   // An address must be a real one: a malformed address would bind the
-  // invitation to nobody (see boundEmail) and no email could be sent.
-  if (!isValidContact(contactDestination)) {
-    return err(serviceError('invalid', 'Enter a valid email address, or a phone number.'));
+  // invitation to nobody and no email could be sent. Email only: a phone
+  // number cannot be checked against the account that accepts.
+  if (!isEmailAddress(contactDestination.toLowerCase())) {
+    return err(
+      serviceError('invalid', 'Enter a valid email address for the client, like name@example.com.'),
+    );
   }
 
   const rateLimit = await checkRateLimits(db, [
@@ -247,9 +269,9 @@ export async function createClientInvitation(
       resourceId: invitation.id,
       metadata: { organizationId: input.organizationId },
     });
-    const emailQueued =
-      input.encryption !== undefined && isEmailAddress(contactDestination.toLowerCase());
-    if (input.encryption && emailQueued) {
+    // The address is valid by now, so an email goes out whenever the server can send one.
+    const emailQueued = input.encryption !== undefined;
+    if (input.encryption) {
       await queueInvitationEmail(tx, {
         kind: 'client',
         invitationId: invitation.id,
@@ -309,8 +331,16 @@ export async function previewClientInvitation(
   if (!row) return err(serviceError('not_found', 'invitation not found'));
   // First, so someone else's link says nothing about whether it was used, revoked or expired.
   if (!(await isIntendedRecipient(db, row.contactDestination, viewerAccountId))) {
-    await recordWrongRecipient(db, viewerAccountId, row.id, row.organizationId, 'preview');
-    return err(serviceError('forbidden', WRONG_RECIPIENT_MESSAGE));
+    const refusal = refusalOf(row);
+    await recordWrongRecipient(
+      db,
+      viewerAccountId,
+      row.id,
+      row.organizationId,
+      'preview',
+      refusal.reason,
+    );
+    return err(serviceError('forbidden', refusal.message));
   }
   if (row.status !== 'PENDING') {
     return err(serviceError('invalid', 'this invitation has already been used or revoked'));
@@ -376,14 +406,16 @@ export async function acceptClientInvitation(
   // Checked first, before anything is claimed or created: a forwarded link
   // cannot spend the invitation or learn whether it was used, revoked or expired.
   if (!(await isIntendedRecipient(db, invitation.contactDestination, input.actorAccountId))) {
+    const refusal = refusalOf(invitation);
     await recordWrongRecipient(
       db,
       input.actorAccountId,
       invitation.id,
       invitation.organizationId,
       'accept',
+      refusal.reason,
     );
-    return err(serviceError('forbidden', WRONG_RECIPIENT_MESSAGE));
+    return err(serviceError('forbidden', refusal.message));
   }
   if (invitation.status !== 'PENDING') {
     return err(serviceError('invalid', 'this invitation has already been used or revoked'));
