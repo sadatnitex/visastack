@@ -24,6 +24,10 @@ jobs:
         github.event.deployment.environment == 'Production'))
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # The test account secrets live in this GitHub environment, which the
+    # owner limits to the main branch, so a run from any other branch cannot
+    # read them. Production deployment events carry the ref "main".
+    environment: live-check
     # One check at a time, and a new one waits rather than cancelling a check
     # in progress. At job level, so skipped preview events never touch it.
     concurrency:
