@@ -278,4 +278,18 @@ describe('grant review brief (WP-X2)', () => {
     );
     expect(container.textContent).not.toContain(sentence);
   });
+
+  it('says nothing about downloads when Preview is not ticked, since no document shows', () => {
+    ready();
+    act(() =>
+      container.querySelector<HTMLInputElement>('input[value="DOWNLOAD_REDACTED"]')?.click(),
+    );
+    act(() => container.querySelector<HTMLInputElement>('input[value="PREVIEW"]')?.click());
+    review();
+    const text = container.querySelector('.sharing-scope-review')?.textContent ?? '';
+    expect(text).toContain('none of your documents');
+    expect(text).toContain('Downloads are not included.');
+    expect(text).not.toContain('Redacted copies may be downloaded');
+    expect(container.querySelector('.scope-summary-download')).toBeNull();
+  });
 });

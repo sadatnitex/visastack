@@ -78,7 +78,9 @@ export function GrantForm({
       extraCategories.find((extra) => extra.key === c)?.label ??
       c,
   );
-  const canDownload = actions.includes('DOWNLOAD_REDACTED');
+  // Owner decision 25 Oct 2026: download wording only when Preview is also
+  // ticked, since without Preview no document shows to the recipient at all.
+  const canDownload = actions.includes('DOWNLOAD_REDACTED') && actions.includes('PREVIEW');
   const scope = describeGrantScope({
     actions,
     caseGrant: false,
