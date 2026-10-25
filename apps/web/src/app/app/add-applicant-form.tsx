@@ -109,7 +109,7 @@ function FirstRunApplicantForm() {
       </div>
       <div>
         <label className="field-label" htmlFor="displayName">
-          Name as on the passport
+          Name as on the Passport
         </label>
         <input
           id="displayName"
