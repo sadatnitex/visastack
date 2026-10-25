@@ -9,7 +9,7 @@ function readEnv(name: string): string | undefined {
 /**
  * The canonical production origin for any absolute URL this app mints
  * (signed blob URLs, invitation links). Falls back to the Vercel-provided
- * URL, then to the registered redirect origin, never a local address.
+ * URL, then to the known production address, never a local address.
  * Extracted from `storage.ts`'s own original copy once a second caller
  * (`invitations.ts`) needed the identical resolution logic.
  */

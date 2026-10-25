@@ -6,20 +6,14 @@ import {
   NullPaymentPort,
   ResendEmailPort,
 } from '@visastack/adapters';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 /**
  * The central provider registry (master directive §7 "PR 11"): every
  * `*_PROVIDER` var is optional (pilot default applies when unset) but fails
  * loudly the moment it's SET to a value this deployment doesn't implement —
  * never a silent fallback to the hardcoded default.
- *
- * `@workos-inc/authkit-nextjs` is mocked purely so `./providers` (which
- * imports `./identity-provider`) resolves outside a Next.js runtime — its
- * real `withAuth` behavior is exercised separately in
- * identity-provider.test.ts, never called by anything here.
  */
-vi.mock('@workos-inc/authkit-nextjs', () => ({ withAuth: vi.fn() }));
 
 const ENV_KEYS = [
   'IDENTITY_PROVIDER',
@@ -74,7 +68,7 @@ describe('validateProviderEnv', () => {
   }, 15_000);
 
   it('passes when every var is explicitly set to its supported value', async () => {
-    setEnv('IDENTITY_PROVIDER', 'workos');
+    setEnv('IDENTITY_PROVIDER', 'neon_auth');
     setEnv('STORAGE_PROVIDER', 'vercel_blob');
     setEnv('DATABASE_PROVIDER', 'neon');
     setEnv('MALWARE_SCANNER_PROVIDER', 'builtin');
@@ -131,23 +125,25 @@ describe('validateProviderEnv', () => {
 });
 
 describe('createIdentityPort', () => {
-  it('returns the WorkOS pilot/commercial-track identity port by default', async () => {
+  it('returns the Neon identity port, the only sign-in system, when IDENTITY_PROVIDER is unset', async () => {
     const { createIdentityPort } = await import('./providers');
-    const { WorkosIdentityPort } = await import('./identity-provider');
-    expect(createIdentityPort()).toBeInstanceOf(WorkosIdentityPort);
+    const { NeonIdentityPort } = await import('./identity-provider');
+    expect(createIdentityPort()).toBeInstanceOf(NeonIdentityPort);
   });
 
-  it('selects the Neon identity port only when IDENTITY_PROVIDER is neon_auth', async () => {
+  it('returns the Neon identity port when IDENTITY_PROVIDER is neon_auth', async () => {
     setEnv('IDENTITY_PROVIDER', 'neon_auth');
     const { createIdentityPort } = await import('./providers');
     const { NeonIdentityPort } = await import('./identity-provider');
     expect(createIdentityPort()).toBeInstanceOf(NeonIdentityPort);
   });
 
-  it('throws for an unrecognized IDENTITY_PROVIDER instead of silently using WorkOS anyway', async () => {
-    setEnv('IDENTITY_PROVIDER', 'okta');
-    const { createIdentityPort } = await import('./providers');
-    expect(() => createIdentityPort()).toThrow(/IDENTITY_PROVIDER/);
+  it('refuses a leftover workos setting, or any other value, instead of guessing', async () => {
+    for (const value of ['workos', 'okta']) {
+      setEnv('IDENTITY_PROVIDER', value);
+      const { createIdentityPort } = await import('./providers');
+      expect(() => createIdentityPort(), value).toThrow(/IDENTITY_PROVIDER/);
+    }
   });
 });
 

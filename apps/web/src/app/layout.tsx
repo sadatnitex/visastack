@@ -46,8 +46,8 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: { readonly children: ReactNode }) {
-  // Read-only check of the sign-in system this deployment uses, so the nav reflects the real
-  // session on WorkOS and on Neon Auth. It never writes cookies during render and defaults to
+  // Read-only check of the Neon Auth session, so the nav reflects the real session. It never
+  // writes cookies during render and defaults to
   // signed-out if the read fails, so a hiccup never breaks the whole shell.
   const signedIn = await isSignedIn();
   const locale = await getLocale();

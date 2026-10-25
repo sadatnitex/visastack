@@ -12,7 +12,7 @@ import {
 import { getPlatformCapabilities } from './capabilities';
 import { evaluateCommercialReadiness, evaluateOperationalReadiness } from './commercial-readiness';
 import { getDeploymentMode } from './deployment-mode';
-import { isPresent, isSignInConfigured } from './env';
+import { NEON_AUTH_ENV_VARS, isPresent, isSignInConfigured } from './env';
 import { SHIPPED_MIGRATIONS } from './migration-journal';
 import { validateProviderEnv } from './providers';
 
@@ -26,8 +26,6 @@ import { validateProviderEnv } from './providers';
  * deployed build, reveals only the coarse verdict (OPS-03: public health is
  * coarse, admin readiness is detailed, secret presence is never public).
  */
-
-const WORKOS_ENV_VARS = ['WORKOS_API_KEY', 'WORKOS_CLIENT_ID', 'WORKOS_COOKIE_PASSWORD'] as const;
 
 function presenceMap(names: readonly string[]): Record<string, boolean> {
   return Object.fromEntries(names.map((name) => [name, isPresent(name)]));
@@ -43,8 +41,7 @@ export interface ReadinessReport {
   readonly deploymentMode: ReturnType<typeof getDeploymentMode>;
   readonly env: {
     readonly database: Record<string, boolean>;
-    readonly workos: Record<string, boolean>;
-    readonly redirectUri: boolean;
+    readonly signIn: Record<string, boolean>;
   };
   readonly db: { connected: boolean; schemaApplied: boolean; error?: string };
   readonly migrations: MigrationReadiness;
@@ -63,8 +60,7 @@ export async function evaluateReadiness(): Promise<ReadinessReport> {
 
   const env = {
     database: presenceMap(DATABASE_URL_ENV_CANDIDATES),
-    workos: presenceMap(WORKOS_ENV_VARS),
-    redirectUri: isPresent('NEXT_PUBLIC_WORKOS_REDIRECT_URI'),
+    signIn: presenceMap(NEON_AUTH_ENV_VARS),
   };
 
   let db: ReadinessReport['db'] = { connected: false, schemaApplied: false };

@@ -70,8 +70,7 @@ const readiness = {
   deploymentMode: 'controlled_pilot',
   env: {
     database: { DATABASE_URL: true },
-    workos: { WORKOS_API_KEY: true, WORKOS_CLIENT_ID: true, WORKOS_COOKIE_PASSWORD: false },
-    redirectUri: true,
+    signIn: { NEON_AUTH_BASE_URL: true, NEON_AUTH_COOKIE_SECRET: false },
   },
   db: { connected: true, schemaApplied: true },
   migrations: { checked: true, applied: 83, expected: 84, pending: ['0083_example'] },
@@ -191,7 +190,7 @@ describe('Platform > Operations', () => {
     expect(text).toContain('Platform readiness detail');
     expect(text).toContain('Degraded: something required is missing');
     expect(text).toContain('1 pending: 0083_example');
-    expect(text).toContain('missing: WORKOS_COOKIE_PASSWORD');
+    expect(text).toContain('missing: NEON_AUTH_COOKIE_SECRET');
     expect(html).toContain('id="admin-platform-readiness"');
   });
 

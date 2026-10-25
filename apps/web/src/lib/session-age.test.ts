@@ -1,24 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * `enforceSessionAgeLimit`/`isStaffContext` (Commercial V1 SEC-01; directive
- * Part 2 §5). Mocks the same WorkOS entry point `step-up.test.ts` already
- * mocks, plus the two service-layer lookups `isStaffContext` composes; real
- * DB access is exercised separately by `listMembershipsForAccount`'s and
- * `isPlatformAdmin`'s own tests. `getSignInUrl` is deliberately NOT mocked
- * or imported here any more -- `enforceSessionAgeLimit` never calls it
- * directly (see the function's own doc comment on why: it would set a
- * cookie during a Server Component render, which Next.js refuses); it
- * builds a link to `/api/session-reauth` instead, which is what actually
- * calls `getSignInUrl`, in a Route Handler where that's legal.
+ * `enforceSessionAgeLimit`/`isStaffContext` (Commercial V1 SEC-01; directive Part 2 §5). Mocks
+ * how long ago the person last typed their password (`neonSessionAgeSeconds`) plus the two
+ * service-layer lookups `isStaffContext` composes; real DB access is exercised separately by
+ * `listMembershipsForAccount`'s and `isPlatformAdmin`'s own tests. The re-check link is built for
+ * real.
  */
 
-const checkRecentAuth = vi.fn();
+const neonSessionAgeSeconds = vi.fn();
 const listMembershipsForAccount = vi.fn();
 const isPlatformAdmin = vi.fn();
 
-vi.mock('@workos-inc/authkit-nextjs', () => ({
-  checkRecentAuth: (...args: unknown[]) => checkRecentAuth(...args),
+vi.mock('./neon-recency', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./neon-recency')>()),
+  neonSessionAgeSeconds: (...args: unknown[]) => neonSessionAgeSeconds(...args),
 }));
 
 vi.mock('@visastack/services', () => ({
@@ -33,7 +29,7 @@ const CTX = { accountId: 'acct-1', email: 'traveller@example.com' };
 const DB = {} as never;
 
 beforeEach(() => {
-  checkRecentAuth.mockReset();
+  neonSessionAgeSeconds.mockReset();
   listMembershipsForAccount.mockReset();
   isPlatformAdmin.mockReset();
 });
@@ -77,39 +73,41 @@ describe('isStaffContext', () => {
 });
 
 describe('enforceSessionAgeLimit', () => {
+  const STAFF = 12 * 60 * 60;
+  const TRAVELLER = 7 * 24 * 60 * 60;
+
   it('applies the 12-hour staff threshold when staffContext is true', async () => {
-    checkRecentAuth.mockResolvedValue({ authenticatedAt: new Date(), isStale: false });
     const { enforceSessionAgeLimit } = await import('./session-age');
-    const result = await enforceSessionAgeLimit(true, '/app');
-    expect(result).toEqual({ satisfied: true });
-    expect(checkRecentAuth).toHaveBeenCalledWith({ maxAge: 12 * 60 * 60 });
+    neonSessionAgeSeconds.mockResolvedValue(STAFF);
+    expect(await enforceSessionAgeLimit(true, '/app')).toEqual({ satisfied: true });
+    neonSessionAgeSeconds.mockResolvedValue(STAFF + 1);
+    expect((await enforceSessionAgeLimit(true, '/app')).satisfied).toBe(false);
   });
 
   it('applies the 7-day traveller threshold when staffContext is false', async () => {
-    checkRecentAuth.mockResolvedValue({ authenticatedAt: new Date(), isStale: false });
     const { enforceSessionAgeLimit } = await import('./session-age');
-    const result = await enforceSessionAgeLimit(false, '/app');
-    expect(result).toEqual({ satisfied: true });
-    expect(checkRecentAuth).toHaveBeenCalledWith({ maxAge: 7 * 24 * 60 * 60 });
+    // Older than the staff limit, still inside the traveller limit.
+    neonSessionAgeSeconds.mockResolvedValue(STAFF + 1);
+    expect(await enforceSessionAgeLimit(false, '/app')).toEqual({ satisfied: true });
+    neonSessionAgeSeconds.mockResolvedValue(TRAVELLER + 1);
+    expect((await enforceSessionAgeLimit(false, '/app')).satisfied).toBe(false);
   });
 
-  it('returns a link to the session-reauth Route Handler, never a bare boolean, once the threshold is exceeded -- never WorkOS directly (that would call getSignInUrl mid-render)', async () => {
-    checkRecentAuth.mockResolvedValue({ authenticatedAt: null, isStale: true });
+  it('returns the password re-check page, never a bare boolean, once the threshold is exceeded', async () => {
+    neonSessionAgeSeconds.mockResolvedValue(STAFF + 1);
     const { enforceSessionAgeLimit } = await import('./session-age');
-    const result = await enforceSessionAgeLimit(true, '/app');
-    expect(result).toEqual({
+    expect(await enforceSessionAgeLimit(true, '/app')).toEqual({
       satisfied: false,
-      reauthUrl: `/api/session-reauth?maxAge=${12 * 60 * 60}&returnTo=%2Fapp`,
+      reauthUrl: '/auth/reauth?returnTo=%2Fapp',
     });
   });
 
   it('forwards the exact returnTo given, never a different destination', async () => {
-    checkRecentAuth.mockResolvedValue({ authenticatedAt: null, isStale: true });
+    neonSessionAgeSeconds.mockResolvedValue(TRAVELLER + 1);
     const { enforceSessionAgeLimit } = await import('./session-age');
-    const result = await enforceSessionAgeLimit(false, '/app/applicant/123');
-    expect(result).toEqual({
+    expect(await enforceSessionAgeLimit(false, '/app/applicant/123')).toEqual({
       satisfied: false,
-      reauthUrl: `/api/session-reauth?maxAge=${7 * 24 * 60 * 60}&returnTo=%2Fapp%2Fapplicant%2F123`,
+      reauthUrl: '/auth/reauth?returnTo=%2Fapp%2Fapplicant%2F123',
     });
   });
 });

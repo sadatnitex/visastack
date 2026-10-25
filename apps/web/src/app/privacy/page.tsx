@@ -2,7 +2,6 @@ import { SIGNUP_PRIVACY_VERSION } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { readEnv } from '../../lib/env';
-import { selectedIdentityProvider } from '../../lib/identity-selection';
 
 export const metadata: Metadata = { title: 'Privacy notice' };
 export const dynamic = 'force-dynamic';
@@ -34,12 +33,11 @@ export default function PrivacyPage() {
       <h2>Services that process information</h2>
       <p>
         Vercel hosts the application. {fileStorage} stores private files. Cloudflare R2 stores
-        encrypted backup archives when backups are configured. Neon stores application records.{' '}
-        {selectedIdentityProvider() === 'neon_auth' ? 'Neon Auth' : 'WorkOS'} handles sign-in.
-        Resend handles application email when configured. Authentication email uses the configured
-        sign-in provider's mail service. These services can process information outside your
-        country. This notice does not claim a particular data location or a completed compliance
-        review.
+        encrypted backup archives when backups are configured. Neon stores application records. Neon
+        Auth handles sign-in. Resend handles application email when configured. Authentication email
+        uses the configured sign-in provider's mail service. These services can process information
+        outside your country. This notice does not claim a particular data location or a completed
+        compliance review.
       </p>
       <h2>Separate choices</h2>
       <p>

@@ -1,7 +1,5 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import { selectedIdentityProvider } from '../../../lib/identity-selection';
 import { safeReturnPath } from '../../../lib/neon-recency';
 import { resendConfirmationAction } from '../actions';
 import { AuthShell, ErrorLine, Notice, TextField } from '../auth-ui';
@@ -18,7 +16,6 @@ const ERRORS: Record<string, string> = {
 export default async function VerifyEmailPage({
   searchParams,
 }: { searchParams: Promise<{ e?: string; s?: string; next?: string }> }) {
-  if (selectedIdentityProvider() !== 'neon_auth') notFound();
   const { e, s, next } = await searchParams;
   const error = e ? ERRORS[e] : undefined;
   return (

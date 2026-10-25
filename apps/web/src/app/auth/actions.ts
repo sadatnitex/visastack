@@ -3,7 +3,6 @@
 import { redirect } from 'next/navigation';
 import { withinAuthLimits } from '../../lib/auth-throttle';
 import { resolveBaseUrl } from '../../lib/base-url';
-import { selectedIdentityProvider } from '../../lib/identity-selection';
 import { safeReturnPath } from '../../lib/neon-recency';
 import { consumeSignupForm, readSignupForm } from '../../lib/signup-form';
 
@@ -36,10 +35,6 @@ function validCredentials(email: string, password: string): boolean {
   return validEmail(email) && validPassword(password);
 }
 
-function requireNeon(): void {
-  if (selectedIdentityProvider() !== 'neon_auth') redirect('/');
-}
-
 /** Better Auth reports an address that is not confirmed yet with this code. */
 function isUnconfirmed(error: { code?: string | undefined }): boolean {
   return error.code === 'EMAIL_NOT_VERIFIED';
@@ -50,7 +45,6 @@ function signInTarget(next: string): string {
 }
 
 export async function signInAction(formData: FormData): Promise<void> {
-  requireNeon();
   const email = field(formData, 'email').trim();
   const password = field(formData, 'password');
   const next = safeReturnPath(field(formData, 'next'));
@@ -75,7 +69,6 @@ export async function signInAction(formData: FormData): Promise<void> {
 }
 
 export async function signUpAction(formData: FormData): Promise<void> {
-  requireNeon();
   const next = safeReturnPath(field(formData, 'next'));
   const target = signInTarget(next);
   const email = field(formData, 'email').trim();
@@ -124,7 +117,6 @@ export async function signUpAction(formData: FormData): Promise<void> {
 
 /** Send the confirmation email again. Same answer for every address. */
 export async function resendConfirmationAction(formData: FormData): Promise<void> {
-  requireNeon();
   const target = signInTarget(safeReturnPath(field(formData, 'next')));
   const email = field(formData, 'email').trim();
   if (!validEmail(email)) redirect(`/auth/verify-email?e=invalid${target}`);
@@ -156,7 +148,6 @@ export async function resendConfirmationAction(formData: FormData): Promise<void
 
 /** Start password recovery. Same answer for every address. */
 export async function requestPasswordResetAction(formData: FormData): Promise<void> {
-  requireNeon();
   const email = field(formData, 'email').trim();
   if (!validEmail(email)) redirect('/auth/forgot-password?e=invalid');
   const allowed = await withinAuthLimits({
@@ -189,7 +180,6 @@ export async function requestPasswordResetAction(formData: FormData): Promise<vo
 
 /** Finish password recovery with the one-time link from the email. */
 export async function resetPasswordAction(formData: FormData): Promise<void> {
-  requireNeon();
   const token = field(formData, 'token');
   const password = field(formData, 'password');
   const confirm = field(formData, 'confirm');
@@ -205,7 +195,6 @@ export async function resetPasswordAction(formData: FormData): Promise<void> {
 
 /** Ask the signed-in person for their password again before a sensitive step. */
 export async function reauthAction(formData: FormData): Promise<void> {
-  requireNeon();
   const password = field(formData, 'password');
   const returnTo = safeReturnPath(field(formData, 'returnTo'));
   const back = `/auth/reauth?returnTo=${encodeURIComponent(returnTo)}`;

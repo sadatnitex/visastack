@@ -1,7 +1,5 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import { selectedIdentityProvider } from '../../../lib/identity-selection';
 import { resetPasswordAction } from '../actions';
 import { AuthShell, ErrorLine, TextField } from '../auth-ui';
 
@@ -17,7 +15,6 @@ const ERRORS: Record<string, string> = {
 export default async function ResetPasswordPage({
   searchParams,
 }: { searchParams: Promise<{ token?: string; e?: string; error?: string }> }) {
-  if (selectedIdentityProvider() !== 'neon_auth') notFound();
   const { token, e, error: linkError } = await searchParams;
   if (!token || linkError) {
     return (

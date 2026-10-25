@@ -1,7 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 // The real sign-in packages are not needed here: each test hands in its own session reader.
-vi.mock('@workos-inc/authkit-nextjs', () => ({ withAuth: async () => ({ user: null }) }));
 
 const { isSignedIn } = await import('./signed-in');
 

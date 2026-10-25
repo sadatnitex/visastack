@@ -13,23 +13,7 @@ beforeEach(() => {
 });
 
 describe('/api/auth/[...path]', () => {
-  it('is a plain 404 for every method when WorkOS is the selected provider', async () => {
-    vi.stubEnv('IDENTITY_PROVIDER', 'workos');
-    const route = await import('./[...path]/route');
-    expect((await route.GET(new Request('https://x.test/api/auth/session'), ctx)).status).toBe(404);
-    expect(
-      (
-        await route.POST(
-          new Request('https://x.test/api/auth/sign-up/email', { method: 'POST' }),
-          ctx,
-        )
-      ).status,
-    ).toBe(404);
-    expect(handlerGet).not.toHaveBeenCalled();
-    expect(handlerPost).not.toHaveBeenCalled();
-  });
-
-  it('hands the request to Neon Auth when it is the selected provider', async () => {
+  it('hands every request to Neon Auth, the only sign-in system', async () => {
     vi.stubEnv('IDENTITY_PROVIDER', 'neon_auth');
     const route = await import('./[...path]/route');
     expect(

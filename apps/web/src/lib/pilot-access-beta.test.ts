@@ -27,7 +27,7 @@ describe('invitation check in a real deployment', () => {
     );
   });
 
-  it('stays in force with WorkOS even if the beta switch is set', async () => {
+  it('stays in force when sign-in is not configured, even if the beta switch is set', async () => {
     vi.stubEnv('PUBLIC_BETA_OPEN', 'true');
     const { checkPilotAccess } = await import('./pilot-access');
     await checkPilotAccess({} as never, { email: 'a@b.co' });
@@ -37,9 +37,10 @@ describe('invitation check in a real deployment', () => {
     );
   });
 
-  it('is skipped only for the public beta on Neon sign-in', async () => {
+  it('is skipped only for the public beta with Neon sign-in configured', async () => {
     vi.stubEnv('PUBLIC_BETA_OPEN', 'true');
-    vi.stubEnv('IDENTITY_PROVIDER', 'neon_auth');
+    vi.stubEnv('NEON_AUTH_BASE_URL', 'https://auth.example.test/db');
+    vi.stubEnv('NEON_AUTH_COOKIE_SECRET', 'c'.repeat(40));
     const { checkPilotAccess } = await import('./pilot-access');
     await checkPilotAccess({} as never, { email: 'a@b.co' });
     expect(service).toHaveBeenCalledWith(

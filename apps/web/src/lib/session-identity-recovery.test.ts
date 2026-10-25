@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   report: vi.fn(),
   provision: vi.fn(),
 }));
-vi.mock('@workos-inc/authkit-nextjs', () => ({ withAuth: vi.fn() }));
 vi.mock('./identity-provider', () => ({
   NeonIdentityPort: class {
     async currentIdentity() {

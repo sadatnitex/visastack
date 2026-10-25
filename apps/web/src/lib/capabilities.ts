@@ -12,7 +12,7 @@ import { getDeploymentMode } from './deployment-mode';
 import { isPresent, isSignInConfigured, readEnv } from './env';
 import { isPublicBetaOpen } from './public-beta';
 
-export { isPresent, isWorkosConfigured } from './env';
+export { isPresent, isSignInConfigured } from './env';
 
 /**
  * Capabilities gated `disabled` in controlled pilot pending a specific,
@@ -26,11 +26,10 @@ export { isPresent, isWorkosConfigured } from './env';
  * packages/services/src/organizations.test.ts); it is no longer gated here.
  *
  * `bulkExport`'s PR 5 gap (EXPORT_PROFILE is a step-up action, and no real
- * WorkOS step-up mechanism existed anywhere in the app) is closed:
- * `apps/web/src/lib/step-up.ts` checks genuine WorkOS session recency
- * (`checkRecentAuth`, the real `auth_time` JWT claim) and forces a real
- * reauthentication challenge (`getSignInUrl({ maxAge })`) when it's stale —
- * never a client-supplied boolean. The export route
+ * step-up mechanism existed anywhere in the app) is closed:
+ * `apps/web/src/lib/step-up.ts` checks genuine Neon Auth session recency
+ * server-side and forces a real password re-check when it's stale, never a
+ * client-supplied boolean. The export route
  * (`app/agency/[orgId]/export/route.ts`) threads a genuinely-earned
  * `stepUpSatisfied` through. It is no longer gated here.
  *

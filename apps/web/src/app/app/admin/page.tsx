@@ -634,12 +634,9 @@ export default async function AdminOperationsPage() {
                 <div className="rows">
                   {(() => {
                     const r = data.readiness;
-                    const missingSignIn = [
-                      ...Object.entries(r.env.workos)
-                        .filter(([, present]) => !present)
-                        .map(([name]) => name),
-                      ...(r.env.redirectUri ? [] : ['NEXT_PUBLIC_WORKOS_REDIRECT_URI']),
-                    ];
+                    const missingSignIn = Object.entries(r.env.signIn)
+                      .filter(([, present]) => !present)
+                      .map(([name]) => name);
                     const databaseConfigured = Object.values(r.env.database).some(Boolean);
                     const rows: ReadonlyArray<readonly [string, string, boolean]> = [
                       [

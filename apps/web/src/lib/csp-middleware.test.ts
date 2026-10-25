@@ -1,20 +1,19 @@
 import { type NextFetchEvent, type NextMiddleware, NextRequest, NextResponse } from 'next/server';
 import { describe, expect, it } from 'vitest';
-import { isAuthkitPath } from './authkit-paths';
 import { createCspMiddleware } from './csp-middleware';
+import { isNeonProtectedPath } from './identity-selection';
 
 /**
  * The middleware that puts the Content-Security-Policy and its per-request
- * nonce on every page, and runs AuthKit unchanged where it always ran.
- * AuthKit itself is replaced by a stand-in that does what the real one does
- * to the request (`partitionAuthkitHeaders` forwards a copy of the request
- * headers it was given) so that what reaches the render can be observed.
+ * nonce on every page, and runs the sign-in check unchanged on protected pages.
+ * The sign-in check itself is replaced by a stand-in that forwards a copy of the
+ * request headers it was given, so that what reaches the render can be observed.
  */
 
 const EVENT = {} as NextFetchEvent;
 const NONCE = 'dGVzdC1ub25jZS0wMDAwMDA=';
 
-function fakeAuthkit(respond?: (request: NextRequest) => ReturnType<NextMiddleware>): {
+function fakeSignIn(respond?: (request: NextRequest) => ReturnType<NextMiddleware>): {
   handler: NextMiddleware;
   calls: NextRequest[];
 } {
@@ -23,9 +22,9 @@ function fakeAuthkit(respond?: (request: NextRequest) => ReturnType<NextMiddlewa
     calls.push(request);
     if (respond) return respond(request);
     const headers = new Headers(request.headers);
-    headers.set('x-workos-middleware', 'true');
+    headers.set('x-auth-middleware', 'true');
     const response = NextResponse.next({ request: { headers } });
-    response.headers.append('set-cookie', 'wos-session=sealed; Path=/; HttpOnly');
+    response.headers.append('set-cookie', 'session=sealed; Path=/; HttpOnly');
     return response;
   };
   return { handler, calls };
@@ -36,14 +35,14 @@ function envFrom(values: Record<string, string> = {}): (name: string) => string 
 }
 
 function build(options: {
-  authkit?: NextMiddleware;
+  auth?: NextMiddleware;
   enabled?: boolean;
   env?: Record<string, string>;
   makeNonce?: () => string;
 }) {
   return createCspMiddleware({
-    authkit: options.authkit ?? fakeAuthkit().handler,
-    isAuthkitPath,
+    auth: options.auth ?? fakeSignIn().handler,
+    needsSignIn: isNeonProtectedPath,
     enabled: options.enabled ?? true,
     readEnv: envFrom(options.env),
     makeNonce: options.makeNonce ?? (() => NONCE),
@@ -71,8 +70,8 @@ function nonceIn(policy: string | null): string | undefined {
 
 describe('outside a production build', () => {
   it('adds no policy and no nonce anywhere', async () => {
-    const { handler, calls } = fakeAuthkit();
-    const middleware = build({ authkit: handler, enabled: false });
+    const { handler, calls } = fakeSignIn();
+    const middleware = build({ auth: handler, enabled: false });
 
     const page = await middleware(get('/trust'), EVENT);
     expect(page?.headers.get('content-security-policy')).toBeNull();
@@ -84,16 +83,24 @@ describe('outside a production build', () => {
     const app = await middleware(original, EVENT);
     expect(calls).toEqual([original]);
     expect(app?.headers.get('content-security-policy')).toBeNull();
-    expect(app?.headers.get('set-cookie')).toContain('wos-session=sealed');
+    expect(app?.headers.get('set-cookie')).toContain('session=sealed');
   });
 });
 
-describe('a page AuthKit does not own (/trust, not-found)', () => {
-  it.each(['/trust', '/trust/uk-skilled-worker', '/no-such-page', '/robots.txt'])(
-    'gets the policy on the response and the request, without calling AuthKit: %s',
+describe('a public page (landing, status, trust, not-found)', () => {
+  it.each([
+    '/',
+    '/status',
+    '/callback',
+    '/trust',
+    '/trust/uk-skilled-worker',
+    '/no-such-page',
+    '/robots.txt',
+  ])(
+    'gets the policy on the response and the request, without the sign-in check: %s',
     async (path) => {
-      const { handler, calls } = fakeAuthkit();
-      const response = await build({ authkit: handler })(get(path), EVENT);
+      const { handler, calls } = fakeSignIn();
+      const response = await build({ auth: handler })(get(path), EVENT);
 
       expect(calls).toHaveLength(0);
       const policy = response?.headers.get('content-security-policy') ?? null;
@@ -105,12 +112,12 @@ describe('a page AuthKit does not own (/trust, not-found)', () => {
   );
 });
 
-describe('a page AuthKit owns', () => {
-  it.each(['/', '/status', '/callback', '/pilot-access-denied', '/app', '/app/applicant/1'])(
-    'runs AuthKit once and still forwards the policy to the render: %s',
+describe('a page that needs a signed-in session', () => {
+  it.each(['/pilot-access-denied', '/app', '/app/applicant/1'])(
+    'runs the sign-in check once and still forwards the policy to the render: %s',
     async (path) => {
-      const { handler, calls } = fakeAuthkit();
-      const response = await build({ authkit: handler })(get(path), EVENT);
+      const { handler, calls } = fakeSignIn();
+      const response = await build({ auth: handler })(get(path), EVENT);
 
       expect(calls).toHaveLength(1);
       const policy = response?.headers.get('content-security-policy') ?? null;
@@ -118,19 +125,19 @@ describe('a page AuthKit owns', () => {
       const forwarded = forwardedHeaders(response as Response);
       expect(forwarded.get('content-security-policy')).toBe(policy);
       expect(forwarded.get('x-nonce')).toBe(NONCE);
-      // What AuthKit forwards on its own is still there.
-      expect(forwarded.get('x-workos-middleware')).toBe('true');
+      // What the sign-in check forwards on its own is still there.
+      expect(forwarded.get('x-auth-middleware')).toBe('true');
     },
   );
 
-  it('hands AuthKit the same URL, method and headers, plus the policy', async () => {
-    const { handler, calls } = fakeAuthkit();
+  it('hands the sign-in check the same URL, method and headers, plus the policy', async () => {
+    const { handler, calls } = fakeSignIn();
     const original = get('/app/mission/7?tab=notes', {
       method: 'POST',
       headers: { cookie: 'wos-session=abc', 'content-type': 'text/plain', 'next-action': 'x' },
       body: 'payload',
     });
-    await build({ authkit: handler })(original, EVENT);
+    await build({ auth: handler })(original, EVENT);
 
     const received = calls[0] as NextRequest;
     expect(received.url).toBe(original.url);
@@ -151,36 +158,36 @@ describe('a page AuthKit owns', () => {
     expect(await original.text()).toBe('form-data-payload');
   });
 
-  it('keeps what AuthKit puts on its own response', async () => {
+  it('keeps what the sign-in check puts on its own response', async () => {
     const response = await build({})(get('/app'), EVENT);
-    expect(response?.headers.get('set-cookie')).toContain('wos-session=sealed');
+    expect(response?.headers.get('set-cookie')).toContain('session=sealed');
   });
 
-  it('puts the policy on AuthKit redirect to sign-in too, and leaves it a redirect', async () => {
-    const { handler } = fakeAuthkit(() =>
-      NextResponse.redirect('https://api.workos.com/user_management/authorize?x=1', 307),
+  it('puts the policy on the sign-in check redirect to sign-in too, and leaves it a redirect', async () => {
+    const { handler } = fakeSignIn(() =>
+      NextResponse.redirect('https://visastack.example/auth/sign-in?next=%2Fapp', 307),
     );
-    const response = await build({ authkit: handler })(get('/app'), EVENT);
+    const response = await build({ auth: handler })(get('/app'), EVENT);
 
     expect(response?.status).toBe(307);
     expect(response?.headers.get('location')).toBe(
-      'https://api.workos.com/user_management/authorize?x=1',
+      'https://visastack.example/auth/sign-in?next=%2Fapp',
     );
     expect(nonceIn(response?.headers.get('content-security-policy') ?? null)).toBe(NONCE);
   });
 
-  it('still produces a page response if AuthKit returns nothing', async () => {
-    const { handler } = fakeAuthkit(() => undefined);
-    const response = await build({ authkit: handler })(get('/app'), EVENT);
+  it('still produces a page response if the sign-in check returns nothing', async () => {
+    const { handler } = fakeSignIn(() => undefined);
+    const response = await build({ auth: handler })(get('/app'), EVENT);
     expect(nonceIn(response?.headers.get('content-security-policy') ?? null)).toBe(NONCE);
     expect(forwardedHeaders(response as Response).get('x-nonce')).toBe(NONCE);
   });
 
-  it('does not swallow an AuthKit failure', async () => {
-    const { handler } = fakeAuthkit(() => {
+  it('does not swallow an the sign-in check failure', async () => {
+    const { handler } = fakeSignIn(() => {
       throw new Error('You must provide a valid cookie password');
     });
-    await expect(build({ authkit: handler })(get('/app'), EVENT)).rejects.toThrow(
+    await expect(build({ auth: handler })(get('/app'), EVENT)).rejects.toThrow(
       'valid cookie password',
     );
   });
@@ -207,8 +214,8 @@ describe('the nonce', () => {
 
   it('uses a fresh random nonce by default', async () => {
     const middleware = createCspMiddleware({
-      authkit: fakeAuthkit().handler,
-      isAuthkitPath,
+      auth: fakeSignIn().handler,
+      needsSignIn: isNeonProtectedPath,
       enabled: true,
       readEnv: envFrom(),
     });
@@ -240,9 +247,9 @@ describe('headers a client sends', () => {
     expect(forwarded.get('content-security-policy-report-only')).toBeNull();
   });
 
-  it('are overwritten the same way on the AuthKit path', async () => {
-    const { handler, calls } = fakeAuthkit();
-    await build({ authkit: handler })(
+  it('are overwritten the same way on the the sign-in check path', async () => {
+    const { handler, calls } = fakeSignIn();
+    await build({ auth: handler })(
       get('/app', { headers: { 'x-nonce': 'attacker-nonce' } }),
       EVENT,
     );
@@ -262,8 +269,8 @@ describe('CSP_MODE', () => {
   });
 
   it('report-only serves the same policy under the report-only header, to browser and render', async () => {
-    const { handler, calls } = fakeAuthkit();
-    const middleware = build({ authkit: handler, env: { CSP_MODE: 'report-only' } });
+    const { handler, calls } = fakeSignIn();
+    const middleware = build({ auth: handler, env: { CSP_MODE: 'report-only' } });
 
     const trust = await middleware(get('/trust'), EVENT);
     const app = await middleware(get('/app'), EVENT);
@@ -306,6 +313,7 @@ describe('what the environment adds to the policy', () => {
     });
     expect(policy).toContain('https://auth.visastack.example');
     expect(policy).not.toContain('insecure.example');
-    expect(policy.match(/\*/g)).toHaveLength(1);
+    // The bare wildcard is ignored, so the policy has none at all.
+    expect(policy.match(/\*/g)).toBeNull();
   });
 });

@@ -16,10 +16,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 const ENV_KEYS = [
   'DEPLOYMENT_MODE',
   'VERCEL_ENV',
-  'WORKOS_API_KEY',
-  'WORKOS_CLIENT_ID',
-  'WORKOS_COOKIE_PASSWORD',
-  'NEXT_PUBLIC_WORKOS_REDIRECT_URI',
+  'NEON_AUTH_BASE_URL',
+  'NEON_AUTH_COOKIE_SECRET',
   'BLOB_READ_WRITE_TOKEN',
   'BLOB_SIGNING_SECRET',
   'STEP_UP_SIGNING_SECRET',
@@ -71,21 +69,17 @@ describe('getPlatformCapabilities', () => {
 
   it('reports agencyCollaboration available once its PR 1 defects are repaired (PR 2) and everything else is configured', async () => {
     setEnv('VERCEL_ENV', 'production');
-    setEnv('WORKOS_API_KEY', 'x');
-    setEnv('WORKOS_CLIENT_ID', 'x');
-    setEnv('WORKOS_COOKIE_PASSWORD', 'x');
-    setEnv('NEXT_PUBLIC_WORKOS_REDIRECT_URI', 'https://example.test/callback');
+    setEnv('NEON_AUTH_BASE_URL', 'https://auth.example.test/db');
+    setEnv('NEON_AUTH_COOKIE_SECRET', 'c'.repeat(40));
     setEnv('BLOB_READ_WRITE_TOKEN', 'x');
     const { getPlatformCapabilities } = await import('./capabilities');
     expect(getPlatformCapabilities().agencyCollaboration).toBe('available');
   });
 
-  it('reports bulkExport available now that a genuine WorkOS step-up flow backs it (PR 5)', async () => {
+  it('reports bulkExport available now that a genuine step-up flow backs it (PR 5)', async () => {
     setEnv('VERCEL_ENV', 'production');
-    setEnv('WORKOS_API_KEY', 'x');
-    setEnv('WORKOS_CLIENT_ID', 'x');
-    setEnv('WORKOS_COOKIE_PASSWORD', 'x');
-    setEnv('NEXT_PUBLIC_WORKOS_REDIRECT_URI', 'https://example.test/callback');
+    setEnv('NEON_AUTH_BASE_URL', 'https://auth.example.test/db');
+    setEnv('NEON_AUTH_COOKIE_SECRET', 'c'.repeat(40));
     setEnv('BLOB_READ_WRITE_TOKEN', 'x');
     const { getPlatformCapabilities } = await import('./capabilities');
     expect(getPlatformCapabilities().bulkExport).toBe('available');
@@ -96,16 +90,14 @@ describe('getPlatformCapabilities', () => {
     expect(getPlatformCapabilities().sharing).toBe('available');
   });
 
-  it('reports authentication unconfigured when WorkOS env vars are absent', async () => {
+  it('reports authentication unconfigured when the Neon Auth settings are absent', async () => {
     const { getPlatformCapabilities } = await import('./capabilities');
     expect(getPlatformCapabilities().authentication).toBe('unconfigured');
   });
 
-  it('reports authentication available once all required WorkOS vars are present', async () => {
-    setEnv('WORKOS_API_KEY', 'x');
-    setEnv('WORKOS_CLIENT_ID', 'x');
-    setEnv('WORKOS_COOKIE_PASSWORD', 'x');
-    setEnv('NEXT_PUBLIC_WORKOS_REDIRECT_URI', 'https://example.test/callback');
+  it('reports authentication available once the Neon Auth address and cookie secret are present', async () => {
+    setEnv('NEON_AUTH_BASE_URL', 'https://auth.example.test/db');
+    setEnv('NEON_AUTH_COOKIE_SECRET', 'c'.repeat(40));
     const { getPlatformCapabilities } = await import('./capabilities');
     expect(getPlatformCapabilities().authentication).toBe('available');
   });

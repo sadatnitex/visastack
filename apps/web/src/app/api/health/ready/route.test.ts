@@ -3,26 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * Honest readiness (Milestone 1 / master directive §8A): HTTP 200 means the
  * authenticated manual core is genuinely ready; 503 means a required core
- * dependency (DB reachability/migration, or WorkOS auth config) is missing.
+ * dependency (DB reachability/migration, or Neon Auth sign-in config) is missing.
  * This is a route-level unit test — no network, no real database — so it runs
  * in ordinary CI with no secrets.
- *
- * Finding #36 (post-programme defect register) wired `./route` to
- * `../../../../lib/providers`'s `validateProviderEnv`, which — same as
- * `providers.test.ts` itself already documents — transitively imports
- * `./identity-provider` -> `@workos-inc/authkit-nextjs`. That package's
- * `next/cache` import doesn't resolve outside a real Next.js runtime, so it
- * is mocked here purely to let `./route` import cleanly under plain
- * Vitest/Node ESM resolution; its real `withAuth` behavior is exercised
- * separately in identity-provider.test.ts, never called by anything here.
  */
-vi.mock('@workos-inc/authkit-nextjs', () => ({ withAuth: vi.fn() }));
 
 const REQUIRED_ENV = [
-  'WORKOS_API_KEY',
-  'WORKOS_CLIENT_ID',
-  'WORKOS_COOKIE_PASSWORD',
-  'NEXT_PUBLIC_WORKOS_REDIRECT_URI',
+  'NEON_AUTH_BASE_URL',
+  'NEON_AUTH_COOKIE_SECRET',
   'DATABASE_URL',
   'VERCEL_ENV',
   'DEPLOYMENT_MODE',
@@ -53,10 +41,8 @@ function unsetEnv(name: string): void {
 
 beforeEach(() => {
   for (const key of REQUIRED_ENV) ORIGINAL_ENV[key] = getEnv(key);
-  setEnv('WORKOS_API_KEY', 'sk_test_x');
-  setEnv('WORKOS_CLIENT_ID', 'client_x');
-  setEnv('WORKOS_COOKIE_PASSWORD', 'x'.repeat(32));
-  setEnv('NEXT_PUBLIC_WORKOS_REDIRECT_URI', 'https://example.test/callback');
+  setEnv('NEON_AUTH_BASE_URL', 'https://auth.example.test/db');
+  setEnv('NEON_AUTH_COOKIE_SECRET', 'x'.repeat(40));
   setEnv('DATABASE_URL', 'postgres://example.invalid/db');
   unsetEnv('VERCEL_ENV');
 });
@@ -106,7 +92,7 @@ describe('GET /api/health/ready — honest health (200 vs 503)', () => {
   // (docs/audits/post-programme-defect-register.md finding D-T1). A generous
   // explicit timeout avoids a spurious CI failure unrelated to this test's
   // own correctness.
-  it('returns 200 "ready" when DB is connected+migrated and WorkOS config is present', async () => {
+  it('returns 200 "ready" when DB is connected+migrated and sign-in config is present', async () => {
     mockDb({});
     const { GET } = await import('./route');
     const res = await GET();
@@ -138,8 +124,8 @@ describe('GET /api/health/ready — honest health (200 vs 503)', () => {
     expect(body.status).toBe('degraded');
   });
 
-  it('returns 503 "degraded" when required WorkOS config is absent, even with a healthy DB', async () => {
-    setEnv('WORKOS_COOKIE_PASSWORD', '');
+  it('returns 503 "degraded" when required sign-in config is absent, even with a healthy DB', async () => {
+    setEnv('NEON_AUTH_COOKIE_SECRET', '');
     mockDb({});
     const { GET } = await import('./route');
     const res = await GET();
@@ -148,7 +134,7 @@ describe('GET /api/health/ready — honest health (200 vs 503)', () => {
     expect(body.status).toBe('degraded');
   });
 
-  it('returns 503 "degraded" when an unsupported *_PROVIDER value is configured, even with DB+WorkOS both ready (finding #36)', async () => {
+  it('returns 503 "degraded" when an unsupported *_PROVIDER value is configured, even with DB+sign-in both ready (finding #36)', async () => {
     setEnv('MALWARE_SCANNER_PROVIDER', 'windows-defender');
     mockDb({});
     const { GET } = await import('./route');
@@ -216,7 +202,7 @@ describe('GET /api/health/ready — honest health (200 vs 503)', () => {
     const { GET } = await import('./route');
     const res = await GET();
     const text = await res.text();
-    expect(text).not.toContain(getEnv('WORKOS_COOKIE_PASSWORD'));
+    expect(text).not.toContain(getEnv('NEON_AUTH_COOKIE_SECRET'));
     expect(text).not.toContain(getEnv('DATABASE_URL'));
   });
 
@@ -245,7 +231,7 @@ describe('GET /api/health/ready — honest health (200 vs 503)', () => {
   });
 
   describe('commercial mode — the commercial readiness guard (master directive §7 "PR 11")', () => {
-    it('returns 503 "degraded" in commercial mode even though the pilot-level core (DB + WorkOS) is fully ready', async () => {
+    it('returns 503 "degraded" in commercial mode even though the pilot-level core (DB + sign-in) is fully ready', async () => {
       setEnv('DEPLOYMENT_MODE', 'commercial');
       mockDb({});
       const { GET } = await import('./route');
@@ -359,8 +345,8 @@ describe('GET /api/health/ready: migration drift and what a public probe may rev
     }
     // No configuration name, secret name, provider detail or migration name reaches a stranger.
     for (const leaked of [
-      'WORKOS_API_KEY',
-      'WORKOS_COOKIE_PASSWORD',
+      'NEON_AUTH_BASE_URL',
+      'NEON_AUTH_COOKIE_SECRET',
       'DATABASE_URL',
       'MALWARE_SCANNER_PROVIDER',
       'BLOB_SIGNING_SECRET',
@@ -376,7 +362,7 @@ describe('GET /api/health/ready: migration drift and what a public probe may rev
     mockDb({});
     const { GET } = await import('./route');
     const body = await (await GET()).json();
-    expect(body.env.workos.WORKOS_API_KEY).toBe(true);
+    expect(body.env.signIn.NEON_AUTH_COOKIE_SECRET).toBe(true);
     expect(body.db).toEqual({ connected: true, schemaApplied: true });
   }, 15_000);
 });

@@ -26,9 +26,7 @@ const trust = vi.hoisted(() => ({
 vi.mock('next/font/local', () => ({
   default: () => ({ variable: 'font-variable', className: 'font-class' }),
 }));
-vi.mock('@workos-inc/authkit-nextjs', () => ({
-  withAuth: async () => ({ user: session.user }),
-}));
+vi.mock('./signed-in', () => ({ isSignedIn: async () => session.user !== null }));
 vi.mock('./locale', () => ({ getLocale: async () => 'en' }));
 vi.mock('../app/actions', () => ({ setLocaleAction: async () => undefined }));
 vi.mock('./public-db', () => ({
