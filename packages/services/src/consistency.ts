@@ -1,4 +1,5 @@
 import { type ApplicantId, type FactStatus, type Result, err, ok } from '@visastack/core';
+import { TAX_BASIS, taxBasisKey } from '@visastack/core/catalogue';
 import { authorize } from '@visastack/policy';
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import { getApplicant } from './applicants';
@@ -255,25 +256,27 @@ function knownEffectiveDate(version: FactVersion): Date | null {
 }
 
 /**
- * The companion detail (currency or tax basis) that went with an amount version: the one in force when the
- * amount was saved, or, when none was set yet (the form asks for the amount
- * first), the first one entered while that amount was still current. So both
- * save orders work, and a currency changed ahead of a new amount does not
- * leak back onto the old one. A caller with a snapshot time passes priorAsOf
- * instead, which is exact.
+ * The companion detail (currency or tax basis) that went with an amount version: the one in
+ * force when the amount was saved, or, when none was set yet (the form asks for the amount
+ * first), the first one entered while that amount was still current. So both save orders work,
+ * and a detail changed ahead of a new amount does not leak back onto the old one. The cost of
+ * that choice: a correction made while the old amount was still current reads as such a change,
+ * and a detail first given after a newer amount was saved does not reach the old one, which then
+ * stays not known rather than assumed. A caller with a snapshot time passes priorAsOf instead,
+ * which is exact.
  */
 async function valueDeclaredWith(
   db: Db,
-  currencyFactId: string,
+  companionFactId: string,
   amount: FactVersion,
 ): Promise<FactVersion | undefined> {
-  const atSave = await versionAsOf(db, currencyFactId, amount.createdAt);
+  const atSave = await versionAsOf(db, companionFactId, amount.createdAt);
   if (atSave) return atSave;
   const until = await lastCurrentMoment(db, amount);
   const versions = await db
     .select()
     .from(schema.factVersions)
-    .where(eq(schema.factVersions.factId, currencyFactId))
+    .where(eq(schema.factVersions.factId, companionFactId))
     .orderBy(asc(schema.factVersions.createdAt));
   return versions.find(
     (v) =>
@@ -282,10 +285,10 @@ async function valueDeclaredWith(
   );
 }
 
-/** The stored answer of an amount's tax basis detail, or null when blank or unrecognised. */
+/** The stored answer of an amount's tax basis detail, or null when blank, "Not sure" or unrecognised. */
 function basisOf(value: string | null): AmountBasis | null {
-  if (value === 'Before tax') return 'GROSS';
-  if (value === 'After tax') return 'NET';
+  if (value === TAX_BASIS.before) return 'GROSS';
+  if (value === TAX_BASIS.after) return 'NET';
   return null;
 }
 
@@ -509,11 +512,13 @@ export async function compareFactVersions(
   let priorBasis: AmountBasis | null = null;
   let currentBasis: AmountBasis | null = null;
   if (AMOUNT_FIELDS.has(fieldKey)) {
-    const currency = await companionValues(db, input, fact, prior, current, `${fieldKey}_currency`);
+    const [currency, basis] = await Promise.all([
+      companionValues(db, input, fact, prior, current, `${fieldKey}_currency`),
+      companionValues(db, input, fact, prior, current, taxBasisKey(fieldKey)),
+    ]);
     if (!currency.ok) return currency;
     priorCurrency = currency.value.prior;
     currentCurrency = currency.value.current;
-    const basis = await companionValues(db, input, fact, prior, current, `${fieldKey}_tax_basis`);
     if (!basis.ok) return basis;
     priorBasis = basisOf(basis.value.prior);
     currentBasis = basisOf(basis.value.current);

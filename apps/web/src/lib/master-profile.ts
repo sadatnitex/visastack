@@ -9,6 +9,7 @@ import {
   type ModuleField,
   OTHER_OPTION,
   PROPOSED_PACKS,
+  amountKeyOfTaxBasis,
   computeCompletion,
   knownFieldOptions,
 } from '@visastack/core/catalogue';
@@ -170,11 +171,8 @@ export function buildMasterProfileView(input: MasterProfileInput): MasterProfile
       const reason = status?.reason ?? 'locked';
       const fields = FIELDS_BY_MODULE.get(module.key) ?? [];
       const counted = fields.filter((field) => !field.role);
-      // An answered amount detail also keeps its section open, so a saved answer is never hidden.
-      const hasData = fields.some(
-        (field) =>
-          (!field.role || field.role === 'amount_detail') && (values[field.key]?.length ?? 0) > 0,
-      );
+      // Any saved answer keeps its section open, as completion does, so it is never hidden.
+      const hasData = fields.some((field) => (values[field.key]?.length ?? 0) > 0);
       const suggested =
         !open &&
         suggestFor !== null &&
@@ -194,12 +192,15 @@ export function buildMasterProfileView(input: MasterProfileInput): MasterProfile
         }
         // An optional fact about an amount (before or after tax) sits right after the amount and
         // its currency. It never counts toward completion.
+        // When the amount itself does not apply, nothing is asked about it unless already answered.
         for (const field of fields) {
           if (field.role !== 'amount_detail' || field.group) continue;
+          const amountKey = amountKeyOfTaxBasis(field.key);
+          if (!amountKey) continue;
+          if (input.notApplicable.has(amountKey) && !(values[field.key]?.length ?? 0)) continue;
           const base = resolveBase(field.key);
           if (!base) continue;
           const resolved: EditorFieldDef = { ...base, optional: true };
-          const amountKey = field.key.replace(/_tax_basis$/, '');
           const after = singles.findLastIndex(
             (single) => single.key === amountKey || single.key === `${amountKey}_currency`,
           );

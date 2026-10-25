@@ -5365,3 +5365,8 @@ Documentation only. The bidesh365 master profile (54 sections) was compared with
 - Comparisons now use it: two amounts known to be on the same basis are compared as amounts; before against after reads Context difference ("One amount is before tax and the other after tax."); unknown stays Insufficient information.
 - No live field, data or migration changed. Details in `docs/product/master-profile-enrichment/HANDOFF.md` (session log of 25 Oct 2026).
 - Not verified: the signed-in profile screen on production (the live signed-in check opens the profile page but does not fill it in).
+
+### 2026-10-25 tax basis: review follow-up
+
+- /code-review (high) on the tax basis change. Fixed: no way back from a mistaken pick (new choice "Not sure", read as not recorded); the basis was still asked when its amount was marked as not applying; option wording and the `_tax_basis` key link were repeated in three places (now one source in the catalogue); a section's open state now counts any saved answer, as completion does; the two companion lookups run together.
+- Kept by design, documented in `valueDeclaredWith`: a correction made while the older amount was still current cannot be told apart from a change made ahead of a new amount, so the older amount keeps the value it was saved with; and a basis first given after a newer amount was saved does not reach the older one, which stays not known. In both cases the comparison says "not recorded" or reports a difference for the person to check; it never assumes two amounts are the same kind.

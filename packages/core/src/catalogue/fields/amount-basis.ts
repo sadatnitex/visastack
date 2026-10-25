@@ -1,7 +1,26 @@
 import { type FieldBlock, choice } from './define';
 
-/** The two answers. Blank means not recorded, so nothing is assumed either way. */
-export const TAX_BASIS_OPTIONS: readonly string[] = ['Before tax', 'After tax'];
+/**
+ * The answers. Blank means not recorded; "Not sure" is the way back from a mistaken pick, since a
+ * saved answer cannot be emptied. Neither assumes anything either way.
+ */
+export const TAX_BASIS = {
+  before: 'Before tax',
+  after: 'After tax',
+  notSure: 'Not sure',
+} as const;
+export const TAX_BASIS_OPTIONS: readonly string[] = [
+  TAX_BASIS.before,
+  TAX_BASIS.after,
+  TAX_BASIS.notSure,
+];
+
+const TAX_BASIS_SUFFIX = '_tax_basis';
+/** The tax basis detail that belongs to an amount field. */
+export const taxBasisKey = (amountKey: string): string => `${amountKey}${TAX_BASIS_SUFFIX}`;
+/** The amount a tax basis detail belongs to, or null when the key is not one. */
+export const amountKeyOfTaxBasis = (key: string): string | null =>
+  key.endsWith(TAX_BASIS_SUFFIX) ? key.slice(0, -TAX_BASIS_SUFFIX.length) : null;
 
 /**
  * Whether a live amount is before or after tax (owner decision, 25 Oct 2026). The three live
@@ -24,7 +43,7 @@ const basis = (
   sourceRef: `owner decision 2026-10-25: record whether ${amountKey} is before or after tax`,
   section: { key: section, label: sectionLabel },
   role: 'amount_detail',
-  rows: [choice(`${amountKey}_tax_basis`, label, TAX_BASIS_OPTIONS)],
+  rows: [choice(taxBasisKey(amountKey), label, TAX_BASIS_OPTIONS)],
 });
 
 export const AMOUNT_BASIS_BLOCKS: readonly FieldBlock[] = [

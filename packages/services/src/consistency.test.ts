@@ -470,6 +470,25 @@ describe('compareFactVersions (v1.2 R05, R06)', () => {
     expect(mixed.value.reason).toBe('different_basis');
   }, 30_000);
 
+  it('"Not sure" undoes a recorded tax basis: the amounts are no longer compared as one kind', async () => {
+    const me = await owner('me@example.com');
+    await save(me, 'monthly_salary_currency', 'BDT');
+    await save(me, 'monthly_salary_tax_basis', 'Before tax');
+    const before = await save(me, 'monthly_salary', '80000', { effectiveFrom: day('2023-01-01') });
+    await save(me, 'monthly_salary', '95000', { effectiveFrom: day('2025-01-01') });
+    await save(me, 'monthly_salary_tax_basis', 'Not sure');
+    const compared = await compareFactVersions(db, {
+      actorAccountId: me.accountId,
+      applicantId: me.applicantId,
+      priorFactVersionId: before.id,
+    });
+    expect(isOk(compared)).toBe(true);
+    if (!isOk(compared)) return;
+    expect(compared.value.prior.basis).toBe('GROSS');
+    expect(compared.value.current.basis).toBeNull();
+    expect(compared.value.reason).toBe('basis_unknown');
+  }, 30_000);
+
   it('the current amount goes with the latest currency, so a later correction counts', async () => {
     const me = await owner('me@example.com');
     const before = await save(me, 'monthly_salary', '80000', { effectiveFrom: day('2023-01-01') });

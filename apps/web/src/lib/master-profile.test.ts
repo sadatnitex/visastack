@@ -173,8 +173,9 @@ describe('master profile view', () => {
     const basis = sectionsOf(view)
       .flatMap((section) => section.singles)
       .find((field) => field.key === 'annual_income_tax_basis');
-    expect(basis?.options).toEqual(['Before tax', 'After tax']);
-    // Blank already means not recorded, so it offers no "does not apply" control.
+    expect(basis?.options).toEqual(['Before tax', 'After tax', 'Not sure']);
+    // Blank already means not recorded and "Not sure" undoes a mistaken pick, so it offers no
+    // "does not apply" control.
     expect(basis?.optional).toBe(true);
     // A section whose only answer is the tax basis keeps it visible: it cannot be closed.
     const onlyBasis = buildMasterProfileView({
@@ -198,6 +199,24 @@ describe('master profile view', () => {
     // It saves with the amount's own category, so it is shared exactly where the amount is.
     expect(savableField('annual_income_tax_basis')?.packId).toBe('universal');
     expect(savableField('monthly_salary_tax_basis')?.packId).toBe('professional');
+  });
+
+  it('does not ask about tax when the amount does not apply, unless it was already answered', () => {
+    const keysOf = (view: ReturnType<typeof buildMasterProfileView>) =>
+      sectionsOf(view)
+        .find((section) => section.key === 'employment')
+        ?.singles.map((field) => field.key) ?? [];
+    const exempt = buildMasterProfileView({
+      ...none(),
+      notApplicable: new Set(['monthly_salary']),
+    });
+    expect(keysOf(exempt)).not.toContain('monthly_salary_tax_basis');
+    const answered = buildMasterProfileView({
+      ...none(),
+      notApplicable: new Set(['monthly_salary']),
+      entries: [{ fieldKey: 'monthly_salary_tax_basis', value: 'After tax', status: 'DECLARED' }],
+    });
+    expect(keysOf(answered)).toContain('monthly_salary_tax_basis');
   });
 
   it('gives every section a free something-else record that points at real fields', () => {
