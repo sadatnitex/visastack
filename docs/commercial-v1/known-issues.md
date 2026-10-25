@@ -5383,3 +5383,12 @@ Documentation only. The bidesh365 master profile (54 sections) was compared with
 - Owner request 25 Oct 2026: a slip or certificate number is not enough; the document itself must be on file, and many must be handed in as originals while scans (such as visa stamps) are enough for others.
 - Shipped: each open profile section lists the kinds of document that back its details (from the catalogue's `supports` links), shows "Uploaded" or "Not Uploaded Yet", and links to the upload form with that kind already chosen. 26 more catalogue document types are marked as usually needed in original; the profile and the upload form say so in plain words ("usually"), never as a rule. No database change.
 - Checks: master profile view, profile editor and upload form tests cover the list, the counts, the link and the original note; the view test was proved to fail when the original flag is dropped.
+
+### 2026-10-25, AI review experience (Phase 1): check what we found
+
+- Owner direction 25 Oct 2026: extracted data must be reviewed and approved before it reaches the profile, in a review people of every background can finish on a phone. `ai.ts` released for this work (HANDOFF note).
+- Each document's readings now appear as "Check What We Found": differences with the profile first, then readings to check, then clear ones; plain badges ("Clear", "Please Check", "Sensitive") instead of percentages; the exact words found shown as "Found as"; an unfound quote says so; nothing is saved until accepted.
+- A difference with a confirmed value asks "Which is right?": use the document's value (saved with no conflict left), both are right because it changed (saved with the date it changed, history kept), or keep the current value (nothing changes). Without a choice the old behaviour stays (saved as a conflict to check).
+- "Accept N Clear Details" saves, in one step, only readings that are confident with every quote found word for word, for an everyday (STANDARD) detail that does not differ from a confirmed value. The server checks every rule again; sensitive details are always decided one at a time.
+- Every value read from a document links back to it ("Where This Came From"). Profile entries now say whether a value is protected; a protected value is never shown in a comparison.
+- Checks: service tests for both decision paths and the bulk rules (ownership, other person's ids, unfound quote, low confidence, restricted field, difference); review screen tests; accessibility scan case; profile link test.

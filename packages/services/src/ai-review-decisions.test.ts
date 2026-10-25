@@ -17,7 +17,12 @@ import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { addDocumentVersion, registerDocument } from './documents';
-import { editFact, getCurrentFactVersion, registerFieldDefinition } from './profile';
+import {
+  editFact,
+  getCurrentFactVersion,
+  listApplicantProfile,
+  registerFieldDefinition,
+} from './profile';
 
 /** The document text the stub "reads"; a quote counts as found only when it is in here word for word. */
 const TEXT = 'Name: Ayesha Rahman. Occupation: Engineer. City: Dhaka. Passport A1234567.';
@@ -139,7 +144,7 @@ async function seed(email: string) {
   if (!isOk(run)) throw new Error('run');
   const idOf = (fieldKey: string) =>
     run.value.proposals.find((proposal) => proposal.fieldKey === fieldKey)?.id as string;
-  return { accountId: account.id, applicantId, idOf };
+  return { accountId: account.id, applicantId, idOf, documentId: doc.value.id };
 }
 
 describe('accepting all clear details at once', () => {
@@ -228,7 +233,7 @@ describe('settling a difference with a value already on file', () => {
   }, 60_000);
 
   it('"use the document" saves it as the current value with no conflict left', async () => {
-    const { accountId, idOf } = await withConfirmedCity('use@example.com');
+    const { accountId, applicantId, idOf, documentId } = await withConfirmedCity('use@example.com');
     const approved = await approveProposal(db, {
       actorAccountId: accountId,
       proposalId: idOf('city'),
@@ -239,6 +244,10 @@ describe('settling a difference with a value already on file', () => {
     expect(approved.value.version.status).toBe('DOCUMENT_SUPPORTED');
     expect(await db.select().from(schema.conflicts)).toHaveLength(0);
     expect((await getCurrentFactVersion(db, approved.value.fact.id))?.value).toBe('Dhaka');
+    // The profile can point back to the document the value was read from.
+    const entry = (await listApplicantProfile(db, applicantId)).find((e) => e.fieldKey === 'city');
+    expect(entry?.sourceDocumentId).toBe(documentId);
+    expect(entry?.isProtected).toBe(false);
   }, 60_000);
 
   it('"both are right, it changed" keeps the history and records when it changed', async () => {

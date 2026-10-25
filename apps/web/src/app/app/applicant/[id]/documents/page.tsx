@@ -218,7 +218,8 @@ export default async function ApplicantDocumentsPage({
       profile
         .filter((entry) => entry.repeatingRecordKey === null && entry.status !== null)
         .filter((entry) => isTrustedFactStatus(entry.status as never))
-        .map((entry) => [entry.fieldKey, entry.value] as const),
+        // A protected value is never shown here: null says "there is one" without revealing it.
+        .map((entry) => [entry.fieldKey, entry.isProtected ? null : entry.value] as const),
     );
     return {
       documents: documentRows,

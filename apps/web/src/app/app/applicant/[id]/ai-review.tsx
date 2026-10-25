@@ -358,7 +358,6 @@ export function DocumentFindings({
   readonly proposals: readonly AiProposalViewModel[];
   readonly canApprove: boolean;
 }) {
-  const headingId = useId();
   const [state, formAction, pending] = useActionState(acceptClearDetailsAction, INITIAL);
   if (proposals.length === 0) return null;
   const rank = (proposal: AiProposalViewModel) =>
@@ -369,9 +368,9 @@ export function DocumentFindings({
     .map((proposal) => proposal.id);
   const count = proposals.length;
   return (
-    // A group, not a landmark: several documents on one page each have one, all with this heading.
-    <div className="document-findings" role="group" aria-labelledby={headingId}>
-      <h3 id={headingId}>Check What We Found</h3>
+    // Not a landmark: several documents on one page each have one, all with this heading.
+    <div className="document-findings">
+      <h3>Check What We Found</h3>
       <p className="muted">
         We read this document and found {count === 1 ? 'one detail' : `${count} details`}. Nothing
         is saved to your profile until you accept it.

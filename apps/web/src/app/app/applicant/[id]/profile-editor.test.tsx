@@ -116,6 +116,29 @@ describe('section cards keep every real editing path', () => {
     expect(form.querySelector('[name="effectiveFrom"]')).not.toBeNull();
   });
 
+  it('links a value read from a document back to that document, and not a typed one', () => {
+    const key = FIXTURE_OPEN_SECTION.singles[0]?.key as string;
+    const other = FIXTURE_OPEN_SECTION.singles[1]?.key as string;
+    render({
+      values: {
+        [key]: {
+          factId: 'f1',
+          value: 'Ayesha',
+          status: 'DOCUMENT_SUPPORTED',
+          sourceDocumentId: 'doc-9',
+        },
+        [other]: { factId: 'f2', value: 'Typed', status: 'APPLICANT_CONFIRMED' },
+      } as never,
+    });
+    const links = [...container.querySelectorAll('a')].filter(
+      (a) => a.textContent === 'Where This Came From',
+    );
+    expect(links).toHaveLength(1);
+    expect(links[0]?.getAttribute('href')).toBe(
+      '/app/applicant/synthetic-person/documents?document=doc-9',
+    );
+  });
+
   it('adds an additional passport without overwriting the existing record', () => {
     act(() => tab('Travel Documents').click());
     const add = [...container.querySelectorAll('button')].find((button) =>
