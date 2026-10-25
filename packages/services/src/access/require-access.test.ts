@@ -233,6 +233,12 @@ describe('requireAccess - central applicant authorization gate', () => {
       'BIRTH_CERTIFICATE',
       'REFUGEE_DOCUMENT',
       'JOINT_ACCOUNT_STATEMENT',
+      'CREDIT_CARD_STATEMENT',
+      'LOAN_STATEMENT',
+      'FDR_CERTIFICATE',
+      'SOLVENCY_CERTIFICATE',
+      'SALARY_SLIP',
+      'OTHER_FINANCIAL_DOCUMENT',
     ]) {
       expect(isRestrictedDocumentType(identity), identity).toBe(true);
     }

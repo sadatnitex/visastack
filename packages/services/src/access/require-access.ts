@@ -208,12 +208,15 @@ export const RESTRICTED_DOCUMENT_TYPES: ReadonlySet<string> = new Set([
 
 /**
  * Every document type in these catalogue categories or groups is restricted,
- * including ones added later: medical documents, and identity and civil-status
- * documents (passports, ID cards, birth, marriage, refugee and similar papers).
+ * including ones added later: medical documents; identity and civil-status
+ * documents (passports, ID cards, birth, marriage, refugee and similar papers);
+ * and, by owner decision 2026-10-25, every financial document (statements,
+ * tax, income, loans, cards, property and sponsorship papers).
  */
 export const RESTRICTED_DOCUMENT_CATEGORIES: ReadonlySet<string> = new Set([
   'medical',
   'identity_civil',
+  'financial',
 ]);
 
 /**
