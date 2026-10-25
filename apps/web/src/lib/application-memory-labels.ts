@@ -21,13 +21,13 @@ import { fieldLabel } from './master-profile';
  */
 
 export const CASE_FIELD_LABELS: Readonly<Record<CaseDetailField, string>> = {
-  requirementPack: 'Requirement list',
-  manualMode: 'Manual assessment',
-  jurisdiction: 'Where you apply',
-  serviceCategory: 'Type of service',
-  travelStartDate: 'Travel start date',
-  travelEndDate: 'Travel end date',
-  targetDeadline: 'Target date',
+  requirementPack: 'Requirement List',
+  manualMode: 'Manual Assessment',
+  jurisdiction: 'Where You Apply',
+  serviceCategory: 'Type of Service',
+  travelStartDate: 'Travel Start Date',
+  travelEndDate: 'Travel End Date',
+  targetDeadline: 'Target Date',
 };
 
 export function detailName(fieldKey: string): string {
@@ -221,19 +221,19 @@ export const RESULT_NEXT_STEPS: Readonly<
 
 /** How a version was saved, in plain words. Never "verified": a status is not proof. */
 export const FACT_STATUS_LABELS: Readonly<Record<string, string>> = {
-  DECLARED: 'Entered by hand',
-  EXTRACTED_PENDING: 'Read from a document, not checked yet',
-  APPLICANT_CONFIRMED: 'Confirmed by you',
-  DOCUMENT_SUPPORTED: 'Backed by a document',
-  AGENCY_REVIEWED: 'Reviewed by an agency',
-  CONFLICTED: 'Marked as not matching',
-  STALE: 'Out of date',
-  SUPERSEDED: 'Replaced by a newer version',
+  DECLARED: 'Entered by Hand',
+  EXTRACTED_PENDING: 'Read from a Document, Not Checked Yet',
+  APPLICANT_CONFIRMED: 'Confirmed by You',
+  DOCUMENT_SUPPORTED: 'Backed by a Document',
+  AGENCY_REVIEWED: 'Reviewed by an Agency',
+  CONFLICTED: 'Marked as Not Matching',
+  STALE: 'Out of Date',
+  SUPERSEDED: 'Replaced by a Newer Version',
 };
 
 export const AMOUNT_BASIS_LABELS: Readonly<Record<'GROSS' | 'NET', string>> = {
-  GROSS: 'Before tax',
-  NET: 'After tax',
+  GROSS: 'Before Tax',
+  NET: 'After Tax',
 };
 
 /** One sentence on where the review of a snapshot stands. A confirmation never changes a result. */

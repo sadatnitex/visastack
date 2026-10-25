@@ -223,7 +223,7 @@ describe('then-and-now view (v1.2 E03, WP-V3 part 3)', () => {
     );
     const text = textOf(await render({ snapshot: SNAP, version: PRIOR }));
     expect(text).toContain('Before or After Tax');
-    expect(text).toContain('Before tax');
+    expect(text).toContain('Before Tax');
     expect(text).toContain('Not recorded');
   });
 

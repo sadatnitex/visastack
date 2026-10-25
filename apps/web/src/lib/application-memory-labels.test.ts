@@ -45,7 +45,7 @@ describe('Application Memory wording (WP-V3 part 3)', () => {
       changeLine({ kind: 'document', change: 'not_used', documentId: 'd', docType: null }).what,
     ).toBe('no longer used in this case');
     expect(changeLine({ kind: 'case', change: 'changed', caseField: 'travelStartDate' })).toEqual({
-      name: 'Travel start date',
+      name: 'Travel Start Date',
       what: 'changed',
     });
   });
@@ -124,7 +124,7 @@ describe('Application Memory wording (WP-V3 part 3)', () => {
   });
 
   it('says a typed value was entered by hand, and links a fix to the section that holds the detail', () => {
-    expect(FACT_STATUS_LABELS).toMatchObject({ DECLARED: 'Entered by hand' });
+    expect(FACT_STATUS_LABELS).toMatchObject({ DECLARED: 'Entered by Hand' });
     expect(profileSectionHref('a1', 'passport_number')).toMatch(
       /^\/app\/applicant\/a1\/profile#section-[a-z0-9_]+$/,
     );
