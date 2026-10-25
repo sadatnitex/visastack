@@ -24,10 +24,16 @@ export {
   type RequireAccessOptions,
   AuthorizedApplicant,
   CONTRIBUTOR_ACTIONS,
+  DEFAULT_DOCUMENT_PROTECTION,
   EACH_GRANT,
   RESTRICTED_DOCUMENT_CATEGORIES,
   RESTRICTED_DOCUMENT_TYPES,
   isRestrictedDocumentType,
   requireAccess,
 } from './require-access';
+export {
+  type DocumentProtectionOverride,
+  type DocumentProtectionSettings,
+  applyDocumentProtectionOverrides,
+} from './restricted-documents';
 export { StepUpProof, verifyStepUp } from './step-up-proof';
