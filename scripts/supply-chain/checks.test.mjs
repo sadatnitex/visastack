@@ -274,6 +274,23 @@ test('isolated restore allows only manual main code and recovery secrets', () =>
     assert.equal(checkPreviewCredentials(repo({ [file]: unsafe })).status, 'failed');
 });
 
+test('the live signed-in check keeps its test account secrets to main, after a deployment or by hand', () => {
+  const safe =
+    "on:\n  deployment_status:\n  workflow_dispatch:\njobs:\n  live:\n    environment: live-check\n    env:\n      LIVE_CHECK_EMAIL: ${{ secrets.LIVE_CHECK_EMAIL }}\n      LIVE_CHECK_PASSWORD: ${{ secrets.LIVE_CHECK_PASSWORD }}\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          persist-credentials: false\n";
+  const filename = '.github/workflows/live-signed-in-check.yml';
+  assert.equal(checkPreviewCredentials(repo({ [filename]: safe })).status, 'passed');
+  for (const bad of [
+    safe.replace('    environment: live-check\n', ''),
+    safe.replace('          persist-credentials: false\n', ''),
+    safe.replace('  workflow_dispatch:\n', '  pull_request:\n'),
+    safe.replace('  workflow_dispatch:\n', '  push:\n'),
+    `${safe}      - uses: actions/upload-artifact@v4\n`,
+    safe.replace('secrets.LIVE_CHECK_PASSWORD', 'secrets.DATABASE_URL'),
+  ]) {
+    assert.equal(checkPreviewCredentials(repo({ [filename]: bad })).status, 'failed');
+  }
+});
+
 test('Neon credentialed acceptance requires reviewed manual main code and staging proof', () => {
   const safe =
     "on:\n  workflow_dispatch: {}\njobs:\n  routes:\n    if: github.ref == 'refs/heads/main'\n    env:\n      STAGING_VERCEL_TOKEN: ${{ secrets.STAGING_VERCEL_TOKEN }}\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          persist-credentials: false\n      - run: node scripts/check-staging-target.mjs\n";
