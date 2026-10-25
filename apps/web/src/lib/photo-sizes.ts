@@ -46,14 +46,26 @@ export function isSameOrigin(request: Request): boolean {
   return request.headers.get('origin') === new URL(request.url).origin;
 }
 
-/** Reads and validates the JSON body. Undefined for anything malformed. */
+/** A real request body is a few hundred bytes; anything far larger is refused unread. */
+export const PHOTO_REQUEST_MAX_BYTES = 4096;
+
+/**
+ * Reads and validates the JSON body. Undefined for anything malformed, for a body with no declared
+ * length, or for one larger than `PHOTO_REQUEST_MAX_BYTES` (refused before it is read).
+ */
 export async function readPhotoRequest(request: Request): Promise<PhotoRequest | undefined> {
   if (request.headers.get('content-type')?.split(';')[0]?.trim() !== 'application/json') {
     return undefined;
   }
+  const declared = Number(request.headers.get('content-length'));
+  if (!Number.isSafeInteger(declared) || declared < 1 || declared > PHOTO_REQUEST_MAX_BYTES) {
+    return undefined;
+  }
   let body: unknown;
   try {
-    body = await request.json();
+    const text = await request.text();
+    if (text.length > PHOTO_REQUEST_MAX_BYTES) return undefined;
+    body = JSON.parse(text);
   } catch {
     return undefined;
   }
@@ -90,27 +102,52 @@ export async function readPhotoRequest(request: Request): Promise<PhotoRequest |
   return { documentId, actingFor, returnTo, specId, crop };
 }
 
-export type PhotoAuthorization<A extends 'PREVIEW' | 'DOWNLOAD_REDACTED'> =
-  | { readonly kind: 'ok'; readonly access: AuthorizedApplicant<A> }
+export type PhotoAuthorization =
+  | { readonly kind: 'ok'; readonly access: AuthorizedApplicant<'DOWNLOAD_REDACTED'> }
   | { readonly kind: 'response'; readonly response: Response };
 
+const ACTION = 'DOWNLOAD_REDACTED' as const;
+
+function gateOptions(actingFor: ActingFor | undefined): RequireAccessOptions {
+  return { purpose: EACH_GRANT, ...(actingFor !== undefined ? { actingFor } : {}) };
+}
+
 /**
- * The central access gate, with every grant judged against its own purpose (the same question the
- * shared workspace asks). A restricted document gets a step-up: at once when the session is fresh,
- * otherwise the caller is told where to confirm it is them.
+ * Whether this viewer may use Visa Photo Sizes on this document: the very question both routes ask
+ * (safe copies, every grant judged against its own purpose, through the chosen relationship). A
+ * restricted document that only needs a fresh identity check still counts, since the routes then
+ * ask for it. Used by pages so the section is never shown to someone the routes would refuse.
  */
-export async function authorizePhoto<A extends 'PREVIEW' | 'DOWNLOAD_REDACTED'>(
+export async function mayUseVisaPhotoSizes(
   db: Db,
   accountId: string,
-  action: A,
+  documentId: string,
+  actingFor: ActingFor | undefined,
+): Promise<boolean> {
+  const result = await requireAccess(
+    db,
+    accountPrincipal(accountId),
+    ACTION,
+    { documentId },
+    gateOptions(actingFor),
+  );
+  return result.ok || result.error.code === 'step_up_required';
+}
+
+/**
+ * The central access gate for a safe copy, with every grant judged against its own purpose (the
+ * same question the shared workspace asks). A restricted document gets a step-up: at once when the
+ * session is fresh, otherwise the caller is told where to confirm it is them.
+ */
+export async function authorizePhoto(
+  db: Db,
+  accountId: string,
   input: PhotoRequest,
-): Promise<PhotoAuthorization<A>> {
+): Promise<PhotoAuthorization> {
+  const action = ACTION;
   const principal = accountPrincipal(accountId);
   const ref = { documentId: input.documentId };
-  const options: RequireAccessOptions = {
-    purpose: EACH_GRANT,
-    ...(input.actingFor !== undefined ? { actingFor: input.actingFor } : {}),
-  };
+  const options = gateOptions(input.actingFor);
   let result = await requireAccess(db, principal, action, ref, options);
   if (!result.ok && result.error.code === 'step_up_required') {
     const stepUp = await establishStepUpProof(
@@ -157,8 +194,7 @@ export function errorResponse(error: ServiceError): Response {
         },
         400,
       );
-    case 'not_found':
-      return jsonResponse({ message: 'We could not find this photo.' }, 404);
+    // A missing record answers exactly like a refusal, so nobody can tell which ids exist.
     default:
       return jsonResponse(
         {

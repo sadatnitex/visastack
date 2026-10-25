@@ -24,10 +24,15 @@ const orgId = '00000000-0000-4000-8000-0000000000aa';
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 0xff, 0xd9]);
 
 function request(body: unknown, origin = 'https://app.example', type = 'application/json') {
+  const text = typeof body === 'string' ? body : JSON.stringify(body);
   return new Request('https://app.example/api/documents/photo-size', {
     method: 'POST',
-    headers: { origin, 'content-type': type },
-    body: typeof body === 'string' ? body : JSON.stringify(body),
+    headers: {
+      origin,
+      'content-type': type,
+      'content-length': String(Buffer.byteLength(text)),
+    },
+    body: text,
   });
 }
 
@@ -106,6 +111,34 @@ describe('visa photo size download route', () => {
     expect((await POST(request({ ...valid, specId: undefined }))).status).toBe(400);
     expect((await POST(request({ ...valid, actingFor: 'someone' }))).status).toBe(400);
     expect(session).not.toHaveBeenCalled();
+  });
+
+  it('refuses a body with no declared length or one far larger than a real request, unread', async () => {
+    const missing = new Request('https://app.example/api/documents/photo-size', {
+      method: 'POST',
+      headers: { origin: 'https://app.example', 'content-type': 'application/json' },
+      body: JSON.stringify(valid),
+    });
+    expect((await POST(missing)).status).toBe(400);
+    const huge = request({ ...valid, padding: 'x'.repeat(5000) });
+    expect((await POST(huge)).status).toBe(400);
+    expect(session).not.toHaveBeenCalled();
+  });
+
+  it('answers a missing photo exactly like a refused one, so ids cannot be probed', async () => {
+    requireAccess.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'not_found', message: 'record not found' },
+    });
+    const missing = await POST(request(valid));
+    requireAccess.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'forbidden', message: 'access denied (default_deny)' },
+    });
+    const refused = await POST(request(valid));
+    expect(missing.status).toBe(403);
+    expect(refused.status).toBe(403);
+    expect(await missing.json()).toEqual(await refused.json());
   });
 
   it('says plainly when access is refused or the limit is reached, and makes nothing', async () => {

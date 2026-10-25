@@ -27,20 +27,30 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-async function render(props: Partial<Parameters<typeof VisaPhotoSizes>[0]> = {}) {
+async function mount(props: Partial<Parameters<typeof VisaPhotoSizes>[0]> = {}) {
   await act(async () => {
     root.render(
-      <VisaPhotoSizes
-        documentId={documentId}
-        returnTo="/app/applicant/a/documents"
-        canDownload
-        {...props}
-      />,
+      <VisaPhotoSizes documentId={documentId} returnTo="/app/applicant/a/documents" {...props} />,
     );
+  });
+}
+
+/** Opens the disclosure, the only thing that starts the photo check. */
+async function open() {
+  const details = container.querySelector('details');
+  if (!details) throw new Error('missing disclosure');
+  await act(async () => {
+    details.open = true;
+    details.dispatchEvent(new Event('toggle'));
   });
   await act(async () => {
     await Promise.resolve();
   });
+}
+
+async function render(props: Partial<Parameters<typeof VisaPhotoSizes>[0]> = {}) {
+  await mount(props);
+  await open();
 }
 
 function button(name: string): HTMLButtonElement {
@@ -68,9 +78,26 @@ afterEach(() => {
 });
 
 describe('Visa Photo Sizes section', () => {
+  it('checks nothing until the person opens the section, and checks once', async () => {
+    await mount();
+    expect(container.querySelector('summary')?.textContent).toBe('Visa Photo Sizes');
+    expect(container.querySelector('details')?.open).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+    await open();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const details = container.querySelector('details');
+    if (!details) throw new Error('details');
+    await act(async () => {
+      details.open = false;
+      details.dispatchEvent(new Event('toggle'));
+      details.open = true;
+      details.dispatchEvent(new Event('toggle'));
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('shows the checks in plain words, never claiming acceptance', async () => {
     await render();
-    expect(container.querySelector('h3')?.textContent).toBe('Visa Photo Sizes');
     expect(container.textContent).toContain('Too dark');
     expect(container.textContent).toContain('cannot tell you whether the photo will be accepted');
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -188,7 +215,7 @@ describe('Visa Photo Sizes section', () => {
     expect(liveText()).toContain('Downloaded United States, 2 x 2 inches.');
   });
 
-  it('offers identity confirmation when the server asks for it, and hides download when not shared', async () => {
+  it('offers identity confirmation when the server asks for it', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(
         { message: 'Confirm it is you to use this photo.', reauthUrl: '/auth/reauth' },
@@ -199,14 +226,6 @@ describe('Visa Photo Sizes section', () => {
     const link = container.querySelector<HTMLAnchorElement>('[role="alert"] a');
     expect(link?.textContent).toBe('Confirm It Is You');
     expect(link?.getAttribute('href')).toBe('/auth/reauth');
-
-    act(() => root.unmount());
-    root = createRoot(container);
-    await render({ canDownload: false });
-    expect(
-      [...container.querySelectorAll('button')].some((b) => b.textContent === 'Download This Size'),
-    ).toBe(false);
-    expect(container.textContent).toContain('Downloads are not part of what was shared with you.');
   });
 });
 

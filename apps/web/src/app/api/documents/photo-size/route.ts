@@ -18,8 +18,8 @@ export const maxDuration = 30;
 /**
  * Visa Photo Sizes, step two: the photo at one published size, as a JPEG attachment, made on
  * request and never stored. It is a new rendering with all metadata removed, never the stored
- * original, so it needs DOWNLOAD_REDACTED through the central access gate: the owner, or anyone a
- * grant lets download copies. Headers match the document download: attachment, nosniff, no-store,
+ * original, so it needs DOWNLOAD_REDACTED (shown as "Download Safe Copies") through the central
+ * access gate: the owner, or anyone a grant lets download safe copies. Headers match the document download: attachment, nosniff, no-store,
  * and a sandbox policy.
  */
 export async function POST(request: Request): Promise<Response> {
@@ -28,7 +28,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!input?.specId) return jsonResponse({ message: 'Choose a size first.' }, 400);
   const specId = input.specId;
   return withSession(async ({ db, accountId }) => {
-    const authorized = await authorizePhoto(db, accountId, 'DOWNLOAD_REDACTED', input);
+    const authorized = await authorizePhoto(db, accountId, input);
     if (authorized.kind === 'response') return authorized.response;
     const result = await produceVisaPhotoSize(authorized.access, photoSizingDeps(db), {
       specId,

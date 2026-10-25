@@ -431,7 +431,6 @@ export default async function ApplicantDocumentsPage({
                   <VisaPhotoSizes
                     documentId={doc.id}
                     returnTo={`/app/applicant/${id}/documents?document=${doc.id}`}
-                    canDownload
                   />
                 ) : null}
                 {(doc.classification?.reviewRequired === true ||

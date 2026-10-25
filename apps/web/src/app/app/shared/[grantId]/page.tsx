@@ -7,6 +7,7 @@ import { VisaPhotoSizes } from '../../../../components/visa-photo-sizes';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { documentTypeLabel } from '../../../../lib/labels';
 import { fieldLabel } from '../../../../lib/master-profile';
+import { mayUseVisaPhotoSizes } from '../../../../lib/photo-sizes';
 import { withSession } from '../../../../lib/session';
 
 export const metadata: Metadata = { title: 'Shared Record' };
@@ -20,12 +21,29 @@ export default async function SharedWorkspacePage({
 }) {
   const { grantId } = await params;
 
-  const result = await withSession(({ db, accountId }) =>
-    getRecipientWorkspace(db, { actorAccountId: accountId, grantId }),
-  );
+  const loaded = await withSession(async ({ db, accountId }) => {
+    const result = await getRecipientWorkspace(db, { actorAccountId: accountId, grantId });
+    if (!result.ok) return null;
+    // Visa Photo Sizes only for a photo this viewer may take safe copies of, decided by the same
+    // gate question the photo routes ask (across every grant they hold for it), never by this one
+    // grant's list of actions, so the section and the server always agree.
+    const organizationId = result.value.grant.recipientOrganizationId;
+    const photoIds: string[] = [];
+    for (const doc of result.value.documents) {
+      if (!isPassportPhotoType(doc.docType)) continue;
+      const allowed = await mayUseVisaPhotoSizes(
+        db,
+        accountId,
+        doc.id,
+        organizationId ? { organizationId } : 'individual',
+      );
+      if (allowed) photoIds.push(doc.id);
+    }
+    return { workspace: result.value, photoIds };
+  });
 
-  if (!result.ok) notFound();
-  const { value: workspace } = result;
+  if (!loaded) notFound();
+  const { workspace, photoIds } = loaded;
 
   return (
     <section className="section container">
@@ -100,20 +118,18 @@ export default async function SharedWorkspacePage({
                   </div>
                 ))}
               </div>
-              {workspace.documents
-                .filter((doc) => isPassportPhotoType(doc.docType))
-                .map((doc) => (
-                  <VisaPhotoSizes
-                    key={`photo-${doc.id}`}
-                    documentId={doc.id}
-                    returnTo={`/app/shared/${grantId}`}
-                    actingFor={workspace.grant.recipientOrganizationId ?? 'individual'}
-                    canDownload={workspace.grant.actions.includes('DOWNLOAD_REDACTED')}
-                  />
-                ))}
+              {photoIds.map((documentId) => (
+                <VisaPhotoSizes
+                  key={`photo-${documentId}`}
+                  documentId={documentId}
+                  returnTo={`/app/shared/${grantId}`}
+                  actingFor={workspace.grant.recipientOrganizationId ?? 'individual'}
+                />
+              ))}
               <p className="muted u-fs-085">
                 Other documents cannot be previewed here yet. This list shows which documents your
-                grant covers. A shared passport photo can be sized for a visa application above.
+                grant covers. A passport photo shared with safe copies can be sized for a visa
+                application above.
               </p>
             </>
           )}

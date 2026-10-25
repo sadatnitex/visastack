@@ -1,5 +1,4 @@
 import { type Result, err, ok } from '@visastack/core';
-import { resolveDocumentType } from '@visastack/core/catalogue/documents';
 import {
   type CropBox,
   type CropInput,
@@ -25,11 +24,14 @@ import type { BlobStore } from './storage';
  * for the "Visa Photo Sizes" section:
  *
  * - `checkVisaPhoto` measures it (advisory checks in plain words) and returns a small preview for the
- *   crop control. It needs a PREVIEW proof, the same permission as the document's own preview.
- * - `produceVisaPhotoSize` makes a JPEG at one published size. The result is a new rendering of the
- *   photo, re-encoded with every piece of metadata removed, never the stored original bytes, so it
- *   needs the same DOWNLOAD_REDACTED proof that governs every non-original download: the owner always
- *   holds it, and a person or agency holds it only through a grant that includes downloads.
+ *   crop control, only when the person opens the section.
+ * - `produceVisaPhotoSize` makes a JPEG at one published size.
+ *
+ * Both need a DOWNLOAD_REDACTED proof (shown to people as "Download Safe Copies", owner decision
+ * 2026-10-25): the result is a processed copy with every piece of hidden data removed, never the
+ * stored original bytes. The owner always holds it; a person or agency holds it only through a grant
+ * that includes safe copies, so a viewer who may only preview never sees the sizes or their preview.
+ * Each has its own rate-limit bucket, so opening the section never uses up downloads.
  *
  * Both take a proof from the central access gate (`requireAccess`), so who may do this, and when a
  * fresh identity check is needed (a restricted document), is decided exactly as for any other
@@ -70,13 +72,35 @@ export interface PhotoSizingDeps {
 /** Stored file types the sizer reads. Uploads accept only these two image types. */
 const SIZEABLE_TYPES: ReadonlySet<string> = new Set(['image/jpeg', 'image/png']);
 
-/** True for a document of the Photograph kind (its standard key or any alias). */
+/**
+ * Stored kinds that mean a passport or visa photo: the catalogue's Photograph key (PHOTO, what the
+ * kind list stores) and the aliases that name a passport or visa photo. Deliberately not every
+ * alias of PHOTO: PHOTO_ID can name a scan of an identity card, which must never be offered as a
+ * visa photo.
+ */
+const PASSPORT_PHOTO_TYPES: ReadonlySet<string> = new Set([
+  'PHOTO',
+  'PHOTOGRAPH',
+  'PASSPORT_PHOTO',
+  'VISA_PHOTO',
+  'PHOTO_PASSPORT',
+  'PHOTO_VISA',
+]);
+
+/** True for a document of the Photograph kind itself (see `PASSPORT_PHOTO_TYPES`). */
 export function isPassportPhotoType(docType: string | null | undefined): boolean {
   if (!docType) return false;
-  return resolveDocumentType(docType)?.key === 'PHOTO';
+  return PASSPORT_PHOTO_TYPES.has(docType.trim().toUpperCase());
 }
 
-type PhotoAction = 'PREVIEW' | 'DOWNLOAD_REDACTED';
+/** The one permission both functions need: a safe copy, never the original. */
+type PhotoAction = 'DOWNLOAD_REDACTED';
+
+/** Separate buckets: checking a photo never uses up its downloads. */
+const BUCKETS = {
+  check: { action: 'photo_check', label: 'photo check', config: RATE_LIMITS.PHOTO_CHECK },
+  size: { action: 'photo_size', label: 'photo size', config: RATE_LIMITS.PHOTO_SIZE },
+} as const;
 
 function auditActor(access: AuthorizedApplicant<PhotoAction>): {
   readonly actorAccountId: string | null;
@@ -127,7 +151,6 @@ function purposeText(access: AuthorizedApplicant<PhotoAction>): string {
 async function writePhotoAudit(
   access: AuthorizedApplicant<PhotoAction>,
   event: {
-    readonly action: PhotoAction;
     readonly documentId: string;
     readonly applicantId: string;
     readonly allowed: boolean;
@@ -141,7 +164,7 @@ async function writePhotoAudit(
       eventType: 'DOCUMENT_ACCESS',
       actorAccountId: who.actorAccountId,
       actorRole: who.actorRole,
-      action: event.action,
+      action: 'DOWNLOAD_REDACTED',
       result: event.allowed ? 'ALLOWED' : 'DENIED',
       method: 'API',
       applicantId: event.applicantId,
@@ -166,10 +189,11 @@ interface LoadedPhoto {
  */
 async function loadPhoto(
   access: AuthorizedApplicant<PhotoAction>,
-  action: PhotoAction,
+  bucket: keyof typeof BUCKETS,
   deps: PhotoSizingDeps,
   metadata: Readonly<Record<string, unknown>>,
 ): Promise<Result<LoadedPhoto, ServiceError>> {
+  const action: PhotoAction = 'DOWNLOAD_REDACTED';
   if (!AuthorizedApplicant.isGenuine(access, action) || access.resource.kind !== 'document') {
     return err(serviceError('forbidden', 'access denied'));
   }
@@ -182,16 +206,16 @@ async function loadPhoto(
   const db: Db = access.tx;
   const who = auditActor(access);
 
+  const { action: bucketAction, label, config } = BUCKETS[bucket];
   const limit = await checkRateLimit(
     db,
-    { subjectId: who.subjectAccountId, action: 'photo_size.read', label: 'photo size' },
-    RATE_LIMITS.PHOTO_SIZE,
+    { subjectId: who.subjectAccountId, action: bucketAction, label },
+    config,
   );
   if (!limit.allowed) return err(serviceError('rate_limited', limit.reason));
 
   const audit = (allowed: boolean, reason: string | null): Promise<void> =>
     writePhotoAudit(access, {
-      action,
       documentId: document.id,
       applicantId: document.applicantId,
       allowed,
@@ -241,6 +265,22 @@ async function loadPhoto(
   return ok({ documentId: document.id, applicantId: document.applicantId, bytes: stored.bytes });
 }
 
+/** A photo that passed every check but could not be decoded: audited DENIED, like accessDocument. */
+async function refuseUnreadable(
+  access: AuthorizedApplicant<PhotoAction>,
+  loaded: LoadedPhoto,
+  metadata: Readonly<Record<string, unknown>>,
+): Promise<Result<never, ServiceError>> {
+  await writePhotoAudit(access, {
+    documentId: loaded.documentId,
+    applicantId: loaded.applicantId,
+    allowed: false,
+    reason: 'image_unreadable',
+    metadata,
+  });
+  return err(serviceError('invalid', 'this photo could not be read'));
+}
+
 const CHECK_METADATA = Object.freeze({ variant: 'photo_check', disposition: 'preview' });
 
 export interface VisaPhotoCheck {
@@ -255,10 +295,10 @@ export interface VisaPhotoCheck {
  * claims the photo will be accepted.
  */
 export async function checkVisaPhoto(
-  access: AuthorizedApplicant<'PREVIEW'>,
+  access: AuthorizedApplicant<'DOWNLOAD_REDACTED'>,
   deps: PhotoSizingDeps,
 ): Promise<Result<VisaPhotoCheck, ServiceError>> {
-  const loaded = await loadPhoto(access, 'PREVIEW', deps, CHECK_METADATA);
+  const loaded = await loadPhoto(access, 'check', deps, CHECK_METADATA);
   if (!loaded.ok) return loaded;
   let measurements: PhotoMeasurements;
   let preview: PhotoPreview;
@@ -268,10 +308,9 @@ export async function checkVisaPhoto(
       deps.sizer.preview(loaded.value.bytes),
     ]);
   } catch {
-    return err(serviceError('invalid', 'this photo could not be read'));
+    return refuseUnreadable(access, loaded.value, CHECK_METADATA);
   }
   await writePhotoAudit(access, {
-    action: 'PREVIEW',
     documentId: loaded.value.documentId,
     applicantId: loaded.value.applicantId,
     allowed: true,
@@ -307,16 +346,15 @@ export async function produceVisaPhotoSize(
   const spec = getPhotoSpec(input.specId);
   if (!spec) return err(serviceError('invalid', 'choose one of the listed sizes'));
   const requested = { variant: 'photo_size', disposition: 'download', photoSpecId: spec.id };
-  const loaded = await loadPhoto(access, 'DOWNLOAD_REDACTED', deps, requested);
+  const loaded = await loadPhoto(access, 'size', deps, requested);
   if (!loaded.ok) return loaded;
   let photo: SizedPhoto;
   try {
     photo = await deps.sizer.produce(loaded.value.bytes, spec, input.crop);
   } catch {
-    return err(serviceError('invalid', 'this photo could not be resized'));
+    return refuseUnreadable(access, loaded.value, requested);
   }
   await writePhotoAudit(access, {
-    action: 'DOWNLOAD_REDACTED',
     documentId: loaded.value.documentId,
     applicantId: loaded.value.applicantId,
     allowed: true,

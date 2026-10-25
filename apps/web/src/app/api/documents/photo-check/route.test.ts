@@ -21,10 +21,15 @@ vi.mock('@visastack/services', () => ({
 const documentId = '00000000-0000-4000-8000-000000000001';
 
 function request(body: unknown, origin = 'https://app.example') {
+  const text = JSON.stringify(body);
   return new Request('https://app.example/api/documents/photo-check', {
     method: 'POST',
-    headers: { origin, 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+    headers: {
+      origin,
+      'content-type': 'application/json',
+      'content-length': String(Buffer.byteLength(text)),
+    },
+    body: text,
   });
 }
 
@@ -46,7 +51,7 @@ beforeEach(() => {
 });
 
 describe('visa photo check route', () => {
-  it('returns the plain findings and a small preview, never cached', async () => {
+  it('needs the safe-copy permission, not mere preview, and returns findings and a small preview, never cached', async () => {
     const response = await POST(request({ documentId, actingFor: 'individual' }));
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('private, no-store');
@@ -61,7 +66,7 @@ describe('visa photo check route', () => {
     expect(requireAccess).toHaveBeenCalledWith(
       {},
       { kind: 'account', accountId: 'acct' },
-      'PREVIEW',
+      'DOWNLOAD_REDACTED',
       { documentId },
       { purpose: EACH, actingFor: 'individual' },
     );

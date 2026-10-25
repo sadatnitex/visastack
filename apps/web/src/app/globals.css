@@ -6620,3 +6620,13 @@ body:has(.auth-shell) > .footer {
   display: inline-flex;
   align-items: center;
 }
+summary.visa-photo-title {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  margin: 0;
+  cursor: pointer;
+}
+.visa-photo[open] > summary.visa-photo-title {
+  margin-bottom: 8px;
+}

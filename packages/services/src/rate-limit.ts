@@ -60,9 +60,11 @@ export const RATE_LIMITS = {
   /** One shared bucket per actor across all five AI Gateway tasks (extraction, OCR, classification, explanation, inconsistency check). */
   AI_RUN: { limit: 150, windowMs: HOUR_MS },
   /**
-   * Visa photo sizes: one shared bucket per person for the checks and each size made. Each request
-   * decodes and re-encodes an image, so it is bounded even though ordinary downloads are not.
+   * Visa photo sizes: each request decodes and re-encodes an image, so it is bounded even though
+   * ordinary downloads are not. Checks (opening the section) and sizes made have separate buckets,
+   * so looking at a photo never uses up its downloads.
    */
+  PHOTO_CHECK: { limit: 60, windowMs: HOUR_MS },
   PHOTO_SIZE: { limit: 120, windowMs: HOUR_MS },
 } as const satisfies Record<string, RateLimitConfig>;
 

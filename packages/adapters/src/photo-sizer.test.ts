@@ -2,8 +2,10 @@ import { type PhotoSpec, getPhotoSpec, photoFindings } from '@visastack/core/pho
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 import {
+  PHOTO_SIZER_FORMATS,
   PHOTO_SIZER_LIMIT_INPUT_PIXELS,
   PHOTO_SIZER_TIMEOUT_SECONDS,
+  UnsupportedPhotoFormatError,
   createPhotoSizer,
   setJpegDensity,
 } from './photo-sizer';
@@ -87,6 +89,31 @@ describe('photo sizer: bounded decoding', () => {
   it('uses the upload pixel ceiling and a timeout', () => {
     expect(PHOTO_SIZER_LIMIT_INPUT_PIXELS).toBe(40_000_000);
     expect(PHOTO_SIZER_TIMEOUT_SECONDS).toBeLessThanOrEqual(10);
+  });
+
+  it('reads only JPEG and PNG, judged from the bytes, before decoding anything', async () => {
+    expect([...PHOTO_SIZER_FORMATS].sort()).toEqual(['jpeg', 'png']);
+    const pixels = portraitPixels({ width: 300, height: 380 });
+    const raw = sharp(pixels.data, { raw: { width: 300, height: 380, channels: 3 } });
+    const webp = new Uint8Array(await raw.clone().webp().toBuffer());
+    const gif = new Uint8Array(await raw.clone().gif().toBuffer());
+    const tiff = new Uint8Array(await raw.clone().tiff().toBuffer());
+    for (const image of [webp, gif, tiff]) {
+      await expect(sizer.measure(image)).rejects.toBeInstanceOf(UnsupportedPhotoFormatError);
+      await expect(sizer.preview(image)).rejects.toBeInstanceOf(UnsupportedPhotoFormatError);
+      await expect(sizer.produce(image, spec('us-2x2'), CENTRE)).rejects.toBeInstanceOf(
+        UnsupportedPhotoFormatError,
+      );
+    }
+    const png = new Uint8Array(await raw.clone().png().toBuffer());
+    expect((await sizer.measure(png)).width).toBe(300);
+  });
+
+  it("switches off sharp's operation cache once it is loaded", async () => {
+    await sizer.measure(await jpeg(portraitPixels({ width: 300, height: 380 })));
+    const cache = sharp.cache() as { items: { max: number }; memory: { max: number } };
+    expect(cache.items.max).toBe(0);
+    expect(cache.memory.max).toBe(0);
   });
 
   it('refuses damaged image data instead of guessing', async () => {

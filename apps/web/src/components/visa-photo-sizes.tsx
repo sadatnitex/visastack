@@ -15,9 +15,9 @@ import {
 import { useEffect, useId, useRef, useState } from 'react';
 
 /**
- * Visa Photo Sizes: the section shown on a Photograph document, for the owner on the documents
- * page and for a person or agency on a shared record. It asks the server for advisory checks and a
- * small preview, lets the person move and zoom the crop with ordinary buttons (keyboard and screen
+ * Visa Photo Sizes: a section that opens on a Photograph document, for the owner on the documents
+ * page and, on a shared record, for a person or agency whose access includes safe copies (decided on
+ * the server). When opened, it asks the server for advisory checks and a small preview, lets the person move and zoom the crop with ordinary buttons (keyboard and screen
  * reader friendly, with a spoken summary of the position), and downloads the photo at the chosen
  * published size. Nothing about the face or background is changed, and nothing claims the photo
  * will be accepted.
@@ -29,8 +29,6 @@ export interface VisaPhotoSizesProps {
   readonly returnTo: string;
   /** For a shared record: which relationship the viewer acts through ("individual" or an organization id). */
   readonly actingFor?: string;
-  /** Whether the viewer may download sizes (the owner always may; a grant must include downloads). */
-  readonly canDownload: boolean;
 }
 
 interface CheckResult {
@@ -45,6 +43,7 @@ interface CheckResult {
 }
 
 type LoadState =
+  | { readonly kind: 'idle' }
   | { readonly kind: 'loading' }
   | { readonly kind: 'ready'; readonly result: CheckResult }
   | { readonly kind: 'reauth'; readonly url: string; readonly message: string }
@@ -128,14 +127,9 @@ async function readMessage(response: Response): Promise<{ message: string; reaut
   }
 }
 
-export function VisaPhotoSizes({
-  documentId,
-  returnTo,
-  actingFor,
-  canDownload,
-}: VisaPhotoSizesProps) {
+export function VisaPhotoSizes({ documentId, returnTo, actingFor }: VisaPhotoSizesProps) {
   const id = useId();
-  const [load, setLoad] = useState<LoadState>({ kind: 'loading' });
+  const [load, setLoad] = useState<LoadState>({ kind: 'idle' });
   const [specId, setSpecId] = useState(DEFAULT_SPEC_ID);
   const [crop, setCrop] = useState<CropInput>(CENTRED_CROP);
   const [download, setDownload] = useState<DownloadState>({ kind: 'idle' });
@@ -146,41 +140,47 @@ export function VisaPhotoSizes({
   const requestBody = (extra: Record<string, unknown>) =>
     JSON.stringify({ documentId, returnTo, ...(actingFor ? { actingFor } : {}), ...extra });
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: one check per document and viewer.
+  const mounted = useRef(true);
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const response = await fetch('/api/documents/photo-check', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: requestBody({}),
-        });
-        if (cancelled) return;
-        if (!response.ok) {
-          const { message, reauthUrl } = await readMessage(response);
-          setLoad(
-            reauthUrl ? { kind: 'reauth', url: reauthUrl, message } : { kind: 'error', message },
-          );
-          return;
-        }
-        const result = (await response.json()) as CheckResult;
-        if (cancelled) return;
-        setLoad({ kind: 'ready', result });
-        if (typeof createImageBitmap === 'function') {
-          const decoded = await createImageBitmap(base64ToBlob(result.preview.jpegBase64));
-          if (!cancelled) setBitmap(decoded);
-        }
-      } catch {
-        if (!cancelled) {
-          setLoad({ kind: 'error', message: 'We could not check this photo. Try again soon.' });
-        }
-      }
-    })();
+    mounted.current = true;
     return () => {
-      cancelled = true;
+      mounted.current = false;
     };
-  }, [documentId, actingFor]);
+  }, []);
+
+  /**
+   * The photo is only checked (and its preview made) when the person opens the section, never
+   * when the page loads, so browsing documents reads no photo and uses no allowance.
+   */
+  const runCheck = async () => {
+    setLoad({ kind: 'loading' });
+    try {
+      const response = await fetch('/api/documents/photo-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: requestBody({}),
+      });
+      if (!mounted.current) return;
+      if (!response.ok) {
+        const { message, reauthUrl } = await readMessage(response);
+        setLoad(
+          reauthUrl ? { kind: 'reauth', url: reauthUrl, message } : { kind: 'error', message },
+        );
+        return;
+      }
+      const result = (await response.json()) as CheckResult;
+      if (!mounted.current) return;
+      setLoad({ kind: 'ready', result });
+      if (typeof createImageBitmap === 'function') {
+        const decoded = await createImageBitmap(base64ToBlob(result.preview.jpegBase64));
+        if (mounted.current) setBitmap(decoded);
+      }
+    } catch {
+      if (mounted.current) {
+        setLoad({ kind: 'error', message: 'We could not check this photo. Try again soon.' });
+      }
+    }
+  };
 
   const aspect = spec ? specAspect(spec) : 1;
   const previewHeight = Math.round(PREVIEW_WIDTH / aspect);
@@ -265,10 +265,13 @@ export function VisaPhotoSizes({
   const head = headLine(spec);
 
   return (
-    <section className="visa-photo" aria-labelledby={`${id}-title`}>
-      <h3 id={`${id}-title`} className="visa-photo-title">
-        Visa Photo Sizes
-      </h3>
+    <details
+      className="visa-photo"
+      onToggle={(event) => {
+        if (event.currentTarget.open && load.kind === 'idle') void runCheck();
+      }}
+    >
+      <summary className="visa-photo-title">Visa Photo Sizes</summary>
       <p className="visa-photo-note">
         Choose the size your application asks for, then move and zoom until your head and shoulders
         sit in the middle. The photo itself is never edited.
@@ -412,20 +415,14 @@ export function VisaPhotoSizes({
                 </output>
               ) : null}
 
-              {canDownload ? (
-                <button
-                  type="button"
-                  className="btn btn-primary visa-photo-download"
-                  onClick={startDownload}
-                  disabled={download.kind === 'working'}
-                >
-                  Download This Size
-                </button>
-              ) : (
-                <p className="visa-photo-note">
-                  Downloads are not part of what was shared with you.
-                </p>
-              )}
+              <button
+                type="button"
+                className="btn btn-primary visa-photo-download"
+                onClick={startDownload}
+                disabled={download.kind === 'working'}
+              >
+                Download This Size
+              </button>
               {download.kind === 'working' ? (
                 <output className="visa-photo-note" aria-live="polite">
                   Making your photo...
@@ -465,6 +462,6 @@ export function VisaPhotoSizes({
           </div>
         </>
       ) : null}
-    </section>
+    </details>
   );
 }

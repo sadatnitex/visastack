@@ -10,17 +10,36 @@ import {
 import type { PhotoPreview, PhotoSizerPort, SizedPhoto } from '@visastack/services';
 import type { Sharp, SharpOptions } from 'sharp';
 
-type SharpFactory = (input?: Uint8Array, options?: SharpOptions) => Sharp;
+type SharpFactory = ((input?: Uint8Array, options?: SharpOptions) => Sharp) & {
+  cache(options: boolean): unknown;
+};
 
 let sharpLoad: Promise<SharpFactory> | undefined;
 
 /**
  * sharp is a native module: it is loaded the first time a photo is sized, never when this package
  * is imported, so code that only needs another adapter never pays for it (or fails without it).
+ * Its operation cache is switched off, so no decoded pixels of one person's photo stay in memory
+ * after the request that needed them.
  */
 function loadSharp(): Promise<SharpFactory> {
-  sharpLoad ??= import('sharp').then((m) => m.default as unknown as SharpFactory);
+  sharpLoad ??= import('sharp').then((m) => {
+    const sharp = m.default as unknown as SharpFactory;
+    sharp.cache(false);
+    return sharp;
+  });
   return sharpLoad;
+}
+
+/** The only image formats read. Checked from the bytes themselves, never the stored content type. */
+export const PHOTO_SIZER_FORMATS: ReadonlySet<string> = new Set(['jpeg', 'png']);
+
+/** Thrown for a file that is not a JPEG or PNG image, before any pixels are decoded. */
+export class UnsupportedPhotoFormatError extends Error {
+  constructor(format: string | undefined) {
+    super(`not a JPEG or PNG image (${format ?? 'unknown'})`);
+    this.name = 'UnsupportedPhotoFormatError';
+  }
 }
 
 /**
@@ -30,8 +49,9 @@ function loadSharp(): Promise<SharpFactory> {
  * transparency. The finished file carries no metadata at all apart from its DPI.
  *
  * Every decode is bounded: a pixel ceiling (the same 40 megapixels the upload limit allows),
- * failOn 'error' so damaged image data is refused rather than guessed at, sequential reading to keep
- * memory flat, and a processing timeout.
+ * sharp's strictest failOn level ('warning', its own advice for untrusted input) so damaged or
+ * suspicious image data is refused rather than guessed at, only JPEG and PNG as detected from the
+ * bytes, sequential reading to keep memory flat, no operation cache, and a processing timeout.
  */
 
 export const PHOTO_SIZER_LIMIT_INPUT_PIXELS = 40_000_000;
@@ -45,20 +65,25 @@ const WHITE = { r: 255, g: 255, b: 255 };
 function open(sharp: SharpFactory, bytes: Uint8Array): Sharp {
   return sharp(bytes, {
     limitInputPixels: PHOTO_SIZER_LIMIT_INPUT_PIXELS,
-    failOn: 'error',
+    failOn: 'warning',
     sequentialRead: true,
     autoOrient: true,
   }).timeout({ seconds: PHOTO_SIZER_TIMEOUT_SECONDS });
 }
 
-async function orientedSize(
+/**
+ * Reads the header only (no pixel decode): refuses any format other than JPEG or PNG, then gives
+ * the size after the camera's rotation flag. Every operation below calls this first.
+ */
+async function inspect(
   sharp: SharpFactory,
   bytes: Uint8Array,
 ): Promise<{ width: number; height: number }> {
   const meta = await sharp(bytes, {
     limitInputPixels: PHOTO_SIZER_LIMIT_INPUT_PIXELS,
-    failOn: 'error',
+    failOn: 'warning',
   }).metadata();
+  if (!PHOTO_SIZER_FORMATS.has(meta.format)) throw new UnsupportedPhotoFormatError(meta.format);
   const width = meta.autoOrient?.width ?? meta.width;
   const height = meta.autoOrient?.height ?? meta.height;
   if (!width || !height) throw new Error('the photo has no readable size');
@@ -285,7 +310,7 @@ export function createPhotoSizer(): PhotoSizerPort {
   return {
     async measure(bytes: Uint8Array): Promise<PhotoMeasurements> {
       const sharp = await loadSharp();
-      const size = await orientedSize(sharp, bytes);
+      const size = await inspect(sharp, bytes);
       const raw = await toRaw(
         open(sharp, bytes).resize({
           width: PHOTO_ANALYSIS_EDGE,
@@ -309,6 +334,7 @@ export function createPhotoSizer(): PhotoSizerPort {
 
     async preview(bytes: Uint8Array): Promise<PhotoPreview> {
       const sharp = await loadSharp();
+      await inspect(sharp, bytes);
       const { data, info } = await open(sharp, bytes)
         .resize({
           width: PHOTO_PREVIEW_EDGE,
@@ -325,7 +351,7 @@ export function createPhotoSizer(): PhotoSizerPort {
 
     async produce(bytes: Uint8Array, spec: PhotoSpec, crop: CropInput): Promise<SizedPhoto> {
       const sharp = await loadSharp();
-      const size = await orientedSize(sharp, bytes);
+      const size = await inspect(sharp, bytes);
       const box = computeCropBox(size.width, size.height, specAspect(spec), crop);
       const plan = outputPlan(spec, box);
       const raw = await toRaw(

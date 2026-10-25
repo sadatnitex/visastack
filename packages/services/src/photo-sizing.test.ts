@@ -40,7 +40,10 @@ const MEASURED: PhotoMeasurements = {
 };
 
 /** Records what reached the image work, so a refused request can be shown to do none. */
-function fakeDeps(contentType = 'image/jpeg'): PhotoSizingDeps & {
+function fakeDeps(
+  contentType = 'image/jpeg',
+  unreadable = false,
+): PhotoSizingDeps & {
   readonly calls: string[];
   readonly produced: { spec: PhotoSpec; crop: CropInput }[];
 } {
@@ -49,6 +52,7 @@ function fakeDeps(contentType = 'image/jpeg'): PhotoSizingDeps & {
   const sizer: PhotoSizerPort = {
     async measure() {
       calls.push('measure');
+      if (unreadable) throw new Error('decode failed');
       return MEASURED;
     },
     async preview() {
@@ -57,6 +61,7 @@ function fakeDeps(contentType = 'image/jpeg'): PhotoSizingDeps & {
     },
     async produce(_bytes, spec, crop) {
       calls.push('produce');
+      if (unreadable) throw new Error('decode failed');
       produced.push({ spec, crop });
       return {
         bytes: new Uint8Array([9, 9, 9]),
@@ -94,11 +99,12 @@ async function account(db: Db, email: string): Promise<string> {
 }
 
 describe('isPassportPhotoType', () => {
-  it('knows the Photograph kind by its key and its aliases, and nothing else', () => {
-    for (const name of ['PHOTO', 'PHOTOGRAPH', 'PASSPORT_PHOTO', 'VISA_PHOTO']) {
+  it('knows the Photograph kind and its passport and visa photo names, and nothing else', () => {
+    for (const name of ['PHOTO', 'PHOTOGRAPH', 'PASSPORT_PHOTO', 'VISA_PHOTO', 'photo']) {
       expect(isPassportPhotoType(name)).toBe(true);
     }
-    for (const name of ['PASSPORT', 'PHOTO_FAMILY', null, undefined, '']) {
+    // PHOTO_ID is an alias of the same catalogue kind but can name an identity card scan.
+    for (const name of ['PHOTO_ID', 'PASSPORT', 'PHOTO_FAMILY', null, undefined, '']) {
       expect(isPassportPhotoType(name)).toBe(false);
     }
   });
@@ -208,9 +214,9 @@ describe('visa photo sizes - access through the central gate', () => {
 
   it('lets the owner check the photo and download a size, auditing which size and no image data', async () => {
     const deps = fakeDeps();
-    const preview = await gate(ownerId, 'PREVIEW');
-    if (!isOk(preview)) throw new Error('owner preview gate');
-    const checked = await checkVisaPhoto(preview.value, deps);
+    const access = await gate(ownerId, 'DOWNLOAD_REDACTED');
+    if (!isOk(access)) throw new Error('owner gate');
+    const checked = await checkVisaPhoto(access.value, deps);
     if (!isOk(checked)) throw new Error(checked.error.message);
     expect(checked.value.sourceWidth).toBe(1200);
     expect(checked.value.findings).toEqual([]);
@@ -228,8 +234,14 @@ describe('visa photo sizes - access through the central gate', () => {
 
     const audits = await photoAudits();
     const allowed = audits.filter((a) => a.result === 'ALLOWED');
-    expect(allowed.map((a) => a.action).sort()).toEqual(['DOWNLOAD_REDACTED', 'PREVIEW']);
-    const sized = allowed.find((a) => a.action === 'DOWNLOAD_REDACTED');
+    expect(allowed.map((a) => a.action)).toEqual(['DOWNLOAD_REDACTED', 'DOWNLOAD_REDACTED']);
+    expect(allowed.map((a) => (a.metadata as { variant?: string }).variant).sort()).toEqual([
+      'photo_check',
+      'photo_size',
+    ]);
+    const sized = allowed.find(
+      (a) => (a.metadata as { variant?: string }).variant === 'photo_size',
+    );
     expect(sized?.metadata).toMatchObject({
       variant: 'photo_size',
       disposition: 'download',
@@ -259,11 +271,16 @@ describe('visa photo sizes - access through the central gate', () => {
     expect(audit?.metadata).toMatchObject({ purpose: 'shared_photo_sizes' });
   });
 
-  it('refuses a download to an agency whose grant does not include downloads, while its preview still works', async () => {
+  it('refuses checks and sizes to an agency that may only preview, even holding a preview proof', async () => {
     const { agentId } = await agencyWith(['VIEW_METADATA', 'PREVIEW']);
-    expect(isOk(await gate(agentId, 'PREVIEW'))).toBe(true);
+    const preview = await gate(agentId, 'PREVIEW');
+    if (!isOk(preview)) throw new Error('preview gate');
     const download = await gate(agentId, 'DOWNLOAD_REDACTED');
     expect(isErr(download) && download.error.code).toBe('forbidden');
+    const deps = fakeDeps();
+    const checked = await checkVisaPhoto(preview.value as never, deps);
+    expect(isErr(checked) && checked.error.code).toBe('forbidden');
+    expect(deps.calls).toEqual([]);
   });
 
   it('refuses another account with no relationship to the traveller', async () => {
@@ -306,7 +323,7 @@ describe('visa photo sizes - access through the central gate', () => {
     expect(isOk(produced)).toBe(true);
   });
 
-  it('refuses a proof issued for a different action (a preview proof cannot download)', async () => {
+  it('refuses a proof issued for a different action (a preview proof cannot make a size)', async () => {
     const preview = await gate(ownerId, 'PREVIEW');
     if (!isOk(preview)) throw new Error('gate');
     const deps = fakeDeps();
@@ -345,7 +362,7 @@ describe('visa photo sizes - access through the central gate', () => {
 
   it('refuses a photo still being checked, before reading any bytes, and audits the refusal', async () => {
     const pending = await addPhoto('PHOTO', 'PENDING', 'SCANNING');
-    const preview = await gate(ownerId, 'PREVIEW', pending);
+    const preview = await gate(ownerId, 'DOWNLOAD_REDACTED', pending);
     if (!isOk(preview)) throw new Error('gate');
     const deps = fakeDeps();
     const checked = await checkVisaPhoto(preview.value, deps);
@@ -373,21 +390,60 @@ describe('visa photo sizes - access through the central gate', () => {
     expect(pdf.calls).toEqual(['getObject']);
   });
 
-  it('rate-limits checks and sizes per person', async () => {
-    const preview = await gate(ownerId, 'PREVIEW');
-    if (!isOk(preview)) throw new Error('gate');
-    const windowStart = new Date(
-      Math.floor(Date.now() / RATE_LIMITS.PHOTO_SIZE.windowMs) * RATE_LIMITS.PHOTO_SIZE.windowMs,
-    );
-    await db.insert(schema.rateLimitBuckets).values({
-      subjectId: ownerId,
-      action: 'photo_size.read',
-      windowStart,
-      count: RATE_LIMITS.PHOTO_SIZE.limit,
-    });
+  it('rate-limits checks and sizes per person, in separate buckets', async () => {
+    const access = await gate(ownerId, 'DOWNLOAD_REDACTED');
+    if (!isOk(access)) throw new Error('gate');
+    const fill = async (action: string, limit: number) => {
+      const windowMs = RATE_LIMITS.PHOTO_CHECK.windowMs;
+      await db
+        .insert(schema.rateLimitBuckets)
+        .values({
+          subjectId: ownerId,
+          action,
+          windowStart: new Date(Math.floor(Date.now() / windowMs) * windowMs),
+          count: limit,
+        })
+        .onConflictDoUpdate({
+          target: [
+            schema.rateLimitBuckets.subjectId,
+            schema.rateLimitBuckets.action,
+            schema.rateLimitBuckets.windowStart,
+          ],
+          set: { count: limit },
+        });
+    };
+    await fill('photo_check', RATE_LIMITS.PHOTO_CHECK.limit);
     const deps = fakeDeps();
-    const checked = await checkVisaPhoto(preview.value, deps);
+    const checked = await checkVisaPhoto(access.value, deps);
     expect(isErr(checked) && checked.error.code).toBe('rate_limited');
     expect(deps.calls).toEqual([]);
+    // Opening the section many times never uses up the downloads.
+    const crop = { offsetX: 0, offsetY: 0, zoom: 1 };
+    expect(isOk(await produceVisaPhotoSize(access.value, deps, { specId: 'us-2x2', crop }))).toBe(
+      true,
+    );
+    await fill('photo_size', RATE_LIMITS.PHOTO_SIZE.limit);
+    const sized = await produceVisaPhotoSize(access.value, fakeDeps(), { specId: 'us-2x2', crop });
+    expect(isErr(sized) && sized.error.code).toBe('rate_limited');
+  });
+
+  it('audits a photo that cannot be decoded as refused, for checks and for sizes', async () => {
+    const access = await gate(ownerId, 'DOWNLOAD_REDACTED');
+    if (!isOk(access)) throw new Error('gate');
+    const broken = fakeDeps('image/jpeg', true);
+    const checked = await checkVisaPhoto(access.value, broken);
+    expect(isErr(checked) && checked.error.code).toBe('invalid');
+    const sized = await produceVisaPhotoSize(access.value, broken, {
+      specId: 'us-2x2',
+      crop: { offsetX: 0, offsetY: 0, zoom: 1 },
+    });
+    expect(isErr(sized) && sized.error.code).toBe('invalid');
+    const denied = (await photoAudits()).filter((a) => a.result === 'DENIED');
+    expect(denied.map((a) => a.reason)).toEqual(['image_unreadable', 'image_unreadable']);
+    expect(denied.map((a) => (a.metadata as { variant?: string }).variant).sort()).toEqual([
+      'photo_check',
+      'photo_size',
+    ]);
+    expect((await photoAudits()).some((a) => a.result === 'ALLOWED')).toBe(false);
   });
 });
