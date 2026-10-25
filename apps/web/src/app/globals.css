@@ -3595,35 +3595,6 @@ body:has(.auth-shell) > .footer {
   white-space: nowrap;
   font-size: var(--text-caption);
 }
-.record-account nav {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 8px);
-  z-index: 60;
-  display: flex;
-  flex-direction: column;
-  width: min(280px, calc(100vw - 24px));
-  max-height: 65dvh;
-  overflow-y: auto;
-  padding: 10px;
-  border: 1px solid var(--hairline);
-  border-radius: 12px;
-  background: #fff;
-}
-.record-account nav a {
-  min-height: 44px;
-  padding: 10px;
-  font-size: var(--text-caption);
-  overflow-wrap: anywhere;
-}
-.record-account nav form {
-  margin-top: 8px;
-  padding: 8px 0;
-  border-top: 1px solid var(--hairline-soft);
-}
-.record-account nav button {
-  width: 100%;
-}
 @media (max-width: 960px) {
   .record-toolbar {
     padding-inline: 12px;
@@ -4420,15 +4391,6 @@ body:has(.auth-shell) > .footer {
 .app-more-heading {
   display: none;
 }
-.record-menu-heading {
-  margin: 10px 10px 4px;
-  padding-top: 10px;
-  border-top: 1px solid var(--hairline-soft);
-  font-size: var(--text-caption);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-}
 @media (max-width: 1023px) {
   .app-shell-nav {
     min-height: 0;
@@ -4547,9 +4509,6 @@ body:has(.auth-shell) > .footer {
   }
   .record-toolbar-shortcuts {
     gap: 0;
-  }
-  .record-account nav {
-    max-height: calc(100dvh - 160px);
   }
 }
 
@@ -4851,12 +4810,6 @@ body:has(.auth-shell) > .footer {
   }
 }
 
-.record-menu-plan {
-  margin: 0 10px 4px;
-  font-size: var(--text-caption);
-  color: var(--text-secondary);
-}
-
 .auth-password-input {
   position: relative;
 }
@@ -5014,13 +4967,6 @@ body:has(.auth-shell) > .footer {
 /* Compact account trigger; complete identity stays in the menu and accessible label. */
 .record-toolbar .record-account summary .account-name-mobile {
   display: none;
-}
-.record-account .record-menu-identity {
-  margin: 4px 8px 8px;
-  color: var(--text);
-  font-size: var(--text-small);
-  font-weight: 600;
-  overflow-wrap: anywhere;
 }
 @media (max-width: 1023px) {
   .record-toolbar .record-account summary .account-name-desktop {
@@ -6512,4 +6458,267 @@ body:has(.auth-shell) > .footer {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+}
+
+/* WP-UI2 account menu: the signed-in account menu (src/app/app/account-menu.tsx). One flat panel
+   that sizes to its content: who is signed in and their plan, two labelled groups of 44px rows,
+   and Sign Out on its own below a hairline. It never scrolls inside itself at normal heights; only
+   a screen too short to show it all lets it scroll (short-viewport rule below). On a phone the same
+   rows open as a bottom sheet. Colours, spacing, radii and motion all come from the shared tokens. */
+.account-menu-panel {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  /* Above the phone search panel (60) and the context chip list (61). */
+  z-index: 62;
+  display: flex;
+  flex-direction: column;
+  width: min(300px, calc(100vw - 24px));
+  padding: var(--space-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: var(--text-small);
+  text-align: left;
+}
+.account-menu-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+}
+.account-menu-panel .account-menu-avatar {
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  font-size: var(--text-small);
+}
+.account-menu-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.account-menu-who {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.account-menu-name,
+.account-menu-email {
+  margin: 0;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.account-menu-name {
+  color: var(--text);
+  font-size: var(--text-body);
+  font-weight: 650;
+}
+.account-menu-email {
+  color: var(--text-secondary);
+  font-size: var(--text-caption);
+}
+.account-menu-close {
+  display: none;
+  position: absolute;
+  top: 0;
+  right: 0;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.account-menu-close:hover {
+  color: var(--text);
+  background: var(--brand-tint-3);
+}
+.account-menu-plan {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0 0 var(--space-2) var(--space-2);
+}
+.account-menu-plan-name {
+  margin: 0;
+  min-width: 0;
+}
+.account-menu-chip {
+  display: inline-block;
+  max-width: 100%;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--brand-bg);
+  color: var(--selected-text);
+  font-size: var(--text-caption);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.account-menu-plan-link {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 44px;
+  margin-left: auto;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  font-size: var(--text-caption);
+  font-weight: 650;
+  text-decoration: none;
+  transition: background var(--motion-press) var(--motion-ease);
+}
+.account-menu-plan-link:hover {
+  background: var(--brand-bg);
+  color: var(--accent-hover);
+  text-decoration: none;
+}
+.account-menu-group,
+.account-menu-signout {
+  margin-top: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--hairline-soft);
+}
+.account-menu-label {
+  margin: 0;
+  padding: var(--space-1) var(--space-3) var(--space-2);
+  color: var(--text-tertiary);
+  font-size: var(--text-caption);
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+.account-menu-list {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: var(--space-1);
+}
+.account-menu-row,
+.account-menu-panel .account-menu-signout button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-small);
+  font-weight: 550;
+  line-height: 1.3;
+  text-align: left;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  transition: background var(--motion-press) var(--motion-ease), color var(--motion-press)
+    var(--motion-ease);
+}
+.account-menu-row .icon,
+.account-menu-panel .account-menu-signout .icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  color: var(--text-tertiary);
+}
+.account-menu-row:hover,
+.account-menu-row:focus-visible {
+  background: var(--bg-subtle);
+  color: var(--text);
+  text-decoration: none;
+}
+.account-menu-row:hover .icon,
+.account-menu-row:focus-visible .icon {
+  color: var(--text-secondary);
+}
+.account-menu-row[aria-current="page"] {
+  background: var(--brand-bg);
+  color: var(--selected-text);
+  font-weight: 650;
+}
+.account-menu-row[aria-current="page"] .icon {
+  color: var(--brand);
+}
+/* Inset focus ring: rows sit edge to edge, so the ring stays inside its own row. */
+.account-menu-row:focus-visible,
+.account-menu-plan-link:focus-visible,
+.account-menu-close:focus-visible,
+.account-menu-panel .account-menu-signout button:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+}
+.account-menu-row:focus-visible,
+.account-menu-plan-link:focus-visible,
+.account-menu-panel .account-menu-signout button:focus-visible {
+  border-radius: var(--radius-sm);
+}
+.account-menu-close:focus-visible {
+  border-radius: var(--radius-pill);
+}
+.account-menu-signout form {
+  margin: 0;
+}
+/* Sign Out is quiet: neutral at rest, the danger tint only on hover or focus. */
+.account-menu-panel .account-menu-signout button {
+  color: var(--text-secondary);
+}
+.account-menu-panel .account-menu-signout button:hover,
+.account-menu-panel .account-menu-signout button:focus-visible {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.account-menu-panel .account-menu-signout button:hover .icon,
+.account-menu-panel .account-menu-signout button:focus-visible .icon {
+  color: var(--danger);
+}
+/* Short screens only: the panel takes the room below the toolbar and scrolls within it. */
+@media (min-width: 761px) and (max-height: 640px) {
+  .account-menu-panel {
+    max-height: calc(100dvh - 80px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+/* Phone: the same rows as a bottom sheet, clear of the home indicator. */
+@media (max-width: 760px) {
+  .account-menu-panel {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 70;
+    width: auto;
+    max-height: calc(100dvh - var(--space-4));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--space-3) calc(var(--space-3) + env(safe-area-inset-right, 0px))
+      calc(var(--space-4) + env(safe-area-inset-bottom, 0px))
+      calc(var(--space-3) + env(safe-area-inset-left, 0px));
+    border-width: 1px 0 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+  .account-menu-header {
+    padding-right: 52px;
+  }
+  .account-menu-close {
+    display: inline-flex;
+  }
+  .account-menu-row,
+  .account-menu-panel .account-menu-signout button {
+    min-height: 48px;
+    font-size: var(--text-body);
+  }
 }

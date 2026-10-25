@@ -11,15 +11,19 @@ import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { BrandMark } from '../../components/brand-mark';
 import { Icon } from '../../components/icons';
 import type { WorkspaceAccess, WorkspaceNavigation } from '../../lib/workspace-navigation';
+import { AccountMenu } from './account-menu';
 
 export function WorkspaceRecordToolbar({
   accountName,
+  accountEmail,
   navigation,
   state,
   signOut,
   contextChip,
 }: {
   readonly accountName: string;
+  /** The signed-in address the session already holds, shown in the account menu. */
+  readonly accountEmail?: string | undefined;
   readonly access: WorkspaceAccess;
   readonly navigation: WorkspaceNavigation;
   readonly state?: WorkspaceToolbarState;
@@ -37,7 +41,6 @@ export function WorkspaceRecordToolbar({
   const input = useRef<HTMLInputElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
   const search = useRef<HTMLElement>(null);
-  const account = useRef<HTMLDetailsElement>(null);
   const inputId = useId();
   const resultsId = useId();
   const searchId = useId();
@@ -62,7 +65,6 @@ export function WorkspaceRecordToolbar({
   useEffect(() => {
     setQuery('');
     setMobileSearch(false);
-    if (account.current) account.current.open = false;
   }, [pathname]);
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
@@ -107,18 +109,6 @@ export function WorkspaceRecordToolbar({
     };
   }, [query, scopeKey]);
 
-  useEffect(() => {
-    const outside = (event: PointerEvent) => {
-      if (
-        event.target instanceof Node &&
-        account.current &&
-        !account.current.contains(event.target)
-      )
-        account.current.open = false;
-    };
-    document.addEventListener('pointerdown', outside);
-    return () => document.removeEventListener('pointerdown', outside);
-  }, []);
   const closeSearch = () => {
     setQuery('');
     setMobileSearch(false);
@@ -253,52 +243,12 @@ export function WorkspaceRecordToolbar({
           ) : null}
         </Link>
       </nav>
-      <details
-        className="record-account"
-        ref={account}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape' && account.current) {
-            event.stopPropagation();
-            account.current.open = false;
-            account.current.querySelector('summary')?.focus();
-          }
-        }}
-      >
-        <summary aria-label={`${accountName}, account menu`}>
-          <b className="account-name-desktop" dir="auto">
-            {accountName}
-          </b>
-          <b className="account-name-mobile" dir="auto">
-            {accountName.trim().split(/\s+/)[0] || 'Account'}
-          </b>
-          {/* WP-X3: on the narrowest phones the account shows as an icon, leaving room for the context chip. */}
-          <span className="account-icon-mobile" aria-hidden="true">
-            <Icon name="user" size={20} />
-          </span>
-          <Icon name="chevronDown" size={14} />
-          <span className="sr-only">Account menu</span>
-        </summary>
-        <nav
-          aria-label="Account menu"
-          onClickCapture={(event) => {
-            if ((event.target as HTMLElement).closest('a') && account.current)
-              account.current.open = false;
-          }}
-        >
-          <p className="record-menu-identity" dir="auto">
-            {accountName}
-          </p>
-          <Link href="/app/account">Your Account</Link>
-          <Link href="/app/applicants">Manage Travellers</Link>
-          <Link href="/app/agency">Create or Manage an Agency</Link>
-          <p className="record-menu-plan">{state?.personalPlan?.name ?? 'Plan Information'}</p>
-          <Link href="/app/privacy">Privacy & Consent</Link>
-          <p className="record-menu-heading">Support</p>
-          <Link href="/app/help">Help & Support</Link>
-          <Link href="/status">Service Status</Link>
-          {signOut}
-        </nav>
-      </details>
+      <AccountMenu
+        name={accountName}
+        email={accountEmail}
+        plan={state?.personalPlan ? { name: state.personalPlan.name, href: '/app/account' } : null}
+        signOut={signOut}
+      />
     </header>
   );
 }
