@@ -52,6 +52,22 @@ const PHRASAL_VERBS: ReadonlySet<string> = new Set([
 ]);
 const PARTICLES: ReadonlySet<string> = new Set(['in', 'up', 'out', 'on', 'off', 'back', 'over']);
 
+const ALNUM = /[A-Za-z0-9]/;
+const WORD_CHAR = /[A-Za-z0-9'’.-]/;
+
+/**
+ * Splits "(e-visa)," into what comes before the word, the word, and what follows. A single pass
+ * over the characters, so the time stays linear whatever the text.
+ */
+function splitWord(word: string): { before: string; core: string; after: string } | null {
+  let start = 0;
+  while (start < word.length && !ALNUM.test(word.charAt(start))) start += 1;
+  if (start === word.length) return null;
+  let end = start + 1;
+  while (end < word.length && WORD_CHAR.test(word.charAt(end))) end += 1;
+  return { before: word.slice(0, start), core: word.slice(start, end), after: word.slice(end) };
+}
+
 function capitalise(word: string): string {
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
@@ -63,9 +79,9 @@ export function toTitleCase(text: string): string {
     .map((word, i) => {
       // An HTML entity such as &amp; is a symbol, not a word.
       if (/^&[a-z]+;$/.test(word)) return word;
-      const match = /^([^A-Za-z0-9]*)([A-Za-z0-9][A-Za-z0-9'’.-]*)(.*)$/.exec(word);
-      if (!match) return word;
-      const [, before = '', core = '', after = ''] = match;
+      const split = splitWord(word);
+      if (!split) return word;
+      const { before, core, after } = split;
       // A single capital letter is not an abbreviation: "Add A Traveller" is wrong.
       const abbreviation = core.length > 1 && core === core.toUpperCase();
       if (/[A-Z]/.test(core.slice(1)) || /^[0-9]/.test(core) || abbreviation) {
