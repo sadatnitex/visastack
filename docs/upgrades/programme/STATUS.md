@@ -10,7 +10,7 @@ Keep this file between 250 and 400 words. Memory between sessions; evidence live
 - Also merged on 25 Oct: #247, #249 to #257, AI review polish (#259), document protection switches (#260)
 - In flight: WP-V4 agency slice (`claude/prog-v4-agency`, built, review in progress); AI data plan Phase 2 insights (`claude/ai-insights-phase2`, review fixes in progress); AI naming and sorting with owner approval (next package, owner request 25 Oct)
 - Owner decisions 25 Oct: restricted documents and admin switches; reason required to remove protection; Record hub answers above; insights keep the safer default (restricted documents named by kind and section only); WP-V4 Q1 to Q5 option A
-- Checks on `67cefec` before the main merge (`4db3716`): audit, lint, typecheck, all package tests, web tests, build, 202 browser checks and smoke 11/11 pass; after the main merge lint and typecheck pass; CI pending
+- Full local check on `4db3716` (before the main merge): audit, lint, typecheck, all package tests, web tests, build, 202 browser checks and smoke 11/11 pass; after the main merge lint and typecheck pass; CI pending
 - Review rule (owner, 25 Oct 2026): independent Opus review before every merge
 - Blockers: none. Live domain unreachable from the container; live evidence comes from Deploy Smoke, Playwright Deploy Smoke and the Live signed-in check
 - Stop reason, if stopped: none
