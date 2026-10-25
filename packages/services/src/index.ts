@@ -1046,6 +1046,19 @@ export {
 } from './rate-limit';
 
 export { redactErrorMessage, serverErrorEvent } from './error-report';
+
+export {
+  type PhotoPreview,
+  type PhotoSizerPort,
+  type PhotoSizingDeps,
+  type ProduceVisaPhotoInput,
+  type ProducedVisaPhoto,
+  type SizedPhoto,
+  type VisaPhotoCheck,
+  checkVisaPhoto,
+  isPassportPhotoType,
+  produceVisaPhotoSize,
+} from './photo-sizing';
 export { formatObservabilityLine } from './observability-format';
 
 export {

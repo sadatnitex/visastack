@@ -1,7 +1,10 @@
 import 'server-only';
+import type { PermissionAction } from '@visastack/core';
 import {
   type StepUpAssuranceFields,
+  type StepUpProof,
   issueStepUpAssurance,
+  verifyStepUp,
   verifyStepUpAssurance,
 } from '@visastack/services';
 import { neonReauthUrl, neonSessionAgeSeconds } from './neon-recency';
@@ -114,3 +117,28 @@ export async function tryEstablishStepUp(
 /** Safe, non-leaky message for a `not_configured` outcome — never exposes which env var or why. */
 export const STEP_UP_NOT_CONFIGURED_MESSAGE =
   'This action requires step-up verification, which is not configured in this environment.';
+
+export type StepUpProofOutcome =
+  | { readonly kind: 'proof'; readonly proof: StepUpProof }
+  | { readonly kind: 'reauth_required'; readonly reauthUrl: string }
+  | { readonly kind: 'not_configured' };
+
+/**
+ * The same recency rule as `establishStepUp`, but hands back the `StepUpProof` the central access
+ * gate (`requireAccess`) accepts, bound to exactly this account, action and record. A fresh session
+ * gets the proof at once with no extra prompt; a stale one is sent to the password re-check.
+ */
+export async function establishStepUpProof(
+  request: StepUpRequest & { readonly action: PermissionAction },
+  returnTo: string,
+): Promise<StepUpProofOutcome> {
+  if ((await neonSessionAgeSeconds()) > STEP_UP_MAX_AGE_SECONDS) {
+    return { kind: 'reauth_required', reauthUrl: neonReauthUrl(returnTo) };
+  }
+  const secret = readEnv('STEP_UP_SIGNING_SECRET');
+  if (!secret) return { kind: 'not_configured' };
+  const token: StepUpAssuranceFields = issueStepUpAssurance(secret, request);
+  const proof = verifyStepUp(secret, token, request);
+  if (!proof) throw new Error('step-up assurance token failed immediate self-verification');
+  return { kind: 'proof', proof };
+}
