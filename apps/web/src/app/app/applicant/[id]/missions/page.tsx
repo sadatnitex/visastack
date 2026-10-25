@@ -53,6 +53,11 @@ export default async function MissionsPage({
         title="Visa Cases"
         description="A case assembles this applicant's evidence against a published requirement pack."
         as="h2"
+        actions={
+          <Link className="btn btn-secondary" href={`/app/applicant/${id}/memory`}>
+            Application Memory
+          </Link>
+        }
       />
 
       <div className="grid">

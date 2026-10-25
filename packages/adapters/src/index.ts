@@ -39,7 +39,17 @@ export {
   type DeterministicTextExtractorOptions,
 } from './text-extraction';
 
+export { SharpPhotoReencoder, type SharpPhotoReencoderOptions } from './photo-reencoder';
 export { BuiltinPreviewRenderer } from './preview-renderer';
+
+export {
+  PHOTO_SIZER_FORMATS,
+  PHOTO_SIZER_LIMIT_INPUT_PIXELS,
+  PHOTO_SIZER_TIMEOUT_SECONDS,
+  UnsupportedPhotoFormatError,
+  createPhotoSizer,
+  setJpegDensity,
+} from './photo-sizer';
 
 export {
   BuiltinContentLimitsChecker,

@@ -43,6 +43,8 @@ export const RATE_LIMITS = {
   CLIENT_INVITATION_CREATE: { limit: 60, windowMs: HOUR_MS },
   CLIENT_INVITATION_CREATE_ORG: { limit: 200, windowMs: HOUR_MS },
   UPLOAD_RESERVE: { limit: 200, windowMs: HOUR_MS },
+  /** WP-PH1: adding, replacing or removing a profile photo, all counted together (adding or replacing one decodes and re-encodes an image). */
+  PROFILE_PHOTO_CHANGE: { limit: 30, windowMs: HOUR_MS },
   ACCOUNT_EXPORT: { limit: 5, windowMs: HOUR_MS },
   BULK_EXPORT: { limit: 10, windowMs: HOUR_MS },
   BULK_EXPORT_ORG: { limit: 20, windowMs: HOUR_MS },
@@ -59,6 +61,13 @@ export const RATE_LIMITS = {
   AUTH_EMAIL_SEND_IP: { limit: 10, windowMs: HOUR_MS },
   /** One shared bucket per actor across all five AI Gateway tasks (extraction, OCR, classification, explanation, inconsistency check). */
   AI_RUN: { limit: 150, windowMs: HOUR_MS },
+  /**
+   * Visa photo sizes: each request decodes and re-encodes an image, so it is bounded even though
+   * ordinary downloads are not. Checks (opening the section) and sizes made have separate buckets,
+   * so looking at a photo never uses up its downloads.
+   */
+  PHOTO_CHECK: { limit: 60, windowMs: HOUR_MS },
+  PHOTO_SIZE: { limit: 120, windowMs: HOUR_MS },
 } as const satisfies Record<string, RateLimitConfig>;
 
 export type RateLimitDecision =

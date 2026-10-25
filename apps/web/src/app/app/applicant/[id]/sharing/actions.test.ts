@@ -6,12 +6,16 @@ const mocks = vi.hoisted(() => ({
   revokeGrant: vi.fn(),
   revalidatePath: vi.fn(),
   redirect: vi.fn(),
+  createGrant: vi.fn(),
+  getAccountByEmail: vi.fn(),
 }));
 vi.mock('@visastack/services', async (original) => ({
   ...(await original<typeof import('@visastack/services')>()),
   pauseGrant: mocks.pauseGrant,
   resumeGrant: mocks.resumeGrant,
   revokeGrant: mocks.revokeGrant,
+  createGrant: mocks.createGrant,
+  getAccountByEmail: mocks.getAccountByEmail,
 }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
@@ -24,7 +28,7 @@ vi.mock('../../../../../lib/step-up', () => ({
 vi.mock('../../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) => fn({ db: {}, accountId: 'owner' }),
 }));
-const { updateGrantAction } = await import('./actions');
+const { createGrantAction, updateGrantAction } = await import('./actions');
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.redirect.mockImplementation(() => {
@@ -61,5 +65,35 @@ describe('sharing transition navigation', () => {
     });
     expect(mocks.redirect).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe('safe copies stay grantable (stored as DOWNLOAD_REDACTED)', () => {
+  function grantForm(actions: readonly string[]) {
+    const data = new FormData();
+    data.set('applicantId', 'owned-person');
+    data.set('recipientEmail', 'synthetic@example.com');
+    data.set('purpose', 'Visa review');
+    for (const action of actions) data.append('action', action);
+    return data;
+  }
+  beforeEach(() => {
+    mocks.getAccountByEmail.mockResolvedValue({ id: 'recipient' });
+    mocks.createGrant.mockResolvedValue({ ok: true, value: {} });
+  });
+
+  it('accepts the action and passes it to the grant unchanged', async () => {
+    const result = await createGrantAction(
+      { ok: true, message: '' },
+      grantForm(['VIEW_METADATA', 'PREVIEW', 'DOWNLOAD_REDACTED']),
+    );
+    expect(result).toEqual({
+      ok: true,
+      message: 'Access shared with synthetic@example.com. It becomes active once they accept.',
+    });
+    expect(mocks.createGrant).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ actions: ['VIEW_METADATA', 'PREVIEW', 'DOWNLOAD_REDACTED'] }),
+    );
   });
 });

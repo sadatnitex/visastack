@@ -1,3 +1,5 @@
+import { documentTypeName } from '@visastack/core/catalogue/documents';
+
 /**
  * Automatic document naming (master directive §11):
  *
@@ -43,11 +45,18 @@ export function sanitizeNameComponent(raw: string): string {
   return out.slice(0, 120);
 }
 
+/**
+ * The plain name of a kind of document for a filename: the fixed labels above first, then the
+ * catalogue's own label (so every one of its kinds reads as words, never as a key), then the
+ * value itself for a kind neither knows.
+ */
+export function documentKindLabel(classifiedType: string): string {
+  return DOC_TYPE_LABELS[classifiedType] ?? documentTypeName(classifiedType) ?? classifiedType;
+}
+
 /** Build the proposed filename from deterministic components. Never invents a missing part. */
 export function buildProposedName(input: NameComponentsInput): string {
-  const typeLabel = input.classifiedType
-    ? (DOC_TYPE_LABELS[input.classifiedType] ?? input.classifiedType)
-    : 'Document';
+  const typeLabel = input.classifiedType ? documentKindLabel(input.classifiedType) : 'Document';
 
   const parts = [sanitizeNameComponent(typeLabel), sanitizeNameComponent(input.primarySubject)];
   if (input.issuerOrContext) parts.push(sanitizeNameComponent(input.issuerOrContext));

@@ -9,6 +9,7 @@ import { type AccountExport, type AccountExportManifest, exportAccount } from '.
 import { buildExportCsvTables } from './export-csv';
 import { extensionOf, sanitizeNameComponent } from './naming';
 import type { KeyManagementPort } from './ports';
+import { isIntactPhoto, readUnlessPhotoTableMissing } from './profile-photos';
 import { buildAccountExportAad, protectBytes, revealBytes } from './protected-fields';
 import type { BlobStore } from './storage';
 
@@ -321,17 +322,68 @@ async function collectDocumentFiles(
   return { files, included, excluded };
 }
 
+interface PhotoBundleResult {
+  readonly files: ReadonlyArray<{ readonly name: string; readonly bytes: Uint8Array }>;
+  readonly included: number;
+}
+
+/**
+ * The profile photo (WP-PH1) of each traveller record in this export, as
+ * `photos/<name>.jpg`. Only records the export already holds, which are the
+ * exporting account's own (`exportAccount` refuses any other account), so a
+ * photo is exported to its owner and nobody else. Only bytes that still match
+ * the saved hash and are a JPEG are included. Before the photo table exists
+ * (migration 0088 not yet run) there are simply no photos.
+ */
+async function collectPhotoFiles(
+  db: Db,
+  blobStore: BlobStore,
+  exported: AccountExport,
+): Promise<PhotoBundleResult> {
+  const names = new Map(exported.applicants.map((a) => [a.applicant.id, a.applicant.displayName]));
+  if (names.size === 0) return { files: [], included: 0 };
+  const rows = await readUnlessPhotoTableMissing(db, [], (tx) =>
+    tx
+      .select({
+        applicantId: schema.applicantPhotos.applicantId,
+        contentSha256: schema.applicantPhotos.contentSha256,
+        objectKey: schema.storageObjects.objectKey,
+      })
+      .from(schema.applicantPhotos)
+      .innerJoin(
+        schema.storageObjects,
+        eq(schema.storageObjects.id, schema.applicantPhotos.storageObjectId),
+      )
+      .where(inArray(schema.applicantPhotos.applicantId, [...names.keys()])),
+  );
+  const files: Array<{ name: string; bytes: Uint8Array }> = [];
+  const usedNames = new Set<string>();
+  for (const row of rows) {
+    const stored = await blobStore.getObject(row.objectKey);
+    if (!stored || !isIntactPhoto(stored.bytes, row.contentSha256)) continue;
+    const base = sanitizeNameComponent(names.get(row.applicantId) ?? '') || 'photo';
+    files.push({
+      name: uniqueZipEntryName(usedNames, `photos/${base}`, 'jpg'),
+      bytes: stored.bytes,
+    });
+  }
+  return { files, included: files.length };
+}
+
 /** The manifest written into the artifact itself - not `AccountExport`'s own top-level `manifest` field verbatim. That one truthfully describes `exportAccount`'s synchronous JSON/CSV-only output; this one reflects what THIS artifact actually contains, including bytes. Never mutates the base manifest, which stays correct for its own separate caller (the JSON export route). */
 export interface AccountExportArtifactManifest extends AccountExportManifest {
   readonly documentBytes: {
     readonly included: number;
     readonly excluded: readonly DocumentBundleExclusion[];
   };
+  /** How many profile photos the artifact holds, under `photos/`. */
+  readonly profilePhotos: { readonly included: number };
 }
 
 function buildArtifactManifest(
   base: AccountExportManifest,
   bundle: DocumentBundleResult,
+  photos: PhotoBundleResult,
 ): AccountExportArtifactManifest {
   // Only claim the gap is closed once this artifact genuinely contains at
   // least one real file - an account with zero usable versions (none yet,
@@ -345,6 +397,7 @@ function buildArtifactManifest(
     ...base,
     knownGaps,
     documentBytes: { included: bundle.included, excluded: bundle.excluded },
+    profilePhotos: { included: photos.included },
   };
 }
 
@@ -393,7 +446,12 @@ async function processAccountExportJob(
       throw new Error(`export failed (${exported.error.code}): ${exported.error.message}`);
 
     const documentBundle = await collectDocumentFiles(db, ports.blobStore, exported.value);
-    const artifactManifest = buildArtifactManifest(exported.value.manifest, documentBundle);
+    const photoBundle = await collectPhotoFiles(db, ports.blobStore, exported.value);
+    const artifactManifest = buildArtifactManifest(
+      exported.value.manifest,
+      documentBundle,
+      photoBundle,
+    );
     const files = [
       {
         name: 'manifest.json',
@@ -403,6 +461,7 @@ async function processAccountExportJob(
         .filter((table) => table.rowCount > 0)
         .map((table) => ({ name: table.name, bytes: new TextEncoder().encode(table.csv) })),
       ...documentBundle.files,
+      ...photoBundle.files,
     ];
     const zipBytes = await ports.bundler.build(files);
     const protectedArtifact = await protectBytes(

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatTimestampDate } from '../../../../lib/format-date';
+import { permissionActionLabel } from '../../../../lib/labels';
 import { plural } from '../../../../lib/plural';
 import { withSession } from '../../../../lib/session';
 import { ConsentGate } from '../../client-invitations/accept/consent-gate';
@@ -57,7 +58,7 @@ export default async function SharingInvitationPage({
             </div>
             <div className="row">
               <dt>Permissions</dt>
-              <dd>{invite.actions.map(humanizeCode).join(', ')}</dd>
+              <dd>{invite.actions.map(permissionActionLabel).join(', ')}</dd>
             </div>
             <div className="row">
               <dt>Profile Categories</dt>

@@ -26,6 +26,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
 vi.mock('../../../../../lib/ai', () => ({
   createAiExtractor: () => undefined,
   isClassificationConfigured: async () => false,
+  isEnvAiExtractionConfigured: () => false,
   isInconsistencyConfigured: async () => false,
   isOcrConfigured: async () => false,
 }));
@@ -44,7 +45,6 @@ vi.mock('../actions', () => ({
 vi.mock('../ai-review', () => ({
   AiProposalReview: stub('AiProposalReview'),
   DocumentFindings: stub('DocumentFindings'),
-  DocumentTypeProposalReview: stub('DocumentTypeProposalReview'),
   InconsistencyFlagReview: stub('InconsistencyFlagReview'),
   OcrResultView: stub('OcrResultView'),
   RunAiExtractionButton: stub('RunAiExtractionButton'),
@@ -53,7 +53,9 @@ vi.mock('../ai-review', () => ({
   RunOcrButton: stub('RunOcrButton'),
 }));
 vi.mock('../document-uploader', () => ({ DocumentUploader: stub('DocumentUploader') }));
-vi.mock('../name-review', () => ({ NameReview: stub('NameReview') }));
+vi.mock('../document-suggestion-card', () => ({
+  DocumentSuggestionCard: stub('DocumentSuggestionCard'),
+}));
 vi.mock('../../../../../components/auto-refresh', () => ({ AutoRefresh: stub('AutoRefresh') }));
 
 const { default: DocumentsPage } = await import('./page');
@@ -271,11 +273,79 @@ describe('filing each document under a category', () => {
   });
 });
 
+describe('what we think a document is, waiting for the person (owner request 2026-10-25)', () => {
+  it('shows one card with the suggested kind, name and Record group, and leaves the kind unset', async () => {
+    mocks.getApplicant.mockResolvedValue({
+      id: 'a1',
+      ownerAccountId: 'acct-1',
+      displayName: 'Anna Eriksson',
+    });
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [
+        {
+          ...doc('statement', 'AWAITING_REVIEW'),
+          classification: {
+            classifiedType: 'BANK_STATEMENT',
+            confidence: 67,
+            reviewRequired: false,
+          },
+          pendingNameVersion: { id: 'n1', proposedName: 'Bank Statement - Anna Eriksson.pdf' },
+        },
+      ],
+    });
+    const html = await render('statement');
+    const [card] = stubProps<{ suggestion: Record<string, unknown> }>(
+      html,
+      'DocumentSuggestionCard',
+    );
+    expect(card?.suggestion).toMatchObject({
+      documentId: 'statement',
+      nameVersionId: 'n1',
+      kind: 'BANK_STATEMENT',
+      recordGroup: 'Money',
+      source: 'rules',
+      proposedName: 'Bank Statement - Anna Eriksson.pdf',
+    });
+    expect(textOf(html)).toContain('Kind not set');
+  });
+
+  it('shows no card when nothing is waiting', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [{ ...doc('passport', 'APPROVED'), docType: 'PASSPORT' }],
+    });
+    expect(stubProps(await render('passport'), 'DocumentSuggestionCard')).toEqual([]);
+  });
+});
+
 describe('the way to the document insights', () => {
   it('links from the documents page to the traveller insights page', async () => {
     mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [] });
     const html = await render();
     expect(html).toContain('href="/app/applicant/a1/insights"');
     expect(textOf(html)).toContain('See Document Insights');
+  });
+});
+
+describe('visa photo sizes on a passport photo', () => {
+  it('offers Visa Photo Sizes on a ready Photograph document and nowhere else', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [{ ...doc('photo', 'APPROVED'), docType: 'PHOTO' }],
+    });
+    expect(textOf(await render('photo'))).toContain('Visa Photo Sizes');
+
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [{ ...doc('photo', 'SCANNING'), docType: 'PHOTO' }],
+    });
+    expect(textOf(await render('photo'))).not.toContain('Visa Photo Sizes');
+
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [{ ...doc('passport', 'APPROVED'), docType: 'PASSPORT' }],
+    });
+    expect(textOf(await render('passport'))).not.toContain('Visa Photo Sizes');
   });
 });

@@ -1,6 +1,7 @@
 import { ORIGINAL_DOCUMENT_KEYS, resolveDocumentType } from '@visastack/core/catalogue';
 import { type MessageKey, type Translator, createTranslator } from '@visastack/i18n';
 import {
+  DEFAULT_DOCUMENT_PROTECTION,
   type DocumentLifecycleStatus,
   classifyExpiry,
   documentCategory,
@@ -9,6 +10,8 @@ import {
   getLatestOcrRun,
   getWalletView,
   hasConsent,
+  isPassportPhotoType,
+  isRestrictedDocumentType,
   isServableProcessingState,
   listApplicantProfile,
   listDocumentsDetailed,
@@ -18,6 +21,7 @@ import {
   listPendingProposals,
   loadUploadQuotaConfig,
   mbLabel,
+  readDocumentProtectionSettings,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -25,6 +29,7 @@ import { notFound } from 'next/navigation';
 import { AutoRefresh } from '../../../../../components/auto-refresh';
 import { DocumentWalletBrowser } from '../../../../../components/document-wallet-browser';
 import { PageHeader } from '../../../../../components/ui';
+import { VisaPhotoSizes } from '../../../../../components/visa-photo-sizes';
 import {
   createAiExtractor,
   isClassificationConfigured,
@@ -47,7 +52,6 @@ import {
 } from '../actions';
 import {
   DocumentFindings,
-  DocumentTypeProposalReview,
   InconsistencyFlagReview,
   OcrResultView,
   RunAiExtractionButton,
@@ -55,10 +59,11 @@ import {
   RunInconsistencyCheckButton,
   RunOcrButton,
 } from '../ai-review';
+import { documentSuggestionView } from '../document-suggestion';
+import { DocumentSuggestionCard } from '../document-suggestion-card';
 import { DocumentTypeForm } from '../document-type-form';
 import { DocumentUploader } from '../document-uploader';
 import { downloadOriginalAction } from '../download-actions';
-import { NameReview } from '../name-review';
 import { UsageMeter } from '../usage-meter';
 
 const ORIGINAL_KINDS: readonly string[] = [...ORIGINAL_DOCUMENT_KEYS];
@@ -216,7 +221,14 @@ export default async function ApplicantDocumentsPage({
     );
     const ocrRuns = new Map(documentRows.map((doc, i) => [doc.id, ocrRunLists[i]] as const));
     const confirmed = confirmedValues(profile, encryption !== undefined);
+    // The live protection rule, for the card's fresh sign-in warning. If it cannot be read, the
+    // built-in rule applies, which protects every file whose kind is not known yet.
+    const protection = await readDocumentProtectionSettings(db).catch(
+      () => DEFAULT_DOCUMENT_PROTECTION,
+    );
     return {
+      protection,
+      displayName: applicant.displayName ?? 'Unknown',
       documents: documentRows,
       recordsUnavailable: !documents.ok || !wallet.ok,
       coreGranted,
@@ -254,6 +266,10 @@ export default async function ApplicantDocumentsPage({
   // While the server is still scanning or reading a file, keep this page up to date by
   // itself: nobody has to reload, and nobody uploads the file again because nothing seemed
   // to happen (directive Part 9 section 3).
+  // Kinds that need a fresh sign-in check, for the card's warning while a person edits the kind.
+  const protectedKinds = documentGroups
+    .flatMap((group) => group.choices.map((choice) => choice.key))
+    .filter((key) => isRestrictedDocumentType(key, data.protection));
   const anyProcessing = data.documents.some((doc) => isStillProcessing(doc.processingStatus));
 
   return (
@@ -330,12 +346,25 @@ export default async function ApplicantDocumentsPage({
             doc.processingStatus !== null &&
             isServableProcessingState(doc.processingStatus);
           const lifecycle = data.wallet.get(doc.id)?.status;
+          // A waiting AI kind for the file as it is now (an older file's suggestion no longer applies).
+          const waitingKind = data.pendingClassificationProposals.find(
+            (p) => p.documentVersionId === doc.latestVersionId,
+          );
+          // What we think this document is and what to call it: nothing is saved until the
+          // person accepts (owner request 2026-10-25).
+          const suggestion = documentSuggestionView(
+            doc,
+            waitingKind,
+            data.displayName,
+            data.protection,
+          );
           const needsReview =
             (doc.docType === 'PASSPORT' && lifecycle === 'UNKNOWN') ||
             doc.safetyStatus === 'QUARANTINED' ||
             doc.processingStatus === 'AWAITING_REVIEW' ||
             doc.classification?.reviewRequired === true ||
             doc.pendingNameVersion !== null ||
+            suggestion !== null ||
             ['QUARANTINED', 'REJECTED', 'FAILED', 'NEEDS_ATTENTION'].includes(
               doc.processingStatus ?? '',
             ) ||
@@ -343,11 +372,7 @@ export default async function ApplicantDocumentsPage({
               ({ proposal }) => proposal.documentVersionId === doc.latestVersionId,
             );
           const category = documentCategory(doc.docType);
-          const suggested = doc.docType
-            ? undefined
-            : data.pendingClassificationProposals.find(
-                (p) => p.documentVersionId === doc.latestVersionId,
-              );
+          const suggested = doc.docType ? undefined : waitingKind;
           return {
             id: doc.id,
             name: doc.approvedName ?? doc.originalName,
@@ -425,6 +450,12 @@ export default async function ApplicantDocumentsPage({
                     ) : null}
                   </span>
                 </div>
+                {previewable && isPassportPhotoType(doc.docType) ? (
+                  <VisaPhotoSizes
+                    documentId={doc.id}
+                    returnTo={`/app/applicant/${id}/documents?document=${doc.id}`}
+                  />
+                ) : null}
                 {(doc.classification?.reviewRequired === true ||
                   !doc.classification ||
                   (doc.docType === 'PASSPORT' && !doc.expiresAt)) &&
@@ -529,17 +560,16 @@ export default async function ApplicantDocumentsPage({
                     </details>
                   );
                 })()}
-                {doc.pendingNameVersion ? (
-                  <NameReview
+                {suggestion ? (
+                  <DocumentSuggestionCard
                     applicantId={id}
-                    nameVersionId={doc.pendingNameVersion.id}
-                    originalName={doc.originalName}
-                    proposedName={doc.pendingNameVersion.proposedName}
-                    classification={doc.classification}
+                    suggestion={suggestion}
+                    groups={documentGroups}
+                    protectedKinds={protectedKinds}
                   />
                 ) : doc.classification?.reviewRequired ? (
                   <p className="muted u-fs-075">
-                    Automatic classification needs review - not confident enough to propose a name.
+                    We could not tell what kind of document this is. Choose the kind above.
                   </p>
                 ) : null}
                 {(() => {
@@ -584,28 +614,9 @@ export default async function ApplicantDocumentsPage({
                   }
                   const versionId = doc.latestVersionId;
                   if (!versionId) return null;
-                  const classificationProposal = data.pendingClassificationProposals.find(
-                    (p) => p.documentVersionId === versionId,
-                  );
-                  return (
-                    <>
-                      {data.coreGranted && !classificationProposal ? (
-                        <RunClassificationButton applicantId={id} documentVersionId={versionId} />
-                      ) : null}
-                      {classificationProposal ? (
-                        <DocumentTypeProposalReview
-                          applicantId={id}
-                          canApprove={data.coreGranted}
-                          proposal={{
-                            id: classificationProposal.id,
-                            suggestedType: classificationProposal.suggestedType,
-                            confidence: classificationProposal.confidence,
-                            rationale: classificationProposal.rationale,
-                          }}
-                        />
-                      ) : null}
-                    </>
-                  );
+                  // A waiting AI kind is shown in the card above, decided with its name.
+                  if (waitingKind || !data.coreGranted || doc.docType) return null;
+                  return <RunClassificationButton applicantId={id} documentVersionId={versionId} />;
                 })()}
                 {(() => {
                   if (!data.ocrConfigured || !data.ocrGranted || !doc.classification) return null;

@@ -156,9 +156,27 @@ export {
   CONSISTENCY_REASON_TEXT,
   CONSISTENCY_RESULTS,
   classifyDeclarationChange,
+  compareAuthorizedFactVersions,
   compareFactVersions,
   isFixedFieldKey,
 } from './consistency';
+export {
+  type ApplicationMemory,
+  type CaseDetailField,
+  type ChangesSinceConfirmed,
+  type MemoryCase,
+  type MemoryChange,
+  type MemoryEvent,
+  type MemoryShare,
+  type SnapshotChanges,
+  type SnapshotDetailComparison,
+  type SnapshotReview,
+  CASE_DETAIL_FIELDS,
+  compareSnapshotDetail,
+  getApplicationMemory,
+  listChangesSinceConfirmed,
+  listChangesSinceSnapshot,
+} from './application-memory';
 export type {
   AmountBasis,
   Classification,
@@ -427,6 +445,29 @@ export {
   updateOrganizationBranding,
   uploadOrganizationLogo,
 } from './branding';
+
+export {
+  type PhotoReencoderPort,
+  type ProfilePhotoBytes,
+  type ProfilePhotoInput,
+  type ProfilePhotoPorts,
+  type ProfilePhotoSummary,
+  PROFILE_PHOTO_CONTENT_TYPE,
+  PROFILE_PHOTO_INPUT_TYPES,
+  PROFILE_PHOTO_KEY_PREFIX,
+  PROFILE_PHOTO_MAX_INPUT_BYTES,
+  PROFILE_PHOTO_MAX_INPUT_PIXELS,
+  PROFILE_PHOTO_SIZE,
+  applicantPhotoPath,
+  getApplicantPhotoVersion,
+  isIntactPhoto,
+  isMissingTableError,
+  listApplicantPhotoVersions,
+  readApplicantPhoto,
+  readUnlessPhotoTableMissing,
+  removeApplicantPhoto,
+  setApplicantPhoto,
+} from './profile-photos';
 
 export {
   type CreateGrantInput,
@@ -705,6 +746,7 @@ export {
 export {
   type NameComponentsInput,
   buildProposedName,
+  documentKindLabel,
   extensionOf,
   sanitizeNameComponent,
 } from './naming';
@@ -719,6 +761,14 @@ export {
   listNameVersions,
   proposeDocumentName,
 } from './document-naming';
+export {
+  type DocumentSuggestionInput,
+  type DocumentSuggestionOutcome,
+  MAX_DOCUMENT_NAME_LENGTH,
+  acceptingRemovesFreshSignIn,
+  cleanDocumentName,
+  decideDocumentSuggestion,
+} from './document-suggestion';
 
 export {
   type FailedJobSummary,
@@ -757,7 +807,9 @@ export {
   type ApproveProposalInput,
   type DecideInconsistencyFlagInput,
   type DocumentInconsistencyFlagRow,
+  type DocumentKindSuggestion,
   type DocumentTypeProposalRow,
+  type SuggestDocumentKindInput,
   type EvidenceLocationRow,
   type FieldProposal,
   type FieldProposalRow,
@@ -798,6 +850,7 @@ export {
   rejectDocumentTypeProposal,
   rejectProposal,
   runClassification,
+  suggestDocumentKind,
   runExtraction,
   runInconsistencyCheck,
   runOcr,
@@ -993,6 +1046,19 @@ export {
 } from './rate-limit';
 
 export { redactErrorMessage, serverErrorEvent } from './error-report';
+
+export {
+  type PhotoPreview,
+  type PhotoSizerPort,
+  type PhotoSizingDeps,
+  type ProduceVisaPhotoInput,
+  type ProducedVisaPhoto,
+  type SizedPhoto,
+  type VisaPhotoCheck,
+  checkVisaPhoto,
+  isPassportPhotoType,
+  produceVisaPhotoSize,
+} from './photo-sizing';
 export { formatObservabilityLine } from './observability-format';
 
 export {

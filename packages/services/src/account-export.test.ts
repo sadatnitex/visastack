@@ -1,8 +1,8 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
@@ -528,5 +528,59 @@ describe('account export document bytes (Chunk 2 -- real original document bytes
     expect(new Set(docFiles.map((f) => f.name)).size).toBe(2); // genuinely distinct entry names
     expect(docFiles.some((f) => f.name === 'documents/Passport - v1.pdf')).toBe(true);
     expect(docFiles.some((f) => f.name === 'documents/Passport - v1 (2).pdf')).toBe(true);
+  });
+
+  /** Gives a traveller record a stored profile photo directly, the way setApplicantPhoto leaves it. */
+  async function givePhoto(applicantId: string, seed: string) {
+    const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xdb, ...new TextEncoder().encode(seed)]);
+    const sha = createHash('sha256').update(bytes).digest('hex');
+    const objectKey = `profile-photo-${seed}`;
+    const [object] = await db
+      .insert(schema.storageObjects)
+      .values({ bucket: 'CLEAN', objectKey, sizeBytes: bytes.byteLength, contentHash: sha })
+      .returning();
+    if (!object) throw new Error('storage object');
+    await db.insert(schema.applicantPhotos).values({
+      applicantId,
+      storageObjectId: object.id,
+      contentSha256: sha,
+      sizeBytes: bytes.byteLength,
+    });
+    await storage.putObject({ bucket: 'CLEAN', objectKey, contentType: 'image/jpeg', bytes });
+    return bytes;
+  }
+
+  it("includes only the exporting owner's own profile photo, as a JPEG", async () => {
+    const owner = await seedAccountWithApplicant(db, 'export-photo@example.com');
+    const other = await seedAccountWithApplicant(db, 'export-photo-other@example.com');
+    const bytes = await givePhoto(owner.applicantId, 'owner');
+    await givePhoto(other.applicantId, 'other');
+
+    const files = await exportAndDecode(owner.accountId);
+    const photos = files.filter((f) => f.name.startsWith('photos/'));
+    expect(photos.map((f) => f.name)).toEqual(['photos/Traveller.jpg']);
+    expect(Buffer.from(photos[0]?.base64 ?? '', 'base64')).toEqual(Buffer.from(bytes));
+    expect(manifestOf(files).profilePhotos).toEqual({ included: 1 });
+  });
+
+  it('leaves out photo bytes that no longer match what was saved', async () => {
+    const owner = await seedAccountWithApplicant(db, 'export-photo-tampered@example.com');
+    await givePhoto(owner.applicantId, 'tampered');
+    await storage.putObject({
+      bucket: 'CLEAN',
+      objectKey: 'profile-photo-tampered',
+      contentType: 'image/jpeg',
+      bytes: new Uint8Array([0xff, 0xd8, 0xff, 0x00]),
+    });
+    const files = await exportAndDecode(owner.accountId);
+    expect(files.some((f) => f.name.startsWith('photos/'))).toBe(false);
+    expect(manifestOf(files).profilePhotos).toEqual({ included: 0 });
+  });
+
+  it('still exports when the photo table does not exist yet (before migration 0088 runs)', async () => {
+    const owner = await seedAccountWithApplicant(db, 'export-photo-premigration@example.com');
+    await db.execute(sql`drop table applicant_photos`);
+    const files = await exportAndDecode(owner.accountId);
+    expect(manifestOf(files).profilePhotos).toEqual({ included: 0 });
   });
 });

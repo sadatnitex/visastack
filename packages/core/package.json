@@ -12,7 +12,8 @@
     "./catalogue": "./src/catalogue/index.ts",
     "./catalogue/documents": "./src/catalogue/documents-entry.ts",
     "./catalogue/packs": "./src/catalogue/packs-entry.ts",
-    "./destinations": "./src/destinations/index.ts"
+    "./destinations": "./src/destinations/index.ts",
+    "./photo-specs": "./src/photo-specs.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",

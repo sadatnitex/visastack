@@ -13,6 +13,7 @@ import {
   useState,
 } from 'react';
 import { Icon } from '../../components/icons';
+import { PersonAvatar } from '../../components/profile-photo/person-avatar';
 import { isCurrentPath } from '../../lib/navigation';
 import {
   type WorkspaceAccess,
@@ -50,12 +51,14 @@ function WorkspaceSelector({
   caption,
   compact = false,
   kind = 'personal',
+  photo,
 }: {
   readonly access: WorkspaceAccess;
   readonly name: string;
   readonly caption: string;
   readonly compact?: boolean;
   readonly kind?: WorkspaceKind;
+  readonly photo?: string | undefined;
 }) {
   const id = useId();
   const pathname = usePathname();
@@ -105,15 +108,17 @@ function WorkspaceSelector({
     >
       <summary aria-controls={id}>
         {compact && !isPerson ? null : (
-          <span className="workspace-avatar" aria-hidden="true">
-            {name
+          <PersonAvatar
+            className="workspace-avatar"
+            initials={name
               .trim()
               .split(/\s+/)
               .slice(0, 2)
               .map((part) => part.charAt(0))
               .join('')
               .toUpperCase()}
-          </span>
+            photoUrl={isPerson ? photo : undefined}
+          />
         )}
         {compact ? (
           // Visible: a short label. Read aloud: the visible words first, then the full context.
@@ -156,12 +161,15 @@ function WorkspaceSelector({
 export function WorkspaceShell({
   access,
   accountName,
+  accountEmail,
   toolbarState,
   signOut,
   children,
 }: {
   readonly access: WorkspaceAccess;
   readonly accountName: string;
+  /** The signed-in address from the session the layout already holds; no extra read. */
+  readonly accountEmail?: string | undefined;
   readonly toolbarState?: WorkspaceToolbarState;
   readonly signOut: ReactNode;
   readonly children: ReactNode;
@@ -175,7 +183,14 @@ export function WorkspaceShell({
         <AppNav
           links={nav.primary}
           accountLabel={accountName}
-          identity={<WorkspaceSelector access={access} name={nav.name} caption={nav.caption} />}
+          identity={
+            <WorkspaceSelector
+              access={access}
+              name={nav.name}
+              caption={nav.caption}
+              photo={nav.photo}
+            />
+          }
           secondaryLinks={nav.settings}
           footer={
             <p className="workspace-assurance">
@@ -216,10 +231,12 @@ export function WorkspaceShell({
                 name={nav.name}
                 caption={nav.caption}
                 kind={nav.kind}
+                photo={nav.photo}
                 compact
               />
             }
             accountName={accountName}
+            accountEmail={accountEmail}
             access={access}
             navigation={nav}
             {...(toolbarState ? { state: toolbarState } : {})}
