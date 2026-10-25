@@ -5,6 +5,7 @@ import { isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { MigrationJournalEntry } from './migration-status';
+import { migrationsFolder as shippedMigrationsFolder } from './paths';
 
 /*
  * Schema and migration drift guard.
@@ -100,6 +101,12 @@ function runGenerate(cwd: string): Promise<{ code: number | null; output: string
 describe('schema and migrations agree', () => {
   it('the journal, SQL files and snapshots line up, in order, with nothing left over', async () => {
     const migrationsFolder = fromPackage((await loadConfig()).out);
+    // What `db:generate` writes must be what production migrates from, or this guard checks the
+    // wrong folder.
+    expect(
+      resolve(migrationsFolder),
+      'drizzle.config.ts "out" must be the folder src/paths.ts ships',
+    ).toBe(resolve(shippedMigrationsFolder));
     const journal = readJournal(migrationsFolder);
 
     expect(

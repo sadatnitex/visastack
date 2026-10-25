@@ -21,7 +21,9 @@
     "**/__fixtures__/**",
     "docs/design/harbor-v2/**"
   ],
-  "lockFileMaintenance": { "enabled": false },
+  "lockFileMaintenance": {
+    "enabled": false
+  },
   "vulnerabilityAlerts": {
     "labels": ["dependencies", "security"],
     "automerge": false
@@ -40,6 +42,12 @@
       "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
       "groupName": "non-major production dependencies",
       "groupSlug": "non-major-prod"
+    },
+    {
+      "description": "GitHub Actions used by the workflows, in one weekly PR (pinned digests included).",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions",
+      "groupSlug": "github-actions"
     },
     {
       "description": "pnpm overrides are hand-set security floors with an upper bound (CLAUDE.md section 7). Never touch them.",
@@ -65,5 +73,10 @@
       "matchDepNames": ["node", "pnpm"],
       "enabled": false
     }
-  ]
+  ],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 1,
+  "major": {
+    "dependencyDashboardApproval": true
+  }
 }
