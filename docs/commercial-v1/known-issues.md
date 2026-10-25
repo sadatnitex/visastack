@@ -5322,3 +5322,17 @@ Documentation only. The bidesh365 master profile (54 sections) was compared with
 - CI runs as parallel jobs: lint and audit, build and typecheck, three service test shards, and web plus the other packages. The final job keeps the required check name "Lint · Build · Typecheck · Test" and passes only when every job passed; a run cancelled by a newer commit shows as cancelled, not failed. ClamAV is installed only in the job whose live scanner test uses it.
 - One `pnpm run test:node` list of repository script self-tests is used by both `pnpm test` and CI. The UI-ratchet and allowed-paths self-tests now run in CI; before, they ran in neither or only locally.
 - New tests that need a migrated database should use `createMigratedPglite()`.
+
+
+### 2026-10-25, production-only deployments (no branch previews)
+
+- Owner decision (25 Oct 2026): stop branch preview deployments and deploy only to production after all checks, because the Vercel plan allows a limited number of deployments a day. `apps/web/vercel.json` now sets `git.deploymentEnabled` to `{"**": false, "main": true}`: every branch (including names with a slash, such as `claude/...`) is skipped, and main still deploys to production. This also stops the automatic Neon database branch Vercel made for each preview.
+- The two required browser checks keep their names and now run on each pull request in `.github/workflows/pr-browser-checks.yml`, against the pull request's own production build started on the CI machine with placeholder settings that reach no real service (`IDENTITY_PROVIDER=neon_auth`, `NEON_AUTH_BASE_URL=https://auth.placeholder.invalid/...`, a random cookie secret made on the runner). No secrets are read. After merge, `deploy-smoke.yml` and `playwright-smoke.yml` still run the same checks against the real production deployment, so the "against the deployed site" rule (master directive section 8A) is kept for every release.
+- Checked locally with those settings on a production build of the current main plus the interface sweep: smoke 11 of 11 and Playwright 202 of 202 (ux-public, browser-security, no-secret-auth). The six checks that used to fail locally needed only the sign-in settings to be present, not a reachable sign-in service.
+- Not verified here: the first pull request run of the new workflow (this pull request is the first), and Vercel honouring the branch rule (no preview deployment should appear on this pull request or later ones).
+
+### 2026-10-25 false red smoke runs after each production deployment
+
+- Cause: the live signed-in check runs in the GitHub environment `live-check`, which records its own deployment whose address is the job page. Deploy Smoke and Playwright Deploy Smoke ran on that record too and tested a GitHub page: Deploy Smoke run 778 (b0f4b79) failed 1/11 against the job page, Playwright run 778 was cancelled at its time limit; the same happened on cb73410 (runs 771).
+- The real production runs for b0f4b79 passed: Deploy Smoke 774, Playwright Deploy Smoke 774, live signed-in check run 8 (1 passed), CI on main green. Production was never affected.
+- Fix: both workflows skip deployment records from `live-check`, as they already skip `production-migrations`.

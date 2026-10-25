@@ -94,3 +94,7 @@ treat the steps above as a documented procedure, not a proven one.
 | Migrations serialized | One workflow, one at a time, never cancelled halfway |
 | Deployed commit identity | Vercel shows it; the release record names it; the readiness comparison names the migration state |
 | Rollback behaviour | Documented above; **not tested** |
+
+## Update 2026-10-25: previews are off
+
+Branch previews are switched off (apps/web/vercel.json deploys main only), because the Vercel plan limits deployments a day. Step 3 above now applies to production deployments only. Pull requests run the same two browser checks in `.github/workflows/pr-browser-checks.yml`, against the pull request's own production build started on the CI machine with placeholder settings. That run cannot see real Vercel settings, the real database or real sign-in: those are first checked after the production deployment, by Deploy Smoke, Playwright Deploy Smoke and the live sign-in check. If one of them fails after a merge, roll back as described above.
