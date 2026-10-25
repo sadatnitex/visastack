@@ -387,7 +387,7 @@ describe('changed details inside the alert (WP-V3 part 3)', () => {
     // The approved wording stays, the list follows it, the snapshot button stays last.
     expect(text).toContain('This case has changed since it was last acknowledged.');
     expect(text).toContain('What changed since you confirmed snapshot 2 on 18 Oct 2026');
-    expect(text).toMatch(/Travel start date\s*: changed/);
+    expect(text).toMatch(/Travel Start Date\s*: changed/);
     expect(text).toMatch(/Employer[^:]*\s*: changed/);
     expect(text).toMatch(/new version added/);
     expect(alert).toContain(
