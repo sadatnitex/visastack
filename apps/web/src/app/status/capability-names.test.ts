@@ -43,7 +43,7 @@ describe('capabilityRows', () => {
 
   it('puts each state in its own words', () => {
     const rows = new Map(capabilityRows(platform).map((row) => [row.key, row]));
-    expect(rows.get('authentication')).toMatchObject({ name: 'Signing in', label: 'Working' });
+    expect(rows.get('authentication')).toMatchObject({ name: 'Signing In', label: 'Working' });
     expect(rows.get('aiExtraction')).toMatchObject({ label: 'Not Set Up Yet', tone: 'neutral' });
     expect(rows.get('originalDownload')).toMatchObject({ label: 'Switched Off for Now' });
     expect(rows.get('sharing')).toMatchObject({ label: 'Working with Limits', tone: 'warning' });

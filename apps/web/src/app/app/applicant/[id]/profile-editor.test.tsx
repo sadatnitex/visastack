@@ -80,6 +80,67 @@ function typeInto(input: HTMLInputElement | HTMLSelectElement, value: string) {
   });
 }
 
+describe('a link to one section (WP-V3 part 3)', () => {
+  /** Opens the page fresh, as arriving from a link does (the shared setup already mounted it). */
+  function arrive() {
+    act(() => root.unmount());
+    root = createRoot(container);
+    render();
+  }
+
+  afterEach(() => {
+    window.location.hash = '';
+  });
+
+  it('opens the area holding the section named in the address, and follows a later change', () => {
+    window.location.hash = '#section-passport';
+    arrive();
+    expect(tab('Travel Documents').getAttribute('aria-selected')).toBe('true');
+    expect(container.querySelector('#profile-panel-travel_documents')?.hasAttribute('hidden')).toBe(
+      false,
+    );
+    expect(container.querySelector('#section-passport')).not.toBeNull();
+    act(() => {
+      window.location.hash = '#section-identity_basics';
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    });
+    expect(tab('Identity and Civil Status').getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('does not follow the link again when the page re-renders with a new view after a save', () => {
+    const scroll = vi.fn();
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scroll;
+    try {
+      window.location.hash = '#section-passport';
+      arrive();
+      expect(scroll).toHaveBeenCalledTimes(1);
+      // The person moves to another area and types a search.
+      act(() => tab('Identity and Civil Status').click());
+      const search = container.querySelector<HTMLInputElement>('#profile-search');
+      if (!search) throw new Error('search box');
+      act(() => {
+        const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+        setValue?.call(search, 'passport');
+        search.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      expect(search.value).toBe('passport');
+      // A save re-renders the page with a fresh view object.
+      render({ view: fixtureView() });
+      expect(scroll).toHaveBeenCalledTimes(1);
+      expect(container.querySelector<HTMLInputElement>('#profile-search')?.value).toBe('passport');
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
+
+  it('ignores a section name that is not on the page', () => {
+    window.location.hash = '#section-nothing_here';
+    arrive();
+    expect(tab('Identity and Civil Status').getAttribute('aria-selected')).toBe('true');
+  });
+});
+
 describe('section cards keep every real editing path', () => {
   it('supports keyboard selection across the areas and shows only the chosen panel', () => {
     const first = tab('Identity and Civil Status');
@@ -142,7 +203,7 @@ describe('section cards keep every real editing path', () => {
   it('adds an additional passport without overwriting the existing record', () => {
     act(() => tab('Travel Documents').click());
     const add = [...container.querySelectorAll('button')].find((button) =>
-      button.textContent?.includes('+ Add historical / additional passport'),
+      button.textContent?.includes('Add Historical / Additional Passport'),
     );
     if (!add) throw new Error('Missing add-record action');
     act(() => add.click());

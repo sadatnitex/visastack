@@ -66,7 +66,7 @@ describe('the accessibility scan itself', () => {
   });
 
   it('catches a link to a place on the page that is not there', async () => {
-    const found = await axeViolations('<a href="#nowhere">Skip to content</a><p>Words.</p>');
+    const found = await axeViolations('<a href="#nowhere">Skip to Content</a><p>Words.</p>');
     expect(found.join('\n')).toContain('dangling-link');
     expect(await axeViolations('<a href="#here">Go</a><h2 id="here">Here</h2>')).toEqual([]);
   });

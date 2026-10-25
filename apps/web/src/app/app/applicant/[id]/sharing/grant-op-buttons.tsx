@@ -6,7 +6,7 @@ import { type ActionState, updateGrantAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
-const CONFIRM_LABEL: Partial<Record<string, string>> = { revoke: 'Yes, revoke access' };
+const CONFIRM_LABEL: Partial<Record<string, string>> = { revoke: 'Yes, Revoke Access' };
 
 /** Operations that ask first, with the question shown inside the page (never a browser pop-up). */
 const CONFIRM_MESSAGE: Partial<Record<string, string>> = {

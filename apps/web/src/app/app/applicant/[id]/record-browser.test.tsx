@@ -155,7 +155,7 @@ describe('the Record browser', () => {
     for (const label of ['Ready to Use', 'Needs Attention', 'Previous Versions']) {
       const button = filterButton(label);
       expect(button?.disabled, label).toBe(true);
-      expect(button?.textContent, label).toContain('Not available right now');
+      expect(button?.textContent, label).toContain('Not Available Right Now');
       expect(button?.querySelector('strong'), label).toBeNull();
     }
     expect(filterButton('Everything')?.disabled).toBe(false);

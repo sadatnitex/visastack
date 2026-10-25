@@ -10,6 +10,6 @@ export const REQUIREMENT_GROUPS: readonly {
   readonly states: readonly RequirementResultState[];
 }[] = [
   { heading: 'Needs You', states: ['CRITICAL_GAP', 'CONFLICTING', 'EXPIRING_STALE'] },
-  { heading: 'Needs A Check', states: ['UNVERIFIED'] },
+  { heading: 'Needs a Check', states: ['UNVERIFIED'] },
   { heading: 'Done', states: ['SATISFIED', 'ATTENTION', 'NOT_APPLICABLE'] },
 ];

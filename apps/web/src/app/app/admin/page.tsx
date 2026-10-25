@@ -39,10 +39,10 @@ const SCORECARD_LABELS: Record<ProductEventType, string> = {
   DOCUMENT_UPLOADED: 'Documents Uploaded',
   MISSION_CREATED: 'Cases Started',
   GRANT_CREATED: 'Grants Created',
-  AI_EXTRACTION_RUN: 'AI extractions run',
-  AI_OCR_RUN: 'AI OCR runs',
-  AI_CLASSIFICATION_RUN: 'AI classifications run',
-  AI_INCONSISTENCY_RUN: 'AI inconsistency checks run',
+  AI_EXTRACTION_RUN: 'AI Extractions Run',
+  AI_OCR_RUN: 'AI OCR Runs',
+  AI_CLASSIFICATION_RUN: 'AI Classifications Run',
+  AI_INCONSISTENCY_RUN: 'AI Inconsistency Checks Run',
   MISSION_STAGE_CHANGED: 'Case Stage Changes',
   MISSION_READY_REACHED: 'Cases First Reaching Ready',
   EVIDENCE_REQUESTED: 'Evidence Requested',
@@ -53,12 +53,12 @@ const SCORECARD_LABELS: Record<ProductEventType, string> = {
   ACKNOWLEDGEMENT_RECORDED: 'Applicant Acknowledgement Decisions',
   ACKNOWLEDGEMENT_INVALIDATED: 'Acknowledgements Voided by a Change',
   SOURCE_REVIEWED: 'Official Source Reviews',
-  AI_PROPOSAL_ACCEPTED: 'AI proposals accepted',
-  AI_PROPOSAL_CORRECTED: 'AI proposals corrected',
-  AI_PROPOSAL_REJECTED: 'AI proposals rejected',
+  AI_PROPOSAL_ACCEPTED: 'AI Proposals Accepted',
+  AI_PROPOSAL_CORRECTED: 'AI Proposals Corrected',
+  AI_PROPOSAL_REJECTED: 'AI Proposals Rejected',
   OUTCOME_RECORDED: 'Case Outcomes Recorded',
   COMPLAINT_RESOLVED: 'Complaints Ended',
-  ACCOUNT_ACTIVATED: 'Accounts activated (first case)',
+  ACCOUNT_ACTIVATED: 'Accounts Activated (First Case)',
   PLAN_CHANGED: 'Plan Changes',
   PLAN_LIMIT_REACHED: 'Plan Limits Reached',
   CASH_COLLECTED: 'Cash Collections Recorded',
@@ -68,8 +68,8 @@ const SIGNAL_STATUS_LABEL: Record<OperationalSignal['status'], string> = {
   ok: 'OK',
   warning: 'Warning',
   critical: 'Critical',
-  not_measured: 'Not measured',
-  not_built: 'Not built',
+  not_measured: 'Not Measured',
+  not_built: 'Not Built',
 };
 
 const SIGNAL_STATUS_TONE: Record<OperationalSignal['status'], string> = {
@@ -204,10 +204,10 @@ export default async function AdminOperationsPage() {
           data.admin ? (
             <>
               <a href="/app/admin/report" className="btn btn-secondary">
-                Export report
+                Export Report
               </a>
               <a href="#admin-signals" className="btn btn-primary">
-                View alerts
+                View Alerts
               </a>
             </>
           ) : undefined
@@ -241,7 +241,7 @@ export default async function AdminOperationsPage() {
                 value: data.overview
                   ? data.overview.terminalVersions
                     ? `${Math.round((100 * data.overview.approvedVersions) / data.overview.terminalVersions)}%`
-                    : 'Not measured'
+                    : 'Not Measured'
                   : undefined,
                 hint: 'Approved among terminal file-version outcomes',
               },
@@ -290,7 +290,7 @@ export default async function AdminOperationsPage() {
                     <details>
                       <summary>Exact Daily Counts</summary>
                       <table className="data-table">
-                        <caption>Recorded activity by UTC day</caption>
+                        <caption>Recorded Activity by UTC Day</caption>
                         <thead>
                           <tr>
                             <th scope="col">Day</th>
@@ -402,7 +402,7 @@ export default async function AdminOperationsPage() {
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    Backup recovery checks
+                    Backup Recovery Checks
                   </a>
                 </p>
                 <dl className="rows">
@@ -508,7 +508,7 @@ export default async function AdminOperationsPage() {
                     What an operator needs to tell whether the platform is healthy. Counts, ages and
                     ratios only: nothing here names a person or a document. The thresholds are pilot
                     defaults that have not been calibrated against real traffic, and they only
-                    choose a colour. "Not measured" means the application cannot see it from inside;
+                    choose a colour. "Not Measured" means the application cannot see it from inside;
                     the explanation says where to look.
                   </p>
                   {data.signals.length === 0 ? (
@@ -560,7 +560,7 @@ export default async function AdminOperationsPage() {
             <summary>More Operational Details and Tools</summary>
             <div className="admin-operational-summary">
               <a href="#admin-signals" className="card admin-summary-metric">
-                <span>Signals needing attention</span>
+                <span>Signals Needing Attention</span>
                 <strong>
                   {data.failedSections.includes('operational signals')
                     ? 'Unavailable'
@@ -571,7 +571,7 @@ export default async function AdminOperationsPage() {
                 <small>Warnings and critical signals, not unmeasured checks</small>
               </a>
               <a href="#admin-processing" className="card admin-summary-metric">
-                <span>Failed intake jobs</span>
+                <span>Failed Intake Jobs</span>
                 <strong>
                   {data.failedSections.includes('failed jobs')
                     ? 'Unavailable'
@@ -580,7 +580,7 @@ export default async function AdminOperationsPage() {
                 <small>Recorded failures available for review</small>
               </a>
               <a href="#admin-platform-readiness" className="card admin-summary-metric">
-                <span>Platform readiness</span>
+                <span>Platform Readiness</span>
                 <strong>
                   {data.readiness
                     ? data.readiness.ready
@@ -593,25 +593,25 @@ export default async function AdminOperationsPage() {
             </div>
             <nav aria-label="On this page" className="pill-list admin-section-navigation u-mb-150">
               <a href="/status" className="pill">
-                Public status page
+                Public Status Page
               </a>
               <a href="#admin-signals" className="pill">
                 Signals
               </a>
               <a href="#admin-platform-readiness" className="pill">
-                Readiness detail
+                Readiness Detail
               </a>
               <a href="#admin-analytics" className="pill">
-                Learning areas
+                Learning Areas
               </a>
               <a href="#admin-readiness" className="pill">
-                Commercial readiness
+                Commercial Readiness
               </a>
               <a href="#admin-processing" className="pill">
-                Processing failures
+                Processing Failures
               </a>
               <a href="#admin-provider-operations" className="pill">
-                Providers and recovery
+                Providers and Recovery
               </a>
               <a href="#admin-usage" className="pill">
                 Capacity

@@ -58,7 +58,7 @@ describe('real wallet metadata controls and selected detail slots', () => {
   });
   it('keeps blocked files out of the ready filter and clearly explains unavailable preview', () => {
     expect(container.querySelector('aside')?.textContent).toContain('Preview is blocked');
-    act(() => button('Ready to use').click());
+    act(() => button('Ready to Use').click());
     expect(container.querySelector('.wallet-metadata-list')?.textContent).not.toContain(
       'Synthetic document 0',
     );
@@ -79,7 +79,7 @@ describe('real wallet metadata controls and selected detail slots', () => {
       ),
     );
     expect(container.querySelector('aside')?.textContent).toContain(
-      'Selected document is unavailable',
+      'Selected Document Is Unavailable',
     );
     expect(container.querySelector('aside')?.textContent).not.toContain('Authorized details for');
   });
@@ -141,15 +141,26 @@ describe('documents with no kind set', () => {
     expect(rows.find((row) => row.includes('Sorted file'))).toContain('Passport · Identity');
   });
 
-  it('lists only those documents when "Not set yet" is chosen', () => {
+  it('lists only those documents when "Not Set Yet" is chosen', () => {
     const select = container.querySelector('select') as HTMLSelectElement;
     expect([...select.options].map((option) => option.textContent)).toEqual([
       'All Categories',
       'Identity',
-      'Not set yet',
+      'Not Set Yet',
     ]);
-    act(() => button('Show them').click());
+    expect(container.textContent).toContain('3 documents match. Page 1 of 1.');
+    act(() => button('Show Them').click());
     expect(container.querySelectorAll('.wallet-metadata-list li')).toHaveLength(2);
     expect(container.textContent).not.toContain('Sorted file');
+  });
+
+  it('counts one match in agreeing words', () => {
+    act(() =>
+      root.render(
+        <DocumentWalletBrowser applicantId="synthetic-person" documents={unsorted.slice(1, 2)} />,
+      ),
+    );
+    expect(container.textContent).toContain('1 document matches. Page 1 of 1.');
+    expect(button('Show It')).toBeTruthy();
   });
 });

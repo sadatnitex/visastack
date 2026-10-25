@@ -168,7 +168,7 @@ export default async function AiSettingsPage() {
                     <span
                       className={`badge ${config.dataPolicyApproved ? 'badge-success' : 'badge-neutral'}`}
                     >
-                      {config.dataPolicyApproved ? 'Approved' : 'Not approved'}
+                      {config.dataPolicyApproved ? 'Approved' : 'Not Approved'}
                     </span>
                   </div>
                   <div className="row">

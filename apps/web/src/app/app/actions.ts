@@ -61,7 +61,7 @@ export async function createApplicantAction(
     if (relationshipRaw !== 'FAMILY_MEMBER' && relationshipRaw !== 'MINOR_GUARDIAN') {
       return {
         ok: false,
-        message: 'Choose Family member or Minor (guardian).',
+        message: 'Choose Family Member or Minor (Guardian).',
         field: 'managedKind',
       };
     }

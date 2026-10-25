@@ -69,6 +69,10 @@ Read this first. It is loaded automatically. Task-specific instructions come fro
 - Tests that need a migrated database use createMigratedPglite() from @visastack/db/testing (one migration per test run, then a snapshot copy per database). Only tests of the migrations themselves migrate by hand.
 - The audit_events table refuses edits and deletes through database rules; tests that simulate tampering must drop those rules first.
 - Vercel MCP may refuse to list project environment variables (403): environment scoping then has to be checked by the owner in the dashboard.
+- Session handoff, newest first: docs/upgrades/programme/SESSION-HANDOFF-2026-10-25-evening.md (open branches, owner decisions, parked work, pitfalls).
+- globals.css merges: never concatenate conflict hunks (a hunk can split a rule). Take main's file, then append the branch's own blocks. Every block starts with a "/* WP-<ID> ..." marker line; guard tests end a block at the next marker.
+- New interface names must pass apps/web/src/lib/title-case.test.ts and vocabulary.test.ts ("case", never "mission", in visible text). Stored answer values (for example "Before tax") are not labels: never retitle them.
+- db-migrate.yml runs only from main: code must tolerate a new table being missing, and the approved migration runs right after the merge.
 - MCP servers sometimes disconnect: reload tools with ToolSearch. Local-only branches vanish when the container ends: push or tell the owner. The stop hook needs a clean tree: commit before ending a turn.
 
 Owner reporting instruction (2026-10-10): after each deployment, show the public beta action list with done, in-progress and remaining work. Explain what each deployment means for whom: what changed, what users will see, who is affected, and live verification versus unverified acceptance. Never describe a partial package as complete.

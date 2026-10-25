@@ -457,6 +457,14 @@ const PROTECTED_PLACEHOLDER = '[protected]';
 const PROTECTED_UNREADABLE_PLACEHOLDER = '[protected: could not decrypt]';
 
 /**
+ * Whether `listApplicantProfile` returned a stand-in instead of a protected value (no key service
+ * given, or decryption failed). Such a value must never be compared with anything.
+ */
+export function isProtectedPlaceholder(value: string | null): boolean {
+  return value === PROTECTED_PLACEHOLDER || value === PROTECTED_UNREADABLE_PLACEHOLDER;
+}
+
+/**
  * Every fact for an applicant, resolved to its current (approved) value and
  * ordered by field key. A read projection over the fact/version pointer graph —
  * the shape the Master Profile editor renders.

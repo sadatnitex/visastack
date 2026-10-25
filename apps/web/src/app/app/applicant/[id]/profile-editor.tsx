@@ -16,6 +16,7 @@ import type {
   EditorSection,
   MasterProfileView,
 } from '../../../../lib/master-profile-types';
+import { plural } from '../../../../lib/plural';
 import { type ActionState, saveFactAction } from './actions';
 import {
   openSuggestedSectionsAction,
@@ -427,7 +428,7 @@ function RepeatingGroup({ applicantId, group, repeatingValues, assurance }: Repe
             className="btn btn-secondary btn-compact"
             onClick={() => setNewRecordKeys((keys) => [...keys, crypto.randomUUID()])}
           >
-            + Add {group.label.toLowerCase()}
+            Add {group.label}
           </button>
         )}
       </div>
@@ -529,7 +530,7 @@ function OtherItems({
         </div>
       ))}
       <details className="profile-edit-section">
-        <summary>+ Add something else</summary>
+        <summary>Add Something Else</summary>
         <form ref={formRef} action={formAction} className="field-list">
           <input type="hidden" name="applicantId" value={applicantId} />
           <input type="hidden" name="sectionKey" value={section.key} />
@@ -749,7 +750,7 @@ function SectionToggle({
             if (!pending) formRef.current?.requestSubmit();
           }}
         />
-        Use this section
+        Use This Section
       </label>
       <noscript>
         <button type="submit" className="btn btn-secondary">
@@ -819,7 +820,7 @@ function SectionCard({
         </>
       ) : (
         <details className="profile-section-preview" open={searching || undefined}>
-          <summary>See the {section.detailCount} details inside</summary>
+          <summary>See the {plural(section.detailCount, 'detail')} inside</summary>
           <ul>
             {section.previewLabels
               .filter((label) => matchesSearch(label, search))
@@ -991,6 +992,35 @@ export function ProfileEditor({
     setSelected(key);
     setSearch('');
   }
+  // WP-V3 part 3: a link to #section-<key> (from the then-and-now view) opens the area that
+  // holds that section and brings the section into view.
+  const [sectionTarget, setSectionTarget] = useState<string | null>(null);
+  // The latest areas, read when the address changes. Kept in a ref so a re-render after a save
+  // (a new view) never follows the link again, which would move the person and clear their search.
+  const layersRef = useRef(view.layers);
+  layersRef.current = view.layers;
+  useEffect(() => {
+    const follow = () => {
+      const match = window.location.hash.match(/^#section-([a-z0-9_]+)$/);
+      const key = match?.[1];
+      if (!key) return;
+      const layer = layersRef.current.find((l) =>
+        l.sections.some((section) => section.key === key),
+      );
+      if (!layer) return;
+      setSelected(layer.key);
+      setSearch('');
+      setSectionTarget(key);
+    };
+    follow();
+    window.addEventListener('hashchange', follow);
+    return () => window.removeEventListener('hashchange', follow);
+  }, []);
+  useEffect(() => {
+    if (!sectionTarget) return;
+    document.getElementById(`section-${sectionTarget}`)?.scrollIntoView?.({ block: 'start' });
+    setSectionTarget(null);
+  }, [sectionTarget]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const current = view.layers.find((layer) => layer.key === selected) ?? view.layers[0];
   function chooseFromPicker(key: string) {
@@ -1080,7 +1110,7 @@ export function ProfileEditor({
           </Link>
           <div className="profile-field-search">
             <label className="field-label" htmlFor="profile-search">
-              Search all profile fields
+              Search All Profile Fields
             </label>
             <input
               id="profile-search"

@@ -211,7 +211,7 @@ function fixtureHtml(): string {
         <p class="app-shell-switch-label">Switch area</p>
         <a href="/app/agency" class="btn btn-secondary nav-cta">Agency</a>
         <a href="/app/admin" class="btn btn-secondary nav-cta">Admin</a>
-        <form action="#"><button type="submit" class="btn btn-secondary nav-cta">Sign out</button></form>
+        <form action="#"><button type="submit" class="btn btn-secondary nav-cta">Sign Out</button></form>
       </div>
     </div>
   </div>
@@ -317,13 +317,13 @@ test.describe('signed-in layout building blocks on a narrow screen (real stylesh
       test('every navigation link and switch button is on screen, none clipped', async ({
         page,
       }) => {
-        const labels = [...PRIMARY_NAV.map((l) => l.label), 'Agency', 'Admin', 'Sign out'];
+        const labels = [...PRIMARY_NAV.map((l) => l.label), 'Agency', 'Admin', 'Sign Out'];
         // The last few links and the switch controls sit under "More" on a narrow screen.
         await page.getByRole('button', { name: 'More' }).click();
         for (const label of labels) {
           const target = page
             .locator('.app-shell-nav')
-            .getByRole(label === 'Sign out' ? 'button' : 'link', { name: label, exact: true });
+            .getByRole(label === 'Sign Out' ? 'button' : 'link', { name: label, exact: true });
           await expect(target, label).toBeVisible();
           const box = await target.boundingBox();
           expect(box, label).not.toBeNull();
@@ -561,7 +561,7 @@ test.describe('route information page (answers with data or says plainly it is u
         clientWidth: document.documentElement.clientWidth,
       }));
       expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
-      const unavailable = page.getByText('Route information is not available right now');
+      const unavailable = page.getByText('Route Information Is Not Available Right Now');
       if (await unavailable.count()) {
         await expect(page.getByRole('link', { name: 'Try Again' })).toBeVisible();
         await expect(page.getByRole('link', { name: 'Back to Home' })).toBeVisible();
@@ -634,10 +634,10 @@ test.describe('flat UI reference geometry and interaction', () => {
   });
   test('document selection never offers an unchecked preview', async ({ page }) => {
     await openUiFixture(page, 'documents');
-    await page.getByLabel('Choose a document').selectOption('synthetic-pending');
+    await page.getByLabel('Choose a Document').selectOption('synthetic-pending');
     await expect(page.getByRole('button', { name: 'Open Secure Preview' })).toHaveCount(0);
     await expect(page.locator('main iframe, main object, main embed')).toHaveCount(0);
-    await page.getByLabel('Choose a document').selectOption('synthetic-clean');
+    await page.getByLabel('Choose a Document').selectOption('synthetic-clean');
     await page.getByRole('button', { name: 'Open Secure Preview' }).click();
     await expect
       .poll(() => page.evaluate(() => window.__uiFixtureActions))
@@ -654,9 +654,9 @@ test.describe('flat UI reference geometry and interaction', () => {
     ).toBeVisible();
     await expect(page.getByRole('button', { name: 'Open Secure Preview' })).toHaveCount(0);
     await search.clear();
-    await expect(page.getByLabel('Choose a document').locator('option')).toHaveCount(2);
+    await expect(page.getByLabel('Choose a Document').locator('option')).toHaveCount(2);
     await search.fill('letter');
-    await expect(page.getByLabel('Choose a document').locator('option')).toHaveCount(1);
+    await expect(page.getByLabel('Choose a Document').locator('option')).toHaveCount(1);
     await expect(page.getByRole('button', { name: 'Open Secure Preview' })).toHaveCount(0);
   });
   for (const colorScheme of ['light', 'dark'] as const) {
@@ -746,9 +746,9 @@ test.describe('authoritative appearance on public routes', () => {
         await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
         await page.goto(route);
         if (route === '/status') {
-          await expect(page.getByRole('button', { name: 'Check now', exact: true })).toBeVisible();
+          await expect(page.getByRole('button', { name: 'Check Now', exact: true })).toBeVisible();
           await expect(
-            page.getByRole('button', { name: 'Check now', exact: true }),
+            page.getByRole('button', { name: 'Check Now', exact: true }),
           ).not.toHaveAttribute('aria-disabled', 'true');
           await expect(page.getByText(/^Updated /)).toBeVisible();
         }
@@ -780,10 +780,10 @@ test.describe('authoritative appearance on public routes', () => {
           await darkPage.goto(route);
           if (route === '/status') {
             await expect(
-              darkPage.getByRole('button', { name: 'Check now', exact: true }),
+              darkPage.getByRole('button', { name: 'Check Now', exact: true }),
             ).toBeVisible();
             await expect(
-              darkPage.getByRole('button', { name: 'Check now', exact: true }),
+              darkPage.getByRole('button', { name: 'Check Now', exact: true }),
             ).not.toHaveAttribute('aria-disabled', 'true');
             await expect(darkPage.getByText(/^Updated /)).toBeVisible();
           }
@@ -955,12 +955,12 @@ test('password recovery confirms the request and offers an explicit resend witho
   await expect(page.getByLabel('Email Address')).toBeHidden();
   await page.getByText('Did not get a link? Send another', { exact: true }).click();
   await expect(page.getByLabel('Email Address')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Send another link' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Send Another Link' })).toBeVisible();
   await page.getByRole('link', { name: 'Use a Different Email Address' }).click();
-  await expect(page.getByRole('button', { name: 'Send me a link' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Send Me a Link' })).toBeVisible();
   await page.goto('/auth/forgot-password?e=unavailable');
   await expect(
     page.getByText('We could not request a link right now.', { exact: false }),
   ).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Send me a link' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Send Me a Link' })).toBeVisible();
 });

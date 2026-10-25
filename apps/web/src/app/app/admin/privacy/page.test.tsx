@@ -134,7 +134,7 @@ describe('Platform > Privacy', () => {
   it('separates a job blocked by a hold from one that failed', async () => {
     const html = await renderServer(Page());
     const text = textOf(html);
-    expect(text).toContain('Blocked by hold');
+    expect(text).toContain('Blocked by Hold');
     expect(text).toContain('5/5 attempts');
     expect(text).toContain('Account Deletion');
     expect(text).toContain('Retention Purge');
@@ -170,7 +170,7 @@ describe('Platform > Privacy', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     mocks.listErasureJobsNeedingAttention.mockRejectedValue(new Error('relation does not exist'));
     const text = textOf(await renderServer(Page()));
-    expect(text).toContain('Some sections could not be loaded');
+    expect(text).toContain('Some Sections Could Not Be Loaded');
     expect(text).toContain('erasure jobs');
     expect(text).toContain('Court order');
   });

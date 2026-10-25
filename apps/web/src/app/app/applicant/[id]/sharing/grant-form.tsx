@@ -353,7 +353,7 @@ export function GrantForm({
       </div>
 
       <div className="sharing-scope-review" ref={review} tabIndex={-1} aria-live="polite">
-        <h3>{reviewed ? 'Confirm this access' : 'Your access summary'}</h3>
+        <h3>{reviewed ? 'Confirm This Access' : 'Your Access Summary'}</h3>
         <SelectedScopeSummary
           recipient={recipientEmail || 'This recipient'}
           purpose={purpose || null}

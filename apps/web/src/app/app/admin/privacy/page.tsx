@@ -182,7 +182,7 @@ export default async function AdminPrivacyPage() {
                           className={`badge ${job.status === 'BLOCKED_BY_HOLD' ? 'badge-warning' : 'badge-danger'}`}
                         >
                           {job.status === 'BLOCKED_BY_HOLD'
-                            ? 'Blocked by hold'
+                            ? 'Blocked by Hold'
                             : `${job.attempts}/${job.maxAttempts} attempts`}
                         </span>
                         <RetryErasureJobButton jobId={job.id} />

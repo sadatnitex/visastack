@@ -236,14 +236,14 @@ describe('wallet ownership, explicit selection and truthful safety state', () =>
       ],
     });
     const html = await render('unsafe');
-    expect(html).toMatch(/Ready to use<\/span><strong>0<\/strong>/);
+    expect(html).toMatch(/Ready to Use<\/span><strong>0<\/strong>/);
     expect(textOf(html)).toContain('Preview is blocked');
     expect(html).not.toContain('>Preview</button>');
   });
   it('does not substitute an owned file for an unavailable explicit selection', async () => {
     mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [doc('owned', 'APPROVED')] });
     const html = await render('foreign-or-removed');
-    expect(textOf(html)).toContain('Selected document is unavailable');
+    expect(textOf(html)).toContain('Selected Document Is Unavailable');
     expect(html).not.toContain('name="documentId"');
   });
   it('reports failed reads as unavailable rather than an empty wallet', async () => {
@@ -268,5 +268,14 @@ describe('filing each document under a category', () => {
     expect(text).toContain('Identity');
     expect(text).toContain('Kind not set');
     expect(text).toContain('1 document has no kind set yet');
+  });
+});
+
+describe('the way to the document insights', () => {
+  it('links from the documents page to the traveller insights page', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [] });
+    const html = await render();
+    expect(html).toContain('href="/app/applicant/a1/insights"');
+    expect(textOf(html)).toContain('See Document Insights');
   });
 });
