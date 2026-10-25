@@ -69,3 +69,10 @@ the next candidates for the same pass:
 - Agency and platform consoles, which are written for staff and are left as they are
   unless the owner asks otherwise.
 - Email templates (not reviewed yet).
+
+## Capitalisation (owner rule, 25 Oct 2026)
+
+- A term is written in Title Case: page, section and card headings, menu and tab names, field labels, status badges and short button names. Every word starts with a capital, apart from small joining words after the first ("Share & Care", "Ready for Review", "Sign In with the Invited Email").
+- A sentence keeps only its first word capitalised: hints, messages, questions and anything ending in a full stop.
+- Names that already carry capitals (VisaStack, AI, eTA) keep them.
+- `apps/web/src/lib/title-case.ts` holds the rule; its guard test (`title-case.test.ts`) fails when a heading, card title, field label, button name, or either side of a label choice is written in sentence case.
