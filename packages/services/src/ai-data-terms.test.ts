@@ -17,6 +17,7 @@ import {
   recordAiProviderDataTerms,
   setAiDataRuleSetting,
   unknownAiProviderDataTerms,
+  validateAiProviderDataTerms,
 } from './ai-data-terms';
 import { createDraftAiProviderConfig } from './ai-provider-config';
 import type { Db } from './db';
@@ -268,6 +269,24 @@ describe('recording provider data terms per configuration', () => {
     });
     expect(isErr(future) && future.error.code).toBe('invalid');
   });
+
+  it('refuses a date that does not exist, with a plain message rather than a database error', async () => {
+    expect(
+      validateAiProviderDataTerms({
+        tier: 'FREE',
+        trainsOnInputs: 'UNKNOWN',
+        checkedOn: '2026-02-30',
+      }),
+    ).toBe('enter the date the terms were checked');
+    expect(
+      validateAiProviderDataTerms({
+        tier: 'FREE',
+        trainsOnInputs: 'UNKNOWN',
+        checkedOn: '2026-02-28',
+        now: new Date('2026-10-25T00:00:00Z'),
+      }),
+    ).toBeUndefined();
+  });
 });
 
 describe('the "Only Use AI Providers That Do Not Train on Inputs" setting', () => {
@@ -327,14 +346,14 @@ describe('the "Only Use AI Providers That Do Not Train on Inputs" setting', () =
     expect((await loadAiDataRuleSetting(db)).requireNoTraining).toBe(false);
   });
 
-  it('treats an unreadable setting as on (a failure never turns the protection off), but a missing table as the default off', async () => {
+  it('treats an unreadable setting as off, so a passing database error never stops AI for everyone', async () => {
     const failing = {
       transaction: async () => {
         throw new Error('connection reset');
       },
     } as unknown as Db;
     expect(await loadAiDataRuleSetting(failing)).toMatchObject({
-      requireNoTraining: true,
+      requireNoTraining: false,
       source: 'read_failed',
     });
   });

@@ -68,5 +68,8 @@ export async function isAiDataUseAllowed(
   db: Db,
   config: AiProviderConfig | undefined,
 ): Promise<boolean> {
+  // With the setting off every answer is "allowed" (decideAiProviderUse), so
+  // skip reading the terms: this runs on every AI call and page check.
+  if (!(await loadAiDataRuleSetting(db)).requireNoTraining) return true;
   return (await checkAiDataTerms(db, config)).decision.allowed;
 }

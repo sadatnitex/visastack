@@ -1,4 +1,5 @@
 import {
+  type ErasureJobReason,
   documentsPastRetention,
   getRetentionPolicies,
   listActiveLegalHolds,
@@ -18,6 +19,13 @@ import { LegalHoldForm, RetentionPolicyForm } from '../admin-forms';
 import { AdminRestricted } from '../admin-restricted';
 import { FailedSectionsBanner } from '../failed-sections-banner';
 import { PurgeButton } from '../purge-button';
+
+/** Why each erasure job exists. Exhaustive: a new reason does not compile until it has a label. */
+const ERASURE_REASON_LABELS = {
+  ACCOUNT_DELETION: 'Account Deletion',
+  RETENTION_PURGE: 'Retention Purge',
+  PROFILE_PHOTO_REMOVAL: 'Photo Removal',
+} as const satisfies Record<ErasureJobReason, string>;
 
 export const metadata: Metadata = { title: 'Platform Privacy' };
 
@@ -180,9 +188,7 @@ export default async function AdminPrivacyPage() {
                         <RetryErasureJobButton jobId={job.id} />
                       </span>
                     </div>
-                    <span className="muted u-fs-085">
-                      {job.reason === 'ACCOUNT_DELETION' ? 'Account deletion' : 'Retention purge'}
-                    </span>
+                    <span className="muted u-fs-085">{ERASURE_REASON_LABELS[job.reason]}</span>
                     {job.lastError ? (
                       <span
                         className="muted"

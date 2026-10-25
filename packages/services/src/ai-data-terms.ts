@@ -203,10 +203,9 @@ function termsFromRow(row: TermsRow): AiProviderDataTerms {
  *
  * The read runs in its own savepoint so a failure cannot spoil a caller's
  * transaction. If it fails for any reason, every configuration reads as
- * "unknown", which the rule above refuses whenever real data is on: a deploy
- * that lands before its migration, or a read that fails, can only make AI
- * stricter, never looser. Only the missing-table case is quiet; anything
- * else is reported.
+ * "unknown": shown as a warning, and refused only while the "Only Use AI
+ * Providers That Do Not Train on Inputs" setting is on. Only the
+ * missing-table case is quiet; anything else is reported.
  */
 export async function loadAiProviderDataTerms(
   db: Db,
@@ -219,7 +218,10 @@ export async function loadAiProviderDataTerms(
         .select()
         .from(schema.aiProviderConfigTerms)
         .where(inArray(schema.aiProviderConfigTerms.configId, [...configIds]))
-        .orderBy(desc(schema.aiProviderConfigTerms.createdAt)),
+        .orderBy(
+          desc(schema.aiProviderConfigTerms.createdAt),
+          desc(schema.aiProviderConfigTerms.id),
+        ),
     );
     const byConfigId = new Map<string, AiProviderDataTerms>();
     for (const row of rows) {
@@ -262,7 +264,14 @@ export interface RecordAiProviderDataTermsInput {
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-function validateTerms(input: RecordAiProviderDataTermsInput): string | undefined {
+/**
+ * The checks a terms record must pass, shared by `recordAiProviderDataTerms`
+ * and the admin forms (so a draft is never created with terms that would
+ * then be refused). Returns a plain sentence fragment, or undefined.
+ */
+export function validateAiProviderDataTerms(
+  input: Omit<RecordAiProviderDataTermsInput, 'stepUpSatisfied' | 'configId'>,
+): string | undefined {
   if (!(AI_PROVIDER_TIERS as readonly string[]).includes(input.tier)) return 'choose free or paid';
   if (!(AI_TRAINING_ANSWERS as readonly string[]).includes(input.trainsOnInputs)) {
     return 'choose whether the provider may train on what it is sent';
@@ -289,7 +298,12 @@ function validateTerms(input: RecordAiProviderDataTermsInput): string | undefine
     return 'notes must be 500 characters or fewer';
   }
   const checked = Date.parse(`${input.checkedOn}T00:00:00Z`);
-  if (!ISO_DATE.test(input.checkedOn) || !Number.isFinite(checked)) {
+  if (
+    !ISO_DATE.test(input.checkedOn) ||
+    !Number.isFinite(checked) ||
+    // Date.parse rolls an impossible day (31 February) into the next month.
+    new Date(checked).toISOString().slice(0, 10) !== input.checkedOn
+  ) {
     return 'enter the date the terms were checked';
   }
   if (checked > (input.now ?? new Date()).getTime() + DAY_MS) {
@@ -320,7 +334,7 @@ export async function recordAiProviderDataTerms(
       serviceError('step_up_required', 'recording provider terms requires reauthentication'),
     );
   }
-  const problem = validateTerms(input);
+  const problem = validateAiProviderDataTerms(input);
   if (problem) return err(serviceError('invalid', problem));
 
   try {
@@ -412,7 +426,7 @@ export async function loadAiDataRuleSetting(db: Db): Promise<AiDataRuleSetting> 
         inner
           .select()
           .from(schema.aiDataRuleSettings)
-          .orderBy(desc(schema.aiDataRuleSettings.createdAt))
+          .orderBy(desc(schema.aiDataRuleSettings.createdAt), desc(schema.aiDataRuleSettings.id))
           .limit(1),
       ),
     );
@@ -440,11 +454,14 @@ export async function loadAiDataRuleSetting(db: Db): Promise<AiDataRuleSetting> 
       };
     }
     const message = error instanceof Error ? error.message : String(error);
+    // Read as off (owner 2026-10-25: never block the free tier unless told
+    // to). A passing database error must not switch AI off for everyone; the
+    // admin page says the setting could not be read.
     console.error(
-      `[ai-data-terms] the AI data setting could not be read; treating it as on: ${message}`,
+      `[ai-data-terms] the AI data setting could not be read; treating it as off: ${message}`,
     );
     return {
-      requireNoTraining: true,
+      requireNoTraining: false,
       changedAt: null,
       changedByAccountId: null,
       source: 'read_failed',
@@ -486,7 +503,7 @@ export async function setAiDataRuleSetting(
         await tx
           .select({ requireNoTraining: schema.aiDataRuleSettings.requireNoTraining })
           .from(schema.aiDataRuleSettings)
-          .orderBy(desc(schema.aiDataRuleSettings.createdAt))
+          .orderBy(desc(schema.aiDataRuleSettings.createdAt), desc(schema.aiDataRuleSettings.id))
           .limit(1),
       );
       const row = required(

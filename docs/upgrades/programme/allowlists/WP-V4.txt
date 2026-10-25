@@ -22,3 +22,7 @@ apps/web/src/app/globals.css
 docs/upgrades/programme/**
 docs/commercial-v1/known-issues.md
 # Note: packs.ts is claimed by Master Profile Phase 2 in docs/product/master-profile-enrichment/HANDOFF.md. Ask first.
+# Added after owner approval on 25 Oct 2026 (W0 ledger Q4, option A): one export file and the shared wording list.
+packages/services/src/index.ts
+apps/web/src/lib/labels.ts
+apps/web/src/lib/labels.test.ts

@@ -72,7 +72,7 @@ real applicant documents can reach AI.
 ## If something is wrong
 
 - "Cannot be saved until the latest database update has been applied": the data-terms update
-  (migration 0088) has not been run on this database yet. Ask the owner to approve that specific
+  (migration 0089) has not been run on this database yet. Ask the owner to approve that specific
   migration run. Until then every provider reads as "not recorded" and the setting reads as Off.
 - AI unavailable after switching the setting on: record terms for the active provider, or switch
   to one that does not train on inputs.

@@ -17,6 +17,7 @@ import {
   rollbackAiProviderConfig,
   setAiDataRuleSetting,
   staffPrincipal,
+  validateAiProviderDataTerms,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -70,24 +71,32 @@ type TermsFields = Omit<RecordAiProviderDataTermsInput, 'stepUpSatisfied' | 'con
 
 /**
  * Reads the Provider Data Terms fields. `undefined` when the plan was left as
- * "Not Recorded Yet" (draft form only); a string when something is missing.
+ * "Not Recorded Yet" and nothing else was filled in (draft form only); a
+ * string when something is missing or would be refused, checked with the same
+ * rules the service applies so a draft is never saved with terms it then
+ * refuses.
  */
 function parseTermsFields(formData: FormData): TermsFields | string | undefined {
   const tier = String(formData.get('termsTier') ?? '').trim();
-  if (tier.length === 0) return undefined;
-  if (tier !== 'FREE' && tier !== 'PAID') return 'Choose Free or Paid.';
   const trains = String(formData.get('termsTrains') ?? 'UNKNOWN').trim();
-  if (trains !== 'YES' && trains !== 'NO' && trains !== 'UNKNOWN') {
-    return 'Choose whether the provider may train on what it is sent.';
-  }
   const checkedOn = String(formData.get('termsCheckedOn') ?? '').trim();
-  if (checkedOn.length === 0) return 'Enter the date you checked the terms.';
   const retentionRaw = String(formData.get('termsRetentionDays') ?? '').trim();
-  const retentionDays = retentionRaw.length > 0 ? Number(retentionRaw) : undefined;
   const region = String(formData.get('termsRegion') ?? '').trim();
   const termsUrl = String(formData.get('termsUrl') ?? '').trim();
   const notes = String(formData.get('termsNotes') ?? '').trim();
-  return {
+  if (tier.length === 0) {
+    const anythingElse =
+      trains !== 'UNKNOWN' ||
+      [checkedOn, retentionRaw, region, termsUrl, notes].some((value) => value.length > 0);
+    return anythingElse ? 'Choose Free or Paid so the data terms can be saved.' : undefined;
+  }
+  if (tier !== 'FREE' && tier !== 'PAID') return 'Choose Free or Paid.';
+  if (trains !== 'YES' && trains !== 'NO' && trains !== 'UNKNOWN') {
+    return 'Choose whether the provider may train on what it is sent.';
+  }
+  if (checkedOn.length === 0) return 'Enter the date you checked the terms.';
+  const retentionDays = retentionRaw.length > 0 ? Number(retentionRaw) : undefined;
+  const fields: TermsFields = {
     tier: tier as AiProviderTier,
     trainsOnInputs: trains as AiTrainingAnswer,
     checkedOn,
@@ -96,6 +105,8 @@ function parseTermsFields(formData: FormData): TermsFields | string | undefined 
     ...(termsUrl ? { termsUrl } : {}),
     ...(notes ? { notes } : {}),
   };
+  const problem = validateAiProviderDataTerms(fields);
+  return problem ? `${problem.charAt(0).toUpperCase()}${problem.slice(1)}.` : fields;
 }
 
 /** Save a new DRAFT AI provider configuration. Has no effect on live traffic until activated. Security-admin + step-up gated (Part 8 §5). */

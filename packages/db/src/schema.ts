@@ -113,6 +113,9 @@ export const jobStatus = pgEnum('job_status', ['PENDING', 'CLAIMED', 'DONE', 'FA
 export const erasureJobReason = pgEnum('erasure_job_reason', [
   'ACCOUNT_DELETION',
   'RETENTION_PURGE',
+  // WP-PH1: a profile photo that was replaced or removed. Its row is already
+  // gone; the worker deletes and verifies the bytes like any other job.
+  'PROFILE_PHOTO_REMOVAL',
 ]);
 export const erasureJobStatus = pgEnum('erasure_job_status', [
   'PENDING',
@@ -1876,8 +1879,9 @@ export const aiProviderConfigs = pgTable(
 // window between a deploy and its migration, while a missing side table only
 // reads as "unknown terms". Append-only: the newest row per configuration is
 // the one in force; older rows stay as the record of what the platform
-// believed when. No row means "unknown", which the gateway refuses whenever
-// real applicant data is enabled (packages/services/src/ai-data-terms.ts).
+// believed when. No row means "unknown": shown as a warning, and refused only
+// while the "Only Use AI Providers That Do Not Train on Inputs" setting is on
+// (packages/services/src/ai-data-terms.ts).
 export const AI_PROVIDER_TIERS = ['FREE', 'PAID'] as const;
 export const AI_TRAINING_ANSWERS = ['YES', 'NO', 'UNKNOWN'] as const;
 export const AI_TERMS_TEXT_MAX = 500;
@@ -3857,5 +3861,37 @@ export const documentProtectionSettings = pgTable(
       'document_protection_settings_reason_length',
       sql`${table.reason} is null or char_length(${table.reason}) <= 500`,
     ),
+  ],
+);
+
+// --- Profile photos (WP-PH1, owner request 2026-10-25) ----------------------
+// One optional photo per traveller record, shown where their initials show
+// today. Owner-only: set, replaced and removed by the record's owner, served
+// only through the signed-in photo route, never through a grant, and never
+// used as a visa photo. The bytes are a server re-encoded square JPEG (no
+// location or other metadata) kept privately in the same storage as
+// documents and registered in storage_objects, so verified erasure, orphan
+// checks and restore reconciliation treat it like any other stored object.
+// Deleting the storage object row (after verified erasure) removes this row
+// too, so a photo can never point at bytes that are gone.
+export const applicantPhotos = pgTable(
+  'applicant_photos',
+  {
+    applicantId: uuid('applicant_id')
+      .primaryKey()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    storageObjectId: uuid('storage_object_id')
+      .notNull()
+      .unique()
+      .references(() => storageObjects.id, { onDelete: 'cascade' }),
+    // Hex SHA-256 of the stored bytes: checked on every read, and its prefix
+    // versions the photo address so a replaced photo is never shown stale.
+    contentSha256: text('content_sha256').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    check('applicant_photos_sha256_format', sql`${table.contentSha256} ~ '^[0-9a-f]{64}$'`),
+    check('applicant_photos_size_bounds', sql`${table.sizeBytes} between 1 and 1048576`),
   ],
 );

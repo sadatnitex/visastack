@@ -2,11 +2,11 @@ import 'server-only';
 import {
   type Db,
   type WorkspaceToolbarState,
-  listApplicants,
   listMembershipsForAccount,
   loadWorkspaceToolbarState,
 } from '@visastack/services';
 import { hasPlatformPermission, isPlatformAdmin, isPlatformOwnerAccount } from './admin';
+import { loadOwnedTravellers } from './profile-photos';
 import type { WorkspaceAccess } from './workspace-navigation';
 
 /** Existing owner and active-membership reads, never an email-based permission shortcut. */
@@ -16,8 +16,10 @@ export async function loadWorkspaceChrome(
 ): Promise<
   WorkspaceAccess & { readonly accountName: string; readonly toolbar: WorkspaceToolbarState }
 > {
-  const [people, memberships, platform, toolbar] = await Promise.all([
-    listApplicants(db, actor.accountId),
+  // The owner's travellers and, in one batched read, their photos (WP-PH1); a photo failure
+  // only hides photos.
+  const [{ people, photos }, memberships, platform, toolbar] = await Promise.all([
+    loadOwnedTravellers(db, actor.accountId),
     listMembershipsForAccount(db, actor.accountId),
     isPlatformAdmin(db, actor),
     loadWorkspaceToolbarState(db, actor.accountId),
@@ -39,6 +41,7 @@ export async function loadWorkspaceChrome(
       id: person.id,
       name: person.displayName,
       relationship: person.relationship,
+      photo: photos.get(person.id) ?? null,
     })),
     agencies: memberships
       .filter((membership) => membership.active)

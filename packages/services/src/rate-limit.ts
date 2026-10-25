@@ -43,6 +43,8 @@ export const RATE_LIMITS = {
   CLIENT_INVITATION_CREATE: { limit: 60, windowMs: HOUR_MS },
   CLIENT_INVITATION_CREATE_ORG: { limit: 200, windowMs: HOUR_MS },
   UPLOAD_RESERVE: { limit: 200, windowMs: HOUR_MS },
+  /** WP-PH1: adding, replacing or removing a profile photo, all counted together (adding or replacing one decodes and re-encodes an image). */
+  PROFILE_PHOTO_CHANGE: { limit: 30, windowMs: HOUR_MS },
   ACCOUNT_EXPORT: { limit: 5, windowMs: HOUR_MS },
   BULK_EXPORT: { limit: 10, windowMs: HOUR_MS },
   BULK_EXPORT_ORG: { limit: 20, windowMs: HOUR_MS },

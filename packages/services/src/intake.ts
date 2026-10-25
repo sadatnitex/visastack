@@ -304,7 +304,6 @@ async function runExtractionStep(
         id: schema.documents.id,
         applicantId: schema.documents.applicantId,
         originalName: schema.documents.originalName,
-        docType: schema.documents.docType,
         issuer: schema.documents.issuer,
         expiresAt: schema.documents.expiresAt,
       })
@@ -441,26 +440,19 @@ async function runExtractionStep(
         .where(eq(schema.documentVersions.id, version.id));
     }
 
-    // EVI-03 ("store type/category ... issuer, issue/expiry date"): the same
-    // deterministic classification that already gates a naming proposal
-    // below is confident enough (classifiedType set, reviewRequired false)
-    // to also populate the document's own metadata columns, which otherwise
-    // stay null forever (no other write path ever sets them). Only fills a
-    // currently-null column, never overwrites one a later, possibly-worse
-    // re-extraction (or a future manual correction, once one exists) already
-    // set: this mirrors createGrant's own "never silently mutate" posture,
-    // just applied to a value this system derived rather than one a caller
-    // supplied. MRZ-sourced issuer/expiry are used only for PASSPORT, the
-    // only classification with real structured fields to draw from; the
-    // keyword-matched types (BANK_STATEMENT, EMPLOYMENT_CERTIFICATE) have no
-    // such fields, so only classifiedType itself is ever set for them.
+    // EVI-03 ("store type/category ... issuer, issue/expiry date"). The KIND of
+    // document is never set here (owner request 2026-10-25: nothing about what
+    // a document is or what it is called is saved until the person accepts
+    // it). The confident classification row above, and the name suggested
+    // below, wait for that decision (document-suggestion.ts). Issuer and
+    // expiry are still filled from a passport's machine-readable lines, only
+    // into columns still empty, because those values are verified by the
+    // lines' own check digits and drive expiry reminders; they say nothing
+    // about which kind the person will accept.
     const metadataUpdate: Partial<typeof schema.documents.$inferInsert> = {};
-    if (classification.classifiedType && !classification.reviewRequired) {
-      if (!document.docType) metadataUpdate.docType = classification.classifiedType;
-      if (classification.mrz) {
-        if (!document.issuer) metadataUpdate.issuer = classification.mrz.issuingCountry;
-        if (!document.expiresAt) metadataUpdate.expiresAt = new Date(classification.mrz.expiryDate);
-      }
+    if (classification.classifiedType && !classification.reviewRequired && classification.mrz) {
+      if (!document.issuer) metadataUpdate.issuer = classification.mrz.issuingCountry;
+      if (!document.expiresAt) metadataUpdate.expiresAt = new Date(classification.mrz.expiryDate);
     }
     const populatedFields = Object.keys(metadataUpdate);
     if (populatedFields.length > 0) {
@@ -491,7 +483,8 @@ async function runExtractionStep(
     });
 
     // A filename proposal only when classification cleared review (never
-    // proposes a name built on a guessed type).
+    // proposes a name built on a guessed type). A proposal, never a saved
+    // name: approvedName changes only when the person accepts it.
     if (classification.classifiedType && !classification.reviewRequired) {
       const proposedName = buildProposedName({
         classifiedType: classification.classifiedType,

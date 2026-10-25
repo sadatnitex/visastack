@@ -29,6 +29,8 @@ const mocks = vi.hoisted(() => ({
   listSelectedEvidence: vi.fn(),
   listSubmissionsForMission: vi.fn(),
   listTasks: vi.fn(),
+  listChangesSinceConfirmed: vi.fn(),
+  requireAccess: vi.fn(),
 }));
 
 vi.mock('@visastack/services', async (importOriginal) => ({
@@ -86,6 +88,9 @@ function setUp(
     readonly openTasks?: number;
     /** Required requirement states; attaches a pack when given. */
     readonly requirements?: readonly string[];
+    /** What listChangesSinceConfirmed returns (WP-V3 part 3). */
+    readonly changes?: unknown;
+    readonly gateRefuses?: boolean;
   } = {},
 ) {
   const results = (options.requirements ?? []).map((state, i) => ({
@@ -148,6 +153,12 @@ function setUp(
       })),
     ),
   );
+  mocks.requireAccess.mockResolvedValue(
+    options.gateRefuses
+      ? { ok: false as const, error: { code: 'forbidden', message: 'no' } }
+      : ok({ synthetic: 'proof' }),
+  );
+  mocks.listChangesSinceConfirmed.mockResolvedValue(ok(options.changes ?? null));
   mocks.getLiveAcknowledgement.mockResolvedValue(undefined);
   mocks.listAcknowledgementsForMission.mockResolvedValue(
     ok(
@@ -317,5 +328,135 @@ describe('case journey view (WP-X1)', () => {
       expect(at).toBeGreaterThan(html.indexOf('aria-label="Actual case workflow state"'));
       expect(at).toBeLessThan(html.indexOf('class="case-context-strip"'));
     }
+  });
+});
+
+const SNAPSHOT = '11111111-1111-4111-8111-111111111111';
+const PRIOR = '22222222-2222-4222-8222-222222222222';
+const CURRENT = '33333333-3333-4333-8333-333333333333';
+
+function changes(list: readonly unknown[], exact = true) {
+  return {
+    snapshot: {
+      id: SNAPSHOT,
+      missionId: 'synthetic-case',
+      missionTitle: 'Japan visitor visa',
+      version: 2,
+      takenAt: '2026-10-18T09:00:00.000Z',
+      exact,
+    },
+    review: {
+      confirmedAt: '2026-10-18T10:00:00.000Z',
+      setAsideAt: '2026-10-20T10:00:00.000Z',
+      laterConfirmation: null,
+    },
+    changes: list,
+    unchangedDetailCount: 3,
+    confirmedAt: '2026-10-18T10:00:00.000Z',
+  };
+}
+
+const EMPLOYER_CHANGED = {
+  kind: 'detail',
+  change: 'changed',
+  fieldKey: 'employer_name',
+  repeatingRecordKey: null,
+  factId: 'fact-1',
+  priorFactVersionId: PRIOR,
+  currentFactVersionId: CURRENT,
+};
+
+/** The markup of the changed-case alert only. */
+function alertOf(html: string): string {
+  return html.slice(html.indexOf('class="case-alert"'), html.indexOf('class="case-context-strip"'));
+}
+
+describe('changed details inside the alert (WP-V3 part 3)', () => {
+  it('lists what changed by name inside the alert, with a compare link to the exact version', async () => {
+    setUp({
+      dirty: true,
+      changes: changes([
+        EMPLOYER_CHANGED,
+        { kind: 'document', change: 'new_version', documentId: 'doc-1', docType: 'bank_statement' },
+        { kind: 'case', change: 'changed', caseField: 'travelStartDate' },
+      ]),
+    });
+    const html = await render();
+    const alert = alertOf(html);
+    const text = textOf(alert);
+    // The approved wording stays, the list follows it, the snapshot button stays last.
+    expect(text).toContain('This case has changed since it was last acknowledged.');
+    expect(text).toContain('What changed since you confirmed snapshot 2 on 18 Oct 2026');
+    expect(text).toMatch(/Travel Start Date\s*: changed/);
+    expect(text).toMatch(/Employer[^:]*\s*: changed/);
+    expect(text).toMatch(/new version added/);
+    expect(alert).toContain(
+      `href="/app/applicant/synthetic-family/memory/compare?snapshot=${SNAPSHOT}&amp;version=${PRIOR}"`,
+    );
+    expect(alert).toContain(
+      `href="/app/applicant/synthetic-family/memory/compare?snapshot=${SNAPSHOT}"`,
+    );
+    expect(alert.indexOf('class="case-changes"')).toBeLessThan(
+      alert.indexOf('data-stub="SnapshotButton"'),
+    );
+    expect(alert).not.toContain('role=');
+    // Through the central gate, for this case, without a value anywhere.
+    expect(mocks.requireAccess).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ kind: 'account', accountId: 'synthetic-owner' }),
+      'VIEW_METADATA',
+      { missionId: 'synthetic-case' },
+      { purpose: 'application_memory' },
+    );
+    expect(mocks.listChangesSinceConfirmed).toHaveBeenCalledWith({ synthetic: 'proof' });
+  });
+
+  it('only a changed detail with both versions gets a compare link', async () => {
+    setUp({
+      dirty: true,
+      changes: changes([
+        { ...EMPLOYER_CHANGED, change: 'added', priorFactVersionId: null },
+        { ...EMPLOYER_CHANGED, factId: 'fact-2', change: 'removed', currentFactVersionId: null },
+      ]),
+    });
+    const alert = alertOf(await render());
+    expect(alert).not.toContain('version=');
+    expect(textOf(alert)).toContain('added to this case');
+    expect(textOf(alert)).toContain('removed');
+  });
+
+  it('shows the first eight and links to the full list', async () => {
+    const many = Array.from({ length: 10 }, (_, i) => ({
+      ...EMPLOYER_CHANGED,
+      factId: `fact-${i}`,
+    }));
+    setUp({ dirty: true, changes: changes(many) });
+    const alert = alertOf(await render());
+    expect(alert.match(/class="case-change-link"/g)).toHaveLength(8);
+    expect(textOf(alert)).toContain('See All 10 Changes');
+  });
+
+  it('says plainly when an older snapshot cannot be compared, or when no change could be named', async () => {
+    setUp({ dirty: true, changes: changes([], false) });
+    expect(textOf(alertOf(await render()))).toContain('did not record exact versions');
+    setUp({ dirty: true, changes: changes([]) });
+    expect(textOf(alertOf(await render()))).toContain('different choice of evidence');
+  });
+
+  it('keeps the alert when the list cannot be read, pointing to Application Memory', async () => {
+    setUp({ dirty: true, gateRefuses: true });
+    const alert = alertOf(await render());
+    expect(textOf(alert)).toContain('This case has changed since it was last acknowledged.');
+    expect(alert).toContain('href="/app/applicant/synthetic-family/memory"');
+    expect(mocks.listChangesSinceConfirmed).not.toHaveBeenCalled();
+  });
+
+  it('reads nothing extra for a case that has not changed, and links Application Memory from the snapshots', async () => {
+    setUp();
+    const html = await render();
+    expect(mocks.requireAccess).not.toHaveBeenCalled();
+    expect(html).not.toContain('class="case-changes"');
+    const snapshots = html.slice(html.indexOf('id="snapshots"'));
+    expect(snapshots).toContain('href="/app/applicant/synthetic-family/memory"');
   });
 });

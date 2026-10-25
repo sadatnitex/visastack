@@ -39,6 +39,7 @@ export {
   type DeterministicTextExtractorOptions,
 } from './text-extraction';
 
+export { SharpPhotoReencoder, type SharpPhotoReencoderOptions } from './photo-reencoder';
 export { BuiltinPreviewRenderer } from './preview-renderer';
 
 export {

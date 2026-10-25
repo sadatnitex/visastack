@@ -140,7 +140,7 @@ export function DataTermsPanel(props: DataTermsPanelProps) {
           </span>
         </div>
         <div className="row">
-          <span className="row-key">Only Use Providers That Do Not Train on Inputs</span>
+          <span className="row-key">Only Use AI Providers That Do Not Train on Inputs</span>
           <span
             className={`badge ${props.setting.requireNoTraining ? 'badge-success' : 'badge-neutral'}`}
           >
@@ -156,7 +156,8 @@ export function DataTermsPanel(props: DataTermsPanelProps) {
       ) : null}
       {props.setting.source === 'read_failed' ? (
         <div className="notice notice-warn u-mb-100">
-          The setting could not be read, so it is treated as on until it can be.
+          The setting could not be read, so it is treated as off until it can be. Providers are not
+          blocked meanwhile.
         </div>
       ) : null}
       {blocked.map(({ role, config, decision }) => (
