@@ -21,17 +21,20 @@ export interface DocumentSuggestionView {
   /** Where the Record lists a document of the suggested kind. */
   readonly recordGroup: string | null;
   readonly source: 'ai' | 'rules';
-  /** Confident enough to read as Clear; otherwise Please Check. */
+  /** Confident rules, or the person's own kind, read as Clear; an AI kind always reads Please Check. */
   readonly clear: boolean;
   readonly proposedName: string;
-  /** The kind the person chose earlier, when the suggestion differs from it. */
-  readonly currentKindLabel: string | null;
+  /** What a suggested name puts after the kind (" - Anna Eriksson.pdf"), so Edit can rename for another kind. */
+  readonly nameAfterKind: string;
 }
 
 export interface DocumentSuggestionInput {
   readonly id: string;
   readonly originalName: string;
   readonly docType: string | null;
+  /** The latest file's safety and processing state: nothing is suggested for a file not past its checks. */
+  readonly safetyStatus: string | null;
+  readonly processingStatus: string | null;
   readonly classification: {
     readonly classifiedType: string | null;
     readonly confidence: number;
@@ -47,18 +50,25 @@ export interface WaitingKind {
   readonly confidence: number;
 }
 
+/** File states past the safety scan and the content checks. */
+const DECIDABLE_STATES: ReadonlySet<string> = new Set(['AWAITING_REVIEW', 'APPROVED']);
+
 /**
- * The suggestion for one document, or null when nothing is waiting. A waiting AI kind for the
- * file's latest version comes first; otherwise the rules' confident classification; otherwise the
- * kind the person already set, so a waiting name always shows where it will be listed.
+ * The suggestion for one document, or null when nothing is waiting or the latest file is not past
+ * its safety checks. A kind the person set always wins: the card never offers to undo it. Then a
+ * waiting AI kind for the file's latest version, then the rules' confident classification.
  */
 export function documentSuggestionView(
   doc: DocumentSuggestionInput,
   waitingKind: WaitingKind | undefined,
   primarySubject: string,
 ): DocumentSuggestionView | null {
+  if (doc.safetyStatus !== 'CLEAN' || !DECIDABLE_STATES.has(doc.processingStatus ?? '')) {
+    return null;
+  }
   const nameVersion = doc.pendingNameVersion;
-  if (!nameVersion && !waitingKind) return null;
+  const aiKind = doc.docType ? undefined : waitingKind;
+  if (!nameVersion && !aiKind) return null;
 
   const rules =
     doc.classification?.classifiedType && !doc.classification.reviewRequired
@@ -67,25 +77,30 @@ export function documentSuggestionView(
           confidence: doc.classification.confidence,
         }
       : undefined;
-  const kind = waitingKind?.suggestedType ?? rules?.kind ?? doc.docType;
-  const confidence = waitingKind?.confidence ?? rules?.confidence ?? 0;
+  const kind = doc.docType ?? aiKind?.suggestedType ?? rules?.kind ?? null;
+  const clear =
+    doc.docType !== null ||
+    (!aiKind && rules !== undefined && rules.confidence >= CLEAR_PROPOSAL_CONFIDENCE);
+  const extension = extensionOf(doc.originalName);
+  // A name for no kind starts with "Document"; what follows it is the same for every kind.
+  const nameAfterKind = buildProposedName({
+    classifiedType: null,
+    primarySubject,
+    extension,
+  }).slice('Document'.length);
 
   return {
     documentId: doc.id,
     nameVersionId: nameVersion?.id ?? null,
-    typeProposalId: waitingKind?.id ?? null,
+    typeProposalId: aiKind?.id ?? null,
     kind,
     kindLabel: kind ? documentTypeLabel(kind) : null,
     recordGroup: kind ? recordGroupOfDocType(kind) : null,
-    source: waitingKind ? 'ai' : 'rules',
-    clear: kind !== null && (kind === doc.docType || confidence >= CLEAR_PROPOSAL_CONFIDENCE),
+    source: aiKind ? 'ai' : 'rules',
+    clear,
     proposedName:
       nameVersion?.proposedName ??
-      buildProposedName({
-        classifiedType: kind,
-        primarySubject,
-        extension: extensionOf(doc.originalName),
-      }),
-    currentKindLabel: doc.docType && doc.docType !== kind ? documentTypeLabel(doc.docType) : null,
+      buildProposedName({ classifiedType: kind, primarySubject, extension }),
+    nameAfterKind,
   };
 }

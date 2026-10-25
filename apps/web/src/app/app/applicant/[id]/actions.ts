@@ -513,8 +513,10 @@ export async function runAiExtractionAction(
       killSwitchCheck: () => isAiDispatchAllowed(db),
       ...(resolved.fallback ? { fallback: resolved.fallback } : {}),
     });
-    // The same reading also says what kind of document this is and suggests a name (owner
-    // request 2026-10-25). Its own failure never undoes or hides the details read above.
+    if (!run.ok) return { ok: false, message: run.error.message } satisfies ActionState;
+    // Only after a reading that worked, so a failing provider is never asked twice against this
+    // document's budget: the same reading also says what kind of document this is and suggests
+    // a name (owner request 2026-10-25). Its own failure never hides the details read above.
     let kind: Awaited<ReturnType<typeof suggestKindWithAi>>;
     try {
       kind = await suggestKindWithAi(db, accountId, applicantId, documentVersionId);
@@ -522,7 +524,6 @@ export async function runAiExtractionAction(
       reportServerError('runAiExtractionAction', error, { step: 'kind suggestion' });
       kind = undefined;
     }
-    if (!run.ok) return { ok: false, message: run.error.message } satisfies ActionState;
     return {
       ok: true,
       message: `AI extraction proposed ${run.value.proposals.length} field(s) for review.${kindSentence(kind)}`,
@@ -611,12 +612,7 @@ export async function runClassificationAction(
       return { ok: false, message: 'AI classification is not configured.' } satisfies ActionState;
     }
     if (!kind.ok) return { ok: false, message: plainError(kind.error) } satisfies ActionState;
-    return {
-      ok: true,
-      message:
-        kindSentence(kind).trim() ||
-        'We could not tell what kind of document this is. Choose the kind above.',
-    } satisfies ActionState;
+    return { ok: true, message: KIND_ANSWERS[kind.value.status] } satisfies ActionState;
   });
 
   if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
@@ -664,6 +660,15 @@ function kindSentence(kind: Result<DocumentKindSuggestion, ServiceError> | undef
   }
   return '';
 }
+
+/** What the kind button says for each answer. */
+const KIND_ANSWERS: Readonly<Record<DocumentKindSuggestion['status'], string>> = {
+  suggested: 'We suggested what kind of document this is and a name for it. Check them below.',
+  no_suggestion: 'We could not tell what kind of document this is. Choose the kind above.',
+  kind_already_set: 'You already chose what kind of document this is. Nothing was changed.',
+  already_suggested: 'A suggestion for this document is already waiting below.',
+  rules_confident: 'We already know what kind of document this is. Check the suggestion below.',
+};
 
 /** A service refusal as a sentence a person can read. */
 function plainError(error: ServiceError): string {

@@ -3,7 +3,12 @@ import type { FactStatus, ProposalType } from '@visastack/core';
 import { type Result, err, isOk, ok } from '@visastack/core';
 import { CATALOGUE_DOCUMENTS, isRepeatingFieldKey } from '@visastack/core/catalogue';
 import { and, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
-import { AuthorizedApplicant } from './access';
+import {
+  AuthorizedApplicant,
+  DEFAULT_DOCUMENT_PROTECTION,
+  isRestrictedDocumentType,
+} from './access';
+import { loadDocumentProtectionSettings } from './access/restricted-documents';
 import { scopeFieldKeys } from './ai-field-scope';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
@@ -1558,11 +1563,11 @@ type ClassificationReservation =
 
 /**
  * Which kinds the model may choose from. `rules` is `runClassification`'s original list (the
- * kinds the deterministic classifier itself can produce) and keeps its existing cache keys;
- * `catalogue` is every kind in the document catalogue (owner request 2026-10-25), used by
- * `suggestDocumentKind`.
+ * kinds the deterministic classifier itself can produce) and keeps its existing cache keys; a
+ * list is a set of catalogue kinds chosen by `suggestDocumentKind` (owner request 2026-10-25),
+ * and is part of the cache key.
  */
-type KindVocabulary = 'rules' | 'catalogue';
+type KindVocabulary = 'rules' | readonly string[];
 
 /** Every kind in the document catalogue, by its standard key. */
 const CATALOGUE_DOCUMENT_KINDS: readonly string[] = CATALOGUE_DOCUMENTS.map((entry) => entry.key);
@@ -1614,8 +1619,7 @@ async function reserveClassificationSlot(
       }
     }
 
-    const allowedTypes =
-      vocabulary === 'catalogue' ? CATALOGUE_DOCUMENT_KINDS : CLASSIFIABLE_DOCUMENT_TYPES;
+    const allowedTypes = vocabulary === 'rules' ? CLASSIFIABLE_DOCUMENT_TYPES : vocabulary;
     const contentHash = createHash('sha256').update(input.text).digest('hex');
     const parserVersion = (await latestParserVersion(tx, input.documentVersionId)) ?? 'unknown';
     const cacheKey = computeCacheKey(
@@ -1623,7 +1627,7 @@ async function reserveClassificationSlot(
       parserVersion,
       ai.classifyCacheKeyComponents(),
       undefined,
-      vocabulary === 'catalogue' ? CATALOGUE_DOCUMENT_KINDS : undefined,
+      vocabulary === 'rules' ? undefined : vocabulary,
     );
 
     const cacheMaxAgeDays = input.cacheMaxAgeDays ?? DEFAULT_CACHE_MAX_AGE_DAYS;
@@ -2202,6 +2206,8 @@ export type DocumentKindSuggestion =
   | { readonly status: 'no_suggestion' }
   /** The person already said what kind of document this is: nothing to suggest, nothing spent. */
   | { readonly status: 'kind_already_set' }
+  /** The rules are already confident of the kind: the AI is not asked, nothing spent. */
+  | { readonly status: 'rules_confident' }
   /** A suggestion for this file is already waiting for the person: nothing spent. */
   | { readonly status: 'already_suggested'; readonly proposal: DocumentTypeProposalRow };
 
@@ -2269,6 +2275,22 @@ export async function suggestDocumentKind(
   }
   if (row.docType) return ok({ status: 'kind_already_set' });
 
+  // The AI never second-guesses a confident rules kind (a passport whose machine-readable lines
+  // pass their check digits, say): text inside a document must not be able to talk the reading
+  // into a different, possibly less protected, kind. The rules suggestion stays as it is.
+  const rules = first(
+    await db
+      .select({
+        classifiedType: schema.documentClassifications.classifiedType,
+        reviewRequired: schema.documentClassifications.reviewRequired,
+      })
+      .from(schema.documentClassifications)
+      .where(eq(schema.documentClassifications.documentVersionId, input.documentVersionId))
+      .orderBy(desc(schema.documentClassifications.createdAt))
+      .limit(1),
+  );
+  if (rules?.classifiedType && !rules.reviewRequired) return ok({ status: 'rules_confident' });
+
   const pending = first(
     await db
       .select()
@@ -2313,7 +2335,14 @@ export async function suggestDocumentKind(
     ...(input.cacheMaxAgeDays !== undefined ? { cacheMaxAgeDays: input.cacheMaxAgeDays } : {}),
     ...(input.killSwitchCheck ? { killSwitchCheck: input.killSwitchCheck } : {}),
   };
-  const reservation = await reserveClassificationSlot(db, ai, runInput, 'catalogue');
+  // A file whose kind is not known yet is protected like a passport or a medical scan (unless
+  // platform admins switched that off). The AI may then only suggest a kind that keeps that
+  // protection: a suggestion that would loosen it is never offered.
+  const protection = await loadDocumentProtectionSettings(db, DEFAULT_DOCUMENT_PROTECTION);
+  const kinds = isRestrictedDocumentType(null, protection)
+    ? CATALOGUE_DOCUMENT_KINDS.filter((kind) => isRestrictedDocumentType(kind, protection))
+    : CATALOGUE_DOCUMENT_KINDS;
+  const reservation = await reserveClassificationSlot(db, ai, runInput, kinds);
   const summary =
     reservation.kind === 'final'
       ? reservation.outcome
@@ -2334,7 +2363,6 @@ export async function suggestDocumentKind(
   const nameVersion = await db.transaction((tx) =>
     nameForSuggestedKind(tx, {
       documentId: row.documentId,
-      documentVersionId: input.documentVersionId,
       kind: proposal.suggestedType,
       primarySubject: proof.applicant.displayName ?? 'Unknown',
       originalName: row.originalName,
@@ -2344,63 +2372,34 @@ export async function suggestDocumentKind(
 }
 
 /**
- * The name to show beside a suggested kind. When the rules already suggested a name for the same
- * kind, that one stays: it was built from the same kind and may carry details the rules checked
- * (a passport's issuing country and expiry, verified by its check digits). Otherwise any name
- * still waiting is set aside as replaced, so only one suggestion is ever waiting, and a new one
- * is made from the suggested kind.
+ * The name to show beside a suggested kind. Any name still waiting is set aside as replaced, so
+ * only one suggestion is ever waiting, and a new one is made from the suggested kind. Locks the
+ * document row first, then its names, in the same order `decideDocumentSuggestion` does, so the
+ * two can never wait on each other.
  */
 async function nameForSuggestedKind(
   tx: Db,
   input: {
     readonly documentId: string;
-    readonly documentVersionId: string;
     readonly kind: string;
     readonly primarySubject: string;
     readonly originalName: string;
   },
 ): Promise<DocumentNameVersion> {
-  const waiting = await tx
-    .select()
-    .from(schema.documentNameVersions)
+  await tx
+    .select({ id: schema.documents.id })
+    .from(schema.documents)
+    .where(eq(schema.documents.id, input.documentId))
+    .for('update');
+  await tx
+    .update(schema.documentNameVersions)
+    .set({ decision: 'REJECTED', reason: 'replaced by a newer suggestion', decidedAt: new Date() })
     .where(
       and(
         eq(schema.documentNameVersions.documentId, input.documentId),
         eq(schema.documentNameVersions.decision, 'PENDING'),
       ),
-    )
-    .orderBy(desc(schema.documentNameVersions.versionNumber))
-    .for('update');
-  const rules = first(
-    await tx
-      .select({
-        classifiedType: schema.documentClassifications.classifiedType,
-        reviewRequired: schema.documentClassifications.reviewRequired,
-      })
-      .from(schema.documentClassifications)
-      .where(eq(schema.documentClassifications.documentVersionId, input.documentVersionId))
-      .orderBy(desc(schema.documentClassifications.createdAt))
-      .limit(1),
-  );
-  const latest = waiting[0];
-  if (latest && rules && !rules.reviewRequired && rules.classifiedType === input.kind) {
-    return latest;
-  }
-  if (waiting.length > 0) {
-    await tx
-      .update(schema.documentNameVersions)
-      .set({
-        decision: 'REJECTED',
-        reason: 'replaced by a newer suggestion',
-        decidedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(schema.documentNameVersions.documentId, input.documentId),
-          eq(schema.documentNameVersions.decision, 'PENDING'),
-        ),
-      );
-  }
+    );
   const proposed = await proposeDocumentName(tx, {
     documentId: input.documentId,
     proposedName: buildProposedName({

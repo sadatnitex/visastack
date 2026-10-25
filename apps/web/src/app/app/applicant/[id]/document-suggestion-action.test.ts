@@ -203,6 +203,19 @@ describe('asking the AI what a document is', () => {
     );
   });
 
+  it.each([
+    ['kind_already_set', 'You already chose what kind of document this is. Nothing was changed.'],
+    ['already_suggested', 'A suggestion for this document is already waiting below.'],
+    [
+      'rules_confident',
+      'We already know what kind of document this is. Check the suggestion below.',
+    ],
+  ])('answers %s accurately', async (status, message) => {
+    mocks.resolveAiClassifier.mockResolvedValue({ ai: {}, limits: { budgetLimitUnits: 1 } });
+    mocks.suggestDocumentKind.mockResolvedValue({ ok: true, value: { status } });
+    expect(await classify()).toEqual({ ok: true, message });
+  });
+
   it('says plainly when nothing could be told, and when AI is not set up', async () => {
     mocks.resolveAiClassifier.mockResolvedValue({ ai: {}, limits: { budgetLimitUnits: 1 } });
     mocks.suggestDocumentKind.mockResolvedValue({ ok: true, value: { status: 'no_suggestion' } });
@@ -236,6 +249,17 @@ describe('reading details from a document', () => {
       message:
         'AI extraction proposed 2 field(s) for review. It also suggested what kind of document this is and a name for it. Check them below.',
     });
+  });
+
+  it('never asks for the kind when the reading itself failed', async () => {
+    mocks.resolveAiClassifier.mockResolvedValue({ ai: {}, limits: { budgetLimitUnits: 1 } });
+    mocks.runExtraction.mockResolvedValue({
+      ok: false,
+      error: { code: 'upstream_error', message: 'provider down' },
+    });
+    expect(await read()).toEqual({ ok: false, message: 'provider down' });
+    expect(mocks.suggestDocumentKind).not.toHaveBeenCalled();
+    expect(mocks.resolveAiClassifier).not.toHaveBeenCalled();
   });
 
   it('keeps the details it read when asking for the kind fails or breaks', async () => {

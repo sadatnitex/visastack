@@ -31,7 +31,7 @@ const suggestion: DocumentSuggestionView = {
   source: 'ai',
   clear: false,
   proposedName: 'Employment Certificate - Anna Eriksson.pdf',
-  currentKindLabel: null,
+  nameAfterKind: ' - Anna Eriksson.pdf',
 };
 const groups = [
   {
@@ -94,9 +94,36 @@ describe('the kind and name card', () => {
     }
   });
 
-  it('warns when accepting would change a kind the person chose', () => {
-    render({ ...suggestion, source: 'rules', currentKindLabel: 'Bank Statement', clear: true });
-    expect(host.textContent).toContain('You chose Bank Statement. Accepting changes it.');
+  it('renames for the chosen kind until the person types their own name', () => {
+    render({ ...suggestion, kind: 'BANK_STATEMENT', kindLabel: 'Bank Statement' });
+    const edit = [...host.querySelectorAll('button')].find((b) => b.textContent === 'Edit');
+    act(() => edit?.click());
+    const select = host.querySelector<HTMLSelectElement>('select[name="docType"]');
+    const input = () => host.querySelector<HTMLInputElement>('input[name="name"]');
+    const choose = (value: string) =>
+      act(() => {
+        if (!select) return;
+        const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+        setter?.call(select, value);
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    choose('OTHER_FINANCIAL_DOCUMENT');
+    expect(input()?.value).toBe('Other Financial Document - Anna Eriksson.pdf');
+    act(() => {
+      const field = input();
+      if (!field) return;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(
+        field,
+        'Mine',
+      );
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    choose('BANK_STATEMENT');
+    expect(input()?.value).toBe('Mine');
+  });
+
+  it('reads a confident rules kind as Clear without the AI badge', () => {
+    render({ ...suggestion, source: 'rules', clear: true });
     expect(host.textContent).not.toContain('Read by AI');
     expect(host.textContent).toContain('Clear');
   });

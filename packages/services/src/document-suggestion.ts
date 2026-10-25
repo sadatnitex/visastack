@@ -1,4 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
+import { resolveDocumentType } from '@visastack/core/catalogue/documents';
 import { and, desc, eq } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access';
 import { appendAuditEvent } from './audit';
@@ -20,6 +21,9 @@ import { recordProductEvent } from './product-events';
  * kind and a name are stored, audited and passed on to the cases using the document exactly as
  * when a person sets them one at a time.
  */
+
+/** File states past the safety scan and the content checks: the only ones a suggestion is decided for. */
+const DECIDABLE_PROCESSING_STATES: ReadonlySet<string> = new Set(['AWAITING_REVIEW', 'APPROVED']);
 
 /** The longest name a person can give a document. */
 export const MAX_DOCUMENT_NAME_LENGTH = 200;
@@ -64,21 +68,26 @@ function refuse(code: ServiceError['code'], message: string): never {
 }
 
 /**
- * A name as a person typed it, made safe to show and to use as a download name: no control
- * characters or path separators, single spaces, at most `MAX_DOCUMENT_NAME_LENGTH` characters.
+ * Control characters (C0, DEL and C1) and the bidirectional overrides and isolates that can make
+ * a name read differently from what it is ("txt.exe" shown as "exe.txt").
+ */
+// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are removed on purpose.
+const UNSAFE_NAME_CHARACTERS = /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g;
+
+/**
+ * A name as a person typed it, made safe to show and to use as a download name: no control or
+ * text-direction characters, no path separators, single spaces, at most
+ * `MAX_DOCUMENT_NAME_LENGTH` characters.
  */
 export function cleanDocumentName(raw: string): string {
-  return (
-    raw
-      .normalize('NFC')
-      // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are removed on purpose.
-      .replace(/[\x00-\x1f\x7f]/g, '')
-      .replace(/[/\\:*?"<>|]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, MAX_DOCUMENT_NAME_LENGTH)
-      .trim()
-  );
+  return raw
+    .normalize('NFC')
+    .replace(UNSAFE_NAME_CHARACTERS, '')
+    .replace(/[/\\:*?"<>|]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, MAX_DOCUMENT_NAME_LENGTH)
+    .trim();
 }
 
 /**
@@ -130,11 +139,31 @@ export async function decideDocumentSuggestion(
         ),
         'document',
       );
+      // Nothing is decided for a file that is not, or is no longer, past its safety checks.
+      const latest = first(
+        await tx
+          .select({
+            id: schema.documentVersions.id,
+            safetyStatus: schema.documentVersions.safetyStatus,
+            processingStatus: schema.documentVersions.processingStatus,
+          })
+          .from(schema.documentVersions)
+          .where(eq(schema.documentVersions.documentId, documentId))
+          .orderBy(desc(schema.documentVersions.versionNumber))
+          .limit(1),
+      );
+      if (
+        !latest ||
+        latest.safetyStatus !== 'CLEAN' ||
+        !DECIDABLE_PROCESSING_STATES.has(latest.processingStatus)
+      ) {
+        refuse('invalid', 'this file has not finished its safety checks');
+      }
       const nameVersion = input.nameVersionId
         ? await lockWaitingName(tx, input.nameVersionId, documentId)
         : undefined;
       const typeProposal = input.typeProposalId
-        ? await lockWaitingKind(tx, input.typeProposalId, documentId)
+        ? await lockWaitingKind(tx, input.typeProposalId, latest.id)
         : undefined;
 
       if (input.decision === 'skip' || !kind || name === undefined) {
@@ -174,6 +203,26 @@ export async function decideDocumentSuggestion(
         };
       }
 
+      // The AI kind is answered first, then the kind saved: saving a kind closes any AI kind still
+      // waiting, and this one is already answered by then. Kinds compare by their standard
+      // catalogue key, so choosing an alias of the suggestion is not recorded as a correction.
+      const kindAsSuggested = typeProposal
+        ? (resolveDocumentType(typeProposal.suggestedType)?.key ?? typeProposal.suggestedType) ===
+          kind.docType
+        : null;
+      if (typeProposal) {
+        await settleKind(
+          tx,
+          typeProposal,
+          kindAsSuggested ? 'APPROVED' : 'REJECTED',
+          actorAccountId,
+        );
+        await recordProductEvent(tx, {
+          eventType: kindAsSuggested ? 'AI_PROPOSAL_ACCEPTED' : 'AI_PROPOSAL_CORRECTED',
+          accountId: actorAccountId,
+          dimension: 'CLASSIFICATION',
+        });
+      }
       if (kind.docType !== document.docType || kind.subject !== document.subject) {
         const typed = await setDocumentType(tx, {
           actorAccountId,
@@ -206,21 +255,6 @@ export async function decideDocumentSuggestion(
         finalName: name,
       });
       if (!named.ok) throw new Refusal(named.error);
-
-      const kindAsSuggested = typeProposal ? typeProposal.suggestedType === kind.docType : null;
-      if (typeProposal) {
-        await settleKind(
-          tx,
-          typeProposal,
-          kindAsSuggested ? 'APPROVED' : 'REJECTED',
-          actorAccountId,
-        );
-        await recordProductEvent(tx, {
-          eventType: kindAsSuggested ? 'AI_PROPOSAL_ACCEPTED' : 'AI_PROPOSAL_CORRECTED',
-          accountId: actorAccountId,
-          dimension: 'CLASSIFICATION',
-        });
-      }
 
       await appendAuditEvent(tx, {
         eventType: 'DOCUMENT_SUGGESTION_ACCEPTED',
@@ -271,32 +305,28 @@ async function lockWaitingName(
   return row;
 }
 
-/** The waiting AI kind, locked for this decision; refused when it is for another document or was already decided. */
+/**
+ * The waiting AI kind, locked for this decision; refused unless it was made for the document's
+ * current file (never another document's, never an older file's) and is still waiting.
+ */
 async function lockWaitingKind(
   tx: Db,
   proposalId: string,
-  documentId: string,
+  latestVersionId: string,
 ): Promise<TypeProposalRow> {
   const found = first(
     await tx
-      .select({
-        proposal: schema.documentTypeProposals,
-        documentId: schema.documentVersions.documentId,
-      })
+      .select()
       .from(schema.documentTypeProposals)
-      .innerJoin(
-        schema.documentVersions,
-        eq(schema.documentVersions.id, schema.documentTypeProposals.documentVersionId),
-      )
       .where(eq(schema.documentTypeProposals.id, proposalId))
       .limit(1)
-      .for('update', { of: schema.documentTypeProposals }),
+      .for('update'),
   );
-  if (!found || found.documentId !== documentId) refuse('not_found', 'suggested kind not found');
-  if (found.proposal.status !== 'PENDING') {
-    refuse('invalid', 'this suggestion has already been decided');
+  if (!found || found.documentVersionId !== latestVersionId) {
+    refuse('not_found', 'suggested kind not found');
   }
-  return found.proposal;
+  if (found.status !== 'PENDING') refuse('invalid', 'this suggestion has already been decided');
+  return found;
 }
 
 /**

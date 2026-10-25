@@ -43,6 +43,10 @@ export function DocumentSuggestionCard({
   const [state, formAction, pending] = useActionState(decideDocumentSuggestionAction, INITIAL);
   const [editing, setEditing] = useState(suggestion.kind === null);
   const [kind, setKind] = useState(suggestion.kind ?? '');
+  const [name, setName] = useState(suggestion.proposedName);
+  const [nameEdited, setNameEdited] = useState(false);
+  const labelOf = (key: string): string | undefined =>
+    groups.flatMap((group) => group.choices).find((choice) => choice.key === key)?.label;
   const formRef = useRef<HTMLFormElement>(null);
   const headingId = useId();
   const kindId = useId();
@@ -84,11 +88,6 @@ export function DocumentSuggestionCard({
             ) : null}
           </dl>
         )}
-        {suggestion.currentKindLabel && !editing ? (
-          <p className="muted u-fs-085">
-            You chose {suggestion.currentKindLabel}. Accepting changes it.
-          </p>
-        ) : null}
         <p className="muted u-fs-085">Nothing is saved until you accept.</p>
         <form ref={formRef} action={formAction} className="finding-form">
           <input type="hidden" name="applicantId" value={applicantId} />
@@ -106,7 +105,13 @@ export function DocumentSuggestionCard({
                   name="docType"
                   className="input"
                   value={kind}
-                  onChange={(event) => setKind(event.target.value)}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    setKind(next);
+                    // Until the person types their own name, the name follows the kind.
+                    const label = labelOf(next);
+                    if (!nameEdited && label) setName(`${label}${suggestion.nameAfterKind}`);
+                  }}
                   {...fieldProblem(state, 'docType', messageId)}
                 >
                   <option value="">Choose a Kind</option>
@@ -145,7 +150,11 @@ export function DocumentSuggestionCard({
                   type="text"
                   maxLength={200}
                   className="input"
-                  defaultValue={suggestion.proposedName}
+                  value={name}
+                  onChange={(event) => {
+                    setName(event.target.value);
+                    setNameEdited(true);
+                  }}
                   {...fieldProblem(state, 'name', messageId)}
                 />
               </div>
@@ -164,6 +173,8 @@ export function DocumentSuggestionCard({
                     className="btn btn-secondary"
                     onClick={() => {
                       setKind(suggestion.kind ?? '');
+                      setName(suggestion.proposedName);
+                      setNameEdited(false);
                       setEditing(false);
                     }}
                   >

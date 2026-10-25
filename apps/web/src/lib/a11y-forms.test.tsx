@@ -247,7 +247,7 @@ const DOCS: readonly Case[] = [
         source: 'ai',
         clear: true,
         proposedName: 'Bank Statement - Anna Eriksson.pdf',
-        currentKindLabel: 'Salary Slip',
+        nameAfterKind: ' - Anna Eriksson.pdf',
       }}
     />
   )),
@@ -265,7 +265,7 @@ const DOCS: readonly Case[] = [
         source: 'rules',
         clear: false,
         proposedName: 'Document - Anna Eriksson.pdf',
-        currentKindLabel: null,
+        nameAfterKind: ' - Anna Eriksson.pdf',
       }}
     />
   )),

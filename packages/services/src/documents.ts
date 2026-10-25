@@ -684,6 +684,33 @@ export async function setDocumentType(
       ),
       'document',
     );
+    // The person has said what this document is: an AI kind still waiting for any of its files
+    // is closed, so nothing offers to undo their choice (owner request 2026-10-25).
+    const closedSuggestions =
+      docType === null
+        ? 0
+        : (
+            await tx
+              .update(schema.documentTypeProposals)
+              .set({
+                status: 'REJECTED',
+                decidedByAccountId: input.actorAccountId,
+                decidedAt: new Date(),
+              })
+              .where(
+                and(
+                  eq(schema.documentTypeProposals.status, 'PENDING'),
+                  inArray(
+                    schema.documentTypeProposals.documentVersionId,
+                    tx
+                      .select({ id: schema.documentVersions.id })
+                      .from(schema.documentVersions)
+                      .where(eq(schema.documentVersions.documentId, document.id)),
+                  ),
+                ),
+              )
+              .returning({ id: schema.documentTypeProposals.id })
+          ).length;
     await appendAuditEvent(tx, {
       eventType: 'DOCUMENT_TYPE_SET',
       actorAccountId: input.actorAccountId,
@@ -692,7 +719,7 @@ export async function setDocumentType(
       applicantId: document.applicantId,
       resourceType: 'document',
       resourceId: document.id,
-      metadata: { docType, previousDocType: document.docType },
+      metadata: { docType, previousDocType: document.docType, closedSuggestions },
     });
     for (const missionId of await missionsSelectingDocument(tx, document.id)) {
       await incrementMaterialRevision(tx, missionId);
