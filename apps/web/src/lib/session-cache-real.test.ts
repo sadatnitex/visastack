@@ -12,7 +12,10 @@ const require = createRequire(import.meta.url);
 type CacheModule = { cache: <T>(fn: () => T) => () => T };
 
 describe('the real React cache that session.ts relies on', () => {
-  it('hands out fresh state on every call outside a page render, in the build Next.js uses', () => {
+  // Loaded on its own here, so this covers the build with no renderer attached. With the renderer
+  // attached but no page render running (actions, route handlers) React also makes a fresh store
+  // per call; that path is read in the bundled source, not exercised here.
+  it('hands out fresh state on every call when no page render is running, in the build Next.js uses', () => {
     const serverReact = require('next/dist/compiled/react/react.react-server.js') as CacheModule;
     const scope = serverReact.cache(() => ({ shared: null }));
     expect(scope()).not.toBe(scope());

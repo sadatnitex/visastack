@@ -115,11 +115,56 @@ beforeEach(() => {
 });
 
 describe('withSession inside one request', () => {
+  it('on a first sign-in, claims and links the invitation once for both calls', async () => {
+    const { withSession } = await import('./session');
+    h.checkPilotAccess.mockResolvedValue({
+      allowed: true,
+      invitationId: 'inv-1',
+      mustClaimInvitation: true,
+    });
+    h.claimInvitation.mockResolvedValue(true);
+    const [frame, page] = await Promise.all([
+      withSession(async (ctx) => ctx.accountId),
+      withSession(async (ctx) => ctx.accountId),
+    ]);
+    expect([frame, page]).toEqual(['acct-1', 'acct-1']);
+    expect(h.claimInvitation).toHaveBeenCalledOnce();
+    expect(h.attribute).toHaveBeenCalledOnce();
+    expect(h.release).not.toHaveBeenCalled();
+  });
+
+  it('when setting up the account fails, releases the claim once and refuses both calls the same way', async () => {
+    const { withSession } = await import('./session');
+    h.checkPilotAccess.mockResolvedValue({
+      allowed: true,
+      invitationId: 'inv-1',
+      mustClaimInvitation: true,
+    });
+    h.claimInvitation.mockResolvedValue(true);
+    h.provision.mockResolvedValue({
+      ok: false,
+      error: { code: 'identity_recovery_required', message: 'recover' },
+    });
+    const results = await Promise.allSettled([
+      withSession(async () => 'never'),
+      withSession(async () => 'never'),
+    ]);
+    expect(results.map((r) => r.status)).toEqual(['rejected', 'rejected']);
+    for (const r of results) {
+      expect((r as PromiseRejectedResult).reason.message).toBe('REDIRECT:/auth/account-recovery');
+    }
+    expect(h.claimInvitation).toHaveBeenCalledOnce();
+    expect(h.release).toHaveBeenCalledOnce();
+    expect(h.attribute).not.toHaveBeenCalled();
+  });
+
   it('runs the account checks once for the workspace frame and the page, on one pool closed once', async () => {
     const { withSession } = await import('./session');
     const seen: Array<{ accountId: string; db: unknown }> = [];
     const work = async (ctx: { accountId: string; db: unknown }) => {
       await tick();
+      // Still in use by both calls: the pool must not be closed yet.
+      expect(h.state.pools[0]?.end).not.toHaveBeenCalled();
       seen.push({ accountId: ctx.accountId, db: ctx.db });
       return ctx.accountId;
     };
