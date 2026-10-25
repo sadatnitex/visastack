@@ -30,12 +30,12 @@ export default async function SignUpPage({
     <AuthShell
       title="Create Your Account"
       variant="signup"
-      eyebrow={isPublicBetaOpen() ? 'Public beta · Free account' : 'Private pilot'}
+      eyebrow={isPublicBetaOpen() ? 'Public Beta · Free Account' : 'Private Pilot'}
       utility={
         <>
           Already have an account?{' '}
           <Link href={`/auth/sign-in?next=${encodeURIComponent(safeReturnPath(next))}`}>
-            Sign in
+            Sign In
           </Link>
         </>
       }
@@ -57,7 +57,7 @@ export default async function SignUpPage({
       {e === 'exists' && (
         <p className="card-body">
           <Link href={`/auth/sign-in?next=${encodeURIComponent(safeReturnPath(next))}`}>
-            Sign in
+            Sign In
           </Link>{' '}
           or <Link href="/auth/forgot-password">reset your password</Link>.
         </p>

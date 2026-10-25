@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { formatDuration, formatMinorUnits, humanizeLabel } from './analytics-format';
 
 describe('humanizeLabel', () => {
-  it('turns an event-log token into a sentence-case label', () => {
-    expect(humanizeLabel('IN_REVIEW')).toBe('In review');
-    expect(humanizeLabel('READY_FOR_APPLICANT_REVIEW')).toBe('Ready for applicant review');
+  it('turns an event-log token into a Title Case term', () => {
+    expect(humanizeLabel('IN_REVIEW')).toBe('In Review');
+    expect(humanizeLabel('READY_FOR_APPLICANT_REVIEW')).toBe('Ready for Applicant Review');
     expect(humanizeLabel('BDT')).toBe('Bdt');
     expect(humanizeLabel('')).toBe('');
   });

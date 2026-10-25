@@ -176,7 +176,7 @@ export default async function ApplicantOverviewPage({
     <div className="traveller-overview">
       <PageHeader
         as="h2"
-        eyebrow="Your space"
+        eyebrow="Your Space"
         title={`Welcome, ${data.applicant.displayName}`}
         description={
           partial
@@ -333,7 +333,7 @@ export default async function ApplicantOverviewPage({
             ) : (
               <EmptyState
                 icon="alert"
-                title={data.missions.ok ? 'No upcoming case dates' : 'Dates are unavailable'}
+                title={data.missions.ok ? 'No Upcoming Case Dates' : 'Dates are unavailable'}
               >
                 Set a target deadline or travel date in a case. Appointments remain in the
                 individual case calendar.

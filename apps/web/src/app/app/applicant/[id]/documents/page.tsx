@@ -242,7 +242,7 @@ export default async function ApplicantDocumentsPage({
     <>
       <PageHeader
         as="h2"
-        eyebrow="Your private wallet"
+        eyebrow="Your Private Wallet"
         title="Documents"
         description="Keep reusable evidence together. Processing, review and expiry are separate signals."
         actions={

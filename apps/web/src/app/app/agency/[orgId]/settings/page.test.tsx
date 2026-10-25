@@ -60,7 +60,7 @@ beforeEach(() => {
 describe('agency Settings', () => {
   it('shows the review policy with its current value', async () => {
     const html = await renderServer(Page(props));
-    expect(textOf(html)).toContain('Require a different reviewer');
+    expect(textOf(html)).toContain('Require a Different Reviewer');
     expect(stubProps(html, 'RequireDifferentReviewerToggle')).toEqual([
       { organizationId: 'o1', required: true },
     ]);

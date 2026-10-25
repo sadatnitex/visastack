@@ -75,7 +75,7 @@ describe('traveller composition and independent record guards', () => {
       'Upcoming',
       'Recent Activity',
       'No Active Case Yet',
-      'No upcoming case dates',
+      'No Upcoming Case Dates',
     ])
       expect(html).toContain(text);
     expect(html).toContain('/app/applicant/person/missions');

@@ -170,7 +170,7 @@ export function PublicTrustPublishButton({
         <input type="hidden" name="packVersionId" value={packVersionId} />
         <SubmitButton
           pending={pending}
-          idle={published ? 'Remove from public trust' : 'Publish to public trust'}
+          idle={published ? 'Remove from Public Trust' : 'Publish to Public Trust'}
           busy={published ? 'Removing…' : 'Publishing…'}
           className={`btn ${published ? 'btn-danger' : 'btn-primary'}`}
         />
@@ -201,7 +201,7 @@ export function OfficialFeeStaleButton({
         <input type="hidden" name="packVersionId" value={packVersionId} />
         <SubmitButton
           pending={pending}
-          idle={stale ? 'Restore fee' : 'Mark fee stale'}
+          idle={stale ? 'Restore Fee' : 'Mark Fee Stale'}
           busy="…"
           className={`btn ${stale ? 'btn-secondary' : 'btn-danger'}`}
           style={{ padding: '0.2rem 0.6rem', fontSize: 'var(--text-caption)' }}
@@ -233,7 +233,7 @@ export function SourceInaccessibleButton({
         <input type="hidden" name="requirementId" value={requirementId} />
         <SubmitButton
           pending={pending}
-          idle={inaccessible ? 'Clear source-inaccessible' : 'Mark source inaccessible'}
+          idle={inaccessible ? 'Clear Source-Inaccessible' : 'Mark Source Inaccessible'}
           busy="…"
           className="btn btn-secondary u-btn-xs"
         />

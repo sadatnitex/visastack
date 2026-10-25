@@ -60,7 +60,7 @@ test.describe('unauthenticated access is denied, never leaked', () => {
       expect(isNeonSignInRedirect(response.headers()[locationHeader] ?? '', baseURL)).toBe(true);
       await page.goto(path);
       expect(isNeonSignInRedirect(page.url(), baseURL)).toBe(true);
-      await expect(page.getByRole('heading', { name: 'Sign in', exact: true })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Sign In', exact: true })).toBeVisible();
     });
   }
 

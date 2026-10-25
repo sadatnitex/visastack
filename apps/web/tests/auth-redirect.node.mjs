@@ -32,10 +32,10 @@ for (const catalogAvailable of [true, false]) {
         response.end();
       } else if (path === '/trust') {
         response.end(
-          `<html><h1>${catalogAvailable ? 'Maintained route information' : 'Unavailable'}</h1></html>`,
+          `<html><h1>${catalogAvailable ? 'Maintained Route Information' : 'Unavailable'}</h1></html>`,
         );
       } else {
-        response.end('<html><div class="pilot-banner">VisaStack private pilot</div></html>');
+        response.end('<html><div class="pilot-banner">VisaStack Private Pilot</div></html>');
       }
     });
     await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));

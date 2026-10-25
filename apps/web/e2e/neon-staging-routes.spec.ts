@@ -29,7 +29,7 @@ async function signIn(page: Page, role: string) {
   await page
     .getByLabel('Password', { exact: true })
     .fill(configured(`NEON_STAGING_${role}_PASSWORD`));
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.getByRole('button', { name: 'Sign In', exact: true }).click();
   await expect(page).toHaveURL(/\/app(?:\/|$)/);
   sessions.set(role, await page.context().cookies());
 }

@@ -130,7 +130,7 @@ export default async function MissionSnapshotPage({
     <section className="section container">
       <PageHeader
         back={{ href: `/app/mission/${mission.id}`, label: mission.title }}
-        eyebrow={isPacket ? 'Application Packet' : 'Working snapshot'}
+        eyebrow={isPacket ? 'Application Packet' : 'Working Snapshot'}
         title={`Version ${snapshot.version}`}
         description={`Captured while ${content.state} · checksum ${snapshot.checksum}`}
         actions={

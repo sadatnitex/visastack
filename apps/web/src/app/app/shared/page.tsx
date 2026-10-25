@@ -29,7 +29,7 @@ export default async function SharedWithMePage() {
   return (
     <section className="section container">
       <PageHeader
-        eyebrow="Shared with you"
+        eyebrow="Shared with You"
         title="Access others have shared"
         description="Someone granted you access to their records. Access only begins once you accept."
       />

@@ -160,7 +160,7 @@ export default async function AdminOrganizationPage({
         </Link>
       </div>
       <PageHeader
-        eyebrow="Organization admin"
+        eyebrow="Organization Admin"
         title={data.org.name}
         description={<>Status: {organizationStatusLabel(data.org.status)}</>}
       />

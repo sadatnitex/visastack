@@ -78,7 +78,7 @@ import { expect, test } from '@playwright/test';
  *   - **Wrong label everywhere.** `createApplicant` and the two original
  *     tests that create an applicant inline all matched
  *     `/display name|applicant name/i`, but the real form's accessible
- *     label is "Full Name" (`add-applicant-form.tsx`) — every applicant-
+ *     label is "Full Name" (`add-applicant-form.tsx`) - every applicant-
  *     creating test, old and new, would have failed at its very first step.
  *   - **Processing-status success/failure were conflated.** The round-1 fix
  *     still treated "needs attention"/"failed"/"rejected" as an acceptable
@@ -161,7 +161,7 @@ async function ensureConsent(page: import('@playwright/test').Page, title: strin
 
 /**
  * Creates a fresh applicant from /app/applicants and returns its detail-page
- * URL. The visible label is "Full Name" (Codex review, PR-E2, round 2 —
+ * URL. The visible label is "Full Name" (Codex review, PR-E2, round 2 -
  * `apps/web/src/app/app/add-applicant-form.tsx:16-25`; confirmed by reading
  * the component directly), not "display name"/"applicant name" as every
  * pre-existing test in this file (including two the original, unedited
@@ -627,7 +627,7 @@ test.describe
           .locator('.row', { hasText: sharedFixture.grantPurpose })
           .getByRole('link', { name: 'Open Workspace' })
           .click();
-        await expect(page.getByText('Shared workspace')).toBeVisible();
+        await expect(page.getByText('Shared Workspace')).toBeVisible();
         // View-only: nothing that needs a permission the grant does not carry.
         await expect(page.getByRole('button', { name: /upload|propose|download/i })).toHaveCount(0);
         await expect(page.getByText(sharedFixture.applicantName).first()).toBeVisible();
@@ -667,7 +667,7 @@ test.describe
         await expect(
           second.page.getByText(/couldn.t find that page|paused|not available/i),
         ).toBeVisible();
-        await expect(second.page.getByText('Shared workspace')).toHaveCount(0);
+        await expect(second.page.getByText('Shared Workspace')).toHaveCount(0);
 
         await page.goto(`${sharedFixture.applicantUrl}/sharing`);
         await page
@@ -678,7 +678,7 @@ test.describe
           page.locator('.row', { hasText: sharedFixture.grantPurpose }),
         ).not.toContainText(/paused/i, { timeout: 10_000 });
         await second.page.goto(workspaceUrl);
-        await expect(second.page.getByText('Shared workspace')).toBeVisible();
+        await expect(second.page.getByText('Shared Workspace')).toBeVisible();
       } finally {
         await second.context.close();
       }

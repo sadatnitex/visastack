@@ -40,7 +40,7 @@ describe('public and entry pages today', () => {
     );
     expect(document.querySelector('input[name="password"]')?.getAttribute('type')).toBe('password');
     expect(document.querySelector('a[href="/auth/forgot-password"]')).not.toBeNull();
-    expect(document.body.textContent).toContain('Sign in');
+    expect(document.body.textContent).toContain('Sign In');
   });
 
   it('sign-in says why it failed in words, and only after an attempt', async () => {
@@ -113,7 +113,7 @@ describe('public and entry pages today', () => {
     const { default: SignIn } = await import('./auth/sign-in/page');
     const { default: Verify } = await import('./auth/verify-email/page');
     expect(dom(renderToStaticMarkup(await SignIn(SEARCH()))).querySelector('h1')?.textContent).toBe(
-      'Sign in',
+      'Sign In',
     );
     const verify = dom(renderToStaticMarkup(await Verify(SEARCH())));
     expect(verify.querySelector('[aria-current="step"]')?.textContent).toContain(

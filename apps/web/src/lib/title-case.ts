@@ -66,18 +66,21 @@ export function toTitleCase(text: string): string {
       const match = /^([^A-Za-z0-9]*)([A-Za-z0-9][A-Za-z0-9'’.-]*)(.*)$/.exec(word);
       if (!match) return word;
       const [, before = '', core = '', after = ''] = match;
-      if (/[A-Z]/.test(core.slice(1)) || /^[0-9]/.test(core) || core === core.toUpperCase()) {
+      // A single capital letter is not an abbreviation: "Add A Traveller" is wrong.
+      const abbreviation = core.length > 1 && core === core.toUpperCase();
+      if (/[A-Z]/.test(core.slice(1)) || /^[0-9]/.test(core) || abbreviation) {
         return word;
       }
-      const lower = core.toLowerCase();
+      // A trailing full stop belongs to the word ("vs."), not to its spelling.
+      const lower = core.toLowerCase().replace(/\.$/, '');
       const first = i === 0 || before.startsWith('(');
       const last = i === words.length - 1;
       const previous = (words[i - 1] ?? '').toLowerCase().replace(/[^a-z]/g, '');
       const particle = PARTICLES.has(lower) && PHRASAL_VERBS.has(previous);
       if (!first && !last && SMALL_WORDS.has(lower) && !particle)
-        return `${before}${lower}${after}`;
+        return `${before}${core.toLowerCase()}${after}`;
       if (!first && last && ['a', 'an', 'the', 'and', 'or', 'nor', 'if'].includes(lower)) {
-        return `${before}${lower}${after}`;
+        return `${before}${core.toLowerCase()}${after}`;
       }
       const parts = core
         .split('-')

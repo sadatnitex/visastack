@@ -145,7 +145,7 @@ export default async function ApplicantProfilePage({
     <div className="master-profile">
       <PageHeader
         as="h2"
-        eyebrow="Your canonical record"
+        eyebrow="Your Canonical Record"
         title="My Profile"
         description="One reusable set of details. Every saved change stays in your history."
         actions={

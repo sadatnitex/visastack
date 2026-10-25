@@ -34,7 +34,7 @@ export default async function SharedWorkspacePage({
         </Link>
       </div>
       <PageHeader
-        eyebrow="Shared workspace"
+        eyebrow="Shared Workspace"
         title={workspace.applicantDisplayName}
         description={
           <>

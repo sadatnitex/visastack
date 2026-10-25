@@ -68,12 +68,12 @@ describe('selected identity in the application shell', () => {
     });
     const html = await renderServer(RootLayout({ children: null }));
     expect(html).toContain('Workspace');
-    expect(html).not.toContain('>Sign in<');
+    expect(html).not.toContain('>Sign In<');
   });
 
   it('shows Sign in for an unsigned-in visitor without a provider fallback', async () => {
     const html = await renderServer(RootLayout({ children: null }));
-    expect(html).toContain('Sign in');
+    expect(html).toContain('Sign In');
     expect(html).not.toContain('Workspace');
   });
 
@@ -81,7 +81,7 @@ describe('selected identity in the application shell', () => {
     const error = new Error('selected provider unavailable');
     mocks.currentIdentity.mockRejectedValue(error);
     const html = await renderServer(RootLayout({ children: null }));
-    expect(html).toContain('Sign in');
+    expect(html).toContain('Sign In');
     expect(html).not.toContain('Workspace');
     expect(mocks.reportServerError).toHaveBeenCalledWith('public navigation identity', error);
   });

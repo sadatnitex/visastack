@@ -201,7 +201,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             quote reference <strong>{authError}</strong>.
           </p>
         ) : null}
-        <p className="c1-nudge">{betaOpen ? 'Free public beta' : 'Invite-Only Pilot'}</p>
+        <p className="c1-nudge">{betaOpen ? 'Free Public Beta' : 'Invite-Only Pilot'}</p>
         <h1 className="c1-headline" id="land-hero-title">
           {HERO_HEADLINE_FIRST}
           <br />

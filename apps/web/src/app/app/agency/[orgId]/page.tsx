@@ -234,7 +234,7 @@ export default async function AgencyDashboardPage({
     <>
       <section className="agency-reference-metrics" aria-label="Agency overview">
         <Stat
-          label={data.admin ? 'Active clients' : 'Clients you can work with'}
+          label={data.admin ? 'Active Clients' : 'Clients you can work with'}
           value={
             data.admin
               ? data.clients.length

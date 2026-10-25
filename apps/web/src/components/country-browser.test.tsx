@@ -8,7 +8,7 @@ import { CountryBrowser, type CountryBrowserItem } from './country-browser';
 
 const filters = [
   { status: 'VISA_REQUIRED', label: 'Visa Needed', statusLabel: 'Visa Needed Before You Travel' },
-  { status: 'E_VISA', label: 'E-visa', statusLabel: 'Online visa (e-visa)' },
+  { status: 'E_VISA', label: 'E-Visa', statusLabel: 'Online Visa (E-Visa)' },
   { status: 'VISA_FREE', label: 'No Visa Needed', statusLabel: 'No Visa Needed' },
   { status: 'NOT_FOUND', label: 'Not Yet Researched', statusLabel: 'Not Yet Researched' },
 ] as const;
@@ -77,9 +77,9 @@ describe('the country list controls', () => {
   });
 
   it('filters by entry rule and shows each rule in plain words on the row', () => {
-    press('E-visa');
+    press('E-Visa');
     expect(names()).toEqual(['Vietnam']);
-    expect(container.textContent).toContain('Online visa (e-visa)');
+    expect(container.textContent).toContain('Online Visa (E-Visa)');
   });
 
   it('shows not-yet-researched countries as such, with a warning tone, never as no visa needed', () => {

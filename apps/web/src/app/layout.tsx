@@ -83,7 +83,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
                 </button>
               </form>
               <a className="btn btn-secondary nav-cta" href="/app">
-                {signedIn ? 'Workspace' : 'Sign in'}
+                {signedIn ? 'Workspace' : 'Sign In'}
               </a>
               {!signedIn && isPublicBetaOpen() ? (
                 <Link className="btn btn-primary nav-cta" href="/auth/sign-up">
@@ -105,7 +105,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
               <Link href="/terms">Terms</Link>
               {/* A plain link, like the header's: `/app` sends a visitor on to the sign-in provider, and a
                   prefetch of it would be a blocked cross-origin request. */}
-              <a href="/app">{signedIn ? 'Workspace' : 'Sign in'}</a>
+              <a href="/app">{signedIn ? 'Workspace' : 'Sign In'}</a>
             </nav>
           </div>
         </footer>

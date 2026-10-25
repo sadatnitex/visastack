@@ -66,7 +66,7 @@ export default async function InvitationPage({
             Create an Account
           </Link>
           <Link className="btn btn-secondary" href={`/auth/sign-in?next=${next}`}>
-            Sign in
+            Sign In
           </Link>
         </div>
         <p className="card-body">

@@ -24,7 +24,7 @@ export function RequireDifferentReviewerToggle({
         <input type="hidden" name="required" value={String(!required)} />
         <SubmitButton
           pending={pending}
-          idle={required ? 'Turn off' : 'Require a different reviewer'}
+          idle={required ? 'Turn Off' : 'Require a Different Reviewer'}
           busy="Saving…"
           className={`btn ${required ? 'btn-secondary' : 'btn-primary'}`}
           style={{ padding: '0.35rem 1rem', fontSize: 'var(--text-small)' }}

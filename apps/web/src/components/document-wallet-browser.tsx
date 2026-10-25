@@ -203,7 +203,7 @@ export function DocumentWalletBrowser({
           ) : (
             <EmptyState
               icon="file"
-              title={documents.length ? 'No documents match' : 'No Documents Yet'}
+              title={documents.length ? 'No Documents Match' : 'No Documents Yet'}
             >
               {documents.length
                 ? 'Clear the search or choose another category or status.'

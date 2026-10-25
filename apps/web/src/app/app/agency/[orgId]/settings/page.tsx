@@ -50,7 +50,7 @@ export default async function AgencySettingsPage({
         <h2 className="card-title">Review Policy</h2>
         <div className="row">
           <span className="row-key" style={{ maxWidth: '32rem' }}>
-            Require a different reviewer
+            Require a Different Reviewer
             <span className="muted" style={{ display: 'block', fontSize: 'var(--text-small)' }}>
               When on, whoever raised an evidence request cannot also accept it or ask for a
               replacement; a different team member must. Off by default.

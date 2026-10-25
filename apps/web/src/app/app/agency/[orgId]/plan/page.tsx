@@ -46,7 +46,7 @@ export default async function OrgPlanPage({
   return (
     <>
       <PageHeader
-        eyebrow="Usage &amp; billing"
+        eyebrow="Usage &amp; Billing"
         title={<>Plan &amp; usage</>}
         description="Every entitlement below is plan configuration, not a hardcoded limit -- each meter names its own definition and what it currently counts."
         as="h2"

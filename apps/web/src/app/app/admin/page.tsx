@@ -197,7 +197,7 @@ export default async function AdminOperationsPage() {
   return (
     <section className="section container platform-operations">
       <PageHeader
-        eyebrow="VisaStack operations"
+        eyebrow="VisaStack Operations"
         title="Platform Overview"
         description="Platform health, readiness, capacity and pilot measurement."
         actions={

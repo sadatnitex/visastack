@@ -97,7 +97,7 @@ describe('real wallet metadata controls and selected detail slots', () => {
     expect(container.querySelector('output')?.textContent).toContain(
       '0 documents match. Page 1 of 1',
     );
-    expect(container.textContent).toContain('No documents match');
+    expect(container.textContent).toContain('No Documents Match');
   });
 });
 

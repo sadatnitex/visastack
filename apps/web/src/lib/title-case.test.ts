@@ -26,6 +26,9 @@ describe('toTitleCase', () => {
   it('knows a term that is already right', () => {
     expect(isTitleCase('Visa Cases')).toBe(true);
     expect(isTitleCase('Visa cases')).toBe(false);
+    // A capitalised small word is wrong; a single capital letter is not an abbreviation.
+    expect(isTitleCase('Add A Traveller')).toBe(false);
+    expect(toTitleCase('Plan vs. usage')).toBe('Plan vs. Usage');
   });
 });
 
@@ -38,7 +41,7 @@ describe('toTitleCase', () => {
 const SRC = join(process.cwd(), 'src');
 const TERM_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'legend', 'th', 'dt', 'summary', 'label']);
 const TERM_CLASS = /\b(card-title|card-kicker|section-title|eyebrow|field-label|row-key|badge)\b/;
-const TERM_PROPS = new Set(['label', 'idle']);
+const TERM_PROPS = new Set(['label', 'idle', 'title', 'eyebrow']);
 const STATEMENT =
   /\b(could|would|should|cannot|not|is|are|was|were|has|have|had|will|may|might|does|did|can)\b/i;
 
@@ -60,6 +63,16 @@ function sourceFiles(dir: string): string[] {
       ? [path]
       : [];
   });
+}
+
+/** The plain strings an expression can produce: a literal, or either side of a choice. */
+function literals(node: ts.Node): string[] {
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return [node.text];
+  if (ts.isJsxExpression(node) && node.expression) return literals(node.expression);
+  if (ts.isParenthesizedExpression(node)) return literals(node.expression);
+  if (ts.isConditionalExpression(node))
+    return [...literals(node.whenTrue), ...literals(node.whenFalse)];
+  return [];
 }
 
 function offenders(file: string): string[] {
@@ -88,10 +101,9 @@ function offenders(file: string): string[] {
     if (
       (ts.isPropertyAssignment(node) || ts.isJsxAttribute(node)) &&
       TERM_PROPS.has(node.name.getText()) &&
-      node.initializer &&
-      ts.isStringLiteral(node.initializer)
+      node.initializer
     ) {
-      check(node, node.initializer.text);
+      for (const text of literals(node.initializer)) check(node, text);
     }
     ts.forEachChild(node, visit);
   };

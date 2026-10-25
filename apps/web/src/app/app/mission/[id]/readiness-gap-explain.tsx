@@ -39,7 +39,7 @@ export function ExplainGapButton({
         <input type="hidden" name="packRequirementId" value={packRequirementId} />
         <SubmitButton
           pending={pending}
-          idle={explanation ? 'Refresh explanation' : 'Explain this with AI'}
+          idle={explanation ? 'Refresh Explanation' : 'Explain This with AI'}
           busy="Asking AI…"
           className="btn btn-secondary u-btn-xs"
         />

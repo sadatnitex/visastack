@@ -119,7 +119,7 @@ describe('the public home page (Harbor C1, WP-L1)', () => {
     try {
       const html = await render();
       const text = textOf(html);
-      expect(text).toContain('Free public beta');
+      expect(text).toContain('Free Public Beta');
       expect(text).toContain('Create your free account');
       expect(text).toContain('Registration is open for public beta');
       expect(text).toContain('free to use at your own risk');
