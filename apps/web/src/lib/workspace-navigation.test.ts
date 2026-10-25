@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { type NavLink, isCurrentPath } from './navigation';
-import { type WorkspaceAccess, workspaceNavigation } from './workspace-navigation';
+import { type WorkspaceAccess, recordSections, workspaceNavigation } from './workspace-navigation';
 
 const p1 = '10000000-0000-4000-8000-000000000001';
 const p2 = '10000000-0000-4000-8000-000000000002';
@@ -22,28 +22,27 @@ const labels = (path: string, actor = access) =>
   workspaceNavigation(path, actor).primary.map((link) => link.label);
 
 describe('current contextual navigation contract', () => {
-  it('uses the selected owned traveller for the six principal destinations, then offers the country rules', () => {
+  it('uses the selected owned traveller for the four tabs, then notifications and the country rules', () => {
     const nav = workspaceNavigation(`/app/applicant/${p2}/profile`, access);
     expect(nav.name).toBe('Synthetic Family');
     expect(nav.caption).toBe('Managed Traveller');
     expect(nav.primary.map((link) => link.label)).toEqual([
-      'Overview',
-      'My Profile',
-      'Documents',
-      'Visa Cases',
+      'Home',
+      'Record',
+      'Cases',
       'Sharing',
       'Notifications',
       'Countries',
     ]);
     expect(nav.primary.at(-1)).toEqual({ href: '/app/countries', label: 'Countries' });
     expect(
-      nav.primary.slice(0, 5).every((link) => link.href.startsWith(`/app/applicant/${p2}`)),
+      nav.primary.slice(0, 4).every((link) => link.href.startsWith(`/app/applicant/${p2}`)),
     ).toBe(true);
     expect([...nav.primary, ...nav.tools, ...nav.settings].map((link) => link.href)).not.toContain(
       '/app/privacy',
     );
     expect(nav.tools.map((link) => link.label)).toEqual(
-      expect.arrayContaining(['Shared with Me', 'Evidence Requests', 'Dates & Expiry', 'History']),
+      expect.arrayContaining(['Shared with Me', 'Account and Permissions', 'Evidence Requests']),
     );
   });
   it('offers the country rules even before a traveller exists, and marks them current on their own pages', () => {
@@ -129,7 +128,7 @@ describe('current contextual navigation contract', () => {
     expect(nav.name).toBe('Synthetic Family');
     expect(
       nav.primary.filter((link) => isCurrentPath(path, link)).map((link) => link.label),
-    ).toEqual(['Visa Cases']);
+    ).toEqual(['Cases']);
     expect(workspaceNavigation('/app/mission/another-case', access, subject).name).toBe(
       'Visa Case',
     );
@@ -146,7 +145,7 @@ describe('current contextual navigation contract', () => {
     const nav = workspaceNavigation(path, access);
     expect(
       nav.primary.filter((link) => isCurrentPath(path, link)).map((link) => link.label),
-    ).toEqual(['Documents']);
+    ).toEqual(['Record']);
     const providers = workspaceNavigation('/app/admin', access).primary.find(
       (link) => link.label === 'Providers',
     );
@@ -161,6 +160,9 @@ describe('current contextual navigation contract', () => {
  * Characterization of every link the workspace navigation offers, label and destination,
  * for each kind of workspace. It pins the whole list so any change to the navigation is a
  * deliberate, reviewed edit of this file rather than a side effect.
+ *
+ * WP-V3 part 2 changed the traveller workspace to four tabs. The list from before that change
+ * is kept below, frozen, so a test can prove every earlier destination is still one step away.
  */
 
 const self = '10000000-0000-4000-8000-000000000001';
@@ -180,38 +182,42 @@ const pairs = (links: readonly NavLink[]) => links.map((link) => [link.label, li
 const base = `/app/applicant/${self}`;
 
 describe('workspace navigation link list (characterization)', () => {
-  it('a traveller workspace', () => {
+  it('a traveller workspace: four tabs, then Notifications and Countries', () => {
     const nav = workspaceNavigation(base, linkAccess);
     expect(pairs(nav.primary)).toEqual([
-      ['Overview', base],
-      ['My Profile', `${base}/profile`],
-      ['Documents', `${base}/documents`],
-      ['Visa Cases', `${base}/missions`],
+      ['Home', base],
+      ['Record', `${base}/record`],
+      ['Cases', `${base}/missions`],
       ['Sharing', `${base}/sharing`],
       ['Notifications', '/app/notifications'],
       ['Countries', '/app/countries'],
     ]);
     expect(pairs(nav.tools)).toEqual([
       ['Shared with Me', '/app/shared'],
-      ['Account Overview', '/app'],
+      ['Account and Permissions', '/app'],
       ['Evidence Requests', `${base}/evidence`],
+    ]);
+    expect(nav.settings).toEqual([]);
+    expect(pairs(recordSections(self))).toEqual([
+      ['All Records', `${base}/record`],
+      ['Profile', `${base}/profile`],
+      ['Documents', `${base}/documents`],
       ['Dates & Expiry', `${base}/expiry`],
       ['History', `${base}/history`],
     ]);
-    expect(nav.settings).toEqual([]);
   });
 
   it('a personal space with no traveller yet', () => {
     const nav = workspaceNavigation('/app', none);
     expect(pairs(nav.primary)).toEqual([
-      ['Overview', '/app'],
+      ['Home', '/app'],
       ['Add a Traveller', '/app/applicants'],
       ['Notifications', '/app/notifications'],
       ['Countries', '/app/countries'],
     ]);
     expect(pairs(nav.tools)).toEqual([
       ['Shared with Me', '/app/shared'],
-      ['Account Overview', '/app'],
+      ['Account and Permissions', '/app'],
     ]);
   });
 
@@ -259,5 +265,65 @@ describe('workspace navigation link list (characterization)', () => {
       ['Complaints', '/app/admin/complaints'],
     ]);
     expect(pairs(nav.settings)).toEqual([['Platform Settings', '/app/admin/settings']]);
+  });
+});
+
+/** The traveller links as they were before WP-V3 part 2 (origin/main 2ec8f72). Frozen: never edit. */
+const BEFORE_TRAVELLER: readonly (readonly [string, string])[] = [
+  ['Overview', base],
+  ['My Profile', `${base}/profile`],
+  ['Documents', `${base}/documents`],
+  ['Visa Cases', `${base}/missions`],
+  ['Sharing', `${base}/sharing`],
+  ['Notifications', '/app/notifications'],
+  ['Countries', '/app/countries'],
+  ['Shared with Me', '/app/shared'],
+  ['Account Overview', '/app'],
+  ['Evidence Requests', `${base}/evidence`],
+  ['Dates & Expiry', `${base}/expiry`],
+  ['History', `${base}/history`],
+];
+const BEFORE_EMPTY: readonly (readonly [string, string])[] = [
+  ['Overview', '/app'],
+  ['Add a Traveller', '/app/applicants'],
+  ['Notifications', '/app/notifications'],
+  ['Countries', '/app/countries'],
+  ['Shared with Me', '/app/shared'],
+  ['Account Overview', '/app'],
+];
+
+describe('no destination is lost by the four-tab change', () => {
+  it('every earlier traveller destination is still a tab, a tool or a Record section', () => {
+    const nav = workspaceNavigation(base, linkAccess);
+    const offered = new Set(
+      [...nav.primary, ...nav.tools, ...recordSections(self)].map((link) => link.href),
+    );
+    for (const [label, href] of BEFORE_TRAVELLER) {
+      expect(offered.has(href), `${label} (${href})`).toBe(true);
+    }
+  });
+
+  it('every earlier destination with no traveller is still offered', () => {
+    const nav = workspaceNavigation('/app', none);
+    const offered = new Set([...nav.primary, ...nav.tools].map((link) => link.href));
+    for (const [label, href] of BEFORE_EMPTY) {
+      expect(offered.has(href), `${label} (${href})`).toBe(true);
+    }
+  });
+
+  it('each Record section lights up the Record tab and only that tab', () => {
+    const nav = workspaceNavigation(base, linkAccess);
+    for (const section of recordSections(self)) {
+      for (const path of [section.href, `${section.href}/synthetic`]) {
+        if (section.label === 'All Records' && path.endsWith('/synthetic')) continue;
+        expect(
+          nav.primary.filter((link) => isCurrentPath(path, link)).map((link) => link.label),
+          path,
+        ).toEqual(['Record']);
+      }
+    }
+    expect(
+      nav.primary.filter((link) => isCurrentPath(`${base}/evidence`, link)).map((l) => l.label),
+    ).toEqual([]);
   });
 });

@@ -6246,3 +6246,114 @@ body:has(.auth-shell) > .footer {
 .finding-form + .finding-skip {
   margin-left: 0;
 }
+
+/* WP-V3 part 2: four-tab shell and the Personal Record hub. The Record sections bar sits above
+   each Record page; the hub reuses the wallet filter strip and controls. Every control is at
+   least 44px tall, and everything wraps, so nothing scrolls sideways on a 320px phone. */
+.record-sections {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 1.25rem;
+}
+.record-sections a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  color: var(--text);
+  font-size: var(--text-small);
+  font-weight: 600;
+  text-decoration: none;
+}
+.record-sections a[aria-current="page"] {
+  border-color: var(--accent);
+  background: var(--brand-bg);
+}
+.record-hub,
+.record-hub-group,
+.record-hub-item {
+  min-width: 0;
+}
+.record-hub-filters {
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+}
+.record-hub-filters button {
+  min-height: 44px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.record-hub-controls {
+  grid-template-columns: minmax(0, 1fr) minmax(8rem, 0.6fr);
+}
+.record-hub-group {
+  margin-top: 1rem;
+}
+.record-hub-group h3 {
+  margin: 0 0 0.75rem;
+}
+.record-hub-list,
+.record-hub-facts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.record-hub-item {
+  padding: 1rem 0;
+  border-top: 1px solid var(--hairline);
+}
+.record-hub-item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.record-hub-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.record-hub-item-head strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.record-hub-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 0.5rem;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.record-hub-facts li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.record-hub-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 0.75rem;
+}
+.record-hub-actions .btn {
+  min-height: 44px;
+  white-space: normal;
+  text-align: center;
+}
+.record-hub-note {
+  max-width: 68ch;
+}
+@media (max-width: 760px) {
+  .record-hub-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .record-hub-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .record-hub-actions .btn {
+    flex: 1 1 calc(50% - 8px);
+    padding: 0 12px;
+  }
+}
