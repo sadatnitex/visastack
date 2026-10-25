@@ -95,9 +95,11 @@ function populated() {
     pendingCheckDocumentIds: [],
     sections: { activated: new Set(), notApplicable: new Set(), noneDeclared: new Set() },
     cases: [
+      { id: 'case-2', title: 'Study Visa', hasChecklist: true, readiness: null },
       {
         id: 'case-1',
         title: 'Family Visit',
+        hasChecklist: true,
         readiness: {
           overallState: 'NEEDS_ACTION',
           requiredCount: 3,
@@ -140,17 +142,28 @@ describe('the document insights page', () => {
       expect(text).toContain(heading);
     }
     // Mismatches say only that two values differ, and where.
-    expect(text).toContain('Passport Number differs from your saved detail');
-    expect(text).toContain('Read from your Passport');
-    expect(text).toContain('Two values for Date of Birth');
+    // The passport is restricted, so its details are named by section only.
+    expect(text).toContain('A detail in Passport differs from your saved detail');
+    expect(text).toContain('A detail in Identity Basics differs from your saved detail');
+    expect(text).toContain('Read from your Passport. Check which is right.');
+    expect(text).toContain('Two values for a detail in Identity Basics');
+    expect(text).not.toMatch(/Passport Number|Date of Birth|Given Name/);
+    // The tile counts the rows the card lists.
+    expect(text).toContain('3 Details to Check');
     // Expiry in plain time-until words, with the date the Expiry page already shows.
     expect(text).toContain('Expires in about 3 months · 23 Jan 2027');
     // Readiness exactly as the case reports it.
     expect(text).toContain('Needs Action');
     expect(text).toContain('1 of 3 required items ready');
     expect(html).toContain('href="/app/mission/case-1"');
-    // Originals: the passport is on file, the bank statement needs uploading.
-    expect(text).toContain('On File');
+    // Originals follow the case's own verdict: passport on file, bank statement missing.
+    expect(text).toMatch(/Passport On File/);
+    expect(text).toMatch(/Bank Statement Missing Upload Bank Statement/);
+    // A case whose checklist could not be read says so, in both places.
+    expect(text).toContain('Not Available Right Now');
+    expect(text).toContain('Readiness could not be loaded just now.');
+    expect(text).toContain('What this case needs could not be loaded just now.');
+    expect(text).not.toContain('Choose a visa route');
     expect(html).toContain(
       'href="/app/applicant/a1/documents?type=BANK_STATEMENT#document-upload"',
     );
@@ -189,6 +202,48 @@ describe('the document insights page', () => {
     const text = textOf(await render());
     expect(text).toContain('We could not put this summary together just now.');
     expect(text).not.toContain('Nothing to Check');
+  });
+
+  it('points to the Documents page for a protected detail that could not be compared', async () => {
+    mocks.getTravellerInsights.mockResolvedValue({
+      ok: true,
+      value: buildTravellerInsights({
+        documents: [
+          {
+            id: 'doc-pass',
+            docType: 'PASSPORT',
+            expiresAt: '2026-10-25T09:00:00.000Z',
+            lifecycle: 'EXPIRED',
+            safetyStatus: 'CLEAN',
+            createdAt: '2026-01-01T00:00:00Z',
+            reminderThresholds: [90, 60, 30, 7, 0],
+          },
+        ],
+        facts: [
+          {
+            fieldKey: 'passport_number',
+            repeatingRecordKey: null,
+            status: 'APPLICANT_CONFIRMED',
+            isProtected: true,
+            value: '[protected: could not decrypt]',
+            comparable: false,
+            sourceDocumentId: null,
+          },
+        ],
+        pendingReadings: [{ documentId: 'doc-pass', fieldKey: 'passport_number', value: 'X1' }],
+        pendingCheckDocumentIds: [],
+        sections: { activated: new Set(), notApplicable: new Set(), noneDeclared: new Set() },
+        cases: [],
+        now: new Date('2026-10-25T12:00:00Z'),
+      }),
+    });
+    const html = await render();
+    const text = textOf(html);
+    expect(text).toContain('1 protected detail could not be compared just now.');
+    expect(html).toMatch(/on the <a href="\/app\/applicant\/a1\/documents">Documents page<\/a>/);
+    // Ran out this morning: expired, not "Expires today".
+    expect(text).toContain('Expired today');
+    expect(text).not.toContain('Expires today');
   });
 
   it('explains every empty area and where to start', async () => {

@@ -28,7 +28,8 @@ import type { DocumentLifecycleStatus } from './wallet';
  * document's own expiry date (which the Expiry page already shows). A document is named by its
  * catalogue kind, never by its file name, which could carry a person's name. A restricted document
  * (identity, civil status, medical, financial, or a kind not known yet) is summarised by kind and
- * section only: not even the names of the details it backs are listed.
+ * section only: neither the evidence map nor a mismatch names the details it holds (owner decision
+ * 2026-10-25). A replaced document is left out everywhere, and is not counted when numbering.
  */
 
 /** One document, reduced to what insights need. */
@@ -68,7 +69,12 @@ export interface InsightReadingInput {
 export interface InsightCaseInput {
   readonly id: string;
   readonly title: string;
-  /** Null when the case has no checklist attached, so readiness is not worked out. */
+  /** Whether a checklist (a visa route's pack) is attached to the case. */
+  readonly hasChecklist: boolean;
+  /**
+   * The case readiness (missions.ts `computeReadiness`). Null when there is no checklist, or when
+   * there is one but its readiness could not be worked out just now (`hasChecklist` tells which).
+   */
   readonly readiness: {
     readonly overallState: OverallReadinessState;
     readonly requiredCount: number;
@@ -126,9 +132,11 @@ export interface EvidenceMapEntry {
 }
 
 export interface MismatchEntry {
+  /** An opaque, unique key for lists. It names nothing. */
   readonly key: string;
   readonly document: InsightDocumentRef | null;
-  readonly fieldKey: string;
+  /** The detail that differs, or null when it came from a restricted document (section only). */
+  readonly fieldKey: string | null;
   readonly section: InsightSection | null;
   /**
    * saved_conflict: a value read from a document was saved while a different confirmed value was
@@ -157,20 +165,32 @@ export interface ExpiryEntry {
   readonly urgency: ExpiryUrgency;
 }
 
+export interface OriginalsItem {
+  readonly kind: string;
+  readonly optional: boolean;
+  /**
+   * The case's own verdict on this requirement, so this list never contradicts Readiness by Case:
+   * SATISFIED is on file for this case. When the kind is asked for more than once, the state that
+   * needs the most doing is shown.
+   */
+  readonly state: Exclude<RequirementResultState, 'NOT_APPLICABLE'>;
+}
+
 export interface OriginalsCase {
   readonly caseId: string;
   readonly title: string;
-  readonly items: readonly {
-    readonly kind: string;
-    readonly optional: boolean;
-    readonly onFile: boolean;
-  }[];
+  /** True when the case has a checklist but its readiness could not be worked out just now. */
+  readonly unavailable: boolean;
+  readonly items: readonly OriginalsItem[];
 }
+
+export type CaseReadinessState = OverallReadinessState | 'NO_CHECKLIST' | 'UNAVAILABLE';
 
 export interface CaseReadinessEntry {
   readonly caseId: string;
   readonly title: string;
-  readonly state: OverallReadinessState | 'NO_CHECKLIST';
+  /** NO_CHECKLIST: no route chosen yet. UNAVAILABLE: a checklist exists but could not be read. */
+  readonly state: CaseReadinessState;
   readonly requiredCount: number;
   readonly satisfiedRequired: number;
 }
@@ -179,6 +199,8 @@ export interface TravellerInsights {
   readonly summary: {
     readonly documents: number;
     readonly mismatches: number;
+    /** Rows on the Details to Check card: every mismatch, plus each document with check notes. */
+    readonly toCheck: number;
     readonly expired: number;
     readonly expiringSoon: number;
     readonly sectionsWithoutDocument: number;
@@ -190,7 +212,7 @@ export interface TravellerInsights {
     readonly document: InsightDocumentRef;
     readonly count: number;
   }[];
-  /** Readings that could not be compared because the saved value is protected and was not read. */
+  /** Readings not compared because the saved value is protected and could not be read. */
   readonly notCompared: number;
   readonly coverage: {
     readonly sections: readonly CoverageEntry[];
@@ -220,6 +242,16 @@ const FIELDS_BY_MODULE: ReadonlyMap<string, readonly string[]> = (() => {
   return byModule;
 })();
 
+/** Lower needs more doing; the same order the case page sorts its requirements in. */
+const STATE_URGENCY: Readonly<Record<OriginalsItem['state'], number>> = {
+  CRITICAL_GAP: 0,
+  CONFLICTING: 1,
+  EXPIRING_STALE: 2,
+  UNVERIFIED: 3,
+  ATTENTION: 4,
+  SATISFIED: 5,
+};
+
 function sectionOf(fieldKey: string): InsightSection | null {
   const key = MODULE_BY_FIELD.get(fieldKey);
   const label = key ? MODULE_LABEL.get(key) : undefined;
@@ -231,7 +263,7 @@ function catalogueKind(docType: string | null): string | null {
   return docType ? (resolveDocumentType(docType)?.key ?? null) : null;
 }
 
-/** Usable for coverage and the originals list: the same rule the profile page uses. */
+/** Usable for coverage: keep in step with the same rule in apps/web/.../applicant/[id]/profile/page.tsx. */
 function isUsable(document: InsightDocumentInput): boolean {
   if (document.lifecycle === 'EXPIRED' || document.lifecycle === 'SUPERSEDED') return false;
   return (
@@ -269,10 +301,11 @@ function savedValues(facts: readonly InsightFactInput[]): Record<string, string[
 }
 
 export function buildTravellerInsights(input: InsightsInput): TravellerInsights {
-  // Name every document by kind, numbered oldest first within its kind.
-  const byAge = [...input.documents].sort(
-    (a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
-  );
+  // Name every current document by kind, numbered oldest first within its kind. A replaced
+  // document gets no name, so nothing below can show it or count it.
+  const byAge = input.documents
+    .filter((document) => document.lifecycle !== 'SUPERSEDED')
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
   const kindTotals = new Map<string | null, number>();
   for (const document of byAge) {
     const kind = catalogueKind(document.docType);
@@ -320,7 +353,6 @@ export function buildTravellerInsights(input: InsightsInput): TravellerInsights 
     backedByDocument.set(fact.sourceDocumentId, set);
   }
   const evidence: EvidenceMapEntry[] = byAge
-    .filter((document) => document.lifecycle !== 'SUPERSEDED')
     .map((document) => {
       const ref = refs.get(document.id) as InsightDocumentRef;
       const backed = [...(backedByDocument.get(document.id) ?? [])].sort();
@@ -347,21 +379,33 @@ export function buildTravellerInsights(input: InsightsInput): TravellerInsights 
   // 2. Mismatches: only that two values differ, and where. Values never leave this function.
   const mismatches: MismatchEntry[] = [];
   const mismatchKeys = new Set<string>();
-  const addMismatch = (entry: MismatchEntry): void => {
-    if (mismatchKeys.has(entry.key)) return;
-    mismatchKeys.add(entry.key);
-    mismatches.push(entry);
+  const addMismatch = (
+    dedupeKey: string,
+    document: InsightDocumentRef | null,
+    fieldKey: string,
+    source: MismatchEntry['source'],
+  ): void => {
+    if (mismatchKeys.has(dedupeKey)) return;
+    mismatchKeys.add(dedupeKey);
+    mismatches.push({
+      key: `m${mismatches.length + 1}`,
+      document,
+      // A restricted document's details are named by section only.
+      fieldKey: document?.restricted ? null : fieldKey,
+      section: sectionOf(fieldKey),
+      source,
+    });
   };
   for (const fact of input.facts) {
     if (fact.status !== 'CONFLICTED') continue;
+    // A value from a replaced document is still a conflict on the profile; the document goes unnamed.
     const document = fact.sourceDocumentId ? (refs.get(fact.sourceDocumentId) ?? null) : null;
-    addMismatch({
-      key: `saved:${fact.fieldKey}:${fact.repeatingRecordKey ?? ''}`,
+    addMismatch(
+      `saved:${fact.fieldKey}:${fact.repeatingRecordKey ?? ''}`,
       document,
-      fieldKey: fact.fieldKey,
-      section: sectionOf(fact.fieldKey),
-      source: 'saved_conflict',
-    });
+      fact.fieldKey,
+      'saved_conflict',
+    );
   }
   // A reading is compared with a confirmed single detail only, as the review screen does: a
   // reading for one record among several (an address) is settled on that record.
@@ -382,13 +426,12 @@ export function buildTravellerInsights(input: InsightsInput): TravellerInsights 
       continue;
     }
     if (current.value === (reading.value ?? '')) continue;
-    addMismatch({
-      key: `reading:${reading.documentId}:${reading.fieldKey}`,
+    addMismatch(
+      `reading:${reading.documentId}:${reading.fieldKey}`,
       document,
-      fieldKey: reading.fieldKey,
-      section: sectionOf(reading.fieldKey),
-      source: 'pending_reading',
-    });
+      reading.fieldKey,
+      'pending_reading',
+    );
   }
   const checkCounts = new Map<string, number>();
   for (const documentId of input.pendingCheckDocumentIds) {
@@ -422,30 +465,42 @@ export function buildTravellerInsights(input: InsightsInput): TravellerInsights 
 
   // 4. Expiry timeline: soonest first, already expired at the top. A replaced document is left out.
   const expiry: ExpiryEntry[] = [];
-  for (const document of input.documents) {
-    if (!document.expiresAt || document.lifecycle === 'SUPERSEDED') continue;
+  for (const document of byAge) {
+    if (!document.expiresAt) continue;
     const date = new Date(document.expiresAt);
     if (Number.isNaN(date.getTime())) continue;
     const classification = classifyExpiry(date, input.now, document.reminderThresholds);
     if (classification.daysRemaining === null) continue;
+    // The wallet already counts it expired (its time has passed today): never "Expires today".
+    const expired = classification.urgency === 'expired' || document.lifecycle === 'EXPIRED';
+    // `|| 0` turns a rounded -0 into 0.
+    const daysRemaining =
+      (expired ? Math.min(classification.daysRemaining, 0) : classification.daysRemaining) || 0;
     expiry.push({
       document: refs.get(document.id) as InsightDocumentRef,
       expiresAt: date.toISOString(),
-      daysRemaining: classification.daysRemaining,
-      urgency: classification.urgency,
+      daysRemaining,
+      urgency: expired ? 'expired' : classification.urgency,
     });
   }
   expiry.sort(
     (a, b) => a.daysRemaining - b.daysRemaining || a.document.id.localeCompare(b.document.id),
   );
 
-  // 5. Originals: each case's document requirements of a kind usually handed in as the original.
+  // 5. Originals: each case's document requirements of a kind usually handed in as the original,
+  // with the case's own verdict on each, so this never contradicts Readiness by Case.
   const originalCases: OriginalsCase[] = [];
   for (const entry of input.cases) {
-    if (!entry.readiness) continue;
-    const items = new Map<string, { kind: string; optional: boolean; onFile: boolean }>();
+    if (!entry.readiness) {
+      if (entry.hasChecklist) {
+        originalCases.push({ caseId: entry.id, title: entry.title, unavailable: true, items: [] });
+      }
+      continue;
+    }
+    const items = new Map<string, OriginalsItem>();
     for (const requirement of entry.readiness.requirementResults) {
-      if (requirement.kind !== 'DOCUMENT' || requirement.state === 'NOT_APPLICABLE') continue;
+      const state = requirement.state;
+      if (requirement.kind !== 'DOCUMENT' || state === 'NOT_APPLICABLE') continue;
       const kind = catalogueKind(requirement.key);
       if (!kind || !ORIGINAL_DOCUMENT_KEYS.has(kind)) continue;
       const existing = items.get(kind);
@@ -453,11 +508,19 @@ export function buildTravellerInsights(input: InsightsInput): TravellerInsights 
         kind,
         // Required wins when the same kind is asked for twice.
         optional: existing ? existing.optional && requirement.optional : requirement.optional,
-        onFile: (usableByKind.get(kind) ?? 0) > 0,
+        state:
+          existing && STATE_URGENCY[existing.state] <= STATE_URGENCY[state]
+            ? existing.state
+            : state,
       });
     }
     if (items.size > 0) {
-      originalCases.push({ caseId: entry.id, title: entry.title, items: [...items.values()] });
+      originalCases.push({
+        caseId: entry.id,
+        title: entry.title,
+        unavailable: false,
+        items: [...items.values()],
+      });
     }
   }
   const originalsOnFile = byAge
@@ -471,7 +534,11 @@ export function buildTravellerInsights(input: InsightsInput): TravellerInsights 
   const cases: CaseReadinessEntry[] = input.cases.map((entry) => ({
     caseId: entry.id,
     title: entry.title,
-    state: entry.readiness ? entry.readiness.overallState : 'NO_CHECKLIST',
+    state: entry.readiness
+      ? entry.readiness.overallState
+      : entry.hasChecklist
+        ? 'UNAVAILABLE'
+        : 'NO_CHECKLIST',
     requiredCount: entry.readiness?.requiredCount ?? 0,
     satisfiedRequired: entry.readiness?.satisfiedRequired ?? 0,
   }));
@@ -480,6 +547,7 @@ export function buildTravellerInsights(input: InsightsInput): TravellerInsights 
     summary: {
       documents: input.documents.filter((document) => document.lifecycle !== 'SUPERSEDED').length,
       mismatches: mismatches.length,
+      toCheck: mismatches.length + checksToReview.length,
       expired: expiry.filter((entry) => entry.urgency === 'expired').length,
       expiringSoon: expiry.filter((entry) => entry.urgency === 'reminder').length,
       sectionsWithoutDocument: coverageSections.length - covered,

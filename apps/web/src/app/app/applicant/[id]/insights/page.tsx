@@ -12,6 +12,7 @@ import {
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import {
   EXPIRY_BADGE,
+  ORIGINAL_STATE_BADGE,
   READINESS_BADGE,
   detailName,
   documentName,
@@ -83,9 +84,17 @@ export default async function DocumentInsightsPage({
 
   const toCheck: AttentionEntry[] = [
     ...insights.mismatches.map((mismatch) => {
+      // A detail from a restricted document is named by its section only (owner decision).
+      const named = mismatch.fieldKey !== null;
+      const section = mismatch.section?.label ?? null;
+      const detail = mismatch.fieldKey
+        ? detailName(mismatch.fieldKey)
+        : section
+          ? `a detail in ${section}`
+          : 'a detail';
       const where = [
         mismatch.document ? `your ${documentName(mismatch.document)}` : null,
-        mismatch.section?.label ?? null,
+        named ? section : null,
       ]
         .filter((part): part is string => part !== null)
         .join(' · ');
@@ -93,14 +102,14 @@ export default async function DocumentInsightsPage({
         ? {
             key: mismatch.key,
             href: mismatch.document ? documentHref(mismatch.document.id) : documentsHref,
-            label: `${detailName(mismatch.fieldKey)} differs from your saved detail`,
+            label: `${named ? detail : `A${detail.slice(1)}`} differs from your saved detail`,
             detail: `Read from ${where}. Check which is right.`,
             tone: 'warning' as const,
           }
         : {
             key: mismatch.key,
             href: `/app/applicant/${id}/profile`,
-            label: `Two values for ${detailName(mismatch.fieldKey)}`,
+            label: `Two values for ${detail}`,
             detail: `${where ? `One came from ${where}. ` : ''}Pick the right one on your profile.`,
             tone: 'danger' as const,
           };
@@ -116,7 +125,7 @@ export default async function DocumentInsightsPage({
 
   const summary = [
     { key: 'documents', label: 'Documents', value: insights.summary.documents },
-    { key: 'check', label: 'Details to Check', value: toCheck.length },
+    { key: 'check', label: 'Details to Check', value: insights.summary.toCheck },
     {
       key: 'expiry',
       label: 'Expired or Expiring Soon',
@@ -165,7 +174,8 @@ export default async function DocumentInsightsPage({
           {insights.notCompared > 0 ? (
             <p className="insights-note">
               {plural(insights.notCompared, 'protected detail')} could not be compared just now.
-              Check {insights.notCompared === 1 ? 'it' : 'them'} on the Documents page.
+              Check {insights.notCompared === 1 ? 'it' : 'them'} on the{' '}
+              <Link href={documentsHref}>Documents page</Link>.
             </p>
           ) : null}
         </section>
@@ -188,7 +198,7 @@ export default async function DocumentInsightsPage({
                     <span className="insights-row-text">
                       <span className="insights-row-label">{documentName(entry.document)}</span>
                       <span className="insights-row-detail">
-                        {timeUntilExpiry(entry.daysRemaining)} ·{' '}
+                        {timeUntilExpiry(entry.daysRemaining, entry.urgency === 'expired')} ·{' '}
                         {formatTimestampDate(entry.expiresAt)}
                       </span>
                     </span>
@@ -252,29 +262,47 @@ export default async function DocumentInsightsPage({
             insights.originals.cases.map((entry) => (
               <div key={entry.caseId} className="insights-group">
                 <h4 className="insights-group-title">{entry.title}</h4>
-                <ul className="insights-list">
-                  {entry.items.map((item) => (
-                    <li key={item.kind} className="insights-row">
-                      <span className="insights-row-text">
-                        <span className="insights-row-label">{documentTypeLabel(item.kind)}</span>
-                        {item.optional ? (
-                          <span className="insights-row-detail">Optional for this case</span>
-                        ) : null}
-                      </span>
-                      {item.onFile ? (
-                        <StatusBadge tone="success">On File</StatusBadge>
-                      ) : (
-                        <Link
-                          className="btn btn-secondary insights-action"
-                          href={uploadHref(item.kind)}
-                        >
-                          Upload
-                          <span className="sr-only"> {documentTypeLabel(item.kind)}</span>
-                        </Link>
-                      )}
-                    </li>
-                  ))}
-                </ul>
+                {entry.unavailable ? (
+                  <p className="insights-note">
+                    What this case needs could not be loaded just now.{' '}
+                    <Link href={`/app/mission/${entry.caseId}`}>Open the case</Link> to see it.
+                  </p>
+                ) : (
+                  <ul className="insights-list">
+                    {entry.items.map((item) => {
+                      // The case's own verdict, so this list and Readiness by Case always agree.
+                      const badge = ORIGINAL_STATE_BADGE[item.state];
+                      const needsUpload =
+                        item.state === 'CRITICAL_GAP' ||
+                        item.state === 'EXPIRING_STALE' ||
+                        item.state === 'ATTENTION';
+                      return (
+                        <li key={item.kind} className="insights-row">
+                          <span className="insights-row-text">
+                            <span className="insights-row-label">
+                              {documentTypeLabel(item.kind)}
+                            </span>
+                            {item.optional ? (
+                              <span className="insights-row-detail">Optional for this case</span>
+                            ) : null}
+                          </span>
+                          <span className="insights-row-end">
+                            <StatusBadge tone={badge.tone}>{badge.label}</StatusBadge>
+                            {needsUpload ? (
+                              <Link
+                                className="btn btn-secondary insights-action"
+                                href={uploadHref(item.kind)}
+                              >
+                                Upload
+                                <span className="sr-only"> {documentTypeLabel(item.kind)}</span>
+                              </Link>
+                            ) : null}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </div>
             ))
           ) : insights.originals.onFile.length > 0 ? (

@@ -13,7 +13,7 @@ import {
 } from './insights';
 import { computeReadiness, listMissions } from './missions';
 import type { KeyManagementPort } from './ports';
-import { listApplicantProfile } from './profile';
+import { isProtectedPlaceholder, listApplicantProfile } from './profile';
 import { getProfileSectionState } from './profile-sections';
 import { getWalletView } from './wallet';
 
@@ -26,7 +26,10 @@ export interface TravellerInsightsOptions {
    * value itself never leaves this function. Without it, such readings are counted as not compared.
    */
   readonly encryption?: KeyManagementPort;
-  /** The clock for the expiry timeline only (tests). Access is always decided on the real clock. */
+  /**
+   * The clock for the expiry timeline and for case readiness (tests). Access is always decided by
+   * the gate on the real clock.
+   */
   readonly now?: Date;
 }
 
@@ -133,9 +136,12 @@ export async function getTravellerInsights(
   );
   const cases: InsightCaseInput[] = active.map((mission, i) => {
     const readiness = readinessList[i];
+    // A checklist whose readiness could not be worked out is reported as unavailable, never as
+    // "no checklist".
     return {
       id: mission.id,
       title: mission.title,
+      hasChecklist: mission.packVersionId !== null,
       readiness: readiness?.ok ? readiness.value : null,
     };
   });
@@ -149,7 +155,10 @@ export async function getTravellerInsights(
         status: entry.status,
         isProtected: entry.isProtected,
         value: entry.value,
-        comparable: !entry.isProtected || reveal !== undefined,
+        // A protected value is compared only when it was really read: a stand-in (no key, or a
+        // value that could not be decrypted) is never reported as a difference.
+        comparable:
+          !entry.isProtected || (reveal !== undefined && !isProtectedPlaceholder(entry.value)),
         sourceDocumentId: entry.sourceDocumentId,
       })),
       pendingReadings: readings,

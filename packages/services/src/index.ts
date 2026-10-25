@@ -588,6 +588,7 @@ export {
 
 export {
   type CaseReadinessEntry,
+  type CaseReadinessState,
   type CoverageEntry,
   type CoverageKind,
   type EvidenceMapEntry,
@@ -596,6 +597,7 @@ export {
   type InsightSection,
   type MismatchEntry,
   type OriginalsCase,
+  type OriginalsItem,
   type TravellerInsights,
   buildTravellerInsights,
 } from './insights';

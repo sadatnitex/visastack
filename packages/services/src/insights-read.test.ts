@@ -199,10 +199,13 @@ describe('getTravellerInsights', () => {
     if (!isOk(result)) return;
     const insights = result.value;
 
-    expect(insights.mismatches.map((m) => [m.source, m.fieldKey, m.document?.id]).sort()).toEqual([
-      ['pending_reading', 'date_of_birth', passportId],
-      ['pending_reading', 'given_name', passportId],
-      ['pending_reading', 'passport_number', passportId],
+    // The passport is restricted, so each difference is named by section only, never the detail.
+    expect(
+      insights.mismatches.map((m) => [m.source, m.fieldKey, m.section?.key, m.document?.id]).sort(),
+    ).toEqual([
+      ['pending_reading', null, 'identity_basics', passportId],
+      ['pending_reading', null, 'identity_basics', passportId],
+      ['pending_reading', null, 'passport', passportId],
     ]);
     expect(insights.notCompared).toBe(0);
     // The passport is restricted: it backs one saved detail, named only by its section.
@@ -239,9 +242,26 @@ describe('getTravellerInsights', () => {
     const result = await getTravellerInsights(await ownerProof(ownerId, applicantId), { now: NOW });
     expect(isOk(result)).toBe(true);
     if (!isOk(result)) return;
-    expect(result.value.mismatches.map((m) => m.fieldKey).sort()).toEqual([
-      'date_of_birth',
-      'given_name',
+    expect(result.value.mismatches.map((m) => m.section?.key)).toEqual([
+      'identity_basics',
+      'identity_basics',
+    ]);
+    expect(result.value.notCompared).toBe(1);
+  });
+
+  it('does not claim a protected detail differs when its value could not be decrypted', async () => {
+    const { ownerId, applicantId } = await seed();
+    // A key service that cannot open the value saved with the seeding one (and no cached key).
+    resetProtectedFieldKeyCacheForTests();
+    const result = await getTravellerInsights(await ownerProof(ownerId, applicantId), {
+      encryption: testKeyManagement(),
+      now: NOW,
+    });
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+    expect(result.value.mismatches.map((m) => m.section?.key)).toEqual([
+      'identity_basics',
+      'identity_basics',
     ]);
     expect(result.value.notCompared).toBe(1);
   });

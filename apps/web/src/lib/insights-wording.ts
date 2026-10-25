@@ -1,4 +1,9 @@
-import type { ExpiryUrgency, InsightDocumentRef, OverallReadinessState } from '@visastack/services';
+import type {
+  CaseReadinessState,
+  ExpiryUrgency,
+  InsightDocumentRef,
+  OriginalsItem,
+} from '@visastack/services';
 import type { Tone } from '../components/ui';
 import { humanizeFieldKey } from './field-key-label';
 import { documentTypeLabel } from './labels';
@@ -27,9 +32,12 @@ export function detailName(fieldKey: string): string {
 
 const DAYS_PER_MONTH = 30.44;
 
-/** How long until (or since) a document's expiry, in the words a person would use. */
-export function timeUntilExpiry(daysRemaining: number): string {
-  if (daysRemaining === 0) return 'Expires today';
+/**
+ * How long until (or since) a document's expiry, in the words a person would use. `expired` is
+ * the timeline's own verdict: a document whose time ran out earlier today reads "Expired today".
+ */
+export function timeUntilExpiry(daysRemaining: number, expired = daysRemaining < 0): string {
+  if (daysRemaining === 0) return expired ? 'Expired today' : 'Expires today';
   if (daysRemaining === 1) return 'Expires tomorrow';
   if (daysRemaining === -1) return 'Expired yesterday';
   const days = Math.abs(daysRemaining);
@@ -53,23 +61,37 @@ export const EXPIRY_BADGE: Readonly<Record<ExpiryUrgency, { label: string; tone:
 };
 
 /** The same readiness names the case page shows, plus one for a case with no checklist yet. */
-export const READINESS_BADGE: Readonly<
-  Record<OverallReadinessState | 'NO_CHECKLIST', { label: string; tone: Tone }>
+export const READINESS_BADGE: Readonly<Record<CaseReadinessState, { label: string; tone: Tone }>> =
+  {
+    READY_FOR_APPLICANT_REVIEW: { label: 'Ready for Review', tone: 'success' },
+    NEEDS_REVIEW: { label: 'Needs Review', tone: 'warning' },
+    NEEDS_ACTION: { label: 'Needs Action', tone: 'danger' },
+    MANUAL_ONLY: { label: 'Manual · not automatically assessed', tone: 'neutral' },
+    NO_CHECKLIST: { label: 'No Checklist Yet', tone: 'neutral' },
+    UNAVAILABLE: { label: 'Not Available Right Now', tone: 'neutral' },
+  };
+
+/** The same names the case page gives each requirement, so the two pages always agree. */
+export const ORIGINAL_STATE_BADGE: Readonly<
+  Record<OriginalsItem['state'], { label: string; tone: Tone }>
 > = {
-  READY_FOR_APPLICANT_REVIEW: { label: 'Ready for Review', tone: 'success' },
-  NEEDS_REVIEW: { label: 'Needs Review', tone: 'warning' },
-  NEEDS_ACTION: { label: 'Needs Action', tone: 'danger' },
-  MANUAL_ONLY: { label: 'Manual · not automatically assessed', tone: 'neutral' },
-  NO_CHECKLIST: { label: 'No Checklist Yet', tone: 'neutral' },
+  CRITICAL_GAP: { label: 'Missing', tone: 'danger' },
+  CONFLICTING: { label: 'Two Values', tone: 'danger' },
+  EXPIRING_STALE: { label: 'Out of Date', tone: 'danger' },
+  UNVERIFIED: { label: 'To Confirm', tone: 'warning' },
+  ATTENTION: { label: 'Optional', tone: 'neutral' },
+  SATISFIED: { label: 'On File', tone: 'success' },
 };
 
 /** "1 of 4 required items ready", or a next step when there is nothing to count. */
 export function readinessLine(
-  state: OverallReadinessState | 'NO_CHECKLIST',
+  state: CaseReadinessState,
   satisfied: number,
   required: number,
 ): string {
   if (state === 'NO_CHECKLIST') return 'Choose a visa route on this case to see what it needs.';
+  if (state === 'UNAVAILABLE')
+    return 'Readiness could not be loaded just now. Open the case to see it.';
   if (state === 'MANUAL_ONLY') return 'This case is checked by hand, not automatically.';
   if (required === 0) return 'This route lists nothing as required yet.';
   return `${satisfied} of ${plural(required, 'required item')} ready`;

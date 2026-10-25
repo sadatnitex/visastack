@@ -6362,3 +6362,9 @@ body:has(.auth-shell) > .footer {
 .insights-card > .insights-action {
   margin-top: 12px;
 }
+.insights-row-end {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}

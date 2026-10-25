@@ -146,14 +146,51 @@ describe('traveller insights: mismatches', () => {
         documentId: 'job',
         section: 'employment',
       },
+      // The passport is restricted: its detail is named by section only.
       {
         source: 'pending_reading',
-        fieldKey: 'given_name',
+        fieldKey: null,
         documentId: 'pass',
         section: 'identity_basics',
       },
     ]);
-    expect(result.summary.mismatches).toBe(2);
+    expect(result.summary).toMatchObject({ mismatches: 2, toCheck: 2 });
+    // List keys name nothing.
+    expect(result.mismatches.map((m) => m.key)).toEqual(['m1', 'm2']);
+  });
+
+  it('names the detail for an everyday document', () => {
+    const result = buildTravellerInsights(
+      input({
+        documents: [doc('job', 'EMPLOYMENT_CERTIFICATE')],
+        facts: [fact('job_title', 'Engineer')],
+        pendingReadings: [{ documentId: 'job', fieldKey: 'job_title', value: 'Manager' }],
+      }),
+    );
+    expect(result.mismatches).toEqual([
+      expect.objectContaining({ fieldKey: 'job_title', source: 'pending_reading' }),
+    ]);
+  });
+
+  it('leaves out readings and check notes waiting on a replaced document', () => {
+    const result = buildTravellerInsights(
+      input({
+        documents: [
+          doc('old', 'PASSPORT', { lifecycle: 'SUPERSEDED', createdAt: '2025-01-01T00:00:00Z' }),
+          doc('new', 'PASSPORT', { createdAt: '2026-01-01T00:00:00Z' }),
+        ],
+        facts: [fact('given_name', 'Ayesha')],
+        pendingReadings: [{ documentId: 'old', fieldKey: 'given_name', value: 'Aysha' }],
+        pendingCheckDocumentIds: ['old'],
+      }),
+    );
+    expect(result.mismatches).toEqual([]);
+    expect(result.checksToReview).toEqual([]);
+    expect(result.summary.toCheck).toBe(0);
+    // Numbering counts current documents only: never "2 of 2" without "1 of 2".
+    expect(result.evidence.map((e) => e.document)).toEqual([
+      expect.objectContaining({ id: 'new', ordinal: 1, ofKind: 1 }),
+    ]);
   });
 
   it('never claims a difference it could not check, and ignores one record among several', () => {
@@ -184,6 +221,8 @@ describe('traveller insights: mismatches', () => {
     expect(result.checksToReview).toEqual([
       { document: expect.objectContaining({ id: 'pass' }), count: 2 },
     ]);
+    // The tile counts the rows the card lists.
+    expect(result.summary.toCheck).toBe(1);
   });
 });
 
@@ -242,6 +281,21 @@ describe('traveller insights: expiry timeline', () => {
     ]);
     expect(result.summary).toMatchObject({ expired: 1, expiringSoon: 1 });
   });
+
+  it('shows a document the wallet already counts expired as expired, never "today" and never -0', () => {
+    const result = buildTravellerInsights(
+      input({
+        documents: [
+          // Ran out three hours ago: still "0 days" by the reminder ladder's rounding.
+          doc('gone', 'PASSPORT', { expiresAt: '2026-10-25T09:00:00.000Z', lifecycle: 'EXPIRED' }),
+        ],
+      }),
+    );
+    const [entry] = result.expiry;
+    expect(entry).toMatchObject({ urgency: 'expired', daysRemaining: 0 });
+    expect(Object.is(entry?.daysRemaining, -0)).toBe(false);
+    expect(result.summary).toMatchObject({ expired: 1, expiringSoon: 0 });
+  });
 });
 
 describe('traveller insights: originals and readiness', () => {
@@ -249,13 +303,16 @@ describe('traveller insights: originals and readiness', () => {
     {
       id: 'c1',
       title: 'UK Visit',
+      hasChecklist: true,
       readiness: {
         overallState: 'NEEDS_ACTION',
         requiredCount: 4,
         satisfiedRequired: 1,
         requirementResults: [
           { kind: 'DOCUMENT', key: 'passport', optional: false, state: 'SATISFIED' },
-          { kind: 'DOCUMENT', key: 'BANK_STATEMENT', optional: true, state: 'CRITICAL_GAP' },
+          // On file, but too old for this route: the case says so, and so does this list.
+          { kind: 'DOCUMENT', key: 'EMPLOYMENT_LETTER', optional: false, state: 'EXPIRING_STALE' },
+          { kind: 'DOCUMENT', key: 'BANK_STATEMENT', optional: true, state: 'ATTENTION' },
           { kind: 'DOCUMENT', key: 'BANK_STATEMENT', optional: false, state: 'CRITICAL_GAP' },
           { kind: 'DOCUMENT', key: 'BIRTH_CERTIFICATE', optional: false, state: 'NOT_APPLICABLE' },
           { kind: 'DOCUMENT', key: 'TRAVEL_INSURANCE', optional: false, state: 'CRITICAL_GAP' },
@@ -263,24 +320,35 @@ describe('traveller insights: originals and readiness', () => {
         ],
       },
     },
-    { id: 'c2', title: 'Schengen Trip', readiness: null },
+    { id: 'c2', title: 'Schengen Trip', hasChecklist: false, readiness: null },
+    { id: 'c3', title: 'Study Visa', hasChecklist: true, readiness: null },
   ];
 
   it('lists the kinds a case needs as originals, with whether one is on file', () => {
     const result = buildTravellerInsights(
-      input({ documents: [doc('pass', 'PASSPORT', { lifecycle: 'CURRENT' })], cases }),
+      input({
+        documents: [
+          doc('pass', 'PASSPORT', { lifecycle: 'CURRENT' }),
+          doc('job', 'EMPLOYMENT_CERTIFICATE', { lifecycle: 'CURRENT' }),
+        ],
+        cases,
+      }),
     );
     expect(result.originals.cases).toEqual([
       {
         caseId: 'c1',
         title: 'UK Visit',
+        unavailable: false,
         items: [
-          { kind: 'PASSPORT', optional: false, onFile: true },
-          { kind: 'BANK_STATEMENT', optional: false, onFile: false },
+          { kind: 'PASSPORT', optional: false, state: 'SATISFIED' },
+          { kind: 'EMPLOYMENT_CERTIFICATE', optional: false, state: 'EXPIRING_STALE' },
+          { kind: 'BANK_STATEMENT', optional: false, state: 'CRITICAL_GAP' },
         ],
       },
+      // A checklist that could not be read says so, rather than listing nothing.
+      { caseId: 'c3', title: 'Study Visa', unavailable: true, items: [] },
     ]);
-    expect(result.originals.onFile.map((ref) => ref.id)).toEqual(['pass']);
+    expect(result.originals.onFile.map((ref) => ref.id)).toEqual(['job', 'pass']);
   });
 
   it('passes each case readiness through unchanged, and says when there is no checklist', () => {
@@ -297,6 +365,14 @@ describe('traveller insights: originals and readiness', () => {
         caseId: 'c2',
         title: 'Schengen Trip',
         state: 'NO_CHECKLIST',
+        requiredCount: 0,
+        satisfiedRequired: 0,
+      },
+      // A checklist exists but its readiness could not be read: never "no checklist".
+      {
+        caseId: 'c3',
+        title: 'Study Visa',
+        state: 'UNAVAILABLE',
         requiredCount: 0,
         satisfiedRequired: 0,
       },

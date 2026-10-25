@@ -3,7 +3,11 @@ import { documentName, readinessLine, timeUntilExpiry } from './insights-wording
 
 describe('insights wording', () => {
   it('says how long until a document expires in the words a person would use', () => {
-    expect([-400, -45, -1, 0, 1, 2, 60, 61, 90, 400, 729, 730, 3650].map(timeUntilExpiry)).toEqual([
+    expect(
+      [-400, -45, -1, 0, 1, 2, 60, 61, 90, 400, 729, 730, 3650].map((days) =>
+        timeUntilExpiry(days),
+      ),
+    ).toEqual([
       'Expired about 13 months ago',
       'Expired 45 days ago',
       'Expired yesterday',
@@ -18,6 +22,11 @@ describe('insights wording', () => {
       'Expires in about 2 years',
       'Expires in about 10 years',
     ]);
+  });
+
+  it('says a document that ran out earlier today has expired', () => {
+    expect(timeUntilExpiry(0, true)).toBe('Expired today');
+    expect(timeUntilExpiry(0, false)).toBe('Expires today');
   });
 
   it('names a document by its kind, numbered only when there are several', () => {
