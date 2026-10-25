@@ -1,0 +1,61 @@
+name: Live signed-in check
+
+# Signs in to the live site with the owner's dedicated test account and
+# checks the signed-in workspace (apps/web/e2e/live-signed-in.spec.ts).
+# Read-only. Runs after each successful production deployment and on demand.
+# Skips itself when the LIVE_CHECK_EMAIL and LIVE_CHECK_PASSWORD secrets are
+# not set. No report is uploaded, and traces and screenshots are off, so the
+# credentials can never land in a stored file.
+on:
+  deployment_status:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: read
+
+concurrency:
+  group: live-signed-in-check
+  cancel-in-progress: true
+
+jobs:
+  live:
+    name: Live signed-in check
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+       (github.event.deployment.production_environment ||
+        github.event.deployment.environment == 'Production'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      LIVE_CHECK_EMAIL: ${{ secrets.LIVE_CHECK_EMAIL }}
+      LIVE_CHECK_PASSWORD: ${{ secrets.LIVE_CHECK_PASSWORD }}
+      E2E_AUTHENTICATED: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha || github.sha }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the live signed-in check
+        working-directory: apps/web
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ github.event.deployment_status.environment_url || 'https://visastack-five.vercel.app' }}
+        run: npx playwright test live-signed-in.spec.ts --reporter=list
