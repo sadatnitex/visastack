@@ -146,6 +146,34 @@ const REQUIREMENT_STATE_META: Record<
   },
 };
 
+type AttentionKind = 'changed' | 'missing' | 'unconfirmed' | 'tasks';
+
+const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+
+// WP-X1 next step card: wording for the first attention item. A changed case
+// is shown by its own alert instead, so it has no card wording.
+const NEXT_STEP_COPY: Record<
+  Exclude<AttentionKind, 'changed'>,
+  { readonly title: (count: number) => string; readonly body: string; readonly action: string }
+> = {
+  // Counts missing, out-of-date and mismatched required items together.
+  missing: {
+    title: (count) => `Fix ${plural(count, 'required item', 'required items')}`,
+    body: 'Some required items are missing, out of date or do not match.',
+    action: 'See what needs fixing',
+  },
+  unconfirmed: {
+    title: (count) => `Confirm ${plural(count, 'item', 'items')}`,
+    body: 'Whether these apply depends on case details that are not confirmed yet.',
+    action: 'See what to confirm',
+  },
+  tasks: {
+    title: (count) => `Finish ${plural(count, 'open task', 'open tasks')}`,
+    body: 'Your open tasks are listed under Tasks, appointments and letters.',
+    action: 'Open tasks',
+  },
+};
+
 interface RequirementDetailRow {
   readonly packRequirementId: string;
   readonly kind: 'FIELD' | 'DOCUMENT';
@@ -482,6 +510,7 @@ export default async function MissionPage({
     (task) => task.status === 'OPEN' || task.status === 'IN_PROGRESS',
   ).length;
   const attention: {
+    readonly kind: AttentionKind;
     readonly label: string;
     readonly href: string;
     readonly count: number;
@@ -490,6 +519,7 @@ export default async function MissionPage({
     ...(data.isDirty
       ? [
           {
+            kind: 'changed' as const,
             label: 'Changed since confirmed',
             href: '#snapshots',
             count: 1,
@@ -500,6 +530,7 @@ export default async function MissionPage({
     ...(data.readiness && data.requiredHardGapCount > 0
       ? [
           {
+            kind: 'missing' as const,
             label:
               data.requiredHardGapCount === 1 ? 'required item missing' : 'required items missing',
             href: '#readiness',
@@ -511,6 +542,7 @@ export default async function MissionPage({
     ...(data.readiness && data.requiredUnverifiedCount > 0
       ? [
           {
+            kind: 'unconfirmed' as const,
             label: 'need a check',
             href: '#readiness',
             count: data.requiredUnverifiedCount,
@@ -521,6 +553,7 @@ export default async function MissionPage({
     ...(openTasks > 0
       ? [
           {
+            kind: 'tasks' as const,
             label: openTasks === 1 ? 'open task' : 'open tasks',
             href: '#work',
             count: openTasks,
@@ -529,6 +562,10 @@ export default async function MissionPage({
         ]
       : []),
   ];
+  // WP-X1: the first item of the existing attention list, in its existing
+  // order, is the next step. A changed case shows its alert instead (that is
+  // its next step); an empty list keeps the existing success badge and no card.
+  const nextStep = data.isDirty ? undefined : attention[0];
 
   return (
     <section className="section container">
@@ -567,12 +604,42 @@ export default async function MissionPage({
       <CaseStageTracker state={mission.state} labels={STATE_LABELS} nextStates={nextStates} />
 
       {data.isDirty ? (
-        <div className="notice notice-warn u-mb-150">
-          <strong>This case has changed since it was last acknowledged.</strong> A material edit
-          invalidated the previous sign-off. Capture a new snapshot and acknowledge it again before
-          relying on this case as submission-ready.
+        // WP-V3 adds the list of changed details inside this alert.
+        <div className="case-alert">
+          <p className="case-alert-title">This case has changed since it was last acknowledged.</p>
+          <p className="case-alert-body">
+            A material edit invalidated the previous sign-off. Capture a new snapshot and
+            acknowledge it again before relying on this case as submission-ready.
+          </p>
+          <SnapshotButton
+            missionId={mission.id}
+            label="Take a new snapshot"
+            primary
+            align="start"
+          />
         </div>
       ) : null}
+
+      {nextStep && nextStep.kind !== 'changed' ? (
+        <section className="case-next-step" aria-labelledby="case-next-step-heading">
+          <h2 className="case-next-step-kicker" id="case-next-step-heading">
+            Next step
+          </h2>
+          <p className="case-next-step-title">
+            {NEXT_STEP_COPY[nextStep.kind].title(nextStep.count)}
+          </p>
+          <p className="case-next-step-body">{NEXT_STEP_COPY[nextStep.kind].body}</p>
+          <a className="btn btn-primary" href={nextStep.href}>
+            {NEXT_STEP_COPY[nextStep.kind].action}
+          </a>
+        </section>
+      ) : null}
+      {/* Owner-approved wording, 25 Oct 2026. */}
+      <p className="case-journey-reminder">
+        Preparing a file is not the same as submitting it. VisaStack does not submit applications or
+        predict decisions.
+      </p>
+      {/* WP-V4 places the request triage summary directly under the next step. */}
 
       <div className="case-context-strip">
         {mission.manualMode ? (

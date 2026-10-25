@@ -5735,3 +5735,90 @@ body:has(.auth-shell) > .footer {
   flex: 1 1 14rem;
   min-width: 0;
 }
+
+/* WP-X1 case journey (approved preview: case journey, two states). Next step
+   card under the stage tracker, and the changed-since-acknowledged notice
+   restyled as the approved alert. Colours are existing Harbor tokens. */
+.case-next-step,
+.case-alert {
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  margin-bottom: 1.25rem;
+}
+.case-next-step {
+  background: var(--bg-elevated);
+  border: 1px solid var(--hairline);
+}
+.case-alert {
+  background: var(--warning-bg);
+  border: 1px solid var(--warning);
+}
+.case-next-step p,
+.case-alert p {
+  margin: 0;
+}
+.case-next-step-kicker {
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
+.case-next-step-title,
+.case-alert-title {
+  font-weight: 600;
+  font-size: var(--text-body);
+  margin-top: 0.15rem;
+}
+.case-alert-title {
+  color: var(--warning);
+}
+.case-next-step-body,
+.case-alert-body {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  margin: 0.15rem 0 0.65rem;
+}
+.case-alert-body {
+  color: var(--text);
+}
+.case-journey-reminder {
+  margin: -0.5rem 0 1.25rem;
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
+.case-next-step-kicker {
+  margin: 0;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+/* Phones: the strip shows only the current stage (the page header names it
+   too), so the current stage is never scrolled away and the next step stays
+   above the fold at 360x640 and 390x664. The explanation of what can happen
+   next stays for screen readers; the move buttons further down show the same
+   choices. */
+@media (max-width: 640px) {
+  .case-stage-region {
+    margin-bottom: 0.75rem;
+  }
+  .case-stage-tracker {
+    gap: 0.35rem 0.85rem;
+    padding: 0.5rem 0;
+  }
+  .case-stage-tracker li {
+    font-size: var(--text-caption);
+    gap: 0.35rem;
+  }
+  .case-stage-marker {
+    width: 0.6rem;
+    height: 0.6rem;
+  }
+  .case-stage-tracker li:not([aria-current="step"]) {
+    display: none;
+  }
+  .case-stage-region > p {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
