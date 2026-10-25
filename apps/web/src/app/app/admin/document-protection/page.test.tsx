@@ -223,7 +223,7 @@ describe('Platform > Settings > Document Protection', () => {
     });
     const html = await renderServer(Page());
     expect(textOf(html)).toContain(
-      'Document protection settings are not available yet. The standard protection rules are in force.',
+      'Document protection settings are not available yet. Until they are, every document needs a fresh sign-in check before anyone previews or downloads it.',
     );
     expect(textOf(html)).not.toContain('This area is restricted');
     expect(stubProps(html, 'ProtectionSwitch')).toEqual([]);

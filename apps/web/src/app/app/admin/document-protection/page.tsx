@@ -24,7 +24,7 @@ const UNKNOWN_WARNING =
   'Documents that are not sorted yet could be passports, bank statements or medical records, so turning this off can expose them without a check.';
 
 const UNAVAILABLE =
-  'Document protection settings are not available yet. The standard protection rules are in force.';
+  'Document protection settings are not available yet. Until they are, every document needs a fresh sign-in check before anyone previews or downloads it.';
 
 function onOff(restricted: boolean): string {
   return restricted ? 'On' : 'Off';
