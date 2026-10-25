@@ -37,3 +37,8 @@ apps/web/src/app/app/mission/[id]/page.test.tsx
 apps/web/src/app/app/mission/[id]/changes-since-confirmed.tsx
 apps/web/src/lib/application-memory-labels.ts
 apps/web/src/lib/application-memory-labels.test.ts
+# Added 25 Oct 2026 after independent review of WP-V3 part 3: the change list must use the same
+# case-evidence rule as the snapshot writer, which lives in missions.ts (shared private helper,
+# no behaviour change to snapshotMission, plus one owner-only gated export). The then-and-now
+# "Update This Detail" link opens the field's own profile section, which the editor now follows.
+packages/services/src/missions.ts

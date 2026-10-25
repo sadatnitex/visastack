@@ -21,18 +21,29 @@ import { compareAuthorizedFactVersions } from './consistency';
 import type { Db } from './db';
 import { addDocumentVersion, registerDocument } from './documents';
 import {
+  attachPackVersion,
   createMission,
+  listCaseEvidenceIds,
+  selectEvidence,
   snapshotMission,
   transitionMission,
   updateMissionCaseDetails,
 } from './missions';
 import { createOrganization, reviewOrganization } from './organizations';
 import { recordOutcome } from './outcomes';
+import {
+  addPackVersion,
+  addRequirement,
+  approvePackVersion,
+  createPack,
+  publishPackVersion,
+} from './packs';
 import type { KeyManagementPort } from './ports';
 import { editFact, registerFieldDefinition } from './profile';
 import { resetProtectedFieldKeyCacheForTests } from './protected-fields';
 import { acceptGrant, createGrant } from './sharing';
 import { recordSubmission } from './submissions';
+import { supersedeDocument } from './wallet';
 
 /**
  * WP-V3 part 3: Application Memory (v1.2 B08 / U06) and the prior-versus-
@@ -197,6 +208,15 @@ describe('Application Memory and prior versus current (WP-V3 part 3)', () => {
       purpose: 'case_management',
     });
     if (!isOk(grant)) throw new Error('grant');
+    // A share of the whole record, not tied to the case.
+    const wholeRecord = await createGrant(db, {
+      actorAccountId: me.accountId,
+      applicantId: me.applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['VIEW_METADATA'],
+      purpose: 'record_review',
+    });
+    if (!isOk(wholeRecord)) throw new Error('record grant');
 
     for (const to of ['INTAKE', 'IN_REVIEW', 'AWAITING_APPLICANT', 'SUBMISSION_READY'] as const) {
       const moved = await transitionMission(db, { actorAccountId: me.accountId, missionId, to });
@@ -243,6 +263,13 @@ describe('Application Memory and prior versus current (WP-V3 part 3)', () => {
       snapshotVersion: 1,
       channel: 'EMAIL',
     });
+    // The whole-record share is listed once, on its own, never inside a case.
+    expect(memory.value.recordShares).toEqual([
+      expect.objectContaining({ id: wholeRecord.value.id, recipientName: 'Harbor Visas' }),
+    ]);
+    expect(only?.events.filter((e) => e.kind === 'shared')).toHaveLength(1);
+    const ids = only?.events.map((e) => `${e.kind}:${e.id}`) ?? [];
+    expect(new Set(ids).size).toBe(ids.length);
     expect(only?.events.find((e) => e.kind === 'shared')).toMatchObject({
       recipientName: 'Harbor Visas',
       recipientKind: 'organization',
@@ -422,8 +449,19 @@ describe('Application Memory and prior versus current (WP-V3 part 3)', () => {
     expect(renewal.value.comparison.result).toBe('LEGITIMATE_CHANGE');
     expect(renewal.value.comparison.prior.value).toBeNull();
     expect(renewal.value.comparison.current.value).toBeNull();
-    expect(renewal.value.comparison.current.explanation).toBe('Renewed at the passport office');
-    expect(JSON.stringify(renewal.value)).not.toMatch(/A1234567|B7654321/);
+    // The note can repeat the value, so it is hidden with it; only that a note exists is said.
+    expect(renewal.value.comparison.current.explanation).toBeNull();
+    expect(renewal.value.notesSaved).toEqual({ prior: false, current: true });
+    expect(JSON.stringify(renewal.value)).not.toMatch(
+      /A1234567|B7654321|Renewed at the passport office/,
+    );
+
+    // A protected value with no key service: refused, never compared as blank.
+    const noKeys = await compareSnapshotDetail(proof, {
+      snapshotId: snap.id,
+      factVersionId: passport.id,
+    });
+    expect(isErr(noKeys) && noKeys.error.code).toBe('encryption_unavailable');
 
     // No dates: insufficient information, and the note does not change that.
     const job = await compareSnapshotDetail(proof, {
@@ -548,6 +586,17 @@ describe('Application Memory and prior versus current (WP-V3 part 3)', () => {
       factVersionId: recorded.id,
     });
     expect(isErr(compared) && compared.error.code).toBe('forbidden');
+    // What the case uses is owner only too, and a case proof reaches that case alone.
+    const evidence = await listCaseEvidenceIds(viewProof.value, missionId);
+    expect(isErr(evidence) && evidence.error.code).toBe('forbidden');
+    const otherCase = await caseFor(me, 'Other case');
+    const scoped = await listCaseEvidenceIds(await view(me, { missionId }), otherCase);
+    expect(isErr(scoped) && scoped.error.code).toBe('not_found');
+    const own = await listCaseEvidenceIds(
+      await view(me, { applicantId: me.applicantId }),
+      otherCase,
+    );
+    expect(isOk(own)).toBe(true);
     // The gated comparison itself refuses a non-owner proof and records the refusal.
     const direct = await compareAuthorizedFactVersions(manageProof.value, {
       priorFactVersionId: recorded.id,
@@ -565,5 +614,171 @@ describe('Application Memory and prior versus current (WP-V3 part 3)', () => {
     const copy = { ...ownerProof } as typeof ownerProof;
     const forged = await getApplicationMemory(copy);
     expect(isErr(forged) && forged.error.code).toBe('forbidden');
+  }, 60_000);
+
+  async function addDocument(who: Person, name: string, docType = 'bank_statement') {
+    const doc = await registerDocument(db, {
+      actorAccountId: who.accountId,
+      applicantId: who.applicantId,
+      originalName: name,
+      docType,
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: who.accountId,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: `${name}-1`,
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+    return doc.value.id;
+  }
+
+  /** A case on a published pack asking for passport.number and a bank statement. */
+  async function packCase(who: Person) {
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    const pack = await createPack(db, {
+      actorAccountId: who.accountId,
+      key: 'memory.pack',
+      name: 'Memory Pack',
+    });
+    if (!isOk(pack)) throw new Error('pack');
+    const version = await addPackVersion(db, {
+      actorAccountId: who.accountId,
+      packId: pack.value.id,
+    });
+    if (!isOk(version)) throw new Error('version');
+    await addRequirement(db, {
+      actorAccountId: who.accountId,
+      packVersionId: version.value.id,
+      kind: 'FIELD',
+      fieldKey: 'passport.number',
+      citation: 'rule 1',
+    });
+    await addRequirement(db, {
+      actorAccountId: who.accountId,
+      packVersionId: version.value.id,
+      kind: 'DOCUMENT',
+      docType: 'bank_statement',
+      citation: 'rule 2',
+    });
+    await approvePackVersion(db, {
+      actorAccountId: who.accountId,
+      packVersionId: version.value.id,
+    });
+    await publishPackVersion(db, {
+      actorAccountId: who.accountId,
+      packVersionId: version.value.id,
+    });
+    const missionId = await caseFor(who);
+    await attachPackVersion(db, {
+      actorAccountId: who.accountId,
+      missionId,
+      packVersionId: version.value.id,
+    });
+    const requirements = await db
+      .select()
+      .from(schema.packRequirements)
+      .where(eq(schema.packRequirements.packVersionId, version.value.id));
+    const documentRequirement = requirements.find((r) => r.kind === 'DOCUMENT');
+    if (!documentRequirement) throw new Error('requirement');
+    return { missionId, documentRequirementId: documentRequirement.id };
+  }
+
+  it('a new candidate with no explicit choice counts as added, by the same rule the snapshot uses (U04)', async () => {
+    const me = await person('candidate@example.com');
+    const { missionId } = await packCase(me);
+    const firstStatement = await addDocument(me, 'bank-1.pdf');
+    await addDocument(me, 'payslip.pdf', 'payslip');
+    const snap = await snapshot(me, missionId);
+    const quiet = await listChangesSinceSnapshot(await view(me, { missionId }), snap.id);
+    expect(isOk(quiet) && quiet.value.changes).toEqual([]);
+
+    // Neither is chosen explicitly: both become candidates for the case's requirements.
+    await save(me, 'passport.number', 'A1');
+    const secondStatement = await addDocument(me, 'bank-2.pdf');
+    const listed = await listChangesSinceSnapshot(await view(me, { missionId }), snap.id);
+    expect(isOk(listed)).toBe(true);
+    if (!isOk(listed)) return;
+    expect(listed.value.changes).toEqual([
+      expect.objectContaining({ kind: 'detail', change: 'added', fieldKey: 'passport.number' }),
+      expect.objectContaining({ kind: 'document', change: 'added', documentId: secondStatement }),
+    ]);
+    // A document the requirements do not ask for was never in the case.
+    expect(JSON.stringify(listed.value.changes)).not.toContain('payslip');
+    expect(firstStatement).toBeTruthy();
+  }, 60_000);
+
+  it('narrowing the choice to one document reports the other as no longer used (U04)', async () => {
+    const me = await person('narrowed@example.com');
+    const { missionId, documentRequirementId } = await packCase(me);
+    const kept = await addDocument(me, 'bank-1.pdf');
+    const dropped = await addDocument(me, 'bank-2.pdf');
+    const snap = await snapshot(me, missionId);
+    const chosen = await selectEvidence(db, {
+      actorAccountId: me.accountId,
+      missionId,
+      packRequirementId: documentRequirementId,
+      documentId: kept,
+    });
+    if (!isOk(chosen)) throw new Error(`select: ${JSON.stringify(chosen.error)}`);
+    const listed = await listChangesSinceSnapshot(await view(me, { missionId }), snap.id);
+    expect(isOk(listed) && listed.value.changes).toEqual([
+      { kind: 'document', change: 'not_used', documentId: dropped, docType: 'bank_statement' },
+    ]);
+  }, 60_000);
+
+  it('names a replaced, deleted or refused document, a removed detail and a changed case setting (U04)', async () => {
+    const me = await person('removals@example.com');
+    const gone = await save(me, 'employer_name', 'Acme Ltd');
+    const replaced = await addDocument(me, 'old-statement.pdf');
+    const deleted = await addDocument(me, 'deleted.pdf', 'payslip');
+    const refused = await addDocument(me, 'refused.pdf', 'tax_return');
+    const missionId = await caseFor(me);
+    const snap = await snapshot(me, missionId);
+
+    const replacement = await addDocument(me, 'new-statement.pdf');
+    const superseded = await supersedeDocument(db, {
+      actorAccountId: me.accountId,
+      oldDocumentId: replaced,
+      newDocumentId: replacement,
+    });
+    if (!isOk(superseded)) throw new Error(`supersede: ${JSON.stringify(superseded.error)}`);
+    await db.delete(schema.documents).where(eq(schema.documents.id, deleted));
+    await db
+      .update(schema.documentVersions)
+      .set({ processingStatus: 'REJECTED' })
+      .where(eq(schema.documentVersions.documentId, refused));
+    await db.delete(schema.facts).where(eq(schema.facts.id, gone.factId));
+    const details = await updateMissionCaseDetails(db, {
+      actorAccountId: me.accountId,
+      missionId,
+      jurisdiction: 'Embassy of Japan, Dhaka',
+      manualMode: true,
+    });
+    if (!isOk(details)) throw new Error(`details: ${JSON.stringify(details.error)}`);
+
+    const listed = await listChangesSinceSnapshot(await view(me, { missionId }), snap.id);
+    expect(isOk(listed)).toBe(true);
+    if (!isOk(listed)) return;
+    const changes = listed.value.changes;
+    expect(changes).toContainEqual(
+      expect.objectContaining({ kind: 'detail', change: 'removed', fieldKey: 'employer_name' }),
+    );
+    expect(changes).toContainEqual(
+      expect.objectContaining({ kind: 'document', change: 'replaced', documentId: replaced }),
+    );
+    expect(changes).toContainEqual(
+      expect.objectContaining({ kind: 'document', change: 'removed', documentId: deleted }),
+    );
+    expect(changes).toContainEqual(
+      expect.objectContaining({ kind: 'document', change: 'removed', documentId: refused }),
+    );
+    // The replacement is named once, through the document it replaced.
+    expect(changes).not.toContainEqual(expect.objectContaining({ documentId: replacement }));
+    expect(changes).toContainEqual({ kind: 'case', change: 'changed', caseField: 'jurisdiction' });
+    expect(changes).toContainEqual({ kind: 'case', change: 'changed', caseField: 'manualMode' });
+    expect(changes).not.toContainEqual(expect.objectContaining({ caseField: 'travelStartDate' }));
   }, 60_000);
 });

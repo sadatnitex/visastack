@@ -1,9 +1,10 @@
 import { type PermissionAction, type Result, err, ok } from '@visastack/core';
-import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access';
 import { type DeclarationComparison, compareAuthorizedFactVersions } from './consistency';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { listCaseEvidenceIds } from './missions';
 import type { KeyManagementPort } from './ports';
 
 /**
@@ -155,12 +156,15 @@ function parseSnapshot(content: unknown): ParsedSnapshot {
 export type MemoryEvent =
   | {
       readonly kind: 'prepared';
+      /** The id of the record this event comes from; unique within its kind. */
+      readonly id: string;
       readonly at: string;
       readonly snapshotId: string;
       readonly snapshotVersion: number;
     }
   | {
       readonly kind: 'confirmed' | 'correction_requested' | 'not_accepted';
+      readonly id: string;
       readonly at: string;
       readonly snapshotId: string;
       readonly snapshotVersion: number | null;
@@ -169,6 +173,7 @@ export type MemoryEvent =
     }
   | {
       readonly kind: 'shared';
+      readonly id: string;
       readonly at: string;
       readonly recipientName: string | null;
       readonly recipientKind: 'organization' | 'person';
@@ -177,6 +182,7 @@ export type MemoryEvent =
   | {
       /** The date the person reported. VisaStack did not observe or make the submission. */
       readonly kind: 'reported_submitted';
+      readonly id: string;
       readonly at: string;
       readonly recordedAt: string;
       readonly snapshotId: string;
@@ -185,11 +191,14 @@ export type MemoryEvent =
     }
   | {
       readonly kind: 'outcome';
+      readonly id: string;
       /** The decision date as recorded. */
       readonly at: string;
       readonly recordedAt: string;
       readonly decision: (typeof schema.missionOutcomeDecision.enumValues)[number];
     };
+
+export type MemoryShare = Extract<MemoryEvent, { kind: 'shared' }>;
 
 export interface MemoryCase {
   readonly missionId: string;
@@ -201,16 +210,45 @@ export interface MemoryCase {
   readonly createdAt: string;
   /** The case's records were removed after its keep period; only the case row remains. */
   readonly removed: boolean;
-  /** Oldest first. */
+  /** Oldest first; records with the same time keep a fixed order. */
   readonly events: readonly MemoryEvent[];
 }
 
 export interface ApplicationMemory {
+  /** Shares of the record that are not tied to one case, oldest first. */
+  readonly recordShares: readonly MemoryShare[];
   /** Most recent activity first. */
   readonly cases: readonly MemoryCase[];
 }
 
-/** Every case of one person with its prepared, confirmed, shared, reported and decided records. */
+/** Within one moment, records keep the order a case lives through them. */
+const EVENT_ORDER: Readonly<Record<MemoryEvent['kind'], number>> = {
+  shared: 0,
+  prepared: 1,
+  confirmed: 2,
+  correction_requested: 2,
+  not_accepted: 2,
+  reported_submitted: 3,
+  outcome: 4,
+};
+
+interface Timed {
+  readonly event: MemoryEvent;
+  readonly sortAt: number;
+}
+
+function byTime(a: Timed, b: Timed): number {
+  return (
+    a.sortAt - b.sortAt ||
+    EVENT_ORDER[a.event.kind] - EVENT_ORDER[b.event.kind] ||
+    (a.event.id < b.event.id ? -1 : a.event.id > b.event.id ? 1 : 0)
+  );
+}
+
+/**
+ * Every case of one person with its prepared, confirmed, shared, reported and
+ * decided records, plus the shares of the record that are not tied to a case.
+ */
 export async function getApplicationMemory(
   proof: AuthorizedApplicant<'VIEW_METADATA'>,
 ): Promise<Result<ApplicationMemory, ServiceError>> {
@@ -219,40 +257,19 @@ export async function getApplicationMemory(
   const db = proof.tx;
   const applicantId = proof.applicant.id;
 
-  const missions = await db
-    .select({ mission: schema.missions, agencyName: schema.organizations.name })
-    .from(schema.missions)
-    .leftJoin(
-      schema.organizations,
-      eq(schema.organizations.id, schema.missions.ownerOrganizationId),
-    )
-    .where(eq(schema.missions.applicantId, applicantId))
-    .orderBy(asc(schema.missions.createdAt));
-  const missionIds = missions.map((m) => m.mission.id);
-  if (missionIds.length === 0) return ok({ cases: [] });
-
-  const [snapshots, acknowledgements, grants, submissions, outcomes] = await Promise.all([
+  const [missions, grants] = await Promise.all([
+    db
+      .select({ mission: schema.missions, agencyName: schema.organizations.name })
+      .from(schema.missions)
+      .leftJoin(
+        schema.organizations,
+        eq(schema.organizations.id, schema.missions.ownerOrganizationId),
+      )
+      .where(eq(schema.missions.applicantId, applicantId))
+      .orderBy(asc(schema.missions.createdAt), asc(schema.missions.id)),
     db
       .select({
-        id: schema.missionSnapshots.id,
-        missionId: schema.missionSnapshots.missionId,
-        version: schema.missionSnapshots.version,
-        createdAt: schema.missionSnapshots.createdAt,
-      })
-      .from(schema.missionSnapshots)
-      .where(inArray(schema.missionSnapshots.missionId, missionIds)),
-    db
-      .select({
-        missionId: schema.acknowledgements.missionId,
-        snapshotId: schema.acknowledgements.snapshotId,
-        decision: schema.acknowledgements.decision,
-        invalidatedAt: schema.acknowledgements.invalidatedAt,
-        createdAt: schema.acknowledgements.createdAt,
-      })
-      .from(schema.acknowledgements)
-      .where(inArray(schema.acknowledgements.missionId, missionIds)),
-    db
-      .select({
+        id: schema.grants.id,
         missionId: schema.grants.missionId,
         status: schema.grants.status,
         createdAt: schema.grants.createdAt,
@@ -266,14 +283,52 @@ export async function getApplicationMemory(
         eq(schema.organizations.id, schema.grants.recipientOrganizationId),
       )
       .leftJoin(schema.accounts, eq(schema.accounts.id, schema.grants.recipientAccountId))
-      .where(
-        and(
-          eq(schema.grants.applicantId, applicantId),
-          inArray(schema.grants.missionId, missionIds),
-        ),
-      ),
+      .where(eq(schema.grants.applicantId, applicantId))
+      .orderBy(asc(schema.grants.createdAt), asc(schema.grants.id)),
+  ]);
+
+  const shareOf = (g: (typeof grants)[number]): MemoryShare => {
+    const isOrganization = g.recipientOrganizationId !== null;
+    return {
+      kind: 'shared',
+      id: g.id,
+      at: g.createdAt.toISOString(),
+      recipientName: isOrganization ? (g.organizationName ?? null) : (g.recipientEmail ?? null),
+      recipientKind: isOrganization ? 'organization' : 'person',
+      status: g.status,
+    };
+  };
+  const recordShares = grants.filter((g) => g.missionId === null).map(shareOf);
+
+  const missionIds = missions.map((m) => m.mission.id);
+  if (missionIds.length === 0) return ok({ recordShares, cases: [] });
+
+  const [snapshots, acknowledgements, submissions, outcomes] = await Promise.all([
     db
       .select({
+        id: schema.missionSnapshots.id,
+        missionId: schema.missionSnapshots.missionId,
+        version: schema.missionSnapshots.version,
+        createdAt: schema.missionSnapshots.createdAt,
+      })
+      .from(schema.missionSnapshots)
+      .where(inArray(schema.missionSnapshots.missionId, missionIds))
+      .orderBy(asc(schema.missionSnapshots.createdAt), asc(schema.missionSnapshots.id)),
+    db
+      .select({
+        id: schema.acknowledgements.id,
+        missionId: schema.acknowledgements.missionId,
+        snapshotId: schema.acknowledgements.snapshotId,
+        decision: schema.acknowledgements.decision,
+        invalidatedAt: schema.acknowledgements.invalidatedAt,
+        createdAt: schema.acknowledgements.createdAt,
+      })
+      .from(schema.acknowledgements)
+      .where(inArray(schema.acknowledgements.missionId, missionIds))
+      .orderBy(asc(schema.acknowledgements.createdAt), asc(schema.acknowledgements.id)),
+    db
+      .select({
+        id: schema.missionSubmissions.id,
         missionId: schema.missionSubmissions.missionId,
         snapshotId: schema.missionSubmissions.snapshotId,
         channel: schema.missionSubmissions.channel,
@@ -281,20 +336,23 @@ export async function getApplicationMemory(
         createdAt: schema.missionSubmissions.createdAt,
       })
       .from(schema.missionSubmissions)
-      .where(inArray(schema.missionSubmissions.missionId, missionIds)),
+      .where(inArray(schema.missionSubmissions.missionId, missionIds))
+      .orderBy(asc(schema.missionSubmissions.submittedAt), asc(schema.missionSubmissions.id)),
     db
       .select({
+        id: schema.missionOutcomes.id,
         missionId: schema.missionOutcomes.missionId,
         decision: schema.missionOutcomes.decision,
         decisionDate: schema.missionOutcomes.decisionDate,
         createdAt: schema.missionOutcomes.createdAt,
       })
       .from(schema.missionOutcomes)
-      .where(inArray(schema.missionOutcomes.missionId, missionIds)),
+      .where(inArray(schema.missionOutcomes.missionId, missionIds))
+      .orderBy(asc(schema.missionOutcomes.decisionDate), asc(schema.missionOutcomes.id)),
   ]);
 
   const snapshotVersion = new Map(snapshots.map((s) => [s.id, s.version] as const));
-  const eventsByMission = new Map<string, { event: MemoryEvent; sortAt: number }[]>();
+  const eventsByMission = new Map<string, Timed[]>();
   const push = (missionId: string, event: MemoryEvent, sortAt: Date): void => {
     const list = eventsByMission.get(missionId) ?? [];
     list.push({ event, sortAt: sortAt.getTime() });
@@ -306,6 +364,7 @@ export async function getApplicationMemory(
       s.missionId,
       {
         kind: 'prepared',
+        id: s.id,
         at: s.createdAt.toISOString(),
         snapshotId: s.id,
         snapshotVersion: s.version,
@@ -323,6 +382,7 @@ export async function getApplicationMemory(
             : a.decision === 'CORRECTION_REQUESTED'
               ? 'correction_requested'
               : 'not_accepted',
+        id: a.id,
         at: a.createdAt.toISOString(),
         snapshotId: a.snapshotId,
         snapshotVersion: snapshotVersion.get(a.snapshotId) ?? null,
@@ -332,25 +392,14 @@ export async function getApplicationMemory(
     );
   }
   for (const g of grants) {
-    if (!g.missionId) continue;
-    const isOrganization = g.recipientOrganizationId !== null;
-    push(
-      g.missionId,
-      {
-        kind: 'shared',
-        at: g.createdAt.toISOString(),
-        recipientName: isOrganization ? (g.organizationName ?? null) : (g.recipientEmail ?? null),
-        recipientKind: isOrganization ? 'organization' : 'person',
-        status: g.status,
-      },
-      g.createdAt,
-    );
+    if (g.missionId !== null) push(g.missionId, shareOf(g), g.createdAt);
   }
   for (const s of submissions) {
     push(
       s.missionId,
       {
         kind: 'reported_submitted',
+        id: s.id,
         at: s.submittedAt.toISOString(),
         recordedAt: s.createdAt.toISOString(),
         snapshotId: s.snapshotId,
@@ -365,6 +414,7 @@ export async function getApplicationMemory(
       o.missionId,
       {
         kind: 'outcome',
+        id: o.id,
         at: o.decisionDate.toISOString(),
         recordedAt: o.createdAt.toISOString(),
         decision: o.decision,
@@ -374,7 +424,7 @@ export async function getApplicationMemory(
   }
 
   const cases = missions.map(({ mission, agencyName }) => {
-    const events = (eventsByMission.get(mission.id) ?? []).sort((a, b) => a.sortAt - b.sortAt);
+    const events = [...(eventsByMission.get(mission.id) ?? [])].sort(byTime);
     const lastActivity = Math.max(mission.createdAt.getTime(), ...events.map((e) => e.sortAt));
     return {
       lastActivity,
@@ -391,8 +441,9 @@ export async function getApplicationMemory(
       } satisfies MemoryCase,
     };
   });
+  // Most recent first; the earlier (stable) order by creation settles a tie.
   cases.sort((a, b) => b.lastActivity - a.lastActivity);
-  return ok({ cases: cases.map((c) => c.value) });
+  return ok({ recordShares, cases: cases.map((c) => c.value) });
 }
 
 // --- What changed since a snapshot ------------------------------------------
@@ -412,7 +463,8 @@ export type CaseDetailField = (typeof CASE_DETAIL_FIELDS)[number];
 export type MemoryChange =
   | {
       readonly kind: 'detail';
-      readonly change: 'changed' | 'removed' | 'added';
+      /** `not_used`: still in the record, but this case no longer uses it. */
+      readonly change: 'changed' | 'removed' | 'added' | 'not_used';
       readonly fieldKey: string;
       readonly repeatingRecordKey: string | null;
       readonly factId: string;
@@ -423,7 +475,8 @@ export type MemoryChange =
     }
   | {
       readonly kind: 'document';
-      readonly change: 'new_version' | 'replaced' | 'removed' | 'added';
+      /** `removed`: deleted, or its latest version failed, was refused or is not safe. */
+      readonly change: 'new_version' | 'replaced' | 'removed' | 'added' | 'not_used';
       readonly documentId: string;
       readonly docType: string | null;
     }
@@ -550,12 +603,24 @@ function snapshotCaseFields(
   };
 }
 
+/** A document version that can no longer be used: failed, refused or not safe. */
+const UNUSABLE_PROCESSING: ReadonlySet<string> = new Set(['FAILED', 'REJECTED']);
+const UNUSABLE_SAFETY: ReadonlySet<string> = new Set(['FAILED', 'QUARANTINED']);
+
+/**
+ * The snapshot against today's case. Today's case evidence comes from
+ * `listCaseEvidenceIds`, the same rule the snapshot writer uses, and the two
+ * sets are compared both ways: something in the case now that the snapshot
+ * did not hold is added; something the snapshot held that the case no longer
+ * uses is reported as such, so the list never undercounts.
+ */
 async function changesSince(
-  db: Db,
-  applicantId: string,
+  proof: AuthorizedApplicant<'VIEW_METADATA'>,
   snapshot: SnapshotRow,
   mission: MissionRow,
-): Promise<SnapshotChanges> {
+): Promise<Result<SnapshotChanges, ServiceError>> {
+  const db = proof.tx;
+  const applicantId = proof.applicant.id;
   const parsed = parseSnapshot(snapshot.content);
   const review = await reviewOf(db, snapshot);
   const header = {
@@ -566,14 +631,19 @@ async function changesSince(
     takenAt: snapshot.createdAt.toISOString(),
     exact: parsed.exact,
   };
-  if (!parsed.exact) return { snapshot: header, review, changes: [], unchangedDetailCount: 0 };
+  if (!parsed.exact) return ok({ snapshot: header, review, changes: [], unchangedDetailCount: 0 });
+
+  const today = await listCaseEvidenceIds(proof, mission.id);
+  if (!today.ok) return today;
+  const todayFacts = new Map(today.value.facts.map((f) => [f.factId, f]));
+  const todayDocuments = new Map(today.value.documents.map((d) => [d.documentId, d]));
 
   const changes: MemoryChange[] = [];
   let unchangedDetailCount = 0;
 
-  // Details: the exact version recorded against the one in use now.
+  // Details the snapshot held.
   const snapshotFactIds = new Set(parsed.facts.map((f) => f.factId));
-  const currentFacts =
+  const storedFacts =
     snapshotFactIds.size > 0
       ? await db
           .select({ id: schema.facts.id, currentVersionId: schema.facts.currentVersionId })
@@ -584,17 +654,19 @@ async function changesSince(
               inArray(schema.facts.id, [...snapshotFactIds]),
             ),
           )
+          .orderBy(asc(schema.facts.id))
       : [];
-  const currentVersionByFact = new Map(currentFacts.map((f) => [f.id, f.currentVersionId]));
+  const currentVersionByFact = new Map(storedFacts.map((f) => [f.id, f.currentVersionId]));
   for (const fact of parsed.facts) {
     const currentVersionId = currentVersionByFact.get(fact.factId) ?? null;
-    if (currentVersionId === fact.factVersionId) {
+    const inCase = todayFacts.has(fact.factId);
+    if (inCase && currentVersionId === fact.factVersionId) {
       unchangedDetailCount += 1;
       continue;
     }
     changes.push({
       kind: 'detail',
-      change: currentVersionId === null ? 'removed' : 'changed',
+      change: currentVersionId === null ? 'removed' : inCase ? 'changed' : 'not_used',
       fieldKey: fact.fieldKey,
       repeatingRecordKey: fact.repeatingRecordKey,
       factId: fact.factId,
@@ -602,41 +674,9 @@ async function changesSince(
       currentFactVersionId: currentVersionId,
     });
   }
-
-  // Details now in the case that the snapshot did not hold: chosen as evidence
-  // since, or, for a case without requirements (whole-record snapshot), added
-  // to the record since.
-  const addedFacts = await db
-    .select({
-      factId: schema.facts.id,
-      currentVersionId: schema.facts.currentVersionId,
-      repeatingRecordKey: schema.facts.repeatingRecordKey,
-      fieldKey: schema.fieldDefinitions.key,
-    })
-    .from(schema.facts)
-    .innerJoin(
-      schema.fieldDefinitions,
-      eq(schema.fieldDefinitions.id, schema.facts.fieldDefinitionId),
-    )
-    .where(
-      and(
-        eq(schema.facts.applicantId, applicantId),
-        ...(parsed.evidenceScope === 'case_selected'
-          ? [
-              inArray(
-                schema.facts.id,
-                db
-                  .select({ id: schema.selectedEvidence.factId })
-                  .from(schema.selectedEvidence)
-                  .where(eq(schema.selectedEvidence.missionId, mission.id)),
-              ),
-            ]
-          : []),
-      ),
-    )
-    .orderBy(asc(schema.facts.createdAt));
-  for (const fact of addedFacts) {
-    if (snapshotFactIds.has(fact.factId) || fact.currentVersionId === null) continue;
+  // Details the case uses now that the snapshot did not hold.
+  for (const fact of today.value.facts) {
+    if (snapshotFactIds.has(fact.factId) || fact.factVersionId === null) continue;
     changes.push({
       kind: 'detail',
       change: 'added',
@@ -644,13 +684,13 @@ async function changesSince(
       repeatingRecordKey: fact.repeatingRecordKey,
       factId: fact.factId,
       priorFactVersionId: null,
-      currentFactVersionId: fact.currentVersionId,
+      currentFactVersionId: fact.factVersionId,
     });
   }
 
-  // Documents: the exact version recorded against the latest one now.
+  // Documents the snapshot held.
   const snapshotDocumentIds = new Set(parsed.documents.map((d) => d.documentId));
-  const currentDocuments =
+  const storedDocuments =
     snapshotDocumentIds.size > 0
       ? await db
           .select({
@@ -665,70 +705,59 @@ async function changesSince(
             ),
           )
       : [];
-  const latestVersions =
+  const versions =
     snapshotDocumentIds.size > 0
       ? await db
           .select({
             documentId: schema.documentVersions.documentId,
             id: schema.documentVersions.id,
             versionNumber: schema.documentVersions.versionNumber,
+            processingStatus: schema.documentVersions.processingStatus,
+            safetyStatus: schema.documentVersions.safetyStatus,
           })
           .from(schema.documentVersions)
           .where(inArray(schema.documentVersions.documentId, [...snapshotDocumentIds]))
       : [];
-  const latestByDocument = new Map<string, { id: string; versionNumber: number }>();
-  for (const v of latestVersions) {
+  const latestByDocument = new Map<string, (typeof versions)[number]>();
+  for (const v of versions) {
     const existing = latestByDocument.get(v.documentId);
     if (!existing || v.versionNumber > existing.versionNumber)
       latestByDocument.set(v.documentId, v);
   }
-  const documentById = new Map(currentDocuments.map((d) => [d.id, d]));
+  const storedById = new Map(storedDocuments.map((d) => [d.id, d]));
   const replacementIds = new Set<string>();
   for (const doc of parsed.documents) {
-    const current = documentById.get(doc.documentId);
+    const stored = storedById.get(doc.documentId);
     const latest = latestByDocument.get(doc.documentId);
-    if (current?.supersededByDocumentId) replacementIds.add(current.supersededByDocumentId);
-    const change =
-      !current || !latest
-        ? 'removed'
-        : current.supersededByDocumentId
-          ? 'replaced'
+    if (stored?.supersededByDocumentId) replacementIds.add(stored.supersededByDocumentId);
+    const unusable =
+      !stored ||
+      !latest ||
+      UNUSABLE_PROCESSING.has(latest.processingStatus) ||
+      UNUSABLE_SAFETY.has(latest.safetyStatus);
+    const inCase = todayDocuments.get(doc.documentId);
+    const change: Extract<MemoryChange, { kind: 'document' }>['change'] | null = unusable
+      ? 'removed'
+      : stored.supersededByDocumentId
+        ? 'replaced'
+        : !inCase
+          ? 'not_used'
           : latest.id !== doc.documentVersionId
             ? 'new_version'
             : null;
     if (change) {
-      changes.push({
-        kind: 'document',
-        change,
-        documentId: doc.documentId,
-        docType: doc.docType,
-      });
+      changes.push({ kind: 'document', change, documentId: doc.documentId, docType: doc.docType });
     }
   }
-  const addedDocuments = await db
-    .select({ id: schema.documents.id, docType: schema.documents.docType })
-    .from(schema.documents)
-    .where(
-      and(
-        eq(schema.documents.applicantId, applicantId),
-        isNull(schema.documents.supersededByDocumentId),
-        ...(parsed.evidenceScope === 'case_selected'
-          ? [
-              inArray(
-                schema.documents.id,
-                db
-                  .select({ id: schema.selectedEvidence.documentId })
-                  .from(schema.selectedEvidence)
-                  .where(eq(schema.selectedEvidence.missionId, mission.id)),
-              ),
-            ]
-          : []),
-      ),
-    )
-    .orderBy(asc(schema.documents.createdAt));
-  for (const doc of addedDocuments) {
-    if (snapshotDocumentIds.has(doc.id) || replacementIds.has(doc.id)) continue;
-    changes.push({ kind: 'document', change: 'added', documentId: doc.id, docType: doc.docType });
+  // Documents the case uses now that the snapshot did not hold (a replacement is already named).
+  for (const doc of today.value.documents) {
+    if (snapshotDocumentIds.has(doc.documentId) || replacementIds.has(doc.documentId)) continue;
+    changes.push({
+      kind: 'document',
+      change: 'added',
+      documentId: doc.documentId,
+      docType: doc.docType,
+    });
   }
 
   // Case fields the snapshot recorded. A field it did not record is not compared.
@@ -742,7 +771,7 @@ async function changesSince(
     }
   }
 
-  return { snapshot: header, review, changes, unchangedDetailCount };
+  return ok({ snapshot: header, review, changes, unchangedDetailCount });
 }
 
 /** What changed since one snapshot of this person's cases. Names only, never values. */
@@ -760,7 +789,7 @@ export async function listChangesSinceSnapshot(
     resource.kind === 'mission' ? resource.mission.id : undefined,
   );
   if (!loaded) return err(serviceError('not_found', NOT_AVAILABLE));
-  return ok(await changesSince(proof.tx, proof.applicant.id, loaded.snapshot, loaded.mission));
+  return changesSince(proof, loaded.snapshot, loaded.mission);
 }
 
 export interface ChangesSinceConfirmed extends SnapshotChanges {
@@ -806,8 +835,9 @@ export async function listChangesSinceConfirmed(
     resource.mission.id,
   );
   if (!loaded) return ok(null);
-  const changes = await changesSince(db, proof.applicant.id, loaded.snapshot, loaded.mission);
-  return ok({ ...changes, confirmedAt: latest.createdAt.toISOString() });
+  const changes = await changesSince(proof, loaded.snapshot, loaded.mission);
+  if (!changes.ok) return changes;
+  return ok({ ...changes.value, confirmedAt: latest.createdAt.toISOString() });
 }
 
 // --- One detail, then and now (E03) -----------------------------------------
@@ -815,10 +845,15 @@ export async function listChangesSinceConfirmed(
 export interface SnapshotDetailComparison {
   readonly snapshot: SnapshotChanges['snapshot'];
   readonly review: SnapshotReview;
-  /** Values are null on both sides when `valuesHidden` is true. */
+  /** Values and saved notes are null on both sides when `valuesHidden` is true. */
   readonly comparison: DeclarationComparison;
-  /** A sensitive or protected detail: the kind of difference is shown, never the values. */
+  /**
+   * A sensitive or protected detail: the kind of difference is shown, never the
+   * values, and never the saved notes either (a note can repeat the value).
+   */
   readonly valuesHidden: boolean;
+  /** Whether a note was saved with each side, for when the note itself is hidden. */
+  readonly notesSaved: { readonly prior: boolean; readonly current: boolean };
 }
 
 /**
@@ -886,10 +921,14 @@ export async function compareSnapshotDetail(
     comparison: valuesHidden
       ? {
           ...comparison,
-          prior: { ...comparison.prior, value: null },
-          current: { ...comparison.current, value: null },
+          prior: { ...comparison.prior, value: null, explanation: null },
+          current: { ...comparison.current, value: null, explanation: null },
         }
       : comparison,
     valuesHidden,
+    notesSaved: {
+      prior: comparison.prior.explanation !== null && comparison.prior.explanation !== '',
+      current: comparison.current.explanation !== null && comparison.current.explanation !== '',
+    },
   });
 }

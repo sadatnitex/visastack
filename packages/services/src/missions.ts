@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type { FactStatus, MissionState } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
 import { and, desc, eq, inArray } from 'drizzle-orm';
+import { AuthorizedApplicant } from './access';
 import { orgGrantPermits } from './agency';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
@@ -1357,24 +1358,12 @@ function buildRequirementMapping(
 }
 
 /**
- * Capture an immutable, checksummed snapshot of the mission's current
- * evidence, per-requirement mapping, and readiness. Snapshots are never
- * mutated; versions increment. Every fact instance — including every
- * repeating-record instance (master directive §7 "PR 10") — and every
- * current document version is captured by its exact id, never collapsed
- * into a single overwritable slot. Once a mission has reached
- * READY_TO_EXPORT or later, this snapshot IS the application packet (Build
- * Spec §4.5's "pack production") — the same immutable, checksummed capture,
- * not a separate artifact.
+ * The evidence a case uses right now: its requirement mapping, and the fact
+ * and document instances a snapshot taken now would hold. One rule for both
+ * the snapshot writer and anything that compares a snapshot with today
+ * (WP-V3 part 3), so the two can never disagree about what is in the case.
  */
-export async function snapshotMission(
-  db: Db,
-  input: { readonly actorAccountId: string; readonly missionId: string },
-): Promise<Result<MissionSnapshot, ServiceError>> {
-  const owned = await ownedMission(db, input.actorAccountId, input.missionId);
-  if (!owned.ok) return owned;
-  const mission = owned.value;
-
+async function loadCaseEvidence(db: Db, mission: Mission) {
   const factsByKey = await loadFactInstancesByKey(db, mission.applicantId);
   const documentsByType = await loadDocumentInstancesByType(db, mission.applicantId);
   const selections = await loadSelectionsByRequirement(db, mission.id);
@@ -1405,7 +1394,6 @@ export async function snapshotMission(
     );
     packVersionSnapshot = packVersion ?? null;
   }
-  const readiness = mission.packVersionId ? await computeReadiness(db, mission.id) : null;
 
   // Directive Part 7 §1 ("repair snapshot scope"): a disclosure snapshot must
   // include ONLY this case's own selected/candidate evidence, never the
@@ -1467,6 +1455,104 @@ export async function snapshotMission(
         usedDocumentVersionIds.has(d.documentVersionId) ||
         (d.docType === null && packNeedsDocuments),
     );
+
+  return { requirementMapping, packVersionSnapshot, facts, documents, evidenceScope };
+}
+
+/** One fact a case uses now, by id only: no value. */
+export interface CaseEvidenceFact {
+  readonly fieldKey: string;
+  readonly factId: string;
+  readonly factVersionId: string | null;
+  readonly repeatingRecordKey: string | null;
+}
+
+/** One document a case uses now, by id only. */
+export interface CaseEvidenceDocument {
+  readonly documentId: string;
+  readonly documentVersionId: string;
+  readonly docType: string | null;
+}
+
+export interface CaseEvidenceIds {
+  readonly evidenceScope: 'case_selected' | 'all_applicant_evidence';
+  readonly facts: readonly CaseEvidenceFact[];
+  readonly documents: readonly CaseEvidenceDocument[];
+}
+
+/**
+ * The ids of what one case uses right now, by the same rule a snapshot
+ * records (`loadCaseEvidence`). Owner only; a proof for one case reaches only that case.
+ * Ids, keys and kinds only, never a value.
+ */
+export async function listCaseEvidenceIds(
+  proof: AuthorizedApplicant<'VIEW_METADATA'>,
+  missionId: string,
+): Promise<Result<CaseEvidenceIds, ServiceError>> {
+  const resource = proof.resource;
+  if (
+    !AuthorizedApplicant.isGenuine(proof, 'VIEW_METADATA') ||
+    proof.actor.kind !== 'applicant_owner'
+  ) {
+    return err(serviceError('forbidden', 'Only the owner of this case can see what it uses.'));
+  }
+  // A proof for one case covers that case only; a proof for the person covers each of their cases.
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(missionId) ||
+    resource.kind === 'document' ||
+    (resource.kind === 'mission' && resource.mission.id !== missionId)
+  ) {
+    return err(serviceError('not_found', 'That case is not available.'));
+  }
+  const mission = first(
+    await proof.tx
+      .select()
+      .from(schema.missions)
+      .where(
+        and(eq(schema.missions.id, missionId), eq(schema.missions.applicantId, proof.applicant.id)),
+      )
+      .limit(1),
+  );
+  if (!mission) return err(serviceError('not_found', 'That case is not available.'));
+  const evidence = await loadCaseEvidence(proof.tx, mission);
+  return ok({
+    evidenceScope: evidence.evidenceScope,
+    facts: evidence.facts.map((f) => ({
+      fieldKey: f.fieldKey,
+      factId: f.factId,
+      factVersionId: f.factVersionId,
+      repeatingRecordKey: f.repeatingRecordKey,
+    })),
+    documents: evidence.documents.map((d) => ({
+      documentId: d.documentId,
+      documentVersionId: d.documentVersionId,
+      docType: d.docType,
+    })),
+  });
+}
+
+/**
+ * Capture an immutable, checksummed snapshot of the mission's current
+ * evidence, per-requirement mapping, and readiness. Snapshots are never
+ * mutated; versions increment. Every fact instance — including every
+ * repeating-record instance (master directive §7 "PR 10") — and every
+ * current document version is captured by its exact id, never collapsed
+ * into a single overwritable slot. Once a mission has reached
+ * READY_TO_EXPORT or later, this snapshot IS the application packet (Build
+ * Spec §4.5's "pack production") — the same immutable, checksummed capture,
+ * not a separate artifact.
+ */
+export async function snapshotMission(
+  db: Db,
+  input: { readonly actorAccountId: string; readonly missionId: string },
+): Promise<Result<MissionSnapshot, ServiceError>> {
+  const owned = await ownedMission(db, input.actorAccountId, input.missionId);
+  if (!owned.ok) return owned;
+  const mission = owned.value;
+
+  const { requirementMapping, packVersionSnapshot, facts, documents, evidenceScope } =
+    await loadCaseEvidence(db, mission);
+  const readiness = mission.packVersionId ? await computeReadiness(db, mission.id) : null;
 
   const content = {
     missionId: mission.id,

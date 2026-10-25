@@ -147,6 +147,7 @@ export {
   type MemoryCase,
   type MemoryChange,
   type MemoryEvent,
+  type MemoryShare,
   type SnapshotChanges,
   type SnapshotDetailComparison,
   type SnapshotReview,
