@@ -174,6 +174,19 @@ describe('master profile view', () => {
       .flatMap((section) => section.singles)
       .find((field) => field.key === 'annual_income_tax_basis');
     expect(basis?.options).toEqual(['Before tax', 'After tax']);
+    // Blank already means not recorded, so it offers no "does not apply" control.
+    expect(basis?.optional).toBe(true);
+    // A section whose only answer is the tax basis keeps it visible: it cannot be closed.
+    const onlyBasis = buildMasterProfileView({
+      ...none(),
+      activated: new Set(['self_employment']),
+      entries: [
+        { fieldKey: 'self_employment_income_tax_basis', value: 'After tax', status: 'DECLARED' },
+      ],
+    });
+    expect(
+      sectionsOf(onlyBasis).find((section) => section.key === 'self_employment')?.canClose,
+    ).toBe(false);
     expect(basis?.label).toBe('Annual Income Before or After Tax');
     // Never counted: the default figure stays 54, and answering it adds nothing.
     expect(buildMasterProfileView(none()).total).toBe(54);

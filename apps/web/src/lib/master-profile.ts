@@ -170,7 +170,11 @@ export function buildMasterProfileView(input: MasterProfileInput): MasterProfile
       const reason = status?.reason ?? 'locked';
       const fields = FIELDS_BY_MODULE.get(module.key) ?? [];
       const counted = fields.filter((field) => !field.role);
-      const hasData = counted.some((field) => (values[field.key]?.length ?? 0) > 0);
+      // An answered amount detail also keeps its section open, so a saved answer is never hidden.
+      const hasData = fields.some(
+        (field) =>
+          (!field.role || field.role === 'amount_detail') && (values[field.key]?.length ?? 0) > 0,
+      );
       const suggested =
         !open &&
         suggestFor !== null &&
@@ -192,8 +196,9 @@ export function buildMasterProfileView(input: MasterProfileInput): MasterProfile
         // its currency. It never counts toward completion.
         for (const field of fields) {
           if (field.role !== 'amount_detail' || field.group) continue;
-          const resolved = resolveBase(field.key);
-          if (!resolved) continue;
+          const base = resolveBase(field.key);
+          if (!base) continue;
+          const resolved: EditorFieldDef = { ...base, optional: true };
           const amountKey = field.key.replace(/_tax_basis$/, '');
           const after = singles.findLastIndex(
             (single) => single.key === amountKey || single.key === `${amountKey}_currency`,

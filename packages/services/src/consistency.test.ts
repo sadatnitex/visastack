@@ -453,8 +453,8 @@ describe('compareFactVersions (v1.2 R05, R06)', () => {
     if (!isOk(same)) return;
     expect(same.value.prior.basis).toBe('GROSS');
     expect(same.value.current.basis).toBe('GROSS');
-    expect(same.value.reason).not.toBe('basis_unknown');
-    expect(same.value.result).not.toBe('INSUFFICIENT_INFORMATION');
+    // Same currency and basis, a new amount from a later date: a legitimate change.
+    expect(same.value.result).toBe('LEGITIMATE_CHANGE');
 
     await save(me, 'monthly_salary_tax_basis', 'After tax');
     const mixed = await compareFactVersions(db, {

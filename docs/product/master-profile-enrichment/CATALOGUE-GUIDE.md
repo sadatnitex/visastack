@@ -71,3 +71,7 @@ pnpm --filter @visastack/services exec vitest run src/catalogue-consistency.test
 cd apps/web && ./node_modules/.bin/vitest run src/lib/profile-fields-frozen.test.ts
 pnpm run lint && pnpm run typecheck
 ```
+
+## Note, 2026-10-25: amount details
+
+A third field role, `amount_detail`, holds an optional fact about a live amount: today, whether it is before or after tax (`fields/amount-basis.ts`). Like the Other boxes it never counts toward completion, so it may sit in an open-by-default section; the guard in `modules.test.ts` was widened on purpose to allow it (reason in `HANDOFF.md`, 25 Oct 2026). A role field offers no "Other": it is a fixed choice, and blank already means not recorded. Do not move these fields out of their amount's section or give them "Other".

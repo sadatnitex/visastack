@@ -619,7 +619,7 @@ function SectionFields({
                   ) : (
                     <p className="muted">{field.label}: marked as not applying to you.</p>
                   )}
-                  {hasValue && applies ? null : (
+                  {(hasValue && applies) || field.optional ? null : (
                     <ExemptionToggle
                       applicantId={applicantId}
                       kind="FIELD_NOT_APPLICABLE"
