@@ -1,7 +1,9 @@
 import { createTranslator } from '@visastack/i18n';
 import {
+  type ChangesSinceConfirmed,
   type OverallReadinessState,
   type RequirementResultState,
+  accountPrincipal,
   computeReadiness,
   getApplicant,
   getEvidenceCandidates,
@@ -15,6 +17,7 @@ import {
   listAccessForApplicant,
   listAcknowledgementsForMission,
   listAppointments,
+  listChangesSinceConfirmed,
   listComplaintEvents,
   listComplaintsForMission,
   listContributorRequests,
@@ -29,6 +32,7 @@ import {
   listSelectedEvidence,
   listSubmissionsForMission,
   listTasks,
+  requireAccess,
   safeHttpUrl,
 } from '@visastack/services';
 import type { Metadata } from 'next';
@@ -41,6 +45,7 @@ import {
 } from '../../../../components/case-preparation-summary';
 import { Disclosure, PageHeader, StatusBadge } from '../../../../components/ui';
 import { isExplanationConfigured } from '../../../../lib/ai';
+import { memoryHref } from '../../../../lib/application-memory-labels';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { getLocale } from '../../../../lib/locale';
@@ -48,6 +53,7 @@ import { fieldLabel } from '../../../../lib/master-profile';
 import { REQUIREMENT_GROUPS } from '../../../../lib/requirement-groups';
 import { withSession } from '../../../../lib/session';
 import { AttachPackForm, type PackOption } from './attach-pack-form';
+import { ChangesSinceConfirmedList } from './changes-since-confirmed';
 import {
   AppointmentsPanel,
   EvidenceSelectionPanel,
@@ -339,6 +345,20 @@ export default async function MissionPage({
       allAcknowledgements.value.some(
         (a) => a.decision === 'ACKNOWLEDGED' && a.invalidatedAt !== null,
       );
+    // WP-V3 part 3: what changed since the last confirmation, names only,
+    // read through the central access gate. A failure leaves the alert as it was.
+    let changesSinceConfirmed: ChangesSinceConfirmed | null = null;
+    if (isDirty) {
+      const gate = await requireAccess(
+        db,
+        accountPrincipal(accountId),
+        'VIEW_METADATA',
+        { missionId: mission.id },
+        { purpose: 'application_memory' },
+      );
+      const listed = gate.ok ? await listChangesSinceConfirmed(gate.value) : null;
+      changesSinceConfirmed = listed?.ok ? listed.value : null;
+    }
     // Evidence picker for the outcome form -- every distinct document already
     // surfaced as evidence-eligible for this mission, deduplicated (the same
     // document can satisfy more than one requirement).
@@ -380,6 +400,7 @@ export default async function MissionPage({
       applicantId: mission.applicantId,
       liveAcknowledgedAt: liveAcknowledgement?.createdAt.toISOString() ?? null,
       isDirty,
+      changesSinceConfirmed,
       evidenceOptions: [...evidenceOptionsById.entries()].map(([documentId, displayName]) => ({
         documentId,
         displayName,
@@ -604,13 +625,17 @@ export default async function MissionPage({
       <CaseStageTracker state={mission.state} labels={STATE_LABELS} nextStates={nextStates} />
 
       {data.isDirty ? (
-        // WP-V3 adds the list of changed details inside this alert.
         <div className="case-alert">
           <p className="case-alert-title">This case has changed since it was last acknowledged.</p>
           <p className="case-alert-body">
             A material edit invalidated the previous sign-off. Capture a new snapshot and
             acknowledge it again before relying on this case as submission-ready.
           </p>
+          {/* WP-V3 part 3: the list of changed details. */}
+          <ChangesSinceConfirmedList
+            applicantId={data.applicantId}
+            changes={data.changesSinceConfirmed}
+          />
           <SnapshotButton
             missionId={mission.id}
             label="Take a New Snapshot"
@@ -1064,6 +1089,11 @@ export default async function MissionPage({
           <article className="card" id="snapshots">
             <p className="card-kicker">History</p>
             <h2 className="card-title">Snapshots</h2>
+            <p className="card-body case-memory-link">
+              Each snapshot keeps exactly what it held.{' '}
+              <Link href={memoryHref(data.applicantId)}>Open Application Memory</Link> to see every
+              case for this person and compare what you confirmed with today.
+            </p>
             {data.snapshots.length === 0 ? (
               <p className="card-body">
                 No snapshots yet. Capture one to freeze this case's evidence and checksum.
