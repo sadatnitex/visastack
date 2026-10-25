@@ -190,7 +190,7 @@ Values that do not map cleanly (11): request `FULFILLED`, request `DECLINED`, do
 Structural flags (3):
 
 1. Processing is unreachable from the request status (L3). It comes only from the document or the upload intent.
-2. Applicant-wide requests (`missionId` null, `schema.ts:2473-2481`) belong to no case. The agency page matches requests to cases by `applicantId` (`page.tsx:161-167`), so one request is counted on every case of that traveller. Triage and Do next must match by `missionId` when set and show applicant-wide requests once, under the traveller.
+2. Applicant-wide requests (`missionId` null, `schema.ts:2473-2481`) belong to no case. The agency page matches requests to cases by `applicantId` (`page.tsx:161-167`), so every request, including one that belongs to a single case, is counted on every case of that traveller. Triage and Do next must match by `missionId` when set and show applicant-wide requests once, under the traveller.
 3. Case state names overlap with E02 words (I). Stage stays an indicator.
 
 ## 3. Allowlist
@@ -250,16 +250,16 @@ Why A: due dates are promises to the traveller and to the embassy, and the revie
 
 **Q2. Should case managers and reviewers see what the agency asked travellers for?** Today only owners and admins can. Everyone else sees none, so their Do next list shows only overdue tasks.
 - A (recommended for this package): keep it as it is. Nothing becomes visible to anyone new.
-- B: let them see requests, but only for cases assigned to them. Risk: more staff can read what was asked of a traveller and the agency's note to them. Requests made for a traveller in general, not tied to one case, would stay admin-only. This needs a new server-side permission check and its own security tests, so it should be its own reviewed change.
+- B: let them see requests, but only for cases assigned to them. Risk: more staff can read what was asked of a traveller and the agency's note to them. Requests made for a traveller in general, not tied to one case, would stay admin-only. It means a new rule about who can see what, checked and tested on its own, so it should be a separate, reviewed change.
 
-**Q3. "Prepare again" needs the agency's approved requirement lists.** The existing functions already give us everything, so the plan reads that file and does not edit it. The file is claimed by the Master Profile workstream.
+**Q3. "Prepare again" needs the agency's approved requirement lists.** What we need is already there, so the plan only reads the requirement-list code and does not change it. That code belongs to the profile catalogue work, which is still in progress.
 - A (recommended): use it read-only, no edits.
 - B: release the file to WP-V4 for edits.
 - C: leave requirement lists out of Prepare again; copy only from the previous case.
 
-**Q4. May WP-V4 touch two small files outside its approved list?** The services index (one or two lines so new functions reach the pages) and the shared labels file (so the six triage words live in one place, as the programme rules require).
+**Q4. May WP-V4 touch two small files outside its approved list?** Two small shared files: one that lets new features reach the screens (one or two lines), and the list of on-screen wording (so the six triage words are written in one place, as the programme rules require).
 - A (recommended): yes, both.
-- B: the services index only; keep the triage words inside the agency folder.
+- B: only the first file; keep the triage words inside the agency pages.
 - C: neither.
 
 **Q5. The copy-ready follow-up message uses the agency's own note to the traveller when there is one. If that note contains a web link, an email address or a long number (such as a passport number), what should happen?**
@@ -271,5 +271,9 @@ Defaults WP-V4 will use unless the owner says otherwise (no answer needed):
 
 - A task that has been started and is past its due date counts as overdue, matching the reminders (H4). The Overdue number on the agency page can go up.
 - "Declined" and "Fulfilled" are old values with no current writer. They show in neutral words, sit in no group, and are never shown as Reviewed (L4, table A).
-- Ready for Review means every required item is in, from the existing readiness check. Cases checked by hand never show it (table H).
+- Ready for Review means every required item is in, from the existing readiness check. Cases checked by hand never get this readiness badge (table H), but such a case can still be moved by hand to the stage also called "Ready for Review" (`missions.ts:51`), so those words can still appear on it; WP-V4 should keep the two apart (table I).
 - The traveller sees "Received" instead of "Submitted", so it cannot be mistaken for sending to the embassy (L7).
+
+## Not mapped here
+
+Status types outside the request, review and readiness flow are not in the tables: the recorded embassy outcome (`mission_outcome_decision`, `schema.ts:238`), complaint status, and processing-run statuses. WP-V4 does not show them in triage; map them before any later package does.
