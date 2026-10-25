@@ -14,7 +14,7 @@ export const CAPABILITY_NAMES: { readonly [K in keyof PlatformCapabilities]: str
   documentUpload: 'Uploading Documents',
   deterministicExtraction: 'Reading Details from Documents',
   aiExtraction: 'AI Suggestions from Documents',
-  structuralValidation: 'Checking that uploaded files are valid',
+  structuralValidation: 'Checking Uploaded Files Are Valid',
   malwareScanning: 'Virus Scanning of Uploads',
   ownerPreview: 'Previewing Your Own Documents',
   thirdPartyPreview: 'Previewing Documents You Share with Others',
