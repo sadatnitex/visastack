@@ -170,7 +170,7 @@ function returnTask(value: string | string[] | undefined): string | null {
 
 export default async function AppPage({
   searchParams,
-}: { readonly searchParams?: Promise<SearchParams> } = {}) {
+}: { readonly searchParams?: Promise<SearchParams> }) {
   const params: SearchParams = (await searchParams) ?? {};
   const locale = await getLocale();
   const t = createTranslator(locale);

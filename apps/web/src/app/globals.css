@@ -6038,13 +6038,14 @@ body:has(.auth-shell) > .footer {
   border-radius: 12px;
   cursor: pointer;
 }
+.first-run-choice label:has(input:checked) {
+  border-color: var(--accent);
+  outline: 1px solid var(--accent);
+  outline-offset: -2px;
+}
 .first-run-choice label:has(input:focus-visible) {
   outline: 3px solid var(--accent);
   outline-offset: 2px;
-}
-.first-run-choice label:has(input:checked) {
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent);
 }
 .first-run-choice b,
 .first-run-tasks b {
