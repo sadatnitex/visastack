@@ -335,7 +335,7 @@ export async function inviteClientAction(
       ok: true,
       message: invited.value.emailQueued
         ? 'Invitation created. Email queued. You can also copy the link below. It expires in 7 days.'
-        : 'Invitation created. Email is unavailable for this invitation. Copy and share the link below. It expires in 7 days.',
+        : 'Invitation created. Email sending is not set up on this server, so copy and share the link below. It expires in 7 days.',
       invitationUrl: acceptUrl,
     } satisfies ActionState;
   });

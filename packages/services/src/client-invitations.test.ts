@@ -661,7 +661,9 @@ describe('client invitations - agency invites a traveller as a new client (Comme
       ]) {
         const refused = await invite({ contactDestination });
         expect(isErr(refused) && refused.error.code).toBe('invalid');
-        expect(isErr(refused) && refused.error.message).toBe("Enter the client's email address.");
+        expect(isErr(refused) && refused.error.message).toBe(
+          'Enter a valid email address for the client, like name@example.com.',
+        );
       }
       const invitations = await db.select().from(dbSchema.clientInvitations);
       expect(invitations).toHaveLength(0);
@@ -753,6 +755,28 @@ describe('client invitations - agency invites a traveller as a new client (Comme
         .where(eq(dbSchema.auditEvents.eventType, 'CLIENT_INVITATION_WRONG_RECIPIENT'));
       expect(refusals.length).toBeGreaterThan(0);
       expect(refusals.every((e) => e.reason === 'phone_invitation')).toBe(true);
+    }, 30_000);
+
+    it('someone reopening an older phone invitation that was already accepted is told it was used', async () => {
+      const created = await invite();
+      if (!isOk(created)) throw new Error('setup failed');
+      await db
+        .update(dbSchema.clientInvitations)
+        .set({ contactDestination: '+880 1711 000000', status: 'ACCEPTED' })
+        .where(eq(dbSchema.clientInvitations.id, created.value.invitation.id));
+      const holderId = await consentedTraveller(db, 'holder@example.com');
+      const preview = await previewClientInvitation(db, created.value.rawToken, holderId);
+      expect(isErr(preview) && preview.error.message).toBe(
+        'this invitation has already been used or revoked',
+      );
+      const accepted = await acceptClientInvitation(db, {
+        actorAccountId: holderId,
+        rawToken: created.value.rawToken,
+        applicantChoice: { kind: 'new' },
+      });
+      expect(isErr(accepted) && accepted.error.message).toBe(
+        'this invitation has already been used or revoked',
+      );
     }, 30_000);
 
     it('an account already working with this agency still cannot claim an invitation sent to someone else (T04)', async () => {

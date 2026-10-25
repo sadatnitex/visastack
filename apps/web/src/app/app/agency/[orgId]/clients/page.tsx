@@ -1,4 +1,4 @@
-import { isEmailInvitationContact } from '@visastack/services';
+import { isAcceptableInvitationContact } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { EmptyState } from '../../../../../components/ui';
@@ -89,14 +89,19 @@ export default async function AgencyClientsPage({
                   </span>
                 </span>
                 <span className="row-end">
-                  {isEmailInvitationContact(invitation.contactDestination) ? (
-                    <span className="badge badge-warning">
-                      Invited &middot; expires {formatTimestampDate(invitation.expiresAt)}
-                    </span>
-                  ) : (
-                    // Sent to a phone number before invitations became email-only: nobody can accept it.
+                  {!isAcceptableInvitationContact(invitation.contactDestination) ? (
+                    // Saved without a valid email address before invitations became email-only:
+                    // nobody can accept it.
                     <span className="badge badge-danger">
                       Cannot be accepted &middot; revoke and invite again by email
+                    </span>
+                  ) : new Date(invitation.expiresAt).getTime() < Date.now() ? (
+                    <span className="badge badge-neutral">
+                      Expired {formatTimestampDate(invitation.expiresAt)} &middot; invite again
+                    </span>
+                  ) : (
+                    <span className="badge badge-warning">
+                      Invited &middot; expires {formatTimestampDate(invitation.expiresAt)}
                     </span>
                   )}
                   <ClientInvitationRevokeButton

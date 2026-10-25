@@ -117,6 +117,27 @@ describe('agency Clients', () => {
     expect(text).toMatch(/Invited . expires/);
   });
 
+  it('marks a malformed stored address as one nobody can accept, and an expired invitation as expired', async () => {
+    mocks.loadPendingClientInvitations.mockResolvedValue([
+      {
+        id: 'ci3',
+        displayName: 'Old Address',
+        contactDestination: 'jane@example.com.',
+        expiresAt: '2099-11-01T00:00:00Z',
+      },
+      {
+        id: 'ci4',
+        displayName: 'Past Date',
+        contactDestination: 'past@example.com',
+        expiresAt: '2020-01-01T00:00:00Z',
+      },
+    ]);
+    const text = textOf(await renderServer(Page(props)));
+    expect(text.match(/Cannot be accepted/g)).toHaveLength(1);
+    expect(text).toContain('Expired');
+    expect(text).not.toMatch(/Invited . expires/);
+  });
+
   it('gives the invitation form the team it can assign, active or not', async () => {
     const [form] = stubProps<{ organizationId: string; members: unknown }>(
       await renderServer(Page(props)),
