@@ -100,7 +100,7 @@ describe('Do next ranking (ADR-0015)', () => {
     expect(early?.owner).toBe('colleague@agency.test');
     expect(early?.reason).toMatch(/^Sent back for a fix and was due .+\. No new version yet\.$/);
     expect(early?.action.kind).toBe('follow-up');
-    expect(early?.action.label).toBe('Review Follow-up Message');
+    expect(early?.action.label).toBe('Review Follow-Up Message');
     expect(byKey.get('request:r-due-late')?.reason).toMatch(/^Was due .+ and has not arrived\.$/);
     const received = byKey.get('request:r-received');
     expect(received?.reason).toMatch(/^Received .+ and waiting for review\.$/);

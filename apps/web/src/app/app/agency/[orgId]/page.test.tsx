@@ -251,7 +251,7 @@ describe('agency Dashboard: Do Next (WP-V4)', () => {
     // The viewer is assigned to that case, so they own it.
     expect(textOf(doNext)).toContain('Owner You');
     expect(textOf(doNext)).toMatch(/Why Was due .+ and has not arrived\./);
-    expect(textOf(doNext)).toContain('Review Follow-up Message');
+    expect(textOf(doNext)).toContain('Review Follow-Up Message');
     expect(doNext).toContain('What we need: Bank Statement');
     expect(doNext).not.toContain('r-late');
   });
@@ -271,7 +271,7 @@ describe('agency Dashboard: Do Next (WP-V4)', () => {
     expect(doNext).toContain('UK Standard Visitor');
     expect(doNext).toContain('1 task is past due.');
     expect(doNext).not.toContain('Bank Statement');
-    expect(doNext).not.toContain('Review Follow-up Message');
+    expect(doNext).not.toContain('Review Follow-Up Message');
     expect(doNext).not.toContain('Assign Someone');
   });
 

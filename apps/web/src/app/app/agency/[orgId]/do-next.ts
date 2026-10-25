@@ -28,6 +28,9 @@ import { fieldLabel } from '../../../../lib/master-profile';
 import { overdueTasks } from './console-format';
 import { type FollowUpMessage, buildFollowUpMessage } from './follow-up-message';
 
+/** The Cases page anchor for one case (its row id is `mission-<id>`, a stored name kept in code). */
+const CASE_ANCHOR = '/cases#mission-';
+
 export type DoNextTier = 1 | 2 | 3 | 4;
 
 export type DoNextAction =
@@ -204,7 +207,7 @@ export function buildDoNext(input: DoNextInput): DoNextItem[] {
                 : `Was due ${due} and has not arrived.`,
             action: {
               kind: 'follow-up',
-              label: 'Review Follow-up Message',
+              label: 'Review Follow-Up Message',
               message: buildFollowUpMessage({
                 travellerName: traveller,
                 itemLabel: label,
@@ -251,7 +254,7 @@ export function buildDoNext(input: DoNextInput): DoNextItem[] {
   for (const c of openCases) {
     const late = overdueTasks(c.tasks, now).sort((a, b) => time(a.dueDate) - time(b.dueDate));
     const oldest = late[0];
-    const href = `${input.base}/cases#mission-${c.missionId}`;
+    const href = `${input.base}${CASE_ANCHOR}${c.missionId}`;
     if (oldest?.dueDate) {
       const count = late.length;
       ranked.push({

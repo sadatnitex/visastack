@@ -36,7 +36,7 @@ async function clickCopy() {
 describe('follow-up message copy', () => {
   it('shows the message for review behind one control, and says it is not sent', () => {
     render();
-    expect(container.querySelector('summary')?.textContent).toBe('Review Follow-up Message');
+    expect(container.querySelector('summary')?.textContent).toBe('Review Follow-Up Message');
     expect(container.querySelector('textarea')?.value).toBe(text);
     expect(container.querySelector('textarea')?.readOnly).toBe(true);
     expect(container.textContent).toContain('It is not sent for you');

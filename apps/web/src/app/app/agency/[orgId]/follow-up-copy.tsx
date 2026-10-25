@@ -11,7 +11,7 @@ import { useId, useRef, useState } from 'react';
 export function FollowUpCopy({
   text,
   agencyNoteLeftOut,
-  summary = 'Review Follow-up Message',
+  summary = 'Review Follow-Up Message',
 }: {
   readonly text: string;
   readonly agencyNoteLeftOut: boolean;
