@@ -109,6 +109,8 @@ export interface MasterProfileInput {
   readonly noneDeclared: ReadonlySet<string>;
   /** A purpose family chosen to see suggestions for, or null. */
   readonly suggestFor: string | null;
+  /** How many documents of each catalogue kind the person has uploaded. */
+  readonly uploadedDocumentTypes?: ReadonlyMap<string, number>;
 }
 
 /**
@@ -226,6 +228,19 @@ export function buildMasterProfileView(input: MasterProfileInput): MasterProfile
         return resolved ? [resolved] : [];
       });
 
+      // The kinds of document that back this section's details, from the catalogue's own links.
+      const sectionFieldKeys = new Set(fields.map((field) => field.key));
+      const documents = open
+        ? CATALOGUE_DOCUMENTS.filter((document) =>
+            document.supports.some((key) => sectionFieldKeys.has(key)),
+          ).map((document) => ({
+            key: document.key,
+            label: document.label,
+            original: document.handling.original === true,
+            uploaded: input.uploadedDocumentTypes?.get(document.key) ?? 0,
+          }))
+        : [];
+
       sections.push({
         key: module.key,
         label: module.label,
@@ -243,6 +258,7 @@ export function buildMasterProfileView(input: MasterProfileInput): MasterProfile
         groups,
         notApplicable: counted.filter((f) => input.notApplicable.has(f.key)).map((f) => f.key),
         previewLabels,
+        documents,
         otherItem: {
           pack: module.pack,
           sectionFieldKey: itemFieldKey('section'),

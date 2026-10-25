@@ -148,6 +148,46 @@ describe('section cards keep every real editing path', () => {
     expect(data.get('applicantId')).toBe('synthetic-person');
   });
 
+  it('lists the documents behind an open section, what is on file, and links to upload each', () => {
+    render({
+      view: fixtureView({
+        layers: [
+          {
+            key: 'identity',
+            label: 'Identity and Civil Status',
+            description: 'Names.',
+            sections: [
+              {
+                ...FIXTURE_OPEN_SECTION,
+                documents: [
+                  {
+                    key: 'TAX_ACKNOWLEDGEMENT_SLIP',
+                    label: 'Tax Return Acknowledgement Slip',
+                    original: true,
+                    uploaded: 0,
+                  },
+                  { key: 'VISA_STAMP', label: 'Visa Stamp', original: false, uploaded: 1 },
+                ],
+              },
+            ],
+            openCount: 1,
+          },
+        ],
+      }),
+    });
+    const block = container.querySelector('.section-documents');
+    expect(block?.querySelector('h5')?.textContent).toBe('Documents for This Section');
+    const rows = [...(block?.querySelectorAll('li') ?? [])];
+    expect(rows[0]?.textContent).toContain('Not Uploaded Yet');
+    expect(rows[0]?.textContent).toContain('handed in as the original');
+    expect(rows[0]?.querySelector('a')?.getAttribute('href')).toBe(
+      '/app/applicant/synthetic-person/documents?type=TAX_ACKNOWLEDGEMENT_SLIP#document-upload',
+    );
+    expect(rows[1]?.textContent).toContain('Uploaded');
+    expect(rows[1]?.textContent).not.toContain('original');
+    expect(rows[1]?.querySelector('a')?.textContent).toContain('Add Another');
+  });
+
   it('keeps the common sections open for everyone, with no way to close them', () => {
     const card = container.querySelector('#section-identity_basics');
     expect(card?.className).toContain('is-open');

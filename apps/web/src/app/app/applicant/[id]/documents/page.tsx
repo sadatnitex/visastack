@@ -1,3 +1,4 @@
+import { CATALOGUE_DOCUMENTS, resolveDocumentType } from '@visastack/core/catalogue';
 import { type MessageKey, type Translator, createTranslator } from '@visastack/i18n';
 import {
   type DocumentLifecycleStatus,
@@ -60,6 +61,10 @@ import { DocumentUploader } from '../document-uploader';
 import { downloadOriginalAction } from '../download-actions';
 import { NameReview } from '../name-review';
 import { UsageMeter } from '../usage-meter';
+
+const ORIGINAL_KINDS: readonly string[] = CATALOGUE_DOCUMENTS.filter(
+  (document) => document.handling.original === true,
+).map((document) => document.key);
 
 export const metadata: Metadata = { title: 'Documents' };
 
@@ -134,6 +139,8 @@ export default async function ApplicantDocumentsPage({
     readonly reading_error?: string;
     readonly reading_queued?: string;
     readonly download_error?: string;
+    /** A document kind chosen from a profile section's Upload link. */
+    readonly type?: string;
   }>;
 }) {
   const { id } = await params;
@@ -145,7 +152,10 @@ export default async function ApplicantDocumentsPage({
     reading_error: readingError,
     reading_queued: readingQueued,
     download_error: downloadError,
+    type: requestedType,
   } = await searchParams;
+  // Only a kind the catalogue knows opens the upload form ready; anything else is ignored.
+  const initialKind = requestedType ? (resolveDocumentType(requestedType)?.key ?? '') : '';
   const locale = await getLocale();
   const t = createTranslator(locale);
   const documentGroups = evidenceDocumentGroups();
@@ -668,7 +678,7 @@ export default async function ApplicantDocumentsPage({
           };
         })}
       />
-      <details className="wallet-upload-disclosure">
+      <details className="wallet-upload-disclosure" open={initialKind ? true : undefined}>
         <summary className="btn btn-secondary">Upload a Document</summary>
         <div id="document-upload">
           {/*
@@ -728,6 +738,8 @@ export default async function ApplicantDocumentsPage({
                   limitLabel={mbLabel(data.quota.maxUploadBytes)}
                   virusScanning={getPlatformCapabilities().malwareScanning === 'available'}
                   kindGroups={documentGroups}
+                  initialKind={initialKind}
+                  originalKinds={ORIGINAL_KINDS}
                 />
               </article>
             </>

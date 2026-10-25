@@ -1,3 +1,4 @@
+import { resolveDocumentType } from '@visastack/core/catalogue';
 import {
   type FactAssuranceView,
   getApplicant,
@@ -5,6 +6,7 @@ import {
   hasConsent,
   listApplicantAssurance,
   listApplicantProfile,
+  listDocuments,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -60,17 +62,25 @@ export default async function ApplicantProfilePage({
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
-    const [profile, coreGranted, assurance, sectionChoices] = await Promise.all([
+    const [profile, coreGranted, assurance, sectionChoices, documents] = await Promise.all([
       listApplicantProfile(db, id),
       hasConsent(db, accountId, 'CORE_PROCESSING'),
       listApplicantAssurance(db, { actorAccountId: accountId, applicantId: id }),
       getProfileSectionState(db, id),
+      listDocuments(db, accountId, id),
     ]);
+    // How many of each kind are on file, so each section can say what backs it.
+    const uploadedDocumentTypes = new Map<string, number>();
+    for (const document of documents.ok ? documents.value : []) {
+      const kind = document.docType ? resolveDocumentType(document.docType)?.key : undefined;
+      if (kind) uploadedDocumentTypes.set(kind, (uploadedDocumentTypes.get(kind) ?? 0) + 1);
+    }
     return {
       applicant,
       profile,
       coreGranted,
       sectionChoices,
+      uploadedDocumentTypes,
       // EVI-05: per-fact assurance is owner-only, same as the profile
       // itself. A denial here (a caller who somehow isn't the owner) just
       // means no breakdown renders, never a page error.
@@ -123,6 +133,7 @@ export default async function ApplicantProfilePage({
     notApplicable: data.sectionChoices.notApplicable,
     noneDeclared: data.sectionChoices.noneDeclared,
     suggestFor,
+    uploadedDocumentTypes: data.uploadedDocumentTypes,
   });
   const completeness = view.percent;
   const changes = [...data.profile]

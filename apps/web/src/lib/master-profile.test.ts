@@ -147,6 +147,32 @@ describe('master profile view', () => {
     expect(marital?.options?.filter((option) => option === 'Other')).toHaveLength(1);
   });
 
+  it('lists the documents that back an open section, what is on file, and which need the original', () => {
+    const view = buildMasterProfileView({
+      ...none(),
+      activated: new Set(['bangladesh_tax']),
+      uploadedDocumentTypes: new Map([['TAX_ACKNOWLEDGEMENT_SLIP', 2]]),
+    });
+    const tax = sectionsOf(view).find((section) => section.key === 'bangladesh_tax');
+    const slip = tax?.documents?.find((document) => document.key === 'TAX_ACKNOWLEDGEMENT_SLIP');
+    expect(slip).toEqual({
+      key: 'TAX_ACKNOWLEDGEMENT_SLIP',
+      label: 'Tax Return Acknowledgement Slip',
+      original: true,
+      uploaded: 2,
+    });
+    // Nothing on file reads as zero, and a locked section lists no documents.
+    const empty = sectionsOf(
+      buildMasterProfileView({ ...none(), activated: new Set(['bangladesh_tax']) }),
+    );
+    expect(
+      empty.find((section) => section.key === 'bangladesh_tax')?.documents?.[0]?.uploaded,
+    ).toBe(0);
+    for (const section of sectionsOf(buildMasterProfileView(none()))) {
+      if (!section.open) expect(section.documents).toEqual([]);
+    }
+  });
+
   it('asks whether each income amount is before or after tax, right after it, without counting it', () => {
     const view = buildMasterProfileView({
       ...none(),

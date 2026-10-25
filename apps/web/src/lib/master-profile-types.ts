@@ -31,6 +31,15 @@ export interface EditorGroup {
 
 export type SectionReason = 'default' | 'opened' | 'has_data' | 'locked';
 
+/** A kind of document that backs a section's details, and how many of it are on file. */
+export interface SectionDocument {
+  readonly key: string;
+  readonly label: string;
+  /** Embassies usually want the original handed in; a scan here keeps it ready to share. */
+  readonly original: boolean;
+  readonly uploaded: number;
+}
+
 export interface EditorSection {
   readonly key: string;
   readonly label: string;
@@ -54,6 +63,8 @@ export interface EditorSection {
   readonly notApplicable: readonly string[];
   /** Locked sections list what they hold, so nothing is hidden. */
   readonly previewLabels: readonly string[];
+  /** Documents that back this section's details (from the catalogue's links), open sections only. */
+  readonly documents?: readonly SectionDocument[];
   /** The free "Something else" record for this section. */
   readonly otherItem: {
     readonly pack: string;
