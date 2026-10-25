@@ -378,3 +378,54 @@ test.describe('violation report endpoint', () => {
     expect(wrongMethod.status()).toBe(405);
   });
 });
+
+test.describe('brand assets from the VisaStack brand pack', () => {
+  test('the page links its icons, manifest and share image, and each is served same-site', async ({
+    page,
+    request,
+  }) => {
+    await page.goto('/');
+    const head = await page.evaluate(() => ({
+      icons: [...document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]')].map(
+        (link) => new URL((link as HTMLLinkElement).href).pathname,
+      ),
+      manifest: document.querySelector<HTMLLinkElement>('link[rel="manifest"]')?.href ?? '',
+      shareImage:
+        document.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content ?? '',
+    }));
+    expect(head.icons.some((path) => path.startsWith('/icon.svg'))).toBe(true);
+    expect(head.icons.some((path) => path.startsWith('/apple-icon.png'))).toBe(true);
+    expect(new URL(head.manifest).pathname).toBe('/manifest.webmanifest');
+    expect(new URL(head.shareImage).pathname).toMatch(/^\/opengraph-image\.png/);
+    const assets: ReadonlyArray<readonly [string, string]> = [
+      ['/icon.svg', 'image/svg+xml'],
+      ['/favicon.ico', 'image/x-icon'],
+      ['/apple-icon.png', 'image/png'],
+      ['/opengraph-image.png', 'image/png'],
+      ['/icons/icon-192.png', 'image/png'],
+      ['/icons/icon-maskable-512.png', 'image/png'],
+    ];
+    for (const [path, type] of assets) {
+      const response = await request.get(path);
+      expect(response.status(), path).toBe(200);
+      expect(response.headers()['content-type'], path).toContain(type);
+    }
+    const manifest = await (await request.get('/manifest.webmanifest')).json();
+    expect(manifest).toMatchObject({ name: 'VisaStack', theme_color: '#1D4C98' });
+  });
+
+  test('the header draws the brand V inline, with no extra request', async ({ page }) => {
+    const markRequests: string[] = [];
+    page.on('request', (request) => {
+      if (/brand|visastack-v/i.test(new URL(request.url()).pathname))
+        markRequests.push(request.url());
+    });
+    await page.goto('/');
+    const mark = page.locator('header.nav svg.brand-mark');
+    await expect(mark).toBeVisible();
+    await expect(mark).toHaveAttribute('aria-hidden', 'true');
+    await expect(mark.locator('.brand-mark-tile')).toHaveCSS('fill', 'rgb(29, 76, 152)');
+    await expect(mark.locator('.brand-mark-v')).toHaveCSS('fill', 'rgb(255, 255, 255)');
+    expect(markRequests).toEqual([]);
+  });
+});

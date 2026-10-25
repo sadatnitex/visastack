@@ -184,9 +184,14 @@ a:hover {
   display: inline-block;
   width: 34px;
   height: 34px;
-  border-radius: 10px;
-  background: #075d54;
   position: relative;
+}
+/* Brand pack colours: blue tile with a white V; reversed on the dark identity panel. */
+.brand-mark-tile {
+  fill: #1d4c98;
+}
+.brand-mark-v {
+  fill: #ffffff;
 }
 .nav-links {
   display: flex;
@@ -359,6 +364,27 @@ main {
 }
 .pilot-banner-detail {
   color: var(--warning);
+}
+.pilot-banner-short {
+  display: none;
+}
+/* Phones and tablets: the short wording keeps the notice to one or two lines (the full sentence
+   took up to a sixth of a phone screen and three lines on a tablet). It fits one line from 1024px. */
+@media (max-width: 1023px) {
+  /* One flowing paragraph, so the three parts share lines instead of taking one each. */
+  .pilot-banner {
+    display: block;
+    padding: 0.45rem 0.75rem;
+  }
+  .pilot-banner > * + * {
+    margin-inline-start: 0.5rem;
+  }
+  .pilot-banner-detail {
+    display: none;
+  }
+  .pilot-banner-short {
+    display: inline;
+  }
 }
 .pilot-banner-link {
   display: inline-block;
@@ -2601,22 +2627,6 @@ a.checklist-item:hover .checklist-label {
 }
 
 /* Shared geometry for public, identity and authorized workspaces. */
-.brand-mark::before,
-.brand-mark::after {
-  content: "";
-  position: absolute;
-  left: 22%;
-  width: 56%;
-  height: 12%;
-  border-radius: 2px;
-  background: #ffffff;
-}
-.brand-mark::before {
-  top: 32%;
-}
-.brand-mark::after {
-  top: 58%;
-}
 .land-title em,
 .auth-introduction em {
   display: block;
@@ -3331,12 +3341,12 @@ body:has(.auth-shell) > .footer {
 .auth-brand {
   color: #ffffff;
 }
-.auth-brand .brand-mark {
-  background: #def3e9;
+/* On the dark identity panel the brand pack's reversed colours apply: white tile, blue V. */
+.auth-brand .brand-mark-tile {
+  fill: #ffffff;
 }
-.auth-brand .brand-mark::before,
-.auth-brand .brand-mark::after {
-  background: #075d54;
+.auth-brand .brand-mark-v {
+  fill: #1d4c98;
 }
 .auth-legal-links {
   display: flex;

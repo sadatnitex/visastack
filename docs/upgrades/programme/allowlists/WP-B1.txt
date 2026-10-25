@@ -1,0 +1,30 @@
+# WP-B1 brand assets. Added 24 Oct 2026 on the owner's instruction to take the logo and brand assets from the
+# VisaStack design system, staying within the approved plans. Header mark, favicon set, app icons, manifest
+# and share images only. No copy, layout, colour token or route change.
+apps/web/public/brand/**
+apps/web/public/icons/**
+apps/web/src/app/icon.svg
+apps/web/src/app/favicon.ico
+apps/web/src/app/apple-icon.png
+apps/web/src/app/opengraph-image.png
+apps/web/src/app/opengraph-image.alt.txt
+apps/web/src/app/twitter-image.png
+apps/web/src/app/twitter-image.alt.txt
+apps/web/src/app/manifest.ts
+# globals.css: only the .brand-mark rules
+apps/web/src/app/globals.css
+apps/web/e2e/browser-security.spec.ts
+docs/upgrades/programme/**
+docs/commercial-v1/known-issues.md
+# The mark is drawn inline (no image request, so it paints with the page): the shared component, its test,
+# and the five places that showed the old CSS-drawn mark.
+apps/web/src/components/brand-mark.tsx
+apps/web/src/components/brand-mark.test.tsx
+apps/web/src/app/layout.tsx
+apps/web/src/app/auth/auth-ui.tsx
+apps/web/src/app/app/app-nav.tsx
+apps/web/src/app/app/workspace-record-toolbar.tsx
+# Owner request 25 Oct 2026: shorten the version banner on phones (follow-up logged in WP-L1).
+apps/web/src/components/pilot-banner.tsx
+apps/web/src/components/pilot-banner.test.tsx
+apps/web/e2e/ux-public.spec.ts

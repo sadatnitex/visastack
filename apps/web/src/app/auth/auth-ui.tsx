@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { BrandMark } from '../../components/brand-mark';
 import { Icon } from '../../components/icons';
 import { PasswordInput } from './password-input';
 
@@ -22,7 +23,7 @@ export function AuthShell({
     <section className={variant === 'signup' ? 'auth-shell auth-shell-signup' : 'auth-shell'}>
       <aside className="auth-introduction" aria-label="Your VisaStack account">
         <Link href="/" className="brand auth-brand">
-          <span className="brand-mark" aria-hidden="true" />
+          <BrandMark />
           VisaStack
         </Link>
         <div className="auth-message">
