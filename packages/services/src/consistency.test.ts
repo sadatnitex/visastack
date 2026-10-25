@@ -14,6 +14,7 @@ import {
   CONSISTENCY_LABELS,
   CONSISTENCY_REASON_TEXT,
   type ClassifyDeclarationInput,
+  LEGACY_DEFAULT_SAVED_BEFORE,
   classifyDeclarationChange,
   compareFactVersions,
 } from './consistency';
@@ -114,6 +115,23 @@ describe('classifyDeclarationChange (v1.2 T10, R05)', () => {
         current: { value: '95000', effectiveFrom: day('2025-01-01'), currency: 'BDT' },
       }),
     ).toEqual({ result: 'INSUFFICIENT_INFORMATION', reason: 'basis_unknown' });
+  });
+
+  it('the same number with an unknown currency or a different tax basis is not called consistent', () => {
+    expect(
+      classify({
+        fieldKey: 'monthly_salary',
+        prior: { value: '80000', effectiveFrom: null },
+        current: { value: '80000', effectiveFrom: null, currency: 'USD' },
+      }).reason,
+    ).toBe('currency_unknown');
+    expect(
+      classify({
+        fieldKey: 'monthly_salary',
+        prior: { value: '80000', effectiveFrom: null, currency: 'BDT', basis: 'GROSS' },
+        current: { value: '80000', effectiveFrom: null, currency: 'BDT', basis: 'NET' },
+      }).reason,
+    ).toBe('different_basis');
   });
 
   it('the same number written differently is consistent, but not across currencies', () => {
@@ -424,6 +442,24 @@ describe('compareFactVersions (v1.2 R05, R06)', () => {
     expect(compared.value.reason).toBe('basis_unknown');
   }, 30_000);
 
+  it('the current amount goes with the latest currency, so a later correction counts', async () => {
+    const me = await owner('me@example.com');
+    const before = await save(me, 'monthly_salary', '80000', { effectiveFrom: day('2023-01-01') });
+    await save(me, 'monthly_salary_currency', 'BDT');
+    await save(me, 'monthly_salary', '80,000', { effectiveFrom: day('2023-01-01') });
+    await save(me, 'monthly_salary_currency', 'USD');
+    const compared = await compareFactVersions(db, {
+      actorAccountId: me.accountId,
+      applicantId: me.applicantId,
+      priorFactVersionId: before.id,
+    });
+    expect(isOk(compared)).toBe(true);
+    if (!isOk(compared)) return;
+    expect(compared.value.prior.currency).toBe('BDT');
+    expect(compared.value.current.currency).toBe('USD');
+    expect(compared.value.result).toBe('CONTEXT_DIFFERENCE');
+  }, 30_000);
+
   it('an amount with no currency recorded at all is insufficient information', async () => {
     const me = await owner('me@example.com');
     const before = await save(me, 'monthly_salary', '80000', { effectiveFrom: day('2023-01-01') });
@@ -436,17 +472,39 @@ describe('compareFactVersions (v1.2 R05, R06)', () => {
     expect(isOk(compared) && compared.value.reason).toBe('currency_unknown');
   }, 30_000);
 
-  it('reads an effective date equal to the save time (the old default) as not known', async () => {
+  it('reads the old save-time default as not known, but only on rows saved before the change', async () => {
     const me = await owner('me@example.com');
-    const old = await save(me, 'employer_name', 'Acme Ltd', { effectiveFrom: new Date() });
-    await save(me, 'employer_name', 'Beta Ltd', { effectiveFrom: day('2030-01-01') });
-    const compared = await compareFactVersions(db, {
-      actorAccountId: me.accountId,
-      applicantId: me.applicantId,
-      priorFactVersionId: old.id,
-    });
-    expect(isOk(compared) && compared.value.reason).toBe('date_unknown');
-    expect(isOk(compared) && compared.value.prior.effectiveFrom).toBeNull();
+    const old = await save(me, 'employer_name', 'Acme Ltd');
+    const newer = await save(me, 'employer_name', 'Beta Ltd', { effectiveFrom: day('2030-01-01') });
+    // Keep the newer version newer whatever dates the old one is given below.
+    await db
+      .update(dbSchema.factVersions)
+      .set({ createdAt: day('2031-01-01') })
+      .where(eq(dbSchema.factVersions.id, newer.id));
+    const compareOld = () =>
+      compareFactVersions(db, {
+        actorAccountId: me.accountId,
+        applicantId: me.applicantId,
+        priorFactVersionId: old.id,
+      });
+    const setSavedAt = (at: Date) =>
+      db
+        .update(dbSchema.factVersions)
+        .set({ createdAt: at, effectiveFrom: new Date(at.getTime() + 1_000) })
+        .where(eq(dbSchema.factVersions.id, old.id));
+
+    // A row saved before WP-V2 whose date is its save time: the old default.
+    await setSavedAt(day('2026-10-01'));
+    const legacy = await compareOld();
+    expect(isOk(legacy)).toBe(true);
+    expect(isOk(legacy) && legacy.value.reason).toBe('date_unknown');
+    expect(isOk(legacy) && legacy.value.prior.effectiveFrom).toBeNull();
+
+    // The same shape saved after the change is a real date and is kept.
+    await setSavedAt(new Date(LEGACY_DEFAULT_SAVED_BEFORE.getTime() + 86_400_000));
+    const recent = await compareOld();
+    expect(isOk(recent)).toBe(true);
+    if (isOk(recent)) expect(recent.value.prior.effectiveFrom).not.toBeNull();
   }, 30_000);
 
   it('refuses a "current" version older than the prior one, and a malformed id, with the usual answer', async () => {

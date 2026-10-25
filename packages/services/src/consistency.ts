@@ -146,19 +146,21 @@ export function classifyDeclarationChange(input: ClassifyDeclarationInput): Clas
     return classification('INSUFFICIENT_INFORMATION', 'value_missing');
   }
   if (AMOUNT_FIELDS.has(fieldKey)) {
-    // Currency first: the same number in two currencies is not the same amount.
+    // Context first: the same number in two currencies, or before and after
+    // tax, is not the same amount, and an unknown currency cannot be assumed.
     const currency = contextCheck(prior.currency, current.currency);
     if (currency === 'different') return classification('CONTEXT_DIFFERENCE', 'different_currency');
-    if (prior.value === current.value) return classification('CONSISTENT', 'same_value');
-    if (sameAmount(prior.value, current.value)) {
-      return classification('CONSISTENT', 'same_value_different_formatting');
-    }
     if (currency === 'unknown') {
       return classification('INSUFFICIENT_INFORMATION', 'currency_unknown');
     }
     const basis = contextCheck(prior.basis, current.basis);
-    if (basis === 'unknown') return classification('INSUFFICIENT_INFORMATION', 'basis_unknown');
     if (basis === 'different') return classification('CONTEXT_DIFFERENCE', 'different_basis');
+    if (prior.value === current.value) return classification('CONSISTENT', 'same_value');
+    if (sameAmount(prior.value, current.value)) {
+      return classification('CONSISTENT', 'same_value_different_formatting');
+    }
+    // Different numbers with no recorded tax basis could be gross against net.
+    if (basis === 'unknown') return classification('INSUFFICIENT_INFORMATION', 'basis_unknown');
   }
 
   if (prior.value === current.value) return classification('CONSISTENT', 'same_value');
@@ -239,12 +241,15 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * read as not known. Stored data is unchanged.
  */
 const LEGACY_DEFAULT_WINDOW_MS = 5_000;
+/** Only rows saved before WP-V2 reached production can carry that default. */
+export const LEGACY_DEFAULT_SAVED_BEFORE = new Date('2026-10-26T00:00:00Z');
 function knownEffectiveDate(version: FactVersion): Date | null {
   const effective = version.effectiveFrom;
   if (!effective) return null;
-  return Math.abs(effective.getTime() - version.createdAt.getTime()) < LEGACY_DEFAULT_WINDOW_MS
-    ? null
-    : effective;
+  const legacyDefault =
+    version.createdAt.getTime() < LEGACY_DEFAULT_SAVED_BEFORE.getTime() &&
+    Math.abs(effective.getTime() - version.createdAt.getTime()) < LEGACY_DEFAULT_WINDOW_MS;
+  return legacyDefault ? null : effective;
 }
 
 /**
@@ -447,7 +452,18 @@ export async function compareFactVersions(
       const priorCurrencyVersion = input.priorAsOf
         ? await versionAsOf(db, currencyFactId, input.priorAsOf)
         : await currencyDeclaredWith(db, currencyFactId, prior);
-      const currentCurrencyVersion = await currencyDeclaredWith(db, currencyFactId, current);
+      // The latest amount goes with the latest currency, so a later correction counts.
+      const latestCurrencyId = currencyFact.fact.currentVersionId;
+      const currentCurrencyVersion =
+        current.id === fact.currentVersionId && latestCurrencyId
+          ? first(
+              await db
+                .select()
+                .from(schema.factVersions)
+                .where(eq(schema.factVersions.id, latestCurrencyId))
+                .limit(1),
+            )
+          : await currencyDeclaredWith(db, currencyFactId, current);
       if (priorCurrencyVersion) {
         const value = await reveal(db, priorCurrencyVersion, input.encryption);
         if (!value.ok) return value;
