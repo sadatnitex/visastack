@@ -41,7 +41,7 @@ export const metadata: Metadata = {
 
 // The approved reference stays light, independently of the device appearance.
 export const viewport: Viewport = {
-  themeColor: '#f9f8f5',
+  themeColor: '#f7f9fe',
   colorScheme: 'light',
 };
 

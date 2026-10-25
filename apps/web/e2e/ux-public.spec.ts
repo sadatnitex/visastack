@@ -898,7 +898,7 @@ test.describe('authoritative appearance of actual workspace components', () => {
           animations: 'disabled',
           caret: 'hide',
         });
-        await expect(page.locator('.app-main')).toHaveCSS('background-color', 'rgb(250, 250, 247)');
+        await expect(page.locator('.app-main')).toHaveCSS('background-color', 'rgb(247, 249, 254)');
         await expect(page.locator('header.nav')).toBeHidden();
         if (width === 1600) {
           expect((await page.locator('.app-shell-nav').boundingBox())?.width).toBe(256);

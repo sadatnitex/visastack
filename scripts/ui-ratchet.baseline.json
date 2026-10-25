@@ -78,7 +78,6 @@
     "apps/web/src/app/auth/auth-ui.tsx": 1,
     "apps/web/src/app/global-error.tsx": 6,
     "apps/web/src/app/not-found.tsx": 3,
-    "apps/web/src/app/page.tsx": 1,
     "apps/web/src/app/pilot-access-denied/page.tsx": 3,
     "apps/web/src/app/privacy/page.tsx": 1,
     "apps/web/src/app/terms/page.tsx": 1,
