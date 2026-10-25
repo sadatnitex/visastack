@@ -78,7 +78,7 @@ export function NameReview({
           onChange={(e) => setEditedName(e.target.value)}
           className="input"
           {...fieldProblem(state, 'finalName', messageId)}
-          style={{ flex: '1 1 260px', fontSize: 'var(--text-small)', padding: '0.4rem 0.65rem' }}
+          style={{ flex: '1 1 260px' }}
         />
         <SubmitButton
           pending={pending}
