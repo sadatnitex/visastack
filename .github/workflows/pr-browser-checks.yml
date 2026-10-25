@@ -4,10 +4,11 @@ name: Pull Request Browser Checks
 # Vercel plan allows a limited number of deployments a day. The two required browser checks
 # therefore run here before merge, against the pull request's own production build started on
 # the CI machine, with no secrets. After merge, the same checks run again against the real
-# production deployment (deploy-smoke.yml and playwright-smoke.yml).
+# production deployment (deploy-smoke.yml and playwright-smoke.yml). What this cannot cover
+# before merge: real Vercel settings, the real database and real sign-in. Those are checked
+# only after the production deployment, by the two deploy workflows and the live sign-in check.
 on:
   pull_request:
-    branches: [main]
 
 concurrency:
   group: pr-browser-checks-${{ github.event.pull_request.number }}
@@ -17,8 +18,8 @@ permissions:
   contents: read
 
 env:
-  # A production build with placeholder settings: nothing here reaches a real service.
-  NODE_ENV: production
+  # Placeholder settings: nothing here reaches a real service. NODE_ENV is set only where the
+  # server starts, because pnpm skips development packages when it is set during install.
   DEPLOYMENT_MODE: controlled_pilot
   IDENTITY_PROVIDER: neon_auth
   NEON_AUTH_BASE_URL: https://auth.placeholder.invalid/neondb/auth
@@ -54,14 +55,19 @@ jobs:
       - name: Start the app on this machine
         working-directory: apps/web
         run: |
+          export NODE_ENV=production
           export NEON_AUTH_COOKIE_SECRET="$(openssl rand -hex 32)"
           nohup ./node_modules/.bin/next start -p 3100 > "$RUNNER_TEMP/next.log" 2>&1 &
+          ready=no
           for i in $(seq 1 60); do
-            curl -sf -o /dev/null http://localhost:3100/ && exit 0
+            if curl -sf -o /dev/null http://localhost:3100/; then ready=yes; break; fi
             sleep 2
           done
-          tail -40 "$RUNNER_TEMP/next.log"
-          exit 1
+          if [ "$ready" != yes ]; then
+            echo "The app did not start within 120 seconds."
+            tail -60 "$RUNNER_TEMP/next.log"
+            exit 1
+          fi
 
       - name: Install Playwright Chromium
         working-directory: apps/web
@@ -72,6 +78,10 @@ jobs:
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3100
         run: npx playwright test no-secret-auth.spec.ts ux-public.spec.ts browser-security.spec.ts
+
+      - name: Show the app log
+        if: failure()
+        run: tail -80 "$RUNNER_TEMP/next.log" || true
 
       - name: Upload Playwright report
         if: failure()
@@ -109,13 +119,27 @@ jobs:
       - name: Build the web app
         run: pnpm --filter @visastack/web build
 
-      - name: Start the app on this machine and run the smoke check
+      - name: Start the app on this machine
         working-directory: apps/web
         run: |
+          export NODE_ENV=production
           export NEON_AUTH_COOKIE_SECRET="$(openssl rand -hex 32)"
           nohup ./node_modules/.bin/next start -p 3100 > "$RUNNER_TEMP/next.log" 2>&1 &
+          ready=no
           for i in $(seq 1 60); do
-            curl -sf -o /dev/null http://localhost:3100/ && break
+            if curl -sf -o /dev/null http://localhost:3100/; then ready=yes; break; fi
             sleep 2
           done
-          SMOKE_BASE_URL=http://localhost:3100 node scripts/smoke.mjs
+          if [ "$ready" != yes ]; then
+            echo "The app did not start within 120 seconds."
+            tail -60 "$RUNNER_TEMP/next.log"
+            exit 1
+          fi
+
+      - name: Run the no-secret smoke check
+        working-directory: apps/web
+        run: SMOKE_BASE_URL=http://localhost:3100 node scripts/smoke.mjs
+
+      - name: Show the app log
+        if: failure()
+        run: tail -80 "$RUNNER_TEMP/next.log" || true

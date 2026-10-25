@@ -1,7 +1,8 @@
 name: Deploy Smoke
 
 # Vercel's GitHub App creates a GitHub Deployment + deployment_status for every
-# preview and production build; `state: success` carries the live URL in
+# deployment (since 2026-10-25 only production: previews are off, and pull requests
+# run the same check in pr-browser-checks.yml); `state: success` carries the live URL in
 # `environment_url` / `target_url`. This runs the no-secret smoke check
 # (master directive §8A) against that exact deployed URL — never localhost —
 # with no repository secrets required.
