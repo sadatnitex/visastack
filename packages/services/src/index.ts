@@ -416,6 +416,25 @@ export {
 } from './branding';
 
 export {
+  type PhotoReencoderPort,
+  type ProfilePhotoBytes,
+  type ProfilePhotoInput,
+  type ProfilePhotoPorts,
+  type ProfilePhotoSummary,
+  PROFILE_PHOTO_CONTENT_TYPE,
+  PROFILE_PHOTO_INPUT_TYPES,
+  PROFILE_PHOTO_KEY_PREFIX,
+  PROFILE_PHOTO_MAX_INPUT_BYTES,
+  PROFILE_PHOTO_MAX_INPUT_PIXELS,
+  PROFILE_PHOTO_SIZE,
+  applicantPhotoPath,
+  getApplicantPhotoVersion,
+  readApplicantPhoto,
+  removeApplicantPhoto,
+  setApplicantPhoto,
+} from './profile-photos';
+
+export {
   type CreateGrantInput,
   type Grant,
   type GrantRecipient,

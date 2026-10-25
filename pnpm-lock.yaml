@@ -67,6 +67,9 @@ importers:
       react-dom:
         specifier: ^19.0.0
         version: 19.2.7(react@19.2.7)
+      sharp:
+        specifier: '>=0.35.5 <1.0.0'
+        version: 0.35.5(@types/node@22.20.1)
       ws:
         specifier: ^8.21.1
         version: 8.21.1
@@ -140,6 +143,9 @@ importers:
       mammoth:
         specifier: ^1.12.0
         version: 1.12.0
+      sharp:
+        specifier: '>=0.35.5 <1.0.0'
+        version: 0.35.5(@types/node@22.20.1)
       unpdf:
         specifier: ^1.8.1
         version: 1.8.1(@napi-rs/canvas@1.0.9)
@@ -3174,8 +3180,7 @@ snapshots:
   '@esbuild/win32-x64@0.28.1':
     optional: true
 
-  '@img/colour@1.1.0':
-    optional: true
+  '@img/colour@1.1.0': {}
 
   '@img/sharp-darwin-arm64@0.35.5':
     optionalDependencies:
@@ -3758,8 +3763,7 @@ snapshots:
 
   delayed-stream@1.0.0: {}
 
-  detect-libc@2.1.2:
-    optional: true
+  detect-libc@2.1.2: {}
 
   dingbat-to-unicode@1.0.1: {}
 
@@ -4274,8 +4278,7 @@ snapshots:
 
   scheduler@0.27.0: {}
 
-  semver@7.8.5:
-    optional: true
+  semver@7.8.5: {}
 
   set-cookie-parser@3.1.2: {}
 
@@ -4313,7 +4316,6 @@ snapshots:
       '@img/sharp-win32-ia32': 0.35.5
       '@img/sharp-win32-x64': 0.35.5
       '@types/node': 22.20.1
-    optional: true
 
   shebang-command@2.0.0:
     dependencies:
