@@ -21,11 +21,21 @@ const END_DATE = new Intl.DateTimeFormat('en-GB', {
   year: 'numeric',
 });
 
-/** Curated, launch-safe permission set (read + collaborate; no original download / manage). */
-const SHAREABLE_ACTIONS: ReadonlyArray<{ value: string; label: string; defaultOn?: boolean }> = [
+/**
+ * Curated, launch-safe permission set (read + collaborate; no original download / manage).
+ * `needsRedactedDownload` marks the one choice that depends on the platform's
+ * `redactedDownload` capability: while that is not available the box is shown
+ * switched off with a note, and the server refuses it as well.
+ */
+const SHAREABLE_ACTIONS: ReadonlyArray<{
+  value: string;
+  label: string;
+  defaultOn?: boolean;
+  needsRedactedDownload?: boolean;
+}> = [
   { value: 'VIEW_METADATA', label: 'See Document Details', defaultOn: true },
   { value: 'PREVIEW', label: 'Preview Documents', defaultOn: true },
-  { value: 'DOWNLOAD_REDACTED', label: 'Download Redacted Copies' },
+  { value: 'DOWNLOAD_REDACTED', label: 'Download Redacted Copies', needsRedactedDownload: true },
   { value: 'COMMENT', label: 'Comment' },
   { value: 'PROPOSE_EDIT', label: 'Propose Edits' },
 ];
@@ -40,6 +50,7 @@ export function GrantForm({
   extraCategories = [],
   unsortedDocuments = 0,
   initialDocumentId,
+  redactedDownloadAvailable = false,
 }: {
   readonly applicantId: string;
   readonly documents: ReadonlyArray<{ readonly id: string; readonly displayName: string }>;
@@ -53,6 +64,12 @@ export function GrantForm({
    * confirms, and the server checks the scope as it always does.
    */
   readonly initialDocumentId?: string;
+  /**
+   * Whether the platform can deliver redacted copies yet (the server-side
+   * `redactedDownload` capability, read by the page). Off unless the page
+   * says so, so a missing value never offers a permission that does nothing.
+   */
+  readonly redactedDownloadAvailable?: boolean;
 }) {
   const preselected = documents.some((document) => document.id === initialDocumentId)
     ? initialDocumentId
@@ -200,20 +217,31 @@ export function GrantForm({
       <fieldset className="fieldset">
         <legend className="field-label">Permissions</legend>
         <div className="checks">
-          {SHAREABLE_ACTIONS.map((action) => (
-            <label className="check" key={action.value}>
-              <input
-                type="checkbox"
-                name="action"
-                value={action.value}
-                defaultChecked={action.defaultOn ?? false}
-                onChange={(e) =>
-                  setActions((prev) => toggled(prev, action.value, e.target.checked))
-                }
-              />
-              <span>{action.label}</span>
-            </label>
-          ))}
+          {SHAREABLE_ACTIONS.map((action) => {
+            const unavailable = action.needsRedactedDownload === true && !redactedDownloadAvailable;
+            const noteId = `grant-action-${action.value}-note`;
+            return (
+              <label className="check" key={action.value}>
+                <input
+                  type="checkbox"
+                  name="action"
+                  value={action.value}
+                  defaultChecked={!unavailable && (action.defaultOn ?? false)}
+                  disabled={unavailable}
+                  aria-describedby={unavailable ? noteId : undefined}
+                  onChange={(e) =>
+                    setActions((prev) => toggled(prev, action.value, e.target.checked))
+                  }
+                />
+                <span>{action.label}</span>
+                {unavailable ? (
+                  <span id={noteId} className="muted u-fs-075">
+                    Not available yet
+                  </span>
+                ) : null}
+              </label>
+            );
+          })}
         </div>
       </fieldset>
 

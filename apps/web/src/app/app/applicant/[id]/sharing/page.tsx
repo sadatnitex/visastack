@@ -16,6 +16,7 @@ import {
   describeGrantScope,
 } from '../../../../../components/selected-scope-summary';
 import { EmptyState, PageHeader, StatusBadge } from '../../../../../components/ui';
+import { getPlatformCapabilities } from '../../../../../lib/capabilities';
 import { humanizeCode } from '../../../../../lib/format-code';
 import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
 import { grantStatusBadge } from '../../../../../lib/grant-status';
@@ -356,6 +357,7 @@ export default async function SharingPage({
               }))}
               extraCategories={data.extraCategories}
               unsortedDocuments={data.documents.filter((d) => !documentCategory(d.docType)).length}
+              redactedDownloadAvailable={getPlatformCapabilities().redactedDownload === 'available'}
               {...(typeof documentParam === 'string' &&
               data.documents.some((d) => d.id === documentParam)
                 ? { initialDocumentId: documentParam }
