@@ -343,3 +343,10 @@ describe('agency Dashboard: counts and Do Next agree (WP-V4 review)', () => {
     expect(text).toMatch(/Sent back for a fix and was due/);
   });
 });
+
+describe('agency Dashboard: file states for triage (WP-V4 re-review)', () => {
+  it("asks for the answered files' state, which Do Next uses", async () => {
+    await renderServer(Page(pageProps()));
+    expect(mocks.loadEvidenceRequests.mock.calls[0]?.[4]).toEqual({ withFileStates: true });
+  });
+});

@@ -209,3 +209,14 @@ describe('agency Clients: Do Next links (WP-V4)', () => {
     expect(html).toContain('id="request-r2"');
   });
 });
+
+describe('agency Clients: no file-state lookups (WP-V4 review)', () => {
+  it('loads requests without the triage file-state lookups it would not use', async () => {
+    await renderServer(Page(props));
+    expect(mocks.loadEvidenceRequests).toHaveBeenCalledTimes(1);
+    const options = mocks.loadEvidenceRequests.mock.calls[0]?.[4] as
+      | { withFileStates?: boolean }
+      | undefined;
+    expect(options?.withFileStates).not.toBe(true);
+  });
+});

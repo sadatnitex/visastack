@@ -104,20 +104,22 @@ export async function loadMembers(
 }
 
 /**
- * Org-wide evidence requests: administrator data, empty for anyone else. A received document
- * request also carries its file's newest state (WP-V4 triage), read through the central access
- * gate one case (or one traveller) at a time, so a file this organization can no longer manage is
- * never looked at.
+ * Org-wide evidence requests: administrator data, empty for anyone else. With `withFileStates`
+ * (only the screens that show triage ask for it), a received document request also carries its
+ * file's newest state (WP-V4), read through the central access gate one case (or one traveller)
+ * at a time, so a file this organization can no longer manage is never looked at.
  */
 export async function loadEvidenceRequests(
   db: Db,
   accountId: string,
   orgId: string,
   access: Pick<OrgAccess, 'admin'>,
+  options: { readonly withFileStates?: boolean } = {},
 ): Promise<EvidenceRequestRow[]> {
   if (!access.admin) return [];
   const result = await listEvidenceRequestsForOrgDetailed(db, accountId, orgId);
   if (!result.ok) return [];
+  if (options.withFileStates !== true) return result.value;
   const answered = result.value.filter(
     (r) =>
       r.kind === 'DOCUMENT' &&

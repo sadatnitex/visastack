@@ -20,6 +20,15 @@ import { daysUntilDateOnly } from '../../../../lib/format-date';
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 const LINK =
   /(?:[a-z][a-z0-9+.-]*:\/\/|\bwww\.|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}(?:[/?#:]|\b))/i;
+/** A domain hidden behind a bracketed dot: evil[.]com, evil(.)com, evil{dot}com, evil [dot] com. */
+const BRACKETED_DOT_LINK = /[\p{L}\p{N}-]\s*[([{]\s*(?:\.|dot)\s*[)\]}]\s*\p{L}{2,}/iu;
+/**
+ * A domain spelled with a spaced dot or the word dot: "evil . com", "evil .com", "evil dot com".
+ * Only common web endings that are not everyday words count here, and a full stop followed by a
+ * space ("form. In") never does, so ordinary sentences and "dot every i" still pass.
+ */
+const SPACED_DOT_LINK =
+  /[\p{L}\p{N}-](?:\s+\.\s*|\s+dot\s+)(?:com|org|net|edu|gov|info|biz|io|xyz|app|dev|bd|uk|test)\b/iu;
 /** Any at sign, including the full-width and small forms. */
 const AT_SIGN = /[@\uFF20\uFE6B]/u;
 /** An email address spelled out: "name at gmail dot com", "name(at)gmail(dot)com", "name [at] mail [dot] org". */
@@ -42,9 +51,18 @@ const SPLIT_CODE = /(?<![\p{L}\p{N}])\p{Lu}{1,3}[\s/_.-]?(?:\p{Nd}[\s/_.-]?){5,}
 /** True when the text holds a link, an email address (written or spelled out), an id or a long number. */
 export function containsUnsafeDetail(text: string): boolean {
   const plain = text.normalize('NFKC');
-  return [AT_SIGN, SPELLED_EMAIL, UUID, LINK, DIGIT_RUN, SPLIT_DIGITS, MIXED_CODE, SPLIT_CODE].some(
-    (pattern) => pattern.test(plain),
-  );
+  return [
+    AT_SIGN,
+    SPELLED_EMAIL,
+    UUID,
+    LINK,
+    BRACKETED_DOT_LINK,
+    SPACED_DOT_LINK,
+    DIGIT_RUN,
+    SPLIT_DIGITS,
+    MIXED_CODE,
+    SPLIT_CODE,
+  ].some((pattern) => pattern.test(plain));
 }
 
 /** Dash characters that read as a long dash: figure, en, em and horizontal bar dashes, the minus sign, and the two- and three-em dashes. */

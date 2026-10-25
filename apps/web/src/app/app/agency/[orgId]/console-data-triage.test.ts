@@ -60,7 +60,13 @@ describe('loadEvidenceRequests: answered file state', () => {
         : new Map([['r-wide', { processingStatus: 'SCANNING', safetyStatus: 'PENDING' }]]),
     );
 
-    const rows = await loadEvidenceRequests(db, 'acct', 'o1', { admin: true });
+    const rows = await loadEvidenceRequests(
+      db,
+      'acct',
+      'o1',
+      { admin: true },
+      { withFileStates: true },
+    );
     const states = Object.fromEntries(
       rows.map((r) => [
         r.id,
@@ -81,6 +87,15 @@ describe('loadEvidenceRequests: answered file state', () => {
       expect(call[4]).toMatchObject({ actingFor: { organizationId: 'o1' } });
     }
     expect(svc.listRespondingDocumentStatesForOrg).toHaveBeenCalledTimes(2);
+  });
+
+  it('looks up no file state unless the screen asks for it', async () => {
+    svc.listEvidenceRequestsForOrgDetailed.mockResolvedValue(ok([row({ id: 'r-case' })]));
+    const rows = await loadEvidenceRequests(db, 'acct', 'o1', { admin: true });
+    expect(rows.map((r) => r.id)).toEqual(['r-case']);
+    expect('respondingDocumentState' in (rows[0] ?? {})).toBe(false);
+    expect(svc.requireAccess).not.toHaveBeenCalled();
+    expect(svc.listRespondingDocumentStatesForOrg).not.toHaveBeenCalled();
   });
 
   it('reads nothing at all for someone who is not an administrator', async () => {

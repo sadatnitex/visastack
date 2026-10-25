@@ -212,11 +212,13 @@ describe('agency Cases: where each case stands (WP-V4, E02)', () => {
       },
     ]);
     const [workspace] = await triageOf();
-    expect(mocks.loadEvidenceRequests).toHaveBeenCalledWith({}, 'acct-1', 'o1', {
-      org: { id: 'o1' },
-      admin: false,
-      member: true,
-    });
+    expect(mocks.loadEvidenceRequests).toHaveBeenCalledWith(
+      {},
+      'acct-1',
+      'o1',
+      { org: { id: 'o1' }, admin: false, member: true },
+      { withFileStates: true },
+    );
     expect(workspace?.triage.groups.map((g) => g.label)).toEqual([
       'Missing',
       'Received or Awaiting Confirmation',

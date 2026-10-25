@@ -31,7 +31,7 @@ export default async function AgencyCasesPage({
     // Requests are administrator data: loadEvidenceRequests returns none for anyone else.
     const [{ cases }, requests] = await Promise.all([
       loadCases(db, accountId, orgId, members),
-      loadEvidenceRequests(db, accountId, orgId, access),
+      loadEvidenceRequests(db, accountId, orgId, access, { withFileStates: true }),
     ]);
     return { admin: access.admin, members, cases, requests };
   });

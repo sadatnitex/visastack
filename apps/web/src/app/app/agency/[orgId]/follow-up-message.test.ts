@@ -100,6 +100,14 @@ describe('follow-up message', () => {
       'Write to rahim [at] mail [dot] org',
       'Write to rahim\uff20example.test',
       'See \uff57\uff57\uff57\uff0eexample\uff0etest',
+      // Hidden domains (WP-V4 re-review).
+      'Upload at evil[.]com today',
+      'Upload at evil(.)com today',
+      'Upload at evil{dot}com today',
+      'Upload at evil [dot] com today',
+      'Upload at evil dot com today',
+      'Upload at evil . com today',
+      'Upload at evil .com today',
     ]) {
       const message = buildFollowUpMessage({ ...base, agencyNote: note });
       expect(message.usedAgencyNote, note).toBe(false);
@@ -115,6 +123,15 @@ describe('follow-up message', () => {
       agencyNote: 'Bring 2 copies and the letter dated 10 December 2026, e.g. the signed one.',
     });
     expect(message.usedAgencyNote).toBe(true);
+    for (const ordinary of [
+      'See Section 4.2 of the checklist.',
+      'Please dot every i and sign each page.',
+      'Bring the form. Come at 10 if you can.',
+      'Use a black pen (not blue).',
+      'Arrive early. In the morning bring it. Org chart too.',
+    ]) {
+      expect(containsUnsafeDetail(ordinary), ordinary).toBe(false);
+    }
     // Eight digits close together are treated as a long number, even a date: the safe side.
     expect(containsUnsafeDetail('dated 10/12/2026')).toBe(true);
   });

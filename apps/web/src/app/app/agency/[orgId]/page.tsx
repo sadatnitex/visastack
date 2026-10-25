@@ -81,7 +81,7 @@ export default async function AgencyDashboardPage({
     if (!access?.member) return null;
     const members = await loadMembers(db, accountId, orgId, access);
     const [requests, caseList, unassignedQueue, clients] = await Promise.all([
-      loadEvidenceRequests(db, accountId, orgId, access),
+      loadEvidenceRequests(db, accountId, orgId, access, { withFileStates: true }),
       loadCases(db, accountId, orgId, members),
       loadUnassignedQueue(db, orgId, access),
       loadApplicants(db, orgId, access),
