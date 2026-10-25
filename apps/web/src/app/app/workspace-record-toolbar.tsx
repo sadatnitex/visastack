@@ -17,12 +17,15 @@ export function WorkspaceRecordToolbar({
   navigation,
   state,
   signOut,
+  contextChip,
 }: {
   readonly accountName: string;
   readonly access: WorkspaceAccess;
   readonly navigation: WorkspaceNavigation;
   readonly state?: WorkspaceToolbarState;
   readonly signOut: ReactNode;
+  /** WP-X3: who you are acting as, shown in the phone top bar so it is visible without opening More. */
+  readonly contextChip?: ReactNode;
 }) {
   const pathname = usePathname();
   const [query, setQuery] = useState('');
@@ -131,6 +134,7 @@ export function WorkspaceRecordToolbar({
         <BrandMark />
         <span className="record-brand-label">VisaStack</span>
       </Link>
+      {contextChip}
       <button
         type="button"
         ref={toggle}
@@ -267,6 +271,10 @@ export function WorkspaceRecordToolbar({
           <b className="account-name-mobile" dir="auto">
             {accountName.trim().split(/\s+/)[0] || 'Account'}
           </b>
+          {/* WP-X3: on the narrowest phones the account shows as an icon, leaving room for the context chip. */}
+          <span className="account-icon-mobile" aria-hidden="true">
+            <Icon name="user" size={20} />
+          </span>
           <Icon name="chevronDown" size={14} />
           <span className="sr-only">Account menu</span>
         </summary>

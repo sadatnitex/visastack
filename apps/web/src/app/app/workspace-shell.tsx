@@ -14,7 +14,13 @@ import {
 } from 'react';
 import { Icon } from '../../components/icons';
 import { isCurrentPath } from '../../lib/navigation';
-import { type WorkspaceAccess, workspaceNavigation } from '../../lib/workspace-navigation';
+import {
+  type WorkspaceAccess,
+  type WorkspaceNavigation,
+  workspaceNavigation,
+} from '../../lib/workspace-navigation';
+
+type WorkspaceKind = WorkspaceNavigation['kind'];
 import { AppNav } from './app-nav';
 import { WorkspaceRecordToolbar } from './workspace-record-toolbar';
 
@@ -30,14 +36,26 @@ export function WorkspaceCaseSubject({ route, applicantId }: Subject) {
   return null;
 }
 
+const firstWord = (name: string) => name.trim().split(/\s+/)[0] ?? '';
+const restOfName = (name: string) => name.trim().slice(firstWord(name).length);
+
+/**
+ * Who you are acting as, and the places you can switch to. The phone top bar
+ * shows a compact copy (WP-X3) so this is visible without opening More; both
+ * read the same access and navigation, and neither grants anything.
+ */
 function WorkspaceSelector({
   access,
   name,
   caption,
+  compact = false,
+  kind = 'personal',
 }: {
   readonly access: WorkspaceAccess;
   readonly name: string;
   readonly caption: string;
+  readonly compact?: boolean;
+  readonly kind?: WorkspaceKind;
 }) {
   const id = useId();
   const pathname = usePathname();
@@ -46,10 +64,37 @@ function WorkspaceSelector({
   useEffect(() => {
     if (selector.current) selector.current.open = false;
   }, [pathname]);
+  // The chip closes when someone taps anywhere else (another menu, the page),
+  // as the account menu and the More sheet do, so two menus never overlap.
+  useEffect(() => {
+    if (!compact) return;
+    const outside = (event: PointerEvent) => {
+      const details = selector.current;
+      if (details?.open && event.target instanceof Node && !details.contains(event.target)) {
+        details.open = false;
+      }
+    };
+    document.addEventListener('pointerdown', outside);
+    return () => document.removeEventListener('pointerdown', outside);
+  }, [compact]);
+  // A person's first name is enough to recognise them. Other contexts get a
+  // short label that fits a phone and drop the initials so the label has room; the full wording is still read aloud.
+  const isPerson = kind === 'personal' && access.travellers.some((t) => t.name === name);
+  const chipText = isPerson
+    ? firstWord(name)
+    : kind === 'platform'
+      ? 'Platform'
+      : kind === 'unavailable'
+        ? 'No access'
+        : name;
+  const spoken = isPerson
+    ? `${restOfName(name)}, acting as this person, ${caption}`
+    : `, current workspace: ${[name, caption].filter((part) => part !== chipText).join(', ')}`;
   return (
     <details
       ref={selector}
-      className="workspace-selector"
+      className={compact ? 'workspace-selector workspace-chip' : 'workspace-selector'}
+      data-initials={compact && !isPerson ? 'false' : undefined}
       onKeyDown={(event) => {
         if (event.key === 'Escape' && selector.current?.open) {
           selector.current.open = false;
@@ -59,20 +104,35 @@ function WorkspaceSelector({
       }}
     >
       <summary aria-controls={id}>
-        <span className="workspace-avatar" aria-hidden="true">
-          {name
-            .trim()
-            .split(/\s+/)
-            .slice(0, 2)
-            .map((part) => part.charAt(0))
-            .join('')
-            .toUpperCase()}
-        </span>
-        <span>
-          <b>{name}</b>
-          <small>{caption}</small>
-        </span>
-        <Icon name="chevron" size={16} />
+        {compact && !isPerson ? null : (
+          <span className="workspace-avatar" aria-hidden="true">
+            {name
+              .trim()
+              .split(/\s+/)
+              .slice(0, 2)
+              .map((part) => part.charAt(0))
+              .join('')
+              .toUpperCase()}
+          </span>
+        )}
+        {compact ? (
+          // Visible: a short label. Read aloud: the visible words first, then the full context.
+          <>
+            <span className="workspace-chip-label">
+              <b dir="auto">{chipText || caption}</b>
+              <span className="sr-only">{spoken}</span>
+            </span>
+            <Icon name="chevronDown" size={12} />
+          </>
+        ) : (
+          <>
+            <span>
+              <b>{name}</b>
+              <small>{caption}</small>
+            </span>
+            <Icon name="chevron" size={16} />
+          </>
+        )}
       </summary>
       <nav id={id} aria-label="Available workspaces">
         <p>Personal space</p>
@@ -150,6 +210,15 @@ export function WorkspaceShell({
         <div className="app-main">
           <WorkspaceRecordToolbar
             key={`${nav.kind}:${nav.primary[0]?.href ?? 'none'}`}
+            contextChip={
+              <WorkspaceSelector
+                access={access}
+                name={nav.name}
+                caption={nav.caption}
+                kind={nav.kind}
+                compact
+              />
+            }
             accountName={accountName}
             access={access}
             navigation={nav}

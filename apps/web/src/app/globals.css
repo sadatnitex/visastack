@@ -5885,3 +5885,92 @@ body:has(.auth-shell) > .footer {
   color: var(--warning);
   font-weight: 600;
 }
+/* WP-X3 context chip: a compact copy of the workspace selector in the phone
+   top bar, so who you are acting as shows without opening More. Hidden where
+   the sidebar already shows the full selector. Existing tokens only. */
+.workspace-chip {
+  display: none;
+}
+@media (max-width: 1023px) {
+  .workspace-chip {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    /* The open list is placed against the whole top bar, so it fits any phone width. */
+    position: static;
+    border-radius: var(--radius-pill);
+  }
+  .workspace-chip summary {
+    min-height: 44px;
+    padding: 4px 10px 4px 4px;
+    gap: 6px;
+  }
+  .workspace-chip .workspace-avatar {
+    width: 32px;
+    height: 32px;
+  }
+  /* The label shrinks and trims whether or not initials come first. */
+  .workspace-chip .workspace-chip-label {
+    min-width: 0;
+    flex: 1;
+  }
+  .workspace-chip[data-initials="false"] summary {
+    padding-left: 12px;
+  }
+  .workspace-chip b {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow-wrap: normal;
+  }
+  .workspace-chip nav {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 12px;
+    right: 12px;
+    /* Above the phone search panel (60), so an open list is never covered by it. */
+    z-index: 61;
+    background: #ffffff;
+    border: 1px solid var(--hairline-soft);
+    border-radius: 14px;
+  }
+}
+.account-icon-mobile {
+  display: none;
+}
+@media (max-width: 1023px) {
+  .workspace-chip summary > .icon {
+    flex: none;
+  }
+  .record-toolbar .record-toolbar-spacer {
+    display: none;
+  }
+}
+@media (max-width: 400px) {
+  .record-toolbar {
+    gap: 2px;
+  }
+  .workspace-chip summary {
+    padding-right: 8px;
+  }
+  .record-toolbar .record-account summary > .icon {
+    display: none;
+  }
+  .workspace-chip .workspace-avatar {
+    width: 28px;
+    height: 28px;
+  }
+}
+@media (max-width: 600px) {
+  .record-toolbar .record-account summary .account-name-mobile {
+    display: none;
+  }
+  .record-toolbar .record-account summary .account-icon-mobile {
+    display: flex;
+  }
+  /* Help stays one tap away in the account menu; its icon here gives the context label room. */
+  .record-toolbar .record-toolbar-shortcuts a[href="/app/help"] {
+    display: none;
+  }
+}
