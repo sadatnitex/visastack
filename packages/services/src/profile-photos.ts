@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { PermissionAction } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access/require-access';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
@@ -314,6 +314,53 @@ async function deleteNow(storage: BlobStore, photo: CurrentPhoto): Promise<void>
   await storage.deleteObject('CLEAN', photo.objectKey).catch(() => undefined);
 }
 
+/** Postgres "undefined_table": the photo table's migration has not run on this database yet. */
+const UNDEFINED_TABLE = '42P01';
+
+/** True when `error` (or anything it wraps) is Postgres saying a table does not exist. */
+export function isMissingTableError(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 5 && current !== null && typeof current === 'object'; depth++) {
+    if ((current as { code?: unknown }).code === UNDEFINED_TABLE) return true;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
+/**
+ * Runs a read of the photo table and answers `fallback` when the table does
+ * not exist yet. Application code goes live minutes before migration 0088
+ * runs, so in that window a photo read means "no photo", never an error.
+ * The read runs in its own transaction, which inside an outer transaction is
+ * a savepoint: a missing table rolls back only the read, and the outer
+ * transaction (account deletion, for example) stays usable.
+ */
+export async function readUnlessPhotoTableMissing<T>(
+  db: Db,
+  fallback: T,
+  read: (tx: Db) => Promise<T>,
+): Promise<T> {
+  try {
+    return await db.transaction(read);
+  } catch (error) {
+    if (isMissingTableError(error)) return fallback;
+    throw error;
+  }
+}
+
+const PHOTOS_UNAVAILABLE = 'Photos are not available yet. Please try again later.';
+
+async function changeAllowed(db: Db, ownerAccountId: string): Promise<ServiceError | undefined> {
+  const allowed = await checkRateLimit(
+    db,
+    { subjectId: ownerAccountId, action: 'profile_photo.change', label: 'photo' },
+    RATE_LIMITS.PROFILE_PHOTO_CHANGE,
+  );
+  return allowed.allowed
+    ? undefined
+    : serviceError('rate_limited', 'Too many photo changes in a short time. Try later.');
+}
+
 /** Add or replace the photo on a traveller record. Owner only. */
 export async function setApplicantPhoto(
   access: AuthorizedApplicant<'MANAGE'>,
@@ -328,14 +375,14 @@ export async function setApplicantPhoto(
   const applicantId = access.applicant.id;
   const ownerAccountId = access.applicant.ownerAccountId;
 
-  const allowed = await checkRateLimit(
-    db,
-    { subjectId: ownerAccountId, action: 'profile_photo.change', label: 'photo' },
-    RATE_LIMITS.PROFILE_PHOTO_CHANGE,
-  );
-  if (!allowed.allowed) {
-    return err(serviceError('rate_limited', 'Too many photo changes in a short time. Try later.'));
-  }
+  // Before any storage work: refuse plainly while the photo table does not exist yet.
+  const ready = await readUnlessPhotoTableMissing(db, false, async (tx) => {
+    await currentPhoto(tx, applicantId);
+    return true;
+  });
+  if (!ready) return err(serviceError('upstream_error', PHOTOS_UNAVAILABLE));
+  const limited = await changeAllowed(db, ownerAccountId);
+  if (limited) return err(limited);
 
   const encoded = await scanAndReencode(db, ports, input);
   if (!encoded.ok) return encoded;
@@ -402,7 +449,10 @@ export async function removeApplicantPhoto(
   const denied = ownerProblem(access, 'MANAGE');
   if (denied) return err(denied);
   const applicantId = access.applicant.id;
-  const removed = await access.tx.transaction(async (tx) => {
+  const limited = await changeAllowed(access.tx, access.applicant.ownerAccountId);
+  if (limited) return err(limited);
+  // With no photo table yet there is no photo to remove.
+  const removed = await readUnlessPhotoTableMissing(access.tx, undefined, async (tx) => {
     await lockApplicant(tx, applicantId);
     const existing = await currentPhoto(tx, applicantId);
     if (!existing) return undefined;
@@ -432,14 +482,36 @@ export async function getApplicantPhotoVersion(
 ): Promise<Result<string | null, ServiceError>> {
   const denied = ownerProblem(access, 'VIEW_METADATA');
   if (denied) return err(denied);
-  const row = first(
-    await access.tx
-      .select({ contentSha256: schema.applicantPhotos.contentSha256 })
+  const versions = await listApplicantPhotoVersions(access);
+  if (!versions.ok) return versions;
+  return ok(versions.value.get(access.applicant.id) ?? null);
+}
+
+/**
+ * Current photo versions for several traveller records in one read, keyed by
+ * applicant id; a record without a photo is absent. Every proof must be the
+ * owner's own (the first is required, so at least one proof is always given).
+ */
+export async function listApplicantPhotoVersions(
+  access: AuthorizedApplicant<'VIEW_METADATA'>,
+  ...more: readonly AuthorizedApplicant<'VIEW_METADATA'>[]
+): Promise<Result<ReadonlyMap<string, string>, ServiceError>> {
+  const proofs = [access, ...more];
+  for (const proof of proofs) {
+    const denied = ownerProblem(proof, 'VIEW_METADATA');
+    if (denied) return err(denied);
+  }
+  const ids = [...new Set(proofs.map((proof) => proof.applicant.id))];
+  const rows = await readUnlessPhotoTableMissing(access.tx, [], (tx) =>
+    tx
+      .select({
+        applicantId: schema.applicantPhotos.applicantId,
+        contentSha256: schema.applicantPhotos.contentSha256,
+      })
       .from(schema.applicantPhotos)
-      .where(eq(schema.applicantPhotos.applicantId, access.applicant.id))
-      .limit(1),
+      .where(inArray(schema.applicantPhotos.applicantId, ids)),
   );
-  return ok(row ? versionOf(row.contentSha256) : null);
+  return ok(new Map(rows.map((row) => [row.applicantId, versionOf(row.contentSha256)])));
 }
 
 /**
@@ -453,7 +525,9 @@ export async function readApplicantPhoto(
 ): Promise<Result<ProfilePhotoBytes, ServiceError>> {
   const denied = ownerProblem(access, 'VIEW_METADATA');
   if (denied) return err(denied);
-  const photo = await currentPhoto(access.tx, access.applicant.id);
+  const photo = await readUnlessPhotoTableMissing(access.tx, undefined, (tx) =>
+    currentPhoto(tx, access.applicant.id),
+  );
   if (!photo) return err(serviceError('not_found', 'no photo'));
   const stored = await storage.getObject(photo.objectKey);
   if (
@@ -468,4 +542,9 @@ export async function readApplicantPhoto(
     contentType: PROFILE_PHOTO_CONTENT_TYPE,
     version: versionOf(photo.contentSha256),
   });
+}
+
+/** True when `bytes` are a JPEG whose SHA-256 is `sha256`: the check every reader of stored photo bytes makes. */
+export function isIntactPhoto(bytes: Uint8Array, sha256: string): boolean {
+  return sha256Hex(bytes) === sha256 && startsWith(bytes, JPEG_SIGNATURE);
 }

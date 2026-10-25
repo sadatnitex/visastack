@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { type Result, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { EACH_GRANT, accountPrincipal, requireAccess } from './access';
@@ -23,6 +23,7 @@ import {
   PROFILE_PHOTO_MAX_INPUT_BYTES,
   type PhotoReencoderPort,
   getApplicantPhotoVersion,
+  listApplicantPhotoVersions,
   readApplicantPhoto,
   removeApplicantPhoto,
   setApplicantPhoto,
@@ -96,7 +97,7 @@ function fakeReencoder(): PhotoReencoderPort & { calls: number } {
   return encoder;
 }
 
-function jpegUpload(seed = randomUUID()): { contentType: string; bytes: Uint8Array } {
+function jpegUpload(seed: string = randomUUID()): { contentType: string; bytes: Uint8Array } {
   return {
     contentType: 'image/jpeg',
     bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x01, 0x02, ...Buffer.from(seed)]),
@@ -416,7 +417,7 @@ describe('profile photos', () => {
     expect(await db.select().from(schema.storageObjects)).toEqual([]);
   });
 
-  it('keeps the photo table private to this module and account deletion: no share, pack or export reads it', () => {
+  it('keeps the photo table private to this module, account deletion and the owner export: no share or pack reads it', () => {
     const here = path.dirname(fileURLToPath(import.meta.url));
     const readers = readdirSync(here, { recursive: true, withFileTypes: true })
       .filter((entry) => entry.isFile() && entry.name.endsWith('.ts'))
@@ -425,6 +426,83 @@ describe('profile photos', () => {
       .filter((file) => /\bschema\.applicantPhotos\b/.test(readFileSync(file, 'utf8')))
       .map((file) => path.relative(here, file))
       .sort();
-    expect(readers).toEqual(['deletion.ts', 'profile-photos.ts']);
+    expect(readers).toEqual(['account-export.ts', 'deletion.ts', 'profile-photos.ts']);
+  });
+
+  it("reads the photo versions of several owned records in one call, and refuses one proof that is not the owner's", async () => {
+    const second = await createApplicant(db, {
+      actorAccountId: ownerId,
+      ownerAccountId: ownerId,
+      displayName: 'Second Traveller',
+      relationship: 'FAMILY_MEMBER',
+      authorityConfirmed: true,
+    });
+    if (!isOk(second)) throw new Error('second');
+    const saved = await setApplicantPhoto(await manage(), ports(), jpegUpload());
+    if (!saved.ok) throw new Error('save');
+    const secondProof = await requireAccess(
+      db,
+      accountPrincipal(ownerId),
+      'VIEW_METADATA',
+      { applicantId: second.value.id },
+      { purpose: EACH_GRANT },
+    );
+    if (!secondProof.ok) throw new Error('proof');
+    const versions = await listApplicantPhotoVersions(await view(), secondProof.value);
+    expect(versions.ok && [...versions.value]).toEqual([[applicantId, saved.value.version]]);
+    const copy = { ...secondProof.value } as never;
+    expect(code(await listApplicantPhotoVersions(await view(), copy))).toBe('forbidden');
+  });
+
+  it('also limits how often a photo can be removed', async () => {
+    await setApplicantPhoto(await manage(), ports(), jpegUpload());
+    await exhaustRateLimit(db, ownerId, 'profile_photo.change', RATE_LIMITS.PROFILE_PHOTO_CHANGE);
+    expect(code(await removeApplicantPhoto(await manage(), storage))).toBe('rate_limited');
+    expect(await photoRow()).toBeDefined();
+  });
+
+  describe('before migration 0088 has run (no photo table yet)', () => {
+    beforeEach(async () => {
+      await db.execute(sql`drop table applicant_photos`);
+    });
+
+    it('answers "no photo" everywhere instead of failing', async () => {
+      const version = await getApplicantPhotoVersion(await view());
+      expect(version.ok && version.value).toBeNull();
+      const versions = await listApplicantPhotoVersions(await view());
+      expect(versions.ok && versions.value.size).toBe(0);
+      expect(code(await readApplicantPhoto(await view(), storage))).toBe('not_found');
+      const removed = await removeApplicantPhoto(await manage(), storage);
+      expect(removed.ok && removed.value.removed).toBe(false);
+    });
+
+    it('refuses a new photo plainly before storing anything', async () => {
+      const result = await setApplicantPhoto(await manage(), ports(), jpegUpload());
+      expect(code(result)).toBe('upstream_error');
+      expect(scanner.scanned).toEqual([]);
+      expect(storedKeys()).toEqual([]);
+    });
+
+    it('still deletes the account, with the rest of its transaction intact', async () => {
+      const now = new Date();
+      const requested = await requestAccountDeletion(db, {
+        actorAccountId: ownerId,
+        accountId: ownerId,
+        gracePeriodMs: 0,
+        now,
+      });
+      if (!isOk(requested)) throw new Error(`request: ${requested.error.message}`);
+      const executed = await executeAccountDeletion(db, { accountId: ownerId, now });
+      expect(isOk(executed)).toBe(true);
+      expect(await db.select().from(schema.applicants)).toEqual([]);
+      expect(
+        await db.select().from(schema.accounts).where(eq(schema.accounts.id, ownerId)),
+      ).toEqual([]);
+      const events = await db
+        .select({ eventType: schema.auditEvents.eventType })
+        .from(schema.auditEvents)
+        .where(eq(schema.auditEvents.eventType, 'ACCOUNT_DELETION_EXECUTED'));
+      expect(events).toHaveLength(1);
+    });
   });
 });

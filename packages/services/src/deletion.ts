@@ -7,6 +7,7 @@ import type { StorageObject } from './documents';
 import { enqueueErasureJob } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { listActiveLegalHoldsForAccount } from './legal-hold';
+import { readUnlessPhotoTableMissing } from './profile-photos';
 
 /**
  * Account deletion workflow (Build Spec §13; PRD §2 — erasure).
@@ -441,14 +442,19 @@ export async function executeAccountDeletion(
       }
       // Profile photos (WP-PH1) are stored objects too: queue them with the
       // documents' objects. Their rows cascade with the applicants below.
-      const photoObjects = await tx
-        .select({ object: schema.storageObjects })
-        .from(schema.applicantPhotos)
-        .innerJoin(
-          schema.storageObjects,
-          eq(schema.storageObjects.id, schema.applicantPhotos.storageObjectId),
-        )
-        .where(inArray(schema.applicantPhotos.applicantId, applicantIds));
+      // Before migration 0088 has run there is no photo table and so no
+      // photos; that read alone is rolled back to a savepoint, so this
+      // transaction carries on.
+      const photoObjects = await readUnlessPhotoTableMissing(tx, [], (read) =>
+        read
+          .select({ object: schema.storageObjects })
+          .from(schema.applicantPhotos)
+          .innerJoin(
+            schema.storageObjects,
+            eq(schema.storageObjects.id, schema.applicantPhotos.storageObjectId),
+          )
+          .where(inArray(schema.applicantPhotos.applicantId, applicantIds)),
+      );
       storageObjects = [...storageObjects, ...photoObjects.map((row) => row.object)];
       // Deleting applicants cascades to missions, grants, documents, versions,
       // facts. `storageObjects` is left untouched here — the `restrict` FK on

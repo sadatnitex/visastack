@@ -429,7 +429,11 @@ export {
   PROFILE_PHOTO_SIZE,
   applicantPhotoPath,
   getApplicantPhotoVersion,
+  isIntactPhoto,
+  isMissingTableError,
+  listApplicantPhotoVersions,
   readApplicantPhoto,
+  readUnlessPhotoTableMissing,
   removeApplicantPhoto,
   setApplicantPhoto,
 } from './profile-photos';
