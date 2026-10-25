@@ -43,6 +43,7 @@
   "agency#updateAppointmentForOrg",
   "agency#updateTaskForOrg",
   "ai#acknowledgeInconsistencyFlag",
+  "ai#approveClearProposals",
   "ai#approveDocumentTypeProposal",
   "ai#approveProposal",
   "ai#countAiClassificationAttempts",
