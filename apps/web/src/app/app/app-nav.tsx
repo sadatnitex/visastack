@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { type CSSProperties, type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import { BrandMark } from '../../components/brand-mark';
 import { Icon, type IconName } from '../../components/icons';
 import { type NavLink, PRIMARY_NAV, isCurrentPath } from '../../lib/navigation';
 
@@ -164,7 +165,7 @@ export function AppNav({
     <div className="app-shell-nav" data-open={open ? 'true' : 'false'}>
       <div className="app-sidebar-heading">
         <Link className="brand" href="/">
-          <span className="brand-mark" aria-hidden="true" />
+          <BrandMark />
           VisaStack
         </Link>
       </div>
@@ -280,7 +281,7 @@ export function WorkspaceToolbar({
   return (
     <header className="workspace-toolbar">
       <Link href="/" className="brand workspace-brand">
-        <span className="brand-mark" aria-hidden="true" />
+        <BrandMark />
         VisaStack
       </Link>
       <div className="workspace-finder">

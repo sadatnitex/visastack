@@ -404,8 +404,6 @@ test.describe('brand assets from the VisaStack brand pack', () => {
       ['/opengraph-image.png', 'image/png'],
       ['/icons/icon-192.png', 'image/png'],
       ['/icons/icon-maskable-512.png', 'image/png'],
-      ['/brand/visastack-v-tile.svg', 'image/svg+xml'],
-      ['/brand/visastack-v-tile-reversed.svg', 'image/svg+xml'],
     ];
     for (const [path, type] of assets) {
       const response = await request.get(path);
@@ -416,23 +414,18 @@ test.describe('brand assets from the VisaStack brand pack', () => {
     expect(manifest).toMatchObject({ name: 'VisaStack', theme_color: '#1D4C98' });
   });
 
-  test('the header shows the brand V, loaded under the content security policy', async ({
-    page,
-  }) => {
-    const refused: string[] = [];
-    page.on('console', (message) => {
-      if (message.type() === 'error' && /Content Security Policy/i.test(message.text()))
-        refused.push(message.text());
+  test('the header draws the brand V inline, with no extra request', async ({ page }) => {
+    const markRequests: string[] = [];
+    page.on('request', (request) => {
+      if (/brand|visastack-v/i.test(new URL(request.url()).pathname))
+        markRequests.push(request.url());
     });
-    const tile = page.waitForResponse((response) =>
-      response.url().endsWith('/brand/visastack-v-tile.svg'),
-    );
     await page.goto('/');
-    expect((await tile).status()).toBe(200);
-    await expect(page.locator('header.nav .brand-mark')).toHaveCSS(
-      'background-image',
-      /\/brand\/visastack-v-tile\.svg/,
-    );
-    expect(refused).toEqual([]);
+    const mark = page.locator('header.nav svg.brand-mark');
+    await expect(mark).toBeVisible();
+    await expect(mark).toHaveAttribute('aria-hidden', 'true');
+    await expect(mark.locator('.brand-mark-tile')).toHaveCSS('fill', 'rgb(29, 76, 152)');
+    await expect(mark.locator('.brand-mark-v')).toHaveCSS('fill', 'rgb(255, 255, 255)');
+    expect(markRequests).toEqual([]);
   });
 });

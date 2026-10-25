@@ -8,6 +8,7 @@ import type {
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import { BrandMark } from '../../components/brand-mark';
 import { Icon } from '../../components/icons';
 import type { WorkspaceAccess, WorkspaceNavigation } from '../../lib/workspace-navigation';
 
@@ -127,7 +128,7 @@ export function WorkspaceRecordToolbar({
       data-search-open={mobileSearch ? 'true' : 'false'}
     >
       <Link href="/" className="brand workspace-brand" aria-label="VisaStack home">
-        <span className="brand-mark" aria-hidden="true" />
+        <BrandMark />
         <span className="record-brand-label">VisaStack</span>
       </Link>
       <button

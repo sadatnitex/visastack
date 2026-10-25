@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { BrandMark } from '../components/brand-mark';
 import { PilotBanner } from '../components/pilot-banner';
 import { SiteNavigation } from '../components/site-navigation';
 import { getDeploymentMode } from '../lib/deployment-mode';
@@ -63,7 +64,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
         ) : null}
         <header className="nav">
           <Link className="brand" href="/">
-            <span className="brand-mark" aria-hidden="true" />
+            <BrandMark />
             VisaStack
           </Link>
           <SiteNavigation>

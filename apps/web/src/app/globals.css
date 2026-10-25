@@ -184,10 +184,14 @@ a:hover {
   display: inline-block;
   width: 34px;
   height: 34px;
-  border-radius: 10px;
-  /* The VisaStack V from the brand pack: below 32px of detail the single bolder V, never the sliced mark. */
-  background: url("/brand/visastack-v-tile.svg") center / 100% 100% no-repeat;
   position: relative;
+}
+/* Brand pack colours: blue tile with a white V; reversed on the dark identity panel. */
+.brand-mark-tile {
+  fill: #1d4c98;
+}
+.brand-mark-v {
+  fill: #ffffff;
 }
 .nav-links {
   display: flex;
@@ -3317,8 +3321,11 @@ body:has(.auth-shell) > .footer {
   color: #ffffff;
 }
 /* On the dark identity panel the brand pack's reversed colours apply: white tile, blue V. */
-.auth-brand .brand-mark {
-  background-image: url("/brand/visastack-v-tile-reversed.svg");
+.auth-brand .brand-mark-tile {
+  fill: #ffffff;
+}
+.auth-brand .brand-mark-v {
+  fill: #1d4c98;
 }
 .auth-legal-links {
   display: flex;

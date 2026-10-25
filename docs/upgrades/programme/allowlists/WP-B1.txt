@@ -16,3 +16,11 @@ apps/web/src/app/globals.css
 apps/web/e2e/browser-security.spec.ts
 docs/upgrades/programme/**
 docs/commercial-v1/known-issues.md
+# The mark is drawn inline (no image request, so it paints with the page): the shared component, its test,
+# and the five places that showed the old CSS-drawn mark.
+apps/web/src/components/brand-mark.tsx
+apps/web/src/components/brand-mark.test.tsx
+apps/web/src/app/layout.tsx
+apps/web/src/app/auth/auth-ui.tsx
+apps/web/src/app/app/app-nav.tsx
+apps/web/src/app/app/workspace-record-toolbar.tsx
