@@ -372,6 +372,18 @@ describe('redacted copies while the platform cannot deliver them', () => {
     expect(document.getElementById(noteId ?? '')?.textContent).toBe('Not available yet');
   });
 
+  it('keeps the note out of the accessible name, so it is read once, as the description', () => {
+    mountUnavailable();
+    const box = redacted();
+    const label = box?.labels?.[0];
+    const note = document.getElementById(box?.getAttribute('aria-describedby') ?? '');
+    // A wrapping label gives the box its name from its text: the name alone, no note.
+    expect(box?.labels).toHaveLength(1);
+    expect(label?.textContent).toBe('Download Redacted Copies');
+    expect(note).not.toBeNull();
+    expect(label?.contains(note)).toBe(false);
+  });
+
   it('never sends it, never lists it and never talks about downloads in the review', () => {
     mountUnavailable();
     ready();

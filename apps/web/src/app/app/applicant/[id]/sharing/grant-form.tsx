@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useActionState, useEffect, useRef, useState } from 'react';
+import { Fragment, useActionState, useEffect, useRef, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
 import { InvitationLink } from '../../../../../components/invitation-link';
 import {
@@ -221,25 +221,28 @@ export function GrantForm({
             const unavailable = action.needsRedactedDownload === true && !redactedDownloadAvailable;
             const noteId = `grant-action-${action.value}-note`;
             return (
-              <label className="check" key={action.value}>
-                <input
-                  type="checkbox"
-                  name="action"
-                  value={action.value}
-                  defaultChecked={!unavailable && (action.defaultOn ?? false)}
-                  disabled={unavailable}
-                  aria-describedby={unavailable ? noteId : undefined}
-                  onChange={(e) =>
-                    setActions((prev) => toggled(prev, action.value, e.target.checked))
-                  }
-                />
-                <span>{action.label}</span>
+              <Fragment key={action.value}>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    name="action"
+                    value={action.value}
+                    defaultChecked={!unavailable && (action.defaultOn ?? false)}
+                    disabled={unavailable}
+                    aria-describedby={unavailable ? noteId : undefined}
+                    onChange={(e) =>
+                      setActions((prev) => toggled(prev, action.value, e.target.checked))
+                    }
+                  />
+                  <span>{action.label}</span>
+                </label>
+                {/* Outside the label, so it is the description only and is not read twice. */}
                 {unavailable ? (
-                  <span id={noteId} className="muted u-fs-075">
+                  <p id={noteId} className="muted u-fs-075 u-m-0">
                     Not available yet
-                  </span>
+                  </p>
                 ) : null}
-              </label>
+              </Fragment>
             );
           })}
         </div>

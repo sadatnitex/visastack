@@ -121,8 +121,20 @@ describe('resolveAiExtractionCapability', () => {
   it('says switched off, never throws, when the database cannot be reached or asked', async () => {
     const { resolveAiExtractionCapability } = await import('./capabilities');
     expect(await resolveAiExtractionCapability(undefined)).toBe('disabled');
-    services.hasAnyAiProviderConfig.mockRejectedValue(new Error('connection refused'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    services.hasAnyAiProviderConfig.mockRejectedValue(
+      new Error('Failed query: select provider from ai_provider_configs (anthropic sk-ant-x)'),
+    );
     expect(await resolveAiExtractionCapability(FAKE_DB)).toBe('disabled');
+    // The failure is logged as a warning that names no provider, key, setting or query.
+    expect(warn).toHaveBeenCalledTimes(1);
+    const line = String(warn.mock.calls[0]?.[0]);
+    expect(line).toContain('capability_lookup_failed');
+    expect(line).toContain('aiExtraction');
+    for (const detail of ['anthropic', 'sk-ant', 'ai_provider_configs', 'Failed query']) {
+      expect(line).not.toContain(detail);
+    }
+    warn.mockRestore();
     // A failed lookup is not kept: the next request asks again and sees recovery.
     freshInstall();
     vi.stubEnv('AI_ENABLED', 'true');

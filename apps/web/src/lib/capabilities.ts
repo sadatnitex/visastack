@@ -14,6 +14,7 @@ import { getDeploymentMode } from './deployment-mode';
 import { isPresent, isSignInConfigured, readEnv } from './env';
 import { createKeyManagementPort } from './providers';
 import { isPublicBetaOpen } from './public-beta';
+import { reportCapabilityLookupFailure } from './server-error';
 
 export { isPresent, isSignInConfigured } from './env';
 
@@ -160,7 +161,8 @@ export async function resolveAiExtractionCapability(
   if (!db) return 'disabled';
   const cached = aiCapabilityCache;
   if (cached && cached.expiresAt > now) return cached.state;
-  const state: Promise<CapabilityState> = lookUpAiExtractionState(db).catch(() => {
+  const state: Promise<CapabilityState> = lookUpAiExtractionState(db).catch((error: unknown) => {
+    reportCapabilityLookupFailure('aiExtraction', error);
     if (aiCapabilityCache?.state === state) aiCapabilityCache = undefined;
     return 'disabled';
   });
