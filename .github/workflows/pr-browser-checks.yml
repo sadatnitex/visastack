@@ -1,0 +1,121 @@
+name: Pull Request Browser Checks
+
+# Branch previews are switched off (apps/web/vercel.json: only main deploys), because the
+# Vercel plan allows a limited number of deployments a day. The two required browser checks
+# therefore run here before merge, against the pull request's own production build started on
+# the CI machine, with no secrets. After merge, the same checks run again against the real
+# production deployment (deploy-smoke.yml and playwright-smoke.yml).
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: pr-browser-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # A production build with placeholder settings: nothing here reaches a real service.
+  NODE_ENV: production
+  DEPLOYMENT_MODE: controlled_pilot
+  IDENTITY_PROVIDER: neon_auth
+  NEON_AUTH_BASE_URL: https://auth.placeholder.invalid/neondb/auth
+  NEXT_TELEMETRY_DISABLED: '1'
+
+jobs:
+  playwright:
+    name: No-secret Playwright checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the web app
+        run: pnpm --filter @visastack/web build
+
+      - name: Start the app on this machine
+        working-directory: apps/web
+        run: |
+          export NEON_AUTH_COOKIE_SECRET="$(openssl rand -hex 32)"
+          nohup ./node_modules/.bin/next start -p 3100 > "$RUNNER_TEMP/next.log" 2>&1 &
+          for i in $(seq 1 60); do
+            curl -sf -o /dev/null http://localhost:3100/ && exit 0
+            sleep 2
+          done
+          tail -40 "$RUNNER_TEMP/next.log"
+          exit 1
+
+      - name: Install Playwright Chromium
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the no-secret Playwright checks
+        working-directory: apps/web
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:3100
+        run: npx playwright test no-secret-auth.spec.ts ux-public.spec.ts browser-security.spec.ts
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-playwright-report
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+          retention-days: 7
+
+  smoke:
+    name: No-secret smoke check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the web app
+        run: pnpm --filter @visastack/web build
+
+      - name: Start the app on this machine and run the smoke check
+        working-directory: apps/web
+        run: |
+          export NEON_AUTH_COOKIE_SECRET="$(openssl rand -hex 32)"
+          nohup ./node_modules/.bin/next start -p 3100 > "$RUNNER_TEMP/next.log" 2>&1 &
+          for i in $(seq 1 60); do
+            curl -sf -o /dev/null http://localhost:3100/ && break
+            sleep 2
+          done
+          SMOKE_BASE_URL=http://localhost:3100 node scripts/smoke.mjs
