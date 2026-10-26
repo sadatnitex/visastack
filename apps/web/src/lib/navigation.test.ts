@@ -164,7 +164,9 @@ describe('platform navigation (directive Part 9 section 1)', () => {
   });
 
   it('hides AI and Complaints from an administrator who may not use them', () => {
-    const names = labels(platformTabs({ ai: false, complaints: false, audit: false, privacy: false }));
+    const names = labels(
+      platformTabs({ ai: false, complaints: false, audit: false, privacy: false }),
+    );
     expect(names).not.toContain('AI');
     expect(names).not.toContain('Complaints');
     expect(names).not.toContain('Audit');

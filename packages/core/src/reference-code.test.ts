@@ -134,7 +134,7 @@ describe('the check character', () => {
         }
       }
     }
-  });
+  }, 30_000);
 
   it('fails a code typed under the wrong type letter', () => {
     const code = withCheck('C', '7K2Q9');

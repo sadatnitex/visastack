@@ -112,7 +112,10 @@ describe('current contextual navigation contract', () => {
     ]);
   });
   it('hides the private account directory and restricted configuration for limited platform staff', () => {
-    const limited = { ...access, platform: { owner: false, ai: false, complaints: false, audit: false, privacy: false } };
+    const limited = {
+      ...access,
+      platform: { owner: false, ai: false, complaints: false, audit: false, privacy: false },
+    };
     expect(labels('/app/admin', limited)).not.toContain('Members');
     const tools = workspaceNavigation('/app/admin', limited).tools.map((link) => link.label);
     expect(tools).not.toContain('AI Settings');

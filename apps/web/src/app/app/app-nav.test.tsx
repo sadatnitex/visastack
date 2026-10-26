@@ -143,7 +143,10 @@ describe('phone navigation and the context chip (WP-X3)', () => {
     expect(chip()?.querySelector('b')?.textContent).toBe('The Global Visa Ltd');
     route.pathname = '/app/admin';
     act(() => root.render(<span />));
-    mount({ ...FULL, platform: { owner: true, ai: false, complaints: false, audit: true, privacy: true } });
+    mount({
+      ...FULL,
+      platform: { owner: true, ai: false, complaints: false, audit: true, privacy: true },
+    });
     expect(chip()?.querySelector('b')?.textContent).toBe('Platform');
     expect(chip()?.querySelector('summary')?.textContent).toContain('Platform Operations');
     expect(chip()?.querySelector('.workspace-avatar')).toBeNull();

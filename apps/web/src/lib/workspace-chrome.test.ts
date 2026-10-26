@@ -68,7 +68,13 @@ describe('workspace chrome uses existing actor-scoped authorization reads', () =
       async (_db, _actor, permission) => permission === 'AI_SETTINGS_MANAGE',
     );
     const data = await loadWorkspaceChrome({} as never, actor);
-    expect(data.platform).toEqual({ owner: false, ai: true, complaints: false, audit: false, privacy: false });
+    expect(data.platform).toEqual({
+      owner: false,
+      ai: true,
+      complaints: false,
+      audit: false,
+      privacy: false,
+    });
     expect(mocks.isPlatformOwnerAccount).toHaveBeenCalledWith({}, actor);
   });
   it('does not fabricate empty successful contexts when their reads fail', async () => {
