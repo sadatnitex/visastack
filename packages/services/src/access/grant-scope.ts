@@ -1,5 +1,5 @@
 import type { MissionId } from '@visastack/core';
-import { type SQL, type SQLWrapper, and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { type SQL, type SQLWrapper, and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import type { Db } from '../db';
 import { schema } from '../db';
 
@@ -95,6 +95,48 @@ export async function loadInvitationCaseExclusions(
     byInvitation.set(row.invitationId, list);
   }
   return byInvitation;
+}
+
+/** One recorded exception with its case title, for the owner's own views. */
+export interface CaseExclusionDetail {
+  readonly id: string;
+  readonly grantId: string | null;
+  readonly sharingInvitationId: string | null;
+  readonly missionId: string;
+  readonly missionTitle: string;
+  readonly createdAt: Date;
+}
+
+/**
+ * Every exception recorded on one applicant's grants and invitations, with
+ * the case title, oldest first. For owner-facing transparency only: callers
+ * must already have proved the actor owns the applicant.
+ */
+export async function listCaseExclusionsForApplicant(
+  db: Db,
+  applicantId: string,
+): Promise<readonly CaseExclusionDetail[]> {
+  if (!(await caseExclusionsTablePresent(db))) return [];
+  const table = schema.grantCaseExclusions;
+  return db
+    .select({
+      id: table.id,
+      grantId: table.grantId,
+      sharingInvitationId: table.sharingInvitationId,
+      missionId: table.missionId,
+      missionTitle: schema.missions.title,
+      createdAt: table.createdAt,
+    })
+    .from(table)
+    .innerJoin(
+      schema.missions,
+      and(
+        eq(schema.missions.id, table.missionId),
+        eq(schema.missions.applicantId, table.applicantId),
+      ),
+    )
+    .where(eq(table.applicantId, applicantId))
+    .orderBy(asc(table.createdAt), asc(table.id));
 }
 
 /** Builds the case-coverage condition for one case expression (a column or a case id). */

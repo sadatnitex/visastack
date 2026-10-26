@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Result } from '@visastack/core';
 import { err, ok } from '@visastack/core';
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
+import { withCaseExclusions } from './access/grant-scope';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { type SealedInvitationLink, revealInvitationLink } from './invitation-email';
@@ -362,27 +363,30 @@ async function checkRecipient(
     if (!member) return { authorized: false, email: null };
     if (notification.applicantId) {
       const now = new Date();
+      const applicantId = notification.applicantId;
+      const organizationId = notification.organizationId;
+      const missionId = notification.missionId;
+      // A case notice needs a grant that still reaches that case: the shared
+      // case-scope rule, so a per-case sharing exception (ADR 0017) stops
+      // notices about that one case too.
       const grant = first(
-        await db
-          .select({ id: schema.grants.id })
-          .from(schema.grants)
-          .where(
-            and(
-              eq(schema.grants.applicantId, notification.applicantId),
-              eq(schema.grants.recipientOrganizationId, notification.organizationId),
-              eq(schema.grants.status, 'ACTIVE'),
-              isNotNull(schema.grants.acceptedAt),
-              lte(schema.grants.startAt, now),
-              or(isNull(schema.grants.expiryAt), gt(schema.grants.expiryAt, now)),
-              notification.missionId
-                ? or(
-                    isNull(schema.grants.missionId),
-                    eq(schema.grants.missionId, notification.missionId),
-                  )
-                : isNull(schema.grants.missionId),
-            ),
-          )
-          .limit(1),
+        await withCaseExclusions(db, (covers) =>
+          db
+            .select({ id: schema.grants.id })
+            .from(schema.grants)
+            .where(
+              and(
+                eq(schema.grants.applicantId, applicantId),
+                eq(schema.grants.recipientOrganizationId, organizationId),
+                eq(schema.grants.status, 'ACTIVE'),
+                isNotNull(schema.grants.acceptedAt),
+                lte(schema.grants.startAt, now),
+                or(isNull(schema.grants.expiryAt), gt(schema.grants.expiryAt, now)),
+                missionId ? covers(missionId) : isNull(schema.grants.missionId),
+              ),
+            )
+            .limit(1),
+        ),
       );
       if (!grant) return { authorized: false, email: null };
       if (member.role !== 'OWNER' && member.role !== 'ADMIN') {

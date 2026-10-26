@@ -17,6 +17,7 @@ import {
   authorize,
 } from '@visastack/policy';
 import { and, eq, inArray } from 'drizzle-orm';
+import { listCaseExclusionsForApplicant, loadCaseExclusions } from './access/grant-scope';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
@@ -37,13 +38,14 @@ import { RATE_LIMITS, checkRateLimit } from './rate-limit';
 
 export type Grant = typeof schema.grants.$inferSelect;
 
-/** Map the grant rows for an applicant into the policy engine's Grant shape. */
-export async function loadGrantsForPolicy(db: Db, applicantId: string): Promise<PolicyGrant[]> {
-  const rows = await db
-    .select()
-    .from(schema.grants)
-    .where(eq(schema.grants.applicantId, applicantId));
-  return rows.map((row) => ({
+/**
+ * One grant row in the policy engine's shape, with the cases excluded from it
+ * (per-case sharing exceptions, ADR 0017). The only mapping from a grant row
+ * to a policy grant: every caller that evaluates a grant row uses this, so no
+ * scope facet can be dropped by a hand-copied variant.
+ */
+export function toPolicyGrant(row: Grant, excludedMissionIds?: readonly MissionId[]): PolicyGrant {
+  return {
     applicantId: row.applicantId as ApplicantId,
     actions: row.actions as PermissionAction[],
     purpose: row.purpose,
@@ -54,6 +56,9 @@ export async function loadGrantsForPolicy(db: Db, applicantId: string): Promise<
       ? { recipientOrganizationId: row.recipientOrganizationId as AgencyId }
       : {}),
     ...(row.missionId ? { missionId: row.missionId as MissionId } : {}),
+    ...(!row.missionId && excludedMissionIds && excludedMissionIds.length > 0
+      ? { excludedMissionIds: [...excludedMissionIds] }
+      : {}),
     ...(row.categories ? { categories: row.categories } : {}),
     ...(row.documentIds ? { documentIds: row.documentIds as DocumentId[] } : {}),
     ...(row.documentScopeSnapshot
@@ -61,7 +66,22 @@ export async function loadGrantsForPolicy(db: Db, applicantId: string): Promise<
       : {}),
     ...(row.acceptedAt ? { acceptedAt: row.acceptedAt.toISOString() } : {}),
     ...(row.expiryAt ? { expiryAt: row.expiryAt.toISOString() } : {}),
-  }));
+  };
+}
+
+/**
+ * Map the grant rows for an applicant into the policy engine's Grant shape,
+ * each with its per-case sharing exceptions, read live (never cached).
+ */
+export async function loadGrantsForPolicy(db: Db, applicantId: string): Promise<PolicyGrant[]> {
+  const rows = await db
+    .select()
+    .from(schema.grants)
+    .where(eq(schema.grants.applicantId, applicantId));
+  const exclusions = rows.some((row) => row.missionId === null)
+    ? await loadCaseExclusions(db, { applicantId })
+    : undefined;
+  return rows.map((row) => toPolicyGrant(row, exclusions?.get(row.id)));
 }
 
 async function ownsApplicant(
@@ -526,12 +546,25 @@ export async function listGrantsForRecipientAccount(
     .map((r) => ({ grant: r.grant, applicantName: r.applicantName }));
 }
 
-/** Access transparency: every grant on an applicant (owner only). */
+/** A case one all-cases grant does not cover, because the owner said no for that case (ADR 0017). */
+export interface CaseException {
+  readonly missionId: string;
+  readonly missionTitle: string;
+  readonly since: Date;
+}
+
+/** A grant as its owner sees it, with the cases excluded from it. */
+export interface GrantWithExceptions extends Grant {
+  /** Cases this all-cases grant does not cover, oldest first. Always empty for a case-scoped grant. */
+  readonly caseExceptions: readonly CaseException[];
+}
+
+/** Access transparency: every grant on an applicant, with its case exceptions (owner only). */
 export async function listAccessForApplicant(
   db: Db,
   actorAccountId: string,
   applicantId: string,
-): Promise<Result<Grant[], ServiceError>> {
+): Promise<Result<GrantWithExceptions[], ServiceError>> {
   if (!(await ownsApplicant(db, actorAccountId, applicantId))) {
     return err(serviceError('forbidden', 'not authorized to view access for this applicant'));
   }
@@ -539,7 +572,24 @@ export async function listAccessForApplicant(
     .select()
     .from(schema.grants)
     .where(eq(schema.grants.applicantId, applicantId));
-  return ok(rows);
+  const exceptions = rows.some((row) => row.missionId === null)
+    ? await listCaseExclusionsForApplicant(db, applicantId)
+    : [];
+  return ok(
+    rows.map((row) => ({
+      ...row,
+      caseExceptions:
+        row.missionId === null
+          ? exceptions
+              .filter((e) => e.grantId === row.id)
+              .map((e) => ({
+                missionId: e.missionId,
+                missionTitle: e.missionTitle,
+                since: e.createdAt,
+              }))
+          : [],
+    })),
+  );
 }
 
 /** A grant's recipient, resolved to something a human recognizes rather than a raw id. */
@@ -548,7 +598,7 @@ export interface GrantRecipient {
   readonly label: string;
 }
 
-export interface GrantWithRecipient extends Grant {
+export interface GrantWithRecipient extends GrantWithExceptions {
   readonly recipient: GrantRecipient;
 }
 
@@ -563,29 +613,36 @@ export async function listAccessForApplicantDetailed(
 
   const result: GrantWithRecipient[] = [];
   for (const grant of listed.value) {
-    let recipient: GrantRecipient = { kind: 'unknown', label: 'Unknown recipient' };
-    if (grant.recipientAccountId) {
-      const account = first(
-        await db
-          .select({ email: schema.accounts.email })
-          .from(schema.accounts)
-          .where(eq(schema.accounts.id, grant.recipientAccountId))
-          .limit(1),
-      );
-      recipient = { kind: 'account', label: account?.email ?? 'Unknown recipient' };
-    } else if (grant.recipientOrganizationId) {
-      const organization = first(
-        await db
-          .select({ name: schema.organizations.name })
-          .from(schema.organizations)
-          .where(eq(schema.organizations.id, grant.recipientOrganizationId))
-          .limit(1),
-      );
-      recipient = { kind: 'organization', label: organization?.name ?? 'Unknown organization' };
-    }
-    result.push({ ...grant, recipient });
+    result.push({ ...grant, recipient: await resolveGrantRecipient(db, grant) });
   }
   return ok(result);
+}
+
+async function resolveGrantRecipient(
+  db: Db,
+  grant: Pick<Grant, 'recipientAccountId' | 'recipientOrganizationId'>,
+): Promise<GrantRecipient> {
+  if (grant.recipientAccountId) {
+    const account = first(
+      await db
+        .select({ email: schema.accounts.email })
+        .from(schema.accounts)
+        .where(eq(schema.accounts.id, grant.recipientAccountId))
+        .limit(1),
+    );
+    return { kind: 'account', label: account?.email ?? 'Unknown recipient' };
+  }
+  if (grant.recipientOrganizationId) {
+    const organization = first(
+      await db
+        .select({ name: schema.organizations.name })
+        .from(schema.organizations)
+        .where(eq(schema.organizations.id, grant.recipientOrganizationId))
+        .limit(1),
+    );
+    return { kind: 'organization', label: organization?.name ?? 'Unknown organization' };
+  }
+  return { kind: 'unknown', label: 'Unknown recipient' };
 }
 
 // --- Recipient-facing permission-filtered workspace (Release G) ------------
