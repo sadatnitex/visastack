@@ -12,6 +12,7 @@ import { hasConsent } from './consent';
 import { isFixedFieldKey } from './consistency';
 import { type Db, first, required, schema } from './db';
 import { type DocumentNameVersion, proposeDocumentName } from './document-naming';
+import { documentVersionBelongsToApplicant } from './document-version-owner';
 import { getDocumentTypeOfVersion } from './documents';
 import { type ServiceError, serviceError } from './errors';
 import { getLatestExtractedText } from './intake';
@@ -1161,6 +1162,8 @@ async function reserveExtractionSlot(
         .where(
           and(
             eq(schema.aiExtractionRuns.cacheKey, cacheKey),
+            // Reuse stays inside one person's records: another applicant's identical text is read afresh.
+            eq(schema.aiExtractionRuns.applicantId, input.applicantId),
             eq(schema.aiExtractionRuns.status, 'SUCCEEDED'),
             // PRV-02 (Part 7 §11): "AI cache: <=30d later" -- a hit older
             // than this is never served, so the next block below falls
@@ -1480,7 +1483,10 @@ export async function runExtraction(
   const applicant = await getApplicant(db, input.applicantId);
   if (!applicant) return err(serviceError('not_found', 'applicant not found'));
   if (applicant.ownerAccountId !== input.actorAccountId) {
-    return err(serviceError('forbidden', 'not authorized to run extraction for this applicant'));
+    return err(serviceError('not_found', 'applicant not found'));
+  }
+  if (!(await documentVersionBelongsToApplicant(db, input.documentVersionId, input.applicantId))) {
+    return err(serviceError('not_found', 'document version not found'));
   }
   if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_EXTRACTION'))) {
     return err(serviceError('consent_required', 'AI extraction consent is required'));
@@ -1653,6 +1659,8 @@ async function reserveClassificationSlot(
         .where(
           and(
             eq(schema.aiClassificationRuns.cacheKey, cacheKey),
+            // No applicant filter here by design: a classification result is only a document kind,
+            // never anything read from the text, so sharing it between people reveals nothing.
             eq(schema.aiClassificationRuns.status, 'SUCCEEDED'),
             gte(schema.aiClassificationRuns.createdAt, cacheCutoff),
           ),
@@ -1904,9 +1912,10 @@ export async function runClassification(
   const applicant = await getApplicant(db, input.applicantId);
   if (!applicant) return err(serviceError('not_found', 'applicant not found'));
   if (applicant.ownerAccountId !== input.actorAccountId) {
-    return err(
-      serviceError('forbidden', 'not authorized to run classification for this applicant'),
-    );
+    return err(serviceError('not_found', 'applicant not found'));
+  }
+  if (!(await documentVersionBelongsToApplicant(db, input.documentVersionId, input.applicantId))) {
+    return err(serviceError('not_found', 'document version not found'));
   }
   if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_EXTRACTION'))) {
     return err(serviceError('consent_required', 'AI extraction consent is required'));
@@ -2320,7 +2329,7 @@ export async function suggestDocumentKind(
   );
   if (pending) return ok({ status: 'already_suggested', proposal: pending });
 
-  const text = await getLatestExtractedText(db, input.documentVersionId);
+  const text = await getLatestExtractedText(db, input.documentVersionId, proof.applicant.id);
   if (!text) return err(serviceError('invalid', 'there is no text from this file to read yet'));
 
   // After the no-op answers above on purpose, exactly like runClassification: asking again
@@ -2545,6 +2554,8 @@ async function reserveOcrSlot(
         .where(
           and(
             eq(schema.ocrRuns.cacheKey, cacheKey),
+            // Reuse stays inside one person's records: another applicant's identical text is read afresh.
+            eq(schema.ocrRuns.applicantId, input.applicantId),
             eq(schema.ocrRuns.status, 'SUCCEEDED'),
             // PRV-02 (Part 7 §11): "AI cache: <=30d later" -- same rule
             // `runExtraction` applies, an old match falls through to a
@@ -2763,7 +2774,10 @@ export async function runOcr(
   const applicant = await getApplicant(db, input.applicantId);
   if (!applicant) return err(serviceError('not_found', 'applicant not found'));
   if (applicant.ownerAccountId !== input.actorAccountId) {
-    return err(serviceError('forbidden', 'not authorized to run OCR for this applicant'));
+    return err(serviceError('not_found', 'applicant not found'));
+  }
+  if (!(await documentVersionBelongsToApplicant(db, input.documentVersionId, input.applicantId))) {
+    return err(serviceError('not_found', 'document version not found'));
   }
   if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_OCR'))) {
     return err(serviceError('consent_required', 'AI OCR consent is required'));
@@ -3805,6 +3819,8 @@ async function reserveInconsistencySlot(
         .where(
           and(
             eq(schema.aiInconsistencyRuns.cacheKey, cacheKey),
+            // Reuse stays inside one person's records: another applicant's identical text is read afresh.
+            eq(schema.aiInconsistencyRuns.applicantId, input.applicantId),
             eq(schema.aiInconsistencyRuns.status, 'SUCCEEDED'),
             gte(schema.aiInconsistencyRuns.createdAt, cacheCutoff),
           ),
@@ -4059,9 +4075,10 @@ export async function runInconsistencyCheck(
   const applicant = await getApplicant(db, input.applicantId);
   if (!applicant) return err(serviceError('not_found', 'applicant not found'));
   if (applicant.ownerAccountId !== input.actorAccountId) {
-    return err(
-      serviceError('forbidden', 'not authorized to run an inconsistency check for this applicant'),
-    );
+    return err(serviceError('not_found', 'applicant not found'));
+  }
+  if (!(await documentVersionBelongsToApplicant(db, input.documentVersionId, input.applicantId))) {
+    return err(serviceError('not_found', 'document version not found'));
   }
   if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_EXTRACTION'))) {
     return err(serviceError('consent_required', 'AI extraction consent is required'));

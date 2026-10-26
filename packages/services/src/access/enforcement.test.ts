@@ -36,7 +36,13 @@ const schemaFile = realpathSync(path.resolve(servicesDir, '../db/src/schema.ts')
 const baselineFile = path.join(accessDir, 'enforcement-baseline.json');
 
 /** A table is applicant-owned when it has any of these columns. */
-const OWNED_COLUMNS = new Set(['applicant_id', 'mission_id', 'document_id', 'owner_account_id']);
+const OWNED_COLUMNS = new Set([
+  'applicant_id',
+  'mission_id',
+  'document_id',
+  'document_version_id',
+  'owner_account_id',
+]);
 const GATE_TYPES = ['AuthorizedApplicant', 'SystemScope', 'StaffScope'] as const;
 const webSrcDir = path.resolve(servicesDir, '../../apps/web/src');
 const jobsDir = path.join(webSrcDir, 'app', 'api', 'jobs');

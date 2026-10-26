@@ -171,3 +171,25 @@ export async function staffPrincipal<A extends PlatformAction>(
   }
   return ok(mintStaffScope(input.accountId, action, new Date()));
 }
+
+/** How long a staff scope stays good for: minted for one request, never kept. */
+const STAFF_SCOPE_MAX_AGE_MS = 5 * 60 * 1000;
+
+/**
+ * The refusal for a staff scope that is not a genuine, fresh one for exactly `action`, or
+ * undefined when it is. Services that take a `StaffScope` call this first, because a type alone
+ * does not stop a cast object at run time.
+ */
+export function staffScopeProblem(
+  staff: unknown,
+  action: PlatformAction,
+): ServiceError | undefined {
+  if (
+    !StaffScope.isGenuine(staff) ||
+    staff.platformAction !== action ||
+    Date.now() - staff.verifiedAt.getTime() > STAFF_SCOPE_MAX_AGE_MS
+  ) {
+    return serviceError('forbidden', 'this account does not hold the platform role required');
+  }
+  return undefined;
+}

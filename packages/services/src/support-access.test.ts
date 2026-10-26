@@ -4,10 +4,12 @@ import { createMigratedPglite } from '@visastack/db/testing';
 import { authorize } from '@visastack/policy';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { type StaffScope, staffPrincipal } from './access/principal';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
+import { seedStaffAccount, staffScopeFor } from './platform-roles.test-support';
 import {
   SUPPORT_GRANT_MAX_DURATION_MINUTES,
   createSupportGrant,
@@ -27,6 +29,7 @@ describe('support-access — scoped, time-limited, reasoned, approved grants (SE
   let db: Db;
   let operatorId: string;
   let approverId: string;
+  let approver: StaffScope<'SUPPORT_GRANT_APPROVE'>;
   let applicantOwnerId: string;
   let applicantId: string;
 
@@ -36,9 +39,9 @@ describe('support-access — scoped, time-limited, reasoned, approved grants (SE
     if (!isOk(operator)) throw new Error('provision failed');
     operatorId = operator.value.id;
 
-    const approver = await provisionAccount(db, { email: 'security-admin@example.com' });
-    if (!isOk(approver)) throw new Error('provision failed');
-    approverId = approver.value.id;
+    const approverAuth = await seedStaffAccount(db, 'SECURITY_ADMIN', 'security-admin@example.com');
+    approverId = approverAuth.accountId;
+    approver = await staffScopeFor(db, approverAuth, 'SUPPORT_GRANT_APPROVE');
 
     const owner = await provisionAccount(db, { email: 'traveller@example.com' });
     if (!isOk(owner)) throw new Error('provision failed');
@@ -59,12 +62,11 @@ describe('support-access — scoped, time-limited, reasoned, approved grants (SE
   });
 
   it('issues a grant with a real reason, approver, and bounded expiry', async () => {
-    const result = await createSupportGrant(db, {
+    const result = await createSupportGrant(db, approver, {
       actorAccountId: operatorId,
       applicantId,
       actions: ['VIEW_METADATA', 'PREVIEW'],
       reason: 'Investigating ticket #4821 — applicant reports missing document',
-      approvedByAccountId: approverId,
       durationMinutes: 30,
     });
     expect(isOk(result)).toBe(true);
@@ -76,25 +78,65 @@ describe('support-access — scoped, time-limited, reasoned, approved grants (SE
     expect(durationMs).toBe(30 * 60_000);
   });
 
+  it('refuses an approver whose platform role does not cover support approval, and writes nothing', async () => {
+    const support = await seedStaffAccount(db, 'SUPPORT_ADMIN', 'support-admin@example.com');
+    // A support administrator cannot even mint the scope: the role check is live.
+    const minted = await staffPrincipal(db, support, 'SUPPORT_GRANT_APPROVE');
+    expect(minted.ok).toBe(false);
+    // And a scope that is not a genuine one (a cast object) is refused inside the service.
+    const forged = {
+      kind: 'staff',
+      accountId: support.accountId,
+      platformAction: 'SUPPORT_GRANT_APPROVE',
+      verifiedAt: new Date(),
+    } as unknown as StaffScope<'SUPPORT_GRANT_APPROVE'>;
+    const result = await createSupportGrant(db, forged, {
+      actorAccountId: operatorId,
+      applicantId,
+      actions: ['VIEW_METADATA'],
+      reason: 'forged approval',
+      durationMinutes: 10,
+    });
+    expect(isOk(result)).toBe(false);
+    if (isOk(result)) return;
+    expect(result.error.code).toBe('forbidden');
+    expect(await listSupportGrantsForApplicant(db, applicantId)).toHaveLength(0);
+  });
+
+  it('refuses a scope made for a different platform action', async () => {
+    const auth = await seedStaffAccount(db, 'SECURITY_ADMIN', 'other-security@example.com');
+    const wrong = (await staffScopeFor(
+      db,
+      auth,
+      'AUDIT_TRAIL_VIEW',
+    )) as unknown as StaffScope<'SUPPORT_GRANT_APPROVE'>;
+    const result = await createSupportGrant(db, wrong, {
+      actorAccountId: operatorId,
+      applicantId,
+      actions: ['VIEW_METADATA'],
+      reason: 'wrong scope',
+      durationMinutes: 10,
+    });
+    expect(isOk(result)).toBe(false);
+  });
+
   it('refuses an empty reason', async () => {
-    const result = await createSupportGrant(db, {
+    const result = await createSupportGrant(db, approver, {
       actorAccountId: operatorId,
       applicantId,
       actions: ['VIEW_METADATA'],
       reason: '   ',
-      approvedByAccountId: approverId,
       durationMinutes: 10,
     });
     expect(isOk(result)).toBe(false);
   });
 
   it('refuses a self-approved grant, at the service layer', async () => {
-    const result = await createSupportGrant(db, {
-      actorAccountId: operatorId,
+    const result = await createSupportGrant(db, approver, {
+      actorAccountId: approverId,
       applicantId,
       actions: ['VIEW_METADATA'],
       reason: 'self-approval attempt',
-      approvedByAccountId: operatorId,
       durationMinutes: 10,
     });
     expect(isOk(result)).toBe(false);
@@ -117,12 +159,11 @@ describe('support-access — scoped, time-limited, reasoned, approved grants (SE
   });
 
   it(`refuses a duration over ${SUPPORT_GRANT_MAX_DURATION_MINUTES} minutes`, async () => {
-    const result = await createSupportGrant(db, {
+    const result = await createSupportGrant(db, approver, {
       actorAccountId: operatorId,
       applicantId,
       actions: ['VIEW_METADATA'],
       reason: 'trying to exceed the cap',
-      approvedByAccountId: approverId,
       durationMinutes: SUPPORT_GRANT_MAX_DURATION_MINUTES + 1,
     });
     expect(isOk(result)).toBe(false);
@@ -145,12 +186,11 @@ describe('support-access — scoped, time-limited, reasoned, approved grants (SE
   });
 
   it('an active support grant lets a support_admin actor pass authorize(), scoped to the granted actions only', async () => {
-    const created = await createSupportGrant(db, {
+    const created = await createSupportGrant(db, approver, {
       actorAccountId: operatorId,
       applicantId,
       actions: ['VIEW_METADATA', 'PREVIEW'],
       reason: 'ticket #123',
-      approvedByAccountId: approverId,
       durationMinutes: 15,
     });
     expect(isOk(created)).toBe(true);
@@ -177,12 +217,11 @@ describe('support-access — scoped, time-limited, reasoned, approved grants (SE
   });
 
   it('a different operator with no grant of their own is denied, even for the same applicant', async () => {
-    await createSupportGrant(db, {
+    await createSupportGrant(db, approver, {
       actorAccountId: operatorId,
       applicantId,
       actions: ['VIEW_METADATA'],
       reason: 'ticket #123',
-      approvedByAccountId: approverId,
       durationMinutes: 15,
     });
     const grants = await loadSupportGrantsForPolicy(db, applicantId);
@@ -197,12 +236,11 @@ describe('support-access — scoped, time-limited, reasoned, approved grants (SE
   });
 
   it('an expired support grant denies access even though the row still exists', async () => {
-    const created = await createSupportGrant(db, {
+    const created = await createSupportGrant(db, approver, {
       actorAccountId: operatorId,
       applicantId,
       actions: ['VIEW_METADATA'],
       reason: 'ticket #123',
-      approvedByAccountId: approverId,
       durationMinutes: 1,
     });
     expect(isOk(created)).toBe(true);
@@ -220,12 +258,11 @@ describe('support-access — scoped, time-limited, reasoned, approved grants (SE
   });
 
   it('revoking a grant removes it from the active/policy-loaded set immediately, and is idempotent', async () => {
-    const created = await createSupportGrant(db, {
+    const created = await createSupportGrant(db, approver, {
       actorAccountId: operatorId,
       applicantId,
       actions: ['VIEW_METADATA'],
       reason: 'ticket #123',
-      approvedByAccountId: approverId,
       durationMinutes: 30,
     });
     expect(isOk(created)).toBe(true);
@@ -254,12 +291,11 @@ describe('support-access — scoped, time-limited, reasoned, approved grants (SE
   });
 
   it('full history remains visible after revocation, for audit review', async () => {
-    const created = await createSupportGrant(db, {
+    const created = await createSupportGrant(db, approver, {
       actorAccountId: operatorId,
       applicantId,
       actions: ['VIEW_METADATA'],
       reason: 'ticket #123',
-      approvedByAccountId: approverId,
       durationMinutes: 30,
     });
     expect(isOk(created)).toBe(true);

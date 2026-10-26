@@ -120,7 +120,10 @@ export type PlatformAction =
   | 'COMPLAINT_MANAGE'
   | 'FEEDBACK_VIEW'
   | 'AI_SETTINGS_MANAGE'
-  | 'DOCUMENT_PROTECTION_MANAGE';
+  | 'DOCUMENT_PROTECTION_MANAGE'
+  | 'APPLICANT_DIRECTORY_VIEW'
+  | 'AUDIT_TRAIL_VIEW'
+  | 'SUPPORT_GRANT_APPROVE';
 
 const ACTION_ROLES: Readonly<Record<PlatformAction, Exclude<PlatformRole, 'PLATFORM_OWNER'>>> = {
   RETENTION_POLICY_SET: 'COMPLIANCE_ADMIN',
@@ -140,6 +143,12 @@ const ACTION_ROLES: Readonly<Record<PlatformAction, Exclude<PlatformRole, 'PLATF
   // (document-protection.ts) is an access-security rule, the same family as
   // the actions above, so it extends SECURITY_ADMIN rather than adding a role.
   DOCUMENT_PROTECTION_MANAGE: 'SECURITY_ADMIN',
+  // Reading every traveller's name, the whole audit trail, and approving a person's
+  // access to someone else's records are privacy and security concerns, never an
+  // operations one: SUPPORT_ADMIN holds none of them (S2, M13 and M14).
+  APPLICANT_DIRECTORY_VIEW: 'COMPLIANCE_ADMIN',
+  AUDIT_TRAIL_VIEW: 'SECURITY_ADMIN',
+  SUPPORT_GRANT_APPROVE: 'SECURITY_ADMIN',
   PROCESSING_JOB_RETRY: 'SUPPORT_ADMIN',
   ORPHAN_RECONCILE: 'SUPPORT_ADMIN',
   PACK_MANAGE: 'SUPPORT_ADMIN',

@@ -25,6 +25,7 @@
 
 import { eq } from 'drizzle-orm';
 import { type Db, first, schema } from './db';
+import { documentVersionBelongsToApplicant } from './document-version-owner';
 import type { PreviewRendererPort } from './preview-rendering';
 import type { BlobStore } from './storage';
 
@@ -149,14 +150,18 @@ export async function renderOcrSourceImage(
   blobStore: BlobStore,
   previewRenderer: PreviewRendererPort,
   documentVersionId: string,
+  applicantId: string,
 ): Promise<OcrSourceImageOutcome> {
-  const version = first(
-    await db
-      .select()
-      .from(schema.documentVersions)
-      .where(eq(schema.documentVersions.id, documentVersionId))
-      .limit(1),
-  );
+  // Bound to the applicant it is rendered for: a version of anyone else's is "not found" (S2, M12).
+  const version = (await documentVersionBelongsToApplicant(db, documentVersionId, applicantId))
+    ? first(
+        await db
+          .select()
+          .from(schema.documentVersions)
+          .where(eq(schema.documentVersions.id, documentVersionId))
+          .limit(1),
+      )
+    : undefined;
   if (!version) {
     return {
       ok: false,

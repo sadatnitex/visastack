@@ -491,7 +491,7 @@ export async function runAiExtractionAction(
     if (!resolved) {
       return { ok: false, message: 'AI extraction is not configured.' } satisfies ActionState;
     }
-    const text = await getLatestExtractedText(db, documentVersionId);
+    const text = await getLatestExtractedText(db, documentVersionId, applicantId);
     if (!text) {
       return {
         ok: false,
@@ -559,6 +559,7 @@ export async function runOcrAction(_prev: ActionState, formData: FormData): Prom
       createStorage(db),
       createPreviewRenderer(),
       documentVersionId,
+      applicantId,
     );
     if (!rendered.ok) {
       return { ok: false, message: rendered.message } satisfies ActionState;
@@ -928,7 +929,7 @@ export async function runInconsistencyCheckAction(
         message: 'AI inconsistency checking is not configured.',
       } satisfies ActionState;
     }
-    const text = await getLatestExtractedText(db, documentVersionId);
+    const text = await getLatestExtractedText(db, documentVersionId, applicantId);
     if (!text) {
       return {
         ok: false,

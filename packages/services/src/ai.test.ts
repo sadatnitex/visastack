@@ -1789,7 +1789,8 @@ describe('AI Gateway -- runOcr (Part 8 Chunk 20)', () => {
       budgetLimitUnits: 100,
     });
     expect(isErr(result)).toBe(true);
-    if (isErr(result)) expect(result.error.code).toBe('forbidden');
+    // Reads like a missing applicant, so a stranger learns nothing about whose record it is.
+    if (isErr(result)) expect(result.error.code).toBe('not_found');
   });
 
   it('getLatestOcrRun returns the full row (text and review issues), not just text -- for display', async () => {

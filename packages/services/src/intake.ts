@@ -5,6 +5,7 @@ import { appendAuditEvent } from './audit';
 import { classifyDocumentText } from './classification';
 import { type Db, first, required, schema } from './db';
 import { proposeDocumentName } from './document-naming';
+import { documentVersionBelongsToApplicant } from './document-version-owner';
 import { type ServiceError, serviceError } from './errors';
 import type { DocumentConverterPort } from './extraction';
 import { buildProposedName, extensionOf } from './naming';
@@ -514,7 +515,12 @@ async function runExtractionStep(
 export async function getLatestExtractedText(
   db: Db,
   documentVersionId: string,
+  applicantId: string,
 ): Promise<string | undefined> {
+  // Bound to the applicant it is read for: a version of anyone else's reads as missing (S2, M12).
+  if (!(await documentVersionBelongsToApplicant(db, documentVersionId, applicantId))) {
+    return undefined;
+  }
   const row = first(
     await db
       .select({ text: schema.extractionRuns.extractedText })

@@ -421,7 +421,7 @@ function sortedLabelCounts(map: Map<string, number>): LabelCount[] {
 /**
  * Aggregates only: counts, medians and sums over the event log. Callers must
  * check the caller is a platform administrator first; this function does not
- * (like `listRecentAuditEvents`, the log spans every tenant by design).
+ * (like `listRecentAuditEvents` in platform-reads.ts, the log spans every tenant by design).
  */
 export async function getProductAnalytics(
   db: Db,

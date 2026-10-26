@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
@@ -21,7 +21,6 @@ import {
   revokeAiProviderConfigKey,
   rollbackAiProviderConfig,
 } from './ai-provider-config';
-import { listRecentAuditEvents } from './audit';
 import type { Db } from './db';
 import { grantPlatformRole } from './platform-roles';
 import type { KeyManagementPort } from './ports';
@@ -117,6 +116,11 @@ function draftInput(
       ? { fallbackProviderConfigId: overrides.fallbackProviderConfigId }
       : {}),
   };
+}
+
+/** Every audit row, newest first: tests read the trail directly, as no staff scope is in play. */
+async function recentAuditEvents(db: Db) {
+  return db.select().from(schema.auditEvents).orderBy(desc(schema.auditEvents.seq));
 }
 
 describe('AI provider configuration — draft creation (Part 8 §5)', () => {
@@ -814,7 +818,7 @@ describe('recordAiProviderConfigTest (Part 8 §16 -- audit external test calls w
       message: 'connection succeeded',
     });
 
-    const events = await listRecentAuditEvents(db);
+    const events = await recentAuditEvents(db);
     const event = events.find((entry) => entry.eventType === 'AI_PROVIDER_CONFIG_TESTED');
     expect(event).toBeDefined();
     expect(event?.result).toBe('ALLOWED');
@@ -836,7 +840,7 @@ describe('recordAiProviderConfigTest (Part 8 §16 -- audit external test calls w
       message: 'upstream_error: 500',
     });
 
-    const events = await listRecentAuditEvents(db);
+    const events = await recentAuditEvents(db);
     const event = events.find((entry) => entry.eventType === 'AI_PROVIDER_CONFIG_TESTED');
     expect(event).toBeDefined();
     expect(event?.result).toBe('ALLOWED');
@@ -877,7 +881,7 @@ describe('recordAiProviderConfigEvaluation (Part 8 §5 -- the admin "run task ev
 
     await recordAiProviderConfigEvaluation(db, evaluationInput(actor, created.value.id));
 
-    const events = await listRecentAuditEvents(db);
+    const events = await recentAuditEvents(db);
     const event = events.find((entry) => entry.eventType === 'AI_PROVIDER_CONFIG_EVALUATED');
     expect(event).toBeDefined();
     expect(event?.result).toBe('ALLOWED');
@@ -907,7 +911,7 @@ describe('recordAiProviderConfigEvaluation (Part 8 §5 -- the admin "run task ev
       evaluationInput(actor, created.value.id, { passed: false, anyCaseErrored: true }),
     );
 
-    const events = await listRecentAuditEvents(db);
+    const events = await recentAuditEvents(db);
     const event = events.find((entry) => entry.eventType === 'AI_PROVIDER_CONFIG_EVALUATED');
     expect(event).toBeDefined();
     expect(event?.result).toBe('ALLOWED');

@@ -5,18 +5,19 @@ import {
   listActiveLegalHolds,
   listAllApplicants,
   listErasureJobsNeedingAttention,
+  staffPrincipal,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { DocumentTypeDatalist } from '../../../../components/catalogue-datalists';
 import { PageHeader } from '../../../../components/ui';
-import { isPlatformAdmin } from '../../../../lib/admin';
+import { bootstrapAdminEmails, isPlatformAdmin } from '../../../../lib/admin';
 import { formatDateOnly } from '../../../../lib/format-date';
 import { documentTypeLabel } from '../../../../lib/labels';
 import { withSession } from '../../../../lib/session';
 import { tolerantReader } from '../../../../lib/tolerate';
 import { ReleaseHoldButton, RetryErasureJobButton } from '../action-buttons';
 import { LegalHoldForm, RetentionPolicyForm } from '../admin-forms';
-import { AdminRestricted } from '../admin-restricted';
+import { AdminNotForRole, AdminRestricted } from '../admin-restricted';
 import { FailedSectionsBanner } from '../failed-sections-banner';
 import { PurgeButton } from '../purge-button';
 
@@ -36,15 +37,31 @@ export default async function AdminPrivacyPage() {
   const data = await withSession(async ({ db, accountId, email }) => {
     if (!(await isPlatformAdmin(db, { accountId, email }))) return { admin: false as const };
     const { read: t, failed: failedSections } = tolerantReader();
+    // Names, file names and hold reasons identify travellers, so the page is a compliance view.
+    const staff = await staffPrincipal(
+      db,
+      { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
+      'APPLICANT_DIRECTORY_VIEW',
+    );
+    if (!staff.ok) return { admin: true as const, allowed: false as const };
     const [policies, holds, erasureJobs, applicants, purgeEligible] = await Promise.all([
       t('retention policies', () => getRetentionPolicies(db), []),
       t('legal holds', () => listActiveLegalHolds(db), []),
       t('erasure jobs', () => listErasureJobsNeedingAttention(db), []),
-      t('applicants', () => listAllApplicants(db), []),
+      t(
+        'applicants',
+        async () => {
+          const listed = await listAllApplicants(db, staff.value);
+          if (!listed.ok) throw new Error(listed.error.message);
+          return listed.value;
+        },
+        [],
+      ),
       t('documents past retention', () => documentsPastRetention(db), []),
     ]);
     return {
       admin: true as const,
+      allowed: true as const,
       policies,
       holds,
       erasureJobs,
@@ -55,8 +72,9 @@ export default async function AdminPrivacyPage() {
   });
 
   const applicantName = (applicantId: string): string =>
-    (data.admin ? data.applicants.find((a) => a.id === applicantId)?.displayName : undefined) ??
-    applicantId;
+    (data.admin && data.allowed
+      ? data.applicants.find((a) => a.id === applicantId)?.displayName
+      : undefined) ?? applicantId;
 
   return (
     <section className="section container">
@@ -68,6 +86,8 @@ export default async function AdminPrivacyPage() {
 
       {!data.admin ? (
         <AdminRestricted />
+      ) : !data.allowed ? (
+        <AdminNotForRole />
       ) : (
         <>
           <FailedSectionsBanner sections={data.failedSections} />

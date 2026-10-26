@@ -61,14 +61,6 @@ export async function getApplicant(db: Db, applicantId: string): Promise<Applica
 }
 
 /**
- * Every applicant, platform-wide (no ownership check — for platform-admin
- * pickers/lookups only; callers must enforce the admin gate).
- */
-export async function listAllApplicants(db: Db): Promise<Applicant[]> {
-  return db.select().from(schema.applicants);
-}
-
-/**
  * Create an applicant subject (self, family member, or guarded minor) owned by
  * the actor's account. Requires CORE_PROCESSING consent.
  */
