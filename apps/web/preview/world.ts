@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { schema } from '@visastack/db';
-import type { Db } from '@visastack/services';
+import { type Db, assignReferenceCodes } from '@visastack/services';
 import { PROFILE_FIELDS } from '../src/lib/profile-fields';
 
 /**
@@ -87,6 +87,8 @@ async function applicant(
     relationship,
     authorityConfirmedAt: at(-40),
   });
+  // Visible reference codes (ADR 0018); does nothing while the registry table is missing.
+  await assignReferenceCodes(db, 'P', [id]);
   return id;
 }
 
@@ -120,6 +122,7 @@ async function documents(db: Db, applicantId: string, uploader: string, specs: D
       documentDate: isoDay(-20),
       expiresAt: spec.expiresInDays === undefined ? null : at(spec.expiresInDays),
     });
+    await assignReferenceCodes(db, 'D', [documentId]);
     await db.insert(schema.documentVersions).values({
       documentId,
       storageObjectId: storageId,
@@ -375,6 +378,7 @@ export async function buildWorld(db: Db): Promise<World> {
       manualMode: true,
     },
   ]);
+  await assignReferenceCodes(db, 'C', [missionSingapore, missionGermany, missionJapan]);
   await db.insert(schema.missionTasks).values([
     {
       missionId: missionSingapore,
@@ -454,31 +458,39 @@ export async function buildWorld(db: Db): Promise<World> {
     status,
     requestedByAccountId: agencyMember.accountId,
   });
-  await db.insert(schema.evidenceRequests).values([
-    ask(
-      'OPEN',
-      'employment_letter',
-      -2,
-      'The embassy asks for a letter dated this month on company letterhead.',
-    ),
-    {
-      ...ask('NEEDS_REPLACEMENT', 'bank_statement', 5, 'Last three months, with the bank stamp.'),
-      kind: 'DOCUMENT' as const,
-    },
-    ask('UNDER_REVIEW', 'itinerary', 20, 'Return flights.'),
-    ask('ACCEPTED', 'passport', null, null),
-    {
-      organizationId: orgId,
-      applicantId: applicantSelf,
-      missionId: missionSingapore,
-      kind: 'FIELD' as const,
-      fieldKey: universal[1]?.key ?? null,
-      message: 'Please confirm this detail.',
-      dueDate: at(9),
-      status: 'OPEN' as const,
-      requestedByAccountId: agencyMember.accountId,
-    },
-  ]);
+  const rahimRequests = await db
+    .insert(schema.evidenceRequests)
+    .values([
+      ask(
+        'OPEN',
+        'employment_letter',
+        -2,
+        'The embassy asks for a letter dated this month on company letterhead.',
+      ),
+      {
+        ...ask('NEEDS_REPLACEMENT', 'bank_statement', 5, 'Last three months, with the bank stamp.'),
+        kind: 'DOCUMENT' as const,
+      },
+      ask('UNDER_REVIEW', 'itinerary', 20, 'Return flights.'),
+      ask('ACCEPTED', 'passport', null, null),
+      {
+        organizationId: orgId,
+        applicantId: applicantSelf,
+        missionId: missionSingapore,
+        kind: 'FIELD' as const,
+        fieldKey: universal[1]?.key ?? null,
+        message: 'Please confirm this detail.',
+        dueDate: at(9),
+        status: 'OPEN' as const,
+        requestedByAccountId: agencyMember.accountId,
+      },
+    ])
+    .returning({ id: schema.evidenceRequests.id });
+  await assignReferenceCodes(
+    db,
+    'R',
+    rahimRequests.map((r) => r.id),
+  );
 
   // ---- Shirin shares with Rahim (what "Shared with me" shows) ----
   const shirinApplicant = await applicant(db, shirin.accountId, 'Shirin Akter', 'SELF');
@@ -618,6 +630,7 @@ export async function buildWorld(db: Db): Promise<World> {
       targetDeadline: i % 3 === 0 ? at(4 + i) : at(40 + i),
       travelStartDate: at(30 + i * 3),
     });
+    await assignReferenceCodes(db, 'C', [missionId]);
     await db.insert(schema.grants).values({
       applicantId,
       recipientOrganizationId: orgId,
@@ -645,17 +658,21 @@ export async function buildWorld(db: Db): Promise<World> {
       });
     }
     if (i % 3 !== 2) {
-      await db.insert(schema.evidenceRequests).values({
-        organizationId: orgId,
-        applicantId,
-        missionId,
-        kind: 'DOCUMENT',
-        docType: i % 2 === 0 ? 'bank_statement' : 'employment_letter',
-        message: 'Please send this so we can continue.',
-        dueDate: at(i % 4 === 0 ? -2 : 6),
-        status: i % 3 === 0 ? 'OPEN' : 'NEEDS_REPLACEMENT',
-        requestedByAccountId: agencyMember.accountId,
-      });
+      const [request] = await db
+        .insert(schema.evidenceRequests)
+        .values({
+          organizationId: orgId,
+          applicantId,
+          missionId,
+          kind: 'DOCUMENT',
+          docType: i % 2 === 0 ? 'bank_statement' : 'employment_letter',
+          message: 'Please send this so we can continue.',
+          dueDate: at(i % 4 === 0 ? -2 : 6),
+          status: i % 3 === 0 ? 'OPEN' : 'NEEDS_REPLACEMENT',
+          requestedByAccountId: agencyMember.accountId,
+        })
+        .returning({ id: schema.evidenceRequests.id });
+      if (request) await assignReferenceCodes(db, 'R', [request.id]);
     }
   }
 
