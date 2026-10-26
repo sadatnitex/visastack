@@ -6,11 +6,12 @@ import { isDocumentVersionUsable } from './documents';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { type AccountExport, type AccountExportManifest, exportAccount } from './export';
-import { buildExportCsvTables } from './export-csv';
+import { type ExportReferenceCodes, buildExportCsvTables } from './export-csv';
 import { extensionOf, sanitizeNameComponent } from './naming';
 import type { KeyManagementPort } from './ports';
 import { isIntactPhoto, readUnlessPhotoTableMissing } from './profile-photos';
 import { buildAccountExportAad, protectBytes, revealBytes } from './protected-fields';
+import { referenceCodesFor } from './reference-codes';
 import type { BlobStore } from './storage';
 
 /**
@@ -457,7 +458,7 @@ async function processAccountExportJob(
         name: 'manifest.json',
         bytes: new TextEncoder().encode(JSON.stringify(artifactManifest, null, 2)),
       },
-      ...buildExportCsvTables(exported.value)
+      ...buildExportCsvTables(exported.value, await exportReferenceCodes(db, exported.value))
         .filter((table) => table.rowCount > 0)
         .map((table) => ({ name: table.name, bytes: new TextEncoder().encode(table.csv) })),
       ...documentBundle.files,
@@ -666,4 +667,36 @@ export async function getAccountExportArtifact(
       serviceError('invalid', 'this export is not available to download, please request a new one'),
     );
   return ok({ bytes, readyAt: job.readyAt, expiresAt: job.expiresAt });
+}
+
+/**
+ * The visible codes (ADR 0018) of the people, documents, cases and requests
+ * already in this export, one query per type. Empty while migration 0091 has
+ * not run, so the export is unchanged then.
+ */
+async function exportReferenceCodes(db: Db, data: AccountExport): Promise<ExportReferenceCodes> {
+  const applicants = data.applicants;
+  const [P, D, C, R] = await Promise.all([
+    referenceCodesFor(
+      db,
+      'P',
+      applicants.map((a) => a.applicant.id),
+    ),
+    referenceCodesFor(
+      db,
+      'D',
+      applicants.flatMap((a) => a.documents.map((d) => d.document.id)),
+    ),
+    referenceCodesFor(
+      db,
+      'C',
+      applicants.flatMap((a) => a.missions.map((m) => m.mission.id)),
+    ),
+    referenceCodesFor(
+      db,
+      'R',
+      applicants.flatMap((a) => a.evidenceRequests.map((r) => r.id)),
+    ),
+  ]);
+  return { P, D, C, R };
 }

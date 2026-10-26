@@ -1,3 +1,4 @@
+import type { ReferenceKind } from '@visastack/core';
 import type { AccountExport } from './export';
 
 /**
@@ -63,7 +64,25 @@ function table(name: string, rows: readonly Record<string, unknown>[]): ExportCs
  * decide for themselves whether to include an empty file in a bundle --
  * this module has no opinion on packaging.
  */
-export function buildExportCsvTables(data: AccountExport): readonly ExportCsvTable[] {
+/**
+ * Visible reference codes (ADR 0018) of records already in the export, per
+ * type: entity id to `C-7K2Q9M`. A type without a map gets no column; a
+ * record without a code gets an empty cell.
+ */
+export type ExportReferenceCodes = Partial<Record<ReferenceKind, ReadonlyMap<string, string>>>;
+
+function withReferenceCodes<T extends { readonly id: string }>(
+  rows: readonly T[],
+  codes: ReadonlyMap<string, string> | undefined,
+): readonly Record<string, unknown>[] {
+  if (!codes) return rows;
+  return rows.map((row) => ({ ...row, reference_code: codes.get(row.id) ?? '' }));
+}
+
+export function buildExportCsvTables(
+  data: AccountExport,
+  codes: ExportReferenceCodes = {},
+): readonly ExportCsvTable[] {
   const applicants = data.applicants;
   return [
     table('account.csv', [data.account]),
@@ -77,7 +96,10 @@ export function buildExportCsvTables(data: AccountExport): readonly ExportCsvTab
     table('audit_events.csv', data.auditEvents),
     table(
       'applicants.csv',
-      applicants.map((a) => a.applicant),
+      withReferenceCodes(
+        applicants.map((a) => a.applicant),
+        codes.P,
+      ),
     ),
     table(
       'facts.csv',
@@ -89,7 +111,10 @@ export function buildExportCsvTables(data: AccountExport): readonly ExportCsvTab
     ),
     table(
       'documents.csv',
-      applicants.flatMap((a) => a.documents.map((d) => d.document)),
+      withReferenceCodes(
+        applicants.flatMap((a) => a.documents.map((d) => d.document)),
+        codes.D,
+      ),
     ),
     table(
       'document_versions.csv',
@@ -105,7 +130,10 @@ export function buildExportCsvTables(data: AccountExport): readonly ExportCsvTab
     ),
     table(
       'missions.csv',
-      applicants.flatMap((a) => a.missions.map((m) => m.mission)),
+      withReferenceCodes(
+        applicants.flatMap((a) => a.missions.map((m) => m.mission)),
+        codes.C,
+      ),
     ),
     table(
       'mission_snapshots.csv',
@@ -117,7 +145,10 @@ export function buildExportCsvTables(data: AccountExport): readonly ExportCsvTab
     ),
     table(
       'evidence_requests.csv',
-      applicants.flatMap((a) => a.evidenceRequests),
+      withReferenceCodes(
+        applicants.flatMap((a) => a.evidenceRequests),
+        codes.R,
+      ),
     ),
     table(
       'ai_extraction_runs.csv',
