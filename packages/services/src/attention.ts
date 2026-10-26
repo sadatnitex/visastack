@@ -1,6 +1,8 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, asc, count, eq, inArray, isNotNull, isNull, min, or } from 'drizzle-orm';
+import { type CalendarKind, currentTimeZoneName, isCalendarKind } from '@visastack/core/calendar';
+import { and, asc, count, eq, gte, inArray, isNotNull, isNull, min, or } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access/require-access';
+import { appendAuditEvent } from './audit';
 import { schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { DEFAULT_EXPIRY_REMINDER_THRESHOLD_DAYS, getReminderThresholds } from './expiry';
@@ -568,4 +570,351 @@ export async function listNeedsAttention(
     activeCaseCount: active.length,
     requests: { waitingOnYou, withAgency },
   });
+}
+
+// --- Calendar dates (v1.2 B05 calendar paragraph; ADR 0016 "Calendar export") ---------------
+
+/**
+ * When a dated item happens. A due day or an expiry day is a calendar day (`YYYY-MM-DD`). An
+ * appointment is a wall-clock local date and time (`YYYY-MM-DDTHH:MM:SS`) in an IANA time zone,
+ * exactly as stored; `timeZone` is null when the stored name is not one this runtime recognises,
+ * so the time is never moved to a guessed zone.
+ */
+export type CalendarItemWhen =
+  | { readonly kind: 'date'; readonly date: string }
+  | {
+      readonly kind: 'local';
+      readonly localDateTime: string;
+      readonly timeZone: string | null;
+    };
+
+/**
+ * One dated item, neutral: no wording of its own. The web layer turns it into a calendar event
+ * through the kinds registry in `@visastack/core/calendar`. Never a note, a task description, an
+ * appointment title or place, a saved value, a file name, a document number or an amount.
+ */
+export interface CalendarItem {
+  /** `${kind}:${resourceId}`, stable for the same thing. */
+  readonly key: string;
+  readonly kind: CalendarKind;
+  readonly resourceId: string;
+  readonly when: CalendarItemWhen;
+  /** The case the item belongs to, when it belongs to one. */
+  readonly caseTitle: string | null;
+  /** When the record last changed (ISO 8601), for the event's SEQUENCE. */
+  readonly updatedAt: string;
+}
+
+export interface CalendarDates {
+  readonly applicantId: string;
+  /** Earliest first; on the same day, all-day items before timed ones. */
+  readonly items: readonly CalendarItem[];
+  /** True when a source held more than `CALENDAR_SOURCE_LIMIT` rows and the latest were left out. */
+  readonly truncated: boolean;
+}
+
+/** Upper bound on rows read from each of the four sources for one applicant (earliest first). */
+export const CALENDAR_SOURCE_LIMIT = 50;
+
+/**
+ * How far back the calendar reads, in days before today in the traveller's time zone. Something
+ * due or expiring in the last week is still worth a reminder; anything older is left out, so old
+ * appointments and long-expired documents never push upcoming dates past the cap.
+ */
+export const CALENDAR_PAST_DAYS = 7;
+
+/** Longest case title carried on an item, in characters; a longer one is cut. */
+const CALENDAR_CASE_TITLE_MAX = 80;
+
+/**
+ * A time zone name only if it is a well-formed IANA name this runtime knows (letters, digits,
+ * "_", "+", "-" and "/"; no spaces or line breaks), always in its latest official name
+ * (`currentTimeZoneName`: "asia/dhaka" and "Asia/Dacca" become "Asia/Dhaka", "Asia/Calcutta"
+ * becomes "Asia/Kolkata"); otherwise null. Owner rule, 26 Oct 2026. Used where a zone is saved
+ * (appointments, task due zones) and where one is read back to place an appointment in UTC; the
+ * zone's clock rules are the same under the old and the current name.
+ */
+export function recognisedTimeZone(name: string): string | null {
+  const trimmed = name.trim();
+  if (!/^[A-Za-z][A-Za-z0-9_+\-/]{0,63}$/.test(trimmed)) return null;
+  return currentTimeZoneName(trimmed);
+}
+
+/**
+ * A task's due zone in its latest official name when the runtime knows it ("Asia/Dacca" becomes
+ * "Asia/Dhaka"); any other value, or none, is kept as before, so a task is never refused here.
+ */
+export function latestTimeZoneName(name: string | null): string | null {
+  if (name === null) return null;
+  return recognisedTimeZone(name) ?? name;
+}
+
+/** The order key of an item: a date-only key sorts before any time on the same day. */
+function calendarSortKey(when: CalendarItemWhen): string {
+  return when.kind === 'date' ? when.date : when.localDateTime;
+}
+
+export interface CalendarDatesOptions {
+  /** The clock for the earliest day read (tests). Access is always decided by the gate. */
+  readonly now?: Date;
+}
+
+/**
+ * The traveller's dated items, for a calendar file (v1.2 B05). The same owner-only rule as
+ * `listNeedsAttention`: the proof must be genuine, issued to the applicant's owner, for this
+ * applicant; a sharing grant, a copied proof or a proof for another resource is refused. Sources:
+ *
+ * - appointments on active cases that are open or started, at their stored local date and time
+ *   in their stored time zone (the case page lists every appointment to the owner, and the
+ *   single-appointment calendar download has the same reach);
+ * - open or started tasks with a due day on active cases that the traveller can act on
+ *   (unassigned or assigned to the traveller's own account, the Needs Attention rule);
+ * - evidence requests that are open or sent back for a fix, with a due day, not on a closed or
+ *   cancelled case;
+ * - current (not replaced) documents with an expiry day.
+ *
+ * Anything without a date is not a calendar item, and so is anything dated more than
+ * `CALENDAR_PAST_DAYS` before today in the traveller's time zone. Cost: one read for cases, then
+ * one each for appointments, tasks, requests and documents, each capped at
+ * `CALENDAR_SOURCE_LIMIT` rows, earliest first. Nothing is written.
+ */
+export async function listCalendarDates(
+  access: AuthorizedApplicant<'VIEW_METADATA'>,
+  options: CalendarDatesOptions = {},
+): Promise<Result<CalendarDates, ServiceError>> {
+  if (
+    !AuthorizedApplicant.isGenuine(access, 'VIEW_METADATA') ||
+    access.actor.kind !== 'applicant_owner' ||
+    access.resource.kind !== 'applicant'
+  ) {
+    return err(serviceError('forbidden', 'calendar dates are available to the owner only'));
+  }
+  const db = access.tx;
+  const applicant = access.applicant;
+  const applicantId = applicant.id;
+  const readLimit = CALENDAR_SOURCE_LIMIT + 1;
+  // The first day read: a week before today where the traveller is. Date-only values are stored
+  // as UTC midnight and appointments as a timezone-naive wall clock read in a UTC process, so the
+  // same UTC-midnight value bounds both.
+  const earliest = new Date(
+    (todayIndex(options.now ?? new Date(), applicant.timezone) - CALENDAR_PAST_DAYS) * DAY_MS,
+  );
+
+  const missions = await db
+    .select({ id: schema.missions.id, title: schema.missions.title, state: schema.missions.state })
+    .from(schema.missions)
+    .where(eq(schema.missions.applicantId, applicantId));
+  const missionById = new Map(missions.map((m) => [m.id, m]));
+  const activeIds = missions.filter((m) => !FINISHED_CASE_STATES.has(m.state)).map((m) => m.id);
+
+  const [appointments, tasks, requests, documents] = await Promise.all([
+    activeIds.length === 0
+      ? []
+      : db
+          .select({
+            id: schema.missionAppointments.id,
+            missionId: schema.missionAppointments.missionId,
+            localDateTime: schema.missionAppointments.localDateTime,
+            timezone: schema.missionAppointments.timezone,
+            updatedAt: schema.missionAppointments.updatedAt,
+          })
+          .from(schema.missionAppointments)
+          .where(
+            and(
+              inArray(schema.missionAppointments.missionId, activeIds),
+              inArray(schema.missionAppointments.status, [...ATTENTION_TASK_STATUSES]),
+              gte(schema.missionAppointments.localDateTime, earliest),
+            ),
+          )
+          .orderBy(
+            asc(schema.missionAppointments.localDateTime),
+            asc(schema.missionAppointments.id),
+          )
+          .limit(readLimit),
+    activeIds.length === 0
+      ? []
+      : db
+          .select({
+            id: schema.missionTasks.id,
+            missionId: schema.missionTasks.missionId,
+            dueDate: schema.missionTasks.dueDate,
+            updatedAt: schema.missionTasks.updatedAt,
+          })
+          .from(schema.missionTasks)
+          .where(
+            and(
+              inArray(schema.missionTasks.missionId, activeIds),
+              inArray(schema.missionTasks.status, [...ATTENTION_TASK_STATUSES]),
+              gte(schema.missionTasks.dueDate, earliest),
+              or(
+                isNull(schema.missionTasks.assigneeAccountId),
+                eq(schema.missionTasks.assigneeAccountId, applicant.ownerAccountId),
+              ),
+            ),
+          )
+          .orderBy(asc(schema.missionTasks.dueDate), asc(schema.missionTasks.id))
+          .limit(readLimit),
+    db
+      .select({
+        id: schema.evidenceRequests.id,
+        missionId: schema.evidenceRequests.missionId,
+        dueDate: schema.evidenceRequests.dueDate,
+        updatedAt: schema.evidenceRequests.updatedAt,
+      })
+      .from(schema.evidenceRequests)
+      .where(
+        and(
+          eq(schema.evidenceRequests.applicantId, applicantId),
+          inArray(schema.evidenceRequests.status, [...ATTENTION_REQUEST_STATUSES]),
+          gte(schema.evidenceRequests.dueDate, earliest),
+          // Not on a case that is over: no case, or an active one.
+          activeIds.length === 0
+            ? isNull(schema.evidenceRequests.missionId)
+            : or(
+                isNull(schema.evidenceRequests.missionId),
+                inArray(schema.evidenceRequests.missionId, activeIds),
+              ),
+        ),
+      )
+      .orderBy(asc(schema.evidenceRequests.dueDate), asc(schema.evidenceRequests.id))
+      .limit(readLimit),
+    db
+      .select({
+        id: schema.documents.id,
+        expiresAt: schema.documents.expiresAt,
+        updatedAt: schema.documents.updatedAt,
+      })
+      .from(schema.documents)
+      .where(
+        and(
+          eq(schema.documents.applicantId, applicantId),
+          isNull(schema.documents.supersededByDocumentId),
+          gte(schema.documents.expiresAt, earliest),
+        ),
+      )
+      .orderBy(asc(schema.documents.expiresAt), asc(schema.documents.id))
+      .limit(readLimit),
+  ]);
+
+  const truncated = [appointments, tasks, requests, documents].some(
+    (rows) => rows.length > CALENDAR_SOURCE_LIMIT,
+  );
+  const caseTitle = (missionId: string | null): string | null => {
+    const title = missionId ? missionById.get(missionId)?.title.trim() : undefined;
+    // Cut by characters, never inside one.
+    return title ? Array.from(title).slice(0, CALENDAR_CASE_TITLE_MAX).join('') : null;
+  };
+  const item = (
+    kind: CalendarKind,
+    id: string,
+    when: CalendarItemWhen,
+    missionId: string | null,
+    updatedAt: Date,
+  ): CalendarItem => ({
+    key: `${kind}:${id}`,
+    kind,
+    resourceId: id,
+    when,
+    caseTitle: caseTitle(missionId),
+    updatedAt: updatedAt.toISOString(),
+  });
+
+  const items: CalendarItem[] = [];
+  for (const row of appointments.slice(0, CALENDAR_SOURCE_LIMIT)) {
+    // Stored timezone-naive and read in a UTC process, so the UTC fields are the wall clock.
+    const when: CalendarItemWhen = {
+      kind: 'local',
+      localDateTime: row.localDateTime.toISOString().slice(0, 19),
+      timeZone: recognisedTimeZone(row.timezone),
+    };
+    items.push(item('appointment', row.id, when, row.missionId, row.updatedAt));
+  }
+  for (const row of tasks.slice(0, CALENDAR_SOURCE_LIMIT)) {
+    if (!row.dueDate) continue;
+    const when = { kind: 'date', date: dateOnly(row.dueDate) } as const;
+    items.push(item('task_due', row.id, when, row.missionId, row.updatedAt));
+  }
+  for (const row of requests.slice(0, CALENDAR_SOURCE_LIMIT)) {
+    if (!row.dueDate) continue;
+    const when = { kind: 'date', date: dateOnly(row.dueDate) } as const;
+    items.push(item('request_due', row.id, when, row.missionId, row.updatedAt));
+  }
+  for (const row of documents.slice(0, CALENDAR_SOURCE_LIMIT)) {
+    if (!row.expiresAt) continue;
+    const when = { kind: 'date', date: dateOnly(row.expiresAt) } as const;
+    items.push(item('document_expires', row.id, when, null, row.updatedAt));
+  }
+
+  items.sort(
+    (a, b) =>
+      compareText(calendarSortKey(a.when), calendarSortKey(b.when)) ||
+      compareText(a.kind, b.kind) ||
+      compareText(a.key, b.key),
+  );
+  return ok({ applicantId, items, truncated });
+}
+
+/** The audit event a calendar file download writes (one per file, never its contents). */
+export const CALENDAR_EXPORTED_EVENT = 'CALENDAR_EXPORTED';
+
+export interface CalendarExportRecord {
+  /** How many events the file holds. */
+  readonly eventCount: number;
+  /** Which kinds of date it holds; unknown names are dropped. */
+  readonly kinds: readonly string[];
+  /** The page the file came from: the dates page or one appointment. */
+  readonly source: 'dates' | 'appointment';
+}
+
+/**
+ * Records that the owner downloaded a calendar file, as the account data export does: who, for
+ * which person (and which case, for one appointment's file), how many events and which kinds. Never a date, a title or a case name, so the audit
+ * trail holds no more than the fact of the export. Owner only, through the same proof as
+ * `listCalendarDates`; written in its own savepoint on the proof's transaction. A failed write
+ * fails the download (the audit is fail-closed, like every other mutation's audit).
+ */
+export async function recordCalendarExport(
+  access: AuthorizedApplicant<'VIEW_METADATA'>,
+  record: CalendarExportRecord,
+): Promise<Result<void, ServiceError>> {
+  if (
+    !AuthorizedApplicant.isGenuine(access, 'VIEW_METADATA') ||
+    access.actor.kind !== 'applicant_owner' ||
+    (access.resource.kind !== 'applicant' && access.resource.kind !== 'mission')
+  ) {
+    return err(serviceError('forbidden', 'calendar files are available to the owner only'));
+  }
+  // One appointment's file is checked on its case; the dates file on the person.
+  const missionId = access.resource.kind === 'mission' ? access.resource.mission.id : null;
+  const eventCount = Number.isInteger(record.eventCount) ? Math.max(0, record.eventCount) : 0;
+  if (eventCount === 0)
+    return err(serviceError('invalid', 'a calendar file needs at least one date'));
+  const kinds = [...new Set(record.kinds.filter((kind) => isCalendarKind(kind)))].sort();
+  const applicant = access.applicant;
+  try {
+    await access.tx.transaction(async (tx) => {
+      await appendAuditEvent(tx, {
+        eventType: CALENDAR_EXPORTED_EVENT,
+        actorAccountId: applicant.ownerAccountId,
+        actorRole: 'applicant_owner',
+        action: 'VIEW_METADATA',
+        result: 'ALLOWED',
+        method: 'API',
+        applicantId: applicant.id,
+        resourceType: 'calendar_export',
+        resourceId: applicant.id,
+        missionId,
+        metadata: {
+          eventCount,
+          kinds,
+          source: record.source === 'appointment' ? 'appointment' : 'dates',
+        },
+      });
+    });
+  } catch {
+    // Fail closed: no entry, no file. The caller shows a plain "try again". The service codes
+    // have no "internal"; the database is the dependency that failed.
+    return err(serviceError('upstream_error', 'the calendar export could not be recorded'));
+  }
+  return ok(undefined);
 }

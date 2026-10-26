@@ -257,3 +257,21 @@ export function attentionActionLabel(item: Pick<AttentionItem, 'kind' | 'sentBac
   if (item.kind === 'evidence_request' && item.sentBack) return SENT_BACK_ACTION_LABEL;
   return ATTENTION_ACTION_LABELS[item.kind];
 }
+
+/**
+ * Calendar export (v1.2 B05): the "Remind Me" choices, keyed by the form value (minutes before
+ * the date; empty for none). The generic event titles live in the calendar kinds registry
+ * (`CALENDAR_KINDS` in `@visastack/core/calendar`).
+ */
+export const CALENDAR_REMINDER_LABELS: Readonly<Record<'' | '0' | '1440' | '10080', string>> = {
+  '': 'None',
+  '0': 'On the Day',
+  '1440': '1 Day Before',
+  '10080': '1 Week Before',
+};
+
+/**
+ * The order the choices are offered in, None first. Explicit, because an object's number-like
+ * keys come out in number order, which would put None last.
+ */
+export const CALENDAR_REMINDER_ORDER = ['', '0', '1440', '10080'] as const;

@@ -7525,6 +7525,62 @@ summary.visa-photo-title {
   min-height: 44px;
 }
 
+/* WP-V4 calendar export (Programme X, U03 calendar paragraph): the choose, preview and download
+   page (src/app/app/applicant/[id]/calendar/page.tsx). Flat: no shadows, no gradients. */
+.calendar-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.calendar-dates {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.calendar-date {
+  min-height: 44px;
+  padding: 0.25rem 0;
+}
+.calendar-date-text,
+.calendar-preview-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.calendar-date-title,
+.calendar-preview-title {
+  color: var(--text);
+  font-weight: 600;
+}
+.calendar-date-when,
+.calendar-preview-when {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.calendar-preview-list {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.calendar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.calendar-actions .btn {
+  min-height: 44px;
+}
+.home-calendar-links a {
+  /* Inline links in a sentence; the padding still gives each name a comfortable target. */
+  display: inline-block;
+  padding: 0.6rem 0.1rem;
+}
+
 /* WP-V4 case exceptions (ADR 0017): on Sharing, the cases one all-cases share does not cover, each
    with Allow This Case and its in-page question. */
 .sharing-case-exceptions {

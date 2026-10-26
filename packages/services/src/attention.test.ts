@@ -1,7 +1,7 @@
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { accountPrincipal, requireAccess } from './access';
@@ -13,17 +13,31 @@ import {
   ATTENTION_REQUEST_STATUSES,
   ATTENTION_TASK_STATUSES,
   type AttentionItem,
+  CALENDAR_EXPORTED_EVENT,
+  CALENDAR_PAST_DAYS,
+  CALENDAR_SOURCE_LIMIT,
   WITH_AGENCY_REQUEST_STATUSES,
   attentionTier,
   daysUntilDueDay,
+  latestTimeZoneName,
+  listCalendarDates,
   listNeedsAttention,
   rankAttentionItems,
+  recognisedTimeZone,
+  recordCalendarExport,
 } from './attention';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { addDocumentVersion, registerDocument } from './documents';
 import { incrementMaterialRevision } from './material-revision';
-import { createMission, createTask, decideTask, snapshotMission } from './missions';
+import {
+  createAppointment,
+  createMission,
+  createTask,
+  decideTask,
+  snapshotMission,
+  updateAppointment,
+} from './missions';
 import { registerFieldDefinition } from './profile';
 import { acceptGrant, createGrant } from './sharing';
 import { supersedeDocument } from './wallet';
@@ -827,6 +841,543 @@ describe('listNeedsAttention: whose day and whose task', () => {
       expect(keys).toContain(`task:${mine}`);
       expect(keys).toContain(`task:${unassigned}`);
       expect(keys).not.toContain(`task:${agencys}`);
+    },
+    HEAVY,
+  );
+});
+
+describe('listCalendarDates (v1.2 B05 calendar export)', () => {
+  async function calendar(ownerId: string, applicantId: string) {
+    const proof = await proofFor(ownerId, applicantId);
+    if (!isOk(proof)) throw new Error('owner proof');
+    const listed = await listCalendarDates(proof.value, { now: NOW });
+    if (!isOk(listed)) throw new Error(`calendar: ${listed.error.message}`);
+    return listed.value;
+  }
+
+  async function appointment(
+    ownerId: string,
+    missionId: string,
+    localDateTime: string,
+    timezone = 'Asia/Dhaka',
+  ) {
+    const created = await createAppointment(db, {
+      actorAccountId: ownerId,
+      missionId,
+      title: `Biometrics for passport ${PASSPORT_NUMBER}`,
+      localDateTime: new Date(`${localDateTime}.000Z`),
+      timezone,
+      place: 'Gulshan Avenue, House 12',
+      channel: 'In Person',
+    });
+    if (!isOk(created)) throw new Error('appointment');
+    return created.value.id;
+  }
+
+  it(
+    'lists appointments with their wall-clock time and zone, and due and expiry days, earliest first',
+    async () => {
+      const { ownerId, applicantId } = await person('calendar@example.com');
+      const orgId = await organization();
+      const visa = await caseFor(ownerId, applicantId, 'Japan Visit');
+      const appt = await appointment(ownerId, visa, '2026-11-03T09:30:00');
+      const due = await task(
+        ownerId,
+        visa,
+        'Pay the fee from account 0123456789',
+        day('2026-11-03'),
+      );
+      const asked = await request(orgId, applicantId, {
+        status: 'NEEDS_REPLACEMENT',
+        missionId: visa,
+        dueDate: day('2026-11-01'),
+      });
+      const passport = await document(ownerId, applicantId, 'PASSPORT', day('2027-04-30'));
+
+      const result = await calendar(ownerId, applicantId);
+      expect(result.truncated).toBe(false);
+      expect(result.items).toEqual([
+        {
+          key: `request_due:${asked}`,
+          kind: 'request_due',
+          resourceId: asked,
+          updatedAt: expect.any(String),
+          when: { kind: 'date', date: '2026-11-01' },
+          caseTitle: 'Japan Visit',
+        },
+        // The all-day item on 3 Nov comes before the timed one that day.
+        {
+          key: `task_due:${due}`,
+          kind: 'task_due',
+          resourceId: due,
+          updatedAt: expect.any(String),
+          when: { kind: 'date', date: '2026-11-03' },
+          caseTitle: 'Japan Visit',
+        },
+        {
+          key: `appointment:${appt}`,
+          kind: 'appointment',
+          resourceId: appt,
+          updatedAt: expect.any(String),
+          when: { kind: 'local', localDateTime: '2026-11-03T09:30:00', timeZone: 'Asia/Dhaka' },
+          caseTitle: 'Japan Visit',
+        },
+        {
+          key: `document_expires:${passport}`,
+          kind: 'document_expires',
+          resourceId: passport,
+          updatedAt: expect.any(String),
+          when: { kind: 'date', date: '2027-04-30' },
+          caseTitle: null,
+        },
+      ]);
+      // Nothing sensitive travels: no note, title, place, description, file name or number.
+      const text = JSON.stringify(result);
+      for (const secret of [
+        PASSPORT_NUMBER,
+        '0123456789',
+        FILE_NAME,
+        'Gulshan',
+        'Biometrics',
+        'Pay the fee',
+        'bank statement',
+      ]) {
+        expect(text).not.toContain(secret);
+      }
+    },
+    HEAVY,
+  );
+
+  it(
+    'leaves out undated items, finished work, closed cases, replaced documents and staff tasks',
+    async () => {
+      const { ownerId, applicantId } = await person('calendar-out@example.com');
+      const staffId = await account('calendar-staff@example.com');
+      const orgId = await organization();
+      const open = await caseFor(ownerId, applicantId, 'Japan Visit');
+      const closed = await caseFor(ownerId, applicantId, 'Old Trip');
+      await db
+        .update(schema.missions)
+        .set({ state: 'CLOSED' })
+        .where(eq(schema.missions.id, closed));
+
+      const kept = await task(ownerId, open, 'Kept', day('2026-11-05'));
+      const undated = await task(ownerId, open, 'No date');
+      const done = await task(ownerId, open, 'Done', day('2026-11-06'));
+      await db
+        .update(schema.missionTasks)
+        .set({ status: 'DONE' })
+        .where(eq(schema.missionTasks.id, done));
+      const staffs = await task(ownerId, open, 'Agency check', day('2026-11-07'));
+      await db
+        .update(schema.missionTasks)
+        .set({ assigneeAccountId: staffId })
+        .where(eq(schema.missionTasks.id, staffs));
+      const closedTask = await task(ownerId, closed, 'Closed case task', day('2026-11-08'));
+      const closedAppt = await appointment(ownerId, closed, '2026-11-09T10:00:00');
+      const cancelledAppt = await appointment(ownerId, open, '2026-11-10T10:00:00');
+      await db
+        .update(schema.missionAppointments)
+        .set({ status: 'CANCELLED' })
+        .where(eq(schema.missionAppointments.id, cancelledAppt));
+
+      const undatedRequest = await request(orgId, applicantId, { status: 'OPEN' });
+      const received = await request(orgId, applicantId, {
+        status: 'RECEIVED',
+        dueDate: day('2026-11-11'),
+      });
+      const onClosed = await request(orgId, applicantId, {
+        status: 'OPEN',
+        missionId: closed,
+        dueDate: day('2026-11-12'),
+      });
+      const looseRequest = await request(orgId, applicantId, {
+        status: 'OPEN',
+        dueDate: day('2026-11-13'),
+      });
+
+      const noExpiry = await document(ownerId, applicantId, 'NID', null);
+      const oldPassport = await document(ownerId, applicantId, 'PASSPORT', day('2026-12-01'));
+      const newPassport = await document(ownerId, applicantId, 'PASSPORT', day('2036-12-01'));
+      await db
+        .update(schema.documents)
+        .set({ supersededByDocumentId: newPassport })
+        .where(eq(schema.documents.id, oldPassport));
+
+      const keys = (await calendar(ownerId, applicantId)).items.map((i) => i.key);
+      expect(keys).toEqual([
+        `task_due:${kept}`,
+        `request_due:${looseRequest}`,
+        `document_expires:${newPassport}`,
+      ]);
+      for (const gone of [
+        `task_due:${undated}`,
+        `task_due:${done}`,
+        `task_due:${staffs}`,
+        `task_due:${closedTask}`,
+        `appointment:${closedAppt}`,
+        `appointment:${cancelledAppt}`,
+        `request_due:${undatedRequest}`,
+        `request_due:${received}`,
+        `request_due:${onClosed}`,
+        `document_expires:${noExpiry}`,
+        `document_expires:${oldPassport}`,
+      ]) {
+        expect(keys).not.toContain(gone);
+      }
+    },
+    HEAVY,
+  );
+
+  it(
+    "keeps a stored time zone it does not recognise as unknown, never moving the traveller's time",
+    async () => {
+      const { ownerId, applicantId } = await person('calendar-zone@example.com');
+      const visa = await caseFor(ownerId, applicantId, 'Japan Visit');
+      // Rows saved before zones were checked: written straight to the table.
+      await db.insert(schema.missionAppointments).values([
+        {
+          missionId: visa,
+          title: 'Old',
+          localDateTime: new Date('2026-11-03T09:30:00.000Z'),
+          timezone: 'Mars/Olympus_Mons',
+        },
+        {
+          missionId: visa,
+          title: 'Old',
+          localDateTime: new Date('2026-11-04T09:30:00.000Z'),
+          timezone: 'Asia/Dhaka\r\nX-INJECT:1',
+        },
+      ]);
+      const whens = (await calendar(ownerId, applicantId)).items.map((i) => i.when);
+      expect(whens).toEqual([
+        { kind: 'local', localDateTime: '2026-11-03T09:30:00', timeZone: null },
+        { kind: 'local', localDateTime: '2026-11-04T09:30:00', timeZone: null },
+      ]);
+    },
+    HEAVY,
+  );
+
+  it(
+    "reads only the owner's own applicant: a stranger, a shared viewer and a copied proof are refused",
+    async () => {
+      const { ownerId, applicantId } = await person('calendar-owner@example.com');
+      const other = await person('calendar-other@example.com');
+      const visa = await caseFor(other.ownerId, other.applicantId, 'Other Trip');
+      await task(other.ownerId, visa, 'Not yours', day('2026-11-05'));
+      expect((await calendar(ownerId, applicantId)).items).toEqual([]);
+
+      const strangerId = await account('calendar-stranger@example.com');
+      expect(isErr(await proofFor(strangerId, applicantId))).toBe(true);
+
+      const friendId = await account('calendar-friend@example.com');
+      const grant = await createGrant(db, {
+        actorAccountId: ownerId,
+        applicantId,
+        recipientAccountId: friendId,
+        actions: ['VIEW_METADATA'],
+        purpose: 'family-help',
+      });
+      if (!isOk(grant)) throw new Error('grant');
+      const accepted = await acceptGrant(db, { actorAccountId: friendId, grantId: grant.value.id });
+      if (!isOk(accepted)) throw new Error('accept');
+      const friend = await proofFor(friendId, applicantId, 'family-help');
+      if (!isOk(friend)) throw new Error('friend proof');
+      const refused = await listCalendarDates(friend.value);
+      expect(isErr(refused) && refused.error.code).toBe('forbidden');
+
+      const owner = await proofFor(ownerId, applicantId);
+      if (!isOk(owner)) throw new Error('owner proof');
+      const copy = { ...owner.value } as unknown as typeof owner.value;
+      const copied = await listCalendarDates(copy);
+      expect(isErr(copied) && copied.error.code).toBe('forbidden');
+    },
+    HEAVY,
+  );
+
+  it(
+    'reads at most the cap from a source, earliest first, and says so',
+    async () => {
+      const { ownerId, applicantId } = await person('calendar-cap@example.com');
+      const visa = await caseFor(ownerId, applicantId, 'Japan Visit');
+      await db.insert(schema.missionTasks).values(
+        Array.from({ length: CALENDAR_SOURCE_LIMIT + 2 }, (_, i) => ({
+          missionId: visa,
+          description: `Task ${i}`,
+          dueDate: new Date(Date.UTC(2026, 10, 1) + i * 86_400_000),
+        })),
+      );
+      const result = await calendar(ownerId, applicantId);
+      expect(result.items).toHaveLength(CALENDAR_SOURCE_LIMIT);
+      expect(result.truncated).toBe(true);
+      expect(result.items[0]?.when).toEqual({ kind: 'date', date: '2026-11-01' });
+    },
+    HEAVY,
+  );
+
+  it(
+    "reads from a week before today in the traveller's zone, so old dates never push out upcoming ones",
+    async () => {
+      const { ownerId, applicantId } = await person('calendar-window@example.com');
+      const orgId = await organization();
+      const visa = await caseFor(ownerId, applicantId, 'Japan Visit');
+      const oldDay = (i: number) => new Date(Date.UTC(2025, 0, 1) + i * 86_400_000);
+      await db.insert(schema.missionTasks).values(
+        Array.from({ length: CALENDAR_SOURCE_LIMIT + 5 }, (_, i) => ({
+          missionId: visa,
+          description: `Old ${i}`,
+          dueDate: oldDay(i),
+        })),
+      );
+      await db.insert(schema.missionAppointments).values(
+        Array.from({ length: CALENDAR_SOURCE_LIMIT + 5 }, (_, i) => ({
+          missionId: visa,
+          title: 'Old',
+          localDateTime: oldDay(i),
+          timezone: 'Asia/Dhaka',
+        })),
+      );
+      for (let i = 0; i < CALENDAR_SOURCE_LIMIT + 5; i++) {
+        await document(ownerId, applicantId, 'PASSPORT', oldDay(i));
+      }
+      // NOW is 26 Oct in Dhaka, so the first day read is 19 Oct.
+      expect(CALENDAR_PAST_DAYS).toBe(7);
+      const edge = await task(ownerId, visa, 'Edge', day('2026-10-19'));
+      const before = await task(ownerId, visa, 'Before', day('2026-10-18'));
+      const upcoming = await task(ownerId, visa, 'Upcoming', day('2026-11-02'));
+      const appt = await appointment(ownerId, visa, '2026-11-03T09:30:00');
+      const asked = await request(orgId, applicantId, {
+        status: 'OPEN',
+        dueDate: day('2026-11-04'),
+      });
+      const oldRequest = await request(orgId, applicantId, {
+        status: 'OPEN',
+        dueDate: day('2026-01-04'),
+      });
+      const passport = await document(ownerId, applicantId, 'PASSPORT', day('2027-04-30'));
+
+      const result = await calendar(ownerId, applicantId);
+      expect(result.truncated).toBe(false);
+      expect(result.items.map((i) => i.key)).toEqual([
+        `task_due:${edge}`,
+        `task_due:${upcoming}`,
+        `appointment:${appt}`,
+        `request_due:${asked}`,
+        `document_expires:${passport}`,
+      ]);
+      expect(result.items.map((i) => i.key)).not.toContain(`task_due:${before}`);
+      expect(result.items.map((i) => i.key)).not.toContain(`request_due:${oldRequest}`);
+    },
+    HEAVY,
+  );
+});
+
+describe('recognisedTimeZone and appointment time zones (used to place appointments in UTC)', () => {
+  it('accepts known IANA names only, trimmed, in their canonical spelling', () => {
+    expect(recognisedTimeZone('asia/dhaka')).toBe('Asia/Dhaka');
+    expect(recognisedTimeZone(' america/los_angeles ')).toBe('America/Los_Angeles');
+    expect(recognisedTimeZone(' Asia/Dhaka ')).toBe('Asia/Dhaka');
+    expect(recognisedTimeZone('America/Los_Angeles')).toBe('America/Los_Angeles');
+    expect(recognisedTimeZone('UTC')).toBe('UTC');
+    // Always the latest official name (owner rule, 26 Oct 2026), whatever the runtime reports.
+    expect(recognisedTimeZone('Asia/Kolkata')).toBe('Asia/Kolkata');
+    expect(recognisedTimeZone('asia/kolkata')).toBe('Asia/Kolkata');
+    expect(recognisedTimeZone('Asia/Calcutta')).toBe('Asia/Kolkata');
+    expect(recognisedTimeZone(' Asia/Dacca ')).toBe('Asia/Dhaka');
+    expect(recognisedTimeZone('Europe/Kiev')).toBe('Europe/Kyiv');
+    expect(recognisedTimeZone('asia/kathmandu')).toBe('Asia/Kathmandu');
+    expect(recognisedTimeZone('America/Nuuk')).toBe('America/Nuuk');
+    expect(latestTimeZoneName('Asia/Dacca')).toBe('Asia/Dhaka');
+    expect(latestTimeZoneName(null)).toBeNull();
+    expect(latestTimeZoneName('Not A Zone')).toBe('Not A Zone');
+    for (const bad of [
+      '',
+      'Mars/Olympus_Mons',
+      'Asia/Dhaka\r\nX-INJECT:1',
+      'Asia/Dhaka;X=1',
+      'a b',
+    ]) {
+      expect(recognisedTimeZone(bad)).toBeNull();
+    }
+  });
+
+  it(
+    'createAppointment and updateAppointment refuse a zone that is not a known IANA name',
+    async () => {
+      const { ownerId, applicantId } = await person('zone-check@example.com');
+      const visa = await caseFor(ownerId, applicantId, 'Japan Visit');
+      const base = {
+        actorAccountId: ownerId,
+        missionId: visa,
+        title: 'Interview',
+        localDateTime: new Date('2026-11-03T09:30:00.000Z'),
+      };
+      for (const timezone of ['Asia/Dhaka\r\nX-INJECT:1', 'Mars/Olympus_Mons']) {
+        const refused = await createAppointment(db, { ...base, timezone });
+        expect(isErr(refused) && refused.error.code).toBe('invalid');
+        expect(isErr(refused) && refused.error.message).toBe(
+          'enter a time zone name, such as Asia/Dhaka',
+        );
+      }
+      const made = await createAppointment(db, { ...base, timezone: ' asia/dhaka ' });
+      if (!isOk(made)) throw new Error('appointment');
+      expect(made.value.timezone).toBe('Asia/Dhaka');
+      const moved = await updateAppointment(db, {
+        actorAccountId: ownerId,
+        missionId: visa,
+        appointmentId: made.value.id,
+        timezone: 'Asia/Dhaka\nX-INJECT:1',
+      });
+      expect(isErr(moved) && moved.error.code).toBe('invalid');
+      const ok = await updateAppointment(db, {
+        actorAccountId: ownerId,
+        missionId: visa,
+        appointmentId: made.value.id,
+        timezone: 'Europe/London',
+      });
+      expect(isOk(ok) && ok.value.timezone).toBe('Europe/London');
+    },
+    HEAVY,
+  );
+});
+
+describe('recordCalendarExport (an audit entry per calendar file, never its contents)', () => {
+  it(
+    'writes one audit entry with the count and kinds only, for the owner',
+    async () => {
+      const { ownerId, applicantId } = await person('audit-calendar@example.com');
+      const proof = await proofFor(ownerId, applicantId);
+      if (!isOk(proof)) throw new Error('owner proof');
+      const recorded = await recordCalendarExport(proof.value, {
+        eventCount: 3,
+        kinds: ['task_due', 'appointment', 'task_due', 'not_a_kind'],
+        source: 'dates',
+      });
+      expect(isOk(recorded)).toBe(true);
+      const rows = await db
+        .select()
+        .from(schema.auditEvents)
+        .where(eq(schema.auditEvents.eventType, CALENDAR_EXPORTED_EVENT));
+      expect(rows).toHaveLength(1);
+      const row = rows[0];
+      expect(row?.actorAccountId).toBe(ownerId);
+      expect(row?.applicantId).toBe(applicantId);
+      expect(row?.result).toBe('ALLOWED');
+      expect(row?.metadata).toEqual({
+        eventCount: 3,
+        kinds: ['appointment', 'task_due'],
+        source: 'dates',
+      });
+      // Only the fact of the export: no dates, titles or case names.
+      expect(JSON.stringify(row?.metadata)).not.toMatch(/\d{4}-\d{2}-\d{2}|Japan|Visit/);
+    },
+    HEAVY,
+  );
+
+  it(
+    "records which case for one appointment's file, checked on the case as its owner",
+    async () => {
+      const { ownerId, applicantId } = await person('audit-case@example.com');
+      const missionId = await caseFor(ownerId, applicantId, 'Japan Visit');
+      const proof = await requireAccess(
+        db,
+        accountPrincipal(ownerId),
+        'VIEW_METADATA',
+        { missionId },
+        { purpose: 'self' },
+      );
+      if (!isOk(proof)) throw new Error('case proof');
+      const recorded = await recordCalendarExport(proof.value, {
+        eventCount: 1,
+        kinds: ['appointment'],
+        source: 'appointment',
+      });
+      expect(isOk(recorded)).toBe(true);
+      const rows = await db
+        .select()
+        .from(schema.auditEvents)
+        .where(eq(schema.auditEvents.eventType, CALENDAR_EXPORTED_EVENT));
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.missionId).toBe(missionId);
+      expect(rows[0]?.applicantId).toBe(applicantId);
+      expect(rows[0]?.metadata).toEqual({
+        eventCount: 1,
+        kinds: ['appointment'],
+        source: 'appointment',
+      });
+    },
+    HEAVY,
+  );
+
+  it(
+    'refuses a shared viewer, a copied proof and an empty file, writing nothing',
+    async () => {
+      const { ownerId, applicantId } = await person('audit-refuse@example.com');
+      const friendId = await account('audit-friend@example.com');
+      const grant = await createGrant(db, {
+        actorAccountId: ownerId,
+        applicantId,
+        recipientAccountId: friendId,
+        actions: ['VIEW_METADATA'],
+        purpose: 'family-help',
+      });
+      if (!isOk(grant)) throw new Error('grant');
+      const accepted = await acceptGrant(db, { actorAccountId: friendId, grantId: grant.value.id });
+      if (!isOk(accepted)) throw new Error('accept');
+      const friend = await proofFor(friendId, applicantId, 'family-help');
+      if (!isOk(friend)) throw new Error('friend proof');
+      const byFriend = await recordCalendarExport(friend.value, {
+        eventCount: 1,
+        kinds: ['task_due'],
+        source: 'dates',
+      });
+      expect(isErr(byFriend) && byFriend.error.code).toBe('forbidden');
+
+      const owner = await proofFor(ownerId, applicantId);
+      if (!isOk(owner)) throw new Error('owner proof');
+      const copy = { ...owner.value } as unknown as typeof owner.value;
+      const copied = await recordCalendarExport(copy, {
+        eventCount: 1,
+        kinds: ['task_due'],
+        source: 'dates',
+      });
+      expect(isErr(copied) && copied.error.code).toBe('forbidden');
+      const empty = await recordCalendarExport(owner.value, {
+        eventCount: 0,
+        kinds: [],
+        source: 'dates',
+      });
+      expect(isErr(empty) && empty.error.code).toBe('invalid');
+
+      const rows = await db
+        .select()
+        .from(schema.auditEvents)
+        .where(eq(schema.auditEvents.eventType, CALENDAR_EXPORTED_EVENT));
+      expect(rows).toHaveLength(0);
+    },
+    HEAVY,
+  );
+
+  it(
+    'returns an error instead of throwing when the entry cannot be written, so callers fail closed',
+    async () => {
+      const { ownerId, applicantId } = await person('audit-calendar-broken@example.com');
+      const proof = await proofFor(ownerId, applicantId);
+      if (!isOk(proof)) throw new Error('owner proof');
+      // This test's own database: the audit table can no longer take the entry.
+      await db.execute(sql`ALTER TABLE audit_events RENAME COLUMN metadata TO metadata_gone`);
+      const recorded = await recordCalendarExport(proof.value, {
+        eventCount: 1,
+        kinds: ['task_due'],
+        source: 'dates',
+      });
+      expect(isErr(recorded) && recorded.error.code).toBe('upstream_error');
+      await db.execute(sql`ALTER TABLE audit_events RENAME COLUMN metadata_gone TO metadata`);
+      const rows = await db
+        .select()
+        .from(schema.auditEvents)
+        .where(eq(schema.auditEvents.eventType, CALENDAR_EXPORTED_EVENT));
+      expect(rows).toHaveLength(0);
     },
     HEAVY,
   );

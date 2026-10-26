@@ -10,6 +10,7 @@ import {
   listMissions,
 } from '@visastack/services';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { EmptyState, PageHeader, StatusBadge, type Tone } from '../../../../../components/ui';
 import { formatTimestampDate } from '../../../../../lib/format-date';
@@ -100,6 +101,11 @@ export default async function ExpiryCentrePage({
         title={<>Expiry &amp; Freshness</>}
         description="Three separate signals - a document's own expiry, whether a route needs it more recently dated, and how long an issuer confirmation stays valid. Never merged into one status."
         as="h2"
+        actions={
+          <Link href={`/app/applicant/${id}/calendar`} className="btn btn-secondary">
+            Add Dates to My Calendar
+          </Link>
+        }
       />
 
       <div className="grid">

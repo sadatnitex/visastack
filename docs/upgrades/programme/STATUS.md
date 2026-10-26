@@ -2,20 +2,20 @@
 
 Keep this file between 250 and 400 words. Memory between sessions; evidence lives in `COVERAGE-LEDGER.csv`. Overwritten each time; history stays in git.
 
-- Last updated: 26 October 2026, WP-V4 per-case sharing exceptions built locally, four follow-up gaps closed
-- Current main SHA: `309625c` (#275, Needs Attention and the reordered Home)
-- Branch: `claude/prog-v4-case-exclusions` from main `309625c`; WIP 27735e9 pushed for safety, later commits local; no PR yet
-- Current package: WP-V4 per-case sharing exceptions (ADR 0017, owner approval 26 Oct 2026): table `grant_case_exclusions`, migration 0090 written and not run (pre-approved to run right after the merge); one case-scope rule in policy and SQL; the questions, answers and Allow This Case services; the Sharing page and Application Memory show exceptions. Prepare Again itself is the next WP-V4 PR. Then calendar export, the rest of WP-V4, WP-V5, WP-V6
-- Packages merged: #230 to #242 (WP-A0 to WP-X3), WP-V3 parts 1 to 3 (#248, #261, #265), WP-V4 agency slice (#263), WP-V4 Home (#275)
-- Also merged 25 and 26 Oct: #259, #260 (0087 run), #262, #264, #266 to #272 (0088 and 0089 run; 90 migrations applied), #274 docs
-- In flight outside the programme: #177 (open sign-up) and #77 are older owner PRs, untouched
-- Parked by the owner: payments, real redaction. Do not start them
-- Owner decisions 26 Oct: ask each time a case is made with Prepare Again, no answer means no, pending all-cases invitations bound, fresh sign-in on Allow This Case only when the sharing needed one (ledger D17)
-- Checks on this branch: targeted policy (38), services (16 files, 274 passed, ratchet baseline unchanged), db and web (54 files, 457 passed) tests passed; pnpm run lint and pnpm run typecheck exit 0; guards proved to fail. Full suite, build, browser checks, /code-review, /security-review and CI not run yet
-- Review rule (owner, 25 Oct 2026): independent Opus review before every merge; CodeQL no new alerts
-- Blockers: none. The four gaps (restore replay, account export, case page note, policy export) are closed on this branch; the operations doc on backup reconciliation still needs its two new rows (outside the file list)
-- Stop reason, if stopped: none
-- Next action: full local check, /code-review max and /security-review on `claude/prog-v4-case-exclusions`, then a draft PR for the owner's merge word and the 0090 run; then Prepare Again
+- Last updated: 26 October 2026, end of session: calendar export merged, case exceptions handed over
+- Current main SHA: `77084ed` (#276, WP-V4 calendar export)
+- Branch: `claude/prog-v4-case-exclusions` (pushed, no PR): per-case sharing exceptions with migration 0090; last commit is a WIP of review fixes, unverified
+- Current package: WP-V4 per-case sharing exceptions. Remaining fixes listed in `WP-V4-CASE-EXCLUSIONS-NEXT.md` on that branch. Then visible reference codes (`WP-REF-PLAN.md`, migration 0091), then Prepare Again, request screens and colour polish to close WP-V4, then WP-V5 and WP-V6
+- Packages merged: #230 to #242 (WP-A0 to WP-X3), WP-V3 parts 1 to 3 (#248, #261, #265), WP-V4 agency slice (#263), Home slice (#275), calendar export (#276)
+- Also merged 25 and 26 Oct: #259, #260 (0087 run), #262, #264, #266 to #274 (0088 and 0089 run; 90 migrations applied)
+- Older owner PRs untouched: #177 (open sign-up), #77
+- Parked by the owner: payments, real redaction. Deferred: Bangla
+- Owner decisions: `docs/SESSION-START.md` section 6 (auto-merge WP-V4 PRs when correctly ready; migrations 0090 and 0091 pre-approved; helpers at most 2 to 3, no overlap)
+- Checks: #276 had three independent reviews, a full local check (2,020 web tests, all package tests, build, 202 browser checks, smoke 11/11, supply chain 7/7) and green CI on f088f49; its post-merge checks were running at handoff (not verified in this file). The case-exceptions branch had a code review and a security review; their fixes are not yet verified
+- Review rule (owner, 25 Oct 2026): independent review before every merge; strictest plus security review for permissions, sharing, documents and anything hard to reverse
+- Blockers: none. Renovate shows no activity yet; the owner should check the app can see this repository
+- Stop reason: session end (token discipline: one package per session)
+- Next action: finish the case-exception fixes from `WP-V4-CASE-EXCLUSIONS-NEXT.md`, re-review, full check, merge, run migration 0090, verify; then reference codes
 
 ## How to update
 

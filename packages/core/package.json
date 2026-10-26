@@ -11,6 +11,7 @@
     ".": "./src/index.ts",
     "./catalogue": "./src/catalogue/index.ts",
     "./catalogue/documents": "./src/catalogue/documents-entry.ts",
+    "./calendar": "./src/calendar/index.ts",
     "./catalogue/packs": "./src/catalogue/packs-entry.ts",
     "./destinations": "./src/destinations/index.ts",
     "./photo-specs": "./src/photo-specs.ts"

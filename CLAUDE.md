@@ -1,6 +1,7 @@
 # VisaStack - standing instructions for every session
 
 Read this first. It is loaded automatically. Task-specific instructions come from the owner in each session.
+Then read docs/SESSION-START.md once: the full picture (where things are, standards, workflow, owner decisions in force, open work, pitfalls) for any task, inside or outside Programme X.
 
 ## 1. Product and owner
 - VisaStack: invite-only visa-document platform. One profile reused for every visa application, a documents vault, AI suggestions that a person approves, cases and readiness, sharing with agencies, privacy controls. Production runs in controlled_pilot mode: made-up data only, no real customer documents.
@@ -69,7 +70,8 @@ Read this first. It is loaded automatically. Task-specific instructions come fro
 - Tests that need a migrated database use createMigratedPglite() from @visastack/db/testing (one migration per test run, then a snapshot copy per database). Only tests of the migrations themselves migrate by hand.
 - The audit_events table refuses edits and deletes through database rules; tests that simulate tampering must drop those rules first.
 - Vercel MCP may refuse to list project environment variables (403): environment scoping then has to be checked by the owner in the dashboard.
-- Session handoff, newest first: docs/upgrades/programme/SESSION-HANDOFF-2026-10-25-evening.md (open branches, owner decisions, parked work, pitfalls).
+- Session handoff, newest first: the newest docs/upgrades/programme/SESSION-HANDOFF-*.md (open branches, owner decisions, parked work, pitfalls). Agent scripts: scripts/agent/.
+- Token discipline (owner, 26 Oct 2026): at most 2 helpers at a time (3 only with one short read-only check), no overlapping work; complete briefs, batched review rounds, close helpers after their round; one package per session.
 - globals.css merges: never concatenate conflict hunks (a hunk can split a rule). Take main's file, then append the branch's own blocks. Every block starts with a "/* WP-<ID> ..." marker line; guard tests end a block at the next marker.
 - New interface names must pass apps/web/src/lib/title-case.test.ts and vocabulary.test.ts ("case", never "mission", in visible text). Stored answer values (for example "Before tax") are not labels: never retitle them.
 - db-migrate.yml runs only from main: code must tolerate a new table being missing, and the approved migration runs right after the merge.
