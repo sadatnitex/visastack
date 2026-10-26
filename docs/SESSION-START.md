@@ -73,9 +73,12 @@ Code: `apps/web` (Next.js 15.5, React 19), `packages/services` (all business log
 - 25 Oct: AI providers: free tiers allowed and never blocked until the owner says so; data terms recorded per provider; the training guard is built and off.
 - 25 Oct: "Download Safe Copies" is the visible name of the DOWNLOAD_REDACTED permission (visa photo sizes now, redacted documents later).
 - 25 Oct: profile photos (one per person), visa photo sizes (sized copies per country rule, no face editing, never claim acceptance).
-- Parked until the owner says start: **payments** (provider-agnostic port, Stripe first, then a Bangladesh gateway) and **real redaction**. Deferred: **Bangla and all translation**.
+- 26 Oct (Small Commercial V1): target 100 to 1,000 users; preserve what works; **payments start** with one hosted Bangladesh gateway (SSLCOMMERZ) behind `PaymentPort`, invoice by invoice, plus verified manual payments (ADR 0020; this replaces "Stripe first"); **AI Context Gateway**: read-only remote MCP so people connect ChatGPT or Claude to chosen parts of their own record (ADR 0021); document reading becomes automatic, cheapest reader first (ADR 0019). Plan: `docs/roadmap/SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md`; deferred controls: `docs/roadmap/DEFERRED-COMMERCIAL-HARDENING.md`.
+- Parked until the owner says start: **real redaction**. Deferred: **Bangla and all translation**.
 
 ## 7. Open work, in order
+
+Since 26 Oct 2026 the order is the package list in `docs/roadmap/SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md` section M (S1 Prepare Again first). The paragraph below is the earlier Programme X view, kept for history.
 
 See `docs/upgrades/programme/STATUS.md` and the newest `SESSION-HANDOFF-*.md` for the live line. At this writing: per-case sharing exceptions (#278, migration 0090) and visible reference codes (#279, migration 0091) are live; next are Prepare Again (it uses `listCaseSharingQuestions` and `applyCaseSharingAnswers` in the case-creating transaction), request screens and colour polish (closing WP-V4), then WP-V5 (shareable outputs) and WP-V6 (final acceptance and release, owner's explicit word). Alongside, never ahead: engineering roadmap step 4 (move about 313 older service functions behind the access gate, shadow mode first) and step 5 (signed step-up proof).
 

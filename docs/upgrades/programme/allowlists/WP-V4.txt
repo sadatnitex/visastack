@@ -90,3 +90,9 @@ packages/services/src/product-events.test.ts
 apps/web/src/app/app/admin/page.tsx
 docs/roadmap/SMALL-COMMERCIAL-V1.md
 docs/roadmap/DEFERRED-COMMERCIAL-HARDENING.md
+# Architecture freeze (owner instruction, 26 Oct 2026): the implementation handoff and the corrections that keep
+# the next session from being misled (repository is public; payments started; plan superseded).
+docs/roadmap/SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md
+docs/roadmap/remaining-commercial-blockers.md
+docs/SESSION-START.md
+CLAUDE.md

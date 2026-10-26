@@ -12,7 +12,7 @@ Checked in code, not inferred from documents. States used: implemented, wired (r
 
 - Migrations: 92 in the repository, 92 applied in production (STATUS, 26 Oct), none pending.
 - Open pull requests: #177 (open sign-up switch) and #77 (WorkOS staging identities, obsolete since WorkOS was retired). Both owner-held; untouched.
-- Main CI green on `174ae1a`. CodeQL's analysis job is skipped by design on this private repository (`codeql.yml` runs it only when the repository is public), so it is reported as skipped, not passed.
+- Main CI and CodeQL green on `174ae1a`. The repository is public (verified through the GitHub API on 26 Oct 2026), which is why CodeQL runs; see owner action O1 in the handoff.
 - Programme X: WP-A0 to WP-X3, WP-V3, WP-V4 agency slice, Home, calendar export, per-case sharing exceptions (#278) and reference codes (#279) are merged and live. Next: Prepare Again, request screens and colour polish (closing WP-V4), WP-V5, WP-V6.
 
 ### Already solid (do not rebuild)
@@ -71,6 +71,9 @@ Checked in code, not inferred from documents. States used: implemented, wired (r
 - **Scale and hardening**: preserved in the architecture, deferred until adoption, risk, regulation or sales justify them. Each item, its trigger and its seam: [DEFERRED-COMMERCIAL-HARDENING.md](DEFERRED-COMMERCIAL-HARDENING.md).
 
 ## 3. Execution order from main
+
+Superseded the same day by the architecture freeze: the authoritative order, package contracts and owner actions are in [SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md](SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md) section M. The table below is the first draft, kept for history.
+
 
 One concern per pull request. Each runs the repository's full verification and reviews before merge.
 
