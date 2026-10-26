@@ -42,9 +42,7 @@ Constraints:
 - **Negative / trade-offs:** every non-owner access check and every affected list query makes one extra presence query (a catalogue lookup). Revoked grants keep their exception rows (they reach nothing). An organization's evidence request list keeps its existing behaviour after a pause or revoke and hides only requests on cases excluded from all of its grants.
 - **Follow-ups:**
   - Prepare Again itself (a later PR) must call `listCaseSharingQuestions` before creating the case and `applyCaseSharingAnswers` in the same transaction, throwing on any error so the case rolls back.
-  - Backup reconciliation (`packages/services/src/backup-reconciliation.ts`) replays revocations after a restore but not `GRANT_CASE_EXCLUDED`; an exception written after the last backup would be lost by a restore. Outside this change's file list.
-  - The account export (`packages/services/src/export.ts`) does not include exceptions yet. Outside this change's file list.
-  - The case page's "Self-reviewed" note (`apps/web/src/app/app/mission/[id]/page.tsx`) still counts an organization excluded from that case as having access, so it under-states self-review. Outside this change's file list.
+  - The four gaps found while building this were closed on the same branch (owner approval "close all four", 26 Oct 2026); see the amendment below.
 
 ## Alternatives considered
 
@@ -52,3 +50,10 @@ Constraints:
 - **Silently making Prepare Again cases private.** The owner chose to ask each time.
 - **A savepoint read with a missing-table catch.** Rejected for the reason in decision 4.
 - **Copying the exception check into each query.** Rejected: one rule in two proven-equal forms is the requirement.
+
+## Amendment, 2026-10-26: the four gaps closed
+
+1. **Restore.** Backup reconciliation (`packages/services/src/backup-reconciliation.ts`) replays `GRANT_CASE_EXCLUDED` and `GRANT_CASE_EXCLUSION_REMOVED` from the old branch's audit chain, in order (occurred time, then chain sequence). Only the last event for each grant or invitation and case is applied, so a second run is a clean no-op. A removal is replayed like a legal hold release: an explicit owner decision, applied in order. Nothing happens when the grant, invitation or case was made after the restore point (nobody can reach the case through it there). If an exception cannot be written, for example on a restored branch from before migration 0090, the grant is paused (revoked if still awaiting acceptance) or the pending invitation revoked, audited as `RECONCILIATION_CASE_EXCEPTION_FAIL_CLOSED`, and the error reported: the case is never left open. Invitation carry-over writes no event of its own; its grant postdates the restore point and the invitation-bound exception is replayed from its own event. `docs/operations/backup-resurrection-reconciliation.md` still needs the two new rows in its scope table (outside this change's file list).
+2. **Account export.** Each grant in `grantsGranted` carries `caseExceptions` (case id, case title, when, and the account id that said no), so the JSON export and `grants_granted.csv` include them, and the manifest counts them. The recipient is named only as the grant already names it. A recipient's own export never shows an exception or the excluded case. Invitation-bound exceptions stay out with the invitations, which the export does not include.
+3. **Case page.** The Self-reviewed note counts an organization only when one of its active grants reaches this case, through `grantReachesCase` (the policy predicate on the same `toPolicyGrant` mapping). This also stops a grant for another case from hiding the note.
+4. **Policy export.** `packages/policy` exports `grantCoversMission`; the equivalence test checks it directly and through `authorize()` against the SQL rule.
