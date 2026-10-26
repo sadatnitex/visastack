@@ -7,7 +7,9 @@ import { dueLabel } from './due-label';
 /*
  * Owner decision, 26 Oct 2026 (ADR 0015 amendment, ADR 0016): the traveller's time zone decides
  * when an agency request is past due, on the traveller's Home, the traveller's evidence page and
- * the agency's Do Next list. One day rule (`daysUntilDueDay`), read three ways, must agree.
+ * the agency's Do Next list. One day rule (`daysUntilDueDay`), read three ways, must agree. The
+ * Home side here calls the shared rule directly; Home's own path through the attention projection
+ * is covered in packages/services/src/attention.test.ts.
  */
 
 const DUE = '2026-10-26T00:00:00.000Z';

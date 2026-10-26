@@ -182,7 +182,11 @@ describe('Needs Attention words (WP-V4 U03, ADR 0016)', () => {
 
   it('stays safe for browser code: no server-only module is imported', () => {
     const source = readFileSync(join(process.cwd(), 'src/lib/labels.ts'), 'utf8');
-    const imports = [...source.matchAll(/from\s+['"]([^'"]+)['"]/g)].map((m) => m[1] ?? '');
+    // `import ... from`, `export ... from` and bare `import '...'` lines. Indirect imports (through
+    // another module) are not followed; keep this file's own imports to plain wording sources.
+    const imports = [...source.matchAll(/(?:from|^\s*import)\s+['"]([^'"]+)['"]/gm)].map(
+      (m) => m[1] ?? '',
+    );
     // Browser components import this shared wording file, so master-profile.ts (server-only: it
     // reads the field catalogue) and other server modules must never be pulled in through it.
     for (const banned of [/master-profile/, /server-only/, /\/session$/, /\/providers$/]) {

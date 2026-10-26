@@ -581,4 +581,20 @@ describe('Home composition (WP-V4, v1.2 B13 and U03)', () => {
     expect(attention).toContain('This list covers the first 25 of 27 people.');
     expect(attention).toContain('See All Applicants');
   });
+
+  it('never says nothing is waiting when some people were not read', async () => {
+    data.consents = CORE;
+    data.applicants = Array.from({ length: 27 }, (_, i) => ({
+      id: `10000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
+      displayName: `Person ${String(i).padStart(3, '0')}`,
+      createdAt: new Date(Date.UTC(2026, 0, 1)),
+    }));
+    // Setup is done, so the only reason left not to say "up to date" is the people not read.
+    data.documents = 1;
+    data.missions = 1;
+    const text = textOf(await page());
+    expect(text).not.toContain('You Are Up to Date');
+    expect(text).not.toContain('Nothing is waiting for you.');
+    expect(text).toContain('Nothing is waiting for the first 25 of 27 people.');
+  });
 });

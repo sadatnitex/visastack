@@ -354,6 +354,8 @@ export default async function AppPage({
   // One next step, chosen in priority order: the consent gate first, then the top of the ranked
   // Needs Attention list (ADR 0016), then the first setup step, then "all clear".
   const first = data.attention[0];
+  // Home reads at most HOME_APPLICANT_LIMIT people (oldest first); say so wherever it matters.
+  const peopleLeftOut = data.applicants.length > data.perApplicant.length;
   const nextStep = !coreGranted
     ? {
         title: 'Turn On Core Processing to Begin',
@@ -377,18 +379,26 @@ export default async function AppPage({
             href: firstTodo.href,
             action: firstTodo.key === 'applicant' ? 'Add an Applicant' : 'Continue',
           }
-        : {
-            title: 'You Are Up to Date',
-            why: 'Nothing is waiting for you. Open an applicant to add documents or start a case.',
-            href: '/app/applicants',
-            action: 'View Applicants',
-            tone: 'ok' as const,
-          };
+        : peopleLeftOut
+          ? {
+              // Home reads only the first people, so it cannot say nothing is waiting at all.
+              title: 'Up to Date for the People Shown',
+              why: `Nothing is waiting for the first ${data.perApplicant.length} of ${data.applicants.length} people. Open the full list to check the others.`,
+              href: '/app/applicants',
+              action: 'See All Applicants',
+              tone: 'ok' as const,
+            }
+          : {
+              title: 'You Are Up to Date',
+              why: 'Nothing is waiting for you. Open an applicant to add documents or start a case.',
+              href: '/app/applicants',
+              action: 'View Applicants',
+              tone: 'ok' as const,
+            };
 
   // Under the next step: everything else, ranked. The first item is already the next step.
   const rest = first ? data.attention.slice(1) : [];
   const restShown = rest.slice(0, HOME_ATTENTION_VISIBLE);
-  const peopleLeftOut = data.applicants.length > data.perApplicant.length;
   const requestRows = data.perApplicant.filter(
     (row) => row.waitingRequests + row.requestsWithAgency > 0,
   );
