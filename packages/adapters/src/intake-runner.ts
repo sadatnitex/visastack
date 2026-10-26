@@ -39,10 +39,6 @@ export async function runIsolatedIntake(): Promise<void> {
   });
   try {
     const handle = db as unknown as Db;
-    // The workflow proved the live engine (clean file passes, test file caught) in the step before
-    // this one, and the signatures were just checked: record that, so readiness can say the
-    // scanner is really running and stop saying so if the worker stops.
-    await recordScannerEngineVerified(handle, { engine: version });
     const common = {
       db: handle,
       // The worker never issues browser links and receives no production signing key.
@@ -88,6 +84,15 @@ export async function runIsolatedIntake(): Promise<void> {
       },
     };
     const extractor = new IsolatedOcrExtractor(storage, required('OCR_ENGINE_VERSION'));
+    // The workflow proved the live engine (clean file passes, test file caught) in the step
+    // before this one, the signatures were just checked and the storage is configured: record
+    // that, so readiness can say the scanner is really running and stop saying so if the worker
+    // stops. A failure to write this status note must never stop the queue from being processed.
+    try {
+      await recordScannerEngineVerified(handle, { engine: version });
+    } catch {
+      process.stderr.write('Scanner status note could not be recorded.\n');
+    }
     const limits = new BuiltinContentLimitsChecker({
       blobStore: storage,
       config: loadUploadQuotaConfig(),

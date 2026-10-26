@@ -38,7 +38,10 @@ import {
   isInconsistencyConfigured,
   isOcrConfigured,
 } from '../../../../../lib/ai';
-import { getPlatformCapabilities } from '../../../../../lib/capabilities';
+import {
+  getPlatformCapabilities,
+  resolvePlatformCapabilities,
+} from '../../../../../lib/capabilities';
 import { confirmedValues, findingViewModel } from '../../../../../lib/document-findings';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { documentTypeLabel } from '../../../../../lib/labels';
@@ -253,6 +256,7 @@ export default async function ApplicantDocumentsPage({
       pendingClassificationProposals,
       pendingInconsistencyFlags,
       quota: loadUploadQuotaConfig(),
+      virusScanning: (await resolvePlatformCapabilities(db)).malwareScanning === 'available',
       wallet: new Map((wallet.ok ? wallet.value : []).map((w) => [w.document.id, w])),
       issuerVerifications,
       ocrRuns,
@@ -751,7 +755,7 @@ export default async function ApplicantDocumentsPage({
                   key={initialKind}
                   applicantId={id}
                   limitLabel={mbLabel(data.quota.maxUploadBytes)}
-                  virusScanning={getPlatformCapabilities().malwareScanning === 'available'}
+                  virusScanning={data.virusScanning}
                   kindGroups={documentGroups}
                   initialKind={initialKind}
                   originalKinds={ORIGINAL_KINDS}

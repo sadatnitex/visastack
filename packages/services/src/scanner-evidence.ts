@@ -17,10 +17,14 @@ export const SCANNER_VERIFIED_EVENT = 'SCANNER_ENGINE_VERIFIED';
 /** The worker runs at least daily; three days leaves room for a missed run, not for a dead worker. */
 export const SCANNER_EVIDENCE_MAX_AGE_MS = 72 * 60 * 60 * 1000;
 
+/** A new record is written only when the newest one is older than this, so repeated runs do not fill the trail. */
+const SCANNER_EVIDENCE_REFRESH_MS = 6 * 60 * 60 * 1000;
+
 export async function recordScannerEngineVerified(
   db: Db,
   input: { readonly engine: string },
 ): Promise<void> {
+  if (await loadScannerEvidence(db, new Date(), SCANNER_EVIDENCE_REFRESH_MS)) return;
   await db.transaction(async (tx) => {
     await appendAuditEvent(tx, {
       eventType: SCANNER_VERIFIED_EVENT,
@@ -42,6 +46,7 @@ export interface ScannerEvidence {
 export async function loadScannerEvidence(
   db: Db,
   now: Date = new Date(),
+  maxAgeMs: number = SCANNER_EVIDENCE_MAX_AGE_MS,
 ): Promise<ScannerEvidence | null> {
   try {
     const row = first(
@@ -54,10 +59,7 @@ export async function loadScannerEvidence(
         .where(
           and(
             eq(schema.auditEvents.eventType, SCANNER_VERIFIED_EVENT),
-            gte(
-              schema.auditEvents.occurredAt,
-              new Date(now.getTime() - SCANNER_EVIDENCE_MAX_AGE_MS),
-            ),
+            gte(schema.auditEvents.occurredAt, new Date(now.getTime() - maxAgeMs)),
           ),
         )
         .orderBy(desc(schema.auditEvents.seq))

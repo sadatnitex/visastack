@@ -52,6 +52,14 @@ describe('scanner evidence (S4)', () => {
     expect(await loadScannerEvidence(db, nearly)).not.toBeNull();
   });
 
+  it('does not add a new record while a recent one exists, so repeated runs do not fill the trail', async () => {
+    await recordScannerEngineVerified(db, { engine: 'ClamAV 1.0.5' });
+    await recordScannerEngineVerified(db, { engine: 'ClamAV 1.0.5' });
+    await recordScannerEngineVerified(db, { engine: 'ClamAV 1.0.5' });
+    const rows = await db.select().from(schema.auditEvents);
+    expect(rows.filter((row) => row.eventType === SCANNER_VERIFIED_EVENT)).toHaveLength(1);
+  });
+
   it('ignores other audit events, even ones with a similar name', async () => {
     await db.transaction(async (tx) => {
       await appendAuditEvent(tx, {

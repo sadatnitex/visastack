@@ -180,11 +180,11 @@ export async function resolvePlatformCapabilities(
   db: Db | undefined,
 ): Promise<PlatformCapabilities> {
   const base = getPlatformCapabilities();
-  return {
-    ...base,
-    aiExtraction: await resolveAiExtractionCapability(db),
-    malwareScanning: await resolveMalwareScanning(db, base.malwareScanning),
-  };
+  const [aiExtraction, malwareScanning] = await Promise.all([
+    resolveAiExtractionCapability(db),
+    resolveMalwareScanning(db, base.malwareScanning),
+  ]);
+  return { ...base, aiExtraction, malwareScanning };
 }
 
 /**

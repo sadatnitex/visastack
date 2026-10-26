@@ -9,11 +9,13 @@ const mocks = vi.hoisted(() => ({
   worker: vi.fn(),
   scan: vi.fn(),
   r2: vi.fn(),
+  verified: vi.fn(),
 }));
 vi.mock('@visastack/db', () => ({ createPooledDb: mocks.pooled }));
 vi.mock('@visastack/services', async (load) => ({
   ...(await load<typeof import('@visastack/services')>()),
   runIntakeWorker: mocks.worker,
+  recordScannerEngineVerified: mocks.verified,
 }));
 vi.mock('./clamav-scanner', () => ({
   checkSignatureFreshness: mocks.fresh,
