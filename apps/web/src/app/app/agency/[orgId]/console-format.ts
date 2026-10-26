@@ -1,4 +1,4 @@
-import { daysUntilDateOnly } from '../../../../lib/format-date';
+import { daysUntilDueDay } from '@visastack/services';
 
 /**
  * Pure helpers shared by the agency console's pages (Dashboard, Clients, Cases,
@@ -67,19 +67,41 @@ export function nextApproachingDate(
 export const LIVE_TASK_STATUSES: ReadonlySet<string> = new Set(['OPEN', 'IN_PROGRESS']);
 
 /**
- * A case's tasks that are still live and past their due date. A due date is a calendar day
- * (entered as a date and stored as UTC midnight), so a task is past due only once its due day has
- * ended, the same day rule evidence requests use (`daysUntilDateOnly`, WP-V4 ADR-0015). A task
- * due today is not yet past due.
+ * Whole days from today to a due day, negative once it has passed. A due date is a calendar day
+ * (entered as a date and stored as UTC midnight), and the traveller's time zone decides when that
+ * day ends (owner decision 26 Oct 2026, ADR 0015 amendment): the same rule as the traveller's Home
+ * and evidence page (`daysUntilDueDay`). UTC only when no time zone is known.
  */
-export function overdueTasks<
-  T extends { readonly status: string; readonly dueDate: string | null },
->(tasks: readonly T[], now: Date = new Date()): T[] {
+export function daysUntilDue(
+  dueDate: Date | string,
+  now: Date,
+  timezone: string | null | undefined,
+): number {
+  return daysUntilDueDay(new Date(dueDate), now, timezone || 'UTC');
+}
+
+/** A task's own due day rule: its own time zone when it has one, else the traveller's. */
+export interface DueTask {
+  readonly status: string;
+  readonly dueDate: string | null;
+  readonly dueTimezone?: string | null;
+}
+
+/**
+ * A case's tasks that are still live and past their due date: only once the due day has ended in
+ * the task's own time zone, else the traveller's (`daysUntilDue`). A task due today is not yet
+ * past due.
+ */
+export function overdueTasks<T extends DueTask>(
+  tasks: readonly T[],
+  now: Date = new Date(),
+  travellerTimezone?: string | null,
+): T[] {
   return tasks.filter(
     (t) =>
       LIVE_TASK_STATUSES.has(t.status) &&
       t.dueDate !== null &&
-      daysUntilDateOnly(t.dueDate, now) < 0,
+      daysUntilDue(t.dueDate, now, t.dueTimezone || travellerTimezone) < 0,
   );
 }
 
@@ -94,10 +116,11 @@ export const WAITING_ON_TRAVELLER_STATUSES: ReadonlySet<string> = new Set([
 
 /** How many of a case's tasks are still live and past their due date. */
 export function countOverdueTasks(
-  tasks: readonly { readonly status: string; readonly dueDate: string | null }[],
+  tasks: readonly DueTask[],
   now: Date = new Date(),
+  travellerTimezone?: string | null,
 ): number {
-  return overdueTasks(tasks, now).length;
+  return overdueTasks(tasks, now, travellerTimezone).length;
 }
 
 export interface AttentionSummary {
@@ -122,7 +145,8 @@ export function summarizeAttention(input: {
   readonly admin: boolean;
   readonly cases: readonly {
     readonly assignments: readonly unknown[];
-    readonly tasks: readonly { readonly status: string; readonly dueDate: string | null }[];
+    readonly tasks: readonly DueTask[];
+    readonly applicantTimezone?: string | null;
   }[];
   readonly requests: readonly { readonly status: string }[];
   readonly now?: Date;
@@ -136,6 +160,9 @@ export function summarizeAttention(input: {
     openRequests: input.admin
       ? input.requests.filter((r) => WAITING_ON_TRAVELLER_STATUSES.has(r.status)).length
       : null,
-    overdueTasks: input.cases.reduce((sum, c) => sum + countOverdueTasks(c.tasks, now), 0),
+    overdueTasks: input.cases.reduce(
+      (sum, c) => sum + countOverdueTasks(c.tasks, now, c.applicantTimezone),
+      0,
+    ),
   };
 }
