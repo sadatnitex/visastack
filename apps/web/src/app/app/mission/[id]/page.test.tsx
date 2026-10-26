@@ -460,3 +460,54 @@ describe('changed details inside the alert (WP-V3 part 3)', () => {
     expect(snapshots).toContain('href="/app/applicant/synthetic-family/memory"');
   });
 });
+
+describe('self-reviewed note uses the shared case-scope rule (ADR 0017)', () => {
+  function orgGrant(id: string, overrides: Record<string, unknown> = {}) {
+    return {
+      id,
+      applicantId: 'synthetic-family',
+      recipientAccountId: null,
+      recipientOrganizationId: 'org-a',
+      missionId: null,
+      actions: ['VIEW_METADATA'],
+      categories: null,
+      documentIds: null,
+      documentScopeSnapshot: null,
+      purpose: 'review',
+      status: 'ACTIVE',
+      acceptedAt: new Date('2026-10-01T00:00:00Z'),
+      startAt: new Date('2026-10-01T00:00:00Z'),
+      expiryAt: null,
+      caseExceptions: [],
+      ...overrides,
+    };
+  }
+  const SELF = 'No agency currently has access to this case';
+  const withAccess = async (grants: unknown[]) => {
+    setUp();
+    mocks.listAccessForApplicant.mockResolvedValue(ok(grants));
+    return textOf(await render());
+  };
+
+  it('counts an agency whose all-cases access reaches this case', async () => {
+    expect(await withAccess([orgGrant('g-all')])).not.toContain(SELF);
+    expect(await withAccess([orgGrant('g-this', { missionId: 'synthetic-case' })])).not.toContain(
+      SELF,
+    );
+  });
+
+  it('does not count an agency this case is excluded for, or one with access to another case only', async () => {
+    const excluded = orgGrant('g-excluded', {
+      caseExceptions: [
+        { missionId: 'synthetic-case', missionTitle: 'Japan visitor visa', since: new Date() },
+      ],
+    });
+    expect(await withAccess([excluded])).toContain(SELF);
+    expect(await withAccess([orgGrant('g-other', { missionId: 'another-case' })])).toContain(SELF);
+    // An exception for a different case leaves this case covered.
+    const otherException = orgGrant('g-other-exception', {
+      caseExceptions: [{ missionId: 'another-case', missionTitle: 'Other', since: new Date() }],
+    });
+    expect(await withAccess([otherException])).not.toContain(SELF);
+  });
+});

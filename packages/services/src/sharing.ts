@@ -15,6 +15,7 @@ import {
   type Grant as PolicyGrant,
   STEP_UP_ACTIONS,
   authorize,
+  grantCoversMission,
 } from '@visastack/policy';
 import { and, asc, eq, gt, inArray, isNull, or } from 'drizzle-orm';
 import {
@@ -563,6 +564,21 @@ export interface CaseException {
 export interface GrantWithExceptions extends Grant {
   /** Cases this all-cases grant does not cover, oldest first. Always empty for a case-scoped grant. */
   readonly caseExceptions: readonly CaseException[];
+}
+
+/**
+ * Whether one grant, as its owner sees it, reaches one case by case scope
+ * alone: the policy engine's `grantCoversMission` on the same `toPolicyGrant`
+ * mapping every access check uses. Status and time are the caller's to judge.
+ */
+export function grantReachesCase(grant: GrantWithExceptions, missionId: string): boolean {
+  return grantCoversMission(
+    toPolicyGrant(
+      grant,
+      grant.caseExceptions.map((exception) => exception.missionId as MissionId),
+    ),
+    missionId as MissionId,
+  );
 }
 
 /** Access transparency: every grant on an applicant, with its case exceptions (owner only). */

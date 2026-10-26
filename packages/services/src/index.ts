@@ -491,6 +491,7 @@ export {
   documentCategory,
   expandGrantScope,
   getRecipientWorkspace,
+  grantReachesCase,
   listAccessForApplicant,
   listAccessForApplicantDetailed,
   listCaseSharingQuestions,
