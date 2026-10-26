@@ -37,6 +37,8 @@ export function WorkspaceRecordToolbar({
   const [result, setResult] = useState<{
     status: 'idle' | 'loading' | 'ready' | 'error';
     rows: readonly WorkspaceSearchResult[];
+    /** Said instead of "no match", for example when a typed reference has a wrong character. */
+    notice?: string;
   }>({ status: 'idle', rows: [] });
   const input = useRef<HTMLInputElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
@@ -97,8 +99,16 @@ export function WorkspaceRecordToolbar({
           cache: 'no-store',
         });
         if (!response.ok) throw new Error('Search unavailable');
-        const body = (await response.json()) as { results: WorkspaceSearchResult[] };
-        if (!controller.signal.aborted) setResult({ status: 'ready', rows: body.results });
+        const body = (await response.json()) as {
+          results: WorkspaceSearchResult[];
+          notice?: string;
+        };
+        if (!controller.signal.aborted)
+          setResult({
+            status: 'ready',
+            rows: body.results,
+            ...(typeof body.notice === 'string' ? { notice: body.notice } : {}),
+          });
       } catch {
         if (!controller.signal.aborted) setResult({ status: 'error', rows: [] });
       }
@@ -199,7 +209,9 @@ export function WorkspaceRecordToolbar({
           ) : null}
           {result.status === 'idle' ? <p>Type at least two characters.</p> : null}
           {result.status === 'ready' && !result.rows.length ? (
-            <output aria-live="polite">No accessible records match this search.</output>
+            <output aria-live="polite">
+              {result.notice ?? 'No accessible records match this search.'}
+            </output>
           ) : null}
           {result.status === 'ready' && result.rows.length ? (
             <nav aria-label="Search results">

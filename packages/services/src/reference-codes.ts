@@ -88,15 +88,50 @@ export async function assignReferenceCode(
   throw new Error(`could not assign a ${kind} reference code after ${MAX_ATTEMPTS} attempts`);
 }
 
-/** `assignReferenceCode` for many records of one type (preview and load data). Returns how many have a code. */
+/**
+ * `assignReferenceCode` for many records of one type (preview and load data),
+ * set-based: one insert per round of up to 500 records, then the few that
+ * clashed get fresh codes in the next round. Records that already have a code
+ * keep it. Returns how many of the records have a code afterwards (0 while
+ * the registry does not exist yet).
+ */
 export async function assignReferenceCodes(
   tx: Db,
   kind: ReferenceKind,
   entityIds: readonly string[],
 ): Promise<number> {
-  let assigned = 0;
-  for (const id of entityIds) if (await assignReferenceCode(tx, kind, id)) assigned += 1;
-  return assigned;
+  const ids = [...new Set(entityIds)];
+  if (ids.length === 0 || !(await referenceCodesTablePresent(tx))) return 0;
+  const codes = schema.referenceCodes;
+  for (let start = 0; start < ids.length; start += 500) {
+    let pending = ids.slice(start, start + 500);
+    for (let attempt = 0; pending.length > 0; attempt += 1) {
+      if (attempt >= MAX_ATTEMPTS) {
+        throw new Error(`could not assign ${kind} reference codes after ${MAX_ATTEMPTS} attempts`);
+      }
+      const payloadLength = attempt >= LENGTHEN_AFTER_COLLISIONS ? 6 : 5;
+      await tx
+        .insert(codes)
+        .values(
+          pending.map((entityId) => ({
+            kind,
+            code: generateReferenceCode(kind, { payloadLength }),
+            entityId,
+          })),
+        )
+        .onConflictDoNothing();
+      const done = new Set(
+        (
+          await tx
+            .select({ entityId: codes.entityId })
+            .from(codes)
+            .where(and(eq(codes.kind, kind), inArray(codes.entityId, pending)))
+        ).map((row) => row.entityId),
+      );
+      pending = pending.filter((id) => !done.has(id));
+    }
+  }
+  return ids.length;
 }
 
 /**

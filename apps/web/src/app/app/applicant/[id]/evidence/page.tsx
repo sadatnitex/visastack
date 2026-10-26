@@ -163,7 +163,7 @@ export default async function EvidencePage({
                 ? dueLabel(req.dueDate, req.status, data.applicant.timezone)
                 : null;
               return (
-                <div className="case-row" key={req.id}>
+                <div className="case-row" key={req.id} id={`request-${req.id}`}>
                   <div className="case-row-head">
                     <span className="case-row-title">
                       {req.kind === 'FIELD' ? 'Detail' : 'Document'}: {target}
