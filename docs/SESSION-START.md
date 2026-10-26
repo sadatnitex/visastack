@@ -17,7 +17,7 @@ Production: https://vs.obsidianglobal.studio (fallback https://visastack-five.ve
 | Programme X (interface and v1.2 functional upgrade) | `docs/upgrades/programme/STATUS.md`, then `PROGRAMME.md`, `WORK-PACKAGES.md` (your package only), `allowlists/<package>.txt`, `COVERAGE-LEDGER.csv` |
 | Latest session handoff (open branches, decisions, pitfalls) | newest `docs/upgrades/programme/SESSION-HANDOFF-*.md` |
 | Functional spec v1.2 | `docs/upgrades/upgrade.v1.2.execution.md` (grep the U/E/B/T/R id) |
-| Decisions and their reasons | `docs/adr/` (0015 agency Do Next ranking, 0016 Needs Attention and calendar, 0017 per-case sharing exceptions) |
+| Decisions and their reasons | `docs/adr/` (0015 agency Do Next ranking, 0016 Needs Attention and calendar, 0017 per-case sharing exceptions, 0018 visible reference codes) |
 | Permission rules | `docs/architecture/permission-model.md`; code in `packages/policy` and `packages/services/src/access/` |
 | Evidence log (append-only, thousands of lines) | `docs/commercial-v1/known-issues.md`: grep, never read whole |
 | Requirement status | `docs/commercial-v1/requirements-ledger.md`: grep the row id |
@@ -77,7 +77,7 @@ Code: `apps/web` (Next.js 15.5, React 19), `packages/services` (all business log
 
 ## 7. Open work, in order
 
-See `docs/upgrades/programme/STATUS.md` and the newest `SESSION-HANDOFF-*.md` for the live line. At this writing: calendar export is live (#276); per-case sharing exceptions are on branch `claude/prog-v4-case-exclusions` with their remaining fixes listed in `WP-V4-CASE-EXCLUSIONS-NEXT.md` on that branch (then migration 0090); next are reference codes (`docs/upgrades/programme/WP-REF-PLAN.md`, migration 0091), Prepare Again, request screens and colour polish (closing WP-V4), then WP-V5 (shareable outputs) and WP-V6 (final acceptance and release, owner's explicit word). Alongside, never ahead: engineering roadmap step 4 (move about 313 older service functions behind the access gate, shadow mode first) and step 5 (signed step-up proof).
+See `docs/upgrades/programme/STATUS.md` and the newest `SESSION-HANDOFF-*.md` for the live line. At this writing: per-case sharing exceptions (#278, migration 0090) and visible reference codes (#279, migration 0091) are live; next are Prepare Again (it uses `listCaseSharingQuestions` and `applyCaseSharingAnswers` in the case-creating transaction), request screens and colour polish (closing WP-V4), then WP-V5 (shareable outputs) and WP-V6 (final acceptance and release, owner's explicit word). Alongside, never ahead: engineering roadmap step 4 (move about 313 older service functions behind the access gate, shadow mode first) and step 5 (signed step-up proof).
 
 ## 8. Pitfalls learned
 
@@ -88,5 +88,8 @@ See `docs/upgrades/programme/STATUS.md` and the newest `SESSION-HANDOFF-*.md` fo
 - Node 22 reports some time zones by old names (Asia/Kolkata as Asia/Calcutta): never save the runtime's name directly.
 - A `to_regclass` presence check is safer than a failing savepoint when parallel queries share a transaction.
 - Drizzle's bare `select()` lists every column, so adding a column breaks reads until its migration runs; prefer a new table for additive data that ships ahead of its migration.
+- Production migrations run statement by statement (neon-http migrator): hand-written migration SQL must be re-runnable from the top.
+- Regular expressions on typed text: no overlapping quantifiers (CodeQL flags them as slow on hostile input).
+- Random codes can spell ordinary words: a lookup needs a clear signal (type letter plus separator, or a typed digit) and the normal search still runs.
 - Killing background jobs: by process id only, never `pkill -f` with a pattern that matches your own command.
 - A session can hit a usage limit mid-task: commit work in progress and push the branch (no PR) so nothing is lost.
