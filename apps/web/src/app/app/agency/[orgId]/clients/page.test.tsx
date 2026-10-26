@@ -65,6 +65,7 @@ beforeEach(() => {
       status: 'RECEIVED',
       applicantName: 'Rahim Uddin',
       dueDate: '2026-10-20T00:00:00Z',
+      referenceCode: 'R-7K2Q9M',
     },
     {
       id: 'r2',
@@ -83,6 +84,13 @@ beforeEach(() => {
 });
 
 describe('agency Clients', () => {
+  it('shows a request code where the request has one, and nothing where it has none (ADR 0018)', async () => {
+    const html = await renderServer(Page(props));
+    const rows = html.split('id="request-').slice(1);
+    expect(rows[0]).toContain('R-7K2Q9M');
+    expect(rows[0]).toContain('Request Reference');
+    expect(rows[1]).not.toContain('Request Reference');
+  });
   it('shows pending client invitations with who they are for and a revoke control', async () => {
     const html = await renderServer(Page(props));
     const text = textOf(html);

@@ -84,6 +84,8 @@ export interface DoNextRequest {
   readonly applicantTimezone?: string | null;
   /** The answered file's newest state, when loaded; see `loadEvidenceRequests`. */
   readonly respondingDocumentState?: TriageDocumentState | null;
+  /** The request's visible code (ADR 0018), when it has one: named in the follow-up message. */
+  readonly referenceCode?: string;
 }
 
 export interface DoNextInput {
@@ -221,6 +223,7 @@ export function buildDoNext(input: DoNextInput): DoNextItem[] {
                 dueDate: request.dueDate,
                 caseTitle: caseRow?.title ?? null,
                 agencyNote: request.message ?? null,
+                requestReference: request.referenceCode ?? null,
                 organizationName: input.organizationName,
                 now,
                 timezone,

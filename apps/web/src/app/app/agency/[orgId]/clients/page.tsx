@@ -1,6 +1,7 @@
 import { isAcceptableInvitationContact } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { ReferenceCode } from '../../../../../components/reference-code';
 import { EmptyState } from '../../../../../components/ui';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
 import {
@@ -187,6 +188,7 @@ export default async function AgencyClientsPage({
                     {req.applicantName}
                     {req.dueDate ? ` · due ${formatDateOnly(req.dueDate)}` : ''}
                   </span>
+                  <ReferenceCode code={req.referenceCode} label="Request Reference" />
                   {EVIDENCE_DECIDABLE_STATUSES.has(req.status) ? (
                     <EvidenceRequestActions
                       organizationId={orgId}

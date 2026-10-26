@@ -37,3 +37,10 @@ docs/adr/**
 docs/upgrades/programme/**
 docs/commercial-v1/known-issues.md
 apps/web/src/app/app/applicant/[id]/evidence/page.test.tsx
+# The approved design shows codes on the agency console; these are the screens that draw its cases
+# and requests, and the Do Next builder that passes a request's code to the follow-up message.
+apps/web/src/app/app/agency/[orgId]/mission-collaboration*.tsx
+apps/web/src/app/app/agency/[orgId]/cases/page*.tsx
+apps/web/src/app/app/agency/[orgId]/page*.tsx
+apps/web/src/app/app/agency/[orgId]/clients/page*.tsx
+apps/web/src/app/app/agency/[orgId]/do-next*.ts
