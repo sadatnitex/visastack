@@ -5613,3 +5613,9 @@ Owner approved 2026-10-25. Two fixes where the product said something that was n
 - Keys: the brief asked for keys in environment variables only, but the existing design stores them encrypted in the database, and the narrowed scope left that unchanged. Owner decision pending.
 - Checks (targeted, nice -n 15): services ai-data-terms (23 with the ratchet), ai-provider-switching (4), ai, ai-provider-config, access ratchet without baseline growth; adapters extraction and OCR tests; db tests; web ai tests (81) plus Title Case and vocabulary guards; typecheck of services, adapters, db and web; biome; flat-design, route-navigation and UI ratchet scripts. Guards proved to fail: removing the fallback or primary check, ignoring the setting, treating a read failure as Off, and not recognising a missing table each turned a test red; the cache tests were red before the fix.
 - Not verified: full suite, web build, next start, Playwright and smoke, /code-review and /security-review, signed-in look of the AI settings page at desktop and phone width, the migration on a real database.
+
+### 2026-10-26, Session handoff after the side packages
+
+- Merged and live: #265, #267 to #272. Production migrations 0088 (profile photos) and 0089 (AI data terms) run right after their merges by owner approval; 90 migrations applied, both new AI tables empty (the training guard reads as off).
+- Post-merge checks for #272: CI, CodeQL, Vercel, Deploy Smoke and the live signed-in check passed. Playwright Deploy Smoke attempt 1 failed one pixel comparison on the documents fixture at 1600px; attempt 2 on the same commit passed. Cause not proven; attempt 1 overlapped the migration run. Details in docs/upgrades/programme/SESSION-HANDOFF-2026-10-25-evening.md section 7.
+
