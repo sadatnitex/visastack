@@ -597,4 +597,38 @@ describe('Home composition (WP-V4, v1.2 B13 and U03)', () => {
     expect(text).not.toContain('Nothing is waiting for you.');
     expect(text).toContain('Nothing is waiting for the first 25 of 27 people.');
   });
+
+  it('links Needs Attention to the calendar page of the one own person', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.items = [overdueRequest, overdueTask];
+    const html = await page();
+    const start = html.indexOf('id="home-attention-heading"');
+    const section = html.slice(start, html.indexOf('id="home-records-heading"'));
+    expect(section).toContain(`href="/app/applicant/${SELF.id}/calendar"`);
+    expect(textOf(section)).toContain('Add Dates to My Calendar');
+    expect(section.match(/\/calendar"/g)).toHaveLength(1);
+  });
+
+  it('with several own people, links each person to their own calendar page', async () => {
+    data.consents = CORE;
+    const other = {
+      id: '10000000-0000-4000-8000-000000000002',
+      displayName: 'Synthetic Partner',
+      createdAt: new Date('2026-02-01T00:00:00Z'),
+    };
+    data.applicants = [SELF, other];
+    data.openRequests = 1;
+    const html = await page();
+    const start = html.indexOf('id="home-attention-heading"');
+    const section = html.slice(start, html.indexOf('id="home-records-heading"'));
+    for (const person of [SELF, other]) {
+      expect(section).toMatch(
+        new RegExp(
+          `href="/app/applicant/${person.id}/calendar"[^>]*>${person.displayName}<span class="sr-only">: Add Dates to My Calendar</span>`,
+        ),
+      );
+    }
+    expect(textOf(section)).toContain('Add dates to your calendar, one person at a time:');
+  });
 });

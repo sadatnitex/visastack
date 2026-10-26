@@ -13,9 +13,11 @@ import {
   ATTENTION_REQUEST_STATUSES,
   ATTENTION_TASK_STATUSES,
   type AttentionItem,
+  CALENDAR_SOURCE_LIMIT,
   WITH_AGENCY_REQUEST_STATUSES,
   attentionTier,
   daysUntilDueDay,
+  listCalendarDates,
   listNeedsAttention,
   rankAttentionItems,
 } from './attention';
@@ -23,7 +25,13 @@ import { setConsent } from './consent';
 import type { Db } from './db';
 import { addDocumentVersion, registerDocument } from './documents';
 import { incrementMaterialRevision } from './material-revision';
-import { createMission, createTask, decideTask, snapshotMission } from './missions';
+import {
+  createAppointment,
+  createMission,
+  createTask,
+  decideTask,
+  snapshotMission,
+} from './missions';
 import { registerFieldDefinition } from './profile';
 import { acceptGrant, createGrant } from './sharing';
 import { supersedeDocument } from './wallet';
@@ -827,6 +835,255 @@ describe('listNeedsAttention: whose day and whose task', () => {
       expect(keys).toContain(`task:${mine}`);
       expect(keys).toContain(`task:${unassigned}`);
       expect(keys).not.toContain(`task:${agencys}`);
+    },
+    HEAVY,
+  );
+});
+
+describe('listCalendarDates (v1.2 B05 calendar export)', () => {
+  async function calendar(ownerId: string, applicantId: string) {
+    const proof = await proofFor(ownerId, applicantId);
+    if (!isOk(proof)) throw new Error('owner proof');
+    const listed = await listCalendarDates(proof.value);
+    if (!isOk(listed)) throw new Error(`calendar: ${listed.error.message}`);
+    return listed.value;
+  }
+
+  async function appointment(
+    ownerId: string,
+    missionId: string,
+    localDateTime: string,
+    timezone = 'Asia/Dhaka',
+  ) {
+    const created = await createAppointment(db, {
+      actorAccountId: ownerId,
+      missionId,
+      title: `Biometrics for passport ${PASSPORT_NUMBER}`,
+      localDateTime: new Date(`${localDateTime}.000Z`),
+      timezone,
+      place: 'Gulshan Avenue, House 12',
+      channel: 'In Person',
+    });
+    if (!isOk(created)) throw new Error('appointment');
+    return created.value.id;
+  }
+
+  it(
+    'lists appointments with their wall-clock time and zone, and due and expiry days, earliest first',
+    async () => {
+      const { ownerId, applicantId } = await person('calendar@example.com');
+      const orgId = await organization();
+      const visa = await caseFor(ownerId, applicantId, 'Japan Visit');
+      const appt = await appointment(ownerId, visa, '2026-11-03T09:30:00');
+      const due = await task(
+        ownerId,
+        visa,
+        'Pay the fee from account 0123456789',
+        day('2026-11-03'),
+      );
+      const asked = await request(orgId, applicantId, {
+        status: 'NEEDS_REPLACEMENT',
+        missionId: visa,
+        dueDate: day('2026-11-01'),
+      });
+      const passport = await document(ownerId, applicantId, 'PASSPORT', day('2027-04-30'));
+
+      const result = await calendar(ownerId, applicantId);
+      expect(result.truncated).toBe(false);
+      expect(result.items).toEqual([
+        {
+          key: `evidence_request:${asked}`,
+          kind: 'evidence_request',
+          when: { kind: 'date', date: '2026-11-01' },
+          caseTitle: 'Japan Visit',
+        },
+        // The all-day item on 3 Nov comes before the timed one that day.
+        {
+          key: `task:${due}`,
+          kind: 'task',
+          when: { kind: 'date', date: '2026-11-03' },
+          caseTitle: 'Japan Visit',
+        },
+        {
+          key: `appointment:${appt}`,
+          kind: 'appointment',
+          when: { kind: 'local', localDateTime: '2026-11-03T09:30:00', timezone: 'Asia/Dhaka' },
+          caseTitle: 'Japan Visit',
+        },
+        {
+          key: `document_expiry:${passport}`,
+          kind: 'document_expiry',
+          when: { kind: 'date', date: '2027-04-30' },
+          caseTitle: null,
+        },
+      ]);
+      // Nothing sensitive travels: no note, title, place, description, file name or number.
+      const text = JSON.stringify(result);
+      for (const secret of [
+        PASSPORT_NUMBER,
+        '0123456789',
+        FILE_NAME,
+        'Gulshan',
+        'Biometrics',
+        'Pay the fee',
+        'bank statement',
+      ]) {
+        expect(text).not.toContain(secret);
+      }
+    },
+    HEAVY,
+  );
+
+  it(
+    'leaves out undated items, finished work, closed cases, replaced documents and staff tasks',
+    async () => {
+      const { ownerId, applicantId } = await person('calendar-out@example.com');
+      const staffId = await account('calendar-staff@example.com');
+      const orgId = await organization();
+      const open = await caseFor(ownerId, applicantId, 'Japan Visit');
+      const closed = await caseFor(ownerId, applicantId, 'Old Trip');
+      await db
+        .update(schema.missions)
+        .set({ state: 'CLOSED' })
+        .where(eq(schema.missions.id, closed));
+
+      const kept = await task(ownerId, open, 'Kept', day('2026-11-05'));
+      const undated = await task(ownerId, open, 'No date');
+      const done = await task(ownerId, open, 'Done', day('2026-11-06'));
+      await db
+        .update(schema.missionTasks)
+        .set({ status: 'DONE' })
+        .where(eq(schema.missionTasks.id, done));
+      const staffs = await task(ownerId, open, 'Agency check', day('2026-11-07'));
+      await db
+        .update(schema.missionTasks)
+        .set({ assigneeAccountId: staffId })
+        .where(eq(schema.missionTasks.id, staffs));
+      const closedTask = await task(ownerId, closed, 'Closed case task', day('2026-11-08'));
+      const closedAppt = await appointment(ownerId, closed, '2026-11-09T10:00:00');
+      const cancelledAppt = await appointment(ownerId, open, '2026-11-10T10:00:00');
+      await db
+        .update(schema.missionAppointments)
+        .set({ status: 'CANCELLED' })
+        .where(eq(schema.missionAppointments.id, cancelledAppt));
+
+      const undatedRequest = await request(orgId, applicantId, { status: 'OPEN' });
+      const received = await request(orgId, applicantId, {
+        status: 'RECEIVED',
+        dueDate: day('2026-11-11'),
+      });
+      const onClosed = await request(orgId, applicantId, {
+        status: 'OPEN',
+        missionId: closed,
+        dueDate: day('2026-11-12'),
+      });
+      const looseRequest = await request(orgId, applicantId, {
+        status: 'OPEN',
+        dueDate: day('2026-11-13'),
+      });
+
+      const noExpiry = await document(ownerId, applicantId, 'NID', null);
+      const oldPassport = await document(ownerId, applicantId, 'PASSPORT', day('2026-12-01'));
+      const newPassport = await document(ownerId, applicantId, 'PASSPORT', day('2036-12-01'));
+      await db
+        .update(schema.documents)
+        .set({ supersededByDocumentId: newPassport })
+        .where(eq(schema.documents.id, oldPassport));
+
+      const keys = (await calendar(ownerId, applicantId)).items.map((i) => i.key);
+      expect(keys).toEqual([
+        `task:${kept}`,
+        `evidence_request:${looseRequest}`,
+        `document_expiry:${newPassport}`,
+      ]);
+      for (const gone of [
+        `task:${undated}`,
+        `task:${done}`,
+        `task:${staffs}`,
+        `task:${closedTask}`,
+        `appointment:${closedAppt}`,
+        `appointment:${cancelledAppt}`,
+        `evidence_request:${undatedRequest}`,
+        `evidence_request:${received}`,
+        `evidence_request:${onClosed}`,
+        `document_expiry:${noExpiry}`,
+        `document_expiry:${oldPassport}`,
+      ]) {
+        expect(keys).not.toContain(gone);
+      }
+    },
+    HEAVY,
+  );
+
+  it(
+    "keeps a stored time zone it does not recognise as unknown, never moving the traveller's time",
+    async () => {
+      const { ownerId, applicantId } = await person('calendar-zone@example.com');
+      const visa = await caseFor(ownerId, applicantId, 'Japan Visit');
+      await appointment(ownerId, visa, '2026-11-03T09:30:00', 'Mars/Olympus_Mons');
+      await appointment(ownerId, visa, '2026-11-04T09:30:00', 'Asia/Dhaka\r\nX-INJECT:1');
+      const whens = (await calendar(ownerId, applicantId)).items.map((i) => i.when);
+      expect(whens).toEqual([
+        { kind: 'local', localDateTime: '2026-11-03T09:30:00', timezone: null },
+        { kind: 'local', localDateTime: '2026-11-04T09:30:00', timezone: null },
+      ]);
+    },
+    HEAVY,
+  );
+
+  it(
+    "reads only the owner's own applicant: a stranger, a shared viewer and a copied proof are refused",
+    async () => {
+      const { ownerId, applicantId } = await person('calendar-owner@example.com');
+      const other = await person('calendar-other@example.com');
+      const visa = await caseFor(other.ownerId, other.applicantId, 'Other Trip');
+      await task(other.ownerId, visa, 'Not yours', day('2026-11-05'));
+      expect((await calendar(ownerId, applicantId)).items).toEqual([]);
+
+      const strangerId = await account('calendar-stranger@example.com');
+      expect(isErr(await proofFor(strangerId, applicantId))).toBe(true);
+
+      const friendId = await account('calendar-friend@example.com');
+      const grant = await createGrant(db, {
+        actorAccountId: ownerId,
+        applicantId,
+        recipientAccountId: friendId,
+        actions: ['VIEW_METADATA'],
+        purpose: 'family-help',
+      });
+      if (!isOk(grant)) throw new Error('grant');
+      const accepted = await acceptGrant(db, { actorAccountId: friendId, grantId: grant.value.id });
+      if (!isOk(accepted)) throw new Error('accept');
+      const friend = await proofFor(friendId, applicantId, 'family-help');
+      if (!isOk(friend)) throw new Error('friend proof');
+      const refused = await listCalendarDates(friend.value);
+      expect(isErr(refused) && refused.error.code).toBe('forbidden');
+
+      const owner = await proofFor(ownerId, applicantId);
+      if (!isOk(owner)) throw new Error('owner proof');
+      const copy = { ...owner.value } as unknown as typeof owner.value;
+      const copied = await listCalendarDates(copy);
+      expect(isErr(copied) && copied.error.code).toBe('forbidden');
+    },
+    HEAVY,
+  );
+
+  it(
+    'reads at most the cap from a source, earliest first, and says so',
+    async () => {
+      const { ownerId, applicantId } = await person('calendar-cap@example.com');
+      const visa = await caseFor(ownerId, applicantId, 'Japan Visit');
+      await db.insert(schema.missionTasks).values(
+        Array.from({ length: CALENDAR_SOURCE_LIMIT + 2 }, (_, i) => ({
+          missionId: visa,
+          description: `Task ${i}`,
+          dueDate: new Date(Date.UTC(2026, 10, 1) + i * 86_400_000),
+        })),
+      );
+      const result = await calendar(ownerId, applicantId);
+      expect(result.items).toHaveLength(CALENDAR_SOURCE_LIMIT);
+      expect(result.truncated).toBe(true);
+      expect(result.items[0]?.when).toEqual({ kind: 'date', date: '2026-11-01' });
     },
     HEAVY,
   );

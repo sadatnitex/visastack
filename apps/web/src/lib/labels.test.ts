@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { MEMBERSHIP_ROLES, ORGANIZATION_STATUSES, PERMISSION_ACTIONS } from '@visastack/core';
 import { schema } from '@visastack/db';
-import { type AttentionKind, TRIAGE_GROUPS } from '@visastack/services';
+import { type AttentionKind, type CalendarItemKind, TRIAGE_GROUPS } from '@visastack/services';
 import { describe, expect, it } from 'vitest';
 import {
   AI_CONFIG_STATUS_LABELS,
@@ -10,6 +10,7 @@ import {
   ATTENTION_TIER_LABELS,
   AUDIT_RESULT_LABELS,
   BILLING_STATUS_LABELS,
+  CALENDAR_EVENT_TITLES,
   CASE_TRIAGE_STATE_LABELS,
   COMPLAINT_STATUS_LABELS,
   DOCUMENT_TYPE_LABELS,
@@ -197,5 +198,29 @@ describe('Needs Attention words (WP-V4 U03, ADR 0016)', () => {
     }
     // From the services package, types only.
     expect(source).not.toMatch(/^import \{[^}]*\} from '@visastack\/services'/m);
+  });
+});
+
+describe('calendar event titles (v1.2 B05 calendar export)', () => {
+  it('names every dated kind generically, in Title Case', () => {
+    const kinds: readonly CalendarItemKind[] = [
+      'appointment',
+      'task',
+      'evidence_request',
+      'document_expiry',
+    ];
+    expect(Object.keys(CALENDAR_EVENT_TITLES).sort()).toEqual([...kinds].sort());
+    expect(CALENDAR_EVENT_TITLES).toEqual({
+      appointment: 'Appointment',
+      task: 'Task Due',
+      evidence_request: 'Request Due',
+      document_expiry: 'Document Expires',
+    });
+    for (const title of Object.values(CALENDAR_EVENT_TITLES)) {
+      expect(title).toMatch(/^[A-Z][A-Za-z ]*$/);
+      expect(title).toBe(toTitleCase(title));
+      // Generic: never a document name, a detail, a number or the internal word for a case.
+      expect(title).not.toMatch(/passport|bank|visa|mission|\d/i);
+    }
   });
 });

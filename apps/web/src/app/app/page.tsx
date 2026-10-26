@@ -174,6 +174,47 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
 }
 
 /**
+ * "Add Dates to My Calendar" (v1.2 B05 calendar export). Each person's dates are their own file,
+ * so with one person the link goes straight to that person's calendar page; with several, one
+ * link per person, named by the person.
+ */
+function CalendarLinks({
+  people,
+}: {
+  readonly people: readonly { readonly id: string; readonly displayName: string }[];
+}) {
+  const [only] = people;
+  if (!only) return null;
+  const href = (id: string) => `/app/applicant/${id}/calendar`;
+  if (people.length === 1) {
+    return (
+      <div className="do-next-action">
+        <Link href={href(only.id)} className="btn btn-secondary">
+          Add Dates to My Calendar
+        </Link>
+      </div>
+    );
+  }
+  return (
+    <nav className="home-calendar-links" aria-labelledby="home-calendar-heading">
+      <p className="muted do-next-more" id="home-calendar-heading">
+        Add dates to your calendar, one person at a time:
+      </p>
+      <ul className="home-calendar-list">
+        {people.map((person) => (
+          <li key={person.id}>
+            <Link href={href(person.id)} className="btn btn-secondary">
+              {person.displayName}
+              <span className="sr-only">: Add Dates to My Calendar</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
+/**
  * The heading for one item: what a request asks for or which document is expiring, by its own
  * name, otherwise the plain heading the item came with. Server-only: the request label reads the
  * field catalogue, which never goes to the browser.
@@ -472,6 +513,7 @@ export default async function AppPage({
               people. <Link href="/app/applicants">See All Applicants</Link>
             </p>
           ) : null}
+          <CalendarLinks people={data.perApplicant.map((row) => row.applicant)} />
         </section>
       ) : null}
 

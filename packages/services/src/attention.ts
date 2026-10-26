@@ -569,3 +569,248 @@ export async function listNeedsAttention(
     requests: { waitingOnYou, withAgency },
   });
 }
+
+// --- Calendar dates (v1.2 B05 calendar paragraph; ADR 0016 "Calendar export") ---------------
+
+/** The kinds of dated thing a traveller can copy to their own calendar. */
+export type CalendarItemKind = 'appointment' | 'task' | 'evidence_request' | 'document_expiry';
+
+/**
+ * When a calendar item happens. A due day or an expiry day is a calendar day (`YYYY-MM-DD`), an
+ * all-day event. An appointment is a wall-clock local date and time (`YYYY-MM-DDTHH:MM:SS`) in an
+ * IANA time zone, exactly as stored; `timezone` is null when the stored name is not one this
+ * runtime recognises, so the time is never moved to a guessed zone.
+ */
+export type CalendarWhen =
+  | { readonly kind: 'date'; readonly date: string }
+  | {
+      readonly kind: 'local';
+      readonly localDateTime: string;
+      readonly timezone: string | null;
+    };
+
+/**
+ * One dated item. It carries no title text of its own: the web layer names it from `kind` with
+ * a generic title, and adds the case title only when the person asks. Never a note, a task
+ * description, an appointment title or place, a saved value, a file name, a document number or
+ * an amount.
+ */
+export interface CalendarItem {
+  /** `${kind}:${resourceId}`, stable for the same thing. */
+  readonly key: string;
+  readonly kind: CalendarItemKind;
+  readonly when: CalendarWhen;
+  /** The case the item belongs to, when it belongs to one. */
+  readonly caseTitle: string | null;
+}
+
+export interface CalendarDates {
+  readonly applicantId: string;
+  /** Earliest first; on the same day, all-day items before timed ones. */
+  readonly items: readonly CalendarItem[];
+  /** True when a source held more than `CALENDAR_SOURCE_LIMIT` rows and the latest were left out. */
+  readonly truncated: boolean;
+}
+
+/** Upper bound on rows read from each of the four sources for one applicant (earliest first). */
+export const CALENDAR_SOURCE_LIMIT = 50;
+
+/** Longest case title carried on an item; a longer one is cut. */
+const CALENDAR_CASE_TITLE_MAX = 80;
+
+/** A time zone name only if it is a well-formed IANA name this runtime knows. */
+function recognisedTimeZone(name: string): string | null {
+  const trimmed = name.trim();
+  if (!/^[A-Za-z][A-Za-z0-9_+\-/]{0,63}$/.test(trimmed)) return null;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: trimmed });
+    return trimmed;
+  } catch {
+    return null;
+  }
+}
+
+/** The order key of an item: a date-only key sorts before any time on the same day. */
+function calendarSortKey(when: CalendarWhen): string {
+  return when.kind === 'date' ? when.date : when.localDateTime;
+}
+
+/**
+ * The traveller's dated items, for a one-time calendar file (v1.2 B05). The same owner-only rule
+ * as `listNeedsAttention`: the proof must be genuine, issued to the applicant's owner, for this
+ * applicant; a sharing grant, a copied proof or a proof for another resource is refused. Sources:
+ *
+ * - appointments on active cases that are open or started, at their stored local date and time
+ *   in their stored time zone (the case page lists every appointment to the owner, and the
+ *   single-appointment calendar download has the same reach);
+ * - open or started tasks with a due day on active cases that the traveller can act on
+ *   (unassigned or assigned to the traveller's own account, the Needs Attention rule);
+ * - evidence requests that are open or sent back for a fix, with a due day, not on a closed or
+ *   cancelled case;
+ * - current (not replaced) documents with an expiry day.
+ *
+ * Anything without a date is not a calendar item. Cost: one read for cases, then one each for
+ * appointments, tasks, requests and documents, each capped at `CALENDAR_SOURCE_LIMIT` rows,
+ * earliest first. Nothing is written.
+ */
+export async function listCalendarDates(
+  access: AuthorizedApplicant<'VIEW_METADATA'>,
+): Promise<Result<CalendarDates, ServiceError>> {
+  if (
+    !AuthorizedApplicant.isGenuine(access, 'VIEW_METADATA') ||
+    access.actor.kind !== 'applicant_owner' ||
+    access.resource.kind !== 'applicant'
+  ) {
+    return err(serviceError('forbidden', 'calendar dates are available to the owner only'));
+  }
+  const db = access.tx;
+  const applicant = access.applicant;
+  const applicantId = applicant.id;
+  const readLimit = CALENDAR_SOURCE_LIMIT + 1;
+
+  const missions = await db
+    .select({ id: schema.missions.id, title: schema.missions.title, state: schema.missions.state })
+    .from(schema.missions)
+    .where(eq(schema.missions.applicantId, applicantId));
+  const missionById = new Map(missions.map((m) => [m.id, m]));
+  const activeIds = missions.filter((m) => !FINISHED_CASE_STATES.has(m.state)).map((m) => m.id);
+
+  const [appointments, tasks, requests, documents] = await Promise.all([
+    activeIds.length === 0
+      ? []
+      : db
+          .select({
+            id: schema.missionAppointments.id,
+            missionId: schema.missionAppointments.missionId,
+            localDateTime: schema.missionAppointments.localDateTime,
+            timezone: schema.missionAppointments.timezone,
+          })
+          .from(schema.missionAppointments)
+          .where(
+            and(
+              inArray(schema.missionAppointments.missionId, activeIds),
+              inArray(schema.missionAppointments.status, [...ATTENTION_TASK_STATUSES]),
+            ),
+          )
+          .orderBy(
+            asc(schema.missionAppointments.localDateTime),
+            asc(schema.missionAppointments.id),
+          )
+          .limit(readLimit),
+    activeIds.length === 0
+      ? []
+      : db
+          .select({
+            id: schema.missionTasks.id,
+            missionId: schema.missionTasks.missionId,
+            dueDate: schema.missionTasks.dueDate,
+          })
+          .from(schema.missionTasks)
+          .where(
+            and(
+              inArray(schema.missionTasks.missionId, activeIds),
+              inArray(schema.missionTasks.status, [...ATTENTION_TASK_STATUSES]),
+              isNotNull(schema.missionTasks.dueDate),
+              or(
+                isNull(schema.missionTasks.assigneeAccountId),
+                eq(schema.missionTasks.assigneeAccountId, applicant.ownerAccountId),
+              ),
+            ),
+          )
+          .orderBy(asc(schema.missionTasks.dueDate), asc(schema.missionTasks.id))
+          .limit(readLimit),
+    db
+      .select({
+        id: schema.evidenceRequests.id,
+        missionId: schema.evidenceRequests.missionId,
+        dueDate: schema.evidenceRequests.dueDate,
+      })
+      .from(schema.evidenceRequests)
+      .where(
+        and(
+          eq(schema.evidenceRequests.applicantId, applicantId),
+          inArray(schema.evidenceRequests.status, [...ATTENTION_REQUEST_STATUSES]),
+          isNotNull(schema.evidenceRequests.dueDate),
+          // Not on a case that is over: no case, or an active one.
+          activeIds.length === 0
+            ? isNull(schema.evidenceRequests.missionId)
+            : or(
+                isNull(schema.evidenceRequests.missionId),
+                inArray(schema.evidenceRequests.missionId, activeIds),
+              ),
+        ),
+      )
+      .orderBy(asc(schema.evidenceRequests.dueDate), asc(schema.evidenceRequests.id))
+      .limit(readLimit),
+    db
+      .select({ id: schema.documents.id, expiresAt: schema.documents.expiresAt })
+      .from(schema.documents)
+      .where(
+        and(
+          eq(schema.documents.applicantId, applicantId),
+          isNull(schema.documents.supersededByDocumentId),
+          isNotNull(schema.documents.expiresAt),
+        ),
+      )
+      .orderBy(asc(schema.documents.expiresAt), asc(schema.documents.id))
+      .limit(readLimit),
+  ]);
+
+  const truncated = [appointments, tasks, requests, documents].some(
+    (rows) => rows.length > CALENDAR_SOURCE_LIMIT,
+  );
+  const caseTitle = (missionId: string | null): string | null => {
+    const title = missionId ? missionById.get(missionId)?.title.trim() : undefined;
+    return title ? title.slice(0, CALENDAR_CASE_TITLE_MAX) : null;
+  };
+
+  const items: CalendarItem[] = [];
+  for (const row of appointments.slice(0, CALENDAR_SOURCE_LIMIT)) {
+    items.push({
+      key: `appointment:${row.id}`,
+      kind: 'appointment',
+      // Stored timezone-naive and read in a UTC process, so the UTC fields are the wall clock.
+      when: {
+        kind: 'local',
+        localDateTime: row.localDateTime.toISOString().slice(0, 19),
+        timezone: recognisedTimeZone(row.timezone),
+      },
+      caseTitle: caseTitle(row.missionId),
+    });
+  }
+  for (const row of tasks.slice(0, CALENDAR_SOURCE_LIMIT)) {
+    if (!row.dueDate) continue;
+    items.push({
+      key: `task:${row.id}`,
+      kind: 'task',
+      when: { kind: 'date', date: dateOnly(row.dueDate) },
+      caseTitle: caseTitle(row.missionId),
+    });
+  }
+  for (const row of requests.slice(0, CALENDAR_SOURCE_LIMIT)) {
+    if (!row.dueDate) continue;
+    items.push({
+      key: `evidence_request:${row.id}`,
+      kind: 'evidence_request',
+      when: { kind: 'date', date: dateOnly(row.dueDate) },
+      caseTitle: caseTitle(row.missionId),
+    });
+  }
+  for (const row of documents.slice(0, CALENDAR_SOURCE_LIMIT)) {
+    if (!row.expiresAt) continue;
+    items.push({
+      key: `document_expiry:${row.id}`,
+      kind: 'document_expiry',
+      when: { kind: 'date', date: dateOnly(row.expiresAt) },
+      caseTitle: null,
+    });
+  }
+
+  items.sort(
+    (a, b) =>
+      compareText(calendarSortKey(a.when), calendarSortKey(b.when)) ||
+      compareText(a.kind, b.kind) ||
+      compareText(a.key, b.key),
+  );
+  return ok({ applicantId, items, truncated });
+}

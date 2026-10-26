@@ -5,6 +5,7 @@ import type {
   AttentionItem,
   AttentionKind,
   AttentionTier,
+  CalendarItemKind,
   CaseTriageState,
   TriageGroup,
   TriageIndicator,
@@ -257,3 +258,15 @@ export function attentionActionLabel(item: Pick<AttentionItem, 'kind' | 'sentBac
   if (item.kind === 'evidence_request' && item.sentBack) return SENT_BACK_ACTION_LABEL;
   return ATTENTION_ACTION_LABELS[item.kind];
 }
+
+/**
+ * Calendar export (v1.2 B05): the generic event title for each kind of dated item. These are
+ * the whole title unless the person asks to add case names; they never name a document, a
+ * detail, a number or anything else from the record.
+ */
+export const CALENDAR_EVENT_TITLES: Readonly<Record<CalendarItemKind, string>> = {
+  appointment: 'Appointment',
+  task: 'Task Due',
+  evidence_request: 'Request Due',
+  document_expiry: 'Document Expires',
+};
