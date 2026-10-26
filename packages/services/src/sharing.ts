@@ -638,7 +638,13 @@ export async function listAccessForApplicant(
                 missionId: e.missionId,
                 missionTitle: e.missionTitle,
                 since: e.createdAt,
-                reachedByAnotherGrant: recipientReachesCase(rows, exceptions, row, e.missionId, now),
+                reachedByAnotherGrant: recipientReachesCase(
+                  rows,
+                  exceptions,
+                  row,
+                  e.missionId,
+                  now,
+                ),
               }))
           : [],
     })),
@@ -1047,7 +1053,10 @@ export async function removeCaseException(
     if (removed.length === 0) {
       return err(serviceError('not_found', 'This case is already shared.'));
     }
-    const audit = async (parent: { readonly kind: 'grant' | 'sharing_invitation'; readonly id: string }) =>
+    const audit = async (parent: {
+      readonly kind: 'grant' | 'sharing_invitation';
+      readonly id: string;
+    }) =>
       appendAuditEvent(tx, {
         eventType: 'GRANT_CASE_EXCLUSION_REMOVED',
         actorAccountId: ownerAccountId,

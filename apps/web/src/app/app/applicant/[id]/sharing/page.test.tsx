@@ -242,8 +242,7 @@ describe('per-case sharing exceptions on the Sharing page', () => {
     ]);
   });
   it('names the cases a pending all-cases invitation will not cover, read through the access gate', async () => {
-    const previous = process.env['PERSONAL_SHARING_INVITATIONS_ENABLED'];
-    process.env['PERSONAL_SHARING_INVITATIONS_ENABLED'] = 'true';
+    vi.stubEnv('PERSONAL_SHARING_INVITATIONS_ENABLED', 'true');
     try {
       const later = new Date(Date.now() + 86_400_000);
       mocks.listSharingInvitations.mockResolvedValue([
@@ -301,8 +300,7 @@ describe('per-case sharing exceptions on the Sharing page', () => {
       expect(textOf(await render())).not.toContain('Japan trip 2026');
       expect(mocks.listInvitationCaseExceptions).not.toHaveBeenCalled();
     } finally {
-      if (previous === undefined) delete process.env['PERSONAL_SHARING_INVITATIONS_ENABLED'];
-      else process.env['PERSONAL_SHARING_INVITATIONS_ENABLED'] = previous;
+      vi.unstubAllEnvs();
     }
   });
   it('shows nothing for access that has run out', async () => {

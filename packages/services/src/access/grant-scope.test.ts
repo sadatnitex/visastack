@@ -294,8 +294,9 @@ describe('grant case scope: the table presence check', () => {
       await db.execute(sql`alter table grant_case_exclusions_away rename to grant_case_exclusions`);
       expect(await caseExclusionsTablePresent(db)).toBe(true);
       expect(await caseExclusionsTablePresent(db)).toBe(true);
-      expect(await loadCaseExclusions(db, { grantIds: ['00000000-0000-4000-8000-000000000000'] }))
-        .toEqual(new Map());
+      expect(
+        await loadCaseExclusions(db, { grantIds: ['00000000-0000-4000-8000-000000000000'] }),
+      ).toEqual(new Map());
       expect(probes).toBe(3);
       // Another handle on the same database asks for itself.
       const other = drizzle(client, { schema }) as unknown as Db;

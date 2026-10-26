@@ -938,7 +938,10 @@ async function exceptionRows(s: Scenario, missionId: string, db: Db = s.db) {
     .where(eq(schema.grantCaseExclusions.missionId, missionId));
 }
 
-async function shareAllCasesWith(s: Scenario, recipient: { organizationId: string; adminId: string }) {
+async function shareAllCasesWith(
+  s: Scenario,
+  recipient: { organizationId: string; adminId: string },
+) {
   const created = await createGrant(s.db, {
     actorAccountId: s.owner.id,
     applicantId: s.applicantId,
@@ -979,7 +982,9 @@ describe('review fixes: one-shot answers, the sharing lock, recipient-level exce
       const yesFirst = await newCase(s, 'Yes first');
       const noFirst = await newCase(s, 'No first');
       // A restored branch from this moment, before any answer.
-      const restored = drizzle((await clientOf(s.db).clone()) as PGlite, { schema }) as unknown as Db;
+      const restored = drizzle((await clientOf(s.db).clone()) as PGlite, {
+        schema,
+      }) as unknown as Db;
       await pause(5);
       const restorePoint = new Date();
       await pause(5);
@@ -1038,7 +1043,9 @@ describe('review fixes: one-shot answers, the sharing lock, recipient-level exce
       const queries: { sql: string; params: unknown[] }[] = [];
       const logged = drizzle(clientOf(s.db), {
         schema,
-        logger: { logQuery: (query: string, params: unknown[]) => queries.push({ sql: query, params }) },
+        logger: {
+          logQuery: (query: string, params: unknown[]) => queries.push({ sql: query, params }),
+        },
       }) as unknown as Db;
       const lockKey = caseSharingLockKey(s.applicantId);
       const indexOf = (pattern: RegExp) => queries.findIndex((q) => pattern.test(q.sql));
@@ -1136,7 +1143,11 @@ describe('review fixes: one-shot answers, the sharing lock, recipient-level exce
           applicantId: s.applicantId,
           organizationId: aId,
           missionId,
-          payload: { subject: `Update ${missionId}`, summary: 'A case changed', deepLinkPath: '/app' },
+          payload: {
+            subject: `Update ${missionId}`,
+            summary: 'A case changed',
+            deepLinkPath: '/app',
+          },
         });
       }
       await runNotificationWorker(s.db, new FakeEmailPort(), 'https://app.example');
@@ -1230,10 +1241,14 @@ describe('review fixes: one-shot answers, the sharing lock, recipient-level exce
       const access = await listAccessForApplicantDetailed(s.db, s.owner.id, s.applicantId);
       if (!isOk(access)) throw new Error('access');
       expect(
-        access.value.find((g) => g.id === again)?.caseExceptions.map((e) => e.reachedByAnotherGrant),
+        access.value
+          .find((g) => g.id === again)
+          ?.caseExceptions.map((e) => e.reachedByAnotherGrant),
       ).toEqual([true]);
       expect(
-        access.value.find((g) => g.id === s.grantP)?.caseExceptions.map((e) => e.reachedByAnotherGrant),
+        access.value
+          .find((g) => g.id === s.grantP)
+          ?.caseExceptions.map((e) => e.reachedByAnotherGrant),
       ).toEqual([false]);
       await revokeGrant(s.db, { actorAccountId: s.owner.id, grantId: scoped.value.id });
 
@@ -1290,9 +1305,9 @@ describe('review fixes: one-shot answers, the sharing lock, recipient-level exce
 
       // Allowing follows the recipient as well: after Allow This Case, sharing all
       // cases with A again does not bring the old "no" back.
-      expect(
-        isOk(await removeCaseException(await ownerManage(s, c3), { grantId: again })),
-      ).toBe(true);
+      expect(isOk(await removeCaseException(await ownerManage(s, c3), { grantId: again }))).toBe(
+        true,
+      );
       expect(await auditCount(s, 'GRANT_CASE_EXCLUSION_REMOVED', c3)).toBe(2);
       await revokeGrant(s.db, { actorAccountId: s.owner.id, grantId: again });
       await shareAllCasesWith(s, s.a);

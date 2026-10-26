@@ -326,16 +326,16 @@ export async function listInvitationCaseExceptions(
   const exceptions = await listCaseExclusionsForApplicant(proof.tx, proof.applicant.id);
   return ok(
     exceptions.flatMap((e) =>
-    e.sharingInvitationId
-      ? [
-          {
-            invitationId: e.sharingInvitationId,
-            missionId: e.missionId,
-            missionTitle: e.missionTitle,
-            since: e.createdAt,
-          },
-        ]
-      : [],
+      e.sharingInvitationId
+        ? [
+            {
+              invitationId: e.sharingInvitationId,
+              missionId: e.missionId,
+              missionTitle: e.missionTitle,
+              since: e.createdAt,
+            },
+          ]
+        : [],
     ),
   );
 }

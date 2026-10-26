@@ -236,8 +236,8 @@ export async function exportAccount(
               .from(schema.sharingInvitations)
               .where(eq(schema.sharingInvitations.applicantId, applicant.id))
           : [];
-      const invitationCaseExceptions: ExportedInvitationCaseException[] =
-        invitedExceptions.flatMap((e) => {
+      const invitationCaseExceptions: ExportedInvitationCaseException[] = invitedExceptions.flatMap(
+        (e) => {
           const invitation = invitationRows.find((i) => i.id === e.sharingInvitationId);
           return invitation
             ? [
@@ -252,7 +252,8 @@ export async function exportAccount(
                 },
               ]
             : [];
-        });
+        },
+      );
       const grantsGranted: ExportedGrantGranted[] = grantRows.map((grant) => ({
         ...grant,
         caseExceptions: exceptions

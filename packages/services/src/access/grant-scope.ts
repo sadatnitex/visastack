@@ -435,7 +435,9 @@ export async function carryRecipientCaseExceptions(
         eq(exclusions.applicantId, input.applicantId),
         or(
           grantIds.length > 0 ? inArray(exclusions.grantId, grantIds) : undefined,
-          invitationIds.length > 0 ? inArray(exclusions.sharingInvitationId, invitationIds) : undefined,
+          invitationIds.length > 0
+            ? inArray(exclusions.sharingInvitationId, invitationIds)
+            : undefined,
         ),
       ),
     );

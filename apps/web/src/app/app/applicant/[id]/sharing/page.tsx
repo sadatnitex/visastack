@@ -1,7 +1,7 @@
 import { createTranslator } from '@visastack/i18n';
 import {
-  documentCategory,
   accountPrincipal,
+  documentCategory,
   getApplicant,
   listAccessForApplicantDetailed,
   listApplicantProfile,
