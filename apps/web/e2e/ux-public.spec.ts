@@ -190,7 +190,7 @@ function fixtureHtml(): string {
       )
       .join('');
   const agencyBar = bar(agencyTabs('fixture', { admin: true }));
-  const platformBar = bar(platformTabs({ ai: true, complaints: true }));
+  const platformBar = bar(platformTabs({ ai: true, complaints: true, audit: true, privacy: true }));
   const tabs = applicantTabs('fixture')
     .map(
       (link, i) =>

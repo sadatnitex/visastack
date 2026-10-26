@@ -9,3 +9,14 @@ export function AdminRestricted() {
     </article>
   );
 }
+
+/** What a platform administrator sees on a page their own role does not cover. */
+export function AdminNotForRole() {
+  return (
+    <article className="card">
+      <p className="card-body">
+        Not available for your role. Ask a platform owner if you need this view.
+      </p>
+    </article>
+  );
+}

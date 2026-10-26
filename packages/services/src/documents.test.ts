@@ -31,6 +31,7 @@ import {
 } from './documents';
 import { enqueueErasureJob } from './erasure';
 import { createOrganization, reviewOrganization } from './organizations';
+import { seedStaffAccount, staffScopeFor } from './platform-roles.test-support';
 import { acceptGrant, createGrant } from './sharing';
 import type { AccessRef, IssueReadRefInput, StoragePort } from './storage';
 import { SUPPORT_ACCESS_PURPOSE, createSupportGrant } from './support-access';
@@ -1496,15 +1497,18 @@ describe('recheckDocumentAccess, redemption-time replay against LIVE state (EVI-
     const { document } = await seedOwnerWithDocument(db, 'support2@example.com');
     const supportAccount = await provisionAccount(db, { email: 'support-op2@example.com' });
     if (!isOk(supportAccount)) throw new Error('provision failed');
-    const approver = await provisionAccount(db, { email: 'support-approver@example.com' });
-    if (!isOk(approver)) throw new Error('provision failed');
+    const approverAuth = await seedStaffAccount(
+      db,
+      'SECURITY_ADMIN',
+      'support-approver@example.com',
+    );
+    const approver = await staffScopeFor(db, approverAuth, 'SUPPORT_GRANT_APPROVE');
 
-    const grant = await createSupportGrant(db, {
+    const grant = await createSupportGrant(db, approver, {
       actorAccountId: supportAccount.value.id,
       applicantId: document.applicantId,
       actions: ['PREVIEW'],
       reason: 'Investigating ticket #1234, applicant reports a stuck upload',
-      approvedByAccountId: approver.value.id,
       durationMinutes: 30,
     });
     expect(isOk(grant)).toBe(true);

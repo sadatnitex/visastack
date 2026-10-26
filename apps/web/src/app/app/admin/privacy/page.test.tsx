@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   listActiveLegalHolds: vi.fn(),
   listErasureJobsNeedingAttention: vi.fn(),
   listAllApplicants: vi.fn(),
+  staffPrincipal: vi.fn(),
   documentsPastRetention: vi.fn(),
 }));
 
@@ -19,7 +20,10 @@ vi.mock('../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
     fn({ db: {}, accountId: 'acct-1', email: 'admin@example.com' }),
 }));
-vi.mock('../../../../lib/admin', () => ({ isPlatformAdmin: mocks.isPlatformAdmin }));
+vi.mock('../../../../lib/admin', () => ({
+  isPlatformAdmin: mocks.isPlatformAdmin,
+  bootstrapAdminEmails: () => [],
+}));
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   getRetentionPolicies: (...args: unknown[]) => mocks.getRetentionPolicies(...args),
@@ -27,6 +31,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   listErasureJobsNeedingAttention: (...args: unknown[]) =>
     mocks.listErasureJobsNeedingAttention(...args),
   listAllApplicants: (...args: unknown[]) => mocks.listAllApplicants(...args),
+  staffPrincipal: (...args: unknown[]) => mocks.staffPrincipal(...args),
   documentsPastRetention: (...args: unknown[]) => mocks.documentsPastRetention(...args),
 }));
 vi.mock('../action-buttons', async () => {
@@ -88,10 +93,14 @@ beforeEach(() => {
       lastError: null,
     },
   ]);
-  mocks.listAllApplicants.mockResolvedValue([
-    { id: 'ap1', displayName: 'Rahim Uddin' },
-    { id: 'ap2', displayName: 'Nusrat Jahan' },
-  ]);
+  mocks.staffPrincipal.mockResolvedValue({ ok: true, value: { kind: 'staff' } });
+  mocks.listAllApplicants.mockResolvedValue({
+    ok: true,
+    value: [
+      { id: 'ap1', displayName: 'Rahim Uddin' },
+      { id: 'ap2', displayName: 'Nusrat Jahan' },
+    ],
+  });
   mocks.documentsPastRetention.mockResolvedValue([
     { id: 'd1', originalName: 'old-passport.pdf', applicantId: 'ap1' },
   ]);
@@ -164,6 +173,20 @@ describe('Platform > Privacy', () => {
     expect(text).toContain('restricted to platform administrators');
     expect(mocks.listAllApplicants).not.toHaveBeenCalled();
     expect(mocks.listActiveLegalHolds).not.toHaveBeenCalled();
+  });
+
+  it('tells a role without the directory that the page is not available, and reads nothing', async () => {
+    mocks.staffPrincipal.mockResolvedValue({
+      ok: false,
+      error: { code: 'forbidden', message: 'no role' },
+    });
+    const text = textOf(await renderServer(Page()));
+    expect(text).toContain('Not available for your role');
+    expect(text).not.toContain('Rahim Uddin');
+    expect(text).not.toContain('old-passport.pdf');
+    expect(mocks.listAllApplicants).not.toHaveBeenCalled();
+    expect(mocks.listActiveLegalHolds).not.toHaveBeenCalled();
+    expect(mocks.documentsPastRetention).not.toHaveBeenCalled();
   });
 
   it('keeps going and names the section when one read fails', async () => {

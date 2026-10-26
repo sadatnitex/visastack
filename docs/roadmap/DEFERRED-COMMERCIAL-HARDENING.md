@@ -26,9 +26,9 @@ Execution plan: [SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md](SONNET-SMALL-COMMERCIAL-
 | M09 | Safe download | Downloads are decided per document, need step-up, and use replay-checked access tokens | Done |
 | M10 | Payment callbacks validated server to server, idempotent, never trusting the browser | Not built | S11 (ADR 0020) |
 | M11 | The AI connector cannot reach anything beyond the person's own record (or, for agency connections, beyond the traveller's grant with AI tools allowed) and the chosen scope | Not built | S8, S13 to S16, S20 to S22 (ADR 0021) |
-| M12 | AI reading entry points bind the document version to the applicant | Not bound: only the applicant's ownership is checked | S2 (ADR 0019 point 5) |
-| M13 | Cross-tenant admin reads limited to the roles that need them | `listAllApplicants` and `listRecentAuditEvents` are open to any platform role | S2 |
-| M14 | Support grants cannot be created without the right role | `createSupportGrant` has no role check (no caller today) | S2 |
+| M12 | AI reading entry points bind the document version to the applicant | Closed 26 Oct 2026 (S2): every entry point proves version to document to applicant; a mismatch reads as not found; reuse of earlier readings stays inside one applicant | S2 (ADR 0019 point 5) |
+| M13 | Cross-tenant admin reads limited to the roles that need them | Closed 26 Oct 2026 (S2): both reads take a staff scope (compliance administrator and security administrator) checked inside the service | S2 |
+| M14 | Support grants cannot be created without the right role | Closed 26 Oct 2026 (S2): `createSupportGrant` takes the security administrator's staff scope as approver | S2 |
 | M15 | Hosting plan allows commercial use | Neon is on Free (checked 26 Oct). Vercel's plan name was not returned by the API; the personal team and the daily deployment limit indicate Hobby, which is for non-commercial use | Owner action O3 |
 | M16 | Repository not publicly readable while the product is proprietary | Public, temporarily (owner, 26 Oct 2026: to be made private soon). Full-history secret scan on 26 Oct (gitleaks, 867 commits, all branches): no real credential, 11 false positives | Owner action O1 |
 | M17 | Every launch checklist is maintained and reviewed; unmaintained routes run in manual mode with no automated readiness claim | One published checklist exists ("UK Visitor1": 2 requirements, not authoritative, review date passed 23 Oct 2026, used by no case) | Owner action O7, then S24 |

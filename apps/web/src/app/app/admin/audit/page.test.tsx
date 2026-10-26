@@ -4,16 +4,21 @@ import { navigationState, renderServer, textOf } from '../../../../lib/next-mock
 const mocks = vi.hoisted(() => ({
   isPlatformAdmin: vi.fn(),
   listRecentAuditEvents: vi.fn(),
+  staffPrincipal: vi.fn(),
 }));
 
 vi.mock('../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
     fn({ db: {}, accountId: 'acct-1', email: 'admin@example.com' }),
 }));
-vi.mock('../../../../lib/admin', () => ({ isPlatformAdmin: mocks.isPlatformAdmin }));
+vi.mock('../../../../lib/admin', () => ({
+  isPlatformAdmin: mocks.isPlatformAdmin,
+  bootstrapAdminEmails: () => [],
+}));
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   listRecentAuditEvents: (...args: unknown[]) => mocks.listRecentAuditEvents(...args),
+  staffPrincipal: (...args: unknown[]) => mocks.staffPrincipal(...args),
 }));
 
 const { default: Page } = await import('./page');
@@ -27,14 +32,17 @@ const event = (seq: number, eventType: string, result: string | null) => ({
   reason: null,
 });
 
+const STAFF = { kind: 'staff' };
+
 beforeEach(() => {
   vi.clearAllMocks();
   navigationState.pathname = '/app/admin/audit';
   mocks.isPlatformAdmin.mockResolvedValue(true);
-  mocks.listRecentAuditEvents.mockResolvedValue([
-    event(2, 'ACCESS_DENIED', 'DENIED'),
-    event(1, 'MISSION_CREATED', 'ALLOWED'),
-  ]);
+  mocks.staffPrincipal.mockResolvedValue({ ok: true, value: STAFF });
+  mocks.listRecentAuditEvents.mockResolvedValue({
+    ok: true,
+    value: [event(2, 'ACCESS_DENIED', 'DENIED'), event(1, 'MISSION_CREATED', 'ALLOWED')],
+  });
 });
 
 describe('Platform > Audit', () => {
@@ -46,11 +54,11 @@ describe('Platform > Audit', () => {
     expect(text).toContain('ACCESS_DENIED');
     expect(text).toContain('MISSION_CREATED');
     expect(html).toContain('badge-danger');
-    expect(mocks.listRecentAuditEvents).toHaveBeenCalledWith({}, 50);
+    expect(mocks.listRecentAuditEvents).toHaveBeenCalledWith({}, STAFF, 50);
   });
 
   it('says there is nothing yet rather than an empty box', async () => {
-    mocks.listRecentAuditEvents.mockResolvedValue([]);
+    mocks.listRecentAuditEvents.mockResolvedValue({ ok: true, value: [] });
     expect(textOf(await renderServer(Page()))).toContain('No Audit Events Yet');
   });
 
@@ -59,6 +67,21 @@ describe('Platform > Audit', () => {
     const html = await renderServer(Page());
     expect(textOf(html)).toContain('restricted to platform administrators');
     expect(mocks.listRecentAuditEvents).not.toHaveBeenCalled();
+  });
+
+  it('tells an administrator whose role does not cover the trail, without reading it', async () => {
+    mocks.staffPrincipal.mockResolvedValue({
+      ok: false,
+      error: { code: 'forbidden', message: 'no role' },
+    });
+    const text = textOf(await renderServer(Page()));
+    expect(text).toContain('Not available for your role');
+    expect(mocks.listRecentAuditEvents).not.toHaveBeenCalled();
+    expect(mocks.staffPrincipal).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ accountId: 'acct-1' }),
+      'AUDIT_TRAIL_VIEW',
+    );
   });
 
   it('names the section it could not read', async () => {

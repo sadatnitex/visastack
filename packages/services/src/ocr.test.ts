@@ -65,7 +65,7 @@ async function seedDocumentVersion(
   db: Db,
   email: string,
   objectKey: string,
-): Promise<{ documentVersionId: string }> {
+): Promise<{ documentVersionId: string; applicantId: string }> {
   const provisioned = await provisionAccount(db, { email });
   if (!isOk(provisioned)) throw new Error('provision failed');
   const account = provisioned.value;
@@ -98,7 +98,7 @@ async function seedDocumentVersion(
     processingStatus: 'APPROVED',
   });
   if (!isOk(version)) throw new Error('version failed');
-  return { documentVersionId: version.value.version.id };
+  return { documentVersionId: version.value.version.id, applicantId: applicant.value.id };
 }
 
 /** Validly-shaped but non-existent UUID -- a malformed string would throw at the DB layer instead of returning zero rows. */
@@ -121,6 +121,7 @@ describe('renderOcrSourceImage -- prepares the bytes AiOcrPort.performOcr needs 
       blobStore,
       previewRenderer,
       UNKNOWN_DOCUMENT_VERSION_ID,
+      UNKNOWN_DOCUMENT_VERSION_ID,
     );
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
@@ -130,14 +131,20 @@ describe('renderOcrSourceImage -- prepares the bytes AiOcrPort.performOcr needs 
   });
 
   it('returns object_bytes_missing when the storage object row exists but the blob store has nothing for it', async () => {
-    const { documentVersionId } = await seedDocumentVersion(
+    const { documentVersionId, applicantId } = await seedDocumentVersion(
       db,
       'a@example.com',
       'obj-missing-bytes',
     );
     // Deliberately never seeded into blobStore.
 
-    const outcome = await renderOcrSourceImage(db, blobStore, previewRenderer, documentVersionId);
+    const outcome = await renderOcrSourceImage(
+      db,
+      blobStore,
+      previewRenderer,
+      documentVersionId,
+      applicantId,
+    );
 
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
@@ -146,14 +153,24 @@ describe('renderOcrSourceImage -- prepares the bytes AiOcrPort.performOcr needs 
   });
 
   it('returns unsupported_format when the renderer reports no image can be produced (e.g. a DOCX/TXT source)', async () => {
-    const { documentVersionId } = await seedDocumentVersion(db, 'b@example.com', 'obj-docx');
+    const { documentVersionId, applicantId } = await seedDocumentVersion(
+      db,
+      'b@example.com',
+      'obj-docx',
+    );
     blobStore.seed('obj-docx', {
       contentType: 'text/plain',
       bytes: new Uint8Array([1, 2, 3]),
     });
     previewRenderer.result = { rendered: false, detail: 'no visual representation for this type' };
 
-    const outcome = await renderOcrSourceImage(db, blobStore, previewRenderer, documentVersionId);
+    const outcome = await renderOcrSourceImage(
+      db,
+      blobStore,
+      previewRenderer,
+      documentVersionId,
+      applicantId,
+    );
 
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
@@ -162,7 +179,11 @@ describe('renderOcrSourceImage -- prepares the bytes AiOcrPort.performOcr needs 
   });
 
   it('returns render_failed when the renderer produces a content type OCR cannot use', async () => {
-    const { documentVersionId } = await seedDocumentVersion(db, 'c@example.com', 'obj-weird');
+    const { documentVersionId, applicantId } = await seedDocumentVersion(
+      db,
+      'c@example.com',
+      'obj-weird',
+    );
     blobStore.seed('obj-weird', { contentType: 'application/pdf', bytes: new Uint8Array([9]) });
     previewRenderer.result = {
       rendered: true,
@@ -170,7 +191,13 @@ describe('renderOcrSourceImage -- prepares the bytes AiOcrPort.performOcr needs 
       bytes: new Uint8Array([9]),
     };
 
-    const outcome = await renderOcrSourceImage(db, blobStore, previewRenderer, documentVersionId);
+    const outcome = await renderOcrSourceImage(
+      db,
+      blobStore,
+      previewRenderer,
+      documentVersionId,
+      applicantId,
+    );
 
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
@@ -178,13 +205,23 @@ describe('renderOcrSourceImage -- prepares the bytes AiOcrPort.performOcr needs 
   });
 
   it('renders a scanned PDF to PNG, passing the original bytes/content type straight through to the renderer', async () => {
-    const { documentVersionId } = await seedDocumentVersion(db, 'd@example.com', 'obj-pdf');
+    const { documentVersionId, applicantId } = await seedDocumentVersion(
+      db,
+      'd@example.com',
+      'obj-pdf',
+    );
     const originalBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46]); // "%PDF"
     blobStore.seed('obj-pdf', { contentType: 'application/pdf', bytes: originalBytes });
     const rasterized = new Uint8Array([1, 2, 3, 4, 5]);
     previewRenderer.result = { rendered: true, contentType: 'image/png', bytes: rasterized };
 
-    const outcome = await renderOcrSourceImage(db, blobStore, previewRenderer, documentVersionId);
+    const outcome = await renderOcrSourceImage(
+      db,
+      blobStore,
+      previewRenderer,
+      documentVersionId,
+      applicantId,
+    );
 
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
@@ -196,12 +233,22 @@ describe('renderOcrSourceImage -- prepares the bytes AiOcrPort.performOcr needs 
   });
 
   it('passes a directly-uploaded JPEG through to the renderer for its own redraw/re-encode', async () => {
-    const { documentVersionId } = await seedDocumentVersion(db, 'e@example.com', 'obj-jpeg');
+    const { documentVersionId, applicantId } = await seedDocumentVersion(
+      db,
+      'e@example.com',
+      'obj-jpeg',
+    );
     blobStore.seed('obj-jpeg', { contentType: 'image/jpeg', bytes: new Uint8Array([1]) });
     const reencoded = new Uint8Array([2, 2, 2]);
     previewRenderer.result = { rendered: true, contentType: 'image/jpeg', bytes: reencoded };
 
-    const outcome = await renderOcrSourceImage(db, blobStore, previewRenderer, documentVersionId);
+    const outcome = await renderOcrSourceImage(
+      db,
+      blobStore,
+      previewRenderer,
+      documentVersionId,
+      applicantId,
+    );
 
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;

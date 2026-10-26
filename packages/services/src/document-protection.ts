@@ -2,7 +2,7 @@ import { type Result, err, ok } from '@visastack/core';
 import { CATALOGUE_DOCUMENTS, CATALOGUE_DOCUMENT_GROUPS } from '@visastack/core/catalogue';
 import { resolveDocumentType } from '@visastack/core/catalogue/documents';
 import { and, eq, sql } from 'drizzle-orm';
-import { StaffScope } from './access/principal';
+import { type StaffScope, staffScopeProblem as sharedStaffScopeProblem } from './access/principal';
 import { DEFAULT_DOCUMENT_PROTECTION, isRestrictedDocumentType } from './access/require-access';
 import {
   type DocumentProtectionOverride,
@@ -43,13 +43,6 @@ export const DOCUMENT_PROTECTION_REASON_MAX = 500;
 export const DOCUMENT_PROTECTION_REASON_REQUIRED =
   'Say why you are removing this protection before saving.';
 
-/**
- * How long a staff scope stays usable for a change. A scope is minted by a
- * live role check at the start of one request; anything older is refused so
- * a held-over scope cannot outlive a revoked role.
- */
-const STAFF_SCOPE_MAX_AGE_MS = 5 * 60 * 1000;
-
 const LOCK_SQL = sql`select pg_advisory_xact_lock(hashtext('visastack:document-protection'))`;
 
 const GROUP_KEYS: ReadonlySet<string> = new Set(CATALOGUE_DOCUMENT_GROUPS.map((g) => g.key));
@@ -65,14 +58,9 @@ export async function readDocumentProtectionSettings(db: Db): Promise<DocumentPr
 }
 
 function staffScopeProblem(staff: unknown): ServiceError | undefined {
-  if (
-    !StaffScope.isGenuine(staff) ||
-    staff.platformAction !== 'DOCUMENT_PROTECTION_MANAGE' ||
-    Date.now() - staff.verifiedAt.getTime() > STAFF_SCOPE_MAX_AGE_MS
-  ) {
-    return serviceError('forbidden', 'document protection settings need the security admin role');
-  }
-  return undefined;
+  return sharedStaffScopeProblem(staff, 'DOCUMENT_PROTECTION_MANAGE')
+    ? serviceError('forbidden', 'document protection settings need the security admin role')
+    : undefined;
 }
 
 function keyProblem(scope: DocumentProtectionScope, key: string): ServiceError | undefined {

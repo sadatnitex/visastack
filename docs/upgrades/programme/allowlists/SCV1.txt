@@ -1,0 +1,30 @@
+# Small Commercial V1 packages S2 to S27 (docs/roadmap/SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md).
+# Added 26 Oct 2026 on the owner's instruction to implement every package in the handoff in order,
+# in one session, with merge and deploy pre-approved. Broad by design: these packages touch services,
+# the web app, the database package, adapters, workflows and docs. Not listed on purpose, so the
+# drift guard blocks them: docs/design (the immutable harbor-v2 reference, CR13) and CLAUDE.md.
+packages/**
+apps/web/**
+scripts/**
+.github/workflows/**
+docs/adr/**
+docs/architecture/**
+docs/audits/**
+docs/commercial-v1/**
+docs/governance/**
+docs/legal/**
+docs/operations/**
+docs/product/**
+docs/public-beta/**
+docs/roadmap/**
+docs/security/**
+docs/uiux/**
+docs/upgrades/**
+docs/ux/**
+docs/SESSION-START.md
+docs/README.md
+package.json
+pnpm-lock.yaml
+pnpm-workspace.yaml
+turbo.json
+biome.json

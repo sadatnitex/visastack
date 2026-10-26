@@ -82,20 +82,22 @@ export function agencyTabs(orgId: string, access: { readonly admin: boolean }): 
  * is the landing page (`/app/admin`) and so matches only its own path. "Access"
  * (platform roles and pilot access) and "Complaints" are real, shipped areas the
  * directive's list does not name, kept as tabs rather than hidden. AI and
- * Complaints show only to an administrator who may use them, so no tab leads to a
- * refusal. The product spells it "Organizations" everywhere.
+ * Complaints, Privacy and Audit show only to an administrator who may use them, so no tab
+ * leads to a refusal. The product spells it "Organizations" everywhere.
  */
 export function platformTabs(access: {
   readonly ai: boolean;
   readonly complaints: boolean;
+  readonly audit: boolean;
+  readonly privacy: boolean;
 }): readonly NavLink[] {
   return [
     { href: '/app/admin/organizations', label: 'Organizations' },
     { href: '/app/admin/packs', label: 'Rules' },
     ...(access.ai ? [{ href: '/app/admin/ai-settings', label: 'AI' }] : []),
     { href: '/app/admin', label: 'Operations', exact: true },
-    { href: '/app/admin/privacy', label: 'Privacy' },
-    { href: '/app/admin/audit', label: 'Audit' },
+    ...(access.privacy ? [{ href: '/app/admin/privacy', label: 'Privacy' }] : []),
+    ...(access.audit ? [{ href: '/app/admin/audit', label: 'Audit' }] : []),
     { href: '/app/admin/access', label: 'Access' },
     ...(access.complaints ? [{ href: '/app/admin/complaints', label: 'Complaints' }] : []),
   ];

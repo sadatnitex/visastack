@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   resolveAiClassifier: vi.fn(),
   resolveAiExtractor: vi.fn(),
   runExtraction: vi.fn(),
+  getLatestExtractedText: vi.fn(),
   reportServerError: vi.fn(),
 }));
 
@@ -17,7 +18,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   suggestDocumentKind: mocks.suggestDocumentKind,
   runExtraction: mocks.runExtraction,
   getApplicant: async () => ({ id: 'a-1', ownerAccountId: 'owner-1' }),
-  getLatestExtractedText: async () => 'some text',
+  getLatestExtractedText: mocks.getLatestExtractedText,
   isAiDispatchAllowed: async () => true,
 }));
 vi.mock('../../../../lib/ai', () => ({
@@ -236,8 +237,15 @@ describe('reading details from a document', () => {
     return runAiExtractionAction(initial, data);
   };
   beforeEach(() => {
+    mocks.getLatestExtractedText.mockResolvedValue('some text');
     mocks.resolveAiExtractor.mockResolvedValue({ ai: {}, limits: { budgetLimitUnits: 1 } });
     mocks.runExtraction.mockResolvedValue({ ok: true, value: { proposals: [{}, {}] } });
+  });
+
+  it('reads the text for this applicant only, so another traveller’s version cannot be named', async () => {
+    mocks.resolveAiClassifier.mockResolvedValue(undefined);
+    await read();
+    expect(mocks.getLatestExtractedText).toHaveBeenCalledWith({}, 'v-1', 'a-1');
   });
 
   it('also asks what kind of document it is, and says so', async () => {

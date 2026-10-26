@@ -21,6 +21,8 @@ export interface WorkspaceAccess {
     readonly owner: boolean;
     readonly ai: boolean;
     readonly complaints: boolean;
+    readonly audit: boolean;
+    readonly privacy: boolean;
   };
 }
 
@@ -66,7 +68,7 @@ export function workspaceNavigation(
         { href: '/app/admin', label: 'Overview', exact: true },
         ...(access.platform.owner ? [{ href: '/app/admin/members', label: 'Members' }] : []),
         { href: '/app/admin/organizations', label: 'Organizations' },
-        { href: '/app/admin/audit', label: 'Activity' },
+        ...(access.platform.audit ? [{ href: '/app/admin/audit', label: 'Activity' }] : []),
         { href: '/app/admin#admin-provider-operations', label: 'Providers', exact: true },
         { href: '/app/admin#admin-usage', label: 'Costs & Plans', exact: true },
         { href: '/app/admin/security', label: 'Security' },
@@ -74,7 +76,9 @@ export function workspaceNavigation(
       tools: [
         { href: '/app/admin/packs', label: 'Rules & Packs' },
         ...(access.platform.ai ? [{ href: '/app/admin/ai-settings', label: 'AI Settings' }] : []),
-        { href: '/app/admin/privacy', label: 'Privacy Operations' },
+        ...(access.platform.privacy
+          ? [{ href: '/app/admin/privacy', label: 'Privacy Operations' }]
+          : []),
         { href: '/app/admin/access', label: 'Platform Access' },
         ...(access.platform.complaints
           ? [{ href: '/app/admin/complaints', label: 'Complaints' }]

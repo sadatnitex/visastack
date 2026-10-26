@@ -2,6 +2,7 @@ import type { AccountId, ApplicantId, PermissionAction } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
 import type { Grant as PolicyGrant } from '@visastack/policy';
 import { and, eq, isNull } from 'drizzle-orm';
+import { type StaffScope, staffScopeProblem } from './access/principal';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
@@ -39,29 +40,29 @@ export interface CreateSupportGrantInput {
   readonly applicantId: string;
   readonly actions: readonly PermissionAction[];
   readonly reason: string;
-  readonly approvedByAccountId: string;
   readonly durationMinutes: number;
 }
 
 /**
- * Issue a time-limited support grant. `approvedByAccountId` must be a real,
- * distinct account from `actorAccountId` — this function does not itself
- * verify that account is authorized to approve (that is a platform-role
- * check the caller performs, mirroring how `createGrant` in sharing.ts
- * trusts its caller to have already verified applicant ownership); it does
- * enforce the structural rules a caller cannot get around: reason required,
- * duration within the 60-minute maximum, and — belt and suspenders with the
- * database check constraint — approver distinct from actor.
+ * Issue a time-limited support grant. The approver is passed as a staff scope for the
+ * support-grant approval action, so the platform role is checked live inside the service and a caller cannot
+ * skip it (S2, M14). It must be a distinct account from `actorAccountId`. The structural rules a
+ * caller cannot get around: reason required, duration within the 60-minute maximum, and, belt
+ * and suspenders with the database check constraint, approver distinct from actor.
  */
 export async function createSupportGrant(
   db: Db,
+  approver: StaffScope<'SUPPORT_GRANT_APPROVE'>,
   input: CreateSupportGrantInput,
 ): Promise<Result<SupportGrant, ServiceError>> {
+  const problem = staffScopeProblem(approver, 'SUPPORT_GRANT_APPROVE');
+  if (problem) return err(problem);
+  const approvedByAccountId = approver.accountId;
   const reason = input.reason.trim();
   if (reason.length === 0) {
     return err(serviceError('invalid', 'a reason is required for support access'));
   }
-  if (input.approvedByAccountId === input.actorAccountId) {
+  if (approvedByAccountId === input.actorAccountId) {
     return err(serviceError('invalid', 'a support grant cannot be self-approved'));
   }
   if (
@@ -95,7 +96,7 @@ export async function createSupportGrant(
             applicantId: input.applicantId,
             actions: [...input.actions],
             reason,
-            approvedByAccountId: input.approvedByAccountId,
+            approvedByAccountId,
             startAt,
             expiryAt,
           })
@@ -114,7 +115,7 @@ export async function createSupportGrant(
       reason,
       grantId: grant.id,
       metadata: {
-        approvedByAccountId: input.approvedByAccountId,
+        approvedByAccountId,
         durationMinutes: input.durationMinutes,
         actions: input.actions,
       },

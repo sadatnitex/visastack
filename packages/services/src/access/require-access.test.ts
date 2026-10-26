@@ -26,6 +26,7 @@ import {
   setMembershipActive,
   suspendOrganization,
 } from '../organizations';
+import { seedStaffAccount, staffScopeFor } from '../platform-roles.test-support';
 import { acceptGrant, createGrant, pauseGrant } from '../sharing';
 import { issueStepUpAssurance } from '../step-up';
 import { SUPPORT_ACCESS_PURPOSE, createSupportGrant } from '../support-access';
@@ -678,7 +679,8 @@ describe('requireAccess - central applicant authorization gate', () => {
 
   it('allows support only with asSupport and an approved support grant', async () => {
     const operatorId = await account(db, 'support-operator@example.com');
-    const approverId = await account(db, 'security-admin@example.com');
+    const approverAuth = await seedStaffAccount(db, 'SECURITY_ADMIN', 'security-admin@example.com');
+    const approver = await staffScopeFor(db, approverAuth, 'SUPPORT_GRANT_APPROVE');
     const asSupport = accountPrincipal(operatorId, { asSupport: true });
     const plain = accountPrincipal(operatorId);
 
@@ -694,12 +696,11 @@ describe('requireAccess - central applicant authorization gate', () => {
       ),
     ).toBe('forbidden');
 
-    const grant = await createSupportGrant(db, {
+    const grant = await createSupportGrant(db, approver, {
       actorAccountId: operatorId,
       applicantId,
       actions: ['PREVIEW'],
       reason: 'Investigating ticket 4821',
-      approvedByAccountId: approverId,
       durationMinutes: 30,
     });
     if (!isOk(grant)) throw new Error(`support grant: ${grant.error.message}`);

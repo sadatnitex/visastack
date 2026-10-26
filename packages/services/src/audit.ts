@@ -173,17 +173,6 @@ export async function checkRecentAuditChain(db: Db, limit = 500): Promise<AuditC
   return { checked: rows.length, firstBrokenLinkSeq, hashMismatches };
 }
 
-/**
- * Most recent audit events, platform-wide (master directive §7 "PR 7" —
- * platform admin nav's "Audit" destination). Read-only; callers are
- * responsible for checking the caller is a platform admin before exposing
- * this — the chain itself has no per-row access control since it spans every
- * tenant by design.
- */
-export async function listRecentAuditEvents(db: Db, limit = 100): Promise<AuditEventRow[]> {
-  return db.select().from(schema.auditEvents).orderBy(desc(schema.auditEvents.seq)).limit(limit);
-}
-
 /** One applicant-scoped audit event, with its actor already resolved to a human-recognizable email (never a raw account id, matching how every other "who did this" surface in this codebase - wallet.ts, the sharing page's own recipient labels - already resolves identity). */
 export interface ApplicantAuditEvent {
   readonly seq: number;
@@ -202,7 +191,7 @@ export interface ApplicantAuditEvent {
  * Owner-only; every event already carries `applicantId` at write time
  * (`appendAuditEvent`'s own required field for anything applicant-scoped),
  * so this needed no new schema, just a scoped read that didn't exist yet
- * (the platform-admin `listRecentAuditEvents` above is deliberately
+ * (the platform-admin `listRecentAuditEvents` in platform-reads.ts is deliberately
  * unscoped, spanning every tenant, and must never be reused for this).
  */
 export async function listAuditEventsForApplicant(

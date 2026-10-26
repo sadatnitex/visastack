@@ -87,7 +87,7 @@ function Fixture({ mode }: { mode: Mode }) {
     mode === 'agency'
       ? agencyTabs('synthetic', { admin: true })
       : mode === 'admin'
-        ? platformTabs({ ai: true, complaints: true })
+        ? platformTabs({ ai: true, complaints: true, audit: true, privacy: true })
         : applicantTabs('synthetic');
   return (
     <div className="app-frame">

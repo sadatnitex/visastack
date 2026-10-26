@@ -69,8 +69,9 @@ export {
   type ApplicantAuditEvent,
   checkRecentAuditChain,
   listAuditEventsForApplicant,
-  listRecentAuditEvents,
 } from './audit';
+
+export { listAllApplicants, listRecentAuditEvents } from './platform-reads';
 
 export {
   type AuditCheckpoint,
@@ -131,7 +132,6 @@ export {
   addFamilyMember,
   createApplicant,
   getApplicant,
-  listAllApplicants,
   listApplicants,
 } from './applicants';
 

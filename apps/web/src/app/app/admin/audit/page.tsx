@@ -1,14 +1,14 @@
-import { type AuditEventRow, listRecentAuditEvents } from '@visastack/services';
+import { type AuditEventRow, listRecentAuditEvents, staffPrincipal } from '@visastack/services';
 import type { Metadata } from 'next';
 import { ExactCode } from '../../../../components/exact-code';
 import { EmptyState, StatusBadge } from '../../../../components/ui';
 import { PageHeader } from '../../../../components/ui';
-import { isPlatformAdmin } from '../../../../lib/admin';
+import { bootstrapAdminEmails, isPlatformAdmin } from '../../../../lib/admin';
 import { formatTimestamp } from '../../../../lib/format-date';
 import { auditResultLabel, eventTypeLabel } from '../../../../lib/labels';
 import { withSession } from '../../../../lib/session';
 import { tolerantReader } from '../../../../lib/tolerate';
-import { AdminRestricted } from '../admin-restricted';
+import { AdminNotForRole, AdminRestricted } from '../admin-restricted';
 import { FailedSectionsBanner } from '../failed-sections-banner';
 
 export const metadata: Metadata = { title: 'Audit' };
@@ -19,9 +19,24 @@ export const dynamic = 'force-dynamic';
 export default async function AdminAuditPage() {
   const data = await withSession(async ({ db, accountId, email }) => {
     if (!(await isPlatformAdmin(db, { accountId, email }))) return { admin: false as const };
+    // The whole trail spans every traveller, so it is a security-administrator view.
+    const staff = await staffPrincipal(
+      db,
+      { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
+      'AUDIT_TRAIL_VIEW',
+    );
+    if (!staff.ok) return { admin: true as const, allowed: false as const };
     const { read: t, failed: failedSections } = tolerantReader();
-    const auditEvents = await t('audit events', () => listRecentAuditEvents(db, 50), []);
-    return { admin: true as const, auditEvents, failedSections };
+    const auditEvents = await t(
+      'audit events',
+      async () => {
+        const listed = await listRecentAuditEvents(db, staff.value, 50);
+        if (!listed.ok) throw new Error(listed.error.message);
+        return listed.value;
+      },
+      [],
+    );
+    return { admin: true as const, allowed: true as const, auditEvents, failedSections };
   });
 
   return (
@@ -34,6 +49,8 @@ export default async function AdminAuditPage() {
 
       {!data.admin ? (
         <AdminRestricted />
+      ) : !data.allowed ? (
+        <AdminNotForRole />
       ) : (
         <>
           <FailedSectionsBanner sections={data.failedSections} />

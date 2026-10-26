@@ -1,6 +1,6 @@
 import { type Result, err, ok } from '@visastack/core';
 import { desc, eq, inArray } from 'drizzle-orm';
-import { StaffScope } from './access/principal';
+import { type StaffScope, staffScopeProblem as sharedStaffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -12,19 +12,11 @@ export const AI_PROVIDER_TIERS = ['FREE', 'PAID'] as const;
 export const AI_TRAINING_ANSWERS = ['YES', 'NO', 'UNKNOWN'] as const;
 export const AI_TERMS_TEXT_MAX = 500;
 
-/** How long a staff scope stays good for: minted for one request, never kept. Same window as document protection. */
-const STAFF_SCOPE_MAX_AGE_MS = 5 * 60 * 1000;
-
 /** A genuine, fresh security-admin scope for AI settings, or the refusal to return. */
 function staffScopeProblem(staff: unknown): ServiceError | undefined {
-  if (
-    !StaffScope.isGenuine(staff) ||
-    staff.platformAction !== 'AI_SETTINGS_MANAGE' ||
-    Date.now() - staff.verifiedAt.getTime() > STAFF_SCOPE_MAX_AGE_MS
-  ) {
-    return serviceError('forbidden', 'security-admin permission is required');
-  }
-  return undefined;
+  return sharedStaffScopeProblem(staff, 'AI_SETTINGS_MANAGE')
+    ? serviceError('forbidden', 'security-admin permission is required')
+    : undefined;
 }
 
 /**
