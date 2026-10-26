@@ -22,6 +22,7 @@ import { SHIPPED_MIGRATIONS } from '../../../lib/migration-journal';
 import { type ProviderStatus, describeProviderOperations } from '../../../lib/provider-operations';
 import { evaluateReadiness } from '../../../lib/readiness';
 import { withSession } from '../../../lib/session';
+import { staffFactorMode } from '../../../lib/staff-factor';
 import { tolerantReader } from '../../../lib/tolerate';
 import { UsageMeter } from '../applicant/[id]/usage-meter';
 import { RetryJobButton } from './action-buttons';
@@ -220,6 +221,12 @@ export default async function AdminOperationsPage() {
       ) : (
         <>
           <FailedSectionsBanner sections={data.failedSections} />
+          {staffFactorMode() === 'off' ? (
+            <output className="notice notice-warn u-mb-150">
+              Authenticator codes are not required for staff yet.{' '}
+              <a href="/app/staff-code?returnTo=%2Fapp%2Fadmin">Set up your authenticator app</a>.
+            </output>
+          ) : null}
           <div className="admin-reference-metrics">
             {[
               {

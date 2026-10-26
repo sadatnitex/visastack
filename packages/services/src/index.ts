@@ -74,6 +74,23 @@ export {
 export { listAllApplicants, listRecentAuditEvents } from './platform-reads';
 
 export {
+  STAFF_FACTOR_FRESH_MS,
+  type StaffFactorCoverage,
+  type StaffFactorEnrolment,
+  type StaffFactorStatus,
+  type VerifyStaffFactorSuccess,
+  confirmStaffFactorEnrolment,
+  getStaffFactorStatus,
+  isStaffFactorFresh,
+  regenerateStaffRecoveryCodes,
+  resetStaffSecondFactor,
+  revealPendingStaffEnrolment,
+  staffFactorCoverage,
+  startStaffFactorEnrolment,
+  verifyStaffFactor,
+} from './staff-second-factor';
+
+export {
   type AuditCheckpoint,
   createAuditCheckpoint,
   eventsInCheckpointRange,

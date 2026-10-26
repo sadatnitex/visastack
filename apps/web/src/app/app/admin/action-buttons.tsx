@@ -5,6 +5,7 @@ import { FormMessage, SubmitButton } from '../../../components/form-feedback';
 import {
   type ActionState,
   releaseLegalHoldAction,
+  resetStaffAuthenticatorAction,
   retryErasureJobAction,
   retryJobAction,
   reviewOrganizationAction,
@@ -93,6 +94,37 @@ export function RevokeRoleButton({ grantId }: { readonly grantId: string }) {
         pending={pending}
         idle="Revoke"
         busy="Revoking…"
+        className="btn btn-secondary u-btn-sm"
+      />
+      <FormMessage result={state} />
+    </form>
+  );
+}
+
+export function ResetAuthenticatorButton({
+  targetAccountId,
+}: { readonly targetAccountId: string }) {
+  const [state, formAction, pending] = useActionState(resetStaffAuthenticatorAction, INITIAL);
+  return (
+    <form
+      action={formAction}
+      style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+      onSubmit={(e) => {
+        const form = e.currentTarget;
+        const reason = window.prompt('Why is this authenticator being reset?');
+        if (!reason || reason.trim().length === 0) {
+          e.preventDefault();
+          return;
+        }
+        (form.elements.namedItem('reason') as HTMLInputElement).value = reason.trim();
+      }}
+    >
+      <input type="hidden" name="targetAccountId" value={targetAccountId} />
+      <input type="hidden" name="reason" value="" />
+      <SubmitButton
+        pending={pending}
+        idle="Reset Authenticator"
+        busy="Resetting…"
         className="btn btn-secondary u-btn-sm"
       />
       <FormMessage result={state} />

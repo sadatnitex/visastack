@@ -4009,3 +4009,42 @@ export const referenceCodes = pgTable(
     check('reference_codes_code_format', sql`${table.code} ~ '^[0-9A-HJKMNP-TV-Z]{6,8}$'`),
   ],
 );
+
+// --- Staff second factor (S2/S3, M08) ---
+// One authenticator-app factor per account that holds a platform role. The secret is envelope
+// encrypted with the same key port as protected fields (never plaintext); recovery codes are
+// stored only as hashes. `last_used_step` stops a code being used twice; the verified session
+// reference ties "this person just proved the code" to one sign-in, so a stolen password used
+// on another device does not inherit it.
+export const staffSecondFactors = pgTable(
+  'staff_second_factors',
+  {
+    accountId: uuid('account_id')
+      .primaryKey()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    status: text('status').notNull().default('PENDING'),
+    // New for every enrolment: binds the encrypted secret to this attempt.
+    enrolmentId: uuid('enrolment_id').notNull().defaultRandom(),
+    secretCiphertext: bytea('secret_ciphertext').notNull(),
+    secretNonce: bytea('secret_nonce').notNull(),
+    secretKeyVersion: text('secret_key_version').notNull(),
+    lastUsedStep: bigint('last_used_step', { mode: 'number' }),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    verifiedSessionRef: text('verified_session_ref'),
+    recoveryCodeHashes: text('recovery_code_hashes').array().notNull().default(sql`'{}'::text[]`),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('staff_second_factors_status', sql`${table.status} in ('PENDING', 'ACTIVE')`),
+    check(
+      'staff_second_factors_active_confirmed',
+      sql`${table.status} <> 'ACTIVE' or ${table.confirmedAt} is not null`,
+    ),
+    check(
+      'staff_second_factors_recovery_max',
+      sql`coalesce(array_length(${table.recoveryCodeHashes}, 1), 0) <= 10`,
+    ),
+  ],
+);
