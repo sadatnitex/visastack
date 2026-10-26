@@ -32,6 +32,7 @@ import {
   listSelectedEvidence,
   listSubmissionsForMission,
   listTasks,
+  referenceCodeFor,
   requireAccess,
   safeHttpUrl,
 } from '@visastack/services';
@@ -43,6 +44,7 @@ import {
   CasePreparationSummary,
   CaseStageTracker,
 } from '../../../../components/case-preparation-summary';
+import { ReferenceCode } from '../../../../components/reference-code';
 import { Disclosure, PageHeader, StatusBadge } from '../../../../components/ui';
 import { isExplanationConfigured } from '../../../../lib/ai';
 import { memoryHref } from '../../../../lib/application-memory-labels';
@@ -394,7 +396,10 @@ export default async function MissionPage({
       const linkedApplicant = await getApplicant(db, m.applicantId);
       linkedApplicantNames.set(m.applicantId, linkedApplicant?.displayName ?? 'Applicant');
     }
+    // The case's visible code (ADR 0018); none while migration 0091 has not run.
+    const referenceCode = await referenceCodeFor(db, 'C', mission.id);
     return {
+      referenceCode,
       mission,
       applicantName: applicant?.displayName ?? 'Applicant',
       applicantId: mission.applicantId,
@@ -603,6 +608,7 @@ export default async function MissionPage({
               {mission.destination ? `${mission.destination} · ` : ''}
               {STATE_LABELS[mission.state] ?? mission.state}
             </span>
+            <ReferenceCode code={data.referenceCode} label="Case Reference" />
             {data.liveAcknowledgedAt ? (
               <StatusBadge tone="success">
                 Confirmed by the applicant on {formatTimestampDate(data.liveAcknowledgedAt)}

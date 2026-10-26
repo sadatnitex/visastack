@@ -4,6 +4,7 @@ import { renderServer, stub, stubProps, textOf } from '../../../../lib/next-mock
 const ok = <T,>(value: T) => ({ ok: true as const, value });
 
 const mocks = vi.hoisted(() => ({
+  referenceCodeFor: vi.fn(async (): Promise<string | null> => null),
   computeReadiness: vi.fn(),
   getApplicant: vi.fn(),
   getEvidenceCandidates: vi.fn(),
@@ -179,6 +180,20 @@ function order(html: string, markers: readonly string[]): number[] {
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+describe('the case reference code (ADR 0018)', () => {
+  it('shows the case code in the header, and nothing before migration 0091 has run', async () => {
+    setUp();
+    mocks.referenceCodeFor.mockResolvedValueOnce('C-7K2Q9M');
+    const html = await render();
+    expect(mocks.referenceCodeFor).toHaveBeenCalledWith(expect.anything(), 'C', expect.any(String));
+    expect(textOf(html)).toContain('Case Reference');
+    expect(html).toContain('C-7K2Q9M');
+    setUp();
+    const without = textOf(await render());
+    expect(without).not.toContain('Case Reference');
+  });
 });
 
 describe('case page as it is today (WP-X1 characterization)', () => {
