@@ -44,4 +44,5 @@ export type { CalendarPublisher, CalendarSyncOutcome } from './port';
 export { CALENDAR_SEQUENCE_EPOCH, calendarSequence } from './sequence';
 export { sha256Hex } from './sha256';
 export { canonicalTimeZone, isKnownTimeZone, utcToWallClock, wallClockToUtc } from './time';
+export { CURRENT_TIME_ZONE_NAMES, currentTimeZoneName } from './zone-names';
 export { CALENDAR_UID_NAMESPACE, calendarUid } from './uid';

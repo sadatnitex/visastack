@@ -11,7 +11,7 @@ import { type Result, err, ok } from '@visastack/core';
 import { authorize } from '@visastack/policy';
 import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access/require-access';
-import { recognisedTimeZone } from './attention';
+import { latestTimeZoneName, recognisedTimeZone } from './attention';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { isDocumentVersionUsable } from './documents';
@@ -524,7 +524,7 @@ export async function createTaskForOrg(
             description,
             assigneeAccountId: input.assigneeAccountId ?? null,
             dueDate: input.dueDate ?? null,
-            dueTimezone: input.dueTimezone ?? null,
+            dueTimezone: latestTimeZoneName(input.dueTimezone ?? null),
             ...(input.priority ? { priority: input.priority } : {}),
           })
           .returning(),
@@ -602,7 +602,7 @@ export async function updateTaskForOrg(
     if (input.dueTimezone !== undefined) {
       changes = {
         ...changes,
-        dueTimezone: { before: task.dueTimezone, after: input.dueTimezone },
+        dueTimezone: { before: task.dueTimezone, after: latestTimeZoneName(input.dueTimezone) },
       };
     }
     if (input.priority !== undefined) {
@@ -619,7 +619,9 @@ export async function updateTaskForOrg(
               ? { assigneeAccountId: input.assigneeAccountId }
               : {}),
             ...(input.dueDate !== undefined ? { dueDate: input.dueDate } : {}),
-            ...(input.dueTimezone !== undefined ? { dueTimezone: input.dueTimezone } : {}),
+            ...(input.dueTimezone !== undefined
+              ? { dueTimezone: latestTimeZoneName(input.dueTimezone) }
+              : {}),
             ...(input.priority !== undefined ? { priority: input.priority } : {}),
             updatedAt: new Date(),
           })

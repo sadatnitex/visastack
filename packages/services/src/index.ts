@@ -703,6 +703,7 @@ export {
   daysUntilDueDay,
   listCalendarDates,
   listNeedsAttention,
+  latestTimeZoneName,
   recognisedTimeZone,
   rankAttentionItems,
   recordCalendarExport,

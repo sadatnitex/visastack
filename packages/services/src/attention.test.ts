@@ -19,6 +19,7 @@ import {
   WITH_AGENCY_REQUEST_STATUSES,
   attentionTier,
   daysUntilDueDay,
+  latestTimeZoneName,
   listCalendarDates,
   listNeedsAttention,
   rankAttentionItems,
@@ -1178,14 +1179,17 @@ describe('recognisedTimeZone and appointment time zones (used to place appointme
     expect(recognisedTimeZone(' Asia/Dhaka ')).toBe('Asia/Dhaka');
     expect(recognisedTimeZone('America/Los_Angeles')).toBe('America/Los_Angeles');
     expect(recognisedTimeZone('UTC')).toBe('UTC');
-    // Never swapped for an older or different name for the same zone, whatever the runtime reports.
+    // Always the latest official name (owner rule, 26 Oct 2026), whatever the runtime reports.
     expect(recognisedTimeZone('Asia/Kolkata')).toBe('Asia/Kolkata');
     expect(recognisedTimeZone('asia/kolkata')).toBe('Asia/Kolkata');
-    expect(recognisedTimeZone('Europe/Kyiv')).toBe('Europe/Kyiv');
+    expect(recognisedTimeZone('Asia/Calcutta')).toBe('Asia/Kolkata');
+    expect(recognisedTimeZone(' Asia/Dacca ')).toBe('Asia/Dhaka');
+    expect(recognisedTimeZone('Europe/Kiev')).toBe('Europe/Kyiv');
     expect(recognisedTimeZone('asia/kathmandu')).toBe('Asia/Kathmandu');
     expect(recognisedTimeZone('America/Nuuk')).toBe('America/Nuuk');
-    expect(recognisedTimeZone('Asia/Calcutta')).toBe('Asia/Calcutta');
-    expect(recognisedTimeZone('EST')).toBe('EST');
+    expect(latestTimeZoneName('Asia/Dacca')).toBe('Asia/Dhaka');
+    expect(latestTimeZoneName(null)).toBeNull();
+    expect(latestTimeZoneName('Not A Zone')).toBe('Not A Zone');
     for (const bad of [
       '',
       'Mars/Olympus_Mons',

@@ -5,7 +5,7 @@ import { and, desc, eq, inArray } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access';
 import { orgGrantPermits } from './agency';
 import { getApplicant } from './applicants';
-import { recognisedTimeZone } from './attention';
+import { latestTimeZoneName, recognisedTimeZone } from './attention';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
@@ -1933,7 +1933,7 @@ export async function createTask(
             description,
             assigneeAccountId: input.assigneeAccountId ?? null,
             dueDate: input.dueDate ?? null,
-            dueTimezone: input.dueTimezone ?? null,
+            dueTimezone: latestTimeZoneName(input.dueTimezone ?? null),
             ...(input.priority ? { priority: input.priority } : {}),
           })
           .returning(),
@@ -2090,7 +2090,7 @@ export async function updateTask(
     if (input.dueTimezone !== undefined) {
       changes = {
         ...changes,
-        dueTimezone: { before: task.dueTimezone, after: input.dueTimezone },
+        dueTimezone: { before: task.dueTimezone, after: latestTimeZoneName(input.dueTimezone) },
       };
     }
     if (input.priority !== undefined) {
@@ -2107,7 +2107,9 @@ export async function updateTask(
               ? { assigneeAccountId: input.assigneeAccountId }
               : {}),
             ...(input.dueDate !== undefined ? { dueDate: input.dueDate } : {}),
-            ...(input.dueTimezone !== undefined ? { dueTimezone: input.dueTimezone } : {}),
+            ...(input.dueTimezone !== undefined
+              ? { dueTimezone: latestTimeZoneName(input.dueTimezone) }
+              : {}),
             ...(input.priority !== undefined ? { priority: input.priority } : {}),
             updatedAt: new Date(),
           })

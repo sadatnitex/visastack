@@ -1,5 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
-import { type CalendarKind, canonicalTimeZone, isCalendarKind } from '@visastack/core/calendar';
+import { type CalendarKind, currentTimeZoneName, isCalendarKind } from '@visastack/core/calendar';
 import { and, asc, count, eq, gte, inArray, isNotNull, isNull, min, or } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access/require-access';
 import { appendAuditEvent } from './audit';
@@ -627,42 +627,26 @@ export const CALENDAR_PAST_DAYS = 7;
 const CALENDAR_CASE_TITLE_MAX = 80;
 
 /**
- * Current names whose older spelling some runtimes still report as canonical (Node 22 resolves
- * Asia/Kolkata to Asia/Calcutta and Europe/Kyiv to Europe/Kiev). Keyed by the runtime's name, so a
- * person who types the current name in any letter case keeps it, correctly capitalised.
- */
-const CURRENT_ZONE_NAMES: Readonly<Record<string, string>> = {
-  'Asia/Calcutta': 'Asia/Kolkata',
-  'Asia/Dacca': 'Asia/Dhaka',
-  'Asia/Katmandu': 'Asia/Kathmandu',
-  'Asia/Rangoon': 'Asia/Yangon',
-  'Asia/Saigon': 'Asia/Ho_Chi_Minh',
-  'Europe/Kiev': 'Europe/Kyiv',
-  'America/Godthab': 'America/Nuuk',
-  'Atlantic/Faeroe': 'Atlantic/Faroe',
-  'Pacific/Enderbury': 'Pacific/Kanton',
-};
-
-/**
  * A time zone name only if it is a well-formed IANA name this runtime knows (letters, digits,
- * "_", "+", "-" and "/"; no spaces or line breaks); otherwise null. The name kept is the one the
- * person typed, never swapped for another name for the same zone: when the runtime's spelling
- * differs only in letter case it is used ("asia/dhaka" becomes "Asia/Dhaka"); a current name the
- * runtime reports under an older one keeps its current, correctly capitalised form
- * ("asia/kolkata" becomes "Asia/Kolkata", never "Asia/Calcutta"); any other alias is kept exactly
- * as typed ("EST" stays "EST"). Used where a zone is saved (appointments) and where one is read
- * back to place an appointment in UTC; the zone's rules are the same whichever name is kept.
+ * "_", "+", "-" and "/"; no spaces or line breaks), always in its latest official name
+ * (`currentTimeZoneName`: "asia/dhaka" and "Asia/Dacca" become "Asia/Dhaka", "Asia/Calcutta"
+ * becomes "Asia/Kolkata"); otherwise null. Owner rule, 26 Oct 2026. Used where a zone is saved
+ * (appointments, task due zones) and where one is read back to place an appointment in UTC; the
+ * zone's clock rules are the same under the old and the current name.
  */
 export function recognisedTimeZone(name: string): string | null {
   const trimmed = name.trim();
   if (!/^[A-Za-z][A-Za-z0-9_+\-/]{0,63}$/.test(trimmed)) return null;
-  const canonical = canonicalTimeZone(trimmed);
-  if (!canonical) return null;
-  const typed = trimmed.toLowerCase();
-  if (canonical.toLowerCase() === typed) return canonical;
-  const current = CURRENT_ZONE_NAMES[canonical];
-  if (current && current.toLowerCase() === typed) return current;
-  return trimmed;
+  return currentTimeZoneName(trimmed);
+}
+
+/**
+ * A task's due zone in its latest official name when the runtime knows it ("Asia/Dacca" becomes
+ * "Asia/Dhaka"); any other value, or none, is kept as before, so a task is never refused here.
+ */
+export function latestTimeZoneName(name: string | null): string | null {
+  if (name === null) return null;
+  return recognisedTimeZone(name) ?? name;
 }
 
 /** The order key of an item: a date-only key sorts before any time on the same day. */
