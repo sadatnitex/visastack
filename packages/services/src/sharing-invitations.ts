@@ -1,5 +1,6 @@
 import { type Result, err, ok } from '@visastack/core';
 import { and, desc, eq, gt } from 'drizzle-orm';
+import { loadInvitationCaseExclusions } from './access/grant-scope';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
@@ -166,6 +167,11 @@ export async function acceptSharingInvitation(
         .update(schema.grants)
         .set({ documentScopeSnapshot: invite.documentScopeSnapshot })
         .where(eq(schema.grants.id, created.value.id));
+      // Per-case sharing exceptions (ADR 0017) recorded against this
+      // invitation move onto the new grant before it becomes active, in this
+      // same transaction, so the grant never reaches a case the owner said no
+      // to. Before migration 0090 none can exist, and none are read.
+      const carried = await carryCaseExclusions(tx, invite, created.value.id);
       const accepted = await acceptGrant(tx, {
         actorAccountId: input.actorAccountId,
         grantId: created.value.id,
@@ -184,6 +190,7 @@ export async function acceptSharingInvitation(
         resourceId: invite.id,
         method: 'MANUAL',
         result: 'ALLOWED',
+        ...(carried > 0 ? { metadata: { caseExceptions: carried } } : {}),
       });
       return ok(accepted.value.id);
     })
@@ -191,6 +198,35 @@ export async function acceptSharingInvitation(
       if (error instanceof SharingAcceptanceError) return err(error.serviceError);
       throw error;
     });
+}
+
+/**
+ * Copies an all-cases invitation's case exceptions onto the grant it became
+ * and removes the invitation-bound rows. Returns how many were carried.
+ */
+async function carryCaseExclusions(
+  tx: Db,
+  invite: SharingInvitation,
+  grantId: string,
+): Promise<number> {
+  if (invite.missionId !== null) return 0;
+  const missionIds = (await loadInvitationCaseExclusions(tx, [invite.id])).get(invite.id) ?? [];
+  if (missionIds.length === 0) return 0;
+  await tx
+    .insert(schema.grantCaseExclusions)
+    .values(
+      missionIds.map((missionId) => ({
+        grantId,
+        missionId,
+        applicantId: invite.applicantId,
+        createdByAccountId: invite.invitedByAccountId,
+      })),
+    )
+    .onConflictDoNothing();
+  await tx
+    .delete(schema.grantCaseExclusions)
+    .where(eq(schema.grantCaseExclusions.sharingInvitationId, invite.id));
+  return missionIds.length;
 }
 
 class SharingAcceptanceError extends Error {
