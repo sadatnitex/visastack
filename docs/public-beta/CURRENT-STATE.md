@@ -63,3 +63,19 @@ An interface upgrade is under way and is recorded in [the experience upgrade han
 ## Client invitations update, 2026-10-25
 
 Client invitations now go to an email address only and are bound to it: only an account signed in with that address can open or accept one, as with team invitations. A phone number is refused when the invitation is created, and an older invitation saved with a phone number can no longer be accepted (the agency's client list says to revoke it and invite again by email). This replaces the "Client links retain authenticated token-holder acceptance" and "Phone contacts use manual link sharing" parts of the invitations row above. Details: [known issues, client invitations are email only](../commercial-v1/known-issues.md).
+
+
+## Update, 2026-10-26
+
+This section supersedes the rows above where they differ. Earlier rows stay as the record of their checkpoints.
+
+- **Identity:** WorkOS is retired (#237). Neon Auth is the only sign-in system; any other identity setting is refused and reported by readiness. The public beta (free, at your own risk, #233) opens public sign-up only when `PUBLIC_BETA_OPEN=true` and Neon Auth is fully configured; otherwise sign-up is invite-only.
+- **Database:** 90 migrations applied in production. The latest three were each run right after their merge with the owner's approval for that run: 0087 document protection switches, 0088 profile photos, 0089 AI provider data terms.
+- **Traveller workspace:** task-first first run; four tabs (Home, Record, Cases, Sharing) with My Profile, Documents, Dates & Expiry and History inside the Record hub; case journey view and changed-case alert; Application Memory and then-and-now view; profile photos; visa photo sizes cut on request from one passport photo (no acceptance claim).
+- **AI:** suggestions are saved only after a person approves, including the AI document kind and name (on request). What Your Documents Show names restricted documents by kind and section only. Readiness now reports AI extraction from the same decision the live calls use, including the admin AI settings (#270); production readiness returned "available" when checked live on 25 Oct 2026 at 20:22 UTC and 26 Oct 2026 at 00:21 UTC. Provider data terms are recorded per configuration. The "Only Use AI Providers That Do Not Train on Inputs" setting is built and off (owner decision: free tiers are not blocked until the owner says so), and a setting that cannot be read also counts as off.
+- **Sharing:** the safe copy permission is shown as "Download Safe Copies" and is grantable; today it covers visa photo sizes. Real redaction of documents is parked by the owner, and readiness still reports redacted download as disabled.
+- **Agencies:** triage groups, a Do Next list (its ranking rule is recorded) and a copy-ready follow-up message the agency sends itself.
+- **Still open:** malware scanning (readiness reports it unconfigured), staff two-step sign-in acceptance, document and key recovery, real applicant data (disabled), payments (parked), Bangla (deferred). The final release review is Programme X WP-V6 and needs the owner's explicit decision.
+
+Evidence for each merge: [known issues](../commercial-v1/known-issues.md) and [the session handoff](../upgrades/programme/SESSION-HANDOFF-2026-10-25-evening.md).
+

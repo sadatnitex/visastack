@@ -8,6 +8,10 @@ that changes behavior.
 
 Start with [current operating guidance](operations/current-platform.md), [public-beta contract](public-beta/PRODUCT-CONTRACT.md), [deployment actions](public-beta/DEPLOYMENT-ACTIONS.md) and [release acceptance](public-beta/RELEASE-ACCEPTANCE-CHECKPOINT.md). Earlier Commercial V1 records and ADRs remain evidence and requirements, rather than current provider-setup instructions. See [the communications and documentation register](public-beta/DOCUMENTATION-COMMUNICATIONS-REGISTER.md).
 
+## Current work (updated 26 October 2026)
+
+Programme X (interface upgrade plus the v1.2 functional spec) is the active programme. Start with [its status](upgrades/programme/STATUS.md), then [the latest session handoff](upgrades/programme/SESSION-HANDOFF-2026-10-25-evening.md), the [programme contract](upgrades/programme/PROGRAMME.md) and [work packages](upgrades/programme/WORK-PACKAGES.md). Each package may edit only the files on its allowlist (`upgrades/programme/allowlists/`). Evidence goes in [the coverage ledger](upgrades/programme/COVERAGE-LEDGER.csv) and [the known-issues log](commercial-v1/known-issues.md).
+
 ## Map
 
 | Area | Path | Purpose |
@@ -25,6 +29,11 @@ Start with [current operating guidance](operations/current-platform.md), [public
 | - Test evidence | [`commercial-v1/test-evidence.md`](commercial-v1/test-evidence.md) | Exact commands, commit, environment, and pass/fail status for every quality-gate run this programme has executed. |
 | - Supersession map | [`commercial-v1/supersession-map.md`](commercial-v1/supersession-map.md) | Directive lineage: which prior engagement briefs/directives this programme supersedes, and what stands as completed history. |
 | - Release gate | [`commercial-v1/release-gate.md`](commercial-v1/release-gate.md) | The Part 10 release-eligibility record; populated only once the programme reaches a verdict. Currently not eligible. |
+| **Programme X** | [`upgrades/programme/`](upgrades/programme/) | Status (overwritten each package), work packages, allowlists, coverage ledger, route map and session handoffs. |
+| - Functional spec | [`upgrades/upgrade.v1.2.execution.md`](upgrades/upgrade.v1.2.execution.md) | The v1.2 requirements (U, E, B, T and R ids) the packages implement. |
+| **Current product state** | [`public-beta/CURRENT-STATE.md`](public-beta/CURRENT-STATE.md) | What is deployed, what has evidence and what acceptance is open. |
+| **Legal drafts for the owner** | [`legal/`](legal/) | AI processing review and a privacy-notice AI section draft. Reviews, not legal advice; no compliance claims. |
+| **Runbooks** | [`operations/runbooks/`](operations/runbooks/) | Step-by-step operating procedures (switching AI providers). |
 | Decisions | [`adr/`](adr/) | Architecture Decision Records - why we chose what we chose. |
 | Architecture | [`architecture/overview.md`](architecture/overview.md) | System context, layering, boundaries. |
 | - Data model | [`architecture/data-model.md`](architecture/data-model.md) | Canonical entities, fact/snapshot immutability. |
@@ -35,7 +44,7 @@ Start with [current operating guidance](operations/current-platform.md), [public
 | - Tenant isolation | [`security/tenant-isolation-matrix.md`](security/tenant-isolation-matrix.md) | Cross-tenant boundary → enforcement → test map (living). |
 | - Document trust boundary | [`security/document-trust-boundary.md`](security/document-trust-boundary.md) | Upload/scan/serve boundary → enforcement → test map (living). |
 | - Erasure & retention | [`security/erasure-and-retention-boundary.md`](security/erasure-and-retention-boundary.md) | Deletion outbox, legal hold, account export boundary → enforcement → test map (living). |
-| - Identity & step-up | [`security/identity-and-step-up-boundary.md`](security/identity-and-step-up-boundary.md) | WorkOS identity binding, platform-role administration, step-up/reauthentication → enforcement → test map (living). |
+| - Identity & step-up | [`security/identity-and-step-up-boundary.md`](security/identity-and-step-up-boundary.md) | Identity binding, platform-role administration, step-up/reauthentication → enforcement → test map (written for WorkOS; Neon Auth has been the only sign-in system since #237). |
 | - Durable jobs & upload integrity | [`security/durable-jobs-and-upload-integrity-boundary.md`](security/durable-jobs-and-upload-integrity-boundary.md) | Job leases/uniqueness, processing idempotency, upload consistency, free-tier controls → enforcement → test map (living). |
 | Roadmap | [`roadmap/phase-plan.md`](roadmap/phase-plan.md) | Delivery sequence (Build Spec §20). |
 | - Acceptance | [`roadmap/acceptance-criteria.md`](roadmap/acceptance-criteria.md) | Release gates (Build Spec §19). |
