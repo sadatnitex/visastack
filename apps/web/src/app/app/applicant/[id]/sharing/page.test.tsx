@@ -20,6 +20,7 @@ vi.mock('./actions', () => ({ revokeSharingInvitationAction: vi.fn() }));
 vi.mock('./grant-form', () => ({ GrantForm: stub('GrantForm') }));
 vi.mock('./grant-op-buttons', () => ({ GrantOpButtons: stub('GrantOpButtons') }));
 vi.mock('./scope-expansion-form', () => ({ ScopeExpansionForm: stub('ScopeExpansionForm') }));
+vi.mock('./case-exceptions', () => ({ CaseExceptions: stub('CaseExceptions') }));
 const { default: Page } = await import('./page');
 const render = () => renderServer(Page({ params: Promise.resolve({ id: 'owned' }) }));
 function grant(status: string, id = status) {
@@ -34,6 +35,7 @@ function grant(status: string, id = status) {
     purpose: 'Visa review',
     expiryAt: null,
     acceptedAt: null,
+    caseExceptions: [] as { missionId: string; missionTitle: string; since: Date }[],
   };
 }
 beforeEach(() => {
@@ -182,5 +184,48 @@ describe('Share from the Record (WP-V3 part 2)', () => {
   it('without a choice the form starts as before', async () => {
     const [form] = stubProps<{ initialDocumentId?: string }>(await render(), 'GrantForm');
     expect(form?.initialDocumentId).toBeUndefined();
+  });
+});
+
+describe('per-case sharing exceptions on the Sharing page', () => {
+  const exception = { missionId: 'case-2', missionTitle: 'Japan trip 2026', since: new Date() };
+  it('lists the cases an all-cases access does not cover, for live access only', async () => {
+    mocks.listAccessForApplicantDetailed.mockResolvedValue({
+      ok: true,
+      value: [
+        { ...grant('ACTIVE', 'live'), caseExceptions: [exception] },
+        { ...grant('REVOKED', 'ended'), caseExceptions: [exception] },
+        { ...grant('ACTIVE', 'case-only'), missionId: 'case-1', caseExceptions: [] },
+        { ...grant('PAUSED', 'none'), caseExceptions: [] },
+      ],
+    });
+    const html = await render();
+    const lists = stubProps<{
+      grantId: string;
+      applicantId: string;
+      recipientLabel: string;
+      exceptions: { missionId: string; title: string }[];
+    }>(html, 'CaseExceptions');
+    expect(lists).toEqual([
+      {
+        applicantId: 'owned',
+        grantId: 'live',
+        recipientLabel: 'Synthetic recipient',
+        exceptions: [{ missionId: 'case-2', title: 'Japan trip 2026' }],
+      },
+    ]);
+  });
+  it('shows nothing for access that has run out', async () => {
+    mocks.listAccessForApplicantDetailed.mockResolvedValue({
+      ok: true,
+      value: [
+        {
+          ...grant('ACTIVE', 'old'),
+          expiryAt: new Date(Date.now() - 1000).toISOString(),
+          caseExceptions: [exception],
+        },
+      ],
+    });
+    expect(stubProps(await render(), 'CaseExceptions')).toHaveLength(0);
   });
 });

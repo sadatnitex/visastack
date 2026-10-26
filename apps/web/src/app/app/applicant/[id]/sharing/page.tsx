@@ -25,6 +25,7 @@ import { categoryLabel, newCategoriesWithData } from '../../../../../lib/master-
 import { plural } from '../../../../../lib/plural';
 import { withSession } from '../../../../../lib/session';
 import { revokeSharingInvitationAction } from './actions';
+import { CaseExceptions } from './case-exceptions';
 import { GrantForm } from './grant-form';
 import { GrantOpButtons } from './grant-op-buttons';
 import { ScopeExpansionForm } from './scope-expansion-form';
@@ -228,6 +229,21 @@ export default async function SharingPage({
                               ? [{ op: 'revoke' as const, label: 'Revoke', variant: 'btn-danger' }]
                               : []),
                           ]}
+                        />
+                      ) : null}
+                      {grant.missionId === null &&
+                      canRevoke &&
+                      grant.caseExceptions.length > 0 &&
+                      (grant.expiryAt === null ||
+                        new Date(grant.expiryAt).getTime() > Date.now()) ? (
+                        <CaseExceptions
+                          applicantId={id}
+                          grantId={grant.id}
+                          recipientLabel={grant.recipient.label}
+                          exceptions={grant.caseExceptions.map((exception) => ({
+                            missionId: exception.missionId,
+                            title: exception.missionTitle,
+                          }))}
                         />
                       ) : null}
                       {(() => {

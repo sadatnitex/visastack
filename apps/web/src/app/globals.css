@@ -7524,3 +7524,23 @@ summary.visa-photo-title {
 .home-journey-card .btn {
   min-height: 44px;
 }
+
+/* WP-V4 case exceptions (ADR 0017): on Sharing, the cases one all-cases share does not cover, each
+   with Allow This Case and its in-page question. */
+.sharing-case-exceptions {
+  display: grid;
+  gap: 0.35rem;
+}
+.sharing-case-exceptions-list {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding-left: 1.1rem;
+}
+.sharing-case-exception,
+.sharing-case-exception-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}

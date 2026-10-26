@@ -29,6 +29,13 @@ grant start/expiry · risk context · step-up status.
 8. Support/admin access is **not** an ordinary role permission — it is
    just-in-time, reasoned, approved, time-limited, and visible to the
    applicant.
+9. A per-case sharing exception removes exactly one case from an all-cases
+   grant (ADR 0017). The grant keeps covering every other case. Documents and
+   profile details keep their own grant scope: an exception hides only what
+   belongs to the case (the case, its evidence links, requirements, requests,
+   notes, tasks, appointments, decisions and outputs). One rule decides it,
+   `grantCoversMission` in packages/policy, with its SQL form
+   `grantCoversCaseSql` proven equal by a test.
 
 ## Step-up authentication
 

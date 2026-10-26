@@ -113,6 +113,16 @@ export default async function ApplicationMemoryPage({
                   <Link href={`/app/mission/${item.missionId}`}>{item.title}</Link>
                 </h3>
                 <p className="memory-case-meta">{meta.join(' · ')}</p>
+                {item.notSharedWith && item.notSharedWith.length > 0 ? (
+                  <p className="memory-case-note">
+                    Not shared with{' '}
+                    {item.notSharedWith
+                      .map((e) => e.recipientName ?? 'a removed recipient')
+                      .join(', ')}
+                    , who can see your other cases.{' '}
+                    <Link href={`/app/applicant/${id}/sharing`}>Manage Sharing</Link>
+                  </p>
+                ) : null}
                 {item.removed ? (
                   <p className="memory-case-note">
                     This case's files were removed at the end of its keep period. The record of what
