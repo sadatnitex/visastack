@@ -9,9 +9,11 @@ import {
   activateAiProviderConfigAction,
   createDraftAiProviderConfigAction,
   emergencyDisableAiProviderConfigAction,
+  recordAiProviderTermsAction,
   revokeAiProviderConfigKeyAction,
   rollbackAiProviderConfigAction,
   runAiProviderConfigEvaluationAction,
+  setAiDataRuleAction,
   testAiProviderConfigAction,
 } from './actions';
 
@@ -230,6 +232,7 @@ export function CreateDraftConfigForm({
           ))}
         </select>
       </div>
+      <TermsFields idPrefix="draft" optional />
       <div className="field-row">
         <label className="field-label" htmlFor="notes">
           Notes (Optional)
@@ -405,6 +408,186 @@ export function RevokeKeyButton({ configId }: { readonly configId: string }) {
         className="btn btn-danger u-btn-sm"
       />
       <StatusMessage state={state} />
+    </form>
+  );
+}
+
+/**
+ * What the provider's own terms say about the account behind this
+ * configuration (owner decision 2026-10-25). On the draft form the whole
+ * group is optional (leave the plan as "Not Recorded Yet" to skip it); on
+ * the record form every answer is required except retention, region and
+ * notes. A "does not train" answer needs the address of the terms, which the
+ * server also checks.
+ */
+function TermsFields({
+  idPrefix,
+  optional = false,
+}: {
+  readonly idPrefix: string;
+  readonly optional?: boolean;
+}) {
+  const id = (name: string) => `${idPrefix}-${name}`;
+  return (
+    <fieldset className="field-list">
+      <legend className="field-label">Provider Data Terms</legend>
+      <div className="field-row">
+        <label className="field-label" htmlFor={id('termsTier')}>
+          Plan
+        </label>
+        <select
+          id={id('termsTier')}
+          name="termsTier"
+          className="input"
+          defaultValue=""
+          required={!optional}
+        >
+          <option value="">{optional ? 'Not Recorded Yet' : 'Choose'}</option>
+          <option value="FREE">Free</option>
+          <option value="PAID">Paid</option>
+        </select>
+      </div>
+      <div className="field-row">
+        <label className="field-label" htmlFor={id('termsTrains')}>
+          May Train on What It Is Sent
+        </label>
+        <select id={id('termsTrains')} name="termsTrains" className="input" defaultValue="UNKNOWN">
+          <option value="UNKNOWN">Not Known</option>
+          <option value="YES">Yes</option>
+          <option value="NO">No</option>
+        </select>
+      </div>
+      <div className="field-row">
+        <label className="field-label" htmlFor={id('termsRetentionDays')}>
+          Kept for How Many Days (Optional)
+        </label>
+        <input
+          id={id('termsRetentionDays')}
+          name="termsRetentionDays"
+          type="number"
+          min="0"
+          max="3650"
+          step="1"
+          className="input"
+          placeholder="e.g. 30"
+        />
+      </div>
+      <div className="field-row">
+        <label className="field-label" htmlFor={id('termsRegion')}>
+          Where It Is Processed (Optional)
+        </label>
+        <input
+          id={id('termsRegion')}
+          name="termsRegion"
+          type="text"
+          maxLength={120}
+          className="input"
+          placeholder="e.g. United States"
+        />
+      </div>
+      <div className="field-row">
+        <label className="field-label" htmlFor={id('termsUrl')}>
+          Terms Address
+        </label>
+        <input
+          id={id('termsUrl')}
+          name="termsUrl"
+          type="url"
+          maxLength={500}
+          className="input"
+          placeholder="https://"
+        />
+      </div>
+      <div className="field-row">
+        <label className="field-label" htmlFor={id('termsCheckedOn')}>
+          Date Checked
+        </label>
+        <input
+          id={id('termsCheckedOn')}
+          name="termsCheckedOn"
+          type="date"
+          className="input"
+          required={!optional}
+        />
+      </div>
+      <div className="field-row">
+        <label className="field-label" htmlFor={id('termsNotes')}>
+          What the Terms Say (Optional)
+        </label>
+        <input
+          id={id('termsNotes')}
+          name="termsNotes"
+          type="text"
+          maxLength={500}
+          className="input"
+          placeholder="Short note, e.g. section name"
+        />
+      </div>
+    </fieldset>
+  );
+}
+
+/** Record a fresh reading of the provider's terms for one configuration. Saved as a new entry; earlier entries stay in the history. */
+export function RecordTermsForm({ configId }: { readonly configId: string }) {
+  const [state, formAction, pending] = useActionState(recordAiProviderTermsAction, INITIAL);
+  return (
+    <form action={formAction} className="field-list">
+      <input type="hidden" name="configId" value={configId} />
+      <TermsFields idPrefix={`terms-${configId}`} />
+      <div>
+        <SubmitButton
+          pending={pending}
+          idle="Save Data Terms"
+          busy="Saving…"
+          className="btn btn-secondary u-btn-sm"
+        />
+        <StatusMessage state={state} />
+      </div>
+    </form>
+  );
+}
+
+/**
+ * The platform switch "Only Use AI Providers That Do Not Train on Inputs"
+ * (owner decision 2026-10-25: off by default). Changing it asks for a fresh
+ * sign-in check and is written to the audit history.
+ */
+export function DataRuleForm({ requireNoTraining }: { readonly requireNoTraining: boolean }) {
+  const [state, formAction, pending] = useActionState(setAiDataRuleAction, INITIAL);
+  return (
+    <form
+      action={formAction}
+      className="field-list"
+      onSubmit={(e) => {
+        const message = requireNoTraining
+          ? 'Turn this off? AI will run on every active provider again, including ones that may train on what they are sent.'
+          : 'Turn this on? AI stops at once for any provider not recorded as leaving inputs alone. People can still fill in everything themselves.';
+        if (!window.confirm(message)) e.preventDefault();
+      }}
+    >
+      <input type="hidden" name="requireNoTraining" value={requireNoTraining ? 'off' : 'on'} />
+      <div className="field-row">
+        <label className="field-label" htmlFor="dataRuleReason">
+          Reason (Optional)
+        </label>
+        <input
+          id="dataRuleReason"
+          name="reason"
+          type="text"
+          maxLength={500}
+          className="input"
+          placeholder="e.g. Real applicants invited"
+        />
+      </div>
+      <div>
+        <SubmitButton
+          pending={pending}
+          idle={requireNoTraining ? 'Turn Off' : 'Turn On'}
+          busy="Saving…"
+          className={requireNoTraining ? 'btn btn-secondary' : 'btn btn-primary'}
+        />
+        <StatusMessage state={state} />
+      </div>
     </form>
   );
 }
