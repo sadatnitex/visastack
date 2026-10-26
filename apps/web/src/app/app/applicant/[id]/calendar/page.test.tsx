@@ -103,9 +103,14 @@ describe('calendar export page (v1.2 B05)', () => {
     expect(text).toContain('Dates without a time are added as all-day events.');
     expect(text).toContain('Tue 3 Nov 2026, 09:30 Asia/Dhaka time');
     expect(text).toContain('Fri 30 Apr 2027, all day');
-    for (const label of ['None', 'On the Day', '1 Day Before', '1 Week Before', 'Add Case Names']) {
-      expect(text).toContain(label);
-    }
+    expect(text).toContain('Add Case Names');
+    // Reminder choices in a fixed order, None first.
+    const reminders = [...html.matchAll(/id="calendar-remind-([a-z0-9]+)"/g)].map((m) => m[1]);
+    expect(reminders).toEqual(['none', '0', '1440', '10080']);
+    expect(text).toMatch(/None.*On the Day.*1 Day Before.*1 Week Before/);
+    expect(text).toContain(
+      'Calendar apps that support updates replace the dates you added before; others may add them again.',
+    );
     // Labelled groups, each box tied to its label, plain forms with no script.
     for (const legend of ['Dates to Add', 'Titles', 'Remind Me']) {
       expect(html).toContain(`<legend class="field-label">${legend}</legend>`);

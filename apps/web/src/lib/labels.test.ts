@@ -12,6 +12,7 @@ import {
   AUDIT_RESULT_LABELS,
   BILLING_STATUS_LABELS,
   CALENDAR_REMINDER_LABELS,
+  CALENDAR_REMINDER_ORDER,
   CASE_TRIAGE_STATE_LABELS,
   COMPLAINT_STATUS_LABELS,
   DOCUMENT_TYPE_LABELS,
@@ -214,6 +215,18 @@ describe('calendar words (v1.2 B05 calendar export)', () => {
       expect(title).toBe(toTitleCase(title));
       expect(title).not.toMatch(/passport|bank|visa|mission|\d/i);
     }
+  });
+
+  it('offers None first, then the reminders from soonest to earliest, each once', () => {
+    expect(CALENDAR_REMINDER_ORDER.map((value) => CALENDAR_REMINDER_LABELS[value])).toEqual([
+      'None',
+      'On the Day',
+      '1 Day Before',
+      '1 Week Before',
+    ]);
+    expect([...CALENDAR_REMINDER_ORDER].sort()).toEqual(
+      Object.keys(CALENDAR_REMINDER_LABELS).sort(),
+    );
   });
 
   it('offers reminders the options allow, in Title Case', () => {

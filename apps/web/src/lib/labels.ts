@@ -269,3 +269,9 @@ export const CALENDAR_REMINDER_LABELS: Readonly<Record<'' | '0' | '1440' | '1008
   '1440': '1 Day Before',
   '10080': '1 Week Before',
 };
+
+/**
+ * The order the choices are offered in, None first. Explicit, because an object's number-like
+ * keys come out in number order, which would put None last.
+ */
+export const CALENDAR_REMINDER_ORDER = ['', '0', '1440', '10080'] as const;

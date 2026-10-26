@@ -78,6 +78,22 @@ describe('single appointment calendar file', () => {
     expect(ics).not.toContain(MISSION_ID);
   });
 
+  it('writes a cancelled appointment as cancelled, so re-importing it never brings it back', async () => {
+    const statusOf = async () =>
+      unfold(await (await GET(request(), params)).text())
+        .split('\r\n')
+        .filter((line) => line.startsWith('STATUS:'));
+    expect(await statusOf()).toEqual(['STATUS:CONFIRMED']);
+    const value = (await mocks.getAppointment()).value;
+    mocks.getAppointment.mockResolvedValueOnce({
+      ok: true,
+      value: { ...value, status: 'CANCELLED' },
+    });
+    expect(await statusOf()).toEqual(['STATUS:CANCELLED']);
+    mocks.getAppointment.mockResolvedValueOnce({ ok: true, value: { ...value, status: 'DONE' } });
+    expect(await statusOf()).toEqual(['STATUS:CONFIRMED']);
+  });
+
   it('writes one audit entry for the file, and sends no file when it cannot', async () => {
     await GET(request(), params);
     expect(mocks.recordCalendarExport).toHaveBeenCalledTimes(1);

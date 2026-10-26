@@ -89,6 +89,18 @@ describe('buildIcsForAppointment - one appointment (Commercial V1 Part 4 section
     expect(property(many, 'SEQUENCE')).toEqual(property(ics, 'SEQUENCE'));
   });
 
+  it('writes a cancelled appointment as CANCELLED and any other as CONFIRMED', () => {
+    const status = (value?: string) =>
+      property(
+        buildIcsForAppointment({ ...base, ...(value ? { status: value } : {}) }, { now: NOW }),
+        'STATUS',
+      );
+    expect(status()).toEqual(['STATUS:CONFIRMED']);
+    expect(status('OPEN')).toEqual(['STATUS:CONFIRMED']);
+    expect(status('DONE')).toEqual(['STATUS:CONFIRMED']);
+    expect(status('CANCELLED')).toEqual(['STATUS:CANCELLED']);
+  });
+
   it('a line break in any stored value can never add a property', () => {
     const ics = buildIcsForAppointment(
       {
@@ -170,8 +182,8 @@ describe('the dates file (v1.2 B05)', () => {
     for (const uid of uids) expect(uid).not.toMatch(UUID);
     expect(new Set(uids).size).toBe(4);
     expect(property(file([...ALL_KEYS].reverse()), 'UID')).toEqual(uids);
-    // 2026-10-20T08:00:00Z is 292 days and 8 hours (25 257 600 seconds) after 1 Jan 2026.
-    expect(property(ics, 'SEQUENCE')).toEqual(Array(4).fill('SEQUENCE:25257600'));
+    // 2026-10-20T08:00:00Z is 2484 days and 8 hours (214 646 400 seconds) after 1 Jan 2020.
+    expect(property(ics, 'SEQUENCE')).toEqual(Array(4).fill('SEQUENCE:214646400'));
     expect(property(ics, 'CLASS')).toEqual(Array(4).fill('CLASS:PRIVATE'));
     expect(property(ics, 'CATEGORIES')).toEqual([
       'CATEGORIES:VisaStack Request',

@@ -2175,8 +2175,7 @@ export async function createAppointment(
   // A known IANA name only, saved in its canonical spelling: calendar files place the time in
   // UTC from it, so a name the runtime cannot read would leave the time unplaceable.
   const timezone = recognisedTimeZone(input.timezone);
-  if (!timezone)
-    return err(serviceError('invalid', 'enter a time zone name, such as Asia/Dhaka'));
+  if (!timezone) return err(serviceError('invalid', 'enter a time zone name, such as Asia/Dhaka'));
 
   return db.transaction(async (tx) => {
     const appointment = required(

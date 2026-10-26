@@ -51,6 +51,7 @@ export async function GET(
       place: appointment.place,
       channel: appointment.channel,
       updatedAt: appointment.updatedAt,
+      status: appointment.status,
     });
     const recorded = await recordCalendarExport(access.value, {
       eventCount: 1,

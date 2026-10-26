@@ -41,6 +41,12 @@ export interface IcsAppointment {
   readonly durationMinutes?: number;
   /** When the appointment last changed, for SEQUENCE; the file's own time when not given. */
   readonly updatedAt?: Date;
+  /**
+   * The appointment's own status. A cancelled appointment is written as STATUS:CANCELLED, so
+   * importing its file removes or strikes the copy already in a calendar instead of bringing it
+   * back. Open, started and done ones are CONFIRMED: a done appointment happened, and stays.
+   */
+  readonly status?: string;
 }
 
 /** `YYYY-MM-DDTHH:MM:SS` from a stored timezone-naive value (read in a UTC process). */
@@ -74,7 +80,7 @@ export function buildIcsForAppointment(
   const event: CalendarEvent = {
     uid: calendarUid('appointment', appt.id),
     sequence: calendarSequence(appt.updatedAt ?? now),
-    status: 'CONFIRMED',
+    status: appt.status === 'CANCELLED' ? 'CANCELLED' : 'CONFIRMED',
     start,
     end: endFor('appointment', start, appt.durationMinutes),
     title: appt.title,

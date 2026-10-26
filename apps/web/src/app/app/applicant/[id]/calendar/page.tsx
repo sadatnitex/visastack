@@ -15,7 +15,7 @@ import {
   describeCalendarStart,
   selectCalendarEvents,
 } from '../../../../../lib/ics';
-import { CALENDAR_REMINDER_LABELS } from '../../../../../lib/labels';
+import { CALENDAR_REMINDER_LABELS, CALENDAR_REMINDER_ORDER } from '../../../../../lib/labels';
 import { plural } from '../../../../../lib/plural';
 import { CALENDAR_KEY_FIELD, loadCalendarDates, readCalendarKeys } from './load';
 
@@ -34,10 +34,9 @@ type CalendarQuery = {
   readonly error?: string | string[];
 };
 
-const REMINDER_CHOICES = Object.entries(CALENDAR_REMINDER_LABELS) as [
-  keyof typeof CALENDAR_REMINDER_LABELS,
-  string,
-][];
+const REMINDER_CHOICES = CALENDAR_REMINDER_ORDER.map(
+  (value) => [value, CALENDAR_REMINDER_LABELS[value]] as const,
+);
 
 /**
  * Calendar export (v1.2 B05): the traveller picks dated items and choices, sees a preview of
@@ -72,7 +71,8 @@ export default async function CalendarExportPage({
     <div className="notice u-mb-150">
       <p className="u-m-0">
         This is a one-time copy. If a date changes later, your calendar will not update; download a
-        new file. A new file updates the dates you added before instead of adding them twice.
+        new file. Calendar apps that support updates replace the dates you added before; others may
+        add them again.
       </p>
       <p className="u-m-0">
         Dates without a time are added as all-day events. Titles are general, such as &quot;Task

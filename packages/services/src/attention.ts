@@ -901,8 +901,9 @@ export async function recordCalendarExport(
       });
     });
   } catch {
-    // Fail closed: no entry, no file. The caller shows a plain "try again".
-    return err(serviceError('internal', 'the calendar export could not be recorded'));
+    // Fail closed: no entry, no file. The caller shows a plain "try again". The service codes
+    // have no "internal"; the database is the dependency that failed.
+    return err(serviceError('upstream_error', 'the calendar export could not be recorded'));
   }
   return ok(undefined);
 }

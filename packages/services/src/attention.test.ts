@@ -1359,7 +1359,7 @@ describe('recordCalendarExport (an audit entry per calendar file, never its cont
         kinds: ['task_due'],
         source: 'dates',
       });
-      expect(isErr(recorded) && recorded.error.code).toBe('internal');
+      expect(isErr(recorded) && recorded.error.code).toBe('upstream_error');
       await db.execute(sql`ALTER TABLE audit_events RENAME COLUMN metadata_gone TO metadata`);
       const rows = await db
         .select()

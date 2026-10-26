@@ -75,6 +75,24 @@ describe('calendar download audit entry', () => {
     expect(response.headers.get('Content-Type') ?? '').not.toContain('text/calendar');
   });
 
+  it('builds the file before the entry: a file that cannot be built writes no entry', async () => {
+    mocks.listCalendarDates.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        applicantId: ID,
+        // A stored date the serializer refuses (month 13): building the file throws.
+        items: CALENDAR_ITEMS.map((item) =>
+          item.key === TASK_KEY ? { ...item, when: { kind: 'date', date: '2026-13-45' } } : item,
+        ),
+        truncated: false,
+      },
+    });
+    const response = await download([...keys(TASK_KEY)]);
+    expect(response.status).toBe(303);
+    expect(response.headers.get('Location')).toContain('error=failed');
+    expect(mocks.recordCalendarExport).not.toHaveBeenCalled();
+  });
+
   it('writes nothing when nothing is chosen, or for someone who is not the owner', async () => {
     await download([...keys(FOREIGN_KEY)]);
     mocks.requireAccess.mockResolvedValueOnce(sharedProof());
