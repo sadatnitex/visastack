@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-26
-- **Deciders:** Owner (approved the ranking and the Needs Attention plan on 2026-10-26); WP-V4 implementation
+- **Deciders:** Owner (approved the ranking and the Needs Attention plan on 2026-10-26, and decided on 2026-10-26 that the traveller's time zone decides past due everywhere); WP-V4 implementation
 - **PRD/Spec link:** `docs/upgrades/upgrade.v1.2.execution.md` B05 (U03) and B13; `docs/upgrades/programme/WORK-PACKAGES.md` WP-V4 item 2; `docs/upgrades/programme/WP-V4-W0-LEDGER.md` L2; ADR 0015 sections 5 and 6
 
 ## Context
@@ -18,10 +18,10 @@ Constraints:
 ## Decision
 
 1. **One projection.** `listNeedsAttention` in `packages/services/src/attention.ts` takes the gate's proof (`AuthorizedApplicant<'VIEW_METADATA'>`) for one applicant and refuses anything not issued to the applicant's owner, like Document Insights: what is asked of a traveller, their suggestions and their confirmations are theirs alone. Sources:
-   - evidence requests that are open or sent back for a fix (declined, cancelled, received, accepted and fulfilled ones never show; declined is never overdue);
-   - open or started tasks on active cases (the statuses the task reminder sweep treats as live);
+   - evidence requests that are open or sent back for a fix (declined, cancelled, received, accepted and fulfilled ones never show; declined is never overdue). A request on a closed or cancelled case is left out of Needs Attention but is still listed on the traveller's evidence page, which shows every request;
+   - open or started tasks on active cases (the statuses the task reminder sweep treats as live) that the traveller can act on: unassigned, or assigned to the traveller's own account. A task the agency gave one of its staff is the agency's to do and never becomes the traveller's next step;
    - active cases whose confirmation was undone by a later change and not confirmed again (the case page's own rule);
-   - current documents whose expiry is inside the document type's reminder window or already past (`classifyExpiry` with `getReminderThresholds`); a document with no expiry date is not an item;
+   - current documents whose expiry day is inside the document type's reminder window (no more days left than its widest threshold, the window `classifyExpiry` uses for reminders) or has ended. The expiry date is a calendar day like a due date: a document is expired only once that day has ended in the applicant's time zone (`daysUntilDueDay`). A document with no expiry date is not an item;
    - pending suggestions, as one item per applicant with the count.
 
 2. **Ranking** (owner approval, 26 Oct 2026). An item takes the highest tier that applies:
@@ -37,15 +37,15 @@ Constraints:
 
 3. **Pure merge.** `rankAttentionItems` is a pure function. It works each item's tier out again (so a hand-built item cannot claim a higher one) and keeps each key (`${kind}:${resourceId}`) once, in its highest tier. Home uses it to merge the lists of all the person's applicants with the account-level sharing invitation item.
 
-4. **Due days.** A due date is a calendar day (entered as a date, stored as UTC midnight). It is past due only once that day has ended where the person is: in the task's own time zone, else the applicant's time zone, for tasks; in the applicant's time zone for requests. Due today is not overdue. "Today" uses the reminder sweep's own local-date helper, now exported. An unknown time zone name reads as UTC rather than failing the page. A missing date is "Date Unknown", never guessed.
+4. **Due days.** A due date is a calendar day (entered as a date, stored as UTC midnight). It is past due only once that day has ended where the traveller is: in the task's own time zone, else the applicant's time zone, for tasks; in the applicant's time zone for requests (owner decision, 26 Oct 2026; the same rule on the evidence page and the agency's Do Next list, ADR 0015 amendment). Due today is not overdue. "Today" uses the reminder sweep's own local-date helper, now exported. An unknown time zone name reads as UTC rather than failing the page. A missing date is "Date Unknown", never guessed.
 
-5. **Home.** Home calls the gate for each of the person's own applicants with `purpose: 'self'`, then the projection, then the merge. Consent still comes first. The top item is the next step; the rest are the Needs Attention section, then My Records, Active Requests and Work, My Next Journey (setup checklist or a short "plan another trip" prompt) and Permissions You Control last. Home reads at most 25 applicants and shows 8 items under the next step, saying how many are left.
+5. **Home.** Home calls the gate for each of the person's own applicants with `purpose: 'self'`, then the projection, then the merge. Consent still comes first. The top item is the next step; the rest are the Needs Attention section, then My Records, Active Requests and Work, My Next Journey (setup checklist or a short "plan another trip" prompt, one heading) and Permissions You Control last. Home reads at most 25 applicants, oldest record first then by id so the same people are read on every visit, and says so in Needs Attention and My Records when some are left out. It shows 8 items under the next step, saying how many are left.
 
 ## Consequences
 
 - **Positive:** one ranked list answers "what first" for a traveller, with the same rule wherever it is read. A sent-back request reaches Home. The rule is pinned by tests that fail when a tier, tie-break, owner check or date rule is broken.
-- **Negative / trade-offs:** the traveller's Home counts a request's due day in the applicant's time zone, while the agency console (ADR 0015 section 6) counts it in UTC, so the two can differ by one day near midnight. The task reminder emails are unchanged and still send their first overdue reminder on the due day itself. Documents already expired stay in tier 6 until replaced. Each source reads at most 50 rows per applicant, most urgent first.
-- **Cost:** per applicant, one read each for requests, cases, tasks, confirmations, documents and suggestions, plus one threshold read per distinct document type near expiry. No per-case or per-task query.
+- **Negative / trade-offs:** the task reminder emails are unchanged and still send their first overdue reminder on the due day itself, so an email can arrive a day before Home, the evidence page and the agency console call a task past due. The document expiry emails still use `classifyExpiry`'s raw time gap, so near midnight an email and Home can differ by a day. Documents already expired stay in tier 6 until replaced.
+- **Cost:** per applicant, one read each for requests, cases, tasks, confirmations, documents and suggestions, plus one reminder-threshold read per distinct document type among the (up to 50) documents with an expiry date. The gate already loaded the applicant, so the projection reads requests and cases directly with only the columns an item needs (never the agency's note) instead of calling `listEvidenceRequestsForApplicant` and `listMissions`, which would each read the applicant again. Tasks and documents are capped at 50 rows each, most urgent first; requests (only open, sent back, received and under review), cases and confirmations are not capped. No per-case or per-task query.
 - **Follow-ups:** the calendar export (multi-item ICS) is a separate later change. A dedicated "all attention" page would replace the "See All Applicants" link when the list is cut. T13 (attention deduplication on staging) has not been run.
 
 ## Alternatives considered
