@@ -113,6 +113,9 @@ export function icsUid(key: string): string {
   return `${key.replace(':', '-').replace(/[^A-Za-z0-9_-]/g, '-')}@visastack`;
 }
 
+/** En dash, em dash and horizontal bar, built from code points so the source holds none of them. */
+const LONG_DASHES = new RegExp(`[${String.fromCodePoint(0x2013, 0x2014, 0x2015)}]`, 'g');
+
 /** A word or code holding six or more digits in a row, such as a passport or account number. */
 const LONG_NUMBER = /[A-Za-z0-9]*\d{6,}[A-Za-z0-9]*/g;
 
@@ -125,7 +128,7 @@ export function calendarCaseName(title: string): string {
     title
       // biome-ignore lint/suspicious/noControlCharactersInRegex: removing them is the point.
       .replace(/[\u0000-\u001f\u007f]+/g, ' ')
-      .replace(/[–—―]/g, '-')
+      .replace(LONG_DASHES, '-')
       .replace(LONG_NUMBER, '(number hidden)')
       .replace(/\s+/g, ' ')
       .trim()
