@@ -1,6 +1,6 @@
 import type { AccountId, AgencyId, ApplicantId, DocumentId, MissionId } from '@visastack/core';
 import { describe, expect, it } from 'vitest';
-import { authorize } from './authorize';
+import { authorize, grantCoversMission } from './authorize';
 import type { Actor, AuthContext, Grant, Resource } from './types';
 
 // --- Branded fixtures -------------------------------------------------------
@@ -512,5 +512,122 @@ describe('authorize — support/admin (law 8)', () => {
         context: ctx({ grants: [g] }),
       }),
     ).toEqual({ allowed: true });
+  });
+});
+
+describe('authorize - per-case sharing exceptions (law 9)', () => {
+  const missionC = 'mis-c' as MissionId;
+  const individualGrant = (overrides: Partial<Grant> = {}): Grant => {
+    const { recipientOrganizationId: _organization, ...base } = grant(overrides);
+    return { ...base, recipientAccountId: account };
+  };
+
+  it('denies an all-cases grant on the case excluded from it', () => {
+    const g = grant({ excludedMissionIds: [missionB] });
+    expect(
+      authorize({
+        actor: member,
+        action: 'PREVIEW',
+        resource: res({ missionId: missionB }),
+        context: ctx({ grants: [g] }),
+      }),
+    ).toEqual({ allowed: false, reason: 'scope_mismatch' });
+    expect(
+      authorize({
+        actor: individual,
+        action: 'PREVIEW',
+        resource: res({ missionId: missionB }),
+        context: ctx({ grants: [individualGrant({ excludedMissionIds: [missionB] })] }),
+      }),
+    ).toEqual({ allowed: false, reason: 'scope_mismatch' });
+  });
+
+  it('still allows the same grant on every other case', () => {
+    const g = grant({ excludedMissionIds: [missionB] });
+    for (const missionId of [missionA, missionC]) {
+      expect(
+        authorize({
+          actor: member,
+          action: 'PREVIEW',
+          resource: res({ missionId }),
+          context: ctx({ grants: [g] }),
+        }),
+      ).toEqual({ allowed: true });
+    }
+  });
+
+  it('leaves a resource that belongs to no case (documents, profile details) to its own scope', () => {
+    const g = grant({ excludedMissionIds: [missionA, missionB] });
+    expect(
+      authorize({
+        actor: member,
+        action: 'PREVIEW',
+        resource: res(),
+        context: ctx({ grants: [g] }),
+      }),
+    ).toEqual({ allowed: true });
+    expect(
+      authorize({
+        actor: member,
+        action: 'PREVIEW',
+        resource: res({ documentId: docA }),
+        context: ctx({ grants: [g] }),
+      }),
+    ).toEqual({ allowed: true });
+  });
+
+  it('does not change a case-scoped grant: it reaches its own case only', () => {
+    // An exception list on a case-scoped grant is meaningless and never widens or narrows it.
+    const g = grant({ missionId: missionA, excludedMissionIds: [missionA] });
+    expect(
+      authorize({
+        actor: member,
+        action: 'PREVIEW',
+        resource: res({ missionId: missionA }),
+        context: ctx({ grants: [g] }),
+      }),
+    ).toEqual({ allowed: true });
+    expect(
+      authorize({
+        actor: member,
+        action: 'PREVIEW',
+        resource: res({ missionId: missionB }),
+        context: ctx({ grants: [g] }),
+      }),
+    ).toEqual({ allowed: false, reason: 'scope_mismatch' });
+  });
+
+  it('an exception on one grant never narrows another grant of the same recipient', () => {
+    const excluded = grant({ excludedMissionIds: [missionB] });
+    const other = grant({ purpose: PURPOSE });
+    expect(
+      authorize({
+        actor: member,
+        action: 'PREVIEW',
+        resource: res({ missionId: missionB }),
+        context: ctx({ grants: [excluded, other] }),
+      }),
+    ).toEqual({ allowed: true });
+    // The same holds when the other grant is case-scoped to the excluded case.
+    expect(
+      authorize({
+        actor: member,
+        action: 'PREVIEW',
+        resource: res({ missionId: missionB }),
+        context: ctx({ grants: [excluded, grant({ missionId: missionB })] }),
+      }),
+    ).toEqual({ allowed: true });
+  });
+
+  it('grantCoversMission is the scope rule alone', () => {
+    expect(grantCoversMission({}, missionA)).toBe(true);
+    expect(grantCoversMission({ excludedMissionIds: [] }, missionA)).toBe(true);
+    expect(grantCoversMission({ excludedMissionIds: [missionA] }, missionA)).toBe(false);
+    expect(grantCoversMission({ excludedMissionIds: [missionA] }, missionB)).toBe(true);
+    expect(grantCoversMission({ missionId: missionA }, missionA)).toBe(true);
+    expect(grantCoversMission({ missionId: missionA }, missionB)).toBe(false);
+    expect(
+      grantCoversMission({ missionId: missionA, excludedMissionIds: [missionA] }, missionA),
+    ).toBe(true);
   });
 });
