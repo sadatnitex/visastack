@@ -1,3 +1,4 @@
+import { formatReferenceCode, referenceCheckCharacter } from '@visastack/core';
 import { describe, expect, it } from 'vitest';
 import {
   type FollowUpInput,
@@ -209,5 +210,54 @@ describe('follow-up message', () => {
 
   it('gives the same text for the same input', () => {
     expect(buildFollowUpMessage(base)).toEqual(buildFollowUpMessage({ ...base }));
+  });
+});
+
+describe('follow-up message: request reference (ADR 0018)', () => {
+  // A payload starting 00 is reserved for docs and fixtures, so this is never a real code.
+  const stored = `00K2Q${referenceCheckCharacter('R', '00K2Q')}`;
+  const CODE = formatReferenceCode('R', stored);
+
+  it('writes a valid request code on its own fixed line, in the standard form', () => {
+    for (const value of [CODE, ` r ${stored.toLowerCase()} `, stored]) {
+      const message = buildFollowUpMessage({ ...base, requestReference: value });
+      expect(message.text).toContain(`\nRequest reference: ${CODE}\n`);
+      expectClean(message.text);
+    }
+  });
+
+  it('leaves out a code that is not a valid request code, and changes nothing else', () => {
+    const wrongCheck = `R-00K2Q${stored.endsWith('0') ? '1' : '0'}`;
+    const caseCode = formatReferenceCode('C', `00K2Q${referenceCheckCharacter('C', '00K2Q')}`);
+    for (const value of [
+      wrongCheck,
+      caseCode,
+      'see https://evil.test',
+      'A1234567',
+      '',
+      null,
+      undefined,
+    ]) {
+      const message = buildFollowUpMessage({ ...base, requestReference: value });
+      expect(message).toEqual(buildFollowUpMessage(base));
+      expect(message.text).not.toContain('Request reference');
+    }
+  });
+
+  it('treats a code typed inside the note exactly as before, and never moves it to the reference line', () => {
+    const note = `Please upload the statement for ${CODE} this week.`;
+    const message = buildFollowUpMessage({ ...base, agencyNote: note });
+    expect(message.usedAgencyNote).toBe(!containsUnsafeDetail(note));
+    expect(message.text).not.toContain('Request reference');
+    // An unsafe note is still dropped whole when a valid reference is given.
+    const unsafe = buildFollowUpMessage({
+      ...base,
+      agencyNote: `Call 01712345678 about ${CODE}`,
+      requestReference: CODE,
+    });
+    expect(unsafe.usedAgencyNote).toBe(false);
+    expect(unsafe.agencyNoteLeftOut).toBe(true);
+    expect(unsafe.text).not.toContain('01712345678');
+    expect(unsafe.text).toContain(`Request reference: ${CODE}`);
   });
 });

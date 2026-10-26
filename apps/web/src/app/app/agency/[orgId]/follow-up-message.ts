@@ -12,6 +12,7 @@
  * screen says why (owner decision 2026-10-25, W0 ledger Q5 option A).
  */
 
+import { formatReferenceCode, parseReferenceCode } from '@visastack/core';
 import { daysUntilDue } from './console-format';
 
 // Every check runs on the NFKC form of the text, so full-width letters, digits, dots and the
@@ -114,6 +115,12 @@ export interface FollowUpInput {
   readonly now?: Date;
   /** The traveller's time zone, which decides when the due day ends (ADR 0015 amendment). */
   readonly timezone?: string | null;
+  /**
+   * The request's visible code (`R-7K2Q9M`, ADR 0018), as a structured field: it is written on
+   * its own fixed line only when it reads as a valid request code, and never joins or loosens the
+   * checks on any free text.
+   */
+  readonly requestReference?: string | null;
 }
 
 export interface FollowUpMessage {
@@ -146,6 +153,13 @@ function dueLine(
   return `Due: ${date}`;
 }
 
+/** "Request reference: R-7K2Q9M" for a valid request code, or null (anything else is left out). */
+function referenceLine(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const parsed = parseReferenceCode(value, 'R');
+  return parsed.ok ? `Request reference: ${formatReferenceCode('R', parsed.code)}` : null;
+}
+
 /** Builds the message. Pure and deterministic for the same input. */
 export function buildFollowUpMessage(input: FollowUpInput): FollowUpMessage {
   const now = input.now ?? new Date();
@@ -170,6 +184,7 @@ export function buildFollowUpMessage(input: FollowUpInput): FollowUpMessage {
     `What we need: ${what}${replacement ? ' (a new version)' : ''}`,
     caseTitle ? `Case: ${caseTitle}` : null,
     dueLine(input.dueDate, now, input.timezone),
+    referenceLine(input.requestReference),
   ].filter((line): line is string => line !== null);
 
   const standardBody = replacement
