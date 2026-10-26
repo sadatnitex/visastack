@@ -1,5 +1,5 @@
 import { getPlatformOverview } from '@visastack/services';
-import { bootstrapAdminEmails } from '../../../../lib/admin';
+import { bootstrapAdminEmails, isPlatformAdmin } from '../../../../lib/admin';
 import { withSession } from '../../../../lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -7,6 +7,10 @@ export const dynamic = 'force-dynamic';
 export async function GET(): Promise<Response> {
   return withSession(async ({ db, accountId, email }) => {
     const headers = { 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' };
+    // The route never runs the platform layout, so the code rule is checked here too.
+    if (!(await isPlatformAdmin(db, { accountId, email }))) {
+      return Response.json({ error: 'Platform access is required.' }, { status: 403, headers });
+    }
     let result: Awaited<ReturnType<typeof getPlatformOverview>>;
     try {
       result = await getPlatformOverview(db, {

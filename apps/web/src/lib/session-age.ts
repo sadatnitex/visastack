@@ -1,6 +1,6 @@
 import 'server-only';
 import { type Db, listMembershipsForAccount } from '@visastack/services';
-import { isPlatformAdmin } from './admin';
+import { holdsPlatformRole } from './admin';
 import { neonReauthUrl, neonSessionAgeSeconds } from './neon-recency';
 
 /**
@@ -37,7 +37,9 @@ export async function isStaffContext(
 ): Promise<boolean> {
   const memberships = await listMembershipsForAccount(db, ctx.accountId);
   if (memberships.some((m) => m.active)) return true;
-  return isPlatformAdmin(db, ctx);
+  // The role itself decides the session limit, not whether a code was proved yet: a staff
+  // session must not get the longer traveller limit just because the code is still to come.
+  return holdsPlatformRole(db, ctx);
 }
 
 export type SessionAgeResult =

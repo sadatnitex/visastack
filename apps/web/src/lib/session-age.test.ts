@@ -4,13 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * `enforceSessionAgeLimit`/`isStaffContext` (Commercial V1 SEC-01; directive Part 2 §5). Mocks
  * how long ago the person last typed their password (`neonSessionAgeSeconds`) plus the two
  * service-layer lookups `isStaffContext` composes; real DB access is exercised separately by
- * `listMembershipsForAccount`'s and `isPlatformAdmin`'s own tests. The re-check link is built for
+ * `listMembershipsForAccount`'s and `holdsPlatformRole`'s own tests. The re-check link is built for
  * real.
  */
 
 const neonSessionAgeSeconds = vi.fn();
 const listMembershipsForAccount = vi.fn();
-const isPlatformAdmin = vi.fn();
+const holdsPlatformRole = vi.fn();
 
 vi.mock('./neon-recency', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./neon-recency')>()),
@@ -22,7 +22,7 @@ vi.mock('@visastack/services', () => ({
 }));
 
 vi.mock('./admin', () => ({
-  isPlatformAdmin: (...args: unknown[]) => isPlatformAdmin(...args),
+  holdsPlatformRole: (...args: unknown[]) => holdsPlatformRole(...args),
 }));
 
 const CTX = { accountId: 'acct-1', email: 'traveller@example.com' };
@@ -31,7 +31,7 @@ const DB = {} as never;
 beforeEach(() => {
   neonSessionAgeSeconds.mockReset();
   listMembershipsForAccount.mockReset();
-  isPlatformAdmin.mockReset();
+  holdsPlatformRole.mockReset();
 });
 
 afterEach(() => {
@@ -41,7 +41,7 @@ afterEach(() => {
 describe('isStaffContext', () => {
   it('is false for an account with no active membership and no platform role', async () => {
     listMembershipsForAccount.mockResolvedValue([]);
-    isPlatformAdmin.mockResolvedValue(false);
+    holdsPlatformRole.mockResolvedValue(false);
     const { isStaffContext } = await import('./session-age');
     expect(await isStaffContext(DB, CTX)).toBe(false);
   });
@@ -50,7 +50,7 @@ describe('isStaffContext', () => {
     listMembershipsForAccount.mockResolvedValue([
       { organization: {}, membershipId: 'm1', role: 'MEMBER', active: true },
     ]);
-    isPlatformAdmin.mockResolvedValue(false);
+    holdsPlatformRole.mockResolvedValue(false);
     const { isStaffContext } = await import('./session-age');
     expect(await isStaffContext(DB, CTX)).toBe(true);
   });
@@ -59,14 +59,14 @@ describe('isStaffContext', () => {
     listMembershipsForAccount.mockResolvedValue([
       { organization: {}, membershipId: 'm1', role: 'MEMBER', active: false },
     ]);
-    isPlatformAdmin.mockResolvedValue(false);
+    holdsPlatformRole.mockResolvedValue(false);
     const { isStaffContext } = await import('./session-age');
     expect(await isStaffContext(DB, CTX)).toBe(false);
   });
 
   it('is true for a platform admin with zero organization memberships', async () => {
     listMembershipsForAccount.mockResolvedValue([]);
-    isPlatformAdmin.mockResolvedValue(true);
+    holdsPlatformRole.mockResolvedValue(true);
     const { isStaffContext } = await import('./session-age');
     expect(await isStaffContext(DB, CTX)).toBe(true);
   });

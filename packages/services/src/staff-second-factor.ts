@@ -577,7 +577,7 @@ export async function resetStaffSecondFactor(
       serviceError('forbidden', 'You cannot reset your own authenticator. Ask another owner.'),
     );
   }
-  const reason = input.reason.trim();
+  const reason = input.reason.trim().slice(0, 500);
   if (reason.length === 0) return err(serviceError('invalid', 'Write a reason for the reset.'));
   try {
     return await db.transaction(async (tx) => {
@@ -585,12 +585,9 @@ export async function resetStaffSecondFactor(
         .delete(schema.staffSecondFactors)
         .where(eq(schema.staffSecondFactors.accountId, input.targetAccountId))
         .returning({ accountId: schema.staffSecondFactors.accountId });
-      if (deleted.length === 0) {
-        return err(serviceError('not_found', 'That person has no authenticator set up.'));
-      }
       // A person locked out by too many tries must be able to set up again straight after the
-      // reset, so their counters go with the old authenticator.
-      await tx
+      // reset, so their counters are cleared even when no authenticator was set up yet.
+      const cleared = await tx
         .delete(schema.rateLimitBuckets)
         .where(
           and(
@@ -601,7 +598,11 @@ export async function resetStaffSecondFactor(
               'staff_factor.locked_audit',
             ]),
           ),
-        );
+        )
+        .returning({ action: schema.rateLimitBuckets.action });
+      if (deleted.length === 0 && cleared.length === 0) {
+        return err(serviceError('not_found', 'That person has no authenticator set up.'));
+      }
       await appendAuditEvent(tx, {
         eventType: 'STAFF_SECOND_FACTOR_RESET',
         actorAccountId: input.actor.accountId,

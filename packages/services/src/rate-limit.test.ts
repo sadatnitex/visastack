@@ -212,9 +212,9 @@ describe('pruneExpiredRateLimitBuckets (Part 9 SEC-02)', () => {
 
   it('deletes buckets whose window ended before the retention cutoff and keeps the rest', async () => {
     const now = new Date('2026-01-10T12:00:00.000Z');
-    await seedBucket('ancient', new Date(now.getTime() - 48 * hourMs));
-    await seedBucket('just-expired', new Date(now.getTime() - 25 * hourMs));
-    await seedBucket('recent', new Date(now.getTime() - 23 * hourMs));
+    await seedBucket('ancient', new Date(now.getTime() - 72 * hourMs));
+    await seedBucket('just-expired', new Date(now.getTime() - 49 * hourMs));
+    await seedBucket('recent', new Date(now.getTime() - 47 * hourMs));
     await seedBucket('current', new Date(now.getTime() - 30 * 60 * 1000));
 
     const removed = await pruneExpiredRateLimitBuckets(db, now);

@@ -4,6 +4,7 @@ import type { ApplicantId } from '@visastack/core';
 import { downloadDocument, getApplicant } from '@visastack/services';
 import { redirect } from 'next/navigation';
 import { getPlatformCapabilities } from '../../../../lib/capabilities';
+import { reportServerError } from '../../../../lib/server-error';
 import { withSession } from '../../../../lib/session';
 import { establishStepUp } from '../../../../lib/step-up';
 import { createStorage } from '../../../../lib/storage';
@@ -40,8 +41,10 @@ export async function downloadOriginalAction(formData: FormData): Promise<void> 
         { accountId, action: 'DOWNLOAD_ORIGINAL', resourceId: documentId },
         returnTo,
       );
-    } catch {
-      // The sign-in check cannot be made right now: say the download failed, not a server error.
+    } catch (error) {
+      // The sign-in check cannot be made right now: say the download failed, not a server error,
+      // and keep the cause in the logs.
+      reportServerError('download original', error, { step: 'sign-in check' });
       return null;
     }
     if (!assurance.satisfied) redirect(assurance.reauthUrl);

@@ -12,6 +12,9 @@ const mocks = vi.hoisted(() => ({
   listActivePlatformRoles: vi.fn(),
   listInvitations: vi.fn(),
   reportUnboundAccounts: vi.fn(),
+  staffFactorCoverage: vi.fn(),
+  neonSessionRef: vi.fn(),
+  createKeyManagementPort: vi.fn(),
 }));
 
 vi.mock('../../../../lib/session', () => ({
@@ -27,12 +30,18 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   listActivePlatformRoles: (...args: unknown[]) => mocks.listActivePlatformRoles(...args),
   listInvitations: (...args: unknown[]) => mocks.listInvitations(...args),
   reportUnboundAccounts: (...args: unknown[]) => mocks.reportUnboundAccounts(...args),
+  staffFactorCoverage: (...args: unknown[]) => mocks.staffFactorCoverage(...args),
+}));
+vi.mock('../../../../lib/neon-recency', () => ({ neonSessionRef: mocks.neonSessionRef }));
+vi.mock('../../../../lib/providers', () => ({
+  createKeyManagementPort: mocks.createKeyManagementPort,
 }));
 vi.mock('../action-buttons', async () => {
   const { stub } = await import('../../../../lib/next-mocks.test-support');
   return {
     RevokeInvitationButton: stub('RevokeInvitationButton'),
     RevokeRoleButton: stub('RevokeRoleButton'),
+    ResetAuthenticatorButton: stub('ResetAuthenticatorButton'),
   };
 });
 vi.mock('../admin-forms', async () => {
@@ -47,6 +56,9 @@ beforeEach(() => {
   navigationState.pathname = '/app/admin/access';
   mocks.isPlatformAdmin.mockResolvedValue(true);
   mocks.isPlatformOwnerAccount.mockResolvedValue(true);
+  mocks.staffFactorCoverage.mockResolvedValue({ staff: 3, enrolled: 1 });
+  mocks.neonSessionRef.mockResolvedValue('ref-1');
+  mocks.createKeyManagementPort.mockReturnValue({});
   mocks.listActivePlatformRoles.mockResolvedValue([
     { id: 'r1', role: 'PLATFORM_OWNER', assignedAt: new Date('2026-09-01'), reason: 'Founder' },
   ]);
@@ -114,6 +126,14 @@ describe('Platform > Access', () => {
     expect(stubProps(html, 'RevokeRoleButton')).toHaveLength(0);
     expect(text).toContain('Only a platform owner can grant or revoke roles.');
     expect(text).toContain('Only a platform owner can invite or revoke pilot access.');
+  });
+
+  it('says how many staff have set up an authenticator and whether codes can be checked here', async () => {
+    const text = textOf(await renderServer(Page()));
+    expect(text).toContain('1 of 3 staff have set one up');
+    expect(text).toContain('Codes can be checked here');
+    mocks.createKeyManagementPort.mockReturnValue(undefined);
+    expect(textOf(await renderServer(Page()))).toContain('Codes cannot be checked here yet');
   });
 
   it('explains legacy references without claiming current Neon sign-in is missing', async () => {

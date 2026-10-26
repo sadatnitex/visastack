@@ -18,7 +18,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Checklist, Disclosure, EmptyState, NextStepCard, StatusBadge } from '../../components/ui';
-import { isPlatformAdmin } from '../../lib/admin';
+import { holdsPlatformRole } from '../../lib/admin';
 import { formatDateOnly } from '../../lib/format-date';
 import {
   ATTENTION_TIER_LABELS,
@@ -67,7 +67,7 @@ async function loadBasics(db: Db, accountId: string, email: string) {
     listGrantsForRecipientAccount(db, accountId),
     listApplicants(db, accountId),
     listMembershipsForAccount(db, accountId),
-    isPlatformAdmin(db, { accountId, email }),
+    holdsPlatformRole(db, { accountId, email }),
   ]);
   return { consents, incomingGrants, applicants, memberships, platformAdmin };
 }

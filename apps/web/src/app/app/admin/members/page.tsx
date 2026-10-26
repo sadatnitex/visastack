@@ -2,7 +2,7 @@ import { listPlatformMembers } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader } from '../../../../components/ui';
-import { bootstrapAdminEmails } from '../../../../lib/admin';
+import { bootstrapAdminEmails, isPlatformOwnerAccount } from '../../../../lib/admin';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
 
@@ -16,9 +16,17 @@ export default async function PlatformMembersPage({
   readonly searchParams: Promise<{ readonly after?: string }>;
 }) {
   const { after } = await searchParams;
-  const result = await withSession(({ db, accountId, email }) =>
-    listPlatformMembers(db, { accountId, email, bootstrapEmails: bootstrapAdminEmails() }, after),
-  );
+  const result = await withSession(async ({ db, accountId, email }) => {
+    // Same rule as every platform check, including the authenticator code when it is required.
+    if (!(await isPlatformOwnerAccount(db, { accountId, email }))) {
+      return { ok: false, error: { code: 'forbidden', message: 'Not allowed.' } } as const;
+    }
+    return listPlatformMembers(
+      db,
+      { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
+      after,
+    );
+  });
   if (!result.ok)
     return result.error.code === 'forbidden' ? (
       <article className="card">
