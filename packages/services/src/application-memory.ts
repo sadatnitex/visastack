@@ -1,6 +1,12 @@
 import { type PermissionAction, type Result, err, ok } from '@visastack/core';
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access';
+import {
+  isLiveGrant,
+  listCaseExclusionsForApplicant,
+  recipientKeyOf,
+  recipientReachesCase,
+} from './access/grant-scope';
 import { type DeclarationComparison, compareAuthorizedFactVersions } from './consistency';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -210,8 +216,23 @@ export interface MemoryCase {
   readonly createdAt: string;
   /** The case's records were removed after its keep period; only the case row remains. */
   readonly removed: boolean;
+  /**
+   * Who holds access to every case except this one: each recipient whose live
+   * all-cases grant the owner excluded from this case (per-case sharing
+   * exceptions, ADR 0017) and who has no other live grant reaching it, oldest
+   * first, once per recipient. Revoked and expired grants are left out: they
+   * reach nothing anyway.
+   */
+  readonly notSharedWith: readonly MemoryCaseException[];
   /** Oldest first; records with the same time keep a fixed order. */
   readonly events: readonly MemoryEvent[];
+}
+
+/** One all-cases grant that does not cover a case. */
+export interface MemoryCaseException {
+  readonly grantId: string;
+  readonly recipientName: string | null;
+  readonly recipientKind: 'organization' | 'person';
 }
 
 export interface ApplicationMemory {
@@ -273,8 +294,10 @@ export async function getApplicationMemory(
         missionId: schema.grants.missionId,
         status: schema.grants.status,
         createdAt: schema.grants.createdAt,
+        expiryAt: schema.grants.expiryAt,
         organizationName: schema.organizations.name,
         recipientOrganizationId: schema.grants.recipientOrganizationId,
+        recipientAccountId: schema.grants.recipientAccountId,
         recipientEmail: schema.accounts.email,
       })
       .from(schema.grants)
@@ -299,6 +322,33 @@ export async function getApplicationMemory(
     };
   };
   const recordShares = grants.filter((g) => g.missionId === null).map(shareOf);
+
+  // Per-case sharing exceptions, per RECIPIENT (ADR 0017 amendment): a case
+  // is "not shared" with someone only when an exception on one of their live
+  // all-cases grants hides it and none of their live grants reaches it.
+  // Revoked and expired grants reach nothing, so they are never named.
+  const now = new Date();
+  const notSharedByMission = new Map<string, MemoryCaseException[]>();
+  if (grants.some((g) => g.missionId === null && isLiveGrant(g, now))) {
+    const exclusions = await listCaseExclusionsForApplicant(db, applicantId);
+    const named = new Set<string>();
+    for (const exclusion of exclusions) {
+      const grant = grants.find((g) => g.id === exclusion.grantId);
+      if (!grant || grant.missionId !== null || !isLiveGrant(grant, now)) continue;
+      if (recipientReachesCase(grants, exclusions, grant, exclusion.missionId, now)) continue;
+      const key = `${exclusion.missionId}:${recipientKeyOf(grant)}`;
+      if (named.has(key)) continue;
+      named.add(key);
+      const share = shareOf(grant);
+      const list = notSharedByMission.get(exclusion.missionId) ?? [];
+      list.push({
+        grantId: grant.id,
+        recipientName: share.recipientName,
+        recipientKind: share.recipientKind,
+      });
+      notSharedByMission.set(exclusion.missionId, list);
+    }
+  }
 
   const missionIds = missions.map((m) => m.mission.id);
   if (missionIds.length === 0) return ok({ recordShares, cases: [] });
@@ -437,6 +487,7 @@ export async function getApplicationMemory(
         state: mission.state,
         createdAt: mission.createdAt.toISOString(),
         removed: mission.purgedAt !== null,
+        notSharedWith: notSharedByMission.get(mission.id) ?? [],
         events: events.map((e) => e.event),
       } satisfies MemoryCase,
     };

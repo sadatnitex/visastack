@@ -15,8 +15,22 @@ import {
   type Grant as PolicyGrant,
   STEP_UP_ACTIONS,
   authorize,
+  grantCoversMission,
 } from '@visastack/policy';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, or } from 'drizzle-orm';
+import {
+  LIVE_GRANT_STATUSES,
+  carryRecipientCaseExceptions,
+  caseExclusionsTablePresent,
+  isLiveGrant,
+  listCaseExclusionsForApplicant,
+  loadCaseExclusions,
+  lockCaseSharing,
+  recipientExceptionSources,
+  recipientReachesCase,
+} from './access/grant-scope';
+import { AuthorizedApplicant } from './access/require-access';
+import { StepUpProof } from './access/step-up-proof';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
@@ -37,13 +51,14 @@ import { RATE_LIMITS, checkRateLimit } from './rate-limit';
 
 export type Grant = typeof schema.grants.$inferSelect;
 
-/** Map the grant rows for an applicant into the policy engine's Grant shape. */
-export async function loadGrantsForPolicy(db: Db, applicantId: string): Promise<PolicyGrant[]> {
-  const rows = await db
-    .select()
-    .from(schema.grants)
-    .where(eq(schema.grants.applicantId, applicantId));
-  return rows.map((row) => ({
+/**
+ * One grant row in the policy engine's shape, with the cases excluded from it
+ * (per-case sharing exceptions, ADR 0017). The only mapping from a grant row
+ * to a policy grant: every caller that evaluates a grant row uses this, so no
+ * scope facet can be dropped by a hand-copied variant.
+ */
+export function toPolicyGrant(row: Grant, excludedMissionIds?: readonly MissionId[]): PolicyGrant {
+  return {
     applicantId: row.applicantId as ApplicantId,
     actions: row.actions as PermissionAction[],
     purpose: row.purpose,
@@ -54,6 +69,9 @@ export async function loadGrantsForPolicy(db: Db, applicantId: string): Promise<
       ? { recipientOrganizationId: row.recipientOrganizationId as AgencyId }
       : {}),
     ...(row.missionId ? { missionId: row.missionId as MissionId } : {}),
+    ...(!row.missionId && excludedMissionIds && excludedMissionIds.length > 0
+      ? { excludedMissionIds: [...excludedMissionIds] }
+      : {}),
     ...(row.categories ? { categories: row.categories } : {}),
     ...(row.documentIds ? { documentIds: row.documentIds as DocumentId[] } : {}),
     ...(row.documentScopeSnapshot
@@ -61,7 +79,22 @@ export async function loadGrantsForPolicy(db: Db, applicantId: string): Promise<
       : {}),
     ...(row.acceptedAt ? { acceptedAt: row.acceptedAt.toISOString() } : {}),
     ...(row.expiryAt ? { expiryAt: row.expiryAt.toISOString() } : {}),
-  }));
+  };
+}
+
+/**
+ * Map the grant rows for an applicant into the policy engine's Grant shape,
+ * each with its per-case sharing exceptions, read live (never cached).
+ */
+export async function loadGrantsForPolicy(db: Db, applicantId: string): Promise<PolicyGrant[]> {
+  const rows = await db
+    .select()
+    .from(schema.grants)
+    .where(eq(schema.grants.applicantId, applicantId));
+  const exclusions = rows.some((row) => row.missionId === null)
+    ? await loadCaseExclusions(db, { applicantId })
+    : undefined;
+  return rows.map((row) => toPolicyGrant(row, exclusions?.get(row.id)));
 }
 
 async function ownsApplicant(
@@ -266,6 +299,10 @@ export async function createGrant(
   if (!prepared.ok) return prepared;
   const { expiryAt: resolvedExpiryAt, documentScopeSnapshot } = prepared.value;
   return db.transaction(async (tx) => {
+    const allCases = !input.missionId;
+    // An all-cases grant takes the person's sharing lock before anything is
+    // written, so it cannot interleave with the answers for a new case.
+    if (allCases) await lockCaseSharing(tx, input.applicantId);
     const grant = required(
       first(
         await tx
@@ -298,6 +335,18 @@ export async function createGrant(
       resourceId: grant.id,
       metadata: { purpose: grant.purpose, actions: input.actions.length },
     });
+    if (allCases) {
+      await carryRecipientCaseExceptions(tx, {
+        applicantId: input.applicantId,
+        actorAccountId: input.actorAccountId,
+        target: {
+          kind: 'grant',
+          id: grant.id,
+          recipientAccountId: grant.recipientAccountId,
+          recipientOrganizationId: grant.recipientOrganizationId,
+        },
+      });
+    }
     await recordProductEvent(tx, {
       eventType: 'GRANT_CREATED',
       accountId: input.actorAccountId,
@@ -526,12 +575,47 @@ export async function listGrantsForRecipientAccount(
     .map((r) => ({ grant: r.grant, applicantName: r.applicantName }));
 }
 
-/** Access transparency: every grant on an applicant (owner only). */
+/** A case one all-cases grant does not cover, because the owner said no for that case (ADR 0017). */
+export interface CaseException {
+  readonly missionId: string;
+  readonly missionTitle: string;
+  readonly since: Date;
+  /**
+   * The same recipient still reaches this case through another live grant
+   * (one for this case, or another all-cases grant without this exception).
+   * Exceptions follow the recipient, so the owner is not told the case is
+   * "Not Shared" with them: it is.
+   */
+  readonly reachedByAnotherGrant: boolean;
+}
+
+/** A grant as its owner sees it, with the cases excluded from it. */
+export interface GrantWithExceptions extends Grant {
+  /** Cases this all-cases grant does not cover, oldest first. Always empty for a case-scoped grant. */
+  readonly caseExceptions: readonly CaseException[];
+}
+
+/**
+ * Whether one grant, as its owner sees it, reaches one case by case scope
+ * alone: the policy engine's `grantCoversMission` on the same `toPolicyGrant`
+ * mapping every access check uses. Status and time are the caller's to judge.
+ */
+export function grantReachesCase(grant: GrantWithExceptions, missionId: string): boolean {
+  return grantCoversMission(
+    toPolicyGrant(
+      grant,
+      grant.caseExceptions.map((exception) => exception.missionId as MissionId),
+    ),
+    missionId as MissionId,
+  );
+}
+
+/** Access transparency: every grant on an applicant, with its case exceptions (owner only). */
 export async function listAccessForApplicant(
   db: Db,
   actorAccountId: string,
   applicantId: string,
-): Promise<Result<Grant[], ServiceError>> {
+): Promise<Result<GrantWithExceptions[], ServiceError>> {
   if (!(await ownsApplicant(db, actorAccountId, applicantId))) {
     return err(serviceError('forbidden', 'not authorized to view access for this applicant'));
   }
@@ -539,7 +623,32 @@ export async function listAccessForApplicant(
     .select()
     .from(schema.grants)
     .where(eq(schema.grants.applicantId, applicantId));
-  return ok(rows);
+  const exceptions = rows.some((row) => row.missionId === null)
+    ? await listCaseExclusionsForApplicant(db, applicantId)
+    : [];
+  const now = new Date();
+  return ok(
+    rows.map((row) => ({
+      ...row,
+      caseExceptions:
+        row.missionId === null
+          ? exceptions
+              .filter((e) => e.grantId === row.id)
+              .map((e) => ({
+                missionId: e.missionId,
+                missionTitle: e.missionTitle,
+                since: e.createdAt,
+                reachedByAnotherGrant: recipientReachesCase(
+                  rows,
+                  exceptions,
+                  row,
+                  e.missionId,
+                  now,
+                ),
+              }))
+          : [],
+    })),
+  );
 }
 
 /** A grant's recipient, resolved to something a human recognizes rather than a raw id. */
@@ -548,7 +657,7 @@ export interface GrantRecipient {
   readonly label: string;
 }
 
-export interface GrantWithRecipient extends Grant {
+export interface GrantWithRecipient extends GrantWithExceptions {
   readonly recipient: GrantRecipient;
 }
 
@@ -563,29 +672,443 @@ export async function listAccessForApplicantDetailed(
 
   const result: GrantWithRecipient[] = [];
   for (const grant of listed.value) {
-    let recipient: GrantRecipient = { kind: 'unknown', label: 'Unknown recipient' };
-    if (grant.recipientAccountId) {
-      const account = first(
-        await db
-          .select({ email: schema.accounts.email })
-          .from(schema.accounts)
-          .where(eq(schema.accounts.id, grant.recipientAccountId))
-          .limit(1),
-      );
-      recipient = { kind: 'account', label: account?.email ?? 'Unknown recipient' };
-    } else if (grant.recipientOrganizationId) {
-      const organization = first(
-        await db
-          .select({ name: schema.organizations.name })
-          .from(schema.organizations)
-          .where(eq(schema.organizations.id, grant.recipientOrganizationId))
-          .limit(1),
-      );
-      recipient = { kind: 'organization', label: organization?.name ?? 'Unknown organization' };
-    }
-    result.push({ ...grant, recipient });
+    result.push({ ...grant, recipient: await resolveGrantRecipient(db, grant) });
   }
   return ok(result);
+}
+
+async function resolveGrantRecipient(
+  db: Db,
+  grant: Pick<Grant, 'recipientAccountId' | 'recipientOrganizationId'>,
+): Promise<GrantRecipient> {
+  if (grant.recipientAccountId) {
+    const account = first(
+      await db
+        .select({ email: schema.accounts.email })
+        .from(schema.accounts)
+        .where(eq(schema.accounts.id, grant.recipientAccountId))
+        .limit(1),
+    );
+    return { kind: 'account', label: account?.email ?? 'Unknown recipient' };
+  }
+  if (grant.recipientOrganizationId) {
+    const organization = first(
+      await db
+        .select({ name: schema.organizations.name })
+        .from(schema.organizations)
+        .where(eq(schema.organizations.id, grant.recipientOrganizationId))
+        .limit(1),
+    );
+    return { kind: 'organization', label: organization?.name ?? 'Unknown organization' };
+  }
+  return { kind: 'unknown', label: 'Unknown recipient' };
+}
+
+// --- Per-case sharing exceptions (ADR 0017) ---------------------------------
+//
+// When a new case is made, the owner is asked, for each recipient holding
+// an all-cases grant (or a pending all-cases invitation), whether that
+// recipient may see the new case. No answer means no. A "no" is one row in
+// `grant_case_exclusions`; the policy engine and the SQL list paths both read
+// it (access/grant-scope.ts). The recipient is never told about an exception
+// or about the case it hides: nothing here notifies anyone.
+
+const CASE_SHARING_UNAVAILABLE =
+  'Sharing choices for new cases are not available yet. Please try again in a few minutes.';
+
+/** One recipient the owner is asked about when a new case is made. */
+export interface CaseSharingQuestion {
+  /** A grant the recipient holds, or an invitation they have not accepted yet. */
+  readonly kind: 'grant' | 'invitation';
+  readonly id: string;
+  readonly recipient: GrantRecipient;
+  readonly purpose: string;
+  /** The grant status, or `PENDING` for an invitation. */
+  readonly status: Grant['status'] | 'PENDING';
+}
+
+function ownerOnly<A extends PermissionAction>(
+  proof: AuthorizedApplicant<A>,
+  action: A,
+): ServiceError | undefined {
+  if (!AuthorizedApplicant.isGenuine(proof, action) || proof.actor.kind !== 'applicant_owner') {
+    return serviceError('forbidden', 'Only the owner of this record can choose who sees a case.');
+  }
+  return undefined;
+}
+
+/** The all-cases grants and pending all-cases invitations of one applicant, live right now. */
+async function loadCaseSharingQuestions(
+  db: Db,
+  applicantId: string,
+  now: Date,
+): Promise<CaseSharingQuestion[]> {
+  const grantRows = await db
+    .select()
+    .from(schema.grants)
+    .where(
+      and(
+        eq(schema.grants.applicantId, applicantId),
+        isNull(schema.grants.missionId),
+        inArray(schema.grants.status, [...LIVE_GRANT_STATUSES]),
+        or(isNull(schema.grants.expiryAt), gt(schema.grants.expiryAt, now)),
+      ),
+    )
+    .orderBy(asc(schema.grants.createdAt), asc(schema.grants.id));
+  const invitationRows = await db
+    .select({
+      id: schema.sharingInvitations.id,
+      email: schema.sharingInvitations.email,
+      purpose: schema.sharingInvitations.purpose,
+    })
+    .from(schema.sharingInvitations)
+    .where(
+      and(
+        eq(schema.sharingInvitations.applicantId, applicantId),
+        isNull(schema.sharingInvitations.missionId),
+        eq(schema.sharingInvitations.status, 'PENDING'),
+        gt(schema.sharingInvitations.expiresAt, now),
+      ),
+    )
+    .orderBy(asc(schema.sharingInvitations.createdAt), asc(schema.sharingInvitations.id));
+  const questions: CaseSharingQuestion[] = [];
+  for (const grant of grantRows) {
+    questions.push({
+      kind: 'grant',
+      id: grant.id,
+      recipient: await resolveGrantRecipient(db, grant),
+      purpose: grant.purpose,
+      status: grant.status,
+    });
+  }
+  for (const invitation of invitationRows) {
+    questions.push({
+      kind: 'invitation',
+      id: invitation.id,
+      recipient: { kind: 'account', label: invitation.email },
+      purpose: invitation.purpose,
+      status: 'PENDING',
+    });
+  }
+  return questions;
+}
+
+/**
+ * Who the owner must be asked about before a new case is made: every
+ * all-cases grant that is active, paused or awaiting acceptance and not
+ * expired, and every pending all-cases invitation, with a plain label for the
+ * recipient. Owner only. Case-scoped grants are never listed: they cannot
+ * reach a new case.
+ */
+export async function listCaseSharingQuestions(
+  proof: AuthorizedApplicant<'VIEW_METADATA'>,
+): Promise<Result<CaseSharingQuestion[], ServiceError>> {
+  const denied = ownerOnly(proof, 'VIEW_METADATA');
+  if (denied) return err(denied);
+  return ok(await loadCaseSharingQuestions(proof.tx, proof.applicant.id, new Date()));
+}
+
+export interface CaseSharingAnswers {
+  /** The grants the owner ticked: they keep covering the new case. */
+  readonly allowedGrantIds: readonly string[];
+  /** The pending invitations the owner ticked: once accepted, they cover the new case. */
+  readonly allowedInvitationIds: readonly string[];
+}
+
+export interface CaseSharingOutcome {
+  readonly excludedGrantIds: readonly string[];
+  readonly excludedInvitationIds: readonly string[];
+  readonly allowedGrantIds: readonly string[];
+  readonly allowedInvitationIds: readonly string[];
+}
+
+/**
+ * Records the owner's answers for a new case, in the same transaction that
+ * creates it (pass a proof issued on that transaction). Every all-cases
+ * grant and pending all-cases invitation NOT ticked is excluded from this
+ * case; the list is computed here, at apply time, so a recipient added after
+ * the question was shown is excluded too (no answer means no). A ticked id
+ * that is not one of this person's current all-cases grants or invitations is
+ * refused rather than ignored.
+ *
+ * One-shot: once answers are recorded for a case (any GRANT_CASE_EXCLUDED or
+ * GRANT_CASE_ALLOWED event on it), a second call is refused. Later changes go
+ * through `removeCaseException` ("Allow This Case") only, so the rows and the
+ * audit trail can never disagree and a restore, which replays the trail,
+ * ends exactly where the owner left it. Exactly the rows inserted are audited.
+ *
+ * An organization that owns the case (`missions.owner_organization_id`) runs
+ * it for the person: it cannot be excluded from it, and leaving it unticked
+ * is refused with a plain message.
+ *
+ * Refuses with `upstream_error` while migration 0090 has not run and a "no"
+ * would have to be written: the caller must then roll back the case it was
+ * creating (throw inside its transaction), so a "no" is never lost. When
+ * every recipient was ticked there is nothing to write, so it goes ahead.
+ * Never notifies anyone. Owner only; the proof must be MANAGE on the new case.
+ */
+export async function applyCaseSharingAnswers(
+  proof: AuthorizedApplicant<'MANAGE'>,
+  answers: CaseSharingAnswers,
+): Promise<Result<CaseSharingOutcome, ServiceError>> {
+  const denied = ownerOnly(proof, 'MANAGE');
+  if (denied) return err(denied);
+  if (proof.resource.kind !== 'mission') {
+    return err(serviceError('invalid', 'Choose the case these answers are for.'));
+  }
+  const applicantId = proof.applicant.id;
+  const mission = proof.resource.mission;
+  const missionId = mission.id;
+  const ownerAccountId = proof.applicant.ownerAccountId;
+
+  return proof.tx.transaction(async (tx) => {
+    // Before reading any grant or invitation: an invitation accepted, or an
+    // all-cases grant created, at the same moment waits for these answers.
+    await lockCaseSharing(tx, applicantId);
+    const alreadyAnswered = first(
+      await tx
+        .select({ seq: schema.auditEvents.seq })
+        .from(schema.auditEvents)
+        .where(
+          and(
+            eq(schema.auditEvents.missionId, missionId),
+            inArray(schema.auditEvents.eventType, ['GRANT_CASE_EXCLUDED', 'GRANT_CASE_ALLOWED']),
+          ),
+        )
+        .limit(1),
+    );
+    if (alreadyAnswered) {
+      return err(
+        serviceError(
+          'invalid',
+          'Sharing for this case was already chosen. To share it with someone now, use Allow This Case on the Sharing page.',
+        ),
+      );
+    }
+
+    const questions = await loadCaseSharingQuestions(tx, applicantId, new Date());
+    const grantQuestions = questions.filter((q) => q.kind === 'grant');
+    const grantIds = new Set(grantQuestions.map((q) => q.id));
+    const invitationIds = new Set(
+      questions.filter((q) => q.kind === 'invitation').map((q) => q.id),
+    );
+    const allowedGrants = new Set(answers.allowedGrantIds);
+    const allowedInvitations = new Set(answers.allowedInvitationIds);
+    if (
+      [...allowedGrants].some((id) => !grantIds.has(id)) ||
+      [...allowedInvitations].some((id) => !invitationIds.has(id))
+    ) {
+      return err(
+        serviceError('invalid', 'One of the people you chose no longer has access to all cases.'),
+      );
+    }
+    const outcome: CaseSharingOutcome = {
+      excludedGrantIds: [...grantIds].filter((id) => !allowedGrants.has(id)),
+      excludedInvitationIds: [...invitationIds].filter((id) => !allowedInvitations.has(id)),
+      allowedGrantIds: [...grantIds].filter((id) => allowedGrants.has(id)),
+      allowedInvitationIds: [...invitationIds].filter((id) => allowedInvitations.has(id)),
+    };
+    const owningOrganization = mission.ownerOrganizationId;
+    if (owningOrganization && outcome.excludedGrantIds.length > 0) {
+      const owningGrant = first(
+        await tx
+          .select({ id: schema.grants.id })
+          .from(schema.grants)
+          .where(
+            and(
+              inArray(schema.grants.id, [...outcome.excludedGrantIds]),
+              eq(schema.grants.recipientOrganizationId, owningOrganization),
+            ),
+          )
+          .limit(1),
+      );
+      const owning = owningGrant && grantQuestions.find((q) => q.id === owningGrant.id);
+      if (owning) {
+        return err(
+          serviceError(
+            'invalid',
+            `${owning.recipient.label} runs this case for you, so it always sees it. Tick it to continue.`,
+          ),
+        );
+      }
+    }
+    if (questions.length === 0) return ok(outcome);
+    const excluded = [
+      ...outcome.excludedGrantIds.map((id) => ({ grantId: id, sharingInvitationId: null })),
+      ...outcome.excludedInvitationIds.map((id) => ({ grantId: null, sharingInvitationId: id })),
+    ];
+    if (excluded.length > 0 && !(await caseExclusionsTablePresent(tx))) {
+      return err(serviceError('upstream_error', CASE_SHARING_UNAVAILABLE));
+    }
+
+    const audit = async (
+      eventType: 'GRANT_CASE_EXCLUDED' | 'GRANT_CASE_ALLOWED',
+      parent: { readonly grantId: string | null; readonly sharingInvitationId: string | null },
+    ): Promise<void> => {
+      const id = parent.grantId ?? parent.sharingInvitationId;
+      await appendAuditEvent(tx, {
+        eventType,
+        actorAccountId: ownerAccountId,
+        action: 'SHARE',
+        method: 'MANUAL',
+        result: 'ALLOWED',
+        applicantId,
+        missionId,
+        grantId: parent.grantId,
+        resourceType: parent.grantId ? 'grant' : 'sharing_invitation',
+        resourceId: id,
+      });
+    };
+    if (excluded.length > 0) {
+      const inserted = await tx
+        .insert(schema.grantCaseExclusions)
+        .values(
+          excluded.map((parent) => ({
+            ...parent,
+            missionId,
+            applicantId,
+            createdByAccountId: ownerAccountId,
+          })),
+        )
+        .onConflictDoNothing()
+        .returning({
+          grantId: schema.grantCaseExclusions.grantId,
+          sharingInvitationId: schema.grantCaseExclusions.sharingInvitationId,
+        });
+      // Exactly the rows written, so the trail and the table always agree.
+      for (const row of inserted) await audit('GRANT_CASE_EXCLUDED', row);
+    }
+    for (const id of outcome.allowedGrantIds) {
+      await audit('GRANT_CASE_ALLOWED', { grantId: id, sharingInvitationId: null });
+    }
+    for (const id of outcome.allowedInvitationIds) {
+      await audit('GRANT_CASE_ALLOWED', { grantId: null, sharingInvitationId: id });
+    }
+    return ok(outcome);
+  });
+}
+
+/**
+ * The owner's "Allow This Case": removes one exception, so the all-cases
+ * grant covers this case again. A hard delete; the audit trail keeps the
+ * history. Refused on a revoked or expired grant (there is nothing left to
+ * allow). Asks for a fresh sign-in only when the grant itself needed one to
+ * be created (it hands out a `STEP_UP_ACTIONS` action, the `createGrant`
+ * rule): the proof must cover SHARE on this person's record. Never notifies
+ * the recipient. Owner only; the proof must be MANAGE on the case.
+ *
+ * Exceptions follow the recipient, so allowing follows the recipient too: the
+ * same case's exceptions on every other grant and invitation of that
+ * recipient (live or ended) are removed with it, each audited, so no sibling
+ * keeps the case hidden and sharing all cases with them again later does not
+ * carry the old "no" forward.
+ */
+export async function removeCaseException(
+  proof: AuthorizedApplicant<'MANAGE'>,
+  input: { readonly grantId: string; readonly stepUp?: StepUpProof },
+): Promise<Result<{ readonly grantId: string; readonly missionId: string }, ServiceError>> {
+  const denied = ownerOnly(proof, 'MANAGE');
+  if (denied) return err(denied);
+  if (proof.resource.kind !== 'mission') {
+    return err(serviceError('invalid', 'Choose the case to allow.'));
+  }
+  const applicantId = proof.applicant.id;
+  const missionId = proof.resource.mission.id;
+  const ownerAccountId = proof.applicant.ownerAccountId;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(input.grantId)) {
+    return err(serviceError('not_found', 'That sharing was not found.'));
+  }
+  return proof.tx.transaction(async (tx) => {
+    await lockCaseSharing(tx, applicantId);
+    const grant = await loadGrant(tx, input.grantId);
+    if (!grant || grant.applicantId !== applicantId || grant.missionId !== null) {
+      return err(serviceError('not_found', 'That sharing was not found.'));
+    }
+    if (!isLiveGrant(grant, new Date())) {
+      return err(serviceError('invalid', 'This sharing has ended, so there is nothing to allow.'));
+    }
+    if (
+      grant.actions.some((action) => STEP_UP_ACTIONS.includes(action)) &&
+      !StepUpProof.covers(input.stepUp, {
+        accountId: ownerAccountId,
+        action: 'SHARE',
+        resourceId: applicantId,
+      })
+    ) {
+      return err(serviceError('step_up_required', 'Confirm it is you to allow this case.'));
+    }
+    if (!(await caseExclusionsTablePresent(tx))) {
+      return err(serviceError('not_found', 'This case is already shared.'));
+    }
+    const exclusions = schema.grantCaseExclusions;
+    const removed = await tx
+      .delete(exclusions)
+      .where(
+        and(
+          eq(exclusions.grantId, grant.id),
+          eq(exclusions.missionId, missionId),
+          eq(exclusions.applicantId, applicantId),
+        ),
+      )
+      .returning({ id: exclusions.id });
+    if (removed.length === 0) {
+      return err(serviceError('not_found', 'This case is already shared.'));
+    }
+    const audit = async (parent: {
+      readonly kind: 'grant' | 'sharing_invitation';
+      readonly id: string;
+    }) =>
+      appendAuditEvent(tx, {
+        eventType: 'GRANT_CASE_EXCLUSION_REMOVED',
+        actorAccountId: ownerAccountId,
+        action: 'SHARE',
+        method: 'MANUAL',
+        result: 'ALLOWED',
+        applicantId,
+        missionId,
+        grantId: parent.kind === 'grant' ? parent.id : null,
+        resourceType: parent.kind,
+        resourceId: parent.id,
+      });
+    await audit({ kind: 'grant', id: grant.id });
+
+    // Every other grant and invitation of the same recipient, live or ended:
+    // the owner's latest word for this recipient on this case is "allow", so
+    // no sibling may keep (or later carry forward) the old "no".
+    const sources = await recipientExceptionSources(tx, applicantId, {
+      kind: 'grant',
+      id: grant.id,
+      recipientAccountId: grant.recipientAccountId,
+      recipientOrganizationId: grant.recipientOrganizationId,
+    });
+    const siblingGrantIds = sources.grants.map((g) => g.id);
+    const siblingInvitationIds = sources.invitations.map((i) => i.id);
+    if (siblingGrantIds.length + siblingInvitationIds.length > 0) {
+      const stale = await tx
+        .delete(exclusions)
+        .where(
+          and(
+            eq(exclusions.applicantId, applicantId),
+            eq(exclusions.missionId, missionId),
+            or(
+              siblingGrantIds.length > 0 ? inArray(exclusions.grantId, siblingGrantIds) : undefined,
+              siblingInvitationIds.length > 0
+                ? inArray(exclusions.sharingInvitationId, siblingInvitationIds)
+                : undefined,
+            ),
+          ),
+        )
+        .returning({ grantId: exclusions.grantId, invitationId: exclusions.sharingInvitationId });
+      for (const row of stale) {
+        await audit(
+          row.grantId
+            ? { kind: 'grant', id: row.grantId }
+            : { kind: 'sharing_invitation', id: row.invitationId ?? '' },
+        );
+      }
+    }
+    return ok({ grantId: grant.id, missionId });
+  });
 }
 
 // --- Recipient-facing permission-filtered workspace (Release G) ------------

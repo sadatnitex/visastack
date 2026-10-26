@@ -7,7 +7,7 @@
  * allow/deny `Decision`.
  */
 
-export { authorize, STEP_UP_ACTIONS } from './authorize';
+export { authorize, grantCoversMission, STEP_UP_ACTIONS } from './authorize';
 export type {
   Actor,
   AuthContext,

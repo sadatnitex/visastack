@@ -165,6 +165,7 @@ export {
   type CaseDetailField,
   type ChangesSinceConfirmed,
   type MemoryCase,
+  type MemoryCaseException,
   type MemoryChange,
   type MemoryEvent,
   type MemoryShare,
@@ -470,9 +471,14 @@ export {
 } from './profile-photos';
 
 export {
+  type CaseException,
+  type CaseSharingAnswers,
+  type CaseSharingOutcome,
+  type CaseSharingQuestion,
   type CreateGrantInput,
   type Grant,
   type GrantRecipient,
+  type GrantWithExceptions,
   type GrantWithRecipient,
   type IncomingGrant,
   type RecipientDocumentView,
@@ -480,18 +486,23 @@ export {
   type RecipientWorkspaceView,
   type ScopeExpansionCandidate,
   acceptGrant,
+  applyCaseSharingAnswers,
   createGrant,
   documentCategory,
   expandGrantScope,
   getRecipientWorkspace,
+  grantReachesCase,
   listAccessForApplicant,
   listAccessForApplicantDetailed,
+  listCaseSharingQuestions,
   listGrantsForRecipientAccount,
   loadGrantsForPolicy,
   pauseGrant,
   previewScopeExpansion,
+  removeCaseException,
   resumeGrant,
   revokeGrant,
+  toPolicyGrant,
 } from './sharing';
 
 export {
@@ -1281,6 +1292,8 @@ export {
   previewSharingInvitation,
   acceptSharingInvitation,
   listSharingInvitations,
+  listInvitationCaseExceptions,
   revokeSharingInvitation,
+  type InvitationCaseException,
   type SharingInvitation,
 } from './sharing-invitations';

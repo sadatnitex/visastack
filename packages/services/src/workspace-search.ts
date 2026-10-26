@@ -1,5 +1,6 @@
 import { type Result, err, ok } from '@visastack/core';
 import { and, asc, eq, gt, ilike, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
+import { withCaseExclusions } from './access/grant-scope';
 import { type Db, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 
@@ -51,35 +52,41 @@ export async function searchWorkspaceRecords(
       return err(serviceError('forbidden', 'This agency workspace is unavailable.'));
     const now = new Date();
     // Same current grant and assignment boundaries as the existing visible-case list.
-    const cases = await db
-      .selectDistinct({
-        id: schema.missions.id,
-        title: schema.missions.title,
-        applicantId: schema.applicants.id,
-        name: schema.applicants.displayName,
-      })
-      .from(schema.grants)
-      .innerJoin(schema.applicants, eq(schema.applicants.id, schema.grants.applicantId))
-      .innerJoin(schema.missions, eq(schema.missions.applicantId, schema.applicants.id))
-      .innerJoin(
-        schema.organizations,
-        eq(schema.organizations.id, schema.grants.recipientOrganizationId),
-      )
-      .where(
-        and(
-          eq(schema.grants.recipientOrganizationId, scope.organizationId),
-          eq(schema.grants.status, 'ACTIVE'),
-          isNotNull(schema.grants.acceptedAt),
-          lte(schema.grants.startAt, now),
-          or(isNull(schema.grants.expiryAt), gt(schema.grants.expiryAt, now)),
-          or(isNull(schema.grants.missionId), eq(schema.grants.missionId, schema.missions.id)),
-          eq(schema.organizations.status, 'ACTIVE'),
-          sql`exists (select 1 from ${schema.memberships} where ${schema.memberships.organizationId} = ${scope.organizationId} and ${schema.memberships.accountId} = ${actorAccountId} and ${schema.memberships.active} = true and (${schema.memberships.role} in ('OWNER', 'ADMIN') or exists (select 1 from ${schema.assignments} where ${schema.assignments.organizationId} = ${scope.organizationId} and ${schema.assignments.memberAccountId} = ${actorAccountId} and ${schema.assignments.missionId} = ${schema.missions.id})))`,
-          or(ilike(schema.missions.title, pattern), ilike(schema.applicants.displayName, pattern)),
-        ),
-      )
-      .orderBy(asc(schema.missions.id))
-      .limit(12);
+    const cases = await withCaseExclusions(db, (covers) =>
+      db
+        .selectDistinct({
+          id: schema.missions.id,
+          title: schema.missions.title,
+          applicantId: schema.applicants.id,
+          name: schema.applicants.displayName,
+        })
+        .from(schema.grants)
+        .innerJoin(schema.applicants, eq(schema.applicants.id, schema.grants.applicantId))
+        .innerJoin(schema.missions, eq(schema.missions.applicantId, schema.applicants.id))
+        .innerJoin(
+          schema.organizations,
+          eq(schema.organizations.id, schema.grants.recipientOrganizationId),
+        )
+        .where(
+          and(
+            eq(schema.grants.recipientOrganizationId, scope.organizationId),
+            eq(schema.grants.status, 'ACTIVE'),
+            isNotNull(schema.grants.acceptedAt),
+            lte(schema.grants.startAt, now),
+            or(isNull(schema.grants.expiryAt), gt(schema.grants.expiryAt, now)),
+            // The same case-scope rule as the case list, per-case exceptions included (ADR 0017).
+            covers(schema.missions.id),
+            eq(schema.organizations.status, 'ACTIVE'),
+            sql`exists (select 1 from ${schema.memberships} where ${schema.memberships.organizationId} = ${scope.organizationId} and ${schema.memberships.accountId} = ${actorAccountId} and ${schema.memberships.active} = true and (${schema.memberships.role} in ('OWNER', 'ADMIN') or exists (select 1 from ${schema.assignments} where ${schema.assignments.organizationId} = ${scope.organizationId} and ${schema.assignments.memberAccountId} = ${actorAccountId} and ${schema.assignments.missionId} = ${schema.missions.id})))`,
+            or(
+              ilike(schema.missions.title, pattern),
+              ilike(schema.applicants.displayName, pattern),
+            ),
+          ),
+        )
+        .orderBy(asc(schema.missions.id))
+        .limit(12),
+    );
     const results: WorkspaceSearchResult[] = cases.map((row) => ({
       category: 'Case',
       id: row.id,

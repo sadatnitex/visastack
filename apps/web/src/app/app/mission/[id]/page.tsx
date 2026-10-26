@@ -12,6 +12,7 @@ import {
   getMissionForOwner,
   getPack,
   getPackVersion,
+  grantReachesCase,
   isFactStatusEligible,
   legalTransitions,
   listAccessForApplicant,
@@ -333,9 +334,17 @@ export default async function MissionPage({
     // accepted grant on this applicant means there is no external reviewer
     // in the picture at all, so the traveller's own assessment is the only
     // one that exists; this is never inferred from the mission's own state.
+    // Only an organization whose grant reaches THIS case counts: a grant for
+    // another case, or an all-cases grant this case is excluded from (ADR
+    // 0017), is no reviewer here. The same case-scope rule as every access check.
     const selfReviewed =
       access.ok &&
-      !access.value.some((g) => g.recipientOrganizationId !== null && g.status === 'ACTIVE');
+      !access.value.some(
+        (g) =>
+          g.recipientOrganizationId !== null &&
+          g.status === 'ACTIVE' &&
+          grantReachesCase(g, mission.id),
+      );
     // "This case is dirty" (§5): was acknowledged at least once, that
     // acknowledgement was later invalidated by a material edit, and no new
     // live acknowledgement has replaced it since.

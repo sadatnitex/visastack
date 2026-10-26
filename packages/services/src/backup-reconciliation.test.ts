@@ -1,7 +1,7 @@
 import { isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
@@ -22,6 +22,7 @@ import {
   terminateOrganization,
 } from './organizations';
 import { grantPlatformRole, revokePlatformRole } from './platform-roles';
+import { loadGrantsForPolicy } from './sharing';
 import type {
   BlobStore,
   ListObjectsPage,
@@ -1074,5 +1075,198 @@ describe('reconcileRestoredBranch (master directive Part 7 §15: backup resurrec
         .from(schema.storageObjects)
         .where(inArray(schema.storageObjects.objectKey, objectKeys)),
     ).toHaveLength(2);
+  });
+});
+
+describe('reconcileRestoredBranch: per-case sharing exceptions (ADR 0017)', () => {
+  let oldDb: Db;
+  let newDb: Db;
+
+  beforeEach(async () => {
+    oldDb = await freshDb();
+    newDb = await freshDb();
+  });
+
+  /** An owner, a case and an all-cases grant, identical on both branches at the restore point. */
+  async function sharedCase() {
+    const owner = await seedAccount(oldDb, 'exception-owner@example.com');
+    await mirrorRow(newDb, schema.accounts, owner);
+    const recipient = await seedAccount(oldDb, 'exception-recipient@example.com');
+    await mirrorRow(newDb, schema.accounts, recipient);
+    const applicant = await seedApplicant(oldDb, owner.id);
+    await mirrorRow(newDb, schema.applicants, applicant);
+    const [mission] = await oldDb
+      .insert(schema.missions)
+      .values({ applicantId: applicant.id, title: 'Japan trip 2026', createdAt: BEFORE })
+      .returning();
+    if (!mission) throw new Error('setup');
+    await mirrorRow(newDb, schema.missions, mission);
+    const [grant] = await oldDb
+      .insert(schema.grants)
+      .values({
+        applicantId: applicant.id,
+        recipientAccountId: recipient.id,
+        status: 'ACTIVE',
+        acceptedAt: BEFORE,
+        actions: ['VIEW_METADATA'],
+        purpose: 'test',
+        createdAt: BEFORE,
+        updatedAt: BEFORE,
+      })
+      .returning();
+    if (!grant) throw new Error('setup');
+    await mirrorRow(newDb, schema.grants, grant);
+    return { owner, applicantId: applicant.id, missionId: mission.id, grantId: grant.id };
+  }
+
+  async function recordOnOld(
+    eventType: 'GRANT_CASE_EXCLUDED' | 'GRANT_CASE_EXCLUSION_REMOVED',
+    c: Awaited<ReturnType<typeof sharedCase>>,
+    occurredAt: Date,
+    parent: { kind: 'grant' | 'sharing_invitation'; id: string } = { kind: 'grant', id: c.grantId },
+  ): Promise<void> {
+    await oldDb.insert(schema.auditEvents).values({
+      occurredAt,
+      eventType,
+      actorAccountId: c.owner.id,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      applicantId: c.applicantId,
+      missionId: c.missionId,
+      grantId: parent.kind === 'grant' ? parent.id : null,
+      resourceType: parent.kind,
+      resourceId: parent.id,
+      hash: `test-hash-${eventType}-${occurredAt.getTime()}`,
+    });
+  }
+
+  async function exceptionsOnNew() {
+    return newDb.select().from(schema.grantCaseExclusions);
+  }
+
+  async function reconciliationEvents(): Promise<number> {
+    const rows = await newDb
+      .select({ seq: schema.auditEvents.seq })
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.reason, 'backup_resurrection_reconciliation'));
+    return rows.length;
+  }
+
+  it('an exception written after the restore point survives the restore, and a second run is a clean no-op', async () => {
+    const c = await sharedCase();
+    await recordOnOld('GRANT_CASE_EXCLUDED', c, AFTER);
+
+    const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(report.errors).toEqual([]);
+    expect(report.counts.caseExceptionsAdded).toBe(1);
+    const rows = await exceptionsOnNew();
+    expect(rows.map((r) => [r.grantId, r.missionId, r.applicantId, r.createdByAccountId])).toEqual([
+      [c.grantId, c.missionId, c.applicantId, c.owner.id],
+    ]);
+    // The restored branch's own access check now refuses the case again.
+    const policyGrant = (await loadGrantsForPolicy(newDb, c.applicantId))[0];
+    expect(policyGrant?.excludedMissionIds).toEqual([c.missionId]);
+    const audits = await reconciliationEvents();
+    expect(audits).toBe(1);
+
+    const again = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(again.errors).toEqual([]);
+    expect(again.counts.caseExceptionsAdded).toBe(0);
+    expect(await exceptionsOnNew()).toHaveLength(1);
+    expect(await reconciliationEvents()).toBe(audits);
+  });
+
+  it('an Allow This Case after the restore point is replayed too, in order, and twice is a no-op', async () => {
+    const c = await sharedCase();
+    // Excluded before the restore point (both branches have it), allowed after.
+    await newDb.insert(schema.grantCaseExclusions).values({
+      grantId: c.grantId,
+      missionId: c.missionId,
+      applicantId: c.applicantId,
+    });
+    await recordOnOld('GRANT_CASE_EXCLUSION_REMOVED', c, AFTER);
+    const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(report.errors).toEqual([]);
+    expect(report.counts.caseExceptionsRemoved).toBe(1);
+    expect(await exceptionsOnNew()).toHaveLength(0);
+    const again = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(again.counts.caseExceptionsRemoved).toBe(0);
+    expect(again.counts.caseExceptionsAdded).toBe(0);
+
+    // A "no" then "allow" then "no" after the restore point ends excluded; repeats change nothing.
+    const later = new Date(AFTER.getTime() + 60_000);
+    const latest = new Date(AFTER.getTime() + 120_000);
+    await recordOnOld('GRANT_CASE_EXCLUDED', c, later);
+    await recordOnOld('GRANT_CASE_EXCLUDED', c, latest);
+    const third = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(third.errors).toEqual([]);
+    expect(await exceptionsOnNew()).toHaveLength(1);
+    const audits = await reconciliationEvents();
+    await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(await exceptionsOnNew()).toHaveLength(1);
+    expect(await reconciliationEvents()).toBe(audits);
+  });
+
+  it('a "no" on a pending invitation is replayed against the invitation, ready for its acceptance', async () => {
+    const c = await sharedCase();
+    const [invitation] = await oldDb
+      .insert(schema.sharingInvitations)
+      .values({
+        applicantId: c.applicantId,
+        invitedByAccountId: c.owner.id,
+        email: 'invited@example.com',
+        tokenHash: 'token-hash-reconcile',
+        purpose: 'test',
+        actions: ['VIEW_METADATA'],
+        grantExpiryAt: new Date(Date.now() + 86_400_000),
+        expiresAt: new Date(Date.now() + 86_400_000),
+        createdAt: BEFORE,
+      })
+      .returning();
+    if (!invitation) throw new Error('setup');
+    await mirrorRow(newDb, schema.sharingInvitations, invitation);
+    await recordOnOld('GRANT_CASE_EXCLUDED', c, AFTER, {
+      kind: 'sharing_invitation',
+      id: invitation.id,
+    });
+    const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(report.errors).toEqual([]);
+    expect((await exceptionsOnNew()).map((r) => [r.sharingInvitationId, r.missionId])).toEqual([
+      [invitation.id, c.missionId],
+    ]);
+  });
+
+  it('is a clean no-op when the grant or case was made after the restore point', async () => {
+    const c = await sharedCase();
+    await recordOnOld('GRANT_CASE_EXCLUDED', c, AFTER, {
+      kind: 'grant',
+      id: crypto.randomUUID(),
+    });
+    const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(report.errors).toEqual([]);
+    expect(report.counts.caseExceptionsAdded).toBe(0);
+    expect(await exceptionsOnNew()).toHaveLength(0);
+  });
+
+  it('fails closed: when the exception cannot be written, the grant is revoked (never paused) and the error reported', async () => {
+    const c = await sharedCase();
+    await recordOnOld('GRANT_CASE_EXCLUDED', c, AFTER);
+    // A restored branch from before migration 0090 has no table to write it to.
+    await newDb.execute(sql`drop table grant_case_exclusions`);
+    const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(report.errors).toHaveLength(1);
+    expect(report.errors[0]?.message).toContain('grant closed instead');
+    const [grant] = await newDb.select().from(schema.grants).where(eq(schema.grants.id, c.grantId));
+    expect(grant?.status).toBe('REVOKED');
+    const closed = await newDb
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'RECONCILIATION_CASE_EXCEPTION_FAIL_CLOSED'));
+    expect(closed.map((e) => [e.resourceId, e.missionId])).toEqual([[c.grantId, c.missionId]]);
+    // Running again keeps it closed and reports again; it never reopens.
+    const again = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(again.errors).toHaveLength(1);
+    const [still] = await newDb.select().from(schema.grants).where(eq(schema.grants.id, c.grantId));
+    expect(still?.status).toBe('REVOKED');
   });
 });

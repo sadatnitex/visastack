@@ -7,6 +7,9 @@ const mocks = vi.hoisted(() => ({
   listAuditEventsForApplicant: vi.fn(),
   listApplicantProfile: vi.fn(),
   previewScopeExpansion: vi.fn(),
+  listSharingInvitations: vi.fn(),
+  listInvitationCaseExceptions: vi.fn(),
+  requireAccess: vi.fn(),
 }));
 vi.mock('@visastack/services', async (original) => ({
   ...(await original<typeof import('@visastack/services')>()),
@@ -20,6 +23,7 @@ vi.mock('./actions', () => ({ revokeSharingInvitationAction: vi.fn() }));
 vi.mock('./grant-form', () => ({ GrantForm: stub('GrantForm') }));
 vi.mock('./grant-op-buttons', () => ({ GrantOpButtons: stub('GrantOpButtons') }));
 vi.mock('./scope-expansion-form', () => ({ ScopeExpansionForm: stub('ScopeExpansionForm') }));
+vi.mock('./case-exceptions', () => ({ CaseExceptions: stub('CaseExceptions') }));
 const { default: Page } = await import('./page');
 const render = () => renderServer(Page({ params: Promise.resolve({ id: 'owned' }) }));
 function grant(status: string, id = status) {
@@ -34,6 +38,7 @@ function grant(status: string, id = status) {
     purpose: 'Visa review',
     expiryAt: null,
     acceptedAt: null,
+    caseExceptions: [] as { missionId: string; missionTitle: string; since: Date }[],
   };
 }
 beforeEach(() => {
@@ -182,5 +187,133 @@ describe('Share from the Record (WP-V3 part 2)', () => {
   it('without a choice the form starts as before', async () => {
     const [form] = stubProps<{ initialDocumentId?: string }>(await render(), 'GrantForm');
     expect(form?.initialDocumentId).toBeUndefined();
+  });
+});
+
+describe('per-case sharing exceptions on the Sharing page', () => {
+  const exception = {
+    missionId: 'case-2',
+    missionTitle: 'Japan trip 2026',
+    since: new Date(),
+    reachedByAnotherGrant: false,
+  };
+  it('lists the cases an all-cases access does not cover, for live access only', async () => {
+    mocks.listAccessForApplicantDetailed.mockResolvedValue({
+      ok: true,
+      value: [
+        { ...grant('ACTIVE', 'live'), caseExceptions: [exception] },
+        { ...grant('REVOKED', 'ended'), caseExceptions: [exception] },
+        { ...grant('ACTIVE', 'case-only'), missionId: 'case-1', caseExceptions: [] },
+        { ...grant('PAUSED', 'none'), caseExceptions: [] },
+      ],
+    });
+    const html = await render();
+    const lists = stubProps<{
+      grantId: string;
+      applicantId: string;
+      recipientLabel: string;
+      exceptions: { missionId: string; title: string }[];
+    }>(html, 'CaseExceptions');
+    expect(lists).toEqual([
+      {
+        applicantId: 'owned',
+        grantId: 'live',
+        recipientLabel: 'Synthetic recipient',
+        exceptions: [{ missionId: 'case-2', title: 'Japan trip 2026', sharedSeparately: false }],
+      },
+    ]);
+  });
+  it('says when the same recipient still sees an excluded case through another access', async () => {
+    mocks.listAccessForApplicantDetailed.mockResolvedValue({
+      ok: true,
+      value: [
+        {
+          ...grant('ACTIVE', 'live'),
+          caseExceptions: [{ ...exception, reachedByAnotherGrant: true }],
+        },
+      ],
+    });
+    const [list] = stubProps<{ exceptions: { sharedSeparately: boolean }[] }>(
+      await render(),
+      'CaseExceptions',
+    );
+    expect(list?.exceptions).toEqual([
+      { missionId: 'case-2', title: 'Japan trip 2026', sharedSeparately: true },
+    ]);
+  });
+  it('names the cases a pending all-cases invitation will not cover, read through the access gate', async () => {
+    vi.stubEnv('PERSONAL_SHARING_INVITATIONS_ENABLED', 'true');
+    try {
+      const later = new Date(Date.now() + 86_400_000);
+      mocks.listSharingInvitations.mockResolvedValue([
+        {
+          id: 'inv-1',
+          email: 'friend@example.test',
+          status: 'PENDING',
+          purpose: 'Visa review',
+          missionId: null,
+          expiresAt: later,
+        },
+        {
+          id: 'inv-2',
+          email: 'old@example.test',
+          status: 'REVOKED',
+          purpose: 'Visa review',
+          missionId: null,
+          expiresAt: later,
+        },
+      ]);
+      mocks.requireAccess.mockResolvedValue({ ok: true, value: { proof: 'owner' } });
+      mocks.listInvitationCaseExceptions.mockResolvedValue({
+        ok: true,
+        value: [
+          {
+            invitationId: 'inv-1',
+            missionId: 'case-2',
+            missionTitle: 'Japan trip 2026',
+            since: new Date(),
+          },
+          {
+            invitationId: 'inv-2',
+            missionId: 'case-3',
+            missionTitle: 'Canada study',
+            since: new Date(),
+          },
+        ],
+      });
+      const text = textOf(await render());
+      expect(mocks.requireAccess).toHaveBeenCalledWith(
+        {},
+        expect.anything(),
+        'VIEW_METADATA',
+        { applicantId: 'owned' },
+        { purpose: 'owner_case_sharing' },
+      );
+      expect(mocks.listInvitationCaseExceptions).toHaveBeenCalledWith({ proof: 'owner' });
+      expect(text).toContain('Not Shared: Japan trip 2026');
+      // Only pending invitations list their exceptions.
+      expect(text).not.toContain('Canada study');
+
+      // A refused gate shows nothing rather than failing the page.
+      mocks.requireAccess.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
+      mocks.listInvitationCaseExceptions.mockClear();
+      expect(textOf(await render())).not.toContain('Japan trip 2026');
+      expect(mocks.listInvitationCaseExceptions).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+  it('shows nothing for access that has run out', async () => {
+    mocks.listAccessForApplicantDetailed.mockResolvedValue({
+      ok: true,
+      value: [
+        {
+          ...grant('ACTIVE', 'old'),
+          expiryAt: new Date(Date.now() - 1000).toISOString(),
+          caseExceptions: [exception],
+        },
+      ],
+    });
+    expect(stubProps(await render(), 'CaseExceptions')).toHaveLength(0);
   });
 });

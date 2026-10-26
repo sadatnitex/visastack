@@ -1,0 +1,49 @@
+const S = '/tmp/claude-0/-home-user-visastack/e983be95-9fcf-5fa1-aac2-ff874b8c51c5/scratchpad/wt-v4-excl/packages/services/src';
+
+
+
+
+describe('poc', () => {
+  it('second apply excludes without an audit event', async () => {
+    const { and, eq } = await import('/tmp/claude-0/-home-user-visastack/e983be95-9fcf-5fa1-aac2-ff874b8c51c5/scratchpad/wt-v4-excl/packages/services/node_modules/drizzle-orm/index.js');
+    const { drizzle } = await import('/tmp/claude-0/-home-user-visastack/e983be95-9fcf-5fa1-aac2-ff874b8c51c5/scratchpad/wt-v4-excl/packages/services/node_modules/drizzle-orm/pglite/index.js');
+    const { schema } = await import('/tmp/claude-0/-home-user-visastack/e983be95-9fcf-5fa1-aac2-ff874b8c51c5/scratchpad/wt-v4-excl/packages/services/node_modules/@visastack/db/src/index.ts');
+    const { createMigratedPglite } = await import('/tmp/claude-0/-home-user-visastack/e983be95-9fcf-5fa1-aac2-ff874b8c51c5/scratchpad/wt-v4-excl/packages/services/node_modules/@visastack/db/src/testing.ts');
+    const { accountPrincipal, requireAccess } = await import(`${S}/access`);
+    const { provisionAccount } = await import(`${S}/accounts`);
+    const { createApplicant } = await import(`${S}/applicants`);
+    const { setConsent } = await import(`${S}/consent`);
+    const { createMission } = await import(`${S}/missions`);
+    const sh = await import(`${S}/sharing`);
+    const db: any = drizzle(await createMigratedPglite(), { schema });
+    const acct = async (email: string) => {
+      const p: any = await provisionAccount(db, { email });
+      for (const type of ['CORE_PROCESSING', 'SHARING'])
+        await setConsent(db, { actorAccountId: p.value.id, accountId: p.value.id, type, granted: true });
+      return p.value.id as string;
+    };
+    const owner = await acct('o@x.test');
+    const person = await acct('p@x.test');
+    const ap: any = await createApplicant(db, { actorAccountId: owner, ownerAccountId: owner, displayName: 'R' });
+    const g: any = await sh.createGrant(db, { actorAccountId: owner, applicantId: ap.value.id, recipientAccountId: person, actions: ['VIEW_METADATA'], purpose: 'collaboration' });
+    await sh.acceptGrant(db, { actorAccountId: person, grantId: g.value.id });
+    const m: any = await createMission(db, { actorAccountId: owner, applicantId: ap.value.id, title: 'Secret trip' });
+    const proof = async () => (await requireAccess(db, accountPrincipal(owner), 'MANAGE', { missionId: m.value.id }, { purpose: 'owner_case_sharing' }) as any).value;
+    const gate = async () => (await requireAccess(db, accountPrincipal(person), 'VIEW_METADATA', { missionId: m.value.id }, { purpose: 'collaboration' }) as any).ok;
+    const audits = async (t: string) => (await db.select().from(schema.auditEvents).where(and(eq(schema.auditEvents.eventType, t), eq(schema.auditEvents.missionId, m.value.id)))).length;
+    // 1st: allowed
+    expect((await sh.applyCaseSharingAnswers(await proof(), { allowedGrantIds: [g.value.id], allowedInvitationIds: [] })).ok).toBe(true);
+    expect(await gate()).toBe(true);
+    // 2nd: not allowed -> exclusion written
+    const r2: any = await sh.applyCaseSharingAnswers(await proof(), { allowedGrantIds: [], allowedInvitationIds: [] });
+    expect(r2.ok).toBe(true);
+    expect(await gate()).toBe(false);
+    const fs = await import('node:fs');
+    const log = (x: unknown) => fs.appendFileSync('/tmp/claude-0/-home-user-visastack/e983be95-9fcf-5fa1-aac2-ff874b8c51c5/scratchpad/sec-poc/out.txt', JSON.stringify(x) + '|');
+    log(['after 2nd apply: rows', (await db.select().from(schema.grantCaseExclusions)).length, 'EXCLUDED', await audits('GRANT_CASE_EXCLUDED'), 'ALLOWED', await audits('GRANT_CASE_ALLOWED')]);
+    const rm: any = await sh.removeCaseException(await proof(), { grantId: g.value.id });
+    log(['remove ok', rm.ok, 'gate', await gate()]);
+    await sh.applyCaseSharingAnswers(await proof(), { allowedGrantIds: [], allowedInvitationIds: [] });
+    log(['after re-exclude: gate', await gate(), 'rows', (await db.select().from(schema.grantCaseExclusions)).length, 'EXCLUDED', await audits('GRANT_CASE_EXCLUDED'), 'REMOVED', await audits('GRANT_CASE_EXCLUSION_REMOVED')]);
+  });
+});

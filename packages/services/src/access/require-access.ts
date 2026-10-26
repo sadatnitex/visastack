@@ -15,6 +15,7 @@ import {
   type Grant as PolicyGrant,
   type Resource as PolicyResource,
   authorize,
+  grantCoversMission,
 } from '@visastack/policy';
 import { and, eq, ne } from 'drizzle-orm';
 import { type Applicant, getApplicant } from '../applicants';
@@ -600,5 +601,23 @@ export async function requireAccess<A extends PermissionAction>(
       ),
     );
   }
-  return err(denied(reason ?? 'default_deny'));
+  const finalReason = reason ?? 'default_deny';
+  // A grantee none of whose grants reaches this case by case scope (a per-case
+  // sharing exception, ADR 0017, or grants for other cases only) gets exactly
+  // what an unknown id gets, so a hidden case cannot be told apart from one
+  // that does not exist. A grantee who can see the case but lacks the action
+  // still gets `forbidden` (it already knows the case), and so does someone
+  // with no grant on this person at all, as before. The specific reason
+  // never leaves this function.
+  if (
+    loaded.resource.kind === 'mission' &&
+    finalReason !== 'step_up_required' &&
+    candidates.some((c) => c.grants.length > 0)
+  ) {
+    const missionId = loaded.resource.mission.id as MissionId;
+    if (!candidates.some((c) => c.grants.some((g) => grantCoversMission(g, missionId)))) {
+      return err(serviceError('not_found', 'record not found'));
+    }
+  }
+  return err(denied(finalReason));
 }
