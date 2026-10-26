@@ -6,25 +6,26 @@ through a governed, AI-assisted workflow - with an equivalent **no-AI manual
 path**. Applicants own their data; agencies get exactly the access they are
 granted, and every action is authorized, consent-gated, and audited.
 
-> **Current status (2026-10-12): controlled pilot, synthetic data only; public sensitive-data beta remains BETA_BLOCKED.**
-> Current configuration uses Neon Auth, Neon Postgres, private Cloudflare R2 storage and separate Resend authentication/application mail paths. Public-beta PR-01 through PR-09 acceptance is still being completed. A successful database-only restore does not establish complete disaster recovery.
-> Start with [current operating guidance](docs/operations/current-platform.md), [the product contract](docs/public-beta/PRODUCT-CONTRACT.md), [deployment actions](docs/public-beta/DEPLOYMENT-ACTIONS.md) and [release acceptance](docs/public-beta/RELEASE-ACCEPTANCE-CHECKPOINT.md). The Commercial V1 ledger, historical reports and original acceptance targets remain evidence; older code-complete/provider-default snapshots are not a current launch verdict.
+> **Current status (2026-10-26): public beta, free to use at your own risk, running as a controlled pilot with made-up records only. Real applicant data stays switched off.**
+> Sign-in is Neon Auth only (WorkOS was retired in #237). Data lives in Neon Postgres (90 migrations applied), files in private Cloudflare R2, application mail goes through Resend and sign-in mail through Neon Auth SMTP. Production deploys from `main` only; pull requests get no preview.
+> Start with [current operating guidance](docs/operations/current-platform.md), [the current product state](docs/public-beta/CURRENT-STATE.md), [the product contract](docs/public-beta/PRODUCT-CONTRACT.md) and, for work in progress, [Programme X status](docs/upgrades/programme/STATUS.md) and [the latest session handoff](docs/upgrades/programme/SESSION-HANDOFF-2026-10-25-evening.md). Older dated snapshots below are history, not a current launch verdict.
 
 ## Current deployed state
 
-Read [the current product and release state](docs/public-beta/CURRENT-STATE.md) first. It distinguishes deployed behavior, verified evidence and remaining acceptance from historical implementation reports.
+Read [the current product and release state](docs/public-beta/CURRENT-STATE.md) first. It separates what is deployed, what has evidence and what acceptance is still open.
 
-| Area | Current state | Still open |
+| Area | Current state (26 Oct 2026) | Still open |
 | --- | --- | --- |
-| Product | Registration available; controlled pilot with synthetic records; real applicant data disabled | Public sensitive-data release acceptance and approval |
-| Identity and mail | Neon Auth; separate Resend application mail; configured VisaStack sender and signed callbacks | Full signup/reset/confirmation, physical inbox and staff MFA acceptance |
-| Documents | Private R2 with the existing private Blob mirror; native parsing and bounded private-worker OCR; PDF Buffer fix deployed | Real scanner/R2 and authenticated processing lifecycle; readiness reports malware scanning unconfigured |
-| Sharing and invitations | Team/client email and copy/share handoff deployed; personal invitations before signup enabled after specifically approved migration 0085 | Full recipient registration/acceptance and physical email receipt |
-| Interface | Reference-based traveller, agency and admin compositions; flat appearance, compact navigation and corrected hero spacing | CF-09 full authenticated desktop/mobile journeys and remaining route-state acceptance |
-| Recovery | Native protected writes required; encrypted weekly database backup and database-only restore evidence | Complete document/key/lifecycle recovery, key rotation/escrow and original recovery objectives |
-| Release | PR 201 merged and live; source checks and both deployment smokes passed | PR 202 post-merge main CI; real scanner/storage acceptance blocked by missing scanner CLI package, with repair in review |
+| Product | Public beta (free, at your own risk) in controlled pilot mode; made-up records only; real applicant data and commercial claims disabled | Public sensitive-data release acceptance and the owner's approval |
+| Identity and mail | Neon Auth is the only sign-in system; separate Resend application mail with signed delivery callbacks | Full sign-up, reset and confirmation journeys, physical inbox receipt, staff two-step sign-in acceptance |
+| Traveller workspace | Task-first first run; four-tab record view with the Record hub; Application Memory and the then-and-now view; profile photos; visa photo sizes from one passport photo | Needs Attention and the reordered Home (WP-V4, in progress); Prepare Again; request screens |
+| Documents and AI | Private R2 storage; AI suggestions saved only after a person approves; AI document kind and name on request; What Your Documents Show; per-provider data terms with a training guard built and switched off | Real malware scanner (readiness reports it unconfigured); real redaction (parked) |
+| Agencies and sharing | Agency triage groups, Do Next list and copy-ready follow-up message; "Download Safe Copies" permission (visa photo sizes now, redacted documents later) | Full owner, worker and client lifecycle journeys |
+| Platform administration | Document protection switches; AI provider settings with draft, activate, roll back, emergency stop and fallback; provider data terms | Staff two-step sign-in acceptance; measured provider cost and capacity |
+| Recovery | Encrypted weekly database backup and an isolated database-only restore | Document, key and lifecycle recovery; key rotation and escrow; the original recovery objectives |
+| Release | Each merge is checked on its exact commit before merge and again against production after deployment | The final release-candidate review (Programme X WP-V6) and the owner's release decision |
 
-Existing policies, consent, quarantine, audit and legal holds remain in place. Account confirmation does not transfer records or privileges. Invitation creation does not grant access. A provider delivery status does not prove inbox placement. Registration availability is separate from permission to use real applicant data. Bangla translation remains deferred.
+Existing policies, consent, quarantine, audit and legal holds remain in place. Account confirmation does not transfer records or privileges. Invitation creation does not grant access. A provider delivery status does not prove inbox placement. Registration availability is separate from permission to use real applicant data. Payments and real redaction are parked by the owner. Bangla translation remains deferred.
 
 ## What's implemented
 
@@ -44,6 +45,10 @@ Existing policies, consent, quarantine, audit and legal holds remain in place. A
 | **Billing & Notifications** | Plans, invoices, scheduled downgrades, a real Resend outbound adapter with signed delivery reconciliation (configuration and actual inbox acceptance are separate), a notification sweep pipeline, and a platform admin console over all of it. |
 | **Applicant Trust & Lifecycle** | Truth-check attestations, acknowledgements, case state transitions, retention policies with eligibility-based purge, legal holds that **override deletion**, and a durable erasure outbox with lease-based recovery. |
 | **Reliability** | Liveness + readiness probes; existing i18n infrastructure with Bangla translation deferred; incident runbook + RPO/RTO/restore-drill docs; a tamper-evident, hash-chained audit log on every mutation. |
+| **Programme X experience (Oct 2026)** | Harbor landing, colour layer and brand; task-first first run; four-tab record view (Overview, Profile, Documents, Cases, Sharing and more) with the Record hub; case journey view and changed-case alert; grant review brief; Application Memory and then-and-now comparison; Title Case and one family of form fields across the interface; redesigned account menu. Status: [STATUS.md](docs/upgrades/programme/STATUS.md). |
+| **Photos** | One profile photo per person (re-encoded on the server with hidden file details removed, included in the data export, erased on removal) and visa photo sizes cut on request from one shared passport photo for each published country rule, with source and checked date and no acceptance claim. |
+| **AI provider governance** | Per-configuration provider data terms (free or paid, training, retention, region, terms address, date checked), one shared rule for warnings and blocking, and the "Only Use AI Providers That Do Not Train on Inputs" setting, built and off by owner decision. Review: [AI processing review](docs/legal/ai-processing-review-2026-10-25.md); runbook: [switching AI providers](docs/operations/runbooks/switch-ai-provider.md). |
+| **Central access gate** | `packages/services/src/access/`: applicant reads take a proof from `requireAccess`; a ratchet test stops new ungated reads from being added. |
 
 ## Principles (enforced, not aspirational)
 
@@ -74,7 +79,7 @@ visastack/
 │   ├── services/          # Application services (the write side; transactional, audited)
 │   ├── adapters/          # Concrete infra: blob storage, ClamAV/structural scanning,
 │   │                       #   multi-provider AI extraction + OCR, evaluation harness, email, payments
-│   └── i18n/               # English/Bangla message catalog + typed translator
+│   └── i18n/               # English/Bangla message catalog + typed translator (Bangla deferred)
 ├── docs/
 │   ├── adr/                # Architecture Decision Records (point-in-time; never edited retroactively)
 │   ├── architecture/       # Data model, permission model, pipeline, AI gateway
@@ -84,6 +89,10 @@ visastack/
 │   ├── product/            # PRD (3-page + Commercial V1) + Build Spec
 │   ├── roadmap/            # Commercial V1 implementation directive + original phased plan
 │   ├── security/           # Threat model + boundary/enforcement/test maps
+│   ├── public-beta/        # Current product state, product contract, release acceptance
+│   ├── upgrades/           # Programme X: status, work packages, allowlists, coverage ledger, handoffs
+│   ├── uiux/               # Interface reference mapping and fidelity checkpoints
+│   ├── legal/              # Reviews and drafts for the owner (not legal advice, no compliance claims)
 │   └── audits/              # Point-in-time audit snapshots (each superseded-flagged)
 └── .github/                 # CI (lint · build · typecheck · test), CodeQL, governance
 ```
@@ -144,7 +153,8 @@ Set values separately for Production and the intended Preview scope. Public read
 | `STORAGE_PROVIDER=r2`, `R2_ENDPOINT_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_REGION` | Configured private R2 document storage | current production storage; region defaults to auto and EU jurisdiction uses the EU account endpoint |
 | `BLOB_READ_WRITE_TOKEN` | Alternate Vercel private storage adapter | only an explicitly selected compatible deployment |
 | `BLOB_SIGNING_SECRET` | HMAC secret for signed blob URLs | document serving via the Neon-bytea fallback |
-| `IDENTITY_PROVIDER=neon_auth`, `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET` | Configured Neon Auth sign-in | current production authentication; explicit legacy WorkOS deployments retain their own settings |
+| `IDENTITY_PROVIDER=neon_auth`, `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET` (32 or more characters) | Neon Auth sign-in, the only sign-in system since #237 | every deployment; any other identity value is refused and reported by readiness |
+| `PUBLIC_BETA_OPEN=true` | Opens public sign-up | only when Neon Auth is fully configured; without it sign-up is invite-only |
 | `EMAIL_PROVIDER=resend`, `RESEND_API_KEY`, `RESEND_FROM_ADDRESS`, `RESEND_WEBHOOK_SECRET` | Application email and signed delivery reconciliation | separate from Neon Auth SMTP |
 | `PROTECTED_FIELDS_PGCRYPTO=required` and existing application key settings | Native protected-field encryption writes | key recovery/rotation acceptance is still required |
 | `MALWARE_SCANNER_PROVIDER` (+ `CLAMAV_SOCKET_PATH` or `CLAMAV_HOST`/`CLAMAV_PORT`) | Selects the configured structural or actual scanner path, including `clamav` and `github_clamav` | real malware scanning |
@@ -163,28 +173,42 @@ pnpm run build          # build the workspace
 ```
 
 Requires Node 22 (`.nvmrc`) and pnpm 10+. Tests run migrations against an
-in-memory Postgres (PGlite), so service tests exercise FK/enum/unique constraints, append-only audit rules and permission invariants without a live provider. This does not prove real authentication, email, malware scanning, file storage, recovery or user journeys. CI (`.github/workflows/ci.yml`) runs lint, build,
-typecheck, and the full test suite as one required check; a 60-minute ceiling
-tracks the suite's own growth (see the in-file history comment).
+in-memory Postgres (PGlite), so service tests exercise FK/enum/unique constraints, append-only audit rules and permission invariants without a live provider. This does not prove real authentication, email, malware scanning, file storage, recovery or user journeys. Pull requests must pass three required checks on their exact head
+commit: "Lint · Build · Typecheck · Test" (a summary of parallel jobs: lint and
+audit, build and typecheck, three service test shards, web and other packages),
+"No-secret Playwright checks" and "No-secret smoke check" (both against the PR
+build on the CI machine, `.github/workflows/pr-browser-checks.yml`). After a
+merge the browser and smoke checks run again against production, plus a live
+signed-in check. Production migrations run only through the manual
+`db-migrate.yml` workflow with the owner's approval for that specific run.
 
 ## Web app
 
-- `/` - public product landing using the approved reference identity and flat refinement. Device dark appearance does not substitute a navy theme. The beta notice is hidden for signed-in users.
-- `/invitation` - public account handoff for the team/client invitation candidate; authenticated pages review and explicitly accept the request.
-- `/app` - the authenticated workspace (applicants, missions, documents,
-  sharing, privacy/consent, notifications); `/app/admin/*` is the platform
-  admin console (AI provider configuration, organizations, packs, complaints).
-- `/status` - live system status, polling the real health probes.
-- `/api/health/live`, `/api/health/ready` - liveness / readiness; readiness
-  exposes coarse readiness and platform states. Detailed diagnostics require an authorised administrator.
-- `/api/blob/[key]` - signed, expiring blob serving (returns `503` until
-  storage is configured).
-- `/api/jobs/*` - background sweep endpoints (notifications, downgrades,
-  retention, erasure, exports, intake) for the platform's scheduler to call.
+- `/` - public Harbor landing. The beta notice is hidden for signed-in users.
+- `/invitation` - public account handoff for team and client invitations (bound to the invited email address); signed-in pages review and explicitly accept.
+- `/app` - the signed-in workspace: Home, then each traveller record at `/app/applicant/[id]` with Overview, Profile, Documents, Cases, Sharing and supporting tabs; agency workspaces at `/app/agency/[orgId]`; `/app/admin/*` is the platform admin console (AI provider settings and data terms, document protection, organizations, packs, complaints).
+- `/status` - What Works Today, from the same capability decisions the product uses.
+- `/api/health/live`, `/api/health/ready` - liveness and readiness; readiness reports coarse platform states only.
+- `/api/blob/[key]` - signed, expiring blob serving (returns `503` until storage is configured).
+- `/api/jobs/*` - background sweep endpoints (notifications, downgrades, retention, erasure, exports, intake) for the scheduler.
 
 ## Documentation
 
-- **Commercial V1 (current programme):**
+- **Work in progress (Programme X):**
+  [Status](docs/upgrades/programme/STATUS.md) ·
+  [Latest session handoff](docs/upgrades/programme/SESSION-HANDOFF-2026-10-25-evening.md) ·
+  [Programme contract](docs/upgrades/programme/PROGRAMME.md) ·
+  [Work packages](docs/upgrades/programme/WORK-PACKAGES.md) ·
+  [Coverage ledger](docs/upgrades/programme/COVERAGE-LEDGER.csv) ·
+  [Functional spec v1.2](docs/upgrades/upgrade.v1.2.execution.md)
+- **Running the platform:**
+  [Current operating guidance](docs/operations/current-platform.md) ·
+  [Current product state](docs/public-beta/CURRENT-STATE.md) ·
+  [Switching AI providers](docs/operations/runbooks/switch-ai-provider.md)
+- **For the owner to review:**
+  [AI processing review](docs/legal/ai-processing-review-2026-10-25.md) ·
+  [Privacy notice AI section draft](docs/legal/privacy-notice-ai-section-draft.md)
+- **Commercial V1 (programme record and evidence log):**
   [Implementation directive](docs/roadmap/commercial-v1-implementation-directive.md) ·
   [Requirements ledger](docs/commercial-v1/requirements-ledger.md) ·
   [Known issues](docs/commercial-v1/known-issues.md) ·
@@ -206,7 +230,7 @@ tracks the suite's own growth (see the in-file history comment).
 Proprietary and confidential. All rights reserved.
 
 
-### Current document, sharing and reference continuation (2026-10-12)
+### Earlier checkpoint: document, sharing and reference continuation (2026-10-12, history)
 
 The source candidate adds personal invitations before registration, free private passport-image/scanned-PDF reading, owner-requested rereading and reference layout/navigation corrections. Full account names come from the signed-in Neon identity; mobile shows a compact first name with a chevron and the full name inside the menu. Management entry points are in that account menu. Existing permissions, consent, record versions and real-data gates remain intact.
 
