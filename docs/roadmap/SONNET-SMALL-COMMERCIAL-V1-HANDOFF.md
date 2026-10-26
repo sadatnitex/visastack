@@ -4,6 +4,15 @@ Written 26 October 2026 by the architecture session (scope widened the same day 
 
 Authority: the owner's 26 October 2026 instructions, which set the Small Commercial V1 target of 100 to 1,000 users and froze the architecture. This file, ADRs 0019 to 0022 and [DEFERRED-COMMERCIAL-HARDENING.md](DEFERRED-COMMERCIAL-HARDENING.md) supersede older plans where they conflict. `CLAUDE.md`, `docs/SESSION-START.md` and the Programme X files still govern **how** work runs: branches, allowlists, reviews, full check, CI, merge and reporting.
 
+## Rule for every package: owner actions never block building
+
+Build and test every package fully without waiting for the owner, using test doubles, sandbox modes and settings that default to off. A missing owner step may only:
+
+- keep that one capability off or in test mode, with a plain message in the product (for example "Pay Online" hidden while manual payment works);
+- keep real data off.
+
+If a package truly cannot start (S19 before the owner names the provider), skip it and continue with the next one; come back when the owner answers. The owner's steps, and what happens until each is done, are in [OWNER-ACTIONS-SMALL-COMMERCIAL-V1.md](OWNER-ACTIONS-SMALL-COMMERCIAL-V1.md).
+
 ## A. Verified current state (26 October 2026)
 
 | Fact | Value | How verified |
@@ -25,6 +34,9 @@ Authority: the owner's 26 October 2026 instructions, which set the Small Commerc
 | Staff protection | `/app/admin` requires a platform role. No second factor anywhere | Audit this session |
 | Applicant Truth | Immutable fact versions with status and provenance; acknowledgements invalidated by material change; snapshots | Schema |
 | Checklists (packs) | One published checklist in production: "UK Visitor1", 2 requirements, not authoritative, review overdue since 23 Oct, used by no case. Manual mode exists for cases without one | Read-only production query |
+| Hosting plans | Neon **Free** (`free_v3`): 0.25 compute units at most, 1 GB per branch, **6 hours** of point-in-time restore, 10 branches, region AWS US East. Vercel: the personal team ("Nazmus Sadat's projects"); the API did not return the plan, but the daily deployment limit indicates Hobby | Neon and Vercel APIs, read-only |
+| Secret history | gitleaks 8.18.4 over all 867 commits: 11 matches, all false positives (checklist keys, test storage keys, a documentation example). No real credential ever committed | This session |
+| Commercial-readiness gates (`apps/web/src/lib/commercial-readiness.ts`) | `realKeyManagement` is hard-coded false, and the local key provider refuses commercial mode. `externalPenetrationTest` needs an attestation for a test the owner deferred. `productionOpenAiProject` only knows the old OpenAI environment path, not the database-managed providers. `realMalwareScanner` ignores `github_clamav`. Fixed by S26, S27 and S4 | Code |
 | Real data | Disabled (`controlled_pilot`); readiness reports `realApplicantData` disabled, `malwareScanning` and `payments` unconfigured | Readiness, code |
 | Programme X | WP-A0 to WP-X3, WP-V3, WP-V4 agency, Home and Needs Attention, calendar export, per-case exceptions and reference codes are live. Remaining: Prepare Again (built on branch), request screens and colour (WP-V4), WP-V5, WP-V6 | STATUS, code |
 
@@ -54,7 +66,7 @@ Owner, 26 Oct 2026: **payments, the AI connector and product features are built 
 
 **Build in this programme, in the order of section M:**
 
-1. **Security minimum:** commercial-minimum controls M01 to M17 (register part 1).
+1. **Security minimum:** commercial-minimum controls M01 to M19 (register part 1), including the real key service (S26) and honest readiness checks (S27).
 2. **Programme X:**
    - Prepare Again;
    - request screens (U07) and the colour polish;
@@ -560,6 +572,60 @@ Plus the WhatsApp prepared message: a generic message plus a secure workspace or
 
 **Note:** this also turns on private OCR (ADR 0019).
 
+### S26. Real key management service (M18)
+
+**Objective:** replace the local master key with AWS KMS for commercial mode, keeping envelope encryption exactly as it is.
+
+**Behaviour:**
+
+- A new `AwsKmsKeyProvider` behind the existing `KeyManagementPort` (`packages/adapters/src/key-management.ts`, `apps/web/src/lib/providers.ts`), selected by `KMS_PROVIDER=aws_kms`.
+  - It wraps and unwraps data keys with KMS Encrypt and Decrypt, using an encryption context of key purpose and row id.
+  - The master key never leaves KMS.
+  - Use the official AWS SDK v3 KMS client, pinned.
+- A re-wrap job (a new `SystemScope` job, run by the owner's word) re-wraps every stored data key from the local key to KMS without touching encrypted values.
+  - It is idempotent and resumable.
+  - It counts rows per state.
+  - Each data key records its wrapping key id.
+- While both exist, reads unwrap with whichever key wrapped the row. Writes use KMS once configured.
+- The `realKeyManagement` gate becomes `KMS_PROVIDER=aws_kms` plus its settings present, plus a successful startup self-test (wrap and unwrap of a test key).
+- Commercial mode still refuses the local provider (unchanged).
+
+**Tests:**
+
+- A fake KMS round trip.
+- A wrong encryption context fails.
+- Re-wrap is idempotent, resumes after interruption, and leaves every protected value readable.
+- The gate stays false until configured and self-tested.
+- No key material appears in logs.
+
+**Owner gate:** O16 (AWS account and key), O8 if a tracking column is needed.
+
+**Reviews:** max code review and security review.
+
+### S27. Commercial-readiness reconciliation and daily backup (M19, M05)
+
+**Objective:** make the readiness checks match this plan, honestly.
+
+**Behaviour:**
+
+1. **AI provider gate.** Replace `productionOpenAiProject` with a provider-neutral `productionAiProvider`. It is satisfied when AI dispatch is off, or when the active database provider configuration has a key and recorded data terms (`ai_provider_config_terms`).
+2. **Owner deferrals.**
+   - Add `COMMERCIAL_READINESS_DEFER_<GATE>=<register id>`, accepted **only** for gates in a code allowlist. That allowlist holds `externalPenetrationTest` (H01) and nothing else.
+   - A deferred gate shows "Deferred by owner (H01)" on the admin readiness page and in the internal report, and counts as passing.
+   - A guard test proves no safety gate (key management, scanner, storage, sign-in, step-up, email, tenant isolation, permission matrix, backup) can be deferred.
+3. **Scanner gate.** `realMalwareScanner` accepts `github_clamav` with recent verification evidence (shared with S4).
+4. **Daily backup.** The encrypted database backup runs daily instead of weekly (`.github/workflows/database-backup.yml`, cron). The retention and restore runbook is updated.
+5. **Evidence for attestations.** The S24 report lists exactly which `COMMERCIAL_READINESS_ATTEST_*` values the owner may set, each with its evidence link.
+
+**Tests:**
+
+- The gate list and its labels.
+- A deferral only on allowlisted gates.
+- The AI gate cases.
+- Readiness output never shows secret values.
+
+**Owner gate:** none to build; O11 and O17 to use.
+
 ## J. Launch checklist (corridor) content
 
 **Requirement:** one or two **maintained** checklists before launch, chosen by the owner for the routes the first agencies actually file (O7).
@@ -647,23 +713,27 @@ Run on the exact release commit, against isolated synthetic accounts, with resul
 
 ## L. Owner-only actions (sessions must not do these)
 
+Step-by-step instructions, what is already prepared, and how the product behaves until each is done: [OWNER-ACTIONS-SMALL-COMMERCIAL-V1.md](OWNER-ACTIONS-SMALL-COMMERCIAL-V1.md). None of these blocks building.
+
 | # | Action | Needed before |
 |---|---|---|
-| O1 | Decide repository visibility. Owner, 26 Oct 2026: public temporarily, to be made private soon; sessions do not change it. Recommended: make it private while the product is proprietary. Consequences: CodeQL then needs GitHub Advanced Security or stops, Actions minutes become metered (the scanner worker uses them) and `CLAUDE.md`'s CodeQL line becomes true. Separately, run a full-history secret scan (GitHub secret scanning) | Before more architecture lands publicly; at the latest before real data |
+| O1 | Decide repository visibility. Full-history secret scan already done: clean. Owner, 26 Oct 2026: public temporarily, to be made private soon; sessions do not change it. Recommended: make it private while the product is proprietary. Consequences: CodeQL then needs GitHub Advanced Security or stops, Actions minutes become metered (the scanner worker uses them) and `CLAUDE.md`'s CodeQL line becomes true. Separately, run a full-history secret scan (GitHub secret scanning) | Before more architecture lands publicly; at the latest before real data |
 | O2 | Approve this cutline, ADRs 0019 to 0022 and the register (or change them) | S5 onward |
-| O3 | Confirm the Vercel plan allows commercial use (Pro, not Hobby) and the Neon plan's limits and point-in-time window | Real data, payments |
+| O3 | Move Vercel to Pro (the account looks like Hobby, which is non-commercial) and Neon from Free to Launch (6-hour restore window and 1 GB today) | Real data, payments |
 | O4 | Switch `MALWARE_SCANNER_PROVIDER=github_clamav` in Vercel after S4, and run or allow `verify-synthetic` | S4 acceptance |
 | O5 | Keep an offline copy of the application master key (M07), stored as the runbook says | Real data |
 | O6 | SSLCOMMERZ merchant account: sandbox credentials, then live; set the IPN URL in its panel; confirm fees and pricing (prices unchanged unless decided) | S11 testing, then live |
 | O7 | Choose one or two launch routes and supply a qualified reviewer for their checklists; decide what happens to the test checklist "UK Visitor1" | Launch |
-| O8 | The word for each production migration (S3, S10 to S12, S13, S17, S18 if needed, S19, S20, S22, S23) | After each merge |
+| O8 | The word for each production migration (S3, S10 to S12, S13, S17, S18 if needed, S19, S20, S22, S23, S26 if needed) | After each merge |
 | O9 | Choose the production AI provider and its terms; keep or change the training guard (H14); enable the AI connector for real users | Real data, connector launch |
 | O10 | Legal review: privacy notice and terms updates for automatic AI reading, the AI connector (including original files, suggestions and agency AI processing), redaction wording and the payment processors | Real data, payments, S22 |
-| O11 | Switch real applicant data on (`DEPLOYMENT_MODE`), after S24 | Launch |
+| O11 | Set the evidenced `COMMERCIAL_READINESS_ATTEST_*` values, then switch real applicant data on (`DEPLOYMENT_MODE=commercial`), after S24 | Launch |
 | O12 | The final release decision (S24 PR) | Launch |
 | O13 | Overdue policy: `due_days`, `grace_after_days`, `suspend_after_days`, or leave automatic overdue handling off | S17 activation |
 | O14 | The second payment provider and the legal entity that holds its merchant account (for example Stripe through a supported-country entity, or a direct bKash or other Bangladesh gateway), with credentials | S19 |
 | O15 | The word to start Bangla (standing rule) | S25 |
+| O16 | An AWS account and one KMS key (script provided by S26) | Real data |
+| O17 | Written deferral of the external penetration test (register H01), recorded through S27 | Real data |
 
 ## M. Execution order
 
@@ -685,6 +755,7 @@ Generate a migration only after the previous migration is on main.
 | 2 | S2. Security minimum (M12 to M14) | none | none | owner word |
 | 3 | S3. Staff second factor (M08) | yes | O8 | owner word |
 | 4 | S4. Real malware scanning (M06) | none | O4 | owner word |
+| 4a | S26. Real key management service (M18) | maybe | O16, O8 | owner word |
 | 5 | S5. Automatic reading (ADR 0019) | none expected | none | owner word |
 | 6 | S6. Reading screen states | none | none | owner word |
 | 7 | S7. WP-V4 close: request screens (U07, spec B09) and the colour polish | none | none | CR15 |
@@ -704,7 +775,8 @@ Generate a migration only after the previous migration is on main.
 | 21 | S21. AI connector: suggestion tools | none | none | owner word |
 | 22 | S22. Agency AI connectors | yes (enum value plus columns) | O8, O10 | owner word |
 | 23 | S23. Real redaction (ADR 0022) | yes | O8 | owner word |
-| 24 | S24. Commercial acceptance and release reconciliation (WP-V6) | none | O3, O5, O7, O9 to O12 | owner word (never automatic) |
+| 23a | S27. Commercial-readiness reconciliation and daily backup | none | none | owner word |
+| 24 | S24. Commercial acceptance and release reconciliation (WP-V6) | none | O3, O5, O7, O9 to O12, O16, O17 | owner word (never automatic) |
 | 25 | S25. Bangla | none expected | O15 | owner word |
 
 Order rationale:

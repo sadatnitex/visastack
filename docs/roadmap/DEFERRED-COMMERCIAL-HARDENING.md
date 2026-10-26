@@ -19,7 +19,7 @@ Execution plan: [SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md](SONNET-SMALL-COMMERCIAL-
 | M02 | Private document storage | Live (private R2 plus private mirror) | Done |
 | M03 | Encryption already depended on (protected fields with pgcrypto, envelope-encrypted provider keys, encrypted backups) | Live | Done |
 | M04 | Central access gate, tenant isolation, revocable sharing with per-case exceptions, append-only audit | Live, with suites in CI | Done; re-run in acceptance (S24) |
-| M05 | Basic backup of database and documents | Weekly encrypted database backup and an isolated restore drill have passed. Document objects also live in the private mirror, but restoring a document from it has never been tested | S24: one verified document restore from the mirror; record Neon point-in-time window |
+| M05 | Basic backup of database and documents | Weekly encrypted database backup and an isolated restore drill have passed. Neon Free keeps only 6 hours of point-in-time restore. Document objects also live in the private mirror, but restoring a document from it has never been tested | S27: daily encrypted backup. S24: one verified document restore from the mirror. Owner action O3: Neon Launch plan for a longer restore window |
 | M06 | Real malware scanning of uploads | Structural checks only. The ClamAV GitHub worker exists, but its real run failed at install (`clamdscan` missing). Readiness cannot report the `github_clamav` scanner as available | S4 |
 | M07 | Protected secrets and a recoverable application key | Secrets in Vercel; the master key has no verified offline copy | Owner action O5 before real data |
 | M08 | Second sign-in factor for platform staff | Neon Auth's managed service has no two-step sign-in. Step-up only re-checks the password. No MFA anywhere in code | S3 (app-level authenticator codes for platform roles) |
@@ -29,9 +29,11 @@ Execution plan: [SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md](SONNET-SMALL-COMMERCIAL-
 | M12 | AI reading entry points bind the document version to the applicant | Not bound: only the applicant's ownership is checked | S2 (ADR 0019 point 5) |
 | M13 | Cross-tenant admin reads limited to the roles that need them | `listAllApplicants` and `listRecentAuditEvents` are open to any platform role | S2 |
 | M14 | Support grants cannot be created without the right role | `createSupportGrant` has no role check (no caller today) | S2 |
-| M15 | Hosting plan allows commercial use | Vercel's daily deployment limit suggests the Hobby plan, which is for non-commercial use | Owner action O3 |
-| M16 | Repository not publicly readable while the product is proprietary | The repository is **public**; the owner (26 Oct 2026) says this is temporary and it will be made private soon. No live credential was found in the current tree; history was not scanned | Owner action O1 |
+| M15 | Hosting plan allows commercial use | Neon is on Free (checked 26 Oct). Vercel's plan name was not returned by the API; the personal team and the daily deployment limit indicate Hobby, which is for non-commercial use | Owner action O3 |
+| M16 | Repository not publicly readable while the product is proprietary | Public, temporarily (owner, 26 Oct 2026: to be made private soon). Full-history secret scan on 26 Oct (gitleaks, 867 commits, all branches): no real credential, 11 false positives | Owner action O1 |
 | M17 | Every launch checklist is maintained and reviewed; unmaintained routes run in manual mode with no automated readiness claim | One published checklist exists ("UK Visitor1": 2 requirements, not authoritative, review date passed 23 Oct 2026, used by no case) | Owner action O7, then S24 |
+| M18 | Real key management for protected fields in commercial mode | Local master key only; the code refuses it in commercial mode and the readiness gate is hard-coded false | S26 plus owner action O16 |
+| M19 | Honest commercial-readiness checks | The AI gate only knows the old OpenAI path; the scanner gate ignores `github_clamav`; the penetration-test gate cannot record the owner's deferral | S27 plus owner action O17 |
 
 ## Part 2. Deferred security and compliance hardening
 
@@ -42,7 +44,7 @@ Owner, 26 Oct 2026: payments, the AI connector and product features are built no
 | H01 | External penetration test | Independent code and security reviews per change; tenant-isolation and permission suites | Cost out of proportion at pilot scale | Flaw classes found only by outside testers | First enterprise contract, 500 active travellers, or an insurer or regulator request | `docs/security/` | Scoped web, API and connector test; fix and retest |
 | H02 | SOC or SIEM programme | Audit trail, product events, Vercel logs | No staff to watch alerts | Slower detection | Paid security staff or 1,000 active users | `audit_events`, log drains | Log drain with alert rules |
 | H03 | Multi-region redundancy | Single region | Cost | Regional outage means downtime | Contractual uptime commitment | Storage and database ports | Replica or second region, failover runbook |
-| H04 | Independent key escrow, KMS and rotation tooling | Envelope encryption with key ids; no rotation tool | Needs custody process | Losing the key loses protected fields (M07 covers the minimum) | Enterprise contract or 1,000 users | `KeyManagementPort` | KMS keys, rotation job, dual custody |
+| H04 | Independent key escrow and dual custody beyond the managed key service (the key service itself is M18, S26) | Envelope encryption with key ids; no rotation tool | Needs custody process | Losing the key loses protected fields (M07 covers the minimum) | Enterprise contract or 1,000 users | `KeyManagementPort` | KMS keys, rotation job, dual custody |
 | H05 | 15-minute RPO and measured RTO | Weekly database backup plus Neon point-in-time window | Continuous capture costs more than the pilot needs | Up to the PITR window of changes at risk | Over 10 paying agencies or a contractual RPO | Backup workflows | Daily logical backup, measured drills |
 | H06 | Passkeys or hardware keys for staff | M08 adds authenticator codes | Few staff | Phishing of a code-based factor | More than 3 staff or any targeted attempt | Step-up proof | WebAuthn for platform roles |
 | H07 | Enterprise SSO for agencies | Neon Auth email sign-in | No buyer needs it | None now | First contract requiring it | Session layer | SSO through the identity provider |

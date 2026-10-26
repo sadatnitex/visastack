@@ -93,7 +93,7 @@ export function PrepareAgainForm({
           <span className="field-label" id="prepare-again-dates">
             Travel Dates (Optional)
           </span>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div className="field-inline">
             <input
               name="travelStartDate"
               type="date"

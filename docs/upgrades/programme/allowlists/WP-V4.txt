@@ -96,3 +96,7 @@ docs/roadmap/SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md
 docs/roadmap/remaining-commercial-blockers.md
 docs/SESSION-START.md
 CLAUDE.md
+# Owner, 26 Oct 2026 ("get the manual items ready; don't block functionality in their absence"): the owner action guide
+# and the change brief for counsel; the Prepare Again form's dates use the shared field-inline class (UI ratchet).
+docs/roadmap/OWNER-ACTIONS-SMALL-COMMERCIAL-V1.md
+docs/legal/2026-10-26-small-commercial-v1-changes-for-counsel.md
