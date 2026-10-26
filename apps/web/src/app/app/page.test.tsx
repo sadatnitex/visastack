@@ -567,7 +567,10 @@ describe('Home composition (WP-V4, v1.2 B13 and U03)', () => {
     data.openRequests = 1;
     const html = await page();
     const records = sectionText(html, 'home-records-heading', 'home-work-heading');
-    const shown = [...records.matchAll(/Person (\d{3})/g)].map((m) => m[1]);
+    // The row labels only (the calendar sentence under the list names each person too).
+    const shown = [...html.matchAll(/<span class="attention-label">Person (\d{3})<\/span>/g)].map(
+      (m) => m[1],
+    );
     const expected = [...data.applicants]
       .sort(
         (a, b) =>
@@ -596,5 +599,56 @@ describe('Home composition (WP-V4, v1.2 B13 and U03)', () => {
     expect(text).not.toContain('You Are Up to Date');
     expect(text).not.toContain('Nothing is waiting for you.');
     expect(text).toContain('Nothing is waiting for the first 25 of 27 people.');
+  });
+
+  /** The My Records card, as markup. */
+  function recordsHtml(html: string): string {
+    const start = html.indexOf('id="home-records-heading"');
+    expect(start).toBeGreaterThan(-1);
+    return html.slice(start, html.indexOf('id="home-work-heading"', start));
+  }
+
+  for (const [count, items] of [
+    [0, []],
+    [1, [overdueTask]],
+    [3, [overdueRequest, overdueTask, sentBack]],
+  ] as const) {
+    it(`links the one own person to their calendar page with ${count} attention items`, async () => {
+      data.consents = CORE;
+      data.applicants = [SELF];
+      data.items = [...items];
+      const html = await page();
+      const records = recordsHtml(html);
+      expect(records).toMatch(
+        new RegExp(`href="/app/applicant/${SELF.id}/calendar"[^>]*>Add Dates to My Calendar</a>`),
+      );
+      expect(html.match(/\/calendar"/g)).toHaveLength(1);
+    });
+  }
+
+  it('with several own people, names each person as a link in one sentence, not a row of buttons', async () => {
+    data.consents = CORE;
+    const other = {
+      id: '10000000-0000-4000-8000-000000000002',
+      displayName: 'Synthetic Partner',
+      createdAt: new Date('2026-02-01T00:00:00Z'),
+    };
+    data.applicants = [SELF, other];
+    const records = recordsHtml(await page());
+    for (const person of [SELF, other]) {
+      expect(records).toContain(
+        `<a href="/app/applicant/${person.id}/calendar">${person.displayName}</a>`,
+      );
+    }
+    expect(textOf(records)).toMatch(
+      /Add dates to my calendar for Synthetic Self or Synthetic Partner ?\./,
+    );
+    expect(records).not.toMatch(/calendar"[^>]*class="btn/);
+  });
+
+  it('offers no calendar link before core processing is on', async () => {
+    data.applicants = [SELF];
+    data.items = [overdueTask];
+    expect(await page()).not.toContain('/calendar"');
   });
 });

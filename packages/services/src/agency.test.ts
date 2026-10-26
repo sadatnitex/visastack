@@ -43,6 +43,7 @@ import {
   submitEvidenceResponse,
   summarizeCaseTriage,
   unassignMember,
+  updateAppointmentForOrg,
   updateTaskForOrg,
 } from './agency';
 import { createApplicant } from './applicants';
@@ -2505,6 +2506,32 @@ describe('CAS-04 - org-side tasks/appointments, unassignment, and the reassignme
     });
     expect(isErr(deniedCreate)).toBe(true);
     if (isErr(deniedCreate)) expect(deniedCreate.error.code).toBe('forbidden');
+  });
+
+  it('org-side appointments refuse a time zone that is not a known IANA name', async () => {
+    const { missionId, organizationId, memberAccountId } = await setUpAssignedOrg(db, 'apptzone');
+    const base = {
+      actorAccountId: memberAccountId,
+      organizationId,
+      missionId,
+      title: 'Prep call',
+      localDateTime: new Date('2026-12-01T10:00:00'),
+    };
+    const refused = await createAppointmentForOrg(db, {
+      ...base,
+      timezone: 'Asia/Dhaka\r\nX-INJECT:1',
+    });
+    expect(isErr(refused) && refused.error.code).toBe('invalid');
+    const made = await createAppointmentForOrg(db, { ...base, timezone: 'Asia/Dhaka' });
+    if (!isOk(made)) throw new Error('appointment');
+    const moved = await updateAppointmentForOrg(db, {
+      actorAccountId: memberAccountId,
+      organizationId,
+      missionId,
+      appointmentId: made.value.id,
+      timezone: 'Nowhere/Else',
+    });
+    expect(isErr(moved) && moved.error.code).toBe('invalid');
   });
 
   it('org-side appointments: create/list/decide share the same assigned-member gate as tasks', async () => {
