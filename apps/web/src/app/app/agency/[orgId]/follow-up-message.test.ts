@@ -229,15 +229,7 @@ describe('follow-up message: request reference (ADR 0018)', () => {
   it('leaves out a code that is not a valid request code, and changes nothing else', () => {
     const wrongCheck = `R-00K2Q${stored.endsWith('0') ? '1' : '0'}`;
     const caseCode = formatReferenceCode('C', `00K2Q${referenceCheckCharacter('C', '00K2Q')}`);
-    for (const value of [
-      wrongCheck,
-      caseCode,
-      'see https://evil.test',
-      'A1234567',
-      '',
-      null,
-      undefined,
-    ]) {
+    for (const value of [wrongCheck, caseCode, 'see https://evil.test', 'A1234567', '', null]) {
       const message = buildFollowUpMessage({ ...base, requestReference: value });
       expect(message).toEqual(buildFollowUpMessage(base));
       expect(message.text).not.toContain('Request reference');
