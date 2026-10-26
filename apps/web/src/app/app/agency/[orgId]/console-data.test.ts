@@ -30,6 +30,7 @@ const svc = vi.hoisted(() => ({
   listTasksForOrg: vi.fn(),
   listUnassignedActiveMissions: vi.fn(),
   listVisibleMissionsForMember: vi.fn(),
+  referenceCodesFor: vi.fn(),
 }));
 
 vi.mock('@visastack/services', async (importOriginal) => ({
@@ -57,6 +58,8 @@ const fail = () => ({ ok: false as const, error: { message: 'no' } });
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // No registry yet (before migration 0091): every record reads without a code.
+  svc.referenceCodesFor.mockResolvedValue(new Map());
 });
 
 describe('loadOrgAccess', () => {
@@ -391,5 +394,39 @@ describe('loadCases', () => {
   it('keeps the original fields of the visible case alongside the detail', async () => {
     const { cases } = await loadCases(db, 'acct', 'o1', members);
     expect(cases[0]).toMatchObject({ missionId: 'm-manual', applicantId: 'ap1', manualMode: true });
+  });
+
+  it('reads every case code in one call and attaches only the codes that exist (ADR 0018)', async () => {
+    svc.referenceCodesFor.mockResolvedValue(new Map([['m-pack', 'C-7K2Q9M']]));
+    const { cases } = await loadCases(db, 'acct', 'o1', members);
+    expect(svc.referenceCodesFor).toHaveBeenCalledTimes(1);
+    expect(svc.referenceCodesFor).toHaveBeenCalledWith(db, 'C', ['m-manual', 'm-pack']);
+    expect(cases.find((c) => c.missionId === 'm-pack')?.referenceCode).toBe('C-7K2Q9M');
+    expect('referenceCode' in (cases.find((c) => c.missionId === 'm-manual') ?? {})).toBe(false);
+  });
+
+  it('shows no case code at all while the registry is empty or missing', async () => {
+    const { cases } = await loadCases(db, 'acct', 'o1', members);
+    expect(cases.some((c) => 'referenceCode' in c)).toBe(false);
+  });
+});
+
+describe('loadEvidenceRequests: reference codes (ADR 0018)', () => {
+  it('reads every request code in one call and attaches only the codes that exist', async () => {
+    svc.listEvidenceRequestsForOrgDetailed.mockResolvedValue(ok([{ id: 'r1' }, { id: 'r2' }]));
+    svc.referenceCodesFor.mockResolvedValue(new Map([['r2', 'R-7K2Q9M']]));
+    expect(await loadEvidenceRequests(db, 'acct', 'o1', admin)).toEqual([
+      { id: 'r1' },
+      { id: 'r2', referenceCode: 'R-7K2Q9M' },
+    ]);
+    expect(svc.referenceCodesFor).toHaveBeenCalledTimes(1);
+    expect(svc.referenceCodesFor).toHaveBeenCalledWith(db, 'R', ['r1', 'r2']);
+  });
+
+  it('never asks for codes when the person is not an administrator or the read was refused', async () => {
+    await loadEvidenceRequests(db, 'acct', 'o1', notAdmin);
+    svc.listEvidenceRequestsForOrgDetailed.mockResolvedValue(fail());
+    await loadEvidenceRequests(db, 'acct', 'o1', admin);
+    expect(svc.referenceCodesFor).not.toHaveBeenCalled();
   });
 });

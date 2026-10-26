@@ -9,6 +9,7 @@ const svc = vi.hoisted(() => ({
   listEvidenceRequestsForOrgDetailed: vi.fn(),
   requireAccess: vi.fn(),
   listRespondingDocumentStatesForOrg: vi.fn(),
+  referenceCodesFor: vi.fn(),
 }));
 
 vi.mock('@visastack/services', async (importOriginal) => ({
@@ -32,6 +33,7 @@ const row = (overrides: Record<string, unknown>) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  svc.referenceCodesFor.mockResolvedValue(new Map());
 });
 
 describe('loadEvidenceRequests: answered file state', () => {
