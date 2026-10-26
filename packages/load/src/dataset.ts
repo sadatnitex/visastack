@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { schema } from '@visastack/db';
-import type { Db } from '@visastack/services';
+import { type Db, assignReferenceCodes } from '@visastack/services';
 
 /**
  * Made-up dataset generator for capacity measurement. Every name, address and value is invented
@@ -283,6 +283,13 @@ export async function seedDataset(db: Db, shape: DatasetShape): Promise<DatasetM
       ),
     ),
   );
+  // Visible reference codes (ADR 0018) for each batch, as the real create paths give them;
+  // nothing happens while the registry table is missing.
+  await assignReferenceCodes(
+    db,
+    'P',
+    travellers.map((t) => t.applicantId),
+  );
 
   add(
     'consent_records',
@@ -333,6 +340,11 @@ export async function seedDataset(db: Db, shape: DatasetShape): Promise<DatasetM
   add(
     'missions',
     await insertChunks(missionRows, 500, (c) => db.insert(schema.missions).values(c)),
+  );
+  await assignReferenceCodes(
+    db,
+    'C',
+    missionRows.map((m) => m.id),
   );
 
   // Grants: each case's traveller shares with its agency; some are limited to the one case.
@@ -420,6 +432,7 @@ export async function seedDataset(db: Db, shape: DatasetShape): Promise<DatasetM
     }
     for (let r = 0; r < shape.evidenceRequestsPerCase; r++) {
       requestRows.push({
+        id: randomUUID(),
         organizationId: m.ownerOrganizationId,
         applicantId: m.applicantId,
         missionId: m.id,
@@ -437,6 +450,11 @@ export async function seedDataset(db: Db, shape: DatasetShape): Promise<DatasetM
   add(
     'evidence_requests',
     await insertChunks(requestRows, 1000, (c) => db.insert(schema.evidenceRequests).values(c)),
+  );
+  await assignReferenceCodes(
+    db,
+    'R',
+    requestRows.flatMap((r) => (r.id ? [r.id] : [])),
   );
 
   // Documents (metadata only; one version each) and profile facts
@@ -499,6 +517,11 @@ export async function seedDataset(db: Db, shape: DatasetShape): Promise<DatasetM
   add(
     'documents',
     await insertChunks(documentRows, 1000, (c) => db.insert(schema.documents).values(c)),
+  );
+  await assignReferenceCodes(
+    db,
+    'D',
+    documentRows.flatMap((d) => (d.id ? [d.id] : [])),
   );
   add(
     'document_versions',
