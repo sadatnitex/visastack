@@ -28,3 +28,4 @@ pnpm-lock.yaml
 pnpm-workspace.yaml
 turbo.json
 biome.json
+.env.example
