@@ -26,3 +26,7 @@ docs/commercial-v1/known-issues.md
 packages/services/src/index.ts
 apps/web/src/lib/labels.ts
 apps/web/src/lib/labels.test.ts
+# Added after owner approval on 26 Oct 2026 (Needs Attention plan): the one attention projection and the Home test.
+packages/services/src/attention.ts
+packages/services/src/attention.test.ts
+apps/web/src/app/app/page.test.tsx
