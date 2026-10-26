@@ -21,8 +21,8 @@ packages/services/src/index.ts
 packages/load/src/dataset.ts
 apps/web/preview/world.ts
 apps/web/src/lib/ics*.ts
-apps/web/src/components/ui/reference-code*.tsx
-apps/web/src/components/ui/index.ts
+# components/ui is a single file (ui.tsx), not a folder: the shared code display lives beside it.
+apps/web/src/components/reference-code*.tsx
 apps/web/src/app/globals.css
 apps/web/src/app/app/mission/[id]/page*.tsx
 apps/web/src/app/app/applicant/[id]/documents/page*.tsx

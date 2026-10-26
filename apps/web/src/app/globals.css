@@ -7580,3 +7580,30 @@ summary.visa-photo-title {
   display: inline-block;
   padding: 0.6rem 0.1rem;
 }
+
+/* WP-REF visible reference codes (ADR 0018): the code beside a record's name, even-width figures
+   spaced for reading aloud, with a small Copy button that keeps a 44px target. */
+.reference-code {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.reference-code-label {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.reference-code-value {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  user-select: all;
+}
+.reference-code-copy {
+  min-height: 44px;
+  min-width: 44px;
+}
+.reference-code-status:empty {
+  display: none;
+}
