@@ -17,3 +17,29 @@ Optional scheduler estimates: default five-minute notification triggers plus hou
 Record each future reading with provider/account identifier, date, unit, used amount, allowance, reset period, warning/hard-stop and artifact. Never include access keys or connection strings. An unavailable reading is unavailable; a configured key is not operational acceptance. Application evidence bytes exclude archive and backup overhead. Application AI cost units do not independently establish a current invoice.
 
 Founding access remains complimentary. Do not assign a paid plan or collect charges as a provider upgrade. Use [the upgrade procedure](../operations/free-to-scale-upgrades.md) and verify actual capacity, rollback and user access. This register does not authorize a paid service.
+
+## AI provider data terms, 2026-10-25
+
+The live record is in Admin, AI Settings (Record Data Terms on each configuration), kept with its
+history and audit trail. This table is the team's reading of the public terms on 2026-10-25, to
+check before entering it there. "Unverified" means the primary page could not be opened on that
+date; read it before relying on the answer. Switching steps: [Switch AI Provider](../operations/runbooks/switch-ai-provider.md).
+Legal background: [AI processing review](../legal/ai-processing-review-2026-10-25.md).
+
+| Provider and plan | Plan | May train on inputs | Retention | Region | Terms address | Checked |
+| --- | --- | --- | --- | --- | --- | --- |
+| Google Gemini API, unpaid quota | Free | Yes (unverified) | Not stated (unverified) | Any country where Google has facilities (unverified) | https://ai.google.dev/gemini-api/terms | 2026-10-25, unverified |
+| Google Gemini API, paid | Paid | No (unverified) | "Limited period" for abuse checks (unverified) | Any country where Google has facilities (unverified) | https://ai.google.dev/gemini-api/terms | 2026-10-25, unverified |
+| OpenAI API | Paid (usage billed) | No by default since 2023-03-01, unless the organisation opts in to data sharing | Up to 30 days abuse logs; zero retention by approval | United States by default | https://developers.openai.com/api/docs/guides/your-data | 2026-10-25 |
+| Anthropic API | Paid (usage billed) | No (Commercial Terms) | Set by the DPA (30 days reported, unverified) | United States by default (unverified) | https://www.anthropic.com/legal/commercial-terms | 2026-10-25 |
+
+Fields recorded per configuration: plan (Free or Paid), may train on inputs (Yes, No, Not Known),
+retention in days, region, terms address, date checked, short note. A "No" needs the terms
+address. No record reads as "Not Known".
+
+The platform setting "Only Use AI Providers That Do Not Train on Inputs" is off by default (owner
+decision 2026-10-25). Off: AI runs on the active provider whatever its terms, and admins are
+warned while real applicant data is on. On: only configurations recorded as "No", with the terms
+address, are used. Turn it on before charging starts or before any real applicant document can
+reach AI, whichever comes first. Moving to a paid plan changes who controls the data afterwards,
+not only the bill.

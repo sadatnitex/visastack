@@ -347,9 +347,10 @@ describe('GeminiOcrAdapter', () => {
     expect(outcome.result.usage.latencyMs).toBeGreaterThanOrEqual(0);
   });
 
-  it('cacheKeyComponents reports the configured model and prompt version', () => {
+  it('cacheKeyComponents reports the provider, configured model and prompt version', () => {
     const adapter = new GeminiOcrAdapter({ apiKey: 'AIza-test', model: 'gemini-3.8-flash' });
     expect(adapter.cacheKeyComponents()).toEqual({
+      provider: 'gemini',
       model: 'gemini-3.8-flash',
       promptVersion: '2026-09-28-v1',
     });

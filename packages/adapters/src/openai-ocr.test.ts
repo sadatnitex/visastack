@@ -242,9 +242,10 @@ describe('OpenAiOcrAdapter', () => {
     expect(outcome.result.usage.latencyMs).toBeGreaterThanOrEqual(0);
   });
 
-  it('cacheKeyComponents reports the configured model and prompt version', () => {
+  it('cacheKeyComponents reports the provider, configured model and prompt version', () => {
     const adapter = new OpenAiOcrAdapter({ apiKey: 'sk-test', model: 'gpt-5.9-vision' });
     expect(adapter.cacheKeyComponents()).toEqual({
+      provider: 'openai',
       model: 'gpt-5.9-vision',
       promptVersion: '2026-09-28-v1',
     });

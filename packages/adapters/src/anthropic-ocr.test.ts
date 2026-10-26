@@ -279,9 +279,10 @@ describe('AnthropicOcrAdapter', () => {
     expect(outcome.result.usage.latencyMs).toBeGreaterThanOrEqual(0);
   });
 
-  it('cacheKeyComponents reports the configured model and prompt version', () => {
+  it('cacheKeyComponents reports the provider, configured model and prompt version', () => {
     const adapter = new AnthropicOcrAdapter({ apiKey: 'sk-ant-test', model: 'claude-opus-5-5' });
     expect(adapter.cacheKeyComponents()).toEqual({
+      provider: 'anthropic',
       model: 'claude-opus-5-5',
       promptVersion: '2026-09-28-v1',
     });

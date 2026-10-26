@@ -92,7 +92,7 @@ export class OpenAiOcrAdapter implements AiOcrPort {
   }
 
   cacheKeyComponents(): AiOcrCacheKeyComponents {
-    return { model: this.model, promptVersion: this.promptVersion };
+    return { provider: PROVIDER, model: this.model, promptVersion: this.promptVersion };
   }
 
   async performOcr(input: AiOcrInput): Promise<AiOcrOutcome> {

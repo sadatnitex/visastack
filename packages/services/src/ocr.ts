@@ -89,6 +89,8 @@ export type AiOcrOutcome =
     };
 
 export interface AiOcrCacheKeyComponents {
+  /** Which provider reads the image; part of the cache key (see `AiCacheKeyComponents.provider` in ai.ts). */
+  readonly provider?: string;
   readonly model: string;
   readonly promptVersion: string;
 }
