@@ -100,3 +100,6 @@ CLAUDE.md
 # and the change brief for counsel; the Prepare Again form's dates use the shared field-inline class (UI ratchet).
 docs/roadmap/OWNER-ACTIONS-SMALL-COMMERCIAL-V1.md
 docs/legal/2026-10-26-small-commercial-v1-changes-for-counsel.md
+# Owner, 26 Oct 2026 ("share the sonnet session prompt ... to prevent errors, bugs, vulnerabilities"): the reusable
+# implementation session prompt with quality gates.
+docs/roadmap/SONNET-SESSION-PROMPT.md

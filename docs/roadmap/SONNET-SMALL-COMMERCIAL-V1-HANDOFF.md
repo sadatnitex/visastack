@@ -751,7 +751,7 @@ Generate a migration only after the previous migration is on main.
 
 | Order | Package | Migration | Owner gate | Merge rule |
 |---|---|---|---|---|
-| 1 | **S1. Ship Prepare Again.** Branch `ccr-847e092e-iee1pl` (draft PR #281) holds it with this session's docs. Done there: service, screen, 13 service tests, web tests, accessibility scan, max code review (12 fixes), security review (no findings), two mutations red. Remaining: a full check (`scripts/agent/full-check.sh`), mark ready, CI, merge, live check, report | none | none | CR15 (WP-V4) |
+| 1 | **S1. Prepare Again: DONE.** Merged as #281 (`9f93652`) on 26 Oct 2026. CI, CodeQL, Deploy Smoke, Live signed-in check and Vercel all green; readiness ready; the new page is live behind sign-in. Next session starts at S2 | none | none | done |
 | 2 | S2. Security minimum (M12 to M14) | none | none | owner word |
 | 3 | S3. Staff second factor (M08) | yes | O8 | owner word |
 | 4 | S4. Real malware scanning (M06) | none | O4 | owner word |
