@@ -1,17 +1,23 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader } from '../../../../components/ui';
-import { isPlatformAdmin } from '../../../../lib/admin';
+import { hasPlatformPermission, isPlatformAdmin } from '../../../../lib/admin';
 import { withSession } from '../../../../lib/session';
 import { AdminRestricted } from '../admin-restricted';
 
 export const metadata: Metadata = { title: 'Platform Security' };
 
 export default async function PlatformSecurityPage() {
-  const allowed = await withSession(({ db, accountId, email }) =>
-    isPlatformAdmin(db, { accountId, email }),
-  );
-  if (!allowed) return <AdminRestricted />;
+  const access = await withSession(async ({ db, accountId, email }) => {
+    const actor = { accountId, email };
+    if (!(await isPlatformAdmin(db, actor))) return null;
+    const [audit, privacy] = await Promise.all([
+      hasPlatformPermission(db, actor, 'AUDIT_TRAIL_VIEW'),
+      hasPlatformPermission(db, actor, 'APPLICANT_DIRECTORY_VIEW'),
+    ]);
+    return { audit, privacy };
+  });
+  if (!access) return <AdminRestricted />;
   return (
     <section className="section container">
       <PageHeader
@@ -30,22 +36,26 @@ export default async function PlatformSecurityPage() {
             Review Access
           </Link>
         </article>
-        <article className="card">
-          <h2 className="card-title">Recorded Activity</h2>
-          <p className="card-body">Inspect the existing audit history and integrity readings.</p>
-          <Link href="/app/admin/audit" className="btn btn-secondary">
-            Open Audit
-          </Link>
-        </article>
-        <article className="card">
-          <h2 className="card-title">Privacy Operations</h2>
-          <p className="card-body">
-            Review retention, deletion and legal-hold work through existing permissions.
-          </p>
-          <Link href="/app/admin/privacy" className="btn btn-secondary">
-            Open Privacy
-          </Link>
-        </article>
+        {access.audit ? (
+          <article className="card">
+            <h2 className="card-title">Recorded Activity</h2>
+            <p className="card-body">Inspect the existing audit history and integrity readings.</p>
+            <Link href="/app/admin/audit" className="btn btn-secondary">
+              Open Audit
+            </Link>
+          </article>
+        ) : null}
+        {access.privacy ? (
+          <article className="card">
+            <h2 className="card-title">Privacy Operations</h2>
+            <p className="card-body">
+              Review retention, deletion and legal-hold work through existing permissions.
+            </p>
+            <Link href="/app/admin/privacy" className="btn btn-secondary">
+              Open Privacy
+            </Link>
+          </article>
+        ) : null}
       </div>
     </section>
   );

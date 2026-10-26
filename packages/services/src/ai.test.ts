@@ -2417,7 +2417,7 @@ describe('AI Gateway -- document type classification (Part 8 AI-01 item 2)', () 
     if (isOk(result)) expect(result.value.proposal).toBeNull();
   });
 
-  it('a cache hit never calls the adapter again and still produces a proposal', async () => {
+  it('a cache hit for the same applicant never calls the adapter again and still produces a proposal', async () => {
     const { account, applicantId, versionId } = await seedVersion(
       db,
       'classify-cache-a@example.com',
@@ -2425,14 +2425,15 @@ describe('AI Gateway -- document type classification (Part 8 AI-01 item 2)', () 
     await grantAiConsent(db, account.id);
     await seedExtractionRun(db, versionId);
     const { ai, callCount } = countingStubClassifyAi();
-
-    const first = await runClassification(db, ai, {
+    const input = {
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
       text: 'statement of account, opening balance, closing balance',
       budgetLimitUnits: 1000,
-    });
+    };
+
+    const first = await runClassification(db, ai, input);
     expect(isOk(first)).toBe(true);
     if (isOk(first) && first.value.proposal) {
       await rejectDocumentTypeProposal(db, {
@@ -2441,21 +2442,7 @@ describe('AI Gateway -- document type classification (Part 8 AI-01 item 2)', () 
       });
     }
 
-    const {
-      account: account2,
-      applicantId: applicantId2,
-      versionId: versionId2,
-    } = await seedVersion(db, 'classify-cache-b@example.com');
-    await grantAiConsent(db, account2.id);
-    await seedExtractionRun(db, versionId2);
-
-    const second = await runClassification(db, ai, {
-      actorAccountId: account2.id,
-      applicantId: applicantId2,
-      documentVersionId: versionId2,
-      text: 'statement of account, opening balance, closing balance',
-      budgetLimitUnits: 1000,
-    });
+    const second = await runClassification(db, ai, input);
     expect(isOk(second)).toBe(true);
     if (isOk(second)) expect(second.value.proposal?.suggestedType).toBe('BANK_STATEMENT');
     expect(callCount()).toBe(1);
@@ -3671,5 +3658,70 @@ describe('OPS-04 (Commercial V1 Part 9): AI decision analytics', () => {
       ['AI_PROPOSAL_REJECTED', 'INCONSISTENCY'],
     ]);
     expect(JSON.stringify(events)).not.toContain('Rahman');
+  });
+});
+
+describe("AI Gateway -- reuse of an earlier reading stays inside one person's records (S2)", () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  const text = 'statement of account, opening balance, closing balance';
+
+  it('classification of identical text by another applicant is made afresh', async () => {
+    const one = await seedVersion(db, 'cache-iso-class-a@example.com');
+    const two = await seedVersion(db, 'cache-iso-class-b@example.com');
+    const { ai, callCount } = countingStubClassifyAi();
+    for (const who of [one, two]) {
+      await grantAiConsent(db, who.account.id);
+      await seedExtractionRun(db, who.versionId);
+      const result = await runClassification(db, ai, {
+        actorAccountId: who.account.id,
+        applicantId: who.applicantId,
+        documentVersionId: who.versionId,
+        text,
+        budgetLimitUnits: 1000,
+      });
+      expect(isOk(result)).toBe(true);
+    }
+    expect(callCount()).toBe(2);
+  });
+
+  it('OCR of the identical image by another applicant is made afresh', async () => {
+    const one = await seedVersion(db, 'cache-iso-ocr-a@example.com');
+    const two = await seedVersion(db, 'cache-iso-ocr-b@example.com');
+    const { ai, callCount } = countingStubOcrAi();
+    for (const who of [one, two]) {
+      await grantOcrConsent(db, who.account.id);
+      const result = await runOcr(db, ai, {
+        actorAccountId: who.account.id,
+        applicantId: who.applicantId,
+        documentVersionId: who.versionId,
+        imageBytes: new TextEncoder().encode('the very same scanned page'),
+        contentType: 'image/png',
+        budgetLimitUnits: 100,
+      });
+      expect(isOk(result)).toBe(true);
+    }
+    expect(callCount()).toBe(2);
+  });
+
+  it('an inconsistency check with identical facts by another applicant is made afresh', async () => {
+    const one = await seedVersion(db, 'cache-iso-inc-a@example.com');
+    const two = await seedVersion(db, 'cache-iso-inc-b@example.com');
+    const { ai, callCount } = countingStubInconsistencyAi();
+    for (const who of [one, two]) {
+      await grantAiConsent(db, who.account.id);
+      const result = await runInconsistencyCheck(db, ai, {
+        actorAccountId: who.account.id,
+        applicantId: who.applicantId,
+        documentVersionId: who.versionId,
+        text: 'the same document text',
+        budgetLimitUnits: 100,
+      });
+      expect(isOk(result)).toBe(true);
+    }
+    expect(callCount()).toBe(2);
   });
 });

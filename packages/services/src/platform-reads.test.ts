@@ -70,9 +70,23 @@ describe('platform-wide reads need the specific platform role', () => {
     expect(listed.value).toHaveLength(2);
     expect(listed.value[0]?.eventType).toBe('TEST_EVENT');
     expect(listed.value[0]?.seq).toBeGreaterThan(listed.value[1]?.seq ?? 0);
-    // A silly limit is clamped, never unbounded and never an error.
-    const clamped = await listRecentAuditEvents(db, scope, Number.MAX_SAFE_INTEGER);
-    expect(isOk(clamped)).toBe(true);
+  });
+
+  it('clamps the audit limit: at least one row, at most the ceiling, a default for nonsense', async () => {
+    const admin = await seedStaffAccount(db, 'SECURITY_ADMIN', 'clamp@example.com');
+    const scope = await staffScopeFor(db, admin, 'AUDIT_TRAIL_VIEW');
+    const total = (await db.select().from(schema.auditEvents)).length;
+    expect(total).toBeGreaterThan(1);
+    const count = async (limit: number) => {
+      const listed = await listRecentAuditEvents(db, scope, limit);
+      if (!isOk(listed)) throw new Error('unexpected refusal');
+      return listed.value.length;
+    };
+    expect(await count(0)).toBe(1);
+    expect(await count(-5)).toBe(1);
+    expect(await count(Number.NaN)).toBe(Math.min(total, 100));
+    expect(await count(Number.POSITIVE_INFINITY)).toBe(Math.min(total, 100));
+    expect(await count(Number.MAX_SAFE_INTEGER)).toBe(Math.min(total, 500));
   });
 
   it('never gives a compliance or support administrator the audit trail', async () => {

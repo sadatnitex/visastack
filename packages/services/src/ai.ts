@@ -1470,6 +1470,30 @@ async function dispatchAndReconcile(
   return { outcome, result };
 }
 
+/**
+ * The applicant an AI reading acts for, once the caller is shown to be their owner and the file
+ * version is shown to be one of theirs (S2, M12). Someone else's applicant, someone else's
+ * version, a missing record and a malformed id all answer the same, so a refusal never says
+ * which one it was.
+ */
+async function loadOwnedApplicant(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly applicantId: string;
+    readonly documentVersionId: string;
+  },
+): Promise<Result<NonNullable<Awaited<ReturnType<typeof getApplicant>>>, ServiceError>> {
+  const applicant = await getApplicant(db, input.applicantId);
+  if (!applicant || applicant.ownerAccountId !== input.actorAccountId) {
+    return err(serviceError('not_found', 'applicant not found'));
+  }
+  if (!(await documentVersionBelongsToApplicant(db, input.documentVersionId, input.applicantId))) {
+    return err(serviceError('not_found', 'document version not found'));
+  }
+  return ok(applicant);
+}
+
 /** Part 8 §13: only these two directive-named codes ever justify a fallback attempt -- see the doc comment on `runExtraction` below ("Cross-provider fallback") for the full reasoning. */
 function isRecoverableForFallback(code: AiExtractionErrorCode): boolean {
   return code === 'timeout' || code === 'rate_limited';
@@ -1480,14 +1504,9 @@ export async function runExtraction(
   ai: AiExtractionPort,
   input: RunExtractionInput,
 ): Promise<Result<RunExtractionSummary, ServiceError>> {
-  const applicant = await getApplicant(db, input.applicantId);
-  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
-  if (applicant.ownerAccountId !== input.actorAccountId) {
-    return err(serviceError('not_found', 'applicant not found'));
-  }
-  if (!(await documentVersionBelongsToApplicant(db, input.documentVersionId, input.applicantId))) {
-    return err(serviceError('not_found', 'document version not found'));
-  }
+  const owned = await loadOwnedApplicant(db, input);
+  if (!owned.ok) return err(owned.error);
+  const applicant = owned.value;
   if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_EXTRACTION'))) {
     return err(serviceError('consent_required', 'AI extraction consent is required'));
   }
@@ -1659,8 +1678,8 @@ async function reserveClassificationSlot(
         .where(
           and(
             eq(schema.aiClassificationRuns.cacheKey, cacheKey),
-            // No applicant filter here by design: a classification result is only a document kind,
-            // never anything read from the text, so sharing it between people reveals nothing.
+            // Reuse stays inside one person's records: another applicant's identical text is read afresh.
+            eq(schema.aiClassificationRuns.applicantId, input.applicantId),
             eq(schema.aiClassificationRuns.status, 'SUCCEEDED'),
             gte(schema.aiClassificationRuns.createdAt, cacheCutoff),
           ),
@@ -1909,14 +1928,9 @@ export async function runClassification(
   ai: AiClassifyPort,
   input: RunClassificationInput,
 ): Promise<Result<RunClassificationSummary, ServiceError>> {
-  const applicant = await getApplicant(db, input.applicantId);
-  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
-  if (applicant.ownerAccountId !== input.actorAccountId) {
-    return err(serviceError('not_found', 'applicant not found'));
-  }
-  if (!(await documentVersionBelongsToApplicant(db, input.documentVersionId, input.applicantId))) {
-    return err(serviceError('not_found', 'document version not found'));
-  }
+  const owned = await loadOwnedApplicant(db, input);
+  if (!owned.ok) return err(owned.error);
+  const applicant = owned.value;
   if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_EXTRACTION'))) {
     return err(serviceError('consent_required', 'AI extraction consent is required'));
   }
@@ -2771,14 +2785,9 @@ export async function runOcr(
   ai: AiOcrPort,
   input: RunOcrInput,
 ): Promise<Result<RunOcrSummary, ServiceError>> {
-  const applicant = await getApplicant(db, input.applicantId);
-  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
-  if (applicant.ownerAccountId !== input.actorAccountId) {
-    return err(serviceError('not_found', 'applicant not found'));
-  }
-  if (!(await documentVersionBelongsToApplicant(db, input.documentVersionId, input.applicantId))) {
-    return err(serviceError('not_found', 'document version not found'));
-  }
+  const owned = await loadOwnedApplicant(db, input);
+  if (!owned.ok) return err(owned.error);
+  const applicant = owned.value;
   if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_OCR'))) {
     return err(serviceError('consent_required', 'AI OCR consent is required'));
   }
@@ -4072,14 +4081,9 @@ export async function runInconsistencyCheck(
   ai: AiInconsistencyPort,
   input: RunInconsistencyCheckInput,
 ): Promise<Result<RunInconsistencyCheckSummary, ServiceError>> {
-  const applicant = await getApplicant(db, input.applicantId);
-  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
-  if (applicant.ownerAccountId !== input.actorAccountId) {
-    return err(serviceError('not_found', 'applicant not found'));
-  }
-  if (!(await documentVersionBelongsToApplicant(db, input.documentVersionId, input.applicantId))) {
-    return err(serviceError('not_found', 'document version not found'));
-  }
+  const owned = await loadOwnedApplicant(db, input);
+  if (!owned.ok) return err(owned.error);
+  const applicant = owned.value;
   if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_EXTRACTION'))) {
     return err(serviceError('consent_required', 'AI extraction consent is required'));
   }

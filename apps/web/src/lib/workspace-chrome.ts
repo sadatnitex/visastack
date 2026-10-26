@@ -29,6 +29,8 @@ export async function loadWorkspaceChrome(
         isPlatformOwnerAccount(db, actor),
         hasPlatformPermission(db, actor, 'AI_SETTINGS_MANAGE'),
         hasPlatformPermission(db, actor, 'COMPLAINT_MANAGE'),
+        hasPlatformPermission(db, actor, 'AUDIT_TRAIL_VIEW'),
+        hasPlatformPermission(db, actor, 'APPLICANT_DIRECTORY_VIEW'),
       ])
     : null;
   return {
@@ -55,6 +57,8 @@ export async function loadWorkspaceChrome(
           owner: permissions[0] === true,
           ai: permissions[1] === true,
           complaints: permissions[2] === true,
+          audit: permissions[3] === true,
+          privacy: permissions[4] === true,
         }
       : null,
   };

@@ -16,7 +16,7 @@ const access: WorkspaceAccess = {
     { id: o1, name: 'Synthetic Agency One', admin: true },
     { id: o2, name: 'Synthetic Agency Two', admin: false },
   ],
-  platform: { owner: true, ai: true, complaints: true },
+  platform: { owner: true, ai: true, complaints: true, audit: true, privacy: true },
 };
 const labels = (path: string, actor = access) =>
   workspaceNavigation(path, actor).primary.map((link) => link.label);
@@ -112,7 +112,7 @@ describe('current contextual navigation contract', () => {
     ]);
   });
   it('hides the private account directory and restricted configuration for limited platform staff', () => {
-    const limited = { ...access, platform: { owner: false, ai: false, complaints: false } };
+    const limited = { ...access, platform: { owner: false, ai: false, complaints: false, audit: false, privacy: false } };
     expect(labels('/app/admin', limited)).not.toContain('Members');
     const tools = workspaceNavigation('/app/admin', limited).tools.map((link) => link.label);
     expect(tools).not.toContain('AI Settings');
@@ -174,7 +174,7 @@ const linkAccess: WorkspaceAccess = {
     { id: org, name: 'Synthetic Agency', admin: true },
     { id: member, name: 'Synthetic Member Agency', admin: false },
   ],
-  platform: { owner: true, ai: true, complaints: true },
+  platform: { owner: true, ai: true, complaints: true, audit: true, privacy: true },
 };
 const none: WorkspaceAccess = { travellers: [], agencies: [], platform: null };
 

@@ -146,7 +146,7 @@ describe('agency navigation (directive Part 9 section 1)', () => {
 });
 
 describe('platform navigation (directive Part 9 section 1)', () => {
-  const all = { ai: true, complaints: true };
+  const all = { ai: true, complaints: true, audit: true, privacy: true };
 
   it('offers Organizations, Rules, AI, Operations, Privacy and Audit in the directive order', () => {
     expect(labels(platformTabs(all)).slice(0, 6)).toEqual([
@@ -164,9 +164,11 @@ describe('platform navigation (directive Part 9 section 1)', () => {
   });
 
   it('hides AI and Complaints from an administrator who may not use them', () => {
-    const names = labels(platformTabs({ ai: false, complaints: false }));
+    const names = labels(platformTabs({ ai: false, complaints: false, audit: false, privacy: false }));
     expect(names).not.toContain('AI');
     expect(names).not.toContain('Complaints');
+    expect(names).not.toContain('Audit');
+    expect(names).not.toContain('Privacy');
     expect(names).toContain('Operations');
   });
 
