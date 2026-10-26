@@ -24,12 +24,13 @@ import {
   ATTENTION_TIER_LABELS,
   CONSENT_PLAIN,
   attentionActionLabel,
-  attentionHeading,
+  documentTypeLabel,
 } from '../../lib/labels';
 import { getLocale } from '../../lib/locale';
 import { safeReturnPath } from '../../lib/neon-recency';
 import { plural } from '../../lib/plural';
 import { withSession } from '../../lib/session';
+import { requestItemLabel } from './agency/[orgId]/do-next';
 import { ConsentButton } from './consent-button';
 import { FirstRunConsent, FirstRunName, FirstRunTask, SETUP_LATER_HREF } from './first-run';
 
@@ -129,22 +130,30 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
   const { consents, incomingGrants, applicants } = basics;
   const now = new Date();
   const perApplicant = await Promise.all(
-    applicants.slice(0, HOME_APPLICANT_LIMIT).map(async (applicant) => {
-      const [docs, attention] = await Promise.all([
-        listDocuments(db, accountId, applicant.id),
-        loadAttention(db, accountId, applicant.id, now),
-      ]);
-      return {
-        applicant,
-        documentCount: docs.ok ? docs.value.length : 0,
-        attention,
-        itemCount: attention?.items.length ?? 0,
-        activeMissions: attention?.activeCaseCount ?? 0,
-        // Open or sent back for a fix (ADR 0015 section 5), so a replacement request counts.
-        waitingRequests: attention?.requests.waitingOnYou ?? 0,
-        requestsWithAgency: attention?.requests.withAgency ?? 0,
-      };
-    }),
+    // A fixed order (oldest first, then id) so the same people are read on every visit:
+    // `listApplicants` itself promises no order.
+    [...applicants]
+      .sort(
+        (a, b) =>
+          a.createdAt.getTime() - b.createdAt.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+      )
+      .slice(0, HOME_APPLICANT_LIMIT)
+      .map(async (applicant) => {
+        const [docs, attention] = await Promise.all([
+          listDocuments(db, accountId, applicant.id),
+          loadAttention(db, accountId, applicant.id, now),
+        ]);
+        return {
+          applicant,
+          documentCount: docs.ok ? docs.value.length : 0,
+          attention,
+          itemCount: attention?.items.length ?? 0,
+          activeMissions: attention?.activeCaseCount ?? 0,
+          // Open or sent back for a fix (ADR 0015 section 5), so a replacement request counts.
+          waitingRequests: attention?.requests.waitingOnYou ?? 0,
+          requestsWithAgency: attention?.requests.withAgency ?? 0,
+        };
+      }),
   );
 
   const sharing = sharingInvitationItem(incomingGrants, now);
@@ -162,6 +171,24 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
     attention,
     sharingWaiting: sharing !== null,
   };
+}
+
+/**
+ * The heading for one item: what a request asks for or which document is expiring, by its own
+ * name, otherwise the plain heading the item came with. Server-only: the request label reads the
+ * field catalogue, which never goes to the browser.
+ */
+function attentionHeading(item: AttentionItem): string {
+  const subject = item.subject;
+  if (subject?.kind === 'request') {
+    return requestItemLabel({
+      kind: subject.requestKind,
+      fieldKey: subject.fieldKey,
+      docType: subject.docType,
+    });
+  }
+  if (subject?.kind === 'document' && subject.docType) return documentTypeLabel(subject.docType);
+  return item.title;
 }
 
 /** Who and which case an item is about, in a short line. */
@@ -322,6 +349,7 @@ export default async function AppPage({
   ];
 
   const firstTodo = setupSteps.find((step) => !step.done);
+  const setupIncomplete = firstTodo !== undefined;
 
   // One next step, chosen in priority order: the consent gate first, then the top of the ranked
   // Needs Attention list (ADR 0016), then the first setup step, then "all clear".
@@ -360,6 +388,7 @@ export default async function AppPage({
   // Under the next step: everything else, ranked. The first item is already the next step.
   const rest = first ? data.attention.slice(1) : [];
   const restShown = rest.slice(0, HOME_ATTENTION_VISIBLE);
+  const peopleLeftOut = data.applicants.length > data.perApplicant.length;
   const requestRows = data.perApplicant.filter(
     (row) => row.waitingRequests + row.requestsWithAgency > 0,
   );
@@ -425,6 +454,12 @@ export default async function AppPage({
             <p className="muted do-next-more">
               Showing {restShown.length} of {rest.length}. The rest are on each person&apos;s pages.{' '}
               <Link href="/app/applicants">See All Applicants</Link>
+            </p>
+          ) : null}
+          {peopleLeftOut ? (
+            <p className="muted do-next-more">
+              This list covers the first {data.perApplicant.length} of {data.applicants.length}{' '}
+              people. <Link href="/app/applicants">See All Applicants</Link>
             </p>
           ) : null}
         </section>
@@ -550,26 +585,27 @@ export default async function AppPage({
         </section>
       ) : null}
 
-      <section className="home-journey u-mb-150" aria-labelledby="home-journey-heading">
-        <h2 className="home-section-title" id="home-journey-heading">
-          My Next Journey
-        </h2>
-        {setupSteps.some((step) => !step.done) ? (
-          <Checklist title="Set Up Your Account" items={setupSteps} />
-        ) : firstApplicant ? (
-          <div className="card home-journey-card">
-            <p className="card-body">
-              Planning another trip? Start a case and check your saved documents against it.
-            </p>
-            <Link
-              className="btn btn-secondary do-next-link"
-              href={`/app/applicant/${firstApplicant.applicant.id}/missions`}
-            >
-              Start a Case
-            </Link>
-          </div>
-        ) : null}
-      </section>
+      {/* Supporting content, after the actionable sections. One heading: the checklist's own, or the card's. */}
+      {setupIncomplete || firstApplicant ? (
+        <section id="home-journey" className="home-journey u-mb-150" aria-label="My Next Journey">
+          {setupIncomplete ? (
+            <Checklist title="My Next Journey" items={setupSteps} />
+          ) : firstApplicant ? (
+            <article className="card home-journey-card">
+              <h2 className="card-title">My Next Journey</h2>
+              <p className="card-body">
+                Planning another trip? Start a case and check your saved documents against it.
+              </p>
+              <Link
+                className="btn btn-secondary do-next-link"
+                href={`/app/applicant/${firstApplicant.applicant.id}/missions`}
+              >
+                Start a Case
+              </Link>
+            </article>
+          ) : null}
+        </section>
+      ) : null}
 
       {/*
        * Always rendered, independent of `coreGranted` - the sole place any

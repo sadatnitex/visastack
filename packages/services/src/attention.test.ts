@@ -13,6 +13,7 @@ import {
   ATTENTION_REQUEST_STATUSES,
   ATTENTION_TASK_STATUSES,
   type AttentionItem,
+  WITH_AGENCY_REQUEST_STATUSES,
   attentionTier,
   daysUntilDueDay,
   listNeedsAttention,
@@ -277,6 +278,9 @@ function shuffled<T>(values: readonly T[], seed: number): T[] {
 describe('attention literals', () => {
   it('match the stored statuses, so a renamed status cannot silently drop items', () => {
     for (const status of ATTENTION_REQUEST_STATUSES) {
+      expect(schema.evidenceRequestStatus.enumValues).toContain(status);
+    }
+    for (const status of WITH_AGENCY_REQUEST_STATUSES) {
       expect(schema.evidenceRequestStatus.enumValues).toContain(status);
     }
     for (const status of ATTENTION_TASK_STATUSES) {
@@ -721,6 +725,108 @@ describe('listNeedsAttention', () => {
       expect(result.items).toEqual([]);
       expect(result.requests).toEqual({ waitingOnYou: 0, withAgency: 0 });
       expect(result.activeCases).toEqual([]);
+    },
+    HEAVY,
+  );
+});
+
+describe('listNeedsAttention: whose day and whose task', () => {
+  async function inZone(email: string, timezone: string) {
+    const who = await person(email);
+    await db
+      .update(schema.applicants)
+      .set({ timezone })
+      .where(eq(schema.applicants.id, who.applicantId));
+    return who;
+  }
+
+  it(
+    'a document is expired only once its expiry day has ended where the person is',
+    async () => {
+      const dhaka = await inZone('dhaka@example.com', 'Asia/Dhaka');
+      const la = await inZone('la@example.com', 'America/Los_Angeles');
+      const dhakaDoc = await document(
+        dhaka.ownerId,
+        dhaka.applicantId,
+        'PASSPORT',
+        day('2026-10-26'),
+      );
+      const laDoc = await document(la.ownerId, la.applicantId, 'PASSPORT', day('2026-10-26'));
+      const state = async (
+        who: { ownerId: string; applicantId: string },
+        key: string,
+        at: string,
+      ) =>
+        (await attention(who.ownerId, who.applicantId, new Date(at))).items.find(
+          (i) => i.key === key,
+        );
+
+      // 23:30 on 26 Oct in Dhaka: still the expiry day.
+      const dhakaLate = await state(dhaka, `document_expiry:${dhakaDoc}`, '2026-10-26T17:30:00Z');
+      expect(dhakaLate).toMatchObject({ dueState: 'due_soon', daysUntilDue: 0 });
+      expect(Object.is(dhakaLate?.daysUntilDue, -0)).toBe(false);
+      // 00:30 on 27 Oct in Dhaka: expired.
+      expect(
+        await state(dhaka, `document_expiry:${dhakaDoc}`, '2026-10-26T18:30:00Z'),
+      ).toMatchObject({ dueState: 'overdue', daysUntilDue: -1, title: 'Document Expired' });
+
+      // 23:30 on 26 Oct in Los Angeles is already 27 Oct in UTC; still the expiry day there.
+      expect(await state(la, `document_expiry:${laDoc}`, '2026-10-27T06:30:00Z')).toMatchObject({
+        dueState: 'due_soon',
+        daysUntilDue: 0,
+        title: 'Document Expiring Soon',
+      });
+      expect(await state(la, `document_expiry:${laDoc}`, '2026-10-27T07:30:00Z')).toMatchObject({
+        dueState: 'overdue',
+        daysUntilDue: -1,
+      });
+      // Outside the widest reminder threshold (90 days by default): not an item.
+      const far = await document(la.ownerId, la.applicantId, 'BANK_STATEMENT', day('2027-02-01'));
+      expect(await state(la, `document_expiry:${far}`, '2026-10-27T07:30:00Z')).toBeUndefined();
+    },
+    HEAVY,
+  );
+
+  it(
+    "a request is past due once the due day has ended in the traveller's time zone",
+    async () => {
+      const la = await inZone('la-request@example.com', 'America/Los_Angeles');
+      const orgId = await organization();
+      const id = await request(orgId, la.applicantId, {
+        status: 'OPEN',
+        dueDate: day('2026-10-26'),
+      });
+      const at = async (iso: string) =>
+        (await attention(la.ownerId, la.applicantId, new Date(iso))).items.find(
+          (i) => i.key === `evidence_request:${id}`,
+        )?.dueState;
+      expect(await at('2026-10-27T06:59:00Z')).toBe('due_soon');
+      expect(await at('2026-10-27T07:01:00Z')).toBe('overdue');
+    },
+    HEAVY,
+  );
+
+  it(
+    'shows only tasks the traveller can act on: unassigned or assigned to the traveller',
+    async () => {
+      const { ownerId, applicantId } = await person('tasks@example.com');
+      const staffId = await account('staff@example.com');
+      const visa = await caseFor(ownerId, applicantId, 'Japan Visit');
+      const mine = await task(ownerId, visa, 'Sign the form', day('2026-10-20'));
+      const unassigned = await task(ownerId, visa, 'Print the photo', day('2026-10-20'));
+      const agencys = await task(ownerId, visa, 'Check the file', day('2026-10-01'));
+      await db
+        .update(schema.missionTasks)
+        .set({ assigneeAccountId: ownerId })
+        .where(eq(schema.missionTasks.id, mine));
+      await db
+        .update(schema.missionTasks)
+        .set({ assigneeAccountId: staffId })
+        .where(eq(schema.missionTasks.id, agencys));
+      const keys = (await attention(ownerId, applicantId)).items.map((i) => i.key);
+      expect(keys).toContain(`task:${mine}`);
+      expect(keys).toContain(`task:${unassigned}`);
+      expect(keys).not.toContain(`task:${agencys}`);
     },
     HEAVY,
   );

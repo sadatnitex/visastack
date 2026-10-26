@@ -4,7 +4,7 @@ import { renderServer, stubProps, textOf } from '../../lib/next-mocks.test-suppo
 
 const data = vi.hoisted(() => ({
   consents: {} as Record<string, unknown>,
-  applicants: [] as { id: string; displayName: string }[],
+  applicants: [] as { id: string; displayName: string; createdAt: Date }[],
   documents: 0,
   openRequests: 0,
   proposals: 0,
@@ -40,7 +40,7 @@ vi.mock('@visastack/services', async (importOriginal) => {
       const items: AttentionItem[] = [
         ...Array.from({ length: data.openRequests }, (_, i) =>
           attentionItem({
-            key: `evidence_request:open-${i}`,
+            key: `evidence_request:open-${access.applicantId}-${i}`,
             kind: 'evidence_request',
             title: 'Document Requested',
             why: 'An agency asked you for a document. Reply with a file from your documents.',
@@ -135,7 +135,11 @@ function attentionItem(
   };
 }
 
-const SELF = { id: '10000000-0000-4000-8000-000000000001', displayName: 'Synthetic Self' };
+const SELF = {
+  id: '10000000-0000-4000-8000-000000000001',
+  displayName: 'Synthetic Self',
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+};
 
 beforeEach(() => {
   data.consents = {};
@@ -436,7 +440,7 @@ describe('Home composition (WP-V4, v1.2 B13 and U03)', () => {
       'id="home-attention-heading"',
       'id="home-records-heading"',
       'id="home-work-heading"',
-      'id="home-journey-heading"',
+      'id="home-journey"',
       'Permissions You Control',
     ].map((marker) => html.indexOf(marker));
     expect(order.every((at) => at > -1)).toBe(true);
@@ -512,7 +516,7 @@ describe('Home composition (WP-V4, v1.2 B13 and U03)', () => {
     data.openRequests = 1;
     data.missions = 2;
     const html = await page();
-    const work = sectionText(html, 'home-work-heading', 'home-journey-heading');
+    const work = sectionText(html, 'home-work-heading', 'id="home-journey"');
     expect(work).toContain('Requests from an Agency');
     expect(work).toContain('1 waiting for you');
     expect(work).toContain('Synthetic Case 1');
@@ -536,9 +540,45 @@ describe('Home composition (WP-V4, v1.2 B13 and U03)', () => {
     data.applicants = [SELF];
     data.documents = 1;
     data.missions = 1;
-    const journey = sectionText(await page(), 'home-journey-heading', 'id="permissions"');
+    const journey = sectionText(await page(), 'home-journey', 'id="permissions"');
     expect(journey).toContain('My Next Journey');
     expect(journey).toContain('Start a Case');
     expect(journey).not.toContain('Set Up Your Account');
+  });
+
+  it('gives My Next Journey one heading, with the setup checklist under it', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    const html = await page();
+    const journey = html.slice(html.indexOf('id="home-journey"'), html.indexOf('id="permissions"'));
+    expect(journey.match(/<h[1-6]/g)).toEqual(['<h2']);
+    expect(textOf(journey)).toContain('My Next Journey');
+    expect(textOf(journey)).toContain('Add a First Document');
+  });
+
+  it('reads the same people on every visit, oldest first, and says when some are left out', async () => {
+    data.consents = CORE;
+    // Out of order on purpose: Home sorts by when each record was added, then by id.
+    data.applicants = Array.from({ length: 27 }, (_, i) => ({
+      id: `10000000-0000-4000-8000-${String(100 - i).padStart(12, '0')}`,
+      displayName: `Person ${String(100 - i).padStart(3, '0')}`,
+      createdAt: new Date(Date.UTC(2026, 0, 1 + (i % 3))),
+    }));
+    data.openRequests = 1;
+    const html = await page();
+    const records = sectionText(html, 'home-records-heading', 'home-work-heading');
+    const shown = [...records.matchAll(/Person (\d{3})/g)].map((m) => m[1]);
+    const expected = [...data.applicants]
+      .sort(
+        (a, b) =>
+          a.createdAt.getTime() - b.createdAt.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+      )
+      .slice(0, 25)
+      .map((a) => a.displayName.slice(-3));
+    expect(shown).toEqual(expected);
+    expect(records).toContain('Home shows the first 25 of 27 people.');
+    const attention = sectionText(html, 'home-attention-heading', 'home-records-heading');
+    expect(attention).toContain('This list covers the first 25 of 27 people.');
+    expect(attention).toContain('See All Applicants');
   });
 });

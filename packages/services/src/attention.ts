@@ -1,11 +1,9 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, asc, count, eq, inArray, isNotNull, isNull, min } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, isNotNull, isNull, min, or } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access/require-access';
-import { listEvidenceRequestsForApplicant } from './agency';
 import { schema } from './db';
 import { type ServiceError, serviceError } from './errors';
-import { classifyExpiry, getReminderThresholds } from './expiry';
-import { listMissions } from './missions';
+import { DEFAULT_EXPIRY_REMINDER_THRESHOLD_DAYS, getReminderThresholds } from './expiry';
 import { toLocalDateParts } from './notification-sweep';
 
 /**
@@ -13,12 +11,13 @@ import { toLocalDateParts } from './notification-sweep';
  * applicant, built only from rules that already exist elsewhere. Nothing here writes, sends or
  * decides anything new:
  *
- * - evidence requests an agency sent (open, or sent back for a fix), as the traveller's
- *   evidence page lists them (`listEvidenceRequestsForApplicant`);
+ * - evidence requests an agency sent (open, or sent back for a fix), the rows the traveller's
+ *   evidence page lists, read here with only the columns an item needs (never the agency's note);
  * - open or started tasks on the applicant's active cases, the same statuses the task reminder
- *   sweep treats as live;
- * - current documents whose expiry date is inside a reminder window or already past, decided by
- *   `classifyExpiry` with the document type's own reminder thresholds;
+ *   sweep treats as live, that the traveller can act on: unassigned, or assigned to the traveller's
+ *   own account (a task the agency gave one of its staff is the agency's to do);
+ * - current documents whose expiry day is inside the document type's reminder window or has
+ *   ended, counted in the applicant's time zone with the same due-day rule as tasks;
  * - cases whose confirmation was undone by a later change, by the same rule the case page uses
  *   for its "changed since you confirmed" alert;
  * - suggested details still waiting for a decision, as one item with a count.
@@ -37,7 +36,9 @@ const FINISHED_CASE_STATES: ReadonlySet<string> = new Set(['CLOSED', 'CANCELLED'
 /** Request statuses still waiting on the traveller (ADR 0015 section 5: open or sent back). */
 export const ATTENTION_REQUEST_STATUSES = ['OPEN', 'NEEDS_REPLACEMENT'] as const;
 /** Request statuses where the traveller has answered and the agency has the next move. */
-const WITH_AGENCY_REQUEST_STATUSES: ReadonlySet<string> = new Set(['RECEIVED', 'UNDER_REVIEW']);
+export const WITH_AGENCY_REQUEST_STATUSES = ['RECEIVED', 'UNDER_REVIEW'] as const;
+const WAITING_ON_YOU: ReadonlySet<string> = new Set(ATTENTION_REQUEST_STATUSES);
+const WITH_AGENCY: ReadonlySet<string> = new Set(WITH_AGENCY_REQUEST_STATUSES);
 /** Task statuses the reminder sweep treats as live (`sweepTaskDeadlineReminders`). */
 export const ATTENTION_TASK_STATUSES = ['OPEN', 'IN_PROGRESS'] as const;
 
@@ -250,8 +251,10 @@ export interface NeedsAttentionOptions {
  * person) is refused even when it would allow viewing. Nothing is written.
  *
  * Cost: one read each for requests, cases, tasks, confirmations, documents and suggestions, plus
- * one reminder-threshold read per distinct document type that is close to expiry. No per-case
- * or per-task query: tasks and confirmations for every active case are read in one query each.
+ * one reminder-threshold read per distinct document type among the documents read. The gate
+ * already loaded the applicant, so it is not read again. Tasks and documents are capped at
+ * `ATTENTION_SOURCE_LIMIT` rows, most urgent first; requests (only the four statuses that matter),
+ * cases and confirmations are not capped. No per-case or per-task query.
  */
 export async function listNeedsAttention(
   access: AuthorizedApplicant<'VIEW_METADATA'>,
@@ -272,9 +275,37 @@ export async function listNeedsAttention(
   const now = options.now ?? new Date();
   const evidenceHref = `/app/applicant/${applicantId}/evidence`;
 
-  const [requestsResult, missionsResult, documents, pending] = await Promise.all([
-    listEvidenceRequestsForApplicant(db, applicant.ownerAccountId, applicantId),
-    listMissions(db, applicant.ownerAccountId, applicantId),
+  const [requests, missions, documents, pending] = await Promise.all([
+    db
+      .select({
+        id: schema.evidenceRequests.id,
+        missionId: schema.evidenceRequests.missionId,
+        kind: schema.evidenceRequests.kind,
+        docType: schema.evidenceRequests.docType,
+        fieldKey: schema.evidenceRequests.fieldKey,
+        dueDate: schema.evidenceRequests.dueDate,
+        status: schema.evidenceRequests.status,
+        createdAt: schema.evidenceRequests.createdAt,
+      })
+      .from(schema.evidenceRequests)
+      .where(
+        and(
+          eq(schema.evidenceRequests.applicantId, applicantId),
+          inArray(schema.evidenceRequests.status, [
+            ...ATTENTION_REQUEST_STATUSES,
+            ...WITH_AGENCY_REQUEST_STATUSES,
+          ]),
+        ),
+      ),
+    db
+      .select({
+        id: schema.missions.id,
+        title: schema.missions.title,
+        state: schema.missions.state,
+        createdAt: schema.missions.createdAt,
+      })
+      .from(schema.missions)
+      .where(eq(schema.missions.applicantId, applicantId)),
     db
       .select({
         id: schema.documents.id,
@@ -303,10 +334,6 @@ export async function listNeedsAttention(
         ),
       ),
   ]);
-  if (!requestsResult.ok) return requestsResult;
-  if (!missionsResult.ok) return missionsResult;
-
-  const missions = missionsResult.value;
   const missionById = new Map(missions.map((m) => [m.id, m]));
   const active = missions
     .filter((m) => !FINISHED_CASE_STATES.has(m.state))
@@ -331,6 +358,11 @@ export async function listNeedsAttention(
               and(
                 inArray(schema.missionTasks.missionId, activeIds),
                 inArray(schema.missionTasks.status, [...ATTENTION_TASK_STATUSES]),
+                // Only tasks the traveller can act on.
+                or(
+                  isNull(schema.missionTasks.assigneeAccountId),
+                  eq(schema.missionTasks.assigneeAccountId, applicant.ownerAccountId),
+                ),
               ),
             )
             // Postgres puts undated tasks last when sorting ascending.
@@ -362,12 +394,12 @@ export async function listNeedsAttention(
   // a. Evidence requests: open or sent back. Declined, cancelled and answered ones never show.
   let waitingOnYou = 0;
   let withAgency = 0;
-  for (const request of requestsResult.value) {
+  for (const request of requests) {
     // A request tied to a case that is over is no longer asked of anyone.
     const mission = request.missionId ? missionById.get(request.missionId) : undefined;
     if (mission && FINISHED_CASE_STATES.has(mission.state)) continue;
-    if (WITH_AGENCY_REQUEST_STATUSES.has(request.status)) withAgency++;
-    if (request.status !== 'OPEN' && request.status !== 'NEEDS_REPLACEMENT') continue;
+    if (WITH_AGENCY.has(request.status)) withAgency++;
+    if (!WAITING_ON_YOU.has(request.status)) continue;
     waitingOnYou++;
     const sentBack = request.status === 'NEEDS_REPLACEMENT';
     const days = request.dueDate ? daysUntilDueDay(request.dueDate, now, timezone) : null;
@@ -462,8 +494,11 @@ export async function listNeedsAttention(
     });
   }
 
-  // d. Current documents inside a reminder window or past their expiry date. A document with no
-  // expiry date is never read here: an unknown date stays unknown and is not an item.
+  // d. Current documents inside their type's reminder window or past their expiry day. The
+  // expiry date is a calendar day like a due date: the document is expired only once that day has
+  // ended where the person is (the same `daysUntilDueDay` rule), and it is in the window when the
+  // days left are no more than the widest threshold (the window `classifyExpiry` uses for
+  // reminders). A document with no expiry date is never read here: an unknown date stays unknown.
   const thresholdsByType = new Map<string, readonly number[]>();
   await Promise.all(
     [...new Set(documents.map((d) => d.docType ?? ''))].map(async (docType) => {
@@ -472,11 +507,12 @@ export async function listNeedsAttention(
   );
   for (const document of documents) {
     if (!document.expiresAt) continue;
-    const thresholds = thresholdsByType.get(document.docType ?? '');
-    const expiry = classifyExpiry(document.expiresAt, now, thresholds);
-    if (expiry.urgency !== 'reminder' && expiry.urgency !== 'expired') continue;
-    const days = expiry.daysRemaining;
-    const expired = expiry.urgency === 'expired';
+    const thresholds =
+      thresholdsByType.get(document.docType ?? '') ?? DEFAULT_EXPIRY_REMINDER_THRESHOLD_DAYS;
+    const window = Math.max(0, ...thresholds);
+    const days = daysUntilDueDay(document.expiresAt, now, timezone);
+    const expired = days < 0;
+    if (!expired && days > window) continue;
     push({
       key: `document_expiry:${document.id}`,
       kind: 'document_expiry',

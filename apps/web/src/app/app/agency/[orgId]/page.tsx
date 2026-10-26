@@ -178,7 +178,7 @@ export default async function AgencyDashboardPage({
         reviewIssues: forCase.filter((r) => r.status === 'NEEDS_REPLACEMENT').length,
         waitingOnTraveller: forCase.filter((r) => WAITING_ON_TRAVELLER_STATUSES.has(r.status))
           .length,
-        overdueTasks: countOverdueTasks(mission.tasks),
+        overdueTasks: countOverdueTasks(mission.tasks, undefined, mission.applicantTimezone),
         approaching: nextApproachingDate(mission.targetDeadline, mission.travelStartDate),
         assignedToMe: mission.assignments.some((a) => a.memberAccountId === data.viewerAccountId),
       };

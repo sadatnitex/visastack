@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { MEMBERSHIP_ROLES, ORGANIZATION_STATUSES, PERMISSION_ACTIONS } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { type AttentionKind, TRIAGE_GROUPS } from '@visastack/services';
@@ -21,12 +23,10 @@ import {
   TRIAGE_INDICATOR_LABELS,
   aiProviderLabel,
   attentionActionLabel,
-  attentionHeading,
   documentTypeLabel,
   eventTypeLabel,
   membershipRoleLabel,
   permissionActionLabel,
-  requestItemLabel,
   titleCase,
 } from './labels';
 
@@ -180,31 +180,18 @@ describe('Needs Attention words (WP-V4 U03, ADR 0016)', () => {
     expect(attentionActionLabel({ kind: 'task', sentBack: false })).toBe('Open Case');
   });
 
-  it('names what a request asks for and which document expires, else keeps the plain heading', () => {
-    expect(
-      attentionHeading({
-        title: 'Document Requested',
-        subject: { kind: 'request', requestKind: 'DOCUMENT', docType: 'PASSPORT', fieldKey: null },
-      }),
-    ).toBe('Passport');
-    expect(
-      attentionHeading({
-        title: 'Detail Requested',
-        subject: { kind: 'request', requestKind: 'FIELD', docType: null, fieldKey: null },
-      }),
-    ).toBe('Requested Detail');
-    expect(
-      attentionHeading({
-        title: 'Document Expired',
-        subject: { kind: 'document', docType: 'BANK_STATEMENT' },
-      }),
-    ).toBe('Bank Statement');
-    expect(
-      attentionHeading({ title: 'Document Expired', subject: { kind: 'document', docType: null } }),
-    ).toBe('Document Expired');
-    expect(attentionHeading({ title: 'Book the Appointment', subject: null })).toBe(
-      'Book the Appointment',
-    );
-    expect(requestItemLabel({ kind: 'FIELD', fieldKey: 'some_new_key' })).toBe('Some New Key');
+  it('stays safe for browser code: no server-only module is imported', () => {
+    const source = readFileSync(join(process.cwd(), 'src/lib/labels.ts'), 'utf8');
+    const imports = [...source.matchAll(/from\s+['"]([^'"]+)['"]/g)].map((m) => m[1] ?? '');
+    // Browser components import this shared wording file, so master-profile.ts (server-only: it
+    // reads the field catalogue) and other server modules must never be pulled in through it.
+    for (const banned of [/master-profile/, /server-only/, /\/session$/, /\/providers$/]) {
+      expect(
+        imports.filter((name) => banned.test(name)),
+        String(banned),
+      ).toEqual([]);
+    }
+    // From the services package, types only.
+    expect(source).not.toMatch(/^import \{[^}]*\} from '@visastack\/services'/m);
   });
 });

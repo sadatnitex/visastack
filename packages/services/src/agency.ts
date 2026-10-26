@@ -999,6 +999,12 @@ export interface OrgMission {
   readonly title: string;
   readonly applicantId: string;
   readonly applicantName: string;
+  /**
+   * The traveller's own time zone (an IANA name). Never shown to the agency: used only to decide
+   * when a request or task is past due, which the traveller's time zone decides everywhere (owner
+   * decision 26 Oct 2026, ADR 0015 amendment).
+   */
+  readonly applicantTimezone: string;
 }
 
 /**
@@ -1020,6 +1026,7 @@ export async function listMissionsForOrganization(
       title: schema.missions.title,
       applicantId: schema.applicants.id,
       applicantName: schema.applicants.displayName,
+      applicantTimezone: schema.applicants.timezone,
       grantMissionId: schema.grants.missionId,
     })
     .from(schema.grants)
@@ -1044,11 +1051,12 @@ export async function listMissionsForOrganization(
   // never renders (and never lets the user act on) the same mission twice
   // (docs/audits/post-programme-defect-register.md finding #7).
   const deduped = [...new Map(scoped.map((r) => [r.missionId, r])).values()];
-  return deduped.map(({ missionId, title, applicantId, applicantName }) => ({
+  return deduped.map(({ missionId, title, applicantId, applicantName, applicantTimezone }) => ({
     missionId,
     title,
     applicantId,
     applicantName,
+    applicantTimezone,
   }));
 }
 
@@ -1057,6 +1065,8 @@ export interface OrgCaseSummary {
   readonly missionId: string;
   readonly applicantId: string;
   readonly applicantName: string;
+  /** The traveller's time zone, for due days only (see `OrgMission.applicantTimezone`). */
+  readonly applicantTimezone: string;
   readonly title: string;
   readonly state: MissionState;
   readonly destination: string | null;
@@ -1132,6 +1142,7 @@ export async function listVisibleMissionsForMember(
       missionId: m.missionId,
       applicantId: m.applicantId,
       applicantName: m.applicantName,
+      applicantTimezone: m.applicantTimezone,
       title: m.title,
       state: detail?.state ?? 'DRAFT',
       destination: detail?.destination ?? null,
@@ -1601,6 +1612,8 @@ export async function listEvidenceRequestsForOrg(
 
 export interface EvidenceRequestWithApplicant extends EvidenceRequest {
   readonly applicantName: string;
+  /** The traveller's time zone, for due days only; null when the traveller cannot be read. */
+  readonly applicantTimezone: string | null;
 }
 
 /** Same as `listEvidenceRequestsForOrg`, but resolves each request's applicant name. */
@@ -1614,17 +1627,22 @@ export async function listEvidenceRequestsForOrgDetailed(
   // One query for every distinct applicant, not one per request (measured at 639 requests: about
   // 1.1 seconds for the per-row version, docs/operations/capacity.md).
   const applicantIds = [...new Set(listed.value.map((request) => request.applicantId))];
-  const names = new Map<string, string>();
+  const names = new Map<string, { readonly name: string; readonly timezone: string }>();
   if (applicantIds.length > 0) {
     const rows = await db
-      .select({ id: schema.applicants.id, displayName: schema.applicants.displayName })
+      .select({
+        id: schema.applicants.id,
+        displayName: schema.applicants.displayName,
+        timezone: schema.applicants.timezone,
+      })
       .from(schema.applicants)
       .where(inArray(schema.applicants.id, applicantIds));
-    for (const row of rows) names.set(row.id, row.displayName);
+    for (const row of rows) names.set(row.id, { name: row.displayName, timezone: row.timezone });
   }
   const result: EvidenceRequestWithApplicant[] = listed.value.map((request) => ({
     ...request,
-    applicantName: names.get(request.applicantId) ?? 'Unknown applicant',
+    applicantName: names.get(request.applicantId)?.name ?? 'Unknown applicant',
+    applicantTimezone: names.get(request.applicantId)?.timezone ?? null,
   }));
   return ok(result);
 }

@@ -12,7 +12,7 @@
  * screen says why (owner decision 2026-10-25, W0 ledger Q5 option A).
  */
 
-import { daysUntilDateOnly } from '../../../../lib/format-date';
+import { daysUntilDue } from './console-format';
 
 // Every check runs on the NFKC form of the text, so full-width letters, digits, dots and the
 // full-width at sign are judged like their plain forms. Digits are matched as any decimal digit
@@ -112,6 +112,8 @@ export interface FollowUpInput {
   readonly agencyNote: string | null;
   readonly organizationName: string | null;
   readonly now?: Date;
+  /** The traveller's time zone, which decides when the due day ends (ADR 0015 amendment). */
+  readonly timezone?: string | null;
 }
 
 export interface FollowUpMessage {
@@ -131,9 +133,13 @@ function longDate(value: Date | string): string {
   });
 }
 
-function dueLine(dueDate: Date | string | null, now: Date): string | null {
+function dueLine(
+  dueDate: Date | string | null,
+  now: Date,
+  timezone: string | null | undefined,
+): string | null {
   if (dueDate === null) return null;
-  const days = daysUntilDateOnly(dueDate, now);
+  const days = daysUntilDue(dueDate, now, timezone);
   const date = longDate(dueDate);
   if (days < 0) return `Due: ${date} (this date has passed)`;
   if (days === 0) return `Due: today, ${date}`;
@@ -163,7 +169,7 @@ export function buildFollowUpMessage(input: FollowUpInput): FollowUpMessage {
   const facts = [
     `What we need: ${what}${replacement ? ' (a new version)' : ''}`,
     caseTitle ? `Case: ${caseTitle}` : null,
-    dueLine(input.dueDate, now),
+    dueLine(input.dueDate, now, input.timezone),
   ].filter((line): line is string => line !== null);
 
   const standardBody = replacement

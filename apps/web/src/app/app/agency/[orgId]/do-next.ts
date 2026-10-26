@@ -18,13 +18,10 @@
  */
 
 import { type TriageDocumentState, evidenceRequestTriageGroup } from '@visastack/services';
-import {
-  daysUntilDateOnly,
-  formatDateOnly,
-  formatTimestampDate,
-} from '../../../../lib/format-date';
-import { requestItemLabel } from '../../../../lib/labels';
-import { overdueTasks } from './console-format';
+import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
+import { documentTypeLabel, titleCase } from '../../../../lib/labels';
+import { fieldLabel } from '../../../../lib/master-profile';
+import { type DueTask, daysUntilDue, overdueTasks } from './console-format';
 import { type FollowUpMessage, buildFollowUpMessage } from './follow-up-message';
 
 /** The Cases page anchor for one case (its row id is `mission-<id>`, a stored name kept in code). */
@@ -60,15 +57,13 @@ export interface DoNextCase {
   readonly title: string;
   readonly state: string;
   readonly createdAt?: string;
+  /** The traveller's time zone: decides when a due day ends. Used, never shown. */
+  readonly applicantTimezone?: string | null;
   readonly assignments: readonly {
     readonly memberAccountId: string;
     readonly memberEmail: string;
   }[];
-  readonly tasks: readonly {
-    readonly status: string;
-    readonly dueDate: string | null;
-    readonly assigneeAccountId?: string | null;
-  }[];
+  readonly tasks: readonly (DueTask & { readonly assigneeAccountId?: string | null })[];
 }
 
 export interface DoNextRequest {
@@ -85,6 +80,8 @@ export interface DoNextRequest {
   readonly respondedAt?: Date | string | null;
   readonly createdAt?: Date | string;
   readonly requestedByAccountId?: string | null;
+  /** The traveller's time zone: decides when the due day ends. Used, never shown. */
+  readonly applicantTimezone?: string | null;
   /** The answered file's newest state, when loaded; see `loadEvidenceRequests`. */
   readonly respondingDocumentState?: TriageDocumentState | null;
 }
@@ -118,8 +115,22 @@ const time = (value: Date | string | null | undefined): number => {
   return Number.isNaN(ms) ? 0 : ms;
 };
 
-/** The thing a request asks for, in words. Shared with Home, so it lives in `lib/labels.ts`. */
-export { requestItemLabel };
+/**
+ * The thing a request asks for, in words. Server-only (it reads the field catalogue), so it lives
+ * here rather than in `lib/labels.ts`, which browser code imports. Home uses it too.
+ */
+export function requestItemLabel(request: {
+  readonly kind: string;
+  readonly fieldKey?: string | null | undefined;
+  readonly docType?: string | null | undefined;
+}): string {
+  if (request.kind === 'FIELD') {
+    return request.fieldKey
+      ? (fieldLabel(request.fieldKey) ?? titleCase(request.fieldKey))
+      : 'Requested Detail';
+  }
+  return request.docType ? documentTypeLabel(request.docType) : 'Requested Document';
+}
 
 interface Ranked {
   readonly item: DoNextItem;
@@ -175,9 +186,11 @@ export function buildDoNext(input: DoNextInput): DoNextItem[] {
         personName(request.requestedByAccountId) ??
         'Nobody assigned';
       const created = time(request.createdAt);
+      // The traveller's time zone decides when the due day ends (ADR 0015 amendment).
+      const timezone = request.applicantTimezone ?? caseRow?.applicantTimezone ?? null;
 
       if (group === 'MISSING' || group === 'NEEDS_CORRECTION') {
-        if (!request.dueDate || daysUntilDateOnly(request.dueDate, now) >= 0) continue;
+        if (!request.dueDate || daysUntilDue(request.dueDate, now, timezone) >= 0) continue;
         const sentBack = request.status === 'NEEDS_REPLACEMENT';
         // Received, but the newest version of the file failed its checks or is gone.
         const unusable = !sentBack && group === 'NEEDS_CORRECTION';
@@ -210,6 +223,7 @@ export function buildDoNext(input: DoNextInput): DoNextItem[] {
                 agencyNote: request.message ?? null,
                 organizationName: input.organizationName,
                 now,
+                timezone,
               }),
             },
           },
@@ -244,7 +258,9 @@ export function buildDoNext(input: DoNextInput): DoNextItem[] {
 
   // Rows 3 and 4: cases. Every case here is one this person can already see.
   for (const c of openCases) {
-    const late = overdueTasks(c.tasks, now).sort((a, b) => time(a.dueDate) - time(b.dueDate));
+    const late = overdueTasks(c.tasks, now, c.applicantTimezone).sort(
+      (a, b) => time(a.dueDate) - time(b.dueDate),
+    );
     const oldest = late[0];
     const href = `${input.base}${CASE_ANCHOR}${c.missionId}`;
     if (oldest?.dueDate) {

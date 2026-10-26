@@ -9,7 +9,6 @@ import type {
   TriageGroup,
   TriageIndicator,
 } from '@visastack/services';
-import { fieldLabel } from './master-profile';
 
 /**
  * Plain words for the codes the database stores. Display only: nothing here is ever saved,
@@ -227,23 +226,6 @@ export const CONSENT_PLAIN: Readonly<
 export const consentName = (type: string) => CONSENT_PLAIN[type]?.name ?? titleCase(type);
 
 /**
- * The thing an agency's evidence request asks for, in words: the detail's or document's own name,
- * or a plain fallback. Shared by the agency console and Home.
- */
-export function requestItemLabel(request: {
-  readonly kind: string;
-  readonly fieldKey?: string | null | undefined;
-  readonly docType?: string | null | undefined;
-}): string {
-  if (request.kind === 'FIELD') {
-    return request.fieldKey
-      ? (fieldLabel(request.fieldKey) ?? titleCase(request.fieldKey))
-      : 'Requested Detail';
-  }
-  return request.docType ? documentTypeLabel(request.docType) : 'Requested Document';
-}
-
-/**
  * Needs Attention on Home (ADR 0016): the short name above each item, one per tier. Received is
  * never called reviewed, and a suggestion is never called confirmed.
  */
@@ -274,21 +256,4 @@ export const SENT_BACK_ACTION_LABEL = 'Send a Replacement';
 export function attentionActionLabel(item: Pick<AttentionItem, 'kind' | 'sentBack'>): string {
   if (item.kind === 'evidence_request' && item.sentBack) return SENT_BACK_ACTION_LABEL;
   return ATTENTION_ACTION_LABELS[item.kind];
-}
-
-/**
- * The heading for one item: what a request asks for or which document is expiring, by its own
- * name, otherwise the plain heading the item came with.
- */
-export function attentionHeading(item: Pick<AttentionItem, 'title' | 'subject'>): string {
-  const subject = item.subject;
-  if (subject?.kind === 'request') {
-    return requestItemLabel({
-      kind: subject.requestKind,
-      fieldKey: subject.fieldKey,
-      docType: subject.docType,
-    });
-  }
-  if (subject?.kind === 'document' && subject.docType) return documentTypeLabel(subject.docType);
-  return item.title;
 }
