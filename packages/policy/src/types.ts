@@ -26,6 +26,15 @@ export interface Grant {
   readonly recipientOrganizationId?: AgencyId;
   /** Mission-scoped grant. Absent = applicant-wide (still category/document constrained). */
   readonly missionId?: MissionId;
+  /**
+   * Per-case sharing exceptions (ADR 0017): cases an all-cases grant does NOT
+   * cover, because the owner said no for that one case. Meaningful only when
+   * `missionId` is absent; a mission-scoped grant already covers one case.
+   * Absent or empty = the grant covers every case of the applicant. Only
+   * case resources are affected: documents and profile details keep their
+   * own scope (law 9).
+   */
+  readonly excludedMissionIds?: readonly MissionId[];
   /** Category allow-list. Absent = no category constraint. */
   readonly categories?: readonly string[];
   /** Document allow-list. Absent = no document constraint. */

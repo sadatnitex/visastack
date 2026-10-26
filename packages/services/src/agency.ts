@@ -2,7 +2,6 @@ import type {
   AccountId,
   AgencyId,
   ApplicantId,
-  DocumentId,
   MissionId,
   MissionState,
   PermissionAction,
@@ -10,6 +9,11 @@ import type {
 import { type Result, err, ok } from '@visastack/core';
 import { authorize } from '@visastack/policy';
 import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
+import {
+  loadCaseExclusions,
+  orgCaseRecordVisibleSql,
+  withCaseExclusions,
+} from './access/grant-scope';
 import { AuthorizedApplicant } from './access/require-access';
 import { latestTimeZoneName, recognisedTimeZone } from './attention';
 import { appendAuditEvent } from './audit';
@@ -26,7 +30,7 @@ import { type PackRequirement, listRequirements } from './packs';
 import { recordProductEvent } from './product-events';
 import { RATE_LIMITS, checkRateLimit, checkRateLimits } from './rate-limit';
 import { assignReferenceCode } from './reference-codes';
-import { loadGrantsForPolicy } from './sharing';
+import { loadGrantsForPolicy, toPolicyGrant } from './sharing';
 
 /**
  * Collaboration surface (Build Spec §2; PRD §5): assignments, mission notes,
@@ -105,6 +109,11 @@ export async function orgGrantPermits(
   // with an otherwise-valid grant still on the books.
   const org = await getOrganization(db, organizationId);
   if (!org || org.status !== 'ACTIVE') return false;
+  // The case must belong to the person named: an all-cases grant on one
+  // person must never vouch for another person's case id passed beside it.
+  if (missionId !== undefined && !(await missionBelongsTo(db, missionId, applicantId))) {
+    return false;
+  }
   const grants = await loadGrantsForPolicy(db, applicantId);
   const orgGrants = grants.filter((g) => g.recipientOrganizationId === organizationId);
   if (orgGrants.length === 0) return false;
@@ -130,6 +139,21 @@ export async function orgGrantPermits(
         context: { now, purpose: g.purpose, stepUpSatisfied: false, grants: [g] },
       }).allowed,
   );
+}
+
+/** Whether `missionId` is a case of `applicantId` (false for an unknown or malformed id). */
+async function missionBelongsTo(db: Db, missionId: string, applicantId: string): Promise<boolean> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(missionId)) {
+    return false;
+  }
+  const mission = first(
+    await db
+      .select({ applicantId: schema.missions.applicantId })
+      .from(schema.missions)
+      .where(eq(schema.missions.id, missionId))
+      .limit(1),
+  );
+  return mission !== undefined && mission.applicantId === applicantId;
 }
 
 /**
@@ -198,9 +222,10 @@ export async function assignMember(
   if (
     !(await orgGrantPermits(db, input.organizationId, mission.applicantId, 'MANAGE', mission.id))
   ) {
-    return err(
-      serviceError('forbidden', 'this organization has no current grant covering that case'),
-    );
+    // Answered exactly like an unknown id, so a case hidden from this
+    // organization (a per-case sharing exception, ADR 0017) cannot be told
+    // apart from one that does not exist.
+    return err(serviceError('not_found', 'case not found'));
   }
 
   const existing = first(
@@ -482,9 +507,10 @@ async function loadMissionForOrgWrite(
   );
   if (!mission) return err(serviceError('not_found', 'case not found'));
   if (!(await orgGrantPermits(db, organizationId, mission.applicantId, 'MANAGE', mission.id))) {
-    return err(
-      serviceError('forbidden', 'this organization has no current grant covering that case'),
-    );
+    // Answered exactly like an unknown id, so a case hidden from this
+    // organization (a per-case sharing exception, ADR 0017) cannot be told
+    // apart from one that does not exist.
+    return err(serviceError('not_found', 'case not found'));
   }
   return ok(mission);
 }
@@ -1025,8 +1051,10 @@ export interface OrgMission {
  * Missions reachable by this org via a CURRENT grant: `ACTIVE`, accepted,
  * started, and not expired. Mission-scoped grants match only their mission;
  * applicant-wide grants (`missionId IS NULL`) match every mission of that
- * applicant. Previously returned a mission for ANY grant row regardless of
- * status/acceptance/expiry — see
+ * applicant except the cases excluded from that grant (per-case sharing
+ * exceptions, ADR 0017), through the shared `grantCoversCaseSql` rule.
+ * Previously returned a mission for ANY grant row regardless of
+ * status/acceptance/expiry - see
  * docs/audits/commercial-readiness-recovery-baseline.md §7.
  */
 export async function listMissionsForOrganization(
@@ -1034,44 +1062,34 @@ export async function listMissionsForOrganization(
   organizationId: string,
 ): Promise<OrgMission[]> {
   const now = new Date();
-  const rows = await db
-    .selectDistinct({
-      missionId: schema.missions.id,
-      title: schema.missions.title,
-      applicantId: schema.applicants.id,
-      applicantName: schema.applicants.displayName,
-      applicantTimezone: schema.applicants.timezone,
-      grantMissionId: schema.grants.missionId,
-    })
-    .from(schema.grants)
-    .innerJoin(schema.applicants, eq(schema.applicants.id, schema.grants.applicantId))
-    .innerJoin(schema.missions, eq(schema.missions.applicantId, schema.applicants.id))
-    .where(
-      and(
-        eq(schema.grants.recipientOrganizationId, organizationId),
-        eq(schema.grants.status, 'ACTIVE'),
-        isNotNull(schema.grants.acceptedAt),
-        lte(schema.grants.startAt, now),
-        or(isNull(schema.grants.expiryAt), gt(schema.grants.expiryAt, now)),
+  const rows = await withCaseExclusions(db, (covers) =>
+    db
+      .selectDistinct({
+        missionId: schema.missions.id,
+        title: schema.missions.title,
+        applicantId: schema.applicants.id,
+        applicantName: schema.applicants.displayName,
+        applicantTimezone: schema.applicants.timezone,
+      })
+      .from(schema.grants)
+      .innerJoin(schema.applicants, eq(schema.applicants.id, schema.grants.applicantId))
+      .innerJoin(schema.missions, eq(schema.missions.applicantId, schema.applicants.id))
+      .where(
+        and(
+          eq(schema.grants.recipientOrganizationId, organizationId),
+          eq(schema.grants.status, 'ACTIVE'),
+          isNotNull(schema.grants.acceptedAt),
+          lte(schema.grants.startAt, now),
+          or(isNull(schema.grants.expiryAt), gt(schema.grants.expiryAt, now)),
+          covers(schema.missions.id),
+        ),
       ),
-    );
-  // A mission-scoped grant only reaches its own mission; the SQL join above
-  // is applicant-wide (it must be, to also surface applicant-wide grants),
-  // so the mission-scope narrowing happens here.
-  const scoped = rows.filter((r) => r.grantMissionId === null || r.grantMissionId === r.missionId);
-  // An applicant-wide grant and a mission-scoped grant for the same
-  // applicant both survive the filter above as distinct rows for the
-  // mission the scoped grant names — dedupe by missionId so the console
-  // never renders (and never lets the user act on) the same mission twice
+  );
+  // Several grants can reach the same mission (an applicant-wide one and a
+  // mission-scoped one, say); dedupe by missionId so the console never
+  // renders (and never lets the user act on) the same mission twice
   // (docs/audits/post-programme-defect-register.md finding #7).
-  const deduped = [...new Map(scoped.map((r) => [r.missionId, r])).values()];
-  return deduped.map(({ missionId, title, applicantId, applicantName, applicantTimezone }) => ({
-    missionId,
-    title,
-    applicantId,
-    applicantName,
-    applicantTimezone,
-  }));
+  return [...new Map(rows.map((r) => [r.missionId, r])).values()];
 }
 
 /** A case as the org console's workspace/search view needs it (CAS-02): enough to filter and summarize, never any wallet content. */
@@ -1609,7 +1627,17 @@ export async function listEvidenceRequestsForApplicant(
   return ok(sorted);
 }
 
-/** Evidence requests raised by an organization (org OWNER/ADMIN only), newest first. */
+/**
+ * Evidence requests raised by an organization (org OWNER/ADMIN only), newest
+ * first. A request on a case is listed only when one of this organization's
+ * LIVE grants on that person (active, paused or awaiting acceptance, not
+ * expired) reaches the case by case scope: a per-case sharing exception (ADR
+ * 0017) hides the organization's requests on that one case, exactly as it
+ * hides the case itself, and an ended grant that once reached it no longer
+ * counts. Only when the organization holds no live grant on the person at all
+ * does the earlier behaviour remain: its own past requests stay listed as
+ * history after every grant ended. Requests not tied to a case are unchanged.
+ */
 export async function listEvidenceRequestsForOrg(
   db: Db,
   actorAccountId: string,
@@ -1618,10 +1646,27 @@ export async function listEvidenceRequestsForOrg(
   if (!(await isOrgAdmin(db, actorAccountId, organizationId))) {
     return err(serviceError('forbidden', 'only an org OWNER/ADMIN can view these requests'));
   }
-  const rows = await db
-    .select()
-    .from(schema.evidenceRequests)
-    .where(eq(schema.evidenceRequests.organizationId, organizationId));
+  const requests = schema.evidenceRequests;
+  const now = new Date();
+  const rows = await withCaseExclusions(db, (covers) =>
+    db
+      .select()
+      .from(requests)
+      .where(
+        and(
+          eq(requests.organizationId, organizationId),
+          or(
+            isNull(requests.missionId),
+            orgCaseRecordVisibleSql(covers, {
+              organizationId,
+              applicantId: requests.applicantId,
+              missionId: requests.missionId,
+              now,
+            }),
+          ),
+        ),
+      ),
+  );
   const sorted = [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   return ok(sorted);
 }
@@ -2713,6 +2758,8 @@ export async function bulkExport(
     .from(schema.grants)
     .where(eq(schema.grants.recipientOrganizationId, input.organizationId));
 
+  const exclusions = await loadCaseExclusions(db, { grantIds: grantRows.map((g) => g.id) });
+
   const now = new Date();
   const candidateApplicantIds = [...new Set(grantRows.map((g) => g.applicantId))].slice(
     0,
@@ -2720,26 +2767,14 @@ export async function bulkExport(
   );
   const rows: BulkExportRow[] = [];
   for (const applicantId of candidateApplicantIds) {
+    // The one row-to-policy mapping (`toPolicyGrant`), so mission, document,
+    // category-snapshot and case-exception scope are all kept, never a
+    // hand-copied subset (docs/audits/post-programme-defect-register.md
+    // finding #4 was exactly such a subset). `grantRows` holds only grants
+    // naming this organization.
     const grants = grantRows
       .filter((g) => g.applicantId === applicantId)
-      .map((g) => ({
-        applicantId: g.applicantId as ApplicantId,
-        recipientOrganizationId: input.organizationId as AgencyId,
-        actions: g.actions as PermissionAction[],
-        purpose: g.purpose,
-        status: g.status,
-        startAt: g.startAt.toISOString(),
-        ...(g.categories ? { categories: g.categories } : {}),
-        ...(g.acceptedAt ? { acceptedAt: g.acceptedAt.toISOString() } : {}),
-        ...(g.expiryAt ? { expiryAt: g.expiryAt.toISOString() } : {}),
-        // Preserve mission/document scope exactly as `loadGrantsForPolicy`
-        // does — omitting these let a mission- or document-scoped grant be
-        // evaluated as applicant-wide, exporting the full profile instead of
-        // the authorized subset (docs/audits/post-programme-defect-register.md
-        // finding #4).
-        ...(g.missionId ? { missionId: g.missionId as MissionId } : {}),
-        ...(g.documentIds ? { documentIds: g.documentIds as DocumentId[] } : {}),
-      }));
+      .map((g) => toPolicyGrant(g, exclusions.get(g.id)));
 
     // Which of this applicant's grants actually allow EXPORT_PROFILE here,
     // evaluated per-grant WITHOUT that grant's own category restriction: a
@@ -2892,9 +2927,10 @@ export async function recordMissionDecision(
   if (
     !(await orgGrantPermits(db, input.organizationId, mission.applicantId, 'MANAGE', mission.id))
   ) {
-    return err(
-      serviceError('forbidden', 'this organization has no current grant covering that case'),
-    );
+    // Answered exactly like an unknown id, so a case hidden from this
+    // organization (a per-case sharing exception, ADR 0017) cannot be told
+    // apart from one that does not exist.
+    return err(serviceError('not_found', 'case not found'));
   }
   const requirement = first(
     await db
@@ -3062,9 +3098,10 @@ export async function listMissionRequirementsForOrg(
   );
   if (!mission) return err(serviceError('not_found', 'case not found'));
   if (!(await orgGrantPermits(db, organizationId, mission.applicantId, 'MANAGE', mission.id))) {
-    return err(
-      serviceError('forbidden', 'this organization has no current grant covering that case'),
-    );
+    // Answered exactly like an unknown id, so a case hidden from this
+    // organization (a per-case sharing exception, ADR 0017) cannot be told
+    // apart from one that does not exist.
+    return err(serviceError('not_found', 'case not found'));
   }
   if (!mission.packVersionId) return ok([]);
   return ok(await listRequirements(db, mission.packVersionId));

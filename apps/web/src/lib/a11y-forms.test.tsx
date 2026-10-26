@@ -121,6 +121,7 @@ const { GrantOpButtons } = await import('../app/app/applicant/[id]/sharing/grant
 const { ScopeExpansionForm } = await import(
   '../app/app/applicant/[id]/sharing/scope-expansion-form'
 );
+const { CaseExceptions } = await import('../app/app/applicant/[id]/sharing/case-exceptions');
 vi.mock('../app/app/sharing-invitations/accept/actions', standIn);
 const { AcceptSharingInvitationForm } = await import(
   '../app/app/sharing-invitations/accept/accept-form'
@@ -527,6 +528,17 @@ const SHARING: readonly Case[] = [
     name: 'widen a share to new documents',
     element: () => <ScopeExpansionForm applicantId="a1" grantId="g1" candidates={DOCUMENTS} />,
   },
+  row('allow a case an all-cases share leaves out', () => (
+    <CaseExceptions
+      applicantId="a1"
+      grantId="g1"
+      recipientLabel="Agency A"
+      exceptions={[
+        { missionId: 'm2', title: 'Japan trip 2026' },
+        { missionId: 'm3', title: 'Canada study', sharedSeparately: true },
+      ]}
+    />
+  )),
 ];
 
 const CASES_MISSION: readonly Case[] = [

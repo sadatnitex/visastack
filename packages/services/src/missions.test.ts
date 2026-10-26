@@ -2303,7 +2303,8 @@ describe('listSelectedEvidenceForOrg (EVI-05): the org-scoped sibling of listSel
 
     const forOrg = await listSelectedEvidenceForOrg(db, org.value.id, mission.value.id);
     expect(isErr(forOrg)).toBe(true);
-    if (isErr(forOrg)) expect(forOrg.error.code).toBe('forbidden');
+    // A case the organization does not reach answers like an unknown id (ADR 0017).
+    if (isErr(forOrg)) expect(forOrg.error.code).toBe('not_found');
   });
 
   it('reports not_found for an unknown mission', async () => {

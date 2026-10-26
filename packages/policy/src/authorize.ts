@@ -1,4 +1,4 @@
-import type { PermissionAction } from '@visastack/core';
+import type { MissionId, PermissionAction } from '@visastack/core';
 import type {
   Actor,
   AuthContext,
@@ -22,6 +22,9 @@ import type {
  *     organization's own status) fails the next request.
  *  7. Recipient acceptance is required.
  *  8. Support/admin access is not an ordinary role permission.
+ *  9. A per-case sharing exception removes exactly one case from an
+ *     all-cases grant; the grant keeps covering every other case, and
+ *     documents and profile details keep their own scope.
  */
 
 const ALLOW: Decision = { allowed: true };
@@ -44,6 +47,24 @@ function needsStepUp(action: PermissionAction, resource: Resource): boolean {
     return true;
   }
   return false;
+}
+
+/**
+ * Whether `grant` reaches the case `missionId`, by case scope alone (status,
+ * time, purpose and action are judged separately). A mission-scoped grant
+ * reaches only its own case; an all-cases grant reaches every case of the
+ * applicant except the ones excluded from it (law 9, ADR 0017).
+ *
+ * This is the one rule. Its SQL form is `grantCoversCaseSql` in
+ * packages/services/src/access/grant-scope.ts, and a test there proves the
+ * two agree on every combination.
+ */
+export function grantCoversMission(
+  grant: Pick<Grant, 'missionId' | 'excludedMissionIds'>,
+  missionId: MissionId,
+): boolean {
+  if (grant.missionId !== undefined) return grant.missionId === missionId;
+  return !(grant.excludedMissionIds ?? []).includes(missionId);
 }
 
 function evaluateGrant(
@@ -73,11 +94,12 @@ function evaluateGrant(
   if (!grant.actions.includes(action)) return deny('action_not_granted');
 
   // Scope (law 5): a mission-scoped grant authorizes only that mission and
-  // never profile-wide (mission-less) resources.
-  if (grant.missionId !== undefined) {
-    if (resource.missionId === undefined || grant.missionId !== resource.missionId) {
-      return deny('scope_mismatch');
-    }
+  // never profile-wide (mission-less) resources. Law 9: an all-cases grant
+  // covers every case except the ones excluded from it.
+  if (resource.missionId !== undefined) {
+    if (!grantCoversMission(grant, resource.missionId)) return deny('scope_mismatch');
+  } else if (grant.missionId !== undefined) {
+    return deny('scope_mismatch');
   }
   if (grant.documentIds !== undefined) {
     if (resource.documentId === undefined || !grant.documentIds.includes(resource.documentId)) {

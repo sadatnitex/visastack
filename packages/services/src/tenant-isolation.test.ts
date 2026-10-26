@@ -5,6 +5,7 @@ import { createMigratedPglite } from '@visastack/db/testing';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { accountPrincipal, requireAccess } from './access';
 import { provisionAccount } from './accounts';
 import {
   addNote,
@@ -27,7 +28,15 @@ import {
   setMembershipActive,
 } from './organizations';
 import { editFact, registerFieldDefinition } from './profile';
-import { acceptGrant, createGrant, pauseGrant, resumeGrant, revokeGrant } from './sharing';
+import {
+  acceptGrant,
+  applyCaseSharingAnswers,
+  createGrant,
+  pauseGrant,
+  removeCaseException,
+  resumeGrant,
+  revokeGrant,
+} from './sharing';
 
 /**
  * Hostile-authorization regression suite (master recovery directive §7
@@ -781,4 +790,75 @@ describe('mission note visibility: AGENCY_INTERNAL vs TRAVELLER_SHARED (Commerci
     const seenByOwner = await listNotesForOwner(db, account.id, mission.value.id);
     expect(seenByOwner).toHaveLength(0);
   });
+});
+
+describe('per-case sharing exceptions never cross from one person to another', () => {
+  it('the service refuses another person grant, and the database refuses a mixed row', async () => {
+    const db = await freshDb();
+    const x = await consentedOwner(db, 'tenant-x@example.com');
+    const y = await consentedOwner(db, 'tenant-y@example.com');
+    const org = await ownerOrg(db, 'tenant-agency@example.com', 'Tenant Agency');
+    const grantFor = async (owner: typeof x) => {
+      const created = await createGrant(db, {
+        actorAccountId: owner.account.id,
+        applicantId: owner.applicantId,
+        recipientOrganizationId: org.organizationId,
+        actions: ['VIEW_METADATA'],
+        purpose: 'collaboration',
+      });
+      if (!isOk(created)) throw new Error('grant');
+      return created.value.id;
+    };
+    const grantX = await grantFor(x);
+    const grantY = await grantFor(y);
+    const caseX = await createMission(db, {
+      actorAccountId: x.account.id,
+      applicantId: x.applicantId,
+      title: 'X case',
+    });
+    const caseY = await createMission(db, {
+      actorAccountId: y.account.id,
+      applicantId: y.applicantId,
+      title: 'Y case',
+    });
+    if (!isOk(caseX) || !isOk(caseY)) throw new Error('missions');
+    const proofX = await requireAccess(
+      db,
+      accountPrincipal(x.account.id),
+      'MANAGE',
+      { missionId: caseX.value.id },
+      { purpose: 'owner_case_sharing' },
+    );
+    if (!isOk(proofX)) throw new Error('proof');
+
+    // Naming Y's grant while answering for X's case is refused, never applied to Y.
+    const mixed = await applyCaseSharingAnswers(proofX.value, {
+      allowedGrantIds: [grantY],
+      allowedInvitationIds: [],
+    });
+    expect(isErr(mixed) && mixed.error.code).toBe('invalid');
+    // X's own answers only ever touch X's grants.
+    const applied = await applyCaseSharingAnswers(proofX.value, {
+      allowedGrantIds: [],
+      allowedInvitationIds: [],
+    });
+    if (!isOk(applied)) throw new Error('apply');
+    expect(applied.value.excludedGrantIds).toEqual([grantX]);
+    const removedY = await removeCaseException(proofX.value, { grantId: grantY });
+    expect(isErr(removedY) && removedY.error.code).toBe('not_found');
+
+    const rows = await db.select().from(schema.grantCaseExclusions);
+    expect(rows.map((r) => [r.grantId, r.missionId, r.applicantId])).toEqual([
+      [grantX, caseX.value.id, x.applicantId],
+    ]);
+
+    // The composite keys refuse a row that pairs X's grant with Y's case, whichever applicant it names.
+    for (const applicantId of [x.applicantId, y.applicantId]) {
+      await expect(
+        db
+          .insert(schema.grantCaseExclusions)
+          .values({ grantId: grantX, missionId: caseY.value.id, applicantId }),
+      ).rejects.toThrow();
+    }
+  }, 60_000);
 });

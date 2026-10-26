@@ -3,11 +3,14 @@
 import { PERMISSION_ACTIONS, type PermissionAction } from '@visastack/core';
 import {
   STEP_UP_ACTIONS,
+  accountPrincipal,
   createGrant,
   createSharingInvitation,
   expandGrantScope,
   getAccountByEmail,
   pauseGrant,
+  removeCaseException,
+  requireAccess,
   resumeGrant,
   revokeGrant,
   revokeSharingInvitation,
@@ -19,7 +22,11 @@ import { resolveBaseUrl } from '../../../../../lib/base-url';
 import { triggerNotificationWorker } from '../../../../../lib/jobs';
 import { createKeyManagementPort } from '../../../../../lib/providers';
 import { withSession } from '../../../../../lib/session';
-import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../../lib/step-up';
+import {
+  STEP_UP_NOT_CONFIGURED_MESSAGE,
+  establishStepUpProof,
+  tryEstablishStepUp,
+} from '../../../../../lib/step-up';
 
 /** Result surfaced back to the client for inline feedback. */
 const sharingInvitationFlag = 'PERSONAL_SHARING_INVITATIONS_ENABLED';
@@ -218,4 +225,58 @@ export async function revokeSharingInvitationAction(formData: FormData): Promise
       `/app/applicant/${encodeURIComponent(applicantId)}/sharing?error=${encodeURIComponent(result.error.message)}`,
     );
   revalidatePath(`/app/applicant/${applicantId}/sharing`);
+}
+
+/**
+ * "Allow This Case": removes one per-case sharing exception, so the all-cases
+ * access covers this case again. Checked through the central access gate on
+ * the case itself (owner only). A fresh sign-in is asked for only when the
+ * access hands out downloads of originals, profile export or re-sharing, the
+ * same rule as creating it. The recipient is not told.
+ */
+export async function allowCaseAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const applicantId = String(formData.get('applicantId') ?? '');
+  const missionId = String(formData.get('missionId') ?? '');
+  const grantId = String(formData.get('grantId') ?? '');
+  if (missionId.length === 0 || grantId.length === 0) {
+    return { ok: false, message: 'Choose the case to allow.' };
+  }
+  const returnTo = `/app/applicant/${applicantId}/sharing`;
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const access = await requireAccess(
+      db,
+      accountPrincipal(accountId),
+      'MANAGE',
+      { missionId },
+      { purpose: 'owner_case_sharing' },
+    );
+    if (!access.ok || access.value.applicant.id !== applicantId) {
+      return { ok: false, message: 'Not authorized.' } satisfies ActionState;
+    }
+    let removed = await removeCaseException(access.value, { grantId });
+    if (!removed.ok && removed.error.code === 'step_up_required') {
+      const stepUp = await establishStepUpProof(
+        { accountId, action: 'SHARE', resourceId: applicantId },
+        returnTo,
+      );
+      if (stepUp.kind === 'not_configured') {
+        return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
+      }
+      if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
+      removed = await removeCaseException(access.value, { grantId, stepUp: stepUp.proof });
+    }
+    if (!removed.ok) return { ok: false, message: removed.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: 'This case is shared again.',
+      refreshPath: returnTo,
+    } satisfies ActionState;
+  });
+
+  if (result.ok) revalidatePath(returnTo);
+  return result;
 }

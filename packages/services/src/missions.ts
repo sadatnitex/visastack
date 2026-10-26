@@ -3,6 +3,7 @@ import type { FactStatus, MissionState } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access';
+import { lockCaseSharing } from './access/grant-scope';
 import { orgGrantPermits } from './agency';
 import { getApplicant } from './applicants';
 import { latestTimeZoneName, recognisedTimeZone } from './attention';
@@ -201,6 +202,11 @@ export async function createMission(
   }
 
   return db.transaction(async (tx) => {
+    // The person's sharing lock comes before any audited write: answers about
+    // who may see this new case (`applyCaseSharingAnswers`) run in this same
+    // transaction, and every other holder of that lock takes it before the
+    // global audit lock, so taking it here keeps one order and no deadlock.
+    await lockCaseSharing(tx, input.applicantId);
     // An individual traveller's own case has no organization to check a cap
     // against; the directive's cases-per-period/concurrent-open-cases
     // entitlements are org-scoped (see plans.ts's own doc comment), and
@@ -1877,9 +1883,10 @@ export async function listSelectedEvidenceForOrg(
   );
   if (!mission) return err(serviceError('not_found', 'case not found'));
   if (!(await orgGrantPermits(db, organizationId, mission.applicantId, 'MANAGE', mission.id))) {
-    return err(
-      serviceError('forbidden', 'this organization has no current grant covering that case'),
-    );
+    // Answered exactly like an unknown id, so a case hidden from this
+    // organization (a per-case sharing exception, ADR 0017) cannot be told
+    // apart from one that does not exist.
+    return err(serviceError('not_found', 'case not found'));
   }
   const rows = await db
     .select()

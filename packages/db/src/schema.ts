@@ -16,6 +16,7 @@ import {
   check,
   customType,
   date,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -590,104 +591,114 @@ export const auditCheckpoints = pgTable(
 );
 
 // --- Missions (parallel destination/purpose workspaces; Build Spec §4.3) ----
-export const missions = pgTable('missions', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  applicantId: uuid('applicant_id')
-    .notNull()
-    .references(() => applicants.id, { onDelete: 'cascade' }),
-  title: text('title').notNull(),
-  destination: text('destination'),
-  purpose: text('purpose'),
-  // IAM-04: an optional free-text label letting an owner (e.g. a guardian
-  // account managing several of its own applicants) visually link separate
-  // missions as one family trip. Purely a display/reference string, never
-  // an access mechanism: every grant, note, and permission stays scoped to
-  // its own mission/applicant exactly as before, and lookups by this value
-  // are always scoped to the caller's own applicants, never cross-account.
-  itineraryRef: text('itinerary_ref'),
-  // Commercial V1 Part 4 §8 (CAS-01) case-creation fields. All nullable:
-  // the same underlying mission serves both an independent traveller (who
-  // may never set most of these) and an agency-managed case, and none of
-  // them gate any authorization decision anywhere else in this codebase,
-  // deliberately, matching the PRD's own "same underlying mission services"
-  // requirement. `title`/`destination`/`purpose` above predate this and
-  // already cover "traveller/subject" (via applicantId), "destination", and
-  // "trip purpose"; the rest genuinely did not exist.
-  jurisdiction: text('jurisdiction'), // consular post / jurisdiction context, e.g. "US Embassy Dhaka"
-  serviceCategory: text('service_category'), // free text, deliberately not an enum: this product defines no fixed taxonomy
-  travelStartDate: timestamp('travel_start_date', { withTimezone: true }),
-  travelEndDate: timestamp('travel_end_date', { withTimezone: true }),
-  targetDeadline: timestamp('target_deadline', { withTimezone: true }),
-  // The org this case is primarily attributed to, distinct from
-  // `assignments` (which member(s) work it) and from `grants` (which orgs
-  // currently have real access): this is just the case's own "whose case is
-  // this" label. Never itself a source of access; set null keeps the
-  // mission, never blocks or cascades.
-  ownerOrganizationId: uuid('owner_organization_id').references(() => organizations.id, {
-    onDelete: 'set null',
-  }),
-  // "Unsupported routes operate in manual-checklist mode with the coverage
-  // limitation visible on the case and export" (CAS-01): an explicit,
-  // owner-asserted flag, never inferred from `packVersionId` being null
-  // (which could just as easily mean "not yet configured" as "genuinely no
-  // automated pack exists for this route") - the UI must be honest about
-  // which one it actually is.
-  manualMode: boolean('manual_mode').notNull().default(false),
-  state: missionState('state').notNull().default('DRAFT'),
-  // PRV-02 (Part 7 §11): "closed case: initial proposed 12m with 30d
-  // notice." Set exactly once, by `transitionMission` (the only writer of
-  // `state`), the moment a mission reaches either terminal state -- CLOSED
-  // or CANCELLED, treated identically here since both mean "this case will
-  // never be worked again" (missions.ts's own TRANSITIONS map gives both an
-  // empty legal-move list; the directive names only "closed case" without
-  // splitting the two). Never touched again afterward: unlike `updatedAt`,
-  // which later case-detail edits (e.g. `updateMissionCaseDetails`) can
-  // still bump even on a closed mission, this column exists specifically so
-  // the retention clock is never accidentally reset by an unrelated write.
-  closedAt: timestamp('closed_at', { withTimezone: true }),
-  // Set once by the retention-notice sweep (`case-retention.ts`) the first
-  // time it processes a mission whose `closedAt` has crossed the configured
-  // notice threshold. Drives the later purge sweep's own "30 days after
-  // notice" clock; a compare-and-set on this being still null is what makes
-  // the notice sweep idempotent against re-running on the same mission.
-  retentionNoticeSentAt: timestamp('retention_notice_sent_at', { withTimezone: true }),
-  // Set once by the purge sweep (`sweepCaseRetentionPurge`), 30 days after
-  // `retentionNoticeSentAt`: the moment this mission's own workflow content
-  // (notes, tasks, snapshots, assignments, evidence requests, etc. -- every
-  // table with a `mission_id` FK declared `onDelete: 'cascade'`) was deleted
-  // and the free-text/scheduling fields on this very row (title,
-  // destination, purpose, itineraryRef, jurisdiction, serviceCategory, the
-  // three date fields) were overwritten with a redaction placeholder. The
-  // row itself, and `missionOutcomes`/`missionSubmissions`/`caseComplaints`/
-  // `caseFeedback` rows still pointing at it, deliberately survive: those
-  // four are historical facts (a decision outcome, a filed complaint, post-
-  // case quality feedback) with their own oversight/accountability value
-  // independent of whether the case workspace itself is still useful to the
-  // traveller, and unlike every cascading child table their own `mission_id`
-  // is NOT NULL -- fully deleting this row would force deleting them too,
-  // which is not a call this codebase gets to make silently by convenience
-  // of the schema's own cascade wiring. Once set, this mission is excluded
-  // from all future purge sweeps (nothing left here to purge again).
-  purgedAt: timestamp('purged_at', { withTimezone: true }),
-  // The published requirement pack version this mission is assembled against.
-  // restrict, not cascade/set null: nothing deletes a pack version today
-  // (Pack Studio is create/version-forward only), but a mission must never
-  // silently lose the pack it was assembled against if that ever changes --
-  // missions.ts branches heavily on this being present.
-  packVersionId: uuid('pack_version_id').references(() => packVersions.id, {
-    onDelete: 'restrict',
-  }),
-  // TRU-03 (master directive Part 7 §4): monotonically increasing, bumped
-  // in the same transaction as any material mutation (selected fact/
-  // document, generated output, case-detail field, or attached pack
-  // version) -- never a separate, later write. The exact value is never
-  // meaningful on its own, only whether it still matches what a snapshot or
-  // acknowledgement (TRU-02, not yet built) captured. Starts at 1, not 0,
-  // so "never yet touched" and "explicitly reset" are never confusable with
-  // the same sentinel.
-  materialRevision: integer('material_revision').notNull().default(1),
-  ...timestamps,
-});
+export const missions = pgTable(
+  'missions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    destination: text('destination'),
+    purpose: text('purpose'),
+    // IAM-04: an optional free-text label letting an owner (e.g. a guardian
+    // account managing several of its own applicants) visually link separate
+    // missions as one family trip. Purely a display/reference string, never
+    // an access mechanism: every grant, note, and permission stays scoped to
+    // its own mission/applicant exactly as before, and lookups by this value
+    // are always scoped to the caller's own applicants, never cross-account.
+    itineraryRef: text('itinerary_ref'),
+    // Commercial V1 Part 4 §8 (CAS-01) case-creation fields. All nullable:
+    // the same underlying mission serves both an independent traveller (who
+    // may never set most of these) and an agency-managed case, and none of
+    // them gate any authorization decision anywhere else in this codebase,
+    // deliberately, matching the PRD's own "same underlying mission services"
+    // requirement. `title`/`destination`/`purpose` above predate this and
+    // already cover "traveller/subject" (via applicantId), "destination", and
+    // "trip purpose"; the rest genuinely did not exist.
+    jurisdiction: text('jurisdiction'), // consular post / jurisdiction context, e.g. "US Embassy Dhaka"
+    serviceCategory: text('service_category'), // free text, deliberately not an enum: this product defines no fixed taxonomy
+    travelStartDate: timestamp('travel_start_date', { withTimezone: true }),
+    travelEndDate: timestamp('travel_end_date', { withTimezone: true }),
+    targetDeadline: timestamp('target_deadline', { withTimezone: true }),
+    // The org this case is primarily attributed to, distinct from
+    // `assignments` (which member(s) work it) and from `grants` (which orgs
+    // currently have real access): this is just the case's own "whose case is
+    // this" label. Never itself a source of access; set null keeps the
+    // mission, never blocks or cascades.
+    ownerOrganizationId: uuid('owner_organization_id').references(() => organizations.id, {
+      onDelete: 'set null',
+    }),
+    // "Unsupported routes operate in manual-checklist mode with the coverage
+    // limitation visible on the case and export" (CAS-01): an explicit,
+    // owner-asserted flag, never inferred from `packVersionId` being null
+    // (which could just as easily mean "not yet configured" as "genuinely no
+    // automated pack exists for this route") - the UI must be honest about
+    // which one it actually is.
+    manualMode: boolean('manual_mode').notNull().default(false),
+    state: missionState('state').notNull().default('DRAFT'),
+    // PRV-02 (Part 7 §11): "closed case: initial proposed 12m with 30d
+    // notice." Set exactly once, by `transitionMission` (the only writer of
+    // `state`), the moment a mission reaches either terminal state -- CLOSED
+    // or CANCELLED, treated identically here since both mean "this case will
+    // never be worked again" (missions.ts's own TRANSITIONS map gives both an
+    // empty legal-move list; the directive names only "closed case" without
+    // splitting the two). Never touched again afterward: unlike `updatedAt`,
+    // which later case-detail edits (e.g. `updateMissionCaseDetails`) can
+    // still bump even on a closed mission, this column exists specifically so
+    // the retention clock is never accidentally reset by an unrelated write.
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    // Set once by the retention-notice sweep (`case-retention.ts`) the first
+    // time it processes a mission whose `closedAt` has crossed the configured
+    // notice threshold. Drives the later purge sweep's own "30 days after
+    // notice" clock; a compare-and-set on this being still null is what makes
+    // the notice sweep idempotent against re-running on the same mission.
+    retentionNoticeSentAt: timestamp('retention_notice_sent_at', { withTimezone: true }),
+    // Set once by the purge sweep (`sweepCaseRetentionPurge`), 30 days after
+    // `retentionNoticeSentAt`: the moment this mission's own workflow content
+    // (notes, tasks, snapshots, assignments, evidence requests, etc. -- every
+    // table with a `mission_id` FK declared `onDelete: 'cascade'`) was deleted
+    // and the free-text/scheduling fields on this very row (title,
+    // destination, purpose, itineraryRef, jurisdiction, serviceCategory, the
+    // three date fields) were overwritten with a redaction placeholder. The
+    // row itself, and `missionOutcomes`/`missionSubmissions`/`caseComplaints`/
+    // `caseFeedback` rows still pointing at it, deliberately survive: those
+    // four are historical facts (a decision outcome, a filed complaint, post-
+    // case quality feedback) with their own oversight/accountability value
+    // independent of whether the case workspace itself is still useful to the
+    // traveller, and unlike every cascading child table their own `mission_id`
+    // is NOT NULL -- fully deleting this row would force deleting them too,
+    // which is not a call this codebase gets to make silently by convenience
+    // of the schema's own cascade wiring. Once set, this mission is excluded
+    // from all future purge sweeps (nothing left here to purge again).
+    purgedAt: timestamp('purged_at', { withTimezone: true }),
+    // The published requirement pack version this mission is assembled against.
+    // restrict, not cascade/set null: nothing deletes a pack version today
+    // (Pack Studio is create/version-forward only), but a mission must never
+    // silently lose the pack it was assembled against if that ever changes --
+    // missions.ts branches heavily on this being present.
+    packVersionId: uuid('pack_version_id').references(() => packVersions.id, {
+      onDelete: 'restrict',
+    }),
+    // TRU-03 (master directive Part 7 §4): monotonically increasing, bumped
+    // in the same transaction as any material mutation (selected fact/
+    // document, generated output, case-detail field, or attached pack
+    // version) -- never a separate, later write. The exact value is never
+    // meaningful on its own, only whether it still matches what a snapshot or
+    // acknowledgement (TRU-02, not yet built) captured. Starts at 1, not 0,
+    // so "never yet touched" and "explicitly reset" are never confusable with
+    // the same sentinel.
+    materialRevision: integer('material_revision').notNull().default(1),
+    ...timestamps,
+  },
+  (table) => [
+    // Tenant integrity anchor (migration 0090): lets a child row name a case
+    // AND its applicant in one composite foreign key, so the database itself
+    // refuses a row that pairs a case with a different applicant. `id` is
+    // already the primary key, so this never rejects an existing row.
+    unique('missions_id_applicant_unique').on(table.id, table.applicantId),
+  ],
+);
 
 // --- Grants (scoped, accepted, time-bound delegations; Build Spec §4.4) -----
 export const grants = pgTable(
@@ -731,6 +742,8 @@ export const grants = pgTable(
   },
   (table) => [
     index('grants_applicant_idx').on(table.applicantId),
+    // Tenant integrity anchor for grant_case_exclusions (see missions above).
+    unique('grants_id_applicant_unique').on(table.id, table.applicantId),
     // A grant must name a recipient — never an ownerless delegation.
     check(
       'grants_recipient_present',
@@ -773,6 +786,77 @@ export const sharingInvitations = pgTable(
       'sharing_invitations_status_check',
       sql`${table.status} in ('PENDING', 'ACCEPTED', 'REVOKED')`,
     ),
+    // Tenant integrity anchor for grant_case_exclusions (see missions above).
+    unique('sharing_invitations_id_applicant_unique').on(table.id, table.applicantId),
+  ],
+);
+
+// --- Per-case sharing exceptions (ADR 0017, migration 0090) ----------------
+// One row says "this all-cases grant (or pending all-cases invitation) does
+// NOT cover this one case". It is the owner's "no" when a new case is made,
+// and it binds everywhere the grant is checked: the policy engine
+// (`excludedMissionIds`) and the SQL list queries (`grantCoversCaseSql`), both
+// in packages/services/src/access/grant-scope.ts. Removing an exception is a
+// hard delete; the audit trail keeps the history. Exceptions on a case-scoped
+// grant are meaningless and the service never writes one. Documents have no
+// case, so an exception never changes which documents a grant reaches.
+//
+// Tenant integrity uses composite foreign keys, a pattern new in this schema:
+// (grant_id, applicant_id), (sharing_invitation_id, applicant_id) and
+// (mission_id, applicant_id) each reference the parent's (id, applicant_id)
+// unique pair, so a row can never pair one person's grant with another
+// person's case. With the default MATCH SIMPLE a composite key whose grant or
+// invitation column is null is not checked, which is what the one-parent
+// rule below needs. The single-column keys stay for the plain cascades.
+export const grantCaseExclusions = pgTable(
+  'grant_case_exclusions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    grantId: uuid('grant_id').references(() => grants.id, { onDelete: 'cascade' }),
+    sharingInvitationId: uuid('sharing_invitation_id').references(() => sharingInvitations.id, {
+      onDelete: 'cascade',
+    }),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    createdByAccountId: uuid('created_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Exactly one parent: an accepted grant, or a pending invitation whose
+    // exceptions move onto the grant it becomes.
+    check(
+      'grant_case_exclusions_one_parent',
+      sql`(${table.grantId} is null) <> (${table.sharingInvitationId} is null)`,
+    ),
+    uniqueIndex('grant_case_exclusions_grant_mission_unique')
+      .on(table.grantId, table.missionId)
+      .where(sql`${table.grantId} is not null`),
+    uniqueIndex('grant_case_exclusions_invitation_mission_unique')
+      .on(table.sharingInvitationId, table.missionId)
+      .where(sql`${table.sharingInvitationId} is not null`),
+    index('grant_case_exclusions_applicant_idx').on(table.applicantId),
+    index('grant_case_exclusions_mission_idx').on(table.missionId),
+    foreignKey({
+      name: 'grant_case_exclusions_grant_applicant_fk',
+      columns: [table.grantId, table.applicantId],
+      foreignColumns: [grants.id, grants.applicantId],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'grant_case_exclusions_invitation_applicant_fk',
+      columns: [table.sharingInvitationId, table.applicantId],
+      foreignColumns: [sharingInvitations.id, sharingInvitations.applicantId],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'grant_case_exclusions_mission_applicant_fk',
+      columns: [table.missionId, table.applicantId],
+      foreignColumns: [missions.id, missions.applicantId],
+    }).onDelete('cascade'),
   ],
 );
 

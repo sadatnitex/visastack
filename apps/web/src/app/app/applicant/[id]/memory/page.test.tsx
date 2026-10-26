@@ -210,4 +210,48 @@ describe('Application Memory page (v1.2 B08, WP-V3 part 3)', () => {
     expect(text.indexOf('Shared Outside a Case')).toBeLessThan(text.indexOf('Japan visitor visa'));
     expect(text.match(/Confirmed snapshot 1/g)).toHaveLength(2);
   });
+
+  it('names who an all-cases share leaves out of a case, and only there', async () => {
+    mocks.getApplicationMemory.mockResolvedValue(
+      ok({
+        recordShares: [],
+        cases: [
+          {
+            missionId: 'case-new',
+            title: 'Japan trip 2026',
+            destination: 'Japan',
+            purpose: null,
+            agencyName: null,
+            state: 'DRAFT',
+            createdAt: '2026-10-01T10:00:00.000Z',
+            removed: false,
+            notSharedWith: [
+              { grantId: 'g-1', recipientName: 'Harbor Visas', recipientKind: 'organization' },
+              { grantId: 'g-2', recipientName: null, recipientKind: 'person' },
+            ],
+            events: [],
+          },
+          {
+            missionId: 'case-old',
+            title: 'Japan trip 2025',
+            destination: 'Japan',
+            purpose: null,
+            agencyName: null,
+            state: 'CLOSED',
+            createdAt: '2025-10-01T10:00:00.000Z',
+            removed: false,
+            notSharedWith: [],
+            events: [],
+          },
+        ],
+      }),
+    );
+    const html = await render();
+    const text = textOf(html);
+    expect(text.match(/Not shared with/g)).toHaveLength(1);
+    expect(text).toContain(
+      'Not shared with Harbor Visas, a removed recipient, who can see your other cases.',
+    );
+    expect(html).toContain('href="/app/applicant/synthetic-family/sharing"');
+  });
 });

@@ -1,5 +1,6 @@
 import { CONSENT_TYPES, type ConsentType, isOk } from '@visastack/core';
 import { and, asc, eq, gt, inArray, isNull, ne } from 'drizzle-orm';
+import { caseExclusionsTablePresent } from './access/grant-scope';
 import { appendAuditEvent } from './audit';
 import { purgeMissionUnconditionally } from './case-retention';
 import { getConsents } from './consent';
@@ -85,6 +86,8 @@ const RECONCILED_EVENT_TYPES = [
   'ACCOUNT_DELETION_EXECUTED',
   'MISSION_RETENTION_PURGED',
   'ERASURE_VERIFIED',
+  'GRANT_CASE_EXCLUDED',
+  'GRANT_CASE_EXCLUSION_REMOVED',
 ] as const;
 
 type ReconciledEventType = (typeof RECONCILED_EVENT_TYPES)[number];
@@ -100,6 +103,10 @@ export interface ReconciliationCounts {
   readonly accountsDeleted: number;
   readonly missionsPurged: number;
   readonly erasuresVerified: number;
+  /** Per-case sharing exceptions (ADR 0017) written again on the restored branch. */
+  readonly caseExceptionsAdded: number;
+  /** Per-case sharing exceptions the owner removed after the restore point, removed again. */
+  readonly caseExceptionsRemoved: number;
 }
 
 export interface ReconciliationError {
@@ -261,6 +268,198 @@ async function forceAccountDeletionExecuted(
   return true;
 }
 
+// --- Per-case sharing exceptions (ADR 0017) ----------------------------------
+//
+// A "no" for one case (GRANT_CASE_EXCLUDED) narrows an all-cases grant or a
+// pending all-cases invitation, so a restore that lost it would silently give
+// the recipient that case again: it is replayed like a revocation. The
+// owner's later "Allow This Case" (GRANT_CASE_EXCLUSION_REMOVED) is an
+// explicit access decision, replayed in order exactly like a legal hold
+// release, so the restored branch ends where the owner left it. Only the last
+// event for each grant-or-invitation and case is applied (see
+// `lastExceptionEvents`), so a second run is a clean no-op. The answers for a
+// case are one-shot and every row written or removed is audited (including an
+// exception carried forward to a new grant or invitation for the same
+// recipient, reason `carried_forward`), so the last event per pair always
+// matches the table. A grant or invitation made after the restore point does
+// not exist on the restored branch: its events are a clean no-op there.
+
+type ExceptionParent =
+  | { readonly kind: 'grant'; readonly id: string }
+  | { readonly kind: 'sharing_invitation'; readonly id: string };
+
+function exceptionParent(event: AuditEventRow): ExceptionParent | undefined {
+  if (!event.resourceId) return undefined;
+  if (event.resourceType === 'grant') return { kind: 'grant', id: event.resourceId };
+  if (event.resourceType === 'sharing_invitation') {
+    return { kind: 'sharing_invitation', id: event.resourceId };
+  }
+  return undefined;
+}
+
+function exceptionKey(event: AuditEventRow): string | undefined {
+  const parent = exceptionParent(event);
+  if (!parent || !event.missionId) return undefined;
+  return `${parent.kind}:${parent.id}:${event.missionId}`;
+}
+
+/** Sequence numbers of the last exception event for each grant-or-invitation and case. */
+function lastExceptionEvents(events: readonly AuditEventRow[]): ReadonlySet<number> {
+  const last = new Map<string, number>();
+  for (const event of events) {
+    if (
+      event.eventType !== 'GRANT_CASE_EXCLUDED' &&
+      event.eventType !== 'GRANT_CASE_EXCLUSION_REMOVED'
+    ) {
+      continue;
+    }
+    const key = exceptionKey(event);
+    if (key) last.set(key, event.seq);
+  }
+  return new Set(last.values());
+}
+
+/**
+ * The exception cannot be written on the restored branch (for example the
+ * branch predates migration 0090), so the parent is closed instead: the grant
+ * (active, paused or awaiting acceptance) or the pending invitation is
+ * REVOKED. A pause could be undone by "Resume" and silently give the case
+ * back; a revocation cannot, so the recipient never regains the case without
+ * the owner sharing again on purpose. Audited on the restored branch as
+ * RECONCILIATION_CASE_EXCEPTION_FAIL_CLOSED.
+ */
+async function closeExceptionParent(newDb: Db, parent: ExceptionParent, missionId: string) {
+  if (parent.kind === 'grant') {
+    const revoked = await newDb
+      .update(schema.grants)
+      .set({ status: 'REVOKED', updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.grants.id, parent.id),
+          inArray(schema.grants.status, ['ACTIVE', 'PAUSED', 'PENDING_ACCEPTANCE']),
+        ),
+      )
+      .returning({ id: schema.grants.id });
+    if (revoked.length === 0) return;
+  } else {
+    const revoked = await newDb
+      .update(schema.sharingInvitations)
+      .set({ status: 'REVOKED', updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.sharingInvitations.id, parent.id),
+          eq(schema.sharingInvitations.status, 'PENDING'),
+        ),
+      )
+      .returning({ id: schema.sharingInvitations.id });
+    if (revoked.length === 0) return;
+  }
+  await appendAuditEvent(newDb, {
+    eventType: 'RECONCILIATION_CASE_EXCEPTION_FAIL_CLOSED',
+    method: 'SYSTEM',
+    result: 'ALLOWED',
+    resourceType: parent.kind,
+    resourceId: parent.id,
+    missionId,
+    grantId: parent.kind === 'grant' ? parent.id : null,
+    reason: 'backup_resurrection_reconciliation',
+  });
+}
+
+async function exceptionTargetsExist(
+  newDb: Db,
+  parent: ExceptionParent,
+  missionId: string,
+): Promise<{ readonly applicantId: string } | undefined> {
+  const mission = first(
+    await newDb
+      .select({ applicantId: schema.missions.applicantId })
+      .from(schema.missions)
+      .where(eq(schema.missions.id, missionId))
+      .limit(1),
+  );
+  if (!mission) return undefined;
+  const owner =
+    parent.kind === 'grant'
+      ? first(
+          await newDb
+            .select({ applicantId: schema.grants.applicantId })
+            .from(schema.grants)
+            .where(eq(schema.grants.id, parent.id))
+            .limit(1),
+        )
+      : first(
+          await newDb
+            .select({ applicantId: schema.sharingInvitations.applicantId })
+            .from(schema.sharingInvitations)
+            .where(eq(schema.sharingInvitations.id, parent.id))
+            .limit(1),
+        );
+  if (!owner) return undefined;
+  if (owner.applicantId !== mission.applicantId) {
+    throw new Error(`case exception ${parent.id}/${missionId} names two different people`);
+  }
+  return mission;
+}
+
+/**
+ * Writes the exception again. Nothing to do when the grant, invitation or
+ * case does not exist on the restored branch (it was made after the restore
+ * point, so nobody can reach the case through it there). If the row cannot
+ * be written, the parent is closed (`closeExceptionParent`) and the error is
+ * reported: never left open.
+ */
+async function forceCaseExcluded(newDb: Db, event: AuditEventRow): Promise<boolean> {
+  const parent = exceptionParent(event);
+  const missionId = event.missionId;
+  if (!parent || !missionId) throw new Error('case exception event without its grant and case');
+  const target = await exceptionTargetsExist(newDb, parent, missionId);
+  if (!target) return false;
+  try {
+    if (!(await caseExclusionsTablePresent(newDb))) {
+      throw new Error('grant_case_exclusions does not exist on the restored branch');
+    }
+    const inserted = await newDb
+      .insert(schema.grantCaseExclusions)
+      .values({
+        grantId: parent.kind === 'grant' ? parent.id : null,
+        sharingInvitationId: parent.kind === 'sharing_invitation' ? parent.id : null,
+        missionId,
+        applicantId: target.applicantId,
+        createdByAccountId: event.actorAccountId,
+        createdAt: event.occurredAt,
+      })
+      .onConflictDoNothing()
+      .returning({ id: schema.grantCaseExclusions.id });
+    return inserted.length > 0;
+  } catch (error) {
+    await closeExceptionParent(newDb, parent, missionId);
+    throw new Error(
+      `case exception not written, ${parent.kind} closed instead: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+/** Removes the exception again. A failure leaves the case excluded and is reported. */
+async function forceCaseExclusionRemoved(newDb: Db, event: AuditEventRow): Promise<boolean> {
+  const parent = exceptionParent(event);
+  const missionId = event.missionId;
+  if (!parent || !missionId) throw new Error('case exception event without its grant and case');
+  if (!(await caseExclusionsTablePresent(newDb))) return false;
+  const removed = await newDb
+    .delete(schema.grantCaseExclusions)
+    .where(
+      and(
+        parent.kind === 'grant'
+          ? eq(schema.grantCaseExclusions.grantId, parent.id)
+          : eq(schema.grantCaseExclusions.sharingInvitationId, parent.id),
+        eq(schema.grantCaseExclusions.missionId, missionId),
+      ),
+    )
+    .returning({ id: schema.grantCaseExclusions.id });
+  return removed.length > 0;
+}
+
 /**
  * Like account deletion above, reuses a complex cascading mechanism
  * directly (`purgeMissionUnconditionally`) rather than hand-rolling it --
@@ -415,6 +614,11 @@ const EVENT_META: Readonly<
   ACCOUNT_DELETION_EXECUTED: { counter: 'accountsDeleted', resourceType: 'account' },
   MISSION_RETENTION_PURGED: { counter: 'missionsPurged', resourceType: 'mission' },
   ERASURE_VERIFIED: { counter: 'erasuresVerified', resourceType: 'storage_object' },
+  GRANT_CASE_EXCLUDED: { counter: 'caseExceptionsAdded', resourceType: 'case_exception' },
+  GRANT_CASE_EXCLUSION_REMOVED: {
+    counter: 'caseExceptionsRemoved',
+    resourceType: 'case_exception',
+  },
 };
 
 async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<boolean> {
@@ -443,6 +647,10 @@ async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<b
       return forceMissionRetentionPurged(newDb, resourceId);
     case 'ERASURE_VERIFIED':
       return forceErasureVerified(oldDb, newDb, resourceId, event.metadata);
+    case 'GRANT_CASE_EXCLUDED':
+      return forceCaseExcluded(newDb, event);
+    case 'GRANT_CASE_EXCLUSION_REMOVED':
+      return forceCaseExclusionRemoved(newDb, event);
     default:
       return false;
   }
@@ -462,7 +670,8 @@ export async function reconcileRestoredBranch(
         gt(schema.auditEvents.occurredAt, restorePoint),
       ),
     )
-    .orderBy(asc(schema.auditEvents.occurredAt));
+    // Chain order breaks a tie between events written at the same moment.
+    .orderBy(asc(schema.auditEvents.occurredAt), asc(schema.auditEvents.seq));
 
   const counts: ReconciliationCounts = {
     grantsRevoked: 0,
@@ -475,15 +684,26 @@ export async function reconcileRestoredBranch(
     accountsDeleted: 0,
     missionsPurged: 0,
     erasuresVerified: 0,
+    caseExceptionsAdded: 0,
+    caseExceptionsRemoved: 0,
   };
   const errors: ReconciliationError[] = [];
   const mutableCounts = counts as {
     -readonly [K in keyof ReconciliationCounts]: number;
   };
 
+  const finalExceptionEvents = lastExceptionEvents(events);
   for (const event of events) {
     const meta = EVENT_META[event.eventType as ReconciledEventType];
     if (!meta) continue;
+    // An earlier "no" or "allow" for the same grant and case is superseded by its last one.
+    if (
+      meta.resourceType === 'case_exception' &&
+      exceptionKey(event) !== undefined &&
+      !finalExceptionEvents.has(event.seq)
+    ) {
+      continue;
+    }
     try {
       const applied = await applyEvent(oldDb, newDb, event);
       if (!applied) continue;
@@ -494,6 +714,7 @@ export async function reconcileRestoredBranch(
         result: 'ALLOWED',
         resourceType: meta.resourceType,
         resourceId: event.resourceId,
+        missionId: event.missionId,
         reason: 'backup_resurrection_reconciliation',
         metadata: {
           sourceEventType: event.eventType,

@@ -2142,12 +2142,13 @@ describe("SHR-02: a suspended/closed organization loses standing everywhere orgG
       missionId: mission.value.id,
     });
     expect(isErr(assignedAfter)).toBe(true);
-    if (isErr(assignedAfter)) expect(assignedAfter.error.code).toBe('forbidden');
+    // A case the organization no longer reaches answers like an unknown id (ADR 0017).
+    if (isErr(assignedAfter)) expect(assignedAfter.error.code).toBe('not_found');
 
     // Reading collaboration data through the same gate is denied too.
     const requirements = await listMissionRequirementsForOrg(db, org.value.id, mission.value.id);
     expect(isErr(requirements)).toBe(true);
-    if (isErr(requirements)) expect(requirements.error.code).toBe('forbidden');
+    if (isErr(requirements)) expect(requirements.error.code).toBe('not_found');
   });
 
   it('orgGrantPermits denies once the organization is terminated (CLOSED), proving "removes agency access" is real, not just documented in this describe title', async () => {
@@ -2200,7 +2201,8 @@ describe("SHR-02: a suspended/closed organization loses standing everywhere orgG
       missionId: mission.value.id,
     });
     expect(isErr(assignedAfter)).toBe(true);
-    if (isErr(assignedAfter)) expect(assignedAfter.error.code).toBe('forbidden');
+    // A case the organization no longer reaches answers like an unknown id (ADR 0017).
+    if (isErr(assignedAfter)) expect(assignedAfter.error.code).toBe('not_found');
 
     // "Traveller retains wallet" (PRD PRV-04): terminating the agency never
     // touches the applicant's own profile at all.
