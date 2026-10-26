@@ -1,5 +1,11 @@
-CREATE TYPE "public"."reference_kind" AS ENUM('P', 'C', 'D', 'R');--> statement-breakpoint
-CREATE TABLE "reference_codes" (
+-- Written to be re-runnable: production applies each statement on its own
+-- (neon-http migrator), so a run interrupted after this point must be able to
+-- start again from the top.
+DO $type$ BEGIN
+	CREATE TYPE "public"."reference_kind" AS ENUM('P', 'C', 'D', 'R');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $type$;--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "reference_codes" (
 	"kind" "reference_kind" NOT NULL,
 	"code" text NOT NULL,
 	"entity_id" uuid NOT NULL,
@@ -7,7 +13,7 @@ CREATE TABLE "reference_codes" (
 	CONSTRAINT "reference_codes_pkey" PRIMARY KEY("kind","code"),
 	CONSTRAINT "reference_codes_kind_entity_unique" UNIQUE("kind","entity_id"),
 	CONSTRAINT "reference_codes_code_format" CHECK ("reference_codes"."code" ~ '^[0-9A-HJKMNP-TV-Z]{6,8}$')
-);;--> statement-breakpoint
+);--> statement-breakpoint
 -- Backfill, hand-written (not drizzle-kit generated): every person, case,
 -- document and agency request that exists when this runs gets its visible
 -- reference code (ADR 0018). The function computes exactly the check
@@ -17,7 +23,7 @@ CREATE TABLE "reference_codes" (
 -- runs every backfilled code through the TypeScript parser. Entropy comes from
 -- gen_random_uuid() (the first five bytes, which are fully random). A code
 -- clash retries with a fresh code. The function is dropped at the end.
-CREATE FUNCTION "visastack_reference_code_0091"("kind_letter" text) RETURNS text
+CREATE OR REPLACE FUNCTION "visastack_reference_code_0091"("kind_letter" text) RETURNS text
 LANGUAGE plpgsql VOLATILE AS $fn$
 DECLARE
   alphabet constant text := '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
@@ -55,6 +61,11 @@ DECLARE
   item record;
   candidate text;
 BEGIN
+  -- Holds new person, case, document and request rows back until the backfill
+  -- commits, so a record created at this exact moment (whose transaction saw
+  -- no registry yet) is either finished and backfilled here, or waits and
+  -- gets its code when it is created. Reads are not blocked.
+  LOCK TABLE "applicants", "missions", "documents", "evidence_requests" IN SHARE MODE;
   FOR item IN
     SELECT 'P'::text AS kind_letter, "id" FROM "applicants"
     UNION ALL SELECT 'C', "id" FROM "missions"
@@ -79,4 +90,4 @@ BEGIN
 END;
 $backfill$;
 --> statement-breakpoint
-DROP FUNCTION "visastack_reference_code_0091"(text);
+DROP FUNCTION IF EXISTS "visastack_reference_code_0091"(text);

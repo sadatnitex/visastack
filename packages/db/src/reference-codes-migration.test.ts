@@ -120,4 +120,34 @@ describe('migration 0091: visible reference codes (ADR 0018)', () => {
     },
     MIGRATION_TIMEOUT_MS,
   );
+
+  it(
+    'can be run again after an interrupted run, without a second code for anyone',
+    async () => {
+      const client = new PGlite();
+      await migrate(drizzle(client), { migrationsFolder });
+      const owner = (
+        await client.query<{ id: string }>(
+          `insert into accounts (email) values ('again@example.test') returning id`,
+        )
+      ).rows[0]?.id;
+      await client.query(
+        `insert into applicants (owner_account_id, display_name) values ('${owner}', 'A'), ('${owner}', 'B')`,
+      );
+      // Production applies each statement on its own; replay every statement of 0091.
+      const statements = readFileSync(join(migrationsFolder, '0091_reference_codes.sql'), 'utf8')
+        .split('--> statement-breakpoint')
+        .map((part) => part.trim())
+        .filter((part) => part.length > 0);
+      for (const statement of statements) await client.exec(statement);
+      for (const statement of statements) await client.exec(statement);
+      const counts = (
+        await client.query<{ kind: string; n: number }>(
+          'select kind, count(*)::int as n from reference_codes group by kind',
+        )
+      ).rows;
+      expect(counts).toEqual([{ kind: 'P', n: 2 }]);
+    },
+    MIGRATION_TIMEOUT_MS,
+  );
 });

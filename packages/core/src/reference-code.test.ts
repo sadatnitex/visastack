@@ -7,7 +7,9 @@ import {
   generateReferenceCode,
   isIssuableReferenceCode,
   isValidReferenceCode,
+  looksLikeMistypedReferenceCode,
   parseReferenceCode,
+  readsAsReferenceCode,
   referenceCheckCharacter,
 } from './reference-code';
 
@@ -266,4 +268,66 @@ describe('distribution', () => {
       expect(chi).toBeLessThan(61.1);
     }
   }, 30_000);
+});
+
+describe('codes typed without a separator, and words that only look like codes', () => {
+  it('reads a longer code typed bare that starts with a type letter', () => {
+    // Find a 6-character payload for C that starts with D, so its bare form starts with a letter.
+    let code = '';
+    for (const second of REFERENCE_ALPHABET) {
+      const payload = `D${second}N0GC`;
+      const candidate = payload + referenceCheckCharacter('C', payload);
+      // Skip the rare payload that also reads as a D code (that text is refused, see below).
+      if (!isValidReferenceCode('D', candidate.slice(1))) {
+        code = candidate;
+        break;
+      }
+    }
+    expect(parseReferenceCode(code)).toEqual({ ok: true, kind: 'C', code });
+    // With the letter and a hyphen, the letter decides.
+    expect(parseReferenceCode(`C-${code}`)).toEqual({ ok: true, kind: 'C', code });
+    expect(parseReferenceCode(`D-${code.slice(1)}`)).toEqual({ ok: false, reason: 'check_failed' });
+  });
+
+  it('never has two valid readings of the same text, so it never has to guess', () => {
+    for (const kind of REFERENCE_KINDS) {
+      for (const a of REFERENCE_ALPHABET) {
+        for (const b of REFERENCE_ALPHABET) {
+          const payload = `7K2${a}${b}`;
+          const whole = kind + payload + referenceCheckCharacter(kind, payload);
+          expect(REFERENCE_KINDS.some((k) => isValidReferenceCode(k, whole))).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('treats a code as a lookup only when typed with its letter or holding a digit', () => {
+    expect(readsAsReferenceCode('Germany').ok).toBe(false);
+    expect(readsAsReferenceCode('Invoice').ok).toBe(false);
+    expect(parseReferenceCode('Germany').ok).toBe(true); // why the rule exists
+    const withDigit = generateReferenceCode('C', {
+      random: () => Uint8Array.from([7, 19, 2, 23, 9]),
+    });
+    expect(readsAsReferenceCode(`C-${withDigit}`).ok).toBe(true);
+    expect(readsAsReferenceCode(withDigit).ok).toBe(true);
+    // A letters-only code is a lookup when typed with its letter and hyphen.
+    expect(readsAsReferenceCode('R-GERMANY')).toEqual({ ok: true, kind: 'R', code: 'GERMANY' });
+  });
+
+  it('flags only text clearly typed as a code with one wrong character', () => {
+    const code = withCheck('C', '7K2Q9');
+    const typo = `C-${code.slice(0, 5)}${code[5] === 'A' ? 'B' : 'A'}`;
+    expect(looksLikeMistypedReferenceCode(typo)).toBe(true);
+    for (const text of [
+      'D Rahman',
+      'R Hossain',
+      'P Sarker',
+      'C Ahmed',
+      'C-7K2Q9',
+      `C-${code}`,
+      'Germany',
+    ]) {
+      expect(looksLikeMistypedReferenceCode(text)).toBe(false);
+    }
+  });
 });

@@ -115,8 +115,12 @@ describe('looking a record up by its visible reference code (ADR 0018)', () => {
       { limit: 60, windowMs: 3_600_000 },
     );
     mocks.checkRateLimit.mockClear();
-    await search('Japan trip');
-    expect(mocks.checkRateLimit).toHaveBeenCalledTimes(1);
+    // "Germany" reads as a valid code by chance; it is a word, so it costs no lookup.
+    for (const text of ['Japan trip', 'Germany']) {
+      mocks.checkRateLimit.mockClear();
+      await search(text);
+      expect(mocks.checkRateLimit).toHaveBeenCalledTimes(1);
+    }
   });
 
   it('refuses once the lookup budget is spent, before searching', async () => {
@@ -137,8 +141,8 @@ describe('looking a record up by its visible reference code (ADR 0018)', () => {
       notice: 'One character in that reference looks wrong. Check it and try again.',
     });
     expect(mocks.searchWorkspaceRecords).not.toHaveBeenCalled();
-    // A word that only looks like a code is searched normally.
-    await search('passport');
-    expect(mocks.searchWorkspaceRecords).toHaveBeenCalledTimes(1);
+    // Words, names and a code still being typed are searched normally.
+    for (const text of ['passport', 'D Rahman', 'C-00K2Q']) await search(text);
+    expect(mocks.searchWorkspaceRecords).toHaveBeenCalledTimes(3);
   });
 });

@@ -290,6 +290,22 @@ describe('looking a record up by its visible reference code (ADR 0018)', () => {
         href: `/app/agency/${id('org')}/clients#request-${requestId}`,
       }),
     ]);
+    // Another organization's request on the same traveller is never found.
+    const otherOrg = '10000000-0000-4000-8000-000000000099';
+    await db
+      .insert(schema.organizations)
+      .values({ id: otherOrg, name: 'Other agency', status: 'ACTIVE' });
+    const [foreignRequest] = await db
+      .insert(schema.evidenceRequests)
+      .values({
+        organizationId: otherOrg,
+        applicantId: id('self'),
+        missionId: id('case'),
+        kind: 'DOCUMENT',
+      })
+      .returning({ id: schema.evidenceRequests.id });
+    await code('R', 'foreignRequest', foreignRequest?.id ?? '');
+    expect(await found(id('owner'), agency, codes.get('foreignRequest') ?? '')).toEqual([]);
     // Documents are not looked up by code in an agency workspace.
     expect(await found(id('owner'), agency, codes.get('document') ?? '')).toEqual([]);
     // With the sharing ended, nothing is found by code either.
@@ -306,10 +322,24 @@ describe('looking a record up by its visible reference code (ADR 0018)', () => {
       .where(eq(schema.grants.id, id('grant')));
   });
 
-  it('treats a word that only looks like a code as an ordinary search', async () => {
-    // "PASSPORT" reads as P + ASSP0RT, whose check fails: it stays a text search.
-    expect((await searchWorkspaceRecords(db, id('owner'), personal, 'passport')).ok).toBe(true);
-    // A code with a wrong check character is not a lookup either.
+  it('still finds words that happen to read as a valid code, and puts a code hit first', async () => {
+    // "Germany" reads as R-GERMANY and "Invoice" as D-1NV01CE: both pass the check by chance.
+    await db.insert(schema.missions).values({ applicantId: id('self'), title: 'Germany' });
+    await db.insert(schema.documents).values({ applicantId: id('self'), originalName: 'Invoice' });
+    expect((await found(id('owner'), personal, 'Germany')).map((r) => r.label)).toEqual([
+      'Germany',
+    ]);
+    expect((await found(id('owner'), personal, 'Invoice')).map((r) => r.label)).toEqual([
+      'Invoice',
+    ]);
+    expect((await found(id('owner'), agency, 'Germany')).map((r) => r.label)).toContain('Germany');
+    // A real code: its record first, then any text matches, each once.
+    const results = await found(id('owner'), personal, codes.get('case') ?? '');
+    expect(results[0]?.id).toBe(id('case'));
+    expect(new Set(results.map((r) => `${r.category}:${r.id}`)).size).toBe(results.length);
+  });
+
+  it('does not look a mistyped code up', async () => {
     const stored = codes.get('case')?.slice(2) ?? '';
     const typo = `C-${stored.slice(0, 5)}${stored[5] === '0' ? '1' : '0'}`;
     expect(referenceCheckCharacter('C', stored.slice(0, 5))).toBe(stored[5]);

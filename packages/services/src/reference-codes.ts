@@ -166,8 +166,9 @@ export async function referenceCodeFor(
 
 /**
  * The record id a parsed code names, from the registry alone, or null. Says
- * nothing about whether the caller may see that record: every caller must
- * check access next and answer a refusal exactly like a missing code.
+ * nothing about whether the caller may see that record, so it is internal to
+ * services (not exported from the package): a lookup people can reach must
+ * match the code inside its own visibility query, as workspace search does.
  */
 export async function findReferenceEntity(
   db: Db,

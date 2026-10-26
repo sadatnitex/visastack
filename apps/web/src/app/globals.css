@@ -7624,6 +7624,12 @@ summary.visa-photo-title {
   min-height: 44px;
   min-width: 44px;
 }
+/* Kept in the page while empty (never display: none) so "Copied" is announced. */
 .reference-code-status:empty {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }

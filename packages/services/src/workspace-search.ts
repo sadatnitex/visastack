@@ -4,10 +4,11 @@ import {
   err,
   formatReferenceCode,
   ok,
-  parseReferenceCode,
+  readsAsReferenceCode,
 } from '@visastack/core';
 import {
   type SQL,
+  type SQLWrapper,
   and,
   asc,
   eq,
@@ -23,7 +24,7 @@ import {
 import { withCaseExclusions } from './access/grant-scope';
 import { type Db, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
-import { findReferenceEntity } from './reference-codes';
+import { referenceCodesTablePresent } from './reference-codes';
 
 export interface WorkspaceSearchResult {
   readonly category: 'Profile' | 'Case' | 'Document' | 'Client' | 'Request';
@@ -106,12 +107,10 @@ export async function searchWorkspaceRecords(
           .orderBy(asc(schema.missions.id))
           .limit(limit),
       );
-    const code = parseReferenceCode(value);
-    if (code.ok) {
-      return ok(
-        await agencyCodeResults(db, scope.organizationId, actorAccountId, code, visibleCases),
-      );
-    }
+    const code = readsAsReferenceCode(value);
+    const codeResults = code.ok
+      ? await agencyCodeResults(db, scope.organizationId, actorAccountId, code, visibleCases)
+      : [];
     const cases = await visibleCases(
       or(
         ilike(schema.missions.title, pattern),
@@ -135,7 +134,12 @@ export async function searchWorkspaceRecords(
           label: row.name,
           href: `/app/agency/${scope.organizationId}/cases#mission-${row.id}`,
         });
-    return ok([...results.slice(0, 6), ...[...clients.values()].slice(0, 6)]);
+    return ok(
+      withCodeResultsFirst(codeResults, [
+        ...results.slice(0, 6),
+        ...[...clients.values()].slice(0, 6),
+      ]),
+    );
   }
   const owned = and(
     eq(schema.applicants.ownerAccountId, actorAccountId),
@@ -150,8 +154,8 @@ export async function searchWorkspaceRecords(
     if (!subject.length)
       return err(serviceError('forbidden', 'This traveller workspace is unavailable.'));
   }
-  const code = parseReferenceCode(value);
-  if (code.ok) return ok(await personalCodeResults(db, owned, code));
+  const code = readsAsReferenceCode(value);
+  const codeResults = code.ok ? await personalCodeResults(db, owned, code) : [];
   const [people, cases, documents] = await Promise.all([
     db
       .select({ id: schema.applicants.id, name: schema.applicants.displayName })
@@ -188,58 +192,77 @@ export async function searchWorkspaceRecords(
       .orderBy(asc(schema.documents.id))
       .limit(6),
   ]);
-  return ok([
-    ...people.map(
-      (row): WorkspaceSearchResult => ({
-        category: 'Profile',
-        id: row.id,
-        label: row.name,
-        href: `/app/applicant/${row.id}/profile`,
-      }),
-    ),
-    ...cases.map(
-      (row): WorkspaceSearchResult => ({
-        category: 'Case',
-        id: row.id,
-        label: row.title,
-        href: `/app/mission/${row.id}`,
-      }),
-    ),
-    ...documents.map(
-      (row): WorkspaceSearchResult => ({
-        category: 'Document',
-        id: row.id,
-        label: row.approvedName ?? row.originalName,
-        href: `/app/applicant/${row.applicantId}/documents#document-${row.id}`,
-      }),
-    ),
-  ]);
+  return ok(
+    withCodeResultsFirst(codeResults, [
+      ...people.map(
+        (row): WorkspaceSearchResult => ({
+          category: 'Profile',
+          id: row.id,
+          label: row.name,
+          href: `/app/applicant/${row.id}/profile`,
+        }),
+      ),
+      ...cases.map(
+        (row): WorkspaceSearchResult => ({
+          category: 'Case',
+          id: row.id,
+          label: row.title,
+          href: `/app/mission/${row.id}`,
+        }),
+      ),
+      ...documents.map(
+        (row): WorkspaceSearchResult => ({
+          category: 'Document',
+          id: row.id,
+          label: row.approvedName ?? row.originalName,
+          href: `/app/applicant/${row.applicantId}/documents#document-${row.id}`,
+        }),
+      ),
+    ]),
+  );
 }
 
 // --- Visible reference codes (ADR 0018) --------------------------------------
 //
-// A query that reads as a reference code (`C-7K2Q9M`) is answered only with the
-// one record it names, and only when the same search would let this person see
-// it: the owner's own records, or the agency's visible cases and its own
-// requests. A code that is unknown, for a deleted record or for a record this
-// person may not see gives the same empty answer.
+// Text that reads as a reference code (`C-7K2Q9M`, see `readsAsReferenceCode`)
+// also looks up the one record it names, only when the same search would let
+// this person see it: the owner's own records, or the agency's visible cases
+// and its own requests. The code is matched inside the same visibility query
+// (joined to the registry), so an unknown code, a deleted record and a record
+// this person may not see take the same path and give the same answer. The
+// normal text search still runs, so a word that is also a valid code is
+// found as a word too.
 
 type ParsedCode = { readonly kind: ReferenceKind; readonly code: string };
+
+/** Code hits first, then the text results, each record once. */
+function withCodeResultsFirst(
+  codeResults: readonly WorkspaceSearchResult[],
+  textResults: readonly WorkspaceSearchResult[],
+): WorkspaceSearchResult[] {
+  const seen = new Set(codeResults.map((r) => `${r.category}:${r.id}`));
+  return [...codeResults, ...textResults.filter((r) => !seen.has(`${r.category}:${r.id}`))];
+}
+
+/** The registry row for this code exists and names the record in `entityId`. */
+function namedByCode(parsed: ParsedCode, entityId: SQL | SQLWrapper): SQL {
+  const codes = schema.referenceCodes;
+  return sql`exists (select 1 from ${codes} where ${codes.kind} = ${parsed.kind} and ${codes.code} = ${parsed.code} and ${codes.entityId} = ${entityId})`;
+}
 
 async function personalCodeResults(
   db: Db,
   owned: SQL | undefined,
   parsed: ParsedCode,
 ): Promise<WorkspaceSearchResult[]> {
-  const entityId = await findReferenceEntity(db, parsed.kind, parsed.code);
-  if (!entityId) return [];
+  if (!(await referenceCodesTablePresent(db))) return [];
   const reference = formatReferenceCode(parsed.kind, parsed.code);
   switch (parsed.kind) {
     case 'P': {
       const [row] = await db
         .select({ id: schema.applicants.id, name: schema.applicants.displayName })
         .from(schema.applicants)
-        .where(and(owned, eq(schema.applicants.id, entityId)))
+        .where(and(owned, namedByCode(parsed, schema.applicants.id)))
         .limit(1);
       return row
         ? [
@@ -257,7 +280,7 @@ async function personalCodeResults(
         .select({ id: schema.missions.id, title: schema.missions.title })
         .from(schema.missions)
         .innerJoin(schema.applicants, eq(schema.applicants.id, schema.missions.applicantId))
-        .where(and(owned, eq(schema.missions.id, entityId)))
+        .where(and(owned, namedByCode(parsed, schema.missions.id)))
         .limit(1);
       return row
         ? [
@@ -281,7 +304,11 @@ async function personalCodeResults(
         .from(schema.documents)
         .innerJoin(schema.applicants, eq(schema.applicants.id, schema.documents.applicantId))
         .where(
-          and(owned, eq(schema.documents.walletVisible, true), eq(schema.documents.id, entityId)),
+          and(
+            owned,
+            eq(schema.documents.walletVisible, true),
+            namedByCode(parsed, schema.documents.id),
+          ),
         )
         .limit(1);
       return row
@@ -300,7 +327,7 @@ async function personalCodeResults(
         .select({ id: schema.evidenceRequests.id, applicantId: schema.applicants.id })
         .from(schema.evidenceRequests)
         .innerJoin(schema.applicants, eq(schema.applicants.id, schema.evidenceRequests.applicantId))
-        .where(and(owned, eq(schema.evidenceRequests.id, entityId)))
+        .where(and(owned, namedByCode(parsed, schema.evidenceRequests.id)))
         .limit(1);
       return row
         ? [
@@ -326,14 +353,13 @@ async function agencyCodeResults(
     limit: number,
   ) => Promise<readonly { id: string; title: string; applicantId: string; name: string }[]>,
 ): Promise<WorkspaceSearchResult[]> {
-  const entityId = await findReferenceEntity(db, parsed.kind, parsed.code);
-  if (!entityId) return [];
+  if (!(await referenceCodesTablePresent(db))) return [];
   const reference = formatReferenceCode(parsed.kind, parsed.code);
   const caseHref = (missionId: string) =>
     `/app/agency/${organizationId}/cases#mission-${missionId}`;
   switch (parsed.kind) {
     case 'C': {
-      const [row] = await visibleCases(eq(schema.missions.id, entityId), 1);
+      const [row] = await visibleCases(namedByCode(parsed, schema.missions.id), 1);
       return row
         ? [
             {
@@ -347,7 +373,7 @@ async function agencyCodeResults(
     }
     case 'P': {
       // A client opens at a case the agency may see, never at an owner-only profile.
-      const [row] = await visibleCases(eq(schema.applicants.id, entityId), 1);
+      const [row] = await visibleCases(namedByCode(parsed, schema.applicants.id), 1);
       return row
         ? [
             {
@@ -360,8 +386,9 @@ async function agencyCodeResults(
         : [];
     }
     case 'R': {
-      // The agency's own request, for its administrators (who manage requests), on
-      // a case it still sees, or for a traveller it still sees a case of.
+      // The agency's own request, for its administrators (who manage requests),
+      // on a case it still sees, or for a traveller it still sees a case of. The
+      // administrator check depends on the person only, never on the code.
       const [admin] = await db
         .select({ id: schema.memberships.id })
         .from(schema.memberships)
@@ -384,11 +411,13 @@ async function agencyCodeResults(
         .from(schema.evidenceRequests)
         .where(
           and(
-            eq(schema.evidenceRequests.id, entityId),
             eq(schema.evidenceRequests.organizationId, organizationId),
+            namedByCode(parsed, schema.evidenceRequests.id),
           ),
         )
         .limit(1);
+      // Past this point the request is this organization's own: no one else's
+      // record can be told apart by timing.
       if (!request) return [];
       const [seen] = await visibleCases(
         request.missionId

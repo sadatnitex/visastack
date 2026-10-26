@@ -116,6 +116,31 @@ describe('reference code registry (ADR 0018)', () => {
   );
 
   it(
+    'keeps the code another transaction gave the same record a moment earlier',
+    async () => {
+      const db = await freshDb();
+      // The random source runs after the first "has it a code?" read: give the
+      // record a code right then, as a concurrent create would.
+      let raced = '';
+      const random = (length: number) => {
+        if (!raced) {
+          raced = `7K2Q9${referenceCheckCharacter('C', '7K2Q9')}`;
+          void db
+            .insert(schema.referenceCodes)
+            .values({ kind: 'C', code: raced, entityId: ID(1) })
+            .execute();
+        }
+        return Uint8Array.from(Array.from({ length }, (_, i) => [3, 4, 5, 6, 8, 9][i] ?? 1));
+      };
+      // Let the concurrent insert land before the assignment's own insert.
+      const assigned = await assignReferenceCode(db, 'C', ID(1), { random });
+      expect(assigned).toBe(raced);
+      expect((await referenceCodesFor(db, 'C', [ID(1)])).get(ID(1))).toBe(`C-${raced}`);
+    },
+    HEAVY_TIMEOUT_MS,
+  );
+
+  it(
     'between a deploy and migration 0091: assigning is skipped, reading is empty, nothing throws',
     async () => {
       const db = await freshDb();

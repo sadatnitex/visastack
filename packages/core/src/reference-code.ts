@@ -104,20 +104,21 @@ export type ParsedReferenceCode =
  * Reads a code someone typed: case does not matter, spaces and hyphens are
  * ignored, O reads as 0 and I or L as 1 (U is never part of a code).
  *
- * When the text starts with a type letter followed by a valid code length
- * (`C-7K2Q9M`, `c 7k2q 9m`, `C7K2Q9M`), the letter decides the type and
- * nothing else is tried, so a wrong letter fails the check instead of
- * landing on some other record. Otherwise (`7K2Q9M`) the check character
- * decides, because a code is valid under at most one type. When `expected`
- * is given, a valid code of another type is refused as `wrong_kind`.
+ * When the type letter is followed by a space or hyphen (`C-7K2Q9M`,
+ * `c 7k2q9m`), the letter decides the type and nothing else is tried, so a
+ * wrong letter fails the check instead of landing on some other record.
+ * Without a separator (`C7K2Q9M`, `7K2Q9M`, or a longer code typed bare that
+ * happens to start with a type letter) both readings are tried. They can never
+ * both be valid (a valid lettered reading leaves the bare reading in state
+ * 2^n times the seed, never 0), and the text would be refused if they were. When `expected` is given, a valid code of
+ * another type is refused as `wrong_kind`.
  *
  * `check_failed` means the characters are all possible but one looks wrong
  * (a typo): say so in plain words rather than "not found".
  */
 export function parseReferenceCode(input: string, expected?: ReferenceKind): ParsedReferenceCode {
-  const cleaned = input
-    .trim()
-    .toUpperCase()
+  const upper = input.trim().toUpperCase();
+  const cleaned = upper
     .replace(/[\s-]+/g, '')
     .replace(/O/g, '0')
     .replace(/[IL]/g, '1');
@@ -128,17 +129,56 @@ export function parseReferenceCode(input: string, expected?: ReferenceKind): Par
 
   const letter = cleaned[0] as ReferenceKind;
   const rest = cleaned.slice(1);
-  if (
-    (REFERENCE_KINDS as readonly string[]).includes(letter) &&
-    REFERENCE_CODE_PATTERN.test(rest)
-  ) {
-    return isValidReferenceCode(letter, rest)
-      ? finish(letter, rest, expected)
-      : { ok: false, reason: 'check_failed' };
+  const lettered =
+    (REFERENCE_KINDS as readonly string[]).includes(letter) && REFERENCE_CODE_PATTERN.test(rest);
+  const letterValid = lettered && isValidReferenceCode(letter, rest);
+  if (lettered && /^[PCDR][\s-]/.test(upper)) {
+    return letterValid ? finish(letter, rest, expected) : { ok: false, reason: 'check_failed' };
   }
-  if (!REFERENCE_CODE_PATTERN.test(cleaned)) return { ok: false, reason: 'malformed' };
-  const kind = REFERENCE_KINDS.find((k) => isValidReferenceCode(k, cleaned));
-  return kind ? finish(kind, cleaned, expected) : { ok: false, reason: 'check_failed' };
+  const bare = REFERENCE_CODE_PATTERN.test(cleaned)
+    ? REFERENCE_KINDS.find((k) => isValidReferenceCode(k, cleaned))
+    : undefined;
+  if (letterValid && bare) return { ok: false, reason: 'check_failed' };
+  if (letterValid) return finish(letter, rest, expected);
+  if (bare) return finish(bare, cleaned, expected);
+  return lettered || REFERENCE_CODE_PATTERN.test(cleaned)
+    ? { ok: false, reason: 'check_failed' }
+    : { ok: false, reason: 'malformed' };
+}
+
+/**
+ * Whether search text is meant as a reference code rather than words: it
+ * reads as a valid code AND either carries its type letter with a separator
+ * (`C-7K2Q9M`) or the person typed a digit (O, I and L read as digits only
+ * once it is a code). Codes are random, so real words such as
+ * "Germany" or "Invoice" can pass the check by chance; without this rule they
+ * would be treated as lookups. A code made only of letters is found when
+ * typed with its letter and hyphen, as every screen shows it.
+ */
+export function readsAsReferenceCode(input: string): ParsedReferenceCode {
+  const parsed = parseReferenceCode(input);
+  if (!parsed.ok) return parsed;
+  const typedWithLetter = /^\s*[PCDR][\s-]/i.test(input);
+  return typedWithLetter || /[0-9]/.test(input) ? parsed : { ok: false, reason: 'malformed' };
+}
+
+/**
+ * Whether search text was clearly typed as a code that has one wrong
+ * character: the type letter and a separator, then 6 to 8 code characters
+ * including a digit, failing the check. Names such as "D Rahman" or a code
+ * still being typed ("C-7K2Q9") do not qualify.
+ */
+export function looksLikeMistypedReferenceCode(input: string): boolean {
+  const match = input.trim().match(/^([PCDR])[\s-]+([0-9A-Za-z\s-]+)$/i);
+  if (!match) return false;
+  const rest = (match[2] ?? '')
+    .replace(/[\s-]+/g, '')
+    .toUpperCase()
+    .replace(/O/g, '0')
+    .replace(/[IL]/g, '1');
+  if (!REFERENCE_CODE_PATTERN.test(rest) || !/[0-9]/.test(match[2] ?? '')) return false;
+  const parsed = parseReferenceCode(input);
+  return !parsed.ok && parsed.reason === 'check_failed';
 }
 
 function finish(

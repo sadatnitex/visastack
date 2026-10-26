@@ -1300,7 +1300,6 @@ export {
 export {
   assignReferenceCode,
   assignReferenceCodes,
-  findReferenceEntity,
   referenceCodeFor,
   referenceCodesFor,
   referenceCodesTablePresent,
