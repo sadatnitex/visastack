@@ -63,3 +63,30 @@ Merge order that avoids rework: each branch takes the latest main before its fin
 ## 6. Owner preferences that shape every answer
 
 Plain language, no em dashes, Title Case for names, lead with the answer, tables for status, report after each merge with Area | What changed | What you will see | Who notices, then Checked live / Not live yet / Not yet checked / Needs you, ending with what was done and one next step.
+
+## 7. Addendum, 26 October 2026 (night): everything in section 2 is merged
+
+Sections 1 to 6 stay as written; this section supersedes section 2.
+
+| PR | What | Production database |
+|---|---|---|
+| #265 | WP-V3 part 3 | none |
+| #267 | Account menu redesign | none |
+| #268 | AI document kind and name, saved only on Accept | none |
+| #269 | Profile photos | migration 0088 run right after merge (owner approved) |
+| #270 | Status page AI state from the same decision as live AI calls; DOWNLOAD_REDACTED shown as "Download Safe Copies" and grantable (owner choice A) | none |
+| #271 | Visa photo sizes (agencies use Download Safe Copies plus Preview) | none |
+| #272 | AI provider data terms, training guard built and OFF, compliance review and runbook | migration 0089 run right after merge (owner approved); 90 migrations applied |
+
+Open from this session: none. Older owner PRs #177 and #77 are untouched.
+
+What the next agent should know:
+
+- **AI data rule:** `decideAiProviderUse` (packages/services/src/ai-data-terms.ts) is the one rule; it runs inside `selectAiExtractionSource` (apps/web/src/lib/ai.ts), so the status page and live calls agree. With the setting off (the default, and also when it cannot be read) nothing is blocked. Do not turn it on or make a failed read block without the owner's word.
+- **Schema constants in services:** never read `schema.X` at module load in packages/services (tests that mock @visastack/db crash). Copy the literal and pin it with a test, as document-protection.ts and ai-data-terms.ts do.
+- **After merging main into a worktree, run `pnpm install`** before a full check: a new dependency on main (sharp, from #269) otherwise shows up as typecheck and build failures that are not in the code.
+- **Accessibility guards:** a button busy while something runs uses `aria-disabled`, not `disabled` (apps/web/src/lib/accessible-forms.test.ts); every exported form must be rendered in apps/web/src/lib/a11y-forms.test.tsx.
+- **Supply-chain scan:** a regular-expression `.exec(` is read as shell execution; use `.match`.
+- **Evidence log merges:** `branch-append` style resolution (main's file plus the branch's own additions) drops any uncommitted edit to the branch's entry; commit entry edits before resolving.
+- **Renovate:** the owner installed the app, but no Dependency Dashboard issue or Renovate PR has appeared. Likely the app was not given access to this repository; the owner checks the installation's repository list.
+- **Next work:** WP-V4 Home parts (U03), then the rest of WP-V4, WP-V5, WP-V6; engineering roadmap step 4 adoption in shadow mode and step 5 (signed step-up proof replacing `stepUpSatisfied: true` in about 10 web action files); sweep follow-up (three long labels move their bracketed explanations into field hints). Payments and real redaction stay parked.
