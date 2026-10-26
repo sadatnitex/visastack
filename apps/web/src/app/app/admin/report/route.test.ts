@@ -1,13 +1,25 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ getPlatformOverview: vi.fn() }));
-vi.mock('@visastack/services', () => mocks);
-vi.mock('../../../../lib/admin', () => ({ bootstrapAdminEmails: () => [] }));
+const mocks = vi.hoisted(() => ({ getPlatformOverview: vi.fn(), isPlatformAdmin: vi.fn() }));
+vi.mock('@visastack/services', () => ({ getPlatformOverview: mocks.getPlatformOverview }));
+vi.mock('../../../../lib/admin', () => ({
+  bootstrapAdminEmails: () => [],
+  isPlatformAdmin: mocks.isPlatformAdmin,
+}));
 vi.mock('../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
     fn({ db: {}, accountId: 'trusted-role', email: 'synthetic@example.test' }),
 }));
 const { GET } = await import('./route');
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.isPlatformAdmin.mockResolvedValue(true);
+});
+it('refuses before reading anything when the platform checks, including the code rule, fail', async () => {
+  mocks.isPlatformAdmin.mockResolvedValue(false);
+  const response = await GET();
+  expect(response.status).toBe(403);
+  expect(mocks.getPlatformOverview).not.toHaveBeenCalled();
+});
 it('refuses the current actor when the independent service permission check denies access', async () => {
   mocks.getPlatformOverview.mockResolvedValue({ ok: false });
   const response = await GET();

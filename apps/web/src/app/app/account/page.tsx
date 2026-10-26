@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { AccountPhotoCard } from '../../../components/profile-photo/account-photo-card';
 import { PageHeader } from '../../../components/ui';
-import { isPlatformAdmin } from '../../../lib/admin';
+import { holdsPlatformRole } from '../../../lib/admin';
 import { getLocale } from '../../../lib/locale';
 import { loadOwnPhoto } from '../../../lib/profile-photos';
 import { withSession } from '../../../lib/session';
@@ -18,7 +18,7 @@ export default async function AccountPage() {
   const locale = await getLocale();
   const data = await withSession(async ({ db, accountId, email }) => {
     const [isAdmin, memberships, photo] = await Promise.all([
-      isPlatformAdmin(db, { accountId, email }),
+      holdsPlatformRole(db, { accountId, email }),
       listMembershipsForAccount(db, accountId),
       loadOwnPhoto(db, accountId),
     ]);

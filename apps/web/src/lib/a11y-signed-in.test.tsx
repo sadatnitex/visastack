@@ -32,6 +32,7 @@ vi.mock('./session', () => ({
 }));
 vi.mock('./admin', () => ({
   isPlatformAdmin: async () => state.isAdmin,
+  holdsPlatformRole: async () => state.isAdmin,
   isPlatformOwnerAccount: async () => state.isAdmin,
   hasPlatformPermission: async () => state.isAdmin,
 }));

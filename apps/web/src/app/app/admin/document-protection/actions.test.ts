@@ -8,14 +8,16 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('@visastack/services', async (load) => ({
   ...(await load<typeof import('@visastack/services')>()),
-  staffPrincipal: mocks.staffPrincipal,
   setDocumentProtection: mocks.setDocumentProtection,
 }));
 vi.mock('../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
     fn({ db: {}, accountId: 'synthetic-admin', email: 'admin@example.com' }),
 }));
-vi.mock('../../../../lib/admin', () => ({ bootstrapAdminEmails: () => [] }));
+vi.mock('../../../../lib/admin', () => ({
+  bootstrapAdminEmails: () => [],
+  staffPrincipal: mocks.staffPrincipal,
+}));
 vi.mock('../../../../lib/step-up', () => ({
   tryEstablishStepUp: mocks.tryEstablishStepUp,
   STEP_UP_NOT_CONFIGURED_MESSAGE: 'Step-up is not configured here.',

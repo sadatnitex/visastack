@@ -8,6 +8,7 @@ import {
   verifyStepUpAssurance,
 } from '@visastack/services';
 import { neonReauthUrl, neonSessionAgeSeconds } from './neon-recency';
+import { staffFactorGate } from './staff-factor';
 
 /**
  * Step-up for sensitive actions (master directive §7 "PR 5"; Build Spec §14). Recency comes from
@@ -24,6 +25,8 @@ import { neonReauthUrl, neonSessionAgeSeconds } from './neon-recency';
  */
 
 const STEP_UP_MAX_AGE_SECONDS = 5 * 60;
+
+const NOT_CONFIGURED_MESSAGE = 'STEP_UP_SIGNING_SECRET is not configured';
 
 /** Variable-keyed env read (satisfies both TS index-signature and Biome rules). */
 function readEnv(name: string): string | undefined {
@@ -62,6 +65,12 @@ export async function establishStepUp(
   if ((await neonSessionAgeSeconds()) > STEP_UP_MAX_AGE_SECONDS) {
     return { satisfied: false, reauthUrl: neonReauthUrl(returnTo) };
   }
+  // Staff also need an authenticator code proved in this sign-in (S3). It sits behind the
+  // recent-password check, so a stale password is always asked for first.
+  const factor = await staffFactorGate(request.accountId, returnTo);
+  if (factor.kind === 'redirect') return { satisfied: false, reauthUrl: factor.url };
+  // Reported through the one "step-up is not available here" path every caller already handles.
+  if (factor.kind === 'unavailable') throw new Error(NOT_CONFIGURED_MESSAGE);
   const secret = signingSecret();
   const token: StepUpAssuranceFields = issueStepUpAssurance(secret, request);
   // Self-verification of a token just minted, moments ago, from the same
@@ -74,8 +83,6 @@ export async function establishStepUp(
   }
   return { satisfied: true };
 }
-
-const NOT_CONFIGURED_MESSAGE = 'STEP_UP_SIGNING_SECRET is not configured';
 
 export type StepUpOutcome =
   | { readonly kind: 'satisfied' }
@@ -116,7 +123,7 @@ export async function tryEstablishStepUp(
 
 /** Safe, non-leaky message for a `not_configured` outcome — never exposes which env var or why. */
 export const STEP_UP_NOT_CONFIGURED_MESSAGE =
-  'This action requires step-up verification, which is not configured in this environment.';
+  'This action needs an extra sign-in check, which is not available here right now.';
 
 export type StepUpProofOutcome =
   | { readonly kind: 'proof'; readonly proof: StepUpProof }
@@ -135,6 +142,9 @@ export async function establishStepUpProof(
   if ((await neonSessionAgeSeconds()) > STEP_UP_MAX_AGE_SECONDS) {
     return { kind: 'reauth_required', reauthUrl: neonReauthUrl(returnTo) };
   }
+  const factor = await staffFactorGate(request.accountId, returnTo);
+  if (factor.kind === 'redirect') return { kind: 'reauth_required', reauthUrl: factor.url };
+  if (factor.kind === 'unavailable') return { kind: 'not_configured' };
   const secret = readEnv('STEP_UP_SIGNING_SECRET');
   if (!secret) return { kind: 'not_configured' };
   const token: StepUpAssuranceFields = issueStepUpAssurance(secret, request);

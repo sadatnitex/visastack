@@ -3,11 +3,10 @@ import {
   type ProtectionSwitchView,
   RESTRICTED_DOCUMENT_TYPES,
   getDocumentProtectionOverview,
-  staffPrincipal,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { Disclosure, PageHeader, StatusBadge } from '../../../../components/ui';
-import { bootstrapAdminEmails } from '../../../../lib/admin';
+import { bootstrapAdminEmails, staffPrincipal } from '../../../../lib/admin';
 import { formatTimestamp } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
 import { AdminRestricted } from '../admin-restricted';

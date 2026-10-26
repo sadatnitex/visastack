@@ -10,6 +10,7 @@ import {
   purgeExpiredDocuments,
   reconcileOrphans,
   releaseLegalHold,
+  resetStaffSecondFactor,
   retryErasureJob,
   retryFailedJob,
   reviewOrganization,
@@ -527,6 +528,42 @@ export async function revokePlatformRoleAction(
     return { ok: true, message: 'Role revoked.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath('/app/admin');
+  return result;
+}
+
+/**
+ * A platform owner clears another staff member's authenticator (a lost phone with no backup
+ * codes). Needs a recent sign-in, a written reason, and is audited. Never your own account.
+ */
+export async function resetStaffAuthenticatorAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const targetAccountId = String(formData.get('targetAccountId') ?? '').trim();
+  const reason = String(formData.get('reason') ?? '').trim();
+  if (targetAccountId.length === 0) return { ok: false, message: 'Missing person.' };
+  if (reason.length === 0) return { ok: false, message: 'A reason is required.' };
+
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!(await isPlatformOwnerAccount(db, { accountId, email }))) return DENIED;
+    const stepUp = await tryEstablishStepUp(
+      { accountId, action: 'STAFF_SECOND_FACTOR_RESET', resourceId: targetAccountId },
+      '/app/admin/access',
+    );
+    if (stepUp.kind === 'not_configured') {
+      return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
+    }
+    if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
+    const cleared = await resetStaffSecondFactor(db, {
+      actor: { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
+      targetAccountId,
+      reason,
+      stepUpSatisfied: true,
+    });
+    if (!cleared.ok) return { ok: false, message: cleared.error.message } satisfies ActionState;
+    return { ok: true, message: 'Authenticator reset. They can set it up again.' };
+  });
+  if (result.ok) revalidatePath('/app/admin/access');
   return result;
 }
 

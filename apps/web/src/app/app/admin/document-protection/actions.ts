@@ -5,12 +5,11 @@ import {
   DOCUMENT_PROTECTION_REASON_REQUIRED,
   type DocumentProtectionScope,
   setDocumentProtection,
-  staffPrincipal,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import type { FormResult } from '../../../../components/form-feedback';
-import { bootstrapAdminEmails } from '../../../../lib/admin';
+import { bootstrapAdminEmails, staffPrincipal } from '../../../../lib/admin';
 import { withSession } from '../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../lib/step-up';
 

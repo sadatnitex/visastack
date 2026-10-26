@@ -16,12 +16,11 @@ import {
   revokeAiProviderConfigKey,
   rollbackAiProviderConfig,
   setAiDataRuleSetting,
-  staffPrincipal,
   validateAiProviderDataTerms,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { bootstrapAdminEmails, hasPlatformPermission } from '../../../../lib/admin';
+import { bootstrapAdminEmails, hasPlatformPermission, staffPrincipal } from '../../../../lib/admin';
 import { resolveTestAdapter, usdToUnits } from '../../../../lib/ai';
 import { clearAiCapabilityCache } from '../../../../lib/capabilities';
 import { createKeyManagementPort } from '../../../../lib/providers';

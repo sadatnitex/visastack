@@ -70,6 +70,7 @@ vi.mock('../app/app/invitations/accept/actions', standIn);
 vi.mock('../app/app/mission/[id]/actions', standIn);
 vi.mock('../app/app/mission/[id]/snapshots/[snapshotId]/actions', standIn);
 vi.mock('../app/app/privacy/actions', standIn);
+vi.mock('../app/app/staff-code/actions', standIn);
 
 const { AddApplicantForm } = await import('../app/app/add-applicant-form');
 const { ConsentButton } = await import('../app/app/consent-button');
@@ -77,6 +78,7 @@ const adminButtons = await import('../app/app/admin/action-buttons');
 const adminForms = await import('../app/app/admin/admin-forms');
 const aiSettings = await import('../app/app/admin/ai-settings/forms');
 const protectionForms = await import('../app/app/admin/document-protection/forms');
+const staffCodeForms = await import('../app/app/staff-code/forms');
 const complaintForms = await import('../app/app/admin/complaints/forms');
 const organisationForms = await import('../app/app/admin/organizations/[orgId]/forms');
 const packForms = await import('../app/app/admin/packs/pack-forms');
@@ -1262,6 +1264,13 @@ const ADMIN: readonly Case[] = [
   row('retry a job', () => <adminButtons.RetryJobButton jobId={rowId()} />),
   row('retry an erasure job', () => <adminButtons.RetryErasureJobButton jobId={rowId()} />),
   row('revoke a role', () => <adminButtons.RevokeRoleButton grantId={rowId()} />),
+  row('reset an authenticator', () => (
+    <adminButtons.ResetAuthenticatorButton targetAccountId={rowId()} />
+  )),
+  row('turn on the authenticator app', () => (
+    <staffCodeForms.ConfirmEnrolmentForm returnTo="/app/admin" />
+  )),
+  row('make new backup codes', () => <staffCodeForms.RegenerateCodesForm returnTo="/app/admin" />),
   row('revoke an invitation', () => <adminButtons.RevokeInvitationButton invitationId={rowId()} />),
   row('approve or reject an organisation', () => (
     <adminButtons.OrgReviewButtons organizationId={rowId()} />

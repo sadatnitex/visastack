@@ -10,7 +10,7 @@ import 'server-only';
 
 interface SessionReader {
   getSession(): Promise<{
-    data: { session?: { createdAt?: Date | string | null } | null } | null;
+    data: { session?: { id?: string | null; createdAt?: Date | string | null } | null } | null;
   }>;
 }
 
@@ -28,6 +28,22 @@ export async function neonSessionAgeSeconds(
   const at = created instanceof Date ? created.getTime() : Date.parse(created);
   if (!Number.isFinite(at)) return Number.POSITIVE_INFINITY;
   return Math.max(0, (now() - at) / 1000);
+}
+
+/**
+ * An opaque reference to the current sign-in: a hash of the Neon session id. A new password
+ * check makes a new session, so anything remembered against this reference (a proved
+ * authenticator code) belongs to exactly one sign-in. Null when there is no readable session.
+ */
+export async function neonSessionRef(reader?: SessionReader): Promise<string | null> {
+  const source =
+    reader ??
+    ((await import('./neon-request-session')).requestSessionReader() as unknown as SessionReader);
+  const { data } = await source.getSession();
+  const id = data?.session?.id;
+  if (!id) return null;
+  const { createHash } = await import('node:crypto');
+  return createHash('sha256').update(`visastack:session-ref:v1:${id}`).digest('hex');
 }
 
 /** A same-site relative path or the app home. Never an off-site address. */

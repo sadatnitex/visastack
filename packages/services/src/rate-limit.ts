@@ -1,4 +1,4 @@
-import { lt, sql } from 'drizzle-orm';
+import { and, eq, lt, sql } from 'drizzle-orm';
 import { type Db, schema } from './db';
 
 /**
@@ -71,6 +71,13 @@ export const RATE_LIMITS = {
   // Looking a record up by its visible reference code (ADR 0018), per account: well above real
   // use, far below what guessing codes would need.
   REFERENCE_LOOKUP: { limit: 60, windowMs: HOUR_MS },
+  // Guesses at a staff member's authenticator or recovery code (S3). Counted before the code is
+  // checked and given back on a correct one, so ordinary use never builds up and a burst of
+  // parallel guesses is still bounded. Backup codes share both buckets.
+  STAFF_FACTOR_ATTEMPT: { limit: 5, windowMs: 5 * 60 * 1000 },
+  STAFF_FACTOR_ATTEMPT_DAY: { limit: 20, windowMs: 24 * HOUR_MS },
+  // One audit row per lock window, so a stream of refused tries cannot flood the audit chain.
+  STAFF_FACTOR_LOCK_AUDIT: { limit: 1, windowMs: 5 * 60 * 1000 },
 } as const satisfies Record<string, RateLimitConfig>;
 
 export type RateLimitDecision =
@@ -139,6 +146,30 @@ export async function checkRateLimit(
   return { allowed: true };
 }
 
+/**
+ * Give one count back for the current window, never below zero. For limits that only mean to
+ * bound failures: the attempt is counted before it is checked (so parallel guesses cannot all
+ * slip through), and a success returns its count.
+ */
+export async function refundRateLimit(
+  db: Db,
+  input: CheckRateLimitInput,
+  config: RateLimitConfig,
+  now: Date = new Date(),
+): Promise<void> {
+  const windowStart = windowStartFor(now, config.windowMs);
+  await db
+    .update(schema.rateLimitBuckets)
+    .set({ count: sql`greatest(${schema.rateLimitBuckets.count} - 1, 0)`, updatedAt: sql`now()` })
+    .where(
+      and(
+        eq(schema.rateLimitBuckets.subjectId, input.subjectId),
+        eq(schema.rateLimitBuckets.action, input.action),
+        eq(schema.rateLimitBuckets.windowStart, windowStart),
+      ),
+    );
+}
+
 export interface RateLimitCheck {
   readonly input: CheckRateLimitInput;
   readonly config: RateLimitConfig;
@@ -167,10 +198,10 @@ export async function checkRateLimits(
  * Counters are only ever read for their own window, so once a window has
  * ended its row is dead weight. Nothing previously removed them (the only
  * delete was account erasure), which was tolerable with two low-volume limits
- * but not with the broader set above. 24h is far longer than any configured
- * window (1h), so a bucket still in use is never pruned.
+ * but not with the broader set above. 48h is twice the longest configured
+ * window (the 24h staff code limit), so a bucket still in use is never pruned.
  */
-export const RATE_LIMIT_BUCKET_RETENTION_MS = 24 * HOUR_MS;
+export const RATE_LIMIT_BUCKET_RETENTION_MS = 48 * HOUR_MS;
 
 /** Delete counters whose window ended more than the retention period ago. Returns how many were removed. */
 export async function pruneExpiredRateLimitBuckets(

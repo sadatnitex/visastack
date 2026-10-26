@@ -2,14 +2,22 @@ import {
   listActivePlatformRoles,
   listInvitations,
   reportUnboundAccounts,
+  staffFactorCoverage,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { PageHeader } from '../../../../components/ui';
 import { isPlatformAdmin, isPlatformOwnerAccount } from '../../../../lib/admin';
 import { formatTimestampDate } from '../../../../lib/format-date';
+import { neonSessionRef } from '../../../../lib/neon-recency';
+import { createKeyManagementPort } from '../../../../lib/providers';
 import { withSession } from '../../../../lib/session';
+import { staffFactorMode } from '../../../../lib/staff-factor';
 import { tolerantReader } from '../../../../lib/tolerate';
-import { RevokeInvitationButton, RevokeRoleButton } from '../action-buttons';
+import {
+  ResetAuthenticatorButton,
+  RevokeInvitationButton,
+  RevokeRoleButton,
+} from '../action-buttons';
 import { GrantRoleForm, InviteForm } from '../admin-forms';
 import { AdminRestricted } from '../admin-restricted';
 import { FailedSectionsBanner } from '../failed-sections-banner';
@@ -31,13 +39,25 @@ export default async function AdminAccessPage() {
   const data = await withSession(async ({ db, accountId, email }) => {
     if (!(await isPlatformAdmin(db, { accountId, email }))) return { admin: false as const };
     const { read: t, failed: failedSections } = tolerantReader();
-    const [roles, unboundAccounts, invitations, owner] = await Promise.all([
+    const [roles, unboundAccounts, invitations, owner, coverage] = await Promise.all([
       t('platform roles', () => listActivePlatformRoles(db), []),
       t('unbound accounts', () => reportUnboundAccounts(db), []),
       t('invitations', () => listInvitations(db), []),
       isPlatformOwnerAccount(db, { accountId, email }),
+      t('authenticator coverage', () => staffFactorCoverage(db), null),
     ]);
-    return { admin: true as const, roles, unboundAccounts, invitations, owner, failedSections };
+    return {
+      admin: true as const,
+      roles,
+      unboundAccounts,
+      invitations,
+      owner,
+      coverage,
+      self: accountId,
+      // Both are needed to check a code: a readable sign-in and the key service that opens the secret.
+      canCheckCodes: (await neonSessionRef()) !== null && createKeyManagementPort() !== undefined,
+      failedSections,
+    };
   });
 
   return (
@@ -61,6 +81,17 @@ export default async function AdminAccessPage() {
               Platform roles determine who can manage the service. Role history is retained when
               access is revoked.
             </p>
+            <p className="card-body u-mb-100">
+              {staffFactorMode() === 'off'
+                ? 'Authenticator codes are not required for staff yet.'
+                : 'Staff confirm sensitive actions with an authenticator code.'}
+              {data.coverage
+                ? ` ${data.coverage.enrolled} of ${data.coverage.staff} staff have set one up.`
+                : ''}
+              {data.canCheckCodes
+                ? ' Codes can be checked here.'
+                : ' Codes cannot be checked here yet, so do not require them.'}
+            </p>
             {data.roles.length === 0 ? (
               <p className="card-body u-mb-125">No active grants.</p>
             ) : (
@@ -82,6 +113,9 @@ export default async function AdminAccessPage() {
                       <span className="row-key">{PLATFORM_ROLE_LABELS[r.role] ?? r.role}</span>
                       <span className="row-end">
                         <span className="muted u-fs-085">{formatTimestampDate(r.assignedAt)}</span>
+                        {data.owner && r.accountId && r.accountId !== data.self ? (
+                          <ResetAuthenticatorButton targetAccountId={r.accountId} />
+                        ) : null}
                         {data.owner ? <RevokeRoleButton grantId={r.id} /> : null}
                       </span>
                     </div>

@@ -2,50 +2,41 @@ import 'server-only';
 import {
   type Db,
   type PlatformAction,
+  type PlatformAuthInput,
+  type StaffScope,
   canPerformPlatformAction,
   hasAnyPlatformRole,
   isPlatformOwner,
+  staffPrincipal as mintStaffScope,
 } from '@visastack/services';
+import { bootstrapAdminEmails } from './admin-emails';
+import { staffFactorProvedForSignIn } from './staff-factor';
 
-/** Variable-keyed env read (satisfies both TS index-signature and Biome rules). */
-function readEnv(name: string): string | undefined {
-  return process.env[name];
-}
+export { bootstrapAdminEmails };
+
+type Ctx = { readonly accountId: string; readonly email: string };
 
 /**
- * `ADMIN_EMAILS` — a comma-separated allowlist — is no longer the authority
- * for platform-admin access (master directive §7 "PR 5"; see
- * `@visastack/services`'s `hasAnyPlatformRole`/`isPlatformOwner`, the real
- * accountable, auditable, revocable role model). This is now purely a
- * one-time bootstrap seed: it only grants anything while the
- * `platform_roles` table has never had a single grant, so the very first
- * platform owner can create real role rows (including their own) — after
- * that, this list is never consulted again, even if left configured.
- * Matching and whitespace handling unchanged from the original allowlist.
+ * True when the account holds a platform role, whatever the authenticator rule says. Only for
+ * deciding who the rule applies to and where to send them (the platform navigation entry, the
+ * code page). Every page and action that shows or changes anything uses the checks below.
  */
-export function bootstrapAdminEmails(): readonly string[] {
-  const raw = readEnv('ADMIN_EMAILS');
-  if (!raw) return [];
-  return raw
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter((e) => e.length > 0);
-}
-
-/** True if the signed-in account holds any active platform role (or bootstrap applies). */
-export async function isPlatformAdmin(
-  db: Db,
-  ctx: { readonly accountId: string; readonly email: string },
-): Promise<boolean> {
+export async function holdsPlatformRole(db: Db, ctx: Ctx): Promise<boolean> {
   return hasAnyPlatformRole(db, { ...ctx, bootstrapEmails: bootstrapAdminEmails() });
 }
 
+/** True if the signed-in account holds any active platform role (or bootstrap applies). */
+export async function isPlatformAdmin(db: Db, ctx: Ctx): Promise<boolean> {
+  if (!(await holdsPlatformRole(db, ctx))) return false;
+  return staffFactorProvedForSignIn(db, ctx.accountId);
+}
+
 /** True if the signed-in account is a platform owner (or bootstrap applies) — required to manage roles. */
-export async function isPlatformOwnerAccount(
-  db: Db,
-  ctx: { readonly accountId: string; readonly email: string },
-): Promise<boolean> {
-  return isPlatformOwner(db, { ...ctx, bootstrapEmails: bootstrapAdminEmails() });
+export async function isPlatformOwnerAccount(db: Db, ctx: Ctx): Promise<boolean> {
+  if (!(await isPlatformOwner(db, { ...ctx, bootstrapEmails: bootstrapAdminEmails() }))) {
+    return false;
+  }
+  return staffFactorProvedForSignIn(db, ctx.accountId);
 }
 
 /**
@@ -58,8 +49,35 @@ export async function isPlatformOwnerAccount(
  */
 export async function hasPlatformPermission(
   db: Db,
-  ctx: { readonly accountId: string; readonly email: string },
+  ctx: Ctx,
   action: PlatformAction,
 ): Promise<boolean> {
-  return canPerformPlatformAction(db, { ...ctx, bootstrapEmails: bootstrapAdminEmails() }, action);
+  const allowed = await canPerformPlatformAction(
+    db,
+    { ...ctx, bootstrapEmails: bootstrapAdminEmails() },
+    action,
+  );
+  return allowed && (await staffFactorProvedForSignIn(db, ctx.accountId));
+}
+
+/**
+ * The staff scope for one platform action, made only when the account holds the role AND, when
+ * authenticator codes are required, has proved a code in this sign-in. Use this instead of
+ * `staffPrincipal` from the services package in the web app, so a page or action cannot skip the
+ * code rule by minting its scope directly.
+ */
+export async function staffPrincipal<A extends PlatformAction>(
+  db: Db,
+  input: PlatformAuthInput,
+  action: A,
+) {
+  const minted = await mintStaffScope(db, input, action);
+  if (!minted.ok) return minted;
+  if (!(await staffFactorProvedForSignIn(db, input.accountId))) {
+    return {
+      ok: false,
+      error: { code: 'forbidden', message: 'Enter your authenticator code first.' },
+    } as const;
+  }
+  return minted as { readonly ok: true; readonly value: StaffScope<A> };
 }

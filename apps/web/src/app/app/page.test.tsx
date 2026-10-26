@@ -23,7 +23,7 @@ vi.mock('../../lib/session', () => ({
     fn({ db: {}, accountId: 'acct-1', email: 'me@example.com' }),
 }));
 vi.mock('../../lib/locale', () => ({ getLocale: async () => 'en' }));
-vi.mock('../../lib/admin', () => ({ isPlatformAdmin: async () => data.platformAdmin }));
+vi.mock('../../lib/admin', () => ({ holdsPlatformRole: async () => data.platformAdmin }));
 vi.mock('@visastack/services', async (importOriginal) => {
   // The real ranking, so Home's merge is the one the services tests pin (ADR 0016).
   const { rankAttentionItems } = await importOriginal<typeof import('@visastack/services')>();
