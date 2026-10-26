@@ -9,7 +9,7 @@ import {
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { PageHeader } from '../../../components/ui';
-import { bootstrapAdminEmails, isPlatformAdmin } from '../../../lib/admin';
+import { bootstrapAdminEmails, holdsPlatformRole } from '../../../lib/admin';
 import { neonSessionRef, safeReturnPath } from '../../../lib/neon-recency';
 import { createKeyManagementPort } from '../../../lib/providers';
 import { withSession } from '../../../lib/session';
@@ -45,21 +45,23 @@ export default async function StaffCodePage({
   searchParams: Promise<{ returnTo?: string; e?: string; manage?: string }>;
 }) {
   const { returnTo: rawReturnTo, e, manage } = await searchParams;
-  const requested = safeReturnPath(rawReturnTo);
+  // Repeated parameters arrive as lists; only a single text value is used.
+  const requested = safeReturnPath(typeof rawReturnTo === 'string' ? rawReturnTo : null);
   const returnTo = requested.startsWith('/app/staff-code') ? '/app/admin' : requested;
 
   const view = await withSession(async ({ db, accountId, email }): Promise<View | 'not_staff'> => {
-    if (!(await isPlatformAdmin(db, { accountId, email }))) return 'not_staff';
+    if (!(await holdsPlatformRole(db, { accountId, email }))) return 'not_staff';
     const status: StaffFactorStatus = await getStaffFactorStatus(db, accountId);
     if (status.state === 'unavailable') return { kind: 'unavailable' };
     if (status.state === 'none') return { kind: 'start' };
     if (status.state === 'pending') {
       const port = createKeyManagementPort();
       if (!port) return { kind: 'unavailable' };
+      const pendingRef = await neonSessionRef();
+      if (!pendingRef) return { kind: 'unavailable' };
       const shown = await revealPendingStaffEnrolment(db, port, {
-        accountId,
-        email,
-        bootstrapEmails: bootstrapAdminEmails(),
+        actor: { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
+        sessionRef: pendingRef,
       });
       return shown.ok ? { kind: 'confirm', enrolment: shown.value } : { kind: 'start' };
     }
@@ -72,7 +74,7 @@ export default async function StaffCodePage({
   });
   if (view === 'not_staff') redirect('/app');
 
-  const error = e ? ERRORS[e] : undefined;
+  const error = typeof e === 'string' && Object.hasOwn(ERRORS, e) ? ERRORS[e] : undefined;
   return (
     <section className="section container">
       <PageHeader
@@ -86,7 +88,7 @@ export default async function StaffCodePage({
         </output>
       ) : null}
       {error ? (
-        <p className="field-msg field-msg-err u-mb-100" role="alert">
+        <p id="staff-code-error" className="field-msg field-msg-err u-mb-100" role="alert">
           {error}
         </p>
       ) : null}
@@ -115,14 +117,14 @@ export default async function StaffCodePage({
 
       {view.kind === 'confirm' ? (
         <article className="card">
-          <h2 className="card-title">Scan This With Your App</h2>
+          <h2 className="card-title">Scan This with Your App</h2>
           <p className="card-body u-mb-100">
             Open your authenticator app, choose to add an account, and scan the picture. If you
             cannot scan it, type the key below instead.
           </p>
           <QrCode
             text={view.enrolment.otpauthUri}
-            label="Picture to scan with your authenticator app"
+            label="Picture to Scan with Your Authenticator App"
           />
           <p className="card-body u-mt-100">
             Key to type instead: <code>{view.enrolment.manualKey}</code>

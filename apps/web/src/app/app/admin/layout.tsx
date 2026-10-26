@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { isPlatformAdmin } from '../../../lib/admin';
+import { holdsPlatformRole } from '../../../lib/admin';
 import { withSession } from '../../../lib/session';
 import { staffFactorGate } from '../../../lib/staff-factor';
 import { AdminRestricted } from './admin-restricted';
@@ -14,7 +14,8 @@ export const dynamic = 'force-dynamic';
  */
 export default async function AdminLayout({ children }: { readonly children: ReactNode }) {
   const gate = await withSession(async ({ db, accountId, email }) => {
-    if (!(await isPlatformAdmin(db, { accountId, email }))) return { kind: 'restricted' } as const;
+    if (!(await holdsPlatformRole(db, { accountId, email })))
+      return { kind: 'restricted' } as const;
     return staffFactorGate(accountId, '/app/admin', { anyAge: true });
   });
   if (gate.kind === 'restricted') return <AdminRestricted />;

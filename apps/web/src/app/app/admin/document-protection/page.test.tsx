@@ -15,10 +15,12 @@ vi.mock('../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
     fn({ db: {}, accountId: 'acct-1', email: 'admin@example.com' }),
 }));
-vi.mock('../../../../lib/admin', () => ({ bootstrapAdminEmails: () => [] }));
+vi.mock('../../../../lib/admin', () => ({
+  bootstrapAdminEmails: () => [],
+  staffPrincipal: (...args: unknown[]) => mocks.staffPrincipal(...args),
+}));
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
-  staffPrincipal: (...args: unknown[]) => mocks.staffPrincipal(...args),
   getDocumentProtectionOverview: (...args: unknown[]) =>
     mocks.getDocumentProtectionOverview(...args),
 }));

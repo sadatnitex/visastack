@@ -1,9 +1,9 @@
-import { type AuditEventRow, listRecentAuditEvents, staffPrincipal } from '@visastack/services';
+import { type AuditEventRow, listRecentAuditEvents } from '@visastack/services';
 import type { Metadata } from 'next';
 import { ExactCode } from '../../../../components/exact-code';
 import { EmptyState, StatusBadge } from '../../../../components/ui';
 import { PageHeader } from '../../../../components/ui';
-import { bootstrapAdminEmails, isPlatformAdmin } from '../../../../lib/admin';
+import { bootstrapAdminEmails, isPlatformAdmin, staffPrincipal } from '../../../../lib/admin';
 import { formatTimestamp } from '../../../../lib/format-date';
 import { auditResultLabel, eventTypeLabel } from '../../../../lib/labels';
 import { withSession } from '../../../../lib/session';

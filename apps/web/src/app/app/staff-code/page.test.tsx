@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderServer, textOf } from '../../../lib/next-mocks.test-support';
 
 const mocks = vi.hoisted(() => ({
-  isPlatformAdmin: vi.fn(),
+  holdsPlatformRole: vi.fn(),
   getStaffFactorStatus: vi.fn(),
   isStaffFactorFresh: vi.fn(),
   revealPendingStaffEnrolment: vi.fn(),
@@ -15,7 +15,7 @@ vi.mock('../../../lib/session', () => ({
     fn({ db: {}, accountId: 'acct-1', email: 'staff@example.com' }),
 }));
 vi.mock('../../../lib/admin', () => ({
-  isPlatformAdmin: mocks.isPlatformAdmin,
+  holdsPlatformRole: mocks.holdsPlatformRole,
   bootstrapAdminEmails: () => [],
 }));
 vi.mock('../../../lib/neon-recency', async (importOriginal) => ({
@@ -46,7 +46,7 @@ const params = (value: Record<string, string> = {}) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.isPlatformAdmin.mockResolvedValue(true);
+  mocks.holdsPlatformRole.mockResolvedValue(true);
   mocks.neonSessionRef.mockResolvedValue('ref-1');
   mocks.createKeyManagementPort.mockReturnValue({});
   mocks.isStaffFactorFresh.mockResolvedValue(false);
@@ -55,7 +55,7 @@ beforeEach(() => {
 
 describe('the authenticator code page', () => {
   it('sends anyone who is not platform staff back to the app', async () => {
-    mocks.isPlatformAdmin.mockResolvedValue(false);
+    mocks.holdsPlatformRole.mockResolvedValue(false);
     await expect(renderServer(Page(params()))).rejects.toThrow('NEXT_REDIRECT:/app');
   });
 

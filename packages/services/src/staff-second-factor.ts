@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { isMissingRelationError as isMissingTable } from './ai-data-terms';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -35,6 +36,8 @@ import {
  */
 
 export const STAFF_FACTOR_FRESH_MS = 5 * 60 * 1000;
+/** A started but unfinished setup is forgotten after this long. */
+export const STAFF_FACTOR_PENDING_MS = 15 * 60 * 1000;
 export const STAFF_FACTOR_ISSUER = 'VisaStack';
 
 export type StaffFactorRow = typeof schema.staffSecondFactors.$inferSelect;
@@ -49,28 +52,43 @@ function hashRecoveryCode(accountId: string, code: string): string {
     .digest('hex');
 }
 
-/** What the database says when the table is not there yet (the gap between a deploy and its migration). */
-function isMissingTable(error: unknown): boolean {
-  const visit = (value: unknown, depth: number): boolean => {
-    if (typeof value !== 'object' || value === null || depth > 3) return false;
-    const { code, message, cause } = value as {
-      code?: unknown;
-      message?: unknown;
-      cause?: unknown;
-    };
-    if (code === '42P01' || code === '42703') return true;
-    if (typeof message === 'string' && /(relation|column) .* does not exist/i.test(message)) {
-      return true;
-    }
-    return visit(cause, depth + 1);
-  };
-  return visit(error, 0);
-}
-
 const UNAVAILABLE = serviceError(
   'upstream_error',
   'Authenticator codes cannot be checked right now.',
 );
+
+/** The account's factor row, or undefined; `null` means the table is not there yet. */
+async function readFactorRow(
+  db: Db,
+  accountId: string,
+): Promise<StaffFactorRow | undefined | null> {
+  try {
+    return first(
+      await db
+        .select()
+        .from(schema.staffSecondFactors)
+        .where(eq(schema.staffSecondFactors.accountId, accountId))
+        .limit(1),
+    );
+  } catch (error) {
+    if (isMissingTable(error)) return null;
+    throw error;
+  }
+}
+
+async function revealSecret(
+  db: Db,
+  port: KeyManagementPort,
+  row: StaffFactorRow,
+): Promise<Uint8Array> {
+  const encoded = await revealValue(db, port, {
+    ciphertext: row.secretCiphertext,
+    nonce: row.secretNonce,
+    keyVersion: row.secretKeyVersion,
+    aad: aadFor(row.accountId, row.enrolmentId),
+  });
+  return Buffer.from(encoded, 'base64');
+}
 
 export type StaffFactorStatus =
   | { readonly state: 'unavailable' }
@@ -82,22 +100,19 @@ export type StaffFactorStatus =
       readonly recoveryCodesLeft: number;
     };
 
-export async function getStaffFactorStatus(db: Db, accountId: string): Promise<StaffFactorStatus> {
-  let row: StaffFactorRow | undefined;
-  try {
-    row = first(
-      await db
-        .select()
-        .from(schema.staffSecondFactors)
-        .where(eq(schema.staffSecondFactors.accountId, accountId))
-        .limit(1),
-    );
-  } catch (error) {
-    if (isMissingTable(error)) return { state: 'unavailable' };
-    throw error;
-  }
+export async function getStaffFactorStatus(
+  db: Db,
+  accountId: string,
+  now: Date = new Date(),
+): Promise<StaffFactorStatus> {
+  const row = await readFactorRow(db, accountId);
+  if (row === null) return { state: 'unavailable' };
   if (!row) return { state: 'none' };
-  if (row.status !== 'ACTIVE') return { state: 'pending' };
+  if (row.status !== 'ACTIVE') {
+    return now.getTime() - row.updatedAt.getTime() > STAFF_FACTOR_PENDING_MS
+      ? { state: 'none' }
+      : { state: 'pending' };
+  }
   return {
     state: 'active',
     verifiedAt: row.verifiedAt,
@@ -119,19 +134,7 @@ export async function isStaffFactorFresh(
     readonly now?: Date;
   },
 ): Promise<boolean> {
-  let row: StaffFactorRow | undefined;
-  try {
-    row = first(
-      await db
-        .select()
-        .from(schema.staffSecondFactors)
-        .where(eq(schema.staffSecondFactors.accountId, input.accountId))
-        .limit(1),
-    );
-  } catch (error) {
-    if (isMissingTable(error)) return false;
-    throw error;
-  }
+  const row = await readFactorRow(db, input.accountId);
   if (!row || row.status !== 'ACTIVE' || !row.verifiedAt || !row.verifiedSessionRef) return false;
   if (row.verifiedSessionRef !== input.sessionRef) return false;
   if (input.maxAgeMs === null) return true;
@@ -146,31 +149,22 @@ export interface StaffFactorEnrolment {
   readonly manualKey: string;
 }
 
-async function describeEnrolment(
-  db: Db,
-  port: KeyManagementPort,
-  row: StaffFactorRow,
-  email: string,
-): Promise<StaffFactorEnrolment> {
-  const encoded = await revealValue(db, port, {
-    ciphertext: row.secretCiphertext,
-    nonce: row.secretNonce,
-    keyVersion: row.secretKeyVersion,
-    aad: aadFor(row.accountId, row.enrolmentId),
-  });
-  return describeEnrolmentFromSecret(Buffer.from(encoded, 'base64'), email);
-}
-
 /**
- * Begin (or restart) setting up the app. Only while nothing is active: replacing an active
+ * Begin (or restart) setting up the app. A setup left unfinished for fifteen minutes is forgotten. Only while nothing is active: replacing an active
  * factor goes through a reset by the platform owner, so a phished password cannot swap a
  * working authenticator for the attacker's. Needs a recent sign-in (`stepUpSatisfied`).
  */
 export async function startStaffFactorEnrolment(
   db: Db,
   port: KeyManagementPort,
-  input: { readonly actor: PlatformAuthInput; readonly stepUpSatisfied: boolean },
+  input: {
+    readonly actor: PlatformAuthInput;
+    readonly sessionRef: string;
+    readonly stepUpSatisfied: boolean;
+    readonly now?: Date;
+  },
 ): Promise<Result<StaffFactorEnrolment, ServiceError>> {
+  const now = input.now ?? new Date();
   if (!input.stepUpSatisfied) {
     return err(serviceError('step_up_required', 'Sign in again to set up an authenticator app.'));
   }
@@ -203,6 +197,11 @@ export async function startStaffFactorEnrolment(
         secretCiphertext: Buffer.from(protectedSecret.ciphertext),
         secretNonce: Buffer.from(protectedSecret.nonce),
         secretKeyVersion: protectedSecret.keyVersion,
+        // While pending, this holds the sign-in that started setup: only that sign-in can see the
+        // secret or finish the setup, so an older session or a stolen cookie cannot.
+        verifiedSessionRef: input.sessionRef,
+        createdAt: now,
+        updatedAt: now,
       })
       .onConflictDoUpdate({
         target: schema.staffSecondFactors.accountId,
@@ -212,7 +211,8 @@ export async function startStaffFactorEnrolment(
           secretNonce: Buffer.from(protectedSecret.nonce),
           secretKeyVersion: protectedSecret.keyVersion,
           lastUsedStep: null,
-          updatedAt: sql`now()`,
+          verifiedSessionRef: input.sessionRef,
+          updatedAt: now,
         },
         // Never touch an active factor.
         setWhere: eq(schema.staffSecondFactors.status, 'PENDING'),
@@ -225,7 +225,7 @@ export async function startStaffFactorEnrolment(
     if (isMissingTable(error)) return err(UNAVAILABLE);
     throw error;
   }
-  return ok(await describeEnrolmentFromSecret(secret, input.actor.email));
+  return ok(describeEnrolmentFromSecret(secret, input.actor.email));
 }
 
 function describeEnrolmentFromSecret(secret: Uint8Array, email: string): StaffFactorEnrolment {
@@ -235,29 +235,23 @@ function describeEnrolmentFromSecret(secret: Uint8Array, email: string): StaffFa
   };
 }
 
-/** Show the same setup details again while the app is still being set up (a page reload). */
+/** Show the same setup details again while the app is still being set up (a page reload). Only to the sign-in that started the setup. */
 export async function revealPendingStaffEnrolment(
   db: Db,
   port: KeyManagementPort,
-  actor: PlatformAuthInput,
+  input: { readonly actor: PlatformAuthInput; readonly sessionRef: string; readonly now?: Date },
 ): Promise<Result<StaffFactorEnrolment, ServiceError>> {
-  let row: StaffFactorRow | undefined;
-  try {
-    row = first(
-      await db
-        .select()
-        .from(schema.staffSecondFactors)
-        .where(eq(schema.staffSecondFactors.accountId, actor.accountId))
-        .limit(1),
-    );
-  } catch (error) {
-    if (isMissingTable(error)) return err(UNAVAILABLE);
-    throw error;
-  }
-  if (!row || row.status !== 'PENDING') {
+  const row = await readFactorRow(db, input.actor.accountId);
+  if (row === null) return err(UNAVAILABLE);
+  if (
+    !row ||
+    row.status !== 'PENDING' ||
+    row.verifiedSessionRef !== input.sessionRef ||
+    (input.now ?? new Date()).getTime() - row.updatedAt.getTime() > STAFF_FACTOR_PENDING_MS
+  ) {
     return err(serviceError('not_found', 'No authenticator setup is waiting.'));
   }
-  return ok(await describeEnrolment(db, port, row, actor.email));
+  return ok(describeEnrolmentFromSecret(await revealSecret(db, port, row), input.actor.email));
 }
 
 /** Count one guess against both buckets. Refuses when either is full, whatever the code is. */
@@ -336,29 +330,17 @@ export async function confirmStaffFactorEnrolment(
   const accountId = input.actor.accountId;
   const refusal = await countAttempt(db, accountId, now);
   if (refusal) return err(refusal);
-  let row: StaffFactorRow | undefined;
-  try {
-    row = first(
-      await db
-        .select()
-        .from(schema.staffSecondFactors)
-        .where(eq(schema.staffSecondFactors.accountId, accountId))
-        .limit(1),
-    );
-  } catch (error) {
-    if (isMissingTable(error)) return err(UNAVAILABLE);
-    throw error;
-  }
-  if (!row || row.status !== 'PENDING') {
+  const row = await readFactorRow(db, accountId);
+  if (row === null) return err(UNAVAILABLE);
+  if (
+    !row ||
+    row.status !== 'PENDING' ||
+    row.verifiedSessionRef !== input.sessionRef ||
+    now.getTime() - row.updatedAt.getTime() > STAFF_FACTOR_PENDING_MS
+  ) {
     return err(serviceError('not_found', 'No authenticator setup is waiting.'));
   }
-  const encoded = await revealValue(db, port, {
-    ciphertext: row.secretCiphertext,
-    nonce: row.secretNonce,
-    keyVersion: row.secretKeyVersion,
-    aad: aadFor(row.accountId, row.enrolmentId),
-  });
-  const step = matchTotp(Buffer.from(encoded, 'base64'), input.code, now.getTime());
+  const step = matchTotp(await revealSecret(db, port, row), input.code, now.getTime());
   if (step === null) {
     await auditFailure(db, accountId, 'code');
     return err(WRONG_CODE);
@@ -426,31 +408,29 @@ export async function verifyStaffFactor(
   const now = input.now ?? new Date();
   const refusal = await countAttempt(db, input.accountId, now);
   if (refusal) {
-    await db.transaction(async (tx) => {
-      await appendAuditEvent(tx, {
-        eventType: 'STAFF_SECOND_FACTOR_LOCKED',
-        actorAccountId: input.accountId,
-        method: 'MANUAL',
-        result: 'DENIED',
-        resourceType: 'staff_second_factor',
-        resourceId: input.accountId,
+    // One audit row per lock window, however many further tries are refused.
+    const first = await checkRateLimit(
+      db,
+      { subjectId: input.accountId, action: 'staff_factor.locked_audit' },
+      RATE_LIMITS.STAFF_FACTOR_LOCK_AUDIT,
+      now,
+    );
+    if (first.allowed) {
+      await db.transaction(async (tx) => {
+        await appendAuditEvent(tx, {
+          eventType: 'STAFF_SECOND_FACTOR_LOCKED',
+          actorAccountId: input.accountId,
+          method: 'MANUAL',
+          result: 'DENIED',
+          resourceType: 'staff_second_factor',
+          resourceId: input.accountId,
+        });
       });
-    });
+    }
     return err(refusal);
   }
-  let row: StaffFactorRow | undefined;
-  try {
-    row = first(
-      await db
-        .select()
-        .from(schema.staffSecondFactors)
-        .where(eq(schema.staffSecondFactors.accountId, input.accountId))
-        .limit(1),
-    );
-  } catch (error) {
-    if (isMissingTable(error)) return err(UNAVAILABLE);
-    throw error;
-  }
+  const row = await readFactorRow(db, input.accountId);
+  if (row === null) return err(UNAVAILABLE);
   if (!row || row.status !== 'ACTIVE') return err(WRONG_CODE);
 
   if (looksLikeRecoveryCode(input.code)) {
@@ -493,13 +473,7 @@ export async function verifyStaffFactor(
     return ok({ method: 'recovery', recoveryCodesLeft: used });
   }
 
-  const encoded = await revealValue(db, port, {
-    ciphertext: row.secretCiphertext,
-    nonce: row.secretNonce,
-    keyVersion: row.secretKeyVersion,
-    aad: aadFor(row.accountId, row.enrolmentId),
-  });
-  const step = matchTotp(Buffer.from(encoded, 'base64'), input.code, now.getTime());
+  const step = matchTotp(await revealSecret(db, port, row), input.code, now.getTime());
   if (step === null) {
     await auditFailure(db, input.accountId, 'code');
     return err(WRONG_CODE);
@@ -614,6 +588,20 @@ export async function resetStaffSecondFactor(
       if (deleted.length === 0) {
         return err(serviceError('not_found', 'That person has no authenticator set up.'));
       }
+      // A person locked out by too many tries must be able to set up again straight after the
+      // reset, so their counters go with the old authenticator.
+      await tx
+        .delete(schema.rateLimitBuckets)
+        .where(
+          and(
+            eq(schema.rateLimitBuckets.subjectId, input.targetAccountId),
+            inArray(schema.rateLimitBuckets.action, [
+              'staff_factor.attempt',
+              'staff_factor.attempt_day',
+              'staff_factor.locked_audit',
+            ]),
+          ),
+        );
       await appendAuditEvent(tx, {
         eventType: 'STAFF_SECOND_FACTOR_RESET',
         actorAccountId: input.actor.accountId,

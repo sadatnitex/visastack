@@ -23,6 +23,7 @@ vi.mock('../../../../lib/session', () => ({
 vi.mock('../../../../lib/admin', () => ({
   isPlatformAdmin: mocks.isPlatformAdmin,
   bootstrapAdminEmails: () => [],
+  staffPrincipal: (...args: unknown[]) => mocks.staffPrincipal(...args),
 }));
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
@@ -31,7 +32,6 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   listErasureJobsNeedingAttention: (...args: unknown[]) =>
     mocks.listErasureJobsNeedingAttention(...args),
   listAllApplicants: (...args: unknown[]) => mocks.listAllApplicants(...args),
-  staffPrincipal: (...args: unknown[]) => mocks.staffPrincipal(...args),
   documentsPastRetention: (...args: unknown[]) => mocks.documentsPastRetention(...args),
 }));
 vi.mock('../action-buttons', async () => {

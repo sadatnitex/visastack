@@ -108,7 +108,7 @@ export function ResetAuthenticatorButton({
   return (
     <form
       action={formAction}
-      style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+      className="inline-action-form"
       onSubmit={(e) => {
         const form = e.currentTarget;
         const reason = window.prompt('Why is this authenticator being reset?');

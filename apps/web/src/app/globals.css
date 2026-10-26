@@ -7633,3 +7633,11 @@ summary.visa-photo-title {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* WP-S3 staff authenticator (M08): a small action form that sits on the same line as its message,
+   used by the owner's Reset Authenticator button on the Access page. */
+.inline-action-form {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}

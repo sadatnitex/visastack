@@ -2,14 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   withSession: vi.fn(),
-  isPlatformAdmin: vi.fn(),
+  hasAnyPlatformRole: vi.fn(),
   neonSessionRef: vi.fn(),
   getStaffFactorStatus: vi.fn(),
   isStaffFactorFresh: vi.fn(),
 }));
 
 vi.mock('./session', () => ({ withSession: mocks.withSession }));
-vi.mock('./admin', () => ({ isPlatformAdmin: mocks.isPlatformAdmin }));
+vi.mock('./admin-emails', () => ({ bootstrapAdminEmails: () => [] }));
 vi.mock('./neon-recency', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./neon-recency')>()),
   neonSessionRef: mocks.neonSessionRef,
@@ -18,10 +18,13 @@ vi.mock('./neon-recency', async (importOriginal) => ({
 vi.mock('@visastack/services', () => ({
   STAFF_FACTOR_FRESH_MS: 300_000,
   getStaffFactorStatus: mocks.getStaffFactorStatus,
+  hasAnyPlatformRole: mocks.hasAnyPlatformRole,
   isStaffFactorFresh: mocks.isStaffFactorFresh,
 }));
 
-const { staffFactorGate, staffFactorMode, staffCodeUrl } = await import('./staff-factor');
+const { staffFactorGate, staffFactorMode, staffCodeUrl, staffFactorProvedForSignIn } = await import(
+  './staff-factor'
+);
 
 function setEnv(name: string, value: string | undefined): void {
   if (value === undefined) delete process.env[name];
@@ -38,7 +41,7 @@ beforeEach(() => {
   mocks.withSession.mockImplementation(async (fn: (ctx: unknown) => Promise<unknown>) =>
     fn({ db: {}, accountId: 'acct-1', email: 'staff@example.com' }),
   );
-  mocks.isPlatformAdmin.mockResolvedValue(true);
+  mocks.hasAnyPlatformRole.mockResolvedValue(true);
   mocks.neonSessionRef.mockResolvedValue('ref-1');
   mocks.getStaffFactorStatus.mockResolvedValue({
     state: 'active',
@@ -69,7 +72,7 @@ describe('the staff authenticator gate', () => {
   });
 
   it('does not ask people who hold no platform role', async () => {
-    mocks.isPlatformAdmin.mockResolvedValue(false);
+    mocks.hasAnyPlatformRole.mockResolvedValue(false);
     expect(await staffFactorGate('acct-1', '/app/privacy')).toEqual({ kind: 'ok' });
     expect(mocks.getStaffFactorStatus).not.toHaveBeenCalled();
   });
@@ -120,5 +123,28 @@ describe('the staff authenticator gate', () => {
     expect(await staffFactorGate('acct-1', '/app/admin')).toEqual({ kind: 'unavailable' });
     mocks.neonSessionRef.mockResolvedValue('ref-1');
     expect(await staffFactorGate('someone-else', '/app/admin')).toEqual({ kind: 'unavailable' });
+  });
+});
+
+describe('the proof every platform check needs', () => {
+  it('is always satisfied while the rule is off, without reading anything', async () => {
+    setMode('off');
+    expect(await staffFactorProvedForSignIn({} as never, 'acct-1')).toBe(true);
+    expect(mocks.neonSessionRef).not.toHaveBeenCalled();
+  });
+
+  it('needs a code proved in this sign-in, at any age, once the rule is required', async () => {
+    expect(await staffFactorProvedForSignIn({} as never, 'acct-1')).toBe(true);
+    expect(mocks.isStaffFactorFresh).toHaveBeenCalledWith(
+      {},
+      { accountId: 'acct-1', sessionRef: 'ref-1', maxAgeMs: null },
+    );
+    mocks.isStaffFactorFresh.mockResolvedValue(false);
+    expect(await staffFactorProvedForSignIn({} as never, 'acct-1')).toBe(false);
+  });
+
+  it('fails closed when there is no readable sign-in', async () => {
+    mocks.neonSessionRef.mockResolvedValue(null);
+    expect(await staffFactorProvedForSignIn({} as never, 'acct-1')).toBe(false);
   });
 });

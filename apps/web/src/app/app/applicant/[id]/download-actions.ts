@@ -34,10 +34,16 @@ export async function downloadOriginalAction(formData: FormData): Promise<void> 
     if (!accessTokenSecret) return null;
     const applicant = await getApplicant(db, applicantId);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
-    const assurance = await establishStepUp(
-      { accountId, action: 'DOWNLOAD_ORIGINAL', resourceId: documentId },
-      returnTo,
-    );
+    let assurance: Awaited<ReturnType<typeof establishStepUp>>;
+    try {
+      assurance = await establishStepUp(
+        { accountId, action: 'DOWNLOAD_ORIGINAL', resourceId: documentId },
+        returnTo,
+      );
+    } catch {
+      // The sign-in check cannot be made right now: say the download failed, not a server error.
+      return null;
+    }
     if (!assurance.satisfied) redirect(assurance.reauthUrl);
     const ref = await downloadDocument(db, createStorage(db), {
       actor: { kind: 'applicant_owner', applicantId: applicantId as ApplicantId },

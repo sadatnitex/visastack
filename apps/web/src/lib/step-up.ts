@@ -123,7 +123,7 @@ export async function tryEstablishStepUp(
 
 /** Safe, non-leaky message for a `not_configured` outcome — never exposes which env var or why. */
 export const STEP_UP_NOT_CONFIGURED_MESSAGE =
-  'This action requires step-up verification, which is not configured in this environment.';
+  'This action needs an extra sign-in check, which is not available here right now.';
 
 export type StepUpProofOutcome =
   | { readonly kind: 'proof'; readonly proof: StepUpProof }

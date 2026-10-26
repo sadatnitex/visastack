@@ -8,6 +8,8 @@ import type { Metadata } from 'next';
 import { PageHeader } from '../../../../components/ui';
 import { isPlatformAdmin, isPlatformOwnerAccount } from '../../../../lib/admin';
 import { formatTimestampDate } from '../../../../lib/format-date';
+import { neonSessionRef } from '../../../../lib/neon-recency';
+import { createKeyManagementPort } from '../../../../lib/providers';
 import { withSession } from '../../../../lib/session';
 import { staffFactorMode } from '../../../../lib/staff-factor';
 import { tolerantReader } from '../../../../lib/tolerate';
@@ -52,6 +54,8 @@ export default async function AdminAccessPage() {
       owner,
       coverage,
       self: accountId,
+      // Both are needed to check a code: a readable sign-in and the key service that opens the secret.
+      canCheckCodes: (await neonSessionRef()) !== null && createKeyManagementPort() !== undefined,
       failedSections,
     };
   });
@@ -84,6 +88,9 @@ export default async function AdminAccessPage() {
               {data.coverage
                 ? ` ${data.coverage.enrolled} of ${data.coverage.staff} staff have set one up.`
                 : ''}
+              {data.canCheckCodes
+                ? ' Codes can be checked here.'
+                : ' Codes cannot be checked here yet, so do not require them.'}
             </p>
             {data.roles.length === 0 ? (
               <p className="card-body u-mb-125">No active grants.</p>

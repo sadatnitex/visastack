@@ -62,7 +62,11 @@ describe('staff second factor (S3)', () => {
 
   async function enrolled(email: string, now = T0) {
     const actor = await seedStaffAccount(db, 'SECURITY_ADMIN', email);
-    const started = await startStaffFactorEnrolment(db, port, { actor, stepUpSatisfied: true });
+    const started = await startStaffFactorEnrolment(db, port, {
+      actor,
+      sessionRef: 'session-a',
+      stepUpSatisfied: true,
+    });
     if (!isOk(started)) throw new Error('start failed');
     const secret = secretOf(started.value.manualKey);
     const confirmed = await confirmStaffFactorEnrolment(db, port, {
@@ -93,7 +97,11 @@ describe('staff second factor (S3)', () => {
   it('keeps the secret unreadable in the row and unusable if copied to another account', async () => {
     const a = await enrolled('copy-a@example.com');
     const b = await seedStaffAccount(db, 'SECURITY_ADMIN', 'copy-b@example.com');
-    const started = await startStaffFactorEnrolment(db, port, { actor: b, stepUpSatisfied: true });
+    const started = await startStaffFactorEnrolment(db, port, {
+      actor: b,
+      sessionRef: 's-b',
+      stepUpSatisfied: true,
+    });
     expect(isOk(started)).toBe(true);
     const [rowA] = await db
       .select()
@@ -107,20 +115,27 @@ describe('staff second factor (S3)', () => {
         secretNonce: rowA?.secretNonce ?? Buffer.alloc(0),
       })
       .where(eq(schema.staffSecondFactors.accountId, b.accountId));
-    await expect(revealPendingStaffEnrolment(db, port, b)).rejects.toThrow();
+    await expect(
+      revealPendingStaffEnrolment(db, port, { actor: b, sessionRef: 's-b' }),
+    ).rejects.toThrow();
     const plain = Buffer.from(a.secret).toString('base64');
     expect(JSON.stringify(rowA)).not.toContain(plain);
   });
 
   it('refuses setup without a recent sign-in, for non-staff, and over an active factor', async () => {
     const actor = await seedStaffAccount(db, 'SECURITY_ADMIN', 'refuse@example.com');
-    const stale = await startStaffFactorEnrolment(db, port, { actor, stepUpSatisfied: false });
+    const stale = await startStaffFactorEnrolment(db, port, {
+      actor,
+      sessionRef: 'session-a',
+      stepUpSatisfied: false,
+    });
     expect(isErr(stale) && stale.error.code).toBe('step_up_required');
 
     const plain = await provisionAccount(db, { email: 'plain@example.com' });
     if (!isOk(plain)) throw new Error('provision');
     const notStaff = await startStaffFactorEnrolment(db, port, {
       actor: { accountId: plain.value.id, email: 'plain@example.com', bootstrapEmails: [] },
+      sessionRef: 'session-a',
       stepUpSatisfied: true,
     });
     expect(isErr(notStaff) && notStaff.error.code).toBe('forbidden');
@@ -128,6 +143,7 @@ describe('staff second factor (S3)', () => {
     const done = await enrolled('active@example.com');
     const again = await startStaffFactorEnrolment(db, port, {
       actor: done.actor,
+      sessionRef: 'session-a',
       stepUpSatisfied: true,
     });
     expect(isErr(again) && again.error.code).toBe('invalid');
@@ -143,22 +159,74 @@ describe('staff second factor (S3)', () => {
       email: 'boot@example.com',
       bootstrapEmails: ['boot@example.com'],
     };
-    expect(isOk(await startStaffFactorEnrolment(db, port, { actor, stepUpSatisfied: true }))).toBe(
-      true,
-    );
+    expect(
+      isOk(
+        await startStaffFactorEnrolment(db, port, {
+          actor,
+          sessionRef: 'session-a',
+          stepUpSatisfied: true,
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it('shows and finishes a setup only to the sign-in that started it, and only for fifteen minutes', async () => {
+    const actor = await seedStaffAccount(db, 'SECURITY_ADMIN', 'pending@example.com');
+    const started = await startStaffFactorEnrolment(db, port, {
+      actor,
+      sessionRef: 'starter',
+      stepUpSatisfied: true,
+      now: T0,
+    });
+    if (!isOk(started)) throw new Error('start failed');
+    const code = totp(secretOf(started.value.manualKey), T0.getTime());
+
+    // An older or stolen session cannot read the secret or finish the setup.
+    const peek = await revealPendingStaffEnrolment(db, port, {
+      actor,
+      sessionRef: 'someone-else',
+      now: T0,
+    });
+    expect(isErr(peek) && peek.error.code).toBe('not_found');
+    const hijack = await confirmStaffFactorEnrolment(db, port, {
+      actor,
+      code,
+      sessionRef: 'someone-else',
+      now: T0,
+    });
+    expect(isErr(hijack) && hijack.error.code).toBe('not_found');
+    expect(
+      isOk(await revealPendingStaffEnrolment(db, port, { actor, sessionRef: 'starter', now: T0 })),
+    ).toBe(true);
+
+    // After fifteen minutes the unfinished setup is forgotten, even for the starter.
+    const late = new Date(T0.getTime() + 16 * MIN);
+    expect((await getStaffFactorStatus(db, actor.accountId, late)).state).toBe('none');
+    const lateConfirm = await confirmStaffFactorEnrolment(db, port, {
+      actor,
+      code: totp(secretOf(started.value.manualKey), late.getTime()),
+      sessionRef: 'starter',
+      now: late,
+    });
+    expect(isErr(lateConfirm) && lateConfirm.error.code).toBe('not_found');
   });
 
   it('refuses a wrong first code and leaves the setup pending', async () => {
     const actor = await seedStaffAccount(db, 'SECURITY_ADMIN', 'wrong@example.com');
-    await startStaffFactorEnrolment(db, port, { actor, stepUpSatisfied: true });
+    await startStaffFactorEnrolment(db, port, {
+      actor,
+      sessionRef: 'session-a',
+      stepUpSatisfied: true,
+      now: T0,
+    });
     const result = await confirmStaffFactorEnrolment(db, port, {
       actor,
       code: '000000',
-      sessionRef: 's',
+      sessionRef: 'session-a',
       now: T0,
     });
     expect(isErr(result) && result.error.code).toBe('invalid');
-    expect((await getStaffFactorStatus(db, actor.accountId)).state).toBe('pending');
+    expect((await getStaffFactorStatus(db, actor.accountId, T0)).state).toBe('pending');
   });
 
   it('accepts a correct code once and refuses the same code, or an older one, again', async () => {
@@ -254,7 +322,7 @@ describe('staff second factor (S3)', () => {
   });
 
   it('bounds parallel guesses and gives a success its count back', async () => {
-    const { actor, secret } = await enrolled('burst@example.com');
+    const { actor } = await enrolled('burst@example.com');
     const later = new Date(T0.getTime() + 20 * MIN);
     const burst = await Promise.all(
       Array.from({ length: 12 }, () =>
@@ -283,6 +351,65 @@ describe('staff second factor (S3)', () => {
       });
       expect(isOk(result)).toBe(true);
     }
+  });
+
+  it('writes one lock audit row per window however many tries are refused', async () => {
+    const { actor, secret } = await enrolled('lockaudit@example.com');
+    const later = new Date(T0.getTime() + 15 * MIN);
+    for (let i = 0; i < 12; i += 1) {
+      await verifyStaffFactor(db, port, {
+        accountId: actor.accountId,
+        code: i % 2 === 0 ? '000000' : totp(secret, later.getTime()),
+        sessionRef: 'x',
+        now: later,
+      });
+    }
+    const locked = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'STAFF_SECOND_FACTOR_LOCKED'));
+    expect(locked).toHaveLength(1);
+  });
+
+  it('lets a locked-out person set up again straight after an owner reset', async () => {
+    const email = 'lockreset@example.com';
+    const { actor } = await enrolled(email);
+    const later = new Date(T0.getTime() + 25 * MIN);
+    // Fill the day bucket as a password thief guessing across windows would.
+    for (let window = 0; window < 4; window += 1) {
+      const at = new Date(later.getTime() + window * 6 * MIN);
+      for (let i = 0; i < 5; i += 1) {
+        await verifyStaffFactor(db, port, {
+          accountId: actor.accountId,
+          code: '000000',
+          sessionRef: 'x',
+          now: at,
+        });
+      }
+    }
+    const ownerAuth = await seedStaffAccount(db, 'PLATFORM_OWNER', 'owner-lockreset@example.com');
+    const reset = await resetStaffSecondFactor(db, {
+      actor: ownerAuth,
+      targetAccountId: actor.accountId,
+      reason: 'Locked out',
+      stepUpSatisfied: true,
+    });
+    expect(isOk(reset)).toBe(true);
+    const restart = new Date(later.getTime() + 30 * MIN);
+    const started = await startStaffFactorEnrolment(db, port, {
+      actor,
+      sessionRef: 'fresh',
+      stepUpSatisfied: true,
+      now: restart,
+    });
+    if (!isOk(started)) throw new Error('start failed');
+    const confirmed = await confirmStaffFactorEnrolment(db, port, {
+      actor,
+      code: totp(secretOf(started.value.manualKey), restart.getTime()),
+      sessionRef: 'fresh',
+      now: restart,
+    });
+    expect(isOk(confirmed)).toBe(true);
   });
 
   it('uses a recovery code once, and shows how many are left', async () => {
@@ -440,7 +567,11 @@ describe('staff second factor (S3)', () => {
     expect(
       await isStaffFactorFresh(db, { accountId: actor.accountId, sessionRef: 's', maxAgeMs: null }),
     ).toBe(false);
-    const started = await startStaffFactorEnrolment(db, port, { actor, stepUpSatisfied: true });
+    const started = await startStaffFactorEnrolment(db, port, {
+      actor,
+      sessionRef: 'session-a',
+      stepUpSatisfied: true,
+    });
     expect(isErr(started)).toBe(true);
     const verified = await verifyStaffFactor(db, port, {
       accountId: actor.accountId,

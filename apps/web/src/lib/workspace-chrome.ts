@@ -5,7 +5,7 @@ import {
   listMembershipsForAccount,
   loadWorkspaceToolbarState,
 } from '@visastack/services';
-import { hasPlatformPermission, isPlatformAdmin, isPlatformOwnerAccount } from './admin';
+import { hasPlatformPermission, holdsPlatformRole, isPlatformOwnerAccount } from './admin';
 import { loadOwnedTravellers } from './profile-photos';
 import type { WorkspaceAccess } from './workspace-navigation';
 
@@ -21,7 +21,7 @@ export async function loadWorkspaceChrome(
   const [{ people, photos }, memberships, platform, toolbar] = await Promise.all([
     loadOwnedTravellers(db, actor.accountId),
     listMembershipsForAccount(db, actor.accountId),
-    isPlatformAdmin(db, actor),
+    holdsPlatformRole(db, actor),
     loadWorkspaceToolbarState(db, actor.accountId),
   ]);
   const permissions = platform

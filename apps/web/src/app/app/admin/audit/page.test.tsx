@@ -14,11 +14,11 @@ vi.mock('../../../../lib/session', () => ({
 vi.mock('../../../../lib/admin', () => ({
   isPlatformAdmin: mocks.isPlatformAdmin,
   bootstrapAdminEmails: () => [],
+  staffPrincipal: (...args: unknown[]) => mocks.staffPrincipal(...args),
 }));
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   listRecentAuditEvents: (...args: unknown[]) => mocks.listRecentAuditEvents(...args),
-  staffPrincipal: (...args: unknown[]) => mocks.staffPrincipal(...args),
 }));
 
 const { default: Page } = await import('./page');

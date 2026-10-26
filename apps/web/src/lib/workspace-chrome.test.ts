@@ -3,7 +3,7 @@ const mocks = vi.hoisted(() => ({
   listApplicants: vi.fn(),
   listMembershipsForAccount: vi.fn(),
   loadWorkspaceToolbarState: vi.fn(),
-  isPlatformAdmin: vi.fn(),
+  holdsPlatformRole: vi.fn(),
   isPlatformOwnerAccount: vi.fn(),
   hasPlatformPermission: vi.fn(),
 }));
@@ -14,7 +14,7 @@ vi.mock('@visastack/services', () => ({
   loadWorkspaceToolbarState: mocks.loadWorkspaceToolbarState,
 }));
 vi.mock('./admin', () => ({
-  isPlatformAdmin: mocks.isPlatformAdmin,
+  holdsPlatformRole: mocks.holdsPlatformRole,
   isPlatformOwnerAccount: mocks.isPlatformOwnerAccount,
   hasPlatformPermission: mocks.hasPlatformPermission,
 }));
@@ -29,7 +29,7 @@ beforeEach(() => {
     { organization: { id: 'own', name: 'Own Agency' }, active: true, role: 'OWNER' },
     { organization: { id: 'revoked', name: 'Revoked Agency' }, active: false, role: 'ADMIN' },
   ]);
-  mocks.isPlatformAdmin.mockResolvedValue(false);
+  mocks.holdsPlatformRole.mockResolvedValue(false);
   mocks.loadWorkspaceToolbarState.mockResolvedValue({
     unread: 0,
     personalPlan: null,
@@ -51,7 +51,7 @@ describe('workspace chrome uses existing actor-scoped authorization reads', () =
     const data = await loadWorkspaceChrome({} as never, namedActor);
     expect(data.accountName).toBe('Synthetic Noor Agency Owner');
     expect(data.platform).toBeNull();
-    expect(mocks.isPlatformAdmin).toHaveBeenCalledWith({}, namedActor);
+    expect(mocks.holdsPlatformRole).toHaveBeenCalledWith({}, namedActor);
   });
   it('does not replace account identity with a managed family member or infer rights from email', async () => {
     mocks.listApplicants.mockResolvedValue([
@@ -62,7 +62,7 @@ describe('workspace chrome uses existing actor-scoped authorization reads', () =
     expect(data.platform).toBeNull();
   });
   it('carries only concern permissions proven by the current server checks', async () => {
-    mocks.isPlatformAdmin.mockResolvedValue(true);
+    mocks.holdsPlatformRole.mockResolvedValue(true);
     mocks.isPlatformOwnerAccount.mockResolvedValue(false);
     mocks.hasPlatformPermission.mockImplementation(
       async (_db, _actor, permission) => permission === 'AI_SETTINGS_MANAGE',

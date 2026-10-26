@@ -5,12 +5,11 @@ import {
   listActiveLegalHolds,
   listAllApplicants,
   listErasureJobsNeedingAttention,
-  staffPrincipal,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { DocumentTypeDatalist } from '../../../../components/catalogue-datalists';
 import { PageHeader } from '../../../../components/ui';
-import { bootstrapAdminEmails, isPlatformAdmin } from '../../../../lib/admin';
+import { bootstrapAdminEmails, isPlatformAdmin, staffPrincipal } from '../../../../lib/admin';
 import { formatDateOnly } from '../../../../lib/format-date';
 import { documentTypeLabel } from '../../../../lib/labels';
 import { withSession } from '../../../../lib/session';

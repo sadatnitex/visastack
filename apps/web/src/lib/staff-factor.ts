@@ -1,10 +1,12 @@
 import 'server-only';
 import {
+  type Db,
   STAFF_FACTOR_FRESH_MS,
   getStaffFactorStatus,
+  hasAnyPlatformRole,
   isStaffFactorFresh,
 } from '@visastack/services';
-import { isPlatformAdmin } from './admin';
+import { bootstrapAdminEmails } from './admin-emails';
 import { neonSessionAgeSeconds, neonSessionRef, safeReturnPath } from './neon-recency';
 import { withSession } from './session';
 
@@ -57,7 +59,12 @@ export async function staffFactorGate(
   if (staffFactorMode() === 'off') return { kind: 'ok' };
   return withSession(async ({ db, accountId: signedIn, email }) => {
     if (signedIn !== accountId) return { kind: 'unavailable' } as const;
-    if (!(await isPlatformAdmin(db, { accountId, email }))) return { kind: 'ok' } as const;
+    const holdsRole = await hasAnyPlatformRole(db, {
+      accountId,
+      email,
+      bootstrapEmails: bootstrapAdminEmails(),
+    });
+    if (!holdsRole) return { kind: 'ok' } as const;
     const sessionRef = await neonSessionRef();
     if (!sessionRef) return { kind: 'unavailable' } as const;
     const status = await getStaffFactorStatus(db, accountId);
@@ -77,4 +84,18 @@ export async function staffFactorGate(
 /** True when the password was typed in the last five minutes (the same rule step-up uses). */
 export async function passwordIsRecent(): Promise<boolean> {
   return (await neonSessionAgeSeconds()) <= STAFF_FACTOR_FRESH_MS / 1000;
+}
+
+/**
+ * Whether this sign-in has proved an authenticator code (at any time since sign-in), for an
+ * account already known to hold a platform role. The platform checks in `./admin` call this, so
+ * every page, action and scope that needs a platform role also needs the code, not only the
+ * platform layout (a layout does not run for every request). Rule off: always true. Nothing
+ * readable (no sign-in, no table, no enrolment): false.
+ */
+export async function staffFactorProvedForSignIn(db: Db, accountId: string): Promise<boolean> {
+  if (staffFactorMode() === 'off') return true;
+  const sessionRef = await neonSessionRef();
+  if (!sessionRef) return false;
+  return isStaffFactorFresh(db, { accountId, sessionRef, maxAgeMs: null });
 }

@@ -64,6 +64,9 @@ function BackupCodes({
 export function ConfirmEnrolmentForm({ returnTo }: { readonly returnTo: string }) {
   const [state, formAction, pending] = useActionState(confirmStaffEnrolmentAction, INITIAL);
   const formRef = useRef<HTMLFormElement>(null);
+  const uid = useId();
+  const codeId = `${uid}-code`;
+  const messageId = `${uid}-message`;
   useFocusInvalidField(formRef, state);
   if (state.ok && state.recoveryCodes) {
     return <BackupCodes codes={state.recoveryCodes} continueHref={returnTo} />;
@@ -71,11 +74,11 @@ export function ConfirmEnrolmentForm({ returnTo }: { readonly returnTo: string }
   return (
     <form ref={formRef} action={formAction} className="field-list">
       <div className="field-row">
-        <label className="field-label" htmlFor="enrol-code">
+        <label className="field-label" htmlFor={codeId}>
           6 Digit Code From Your App
         </label>
         <input
-          id="enrol-code"
+          id={codeId}
           name="code"
           className="input"
           inputMode="numeric"
@@ -83,7 +86,7 @@ export function ConfirmEnrolmentForm({ returnTo }: { readonly returnTo: string }
           pattern="[0-9 ]*"
           maxLength={10}
           required
-          {...fieldProblem(state, 'code', 'enrol-code-message')}
+          {...fieldProblem(state, 'code', messageId)}
         />
       </div>
       <div>
@@ -93,7 +96,7 @@ export function ConfirmEnrolmentForm({ returnTo }: { readonly returnTo: string }
           busy="Checking…"
           className="btn btn-primary"
         />
-        <FormMessage id="enrol-code-message" result={state} />
+        <FormMessage id={messageId} result={state} />
       </div>
     </form>
   );

@@ -7,7 +7,7 @@ import {
   verifyStaffFactor,
 } from '@visastack/services';
 import { redirect } from 'next/navigation';
-import { bootstrapAdminEmails, isPlatformAdmin } from '../../../lib/admin';
+import { bootstrapAdminEmails, holdsPlatformRole } from '../../../lib/admin';
 import { neonReauthUrl, neonSessionRef, safeReturnPath } from '../../../lib/neon-recency';
 import { createKeyManagementPort } from '../../../lib/providers';
 import { withSession } from '../../../lib/session';
@@ -41,11 +41,17 @@ export async function startStaffEnrolmentAction(formData: FormData): Promise<voi
   const returnTo = returnToOf(formData);
   const next = await withSession(async ({ db, accountId, email }) => {
     const actor = { accountId, email, bootstrapEmails: bootstrapAdminEmails() };
-    if (!(await isPlatformAdmin(db, { accountId, email }))) return NOT_STAFF;
+    if (!(await holdsPlatformRole(db, { accountId, email }))) return NOT_STAFF;
     if (!(await passwordIsRecent())) return neonReauthUrl(staffCodeUrl(returnTo));
     const port = createKeyManagementPort();
     if (!port) return `${staffCodeUrl(returnTo)}&e=nokey`;
-    const started = await startStaffFactorEnrolment(db, port, { actor, stepUpSatisfied: true });
+    const sessionRef = await neonSessionRef();
+    if (!sessionRef) return `${staffCodeUrl(returnTo)}&e=failed`;
+    const started = await startStaffFactorEnrolment(db, port, {
+      actor,
+      sessionRef,
+      stepUpSatisfied: true,
+    });
     if (!started.ok) {
       return `${staffCodeUrl(returnTo)}&e=${started.error.code === 'invalid' ? 'active' : 'failed'}`;
     }
@@ -64,7 +70,7 @@ export async function confirmStaffEnrolmentAction(
     return { ok: false, message: 'Enter the 6 digit code from your app.', field: 'code' };
   }
   return withSession(async ({ db, accountId, email }): Promise<StaffCodeState> => {
-    if (!(await isPlatformAdmin(db, { accountId, email }))) {
+    if (!(await holdsPlatformRole(db, { accountId, email }))) {
       return { ok: false, message: 'This is only for platform staff.' };
     }
     const port = createKeyManagementPort();
@@ -95,7 +101,7 @@ export async function verifyStaffCodeAction(formData: FormData): Promise<void> {
   const back = staffCodeUrl(returnTo);
   if (code.length === 0) redirect(`${back}&e=empty`);
   const outcome = await withSession(async ({ db, accountId, email }) => {
-    if (!(await isPlatformAdmin(db, { accountId, email }))) return 'staff' as const;
+    if (!(await holdsPlatformRole(db, { accountId, email }))) return 'staff' as const;
     const port = createKeyManagementPort();
     const sessionRef = await neonSessionRef();
     if (!port || !sessionRef) return 'failed' as const;
@@ -114,11 +120,15 @@ export async function regenerateRecoveryCodesAction(
   _formData: FormData,
 ): Promise<StaffCodeState> {
   return withSession(async ({ db, accountId, email }): Promise<StaffCodeState> => {
-    if (!(await isPlatformAdmin(db, { accountId, email }))) {
+    if (!(await holdsPlatformRole(db, { accountId, email }))) {
       return { ok: false, message: 'This is only for platform staff.' };
     }
     const sessionRef = await neonSessionRef();
     if (!sessionRef) return { ok: false, message: 'Sign in again and try once more.' };
+    // A backup code alone must not be enough to replace the whole set: a recent password too.
+    if (!(await passwordIsRecent())) {
+      return { ok: false, message: 'Sign in again with your password, then try once more.' };
+    }
     const done = await regenerateStaffRecoveryCodes(db, { accountId, sessionRef });
     if (!done.ok) {
       return {
