@@ -749,7 +749,7 @@ export async function createAppointmentForOrg(
   if (input.timezone.trim().length === 0) {
     return err(serviceError('invalid', 'a timezone is required'));
   }
-  // A known IANA name only, saved in its canonical spelling: calendar files place the time in
+  // A known IANA name only, saved as typed (letter case corrected, never renamed): calendar files place the time in
   // UTC from it, so a name the runtime cannot read would leave the time unplaceable.
   const timezone = recognisedTimeZone(input.timezone);
   if (!timezone) return err(serviceError('invalid', 'enter a time zone name, such as Asia/Dhaka'));
@@ -841,7 +841,7 @@ export async function updateAppointmentForOrg(
   );
   if (!mission.ok) return mission;
 
-  // A known IANA name only, in its canonical spelling, as when the appointment was made.
+  // A known IANA name only, saved as typed (letter case corrected), as when the appointment was made.
   const timezone = input.timezone === undefined ? undefined : recognisedTimeZone(input.timezone);
   if (timezone === null)
     return err(serviceError('invalid', 'enter a time zone name, such as Asia/Dhaka'));

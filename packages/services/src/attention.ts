@@ -627,15 +627,42 @@ export const CALENDAR_PAST_DAYS = 7;
 const CALENDAR_CASE_TITLE_MAX = 80;
 
 /**
+ * Current names whose older spelling some runtimes still report as canonical (Node 22 resolves
+ * Asia/Kolkata to Asia/Calcutta and Europe/Kyiv to Europe/Kiev). Keyed by the runtime's name, so a
+ * person who types the current name in any letter case keeps it, correctly capitalised.
+ */
+const CURRENT_ZONE_NAMES: Readonly<Record<string, string>> = {
+  'Asia/Calcutta': 'Asia/Kolkata',
+  'Asia/Dacca': 'Asia/Dhaka',
+  'Asia/Katmandu': 'Asia/Kathmandu',
+  'Asia/Rangoon': 'Asia/Yangon',
+  'Asia/Saigon': 'Asia/Ho_Chi_Minh',
+  'Europe/Kiev': 'Europe/Kyiv',
+  'America/Godthab': 'America/Nuuk',
+  'Atlantic/Faeroe': 'Atlantic/Faroe',
+  'Pacific/Enderbury': 'Pacific/Kanton',
+};
+
+/**
  * A time zone name only if it is a well-formed IANA name this runtime knows (letters, digits,
- * "_", "+", "-" and "/"; no spaces or line breaks), in the runtime's canonical spelling
- * ("asia/dhaka" becomes "Asia/Dhaka"); otherwise null. Used where a zone is saved (appointments)
- * and where one is read back to place an appointment in UTC.
+ * "_", "+", "-" and "/"; no spaces or line breaks); otherwise null. The name kept is the one the
+ * person typed, never swapped for another name for the same zone: when the runtime's spelling
+ * differs only in letter case it is used ("asia/dhaka" becomes "Asia/Dhaka"); a current name the
+ * runtime reports under an older one keeps its current, correctly capitalised form
+ * ("asia/kolkata" becomes "Asia/Kolkata", never "Asia/Calcutta"); any other alias is kept exactly
+ * as typed ("EST" stays "EST"). Used where a zone is saved (appointments) and where one is read
+ * back to place an appointment in UTC; the zone's rules are the same whichever name is kept.
  */
 export function recognisedTimeZone(name: string): string | null {
   const trimmed = name.trim();
   if (!/^[A-Za-z][A-Za-z0-9_+\-/]{0,63}$/.test(trimmed)) return null;
-  return canonicalTimeZone(trimmed);
+  const canonical = canonicalTimeZone(trimmed);
+  if (!canonical) return null;
+  const typed = trimmed.toLowerCase();
+  if (canonical.toLowerCase() === typed) return canonical;
+  const current = CURRENT_ZONE_NAMES[canonical];
+  if (current && current.toLowerCase() === typed) return current;
+  return trimmed;
 }
 
 /** The order key of an item: a date-only key sorts before any time on the same day. */
