@@ -676,6 +676,26 @@ export {
   buildTravellerInsights,
 } from './insights';
 export { type TravellerInsightsOptions, getTravellerInsights } from './insights-read';
+export {
+  ATTENTION_ACTIVE_CASE_LIMIT,
+  ATTENTION_REQUEST_STATUSES,
+  ATTENTION_SOURCE_LIMIT,
+  ATTENTION_TASK_STATUSES,
+  type AttentionActiveCase,
+  type AttentionDueState,
+  type AttentionItem,
+  type AttentionKind,
+  type AttentionSubject,
+  type AttentionTier,
+  type AttentionTierInput,
+  DUE_SOON_DAYS,
+  type NeedsAttention,
+  type NeedsAttentionOptions,
+  attentionTier,
+  daysUntilDueDay,
+  listNeedsAttention,
+  rankAttentionItems,
+} from './attention';
 
 export {
   type EnqueueNotificationInput,
