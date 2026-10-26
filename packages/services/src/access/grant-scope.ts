@@ -104,6 +104,7 @@ export interface CaseExclusionDetail {
   readonly sharingInvitationId: string | null;
   readonly missionId: string;
   readonly missionTitle: string;
+  readonly createdByAccountId: string | null;
   readonly createdAt: Date;
 }
 
@@ -125,6 +126,7 @@ export async function listCaseExclusionsForApplicant(
       sharingInvitationId: table.sharingInvitationId,
       missionId: table.missionId,
       missionTitle: schema.missions.title,
+      createdByAccountId: table.createdByAccountId,
       createdAt: table.createdAt,
     })
     .from(table)

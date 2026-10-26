@@ -1,5 +1,6 @@
 import { type Result, err, ok } from '@visastack/core';
 import { eq, inArray, or } from 'drizzle-orm';
+import { listCaseExclusionsForApplicant } from './access/grant-scope';
 import { appendAuditEvent } from './audit';
 import { type ConsentRecord, getConsents, listConsentHistory } from './consent';
 import { type Db, schema } from './db';
@@ -41,6 +42,8 @@ export interface AccountExportManifest {
     readonly missionSnapshots: number;
     readonly grantsReceived: number;
     readonly grantsGranted: number;
+    /** Per-case sharing exceptions on the grants this account gave (ADR 0017). */
+    readonly caseExceptions: number;
     readonly evidenceRequests: number;
     readonly aiExtractionRuns: number;
     readonly auditEvents: number;
@@ -50,6 +53,23 @@ export interface AccountExportManifest {
   readonly excludedByDesign: ReadonlyArray<{ readonly item: string; readonly reason: string }>;
   readonly knownGaps: ReadonlyArray<{ readonly item: string; readonly reason: string }>;
 }
+
+/**
+ * One case an all-cases grant this account gave does not cover (ADR 0017).
+ * Nested under its grant, so the recipient is named exactly as the grant
+ * already names it (by id); nothing else about the recipient is added.
+ */
+export interface ExportedCaseException {
+  readonly missionId: string;
+  readonly caseTitle: string;
+  readonly excludedAt: Date;
+  /** The account that said no, named by id like every other actor in this export. */
+  readonly excludedByAccountId: string | null;
+}
+
+export type ExportedGrantGranted = typeof schema.grants.$inferSelect & {
+  readonly caseExceptions: readonly ExportedCaseException[];
+};
 
 export interface AccountExport {
   readonly account: typeof schema.accounts.$inferSelect;
@@ -77,7 +97,7 @@ export interface AccountExport {
       readonly mission: typeof schema.missions.$inferSelect;
       readonly snapshots: ReadonlyArray<typeof schema.missionSnapshots.$inferSelect>;
     }>;
-    readonly grantsGranted: ReadonlyArray<typeof schema.grants.$inferSelect>;
+    readonly grantsGranted: ReadonlyArray<ExportedGrantGranted>;
     readonly evidenceRequests: ReadonlyArray<typeof schema.evidenceRequests.$inferSelect>;
     /** Sections the person opened or closed, and fields or records they marked as not applying. */
     readonly profileSections: ReadonlyArray<typeof schema.profileSectionStates.$inferSelect>;
@@ -179,10 +199,26 @@ export async function exportAccount(
         })),
       );
 
-      const grantsGranted = await db
+      const grantRows = await db
         .select()
         .from(schema.grants)
         .where(eq(schema.grants.applicantId, applicant.id));
+      // Per-case sharing exceptions (ADR 0017). Invitation-bound ones are left
+      // out with the invitations themselves, which this export does not include.
+      const exceptions = grantRows.some((g) => g.missionId === null)
+        ? await listCaseExclusionsForApplicant(db, applicant.id)
+        : [];
+      const grantsGranted: ExportedGrantGranted[] = grantRows.map((grant) => ({
+        ...grant,
+        caseExceptions: exceptions
+          .filter((e) => e.grantId === grant.id)
+          .map((e) => ({
+            missionId: e.missionId,
+            caseTitle: e.missionTitle,
+            excludedAt: e.createdAt,
+            excludedByAccountId: e.createdByAccountId,
+          })),
+      }));
 
       const evidenceRequests = await db
         .select()
@@ -289,6 +325,10 @@ export async function exportAccount(
       ),
       grantsReceived: grantsReceived.length,
       grantsGranted: applicants.reduce((n, a) => n + a.grantsGranted.length, 0),
+      caseExceptions: applicants.reduce(
+        (n, a) => n + a.grantsGranted.reduce((m, g) => m + g.caseExceptions.length, 0),
+        0,
+      ),
       evidenceRequests: applicants.reduce((n, a) => n + a.evidenceRequests.length, 0),
       aiExtractionRuns: applicants.reduce((n, a) => n + a.aiRuns.length, 0),
       auditEvents: auditEvents.length,
