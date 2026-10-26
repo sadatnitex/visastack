@@ -430,7 +430,7 @@ Run on the exact release commit, against isolated synthetic accounts, with resul
 
 | # | Action | Needed before |
 |---|---|---|
-| O1 | Decide repository visibility. Recommended: make it private while the product is proprietary. Consequences: CodeQL then needs GitHub Advanced Security or stops, Actions minutes become metered (the scanner worker uses them) and `CLAUDE.md`'s CodeQL line becomes true. Separately, run a full-history secret scan (GitHub secret scanning) | Before more architecture lands publicly; at the latest before real data |
+| O1 | Decide repository visibility. Owner, 26 Oct 2026: public temporarily, to be made private soon; sessions do not change it. Recommended: make it private while the product is proprietary. Consequences: CodeQL then needs GitHub Advanced Security or stops, Actions minutes become metered (the scanner worker uses them) and `CLAUDE.md`'s CodeQL line becomes true. Separately, run a full-history secret scan (GitHub secret scanning) | Before more architecture lands publicly; at the latest before real data |
 | O2 | Approve this cutline, ADRs 0019 to 0021 and the register (or change them) | S5 onward |
 | O3 | Confirm the Vercel plan allows commercial use (Pro, not Hobby) and the Neon plan's limits and point-in-time window | Real data, payments |
 | O4 | Switch `MALWARE_SCANNER_PROVIDER=github_clamav` in Vercel after S4, and run or allow `verify-synthetic` | S4 acceptance |

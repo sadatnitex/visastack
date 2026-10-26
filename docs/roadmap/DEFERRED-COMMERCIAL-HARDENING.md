@@ -30,7 +30,7 @@ Execution plan: [SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md](SONNET-SMALL-COMMERCIAL-
 | M13 | Cross-tenant admin reads limited to the roles that need them | `listAllApplicants` and `listRecentAuditEvents` are open to any platform role | S2 |
 | M14 | Support grants cannot be created without the right role | `createSupportGrant` has no role check (no caller today) | S2 |
 | M15 | Hosting plan allows commercial use | Vercel's daily deployment limit suggests the Hobby plan, which is for non-commercial use | Owner action O3 |
-| M16 | Repository not publicly readable while the product is proprietary | The repository is **public**. No live credential was found in the current tree; history was not scanned | Owner action O1 |
+| M16 | Repository not publicly readable while the product is proprietary | The repository is **public**; the owner (26 Oct 2026) says this is temporary and it will be made private soon. No live credential was found in the current tree; history was not scanned | Owner action O1 |
 | M17 | Every launch checklist is maintained and reviewed; unmaintained routes run in manual mode with no automated readiness claim | One published checklist exists ("UK Visitor1": 2 requirements, not authoritative, review date passed 23 Oct 2026, used by no case) | Owner action O7, then S17 |
 
 ## Part 2. Deferred hardening
