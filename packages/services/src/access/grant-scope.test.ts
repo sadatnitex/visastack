@@ -1,7 +1,7 @@
 import type { AccountId, ApplicantId, MissionId } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
-import { type Grant as PolicyGrant, authorize } from '@visastack/policy';
+import { type Grant as PolicyGrant, authorize, grantCoversMission } from '@visastack/policy';
 import { and, eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { describe, expect, it } from 'vitest';
@@ -133,9 +133,10 @@ async function sqlCoveredPairs(db: Db, applicantId: string): Promise<Set<string>
 }
 
 /**
- * The same pairs according to the policy engine (`authorize`, whose case
- * scope is `grantCoversMission`), fed from the same rows. Each grant is
- * judged alone as active and accepted, so only its case scope decides.
+ * The same pairs according to the policy engine (`authorize`) and to its case
+ * scope predicate (`grantCoversMission`, exported by packages/policy), fed from
+ * the same rows; the two must agree on every pair. Each grant is judged alone
+ * as active and accepted, so only its case scope decides.
  */
 async function policyCoveredPairs(db: Db, applicantId: string): Promise<Set<string>> {
   const grantRows = await db
@@ -170,6 +171,8 @@ async function policyCoveredPairs(db: Db, applicantId: string): Promise<Set<stri
         resource: { applicantId: applicantId as ApplicantId, missionId: mission.id as MissionId },
         context: { now, purpose: grant.purpose, stepUpSatisfied: false, grants: [policyGrant] },
       });
+      // The predicate itself and the engine that uses it must give the same answer.
+      expect(grantCoversMission(policyGrant, mission.id as MissionId)).toBe(decision.allowed);
       if (decision.allowed) pairs.add(`${grant.id}:${mission.id}`);
     }
   }
