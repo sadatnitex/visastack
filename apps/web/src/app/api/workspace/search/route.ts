@@ -1,4 +1,6 @@
+import { looksLikeMistypedReferenceCode, readsAsReferenceCode } from '@visastack/core';
 import {
+  RATE_LIMITS,
   type WorkspaceSearchScope,
   checkRateLimit,
   searchWorkspaceRecords,
@@ -80,6 +82,23 @@ export async function POST(request: Request): Promise<Response> {
     );
     if (!allowed.allowed)
       return response({ error: 'Too many searches. Try again in a minute.' }, 429);
+    // A query that reads as a visible reference code (ADR 0018) is a lookup, with its own
+    // hourly budget per account so codes cannot be guessed by trying them.
+    if (readsAsReferenceCode(query).ok) {
+      const lookups = await checkRateLimit(
+        db,
+        { subjectId: accountId, action: 'reference.lookup', label: 'reference lookup' },
+        RATE_LIMITS.REFERENCE_LOOKUP,
+      );
+      if (!lookups.allowed)
+        return response({ error: 'Too many reference lookups. Try again later.' }, 429);
+    } else if (looksLikeMistypedReferenceCode(query)) {
+      // Typed as a code, but one character is wrong: say so instead of "no match".
+      return response({
+        results: [],
+        notice: 'One character in that reference looks wrong. Check it and try again.',
+      });
+    }
     const result = await searchWorkspaceRecords(db, accountId, selected, query);
     if (!result.ok)
       return response(

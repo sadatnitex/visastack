@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   listDocumentsDetailed: vi.fn(),
   hasConsent: vi.fn(),
   loadUploadQuotaConfig: vi.fn(),
+  referenceCodesFor: vi.fn(async (): Promise<Map<string, string>> => new Map()),
 }));
 
 vi.mock('@visastack/services', async (importOriginal) => ({
@@ -16,6 +17,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   listDocumentsDetailed: mocks.listDocumentsDetailed,
   hasConsent: mocks.hasConsent,
   loadUploadQuotaConfig: mocks.loadUploadQuotaConfig,
+  referenceCodesFor: mocks.referenceCodesFor,
   getApplicantEvidenceBytes: async () => 0,
   getLatestOcrRun: async () => undefined,
   listIssuerVerificationsForDocument: async () => [],
@@ -347,5 +349,21 @@ describe('visa photo sizes on a passport photo', () => {
       value: [{ ...doc('passport', 'APPROVED'), docType: 'PASSPORT' }],
     });
     expect(textOf(await render('passport'))).not.toContain('Visa Photo Sizes');
+  });
+});
+
+describe('document reference codes (ADR 0018)', () => {
+  it('reads the codes of the listed documents in one call and shows them with the document', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [doc('d1', 'READY')] });
+    mocks.referenceCodesFor.mockResolvedValueOnce(new Map([['d1', 'D-7K2Q9M']]));
+    const html = await render('d1');
+    expect(mocks.referenceCodesFor).toHaveBeenCalledWith(expect.anything(), 'D', ['d1']);
+    expect(textOf(html)).toContain('Document Reference');
+    expect(html).toContain('D-7K2Q9M');
+  });
+
+  it('shows no code, and no label, before migration 0091 has run', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [doc('d1', 'READY')] });
+    expect(textOf(await render('d1'))).not.toContain('Document Reference');
   });
 });

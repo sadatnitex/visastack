@@ -5,9 +5,11 @@ import {
   listDocumentsDetailed,
   listEvidenceRequestDecisions,
   listEvidenceRequestsForApplicant,
+  referenceCodesFor,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { ReferenceCode } from '../../../../../components/reference-code';
 import { EmptyState, PageHeader, StatusBadge, type Tone } from '../../../../../components/ui';
 import { humanizeCode } from '../../../../../lib/format-code';
 import { formatDateOnly } from '../../../../../lib/format-date';
@@ -85,8 +87,15 @@ export default async function EvidencePage({
       const decisions = await listEvidenceRequestDecisions(db, accountId, req.id);
       if (decisions.ok) decisionsByRequest.set(req.id, decisions.value);
     }
+    // Visible request codes (ADR 0018), so the traveller and the agency can name the same request.
+    const referenceCodes = await referenceCodesFor(
+      db,
+      'R',
+      requestList.map((req) => req.id),
+    );
     return {
       applicant,
+      referenceCodes,
       requests: requestList,
       profile,
       documents: documents.ok ? documents.value : [],
@@ -154,7 +163,7 @@ export default async function EvidencePage({
                 ? dueLabel(req.dueDate, req.status, data.applicant.timezone)
                 : null;
               return (
-                <div className="case-row" key={req.id}>
+                <div className="case-row" key={req.id} id={`request-${req.id}`}>
                   <div className="case-row-head">
                     <span className="case-row-title">
                       {req.kind === 'FIELD' ? 'Detail' : 'Document'}: {target}
@@ -174,6 +183,7 @@ export default async function EvidencePage({
                   {req.dueDate ? (
                     <p className="case-row-meta u-m-0">Needed by {formatDateOnly(req.dueDate)}</p>
                   ) : null}
+                  <ReferenceCode code={data.referenceCodes.get(req.id)} label="Request Reference" />
                   <p className="case-row-meta u-m-0">{NEXT_HINT[req.status] ?? ''}</p>
                   {latestDecision?.reason ? (
                     <p className="field-msg field-msg-err u-m-0">

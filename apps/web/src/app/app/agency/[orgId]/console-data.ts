@@ -26,6 +26,7 @@ import {
   listTasksForOrg,
   listUnassignedActiveMissions,
   listVisibleMissionsForMember,
+  referenceCodesFor,
   requireAccess,
 } from '@visastack/services';
 import { fieldLabel } from '../../../../lib/master-profile';
@@ -51,6 +52,8 @@ export type EvidenceRequestRow = OkValue<
    * the file can no longer be used. Absent means the request status alone decides.
    */
   readonly respondingDocumentState?: TriageDocumentState | null;
+  /** The request's visible code (`R-7K2Q9M`, ADR 0018); absent when it has none yet. */
+  readonly referenceCode?: string;
 };
 
 export interface OrgAccess {
@@ -119,14 +122,37 @@ export async function loadEvidenceRequests(
   if (!access.admin) return [];
   const result = await listEvidenceRequestsForOrgDetailed(db, accountId, orgId);
   if (!result.ok) return [];
-  if (options.withFileStates !== true) return result.value;
-  const answered = result.value.filter(
+  // One registry read for the whole list (ADR 0018), alongside the file states.
+  const [codes, rows] = await Promise.all([
+    referenceCodesFor(
+      db,
+      'R',
+      result.value.map((r) => r.id),
+    ),
+    withRespondingDocumentStates(db, accountId, orgId, result.value, options),
+  ]);
+  if (codes.size === 0) return rows;
+  return rows.map((r) => {
+    const referenceCode = codes.get(r.id);
+    return referenceCode ? { ...r, referenceCode } : r;
+  });
+}
+
+async function withRespondingDocumentStates(
+  db: Db,
+  accountId: string,
+  orgId: string,
+  requests: readonly EvidenceRequestRow[],
+  options: { readonly withFileStates?: boolean },
+): Promise<EvidenceRequestRow[]> {
+  if (options.withFileStates !== true) return [...requests];
+  const answered = requests.filter(
     (r) =>
       r.kind === 'DOCUMENT' &&
       (r.status === 'RECEIVED' || r.status === 'UNDER_REVIEW') &&
       r.respondingDocumentId,
   );
-  if (answered.length === 0) return result.value;
+  if (answered.length === 0) return [...requests];
   const scopes = new Map<string, { applicantId: string } | { missionId: string }>();
   for (const r of answered) {
     if (r.missionId) scopes.set(`m:${r.missionId}`, { missionId: r.missionId });
@@ -146,7 +172,7 @@ export async function loadEvidenceRequests(
       }
     }),
   );
-  return result.value.map((r) =>
+  return requests.map((r) =>
     states.has(r.id) ? { ...r, respondingDocumentState: states.get(r.id) ?? null } : r,
   );
 }
@@ -221,7 +247,7 @@ export async function loadCases(
   members: readonly OrgMember[],
 ) {
   const visible = await listVisibleMissionsForMember(db, orgId, accountId);
-  const cases = await Promise.all(
+  const casesRead = Promise.all(
     visible.missions.map(async (mission) => {
       const [
         assignments,
@@ -343,7 +369,23 @@ export async function loadCases(
       };
     }),
   );
-  return { admin: visible.admin, cases };
+  // One registry read for the whole list (ADR 0018), never one per case.
+  const [caseCodes, cases] = await Promise.all([
+    referenceCodesFor(
+      db,
+      'C',
+      visible.missions.map((m) => m.missionId),
+    ),
+    casesRead,
+  ]);
+  return {
+    admin: visible.admin,
+    cases: cases.map((c): typeof c & { readonly referenceCode?: string } => {
+      // The case's visible code (`C-7K2Q9M`); absent when it has none yet.
+      const referenceCode = caseCodes.get(c.missionId);
+      return referenceCode ? { ...c, referenceCode } : c;
+    }),
+  };
 }
 
 export type CaseDetail = Awaited<ReturnType<typeof loadCases>>['cases'][number];

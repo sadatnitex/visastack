@@ -19,6 +19,7 @@ import { getLiveAcknowledgement, incrementMaterialRevision } from './material-re
 import { cancelQueuedNotificationsForResource } from './notifications';
 import { type PackRequirement, listRequirements } from './packs';
 import { elapsedSeconds, recordProductEvent } from './product-events';
+import { assignReferenceCode } from './reference-codes';
 import {
   type EvaluationContext,
   type RuleConditionResult,
@@ -237,6 +238,8 @@ export async function createMission(
       ),
       'mission',
     );
+    // The visible code people quote (ADR 0018), in the same transaction.
+    await assignReferenceCode(tx, 'C', mission.id);
     await appendAuditEvent(tx, {
       eventType: 'MISSION_CREATED',
       actorAccountId: input.actorAccountId,

@@ -22,12 +22,14 @@ import {
   loadUploadQuotaConfig,
   mbLabel,
   readDocumentProtectionSettings,
+  referenceCodesFor,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AutoRefresh } from '../../../../../components/auto-refresh';
 import { DocumentWalletBrowser } from '../../../../../components/document-wallet-browser';
+import { ReferenceCode } from '../../../../../components/reference-code';
 import { PageHeader } from '../../../../../components/ui';
 import { VisaPhotoSizes } from '../../../../../components/visa-photo-sizes';
 import {
@@ -226,8 +228,15 @@ export default async function ApplicantDocumentsPage({
     const protection = await readDocumentProtectionSettings(db).catch(
       () => DEFAULT_DOCUMENT_PROTECTION,
     );
+    // Visible codes (ADR 0018) for the documents already read above; none before migration 0091.
+    const referenceCodes = await referenceCodesFor(
+      db,
+      'D',
+      documentRows.map((doc) => doc.id),
+    );
     return {
       protection,
+      referenceCodes,
       displayName: applicant.displayName ?? 'Unknown',
       documents: documentRows,
       recordsUnavailable: !documents.ok || !wallet.ok,
@@ -402,6 +411,7 @@ export default async function ApplicantDocumentsPage({
                 className="wallet-document-actions"
                 style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}
               >
+                <ReferenceCode code={data.referenceCodes.get(doc.id)} label="Document Reference" />
                 <div className="row">
                   <span className="row-key" style={{ wordBreak: 'break-word' }}>
                     {doc.approvedName ?? doc.originalName}

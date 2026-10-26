@@ -1297,3 +1297,10 @@ export {
   type InvitationCaseException,
   type SharingInvitation,
 } from './sharing-invitations';
+export {
+  assignReferenceCode,
+  assignReferenceCodes,
+  referenceCodeFor,
+  referenceCodesFor,
+  referenceCodesTablePresent,
+} from './reference-codes';

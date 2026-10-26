@@ -143,6 +143,21 @@ describe('actual toolbar component behavior, without provider-backed acceptance 
     );
     expect(container.textContent).not.toContain('No accessible records match');
   });
+  it('says why a typed reference found nothing when the server explains it (ADR 0018)', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          results: [],
+          notice: 'One character in that reference looks wrong. Check it and try again.',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+    await query('C-00K2Q0');
+    await act(() => vi.advanceTimersByTimeAsync(250));
+    expect(container.textContent).toContain('One character in that reference looks wrong.');
+    expect(container.textContent).not.toContain('No accessible records match');
+  });
   it('aborts an in-flight request when the query changes or the context unmounts', async () => {
     fetchMock.mockImplementation(() => new Promise(() => {}));
     await query('Synthetic');

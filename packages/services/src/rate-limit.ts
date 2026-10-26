@@ -68,6 +68,9 @@ export const RATE_LIMITS = {
    */
   PHOTO_CHECK: { limit: 60, windowMs: HOUR_MS },
   PHOTO_SIZE: { limit: 120, windowMs: HOUR_MS },
+  // Looking a record up by its visible reference code (ADR 0018), per account: well above real
+  // use, far below what guessing codes would need.
+  REFERENCE_LOOKUP: { limit: 60, windowMs: HOUR_MS },
 } as const satisfies Record<string, RateLimitConfig>;
 
 export type RateLimitDecision =

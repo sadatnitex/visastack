@@ -1,0 +1,54 @@
+# WP-REF visible reference codes (owner approval 26 Oct 2026, docs/upgrades/programme/WP-REF-PLAN.md).
+packages/core/src/reference-code*.ts
+packages/core/src/index.ts
+packages/db/src/schema.ts
+packages/db/src/reference-codes-migration.test.ts
+packages/db/migrations/0091_*.sql
+packages/db/migrations/meta/0091_snapshot.json
+packages/db/migrations/meta/_journal.json
+packages/services/src/reference-codes*.ts
+packages/services/src/applicants.ts
+packages/services/src/missions.ts
+packages/services/src/documents.ts
+packages/services/src/agency.ts
+packages/services/src/errors.ts
+packages/services/src/ai-data-terms.ts
+packages/services/src/rate-limit.ts
+packages/services/src/workspace-search.ts
+packages/services/src/workspace-search.test.ts
+packages/services/src/export-csv.ts
+packages/services/src/index.ts
+packages/load/src/dataset.ts
+apps/web/preview/world.ts
+apps/web/src/lib/ics*.ts
+# components/ui is a single file (ui.tsx), not a folder: the shared code display lives beside it.
+apps/web/src/components/reference-code*.tsx
+apps/web/src/app/globals.css
+apps/web/src/app/app/mission/[id]/page*.tsx
+apps/web/src/app/app/applicant/[id]/documents/page*.tsx
+apps/web/src/app/app/applicant/[id]/evidence/page.tsx
+apps/web/src/app/app/applicant/[id]/record/**
+apps/web/src/app/app/agency/[orgId]/console-data*.ts
+apps/web/src/app/app/agency/[orgId]/follow-up-message*.ts
+apps/web/src/app/app/agency/[orgId]/follow-up-copy*.tsx
+apps/web/src/app/app/agency/[orgId]/export/route*.ts
+apps/web/src/app/api/workspace/search/route*.ts
+docs/adr/**
+docs/upgrades/programme/**
+docs/commercial-v1/known-issues.md
+apps/web/src/app/app/applicant/[id]/evidence/page.test.tsx
+# The approved design shows codes on the agency console; these are the screens that draw its cases
+# and requests, and the Do Next builder that passes a request's code to the follow-up message.
+apps/web/src/app/app/agency/[orgId]/mission-collaboration*.tsx
+apps/web/src/app/app/agency/[orgId]/cases/page*.tsx
+apps/web/src/app/app/agency/[orgId]/page*.tsx
+apps/web/src/app/app/agency/[orgId]/clients/page*.tsx
+apps/web/src/app/app/agency/[orgId]/do-next*.ts
+packages/services/src/export-csv.test.ts
+# The account export reads the codes of records already in it and hands them to the CSV builder.
+packages/services/src/account-export.ts
+# The calendar's dated items carry their case's visible code (owner-only read), for the event description.
+packages/services/src/attention.ts
+packages/services/src/attention.test.ts
+# The search box says when a typed reference has a wrong character, instead of "no match".
+apps/web/src/app/app/workspace-record-toolbar*.tsx

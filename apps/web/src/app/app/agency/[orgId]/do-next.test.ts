@@ -1,3 +1,4 @@
+import { referenceCheckCharacter } from '@visastack/core';
 import { describe, expect, it } from 'vitest';
 import { type DoNextCase, type DoNextInput, type DoNextRequest, buildDoNext } from './do-next';
 
@@ -229,6 +230,30 @@ describe('Do next ranking (ADR-0015)', () => {
     expect(item.action.message.agencyNoteLeftOut).toBe(true);
     expect(item.action.message.text).not.toMatch(/r1|m1|ap-m1|https?:|@/);
     expect(item.action.message.text).toContain('What we need: Bank Statement');
+  });
+
+  it('names the request by its visible code when it has one (ADR 0018)', () => {
+    const build = (referenceCode?: string) => {
+      const [item] = buildDoNext(
+        input({
+          cases: [caseRow({ missionId: 'm1', applicantName: 'Rahim Uddin' })],
+          requests: [
+            requestRow({
+              id: 'r1',
+              applicantName: 'Rahim Uddin',
+              dueDate: day(-3),
+              ...(referenceCode ? { referenceCode } : {}),
+            }),
+          ],
+        }),
+      );
+      if (item?.action.kind !== 'follow-up') throw new Error('expected a follow-up action');
+      return item.action.message.text;
+    };
+    // 00 is never issued, so this example can never name a real request.
+    const code = `R-00K2Q${referenceCheckCharacter('R', '00K2Q')}`;
+    expect(build(code)).toContain(`Request reference: ${code}`);
+    expect(build()).not.toContain('Request reference');
   });
 });
 

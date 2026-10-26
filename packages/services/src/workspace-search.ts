@@ -1,11 +1,33 @@
-import { type Result, err, ok } from '@visastack/core';
-import { and, asc, eq, gt, ilike, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
+import {
+  type ReferenceKind,
+  type Result,
+  err,
+  formatReferenceCode,
+  ok,
+  readsAsReferenceCode,
+} from '@visastack/core';
+import {
+  type SQL,
+  type SQLWrapper,
+  and,
+  asc,
+  eq,
+  gt,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { withCaseExclusions } from './access/grant-scope';
 import { type Db, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { referenceCodesTablePresent } from './reference-codes';
 
 export interface WorkspaceSearchResult {
-  readonly category: 'Profile' | 'Case' | 'Document' | 'Client';
+  readonly category: 'Profile' | 'Case' | 'Document' | 'Client' | 'Request';
   readonly id: string;
   readonly label: string;
   readonly href: string;
@@ -52,40 +74,49 @@ export async function searchWorkspaceRecords(
       return err(serviceError('forbidden', 'This agency workspace is unavailable.'));
     const now = new Date();
     // Same current grant and assignment boundaries as the existing visible-case list.
-    const cases = await withCaseExclusions(db, (covers) =>
-      db
-        .selectDistinct({
-          id: schema.missions.id,
-          title: schema.missions.title,
-          applicantId: schema.applicants.id,
-          name: schema.applicants.displayName,
-        })
-        .from(schema.grants)
-        .innerJoin(schema.applicants, eq(schema.applicants.id, schema.grants.applicantId))
-        .innerJoin(schema.missions, eq(schema.missions.applicantId, schema.applicants.id))
-        .innerJoin(
-          schema.organizations,
-          eq(schema.organizations.id, schema.grants.recipientOrganizationId),
-        )
-        .where(
-          and(
-            eq(schema.grants.recipientOrganizationId, scope.organizationId),
-            eq(schema.grants.status, 'ACTIVE'),
-            isNotNull(schema.grants.acceptedAt),
-            lte(schema.grants.startAt, now),
-            or(isNull(schema.grants.expiryAt), gt(schema.grants.expiryAt, now)),
-            // The same case-scope rule as the case list, per-case exceptions included (ADR 0017).
-            covers(schema.missions.id),
-            eq(schema.organizations.status, 'ACTIVE'),
-            sql`exists (select 1 from ${schema.memberships} where ${schema.memberships.organizationId} = ${scope.organizationId} and ${schema.memberships.accountId} = ${actorAccountId} and ${schema.memberships.active} = true and (${schema.memberships.role} in ('OWNER', 'ADMIN') or exists (select 1 from ${schema.assignments} where ${schema.assignments.organizationId} = ${scope.organizationId} and ${schema.assignments.memberAccountId} = ${actorAccountId} and ${schema.assignments.missionId} = ${schema.missions.id})))`,
-            or(
-              ilike(schema.missions.title, pattern),
-              ilike(schema.applicants.displayName, pattern),
+    const visibleCases = (match: SQL, limit: number) =>
+      withCaseExclusions(db, (covers) =>
+        db
+          .selectDistinct({
+            id: schema.missions.id,
+            title: schema.missions.title,
+            applicantId: schema.applicants.id,
+            name: schema.applicants.displayName,
+          })
+          .from(schema.grants)
+          .innerJoin(schema.applicants, eq(schema.applicants.id, schema.grants.applicantId))
+          .innerJoin(schema.missions, eq(schema.missions.applicantId, schema.applicants.id))
+          .innerJoin(
+            schema.organizations,
+            eq(schema.organizations.id, schema.grants.recipientOrganizationId),
+          )
+          .where(
+            and(
+              eq(schema.grants.recipientOrganizationId, scope.organizationId),
+              eq(schema.grants.status, 'ACTIVE'),
+              isNotNull(schema.grants.acceptedAt),
+              lte(schema.grants.startAt, now),
+              or(isNull(schema.grants.expiryAt), gt(schema.grants.expiryAt, now)),
+              // The same case-scope rule as the case list, per-case exceptions included (ADR 0017).
+              covers(schema.missions.id),
+              eq(schema.organizations.status, 'ACTIVE'),
+              sql`exists (select 1 from ${schema.memberships} where ${schema.memberships.organizationId} = ${scope.organizationId} and ${schema.memberships.accountId} = ${actorAccountId} and ${schema.memberships.active} = true and (${schema.memberships.role} in ('OWNER', 'ADMIN') or exists (select 1 from ${schema.assignments} where ${schema.assignments.organizationId} = ${scope.organizationId} and ${schema.assignments.memberAccountId} = ${actorAccountId} and ${schema.assignments.missionId} = ${schema.missions.id})))`,
+              match,
             ),
-          ),
-        )
-        .orderBy(asc(schema.missions.id))
-        .limit(12),
+          )
+          .orderBy(asc(schema.missions.id))
+          .limit(limit),
+      );
+    const code = readsAsReferenceCode(value);
+    const codeResults = code.ok
+      ? await agencyCodeResults(db, scope.organizationId, actorAccountId, code, visibleCases)
+      : [];
+    const cases = await visibleCases(
+      or(
+        ilike(schema.missions.title, pattern),
+        ilike(schema.applicants.displayName, pattern),
+      ) as SQL,
+      12,
     );
     const results: WorkspaceSearchResult[] = cases.map((row) => ({
       category: 'Case',
@@ -103,7 +134,12 @@ export async function searchWorkspaceRecords(
           label: row.name,
           href: `/app/agency/${scope.organizationId}/cases#mission-${row.id}`,
         });
-    return ok([...results.slice(0, 6), ...[...clients.values()].slice(0, 6)]);
+    return ok(
+      withCodeResultsFirst(codeResults, [
+        ...results.slice(0, 6),
+        ...[...clients.values()].slice(0, 6),
+      ]),
+    );
   }
   const owned = and(
     eq(schema.applicants.ownerAccountId, actorAccountId),
@@ -118,6 +154,8 @@ export async function searchWorkspaceRecords(
     if (!subject.length)
       return err(serviceError('forbidden', 'This traveller workspace is unavailable.'));
   }
+  const code = readsAsReferenceCode(value);
+  const codeResults = code.ok ? await personalCodeResults(db, owned, code) : [];
   const [people, cases, documents] = await Promise.all([
     db
       .select({ id: schema.applicants.id, name: schema.applicants.displayName })
@@ -154,30 +192,252 @@ export async function searchWorkspaceRecords(
       .orderBy(asc(schema.documents.id))
       .limit(6),
   ]);
-  return ok([
-    ...people.map(
-      (row): WorkspaceSearchResult => ({
-        category: 'Profile',
-        id: row.id,
-        label: row.name,
-        href: `/app/applicant/${row.id}/profile`,
-      }),
-    ),
-    ...cases.map(
-      (row): WorkspaceSearchResult => ({
-        category: 'Case',
-        id: row.id,
-        label: row.title,
-        href: `/app/mission/${row.id}`,
-      }),
-    ),
-    ...documents.map(
-      (row): WorkspaceSearchResult => ({
-        category: 'Document',
-        id: row.id,
-        label: row.approvedName ?? row.originalName,
-        href: `/app/applicant/${row.applicantId}/documents#document-${row.id}`,
-      }),
-    ),
-  ]);
+  return ok(
+    withCodeResultsFirst(codeResults, [
+      ...people.map(
+        (row): WorkspaceSearchResult => ({
+          category: 'Profile',
+          id: row.id,
+          label: row.name,
+          href: `/app/applicant/${row.id}/profile`,
+        }),
+      ),
+      ...cases.map(
+        (row): WorkspaceSearchResult => ({
+          category: 'Case',
+          id: row.id,
+          label: row.title,
+          href: `/app/mission/${row.id}`,
+        }),
+      ),
+      ...documents.map(
+        (row): WorkspaceSearchResult => ({
+          category: 'Document',
+          id: row.id,
+          label: row.approvedName ?? row.originalName,
+          href: `/app/applicant/${row.applicantId}/documents#document-${row.id}`,
+        }),
+      ),
+    ]),
+  );
+}
+
+// --- Visible reference codes (ADR 0018) --------------------------------------
+//
+// Text that reads as a reference code (`C-7K2Q9M`, see `readsAsReferenceCode`)
+// also looks up the one record it names, only when the same search would let
+// this person see it: the owner's own records, or the agency's visible cases
+// and its own requests. The code is matched inside the same visibility query
+// (joined to the registry), so an unknown code, a deleted record and a record
+// this person may not see take the same path and give the same answer. The
+// normal text search still runs, so a word that is also a valid code is
+// found as a word too.
+
+type ParsedCode = { readonly kind: ReferenceKind; readonly code: string };
+
+/** Code hits first, then the text results, each record once. */
+function withCodeResultsFirst(
+  codeResults: readonly WorkspaceSearchResult[],
+  textResults: readonly WorkspaceSearchResult[],
+): WorkspaceSearchResult[] {
+  const seen = new Set(codeResults.map((r) => `${r.category}:${r.id}`));
+  return [...codeResults, ...textResults.filter((r) => !seen.has(`${r.category}:${r.id}`))];
+}
+
+/** The registry row for this code exists and names the record in `entityId`. */
+function namedByCode(parsed: ParsedCode, entityId: SQL | SQLWrapper): SQL {
+  const codes = schema.referenceCodes;
+  return sql`exists (select 1 from ${codes} where ${codes.kind} = ${parsed.kind} and ${codes.code} = ${parsed.code} and ${codes.entityId} = ${entityId})`;
+}
+
+async function personalCodeResults(
+  db: Db,
+  owned: SQL | undefined,
+  parsed: ParsedCode,
+): Promise<WorkspaceSearchResult[]> {
+  if (!(await referenceCodesTablePresent(db))) return [];
+  const reference = formatReferenceCode(parsed.kind, parsed.code);
+  switch (parsed.kind) {
+    case 'P': {
+      const [row] = await db
+        .select({ id: schema.applicants.id, name: schema.applicants.displayName })
+        .from(schema.applicants)
+        .where(and(owned, namedByCode(parsed, schema.applicants.id)))
+        .limit(1);
+      return row
+        ? [
+            {
+              category: 'Profile',
+              id: row.id,
+              label: `${reference} ${row.name}`,
+              href: `/app/applicant/${row.id}/profile`,
+            },
+          ]
+        : [];
+    }
+    case 'C': {
+      const [row] = await db
+        .select({ id: schema.missions.id, title: schema.missions.title })
+        .from(schema.missions)
+        .innerJoin(schema.applicants, eq(schema.applicants.id, schema.missions.applicantId))
+        .where(and(owned, namedByCode(parsed, schema.missions.id)))
+        .limit(1);
+      return row
+        ? [
+            {
+              category: 'Case',
+              id: row.id,
+              label: `${reference} ${row.title}`,
+              href: `/app/mission/${row.id}`,
+            },
+          ]
+        : [];
+    }
+    case 'D': {
+      const [row] = await db
+        .select({
+          id: schema.documents.id,
+          applicantId: schema.applicants.id,
+          originalName: schema.documents.originalName,
+          approvedName: schema.documents.approvedName,
+        })
+        .from(schema.documents)
+        .innerJoin(schema.applicants, eq(schema.applicants.id, schema.documents.applicantId))
+        .where(
+          and(
+            owned,
+            eq(schema.documents.walletVisible, true),
+            namedByCode(parsed, schema.documents.id),
+          ),
+        )
+        .limit(1);
+      return row
+        ? [
+            {
+              category: 'Document',
+              id: row.id,
+              label: `${reference} ${row.approvedName ?? row.originalName}`,
+              href: `/app/applicant/${row.applicantId}/documents#document-${row.id}`,
+            },
+          ]
+        : [];
+    }
+    case 'R': {
+      const [row] = await db
+        .select({ id: schema.evidenceRequests.id, applicantId: schema.applicants.id })
+        .from(schema.evidenceRequests)
+        .innerJoin(schema.applicants, eq(schema.applicants.id, schema.evidenceRequests.applicantId))
+        .where(and(owned, namedByCode(parsed, schema.evidenceRequests.id)))
+        .limit(1);
+      return row
+        ? [
+            {
+              category: 'Request',
+              id: row.id,
+              label: `${reference} Evidence Request`,
+              href: `/app/applicant/${row.applicantId}/evidence#request-${row.id}`,
+            },
+          ]
+        : [];
+    }
+  }
+}
+
+async function agencyCodeResults(
+  db: Db,
+  organizationId: string,
+  actorAccountId: string,
+  parsed: ParsedCode,
+  visibleCases: (
+    match: SQL,
+    limit: number,
+  ) => Promise<readonly { id: string; title: string; applicantId: string; name: string }[]>,
+): Promise<WorkspaceSearchResult[]> {
+  if (!(await referenceCodesTablePresent(db))) return [];
+  const reference = formatReferenceCode(parsed.kind, parsed.code);
+  const caseHref = (missionId: string) =>
+    `/app/agency/${organizationId}/cases#mission-${missionId}`;
+  switch (parsed.kind) {
+    case 'C': {
+      const [row] = await visibleCases(namedByCode(parsed, schema.missions.id), 1);
+      return row
+        ? [
+            {
+              category: 'Case',
+              id: row.id,
+              label: `${reference} ${row.title}`,
+              href: caseHref(row.id),
+            },
+          ]
+        : [];
+    }
+    case 'P': {
+      // A client opens at a case the agency may see, never at an owner-only profile.
+      const [row] = await visibleCases(namedByCode(parsed, schema.applicants.id), 1);
+      return row
+        ? [
+            {
+              category: 'Client',
+              id: row.applicantId,
+              label: `${reference} ${row.name}`,
+              href: caseHref(row.id),
+            },
+          ]
+        : [];
+    }
+    case 'R': {
+      // The agency's own request, for its administrators (who manage requests),
+      // on a case it still sees, or for a traveller it still sees a case of. The
+      // administrator check depends on the person only, never on the code.
+      const [admin] = await db
+        .select({ id: schema.memberships.id })
+        .from(schema.memberships)
+        .where(
+          and(
+            eq(schema.memberships.organizationId, organizationId),
+            eq(schema.memberships.accountId, actorAccountId),
+            eq(schema.memberships.active, true),
+            inArray(schema.memberships.role, ['OWNER', 'ADMIN']),
+          ),
+        )
+        .limit(1);
+      if (!admin) return [];
+      const [request] = await db
+        .select({
+          id: schema.evidenceRequests.id,
+          applicantId: schema.evidenceRequests.applicantId,
+          missionId: schema.evidenceRequests.missionId,
+        })
+        .from(schema.evidenceRequests)
+        .where(
+          and(
+            eq(schema.evidenceRequests.organizationId, organizationId),
+            namedByCode(parsed, schema.evidenceRequests.id),
+          ),
+        )
+        .limit(1);
+      // Past this point the request is this organization's own: no one else's
+      // record can be told apart by timing.
+      if (!request) return [];
+      const [seen] = await visibleCases(
+        request.missionId
+          ? eq(schema.missions.id, request.missionId)
+          : eq(schema.applicants.id, request.applicantId),
+        1,
+      );
+      return seen
+        ? [
+            {
+              category: 'Request',
+              id: request.id,
+              label: `${reference} Evidence Request`,
+              href: `/app/agency/${organizationId}/clients#request-${request.id}`,
+            },
+          ]
+        : [];
+    }
+    case 'D':
+      // Agencies reach documents through cases and requests, not by code.
+      return [];
+  }
 }

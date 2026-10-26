@@ -575,6 +575,10 @@ export default async function AgencyDashboardPage({
                           {request.dueDate ? (
                             <small>Due {formatTimestampDate(request.dueDate)}</small>
                           ) : null}
+                          {/* Plain text inside the link: a Copy button cannot sit inside a link. */}
+                          {request.referenceCode ? (
+                            <small translate="no">{request.referenceCode}</small>
+                          ) : null}
                         </Link>
                       </li>
                     ))}

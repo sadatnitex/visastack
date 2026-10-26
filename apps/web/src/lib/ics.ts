@@ -14,6 +14,7 @@
  * a guessed time.
  */
 
+import { formatReferenceCode, parseReferenceCode } from '@visastack/core';
 import {
   CALENDAR_KINDS,
   type CalendarEvent,
@@ -98,8 +99,29 @@ export function buildIcsForAppointment(
 /** The most events one calendar file holds; the earliest selected dates are kept. */
 export const CALENDAR_EXPORT_LIMIT = 100;
 
-/** The one generic line every exported event carries: no link, no id, no detail. */
+/** The generic line every exported event carries: no link, no id, no detail. */
 export const CALENDAR_EVENT_DESCRIPTION = 'From VisaStack. Open VisaStack for the details.';
+
+/**
+ * A dated item, with its case's visible code (`C-7K2Q9M`, ADR 0018) when the item belongs to a
+ * case that has one. The code is optional and never part of the UID.
+ */
+export type CalendarItemWithReference = CalendarItem & {
+  readonly caseReference?: string | null;
+};
+
+/**
+ * The event's description: the generic line, plus "Case reference C-7K2Q9M" when the item's case
+ * has a visible code (owner decision 26 Oct 2026). Only a well-formed case code with a correct
+ * check character is written; anything else leaves the generic line alone, so no other text can
+ * reach a calendar this way.
+ */
+export function calendarEventDescription(caseReference: string | null | undefined): string {
+  if (!caseReference) return CALENDAR_EVENT_DESCRIPTION;
+  const parsed = parseReferenceCode(caseReference, 'C');
+  if (!parsed.ok) return CALENDAR_EVENT_DESCRIPTION;
+  return `From VisaStack. Case reference ${formatReferenceCode('C', parsed.code)}. Open VisaStack for the details.`;
+}
 
 /** The download's file name: generic, never a person, a case or an id. */
 export const CALENDAR_FILE_NAME = 'visastack-dates.ics';
@@ -179,7 +201,7 @@ function startFor(kind: CalendarKind, when: CalendarItemWhen): CalendarStart {
 
 /** One server item as a provider-neutral event, under the person's options. */
 export function calendarEventFor(
-  item: CalendarItem,
+  item: CalendarItemWithReference,
   options: CalendarExportOptions,
 ): CalendarEvent {
   const start = startFor(item.kind, item.when);
@@ -191,7 +213,10 @@ export function calendarEventFor(
     start,
     end: endFor(item.kind, start),
     title: calendarEventTitle(item, options),
-    description: CALENDAR_EVENT_DESCRIPTION,
+    // The case code only when the person chose to show case names: generic titles stay generic.
+    description: calendarEventDescription(
+      options.titleStyle === 'withCaseNames' ? item.caseReference : null,
+    ),
     privacy: 'private',
     categories: [kind.category],
     ...(options.alarms.length > 0
@@ -209,7 +234,7 @@ export function calendarEventFor(
  * counts the selected ones over the cap. The preview and the file both come from this.
  */
 export function selectCalendarEvents(
-  items: readonly CalendarItem[],
+  items: readonly CalendarItemWithReference[],
   keys: Iterable<string>,
   options: CalendarExportOptions,
 ): { readonly events: CalendarEvent[]; readonly leftOut: number } {

@@ -1,4 +1,4 @@
-import { bulkExport } from '@visastack/services';
+import { bulkExport, referenceCodesFor } from '@visastack/services';
 import {
   capabilityUnavailableMessage,
   getPlatformCapabilities,
@@ -50,7 +50,19 @@ export async function GET(
       purpose,
       stepUpSatisfied: true,
     });
-    return { result } as const;
+    if (!result.ok) return { result } as const;
+    // Each exported person's visible code (`P-7K2Q9M`, ADR 0018), read in one call
+    // for exactly the people already in this export and nobody else.
+    const codes = await referenceCodesFor(
+      db,
+      'P',
+      result.value.map((row) => row.applicantId),
+    );
+    const applicants = result.value.map((row) => {
+      const referenceCode = codes.get(row.applicantId);
+      return referenceCode ? { ...row, referenceCode } : row;
+    });
+    return { result, applicants } as const;
   });
 
   if ('notConfigured' in outcome) {
@@ -72,11 +84,8 @@ export async function GET(
     return new Response(`export failed: ${result.error.message}`, { status: 403 });
   }
 
-  const body = JSON.stringify(
-    { organizationId: orgId, purpose, applicants: result.value },
-    null,
-    2,
-  );
+  const applicants = 'applicants' in outcome ? outcome.applicants : result.value;
+  const body = JSON.stringify({ organizationId: orgId, purpose, applicants }, null, 2);
   const stamp = new Date().toISOString().slice(0, 10);
   return new Response(body, {
     status: 200,

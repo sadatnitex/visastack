@@ -5,6 +5,7 @@ import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { recordProductEvent } from './product-events';
+import { assignReferenceCode } from './reference-codes';
 
 /**
  * Applicant, family-member, and authorized minor/guardian records
@@ -118,6 +119,8 @@ export async function createApplicant(
       ),
       'applicant',
     );
+    // The visible code people quote (ADR 0018), in the same transaction.
+    await assignReferenceCode(tx, 'P', applicant.id);
     await appendAuditEvent(tx, {
       eventType: 'APPLICANT_CREATED',
       actorAccountId: input.actorAccountId,

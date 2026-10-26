@@ -67,6 +67,7 @@ export default async function AgencyCasesPage({
               missionId={mission.missionId}
               applicantId={mission.applicantId}
               title={mission.title}
+              {...(mission.referenceCode ? { referenceCode: mission.referenceCode } : {})}
               applicantName={mission.applicantName}
               members={data.members.map((m) => ({ accountId: m.accountId, email: m.email }))}
               assignments={mission.assignments}

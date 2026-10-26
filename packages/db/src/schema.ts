@@ -22,6 +22,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -3978,5 +3979,33 @@ export const applicantPhotos = pgTable(
   (table) => [
     check('applicant_photos_sha256_format', sql`${table.contentSha256} ~ '^[0-9a-f]{64}$'`),
     check('applicant_photos_size_bounds', sql`${table.sizeBytes} between 1 and 1048576`),
+  ],
+);
+
+// --- Visible reference codes (WP-REF, ADR 0018, owner decision 2026-10-26) ---
+// One registry for the short codes people read aloud and quote (for example
+// C-7K2Q9M): a type letter and 6 to 8 characters of Crockford base32 whose
+// last character is a check character (packages/core/src/reference-code.ts).
+// Internal ids never change; this is a second, human name for a record. A
+// registry, not a column per table: the four record tables are read with
+// bare selects in about 117 places, which a new column would break between a
+// deploy and its migration. Rows are never deleted and carry no foreign key,
+// so a code is unique per type forever and never reused, even after the
+// record is erased (a code and a dead id are not personal data).
+export const referenceKind = pgEnum('reference_kind', ['P', 'C', 'D', 'R']);
+
+export const referenceCodes = pgTable(
+  'reference_codes',
+  {
+    kind: referenceKind('kind').notNull(),
+    // Stored without the type letter and hyphen.
+    code: text('code').notNull(),
+    entityId: uuid('entity_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ name: 'reference_codes_pkey', columns: [table.kind, table.code] }),
+    unique('reference_codes_kind_entity_unique').on(table.kind, table.entityId),
+    check('reference_codes_code_format', sql`${table.code} ~ '^[0-9A-HJKMNP-TV-Z]{6,8}$'`),
   ],
 );

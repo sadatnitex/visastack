@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { ReferenceCode } from '../../../../components/reference-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { reviewDecisionLabel } from '../../../../lib/labels';
 import {
@@ -96,6 +97,8 @@ interface MissionCollaborationProps {
   readonly missionId: string;
   readonly applicantId: string;
   readonly title: string;
+  /** The case's visible code (ADR 0018), when it has one. */
+  readonly referenceCode?: string;
   readonly applicantName: string;
   readonly members: readonly MemberOption[];
   readonly assignments: readonly AssignmentView[];
@@ -116,6 +119,7 @@ export function MissionCollaboration({
   missionId,
   applicantId,
   title,
+  referenceCode,
   applicantName,
   members,
   assignments,
@@ -183,6 +187,7 @@ export function MissionCollaboration({
         <span className="row-key">{title}</span>
         <span className="muted u-fs-085">{applicantName}</span>
       </div>
+      <ReferenceCode code={referenceCode} label="Case Reference" />
 
       {triage ? <CaseTriageSummary view={triage} headingId={`triage-${missionId}`} /> : null}
 
