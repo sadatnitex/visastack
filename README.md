@@ -18,7 +18,7 @@ Read [the current product and release state](docs/public-beta/CURRENT-STATE.md) 
 | --- | --- | --- |
 | Product | Public beta (free, at your own risk) in controlled pilot mode; made-up records only; real applicant data and commercial claims disabled | Public sensitive-data release acceptance and the owner's approval |
 | Identity and mail | Neon Auth is the only sign-in system; separate Resend application mail with signed delivery callbacks | Full sign-up, reset and confirmation journeys, physical inbox receipt, staff two-step sign-in acceptance |
-| Traveller workspace | Task-first first run; four-tab record view with the Record hub; Application Memory and the then-and-now view; profile photos; visa photo sizes from one passport photo | Needs Attention and the reordered Home (WP-V4, in progress); Prepare Again; request screens |
+| Traveller workspace | Task-first first run; four tabs (Home, Record, Cases, Sharing) with the Record hub; Application Memory and the then-and-now view; profile photos; visa photo sizes from one passport photo | Needs Attention and the reordered Home (WP-V4, being built, not yet live); Prepare Again; request screens |
 | Documents and AI | Private R2 storage; AI suggestions saved only after a person approves; AI document kind and name on request; What Your Documents Show; per-provider data terms with a training guard built and switched off | Real malware scanner (readiness reports it unconfigured); real redaction (parked) |
 | Agencies and sharing | Agency triage groups, Do Next list and copy-ready follow-up message; "Download Safe Copies" permission (visa photo sizes now, redacted documents later) | Full owner, worker and client lifecycle journeys |
 | Platform administration | Document protection switches; AI provider settings with draft, activate, roll back, emergency stop and fallback; provider data terms | Staff two-step sign-in acceptance; measured provider cost and capacity |
@@ -45,10 +45,10 @@ Existing policies, consent, quarantine, audit and legal holds remain in place. A
 | **Billing & Notifications** | Plans, invoices, scheduled downgrades, a real Resend outbound adapter with signed delivery reconciliation (configuration and actual inbox acceptance are separate), a notification sweep pipeline, and a platform admin console over all of it. |
 | **Applicant Trust & Lifecycle** | Truth-check attestations, acknowledgements, case state transitions, retention policies with eligibility-based purge, legal holds that **override deletion**, and a durable erasure outbox with lease-based recovery. |
 | **Reliability** | Liveness + readiness probes; existing i18n infrastructure with Bangla translation deferred; incident runbook + RPO/RTO/restore-drill docs; a tamper-evident, hash-chained audit log on every mutation. |
-| **Programme X experience (Oct 2026)** | Harbor landing, colour layer and brand; task-first first run; four-tab record view (Overview, Profile, Documents, Cases, Sharing and more) with the Record hub; case journey view and changed-case alert; grant review brief; Application Memory and then-and-now comparison; Title Case and one family of form fields across the interface; redesigned account menu. Status: [STATUS.md](docs/upgrades/programme/STATUS.md). |
+| **Programme X experience (Oct 2026)** | Harbor landing, colour layer and brand; task-first first run; four-tab workspace (Home, Record, Cases, Sharing), with My Profile, Documents, Dates & Expiry and History inside the Record hub; case journey view and changed-case alert; grant review brief; Application Memory and then-and-now comparison; Title Case and one family of form fields across the interface; redesigned account menu. Status: [STATUS.md](docs/upgrades/programme/STATUS.md). |
 | **Photos** | One profile photo per person (re-encoded on the server with hidden file details removed, included in the data export, erased on removal) and visa photo sizes cut on request from one shared passport photo for each published country rule, with source and checked date and no acceptance claim. |
 | **AI provider governance** | Per-configuration provider data terms (free or paid, training, retention, region, terms address, date checked), one shared rule for warnings and blocking, and the "Only Use AI Providers That Do Not Train on Inputs" setting, built and off by owner decision. Review: [AI processing review](docs/legal/ai-processing-review-2026-10-25.md); runbook: [switching AI providers](docs/operations/runbooks/switch-ai-provider.md). |
-| **Central access gate** | `packages/services/src/access/`: applicant reads take a proof from `requireAccess`; a ratchet test stops new ungated reads from being added. |
+| **Central access gate** | `packages/services/src/access/`: new applicant reads take a proof from `requireAccess`; about 313 older service functions are still to move behind it, and a ratchet test stops new ungated reads being added. |
 
 ## Principles (enforced, not aspirational)
 
@@ -153,7 +153,7 @@ Set values separately for Production and the intended Preview scope. Public read
 | `STORAGE_PROVIDER=r2`, `R2_ENDPOINT_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_REGION` | Configured private R2 document storage | current production storage; region defaults to auto and EU jurisdiction uses the EU account endpoint |
 | `BLOB_READ_WRITE_TOKEN` | Alternate Vercel private storage adapter | only an explicitly selected compatible deployment |
 | `BLOB_SIGNING_SECRET` | HMAC secret for signed blob URLs | document serving via the Neon-bytea fallback |
-| `IDENTITY_PROVIDER=neon_auth`, `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET` (32 or more characters) | Neon Auth sign-in, the only sign-in system since #237 | every deployment; any other identity value is refused and reported by readiness |
+| `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET` (32 or more characters), optional `IDENTITY_PROVIDER=neon_auth` | Neon Auth sign-in, the only sign-in system since #237 | every deployment; `IDENTITY_PROVIDER` may be blank or `neon_auth`, and any other value is refused and reported by readiness |
 | `PUBLIC_BETA_OPEN=true` | Opens public sign-up | only when Neon Auth is fully configured; without it sign-up is invite-only |
 | `EMAIL_PROVIDER=resend`, `RESEND_API_KEY`, `RESEND_FROM_ADDRESS`, `RESEND_WEBHOOK_SECRET` | Application email and signed delivery reconciliation | separate from Neon Auth SMTP |
 | `PROTECTED_FIELDS_PGCRYPTO=required` and existing application key settings | Native protected-field encryption writes | key recovery/rotation acceptance is still required |
@@ -186,7 +186,7 @@ signed-in check. Production migrations run only through the manual
 
 - `/` - public Harbor landing. The beta notice is hidden for signed-in users.
 - `/invitation` - public account handoff for team and client invitations (bound to the invited email address); signed-in pages review and explicitly accept.
-- `/app` - the signed-in workspace: Home, then each traveller record at `/app/applicant/[id]` with Overview, Profile, Documents, Cases, Sharing and supporting tabs; agency workspaces at `/app/agency/[orgId]`; `/app/admin/*` is the platform admin console (AI provider settings and data terms, document protection, organizations, packs, complaints).
+- `/app` - the signed-in workspace: Home, then each traveller at `/app/applicant/[id]` with four tabs (Home, Record, Cases, Sharing), where Record holds My Profile, Documents, Dates & Expiry and History, plus Notifications and Countries; agency workspaces at `/app/agency/[orgId]`; `/app/admin/*` is the platform admin console (AI provider settings and data terms, document protection, organizations, packs, complaints).
 - `/status` - What Works Today, from the same capability decisions the product uses.
 - `/api/health/live`, `/api/health/ready` - liveness and readiness; readiness reports coarse platform states only.
 - `/api/blob/[key]` - signed, expiring blob serving (returns `503` until storage is configured).

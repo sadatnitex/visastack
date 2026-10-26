@@ -84,7 +84,7 @@ The R2 byte path exposed a Buffer incompatibility in the PDF parser. Extraction,
 Update 2026-10-25: branch previews are off (apps/web/vercel.json deploys main only), so there are no current previews and no preview databases for new pull requests. Mentions of preview readiness above are historical. Pull requests run the browser and smoke checks in `.github/workflows/pr-browser-checks.yml` on the CI machine; real-environment checks run after each production deployment.
 
 Update 2026-10-26:
-- Neon Auth is the only sign-in system since #237; `IDENTITY_PROVIDER` must be `neon_auth`, and the unused `WORKOS_*` variables in Vercel can be deleted by the owner. Mentions of a retained WorkOS path above are historical.
+- Neon Auth is the only sign-in system since #237; `IDENTITY_PROVIDER` may be blank or `neon_auth` (any other value is refused and reported by readiness), and the unused `WORKOS_*` variables in Vercel can be deleted by the owner. Mentions of a retained WorkOS path above are historical.
 - Production has 90 migrations applied (through 0089). Migrations still run only through `db-migrate.yml` with the owner's word for that specific run, and code must tolerate a new table missing in the minutes between deploy and migration.
 - The web app now depends on `sharp` (a native image library) for profile photos and visa photo sizes; it is kept external in `apps/web/next.config.mjs` so the deployed function loads its platform binary. After merging main into a working copy, run `pnpm install` before checking.
 - AI: provider switching lives in `/app/admin/ai-settings`. Record each provider's data terms there before or when switching; see [the switching runbook](runbooks/switch-ai-provider.md). The training guard is off by owner decision.
