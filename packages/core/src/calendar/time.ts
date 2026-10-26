@@ -61,7 +61,7 @@ const DAY_MS = 86_400_000;
  *   so it lands just after the gap, as calendar apps do (02:30 becomes 03:30).
  */
 export function wallClockToUtc(localDateTime: string, timeZone: string): string | null {
-  const match = WALL_CLOCK.exec(localDateTime);
+  const match = localDateTime.match(WALL_CLOCK);
   if (!match || !isKnownTimeZone(timeZone)) return null;
   const [, y, mo, d, h, mi, s] = match;
   const parts = [Number(y), Number(mo), Number(d), Number(h), Number(mi), Number(s ?? 0)] as const;
