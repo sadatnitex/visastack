@@ -25,6 +25,7 @@ import { getOrganization, isOrgAdmin } from './organizations';
 import { type PackRequirement, listRequirements } from './packs';
 import { recordProductEvent } from './product-events';
 import { RATE_LIMITS, checkRateLimit, checkRateLimits } from './rate-limit';
+import { assignReferenceCode } from './reference-codes';
 import { loadGrantsForPolicy } from './sharing';
 
 /**
@@ -1540,6 +1541,8 @@ export async function requestEvidence(
       ),
       'evidence request',
     );
+    // The visible code people quote (ADR 0018), in the same transaction.
+    await assignReferenceCode(tx, 'R', request.id);
     await appendAuditEvent(tx, {
       eventType: 'EVIDENCE_REQUESTED',
       actorAccountId: input.actorAccountId,

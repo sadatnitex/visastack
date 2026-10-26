@@ -1284,3 +1284,11 @@ export {
   revokeSharingInvitation,
   type SharingInvitation,
 } from './sharing-invitations';
+export {
+  assignReferenceCode,
+  assignReferenceCodes,
+  findReferenceEntity,
+  referenceCodeFor,
+  referenceCodesFor,
+  referenceCodesTablePresent,
+} from './reference-codes';

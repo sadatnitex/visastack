@@ -29,6 +29,7 @@ import { isValidDocumentDateString } from './expiry';
 import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
 import { listMembershipsForAccount } from './organizations';
 import { recordProductEvent } from './product-events';
+import { assignReferenceCode } from './reference-codes';
 import { loadGrantsForPolicy } from './sharing';
 import type { AccessRef, AccessVariant, StorageBucket, StoragePort } from './storage';
 import { loadSupportGrantsForPolicy } from './support-access';
@@ -129,6 +130,8 @@ export async function registerDocument(
       ),
       'document',
     );
+    // The visible code people quote (ADR 0018), in the same transaction.
+    await assignReferenceCode(tx, 'D', document.id);
     await appendAuditEvent(tx, {
       eventType: 'DOCUMENT_REGISTERED',
       actorAccountId: input.actorAccountId,
