@@ -1,9 +1,11 @@
 import { MEMBERSHIP_ROLES, ORGANIZATION_STATUSES, PERMISSION_ACTIONS } from '@visastack/core';
 import { schema } from '@visastack/db';
-import { TRIAGE_GROUPS } from '@visastack/services';
+import { type AttentionKind, TRIAGE_GROUPS } from '@visastack/services';
 import { describe, expect, it } from 'vitest';
 import {
   AI_CONFIG_STATUS_LABELS,
+  ATTENTION_ACTION_LABELS,
+  ATTENTION_TIER_LABELS,
   AUDIT_RESULT_LABELS,
   BILLING_STATUS_LABELS,
   CASE_TRIAGE_STATE_LABELS,
@@ -14,13 +16,17 @@ import {
   ORGANIZATION_STATUS_LABELS,
   PERMISSION_ACTION_LABELS,
   REVIEW_DECISION_LABELS,
+  SENT_BACK_ACTION_LABEL,
   TRIAGE_GROUP_LABELS,
   TRIAGE_INDICATOR_LABELS,
   aiProviderLabel,
+  attentionActionLabel,
+  attentionHeading,
   documentTypeLabel,
   eventTypeLabel,
   membershipRoleLabel,
   permissionActionLabel,
+  requestItemLabel,
   titleCase,
 } from './labels';
 
@@ -129,5 +135,76 @@ describe('agency triage words (Programme X E02)', () => {
     expect(words).not.toMatch(/verified|approved|guarantee|submitted/i);
     // A received item is not reviewed: only the Reviewed group may say so.
     expect(TRIAGE_GROUP_LABELS.RECEIVED).not.toMatch(/review/i);
+  });
+});
+
+describe('Needs Attention words (WP-V4 U03, ADR 0016)', () => {
+  it('names all seven tiers and every item kind, in Title Case', () => {
+    expect(Object.keys(ATTENTION_TIER_LABELS).map(Number)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    const kinds: readonly AttentionKind[] = [
+      'evidence_request',
+      'task',
+      'case_changed',
+      'document_expiry',
+      'suggestions',
+      'sharing_invitations',
+    ];
+    expect(Object.keys(ATTENTION_ACTION_LABELS).sort()).toEqual([...kinds].sort());
+    for (const label of [
+      ...Object.values(ATTENTION_TIER_LABELS),
+      ...Object.values(ATTENTION_ACTION_LABELS),
+      SENT_BACK_ACTION_LABEL,
+    ]) {
+      expect(label).toMatch(/^[A-Z][A-Za-z ]*$/);
+      expect(label).toBe(toTitleCase(label));
+    }
+  });
+
+  it('never claims more than the product knows', () => {
+    const words = [
+      ...Object.values(ATTENTION_TIER_LABELS),
+      ...Object.values(ATTENTION_ACTION_LABELS),
+      SENT_BACK_ACTION_LABEL,
+    ].join(' | ');
+    expect(words).not.toMatch(/verified|approved|reviewed|confirmed details|guarantee|submitted/i);
+    expect(words).not.toMatch(/mission/i);
+  });
+
+  it('words the action from the kind, and a sent-back request asks for a replacement', () => {
+    expect(attentionActionLabel({ kind: 'evidence_request', sentBack: false })).toBe(
+      'Reply to Request',
+    );
+    expect(attentionActionLabel({ kind: 'evidence_request', sentBack: true })).toBe(
+      'Send a Replacement',
+    );
+    expect(attentionActionLabel({ kind: 'task', sentBack: false })).toBe('Open Case');
+  });
+
+  it('names what a request asks for and which document expires, else keeps the plain heading', () => {
+    expect(
+      attentionHeading({
+        title: 'Document Requested',
+        subject: { kind: 'request', requestKind: 'DOCUMENT', docType: 'PASSPORT', fieldKey: null },
+      }),
+    ).toBe('Passport');
+    expect(
+      attentionHeading({
+        title: 'Detail Requested',
+        subject: { kind: 'request', requestKind: 'FIELD', docType: null, fieldKey: null },
+      }),
+    ).toBe('Requested Detail');
+    expect(
+      attentionHeading({
+        title: 'Document Expired',
+        subject: { kind: 'document', docType: 'BANK_STATEMENT' },
+      }),
+    ).toBe('Bank Statement');
+    expect(
+      attentionHeading({ title: 'Document Expired', subject: { kind: 'document', docType: null } }),
+    ).toBe('Document Expired');
+    expect(attentionHeading({ title: 'Book the Appointment', subject: null })).toBe(
+      'Book the Appointment',
+    );
+    expect(requestItemLabel({ kind: 'FIELD', fieldKey: 'some_new_key' })).toBe('Some New Key');
   });
 });

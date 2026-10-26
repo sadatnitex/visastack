@@ -23,8 +23,7 @@ import {
   formatDateOnly,
   formatTimestampDate,
 } from '../../../../lib/format-date';
-import { documentTypeLabel, titleCase } from '../../../../lib/labels';
-import { fieldLabel } from '../../../../lib/master-profile';
+import { requestItemLabel } from '../../../../lib/labels';
 import { overdueTasks } from './console-format';
 import { type FollowUpMessage, buildFollowUpMessage } from './follow-up-message';
 
@@ -119,15 +118,8 @@ const time = (value: Date | string | null | undefined): number => {
   return Number.isNaN(ms) ? 0 : ms;
 };
 
-/** The thing a request asks for, in words. */
-export function requestItemLabel(request: Pick<DoNextRequest, 'kind' | 'fieldKey' | 'docType'>) {
-  if (request.kind === 'FIELD') {
-    return request.fieldKey
-      ? (fieldLabel(request.fieldKey) ?? titleCase(request.fieldKey))
-      : 'Requested Detail';
-  }
-  return request.docType ? documentTypeLabel(request.docType) : 'Requested Document';
-}
+/** The thing a request asks for, in words. Shared with Home, so it lives in `lib/labels.ts`. */
+export { requestItemLabel };
 
 interface Ranked {
   readonly item: DoNextItem;

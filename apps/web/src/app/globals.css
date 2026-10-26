@@ -7498,3 +7498,36 @@ summary.visa-photo-title {
 .visa-photo[open] > summary.visa-photo-title {
   margin-bottom: 8px;
 }
+
+/* WP-V4 home (Programme X, U03 and B13): Needs Attention, My Records, Active Requests and Work,
+   then My Next Journey. Needs Attention reuses the agency Do Next item classes; this block only
+   adds the why and date lines and the journey heading. Source order is the reading order on
+   every screen size: nothing here reorders sections. Flat, existing tokens, 44px targets.
+   ========================================================================== */
+.home-attention-why {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+.home-attention-when {
+  margin: 0;
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--text);
+}
+.home-section-title {
+  font-size: 1.08rem;
+  font-weight: 650;
+  letter-spacing: -0.012em;
+  line-height: 1.3;
+  margin: 0 0 0.75rem;
+}
+.home-journey-card {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+.home-journey-card .btn {
+  min-height: 44px;
+}

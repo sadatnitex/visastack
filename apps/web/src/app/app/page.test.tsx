@@ -1,3 +1,4 @@
+import type { AttentionItem } from '@visastack/services';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderServer, stubProps, textOf } from '../../lib/next-mocks.test-support';
 
@@ -11,6 +12,10 @@ const data = vi.hoisted(() => ({
   pendingGrants: 0,
   memberships: [] as { active: boolean }[],
   platformAdmin: false,
+  /** Extra Needs Attention items for every applicant, as the projection would return them. */
+  items: [] as AttentionItem[],
+  /** The access gate refuses (for example, a record that is no longer the person's). */
+  gateRefuses: false,
 }));
 
 vi.mock('../../lib/session', () => ({
@@ -19,25 +24,81 @@ vi.mock('../../lib/session', () => ({
 }));
 vi.mock('../../lib/locale', () => ({ getLocale: async () => 'en' }));
 vi.mock('../../lib/admin', () => ({ isPlatformAdmin: async () => data.platformAdmin }));
-vi.mock('@visastack/services', () => ({
-  getConsents: async () => data.consents,
-  listApplicants: async () => data.applicants,
-  listGrantsForRecipientAccount: async () =>
-    Array.from({ length: data.pendingGrants }, () => ({
-      grant: { status: 'PENDING_ACCEPTANCE' },
-    })),
-  listMembershipsForAccount: async () => data.memberships,
-  listDocuments: async () => ({ ok: true, value: Array.from({ length: data.documents }) }),
-  listPendingProposals: async () => Array.from({ length: data.proposals }),
-  listMissions: async () => ({
-    ok: true,
-    value: Array.from({ length: data.missions }, () => ({ state: 'IN_PROGRESS' })),
-  }),
-  listEvidenceRequestsForApplicant: async () => ({
-    ok: true,
-    value: Array.from({ length: data.openRequests }, () => ({ status: 'OPEN' })),
-  }),
-}));
+vi.mock('@visastack/services', async (importOriginal) => {
+  // The real ranking, so Home's merge is the one the services tests pin (ADR 0016).
+  const { rankAttentionItems } = await importOriginal<typeof import('@visastack/services')>();
+  return {
+    rankAttentionItems,
+    accountPrincipal: (accountId: string) => ({ kind: 'account', accountId }),
+    requireAccess: async (_db: unknown, _p: unknown, _a: unknown, ref: { applicantId: string }) =>
+      data.gateRefuses
+        ? { ok: false, error: { code: 'forbidden' } }
+        : { ok: true, value: { actor: { kind: 'applicant_owner' }, applicantId: ref.applicantId } },
+    listNeedsAttention: async (access: { applicantId: string }) => {
+      const applicant = data.applicants.find((a) => a.id === access.applicantId);
+      const name = applicant?.displayName ?? '';
+      const items: AttentionItem[] = [
+        ...Array.from({ length: data.openRequests }, (_, i) =>
+          attentionItem({
+            key: `evidence_request:open-${i}`,
+            kind: 'evidence_request',
+            title: 'Document Requested',
+            why: 'An agency asked you for a document. Reply with a file from your documents.',
+            applicantId: access.applicantId,
+            applicantName: name,
+            subject: {
+              kind: 'request',
+              requestKind: 'DOCUMENT',
+              docType: 'BANK_STATEMENT',
+              fieldKey: null,
+            },
+            href: `/app/applicant/${access.applicantId}/evidence`,
+          }),
+        ),
+        ...(data.proposals > 0
+          ? [
+              attentionItem({
+                key: `suggestions:${access.applicantId}`,
+                kind: 'suggestions',
+                tier: 7,
+                title: 'Suggested Details Waiting for Your Decision',
+                why: 'Details were read from a document.',
+                applicantId: access.applicantId,
+                applicantName: name,
+                dueState: 'none',
+                count: data.proposals,
+                href: `/app/applicant/${access.applicantId}/documents`,
+              }),
+            ]
+          : []),
+        ...data.items,
+      ];
+      return {
+        ok: true,
+        value: {
+          applicantId: access.applicantId,
+          applicantName: name,
+          items,
+          activeCases: Array.from({ length: data.missions }, (_, i) => ({
+            id: `case-${i}`,
+            title: `Synthetic Case ${i + 1}`,
+            state: 'IN_PROGRESS',
+          })),
+          activeCaseCount: data.missions,
+          requests: { waitingOnYou: data.openRequests, withAgency: 0 },
+        },
+      };
+    },
+    getConsents: async () => data.consents,
+    listApplicants: async () => data.applicants,
+    listGrantsForRecipientAccount: async () =>
+      Array.from({ length: data.pendingGrants }, () => ({
+        grant: { status: 'PENDING_ACCEPTANCE' },
+      })),
+    listMembershipsForAccount: async () => data.memberships,
+    listDocuments: async () => ({ ok: true, value: Array.from({ length: data.documents }) }),
+  };
+});
 vi.mock('./consent-button', async () => {
   const { stub } = await import('../../lib/next-mocks.test-support');
   return { ConsentButton: stub('ConsentButton') };
@@ -48,6 +109,31 @@ vi.mock('./add-applicant-form', async () => {
 });
 
 const { default: Page } = await import('./page');
+
+/** A Needs Attention item in the projection's shape; `tier` is worked out again by the ranking. */
+function attentionItem(
+  overrides: Partial<AttentionItem> & Pick<AttentionItem, 'key'>,
+): AttentionItem {
+  return {
+    kind: 'task',
+    tier: 5,
+    title: 'Task',
+    why: 'A task on this case is still open.',
+    applicantId: null,
+    applicantName: null,
+    caseId: null,
+    caseTitle: null,
+    dueDate: null,
+    dueState: 'unknown',
+    daysUntilDue: null,
+    sentBack: false,
+    count: null,
+    subject: null,
+    href: '/app',
+    createdAt: '2026-10-01T00:00:00.000Z',
+    ...overrides,
+  };
+}
 
 const SELF = { id: '10000000-0000-4000-8000-000000000001', displayName: 'Synthetic Self' };
 
@@ -61,6 +147,8 @@ beforeEach(() => {
   data.pendingGrants = 0;
   data.memberships = [];
   data.platformAdmin = false;
+  data.items = [];
+  data.gateRefuses = false;
 });
 
 describe('home (characterization before WP-V3)', () => {
@@ -103,8 +191,9 @@ describe('home (characterization before WP-V3)', () => {
     data.openRequests = 2;
     data.proposals = 1;
     const text = textOf(await renderServer(Page({})));
-    expect(text).toContain('Evidence Requests Waiting for a Reply');
-    expect(text).toContain('Needs Your Attention');
+    expect(text).toContain('Bank Statement');
+    expect(text).toContain('Reply to Request');
+    expect(text).toContain('Needs Attention');
     expect(text).toContain('Suggested Details Waiting for Your Decision');
   });
 
@@ -279,5 +368,177 @@ describe('task-first first run (WP-V3, D8)', () => {
     const html = await page({ welcome: '1' });
     expect(textOf(html)).toContain('Complete a Request');
     expect(html).toContain('href="/app/shared"');
+  });
+});
+
+describe('Home composition (WP-V4, v1.2 B13 and U03)', () => {
+  const overdueRequest = attentionItem({
+    key: 'evidence_request:overdue',
+    kind: 'evidence_request',
+    title: 'Document Requested',
+    why: 'An agency asked you for a document. Reply with a file from your documents.',
+    applicantId: SELF.id,
+    applicantName: SELF.displayName,
+    dueDate: '2026-10-01',
+    dueState: 'overdue',
+    daysUntilDue: -25,
+    subject: { kind: 'request', requestKind: 'DOCUMENT', docType: 'PASSPORT', fieldKey: null },
+    href: `/app/applicant/${SELF.id}/evidence`,
+  });
+  const overdueTask = attentionItem({
+    key: 'task:overdue',
+    kind: 'task',
+    title: 'Book the Visa Appointment',
+    applicantId: SELF.id,
+    applicantName: SELF.displayName,
+    caseId: 'case-japan',
+    caseTitle: 'Japan Visit',
+    dueDate: '2026-10-20',
+    dueState: 'overdue',
+    daysUntilDue: -6,
+    href: '/app/mission/case-japan',
+  });
+  const sentBack = attentionItem({
+    key: 'evidence_request:sent-back',
+    kind: 'evidence_request',
+    title: 'Replacement Requested',
+    why: 'The agency looked at what you sent and asked for a new one.',
+    applicantId: SELF.id,
+    applicantName: SELF.displayName,
+    sentBack: true,
+    dueDate: '2026-12-15',
+    dueState: 'later',
+    daysUntilDue: 50,
+    subject: {
+      kind: 'request',
+      requestKind: 'DOCUMENT',
+      docType: 'BANK_STATEMENT',
+      fieldKey: null,
+    },
+    href: `/app/applicant/${SELF.id}/evidence`,
+  });
+
+  function sectionText(html: string, id: string, nextId: string): string {
+    const start = html.indexOf(`id="${id}"`);
+    const end = html.indexOf(nextId, start);
+    expect(start, id).toBeGreaterThan(-1);
+    return textOf(html.slice(start, end === -1 ? undefined : end));
+  }
+
+  it('puts the next step first, then Needs Attention, My Records, Active Requests and Work, My Next Journey and the permissions last', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.missions = 1;
+    data.items = [overdueRequest, overdueTask, sentBack];
+    const html = await page();
+    const order = [
+      'id="next-step-title"',
+      'id="home-attention-heading"',
+      'id="home-records-heading"',
+      'id="home-work-heading"',
+      'id="home-journey-heading"',
+      'Permissions You Control',
+    ].map((marker) => html.indexOf(marker));
+    expect(order.every((at) => at > -1)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    // Headings stay in order: one h1, then h2 sections, items as h3 inside Needs Attention.
+    const levels = [...html.matchAll(/<h([1-6])/g)].map((m) => Number(m[1]));
+    expect(levels[0]).toBe(1);
+    for (let i = 1; i < levels.length; i++) {
+      expect((levels[i] ?? 0) - (levels[i - 1] ?? 0)).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('shows a request sent back for a fix and an overdue task in Needs Attention, each with its action', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.items = [overdueRequest, overdueTask, sentBack];
+    const html = await page();
+    // The oldest overdue item is the next step.
+    const next = sectionText(html, 'next-step-title', 'home-attention-heading');
+    expect(next).toContain('Passport');
+    expect(next).toContain('Reply to Request');
+
+    const attention = sectionText(html, 'home-attention-heading', 'home-records-heading');
+    expect(attention.indexOf('Book the Visa Appointment')).toBeLessThan(
+      attention.indexOf('Bank Statement'),
+    );
+    expect(attention).toContain('Past Due');
+    expect(attention).toContain('Japan Visit');
+    expect(attention).toContain('Open Case');
+    expect(attention).toContain('Sent Back for a Fix');
+    expect(attention).toContain('Send a Replacement');
+    expect(html).toContain('href="/app/mission/case-japan"');
+    // Each button's name starts with its visible words and says which item it is for.
+    expect(html).toMatch(/Send a Replacement<span class="sr-only">: Bank Statement<\/span>/);
+    // The person's record shows the sent-back request as open, not only OPEN ones.
+    expect(textOf(html)).toContain('Action Needed');
+  });
+
+  it('shows a missing date as Date Unknown, never a guessed one', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.openRequests = 2;
+    const attention = sectionText(await page(), 'home-attention-heading', 'home-records-heading');
+    expect(attention).toContain('Date Unknown');
+    expect(attention).not.toMatch(/Due on|Was due/);
+  });
+
+  it('adds waiting sharing invitations to the same ranked list, after the person-level items', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.pendingGrants = 2;
+    data.items = [overdueTask];
+    const html = await page();
+    const attention = sectionText(html, 'home-attention-heading', 'home-records-heading');
+    expect(attention).toContain('Sharing Invitations Waiting for Your Answer');
+    expect(attention).toContain('2 invitations');
+    expect(attention).toContain('See Invitations');
+  });
+
+  it('caps the list and says how many are left', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.openRequests = 12;
+    const attention = sectionText(await page(), 'home-attention-heading', 'home-records-heading');
+    expect(attention.match(/Reply to Request/g)).toHaveLength(8);
+    expect(attention).toContain('Showing 8 of 11');
+    expect(attention).toContain('See All Applicants');
+  });
+
+  it('lists open requests and active cases under Active Requests and Work', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.openRequests = 1;
+    data.missions = 2;
+    const html = await page();
+    const work = sectionText(html, 'home-work-heading', 'home-journey-heading');
+    expect(work).toContain('Requests from an Agency');
+    expect(work).toContain('1 waiting for you');
+    expect(work).toContain('Synthetic Case 1');
+    expect(work).toContain('Synthetic Case 2');
+  });
+
+  it('when the gate refuses, still shows Home without attention items', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.items = [overdueTask];
+    data.gateRefuses = true;
+    const html = await page();
+    const text = textOf(html);
+    expect(text).toContain('Welcome Back');
+    expect(text).not.toContain('Book the Visa Appointment');
+    expect(html).not.toContain('id="home-attention-heading"');
+  });
+
+  it('keeps My Next Journey as supporting content once setup is done', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.documents = 1;
+    data.missions = 1;
+    const journey = sectionText(await page(), 'home-journey-heading', 'id="permissions"');
+    expect(journey).toContain('My Next Journey');
+    expect(journey).toContain('Start a Case');
+    expect(journey).not.toContain('Set Up Your Account');
   });
 });

@@ -1,7 +1,15 @@
 import type { MembershipRole, OrganizationStatus, PermissionAction } from '@visastack/core';
 import { documentTypeName } from '@visastack/core/catalogue/documents';
 import type { schema } from '@visastack/db';
-import type { CaseTriageState, TriageGroup, TriageIndicator } from '@visastack/services';
+import type {
+  AttentionItem,
+  AttentionKind,
+  AttentionTier,
+  CaseTriageState,
+  TriageGroup,
+  TriageIndicator,
+} from '@visastack/services';
+import { fieldLabel } from './master-profile';
 
 /**
  * Plain words for the codes the database stores. Display only: nothing here is ever saved,
@@ -217,3 +225,70 @@ export const CONSENT_PLAIN: Readonly<
 
 /** The plain name of a consent, or the readable words of its code when it is not listed. */
 export const consentName = (type: string) => CONSENT_PLAIN[type]?.name ?? titleCase(type);
+
+/**
+ * The thing an agency's evidence request asks for, in words: the detail's or document's own name,
+ * or a plain fallback. Shared by the agency console and Home.
+ */
+export function requestItemLabel(request: {
+  readonly kind: string;
+  readonly fieldKey?: string | null | undefined;
+  readonly docType?: string | null | undefined;
+}): string {
+  if (request.kind === 'FIELD') {
+    return request.fieldKey
+      ? (fieldLabel(request.fieldKey) ?? titleCase(request.fieldKey))
+      : 'Requested Detail';
+  }
+  return request.docType ? documentTypeLabel(request.docType) : 'Requested Document';
+}
+
+/**
+ * Needs Attention on Home (ADR 0016): the short name above each item, one per tier. Received is
+ * never called reviewed, and a suggestion is never called confirmed.
+ */
+export const ATTENTION_TIER_LABELS: Readonly<Record<AttentionTier, string>> = {
+  1: 'Past Due',
+  2: 'Sent Back for a Fix',
+  3: 'Due Soon',
+  4: 'Changed Since You Confirmed',
+  5: 'Still Open',
+  6: 'Expiring or Expired',
+  7: 'Waiting for Your Answer',
+};
+
+/** The one action button on each Needs Attention item, by kind. */
+export const ATTENTION_ACTION_LABELS: Readonly<Record<AttentionKind, string>> = {
+  evidence_request: 'Reply to Request',
+  task: 'Open Case',
+  case_changed: 'Review Changes',
+  document_expiry: 'See Expiry Dates',
+  suggestions: 'Review Suggestions',
+  sharing_invitations: 'See Invitations',
+};
+
+/** The action for a request the agency sent back for a fix. */
+export const SENT_BACK_ACTION_LABEL = 'Send a Replacement';
+
+/** The action button wording for one item. */
+export function attentionActionLabel(item: Pick<AttentionItem, 'kind' | 'sentBack'>): string {
+  if (item.kind === 'evidence_request' && item.sentBack) return SENT_BACK_ACTION_LABEL;
+  return ATTENTION_ACTION_LABELS[item.kind];
+}
+
+/**
+ * The heading for one item: what a request asks for or which document is expiring, by its own
+ * name, otherwise the plain heading the item came with.
+ */
+export function attentionHeading(item: Pick<AttentionItem, 'title' | 'subject'>): string {
+  const subject = item.subject;
+  if (subject?.kind === 'request') {
+    return requestItemLabel({
+      kind: subject.requestKind,
+      fieldKey: subject.fieldKey,
+      docType: subject.docType,
+    });
+  }
+  if (subject?.kind === 'document' && subject.docType) return documentTypeLabel(subject.docType);
+  return item.title;
+}
