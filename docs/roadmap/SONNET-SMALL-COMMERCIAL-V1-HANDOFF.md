@@ -1,8 +1,8 @@
 # Small Commercial V1: implementation handoff (execute in order)
 
-Written 26 October 2026 by the architecture session. It is the main instruction for the implementation sessions that follow. Instruction to the next session: **read this file, then execute the packages in section M in order.** Each package is one pull request unless it says otherwise.
+Written 26 October 2026 by the architecture session (scope widened the same day by the owner: payments, AI connector and product now; only security and compliance deferred). It is the main instruction for the implementation sessions that follow. Instruction to the next session: **read this file, then execute the packages in section M in order.** Each package is one pull request unless it says otherwise.
 
-Authority: the owner's 26 October 2026 instructions, which set the Small Commercial V1 target of 100 to 1,000 users and froze the architecture. This file, ADRs 0019 to 0021 and [DEFERRED-COMMERCIAL-HARDENING.md](DEFERRED-COMMERCIAL-HARDENING.md) supersede older plans where they conflict. `CLAUDE.md`, `docs/SESSION-START.md` and the Programme X files still govern **how** work runs: branches, allowlists, reviews, full check, CI, merge and reporting.
+Authority: the owner's 26 October 2026 instructions, which set the Small Commercial V1 target of 100 to 1,000 users and froze the architecture. This file, ADRs 0019 to 0022 and [DEFERRED-COMMERCIAL-HARDENING.md](DEFERRED-COMMERCIAL-HARDENING.md) supersede older plans where they conflict. `CLAUDE.md`, `docs/SESSION-START.md` and the Programme X files still govern **how** work runs: branches, allowlists, reviews, full check, CI, merge and reporting.
 
 ## A. Verified current state (26 October 2026)
 
@@ -50,50 +50,71 @@ Security gaps found this session, all scheduled before real data:
 
 ## C. Small Commercial V1 cutline
 
-**Must exist before the first real commercial users:**
+Owner, 26 Oct 2026: **payments, the AI connector and product features are built now; only security and compliance items are deferred.** The minimum security controls (part 1 of the register) are not deferred: they are built first.
 
-1. Commercial-minimum controls M01 to M17 closed (register part 1).
-2. Programme X: Prepare Again, the request screens (U07 request UX), and the WP-V5 selected-output engine plus the agency brief and the confirmed-information sheet.
-3. Automatic document reading per ADR 0019, with the "We Found These Details" review.
-4. Invoice payment per ADR 0020: SSLCOMMERZ online for BDT, plus "I Paid Another Way" with admin confirmation.
-5. AI Context Gateway per ADR 0021: read-only, five tools, AI Connections screens, audit.
-6. One or two maintained, reviewed launch checklists (section J). Manual mode for everything else.
-7. Commercial acceptance (section K) passed on the exact release commit.
+**Build in this programme, in the order of section M:**
 
-**May follow after the first paid users:**
+1. **Security minimum:** commercial-minimum controls M01 to M17 (register part 1).
+2. **Programme X:**
+   - Prepare Again;
+   - request screens (U07) and the colour polish;
+   - the WP-V5 selected-output engine and all four outputs (agency brief and handover, trip essentials, confirmed-information sheet, AI context preview), the WhatsApp prepared message and the "Prepare a Brief" first-run choice.
+3. **Automatic document reading** per ADR 0019, with the "We Found These Details" review.
+4. **Payments** per ADR 0020:
+   - SSLCOMMERZ online, "I Paid Another Way" with receipts and admin confirmation;
+   - recurring period invoices, reminders, owner-configured overdue handling, automatic reactivation;
+   - refunds, credits and the accounting export;
+   - a second provider chosen by the owner.
+5. **AI Context Gateway** per ADR 0021:
+   - the read tools, DCR and CIMD, AI Connections screens and audit;
+   - original files per ticked document;
+   - suggestion tools (proposals, drafts and reminders only);
+   - agency AI connectors behind the traveller's per-grant "AI tools allowed" choice.
+6. **Real redaction** per ADR 0022.
+7. **Launch content:** one or two maintained, reviewed launch checklists (section J); manual mode for everything else.
+8. **Commercial acceptance** (section K) passed on the exact release commit.
+9. **Bangla, last,** only when the owner says the rest is done (standing rule).
 
-- WP-V4 colour polish beyond the request screens;
-- WP-V5 trip essentials output and the WhatsApp prepared message;
-- automatic billing reactivation after payment;
-- payment receipt upload;
-- agency-side AI connectors;
-- more checklists;
-- H20 and H21 consolidation.
+**Do not build:**
 
-**Do not build yet:** everything in register part 2 without a met trigger, and in particular:
+- **Security and compliance items** in register part 2. They wait for their triggers.
+- **AI actions that delete, submit, share, acknowledge, change permissions or case status, or pay** (H15).
+- **A tax engine** (H16).
+- **Native mobile apps** (the owner's 26 Oct "avoid" list).
+- **A chat window inside VisaStack.**
+- **Infrastructure changes** in register part 3 until their measured trigger fires. This includes Tesseract in the Vercel function.
 
-- write tools for AI;
-- original files through AI;
-- DCR;
-- recurring billing;
-- a second payment provider;
-- a chat window inside VisaStack;
-- Bangla;
-- new country coverage;
-- Tesseract in the Vercel function;
-- redaction.
-
-**Feature freeze:** after S17, only defects, observed friction, security corrections, commercial blockers and usage-backed improvements.
+**Feature freeze:** after S24, build only defects, observed friction, security corrections, commercial blockers and usage-backed improvements.
 
 ## D. Deferred hardening
 
-See [DEFERRED-COMMERCIAL-HARDENING.md](DEFERRED-COMMERCIAL-HARDENING.md): part 1 (commercial-minimum, with the package that closes each) and part 2 (H01 to H28 with triggers and seams).
+See [DEFERRED-COMMERCIAL-HARDENING.md](DEFERRED-COMMERCIAL-HARDENING.md):
+
+- part 1: commercial-minimum controls, each with the package that closes it;
+- part 2: deferred security and compliance items, with triggers and seams;
+- part 3: scaling triggers;
+- part 4: items moved to this build list on 26 Oct.
 
 ## E. Programme X continuation
 
-- Programme X stays the experience programme. S1, S7, S8, S9 and S17 are its WP-V4, WP-V5 and WP-V6 work. Keep using its allowlists: add files with a dated reason line citing the owner's 26 Oct 2026 instruction, as done for Prepare Again.
-- Merge rule (conflict register CR15): WP-V4 PRs merge when correctly ready. Every other package needs the owner's merge word unless the owner extends CR15. WP-V6/S17 always needs it.
-- WP-V6 is merged into S17 (commercial acceptance). The landing "Prepared again, faster" float and card 1 text return only when S1 is live and verified (WP-V6 step 3).
+- Programme X stays the experience programme. S1, S7, S8, S9 and S24 are its WP-V4, WP-V5 and WP-V6 work. Keep using its allowlists: add files with a dated reason line citing the owner's 26 Oct 2026 instruction, as done for Prepare Again.
+- Merge rule (conflict register CR15): WP-V4 PRs merge when correctly ready. Every other package needs the owner's merge word unless the owner extends CR15. WP-V6/S24 always needs it.
+- WP-V6 is merged into S24 (commercial acceptance). The landing "Prepared again, faster" float and card 1 text return only when S1 is live and verified (WP-V6 step 3).
+
+### S7. WP-V4 close: request screens and colour polish
+
+**Objective:** WP-V4 scope items 3 and 6 in `docs/upgrades/programme/WORK-PACKAGES.md`, plus spec B09 (U07) in `docs/upgrades/upgrade.v1.2.execution.md`:
+
+- request statuses and guidance per item;
+- accurate Saving, Saved at and Not Saved states;
+- item-level clarification through the existing task and comment mechanisms;
+- the colour polish across the screens WP-V4 touched.
+
+**Do not:** widen who can see evidence requests. Non-admin agency workers still see none; changing that is an owner gate.
+
+**Tests:** T13, R03 and R04 where they apply, plus the guard tests.
+
+**Merge rule:** CR15.
 
 ## F. Document reading work packages (ADR 0019)
 
@@ -217,7 +238,7 @@ See [DEFERRED-COMMERCIAL-HARDENING.md](DEFERRED-COMMERCIAL-HARDENING.md): part 1
 **Objective:**
 
 - An agency Invoices page in the existing Usage and Billing area, with Pay Online and I Paid Another Way, for owners and admins only.
-- The manual claim form.
+- The manual claim form, with an optional receipt file. The file goes through the normal upload, quarantine and scan pipeline as an organization-owned billing file (ADR 0020).
 - An admin review queue in `/app/admin/organizations/[orgId]` to approve with step-up or reject with a reason.
 - Plain states: Open, Payment Started, Payment Reported (Waiting for Confirmation), Paid, Payment Needs a Check.
 
@@ -225,7 +246,71 @@ See [DEFERRED-COMMERCIAL-HARDENING.md](DEFERRED-COMMERCIAL-HARDENING.md): part 1
 
 - a non-admin member cannot pay or claim;
 - approval records once;
-- a claim on a paid invoice is refused with a clear message.
+- a claim on a paid invoice is refused with a clear message;
+- a receipt file is visible only to the agency's owners and admins and platform billing staff, and never appears on any traveller record.
+
+**Migration:** with S10 and S11 (the `billing_receipts` table), or separate if S12 lands later.
+
+### S17. Recurring period invoices, reminders, overdue handling, reactivation
+
+**Objective:** ADR 0020 Phase 2, recurring and overdue sections:
+
+- the `process-billing-cycle` system job;
+- the unique `(organization_id, plan_id, period_start)` index;
+- reminder notifications;
+- `billing_settings` (owner-set; overdue transitions **off** until O13);
+- system-actor billing transitions with `cause`;
+- automatic reactivation inside `applyInvoiceCollection`.
+
+**Tests:**
+
+- a rerun creates no duplicate invoice;
+- no back-billing beyond one period;
+- reminders are sent once per stage;
+- transitions happen only when the settings are on;
+- a manual suspension is never lifted automatically;
+- full payment reactivates a non-payment suspension in the same transaction;
+- suspension never hides traveller-owned records.
+
+**Migration:** yes.
+
+**Owner gate:** O8 (migration), O13 (policy days).
+
+### S18. Refunds, credits and accounting export
+
+**Objective:** ADR 0020 Phase 2, refunds and accounting sections:
+
+- the provider refund API;
+- refund requests that become `REFUND` ledger rows only on provider confirmation;
+- held overpayments resolved by Apply to Next Invoice (`CREDIT`) or Refund;
+- manual refunds recorded with step-up;
+- the monthly ledger CSV, safe against spreadsheet formula injection.
+
+**Tests:**
+
+- a refund never exceeds what was collected, less earlier refunds;
+- an unconfirmed refund writes no ledger row;
+- a credit is applied once;
+- invoice status is recalculated from the ledger;
+- the CSV holds no traveller data and every cell beginning with `=`, `+`, `-` or `@` is escaped.
+
+**Reviews:** max code review and security review.
+
+**Migration:** a refund-requests table, unless S10 already created it.
+
+### S19. Second payment provider
+
+**Objective:**
+
+- the provider the owner picks (O14) as a second `PaymentPort` adapter;
+- checkout routed by invoice currency;
+- optional saved-method automatic charging only through a provider that supports it, only after an agency owner opts in (`payment_methods` table), following the same attempt and validation rules as S11.
+
+**First step:** read that provider's official documentation.
+
+**Reviews:** max code review and security review.
+
+**Owner gate:** O14, O6-equivalent credentials, O8.
 
 ## H. AI Context Gateway work packages (ADR 0021)
 
@@ -264,7 +349,14 @@ See [DEFERRED-COMMERCIAL-HARDENING.md](DEFERRED-COMMERCIAL-HARDENING.md): part 1
 
 ### S9. WP-V5 outputs
 
-**Objective:** the agency brief and handover, and the confirmed-information sheet, on S8 with `SelectedScopeSummary` preview. Trip essentials and the WhatsApp message may follow (cutline).
+**Objective:** all four WP-V5 outputs on S8, with the `SelectedScopeSummary` preview:
+
+- agency brief and handover;
+- trip essentials;
+- confirmed-information sheet;
+- AI context preview (the same `renderAiContext` the connector uses, shown so the person sees what an AI app would get).
+
+Plus the WhatsApp prepared message: a generic message plus a secure workspace or invitation link, never a document or identifier, never sent automatically.
 
 **Also:** the first-run choice "Prepare a Brief".
 
@@ -274,11 +366,16 @@ See [DEFERRED-COMMERCIAL-HARDENING.md](DEFERRED-COMMERCIAL-HARDENING.md): part 1
 
 ### S13. Authorization server for AI apps
 
-**Objective:** the discovery documents, `/oauth/authorize` (consent page), `/oauth/token`, `/oauth/revoke`, the CIMD fetcher with SSRF rules and the allowlist, and the token store. All as ADR 0021 section 2.
+**Objective:** as in ADR 0021 section 2 and its DCR extension:
+
+- the discovery documents;
+- `/oauth/authorize` (consent page), `/oauth/token`, `/oauth/revoke` and `/oauth/register` (DCR: public clients only, allowlisted redirect hosts or loopback, rate-limited, unused clients expire after 30 days);
+- the CIMD fetcher, with SSRF rules and the allowlist;
+- the token store.
 
 **First step:** read the current official OpenAI MCP authentication page and Claude's connector authentication page. Record ChatGPT's exact redirect URIs and its CIMD host, then fill the allowlist constant.
 
-**Migration:** yes (`ai_connections`, `ai_connection_tokens`).
+**Migration:** yes (`ai_connections`, `ai_connection_tokens`, `oauth_clients`).
 
 **Tests:**
 
@@ -291,7 +388,8 @@ See [DEFERRED-COMMERCIAL-HARDENING.md](DEFERRED-COMMERCIAL-HARDENING.md): part 1
 - revoke works immediately;
 - the `iss` parameter is present;
 - a form-encoded body is accepted;
-- the SSRF fetcher refuses private addresses, redirects and oversize responses.
+- the SSRF fetcher refuses private addresses, redirects and oversize responses;
+- DCR refuses non-allowlisted HTTPS redirect hosts and confidential-client requests, and is rate-limited.
 
 **Reviews:** max code review and security review.
 
@@ -328,6 +426,95 @@ See [DEFERRED-COMMERCIAL-HARDENING.md](DEFERRED-COMMERCIAL-HARDENING.md): part 1
 **Objective:** the audit events and product events in ADR 0021 section 7, plus an admin count of connections and context calls.
 
 **Tests:** no value, task text, document text or token ever appears in audit metadata or logs.
+
+### S20. AI connector: original files
+
+**Objective:** the ADR 0021 extension:
+
+- "Original Files" on the consent page, per ticked document;
+- "Safe Copy" chosen by default where a safe copy exists (after S23), with "Original" as the alternative;
+- the `get_document_file` tool, returning an embedded resource of at most 10 MB, `CLEAN` versions only, never restricted types and never URLs.
+
+**Migration:** `ai_connections.document_ids` and `document_variants`.
+
+**Tests:**
+
+- an unticked document is refused;
+- a restricted type is refused;
+- an oversize file is refused;
+- each served file writes an audit record without contents;
+- revocation stops the next call.
+
+**Reviews:** max code review and security review.
+
+### S21. AI connector: suggestion tools
+
+**Objective:** "Suggest Changes" on the consent page, and the tools `suggest_profile_update`, `save_draft` and `add_reminder`, exactly as in the ADR 0021 extension. Suggestions land in the normal review, labelled "Suggested by <app name>".
+
+**Tests:**
+
+- a suggestion never writes a fact until the person approves it;
+- a field outside the granted layers is refused;
+- the daily write cap holds;
+- no tool can delete, submit, share, acknowledge, change permissions or case status, or pay (a guard test lists the registered tools and their annotations).
+
+**Reviews:** max code review and security review.
+
+### S22. Agency AI connectors
+
+**Objective:** the ADR 0021 extension:
+
+- the `AI_ASSIST` grant permission (off by default; "Let This Agency Use AI Tools on What I Share");
+- the organization setting;
+- agency connections that read through `requireAccess` acting for the organization, intersected with the grant;
+- the traveller's "AI Tools Allowed" line on the grant card.
+
+**Also:** update `docs/architecture/permission-model.md`.
+
+**Migration:** the enum value and the `ai_connections.organization_id` and `kind` columns. Add the enum value in its own migration step: Postgres cannot use a new enum value in the same transaction that adds it.
+
+**Tests:**
+
+- a grant without `AI_ASSIST` gives no access;
+- per-case exceptions are honoured;
+- another organization's data is never reachable;
+- revoking the grant or removing the permission stops the next call;
+- a member who cannot see a case cannot reach it;
+- tenant-isolation suites are extended.
+
+**Reviews:** max code review and security review.
+
+**Owner gate:** O8 and O10 (legal wording for agency AI processing).
+
+## H2. Product work packages
+
+### S23. Real redaction (ADR 0022)
+
+**Objective:**
+
+- `redaction_masks`;
+- the owner-only mask editor (keyboard accessible);
+- suggestions from private OCR word positions (MRZ zone, the person's own identifiers, account-number patterns);
+- the rasterized image-only safe copy served through the existing `redacted` variant;
+- "Not Prepared Yet" when no masks exist;
+- readiness `redactedDownload: available`.
+
+**Tests:**
+
+- the safe copy has no text layer, metadata or attachments (parse the output);
+- masked pixels are solid;
+- nothing is served without masks or an explicit "Nothing to hide";
+- masks never carry over to a new version;
+- only the owner edits masks;
+- page and size limits hold.
+
+**Reviews:** max code review, security review, design accessibility review.
+
+**Migration:** yes.
+
+### S25. Bangla (only on the owner's word)
+
+**Objective:** English and Bangla through `packages/i18n`, after S24 and only when the owner says the rest of the product is done (standing rule). Do not start it otherwise.
 
 ## I. Access and security work packages (only what is needed now)
 
@@ -386,29 +573,58 @@ Each must:
 
 Rules for the rest:
 
-- Every other route runs in manual mode, and a case without a maintained checklist never shows an automated readiness claim. S17 verifies this on the screen.
+- Every other route runs in manual mode, and a case without a maintained checklist never shows an automated readiness claim. S24 verifies this on the screen.
 - The test checklist "UK Visitor1" is withdrawn or replaced (owner decides).
 - Sessions do not write rule content from memory: content needs sources and a human reviewer.
 
-## K. Commercial acceptance (S17, merged with WP-V6)
+## K. Commercial acceptance (S24, merged with WP-V6)
 
 Run on the exact release commit, against isolated synthetic accounts, with results in `docs/upgrades/programme/COVERAGE-LEDGER.csv` and known-issues. **Must pass:**
 
-- **Traveller:** sign up and confirm; create the reusable record; upload a passport (suggestions appear with no button) and a scanned bank statement; review and confirm; expiry and Needs Attention show it; create a case on a maintained checklist; share with an agency; answer an agency request.
-- **Agency:** create the organization; invite a team member and a client by email; open a case; request evidence; receive the response; review it; triage and Do Next; readiness or output (brief); close the case.
-- **Reuse:** Prepare Again from a finished case. Valid records are reused, a stale document is marked for review, and nothing inherited: no approval, acknowledgement, grants, notes or outcome. An unticked all-cases agency cannot see the new case.
-- **Payment:** sandbox invoice paid online; IPN validated; cash recorded once; a spoofed return records nothing; a duplicate IPN is a no-op; a wrong amount is held.
-- **Payment fallback:** a manual claim is approved by an admin and recorded once; a second recording of the same balance is refused.
-- **AI connection:**
+- **Traveller:**
+  - sign up and confirm, then create the reusable record;
+  - upload a passport (suggestions appear with no button) and a scanned bank statement; review and confirm;
+  - expiry and Needs Attention show it;
+  - create a case on a maintained checklist, share with an agency, and answer an agency request;
+  - make a safe copy with masks; the agency with Download Safe Copies gets only the masked image copy.
+- **Agency:**
+  - create the organization; invite a team member and a client by email;
+  - open a case, request evidence, receive the response and review it;
+  - triage and Do Next;
+  - readiness and all four outputs;
+  - close the case.
+- **Reuse:**
+  - Prepare Again from a finished case reuses valid records and marks a stale document for review;
+  - nothing is inherited: no approval, acknowledgement, grants, notes or outcome;
+  - an unticked all-cases agency cannot see the new case.
+- **Payment (online):**
+  - a sandbox invoice is paid online, the IPN is validated, and cash is recorded once;
+  - a spoofed return records nothing, a duplicate IPN is a no-op, and a wrong amount is held.
+- **Payment (fallback):**
+  - a manual claim with a receipt is approved by an admin and recorded once;
+  - a second recording of the same balance is refused.
+- **Payment (recurring):**
+  - a period invoice is created once, and reminders are sent once per stage;
+  - with the owner's overdue settings on, unpaid leads to Grace, then Suspended, and full payment returns to Active automatically;
+  - a manual suspension stays.
+- **Payment (refunds and the second provider):**
+  - a sandbox refund becomes a refund ledger row only after confirmation, and a held overpayment is credited to the next invoice once;
+  - the CSV export is clean;
+  - the second provider passes the same online checks.
+- **AI connection (owner):**
   - connect Claude and ChatGPT to a synthetic account with Case A only and Money off;
-  - ask for help on Case A; the context is compact and carries provenance;
-  - Case B is refused;
-  - no money fields appear in any server response;
+  - ask for help on Case A: the context is compact and carries provenance;
+  - Case B is refused, and no money fields appear in any server response;
   - with Document List on and Text off, `get_document_text` is refused;
-  - the grant expires and the next call is denied;
-  - turning it off denies the next call;
+  - an unticked original file is refused, and a ticked one is served as the safe copy by default;
+  - a suggestion appears in review and changes nothing until approved;
+  - expiry denies the next call, and turning it off denies the next call;
   - Agency A's notes never appear;
   - the context for one case is smaller than the full export (bytes recorded).
+- **AI connection (agency):**
+  - without the traveller's AI Tools Allowed, the agency connection sees nothing of that client;
+  - with it, only the granted scope and visible cases appear;
+  - another organization is never reachable.
 - **Security:**
   - Agency A cannot reach Agency B (existing suites plus one live check);
   - expired and revoked grants fail;
@@ -417,55 +633,88 @@ Run on the exact release commit, against isolated synthetic accounts, with resul
   - a malformed PDF ends in Needs Attention;
   - staff actions require the second factor;
   - the M12 to M14 tests pass.
-- **Recovery:** one document restored from the mirror into an isolated location; the database restore drill re-run; the Neon point-in-time window recorded.
-- **Gates:** readiness shows `malwareScanning: available`, `payments: available` (sandbox, then live), `aiConnector` as configured, and `realApplicantData` still disabled until the owner switches it.
+- **Recovery:**
+  - one document is restored from the mirror into an isolated location;
+  - the database restore drill is re-run;
+  - the Neon point-in-time window is recorded.
+- **Gates:** readiness shows `malwareScanning: available`, `payments: available` (sandbox, then live), `redactedDownload: available`, `aiConnector` as configured, and `realApplicantData` still disabled until the owner switches it.
 
-**Accepted deferred risk:** register part 2.
+**Accepted deferred risk:** register part 2 (security and compliance only).
 
 **Owner configuration:** section L.
 
-**Post-launch:** register part 2 triggers.
+**Post-launch:** register part 2 and part 3 triggers.
 
 ## L. Owner-only actions (sessions must not do these)
 
 | # | Action | Needed before |
 |---|---|---|
 | O1 | Decide repository visibility. Owner, 26 Oct 2026: public temporarily, to be made private soon; sessions do not change it. Recommended: make it private while the product is proprietary. Consequences: CodeQL then needs GitHub Advanced Security or stops, Actions minutes become metered (the scanner worker uses them) and `CLAUDE.md`'s CodeQL line becomes true. Separately, run a full-history secret scan (GitHub secret scanning) | Before more architecture lands publicly; at the latest before real data |
-| O2 | Approve this cutline, ADRs 0019 to 0021 and the register (or change them) | S5 onward |
+| O2 | Approve this cutline, ADRs 0019 to 0022 and the register (or change them) | S5 onward |
 | O3 | Confirm the Vercel plan allows commercial use (Pro, not Hobby) and the Neon plan's limits and point-in-time window | Real data, payments |
 | O4 | Switch `MALWARE_SCANNER_PROVIDER=github_clamav` in Vercel after S4, and run or allow `verify-synthetic` | S4 acceptance |
 | O5 | Keep an offline copy of the application master key (M07), stored as the runbook says | Real data |
 | O6 | SSLCOMMERZ merchant account: sandbox credentials, then live; set the IPN URL in its panel; confirm fees and pricing (prices unchanged unless decided) | S11 testing, then live |
-| O7 | Choose one or two launch routes and supply a qualified reviewer for their checklists | Launch |
-| O8 | The word for each production migration (S3, S10 and S11, S13) | After each merge |
+| O7 | Choose one or two launch routes and supply a qualified reviewer for their checklists; decide what happens to the test checklist "UK Visitor1" | Launch |
+| O8 | The word for each production migration (S3, S10 to S12, S13, S17, S18 if needed, S19, S20, S22, S23) | After each merge |
 | O9 | Choose the production AI provider and its terms; keep or change the training guard (H14); enable the AI connector for real users | Real data, connector launch |
-| O10 | Legal review: privacy notice and terms updates for automatic AI reading, the AI connector and the payment processor | Real data, payments |
-| O11 | Switch real applicant data on (`DEPLOYMENT_MODE`), after S17 | Launch |
-| O12 | The final release decision (S17 PR) | Launch |
+| O10 | Legal review: privacy notice and terms updates for automatic AI reading, the AI connector (including original files, suggestions and agency AI processing), redaction wording and the payment processors | Real data, payments, S22 |
+| O11 | Switch real applicant data on (`DEPLOYMENT_MODE`), after S24 | Launch |
+| O12 | The final release decision (S24 PR) | Launch |
+| O13 | Overdue policy: `due_days`, `grace_after_days`, `suspend_after_days`, or leave automatic overdue handling off | S17 activation |
+| O14 | The second payment provider and the legal entity that holds its merchant account (for example Stripe through a supported-country entity, or a direct bKash or other Bangladesh gateway), with credentials | S19 |
+| O15 | The word to start Bangla (standing rule) | S25 |
 
 ## M. Execution order
 
-One package per session where possible. Always: preflight, the Programme X allowlist, targeted tests, `/code-review` (max for auth, documents, sharing, payments, AI access) and `/security-review` where relevant, one full check, a draft PR, CI green on the exact head, merge per the rules, then the plain-language report. Generate a migration only after the previous migration is on main.
+One package per session where possible. Every package follows the same steps:
+
+1. Preflight, and use the Programme X allowlist.
+2. Targeted tests while building.
+3. `/code-review` (max for auth, documents, sharing, payments and AI access) and `/security-review` where relevant.
+4. One full check.
+5. A draft PR, then CI green on the exact head.
+6. Merge per the rules.
+7. The plain-language report.
+
+Generate a migration only after the previous migration is on main.
 
 | Order | Package | Migration | Owner gate | Merge rule |
 |---|---|---|---|---|
-| 1 | **S1. Ship Prepare Again.** Branch `ccr-847e092e-iee1pl` holds it with this session's docs. Done there: service, screen, 13 service tests, web tests, accessibility scan, max code review (12 fixes), security review (no findings), two mutations red. Remaining: a full check (`scripts/agent/full-check.sh`), the draft PR, CI, merge, live check, report | none | none | CR15 (WP-V4) |
+| 1 | **S1. Ship Prepare Again.** Branch `ccr-847e092e-iee1pl` (draft PR #281) holds it with this session's docs. Done there: service, screen, 13 service tests, web tests, accessibility scan, max code review (12 fixes), security review (no findings), two mutations red. Remaining: a full check (`scripts/agent/full-check.sh`), mark ready, CI, merge, live check, report | none | none | CR15 (WP-V4) |
 | 2 | S2. Security minimum (M12 to M14) | none | none | owner word |
 | 3 | S3. Staff second factor (M08) | yes | O8 | owner word |
 | 4 | S4. Real malware scanning (M06) | none | O4 | owner word |
 | 5 | S5. Automatic reading (ADR 0019) | none expected | none | owner word |
 | 6 | S6. Reading screen states | none | none | owner word |
-| 7 | S7. WP-V4 close: request screens (U07, spec B09) and the colour polish they touch | none | none | CR15 |
+| 7 | S7. WP-V4 close: request screens (U07, spec B09) and the colour polish | none | none | CR15 |
 | 8 | S8. Selected-output engine (WP-V5 core, ADR 0021 section 4) | none | none | D6 |
-| 9 | S9. WP-V5 outputs: brief and confirmed sheet | maybe | label wording | D6 |
+| 9 | S9. WP-V5 outputs: all four, the WhatsApp message and the first-run choice | maybe | label wording | D6 |
 | 10 | S10. Cash ledger and recording function | yes | O8 | owner word |
 | 11 | S11. SSLCOMMERZ online flow | yes, with S10 if adjacent | O6, O8 | owner word |
-| 12 | S12. Agency invoices and manual claims | none | none | owner word |
-| 13 | S13. Authorization server for AI apps | yes | O8 | owner word |
-| 14 | S14. MCP route and tools | none | none | owner word |
+| 12 | S12. Agency invoices, manual claims and receipts | yes (receipts) | O8 | owner word |
+| 13 | S13. Authorization server for AI apps (CIMD and DCR) | yes | O8 | owner word |
+| 14 | S14. MCP route and read tools | none | none | owner word |
 | 15 | S15. AI Connections screens | none | none | owner word |
 | 16 | S16. AI audit and telemetry | none | none | owner word |
-| 17 | S17. Commercial acceptance and release reconciliation (WP-V6) | none | O3, O5, O7, O9 to O12 | owner word (never automatic) |
+| 17 | S17. Recurring invoices, reminders, overdue handling, reactivation | yes | O8, O13 | owner word |
+| 18 | S18. Refunds, credits and accounting export | maybe | O8 | owner word |
+| 19 | S19. Second payment provider | yes | O8, O14 | owner word |
+| 20 | S20. AI connector: original files | yes | O8 | owner word |
+| 21 | S21. AI connector: suggestion tools | none | none | owner word |
+| 22 | S22. Agency AI connectors | yes (enum value plus columns) | O8, O10 | owner word |
+| 23 | S23. Real redaction (ADR 0022) | yes | O8 | owner word |
+| 24 | S24. Commercial acceptance and release reconciliation (WP-V6) | none | O3, O5, O7, O9 to O12 | owner word (never automatic) |
+| 25 | S25. Bangla | none expected | O15 | owner word |
+
+Order rationale:
+
+- Security minimum first (the repository is public).
+- Reading next, because it is the first thing a traveller feels.
+- Then outputs, because S8 is the engine the AI gateway needs.
+- Then the payment core, the AI core and the extensions.
+- Redaction comes after S20, so original-file access can default to safe copies once S23 lands. Until then S20 serves originals only for ticked documents.
+- Acceptance before any real data.
 
 Running alongside, never ahead (owner, 25 Oct): the engineering roadmap steps 4 and 5 are now H20 and H21 in the register, with triggers. Steps 6 to 10 stay proposals for the owner (step 6's MFA item is S3 here).
 
@@ -483,6 +732,8 @@ The current architecture is enough, with no structural change, until a trigger b
 | Scanner and OCR worker | Batches on GitHub Actions | Upload-to-readable over 10 minutes at peak for 3 days, or Actions minutes over 70 percent (H11) |
 | Payments | Per-transaction gateway fee (confirm with SSLCOMMERZ, O6) | Over 200 invoices a month (H16) |
 | AI connector | Each call is a few database queries and no AI cost to VisaStack | Over 10,000 calls a day: cache composed context per connection and case |
+| Safe copies (redaction) | Rendered on request, up to 20 pages, 30 s budget | p95 render over 10 s: cache rendered copies as derived objects |
+| Second provider and recurring billing | Per-transaction fees per provider; one daily billing job | Over 200 invoices a month: review provider fees and the job's run time |
 
 ## O. Notes for the implementing sessions
 

@@ -74,7 +74,7 @@ Code: `apps/web` (Next.js 15.5, React 19), `packages/services` (all business log
 - 25 Oct: "Download Safe Copies" is the visible name of the DOWNLOAD_REDACTED permission (visa photo sizes now, redacted documents later).
 - 25 Oct: profile photos (one per person), visa photo sizes (sized copies per country rule, no face editing, never claim acceptance).
 - 26 Oct (Small Commercial V1): target 100 to 1,000 users; preserve what works; **payments start** with one hosted Bangladesh gateway (SSLCOMMERZ) behind `PaymentPort`, invoice by invoice, plus verified manual payments (ADR 0020; this replaces "Stripe first"); **AI Context Gateway**: read-only remote MCP so people connect ChatGPT or Claude to chosen parts of their own record (ADR 0021); document reading becomes automatic, cheapest reader first (ADR 0019). Plan: `docs/roadmap/SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md`; deferred controls: `docs/roadmap/DEFERRED-COMMERCIAL-HARDENING.md`.
-- Parked until the owner says start: **real redaction**. Deferred: **Bangla and all translation**.
+- 26 Oct (same day, scope widened): payments (recurring invoices, refunds, second provider), the AI connector (original files, suggestion tools, agency connectors) and product features (real redaction, all WP-V5 outputs) are **built now**; only security and compliance items are deferred (register part 2). Bangla stays last, on the owner's word.
 
 ## 7. Open work, in order
 

@@ -1,6 +1,6 @@
-# ADR-0021: VisaStack AI Context Gateway (read-only remote MCP, own authorization server, one projection engine)
+# ADR-0021: VisaStack AI Context Gateway (remote MCP, read-first with opt-in suggestions, own authorization server, one projection engine)
 
-- **Status:** Accepted (architecture freeze, 26 Oct 2026); implementation pending (Sonnet packages S8 and S13 to S16). Production activation is an owner gate.
+- **Status:** Accepted (architecture freeze, 26 Oct 2026); implementation pending (Sonnet packages S8, S13 to S16, then S20 to S22). Production activation is an owner gate.
 - **Date:** 2026-10-26
 - **Deciders:** Owner (26 Oct 2026 instruction: let people connect ChatGPT, Claude and other AI apps to authorised VisaStack context; read-only first; scoped, timed, revocable, audited; no second chatbot; no second projection engine); architecture session
 - **PRD/Spec link:** WP-V5 (`docs/upgrades/programme/WORK-PACKAGES.md`, selected-output service and "AI context" output); ADR 0017 (per-case sharing exceptions); `docs/architecture/permission-model.md`
@@ -55,7 +55,7 @@ Rules:
 
 - **`resource` parameter:** required, and must equal the MCP URL. Tokens are bound to it and the MCP route rejects any other audience.
 - **Issuer on redirect:** the `iss` parameter is returned on every authorization response.
-- **Client registration:** CIMD only in V1 (DCR deferred).
+- **Client registration:** CIMD preferred; Dynamic Client Registration is also offered (see Extensions).
   - **Fetching the client document:** the `client_id` is an HTTPS URL fetched with strict SSRF rules: HTTPS only, public addresses only, no redirects, 5 s timeout, 64 KB cap, JSON only, cached for 24 h.
   - **Matching:** the document's `client_id` must equal the URL.
   - **Redirects:** the `redirect_uri` must match a listed one exactly. The only exception is loopback `http://localhost` and `http://127.0.0.1` callbacks, matched without the port.
@@ -144,7 +144,7 @@ Every value carries provenance:
   - appears only for a granted document group;
   - is capped at 20,000 characters per call;
   - is never given for document types restricted by the platform's document protection switches.
-- Original files are never returned in V1.
+- Original files are returned only through the Original Files extension (S20), per ticked document; never by the five read tools.
 - Agency notes, agency tasks, agency-internal anything, other people's records, grants, audit data and storage locations are never read by the composer.
 - **Case relevance.** When a case is selected:
   - the case's checklist requirements define the `required_by_case` fields and document kinds;
@@ -177,7 +177,7 @@ The consent screen shows:
 | Full Document Numbers | `revealIdentifiers` | Off, warning tone |
 | How Long | 1 hour, 24 hours, 7 days, 30 days, Until I Turn It Off | 30 days |
 
-Original documents are not offered in V1 (deferred register H22). Scopes travel in the token as OAuth scopes (`visastack.identity`, `visastack.money` and so on), but the **stored connection** is the authority. The token's scopes are informative only, and changing access in VisaStack takes effect on the next call.
+Original Files and Suggest Changes are added to this screen by the extensions below (S20, S21). Scopes travel in the token as OAuth scopes (`visastack.identity`, `visastack.money` and so on), but the **stored connection** is the authority. The token's scopes are informative only, and changing access in VisaStack takes effect on the next call.
 
 ### 6. Tools (read-only, five)
 
@@ -217,18 +217,18 @@ Other candidate tools are dropped. Readiness, expiry and travel history are cove
   - One standard serves ChatGPT, Claude and later clients.
   - The AI never touches the database. It gets compact context with provenance, built by the same engine as the shareable outputs.
   - Revocation is instant.
-  - Nothing changes in VisaStack: no write tools.
+  - Nothing changes in VisaStack without the person: the read tools change nothing, and the suggestion tools only create pending suggestions, drafts and reminders.
 - **Negative:**
   - VisaStack now runs a small OAuth authorization server. This is security-critical code that needs the strictest review and its own tests.
   - There is a second consent record type, deliberately not a sharing grant.
-  - CIMD-only V1 may exclude AI apps that support only DCR.
+  - Offering DCR means more registered clients to expire and rate-limit.
 - **Follow-ups:**
   - S8: Selection type and `buildSelectedOutput` (inside WP-V5).
   - S13: authorization server and discovery.
   - S14: MCP route and tools.
   - S15: AI Connections screens.
   - S16: audit, telemetry and acceptance.
-  - Agency-side connectors, write tools, DCR and original files: see the deferred register.
+  - S20 to S22: original files, suggestion tools and agency connectors (see Extensions); DCR is part of S13.
 
 ## Alternatives considered
 
@@ -236,3 +236,46 @@ Other candidate tools are dropped. Readiness, expiry and travel history are cove
 - **A third-party authorization server (Auth0, Stytch, WorkOS).** Rejected for V1: a second identity system beside Neon Auth, another vendor and processor, and account bridging, for a small, well-specified surface.
 - **Per-provider plugins (GPT Actions, Claude-only integration).** Rejected: duplicated work; MCP is what both support.
 - **Personal API keys pasted into the AI app.** Rejected: not supported by consumer AI apps for user accounts, and not revocable per scope.
+
+## Extensions built in this programme (owner, 26 Oct 2026: "AI connector now")
+
+These follow S13 to S16 and use the same gate, Selection, composer, audit and consent page. Read-only stays the default; every extension is off until the person turns it on.
+
+### Dynamic Client Registration (inside S13)
+
+- `/oauth/register` (RFC 7591, `application/json`) accepts public clients only (`token_endpoint_auth_method: none`).
+- `redirect_uris` must be HTTPS on an allowlisted AI-app host, or loopback (`http://localhost` or `http://127.0.0.1`, any port).
+- Registrations are rate-limited per IP address (existing rate-limit table) and expire after 30 days unused. The `oauth_clients` table holds `client_id` (random), name, redirect URIs, created and last used.
+- Metadata advertises `registration_endpoint`. CIMD stays preferred; the consent screen shows the redirect host either way, and warns for loopback.
+
+### Original documents (S20)
+
+- The consent page gains "Original Files", off by default, in warning tone. The person ticks **individual documents** (not groups) from a list. Where a safe copy exists (ADR 0022), the choice per document is "Safe Copy" (default) or "Original".
+- A new tool, `get_document_file(document_reference)`, returns an MCP embedded resource (base64, with its MIME type) only for a ticked document, from its latest usable version.
+  - Only `CLEAN` versions, at most 10 MB.
+  - Never a type restricted by the document protection switches.
+  - Never a storage URL.
+- Each call writes `AI_CONTEXT_SERVED` with `fileServed: true` and the variant.
+- `ai_connections` gains `document_ids uuid[]` and `document_variants jsonb` (migration with S20).
+
+### Suggestion tools: write only as proposals and drafts (S21)
+
+- The consent page gains "Suggest Changes", off by default. It reads: "The app can suggest updates and save drafts. Nothing changes until you approve it in VisaStack."
+- The tools:
+  - `suggest_profile_update(section, field, value, reason)`: creates a **pending field suggestion** through the deterministic-run pattern of ADR 0019, with model version `connector:<client host>` and zero cost. It appears in the normal review labelled "Suggested by <app name>". A field outside the granted layers is refused.
+  - `save_draft(case_reference, kind: cover_letter | personal_statement | note_to_self, text)`: saves a draft in `generated_outputs` (or a draft notes table if none fits), marked "Draft from <app name>". It is never sent anywhere.
+  - `add_reminder(case_reference?, title, due_date)`: creates a task owned by the person on their own case or record.
+- Annotations: `readOnlyHint: false`, `destructiveHint: false`, `idempotentHint: false`.
+- Limits: 20 writes a day per connection, and text inputs are capped.
+- Audit: each write records kind and counts only.
+- **No tool deletes, submits, shares, acknowledges, changes permissions, changes case status or pays.** Those stay out (deferred register H15 now lists only these destructive or outward actions).
+
+### Agency AI connectors (S22)
+
+- A traveller decides, per grant, whether an agency may use AI tools on what they share. This is a new permission `AI_ASSIST`, added to the `permission_action` enum (migration), off by default and shown in the grant form as "Let This Agency Use AI Tools on What I Share". Existing grants keep it off. This is a change to the permission semantics that the owner approved on 26 Oct 2026; record it in `docs/architecture/permission-model.md`.
+- An agency owner or admin turns on "AI Connections for This Agency" (an organization setting). Members can then connect an AI app for that organization: `ai_connections` gains `organization_id` and `kind` (`OWNER | AGENCY`).
+- **Data path:** `withAiConnection` resolves an agency connection to `requireAccess(tx, accountPrincipal(member), 'VIEW_METADATA', { applicantId } or { missionId }, { actingFor: { organizationId }, purpose: 'ai_connection' })`. Only applicants whose grant to that organization includes `AI_ASSIST`, and only cases the member can see (`listVisibleMissionsForMember`), are reachable.
+- The Selection is the intersection of the grant's own scope (categories, documents, case, per-case exceptions) and the connection's choices.
+- The agency's own notes and tasks on those cases may be included, since they are the agency's own data. Another organization's data never is.
+- Tools: `list_cases` and `prepare_context` (plus `list_documents` and `get_document_text` if the grant allows). There are no agency write tools in V1.
+- The traveller sees "AI Tools Allowed" on that agency's grant card. Revoking the grant or removing `AI_ASSIST` cuts access on the next call.
