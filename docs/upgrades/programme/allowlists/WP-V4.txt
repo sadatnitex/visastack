@@ -79,3 +79,5 @@ packages/core/src/index.ts
 # Same owner direction (26 Oct 2026): the existing single-appointment calendar download uses the shared core.
 apps/web/src/app/app/mission/[id]/appointments/[appointmentId]/ics/route.ts
 apps/web/src/app/app/mission/[id]/appointments/[appointmentId]/ics/route.test.ts
+# The accessibility guard renders every exported form; the Sharing page's case exceptions list is one (26 Oct 2026).
+apps/web/src/lib/a11y-forms.test.tsx
