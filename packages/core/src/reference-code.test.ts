@@ -330,4 +330,13 @@ describe('codes typed without a separator, and words that only look like codes',
       expect(looksLikeMistypedReferenceCode(text)).toBe(false);
     }
   });
+
+  it('stays fast on long hostile input (no backtracking patterns)', () => {
+    const hostile = `c\t${'\t\t'.repeat(50_000)}!`;
+    const started = performance.now();
+    expect(looksLikeMistypedReferenceCode(hostile)).toBe(false);
+    expect(readsAsReferenceCode(hostile).ok).toBe(false);
+    expect(parseReferenceCode(hostile).ok).toBe(false);
+    expect(performance.now() - started).toBeLessThan(200);
+  });
 });

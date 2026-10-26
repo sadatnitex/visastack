@@ -158,7 +158,7 @@ export function parseReferenceCode(input: string, expected?: ReferenceKind): Par
 export function readsAsReferenceCode(input: string): ParsedReferenceCode {
   const parsed = parseReferenceCode(input);
   if (!parsed.ok) return parsed;
-  const typedWithLetter = /^\s*[PCDR][\s-]/i.test(input);
+  const typedWithLetter = /^[PCDR][\s-]/i.test(input.trim());
   return typedWithLetter || /[0-9]/.test(input) ? parsed : { ok: false, reason: 'malformed' };
 }
 
@@ -169,14 +169,14 @@ export function readsAsReferenceCode(input: string): ParsedReferenceCode {
  * still being typed ("C-7K2Q9") do not qualify.
  */
 export function looksLikeMistypedReferenceCode(input: string): boolean {
-  const match = input.trim().match(/^([PCDR])[\s-]+([0-9A-Za-z\s-]+)$/i);
-  if (!match) return false;
-  const rest = (match[2] ?? '')
-    .replace(/[\s-]+/g, '')
-    .toUpperCase()
-    .replace(/O/g, '0')
-    .replace(/[IL]/g, '1');
-  if (!REFERENCE_CODE_PATTERN.test(rest) || !/[0-9]/.test(match[2] ?? '')) return false;
+  // Simple, non-overlapping patterns only: this runs on whatever someone types.
+  const text = input.trim();
+  if (text.length > REFERENCE_MAX_PAYLOAD_LENGTH + 24) return false;
+  if (!/^[PCDR][\s-]/i.test(text)) return false;
+  const typed = text.slice(1).replace(/[\s-]/g, '');
+  if (!/^[0-9A-Za-z]+$/.test(typed) || !/[0-9]/.test(typed)) return false;
+  const rest = typed.toUpperCase().replace(/O/g, '0').replace(/[IL]/g, '1');
+  if (!REFERENCE_CODE_PATTERN.test(rest)) return false;
   const parsed = parseReferenceCode(input);
   return !parsed.ok && parsed.reason === 'check_failed';
 }
