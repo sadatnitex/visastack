@@ -12,7 +12,7 @@ Checked in code, not inferred from documents. States used: implemented, wired (r
 
 - Migrations: 92 in the repository, 92 applied in production (STATUS, 26 Oct), none pending.
 - Open pull requests: #177 (open sign-up switch) and #77 (WorkOS staging identities, obsolete since WorkOS was retired). Both owner-held; untouched.
-- Main CI and CodeQL green on `174ae1a`.
+- Main CI green on `174ae1a`. CodeQL's analysis job is skipped by design on this private repository (`codeql.yml` runs it only when the repository is public), so it is reported as skipped, not passed.
 - Programme X: WP-A0 to WP-X3, WP-V3, WP-V4 agency slice, Home, calendar export, per-case sharing exceptions (#278) and reference codes (#279) are merged and live. Next: Prepare Again, request screens and colour polish (closing WP-V4), WP-V5, WP-V6.
 
 ### Already solid (do not rebuild)
@@ -76,11 +76,11 @@ One concern per pull request. Each runs the repository's full verification and r
 
 | Step | Package | Phase | Migration | Owner gate |
 |---|---|---|---|---|
-| 1 | Prepare Again (WP-V4 U02) and this plan | A, B | none | none (WP-V4 auto-merge rule) |
-| 2 | Request screens and colour polish, closing WP-V4 | B | none expected | none |
+| 1 | Prepare Again (WP-V4 U02) and this plan | A, B | none | none: the owner allowed WP-V4 PRs to merge when correctly ready (26 Oct, `docs/SESSION-START.md` section 6, conflict register CR15) |
+| 2 | Request screens and colour polish, closing WP-V4 | B | none expected | none (CR15) |
 | 3 | Malware scanner worker fix and readiness reconciliation | D | none | Actions variables already set by owner |
 | 4 | Automatic document reading (OCR and extraction proposals run after upload when consent and a provider allow; plain "We Found These Details" review; manual retry kept) | C | none expected | none |
-| 5 | WP-V5 selected-output projection and four outputs | G (engine) | maybe | output label wording |
+| 5 | WP-V5 selected-output projection and four outputs | G (engine) | maybe | output label wording; merge word (D6) |
 | 6 | Payments: SSLCOMMERZ adapter behind `PaymentPort`, payment attempts, validated server callback, idempotent recording, "I Paid Another Way" claims | E | yes | migration run; merchant credentials; pricing unchanged |
 | 7 | AI Context Gateway: connection grants, authorisation server for AI clients, read-only connector tools, AI Connections page, audit | F | yes | migration run; permission semantics already set by the 26 Oct instruction |
 | 8 | Commercial-minimum acceptance with synthetic accounts (WP-V6 merged into this) | H | none | final release candidate merge |

@@ -3,7 +3,8 @@
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../../components/form-feedback';
 import { StatusBadge, type Tone } from '../../../../../../components/ui';
-import { type ActionState, prepareCaseAgainAction } from './actions';
+import type { ActionState } from '../actions';
+import { prepareCaseAgainAction } from './actions';
 
 /** One record the person may tick (or only see), already in plain words. */
 export interface PrepareAgainRecordView {

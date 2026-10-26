@@ -58,6 +58,7 @@ Rules:
 | CR12 | Earlier UX idea of a separate Do next ranking. v1.2 forbids a second case state machine | Do next is built on the E02 state mapping after WP-V4, never on its own vocabulary | WP-V4 |
 | CR13 | The Harbor package carries long dashes, but its files are hash-locked. The repo's no-long-dash rule would require editing them | `docs/design/harbor-v2/` is an immutable external reference, exempt from the dash rule. The drift guard runs with `--exclude docs/design/harbor-v2`; the `CLAUDE.md` sweep excludes the same folder. Everything else keeps the rule | Owner 24 Oct 2026 |
 | CR14 | Harbor JSON and CSS are not in the repo's Biome format, and reformatting breaks the lock | `biome.json` ignores `docs/design/harbor-v2/**` (one entry). Biome still checks every other file | Owner 24 Oct 2026 |
+| CR15 | CR05/D6 requires the owner's merge word on every programme PR. On 26 Oct 2026 the owner allowed each WP-V4 PR to merge and deploy once correctly ready (independent review approved, full check green, CI green on the exact head), recorded in `docs/SESSION-START.md` section 6 | WP-V4 PRs auto-merge when correctly ready. Every other package keeps D6 until the owner says otherwise; the final release candidate (WP-V6) always needs the owner's explicit word | Owner 26 Oct 2026 |
 
 ---
 

@@ -4,18 +4,8 @@ import { accountPrincipal, prepareCaseAgain, requireAccess } from '@visastack/se
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { withSession } from '../../../../../../lib/session';
-
-export interface ActionState {
-  readonly ok: boolean;
-  readonly message: string;
-}
-
-function parseOptionalDate(value: FormDataEntryValue | null): Date | undefined {
-  const raw = String(value ?? '').trim();
-  if (raw.length === 0) return undefined;
-  const parsed = new Date(raw);
-  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
-}
+import type { ActionState } from '../actions';
+import { parseOptionalDate } from '../form-dates';
 
 /** `<requirement>|f|<fact>` or `<requirement>|d|<document>`; anything else is dropped and the service refuses what does not match its own list. */
 function parseCarry(values: readonly FormDataEntryValue[]) {
@@ -76,5 +66,8 @@ export async function prepareCaseAgainAction(
     revalidatePath(`/app/applicant/${applicantId}/missions`);
     redirect(`/app/mission/${outcome.id}`);
   }
+  // A refusal usually means the list changed (a newer checklist, a record
+  // that went out of date, a share that ended): redraw it so a retry works.
+  revalidatePath(`/app/applicant/${applicantId}/missions/prepare-again`);
   return outcome.state;
 }

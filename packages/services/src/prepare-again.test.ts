@@ -342,7 +342,9 @@ describe('Prepare Again: sorting one requirement (pure rules)', () => {
       now,
     );
     expect(item).toMatchObject({ group: 'REUSABLE', reason: 'used_before' });
+    // Every current record is listed so the person can switch; only the earlier choice is ticked.
     expect(item.records).toEqual([
+      expect.objectContaining({ factId: 'f1', carriable: true, preselected: false }),
       expect.objectContaining({ factId: 'f2', carriable: true, preselected: true }),
     ]);
   });
@@ -359,10 +361,10 @@ describe('Prepare Again: sorting one requirement (pure rules)', () => {
     expect(item.records.every((r) => !r.carriable && !r.preselected)).toBe(true);
   });
 
-  it('ticks the only current match, but never picks among several', () => {
+  it('counts the only current match without ticking it, and never picks among several', () => {
     const one = classifyPrepareAgainRequirement(req, [fact('f1', 'DECLARED')], [], none, now);
     expect(one).toMatchObject({ group: 'REUSABLE', reason: 'only_match' });
-    expect(one.records[0]?.preselected).toBe(true);
+    expect(one.records[0]).toMatchObject({ carriable: true, preselected: false });
 
     const two = classifyPrepareAgainRequirement(
       req,
@@ -373,6 +375,17 @@ describe('Prepare Again: sorting one requirement (pure rules)', () => {
     );
     expect(two).toMatchObject({ group: 'NEEDS_REVIEW', reason: 'choose_one' });
     expect(two.records.every((r) => r.carriable && !r.preselected)).toBe(true);
+  });
+
+  it('names the most serious problem, whatever order the records come in', () => {
+    const item = classifyPrepareAgainRequirement(
+      req,
+      [fact('f1', 'EXTRACTED_PENDING'), fact('f2', 'CONFLICTED')],
+      [],
+      none,
+      now,
+    );
+    expect(item).toMatchObject({ group: 'NEEDS_REVIEW', reason: 'conflict' });
   });
 
   it('marks unconfirmed records for review and an empty requirement as missing', () => {
@@ -405,6 +418,20 @@ describe('Prepare Again: sorting one requirement (pure rules)', () => {
     );
     expect(old).toMatchObject({ group: 'NEEDS_REVIEW', reason: 'too_old' });
     expect(old.records[0]?.carriable).toBe(false);
+    // The old statement went out of date, a fresh one was added: the fresh one
+    // can be ticked, but nothing in Needs Review is ticked for the person.
+    const refreshed = classifyPrepareAgainRequirement(
+      docReq,
+      [],
+      [doc('d1', true, '2026-01-01'), doc('d3', true, '2026-10-01')],
+      { factIds: new Set(), documentIds: new Set(['d1']) },
+      now,
+    );
+    expect(refreshed).toMatchObject({ group: 'NEEDS_REVIEW', reason: 'too_old' });
+    expect(refreshed.records).toEqual([
+      expect.objectContaining({ documentId: 'd1', carriable: false, preselected: false }),
+      expect.objectContaining({ documentId: 'd3', carriable: true, preselected: false }),
+    ]);
     const unsafe = classifyPrepareAgainRequirement(docReq, [], [doc('d2', false, null)], none, now);
     expect(unsafe).toMatchObject({ group: 'NEEDS_REVIEW', reason: 'not_usable' });
   });
@@ -691,6 +718,62 @@ describe('Prepare Again: plan and create (X09, T08, T09)', () => {
         expect(refused.ok ? 'allowed' : refused.error.code).toBe('forbidden');
       }
       expect(await missionCount(s)).toBe(before);
+    },
+    HEAVY_TIMEOUT_MS,
+  );
+
+  it(
+    'ignores choices made under a checklist the previous case no longer uses',
+    async () => {
+      const s = await scenario();
+      const other = await createPack(s.db, {
+        actorAccountId: s.owner.id,
+        key: 'other.route',
+        name: 'Other',
+      });
+      if (!isOk(other)) throw new Error('other pack');
+      const otherVersion = await publishVersion(s.db, s.owner.id, other.value.id);
+      const oldStatement = await registerDocument(s.db, {
+        actorAccountId: s.owner.id,
+        applicantId: s.applicantId,
+        originalName: 'old-bank.pdf',
+        docType: 'bank_statement',
+      });
+      if (!isOk(oldStatement)) throw new Error('doc');
+      await addDocumentVersion(s.db, {
+        actorAccountId: s.owner.id,
+        documentId: oldStatement.value.id,
+        bucket: 'CLEAN',
+        objectKey: 'k-old',
+        safetyStatus: 'CLEAN',
+        processingStatus: 'AWAITING_REVIEW',
+      });
+      // Briefly on the other checklist with the old statement chosen, then back.
+      await attachPackVersion(s.db, {
+        actorAccountId: s.owner.id,
+        missionId: s.previousId,
+        packVersionId: otherVersion,
+      });
+      const otherBank = (await listRequirements(s.db, otherVersion)).find(
+        (r) => r.docType === 'bank_statement',
+      );
+      const chosen = await selectEvidence(s.db, {
+        actorAccountId: s.owner.id,
+        missionId: s.previousId,
+        packRequirementId: otherBank?.id ?? '',
+        documentId: oldStatement.value.id,
+      });
+      if (!isOk(chosen)) throw new Error('select');
+      await attachPackVersion(s.db, {
+        actorAccountId: s.owner.id,
+        missionId: s.previousId,
+        packVersionId: s.v1,
+      });
+
+      const bank = (await plan(s)).items.find((i) => i.key === 'bank_statement');
+      expect(bank).toMatchObject({ group: 'REUSABLE', reason: 'used_before' });
+      const ticked = bank?.records.filter((r) => r.preselected) ?? [];
+      expect(ticked.map((r) => (r.kind === 'document' ? r.documentId : ''))).toEqual([s.bankId]);
     },
     HEAVY_TIMEOUT_MS,
   );

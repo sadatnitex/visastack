@@ -2600,13 +2600,14 @@ export async function listGeneratedOutputs(
 export type PrepareAgainGroup = 'REUSABLE' | 'NEEDS_REVIEW' | 'MISSING';
 
 /**
- * Why a requirement sits in its group. `used_before` and `only_match` are the
- * only reasons a record starts ticked; every other reason needs the person.
+ * Why a requirement sits in its group. Only a record the previous case
+ * chose, and that is still current (`used_before`), starts ticked: a matching
+ * type alone is never taken as the person's choice.
  */
 export type PrepareAgainReason =
   /** The previous case used this record and it is still current. */
   | 'used_before'
-  /** One current record fits and the previous case chose none. */
+  /** One current record fits and the previous case chose none: it counts unless the person adds another. */
   | 'only_match'
   /** Several current records fit and the previous case chose none: the person picks. */
   | 'choose_one'
@@ -2732,6 +2733,7 @@ async function latestPublishedVersionOfSamePack(
 async function previousChoicesByKey(
   db: Db,
   missionId: string,
+  packVersionId: string,
 ): Promise<Map<string, { factIds: Set<string>; documentIds: Set<string> }>> {
   const rows = await db
     .select({
@@ -2746,7 +2748,14 @@ async function previousChoicesByKey(
       schema.packRequirements,
       eq(schema.packRequirements.id, schema.selectedEvidence.packRequirementId),
     )
-    .where(eq(schema.selectedEvidence.missionId, missionId));
+    .where(
+      and(
+        eq(schema.selectedEvidence.missionId, missionId),
+        // Only choices under the checklist the case uses now: a checklist
+        // attached earlier and replaced leaves rows readiness already ignores.
+        eq(schema.packRequirements.packVersionId, packVersionId),
+      ),
+    );
   const map = new Map<string, { factIds: Set<string>; documentIds: Set<string> }>();
   for (const row of rows) {
     const key = choiceKey(row.kind, row.kind === 'FIELD' ? row.fieldKey : row.docType);
@@ -2762,12 +2771,27 @@ function choiceKey(kind: 'FIELD' | 'DOCUMENT', key: string | null): string {
   return `${kind}:${key ?? ''}`;
 }
 
+/** The most serious problem first, so a conflict is never reported as a mere wait for confirmation. */
+const PROBLEM_ORDER: readonly PrepareAgainReason[] = [
+  'conflict',
+  'too_old',
+  'not_usable',
+  'needs_confirmation',
+];
+
+function worstProblem(
+  candidates: readonly { readonly problem: PrepareAgainReason }[],
+): PrepareAgainReason {
+  const present = new Set(candidates.map((c) => c.problem));
+  return PROBLEM_ORDER.find((p) => present.has(p)) ?? 'needs_confirmation';
+}
+
 /**
  * Sorts one requirement into Reusable, Needs Review or Missing. Pure: the
- * rules live here once and the tests exercise them directly. A record the
- * previous case chose keeps priority; without one, a single current match is
- * offered ticked and several are offered unticked, because a matching type
- * alone is never taken as the person's choice.
+ * rules live here once and the tests exercise them directly. Every current
+ * record for the requirement is listed; a record the previous case chose and
+ * that is still current starts ticked, and nothing else does, because a
+ * matching type alone is never taken as the person's choice.
  */
 export function classifyPrepareAgainRequirement(
   req: Pick<
@@ -2827,39 +2851,41 @@ export function classifyPrepareAgainRequirement(
           };
         });
 
+  // Every current record is listed, so the person can always pick a fresher
+  // one than the previous case used; only a still-current earlier choice
+  // starts ticked, and nothing in Needs Review is ticked for them.
   const chosen = candidates.filter((c) => c.chosenBefore);
   if (chosen.length > 0) {
-    const firstProblem = chosen.find((c) => !c.usable);
-    return {
-      ...base,
-      group: firstProblem ? 'NEEDS_REVIEW' : 'REUSABLE',
-      reason: firstProblem ? firstProblem.problem : 'used_before',
-      records: chosen.map((c) => c.record(c.usable, c.usable)),
-    };
-  }
-  const usable = candidates.filter((c) => c.usable);
-  if (usable.length === 1) {
-    return {
-      ...base,
-      group: 'REUSABLE',
-      reason: 'only_match',
-      records: usable.map((c) => c.record(true, true)),
-    };
-  }
-  if (usable.length > 1) {
+    const unusableChosen = chosen.filter((c) => !c.usable);
+    if (unusableChosen.length === 0) {
+      return {
+        ...base,
+        group: 'REUSABLE',
+        reason: 'used_before',
+        records: candidates.map((c) => c.record(c.usable, c.chosenBefore && c.usable)),
+      };
+    }
     return {
       ...base,
       group: 'NEEDS_REVIEW',
-      reason: 'choose_one',
-      records: usable.map((c) => c.record(true, false)),
+      reason: worstProblem(unusableChosen),
+      records: candidates.map((c) => c.record(c.usable, false)),
     };
   }
-  const firstProblem = candidates[0];
-  if (firstProblem) {
+  const usableCount = candidates.filter((c) => c.usable).length;
+  if (usableCount > 0) {
+    return {
+      ...base,
+      group: usableCount === 1 ? 'REUSABLE' : 'NEEDS_REVIEW',
+      reason: usableCount === 1 ? 'only_match' : 'choose_one',
+      records: candidates.map((c) => c.record(c.usable, false)),
+    };
+  }
+  if (candidates.length > 0) {
     return {
       ...base,
       group: 'NEEDS_REVIEW',
-      reason: firstProblem.problem,
+      reason: worstProblem(candidates),
       records: candidates.map((c) => c.record(false, false)),
     };
   }
@@ -2902,7 +2928,7 @@ async function buildPrepareAgainPlan(
   const requirements = await listRequirements(tx, latest.id);
   const factsByKey = await loadFactInstancesByKey(tx, source.applicantId);
   const documentsByType = await loadDocumentInstancesByType(tx, source.applicantId);
-  const previous = await previousChoicesByKey(tx, source.id);
+  const previous = await previousChoicesByKey(tx, source.id, source.packVersionId);
   const context = buildFactEvaluationContext(factsByKey, now);
   let notApplicableCount = 0;
   const items: PrepareAgainItem[] = [];
@@ -3071,15 +3097,40 @@ export async function prepareCaseAgain(
         });
         if (!attached.ok) abort(attached.error);
       }
-      for (const c of input.carry) {
-        const selected = await selectEvidence(tx, {
-          actorAccountId: ownerAccountId,
-          missionId: mission.id,
-          packRequirementId: c.packRequirementId,
-          ...(c.factId ? { factId: c.factId } : {}),
-          ...(c.documentId ? { documentId: c.documentId } : {}),
-        });
-        if (!selected.ok) abort(selected.error);
+      if (input.carry.length > 0) {
+        // Each carried record was checked against the plan above (this
+        // person's, this requirement's, still current), so the rows go in at
+        // once instead of one `selectEvidence` round trip each while the audit
+        // lock is held. Same rows and the same audit record per row.
+        await incrementMaterialRevision(tx, mission.id);
+        const rows = await tx
+          .insert(schema.selectedEvidence)
+          .values(
+            input.carry.map((c) => ({
+              missionId: mission.id,
+              packRequirementId: c.packRequirementId,
+              factId: c.factId ?? null,
+              documentId: c.documentId ?? null,
+              selectedByAccountId: ownerAccountId,
+            })),
+          )
+          .returning();
+        for (const row of rows) {
+          await appendAuditEvent(tx, {
+            eventType: 'MISSION_EVIDENCE_SELECTED',
+            actorAccountId: ownerAccountId,
+            method: 'MANUAL',
+            result: 'ALLOWED',
+            missionId: mission.id,
+            resourceType: 'selected_evidence',
+            resourceId: row.id,
+            metadata: {
+              packRequirementId: row.packRequirementId,
+              factId: row.factId ?? undefined,
+              documentId: row.documentId ?? undefined,
+            },
+          });
+        }
       }
       await recordProductEvent(tx, {
         eventType: 'CASE_PREPARED_AGAIN',
