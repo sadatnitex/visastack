@@ -57,3 +57,12 @@ packages/services/src/application-memory.test.ts
 packages/services/src/tenant-isolation.test.ts
 packages/services/src/case-exclusion-enforcement.test.ts
 docs/architecture/permission-model.md
+# Added after owner approval on 26 Oct 2026 ("close all four"): restore replays exceptions, the account
+# export lists them, the case page's self-review note counts them, and the policy package exports the rule.
+packages/services/src/backup-reconciliation.ts
+packages/services/src/backup-reconciliation.test.ts
+packages/services/src/export.ts
+packages/services/src/export.test.ts
+apps/web/src/app/app/mission/[id]/page.tsx
+apps/web/src/app/app/mission/[id]/page.test.tsx
+packages/policy/src/index.ts
