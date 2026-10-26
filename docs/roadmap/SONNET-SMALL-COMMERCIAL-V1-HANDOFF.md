@@ -11,7 +11,7 @@ Build and test every package fully without waiting for the owner, using test dou
 - keep that one capability off or in test mode, with a plain message in the product (for example "Pay Online" hidden while manual payment works);
 - keep real data off.
 
-If a package truly cannot start (S19 before the owner names the provider), skip it and continue with the next one; come back when the owner answers. The owner's steps, and what happens until each is done, are in [OWNER-ACTIONS-SMALL-COMMERCIAL-V1.md](OWNER-ACTIONS-SMALL-COMMERCIAL-V1.md).
+Owner, 26 Oct 2026: O1, O3 and O4 come later, at the owner's risk; do not reorder or pause anything for them. If a package truly cannot start (S19 before the owner names the provider), skip it and continue with the next one; come back when the owner answers. The owner's steps, and what happens until each is done, are in [OWNER-ACTIONS-SMALL-COMMERCIAL-V1.md](OWNER-ACTIONS-SMALL-COMMERCIAL-V1.md).
 
 ## A. Verified current state (26 October 2026)
 

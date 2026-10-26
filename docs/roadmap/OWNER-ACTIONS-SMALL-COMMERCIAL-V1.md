@@ -2,6 +2,8 @@
 
 Each item lists: what is already done for you, the steps only you can take, and what happens until you do them. **Nothing here blocks building.** Every package is built and tested without these steps. A missing step only keeps that one capability switched off or in test mode, with a plain message in the product. You can do the steps one by one, in any order, except where noted.
 
+**Owner decision, 26 Oct 2026:** O1 (repository private), O3 (Vercel and Neon upgrades) and O4 (virus scanner switch) will be done later, at the owner's own risk. **The plan and its order do not change.** Every package proceeds; S4 is still built and tested, and only its switch-on waits for O4. Real data stays off until these are done (the readiness checks enforce it).
+
 Plan: [SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md](SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md). Each item's ID (O1 to O17) matches the handoff's section L.
 
 ## O1. Repository: make it private; full-history secret scan
