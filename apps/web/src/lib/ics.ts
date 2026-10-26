@@ -1,95 +1,93 @@
 /**
- * A minimal iCalendar (RFC 5545) VEVENT generator for one appointment.
- * Commercial V1 Part 4 §11: "Appointment: ... add-to-calendar file/download.
- * No calendar SaaS integration required." - a real, importable .ics file is
- * sufficient; no Google/Outlook API integration is in scope.
+ * Calendar files, the thin web layer over `@visastack/core/calendar` (ADR 0016, "Calendar
+ * export"). The core holds the one serializer, the kinds registry, the options, the UID and
+ * SEQUENCE rules; this file only turns VisaStack records into provider-neutral events.
  *
- * Uses a bare `DTSTART;TZID=<iana>` referencing the zone by name rather than
- * embedding a full VTIMEZONE block: every mainstream calendar app (Google
- * Calendar, Outlook, Apple Calendar) resolves a recognized IANA id this way,
- * and the PRD's own "no calendar SaaS integration required" sets the bar at
- * "importable," not "valid against every RFC 5545 conformance test."
+ * - `buildIcsForAppointment`: one appointment, from its case page (Commercial V1 Part 4 section
+ *   11). Keeps its title, place and channel, as before.
+ * - `selectCalendarEvents` and `buildIcsCalendar`: the traveller's chosen dates, with generic
+ *   titles, no place and no detail. The preview and the file both come from these.
+ *
+ * Moments are written in UTC, converted from the stored wall-clock time and IANA zone, so every
+ * calendar app shows the time the person meant without a VTIMEZONE block. A stored zone this
+ * runtime does not recognise makes the appointment an all-day event on its local date rather than
+ * a guessed time.
  */
 
-import type { CalendarItem, CalendarWhen } from '@visastack/services';
-import { CALENDAR_EVENT_TITLES } from './labels';
-
-/** Escape text per RFC 5545 §3.3.11: backslash, semicolon, comma, then newlines to literal \n. */
-function escapeIcsText(value: string): string {
-  return value
-    .replace(/\\/g, '\\\\')
-    .replace(/;/g, '\\;')
-    .replace(/,/g, '\\,')
-    .replace(/\r\n|\r|\n/g, '\\n');
-}
-
-/**
- * `YYYYMMDDTHHMMSS`, from a wall-clock local date/time. Deliberately reads
- * the UTC-getter methods, not the local ones: this process runs with TZ=UTC
- * (see schema.ts's `localDateTime` doc comment for why that makes the two
- * equivalent here), so `getUTCHours()` etc. return the exact wall-clock
- * numbers that were stored, with no conversion in either direction.
- */
-function formatLocal(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return (
-    `${date.getUTCFullYear()}${pad(date.getUTCMonth() + 1)}${pad(date.getUTCDate())}` +
-    `T${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}${pad(date.getUTCSeconds())}`
-  );
-}
-
-/** `YYYYMMDDTHHMMSSZ`, a genuine UTC instant (used only for DTSTAMP, "when this file was generated"). */
-function formatUtc(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return (
-    `${date.getUTCFullYear()}${pad(date.getUTCMonth() + 1)}${pad(date.getUTCDate())}` +
-    `T${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}${pad(date.getUTCSeconds())}Z`
-  );
-}
+import {
+  CALENDAR_KINDS,
+  type CalendarEvent,
+  type CalendarExportOptions,
+  type CalendarKind,
+  type CalendarStart,
+  calendarSequence,
+  calendarUid,
+  serializeCalendar,
+  utcToWallClock,
+  wallClockToUtc,
+} from '@visastack/core/calendar';
+import type { CalendarItem, CalendarItemWhen } from '@visastack/services';
+import { containsUnsafeDetail } from '../app/app/agency/[orgId]/follow-up-message';
 
 export interface IcsAppointment {
   readonly id: string;
   readonly title: string;
-  /** Wall-clock local value; interpreted in `timezone`, never converted. */
+  /** Wall-clock local value; interpreted in `timezone`, never shifted by the server. */
   readonly localDateTime: Date;
   readonly timezone: string;
   readonly place: string | null;
   readonly channel: string | null;
   /** Minutes; appointments have no stored end time, so this only sizes the calendar block. */
   readonly durationMinutes?: number;
+  /** When the appointment last changed, for SEQUENCE; the file's own time when not given. */
+  readonly updatedAt?: Date;
 }
 
-/** Builds a complete, single-event .ics file. */
-export function buildIcsForAppointment(appt: IcsAppointment): string {
-  const duration = appt.durationMinutes ?? 60;
-  const end = new Date(appt.localDateTime.getTime() + duration * 60_000);
-  const descriptionParts = [appt.channel ? `Channel: ${appt.channel}` : null].filter(
-    (p): p is string => p !== null,
-  );
-
-  const lines = [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//VisaStack//Appointments//EN',
-    'CALSCALE:GREGORIAN',
-    'BEGIN:VEVENT',
-    `UID:appointment-${appt.id}@visastack`,
-    `DTSTAMP:${formatUtc(new Date())}`,
-    `DTSTART;TZID=${appt.timezone}:${formatLocal(appt.localDateTime)}`,
-    `DTEND;TZID=${appt.timezone}:${formatLocal(end)}`,
-    `SUMMARY:${escapeIcsText(appt.title)}`,
-    ...(appt.place ? [`LOCATION:${escapeIcsText(appt.place)}`] : []),
-    ...(descriptionParts.length > 0
-      ? [`DESCRIPTION:${escapeIcsText(descriptionParts.join('\n'))}`]
-      : []),
-    'END:VEVENT',
-    'END:VCALENDAR',
-  ];
-  // RFC 5545 requires CRLF line endings.
-  return `${lines.join('\r\n')}\r\n`;
+/** `YYYY-MM-DDTHH:MM:SS` from a stored timezone-naive value (read in a UTC process). */
+function wallClockOf(value: Date): string {
+  return value.toISOString().slice(0, 19);
 }
 
-// --- Several dated items in one file (v1.2 B05 calendar export, ADR 0016) -------------------
+/** The start of a timed item: a UTC moment, or its local day when the zone is not known. */
+function timedStart(localDateTime: string, timeZone: string | null): CalendarStart {
+  const utc = timeZone ? wallClockToUtc(localDateTime, timeZone) : null;
+  return utc && timeZone
+    ? { kind: 'instant', utc, timeZone }
+    : { kind: 'date', date: localDateTime.slice(0, 10) };
+}
+
+function endFor(kind: CalendarKind, start: CalendarStart, minutes?: number) {
+  return {
+    kind: 'duration' as const,
+    minutes:
+      start.kind === 'date' ? 1440 : (minutes ?? CALENDAR_KINDS[kind].defaultDurationMinutes),
+  };
+}
+
+/** A complete single-event file for one appointment. */
+export function buildIcsForAppointment(
+  appt: IcsAppointment,
+  options: { readonly now?: Date } = {},
+): string {
+  const now = options.now ?? new Date();
+  const start = timedStart(wallClockOf(appt.localDateTime), appt.timezone);
+  const event: CalendarEvent = {
+    uid: calendarUid('appointment', appt.id),
+    sequence: calendarSequence(appt.updatedAt ?? now),
+    status: 'CONFIRMED',
+    start,
+    end: endFor('appointment', start, appt.durationMinutes),
+    title: appt.title,
+    ...(appt.channel ? { description: `Channel: ${appt.channel}` } : {}),
+    ...(appt.place ? { location: appt.place } : {}),
+    privacy: 'private',
+    categories: [CALENDAR_KINDS.appointment.category],
+    source: { kind: 'appointment', key: `appointment:${appt.id}` },
+  };
+  return serializeCalendar([event], { now });
+}
+
+// --- Several dated items in one file (v1.2 B05 calendar export) ------------------------------
 
 /** The most events one calendar file holds; the earliest selected dates are kept. */
 export const CALENDAR_EXPORT_LIMIT = 100;
@@ -100,77 +98,130 @@ export const CALENDAR_EVENT_DESCRIPTION = 'From VisaStack. Open VisaStack for th
 /** The download's file name: generic, never a person, a case or an id. */
 export const CALENDAR_FILE_NAME = 'visastack-dates.ics';
 
-/** One event in a multi-event file, already named. */
-export interface IcsCalendarEvent {
-  /** `${kind}:${resourceId}`, the item key; the UID is made from it. */
-  readonly key: string;
-  readonly summary: string;
-  readonly when: CalendarWhen;
-}
+/** The name some calendar apps show for the imported set. */
+export const CALENDAR_NAME = 'VisaStack Dates';
 
-/** A stable UID for an item key: `<kind>-<id>@visastack`, so a re-import updates, not duplicates. */
-export function icsUid(key: string): string {
-  return `${key.replace(':', '-').replace(/[^A-Za-z0-9_-]/g, '-')}@visastack`;
-}
+// biome-ignore lint/suspicious/noControlCharactersInRegex: removing them is the point.
+const CONTROL = /[\u0000-\u001f\u007f-\u009f]+/g;
+/** Bidirectional controls (embeddings, overrides, isolates and marks) that can disguise text. */
+const BIDI = new RegExp(
+  `[${[
+    0x061c, 0x200e, 0x200f, 0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2066, 0x2067, 0x2068, 0x2069,
+  ]
+    .map((code) => String.fromCodePoint(code))
+    .join('')}]`,
+  'g',
+);
+/** Figure, en, em and horizontal bar dashes, the minus sign and the two- and three-em dashes. */
+const LONG_DASHES = new RegExp(
+  `[${[0x2012, 0x2013, 0x2014, 0x2015, 0x2212, 0x2e3a, 0x2e3b, 0xfe58]
+    .map((code) => String.fromCodePoint(code))
+    .join('')}]`,
+  'g',
+);
+/** U+FFFD, written in place of a lone surrogate. */
+const REPLACEMENT = String.fromCodePoint(0xfffd);
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
 
-/** En dash, em dash and horizontal bar, built from code points so the source holds none of them. */
-const LONG_DASHES = new RegExp(`[${String.fromCodePoint(0x2013, 0x2014, 0x2015)}]`, 'g');
-
-/** A word or code holding six or more digits in a row, such as a passport or account number. */
-const LONG_NUMBER = /[A-Za-z0-9]*\d{6,}[A-Za-z0-9]*/g;
+/** Longest case name in a title, in characters. */
+const CASE_NAME_MAX = 80;
 
 /**
- * A case title made safe to sit in someone's calendar: control characters dropped, long dashes
- * turned into hyphens, anything holding a long run of digits hidden, and the length capped.
+ * A case title made safe to sit in someone's calendar, or null to leave it out. Control and
+ * bidirectional characters are dropped, long dashes become hyphens, it is cut at 80 characters
+ * (never inside one), and a name that holds a link, an email address, an id or a long or grouped
+ * number in any script is left out whole: the agency follow-up message's own check
+ * (`containsUnsafeDetail`), so the two never disagree.
  */
-export function calendarCaseName(title: string): string {
-  return (
+export function calendarCaseName(title: string): string | null {
+  const cleaned = Array.from(
     title
-      // biome-ignore lint/suspicious/noControlCharactersInRegex: removing them is the point.
-      .replace(/[\u0000-\u001f\u007f]+/g, ' ')
+      .replace(LONE_SURROGATE, REPLACEMENT)
+      .replace(CONTROL, ' ')
+      .replace(BIDI, '')
       .replace(LONG_DASHES, '-')
-      .replace(LONG_NUMBER, '(number hidden)')
       .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 80)
-  );
+      .trim(),
+  )
+    .slice(0, CASE_NAME_MAX)
+    .join('')
+    .trim();
+  if (cleaned.length === 0 || containsUnsafeDetail(cleaned)) return null;
+  return cleaned;
 }
 
 /**
- * The event title: the generic name for the kind, plus " - <case title>" only when the person
- * asked for case names and the item belongs to a case.
+ * The event title: the kind's generic title from the registry, plus " - <case name>" only when
+ * the person chose case names and the item belongs to a case whose name is safe to show.
  */
 export function calendarEventTitle(
   item: Pick<CalendarItem, 'kind' | 'caseTitle'>,
-  options: { readonly caseNames: boolean },
+  options: Pick<CalendarExportOptions, 'titleStyle'>,
 ): string {
-  const generic = CALENDAR_EVENT_TITLES[item.kind];
-  const caseName = options.caseNames && item.caseTitle ? calendarCaseName(item.caseTitle) : '';
+  const generic = CALENDAR_KINDS[item.kind].title;
+  if (options.titleStyle !== 'withCaseNames' || !item.caseTitle) return generic;
+  const caseName = calendarCaseName(item.caseTitle);
   return caseName ? `${generic} - ${caseName}` : generic;
 }
 
+function startFor(kind: CalendarKind, when: CalendarItemWhen): CalendarStart {
+  if (when.kind === 'date') return { kind: 'date', date: when.date };
+  return CALENDAR_KINDS[kind].timing === 'timed'
+    ? timedStart(when.localDateTime, when.timeZone)
+    : { kind: 'date', date: when.localDateTime.slice(0, 10) };
+}
+
+/** One server item as a provider-neutral event, under the person's options. */
+export function calendarEventFor(
+  item: CalendarItem,
+  options: CalendarExportOptions,
+): CalendarEvent {
+  const start = startFor(item.kind, item.when);
+  const kind = CALENDAR_KINDS[item.kind];
+  return {
+    uid: calendarUid(item.kind, item.resourceId),
+    sequence: calendarSequence(item.updatedAt),
+    status: 'CONFIRMED',
+    start,
+    end: endFor(item.kind, start),
+    title: calendarEventTitle(item, options),
+    description: CALENDAR_EVENT_DESCRIPTION,
+    privacy: 'private',
+    categories: [kind.category],
+    ...(options.alarms.length > 0
+      ? { alarms: options.alarms.map((minutesBefore) => ({ minutesBefore })) }
+      : {}),
+    source: { kind: item.kind, key: item.key },
+  };
+}
+
 /**
- * The events for the selected keys, rebuilt from the server's own items: a key the server did
- * not list (another person's, a made-up one, a repeat) is ignored, and every title and date comes
- * from the items, never from the request. Each key is used once, in the items' date order, at most
- * `CALENDAR_EXPORT_LIMIT`; `leftOut` counts the selected ones over the cap. The preview and the
- * file both come from this, so the preview shows exactly what the file holds.
+ * The events for the selected keys, rebuilt from the server's own items under the options: a key
+ * the server did not list (another person's, a made-up one, a repeat, or one finished since the
+ * preview) is ignored, and every title and date comes from the items, never from the request.
+ * Each key is used once, in the items' date order, at most `CALENDAR_EXPORT_LIMIT`; `leftOut`
+ * counts the selected ones over the cap. The preview and the file both come from this.
  */
 export function selectCalendarEvents(
   items: readonly CalendarItem[],
   keys: Iterable<string>,
-  options: { readonly caseNames: boolean },
-): { readonly events: IcsCalendarEvent[]; readonly leftOut: number } {
+  options: CalendarExportOptions,
+): { readonly events: CalendarEvent[]; readonly leftOut: number } {
   const wanted = new Set(keys);
-  const chosen = items.filter((item) => wanted.delete(item.key));
+  const kinds = new Set(options.kinds);
+  const chosen = items.filter((item) => kinds.has(item.kind) && wanted.delete(item.key));
   return {
-    events: chosen.slice(0, CALENDAR_EXPORT_LIMIT).map((item) => ({
-      key: item.key,
-      summary: calendarEventTitle(item, options),
-      when: item.when,
-    })),
+    events: chosen.slice(0, CALENDAR_EXPORT_LIMIT).map((item) => calendarEventFor(item, options)),
     leftOut: Math.max(0, chosen.length - CALENDAR_EXPORT_LIMIT),
   };
+}
+
+/** The calendar file for the chosen events. */
+export function buildIcsCalendar(
+  events: readonly CalendarEvent[],
+  options: { readonly now?: Date } = {},
+): string {
+  return serializeCalendar(events, { now: options.now ?? new Date(), calendarName: CALENDAR_NAME });
 }
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
@@ -189,117 +240,32 @@ const MONTHS = [
   'Dec',
 ] as const;
 
-/** A `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM:SS` wall-clock value as a Date whose UTC fields are it. */
-function wallClock(value: string): Date {
-  return new Date(value.length === 10 ? `${value}T00:00:00.000Z` : `${value}.000Z`);
+function dayName(date: string): string {
+  const value = new Date(`${date}T00:00:00.000Z`);
+  return `${WEEKDAYS[value.getUTCDay()]} ${value.getUTCDate()} ${MONTHS[value.getUTCMonth()]} ${value.getUTCFullYear()}`;
 }
 
 /**
- * How the preview words a date, for example "Tue 3 Nov 2026, all day" or
- * "Tue 3 Nov 2026, 09:30 Asia/Dhaka time". Never converted: the same wall clock as the file.
+ * How a page words when an item happens, for example "Tue 3 Nov 2026, all day" or
+ * "Tue 3 Nov 2026, 09:30 Asia/Dhaka time": the same day and clock time the calendar will show
+ * in that zone.
  */
-export function describeCalendarWhen(when: CalendarWhen): string {
-  const date = wallClock(when.kind === 'date' ? when.date : when.localDateTime);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const day = `${WEEKDAYS[date.getUTCDay()]} ${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
-  if (when.kind === 'date') return `${day}, all day`;
-  const time = `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
-  return when.timezone
-    ? `${day}, ${time} ${when.timezone} time`
-    : `${day}, ${time} (time zone not recorded, so your calendar's own)`;
-}
-
-/** UTF-8 length of one code point. */
-function utf8Length(char: string): number {
-  const code = char.codePointAt(0) ?? 0;
-  if (code < 0x80) return 1;
-  if (code < 0x800) return 2;
-  if (code < 0x10000) return 3;
-  return 4;
-}
-
-/**
- * Folds one content line (RFC 5545 section 3.1): no line longer than 75 octets counted in UTF-8,
- * each continuation starting with one space, and never splitting a character.
- */
-export function foldIcsLine(line: string): string {
-  const parts: string[] = [];
-  let current = '';
-  let size = 0;
-  let limit = 75;
-  for (const char of line) {
-    const length = utf8Length(char);
-    if (size + length > limit) {
-      parts.push(current);
-      current = '';
-      size = 0;
-      // A continuation line holds 74 octets after its leading space.
-      limit = 74;
-    }
-    current += char;
-    size += length;
+export function describeCalendarStart(event: Pick<CalendarEvent, 'start' | 'source'>): string {
+  const { start } = event;
+  if (start.kind === 'date') {
+    const unknownZone = CALENDAR_KINDS[event.source.kind].timing === 'timed';
+    return `${dayName(start.date)}, all day${unknownZone ? ' (time zone not recorded)' : ''}`;
   }
-  parts.push(current);
-  return parts.join('\r\n ');
+  const local = start.timeZone ? utcToWallClock(start.utc, start.timeZone) : null;
+  return local
+    ? `${dayName(local.date)}, ${local.time} ${start.timeZone} time`
+    : `${dayName(start.utc.slice(0, 10))}, ${start.utc.slice(11, 16)} UTC`;
 }
 
-/** `YYYYMMDD` for a `YYYY-MM-DD` day, and the day after it (an all-day event's exclusive end). */
-function icsDate(date: string, addDays = 0): string {
-  const value = new Date(wallClock(date).getTime() + addDays * 86_400_000);
-  return value.toISOString().slice(0, 10).replace(/-/g, '');
-}
-
-/** The DTSTART and DTEND lines for one event. */
-function eventTimes(when: CalendarWhen): string[] {
-  if (when.kind === 'date') {
-    return [
-      `DTSTART;VALUE=DATE:${icsDate(when.date)}`,
-      `DTEND;VALUE=DATE:${icsDate(when.date, 1)}`,
-      // A due day or expiry day does not make the person busy.
-      'TRANSP:TRANSPARENT',
-    ];
-  }
-  const start = wallClock(when.localDateTime);
-  const end = new Date(start.getTime() + 60 * 60_000);
-  // A zone name is used only if it is a plain IANA name (letters, digits, "_", "+", "-", "/").
-  // Without one the time is floating: the same clock time wherever the calendar is.
-  const zone =
-    when.timezone && /^[A-Za-z][A-Za-z0-9_+\-/]*$/.test(when.timezone)
-      ? `;TZID=${when.timezone}`
-      : '';
-  return [`DTSTART${zone}:${formatLocal(start)}`, `DTEND${zone}:${formatLocal(end)}`];
-}
-
-/**
- * A complete calendar file with one event per item (RFC 5545): VCALENDAR with VERSION, PRODID,
- * CALSCALE and METHOD:PUBLISH; each VEVENT with a stable UID from its key, DTSTAMP in UTC, an
- * all-day span for a date (DTEND the next day) or the stored wall-clock time with its TZID for an
- * appointment (one hour long, as the single-appointment file), the title, and the one generic
- * description line. Like `buildIcsForAppointment` it names the zone by its IANA id without a
- * VTIMEZONE block; calendar apps resolve the name. Text is escaped, lines are folded at 75
- * octets, and every line ends with CRLF.
- */
-export function buildIcsCalendar(
-  events: readonly IcsCalendarEvent[],
-  options: { readonly now?: Date } = {},
-): string {
-  const stamp = formatUtc(options.now ?? new Date());
-  const lines = [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//VisaStack//Calendar Export//EN',
-    'CALSCALE:GREGORIAN',
-    'METHOD:PUBLISH',
-    ...events.flatMap((event) => [
-      'BEGIN:VEVENT',
-      `UID:${icsUid(event.key)}`,
-      `DTSTAMP:${stamp}`,
-      ...eventTimes(event.when),
-      `SUMMARY:${escapeIcsText(event.summary)}`,
-      `DESCRIPTION:${escapeIcsText(CALENDAR_EVENT_DESCRIPTION)}`,
-      'END:VEVENT',
-    ]),
-    'END:VCALENDAR',
-  ];
-  return `${lines.map(foldIcsLine).join('\r\n')}\r\n`;
+/** How a page words when an item from the server happens, before it becomes an event. */
+export function describeCalendarItem(item: CalendarItem): string {
+  return describeCalendarStart({
+    start: startFor(item.kind, item.when),
+    source: { kind: item.kind, key: item.key },
+  });
 }

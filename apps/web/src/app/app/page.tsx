@@ -174,9 +174,10 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
 }
 
 /**
- * "Add Dates to My Calendar" (v1.2 B05 calendar export). Each person's dates are their own file,
- * so with one person the link goes straight to that person's calendar page; with several, one
- * link per person, named by the person.
+ * "Add Dates to My Calendar" (v1.2 B05 calendar export), at the foot of My Records so it is
+ * there whatever is waiting. Each person's dates are their own file: with one person, one button
+ * straight to that person's calendar page; with several, one sentence with each person's name as
+ * a link, so a household of 25 is one line, not 25 buttons.
  */
 function CalendarLinks({
   people,
@@ -196,21 +197,16 @@ function CalendarLinks({
     );
   }
   return (
-    <nav className="home-calendar-links" aria-labelledby="home-calendar-heading">
-      <p className="muted do-next-more" id="home-calendar-heading">
-        Add dates to your calendar, one person at a time:
-      </p>
-      <ul className="home-calendar-list">
-        {people.map((person) => (
-          <li key={person.id}>
-            <Link href={href(person.id)} className="btn btn-secondary">
-              {person.displayName}
-              <span className="sr-only">: Add Dates to My Calendar</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </nav>
+    <p className="muted do-next-more home-calendar-links">
+      Add dates to my calendar for{' '}
+      {people.map((person, index) => (
+        <span key={person.id}>
+          {index === 0 ? '' : index === people.length - 1 ? ' or ' : ', '}
+          <Link href={href(person.id)}>{person.displayName}</Link>
+        </span>
+      ))}
+      .
+    </p>
   );
 }
 
@@ -513,7 +509,6 @@ export default async function AppPage({
               people. <Link href="/app/applicants">See All Applicants</Link>
             </p>
           ) : null}
-          <CalendarLinks people={data.perApplicant.map((row) => row.applicant)} />
         </section>
       ) : null}
 
@@ -561,6 +556,7 @@ export default async function AppPage({
               ))}
             </ul>
           )}
+          <CalendarLinks people={data.perApplicant.map((row) => row.applicant)} />
           {data.applicants.length > data.perApplicant.length ? (
             <p className="muted do-next-more">
               Home shows the first {data.perApplicant.length} of {data.applicants.length} people.{' '}

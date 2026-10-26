@@ -1,48 +1,78 @@
+import { parseCalendarExportOptions } from '@visastack/core/calendar';
 import {
   CALENDAR_FILE_NAME,
   buildIcsCalendar,
   selectCalendarEvents,
 } from '../../../../../../lib/ics';
-import { loadCalendarDates, readCalendarSelection } from '../load';
+import { loadCalendarDates, readCalendarKeys } from '../load';
 
 /**
- * The calendar file for the dates the traveller chose (v1.2 B05). Owner-only through the access
- * gate. The file is rebuilt here from the server's own items: only the chosen keys come from the
- * request, and a key that is not one of this person's items is ignored without saying anything
- * about it. Nothing is written.
+ * The calendar file for the dates the traveller chose (v1.2 B05). A POST from the calendar page's
+ * own form, so a long choice never makes a long address; nothing is written. Owner-only through
+ * the access gate. The file is rebuilt here from the server's own items: only the chosen keys and
+ * the options come from the request, both parsed by the one parser each. A key that is not one
+ * of this person's items now (another person's, made up, or finished since the preview) is left
+ * out without saying anything about it; if none is left, the person goes back to the page.
  */
 export const dynamic = 'force-dynamic';
 
 const PRIVATE = { 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' };
 
-export async function GET(
+/**
+ * True when the form was sent from this site: the Origin header's host is the host the request
+ * was made to. A browser always sends Origin with a form POST; a missing or "null" one is refused.
+ */
+function fromThisSite(request: Request): boolean {
+  const origin = request.headers.get('origin');
+  if (!origin || origin === 'null') return false;
+  let originHost: string;
+  try {
+    originHost = new URL(origin).host;
+  } catch {
+    return false;
+  }
+  const forwarded = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim();
+  const host = forwarded || request.headers.get('host') || new URL(request.url).host;
+  return originHost === host;
+}
+
+function backTo(id: string, error: 'nothing' | 'failed'): Response {
+  return new Response(null, {
+    status: 303,
+    headers: {
+      ...PRIVATE,
+      Location: `/app/applicant/${encodeURIComponent(id)}/calendar?error=${error}`,
+    },
+  });
+}
+
+export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
+  if (!fromThisSite(request)) {
+    return new Response('forbidden', { status: 403, headers: PRIVATE });
+  }
   const { id } = await params;
   const loaded = await loadCalendarDates(id);
   if (loaded.state === 'denied') {
     return new Response('not found', { status: 404, headers: PRIVATE });
   }
-  const back = `/app/applicant/${encodeURIComponent(id)}/calendar`;
-  if (loaded.state === 'failed') {
-    return new Response(null, {
-      status: 303,
-      headers: { ...PRIVATE, Location: `${back}?error=failed` },
-    });
-  }
+  if (loaded.state === 'failed') return backTo(id, 'failed');
 
-  const selection = readCalendarSelection(new URL(request.url).searchParams);
-  const { events } = selectCalendarEvents(loaded.dates.items, selection.keys, {
-    caseNames: selection.caseNames,
-  });
-  if (events.length === 0) {
-    // Back to the page with a plain message; nothing from the request is echoed.
-    return new Response(null, {
-      status: 303,
-      headers: { ...PRIVATE, Location: `${back}?error=nothing` },
-    });
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    return backTo(id, 'nothing');
   }
+  const { events } = selectCalendarEvents(
+    loaded.dates.items,
+    readCalendarKeys(form),
+    parseCalendarExportOptions(form),
+  );
+  // Back to the page with a plain message; nothing from the request is echoed.
+  if (events.length === 0) return backTo(id, 'nothing');
 
   return new Response(buildIcsCalendar(events), {
     status: 200,

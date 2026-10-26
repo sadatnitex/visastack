@@ -38,32 +38,36 @@ export async function loadCalendarDates(
 
 /** At most this many keys are read from one request; more than any page can list. */
 const MAX_KEYS = 500;
-/** Longer than any real key (`document_expiry:` plus a uuid). */
+/** Longer than any real key (`document_expires:` plus a uuid). */
 const MAX_KEY_LENGTH = 80;
 
-export interface CalendarSelection {
-  readonly keys: readonly string[];
-  readonly caseNames: boolean;
-}
+/** The form field that carries each chosen item's key. */
+export const CALENDAR_KEY_FIELD = 'key';
 
 /**
- * The person's choices from the query string: the item keys and whether to add case names.
- * Only keys are read, never a title or a date; the caller matches them against its own items.
+ * The chosen item keys from form data, URL parameters or a Next.js query record. Only keys are
+ * read, never a title or a date; the caller matches them against its own items. Choices about
+ * titles and reminders are read separately, by `parseCalendarExportOptions`.
  */
-export function readCalendarSelection(
-  query: URLSearchParams | Readonly<Record<string, string | string[] | undefined>>,
-): CalendarSelection {
-  const all = (name: string): string[] => {
-    if (query instanceof URLSearchParams) return query.getAll(name);
-    const value = query[name];
-    return value === undefined ? [] : Array.isArray(value) ? value : [value];
-  };
-  const keys = [
+export function readCalendarKeys(
+  input:
+    | { readonly getAll: (name: string) => readonly unknown[] }
+    | Readonly<Record<string, string | readonly string[] | undefined>>,
+): readonly string[] {
+  const raw: readonly unknown[] =
+    'getAll' in input && typeof input.getAll === 'function'
+      ? input.getAll(CALENDAR_KEY_FIELD)
+      : ((value) => (value === undefined ? [] : Array.isArray(value) ? value : [value]))(
+          (input as Readonly<Record<string, unknown>>)[CALENDAR_KEY_FIELD],
+        );
+  return [
     ...new Set(
-      all('key')
+      raw
         .slice(0, MAX_KEYS)
-        .filter((key) => key.length > 0 && key.length <= MAX_KEY_LENGTH),
+        .filter(
+          (key): key is string =>
+            typeof key === 'string' && key.length > 0 && key.length <= MAX_KEY_LENGTH,
+        ),
     ),
   ];
-  return { keys, caseNames: all('names').includes('1') };
 }

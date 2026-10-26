@@ -11,6 +11,7 @@ import { type Result, err, ok } from '@visastack/core';
 import { authorize } from '@visastack/policy';
 import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access/require-access';
+import { recognisedTimeZone } from './attention';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { isDocumentVersionUsable } from './documents';
@@ -745,8 +746,13 @@ export async function createAppointmentForOrg(
 ): Promise<Result<OrgVisibleAppointment, ServiceError>> {
   const title = input.title.trim();
   if (title.length === 0) return err(serviceError('invalid', 'a title is required'));
-  const timezone = input.timezone.trim();
-  if (timezone.length === 0) return err(serviceError('invalid', 'a timezone is required'));
+  if (input.timezone.trim().length === 0) {
+    return err(serviceError('invalid', 'a timezone is required'));
+  }
+  // A known IANA name only: it is written into calendar files, so nothing else may get in.
+  const timezone = recognisedTimeZone(input.timezone);
+  if (!timezone)
+    return err(serviceError('invalid', 'choose a time zone from the list, such as Asia/Dhaka'));
   const mission = await loadMissionForOrgWrite(
     db,
     input.organizationId,
@@ -835,6 +841,11 @@ export async function updateAppointmentForOrg(
   );
   if (!mission.ok) return mission;
 
+  // A known IANA name only, as when the appointment was made.
+  const timezone = input.timezone === undefined ? undefined : recognisedTimeZone(input.timezone);
+  if (timezone === null)
+    return err(serviceError('invalid', 'choose a time zone from the list, such as Asia/Dhaka'));
+
   return db.transaction(async (tx) => {
     const appointment = first(
       await tx
@@ -869,8 +880,8 @@ export async function updateAppointmentForOrg(
         },
       };
     }
-    if (input.timezone !== undefined) {
-      changes = { ...changes, timezone: { before: appointment.timezone, after: input.timezone } };
+    if (timezone !== undefined) {
+      changes = { ...changes, timezone: { before: appointment.timezone, after: timezone } };
     }
     if (input.place !== undefined) {
       changes = { ...changes, place: { before: appointment.place, after: input.place } };
@@ -889,7 +900,7 @@ export async function updateAppointmentForOrg(
               ? { assigneeAccountId: input.assigneeAccountId }
               : {}),
             ...(input.localDateTime !== undefined ? { localDateTime: input.localDateTime } : {}),
-            ...(input.timezone !== undefined ? { timezone: input.timezone } : {}),
+            ...(timezone !== undefined ? { timezone } : {}),
             ...(input.place !== undefined ? { place: input.place } : {}),
             ...(input.channel !== undefined ? { channel: input.channel } : {}),
             updatedAt: new Date(),

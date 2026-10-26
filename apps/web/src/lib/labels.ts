@@ -5,7 +5,6 @@ import type {
   AttentionItem,
   AttentionKind,
   AttentionTier,
-  CalendarItemKind,
   CaseTriageState,
   TriageGroup,
   TriageIndicator,
@@ -260,13 +259,13 @@ export function attentionActionLabel(item: Pick<AttentionItem, 'kind' | 'sentBac
 }
 
 /**
- * Calendar export (v1.2 B05): the generic event title for each kind of dated item. These are
- * the whole title unless the person asks to add case names; they never name a document, a
- * detail, a number or anything else from the record.
+ * Calendar export (v1.2 B05): the "Remind Me" choices, keyed by the form value (minutes before
+ * the date; empty for none). The generic event titles live in the calendar kinds registry
+ * (`CALENDAR_KINDS` in `@visastack/core/calendar`).
  */
-export const CALENDAR_EVENT_TITLES: Readonly<Record<CalendarItemKind, string>> = {
-  appointment: 'Appointment',
-  task: 'Task Due',
-  evidence_request: 'Request Due',
-  document_expiry: 'Document Expires',
+export const CALENDAR_REMINDER_LABELS: Readonly<Record<'' | '0' | '1440' | '10080', string>> = {
+  '': 'None',
+  '0': 'On the Day',
+  '1440': '1 Day Before',
+  '10080': '1 Week Before',
 };

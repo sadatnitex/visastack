@@ -7,6 +7,7 @@ import {
   FOREIGN_KEY,
   REQUEST_KEY,
   TASK_KEY,
+  downloadRequest,
   ownerProof,
   sharedProof,
 } from './fixtures.test-support';
@@ -27,13 +28,17 @@ vi.mock('../../../../../lib/session', () => ({
 }));
 
 const { default: CalendarPage } = await import('./page');
-const { GET } = await import('./download/route');
+const { POST } = await import('./download/route');
 
 const ID = 'a1';
 const render = (query: Record<string, string | string[]> = {}) =>
   renderServer(
     CalendarPage({ params: Promise.resolve({ id: ID }), searchParams: Promise.resolve(query) }),
   );
+const listing = (items = CALENDAR_ITEMS) => ({
+  ok: true,
+  value: { applicantId: ID, items, truncated: false },
+});
 
 /** The preview's titles and dates, in order, as the page shows them. */
 function previewRows(html: string): { title: string; when: string }[] {
@@ -44,13 +49,30 @@ function previewRows(html: string): { title: string; when: string }[] {
   ].map((m) => ({ title: textOf(m[1] ?? ''), when: textOf(m[2] ?? '') }));
 }
 
+/** The hidden fields of the download form, as the browser would post them. */
+function downloadFields(html: string): [string, string][] {
+  const start = html.indexOf('action="/app/applicant/a1/calendar/download"');
+  expect(start).toBeGreaterThan(-1);
+  const form = html.slice(html.lastIndexOf('<form', start), html.indexOf('</form>', start));
+  expect(form).toContain('method="post"');
+  return [...form.matchAll(/<input type="hidden" name="([^"]*)" value="([^"]*)"/g)].map((m) => [
+    m[1] ?? '',
+    (m[2] ?? '').replaceAll('&amp;', '&'),
+  ]);
+}
+
+async function fileFor(fields: [string, string][]) {
+  const response = await POST(downloadRequest(fields), { params: Promise.resolve({ id: ID }) });
+  const ics = (await response.text()).replace(/\r\n /g, '');
+  const values = (name: string) =>
+    ics.split('\r\n').filter((line) => line.startsWith(`${name}:`) || line.startsWith(`${name};`));
+  return { response, ics, values };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.requireAccess.mockResolvedValue(ownerProof());
-  mocks.listCalendarDates.mockResolvedValue({
-    ok: true,
-    value: { applicantId: ID, items: CALENDAR_ITEMS, truncated: false },
-  });
+  mocks.listCalendarDates.mockResolvedValue(listing());
 });
 
 describe('calendar export page (v1.2 B05)', () => {
@@ -62,74 +84,101 @@ describe('calendar export page (v1.2 B05)', () => {
     expect(mocks.listCalendarDates).not.toHaveBeenCalled();
   });
 
-  it('lists every dated item with nothing chosen, case names off, and says it is a one-time copy', async () => {
+  it('lists every dated item with nothing chosen, case names off, no reminder, and the one-time copy wording', async () => {
     const html = await render();
     expect(html.match(/name="key"/g)).toHaveLength(CALENDAR_ITEMS.length);
     expect(html).not.toMatch(/name="key"[^>]*checked/);
-    expect(html).not.toMatch(/name="names"[^>]*checked/);
+    expect(html).not.toMatch(/name="titles"[^>]*checked/);
+    expect(html).toMatch(/name="remind" checked="" value=""/);
+    expect(html.match(/name="remind"[^>]*checked/g)).toHaveLength(1);
     expect(html).not.toContain('calendar-preview-heading');
     const text = textOf(html);
+    expect(text).toContain('Add Dates to My Calendar');
     expect(text).toContain(
       'This is a one-time copy. If a date changes later, your calendar will not update; download a new file.',
     );
     expect(text).toContain('Dates without a time are added as all-day events.');
     expect(text).toContain('Tue 3 Nov 2026, 09:30 Asia/Dhaka time');
     expect(text).toContain('Fri 30 Apr 2027, all day');
-    // Choices are a labelled group, each box tied to its label, and the form needs no script.
-    expect(html).toMatch(/<fieldset[^>]*><legend class="field-label">Dates to Add<\/legend>/);
-    expect(html).toMatch(/<legend class="field-label">Titles<\/legend>/);
+    for (const label of ['None', 'On the Day', '1 Day Before', '1 Week Before', 'Add Case Names']) {
+      expect(text).toContain(label);
+    }
+    // Labelled groups, each box tied to its label, plain forms with no script.
+    for (const legend of ['Dates to Add', 'Titles', 'Remind Me']) {
+      expect(html).toContain(`<legend class="field-label">${legend}</legend>`);
+    }
     for (let i = 0; i < CALENDAR_ITEMS.length; i++) {
       expect(html).toContain(`for="calendar-date-${i}"`);
       expect(html).toContain(`id="calendar-date-${i}"`);
     }
-    expect(html).toContain('for="calendar-case-names"');
+    for (const id of ['calendar-case-names', 'calendar-remind-none', 'calendar-remind-1440']) {
+      expect(html).toContain(`for="${id}"`);
+      expect(html).toContain(`id="${id}"`);
+    }
     expect(html).toMatch(/<form [^>]*action="\/app\/applicant\/a1\/calendar" method="get"/);
     expect(html).not.toMatch(/<button[^>]*disabled/);
-    // Headings in order under the page's h2.
     expect([...html.matchAll(/<h([1-6])/g)].map((m) => Number(m[1]))).toEqual([2, 3]);
     expect(text).not.toMatch(/mission/i);
   });
 
-  it('previews exactly the titles and dates the file holds, in the same order', async () => {
-    const query = { preview: '1', key: [TASK_KEY, APPOINTMENT_KEY, DOCUMENT_KEY], names: '1' };
-    const html = await render(query);
+  it('previews exactly the titles, dates and reminder the file holds, in the same order', async () => {
+    const html = await render({
+      preview: '1',
+      key: [TASK_KEY, APPOINTMENT_KEY, DOCUMENT_KEY],
+      titles: 'withCaseNames',
+      remind: '1440',
+    });
     const rows = previewRows(html);
     expect(rows).toEqual([
       { title: 'Appointment - Japan Visit', when: 'Tue 3 Nov 2026, 09:30 Asia/Dhaka time' },
       { title: 'Task Due - Japan Visit', when: 'Tue 3 Nov 2026, all day' },
       { title: 'Document Expires', when: 'Fri 30 Apr 2027, all day' },
     ]);
-    // The chosen boxes stay ticked so the person can change the choice.
+    expect(textOf(html)).toContain('Reminder: 1 day before.');
+    expect(textOf(html)).toContain('anything finished or removed since this preview is left out');
+    // The choices stay as made so the person can change them.
     const ticked = (key: string) => html.includes(`name="key" checked="" value="${key}"`);
     expect(ticked(TASK_KEY)).toBe(true);
     expect(ticked(REQUEST_KEY)).toBe(false);
+    expect(html).toMatch(/name="remind" checked="" value="1440"/);
 
-    // The download form carries the same keys and choice; the file has the same titles.
-    const form = html.slice(html.indexOf('action="/app/applicant/a1/calendar/download"'));
-    const hidden = [
-      ...form.slice(0, form.indexOf('</form>')).matchAll(/name="(key|names)" value="([^"]*)"/g),
-    ]
-      .map((m) => `${m[1]}=${encodeURIComponent(m[2] ?? '')}`)
-      .join('&');
-    expect(form).toContain('Download Calendar File');
-    const response = await GET(
-      new Request(`https://vs.example.test/app/applicant/${ID}/calendar/download?${hidden}`),
-      { params: Promise.resolve({ id: ID }) },
+    const fields = downloadFields(html);
+    expect(fields).toEqual([
+      ['key', APPOINTMENT_KEY],
+      ['key', TASK_KEY],
+      ['key', DOCUMENT_KEY],
+      ['titles', 'withCaseNames'],
+      ['remind', '1440'],
+    ]);
+    const { values } = await fileFor(fields);
+    const titles = values('SUMMARY').map((line) =>
+      line.slice('SUMMARY:'.length).replace(/\\([,;\\])/g, '$1'),
     );
-    const ics = (await response.text()).replace(/\r\n /g, '');
-    const fileTitles = ics
-      .split('\r\n')
-      .filter((line) => line.startsWith('SUMMARY:'))
-      .map((line) => line.slice('SUMMARY:'.length).replace(/\\([,;\\])/g, '$1'));
-    expect(fileTitles).toEqual(rows.map((row) => row.title));
-    expect(ics).toContain('DTSTART;TZID=Asia/Dhaka:20261103T093000');
-    expect(ics).toContain('DTSTART;VALUE=DATE:20261103');
-    expect(ics).toContain('DTSTART;VALUE=DATE:20270430');
+    expect(titles).toEqual(rows.map((row) => row.title));
+    // 09:30 in Dhaka is 03:30 UTC; the all-day dates stay days.
+    expect(values('DTSTART')).toEqual([
+      'DTSTART:20261103T033000Z',
+      'DTSTART;VALUE=DATE:20261103',
+      'DTSTART;VALUE=DATE:20270430',
+    ]);
+    expect(values('TRIGGER')).toEqual(['TRIGGER:-PT1440M', 'TRIGGER:-PT900M', 'TRIGGER:-PT900M']);
   });
 
-  it('shows generic titles in the preview unless case names were chosen', async () => {
-    const rows = previewRows(await render({ preview: '1', key: TASK_KEY }));
-    expect(rows).toEqual([{ title: 'Task Due', when: 'Tue 3 Nov 2026, all day' }]);
+  it('if something was finished since the preview, the file still downloads with the rest', async () => {
+    const html = await render({ preview: '1', key: [TASK_KEY, APPOINTMENT_KEY] });
+    mocks.listCalendarDates.mockResolvedValueOnce(
+      listing(CALENDAR_ITEMS.filter((item) => item.key !== TASK_KEY)),
+    );
+    const { response, values } = await fileFor(downloadFields(html));
+    expect(response.status).toBe(200);
+    expect(values('SUMMARY')).toEqual(['SUMMARY:Appointment']);
+  });
+
+  it('shows generic titles and no reminder in the preview unless chosen', async () => {
+    const html = await render({ preview: '1', key: TASK_KEY });
+    expect(previewRows(html)).toEqual([{ title: 'Task Due', when: 'Tue 3 Nov 2026, all day' }]);
+    expect(textOf(html)).toContain('Reminder: none.');
+    expect(downloadFields(html)).toEqual([['key', TASK_KEY]]);
   });
 
   it('a preview with nothing valid chosen asks for a choice and offers no download', async () => {
@@ -147,10 +196,7 @@ describe('calendar export page (v1.2 B05)', () => {
   });
 
   it('with no dated items, says so plainly', async () => {
-    mocks.listCalendarDates.mockResolvedValueOnce({
-      ok: true,
-      value: { applicantId: ID, items: [], truncated: false },
-    });
+    mocks.listCalendarDates.mockResolvedValueOnce(listing([]));
     const text = textOf(await render());
     expect(text).toContain('No Dates to Add');
     expect(text).toContain('one-time copy');

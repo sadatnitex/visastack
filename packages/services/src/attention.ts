@@ -1,5 +1,6 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, asc, count, eq, inArray, isNotNull, isNull, min, or } from 'drizzle-orm';
+import { type CalendarKind, isKnownTimeZone } from '@visastack/core/calendar';
+import { and, asc, count, eq, gte, inArray, isNotNull, isNull, min, or } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access/require-access';
 import { schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -572,36 +573,35 @@ export async function listNeedsAttention(
 
 // --- Calendar dates (v1.2 B05 calendar paragraph; ADR 0016 "Calendar export") ---------------
 
-/** The kinds of dated thing a traveller can copy to their own calendar. */
-export type CalendarItemKind = 'appointment' | 'task' | 'evidence_request' | 'document_expiry';
-
 /**
- * When a calendar item happens. A due day or an expiry day is a calendar day (`YYYY-MM-DD`), an
- * all-day event. An appointment is a wall-clock local date and time (`YYYY-MM-DDTHH:MM:SS`) in an
- * IANA time zone, exactly as stored; `timezone` is null when the stored name is not one this
- * runtime recognises, so the time is never moved to a guessed zone.
+ * When a dated item happens. A due day or an expiry day is a calendar day (`YYYY-MM-DD`). An
+ * appointment is a wall-clock local date and time (`YYYY-MM-DDTHH:MM:SS`) in an IANA time zone,
+ * exactly as stored; `timeZone` is null when the stored name is not one this runtime recognises,
+ * so the time is never moved to a guessed zone.
  */
-export type CalendarWhen =
+export type CalendarItemWhen =
   | { readonly kind: 'date'; readonly date: string }
   | {
       readonly kind: 'local';
       readonly localDateTime: string;
-      readonly timezone: string | null;
+      readonly timeZone: string | null;
     };
 
 /**
- * One dated item. It carries no title text of its own: the web layer names it from `kind` with
- * a generic title, and adds the case title only when the person asks. Never a note, a task
- * description, an appointment title or place, a saved value, a file name, a document number or
- * an amount.
+ * One dated item, neutral: no wording of its own. The web layer turns it into a calendar event
+ * through the kinds registry in `@visastack/core/calendar`. Never a note, a task description, an
+ * appointment title or place, a saved value, a file name, a document number or an amount.
  */
 export interface CalendarItem {
   /** `${kind}:${resourceId}`, stable for the same thing. */
   readonly key: string;
-  readonly kind: CalendarItemKind;
-  readonly when: CalendarWhen;
+  readonly kind: CalendarKind;
+  readonly resourceId: string;
+  readonly when: CalendarItemWhen;
   /** The case the item belongs to, when it belongs to one. */
   readonly caseTitle: string | null;
+  /** When the record last changed (ISO 8601), for the event's SEQUENCE. */
+  readonly updatedAt: string;
 }
 
 export interface CalendarDates {
@@ -615,29 +615,40 @@ export interface CalendarDates {
 /** Upper bound on rows read from each of the four sources for one applicant (earliest first). */
 export const CALENDAR_SOURCE_LIMIT = 50;
 
-/** Longest case title carried on an item; a longer one is cut. */
+/**
+ * How far back the calendar reads, in days before today in the traveller's time zone. Something
+ * due or expiring in the last week is still worth a reminder; anything older is left out, so old
+ * appointments and long-expired documents never push upcoming dates past the cap.
+ */
+export const CALENDAR_PAST_DAYS = 7;
+
+/** Longest case title carried on an item, in characters; a longer one is cut. */
 const CALENDAR_CASE_TITLE_MAX = 80;
 
-/** A time zone name only if it is a well-formed IANA name this runtime knows. */
-function recognisedTimeZone(name: string): string | null {
+/**
+ * A time zone name only if it is a well-formed IANA name this runtime knows (letters, digits,
+ * "_", "+", "-" and "/"; no spaces or line breaks), trimmed; otherwise null. Used where a zone is
+ * saved (appointments) and where one is read back for a calendar file.
+ */
+export function recognisedTimeZone(name: string): string | null {
   const trimmed = name.trim();
   if (!/^[A-Za-z][A-Za-z0-9_+\-/]{0,63}$/.test(trimmed)) return null;
-  try {
-    new Intl.DateTimeFormat('en-US', { timeZone: trimmed });
-    return trimmed;
-  } catch {
-    return null;
-  }
+  return isKnownTimeZone(trimmed) ? trimmed : null;
 }
 
 /** The order key of an item: a date-only key sorts before any time on the same day. */
-function calendarSortKey(when: CalendarWhen): string {
+function calendarSortKey(when: CalendarItemWhen): string {
   return when.kind === 'date' ? when.date : when.localDateTime;
 }
 
+export interface CalendarDatesOptions {
+  /** The clock for the earliest day read (tests). Access is always decided by the gate. */
+  readonly now?: Date;
+}
+
 /**
- * The traveller's dated items, for a one-time calendar file (v1.2 B05). The same owner-only rule
- * as `listNeedsAttention`: the proof must be genuine, issued to the applicant's owner, for this
+ * The traveller's dated items, for a calendar file (v1.2 B05). The same owner-only rule as
+ * `listNeedsAttention`: the proof must be genuine, issued to the applicant's owner, for this
  * applicant; a sharing grant, a copied proof or a proof for another resource is refused. Sources:
  *
  * - appointments on active cases that are open or started, at their stored local date and time
@@ -649,12 +660,14 @@ function calendarSortKey(when: CalendarWhen): string {
  *   cancelled case;
  * - current (not replaced) documents with an expiry day.
  *
- * Anything without a date is not a calendar item. Cost: one read for cases, then one each for
- * appointments, tasks, requests and documents, each capped at `CALENDAR_SOURCE_LIMIT` rows,
- * earliest first. Nothing is written.
+ * Anything without a date is not a calendar item, and so is anything dated more than
+ * `CALENDAR_PAST_DAYS` before today in the traveller's time zone. Cost: one read for cases, then
+ * one each for appointments, tasks, requests and documents, each capped at
+ * `CALENDAR_SOURCE_LIMIT` rows, earliest first. Nothing is written.
  */
 export async function listCalendarDates(
   access: AuthorizedApplicant<'VIEW_METADATA'>,
+  options: CalendarDatesOptions = {},
 ): Promise<Result<CalendarDates, ServiceError>> {
   if (
     !AuthorizedApplicant.isGenuine(access, 'VIEW_METADATA') ||
@@ -667,6 +680,12 @@ export async function listCalendarDates(
   const applicant = access.applicant;
   const applicantId = applicant.id;
   const readLimit = CALENDAR_SOURCE_LIMIT + 1;
+  // The first day read: a week before today where the traveller is. Date-only values are stored
+  // as UTC midnight and appointments as a timezone-naive wall clock read in a UTC process, so the
+  // same UTC-midnight value bounds both.
+  const earliest = new Date(
+    (todayIndex(options.now ?? new Date(), applicant.timezone) - CALENDAR_PAST_DAYS) * DAY_MS,
+  );
 
   const missions = await db
     .select({ id: schema.missions.id, title: schema.missions.title, state: schema.missions.state })
@@ -684,12 +703,14 @@ export async function listCalendarDates(
             missionId: schema.missionAppointments.missionId,
             localDateTime: schema.missionAppointments.localDateTime,
             timezone: schema.missionAppointments.timezone,
+            updatedAt: schema.missionAppointments.updatedAt,
           })
           .from(schema.missionAppointments)
           .where(
             and(
               inArray(schema.missionAppointments.missionId, activeIds),
               inArray(schema.missionAppointments.status, [...ATTENTION_TASK_STATUSES]),
+              gte(schema.missionAppointments.localDateTime, earliest),
             ),
           )
           .orderBy(
@@ -704,13 +725,14 @@ export async function listCalendarDates(
             id: schema.missionTasks.id,
             missionId: schema.missionTasks.missionId,
             dueDate: schema.missionTasks.dueDate,
+            updatedAt: schema.missionTasks.updatedAt,
           })
           .from(schema.missionTasks)
           .where(
             and(
               inArray(schema.missionTasks.missionId, activeIds),
               inArray(schema.missionTasks.status, [...ATTENTION_TASK_STATUSES]),
-              isNotNull(schema.missionTasks.dueDate),
+              gte(schema.missionTasks.dueDate, earliest),
               or(
                 isNull(schema.missionTasks.assigneeAccountId),
                 eq(schema.missionTasks.assigneeAccountId, applicant.ownerAccountId),
@@ -724,13 +746,14 @@ export async function listCalendarDates(
         id: schema.evidenceRequests.id,
         missionId: schema.evidenceRequests.missionId,
         dueDate: schema.evidenceRequests.dueDate,
+        updatedAt: schema.evidenceRequests.updatedAt,
       })
       .from(schema.evidenceRequests)
       .where(
         and(
           eq(schema.evidenceRequests.applicantId, applicantId),
           inArray(schema.evidenceRequests.status, [...ATTENTION_REQUEST_STATUSES]),
-          isNotNull(schema.evidenceRequests.dueDate),
+          gte(schema.evidenceRequests.dueDate, earliest),
           // Not on a case that is over: no case, or an active one.
           activeIds.length === 0
             ? isNull(schema.evidenceRequests.missionId)
@@ -743,13 +766,17 @@ export async function listCalendarDates(
       .orderBy(asc(schema.evidenceRequests.dueDate), asc(schema.evidenceRequests.id))
       .limit(readLimit),
     db
-      .select({ id: schema.documents.id, expiresAt: schema.documents.expiresAt })
+      .select({
+        id: schema.documents.id,
+        expiresAt: schema.documents.expiresAt,
+        updatedAt: schema.documents.updatedAt,
+      })
       .from(schema.documents)
       .where(
         and(
           eq(schema.documents.applicantId, applicantId),
           isNull(schema.documents.supersededByDocumentId),
-          isNotNull(schema.documents.expiresAt),
+          gte(schema.documents.expiresAt, earliest),
         ),
       )
       .orderBy(asc(schema.documents.expiresAt), asc(schema.documents.id))
@@ -761,49 +788,48 @@ export async function listCalendarDates(
   );
   const caseTitle = (missionId: string | null): string | null => {
     const title = missionId ? missionById.get(missionId)?.title.trim() : undefined;
-    return title ? title.slice(0, CALENDAR_CASE_TITLE_MAX) : null;
+    // Cut by characters, never inside one.
+    return title ? Array.from(title).slice(0, CALENDAR_CASE_TITLE_MAX).join('') : null;
   };
+  const item = (
+    kind: CalendarKind,
+    id: string,
+    when: CalendarItemWhen,
+    missionId: string | null,
+    updatedAt: Date,
+  ): CalendarItem => ({
+    key: `${kind}:${id}`,
+    kind,
+    resourceId: id,
+    when,
+    caseTitle: caseTitle(missionId),
+    updatedAt: updatedAt.toISOString(),
+  });
 
   const items: CalendarItem[] = [];
   for (const row of appointments.slice(0, CALENDAR_SOURCE_LIMIT)) {
-    items.push({
-      key: `appointment:${row.id}`,
-      kind: 'appointment',
-      // Stored timezone-naive and read in a UTC process, so the UTC fields are the wall clock.
-      when: {
-        kind: 'local',
-        localDateTime: row.localDateTime.toISOString().slice(0, 19),
-        timezone: recognisedTimeZone(row.timezone),
-      },
-      caseTitle: caseTitle(row.missionId),
-    });
+    // Stored timezone-naive and read in a UTC process, so the UTC fields are the wall clock.
+    const when: CalendarItemWhen = {
+      kind: 'local',
+      localDateTime: row.localDateTime.toISOString().slice(0, 19),
+      timeZone: recognisedTimeZone(row.timezone),
+    };
+    items.push(item('appointment', row.id, when, row.missionId, row.updatedAt));
   }
   for (const row of tasks.slice(0, CALENDAR_SOURCE_LIMIT)) {
     if (!row.dueDate) continue;
-    items.push({
-      key: `task:${row.id}`,
-      kind: 'task',
-      when: { kind: 'date', date: dateOnly(row.dueDate) },
-      caseTitle: caseTitle(row.missionId),
-    });
+    const when = { kind: 'date', date: dateOnly(row.dueDate) } as const;
+    items.push(item('task_due', row.id, when, row.missionId, row.updatedAt));
   }
   for (const row of requests.slice(0, CALENDAR_SOURCE_LIMIT)) {
     if (!row.dueDate) continue;
-    items.push({
-      key: `evidence_request:${row.id}`,
-      kind: 'evidence_request',
-      when: { kind: 'date', date: dateOnly(row.dueDate) },
-      caseTitle: caseTitle(row.missionId),
-    });
+    const when = { kind: 'date', date: dateOnly(row.dueDate) } as const;
+    items.push(item('request_due', row.id, when, row.missionId, row.updatedAt));
   }
   for (const row of documents.slice(0, CALENDAR_SOURCE_LIMIT)) {
     if (!row.expiresAt) continue;
-    items.push({
-      key: `document_expiry:${row.id}`,
-      kind: 'document_expiry',
-      when: { kind: 'date', date: dateOnly(row.expiresAt) },
-      caseTitle: null,
-    });
+    const when = { kind: 'date', date: dateOnly(row.expiresAt) } as const;
+    items.push(item('document_expires', row.id, when, null, row.updatedAt));
   }
 
   items.sort(
