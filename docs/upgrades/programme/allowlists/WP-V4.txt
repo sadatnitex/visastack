@@ -30,3 +30,8 @@ apps/web/src/lib/labels.test.ts
 packages/services/src/attention.ts
 packages/services/src/attention.test.ts
 apps/web/src/app/app/page.test.tsx
+# Added after owner direction on 26 Oct 2026 ("calendar setup must be super correct and futuristic, so later any
+# upgrade, integration or configurability becomes easiest"): one provider-neutral calendar core in packages/core.
+packages/core/src/calendar/**
+packages/core/package.json
+packages/core/src/index.ts
