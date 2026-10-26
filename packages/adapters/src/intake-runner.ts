@@ -2,7 +2,12 @@ import { randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createPooledDb } from '@visastack/db';
-import { type Db, loadUploadQuotaConfig, runIntakeWorker } from '@visastack/services';
+import {
+  type Db,
+  loadUploadQuotaConfig,
+  recordScannerEngineVerified,
+  runIntakeWorker,
+} from '@visastack/services';
 import { ClamAvScanner, checkSignatureFreshness } from './clamav-scanner';
 import { BuiltinContentLimitsChecker } from './content-limits';
 import { IsolatedOcrExtractor } from './ocr-extraction';
@@ -34,6 +39,10 @@ export async function runIsolatedIntake(): Promise<void> {
   });
   try {
     const handle = db as unknown as Db;
+    // The workflow proved the live engine (clean file passes, test file caught) in the step before
+    // this one, and the signatures were just checked: record that, so readiness can say the
+    // scanner is really running and stop saying so if the worker stops.
+    await recordScannerEngineVerified(handle, { engine: version });
     const common = {
       db: handle,
       // The worker never issues browser links and receives no production signing key.

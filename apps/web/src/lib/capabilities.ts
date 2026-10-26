@@ -4,7 +4,7 @@ import {
   PLATFORM_CAPABILITY_KEYS,
   type PlatformCapabilities,
 } from '@visastack/core';
-import type { Db } from '@visastack/services';
+import { type Db, loadScannerEvidence } from '@visastack/services';
 import { isEnvAiExtractionConfigured, resolveAiExtractionAvailability } from './ai';
 import {
   commercialConfigurationReady,
@@ -179,7 +179,26 @@ export async function resolveAiExtractionCapability(
 export async function resolvePlatformCapabilities(
   db: Db | undefined,
 ): Promise<PlatformCapabilities> {
-  return { ...getPlatformCapabilities(), aiExtraction: await resolveAiExtractionCapability(db) };
+  const base = getPlatformCapabilities();
+  return {
+    ...base,
+    aiExtraction: await resolveAiExtractionCapability(db),
+    malwareScanning: await resolveMalwareScanning(db, base.malwareScanning),
+  };
+}
+
+/**
+ * The scanner in the private worker (`MALWARE_SCANNER_PROVIDER=github_clamav`) cannot be pinged
+ * from here, so it counts as available only while the worker's own recent verification record
+ * exists (S4). Nothing readable, or no recent record, keeps it unconfigured.
+ */
+async function resolveMalwareScanning(
+  db: Db | undefined,
+  fromEnvironment: PlatformCapabilities['malwareScanning'],
+): Promise<PlatformCapabilities['malwareScanning']> {
+  if (fromEnvironment === 'available') return fromEnvironment;
+  if (readEnv('MALWARE_SCANNER_PROVIDER') !== 'github_clamav' || !db) return fromEnvironment;
+  return (await loadScannerEvidence(db)) ? 'available' : fromEnvironment;
 }
 
 /** True only when the named capability is fully, currently usable. */

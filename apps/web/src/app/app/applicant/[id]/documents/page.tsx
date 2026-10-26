@@ -308,8 +308,8 @@ export default async function ApplicantDocumentsPage({
       <AutoRefresh active={anyProcessing} />
       {anyProcessing ? (
         <p className="muted">
-          Some documents are still being checked. This page updates by itself, so there is no need
-          to upload them again.
+          Some documents are still being checked, which can take a few minutes. This page updates by
+          itself, so there is no need to upload them again.
         </p>
       ) : null}
       {readingError ? (

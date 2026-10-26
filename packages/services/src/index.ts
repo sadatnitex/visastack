@@ -74,6 +74,14 @@ export {
 export { listAllApplicants, listRecentAuditEvents } from './platform-reads';
 
 export {
+  SCANNER_EVIDENCE_MAX_AGE_MS,
+  SCANNER_VERIFIED_EVENT,
+  type ScannerEvidence,
+  loadScannerEvidence,
+  recordScannerEngineVerified,
+} from './scanner-evidence';
+
+export {
   STAFF_FACTOR_FRESH_MS,
   type StaffFactorCoverage,
   type StaffFactorEnrolment,
