@@ -1,3 +1,4 @@
+import { formatReferenceCode, referenceCheckCharacter } from '@visastack/core';
 import {
   DEFAULT_CALENDAR_EXPORT_OPTIONS,
   calendarUid,
@@ -11,6 +12,7 @@ import {
   buildIcsCalendar,
   buildIcsForAppointment,
   calendarCaseName,
+  calendarEventDescription,
   calendarEventTitle,
   describeCalendarStart,
   selectCalendarEvents,
@@ -364,5 +366,54 @@ describe('calendarCaseName: what of a case name may sit in a calendar', () => {
       'Appointment',
     );
     expect(calendarEventTitle({ kind: 'task_due', caseTitle: '   ' }, WITH_NAMES)).toBe('Task Due');
+  });
+});
+
+describe('case reference in the event description (ADR 0018)', () => {
+  // A payload starting 00 is reserved for docs and fixtures, so this is never a real code.
+  const stored = `00K2Q${referenceCheckCharacter('C', '00K2Q')}`;
+  const CODE = formatReferenceCode('C', stored);
+  const withCode = ITEMS.map((item) => (item.caseTitle ? { ...item, caseReference: CODE } : item));
+
+  it('writes "Case reference C-..." only for items that carry a code, and never changes a UID', () => {
+    const plain = file();
+    const coded = buildIcsCalendar(
+      selectCalendarEvents(withCode, ALL_KEYS, DEFAULT_CALENDAR_EXPORT_OPTIONS).events,
+      { now: NOW },
+    );
+    expect(property(coded, 'UID')).toEqual(property(plain, 'UID'));
+    expect(property(coded, 'SEQUENCE')).toEqual(property(plain, 'SEQUENCE'));
+    const described = `DESCRIPTION:From VisaStack. Case reference ${CODE}. Open VisaStack for the details.`;
+    expect(property(coded, 'DESCRIPTION')).toEqual([
+      described,
+      described,
+      described,
+      `DESCRIPTION:${CALENDAR_EVENT_DESCRIPTION}`,
+    ]);
+    expect(property(plain, 'DESCRIPTION')).toEqual(
+      Array(4).fill(`DESCRIPTION:${CALENDAR_EVENT_DESCRIPTION}`),
+    );
+  });
+
+  it('keeps the generic line for a missing, malformed, mistyped or non-case code', () => {
+    const wrongCheck = `C-00K2Q${stored.endsWith('0') ? '1' : '0'}`;
+    const requestCode = formatReferenceCode('R', `00K2Q${referenceCheckCharacter('R', '00K2Q')}`);
+    for (const value of [
+      undefined,
+      null,
+      '',
+      'not a code',
+      wrongCheck,
+      requestCode,
+      'https://x.test',
+    ]) {
+      expect(calendarEventDescription(value)).toBe(CALENDAR_EVENT_DESCRIPTION);
+    }
+  });
+
+  it('writes the code in its standard form, whatever form it arrived in', () => {
+    expect(calendarEventDescription(` c ${stored.toLowerCase()} `)).toContain(
+      `Case reference ${CODE}.`,
+    );
   });
 });
