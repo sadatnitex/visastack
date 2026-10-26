@@ -39,7 +39,8 @@ export async function loadCalendarDates(
 
 /**
  * The download's one gated read and its audit entry, in the same session: the gate as the owner,
- * the person's dated items, the caller's choice of events from them, and then one audit entry
+ * the person's dated items, the caller's choice of events from them and the file built from them
+ * (a throw there is `failed`, with no entry), and then one audit entry
  * (`recordCalendarExport`: count and kinds only) before any file is returned. When the entry cannot
  * be written the download fails, so no file leaves without its record.
  */
@@ -67,7 +68,14 @@ export async function exportCalendarDates<
     }
     const listed = await listCalendarDates(access.value);
     if (!listed.ok) return { state: 'failed' as const };
-    const chosen = choose(listed.value);
+    // The caller builds the file here, before the entry: a file that cannot be built is never
+    // recorded as sent.
+    let chosen: T;
+    try {
+      chosen = choose(listed.value);
+    } catch {
+      return { state: 'failed' as const };
+    }
     if (chosen.eventCount === 0) return { state: 'empty' as const };
     const recorded = await recordCalendarExport(access.value, {
       eventCount: chosen.eventCount,

@@ -143,10 +143,29 @@ describe('serializeCalendar (RFC 5545)', () => {
       { now: NOW },
     );
     for (const line of ics.split('\r\n')) expect(line).not.toMatch(/^X-INJECT/);
-    expect(ics).toContain('UID:abcX-INJECT:1@visastack');
+    expect(ics).toContain('UID:abc X-INJECT:1@visastack');
     expect(ics).toContain('SUMMARY:Task\\nX-INJECT:2');
     // biome-ignore lint/suspicious/noControlCharactersInRegex: proving none is left.
     expect(ics).not.toMatch(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/);
+  });
+
+  it('treats CRLF, a lone CR, LF, NEL and the Unicode separators alike, and drops C1 controls', () => {
+    const nel = String.fromCodePoint(0x85);
+    const ls = String.fromCodePoint(0x2028);
+    const ps = String.fromCodePoint(0x2029);
+    const c1 = String.fromCodePoint(0x9b);
+    expect(escapeText(`a\r\nb\rc\nd${nel}e${ls}f${ps}g${c1}h`)).toBe('a\\nb\\nc\\nd\\ne\\nf\\ngh');
+    const ics = serializeCalendar([event({ uid: `a\rb${nel}c${c1}@visastack` })], { now: NOW });
+    expect(ics).toContain('UID:a b c@visastack');
+  });
+
+  it('writes two reminders that land on the same moment once', () => {
+    const ics = serializeCalendar(
+      [event({ alarms: [{ minutesBefore: 15 }, { minutesBefore: 60 }, { minutesBefore: 0 }] })],
+      { now: NOW },
+    );
+    expect(ics.split('\r\n').filter((l) => l.startsWith('TRIGGER:'))).toEqual(['TRIGGER:PT540M']);
+    expect(ics.match(/BEGIN:VALARM/g)).toHaveLength(1);
   });
 
   it('escapes TEXT values and turns long dashes into hyphens', () => {

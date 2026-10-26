@@ -40,8 +40,8 @@ export {
   calendarOptionFields,
   parseCalendarExportOptions,
 } from './options';
-export type { CalendarPublisher } from './port';
+export type { CalendarPublisher, CalendarSyncOutcome } from './port';
 export { CALENDAR_SEQUENCE_EPOCH, calendarSequence } from './sequence';
 export { sha256Hex } from './sha256';
-export { isKnownTimeZone, utcToWallClock, wallClockToUtc } from './time';
+export { canonicalTimeZone, isKnownTimeZone, utcToWallClock, wallClockToUtc } from './time';
 export { CALENDAR_UID_NAMESPACE, calendarUid } from './uid';

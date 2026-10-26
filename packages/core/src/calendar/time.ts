@@ -30,43 +30,60 @@ function offsetMinutes(instant: number, timeZone: string): number {
   return Math.round((asUtc - Math.floor(instant / 1000) * 1000) / 60_000);
 }
 
-/** True when the runtime knows the zone by this name. */
-export function isKnownTimeZone(timeZone: string): boolean {
+/**
+ * The runtime's canonical spelling of a zone name ("asia/dhaka" becomes "Asia/Dhaka"), or null
+ * when the runtime does not know it.
+ */
+export function canonicalTimeZone(timeZone: string): string | null {
   try {
-    new Intl.DateTimeFormat('en-US', { timeZone });
-    return true;
+    return new Intl.DateTimeFormat('en-US', { timeZone }).resolvedOptions().timeZone;
   } catch {
-    return false;
+    return null;
   }
 }
 
+/** True when the runtime knows the zone by this name. */
+export function isKnownTimeZone(timeZone: string): boolean {
+  return canonicalTimeZone(timeZone) !== null;
+}
+
+const DAY_MS = 86_400_000;
+
 /**
  * The UTC instant (ISO 8601, `Z`) of a wall-clock `YYYY-MM-DDTHH:MM[:SS]` in `timeZone`, or null
- * when either is not valid. A time that happens twice (clocks going back) is the first one; a time
- * that never happens (clocks going forward) moves forward by the size of the gap, as calendar apps
- * do.
+ * when the zone is unknown or the wall clock is not a real one (month 13, 30 February, 25:00).
+ *
+ * The rule, the same in every zone, east or west of UTC:
+ * - the offsets in force a day before and a day after are the only candidates (no zone changes
+ *   twice in two days); each that gives back the same wall clock is a real occurrence;
+ * - a time that happens twice (clocks going back) is the earlier instant, the first occurrence;
+ * - a time that never happens (clocks going forward) uses the offset in force before the change,
+ *   so it lands just after the gap, as calendar apps do (02:30 becomes 03:30).
  */
 export function wallClockToUtc(localDateTime: string, timeZone: string): string | null {
   const match = WALL_CLOCK.exec(localDateTime);
   if (!match || !isKnownTimeZone(timeZone)) return null;
   const [, y, mo, d, h, mi, s] = match;
-  const wall = Date.UTC(
-    Number(y),
-    Number(mo) - 1,
-    Number(d),
-    Number(h),
-    Number(mi),
-    Number(s ?? 0),
-  );
-  if (Number.isNaN(wall)) return null;
-  // Two passes: the offset at a first guess, then the offset at the corrected instant.
-  const first = wall - offsetMinutes(wall, timeZone) * 60_000;
-  const second = wall - offsetMinutes(first, timeZone) * 60_000;
-  // Clocks going back: both offsets give a real instant for this wall clock; take the earlier.
-  const candidates = [first, second].filter(
-    (instant) => instant + offsetMinutes(instant, timeZone) * 60_000 === wall,
-  );
-  const chosen = candidates.length > 0 ? Math.min(...candidates) : Math.max(first, second);
+  const parts = [Number(y), Number(mo), Number(d), Number(h), Number(mi), Number(s ?? 0)] as const;
+  const wall = Date.UTC(parts[0], parts[1] - 1, parts[2], parts[3], parts[4], parts[5]);
+  const check = new Date(wall);
+  if (
+    Number.isNaN(wall) ||
+    check.getUTCFullYear() !== parts[0] ||
+    check.getUTCMonth() !== parts[1] - 1 ||
+    check.getUTCDate() !== parts[2] ||
+    check.getUTCHours() !== parts[3] ||
+    check.getUTCMinutes() !== parts[4] ||
+    check.getUTCSeconds() !== parts[5]
+  ) {
+    return null;
+  }
+  const before = offsetMinutes(wall - DAY_MS, timeZone);
+  const after = offsetMinutes(wall + DAY_MS, timeZone);
+  const occurrences = [...new Set([before, after])]
+    .map((offset) => wall - offset * 60_000)
+    .filter((instant) => instant + offsetMinutes(instant, timeZone) * 60_000 === wall);
+  const chosen = occurrences.length > 0 ? Math.min(...occurrences) : wall - before * 60_000;
   return new Date(chosen).toISOString().replace('.000Z', 'Z');
 }
 

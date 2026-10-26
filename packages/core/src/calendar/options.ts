@@ -1,4 +1,4 @@
-import { CALENDAR_KIND_IDS, type CalendarKind, isCalendarKind } from './kinds';
+import { CALENDAR_KIND_IDS, type CalendarKind } from './kinds';
 
 /**
  * The one set of choices a person can make about their calendar dates. Today they come from the
@@ -91,8 +91,9 @@ function isStoredShape(input: CalendarOptionsInput): input is Readonly<Record<st
 
 /**
  * Turns untrusted input into valid options. Never throws: anything missing, unknown, repeated or
- * out of range falls back to the default for that choice. An empty or unknown kinds list means
- * all kinds, so a bad value never silently empties a file.
+ * out of range falls back to the default for that choice. Unknown kinds are dropped and the known
+ * ones kept; only when no known kind is left does the choice fall back to all kinds, so a bad
+ * value never silently empties a file.
  */
 export function parseCalendarExportOptions(input: CalendarOptionsInput): CalendarExportOptions {
   let version: unknown;
@@ -129,7 +130,7 @@ export function parseCalendarExportOptions(input: CalendarOptionsInput): Calenda
   return Object.freeze({
     version: CALENDAR_OPTIONS_VERSION,
     titleStyle: CALENDAR_TITLE_STYLES.find((style) => style === titleStyle) ?? 'generic',
-    kinds: chosenKinds.length > 0 && kinds.every(isCalendarKind) ? chosenKinds : CALENDAR_KIND_IDS,
+    kinds: chosenKinds.length > 0 ? chosenKinds : CALENDAR_KIND_IDS,
     alarms: chosenAlarms,
   });
 }

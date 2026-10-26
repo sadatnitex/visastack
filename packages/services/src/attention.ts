@@ -1,5 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
-import { type CalendarKind, isCalendarKind, isKnownTimeZone } from '@visastack/core/calendar';
+import { type CalendarKind, canonicalTimeZone, isCalendarKind } from '@visastack/core/calendar';
 import { and, asc, count, eq, gte, inArray, isNotNull, isNull, min, or } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access/require-access';
 import { appendAuditEvent } from './audit';
@@ -628,13 +628,14 @@ const CALENDAR_CASE_TITLE_MAX = 80;
 
 /**
  * A time zone name only if it is a well-formed IANA name this runtime knows (letters, digits,
- * "_", "+", "-" and "/"; no spaces or line breaks), trimmed; otherwise null. Used where a zone is
- * saved (appointments) and where one is read back for a calendar file.
+ * "_", "+", "-" and "/"; no spaces or line breaks), in the runtime's canonical spelling
+ * ("asia/dhaka" becomes "Asia/Dhaka"); otherwise null. Used where a zone is saved (appointments)
+ * and where one is read back to place an appointment in UTC.
  */
 export function recognisedTimeZone(name: string): string | null {
   const trimmed = name.trim();
   if (!/^[A-Za-z][A-Za-z0-9_+\-/]{0,63}$/.test(trimmed)) return null;
-  return isKnownTimeZone(trimmed) ? trimmed : null;
+  return canonicalTimeZone(trimmed);
 }
 
 /** The order key of an item: a date-only key sorts before any time on the same day. */
@@ -879,24 +880,29 @@ export async function recordCalendarExport(
     return err(serviceError('invalid', 'a calendar file needs at least one date'));
   const kinds = [...new Set(record.kinds.filter((kind) => isCalendarKind(kind)))].sort();
   const applicant = access.applicant;
-  await access.tx.transaction(async (tx) => {
-    await appendAuditEvent(tx, {
-      eventType: CALENDAR_EXPORTED_EVENT,
-      actorAccountId: applicant.ownerAccountId,
-      actorRole: 'applicant_owner',
-      action: 'VIEW_METADATA',
-      result: 'ALLOWED',
-      method: 'API',
-      applicantId: applicant.id,
-      resourceType: 'calendar_export',
-      resourceId: applicant.id,
-      missionId,
-      metadata: {
-        eventCount,
-        kinds,
-        source: record.source === 'appointment' ? 'appointment' : 'dates',
-      },
+  try {
+    await access.tx.transaction(async (tx) => {
+      await appendAuditEvent(tx, {
+        eventType: CALENDAR_EXPORTED_EVENT,
+        actorAccountId: applicant.ownerAccountId,
+        actorRole: 'applicant_owner',
+        action: 'VIEW_METADATA',
+        result: 'ALLOWED',
+        method: 'API',
+        applicantId: applicant.id,
+        resourceType: 'calendar_export',
+        resourceId: applicant.id,
+        missionId,
+        metadata: {
+          eventCount,
+          kinds,
+          source: record.source === 'appointment' ? 'appointment' : 'dates',
+        },
+      });
     });
-  });
+  } catch {
+    // Fail closed: no entry, no file. The caller shows a plain "try again".
+    return err(serviceError('internal', 'the calendar export could not be recorded'));
+  }
   return ok(undefined);
 }

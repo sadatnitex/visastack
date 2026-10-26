@@ -1,7 +1,7 @@
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { accountPrincipal, requireAccess } from './access';
@@ -1171,8 +1171,10 @@ describe('listCalendarDates (v1.2 B05 calendar export)', () => {
   );
 });
 
-describe('recognisedTimeZone and appointment time zones (written into calendar files)', () => {
-  it('accepts known IANA names only, trimmed', () => {
+describe('recognisedTimeZone and appointment time zones (used to place appointments in UTC)', () => {
+  it('accepts known IANA names only, trimmed, in their canonical spelling', () => {
+    expect(recognisedTimeZone('asia/dhaka')).toBe('Asia/Dhaka');
+    expect(recognisedTimeZone(' america/los_angeles ')).toBe('America/Los_Angeles');
     expect(recognisedTimeZone(' Asia/Dhaka ')).toBe('Asia/Dhaka');
     expect(recognisedTimeZone('America/Los_Angeles')).toBe('America/Los_Angeles');
     expect(recognisedTimeZone('UTC')).toBe('UTC');
@@ -1201,8 +1203,11 @@ describe('recognisedTimeZone and appointment time zones (written into calendar f
       for (const timezone of ['Asia/Dhaka\r\nX-INJECT:1', 'Mars/Olympus_Mons']) {
         const refused = await createAppointment(db, { ...base, timezone });
         expect(isErr(refused) && refused.error.code).toBe('invalid');
+        expect(isErr(refused) && refused.error.message).toBe(
+          'enter a time zone name, such as Asia/Dhaka',
+        );
       }
-      const made = await createAppointment(db, { ...base, timezone: ' Asia/Dhaka ' });
+      const made = await createAppointment(db, { ...base, timezone: ' asia/dhaka ' });
       if (!isOk(made)) throw new Error('appointment');
       expect(made.value.timezone).toBe('Asia/Dhaka');
       const moved = await updateAppointment(db, {
@@ -1332,6 +1337,30 @@ describe('recordCalendarExport (an audit entry per calendar file, never its cont
       });
       expect(isErr(empty) && empty.error.code).toBe('invalid');
 
+      const rows = await db
+        .select()
+        .from(schema.auditEvents)
+        .where(eq(schema.auditEvents.eventType, CALENDAR_EXPORTED_EVENT));
+      expect(rows).toHaveLength(0);
+    },
+    HEAVY,
+  );
+
+  it(
+    'returns an error instead of throwing when the entry cannot be written, so callers fail closed',
+    async () => {
+      const { ownerId, applicantId } = await person('audit-calendar-broken@example.com');
+      const proof = await proofFor(ownerId, applicantId);
+      if (!isOk(proof)) throw new Error('owner proof');
+      // This test's own database: the audit table can no longer take the entry.
+      await db.execute(sql`ALTER TABLE audit_events RENAME COLUMN metadata TO metadata_gone`);
+      const recorded = await recordCalendarExport(proof.value, {
+        eventCount: 1,
+        kinds: ['task_due'],
+        source: 'dates',
+      });
+      expect(isErr(recorded) && recorded.error.code).toBe('internal');
+      await db.execute(sql`ALTER TABLE audit_events RENAME COLUMN metadata_gone TO metadata`);
       const rows = await db
         .select()
         .from(schema.auditEvents)

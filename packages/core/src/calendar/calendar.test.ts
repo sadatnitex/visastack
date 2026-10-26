@@ -9,7 +9,7 @@ import {
 } from './options';
 import { CALENDAR_SEQUENCE_EPOCH, calendarSequence } from './sequence';
 import { sha256Hex } from './sha256';
-import { utcToWallClock, wallClockToUtc } from './time';
+import { canonicalTimeZone, utcToWallClock, wallClockToUtc } from './time';
 import { calendarUid } from './uid';
 
 describe('the kinds registry', () => {
@@ -78,16 +78,19 @@ describe('calendarUid: the permanent scheme', () => {
 });
 
 describe('calendarSequence', () => {
-  it('is whole seconds since the epoch of the last change, never negative, and grows with it', () => {
+  it('is whole seconds since 1 Jan 2020 of the last change, never negative, and grows with it', () => {
+    expect(CALENDAR_SEQUENCE_EPOCH).toBe(Date.UTC(2020, 0, 1));
     expect(calendarSequence(new Date(CALENDAR_SEQUENCE_EPOCH))).toBe(0);
     expect(calendarSequence(new Date(CALENDAR_SEQUENCE_EPOCH - 5000))).toBe(0);
-    expect(calendarSequence('2026-01-01T00:01:00.900Z')).toBe(60);
+    expect(calendarSequence('2020-01-01T00:01:00.900Z')).toBe(60);
     expect(calendarSequence('not a date')).toBe(0);
-    const earlier = calendarSequence(new Date('2026-10-26T10:00:00Z'));
-    const later = calendarSequence(new Date('2026-10-26T10:00:01Z'));
-    expect(later).toBeGreaterThan(earlier);
+    // Records changed before 2026 still order.
+    expect(calendarSequence('2025-06-01T00:00:00Z')).toBeLessThan(
+      calendarSequence('2025-06-01T00:00:01Z'),
+    );
+    expect(calendarSequence('2025-06-01T00:00:00Z')).toBeGreaterThan(0);
     // Under 2^31 for decades.
-    expect(calendarSequence(new Date('2090-01-01T00:00:00Z'))).toBeLessThan(2 ** 31);
+    expect(calendarSequence(new Date('2088-01-01T00:00:00Z'))).toBeLessThan(2 ** 31);
   });
 });
 
@@ -127,6 +130,38 @@ describe('wallClockToUtc: the wall clock the person meant, in their zone', () =>
     expect(wallClockToUtc('2026-11-01T01:30:00', 'America/Los_Angeles')).toBe(
       '2026-11-01T08:30:00Z',
     );
+  });
+
+  it('takes the first occurrence of a repeated hour and lands after a skipped one, east of UTC too', () => {
+    // Berlin: clocks go back on 25 Oct 2026 at 03:00 CEST and forward on 29 Mar 2026 at 02:00 CET.
+    expect(wallClockToUtc('2026-10-25T02:30:00', 'Europe/Berlin')).toBe('2026-10-25T00:30:00Z');
+    expect(wallClockToUtc('2026-03-29T02:30:00', 'Europe/Berlin')).toBe('2026-03-29T01:30:00Z');
+    expect(wallClockToUtc('2026-10-24T12:00:00', 'Europe/Berlin')).toBe('2026-10-24T10:00:00Z');
+    expect(wallClockToUtc('2026-10-26T12:00:00', 'Europe/Berlin')).toBe('2026-10-26T11:00:00Z');
+    // Sydney: clocks go back on 5 Apr 2026 at 03:00 AEDT and forward on 4 Oct 2026 at 02:00 AEST.
+    expect(wallClockToUtc('2026-04-05T02:30:00', 'Australia/Sydney')).toBe('2026-04-04T15:30:00Z');
+    expect(wallClockToUtc('2026-10-04T02:30:00', 'Australia/Sydney')).toBe('2026-10-03T16:30:00Z');
+    expect(wallClockToUtc('2026-04-06T09:00:00', 'Australia/Sydney')).toBe('2026-04-05T23:00:00Z');
+  });
+
+  it('refuses a wall clock that is not a real one instead of rolling it over', () => {
+    for (const bad of [
+      '2026-02-30T09:00:00',
+      '2026-13-01T09:00:00',
+      '2026-11-03T25:00:00',
+      '2026-11-03T09:60:00',
+      '2026-11-03T09:00:61',
+      '2026-00-10T09:00:00',
+    ]) {
+      expect(wallClockToUtc(bad, 'Asia/Dhaka'), bad).toBeNull();
+    }
+    expect(wallClockToUtc('2028-02-29T09:00:00', 'Asia/Dhaka')).toBe('2028-02-29T03:00:00Z');
+  });
+
+  it('knows each zone by its canonical spelling', () => {
+    expect(canonicalTimeZone('asia/dhaka')).toBe('Asia/Dhaka');
+    expect(canonicalTimeZone('Asia/Dhaka')).toBe('Asia/Dhaka');
+    expect(canonicalTimeZone('Nowhere/Else')).toBeNull();
   });
 
   it('refuses an unknown zone or a malformed time instead of guessing', () => {
@@ -214,14 +249,15 @@ describe('parseCalendarExportOptions: one parser for every input, never throws',
     ).toEqual(expected);
   });
 
-  it('keeps only allowed reminders, at most three, and all kinds when any kind is unknown', () => {
+  it('keeps only allowed reminders, at most three, and the known kinds when some are unknown', () => {
     const parsed = parseCalendarExportOptions(
       query(
         'remind=0&remind=15&remind=60&remind=1440&remind=10080&remind=99999&kind=task_due&kind=x',
       ),
     );
     expect(parsed.alarms).toEqual([10080, 1440, 60]);
-    expect(parsed.kinds).toEqual(CALENDAR_KIND_IDS);
+    expect(parsed.kinds).toEqual(['task_due']);
+    expect(parseCalendarExportOptions(query('kind=x&kind=y')).kinds).toEqual(CALENDAR_KIND_IDS);
   });
 
   it('writes options back as the same fields, so a preview carries them to the download', () => {

@@ -6,9 +6,11 @@
  * Rule: whole seconds from `CALENDAR_SEQUENCE_EPOCH` to the moment the source last changed (its
  * `updatedAt`). When a caller cannot supply that moment, it passes the time the file is made,
  * which is never earlier than the last change, so a later change still gets a higher number. The
- * value stays under 2^31 (the largest INTEGER many calendar apps accept) until 2094.
+ * epoch, 1 Jan 2020 UTC, is before any VisaStack record, so every record orders; it is permanent
+ * (a different epoch would make older files look newer). The value stays under 2^31, the largest
+ * INTEGER many calendar apps accept, until 2088.
  */
-export const CALENDAR_SEQUENCE_EPOCH = Date.UTC(2026, 0, 1);
+export const CALENDAR_SEQUENCE_EPOCH = Date.UTC(2020, 0, 1);
 
 export function calendarSequence(changedAt: Date | string): number {
   const at = typeof changedAt === 'string' ? Date.parse(changedAt) : changedAt.getTime();

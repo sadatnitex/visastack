@@ -34,10 +34,14 @@ const DAY_MS = 86_400_000;
 /** U+FFFD, written in place of a lone surrogate. */
 const REPLACEMENT = String.fromCodePoint(0xfffd);
 const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+/**
+ * C0 controls except tab and line feed, DEL, and C1 controls (U+0080 to U+009F, including NEL),
+ * removed once line breaks are normalised.
+ */
 // biome-ignore lint/suspicious/noControlCharactersInRegex: removing them is the point.
-const CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f]/g;
-/** CRLF, CR, LF and the Unicode line and paragraph separators. */
-const LINE_BREAK = new RegExp(`\\r\\n|[\\r\\n${String.fromCodePoint(0x2028, 0x2029)}]`, 'g');
+const CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g;
+/** CRLF, a lone CR, LF, NEL and the Unicode line and paragraph separators: all one line break. */
+const LINE_BREAK = new RegExp(`\\r\\n|[\\r\\n${String.fromCodePoint(0x85, 0x2028, 0x2029)}]`, 'g');
 /** Figure, en, em and horizontal bar dashes, the minus sign and the two- and three-em dashes. */
 const LONG_DASHES = new RegExp(
   `[${[0x2012, 0x2013, 0x2014, 0x2015, 0x2212, 0x2e3a, 0x2e3b, 0xfe58]
@@ -46,24 +50,31 @@ const LONG_DASHES = new RegExp(
   'g',
 );
 
-/** Well-formed, dash-normalised text with no control characters except tab and line breaks. */
+/**
+ * Well-formed, dash-normalised text whose every line break is a plain LF and which holds no
+ * other control character except tab.
+ */
 function clean(value: string): string {
-  return value.replace(LONE_SURROGATE, REPLACEMENT).replace(LONG_DASHES, '-').replace(CONTROL, '');
+  return value
+    .replace(LONE_SURROGATE, REPLACEMENT)
+    .replace(LONG_DASHES, '-')
+    .replace(LINE_BREAK, '\n')
+    .replace(CONTROL, '');
 }
 
-/** A TEXT value (RFC 5545 3.3.11): backslash, semicolon, comma escaped; line breaks as "\n". */
+/** A TEXT value (RFC 5545 3.3.11): backslash, semicolon, comma escaped; each line break as "\n". */
 export function escapeText(value: string): string {
   return clean(value)
     .replace(/\\/g, '\\\\')
     .replace(/;/g, '\\;')
     .replace(/,/g, '\\,')
-    .replace(LINE_BREAK, '\\n')
+    .replace(/\n/g, '\\n')
     .replace(/\t/g, ' ');
 }
 
-/** A value that is not TEXT (UID, dates): any line break or control character is removed. */
+/** A value that is not TEXT (UID, dates): a line break or tab becomes a space; no control is left. */
 function plainValue(value: string): string {
-  return clean(value).replace(LINE_BREAK, '').replace(/\t/g, '');
+  return clean(value).replace(/[\n\t]/g, ' ');
 }
 
 function utf8Length(char: string): number {
@@ -156,21 +167,25 @@ function durationValue(minutes: number): string {
 }
 
 function alarmLines(event: CalendarEvent): string[] {
-  return (event.alarms ?? []).flatMap((alarm) => {
-    const before = Math.max(0, Math.trunc(alarm.minutesBefore));
-    // An all-day event starts at midnight; its reminder fires at 09:00 that many whole days before.
-    const trigger =
-      event.start.kind === 'date'
-        ? durationValue(ALL_DAY_ALARM_MINUTE_OF_DAY - Math.floor(before / 1440) * 1440)
-        : durationValue(-before);
-    return [
-      'BEGIN:VALARM',
-      'ACTION:DISPLAY',
-      `TRIGGER:${trigger}`,
-      `DESCRIPTION:${escapeText(event.title)}`,
-      'END:VALARM',
-    ];
-  });
+  // An all-day event starts at midnight; its reminder fires at 09:00 that many whole days before.
+  // Two reminders that land on the same moment (15 and 60 minutes before a day) are written once.
+  const triggers = [
+    ...new Set(
+      (event.alarms ?? []).map((alarm) => {
+        const before = Math.max(0, Math.trunc(alarm.minutesBefore));
+        return event.start.kind === 'date'
+          ? durationValue(ALL_DAY_ALARM_MINUTE_OF_DAY - Math.floor(before / 1440) * 1440)
+          : durationValue(-before);
+      }),
+    ),
+  ];
+  return triggers.flatMap((trigger) => [
+    'BEGIN:VALARM',
+    'ACTION:DISPLAY',
+    `TRIGGER:${trigger}`,
+    `DESCRIPTION:${escapeText(event.title)}`,
+    'END:VALARM',
+  ]);
 }
 
 function eventLines(event: CalendarEvent, stamp: string): string[] {
