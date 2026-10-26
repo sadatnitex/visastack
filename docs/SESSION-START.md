@@ -77,7 +77,7 @@ Code: `apps/web` (Next.js 15.5, React 19), `packages/services` (all business log
 
 ## 7. Open work, in order
 
-See `docs/upgrades/programme/STATUS.md` for the live line. At this writing: calendar export and per-case sharing exceptions are being finished (then migration 0090); next are reference codes (migration 0091), Prepare Again, request screens and colour polish (closing WP-V4), then WP-V5 (shareable outputs) and WP-V6 (final acceptance and release, owner's explicit word). Alongside, never ahead: engineering roadmap step 4 (move about 313 older service functions behind the access gate, shadow mode first) and step 5 (signed step-up proof).
+See `docs/upgrades/programme/STATUS.md` and the newest `SESSION-HANDOFF-*.md` for the live line. At this writing: calendar export is live (#276); per-case sharing exceptions are on branch `claude/prog-v4-case-exclusions` with their remaining fixes listed in `WP-V4-CASE-EXCLUSIONS-NEXT.md` on that branch (then migration 0090); next are reference codes (`docs/upgrades/programme/WP-REF-PLAN.md`, migration 0091), Prepare Again, request screens and colour polish (closing WP-V4), then WP-V5 (shareable outputs) and WP-V6 (final acceptance and release, owner's explicit word). Alongside, never ahead: engineering roadmap step 4 (move about 313 older service functions behind the access gate, shadow mode first) and step 5 (signed step-up proof).
 
 ## 8. Pitfalls learned
 
