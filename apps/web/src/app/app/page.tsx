@@ -174,6 +174,43 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
 }
 
 /**
+ * "Add Dates to My Calendar" (v1.2 B05 calendar export), at the foot of My Records so it is
+ * there whatever is waiting. Each person's dates are their own file: with one person, one button
+ * straight to that person's calendar page; with several, one sentence with each person's name as
+ * a link, so a household of 25 is one line, not 25 buttons.
+ */
+function CalendarLinks({
+  people,
+}: {
+  readonly people: readonly { readonly id: string; readonly displayName: string }[];
+}) {
+  const [only] = people;
+  if (!only) return null;
+  const href = (id: string) => `/app/applicant/${id}/calendar`;
+  if (people.length === 1) {
+    return (
+      <div className="do-next-action">
+        <Link href={href(only.id)} className="btn btn-secondary">
+          Add Dates to My Calendar
+        </Link>
+      </div>
+    );
+  }
+  return (
+    <p className="muted do-next-more home-calendar-links">
+      Add dates to my calendar for{' '}
+      {people.map((person, index) => (
+        <span key={person.id}>
+          {index === 0 ? '' : index === people.length - 1 ? ' or ' : ', '}
+          <Link href={href(person.id)}>{person.displayName}</Link>
+        </span>
+      ))}
+      .
+    </p>
+  );
+}
+
+/**
  * The heading for one item: what a request asks for or which document is expiring, by its own
  * name, otherwise the plain heading the item came with. Server-only: the request label reads the
  * field catalogue, which never goes to the browser.
@@ -519,6 +556,7 @@ export default async function AppPage({
               ))}
             </ul>
           )}
+          <CalendarLinks people={data.perApplicant.map((row) => row.applicant)} />
           {data.applicants.length > data.perApplicant.length ? (
             <p className="muted do-next-more">
               Home shows the first {data.perApplicant.length} of {data.applicants.length} people.{' '}

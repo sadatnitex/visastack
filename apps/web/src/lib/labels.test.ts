@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { MEMBERSHIP_ROLES, ORGANIZATION_STATUSES, PERMISSION_ACTIONS } from '@visastack/core';
+import { CALENDAR_ALARM_OFFSETS, CALENDAR_KINDS } from '@visastack/core/calendar';
 import { schema } from '@visastack/db';
 import { type AttentionKind, TRIAGE_GROUPS } from '@visastack/services';
 import { describe, expect, it } from 'vitest';
@@ -10,6 +11,8 @@ import {
   ATTENTION_TIER_LABELS,
   AUDIT_RESULT_LABELS,
   BILLING_STATUS_LABELS,
+  CALENDAR_REMINDER_LABELS,
+  CALENDAR_REMINDER_ORDER,
   CASE_TRIAGE_STATE_LABELS,
   COMPLAINT_STATUS_LABELS,
   DOCUMENT_TYPE_LABELS,
@@ -197,5 +200,39 @@ describe('Needs Attention words (WP-V4 U03, ADR 0016)', () => {
     }
     // From the services package, types only.
     expect(source).not.toMatch(/^import \{[^}]*\} from '@visastack\/services'/m);
+  });
+});
+
+describe('calendar words (v1.2 B05 calendar export)', () => {
+  it('names every dated kind generically, in Title Case', () => {
+    expect(Object.values(CALENDAR_KINDS).map((kind) => kind.title)).toEqual([
+      'Appointment',
+      'Task Due',
+      'Request Due',
+      'Document Expires',
+    ]);
+    for (const { title } of Object.values(CALENDAR_KINDS)) {
+      expect(title).toBe(toTitleCase(title));
+      expect(title).not.toMatch(/passport|bank|visa|mission|\d/i);
+    }
+  });
+
+  it('offers None first, then the reminders from soonest to earliest, each once', () => {
+    expect(CALENDAR_REMINDER_ORDER.map((value) => CALENDAR_REMINDER_LABELS[value])).toEqual([
+      'None',
+      'On the Day',
+      '1 Day Before',
+      '1 Week Before',
+    ]);
+    expect([...CALENDAR_REMINDER_ORDER].sort()).toEqual(
+      Object.keys(CALENDAR_REMINDER_LABELS).sort(),
+    );
+  });
+
+  it('offers reminders the options allow, in Title Case', () => {
+    for (const [value, label] of Object.entries(CALENDAR_REMINDER_LABELS)) {
+      if (value !== '') expect(CALENDAR_ALARM_OFFSETS).toContain(Number(value));
+      expect(label).toBe(toTitleCase(label));
+    }
   });
 });

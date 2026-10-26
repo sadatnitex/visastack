@@ -5,6 +5,7 @@ import { and, desc, eq, inArray } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access';
 import { orgGrantPermits } from './agency';
 import { getApplicant } from './applicants';
+import { latestTimeZoneName, recognisedTimeZone } from './attention';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
@@ -1932,7 +1933,7 @@ export async function createTask(
             description,
             assigneeAccountId: input.assigneeAccountId ?? null,
             dueDate: input.dueDate ?? null,
-            dueTimezone: input.dueTimezone ?? null,
+            dueTimezone: latestTimeZoneName(input.dueTimezone ?? null),
             ...(input.priority ? { priority: input.priority } : {}),
           })
           .returning(),
@@ -2089,7 +2090,7 @@ export async function updateTask(
     if (input.dueTimezone !== undefined) {
       changes = {
         ...changes,
-        dueTimezone: { before: task.dueTimezone, after: input.dueTimezone },
+        dueTimezone: { before: task.dueTimezone, after: latestTimeZoneName(input.dueTimezone) },
       };
     }
     if (input.priority !== undefined) {
@@ -2106,7 +2107,9 @@ export async function updateTask(
               ? { assigneeAccountId: input.assigneeAccountId }
               : {}),
             ...(input.dueDate !== undefined ? { dueDate: input.dueDate } : {}),
-            ...(input.dueTimezone !== undefined ? { dueTimezone: input.dueTimezone } : {}),
+            ...(input.dueTimezone !== undefined
+              ? { dueTimezone: latestTimeZoneName(input.dueTimezone) }
+              : {}),
             ...(input.priority !== undefined ? { priority: input.priority } : {}),
             updatedAt: new Date(),
           })
@@ -2168,8 +2171,13 @@ export async function createAppointment(
   if (!owned.ok) return owned;
   const title = input.title.trim();
   if (title.length === 0) return err(serviceError('invalid', 'a title is required'));
-  const timezone = input.timezone.trim();
-  if (timezone.length === 0) return err(serviceError('invalid', 'a timezone is required'));
+  if (input.timezone.trim().length === 0) {
+    return err(serviceError('invalid', 'a timezone is required'));
+  }
+  // A known IANA name only, saved as typed (letter case corrected, never renamed): calendar files place the time in
+  // UTC from it, so a name the runtime cannot read would leave the time unplaceable.
+  const timezone = recognisedTimeZone(input.timezone);
+  if (!timezone) return err(serviceError('invalid', 'enter a time zone name, such as Asia/Dhaka'));
 
   return db.transaction(async (tx) => {
     const appointment = required(
@@ -2221,6 +2229,11 @@ export async function updateAppointment(
   const owned = await ownedMission(db, input.actorAccountId, input.missionId);
   if (!owned.ok) return owned;
 
+  // A known IANA name only, saved as typed (letter case corrected), as when the appointment was made.
+  const timezone = input.timezone === undefined ? undefined : recognisedTimeZone(input.timezone);
+  if (timezone === null)
+    return err(serviceError('invalid', 'enter a time zone name, such as Asia/Dhaka'));
+
   return db.transaction(async (tx) => {
     const appointment = first(
       await tx
@@ -2255,8 +2268,8 @@ export async function updateAppointment(
         },
       };
     }
-    if (input.timezone !== undefined) {
-      changes = { ...changes, timezone: { before: appointment.timezone, after: input.timezone } };
+    if (timezone !== undefined) {
+      changes = { ...changes, timezone: { before: appointment.timezone, after: timezone } };
     }
     if (input.place !== undefined) {
       changes = { ...changes, place: { before: appointment.place, after: input.place } };
@@ -2275,7 +2288,7 @@ export async function updateAppointment(
               ? { assigneeAccountId: input.assigneeAccountId }
               : {}),
             ...(input.localDateTime !== undefined ? { localDateTime: input.localDateTime } : {}),
-            ...(input.timezone !== undefined ? { timezone: input.timezone } : {}),
+            ...(timezone !== undefined ? { timezone } : {}),
             ...(input.place !== undefined ? { place: input.place } : {}),
             ...(input.channel !== undefined ? { channel: input.channel } : {}),
             updatedAt: new Date(),
