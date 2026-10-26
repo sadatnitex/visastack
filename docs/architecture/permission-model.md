@@ -35,7 +35,11 @@ grant start/expiry · risk context · step-up status.
    belongs to the case (the case, its evidence links, requirements, requests,
    notes, tasks, appointments, decisions and outputs). One rule decides it,
    `grantCoversMission` in packages/policy, with its SQL form
-   `grantCoversCaseSql` proven equal by a test.
+   `grantCoversCaseSql` proven equal by a test. Exceptions follow the
+   recipient: a later all-cases grant or invitation to the same recipient
+   inherits them, while a grant for that one case is an explicit share and
+   reaches it. A grantee that no grant reaches a case through gets the same
+   not-found as an unknown id.
 
 ## Step-up authentication
 

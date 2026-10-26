@@ -7,6 +7,9 @@ const mocks = vi.hoisted(() => ({
   listAuditEventsForApplicant: vi.fn(),
   listApplicantProfile: vi.fn(),
   previewScopeExpansion: vi.fn(),
+  listSharingInvitations: vi.fn(),
+  listInvitationCaseExceptions: vi.fn(),
+  requireAccess: vi.fn(),
 }));
 vi.mock('@visastack/services', async (original) => ({
   ...(await original<typeof import('@visastack/services')>()),
@@ -188,7 +191,12 @@ describe('Share from the Record (WP-V3 part 2)', () => {
 });
 
 describe('per-case sharing exceptions on the Sharing page', () => {
-  const exception = { missionId: 'case-2', missionTitle: 'Japan trip 2026', since: new Date() };
+  const exception = {
+    missionId: 'case-2',
+    missionTitle: 'Japan trip 2026',
+    since: new Date(),
+    reachedByAnotherGrant: false,
+  };
   it('lists the cases an all-cases access does not cover, for live access only', async () => {
     mocks.listAccessForApplicantDetailed.mockResolvedValue({
       ok: true,
@@ -211,9 +219,91 @@ describe('per-case sharing exceptions on the Sharing page', () => {
         applicantId: 'owned',
         grantId: 'live',
         recipientLabel: 'Synthetic recipient',
-        exceptions: [{ missionId: 'case-2', title: 'Japan trip 2026' }],
+        exceptions: [{ missionId: 'case-2', title: 'Japan trip 2026', sharedSeparately: false }],
       },
     ]);
+  });
+  it('says when the same recipient still sees an excluded case through another access', async () => {
+    mocks.listAccessForApplicantDetailed.mockResolvedValue({
+      ok: true,
+      value: [
+        {
+          ...grant('ACTIVE', 'live'),
+          caseExceptions: [{ ...exception, reachedByAnotherGrant: true }],
+        },
+      ],
+    });
+    const [list] = stubProps<{ exceptions: { sharedSeparately: boolean }[] }>(
+      await render(),
+      'CaseExceptions',
+    );
+    expect(list?.exceptions).toEqual([
+      { missionId: 'case-2', title: 'Japan trip 2026', sharedSeparately: true },
+    ]);
+  });
+  it('names the cases a pending all-cases invitation will not cover, read through the access gate', async () => {
+    const previous = process.env['PERSONAL_SHARING_INVITATIONS_ENABLED'];
+    process.env['PERSONAL_SHARING_INVITATIONS_ENABLED'] = 'true';
+    try {
+      const later = new Date(Date.now() + 86_400_000);
+      mocks.listSharingInvitations.mockResolvedValue([
+        {
+          id: 'inv-1',
+          email: 'friend@example.test',
+          status: 'PENDING',
+          purpose: 'Visa review',
+          missionId: null,
+          expiresAt: later,
+        },
+        {
+          id: 'inv-2',
+          email: 'old@example.test',
+          status: 'REVOKED',
+          purpose: 'Visa review',
+          missionId: null,
+          expiresAt: later,
+        },
+      ]);
+      mocks.requireAccess.mockResolvedValue({ ok: true, value: { proof: 'owner' } });
+      mocks.listInvitationCaseExceptions.mockResolvedValue({
+        ok: true,
+        value: [
+          {
+            invitationId: 'inv-1',
+            missionId: 'case-2',
+            missionTitle: 'Japan trip 2026',
+            since: new Date(),
+          },
+          {
+            invitationId: 'inv-2',
+            missionId: 'case-3',
+            missionTitle: 'Canada study',
+            since: new Date(),
+          },
+        ],
+      });
+      const text = textOf(await render());
+      expect(mocks.requireAccess).toHaveBeenCalledWith(
+        {},
+        expect.anything(),
+        'VIEW_METADATA',
+        { applicantId: 'owned' },
+        { purpose: 'owner_case_sharing' },
+      );
+      expect(mocks.listInvitationCaseExceptions).toHaveBeenCalledWith({ proof: 'owner' });
+      expect(text).toContain('Not Shared: Japan trip 2026');
+      // Only pending invitations list their exceptions.
+      expect(text).not.toContain('Canada study');
+
+      // A refused gate shows nothing rather than failing the page.
+      mocks.requireAccess.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
+      mocks.listInvitationCaseExceptions.mockClear();
+      expect(textOf(await render())).not.toContain('Japan trip 2026');
+      expect(mocks.listInvitationCaseExceptions).not.toHaveBeenCalled();
+    } finally {
+      if (previous === undefined) delete process.env['PERSONAL_SHARING_INVITATIONS_ENABLED'];
+      else process.env['PERSONAL_SHARING_INVITATIONS_ENABLED'] = previous;
+    }
   });
   it('shows nothing for access that has run out', async () => {
     mocks.listAccessForApplicantDetailed.mockResolvedValue({

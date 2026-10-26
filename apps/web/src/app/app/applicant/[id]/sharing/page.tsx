@@ -1,13 +1,16 @@
 import { createTranslator } from '@visastack/i18n';
 import {
   documentCategory,
+  accountPrincipal,
   getApplicant,
   listAccessForApplicantDetailed,
   listApplicantProfile,
   listAuditEventsForApplicant,
   listDocumentsDetailed,
+  listInvitationCaseExceptions,
   listSharingInvitations,
   previewScopeExpansion,
+  requireAccess,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
@@ -77,11 +80,30 @@ export default async function SharingPage({
     );
     const scopeExpansions = new Map(scopeExpansionEntries);
 
+    const invitations =
+      process.env[sharingInvitationFlag] === 'true'
+        ? await listSharingInvitations(db, accountId, id)
+        : [];
+    // Cases a pending all-cases invitation will not cover once accepted (ADR
+    // 0017), read through the central access gate (owner only).
+    let invitationExceptions: Awaited<ReturnType<typeof listInvitationCaseExceptions>> = {
+      ok: true,
+      value: [],
+    };
+    if (invitations.some((invite) => invite.status === 'PENDING' && invite.missionId === null)) {
+      const gate = await requireAccess(
+        db,
+        accountPrincipal(accountId),
+        'VIEW_METADATA',
+        { applicantId: id },
+        { purpose: 'owner_case_sharing' },
+      );
+      if (gate.ok) invitationExceptions = await listInvitationCaseExceptions(gate.value);
+    }
+
     return {
-      invitations:
-        process.env[sharingInvitationFlag] === 'true'
-          ? await listSharingInvitations(db, accountId, id)
-          : [],
+      invitations,
+      invitationExceptions: invitationExceptions.ok ? invitationExceptions.value : [],
       applicant,
       grants,
       accessAvailable: access.ok,
@@ -243,6 +265,7 @@ export default async function SharingPage({
                           exceptions={grant.caseExceptions.map((exception) => ({
                             missionId: exception.missionId,
                             title: exception.missionTitle,
+                            sharedSeparately: exception.reachedByAnotherGrant,
                           }))}
                         />
                       ) : null}
@@ -288,6 +311,19 @@ export default async function SharingPage({
                       ? 'Expired'
                       : invitation.status.toLowerCase()}{' '}
                     · {invitation.purpose}
+                    {invitation.status === 'PENDING' && invitation.expiresAt.getTime() > Date.now()
+                      ? data.invitationExceptions
+                          .filter((exception) => exception.invitationId === invitation.id)
+                          .map((exception) => (
+                            <span
+                              className="sharing-invitation-exception"
+                              key={exception.missionId}
+                            >
+                              <br />
+                              Not Shared: {exception.missionTitle}
+                            </span>
+                          ))
+                      : null}
                   </span>
                   {invitation.status === 'PENDING' &&
                   invitation.expiresAt.getTime() > Date.now() ? (

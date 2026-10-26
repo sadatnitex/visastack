@@ -1,10 +1,21 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
 import { type ActionState, allowCaseAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
+
+/** One case an all-cases access does not cover. */
+export interface CaseExceptionItem {
+  readonly missionId: string;
+  readonly title: string;
+  /**
+   * The same recipient still sees this case through another access (one for
+   * this case alone, for example), so it is not "Not Shared" with them.
+   */
+  readonly sharedSeparately?: boolean;
+}
 
 /**
  * The cases one all-cases access does not cover (per-case sharing
@@ -20,14 +31,8 @@ export function CaseExceptions({
   readonly applicantId: string;
   readonly grantId: string;
   readonly recipientLabel: string;
-  readonly exceptions: ReadonlyArray<{ readonly missionId: string; readonly title: string }>;
+  readonly exceptions: readonly CaseExceptionItem[];
 }) {
-  const [state, formAction, pending] = useActionState(allowCaseAction, INITIAL);
-  const [confirming, setConfirming] = useState<string | null>(null);
-  useEffect(() => {
-    if (state.ok && state.refreshPath) window.location.assign(state.refreshPath);
-  }, [state]);
-
   return (
     <div className="sharing-case-exceptions">
       <p className="muted u-m-0">
@@ -36,47 +41,111 @@ export function CaseExceptions({
       </p>
       <ul className="sharing-case-exceptions-list">
         {exceptions.map((exception) => (
-          <li key={exception.missionId}>
-            <form action={formAction} className="sharing-case-exception">
-              <input type="hidden" name="applicantId" value={applicantId} />
-              <input type="hidden" name="grantId" value={grantId} />
-              <input type="hidden" name="missionId" value={exception.missionId} />
-              <span>Not Shared: {exception.title}</span>
-              {confirming === exception.missionId ? (
-                <div className="notice" role="alert">
-                  <p className="u-m-0">
-                    {recipientLabel} will be able to see this case and its records.
-                  </p>
-                  <div className="sharing-case-exception-choices">
-                    <SubmitButton
-                      pending={pending}
-                      idle="Yes, Allow This Case"
-                      busy="Allowing"
-                      className="btn btn-primary u-btn-sm"
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-secondary u-btn-sm"
-                      onClick={() => setConfirming(null)}
-                    >
-                      Keep It Private
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  className="btn btn-secondary u-btn-sm"
-                  onClick={() => setConfirming(exception.missionId)}
-                >
-                  Allow This Case
-                </button>
-              )}
-            </form>
-          </li>
+          <CaseExceptionRow
+            key={exception.missionId}
+            applicantId={applicantId}
+            grantId={grantId}
+            recipientLabel={recipientLabel}
+            exception={exception}
+          />
         ))}
       </ul>
-      <FormMessage result={state} />
     </div>
+  );
+}
+
+/**
+ * One case with its own answer, so a message always sits next to the case it
+ * is about. Focus follows the choice: opening the question moves it to the
+ * confirm button, "Keep It Private" returns it to "Allow This Case", and a
+ * refusal moves it to the row's message.
+ */
+function CaseExceptionRow({
+  applicantId,
+  grantId,
+  recipientLabel,
+  exception,
+}: {
+  readonly applicantId: string;
+  readonly grantId: string;
+  readonly recipientLabel: string;
+  readonly exception: CaseExceptionItem;
+}) {
+  const [state, formAction, pending] = useActionState(allowCaseAction, INITIAL);
+  const [confirming, setConfirming] = useState(false);
+  const allowRef = useRef<HTMLButtonElement>(null);
+  const confirmRef = useRef<HTMLDivElement>(null);
+  const messageRef = useRef<HTMLDivElement>(null);
+  const returnFocus = useRef(false);
+
+  useEffect(() => {
+    if (state.ok && state.refreshPath) window.location.assign(state.refreshPath);
+    if (!state.ok && state.message) {
+      setConfirming(false);
+      messageRef.current?.focus();
+    }
+  }, [state]);
+
+  useEffect(() => {
+    if (confirming) {
+      confirmRef.current?.querySelector<HTMLButtonElement>('button[type="submit"]')?.focus();
+    } else if (returnFocus.current) {
+      returnFocus.current = false;
+      allowRef.current?.focus();
+    }
+  }, [confirming]);
+
+  return (
+    <li>
+      <form action={formAction} className="sharing-case-exception">
+        <input type="hidden" name="applicantId" value={applicantId} />
+        <input type="hidden" name="grantId" value={grantId} />
+        <input type="hidden" name="missionId" value={exception.missionId} />
+        <span>
+          {exception.sharedSeparately ? 'Shared Separately' : 'Not Shared'}: {exception.title}
+        </span>
+        {exception.sharedSeparately ? (
+          <span className="muted">
+            {recipientLabel} sees this case through another access you gave.
+          </span>
+        ) : null}
+        {confirming ? (
+          <div className="notice" role="alert" ref={confirmRef}>
+            <p className="u-m-0">{recipientLabel} will be able to see this case and its records.</p>
+            <div className="sharing-case-exception-choices">
+              <SubmitButton
+                pending={pending}
+                idle="Yes, Allow This Case"
+                busy="Allowing"
+                className="btn btn-primary u-btn-sm"
+              />
+              <button
+                type="button"
+                className="btn btn-secondary u-btn-sm"
+                onClick={() => {
+                  returnFocus.current = true;
+                  setConfirming(false);
+                }}
+              >
+                Keep It Private
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            ref={allowRef}
+            type="button"
+            className="btn btn-secondary u-btn-sm"
+            aria-label={`Allow This Case: ${exception.title}`}
+            onClick={() => setConfirming(true)}
+          >
+            Allow This Case
+          </button>
+        )}
+        <div ref={messageRef} tabIndex={-1} className="sharing-case-exception-message">
+          <FormMessage result={state} />
+        </div>
+      </form>
+    </li>
   );
 }
