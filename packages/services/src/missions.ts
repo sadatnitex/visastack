@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
-import type { FactStatus, MissionState } from '@visastack/core';
+import type { FactStatus, MissionState, PermissionAction } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import { AuthorizedApplicant } from './access';
+import { AuthorizedApplicant, accountPrincipal, requireAccess } from './access';
 import { lockCaseSharing } from './access/grant-scope';
 import { orgGrantPermits } from './agency';
 import { getApplicant } from './applicants';
@@ -26,6 +26,12 @@ import {
   evaluateCondition,
   isValidRuleCondition,
 } from './rule-conditions';
+import {
+  type CaseSharingAnswers,
+  type CaseSharingQuestion,
+  applyCaseSharingAnswers,
+  listCaseSharingQuestions,
+} from './sharing';
 
 /**
  * Mission Workspaces (Build Spec §4.3; PRD §4).
@@ -171,25 +177,27 @@ export function legalTransitions(from: MissionState): readonly MissionState[] {
   return TRANSITIONS[from] ?? [];
 }
 
+type CreateMissionInput = {
+  readonly actorAccountId: string;
+  readonly applicantId: string;
+  readonly title: string;
+  readonly destination?: string;
+  readonly purpose?: string;
+  /** IAM-04: an optional free-text label linking this mission to other missions as one family trip. Display/reference only, never an access mechanism (see `itineraryRef`'s own schema comment). */
+  readonly itineraryRef?: string;
+  /** CAS-01 case-creation fields (Commercial V1 Part 4 §8). All optional and purely descriptive: none of them gate any authorization decision anywhere else. */
+  readonly jurisdiction?: string;
+  readonly serviceCategory?: string;
+  readonly travelStartDate?: Date;
+  readonly travelEndDate?: Date;
+  readonly targetDeadline?: Date;
+  readonly ownerOrganizationId?: string;
+  readonly manualMode?: boolean;
+};
+
 export async function createMission(
   db: Db,
-  input: {
-    readonly actorAccountId: string;
-    readonly applicantId: string;
-    readonly title: string;
-    readonly destination?: string;
-    readonly purpose?: string;
-    /** IAM-04: an optional free-text label linking this mission to other missions as one family trip. Display/reference only, never an access mechanism (see `itineraryRef`'s own schema comment). */
-    readonly itineraryRef?: string;
-    /** CAS-01 case-creation fields (Commercial V1 Part 4 §8). All optional and purely descriptive: none of them gate any authorization decision anywhere else. */
-    readonly jurisdiction?: string;
-    readonly serviceCategory?: string;
-    readonly travelStartDate?: Date;
-    readonly travelEndDate?: Date;
-    readonly targetDeadline?: Date;
-    readonly ownerOrganizationId?: string;
-    readonly manualMode?: boolean;
-  },
+  input: CreateMissionInput,
 ): Promise<Result<Mission, ServiceError>> {
   const applicant = await getApplicant(db, input.applicantId);
   if (!applicant) return err(serviceError('not_found', 'applicant not found'));
@@ -201,80 +209,93 @@ export async function createMission(
     return err(serviceError('consent_required', 'Core processing consent is required'));
   }
 
-  return db.transaction(async (tx) => {
-    // The person's sharing lock comes before any audited write: answers about
-    // who may see this new case (`applyCaseSharingAnswers`) run in this same
-    // transaction, and every other holder of that lock takes it before the
-    // global audit lock, so taking it here keeps one order and no deadlock.
-    await lockCaseSharing(tx, input.applicantId);
-    // An individual traveller's own case has no organization to check a cap
-    // against; the directive's cases-per-period/concurrent-open-cases
-    // entitlements are org-scoped (see plans.ts's own doc comment), and
-    // Traveller Free's seeded plan leaves both NULL (unlimited) besides.
-    if (input.ownerOrganizationId) {
-      const caseCheck = await checkCaseCreationEntitlement(tx, input.ownerOrganizationId);
-      if (!caseCheck.ok) return err(caseCheck.error);
-    }
+  return db.transaction((tx) => insertMissionInTransaction(tx, input));
+}
 
-    const mission = required(
-      first(
-        await tx
-          .insert(schema.missions)
-          .values({
-            applicantId: input.applicantId,
-            title: input.title.trim(),
-            destination: input.destination ?? null,
-            purpose: input.purpose ?? null,
-            itineraryRef: input.itineraryRef?.trim() || null,
-            jurisdiction: input.jurisdiction?.trim() || null,
-            serviceCategory: input.serviceCategory?.trim() || null,
-            travelStartDate: input.travelStartDate ?? null,
-            travelEndDate: input.travelEndDate ?? null,
-            targetDeadline: input.targetDeadline ?? null,
-            ownerOrganizationId: input.ownerOrganizationId ?? null,
-            manualMode: input.manualMode ?? false,
-          })
-          .returning(),
-      ),
-      'mission',
-    );
-    // The visible code people quote (ADR 0018), in the same transaction.
-    await assignReferenceCode(tx, 'C', mission.id);
-    await appendAuditEvent(tx, {
-      eventType: 'MISSION_CREATED',
-      actorAccountId: input.actorAccountId,
-      method: 'MANUAL',
-      result: 'ALLOWED',
-      applicantId: input.applicantId,
-      missionId: mission.id,
-      resourceType: 'mission',
-      resourceId: mission.id,
-    });
-    await recordProductEvent(tx, {
-      eventType: 'MISSION_CREATED',
-      accountId: input.actorAccountId,
-      organizationId: mission.ownerOrganizationId,
-    });
-    // OPS-04 activation: an account is activated by its first case, the unit
-    // of value the product exists to produce. `onceFor` makes every later case
-    // a no-op, and the metric is how long after sign-up that first case came.
-    const account = first(
+/**
+ * The case-creating writes, shared by `createMission` and `prepareCaseAgain`
+ * so both take the same locks in the same order and record the same events.
+ * Run inside a transaction; the caller has already checked ownership, the
+ * title and consent.
+ */
+async function insertMissionInTransaction(
+  tx: Db,
+  input: CreateMissionInput,
+  auditMetadata?: Record<string, string | number | boolean>,
+): Promise<Result<Mission, ServiceError>> {
+  // The person's sharing lock comes before any audited write: answers about
+  // who may see this new case (`applyCaseSharingAnswers`) run in this same
+  // transaction, and every other holder of that lock takes it before the
+  // global audit lock, so taking it here keeps one order and no deadlock.
+  await lockCaseSharing(tx, input.applicantId);
+  // An individual traveller's own case has no organization to check a cap
+  // against; the directive's cases-per-period/concurrent-open-cases
+  // entitlements are org-scoped (see plans.ts's own doc comment), and
+  // Traveller Free's seeded plan leaves both NULL (unlimited) besides.
+  if (input.ownerOrganizationId) {
+    const caseCheck = await checkCaseCreationEntitlement(tx, input.ownerOrganizationId);
+    if (!caseCheck.ok) return err(caseCheck.error);
+  }
+
+  const mission = required(
+    first(
       await tx
-        .select({ createdAt: schema.accounts.createdAt })
-        .from(schema.accounts)
-        .where(eq(schema.accounts.id, input.actorAccountId))
-        .limit(1),
-    );
-    await recordProductEvent(tx, {
-      eventType: 'ACCOUNT_ACTIVATED',
-      accountId: input.actorAccountId,
-      organizationId: mission.ownerOrganizationId,
-      dimension: mission.ownerOrganizationId ? 'AGENCY' : 'TRAVELLER',
-      ...(account ? { metricValue: elapsedSeconds(account.createdAt) } : {}),
-      onceFor: input.actorAccountId,
-    });
-    return ok(mission);
+        .insert(schema.missions)
+        .values({
+          applicantId: input.applicantId,
+          title: input.title.trim(),
+          destination: input.destination ?? null,
+          purpose: input.purpose ?? null,
+          itineraryRef: input.itineraryRef?.trim() || null,
+          jurisdiction: input.jurisdiction?.trim() || null,
+          serviceCategory: input.serviceCategory?.trim() || null,
+          travelStartDate: input.travelStartDate ?? null,
+          travelEndDate: input.travelEndDate ?? null,
+          targetDeadline: input.targetDeadline ?? null,
+          ownerOrganizationId: input.ownerOrganizationId ?? null,
+          manualMode: input.manualMode ?? false,
+        })
+        .returning(),
+    ),
+    'mission',
+  );
+  // The visible code people quote (ADR 0018), in the same transaction.
+  await assignReferenceCode(tx, 'C', mission.id);
+  await appendAuditEvent(tx, {
+    eventType: 'MISSION_CREATED',
+    actorAccountId: input.actorAccountId,
+    method: 'MANUAL',
+    result: 'ALLOWED',
+    applicantId: input.applicantId,
+    missionId: mission.id,
+    resourceType: 'mission',
+    resourceId: mission.id,
+    ...(auditMetadata ? { metadata: auditMetadata } : {}),
   });
+  await recordProductEvent(tx, {
+    eventType: 'MISSION_CREATED',
+    accountId: input.actorAccountId,
+    organizationId: mission.ownerOrganizationId,
+  });
+  // OPS-04 activation: an account is activated by its first case, the unit
+  // of value the product exists to produce. `onceFor` makes every later case
+  // a no-op, and the metric is how long after sign-up that first case came.
+  const account = first(
+    await tx
+      .select({ createdAt: schema.accounts.createdAt })
+      .from(schema.accounts)
+      .where(eq(schema.accounts.id, input.actorAccountId))
+      .limit(1),
+  );
+  await recordProductEvent(tx, {
+    eventType: 'ACCOUNT_ACTIVATED',
+    accountId: input.actorAccountId,
+    organizationId: mission.ownerOrganizationId,
+    dimension: mission.ownerOrganizationId ? 'AGENCY' : 'TRAVELLER',
+    ...(account ? { metricValue: elapsedSeconds(account.createdAt) } : {}),
+    onceFor: input.actorAccountId,
+  });
+  return ok(mission);
 }
 
 /**
@@ -2571,4 +2592,561 @@ export async function listGeneratedOutputs(
     .where(eq(schema.generatedOutputs.missionId, missionId))
     .orderBy(desc(schema.generatedOutputs.version));
   return ok(rows);
+}
+
+// --- Prepare Again (Programme X WP-V4, v1.2 U02) -----------------------------
+
+/** Where one requirement of the new case stands before the case is made. */
+export type PrepareAgainGroup = 'REUSABLE' | 'NEEDS_REVIEW' | 'MISSING';
+
+/**
+ * Why a requirement sits in its group. Only a record the previous case
+ * chose, and that is still current (`used_before`), starts ticked: a matching
+ * type alone is never taken as the person's choice.
+ */
+export type PrepareAgainReason =
+  /** The previous case used this record and it is still current. */
+  | 'used_before'
+  /** One current record fits and the previous case chose none: it counts unless the person adds another. */
+  | 'only_match'
+  /** Several current records fit and the previous case chose none: the person picks. */
+  | 'choose_one'
+  /** The record is waiting for confirmation, was replaced, or is marked out of date. */
+  | 'needs_confirmation'
+  /** The record has an unresolved conflict. */
+  | 'conflict'
+  /** The document is older than this route allows. */
+  | 'too_old'
+  /** The document is still being checked, failed a check, expired or was erased. */
+  | 'not_usable'
+  /** Nothing on the record fits yet. */
+  | 'not_provided';
+
+export type PrepareAgainRecord =
+  | {
+      readonly kind: 'fact';
+      readonly factId: string;
+      readonly value: string | null;
+      readonly repeatingRecordKey: string | null;
+      /** Whether this record may be carried into the new case. */
+      readonly carriable: boolean;
+      /** Whether it starts ticked (only a carriable record ever does). */
+      readonly preselected: boolean;
+    }
+  | {
+      readonly kind: 'document';
+      readonly documentId: string;
+      readonly displayName: string;
+      readonly carriable: boolean;
+      readonly preselected: boolean;
+    };
+
+export interface PrepareAgainItem {
+  /** The requirement in the new case's checklist version (never the previous case's). */
+  readonly packRequirementId: string;
+  readonly kind: 'FIELD' | 'DOCUMENT';
+  readonly key: string;
+  readonly citation: string;
+  readonly optional: boolean;
+  readonly group: PrepareAgainGroup;
+  readonly reason: PrepareAgainReason;
+  readonly records: readonly PrepareAgainRecord[];
+}
+
+export interface PrepareAgainPlan {
+  readonly source: {
+    readonly id: string;
+    readonly title: string;
+    readonly destination: string | null;
+    readonly purpose: string | null;
+    readonly jurisdiction: string | null;
+    readonly serviceCategory: string | null;
+    readonly manualMode: boolean;
+  };
+  /** The checklist the new case will use: the newest published version of the previous case's checklist. */
+  readonly packVersion: {
+    readonly id: string;
+    readonly packName: string;
+    readonly version: number;
+    /** True when the rules were updated since the previous case. */
+    readonly changedSincePrevious: boolean;
+  } | null;
+  /** The previous case had a checklist, but no version of it is published any more. */
+  readonly checklistUnavailable: boolean;
+  /** Requirements whose own condition says they do not apply to this person right now. */
+  readonly notApplicableCount: number;
+  readonly items: readonly PrepareAgainItem[];
+  /** Everyone with access to all cases: the person decides, one by one, whether they see the new case. */
+  readonly sharingQuestions: readonly CaseSharingQuestion[];
+}
+
+function ownerProof<A extends PermissionAction>(
+  proof: AuthorizedApplicant<A>,
+  action: A,
+): Result<Mission, ServiceError> {
+  if (
+    !AuthorizedApplicant.isGenuine(proof, action) ||
+    proof.actor.kind !== 'applicant_owner' ||
+    proof.resource.kind !== 'mission'
+  ) {
+    return err(
+      serviceError('forbidden', 'Only the owner of this record can prepare a case again.'),
+    );
+  }
+  return ok(proof.resource.mission);
+}
+
+/** The newest published version of the pack behind `packVersionId`, if any. */
+async function latestPublishedVersionOfSamePack(
+  db: Db,
+  packVersionId: string,
+): Promise<{ id: string; packName: string; version: number } | undefined> {
+  const previous = first(
+    await db
+      .select({ packId: schema.packVersions.packId })
+      .from(schema.packVersions)
+      .where(eq(schema.packVersions.id, packVersionId))
+      .limit(1),
+  );
+  if (!previous) return undefined;
+  return first(
+    await db
+      .select({
+        id: schema.packVersions.id,
+        packName: schema.packs.name,
+        version: schema.packVersions.version,
+      })
+      .from(schema.packVersions)
+      .innerJoin(schema.packs, eq(schema.packs.id, schema.packVersions.packId))
+      .where(
+        and(
+          eq(schema.packVersions.packId, previous.packId),
+          eq(schema.packVersions.status, 'PUBLISHED'),
+        ),
+      )
+      .orderBy(desc(schema.packVersions.version))
+      .limit(1),
+  );
+}
+
+/** The records the previous case chose, by requirement kind and key (requirement ids differ between checklist versions). */
+async function previousChoicesByKey(
+  db: Db,
+  missionId: string,
+  packVersionId: string,
+): Promise<Map<string, { factIds: Set<string>; documentIds: Set<string> }>> {
+  const rows = await db
+    .select({
+      kind: schema.packRequirements.kind,
+      fieldKey: schema.packRequirements.fieldKey,
+      docType: schema.packRequirements.docType,
+      factId: schema.selectedEvidence.factId,
+      documentId: schema.selectedEvidence.documentId,
+    })
+    .from(schema.selectedEvidence)
+    .innerJoin(
+      schema.packRequirements,
+      eq(schema.packRequirements.id, schema.selectedEvidence.packRequirementId),
+    )
+    .where(
+      and(
+        eq(schema.selectedEvidence.missionId, missionId),
+        // Only choices under the checklist the case uses now: a checklist
+        // attached earlier and replaced leaves rows readiness already ignores.
+        eq(schema.packRequirements.packVersionId, packVersionId),
+      ),
+    );
+  const map = new Map<string, { factIds: Set<string>; documentIds: Set<string> }>();
+  for (const row of rows) {
+    const key = choiceKey(row.kind, row.kind === 'FIELD' ? row.fieldKey : row.docType);
+    const entry = map.get(key) ?? { factIds: new Set<string>(), documentIds: new Set<string>() };
+    if (row.factId) entry.factIds.add(row.factId);
+    if (row.documentId) entry.documentIds.add(row.documentId);
+    map.set(key, entry);
+  }
+  return map;
+}
+
+function choiceKey(kind: 'FIELD' | 'DOCUMENT', key: string | null): string {
+  return `${kind}:${key ?? ''}`;
+}
+
+/** The most serious problem first, so a conflict is never reported as a mere wait for confirmation. */
+const PROBLEM_ORDER: readonly PrepareAgainReason[] = [
+  'conflict',
+  'too_old',
+  'not_usable',
+  'needs_confirmation',
+];
+
+function worstProblem(
+  candidates: readonly { readonly problem: PrepareAgainReason }[],
+): PrepareAgainReason {
+  const present = new Set(candidates.map((c) => c.problem));
+  return PROBLEM_ORDER.find((p) => present.has(p)) ?? 'needs_confirmation';
+}
+
+/**
+ * Sorts one requirement into Reusable, Needs Review or Missing. Pure: the
+ * rules live here once and the tests exercise them directly. Every current
+ * record for the requirement is listed; a record the previous case chose and
+ * that is still current starts ticked, and nothing else does, because a
+ * matching type alone is never taken as the person's choice.
+ */
+export function classifyPrepareAgainRequirement(
+  req: Pick<
+    PackRequirement,
+    'id' | 'kind' | 'fieldKey' | 'docType' | 'citation' | 'optional' | 'maxAgeDays'
+  >,
+  facts: readonly FactInstance[],
+  documents: readonly DocumentInstance[],
+  previous:
+    | { readonly factIds: ReadonlySet<string>; readonly documentIds: ReadonlySet<string> }
+    | undefined,
+  now: Date,
+): PrepareAgainItem {
+  const base = {
+    packRequirementId: req.id,
+    kind: req.kind,
+    key: (req.kind === 'FIELD' ? req.fieldKey : req.docType) ?? '',
+    citation: req.citation,
+    optional: req.optional,
+  };
+  type Candidate = {
+    readonly usable: boolean;
+    readonly problem: PrepareAgainReason;
+    readonly record: (carriable: boolean, preselected: boolean) => PrepareAgainRecord;
+    readonly chosenBefore: boolean;
+  };
+  const candidates: Candidate[] =
+    req.kind === 'FIELD'
+      ? facts.map((f) => ({
+          usable: f.factVersionId !== null && isFactStatusEligible(f.status),
+          problem: f.status === 'CONFLICTED' ? 'conflict' : 'needs_confirmation',
+          chosenBefore: previous?.factIds.has(f.factId) ?? false,
+          record: (carriable, preselected) => ({
+            kind: 'fact',
+            factId: f.factId,
+            value: f.value,
+            repeatingRecordKey: f.repeatingRecordKey,
+            carriable,
+            preselected,
+          }),
+        }))
+      : documents.map((d) => {
+          const stale =
+            classifyStaleness(parseDocumentDate(d.documentDate), req.maxAgeDays, now).status ===
+            'stale';
+          return {
+            usable: d.eligible && !stale,
+            problem: d.eligible ? 'too_old' : 'not_usable',
+            chosenBefore: previous?.documentIds.has(d.documentId) ?? false,
+            record: (carriable: boolean, preselected: boolean) => ({
+              kind: 'document' as const,
+              documentId: d.documentId,
+              displayName: d.displayName,
+              carriable,
+              preselected,
+            }),
+          };
+        });
+
+  // Every current record is listed, so the person can always pick a fresher
+  // one than the previous case used; only a still-current earlier choice
+  // starts ticked, and nothing in Needs Review is ticked for them.
+  const chosen = candidates.filter((c) => c.chosenBefore);
+  if (chosen.length > 0) {
+    const unusableChosen = chosen.filter((c) => !c.usable);
+    if (unusableChosen.length === 0) {
+      return {
+        ...base,
+        group: 'REUSABLE',
+        reason: 'used_before',
+        records: candidates.map((c) => c.record(c.usable, c.chosenBefore && c.usable)),
+      };
+    }
+    return {
+      ...base,
+      group: 'NEEDS_REVIEW',
+      reason: worstProblem(unusableChosen),
+      records: candidates.map((c) => c.record(c.usable, false)),
+    };
+  }
+  const usableCount = candidates.filter((c) => c.usable).length;
+  if (usableCount > 0) {
+    return {
+      ...base,
+      group: usableCount === 1 ? 'REUSABLE' : 'NEEDS_REVIEW',
+      reason: usableCount === 1 ? 'only_match' : 'choose_one',
+      records: candidates.map((c) => c.record(c.usable, false)),
+    };
+  }
+  if (candidates.length > 0) {
+    return {
+      ...base,
+      group: 'NEEDS_REVIEW',
+      reason: worstProblem(candidates),
+      records: candidates.map((c) => c.record(false, false)),
+    };
+  }
+  return { ...base, group: 'MISSING', reason: 'not_provided', records: [] };
+}
+
+async function buildPrepareAgainPlan(
+  tx: Db,
+  source: Mission,
+  now: Date,
+): Promise<Omit<PrepareAgainPlan, 'sharingQuestions'>> {
+  const sourceSummary = {
+    id: source.id,
+    title: source.title,
+    destination: source.destination,
+    purpose: source.purpose,
+    jurisdiction: source.jurisdiction,
+    serviceCategory: source.serviceCategory,
+    manualMode: source.manualMode,
+  };
+  if (!source.packVersionId) {
+    return {
+      source: sourceSummary,
+      packVersion: null,
+      checklistUnavailable: false,
+      notApplicableCount: 0,
+      items: [],
+    };
+  }
+  const latest = await latestPublishedVersionOfSamePack(tx, source.packVersionId);
+  if (!latest) {
+    return {
+      source: sourceSummary,
+      packVersion: null,
+      checklistUnavailable: true,
+      notApplicableCount: 0,
+      items: [],
+    };
+  }
+  const requirements = await listRequirements(tx, latest.id);
+  const factsByKey = await loadFactInstancesByKey(tx, source.applicantId);
+  const documentsByType = await loadDocumentInstancesByType(tx, source.applicantId);
+  const previous = await previousChoicesByKey(tx, source.id, source.packVersionId);
+  const context = buildFactEvaluationContext(factsByKey, now);
+  let notApplicableCount = 0;
+  const items: PrepareAgainItem[] = [];
+  for (const req of requirements) {
+    if (evaluateRequirementCondition(req, context) === 'false') {
+      notApplicableCount++;
+      continue;
+    }
+    items.push(
+      classifyPrepareAgainRequirement(
+        req,
+        req.kind === 'FIELD' ? (factsByKey.get(req.fieldKey ?? '') ?? []) : [],
+        req.kind === 'DOCUMENT' ? (documentsByType.get(req.docType ?? '') ?? []) : [],
+        previous.get(choiceKey(req.kind, req.kind === 'FIELD' ? req.fieldKey : req.docType)),
+        now,
+      ),
+    );
+  }
+  return {
+    source: sourceSummary,
+    packVersion: { ...latest, changedSincePrevious: latest.id !== source.packVersionId },
+    checklistUnavailable: false,
+    notApplicableCount,
+    items,
+  };
+}
+
+/**
+ * What preparing this case again would give: the previous case's details, the
+ * newest published version of its checklist, each requirement sorted into
+ * Reusable, Needs Review or Missing against the person's current records, and
+ * everyone with all-cases access who must be asked about the new case. Reads
+ * only; owner only (the proof is on the previous case).
+ */
+export async function planPrepareAgain(
+  proof: AuthorizedApplicant<'VIEW_METADATA'>,
+): Promise<Result<PrepareAgainPlan, ServiceError>> {
+  const source = ownerProof(proof, 'VIEW_METADATA');
+  if (!source.ok) return source;
+  const questions = await listCaseSharingQuestions(proof);
+  if (!questions.ok) return questions;
+  const plan = await buildPrepareAgainPlan(proof.tx, source.value, new Date());
+  return ok({ ...plan, sharingQuestions: questions.value });
+}
+
+export interface PrepareAgainInput {
+  readonly title: string;
+  readonly travelStartDate?: Date;
+  readonly travelEndDate?: Date;
+  readonly targetDeadline?: Date;
+  /** The checklist version the person saw; a newer publish in between is refused so they see it first. */
+  readonly expectedPackVersionId: string | null;
+  /** The ticked records, each for one requirement of the new checklist version. */
+  readonly carry: ReadonlyArray<{
+    readonly packRequirementId: string;
+    readonly factId?: string;
+    readonly documentId?: string;
+  }>;
+  /** Who with all-cases access may see the new case; anyone not ticked is excluded. */
+  readonly sharing: CaseSharingAnswers;
+}
+
+/** Carries a refusal out of the transaction so every write in it is undone. */
+class PrepareAgainAbort extends Error {
+  constructor(readonly serviceError: ServiceError) {
+    super(serviceError.message);
+  }
+}
+
+const PLAN_CHANGED = 'Something changed since you opened this page. Check the list again.';
+
+/**
+ * Creates a new case from a previous one in one transaction: the new case
+ * (fresh state, no dates, no agency, no tasks, notes, approvals,
+ * acknowledgements, submission or outcome), the person's answers about
+ * everyone with all-cases access (no answer means no), the newest published
+ * checklist version, and the ticked records only. Each ticked record must
+ * still be carriable when re-checked here; anything else refuses the whole
+ * request and nothing is written. The proof is MANAGE on the previous case.
+ */
+export async function prepareCaseAgain(
+  proof: AuthorizedApplicant<'MANAGE'>,
+  input: PrepareAgainInput,
+): Promise<Result<Mission, ServiceError>> {
+  const source = ownerProof(proof, 'MANAGE');
+  if (!source.ok) return source;
+  const title = input.title.trim();
+  if (title.length === 0) return err(serviceError('invalid', 'Give the case a title.'));
+  const ownerAccountId = proof.applicant.ownerAccountId;
+  if (!(await hasConsent(proof.tx, ownerAccountId, 'CORE_PROCESSING'))) {
+    return err(serviceError('consent_required', 'Core processing consent is required'));
+  }
+
+  try {
+    return await proof.tx.transaction(async (tx) => {
+      const abort: (e: ServiceError) => never = (e) => {
+        throw new PrepareAgainAbort(e);
+      };
+      // The sharing lock first (the same order `createMission` keeps), so the
+      // plan below and the answers see one settled set of recipients.
+      await lockCaseSharing(tx, proof.applicant.id);
+      const plan = await buildPrepareAgainPlan(tx, source.value, new Date());
+      if ((plan.packVersion?.id ?? null) !== input.expectedPackVersionId) {
+        abort(serviceError('invalid', PLAN_CHANGED));
+      }
+      const carriable = new Set<string>();
+      for (const item of plan.items) {
+        for (const record of item.records) {
+          if (!record.carriable) continue;
+          carriable.add(
+            `${item.packRequirementId}:${record.kind === 'fact' ? `f:${record.factId}` : `d:${record.documentId}`}`,
+          );
+        }
+      }
+      const seen = new Set<string>();
+      for (const c of input.carry) {
+        const target =
+          c.factId && !c.documentId
+            ? `f:${c.factId}`
+            : c.documentId && !c.factId
+              ? `d:${c.documentId}`
+              : null;
+        const key = target ? `${c.packRequirementId}:${target}` : null;
+        if (!key || !carriable.has(key) || seen.has(key)) {
+          return abort(serviceError('invalid', PLAN_CHANGED));
+        }
+        seen.add(key);
+      }
+
+      const created = await insertMissionInTransaction(
+        tx,
+        {
+          actorAccountId: ownerAccountId,
+          applicantId: proof.applicant.id,
+          title,
+          ...(plan.source.destination ? { destination: plan.source.destination } : {}),
+          ...(plan.source.purpose ? { purpose: plan.source.purpose } : {}),
+          ...(plan.source.jurisdiction ? { jurisdiction: plan.source.jurisdiction } : {}),
+          ...(plan.source.serviceCategory ? { serviceCategory: plan.source.serviceCategory } : {}),
+          ...(input.travelStartDate ? { travelStartDate: input.travelStartDate } : {}),
+          ...(input.travelEndDate ? { travelEndDate: input.travelEndDate } : {}),
+          ...(input.targetDeadline ? { targetDeadline: input.targetDeadline } : {}),
+          manualMode: plan.source.manualMode,
+        },
+        { preparedFromMissionId: source.value.id, carriedRecords: input.carry.length },
+      );
+      if (!created.ok) abort(created.error);
+      const mission = created.value;
+
+      const manage = await requireAccess(
+        tx,
+        accountPrincipal(ownerAccountId),
+        'MANAGE',
+        { missionId: mission.id },
+        { purpose: 'owner_prepare_again' },
+      );
+      if (!manage.ok) abort(manage.error);
+      const answered = await applyCaseSharingAnswers(manage.value, input.sharing);
+      if (!answered.ok) abort(answered.error);
+
+      if (plan.packVersion) {
+        const attached = await attachPackVersion(tx, {
+          actorAccountId: ownerAccountId,
+          missionId: mission.id,
+          packVersionId: plan.packVersion.id,
+        });
+        if (!attached.ok) abort(attached.error);
+      }
+      if (input.carry.length > 0) {
+        // Each carried record was checked against the plan above (this
+        // person's, this requirement's, still current), so the rows go in at
+        // once instead of one `selectEvidence` round trip each while the audit
+        // lock is held. Same rows and the same audit record per row.
+        await incrementMaterialRevision(tx, mission.id);
+        const rows = await tx
+          .insert(schema.selectedEvidence)
+          .values(
+            input.carry.map((c) => ({
+              missionId: mission.id,
+              packRequirementId: c.packRequirementId,
+              factId: c.factId ?? null,
+              documentId: c.documentId ?? null,
+              selectedByAccountId: ownerAccountId,
+            })),
+          )
+          .returning();
+        for (const row of rows) {
+          await appendAuditEvent(tx, {
+            eventType: 'MISSION_EVIDENCE_SELECTED',
+            actorAccountId: ownerAccountId,
+            method: 'MANUAL',
+            result: 'ALLOWED',
+            missionId: mission.id,
+            resourceType: 'selected_evidence',
+            resourceId: row.id,
+            metadata: {
+              packRequirementId: row.packRequirementId,
+              factId: row.factId ?? undefined,
+              documentId: row.documentId ?? undefined,
+            },
+          });
+        }
+      }
+      await recordProductEvent(tx, {
+        eventType: 'CASE_PREPARED_AGAIN',
+        accountId: ownerAccountId,
+        organizationId: null,
+        metricValue: input.carry.length,
+      });
+      return ok(
+        required(
+          first(await tx.select().from(schema.missions).where(eq(schema.missions.id, mission.id))),
+          'mission',
+        ),
+      );
+    });
+  } catch (error) {
+    if (error instanceof PrepareAgainAbort) return err(error.serviceError);
+    throw error;
+  }
 }

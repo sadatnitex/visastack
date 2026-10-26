@@ -111,6 +111,9 @@ const { SubmitResponseForm } = await import(
 const { CreateMissionForm } = await import(
   '../app/app/applicant/[id]/missions/create-mission-form'
 );
+const { PrepareAgainForm } = await import(
+  '../app/app/applicant/[id]/missions/prepare-again/prepare-again-form'
+);
 const { NameReview } = await import('../app/app/applicant/[id]/name-review');
 const { DocumentSuggestionCard } = await import(
   '../app/app/applicant/[id]/document-suggestion-card'
@@ -543,6 +546,71 @@ const SHARING: readonly Case[] = [
 
 const CASES_MISSION: readonly Case[] = [
   { name: 'start a case', element: () => <CreateMissionForm applicantId="a1" /> },
+  {
+    name: 'prepare a case again',
+    element: () => (
+      <PrepareAgainForm
+        applicantId="a1"
+        fromMissionId="m1"
+        defaultTitle="Japan trip 2025"
+        expectedPackVersionId="pv1"
+        checklistNote="Checklist: Japan (version 2)."
+        groups={[
+          {
+            key: 'REUSABLE',
+            title: 'Reusable',
+            hint: 'Current records your new case can use.',
+            tone: 'success',
+            items: [
+              {
+                id: 'r1',
+                label: 'Passport Number',
+                reason: 'Used in your last case and still current.',
+                optional: false,
+                records: [
+                  { value: 'r1|f|f1', label: 'A1234567', carriable: true, preselected: true },
+                ],
+              },
+            ],
+          },
+          {
+            key: 'NEEDS_REVIEW',
+            title: 'Needs Refreshing or Review',
+            hint: 'Nothing here is reused until you check it.',
+            tone: 'warning',
+            items: [
+              {
+                id: 'r2',
+                label: 'Bank Statement',
+                reason: 'Older than this route allows.',
+                optional: false,
+                records: [
+                  { value: 'r2|d|d1', label: 'bank.pdf', carriable: false, preselected: false },
+                ],
+              },
+            ],
+          },
+          { key: 'MISSING', title: 'Missing', hint: 'Still needed.', tone: 'neutral', items: [] },
+        ]}
+        sharingQuestions={[
+          {
+            kind: 'grant',
+            id: 'g1',
+            recipient: 'Agency A',
+            purpose: 'collaboration',
+            pending: false,
+          },
+          {
+            kind: 'invitation',
+            id: 'i1',
+            recipient: 'p@example.test',
+            purpose: 'help',
+            pending: true,
+          },
+        ]}
+      />
+    ),
+  },
   {
     name: 'attach a rule pack to a case',
     element: () => (

@@ -632,6 +632,12 @@ export default async function MissionPage({
             <a className="btn btn-secondary" href="#evidence">
               Add Evidence
             </a>
+            <Link
+              className="btn btn-secondary"
+              href={`/app/applicant/${data.applicantId}/missions/prepare-again?from=${mission.id}`}
+            >
+              Prepare Again
+            </Link>
             <SnapshotButton missionId={mission.id} />
           </>
         }

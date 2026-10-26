@@ -181,3 +181,7 @@ explicit.
 Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance.
 
 Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.
+
+## Current operating correction (2026-10-26)
+
+This page's plan is superseded by `docs/roadmap/SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md` and `docs/roadmap/DEFERRED-COMMERCIAL-HARDENING.md`. WorkOS gates above are historical (WorkOS was retired in #237). The live gate list remains `apps/web/src/lib/commercial-readiness.ts`.

@@ -4,18 +4,12 @@ import { createMission } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { withSession } from '../../../../../lib/session';
+import { parseOptionalDate } from './form-dates';
 
 /** Result surfaced back to the client for inline feedback. */
 export interface ActionState {
   readonly ok: boolean;
   readonly message: string;
-}
-
-function parseOptionalDate(value: FormDataEntryValue | null): Date | undefined {
-  const raw = String(value ?? '').trim();
-  if (raw.length === 0) return undefined;
-  const parsed = new Date(raw);
-  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }
 
 /** Create a mission for an applicant, then redirect into its workspace. */
