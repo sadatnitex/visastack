@@ -30,3 +30,30 @@ apps/web/src/lib/labels.test.ts
 packages/services/src/attention.ts
 packages/services/src/attention.test.ts
 apps/web/src/app/app/page.test.tsx
+# Added after owner approval on 26 Oct 2026 (per-case sharing exceptions for Prepare Again; owner chose
+# "ask each time", approved the full file list and binding pending all-cases invitations, migration 0090).
+packages/db/src/schema.ts
+packages/db/migrations/0090_*.sql
+packages/db/migrations/meta/0090_snapshot.json
+packages/db/migrations/meta/_journal.json
+packages/policy/src/types.ts
+packages/policy/src/authorize.ts
+packages/policy/src/authorize.test.ts
+packages/services/src/sharing.ts
+packages/services/src/sharing.test.ts
+packages/services/src/sharing-invitations.ts
+packages/services/src/sharing-invitations.test.ts
+packages/services/src/access/grant-scope.ts
+packages/services/src/access/grant-scope.test.ts
+packages/services/src/access/index.ts
+packages/services/src/access/require-access.ts
+packages/services/src/access/require-access.test.ts
+packages/services/src/workspace-search.ts
+packages/services/src/workspace-search.test.ts
+packages/services/src/notifications.ts
+packages/services/src/notifications.test.ts
+packages/services/src/application-memory.ts
+packages/services/src/application-memory.test.ts
+packages/services/src/tenant-isolation.test.ts
+packages/services/src/case-exclusion-enforcement.test.ts
+docs/architecture/permission-model.md
