@@ -64,6 +64,8 @@ export const PRODUCT_EVENT_TYPES = [
   'PLAN_CHANGED',
   'PLAN_LIMIT_REACHED',
   'CASH_COLLECTED',
+  // Programme X U02: a case started from a previous one (metric: records carried).
+  'CASE_PREPARED_AGAIN',
 ] as const;
 
 export type ProductEventType = (typeof PRODUCT_EVENT_TYPES)[number];
@@ -110,6 +112,7 @@ const METRIC_EVENTS: ReadonlySet<ProductEventType> = new Set([
   'COMPLAINT_RESOLVED', // seconds from filing
   'ACCOUNT_ACTIVATED', // seconds from account creation
   'CASH_COLLECTED', // minor currency units
+  'CASE_PREPARED_AGAIN', // records carried into the new case
 ]);
 
 export interface RecordProductEventInput {
@@ -330,6 +333,7 @@ export const PRODUCT_EVENT_CATEGORIES: ReadonlyArray<{
   { key: 'agency_repeat_use', label: 'Agency repeat use', eventTypes: ['MISSION_CREATED'] },
   { key: 'plan_usage', label: 'Plan usage', eventTypes: ['PLAN_CHANGED', 'PLAN_LIMIT_REACHED'] },
   { key: 'cash_collection', label: 'Cash collection', eventTypes: ['CASH_COLLECTED'] },
+  { key: 'prepare_again', label: 'Prepare again', eventTypes: ['CASE_PREPARED_AGAIN'] },
 ];
 
 export interface AnalyticsCategoryRow {

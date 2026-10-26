@@ -321,7 +321,7 @@ describe('recordProductEvent -- never in the way of the action it describes', ()
 });
 
 describe('product event categories (OPS-04)', () => {
-  it('cover the fourteen learning areas the PRD names, each backed by an event type that exists', () => {
+  it('cover the fourteen learning areas the PRD names plus Prepare Again, each backed by an event type that exists', () => {
     expect(PRODUCT_EVENT_CATEGORIES.map((c) => c.key)).toEqual([
       'case_stage',
       'intake_to_ready',
@@ -337,6 +337,8 @@ describe('product event categories (OPS-04)', () => {
       'agency_repeat_use',
       'plan_usage',
       'cash_collection',
+      // Programme X U02 (owner instruction, 26 Oct 2026: track Prepare Again usage).
+      'prepare_again',
     ]);
     for (const category of PRODUCT_EVENT_CATEGORIES) {
       expect(category.eventTypes.length, category.key).toBeGreaterThan(0);
@@ -399,7 +401,7 @@ describe('getProductAnalytics', () => {
     const result = await getProductAnalytics(db, NOW);
     expect(result.available).toBe(true);
     if (!result.available) return;
-    expect(result.categories).toHaveLength(14);
+    expect(result.categories).toHaveLength(15);
     for (const category of result.categories) {
       expect(category).toMatchObject({ total: 0, last7Days: 0, last30Days: 0 });
     }

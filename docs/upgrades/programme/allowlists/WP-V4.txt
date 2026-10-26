@@ -81,3 +81,12 @@ apps/web/src/app/app/mission/[id]/appointments/[appointmentId]/ics/route.ts
 apps/web/src/app/app/mission/[id]/appointments/[appointmentId]/ics/route.test.ts
 # The accessibility guard renders every exported form; the Sharing page's case exceptions list is one (26 Oct 2026).
 apps/web/src/lib/a11y-forms.test.tsx
+# Added for Prepare Again under the owner's 26 Oct 2026 programme instruction ("complete Prepare Again before
+# inventing another case-reuse flow"; "Prepare Again usage" telemetry; one plan page and a deferred register).
+# The service lives in missions.ts (already listed); its tests in their own file; the usage event and its admin label.
+packages/services/src/prepare-again.test.ts
+packages/services/src/product-events.ts
+packages/services/src/product-events.test.ts
+apps/web/src/app/app/admin/page.tsx
+docs/roadmap/SMALL-COMMERCIAL-V1.md
+docs/roadmap/DEFERRED-COMMERCIAL-HARDENING.md
