@@ -998,9 +998,10 @@ export async function applyCaseSharingAnswers(
  * the recipient. Owner only; the proof must be MANAGE on the case.
  *
  * Exceptions follow the recipient, so allowing follows the recipient too: the
- * same case's exceptions on that recipient's ended grants and closed
- * invitations are removed with it (each audited), so sharing all cases with
- * them again later does not carry the old "no" forward.
+ * same case's exceptions on every other grant and invitation of that
+ * recipient (live or ended) are removed with it, each audited, so no sibling
+ * keeps the case hidden and sharing all cases with them again later does not
+ * carry the old "no" forward.
  */
 export async function removeCaseException(
   proof: AuthorizedApplicant<'MANAGE'>,
@@ -1071,19 +1072,18 @@ export async function removeCaseException(
       });
     await audit({ kind: 'grant', id: grant.id });
 
-    // The same recipient's ended grants and closed invitations (live ones keep their own answer).
+    // Every other grant and invitation of the same recipient, live or ended:
+    // the owner's latest word for this recipient on this case is "allow", so
+    // no sibling may keep (or later carry forward) the old "no".
     const sources = await recipientExceptionSources(tx, applicantId, {
       kind: 'grant',
       id: grant.id,
       recipientAccountId: grant.recipientAccountId,
       recipientOrganizationId: grant.recipientOrganizationId,
     });
-    const now = new Date();
-    const endedGrantIds = sources.grants.filter((g) => !isLiveGrant(g, now)).map((g) => g.id);
-    const closedInvitationIds = sources.invitations
-      .filter((i) => i.status !== 'PENDING' || i.expiresAt.getTime() <= now.getTime())
-      .map((i) => i.id);
-    if (endedGrantIds.length + closedInvitationIds.length > 0) {
+    const siblingGrantIds = sources.grants.map((g) => g.id);
+    const siblingInvitationIds = sources.invitations.map((i) => i.id);
+    if (siblingGrantIds.length + siblingInvitationIds.length > 0) {
       const stale = await tx
         .delete(exclusions)
         .where(
@@ -1091,9 +1091,9 @@ export async function removeCaseException(
             eq(exclusions.applicantId, applicantId),
             eq(exclusions.missionId, missionId),
             or(
-              endedGrantIds.length > 0 ? inArray(exclusions.grantId, endedGrantIds) : undefined,
-              closedInvitationIds.length > 0
-                ? inArray(exclusions.sharingInvitationId, closedInvitationIds)
+              siblingGrantIds.length > 0 ? inArray(exclusions.grantId, siblingGrantIds) : undefined,
+              siblingInvitationIds.length > 0
+                ? inArray(exclusions.sharingInvitationId, siblingInvitationIds)
                 : undefined,
             ),
           ),

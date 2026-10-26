@@ -221,9 +221,10 @@ export async function assignMember(
   if (
     !(await orgGrantPermits(db, input.organizationId, mission.applicantId, 'MANAGE', mission.id))
   ) {
-    return err(
-      serviceError('forbidden', 'this organization has no current grant covering that case'),
-    );
+    // Answered exactly like an unknown id, so a case hidden from this
+    // organization (a per-case sharing exception, ADR 0017) cannot be told
+    // apart from one that does not exist.
+    return err(serviceError('not_found', 'case not found'));
   }
 
   const existing = first(
@@ -505,9 +506,10 @@ async function loadMissionForOrgWrite(
   );
   if (!mission) return err(serviceError('not_found', 'case not found'));
   if (!(await orgGrantPermits(db, organizationId, mission.applicantId, 'MANAGE', mission.id))) {
-    return err(
-      serviceError('forbidden', 'this organization has no current grant covering that case'),
-    );
+    // Answered exactly like an unknown id, so a case hidden from this
+    // organization (a per-case sharing exception, ADR 0017) cannot be told
+    // apart from one that does not exist.
+    return err(serviceError('not_found', 'case not found'));
   }
   return ok(mission);
 }
@@ -2922,9 +2924,10 @@ export async function recordMissionDecision(
   if (
     !(await orgGrantPermits(db, input.organizationId, mission.applicantId, 'MANAGE', mission.id))
   ) {
-    return err(
-      serviceError('forbidden', 'this organization has no current grant covering that case'),
-    );
+    // Answered exactly like an unknown id, so a case hidden from this
+    // organization (a per-case sharing exception, ADR 0017) cannot be told
+    // apart from one that does not exist.
+    return err(serviceError('not_found', 'case not found'));
   }
   const requirement = first(
     await db
@@ -3092,9 +3095,10 @@ export async function listMissionRequirementsForOrg(
   );
   if (!mission) return err(serviceError('not_found', 'case not found'));
   if (!(await orgGrantPermits(db, organizationId, mission.applicantId, 'MANAGE', mission.id))) {
-    return err(
-      serviceError('forbidden', 'this organization has no current grant covering that case'),
-    );
+    // Answered exactly like an unknown id, so a case hidden from this
+    // organization (a per-case sharing exception, ADR 0017) cannot be told
+    // apart from one that does not exist.
+    return err(serviceError('not_found', 'case not found'));
   }
   if (!mission.packVersionId) return ok([]);
   return ok(await listRequirements(db, mission.packVersionId));

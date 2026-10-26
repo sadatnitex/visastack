@@ -71,7 +71,10 @@ export async function caseExclusionsTablePresent(db: Db): Promise<boolean> {
  * moment. A transaction-scoped advisory lock: released on commit or rollback,
  * re-entrant inside one transaction, and only ever blocks the same person's
  * sharing changes. It must be taken inside a transaction, before reading any
- * grant or invitation it protects.
+ * grant or invitation it protects, and before the first `appendAuditEvent`
+ * of that transaction: the audit trail has one global lock, so taking the two
+ * in the opposite order in two transactions would deadlock. `createMission`
+ * takes it first for the same reason (answers run in its transaction).
  */
 export async function lockCaseSharing(tx: Db, applicantId: string): Promise<void> {
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${caseSharingLockKey(applicantId)}))`);

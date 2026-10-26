@@ -1414,4 +1414,112 @@ describe('review fixes: one-shot answers, the sharing lock, recipient-level exce
     },
     HEAVY_TIMEOUT_MS,
   );
+  it(
+    'takes the sharing lock before the audit lock everywhere, so creating a case with its answers cannot deadlock',
+    async () => {
+      const s = await scenario();
+      const queries: { sql: string; params: unknown[] }[] = [];
+      const logged = drizzle(clientOf(s.db), {
+        schema,
+        logger: {
+          logQuery: (query: string, params: unknown[]) => queries.push({ sql: query, params }),
+        },
+      }) as unknown as Db;
+      const lockKey = caseSharingLockKey(s.applicantId);
+      const locks = () =>
+        queries
+          .filter((q) => /pg_advisory_xact_lock/.test(q.sql))
+          .map((q) => (q.params.includes(lockKey) ? 'sharing' : 'other'));
+
+      // The case and its answers in one transaction, as Prepare Again will do it.
+      await logged.transaction(async (tx) => {
+        const created = await createMission(tx, {
+          actorAccountId: s.owner.id,
+          applicantId: s.applicantId,
+          title: 'Japan trip 2028',
+        });
+        if (!isOk(created)) throw new Error('mission');
+        const proof = await ownerManage(s, created.value.id, tx);
+        const answered = await applyCaseSharingAnswers(proof, {
+          allowedGrantIds: [s.grantA, s.grantB],
+          allowedInvitationIds: [],
+        });
+        if (!isOk(answered)) throw new Error(answered.error.message);
+      });
+      expect(locks()[0]).toBe('sharing');
+
+      // An all-cases grant takes the same order.
+      queries.length = 0;
+      const invitee = await consentedAccount(s.db, 'order@example.test');
+      queries.length = 0;
+      expect(
+        isOk(
+          await createGrant(logged, {
+            actorAccountId: s.owner.id,
+            applicantId: s.applicantId,
+            recipientAccountId: invitee.id,
+            actions: ['VIEW_METADATA'],
+            purpose: 'collaboration',
+          }),
+        ),
+      ).toBe(true);
+      expect(locks()[0]).toBe('sharing');
+    },
+    HEAVY_TIMEOUT_MS,
+  );
+
+  it(
+    'agency loaders answer a hidden case exactly like an unknown one',
+    async () => {
+      const s = await scenario();
+      await exclude(s, s.grantA, s.c2);
+      const aId = s.a.organizationId;
+      const unknown = await listMissionRequirementsForOrg(
+        s.db,
+        aId,
+        '00000000-0000-4000-8000-000000000000',
+      );
+      const hidden = await listMissionRequirementsForOrg(s.db, aId, s.c2);
+      expect(isErr(hidden) && hidden.error).toEqual(isErr(unknown) && unknown.error);
+      const hiddenAssign = await assignMember(s.db, {
+        actorAccountId: s.a.adminId,
+        organizationId: aId,
+        missionId: s.c2,
+        memberAccountId: s.a.adminId,
+      });
+      expect(isErr(hiddenAssign) && hiddenAssign.error.code).toBe('not_found');
+      const hiddenEvidence = await listSelectedEvidenceForOrg(s.db, aId, s.c2);
+      expect(isErr(hiddenEvidence) && hiddenEvidence.error.code).toBe('not_found');
+      // The case it still reaches is unaffected.
+      expect(isOk(await listMissionRequirementsForOrg(s.db, aId, s.c1))).toBe(true);
+    },
+    HEAVY_TIMEOUT_MS,
+  );
+
+  it(
+    "Allow This Case clears the same recipient's other exceptions on that case, live or ended",
+    async () => {
+      const s = await scenario();
+      await exclude(s, s.grantA, s.c2);
+      // A second all-cases grant to A carries the "no" forward.
+      const second = await shareAllCasesWith(s, s.a);
+      expect((await exceptionRows(s, s.c2)).map((r) => r.grantId).sort()).toEqual(
+        [s.grantA, second].sort(),
+      );
+      const allowed = await removeCaseException(await ownerManage(s, s.c2), { grantId: s.grantA });
+      expect(isOk(allowed)).toBe(true);
+      expect(await exceptionRows(s, s.c2)).toEqual([]);
+      expect(await auditCount(s, 'GRANT_CASE_EXCLUSION_REMOVED', s.c2)).toBe(2);
+      // Ending both and sharing all cases again carries nothing back.
+      await revokeGrant(s.db, { actorAccountId: s.owner.id, grantId: second });
+      await revokeGrant(s.db, { actorAccountId: s.owner.id, grantId: s.grantA });
+      const third = await shareAllCasesWith(s, s.a);
+      expect(await exceptionRows(s, s.c2)).toEqual([]);
+      expect(
+        (await listMissionsForOrganization(s.db, s.a.organizationId)).map((m) => m.missionId),
+      ).toContain(s.c2);
+      expect(third).toBeTruthy();
+    },
+    HEAVY_TIMEOUT_MS,
+  );
 });
