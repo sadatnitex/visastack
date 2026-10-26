@@ -327,6 +327,7 @@ export async function loadCases(
           priority: t.priority,
           assigneeAccountId: t.assigneeAccountId,
           dueDate: t.dueDate ? t.dueDate.toISOString() : null,
+          dueTimezone: t.dueTimezone,
         })),
         appointments: appointments.map((a) => ({
           id: a.id,

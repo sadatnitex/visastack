@@ -1112,6 +1112,8 @@ describe('agency collaboration — assignments, notes, evidence', () => {
     if (isOk(detailed)) {
       expect(detailed.value).toHaveLength(1);
       expect(detailed.value[0]?.applicantName).toBe('Owner');
+      // Used only for due days (ADR 0015 amendment); the applicant's default zone here.
+      expect(detailed.value[0]?.applicantTimezone).toBe('Asia/Dhaka');
     }
   });
 
@@ -2314,11 +2316,14 @@ describe('CAS-02 - case workspace: authorized visibility, search fields, task ro
     expect(summary?.manualMode).toBe(true);
     expect(summary?.targetDeadline).toBe(targetDeadline.toISOString());
     expect(summary?.travelStartDate).toBe(travelStartDate.toISOString());
+    // The traveller's time zone, used only to decide when a due day ends (ADR 0015 amendment).
+    expect(summary?.applicantTimezone).toBe('Asia/Dhaka');
     // No protected wallet content anywhere on this shape -- just case metadata.
     expect(Object.keys(summary ?? {}).sort()).toEqual(
       [
         'applicantId',
         'applicantName',
+        'applicantTimezone',
         'createdAt',
         'destination',
         'jurisdiction',

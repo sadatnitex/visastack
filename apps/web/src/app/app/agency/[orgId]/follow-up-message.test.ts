@@ -50,6 +50,25 @@ describe('follow-up message', () => {
     expectClean(message.text);
   });
 
+  it("counts the due day in the traveller's time zone (owner decision, 26 Oct 2026)", () => {
+    // 20:00 UTC on 25 Oct is already 02:00 on 26 Oct in Dhaka, so a request due on 25 Oct has
+    // passed there, while in UTC (no zone known) it is still due today.
+    const late = {
+      ...base,
+      dueDate: '2026-10-25T00:00:00.000Z',
+      now: new Date('2026-10-25T20:00:00.000Z'),
+    };
+    expect(buildFollowUpMessage({ ...late, timezone: 'Asia/Dhaka' }).text).toContain(
+      'Due: 25 October 2026 (this date has passed)',
+    );
+    expect(buildFollowUpMessage({ ...late, timezone: null }).text).toContain(
+      'Due: today, 25 October 2026',
+    );
+    expect(buildFollowUpMessage({ ...late, timezone: 'America/Los_Angeles' }).text).toContain(
+      'Due: today, 25 October 2026',
+    );
+  });
+
   it('asks for a new version when the item was sent back, and for a detail when it is a field', () => {
     const sentBack = buildFollowUpMessage({ ...base, status: 'NEEDS_REPLACEMENT' });
     expect(sentBack.text).toContain(

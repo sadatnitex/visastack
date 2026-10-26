@@ -1,9 +1,13 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { MEMBERSHIP_ROLES, ORGANIZATION_STATUSES, PERMISSION_ACTIONS } from '@visastack/core';
 import { schema } from '@visastack/db';
-import { TRIAGE_GROUPS } from '@visastack/services';
+import { type AttentionKind, TRIAGE_GROUPS } from '@visastack/services';
 import { describe, expect, it } from 'vitest';
 import {
   AI_CONFIG_STATUS_LABELS,
+  ATTENTION_ACTION_LABELS,
+  ATTENTION_TIER_LABELS,
   AUDIT_RESULT_LABELS,
   BILLING_STATUS_LABELS,
   CASE_TRIAGE_STATE_LABELS,
@@ -14,9 +18,11 @@ import {
   ORGANIZATION_STATUS_LABELS,
   PERMISSION_ACTION_LABELS,
   REVIEW_DECISION_LABELS,
+  SENT_BACK_ACTION_LABEL,
   TRIAGE_GROUP_LABELS,
   TRIAGE_INDICATOR_LABELS,
   aiProviderLabel,
+  attentionActionLabel,
   documentTypeLabel,
   eventTypeLabel,
   membershipRoleLabel,
@@ -129,5 +135,67 @@ describe('agency triage words (Programme X E02)', () => {
     expect(words).not.toMatch(/verified|approved|guarantee|submitted/i);
     // A received item is not reviewed: only the Reviewed group may say so.
     expect(TRIAGE_GROUP_LABELS.RECEIVED).not.toMatch(/review/i);
+  });
+});
+
+describe('Needs Attention words (WP-V4 U03, ADR 0016)', () => {
+  it('names all seven tiers and every item kind, in Title Case', () => {
+    expect(Object.keys(ATTENTION_TIER_LABELS).map(Number)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    const kinds: readonly AttentionKind[] = [
+      'evidence_request',
+      'task',
+      'case_changed',
+      'document_expiry',
+      'suggestions',
+      'sharing_invitations',
+    ];
+    expect(Object.keys(ATTENTION_ACTION_LABELS).sort()).toEqual([...kinds].sort());
+    for (const label of [
+      ...Object.values(ATTENTION_TIER_LABELS),
+      ...Object.values(ATTENTION_ACTION_LABELS),
+      SENT_BACK_ACTION_LABEL,
+    ]) {
+      expect(label).toMatch(/^[A-Z][A-Za-z ]*$/);
+      expect(label).toBe(toTitleCase(label));
+    }
+  });
+
+  it('never claims more than the product knows', () => {
+    const words = [
+      ...Object.values(ATTENTION_TIER_LABELS),
+      ...Object.values(ATTENTION_ACTION_LABELS),
+      SENT_BACK_ACTION_LABEL,
+    ].join(' | ');
+    expect(words).not.toMatch(/verified|approved|reviewed|confirmed details|guarantee|submitted/i);
+    expect(words).not.toMatch(/mission/i);
+  });
+
+  it('words the action from the kind, and a sent-back request asks for a replacement', () => {
+    expect(attentionActionLabel({ kind: 'evidence_request', sentBack: false })).toBe(
+      'Reply to Request',
+    );
+    expect(attentionActionLabel({ kind: 'evidence_request', sentBack: true })).toBe(
+      'Send a Replacement',
+    );
+    expect(attentionActionLabel({ kind: 'task', sentBack: false })).toBe('Open Case');
+  });
+
+  it('stays safe for browser code: no server-only module is imported', () => {
+    const source = readFileSync(join(process.cwd(), 'src/lib/labels.ts'), 'utf8');
+    // `import ... from`, `export ... from` and bare `import '...'` lines. Indirect imports (through
+    // another module) are not followed; keep this file's own imports to plain wording sources.
+    const imports = [...source.matchAll(/(?:from|^\s*import)\s+['"]([^'"]+)['"]/gm)].map(
+      (m) => m[1] ?? '',
+    );
+    // Browser components import this shared wording file, so master-profile.ts (server-only: it
+    // reads the field catalogue) and other server modules must never be pulled in through it.
+    for (const banned of [/master-profile/, /server-only/, /\/session$/, /\/providers$/]) {
+      expect(
+        imports.filter((name) => banned.test(name)),
+        String(banned),
+      ).toEqual([]);
+    }
+    // From the services package, types only.
+    expect(source).not.toMatch(/^import \{[^}]*\} from '@visastack\/services'/m);
   });
 });

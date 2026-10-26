@@ -71,7 +71,16 @@ export default async function AgencyCasesPage({
               members={data.members.map((m) => ({ accountId: m.accountId, email: m.email }))}
               assignments={mission.assignments}
               notes={mission.notes}
-              tasks={mission.tasks}
+              // Only the fields the workspace shows: a task's own time zone is used on the
+              // server for due days and is not sent to the browser.
+              tasks={mission.tasks.map((task) => ({
+                id: task.id,
+                description: task.description,
+                status: task.status,
+                priority: task.priority,
+                assigneeAccountId: task.assigneeAccountId,
+                dueDate: task.dueDate,
+              }))}
               appointments={mission.appointments}
               requirements={mission.requirements}
               decisions={mission.decisions}

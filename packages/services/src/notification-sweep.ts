@@ -33,9 +33,10 @@ import { recordProductEvent } from './product-events';
  * The subject's own calendar date in `timezone`, as Y/M/D integers --
  * deliberately never raw millisecond arithmetic on the underlying instant,
  * which a DST transition would corrupt (a "day" is not always 24 hours of
- * wall-clock time). `en-CA` conveniently formats as `YYYY-MM-DD`.
+ * wall-clock time). `en-CA` conveniently formats as `YYYY-MM-DD`. Also read by
+ * `attention.ts` (Needs Attention) for "today" in the person's own time zone.
  */
-function toLocalDateParts(
+export function toLocalDateParts(
   date: Date,
   timezone: string,
 ): { readonly year: number; readonly month: number; readonly day: number } {

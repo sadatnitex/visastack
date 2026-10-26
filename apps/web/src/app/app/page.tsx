@@ -1,33 +1,36 @@
 import { CONSENT_TYPES, type ConsentType } from '@visastack/core';
 import { type MessageKey, createTranslator } from '@visastack/i18n';
 import {
+  type AttentionItem,
   type Db,
+  type NeedsAttention,
+  accountPrincipal,
   getConsents,
   listApplicants,
   listDocuments,
-  listEvidenceRequestsForApplicant,
   listGrantsForRecipientAccount,
   listMembershipsForAccount,
-  listMissions,
-  listPendingProposals,
+  listNeedsAttention,
+  rankAttentionItems,
+  requireAccess,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import {
-  AttentionList,
-  Checklist,
-  Disclosure,
-  EmptyState,
-  NextStepCard,
-  StatusBadge,
-} from '../../components/ui';
+import { Checklist, Disclosure, EmptyState, NextStepCard, StatusBadge } from '../../components/ui';
 import { isPlatformAdmin } from '../../lib/admin';
-import { CONSENT_PLAIN } from '../../lib/labels';
+import { formatDateOnly } from '../../lib/format-date';
+import {
+  ATTENTION_TIER_LABELS,
+  CONSENT_PLAIN,
+  attentionActionLabel,
+  documentTypeLabel,
+} from '../../lib/labels';
 import { getLocale } from '../../lib/locale';
 import { safeReturnPath } from '../../lib/neon-recency';
 import { plural } from '../../lib/plural';
 import { withSession } from '../../lib/session';
+import { requestItemLabel } from './agency/[orgId]/do-next';
 import { ConsentButton } from './consent-button';
 import { FirstRunConsent, FirstRunName, FirstRunTask, SETUP_LATER_HREF } from './first-run';
 
@@ -44,17 +47,18 @@ const CONSENT_MESSAGE_KEYS: Record<ConsentType, MessageKey> = {
   ISSUER_CONTACT: 'consent.issuerContact.title',
 };
 
-/** Terminal mission states never count toward "active". */
-const TERMINAL_MISSION_STATES = new Set(['CLOSED', 'CANCELLED']);
+/**
+ * Home reads Needs Attention for at most this many of the person's own applicants, so a very
+ * large household or a bulk import never turns Home into hundreds of queries. The rest are one
+ * click away on the applicants page, and Home says so.
+ */
+const HOME_APPLICANT_LIMIT = 25;
 
-interface AttentionItem {
-  readonly href: string;
-  readonly applicantName: string;
-  readonly label: string;
-  readonly why: string;
-  readonly action: string;
-  readonly count: number;
-}
+/** Needs Attention shows this many items under the next step; the rest are counted. */
+const HOME_ATTENTION_VISIBLE = 8;
+
+/** Active cases listed under "Active Requests and Work" before pointing to each person. */
+const HOME_CASES_VISIBLE = 6;
 
 /** What first run needs to decide, read before anything heavier. */
 async function loadBasics(db: Db, accountId: string, email: string) {
@@ -70,68 +74,94 @@ async function loadBasics(db: Db, accountId: string, email: string) {
 
 type Basics = Awaited<ReturnType<typeof loadBasics>>;
 
+/**
+ * Needs Attention for one of the person's own applicants, through the central access gate as the
+ * owner (`purpose: 'self'`). Anything else, or a failed read, gives null: Home then shows that
+ * person without attention items rather than failing the whole page.
+ */
+async function loadAttention(
+  db: Db,
+  accountId: string,
+  applicantId: string,
+  now: Date,
+): Promise<NeedsAttention | null> {
+  const access = await requireAccess(
+    db,
+    accountPrincipal(accountId),
+    'VIEW_METADATA',
+    { applicantId },
+    { purpose: 'self' },
+  );
+  if (!access.ok || access.value.actor.kind !== 'applicant_owner') return null;
+  const listed = await listNeedsAttention(access.value, { now });
+  return listed.ok ? listed.value : null;
+}
+
+/** Sharing invitations waiting for an answer: one account-level item in the same shape. */
+function sharingInvitationItem(grants: Basics['incomingGrants'], now: Date): AttentionItem | null {
+  const waiting = grants.filter((g) => g.grant.status === 'PENDING_ACCEPTANCE');
+  if (waiting.length === 0) return null;
+  const sent = waiting
+    .map((g) => g.grant.createdAt)
+    .filter((value): value is Date => value instanceof Date)
+    .sort((a, b) => a.getTime() - b.getTime());
+  return {
+    key: 'sharing_invitations:account',
+    kind: 'sharing_invitations',
+    tier: 7,
+    title: 'Sharing Invitations Waiting for Your Answer',
+    why: 'Someone wants to share their information with you. Nothing is shared until you accept.',
+    applicantId: null,
+    applicantName: null,
+    caseId: null,
+    caseTitle: null,
+    dueDate: null,
+    dueState: 'none',
+    daysUntilDue: null,
+    sentBack: false,
+    count: waiting.length,
+    subject: null,
+    href: '/app/shared',
+    createdAt: (sent[0] ?? now).toISOString(),
+  };
+}
+
 async function loadDashboard(db: Db, accountId: string, email: string, basics: Basics) {
   const { consents, incomingGrants, applicants } = basics;
+  const now = new Date();
   const perApplicant = await Promise.all(
-    applicants.map(async (applicant) => {
-      const [docs, proposals, missions, evidenceRequests] = await Promise.all([
-        listDocuments(db, accountId, applicant.id),
-        listPendingProposals(db, applicant.id),
-        listMissions(db, accountId, applicant.id),
-        listEvidenceRequestsForApplicant(db, accountId, applicant.id),
-      ]);
-      const activeMissions = missions.ok
-        ? missions.value.filter((m) => !TERMINAL_MISSION_STATES.has(m.state)).length
-        : 0;
-      const openRequests = evidenceRequests.ok
-        ? evidenceRequests.value.filter((r) => r.status === 'OPEN').length
-        : 0;
-      return {
-        applicant,
-        documentCount: docs.ok ? docs.value.length : 0,
-        pendingProposals: proposals.length,
-        activeMissions,
-        openRequests,
-      };
-    }),
+    // A fixed order (oldest first, then id) so the same people are read on every visit:
+    // `listApplicants` itself promises no order.
+    [...applicants]
+      .sort(
+        (a, b) =>
+          a.createdAt.getTime() - b.createdAt.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+      )
+      .slice(0, HOME_APPLICANT_LIMIT)
+      .map(async (applicant) => {
+        const [docs, attention] = await Promise.all([
+          listDocuments(db, accountId, applicant.id),
+          loadAttention(db, accountId, applicant.id, now),
+        ]);
+        return {
+          applicant,
+          documentCount: docs.ok ? docs.value.length : 0,
+          attention,
+          itemCount: attention?.items.length ?? 0,
+          activeMissions: attention?.activeCaseCount ?? 0,
+          // Open or sent back for a fix (ADR 0015 section 5), so a replacement request counts.
+          waitingRequests: attention?.requests.waitingOnYou ?? 0,
+          requestsWithAgency: attention?.requests.withAgency ?? 0,
+        };
+      }),
   );
 
-  const attention: AttentionItem[] = [];
-  for (const row of perApplicant) {
-    if (row.openRequests > 0) {
-      attention.push({
-        href: `/app/applicant/${row.applicant.id}/evidence`,
-        applicantName: row.applicant.displayName,
-        label: 'Evidence Requests Waiting for a Reply',
-        why: 'An agency has asked for a document. Reply with a file from your documents.',
-        action: 'Open Requests',
-        count: row.openRequests,
-      });
-    }
-    if (row.pendingProposals > 0) {
-      attention.push({
-        href: `/app/applicant/${row.applicant.id}/documents`,
-        applicantName: row.applicant.displayName,
-        label: 'Suggested Details Waiting for Your Decision',
-        why: 'Details were read from a document. Nothing is added to the profile until you approve it.',
-        action: 'Review Suggestions',
-        count: row.pendingProposals,
-      });
-    }
-  }
-  const pendingGrants = incomingGrants.filter(
-    (g) => g.grant.status === 'PENDING_ACCEPTANCE',
-  ).length;
-  if (pendingGrants > 0) {
-    attention.push({
-      href: '/app/shared',
-      applicantName: '',
-      label: 'Sharing Invitations Waiting for Your Answer',
-      why: 'Someone wants to share their information with you. Nothing is shared until you accept.',
-      action: 'See Invitations',
-      count: pendingGrants,
-    });
-  }
+  const sharing = sharingInvitationItem(incomingGrants, now);
+  // One ranked list across every person and the account itself (ADR 0016).
+  const attention = rankAttentionItems([
+    ...perApplicant.flatMap((row) => row.attention?.items ?? []),
+    ...(sharing ? [sharing] : []),
+  ]);
 
   return {
     email,
@@ -139,7 +169,53 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
     applicants,
     perApplicant,
     attention,
+    sharingWaiting: sharing !== null,
   };
+}
+
+/**
+ * The heading for one item: what a request asks for or which document is expiring, by its own
+ * name, otherwise the plain heading the item came with. Server-only: the request label reads the
+ * field catalogue, which never goes to the browser.
+ */
+function attentionHeading(item: AttentionItem): string {
+  const subject = item.subject;
+  if (subject?.kind === 'request') {
+    return requestItemLabel({
+      kind: subject.requestKind,
+      fieldKey: subject.fieldKey,
+      docType: subject.docType,
+    });
+  }
+  if (subject?.kind === 'document' && subject.docType) return documentTypeLabel(subject.docType);
+  return item.title;
+}
+
+/** Who and which case an item is about, in a short line. */
+function attentionContext(item: AttentionItem): string {
+  const parts = [item.applicantName, item.caseTitle].filter(
+    (part): part is string => typeof part === 'string' && part.length > 0,
+  );
+  if (item.count !== null) {
+    parts.push(
+      item.kind === 'sharing_invitations'
+        ? plural(item.count, 'invitation')
+        : plural(item.count, 'suggested detail'),
+    );
+  }
+  return parts.join(' \u00b7 ');
+}
+
+/** The date line for an item, or null when it has no date (an unknown date gets a badge). */
+function attentionWhen(item: AttentionItem): string | null {
+  if (item.dueDate === null) return null;
+  const date = formatDateOnly(item.dueDate);
+  if (item.kind === 'document_expiry') {
+    return item.dueState === 'overdue' ? `Expired on ${date}` : `Expires on ${date}`;
+  }
+  if (item.daysUntilDue === 0) return `Due today, ${date}`;
+  if (item.dueState === 'overdue') return `Was due on ${date}`;
+  return `Due on ${date}`;
 }
 
 interface SearchParams {
@@ -219,8 +295,8 @@ export default async function AppPage({
   const { coreGranted, grantedCount, data } = decided;
   if (coreGranted && data.applicants.length > 0 && params.welcome === '1') {
     // Ask what they want to do once, offering only destinations that exist.
-    const waiting = data.perApplicant.find((row) => row.openRequests > 0);
-    const shared = data.attention.find((item) => item.href === '/app/shared');
+    const waiting = data.perApplicant.find((row) => row.waitingRequests > 0);
+    const shared = data.sharingWaiting;
     const first = data.perApplicant[0];
     return (
       <FirstRunTask
@@ -273,10 +349,13 @@ export default async function AppPage({
   ];
 
   const firstTodo = setupSteps.find((step) => !step.done);
+  const setupIncomplete = firstTodo !== undefined;
 
-  // One next step, chosen in priority order: the consent gate first, then whatever
-  // someone is waiting on, then the first applicant, then "all clear".
+  // One next step, chosen in priority order: the consent gate first, then the top of the ranked
+  // Needs Attention list (ADR 0016), then the first setup step, then "all clear".
   const first = data.attention[0];
+  // Home reads at most HOME_APPLICANT_LIMIT people (oldest first); say so wherever it matters.
+  const peopleLeftOut = data.applicants.length > data.perApplicant.length;
   const nextStep = !coreGranted
     ? {
         title: 'Turn On Core Processing to Begin',
@@ -287,10 +366,10 @@ export default async function AppPage({
       }
     : first
       ? {
-          title: first.label,
-          why: first.applicantName ? `${first.applicantName}. ${first.why}` : first.why,
+          title: attentionHeading(first),
+          why: attentionContext(first) ? `${attentionContext(first)}. ${first.why}` : first.why,
           href: first.href,
-          action: first.action,
+          action: attentionActionLabel(first),
           tone: 'warning' as const,
         }
       : firstTodo
@@ -300,13 +379,36 @@ export default async function AppPage({
             href: firstTodo.href,
             action: firstTodo.key === 'applicant' ? 'Add an Applicant' : 'Continue',
           }
-        : {
-            title: 'You Are Up to Date',
-            why: 'Nothing is waiting for you. Open an applicant to add documents or start a case.',
-            href: '/app/applicants',
-            action: 'View Applicants',
-            tone: 'ok' as const,
-          };
+        : peopleLeftOut
+          ? {
+              // Home reads only the first people, so it cannot say nothing is waiting at all.
+              title: 'Up to Date for the People Shown',
+              why: `Nothing is waiting for the first ${data.perApplicant.length} of ${data.applicants.length} people. Open the full list to check the others.`,
+              href: '/app/applicants',
+              action: 'See All Applicants',
+              tone: 'ok' as const,
+            }
+          : {
+              title: 'You Are Up to Date',
+              why: 'Nothing is waiting for you. Open an applicant to add documents or start a case.',
+              href: '/app/applicants',
+              action: 'View Applicants',
+              tone: 'ok' as const,
+            };
+
+  // Under the next step: everything else, ranked. The first item is already the next step.
+  const rest = first ? data.attention.slice(1) : [];
+  const restShown = rest.slice(0, HOME_ATTENTION_VISIBLE);
+  const requestRows = data.perApplicant.filter(
+    (row) => row.waitingRequests + row.requestsWithAgency > 0,
+  );
+  const activeCases = data.perApplicant.flatMap((row) =>
+    (row.attention?.activeCases ?? []).map((entry) => ({
+      id: entry.id,
+      title: entry.title,
+      person: row.applicant.displayName,
+    })),
+  );
 
   return (
     <section className="section container">
@@ -322,30 +424,63 @@ export default async function AppPage({
 
       <NextStepCard {...nextStep} />
 
-      {setupSteps.some((step) => !step.done) ? (
-        <Checklist title="Set Up Your Account" items={setupSteps} />
-      ) : null}
-
-      {coreGranted && data.attention.length > 1 ? (
-        <article className="card u-mb-150">
+      {coreGranted && rest.length > 0 ? (
+        <section className="card u-mb-150" aria-labelledby="home-attention-heading">
           <p className="card-kicker">Also Waiting</p>
-          <h2 className="card-title">Needs Your Attention</h2>
-          <AttentionList
-            items={data.attention.slice(1).map((item, i) => ({
-              key: `${item.href}-${i}`,
-              href: item.href,
-              label: item.label,
-              ...(item.applicantName ? { detail: item.applicantName } : {}),
-              count: item.count,
-            }))}
-          />
-        </article>
+          <h2 className="card-title" id="home-attention-heading">
+            Needs Attention
+          </h2>
+          <ol className="do-next-list">
+            {restShown.map((item) => {
+              const heading = attentionHeading(item);
+              const when = attentionWhen(item);
+              const context = attentionContext(item);
+              return (
+                <li key={item.key} className={`do-next-item do-next-tier-${item.tier}`}>
+                  <div className="do-next-item-head">
+                    <span className="do-next-tier">{ATTENTION_TIER_LABELS[item.tier]}</span>
+                    <h3 className="do-next-title">{heading}</h3>
+                  </div>
+                  {context ? <p className="do-next-context">{context}</p> : null}
+                  <p className="home-attention-why">{item.why}</p>
+                  {when ? (
+                    <p className="home-attention-when">{when}</p>
+                  ) : item.dueState === 'unknown' ? (
+                    <p className="home-attention-when">
+                      <StatusBadge tone="neutral">Date Unknown</StatusBadge>
+                    </p>
+                  ) : null}
+                  <div className="do-next-action">
+                    <Link href={item.href} className="btn btn-secondary do-next-link">
+                      {attentionActionLabel(item)}
+                      <span className="sr-only">: {heading}</span>
+                    </Link>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+          {rest.length > restShown.length ? (
+            <p className="muted do-next-more">
+              Showing {restShown.length} of {rest.length}. The rest are on each person&apos;s pages.{' '}
+              <Link href="/app/applicants">See All Applicants</Link>
+            </p>
+          ) : null}
+          {peopleLeftOut ? (
+            <p className="muted do-next-more">
+              This list covers the first {data.perApplicant.length} of {data.applicants.length}{' '}
+              people. <Link href="/app/applicants">See All Applicants</Link>
+            </p>
+          ) : null}
+        </section>
       ) : null}
 
       {coreGranted ? (
-        <article className="card u-mb-150">
-          <p className="card-kicker">People and Cases</p>
-          <h2 className="card-title">Your Applicants</h2>
+        <section className="card u-mb-150" aria-labelledby="home-records-heading">
+          <p className="card-kicker">People</p>
+          <h2 className="card-title" id="home-records-heading">
+            My Records
+          </h2>
           {data.perApplicant.length === 0 ? (
             <EmptyState
               icon="users"
@@ -366,13 +501,13 @@ export default async function AppPage({
                         {plural(row.documentCount, 'document')}
                         {' \u00b7 '}
                         {plural(row.activeMissions, 'active case')}
-                        {row.openRequests > 0
-                          ? ` \u00b7 ${plural(row.openRequests, 'open request')}`
+                        {row.waitingRequests > 0
+                          ? ` \u00b7 ${plural(row.waitingRequests, 'open request')}`
                           : ''}
                       </span>
                     </span>
                     <span className="attention-end">
-                      {row.openRequests + row.pendingProposals > 0 ? (
+                      {row.itemCount > 0 ? (
                         <StatusBadge tone="warning">Action Needed</StatusBadge>
                       ) : null}
                       <span className="attention-chevron" aria-hidden="true">
@@ -384,7 +519,102 @@ export default async function AppPage({
               ))}
             </ul>
           )}
-        </article>
+          {data.applicants.length > data.perApplicant.length ? (
+            <p className="muted do-next-more">
+              Home shows the first {data.perApplicant.length} of {data.applicants.length} people.{' '}
+              <Link href="/app/applicants">See All Applicants</Link>
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
+      {coreGranted && data.perApplicant.length > 0 ? (
+        <section className="card u-mb-150" aria-labelledby="home-work-heading">
+          <p className="card-kicker">In Progress</p>
+          <h2 className="card-title" id="home-work-heading">
+            Active Requests and Work
+          </h2>
+          {requestRows.length === 0 && activeCases.length === 0 ? (
+            <p className="card-body home-attention-why">
+              No open requests or active cases right now.
+            </p>
+          ) : (
+            <ul className="attention-list">
+              {requestRows.map((row) => (
+                <li className="attention-item" key={`requests-${row.applicant.id}`}>
+                  <Link
+                    className="attention-link"
+                    href={`/app/applicant/${row.applicant.id}/evidence`}
+                  >
+                    <span className="attention-text">
+                      <span className="attention-label">Requests from an Agency</span>
+                      <span className="attention-detail">
+                        {row.applicant.displayName}
+                        {row.waitingRequests > 0
+                          ? ` \u00b7 ${row.waitingRequests} waiting for you`
+                          : ''}
+                        {row.requestsWithAgency > 0
+                          ? ` \u00b7 ${row.requestsWithAgency} with the agency`
+                          : ''}
+                      </span>
+                    </span>
+                    <span className="attention-end">
+                      <span className="attention-chevron" aria-hidden="true">
+                        ›
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+              {activeCases.slice(0, HOME_CASES_VISIBLE).map((entry) => (
+                <li className="attention-item" key={`case-${entry.id}`}>
+                  <Link className="attention-link" href={`/app/mission/${entry.id}`}>
+                    <span className="attention-text">
+                      <span className="attention-label">{entry.title}</span>
+                      <span className="attention-detail">
+                        Active case{' \u00b7 '}
+                        {entry.person}
+                      </span>
+                    </span>
+                    <span className="attention-end">
+                      <span className="attention-chevron" aria-hidden="true">
+                        ›
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          {activeCases.length > HOME_CASES_VISIBLE ? (
+            <p className="muted do-next-more">
+              Showing {HOME_CASES_VISIBLE} of {activeCases.length} active cases. Open a person to
+              see all of theirs.
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
+      {/* Supporting content, after the actionable sections. One heading: the checklist's own, or the card's. */}
+      {setupIncomplete || firstApplicant ? (
+        <section id="home-journey" className="home-journey u-mb-150" aria-label="My Next Journey">
+          {setupIncomplete ? (
+            <Checklist title="My Next Journey" items={setupSteps} />
+          ) : firstApplicant ? (
+            <article className="card home-journey-card">
+              <h2 className="card-title">My Next Journey</h2>
+              <p className="card-body">
+                Planning another trip? Start a case and check your saved documents against it.
+              </p>
+              <Link
+                className="btn btn-secondary do-next-link"
+                href={`/app/applicant/${firstApplicant.applicant.id}/missions`}
+              >
+                Start a Case
+              </Link>
+            </article>
+          ) : null}
+        </section>
       ) : null}
 
       {/*

@@ -35,7 +35,17 @@ const aCase = (id: string, applicantName: string) => ({
   title: `Case ${id}`,
   assignments: [{ memberAccountId: 'acct-1', memberEmail: 'me@example.com' }],
   notes: [{ id: 'n1' }],
-  tasks: [{ id: 't1' }],
+  tasks: [
+    {
+      id: 't1',
+      description: 'Bring the bank letter',
+      status: 'OPEN',
+      priority: 'NORMAL',
+      assigneeAccountId: null,
+      dueDate: null,
+      dueTimezone: 'Asia/Dhaka',
+    },
+  ],
   appointments: [],
   requirements: [{ id: 'q1', label: 'Passport Number' }],
   decisions: [],
@@ -71,6 +81,25 @@ describe('agency Cases', () => {
     expect(workspaces[0]?.members).toEqual([{ accountId: 'acct-1', email: 'me@example.com' }]);
     expect(workspaces[0]?.viewerAssigned).toBe(true);
     expect(workspaces[0]?.applicantName).toBe('Rahim Uddin');
+  });
+
+  it("never sends a task's own time zone to the browser", async () => {
+    const html = await renderServer(Page(props));
+    const workspaces = stubProps<{ tasks: readonly Record<string, unknown>[] }>(
+      html,
+      'MissionCollaboration',
+    );
+    expect(workspaces[0]?.tasks).toEqual([
+      {
+        id: 't1',
+        description: 'Bring the bank letter',
+        status: 'OPEN',
+        priority: 'NORMAL',
+        assigneeAccountId: null,
+        dueDate: null,
+      },
+    ]);
+    expect(html).not.toContain('Asia/Dhaka');
   });
 
   it('describes the section for an administrator and for a member', async () => {

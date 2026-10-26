@@ -10,10 +10,10 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { EmptyState, PageHeader, StatusBadge, type Tone } from '../../../../../components/ui';
 import { humanizeCode } from '../../../../../lib/format-code';
-import { daysUntilDateOnly, formatDateOnly } from '../../../../../lib/format-date';
+import { formatDateOnly } from '../../../../../lib/format-date';
 import { fieldLabel } from '../../../../../lib/master-profile';
-import { plural } from '../../../../../lib/plural';
 import { withSession } from '../../../../../lib/session';
+import { AWAITING_SUBMISSION, dueLabel } from './due-label';
 import { SubmitResponseForm } from './submit-response-form';
 
 export const metadata: Metadata = { title: 'Evidence' };
@@ -43,19 +43,6 @@ const NEXT_HINT: Record<string, string> = {
   CANCELLED: 'The agency cancelled this request. Nothing is needed.',
 };
 
-/** The deadline as a status: overdue is serious, due within a week is a warning, later is calm. */
-function dueLabel(
-  dueDate: string | Date,
-  status: string,
-): { readonly label: string; readonly tone: Tone } | null {
-  if (!AWAITING_SUBMISSION.has(status)) return null;
-  const days = daysUntilDateOnly(dueDate);
-  if (days < 0) return { label: `Overdue by ${plural(-days, 'day')}`, tone: 'danger' };
-  if (days === 0) return { label: 'Due Today', tone: 'warning' };
-  if (days <= 7) return { label: `Due in ${plural(days, 'day')}`, tone: 'warning' };
-  return { label: `Due in ${plural(days, 'day')}`, tone: 'neutral' };
-}
-
 /** A person-readable name for what is being asked for, never the stored key. */
 function requestTarget(req: {
   readonly kind: string;
@@ -68,8 +55,6 @@ function requestTarget(req: {
   }
   return req.docType ? humanizeCode(req.docType) : 'Not specified';
 }
-
-const AWAITING_SUBMISSION = new Set(['OPEN', 'NEEDS_REPLACEMENT']);
 
 /** Commercial V1 Part 4 §13: the applicant sees which of the four review outcomes a decision was, not just a generic rejection. */
 const DECISION_PREFIX: Record<string, string> = {
@@ -165,7 +150,9 @@ export default async function EvidencePage({
                 req.kind === 'DOCUMENT'
                   ? data.documents.filter((doc) => doc.docType === req.docType)
                   : [];
-              const due = req.dueDate ? dueLabel(req.dueDate, req.status) : null;
+              const due = req.dueDate
+                ? dueLabel(req.dueDate, req.status, data.applicant.timezone)
+                : null;
               return (
                 <div className="case-row" key={req.id}>
                   <div className="case-row-head">
