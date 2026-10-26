@@ -89,7 +89,11 @@ Owner-approved plan (26 Oct 2026) for the B05 calendar paragraph, then the owner
 
 - The page says the file is a one-time copy: a later change does not reach the calendar, and a new file updates the events already imported (same UID, higher SEQUENCE) instead of adding them twice.
 - The preview (a GET to the page) and the download (a POST from the page's own form to `/calendar/download`, so a long choice never makes a long address) both call `selectCalendarEvents` on the server's own items with the options from the one parser. The download is made again: anything finished or removed since the preview is left out and the rest still downloads; if nothing is left, the person goes back to the page with "Choose at least one date first." The route refuses a form whose Origin host is not the host it was sent to (403), and answers anyone but the owner with "not found".
-- Download headers: `text/calendar; charset=utf-8`, attachment `visastack-dates.ics`, `private, no-store`, `nosniff`. Not audited, like the single-appointment download (open owner question).
+- Download headers: `text/calendar; charset=utf-8`, attachment `visastack-dates.ics`, `private, no-store`, `nosniff`. Each file writes one audit entry (see Audit trail).
+
+### Audit trail
+
+Every calendar file writes one audit entry, `CALENDAR_EXPORTED`, as the account data export writes `ACCOUNT_EXPORTED`: who, for which person (and which case, for one appointment's file), how many events and which kinds of date. Never a date, a title or a case name. `recordCalendarExport` (packages/services/src/attention.ts) takes the same owner proof as the read; the dates download records it in the same session as its read, and when the entry cannot be written no file is sent (the audit is fail-closed, like every mutation's audit). The single-appointment download (`/app/mission/[id]/appointments/[appointmentId]/ics`) now checks the case through the access gate as its owner, renders through the core serializer with the same permanent UID and a SEQUENCE from the appointment's last change, uses the generic file name `visastack-appointment.ics`, and writes the same audit entry.
 
 ### Roadmap seams (not built)
 

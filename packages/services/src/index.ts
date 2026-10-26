@@ -688,9 +688,11 @@ export {
   type AttentionSubject,
   type AttentionTier,
   type AttentionTierInput,
+  CALENDAR_EXPORTED_EVENT,
   CALENDAR_PAST_DAYS,
   CALENDAR_SOURCE_LIMIT,
   type CalendarDates,
+  type CalendarExportRecord,
   type CalendarDatesOptions,
   type CalendarItem,
   type CalendarItemWhen,
@@ -703,6 +705,7 @@ export {
   listNeedsAttention,
   recognisedTimeZone,
   rankAttentionItems,
+  recordCalendarExport,
   WITH_AGENCY_REQUEST_STATUSES,
 } from './attention';
 

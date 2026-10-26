@@ -35,3 +35,6 @@ apps/web/src/app/app/page.test.tsx
 packages/core/src/calendar/**
 packages/core/package.json
 packages/core/src/index.ts
+# Same owner direction (26 Oct 2026): the existing single-appointment calendar download uses the shared core.
+apps/web/src/app/app/mission/[id]/appointments/[appointmentId]/ics/route.ts
+apps/web/src/app/app/mission/[id]/appointments/[appointmentId]/ics/route.test.ts

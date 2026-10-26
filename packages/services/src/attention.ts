@@ -1,7 +1,8 @@
 import { type Result, err, ok } from '@visastack/core';
-import { type CalendarKind, isKnownTimeZone } from '@visastack/core/calendar';
+import { type CalendarKind, isCalendarKind, isKnownTimeZone } from '@visastack/core/calendar';
 import { and, asc, count, eq, gte, inArray, isNotNull, isNull, min, or } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access/require-access';
+import { appendAuditEvent } from './audit';
 import { schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { DEFAULT_EXPIRY_REMINDER_THRESHOLD_DAYS, getReminderThresholds } from './expiry';
@@ -839,4 +840,63 @@ export async function listCalendarDates(
       compareText(a.key, b.key),
   );
   return ok({ applicantId, items, truncated });
+}
+
+/** The audit event a calendar file download writes (one per file, never its contents). */
+export const CALENDAR_EXPORTED_EVENT = 'CALENDAR_EXPORTED';
+
+export interface CalendarExportRecord {
+  /** How many events the file holds. */
+  readonly eventCount: number;
+  /** Which kinds of date it holds; unknown names are dropped. */
+  readonly kinds: readonly string[];
+  /** The page the file came from: the dates page or one appointment. */
+  readonly source: 'dates' | 'appointment';
+}
+
+/**
+ * Records that the owner downloaded a calendar file, as the account data export does: who, for
+ * which person (and which case, for one appointment's file), how many events and which kinds. Never a date, a title or a case name, so the audit
+ * trail holds no more than the fact of the export. Owner only, through the same proof as
+ * `listCalendarDates`; written in its own savepoint on the proof's transaction. A failed write
+ * fails the download (the audit is fail-closed, like every other mutation's audit).
+ */
+export async function recordCalendarExport(
+  access: AuthorizedApplicant<'VIEW_METADATA'>,
+  record: CalendarExportRecord,
+): Promise<Result<void, ServiceError>> {
+  if (
+    !AuthorizedApplicant.isGenuine(access, 'VIEW_METADATA') ||
+    access.actor.kind !== 'applicant_owner' ||
+    (access.resource.kind !== 'applicant' && access.resource.kind !== 'mission')
+  ) {
+    return err(serviceError('forbidden', 'calendar files are available to the owner only'));
+  }
+  // One appointment's file is checked on its case; the dates file on the person.
+  const missionId = access.resource.kind === 'mission' ? access.resource.mission.id : null;
+  const eventCount = Number.isInteger(record.eventCount) ? Math.max(0, record.eventCount) : 0;
+  if (eventCount === 0)
+    return err(serviceError('invalid', 'a calendar file needs at least one date'));
+  const kinds = [...new Set(record.kinds.filter((kind) => isCalendarKind(kind)))].sort();
+  const applicant = access.applicant;
+  await access.tx.transaction(async (tx) => {
+    await appendAuditEvent(tx, {
+      eventType: CALENDAR_EXPORTED_EVENT,
+      actorAccountId: applicant.ownerAccountId,
+      actorRole: 'applicant_owner',
+      action: 'VIEW_METADATA',
+      result: 'ALLOWED',
+      method: 'API',
+      applicantId: applicant.id,
+      resourceType: 'calendar_export',
+      resourceId: applicant.id,
+      missionId,
+      metadata: {
+        eventCount,
+        kinds,
+        source: record.source === 'appointment' ? 'appointment' : 'dates',
+      },
+    });
+  });
+  return ok(undefined);
 }

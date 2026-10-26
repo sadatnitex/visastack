@@ -4,7 +4,7 @@ import {
   buildIcsCalendar,
   selectCalendarEvents,
 } from '../../../../../../lib/ics';
-import { loadCalendarDates, readCalendarKeys } from '../load';
+import { exportCalendarDates, readCalendarKeys } from '../load';
 
 /**
  * The calendar file for the dates the traveller chose (v1.2 B05). A POST from the calendar page's
@@ -54,27 +54,27 @@ export async function POST(
     return new Response('forbidden', { status: 403, headers: PRIVATE });
   }
   const { id } = await params;
-  const loaded = await loadCalendarDates(id);
-  if (loaded.state === 'denied') {
-    return new Response('not found', { status: 404, headers: PRIVATE });
-  }
-  if (loaded.state === 'failed') return backTo(id, 'failed');
-
-  let form: FormData;
+  let form: FormData | null;
   try {
     form = await request.formData();
   } catch {
-    return backTo(id, 'nothing');
+    form = null;
   }
-  const { events } = selectCalendarEvents(
-    loaded.dates.items,
-    readCalendarKeys(form),
-    parseCalendarExportOptions(form),
-  );
+  const keys = form ? readCalendarKeys(form) : [];
+  const options = parseCalendarExportOptions(form ?? new FormData());
+  const exported = await exportCalendarDates(id, (dates) => {
+    const { events } = selectCalendarEvents(dates.items, keys, options);
+    // The audit entry names only what the file holds: its count and its kinds of date.
+    return { events, eventCount: events.length, kinds: events.map((event) => event.source.kind) };
+  });
+  if (exported.state === 'denied') {
+    return new Response('not found', { status: 404, headers: PRIVATE });
+  }
+  if (exported.state === 'failed') return backTo(id, 'failed');
   // Back to the page with a plain message; nothing from the request is echoed.
-  if (events.length === 0) return backTo(id, 'nothing');
+  if (exported.state === 'empty') return backTo(id, 'nothing');
 
-  return new Response(buildIcsCalendar(events), {
+  return new Response(buildIcsCalendar(exported.chosen.events), {
     status: 200,
     headers: {
       ...PRIVATE,

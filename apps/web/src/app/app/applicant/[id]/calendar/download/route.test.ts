@@ -16,12 +16,14 @@ import {
 const mocks = vi.hoisted(() => ({
   requireAccess: vi.fn(),
   listCalendarDates: vi.fn(),
+  recordCalendarExport: vi.fn(),
 }));
 
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   requireAccess: mocks.requireAccess,
   listCalendarDates: mocks.listCalendarDates,
+  recordCalendarExport: mocks.recordCalendarExport,
 }));
 vi.mock('../../../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
@@ -50,6 +52,34 @@ beforeEach(() => {
   mocks.listCalendarDates.mockResolvedValue({
     ok: true,
     value: { applicantId: ID, items: CALENDAR_ITEMS, truncated: false },
+  });
+  mocks.recordCalendarExport.mockResolvedValue({ ok: true, value: undefined });
+});
+
+describe('calendar download audit entry', () => {
+  it('writes one entry per file with the count and kinds of what the file holds', async () => {
+    const response = await download([...keys(TASK_KEY, APPOINTMENT_KEY, FOREIGN_KEY)]);
+    expect(response.status).toBe(200);
+    expect(mocks.recordCalendarExport).toHaveBeenCalledTimes(1);
+    const [, record] = mocks.recordCalendarExport.mock.calls[0] ?? [];
+    expect(record.eventCount).toBe(2);
+    expect([...record.kinds].sort()).toEqual(['appointment', 'task_due']);
+    expect(record.source).toBe('dates');
+  });
+
+  it('sends no file when the entry cannot be written', async () => {
+    mocks.recordCalendarExport.mockResolvedValueOnce({ ok: false, error: { code: 'internal' } });
+    const response = await download([...keys(TASK_KEY)]);
+    expect(response.status).toBe(303);
+    expect(response.headers.get('Location')).toContain('error=failed');
+    expect(response.headers.get('Content-Type') ?? '').not.toContain('text/calendar');
+  });
+
+  it('writes nothing when nothing is chosen, or for someone who is not the owner', async () => {
+    await download([...keys(FOREIGN_KEY)]);
+    mocks.requireAccess.mockResolvedValueOnce(sharedProof());
+    await download([...keys(TASK_KEY)]);
+    expect(mocks.recordCalendarExport).not.toHaveBeenCalled();
   });
 });
 

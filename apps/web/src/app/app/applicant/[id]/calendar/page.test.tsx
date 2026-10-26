@@ -15,12 +15,14 @@ import {
 const mocks = vi.hoisted(() => ({
   requireAccess: vi.fn(),
   listCalendarDates: vi.fn(),
+  recordCalendarExport: vi.fn(),
 }));
 
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   requireAccess: mocks.requireAccess,
   listCalendarDates: mocks.listCalendarDates,
+  recordCalendarExport: mocks.recordCalendarExport,
 }));
 vi.mock('../../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
@@ -73,6 +75,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.requireAccess.mockResolvedValue(ownerProof());
   mocks.listCalendarDates.mockResolvedValue(listing());
+  mocks.recordCalendarExport.mockResolvedValue({ ok: true, value: undefined });
 });
 
 describe('calendar export page (v1.2 B05)', () => {

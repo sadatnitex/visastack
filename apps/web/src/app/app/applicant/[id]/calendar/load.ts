@@ -2,6 +2,7 @@ import {
   type CalendarDates,
   accountPrincipal,
   listCalendarDates,
+  recordCalendarExport,
   requireAccess,
 } from '@visastack/services';
 import { withSession } from '../../../../../lib/session';
@@ -33,6 +34,47 @@ export async function loadCalendarDates(
     return listed.ok
       ? { state: 'ready' as const, dates: listed.value }
       : { state: 'failed' as const };
+  });
+}
+
+/**
+ * The download's one gated read and its audit entry, in the same session: the gate as the owner,
+ * the person's dated items, the caller's choice of events from them, and then one audit entry
+ * (`recordCalendarExport`: count and kinds only) before any file is returned. When the entry cannot
+ * be written the download fails, so no file leaves without its record.
+ */
+export async function exportCalendarDates<
+  T extends { readonly eventCount: number; readonly kinds: readonly string[] },
+>(
+  applicantId: string,
+  choose: (dates: CalendarDates) => T,
+): Promise<
+  | { readonly state: 'ready'; readonly chosen: T }
+  | { readonly state: 'empty' }
+  | { readonly state: 'denied' }
+  | { readonly state: 'failed' }
+> {
+  return withSession(async ({ db, accountId }) => {
+    const access = await requireAccess(
+      db,
+      accountPrincipal(accountId),
+      'VIEW_METADATA',
+      { applicantId },
+      { purpose: 'self' },
+    );
+    if (!access.ok || access.value.actor.kind !== 'applicant_owner') {
+      return { state: 'denied' as const };
+    }
+    const listed = await listCalendarDates(access.value);
+    if (!listed.ok) return { state: 'failed' as const };
+    const chosen = choose(listed.value);
+    if (chosen.eventCount === 0) return { state: 'empty' as const };
+    const recorded = await recordCalendarExport(access.value, {
+      eventCount: chosen.eventCount,
+      kinds: chosen.kinds,
+      source: 'dates',
+    });
+    return recorded.ok ? { state: 'ready' as const, chosen } : { state: 'failed' as const };
   });
 }
 

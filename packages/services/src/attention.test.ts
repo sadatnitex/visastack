@@ -13,6 +13,7 @@ import {
   ATTENTION_REQUEST_STATUSES,
   ATTENTION_TASK_STATUSES,
   type AttentionItem,
+  CALENDAR_EXPORTED_EVENT,
   CALENDAR_PAST_DAYS,
   CALENDAR_SOURCE_LIMIT,
   WITH_AGENCY_REQUEST_STATUSES,
@@ -22,6 +23,7 @@ import {
   listNeedsAttention,
   rankAttentionItems,
   recognisedTimeZone,
+  recordCalendarExport,
 } from './attention';
 import { setConsent } from './consent';
 import type { Db } from './db';
@@ -1217,6 +1219,124 @@ describe('recognisedTimeZone and appointment time zones (written into calendar f
         timezone: 'Europe/London',
       });
       expect(isOk(ok) && ok.value.timezone).toBe('Europe/London');
+    },
+    HEAVY,
+  );
+});
+
+describe('recordCalendarExport (an audit entry per calendar file, never its contents)', () => {
+  it(
+    'writes one audit entry with the count and kinds only, for the owner',
+    async () => {
+      const { ownerId, applicantId } = await person('audit-calendar@example.com');
+      const proof = await proofFor(ownerId, applicantId);
+      if (!isOk(proof)) throw new Error('owner proof');
+      const recorded = await recordCalendarExport(proof.value, {
+        eventCount: 3,
+        kinds: ['task_due', 'appointment', 'task_due', 'not_a_kind'],
+        source: 'dates',
+      });
+      expect(isOk(recorded)).toBe(true);
+      const rows = await db
+        .select()
+        .from(schema.auditEvents)
+        .where(eq(schema.auditEvents.eventType, CALENDAR_EXPORTED_EVENT));
+      expect(rows).toHaveLength(1);
+      const row = rows[0];
+      expect(row?.actorAccountId).toBe(ownerId);
+      expect(row?.applicantId).toBe(applicantId);
+      expect(row?.result).toBe('ALLOWED');
+      expect(row?.metadata).toEqual({
+        eventCount: 3,
+        kinds: ['appointment', 'task_due'],
+        source: 'dates',
+      });
+      // Only the fact of the export: no dates, titles or case names.
+      expect(JSON.stringify(row?.metadata)).not.toMatch(/\d{4}-\d{2}-\d{2}|Japan|Visit/);
+    },
+    HEAVY,
+  );
+
+  it(
+    "records which case for one appointment's file, checked on the case as its owner",
+    async () => {
+      const { ownerId, applicantId } = await person('audit-case@example.com');
+      const missionId = await caseFor(ownerId, applicantId, 'Japan Visit');
+      const proof = await requireAccess(
+        db,
+        accountPrincipal(ownerId),
+        'VIEW_METADATA',
+        { missionId },
+        { purpose: 'self' },
+      );
+      if (!isOk(proof)) throw new Error('case proof');
+      const recorded = await recordCalendarExport(proof.value, {
+        eventCount: 1,
+        kinds: ['appointment'],
+        source: 'appointment',
+      });
+      expect(isOk(recorded)).toBe(true);
+      const rows = await db
+        .select()
+        .from(schema.auditEvents)
+        .where(eq(schema.auditEvents.eventType, CALENDAR_EXPORTED_EVENT));
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.missionId).toBe(missionId);
+      expect(rows[0]?.applicantId).toBe(applicantId);
+      expect(rows[0]?.metadata).toEqual({
+        eventCount: 1,
+        kinds: ['appointment'],
+        source: 'appointment',
+      });
+    },
+    HEAVY,
+  );
+
+  it(
+    'refuses a shared viewer, a copied proof and an empty file, writing nothing',
+    async () => {
+      const { ownerId, applicantId } = await person('audit-refuse@example.com');
+      const friendId = await account('audit-friend@example.com');
+      const grant = await createGrant(db, {
+        actorAccountId: ownerId,
+        applicantId,
+        recipientAccountId: friendId,
+        actions: ['VIEW_METADATA'],
+        purpose: 'family-help',
+      });
+      if (!isOk(grant)) throw new Error('grant');
+      const accepted = await acceptGrant(db, { actorAccountId: friendId, grantId: grant.value.id });
+      if (!isOk(accepted)) throw new Error('accept');
+      const friend = await proofFor(friendId, applicantId, 'family-help');
+      if (!isOk(friend)) throw new Error('friend proof');
+      const byFriend = await recordCalendarExport(friend.value, {
+        eventCount: 1,
+        kinds: ['task_due'],
+        source: 'dates',
+      });
+      expect(isErr(byFriend) && byFriend.error.code).toBe('forbidden');
+
+      const owner = await proofFor(ownerId, applicantId);
+      if (!isOk(owner)) throw new Error('owner proof');
+      const copy = { ...owner.value } as unknown as typeof owner.value;
+      const copied = await recordCalendarExport(copy, {
+        eventCount: 1,
+        kinds: ['task_due'],
+        source: 'dates',
+      });
+      expect(isErr(copied) && copied.error.code).toBe('forbidden');
+      const empty = await recordCalendarExport(owner.value, {
+        eventCount: 0,
+        kinds: [],
+        source: 'dates',
+      });
+      expect(isErr(empty) && empty.error.code).toBe('invalid');
+
+      const rows = await db
+        .select()
+        .from(schema.auditEvents)
+        .where(eq(schema.auditEvents.eventType, CALENDAR_EXPORTED_EVENT));
+      expect(rows).toHaveLength(0);
     },
     HEAVY,
   );
