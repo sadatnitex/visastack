@@ -39,6 +39,7 @@ import {
   updateAppointment,
 } from './missions';
 import { registerFieldDefinition } from './profile';
+import { referenceCodeFor } from './reference-codes';
 import { acceptGrant, createGrant } from './sharing';
 import { supersedeDocument } from './wallet';
 
@@ -895,6 +896,8 @@ describe('listCalendarDates (v1.2 B05 calendar export)', () => {
       const passport = await document(ownerId, applicantId, 'PASSPORT', day('2027-04-30'));
 
       const result = await calendar(ownerId, applicantId);
+      // The case's visible code (ADR 0018); null while the registry does not exist.
+      const visaCode = await referenceCodeFor(db, 'C', visa);
       expect(result.truncated).toBe(false);
       expect(result.items).toEqual([
         {
@@ -904,6 +907,7 @@ describe('listCalendarDates (v1.2 B05 calendar export)', () => {
           updatedAt: expect.any(String),
           when: { kind: 'date', date: '2026-11-01' },
           caseTitle: 'Japan Visit',
+          caseReference: visaCode,
         },
         // The all-day item on 3 Nov comes before the timed one that day.
         {
@@ -913,6 +917,7 @@ describe('listCalendarDates (v1.2 B05 calendar export)', () => {
           updatedAt: expect.any(String),
           when: { kind: 'date', date: '2026-11-03' },
           caseTitle: 'Japan Visit',
+          caseReference: visaCode,
         },
         {
           key: `appointment:${appt}`,
@@ -921,6 +926,7 @@ describe('listCalendarDates (v1.2 B05 calendar export)', () => {
           updatedAt: expect.any(String),
           when: { kind: 'local', localDateTime: '2026-11-03T09:30:00', timeZone: 'Asia/Dhaka' },
           caseTitle: 'Japan Visit',
+          caseReference: visaCode,
         },
         {
           key: `document_expires:${passport}`,
@@ -929,6 +935,7 @@ describe('listCalendarDates (v1.2 B05 calendar export)', () => {
           updatedAt: expect.any(String),
           when: { kind: 'date', date: '2027-04-30' },
           caseTitle: null,
+          caseReference: null,
         },
       ]);
       // Nothing sensitive travels: no note, title, place, description, file name or number.

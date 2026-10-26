@@ -377,10 +377,10 @@ describe('case reference in the event description (ADR 0018)', () => {
 
   it('writes "Case reference C-..." only for items that carry a code, and never changes a UID', () => {
     const plain = file();
-    const coded = buildIcsCalendar(
-      selectCalendarEvents(withCode, ALL_KEYS, DEFAULT_CALENDAR_EXPORT_OPTIONS).events,
-      { now: NOW },
-    );
+    const named = { ...DEFAULT_CALENDAR_EXPORT_OPTIONS, titleStyle: 'withCaseNames' as const };
+    const coded = buildIcsCalendar(selectCalendarEvents(withCode, ALL_KEYS, named).events, {
+      now: NOW,
+    });
     expect(property(coded, 'UID')).toEqual(property(plain, 'UID'));
     expect(property(coded, 'SEQUENCE')).toEqual(property(plain, 'SEQUENCE'));
     const described = `DESCRIPTION:From VisaStack. Case reference ${CODE}. Open VisaStack for the details.`;
@@ -391,6 +391,16 @@ describe('case reference in the event description (ADR 0018)', () => {
       `DESCRIPTION:${CALENDAR_EVENT_DESCRIPTION}`,
     ]);
     expect(property(plain, 'DESCRIPTION')).toEqual(
+      Array(4).fill(`DESCRIPTION:${CALENDAR_EVENT_DESCRIPTION}`),
+    );
+  });
+
+  it('keeps generic titles generic: no case code unless the person chose to show case names', () => {
+    const generic = { ...DEFAULT_CALENDAR_EXPORT_OPTIONS, titleStyle: 'generic' as const };
+    const file = buildIcsCalendar(selectCalendarEvents(withCode, ALL_KEYS, generic).events, {
+      now: NOW,
+    });
+    expect(property(file, 'DESCRIPTION')).toEqual(
       Array(4).fill(`DESCRIPTION:${CALENDAR_EVENT_DESCRIPTION}`),
     );
   });

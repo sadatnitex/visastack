@@ -213,7 +213,10 @@ export function calendarEventFor(
     start,
     end: endFor(item.kind, start),
     title: calendarEventTitle(item, options),
-    description: calendarEventDescription(item.caseReference),
+    // The case code only when the person chose to show case names: generic titles stay generic.
+    description: calendarEventDescription(
+      options.titleStyle === 'withCaseNames' ? item.caseReference : null,
+    ),
     privacy: 'private',
     categories: [kind.category],
     ...(options.alarms.length > 0

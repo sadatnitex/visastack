@@ -7,6 +7,7 @@ import { schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { DEFAULT_EXPIRY_REMINDER_THRESHOLD_DAYS, getReminderThresholds } from './expiry';
 import { toLocalDateParts } from './notification-sweep';
+import { referenceCodesFor } from './reference-codes';
 
 /**
  * Needs Attention (v1.2 B05, U03): one read projection of what is waiting on a person for one
@@ -601,6 +602,8 @@ export interface CalendarItem {
   readonly when: CalendarItemWhen;
   /** The case the item belongs to, when it belongs to one. */
   readonly caseTitle: string | null;
+  /** That case's visible code (`C-7K2Q9M`, ADR 0018), when it has one. Never part of the UID. */
+  readonly caseReference?: string | null;
   /** When the record last changed (ISO 8601), for the event's SEQUENCE. */
   readonly updatedAt: string;
 }
@@ -705,6 +708,12 @@ export async function listCalendarDates(
     .from(schema.missions)
     .where(eq(schema.missions.applicantId, applicantId));
   const missionById = new Map(missions.map((m) => [m.id, m]));
+  // The cases' visible codes (ADR 0018), one query; none before migration 0091.
+  const caseCodes = await referenceCodesFor(
+    db,
+    'C',
+    missions.map((m) => m.id),
+  );
   const activeIds = missions.filter((m) => !FINISHED_CASE_STATES.has(m.state)).map((m) => m.id);
 
   const [appointments, tasks, requests, documents] = await Promise.all([
@@ -816,6 +825,7 @@ export async function listCalendarDates(
     resourceId: id,
     when,
     caseTitle: caseTitle(missionId),
+    caseReference: missionId ? (caseCodes.get(missionId) ?? null) : null,
     updatedAt: updatedAt.toISOString(),
   });
 

@@ -47,3 +47,6 @@ apps/web/src/app/app/agency/[orgId]/do-next*.ts
 packages/services/src/export-csv.test.ts
 # The account export reads the codes of records already in it and hands them to the CSV builder.
 packages/services/src/account-export.ts
+# The calendar's dated items carry their case's visible code (owner-only read), for the event description.
+packages/services/src/attention.ts
+packages/services/src/attention.test.ts
