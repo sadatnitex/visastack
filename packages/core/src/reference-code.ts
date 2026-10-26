@@ -213,7 +213,10 @@ export type RandomBytes = (length: number) => Uint8Array;
 
 const cryptoRandom: RandomBytes = (length) => {
   const bytes = new Uint8Array(length);
-  globalThis.crypto.getRandomValues(bytes);
+  // Typed locally: core compiles under packages that load neither DOM nor Node types.
+  (
+    globalThis as unknown as { crypto: { getRandomValues(array: Uint8Array): Uint8Array } }
+  ).crypto.getRandomValues(bytes);
   return bytes;
 };
 
