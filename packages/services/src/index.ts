@@ -1280,6 +1280,8 @@ export {
   previewSharingInvitation,
   acceptSharingInvitation,
   listSharingInvitations,
+  listInvitationCaseExceptions,
   revokeSharingInvitation,
+  type InvitationCaseException,
   type SharingInvitation,
 } from './sharing-invitations';

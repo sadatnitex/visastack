@@ -1,11 +1,12 @@
 import type { AccountId, ApplicantId, MissionId } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
-import { type Grant as PolicyGrant, authorize, grantCoversMission } from '@visastack/policy';
+import { authorize, grantCoversMission } from '@visastack/policy';
 import { and, eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { describe, expect, it } from 'vitest';
 import type { Db } from '../db';
+import { toPolicyGrant } from '../sharing';
 import {
   caseExclusionsTablePresent,
   loadCaseExclusions,
@@ -89,6 +90,10 @@ async function seed(db: Db): Promise<Fixture> {
         missionId,
         actions: ['VIEW_METADATA'],
         purpose: name,
+        // Active and accepted, so only case scope decides below.
+        status: 'ACTIVE',
+        startAt: new Date(Date.now() - 60_000),
+        acceptedAt: new Date(Date.now() - 60_000),
       })
       .returning();
     if (!grant) throw new Error('grant');
@@ -135,8 +140,10 @@ async function sqlCoveredPairs(db: Db, applicantId: string): Promise<Set<string>
 /**
  * The same pairs according to the policy engine (`authorize`) and to its case
  * scope predicate (`grantCoversMission`, exported by packages/policy), fed from
- * the same rows; the two must agree on every pair. Each grant is judged alone
- * as active and accepted, so only its case scope decides.
+ * the same rows through the production mapping (`toPolicyGrant`, the one every
+ * access check uses), so a facet that mapping dropped would show here. The two
+ * must agree on every pair. The rows are active and accepted, so only case
+ * scope decides.
  */
 async function policyCoveredPairs(db: Db, applicantId: string): Promise<Set<string>> {
   const grantRows = await db
@@ -152,18 +159,7 @@ async function policyCoveredPairs(db: Db, applicantId: string): Promise<Set<stri
   const pairs = new Set<string>();
   for (const grant of grantRows) {
     const recipient = (grant.recipientAccountId ?? '') as AccountId;
-    const excludedMissionIds = exclusions.get(grant.id);
-    const policyGrant: PolicyGrant = {
-      applicantId: applicantId as ApplicantId,
-      recipientAccountId: recipient,
-      actions: ['VIEW_METADATA'],
-      purpose: grant.purpose,
-      status: 'ACTIVE',
-      acceptedAt: grant.createdAt.toISOString(),
-      startAt: new Date(now.getTime() - 60_000).toISOString(),
-      ...(grant.missionId ? { missionId: grant.missionId as MissionId } : {}),
-      ...(excludedMissionIds ? { excludedMissionIds } : {}),
-    };
+    const policyGrant = toPolicyGrant(grant, exclusions.get(grant.id));
     for (const mission of missionRows) {
       const decision = authorize({
         actor: { kind: 'individual_recipient', accountId: recipient },
@@ -272,6 +268,54 @@ describe('grant case scope before migration 0090 has run', () => {
       await db.execute(sql`alter table grant_case_exclusions rename column mission_id to gone`);
       await expect(loadCaseExclusions(db, { applicantId: f.applicantId })).rejects.toThrow();
       await expect(sqlCoveredPairs(db, f.applicantId)).rejects.toThrow();
+    },
+    HEAVY_TIMEOUT_MS,
+  );
+});
+
+describe('grant case scope: the table presence check', () => {
+  it(
+    'remembers "present" per database handle, never "missing"',
+    async () => {
+      const client = await createMigratedPglite();
+      let probes = 0;
+      const db = drizzle(client, {
+        schema,
+        logger: {
+          logQuery: (query: string) => {
+            if (query.includes('to_regclass')) probes += 1;
+          },
+        },
+      }) as unknown as Db;
+      await db.execute(sql`alter table grant_case_exclusions rename to grant_case_exclusions_away`);
+      expect(await caseExclusionsTablePresent(db)).toBe(false);
+      expect(await caseExclusionsTablePresent(db)).toBe(false);
+      expect(probes).toBe(2);
+      await db.execute(sql`alter table grant_case_exclusions_away rename to grant_case_exclusions`);
+      expect(await caseExclusionsTablePresent(db)).toBe(true);
+      expect(await caseExclusionsTablePresent(db)).toBe(true);
+      expect(await loadCaseExclusions(db, { grantIds: ['00000000-0000-4000-8000-000000000000'] }))
+        .toEqual(new Map());
+      expect(probes).toBe(3);
+      // Another handle on the same database asks for itself.
+      const other = drizzle(client, { schema }) as unknown as Db;
+      expect(await caseExclusionsTablePresent(other)).toBe(true);
+    },
+    HEAVY_TIMEOUT_MS,
+  );
+
+  it(
+    'looks the table up through the search path, exactly as the queries do',
+    async () => {
+      const db = await freshDb();
+      const f = await seed(db);
+      await db.execute(sql`create schema relocated`);
+      await db.execute(sql`alter table grant_case_exclusions set schema relocated`);
+      await db.execute(sql`set search_path to relocated, public`);
+      // The queries find the table through the search path, so the check must too.
+      expect(await caseExclusionsTablePresent(db)).toBe(true);
+      const byApplicant = await loadCaseExclusions(db, { applicantId: f.applicantId });
+      expect(byApplicant.get(f.grants.allButC2)).toEqual([f.missions[1]]);
     },
     HEAVY_TIMEOUT_MS,
   );

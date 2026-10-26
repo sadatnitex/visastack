@@ -1,0 +1,39 @@
+it('stale revoked grant keeps excluded-case requests listed', async () => {
+  const { schema } = await import('/tmp/claude-0/-home-user-visastack/e983be95-9fcf-5fa1-aac2-ff874b8c51c5/scratchpad/wt-v4-excl/packages/services/node_modules/@visastack/db/src/index.ts');
+  const { createMigratedPglite } = await import('/tmp/claude-0/-home-user-visastack/e983be95-9fcf-5fa1-aac2-ff874b8c51c5/scratchpad/wt-v4-excl/packages/services/node_modules/@visastack/db/src/testing.ts');
+  const { drizzle } = await import('/tmp/claude-0/-home-user-visastack/e983be95-9fcf-5fa1-aac2-ff874b8c51c5/scratchpad/wt-v4-excl/packages/services/node_modules/drizzle-orm/pglite/index.js');
+  const { provisionAccount } = await import('/tmp/claude-0/-home-user-visastack/e983be95-9fcf-5fa1-aac2-ff874b8c51c5/scratchpad/wt-v4-excl/packages/services/src/accounts');
+  const { createApplicant } = await import('/tmp/claude-0/-home-user-visastack/e983be95-9fcf-5fa1-aac2-ff874b8c51c5/scratchpad/wt-v4-excl/packages/services/src/applicants');
+  const { setConsent } = await import('/tmp/claude-0/-home-user-visastack/e983be95-9fcf-5fa1-aac2-ff874b8c51c5/scratchpad/wt-v4-excl/packages/services/src/consent');
+  const { createMission } = await import('/tmp/claude-0/-home-user-visastack/e983be95-9fcf-5fa1-aac2-ff874b8c51c5/scratchpad/wt-v4-excl/packages/services/src/missions');
+  const { createOrganization, reviewOrganization } = await import('/tmp/claude-0/-home-user-visastack/e983be95-9fcf-5fa1-aac2-ff874b8c51c5/scratchpad/wt-v4-excl/packages/services/src/organizations');
+  const ag = await import('/tmp/claude-0/-home-user-visastack/e983be95-9fcf-5fa1-aac2-ff874b8c51c5/scratchpad/wt-v4-excl/packages/services/src/agency');
+  const sh = await import('/tmp/claude-0/-home-user-visastack/e983be95-9fcf-5fa1-aac2-ff874b8c51c5/scratchpad/wt-v4-excl/packages/services/src/sharing');
+  const db: any = drizzle(await createMigratedPglite(), { schema });
+  const acct = async (email: string) => {
+    const p: any = await provisionAccount(db, { email });
+    for (const type of ['CORE_PROCESSING', 'SHARING'])
+      await setConsent(db, { actorAccountId: p.value.id, accountId: p.value.id, type, granted: true });
+    return p.value.id as string;
+  };
+  const owner = await acct('o@x.test');
+  const admin = await acct('a@x.test');
+  const org: any = await createOrganization(db, { actorAccountId: admin, name: 'A' });
+  const rev: any = await provisionAccount(db, { email: 'rev@x.test' });
+  await reviewOrganization(db, { reviewerAccountId: rev.value.id, organizationId: org.value.id, decision: 'ACTIVE', stepUpSatisfied: true });
+  const ap: any = await createApplicant(db, { actorAccountId: owner, ownerAccountId: owner, displayName: 'R' });
+  const c2: any = await createMission(db, { actorAccountId: owner, applicantId: ap.value.id, title: 'Secret' });
+  const share = async () => {
+    const g: any = await sh.createGrant(db, { actorAccountId: owner, applicantId: ap.value.id, recipientOrganizationId: org.value.id, actions: ['VIEW_METADATA','COMMENT','MANAGE'], purpose: 'collaboration' });
+    await sh.acceptGrant(db, { actorAccountId: admin, grantId: g.value.id });
+    return g.value.id;
+  };
+  const gOld = await share();
+  const req: any = await ag.requestEvidence(db, { actorAccountId: admin, organizationId: org.value.id, applicantId: ap.value.id, kind: 'DOCUMENT', docType: 'BANK_STATEMENT', missionId: c2.value.id });
+  const rv: any = await sh.revokeGrant(db, { actorAccountId: owner, grantId: gOld });
+  const gNew = await share();
+  await db.insert(schema.grantCaseExclusions).values({ grantId: gNew, missionId: c2.value.id, applicantId: ap.value.id, createdByAccountId: owner });
+  const listed: any = await ag.listEvidenceRequestsForOrg(db, admin, org.value.id);
+  const caseListed = (await ag.listMissionsForOrganization(db, org.value.id)).some((m: any) => m.missionId === c2.value.id);
+  (await import('node:fs')).writeFileSync('/tmp/claude-0/-home-user-visastack/e983be95-9fcf-5fa1-aac2-ff874b8c51c5/scratchpad/sec-poc/out2.txt', JSON.stringify({ reqOk: req.ok, revOk: rv.ok, caseListed, requestListed: listed.value.some((r: any) => r.id === req.value.id) }));
+});

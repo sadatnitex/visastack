@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { Result } from '@visastack/core';
 import { err, ok } from '@visastack/core';
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
-import { withCaseExclusions } from './access/grant-scope';
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
+import { orgCaseRecordVisibleSql, withCaseExclusions } from './access/grant-scope';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { type SealedInvitationLink, revealInvitationLink } from './invitation-email';
@@ -647,18 +647,38 @@ export async function listNotificationsForAccount(
   accountId: string,
   options: { readonly limit?: number } = {},
 ): Promise<InAppNotificationView[]> {
-  const rows = await db
-    .select()
-    .from(schema.notifications)
-    .where(
-      and(
-        eq(schema.notifications.recipientAccountId, accountId),
-        eq(schema.notifications.channel, 'IN_APP'),
-        or(eq(schema.notifications.status, 'SENT'), eq(schema.notifications.status, 'READ')),
-      ),
-    )
-    .orderBy(desc(schema.notifications.createdAt))
-    .limit(options.limit ?? 50);
+  const n = schema.notifications;
+  const now = new Date();
+  // A notice already delivered about a case an organization no longer reaches
+  // (a per-case sharing exception, ADR 0017) leaves the member's bell too: the
+  // same rule as the organization's evidence request list. Notices to the
+  // person who owns the record, and notices not about a case, are untouched.
+  const rows = await withCaseExclusions(db, (covers) =>
+    db
+      .select()
+      .from(n)
+      .where(
+        and(
+          eq(n.recipientAccountId, accountId),
+          eq(n.channel, 'IN_APP'),
+          or(eq(n.status, 'SENT'), eq(n.status, 'READ')),
+          or(
+            isNull(n.missionId),
+            isNull(n.organizationId),
+            isNull(n.applicantId),
+            sql`exists (select 1 from ${schema.applicants} where ${schema.applicants.id} = ${n.applicantId} and ${schema.applicants.ownerAccountId} = ${n.recipientAccountId})`,
+            orgCaseRecordVisibleSql(covers, {
+              organizationId: n.organizationId,
+              applicantId: n.applicantId,
+              missionId: n.missionId,
+              now,
+            }),
+          ),
+        ),
+      )
+      .orderBy(desc(n.createdAt))
+      .limit(options.limit ?? 50),
+  );
   return rows.map((row) => {
     const payload = row.payload as NotificationPayload;
     return {

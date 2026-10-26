@@ -9,7 +9,11 @@ import type {
 import { type Result, err, ok } from '@visastack/core';
 import { authorize } from '@visastack/policy';
 import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
-import { loadCaseExclusions, withCaseExclusions } from './access/grant-scope';
+import {
+  loadCaseExclusions,
+  orgCaseRecordVisibleSql,
+  withCaseExclusions,
+} from './access/grant-scope';
 import { AuthorizedApplicant } from './access/require-access';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
@@ -103,6 +107,11 @@ export async function orgGrantPermits(
   // with an otherwise-valid grant still on the books.
   const org = await getOrganization(db, organizationId);
   if (!org || org.status !== 'ACTIVE') return false;
+  // The case must belong to the person named: an all-cases grant on one
+  // person must never vouch for another person's case id passed beside it.
+  if (missionId !== undefined && !(await missionBelongsTo(db, missionId, applicantId))) {
+    return false;
+  }
   const grants = await loadGrantsForPolicy(db, applicantId);
   const orgGrants = grants.filter((g) => g.recipientOrganizationId === organizationId);
   if (orgGrants.length === 0) return false;
@@ -128,6 +137,21 @@ export async function orgGrantPermits(
         context: { now, purpose: g.purpose, stepUpSatisfied: false, grants: [g] },
       }).allowed,
   );
+}
+
+/** Whether `missionId` is a case of `applicantId` (false for an unknown or malformed id). */
+async function missionBelongsTo(db: Db, missionId: string, applicantId: string): Promise<boolean> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(missionId)) {
+    return false;
+  }
+  const mission = first(
+    await db
+      .select({ applicantId: schema.missions.applicantId })
+      .from(schema.missions)
+      .where(eq(schema.missions.id, missionId))
+      .limit(1),
+  );
+  return mission !== undefined && mission.applicantId === applicantId;
 }
 
 /**
@@ -1587,11 +1611,14 @@ export async function listEvidenceRequestsForApplicant(
 
 /**
  * Evidence requests raised by an organization (org OWNER/ADMIN only), newest
- * first. A request on a case is listed only while one of this organization's
- * grants on that person still reaches the case by case scope: a per-case
- * sharing exception (ADR 0017) hides the organization's requests on that one
- * case, exactly as it hides the case itself. Requests not tied to a case, and
- * the existing behaviour after a pause or revoke, are unchanged.
+ * first. A request on a case is listed only when one of this organization's
+ * LIVE grants on that person (active, paused or awaiting acceptance, not
+ * expired) reaches the case by case scope: a per-case sharing exception (ADR
+ * 0017) hides the organization's requests on that one case, exactly as it
+ * hides the case itself, and an ended grant that once reached it no longer
+ * counts. Only when the organization holds no live grant on the person at all
+ * does the earlier behaviour remain: its own past requests stay listed as
+ * history after every grant ended. Requests not tied to a case are unchanged.
  */
 export async function listEvidenceRequestsForOrg(
   db: Db,
@@ -1602,6 +1629,7 @@ export async function listEvidenceRequestsForOrg(
     return err(serviceError('forbidden', 'only an org OWNER/ADMIN can view these requests'));
   }
   const requests = schema.evidenceRequests;
+  const now = new Date();
   const rows = await withCaseExclusions(db, (covers) =>
     db
       .select()
@@ -1611,7 +1639,12 @@ export async function listEvidenceRequestsForOrg(
           eq(requests.organizationId, organizationId),
           or(
             isNull(requests.missionId),
-            sql`exists (select 1 from ${schema.grants} where ${schema.grants.recipientOrganizationId} = ${organizationId} and ${schema.grants.applicantId} = ${requests.applicantId} and ${covers(requests.missionId)})`,
+            orgCaseRecordVisibleSql(covers, {
+              organizationId,
+              applicantId: requests.applicantId,
+              missionId: requests.missionId,
+              now,
+            }),
           ),
         ),
       ),

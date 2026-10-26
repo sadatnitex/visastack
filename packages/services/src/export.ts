@@ -42,7 +42,7 @@ export interface AccountExportManifest {
     readonly missionSnapshots: number;
     readonly grantsReceived: number;
     readonly grantsGranted: number;
-    /** Per-case sharing exceptions on the grants this account gave (ADR 0017). */
+    /** Per-case sharing exceptions on the grants and invitations this account gave (ADR 0017). */
     readonly caseExceptions: number;
     readonly evidenceRequests: number;
     readonly aiExtractionRuns: number;
@@ -71,6 +71,21 @@ export type ExportedGrantGranted = typeof schema.grants.$inferSelect & {
   readonly caseExceptions: readonly ExportedCaseException[];
 };
 
+/**
+ * One case a sharing invitation this account sent will not cover once
+ * accepted (ADR 0017). Invitations are not part of this export, so the
+ * invitation is named by id and by the email address the account typed.
+ */
+export interface ExportedInvitationCaseException {
+  readonly invitationId: string;
+  readonly invitedEmail: string;
+  readonly invitationStatus: string;
+  readonly missionId: string;
+  readonly caseTitle: string;
+  readonly excludedAt: Date;
+  readonly excludedByAccountId: string | null;
+}
+
 export interface AccountExport {
   readonly account: typeof schema.accounts.$inferSelect;
   readonly consents: Awaited<ReturnType<typeof getConsents>>;
@@ -98,6 +113,8 @@ export interface AccountExport {
       readonly snapshots: ReadonlyArray<typeof schema.missionSnapshots.$inferSelect>;
     }>;
     readonly grantsGranted: ReadonlyArray<ExportedGrantGranted>;
+    /** Case exceptions on sharing invitations this account sent ("case exceptions on pending invitations"). */
+    readonly invitationCaseExceptions: ReadonlyArray<ExportedInvitationCaseException>;
     readonly evidenceRequests: ReadonlyArray<typeof schema.evidenceRequests.$inferSelect>;
     /** Sections the person opened or closed, and fields or records they marked as not applying. */
     readonly profileSections: ReadonlyArray<typeof schema.profileSectionStates.$inferSelect>;
@@ -203,11 +220,39 @@ export async function exportAccount(
         .select()
         .from(schema.grants)
         .where(eq(schema.grants.applicantId, applicant.id));
-      // Per-case sharing exceptions (ADR 0017). Invitation-bound ones are left
-      // out with the invitations themselves, which this export does not include.
-      const exceptions = grantRows.some((g) => g.missionId === null)
-        ? await listCaseExclusionsForApplicant(db, applicant.id)
-        : [];
+      // Per-case sharing exceptions (ADR 0017): nested under each grant, and
+      // the ones on invitations (which this export does not include) listed
+      // apart with enough to recognise the invitation.
+      const exceptions = await listCaseExclusionsForApplicant(db, applicant.id);
+      const invitedExceptions = exceptions.filter((e) => e.sharingInvitationId !== null);
+      const invitationRows =
+        invitedExceptions.length > 0
+          ? await db
+              .select({
+                id: schema.sharingInvitations.id,
+                email: schema.sharingInvitations.email,
+                status: schema.sharingInvitations.status,
+              })
+              .from(schema.sharingInvitations)
+              .where(eq(schema.sharingInvitations.applicantId, applicant.id))
+          : [];
+      const invitationCaseExceptions: ExportedInvitationCaseException[] =
+        invitedExceptions.flatMap((e) => {
+          const invitation = invitationRows.find((i) => i.id === e.sharingInvitationId);
+          return invitation
+            ? [
+                {
+                  invitationId: invitation.id,
+                  invitedEmail: invitation.email,
+                  invitationStatus: invitation.status,
+                  missionId: e.missionId,
+                  caseTitle: e.missionTitle,
+                  excludedAt: e.createdAt,
+                  excludedByAccountId: e.createdByAccountId,
+                },
+              ]
+            : [];
+        });
       const grantsGranted: ExportedGrantGranted[] = grantRows.map((grant) => ({
         ...grant,
         caseExceptions: exceptions
@@ -253,6 +298,7 @@ export async function exportAccount(
         documents,
         missions,
         grantsGranted,
+        invitationCaseExceptions,
         evidenceRequests,
         profileSections,
         profileExemptions,
@@ -326,7 +372,10 @@ export async function exportAccount(
       grantsReceived: grantsReceived.length,
       grantsGranted: applicants.reduce((n, a) => n + a.grantsGranted.length, 0),
       caseExceptions: applicants.reduce(
-        (n, a) => n + a.grantsGranted.reduce((m, g) => m + g.caseExceptions.length, 0),
+        (n, a) =>
+          n +
+          a.grantsGranted.reduce((m, g) => m + g.caseExceptions.length, 0) +
+          a.invitationCaseExceptions.length,
         0,
       ),
       evidenceRequests: applicants.reduce((n, a) => n + a.evidenceRequests.length, 0),

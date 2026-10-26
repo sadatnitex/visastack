@@ -68,3 +68,6 @@ apps/web/src/app/app/mission/[id]/page.test.tsx
 packages/policy/src/index.ts
 # Same approval ("close all four", 26 Oct 2026): the restore runbook documents the two new exception events.
 docs/operations/backup-resurrection-reconciliation.md
+# Handoff notes for the remaining case-exception fixes (26 Oct 2026).
+docs/upgrades/programme/WP-V4-CASE-EXCLUSIONS-*
+docs/upgrades/programme/WP-V4-CASE-EXCLUSIONS-POC/**

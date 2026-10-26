@@ -1248,7 +1248,7 @@ describe('reconcileRestoredBranch: per-case sharing exceptions (ADR 0017)', () =
     expect(await exceptionsOnNew()).toHaveLength(0);
   });
 
-  it('fails closed: when the exception cannot be written, the grant is paused and the error reported', async () => {
+  it('fails closed: when the exception cannot be written, the grant is revoked (never paused) and the error reported', async () => {
     const c = await sharedCase();
     await recordOnOld('GRANT_CASE_EXCLUDED', c, AFTER);
     // A restored branch from before migration 0090 has no table to write it to.
@@ -1257,7 +1257,7 @@ describe('reconcileRestoredBranch: per-case sharing exceptions (ADR 0017)', () =
     expect(report.errors).toHaveLength(1);
     expect(report.errors[0]?.message).toContain('grant closed instead');
     const [grant] = await newDb.select().from(schema.grants).where(eq(schema.grants.id, c.grantId));
-    expect(grant?.status).toBe('PAUSED');
+    expect(grant?.status).toBe('REVOKED');
     const closed = await newDb
       .select()
       .from(schema.auditEvents)
@@ -1267,6 +1267,6 @@ describe('reconcileRestoredBranch: per-case sharing exceptions (ADR 0017)', () =
     const again = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
     expect(again.errors).toHaveLength(1);
     const [still] = await newDb.select().from(schema.grants).where(eq(schema.grants.id, c.grantId));
-    expect(still?.status).toBe('PAUSED');
+    expect(still?.status).toBe('REVOKED');
   });
 });

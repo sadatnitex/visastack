@@ -19,9 +19,15 @@ import {
 } from '@visastack/policy';
 import { and, asc, eq, gt, inArray, isNull, or } from 'drizzle-orm';
 import {
+  LIVE_GRANT_STATUSES,
+  carryRecipientCaseExceptions,
   caseExclusionsTablePresent,
+  isLiveGrant,
   listCaseExclusionsForApplicant,
   loadCaseExclusions,
+  lockCaseSharing,
+  recipientExceptionSources,
+  recipientReachesCase,
 } from './access/grant-scope';
 import { AuthorizedApplicant } from './access/require-access';
 import { StepUpProof } from './access/step-up-proof';
@@ -293,6 +299,10 @@ export async function createGrant(
   if (!prepared.ok) return prepared;
   const { expiryAt: resolvedExpiryAt, documentScopeSnapshot } = prepared.value;
   return db.transaction(async (tx) => {
+    const allCases = !input.missionId;
+    // An all-cases grant takes the person's sharing lock before anything is
+    // written, so it cannot interleave with the answers for a new case.
+    if (allCases) await lockCaseSharing(tx, input.applicantId);
     const grant = required(
       first(
         await tx
@@ -325,6 +335,18 @@ export async function createGrant(
       resourceId: grant.id,
       metadata: { purpose: grant.purpose, actions: input.actions.length },
     });
+    if (allCases) {
+      await carryRecipientCaseExceptions(tx, {
+        applicantId: input.applicantId,
+        actorAccountId: input.actorAccountId,
+        target: {
+          kind: 'grant',
+          id: grant.id,
+          recipientAccountId: grant.recipientAccountId,
+          recipientOrganizationId: grant.recipientOrganizationId,
+        },
+      });
+    }
     await recordProductEvent(tx, {
       eventType: 'GRANT_CREATED',
       accountId: input.actorAccountId,
@@ -558,6 +580,13 @@ export interface CaseException {
   readonly missionId: string;
   readonly missionTitle: string;
   readonly since: Date;
+  /**
+   * The same recipient still reaches this case through another live grant
+   * (one for this case, or another all-cases grant without this exception).
+   * Exceptions follow the recipient, so the owner is not told the case is
+   * "Not Shared" with them: it is.
+   */
+  readonly reachedByAnotherGrant: boolean;
 }
 
 /** A grant as its owner sees it, with the cases excluded from it. */
@@ -597,6 +626,7 @@ export async function listAccessForApplicant(
   const exceptions = rows.some((row) => row.missionId === null)
     ? await listCaseExclusionsForApplicant(db, applicantId)
     : [];
+  const now = new Date();
   return ok(
     rows.map((row) => ({
       ...row,
@@ -608,6 +638,7 @@ export async function listAccessForApplicant(
                 missionId: e.missionId,
                 missionTitle: e.missionTitle,
                 since: e.createdAt,
+                reachedByAnotherGrant: recipientReachesCase(rows, exceptions, row, e.missionId, now),
               }))
           : [],
     })),
@@ -675,9 +706,6 @@ async function resolveGrantRecipient(
 // `grant_case_exclusions`; the policy engine and the SQL list paths both read
 // it (access/grant-scope.ts). The recipient is never told about an exception
 // or about the case it hides: nothing here notifies anyone.
-
-/** Grant statuses that can still reach anything, now or after acceptance or resuming. */
-const LIVE_GRANT_STATUSES: readonly Grant['status'][] = ['ACTIVE', 'PAUSED', 'PENDING_ACCEPTANCE'];
 
 const CASE_SHARING_UNAVAILABLE =
   'Sharing choices for new cases are not available yet. Please try again in a few minutes.';
@@ -797,11 +825,21 @@ export interface CaseSharingOutcome {
  * that is not one of this person's current all-cases grants or invitations is
  * refused rather than ignored.
  *
- * Refuses with `upstream_error` while migration 0090 has not run and there is
- * anyone to exclude: the caller must then roll back the case it was creating
- * (throw inside its transaction), so a "no" is never lost. Idempotent:
- * applying the same answers again writes and audits nothing new. Never
- * notifies anyone. Owner only; the proof must be MANAGE on the new case.
+ * One-shot: once answers are recorded for a case (any GRANT_CASE_EXCLUDED or
+ * GRANT_CASE_ALLOWED event on it), a second call is refused. Later changes go
+ * through `removeCaseException` ("Allow This Case") only, so the rows and the
+ * audit trail can never disagree and a restore, which replays the trail,
+ * ends exactly where the owner left it. Exactly the rows inserted are audited.
+ *
+ * An organization that owns the case (`missions.owner_organization_id`) runs
+ * it for the person: it cannot be excluded from it, and leaving it unticked
+ * is refused with a plain message.
+ *
+ * Refuses with `upstream_error` while migration 0090 has not run and a "no"
+ * would have to be written: the caller must then roll back the case it was
+ * creating (throw inside its transaction), so a "no" is never lost. When
+ * every recipient was ticked there is nothing to write, so it goes ahead.
+ * Never notifies anyone. Owner only; the proof must be MANAGE on the new case.
  */
 export async function applyCaseSharingAnswers(
   proof: AuthorizedApplicant<'MANAGE'>,
@@ -812,59 +850,96 @@ export async function applyCaseSharingAnswers(
   if (proof.resource.kind !== 'mission') {
     return err(serviceError('invalid', 'Choose the case these answers are for.'));
   }
-  const db = proof.tx;
   const applicantId = proof.applicant.id;
-  const missionId = proof.resource.mission.id;
+  const mission = proof.resource.mission;
+  const missionId = mission.id;
   const ownerAccountId = proof.applicant.ownerAccountId;
-  const questions = await loadCaseSharingQuestions(db, applicantId, new Date());
 
-  const grantIds = new Set(questions.filter((q) => q.kind === 'grant').map((q) => q.id));
-  const invitationIds = new Set(questions.filter((q) => q.kind === 'invitation').map((q) => q.id));
-  const allowedGrants = new Set(answers.allowedGrantIds);
-  const allowedInvitations = new Set(answers.allowedInvitationIds);
-  if (
-    [...allowedGrants].some((id) => !grantIds.has(id)) ||
-    [...allowedInvitations].some((id) => !invitationIds.has(id))
-  ) {
-    return err(
-      serviceError('invalid', 'One of the people you chose no longer has access to all cases.'),
+  return proof.tx.transaction(async (tx) => {
+    // Before reading any grant or invitation: an invitation accepted, or an
+    // all-cases grant created, at the same moment waits for these answers.
+    await lockCaseSharing(tx, applicantId);
+    const alreadyAnswered = first(
+      await tx
+        .select({ seq: schema.auditEvents.seq })
+        .from(schema.auditEvents)
+        .where(
+          and(
+            eq(schema.auditEvents.missionId, missionId),
+            inArray(schema.auditEvents.eventType, ['GRANT_CASE_EXCLUDED', 'GRANT_CASE_ALLOWED']),
+          ),
+        )
+        .limit(1),
     );
-  }
-  const outcome: CaseSharingOutcome = {
-    excludedGrantIds: [...grantIds].filter((id) => !allowedGrants.has(id)),
-    excludedInvitationIds: [...invitationIds].filter((id) => !allowedInvitations.has(id)),
-    allowedGrantIds: [...grantIds].filter((id) => allowedGrants.has(id)),
-    allowedInvitationIds: [...invitationIds].filter((id) => allowedInvitations.has(id)),
-  };
-  if (questions.length === 0) return ok(outcome);
-  if (!(await caseExclusionsTablePresent(db))) {
-    return err(serviceError('upstream_error', CASE_SHARING_UNAVAILABLE));
-  }
+    if (alreadyAnswered) {
+      return err(
+        serviceError(
+          'invalid',
+          'Sharing for this case was already chosen. To share it with someone now, use Allow This Case on the Sharing page.',
+        ),
+      );
+    }
 
-  return db.transaction(async (tx) => {
-    // Answers already recorded for this case, so a repeat writes and audits nothing new.
-    const recorded = new Set(
-      (
+    const questions = await loadCaseSharingQuestions(tx, applicantId, new Date());
+    const grantQuestions = questions.filter((q) => q.kind === 'grant');
+    const grantIds = new Set(grantQuestions.map((q) => q.id));
+    const invitationIds = new Set(
+      questions.filter((q) => q.kind === 'invitation').map((q) => q.id),
+    );
+    const allowedGrants = new Set(answers.allowedGrantIds);
+    const allowedInvitations = new Set(answers.allowedInvitationIds);
+    if (
+      [...allowedGrants].some((id) => !grantIds.has(id)) ||
+      [...allowedInvitations].some((id) => !invitationIds.has(id))
+    ) {
+      return err(
+        serviceError('invalid', 'One of the people you chose no longer has access to all cases.'),
+      );
+    }
+    const outcome: CaseSharingOutcome = {
+      excludedGrantIds: [...grantIds].filter((id) => !allowedGrants.has(id)),
+      excludedInvitationIds: [...invitationIds].filter((id) => !allowedInvitations.has(id)),
+      allowedGrantIds: [...grantIds].filter((id) => allowedGrants.has(id)),
+      allowedInvitationIds: [...invitationIds].filter((id) => allowedInvitations.has(id)),
+    };
+    const owningOrganization = mission.ownerOrganizationId;
+    if (owningOrganization && outcome.excludedGrantIds.length > 0) {
+      const owningGrant = first(
         await tx
-          .select({
-            resourceType: schema.auditEvents.resourceType,
-            resourceId: schema.auditEvents.resourceId,
-          })
-          .from(schema.auditEvents)
+          .select({ id: schema.grants.id })
+          .from(schema.grants)
           .where(
             and(
-              eq(schema.auditEvents.missionId, missionId),
-              inArray(schema.auditEvents.eventType, ['GRANT_CASE_EXCLUDED', 'GRANT_CASE_ALLOWED']),
+              inArray(schema.grants.id, [...outcome.excludedGrantIds]),
+              eq(schema.grants.recipientOrganizationId, owningOrganization),
             ),
           )
-      ).map((row) => `${row.resourceType}:${row.resourceId}`),
-    );
-    const record = async (
+          .limit(1),
+      );
+      const owning = owningGrant && grantQuestions.find((q) => q.id === owningGrant.id);
+      if (owning) {
+        return err(
+          serviceError(
+            'invalid',
+            `${owning.recipient.label} runs this case for you, so it always sees it. Tick it to continue.`,
+          ),
+        );
+      }
+    }
+    if (questions.length === 0) return ok(outcome);
+    const excluded = [
+      ...outcome.excludedGrantIds.map((id) => ({ grantId: id, sharingInvitationId: null })),
+      ...outcome.excludedInvitationIds.map((id) => ({ grantId: null, sharingInvitationId: id })),
+    ];
+    if (excluded.length > 0 && !(await caseExclusionsTablePresent(tx))) {
+      return err(serviceError('upstream_error', CASE_SHARING_UNAVAILABLE));
+    }
+
+    const audit = async (
       eventType: 'GRANT_CASE_EXCLUDED' | 'GRANT_CASE_ALLOWED',
-      kind: 'grant' | 'sharing_invitation',
-      id: string,
+      parent: { readonly grantId: string | null; readonly sharingInvitationId: string | null },
     ): Promise<void> => {
-      if (recorded.has(`${kind}:${id}`)) return;
+      const id = parent.grantId ?? parent.sharingInvitationId;
       await appendAuditEvent(tx, {
         eventType,
         actorAccountId: ownerAccountId,
@@ -873,18 +948,13 @@ export async function applyCaseSharingAnswers(
         result: 'ALLOWED',
         applicantId,
         missionId,
-        grantId: kind === 'grant' ? id : null,
-        resourceType: kind,
+        grantId: parent.grantId,
+        resourceType: parent.grantId ? 'grant' : 'sharing_invitation',
         resourceId: id,
       });
-      recorded.add(`${kind}:${id}`);
     };
-    const excluded = [
-      ...outcome.excludedGrantIds.map((id) => ({ grantId: id, sharingInvitationId: null })),
-      ...outcome.excludedInvitationIds.map((id) => ({ grantId: null, sharingInvitationId: id })),
-    ];
     if (excluded.length > 0) {
-      await tx
+      const inserted = await tx
         .insert(schema.grantCaseExclusions)
         .values(
           excluded.map((parent) => ({
@@ -894,15 +964,19 @@ export async function applyCaseSharingAnswers(
             createdByAccountId: ownerAccountId,
           })),
         )
-        .onConflictDoNothing();
+        .onConflictDoNothing()
+        .returning({
+          grantId: schema.grantCaseExclusions.grantId,
+          sharingInvitationId: schema.grantCaseExclusions.sharingInvitationId,
+        });
+      // Exactly the rows written, so the trail and the table always agree.
+      for (const row of inserted) await audit('GRANT_CASE_EXCLUDED', row);
     }
-    for (const id of outcome.excludedGrantIds) await record('GRANT_CASE_EXCLUDED', 'grant', id);
-    for (const id of outcome.excludedInvitationIds) {
-      await record('GRANT_CASE_EXCLUDED', 'sharing_invitation', id);
+    for (const id of outcome.allowedGrantIds) {
+      await audit('GRANT_CASE_ALLOWED', { grantId: id, sharingInvitationId: null });
     }
-    for (const id of outcome.allowedGrantIds) await record('GRANT_CASE_ALLOWED', 'grant', id);
     for (const id of outcome.allowedInvitationIds) {
-      await record('GRANT_CASE_ALLOWED', 'sharing_invitation', id);
+      await audit('GRANT_CASE_ALLOWED', { grantId: null, sharingInvitationId: id });
     }
     return ok(outcome);
   });
@@ -916,6 +990,11 @@ export async function applyCaseSharingAnswers(
  * be created (it hands out a `STEP_UP_ACTIONS` action, the `createGrant`
  * rule): the proof must cover SHARE on this person's record. Never notifies
  * the recipient. Owner only; the proof must be MANAGE on the case.
+ *
+ * Exceptions follow the recipient, so allowing follows the recipient too: the
+ * same case's exceptions on that recipient's ended grants and closed
+ * invitations are removed with it (each audited), so sharing all cases with
+ * them again later does not carry the old "no" forward.
  */
 export async function removeCaseException(
   proof: AuthorizedApplicant<'MANAGE'>,
@@ -926,62 +1005,99 @@ export async function removeCaseException(
   if (proof.resource.kind !== 'mission') {
     return err(serviceError('invalid', 'Choose the case to allow.'));
   }
-  const db = proof.tx;
   const applicantId = proof.applicant.id;
   const missionId = proof.resource.mission.id;
   const ownerAccountId = proof.applicant.ownerAccountId;
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(input.grantId)) {
     return err(serviceError('not_found', 'That sharing was not found.'));
   }
-  const grant = await loadGrant(db, input.grantId);
-  if (!grant || grant.applicantId !== applicantId || grant.missionId !== null) {
-    return err(serviceError('not_found', 'That sharing was not found.'));
-  }
-  if (
-    !LIVE_GRANT_STATUSES.includes(grant.status) ||
-    (grant.expiryAt !== null && grant.expiryAt.getTime() <= Date.now())
-  ) {
-    return err(serviceError('invalid', 'This sharing has ended, so there is nothing to allow.'));
-  }
-  if (
-    grant.actions.some((action) => STEP_UP_ACTIONS.includes(action)) &&
-    !StepUpProof.covers(input.stepUp, {
-      accountId: ownerAccountId,
-      action: 'SHARE',
-      resourceId: applicantId,
-    })
-  ) {
-    return err(serviceError('step_up_required', 'Confirm it is you to allow this case.'));
-  }
-  if (!(await caseExclusionsTablePresent(db))) {
-    return err(serviceError('not_found', 'This case is already shared.'));
-  }
-  return db.transaction(async (tx) => {
+  return proof.tx.transaction(async (tx) => {
+    await lockCaseSharing(tx, applicantId);
+    const grant = await loadGrant(tx, input.grantId);
+    if (!grant || grant.applicantId !== applicantId || grant.missionId !== null) {
+      return err(serviceError('not_found', 'That sharing was not found.'));
+    }
+    if (!isLiveGrant(grant, new Date())) {
+      return err(serviceError('invalid', 'This sharing has ended, so there is nothing to allow.'));
+    }
+    if (
+      grant.actions.some((action) => STEP_UP_ACTIONS.includes(action)) &&
+      !StepUpProof.covers(input.stepUp, {
+        accountId: ownerAccountId,
+        action: 'SHARE',
+        resourceId: applicantId,
+      })
+    ) {
+      return err(serviceError('step_up_required', 'Confirm it is you to allow this case.'));
+    }
+    if (!(await caseExclusionsTablePresent(tx))) {
+      return err(serviceError('not_found', 'This case is already shared.'));
+    }
+    const exclusions = schema.grantCaseExclusions;
     const removed = await tx
-      .delete(schema.grantCaseExclusions)
+      .delete(exclusions)
       .where(
         and(
-          eq(schema.grantCaseExclusions.grantId, grant.id),
-          eq(schema.grantCaseExclusions.missionId, missionId),
-          eq(schema.grantCaseExclusions.applicantId, applicantId),
+          eq(exclusions.grantId, grant.id),
+          eq(exclusions.missionId, missionId),
+          eq(exclusions.applicantId, applicantId),
         ),
       )
-      .returning({ id: schema.grantCaseExclusions.id });
+      .returning({ id: exclusions.id });
     if (removed.length === 0) {
       return err(serviceError('not_found', 'This case is already shared.'));
     }
-    await appendAuditEvent(tx, {
-      eventType: 'GRANT_CASE_EXCLUSION_REMOVED',
-      actorAccountId: ownerAccountId,
-      action: 'SHARE',
-      method: 'MANUAL',
-      result: 'ALLOWED',
-      applicantId,
-      missionId,
-      grantId: grant.id,
-      resourceType: 'grant',
-      resourceId: grant.id,
+    const audit = async (parent: { readonly kind: 'grant' | 'sharing_invitation'; readonly id: string }) =>
+      appendAuditEvent(tx, {
+        eventType: 'GRANT_CASE_EXCLUSION_REMOVED',
+        actorAccountId: ownerAccountId,
+        action: 'SHARE',
+        method: 'MANUAL',
+        result: 'ALLOWED',
+        applicantId,
+        missionId,
+        grantId: parent.kind === 'grant' ? parent.id : null,
+        resourceType: parent.kind,
+        resourceId: parent.id,
+      });
+    await audit({ kind: 'grant', id: grant.id });
+
+    // The same recipient's ended grants and closed invitations (live ones keep their own answer).
+    const sources = await recipientExceptionSources(tx, applicantId, {
+      kind: 'grant',
+      id: grant.id,
+      recipientAccountId: grant.recipientAccountId,
+      recipientOrganizationId: grant.recipientOrganizationId,
     });
+    const now = new Date();
+    const endedGrantIds = sources.grants.filter((g) => !isLiveGrant(g, now)).map((g) => g.id);
+    const closedInvitationIds = sources.invitations
+      .filter((i) => i.status !== 'PENDING' || i.expiresAt.getTime() <= now.getTime())
+      .map((i) => i.id);
+    if (endedGrantIds.length + closedInvitationIds.length > 0) {
+      const stale = await tx
+        .delete(exclusions)
+        .where(
+          and(
+            eq(exclusions.applicantId, applicantId),
+            eq(exclusions.missionId, missionId),
+            or(
+              endedGrantIds.length > 0 ? inArray(exclusions.grantId, endedGrantIds) : undefined,
+              closedInvitationIds.length > 0
+                ? inArray(exclusions.sharingInvitationId, closedInvitationIds)
+                : undefined,
+            ),
+          ),
+        )
+        .returning({ grantId: exclusions.grantId, invitationId: exclusions.sharingInvitationId });
+      for (const row of stale) {
+        await audit(
+          row.grantId
+            ? { kind: 'grant', id: row.grantId }
+            : { kind: 'sharing_invitation', id: row.invitationId ?? '' },
+        );
+      }
+    }
     return ok({ grantId: grant.id, missionId });
   });
 }

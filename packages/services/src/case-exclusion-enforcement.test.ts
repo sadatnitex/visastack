@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import type { PGlite } from '@electric-sql/pglite';
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
@@ -6,6 +7,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { describe, expect, it } from 'vitest';
 import { EACH_GRANT, accountPrincipal, requireAccess, verifyStepUp } from './access';
+import { caseSharingLockKey } from './access/grant-scope';
 import { provisionAccount } from './accounts';
 import {
   addNote,
@@ -28,11 +30,17 @@ import {
 } from './agency';
 import { createApplicant } from './applicants';
 import { getApplicationMemory } from './application-memory';
+import { reconcileRestoredBranch } from './backup-reconciliation';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { registerDocument } from './documents';
+import { exportAccount } from './export';
 import { createMission, listSelectedEvidenceForOrg } from './missions';
-import { enqueueNotification, runNotificationWorker } from './notifications';
+import {
+  enqueueNotification,
+  listNotificationsForAccount,
+  runNotificationWorker,
+} from './notifications';
 import { createOrganization, reviewOrganization } from './organizations';
 import type { EmailPort, KeyManagementPort, SendEmailInput, SendEmailResult } from './ports';
 import {
@@ -41,10 +49,15 @@ import {
   createGrant,
   listAccessForApplicantDetailed,
   listCaseSharingQuestions,
+  pauseGrant,
   removeCaseException,
   revokeGrant,
 } from './sharing';
-import { acceptSharingInvitation, createSharingInvitation } from './sharing-invitations';
+import {
+  acceptSharingInvitation,
+  createSharingInvitation,
+  listInvitationCaseExceptions,
+} from './sharing-invitations';
 import { issueStepUpAssurance } from './step-up';
 import { searchWorkspaceRecords } from './workspace-search';
 
@@ -233,6 +246,17 @@ async function scenario() {
 }
 
 type Scenario = Awaited<ReturnType<typeof scenario>>;
+
+/**
+ * Drops the table, as on a database migration 0090 has not reached, and
+ * returns the scenario on a new handle: "table present" is remembered per
+ * handle (never "missing"), and the table never disappears in production.
+ */
+async function withoutExclusionsTable(s: Scenario): Promise<Scenario> {
+  await s.db.execute(sql`drop table grant_case_exclusions`);
+  const client = (s.db as unknown as { $client: PGlite }).$client;
+  return { ...s, db: drizzle(client, { schema }) as unknown as Db };
+}
 
 /** Records the owner's "no" for one grant and one case, as the write side does. */
 async function exclude(s: Scenario, grantId: string, missionId: string): Promise<void> {
@@ -534,8 +558,7 @@ describe('per-case sharing exceptions on every read path', () => {
   it(
     'before migration 0090 runs, every read path behaves exactly as it did without exceptions',
     async () => {
-      const s = await scenario();
-      await s.db.execute(sql`drop table grant_case_exclusions`);
+      const s = await withoutExclusionsTable(await scenario());
       expect(await reachOnCase(s, s.c2)).toEqual(ALL_TRUE);
       expect(await caseTitlesFound(s, s.a.adminId, s.a.organizationId)).toEqual([
         'Japan trip 2025',
@@ -668,12 +691,12 @@ describe('per-case sharing answers (write side)', () => {
       expect(await auditCount(s, 'GRANT_CASE_EXCLUDED', c3)).toBe(3);
       expect(await auditCount(s, 'GRANT_CASE_ALLOWED', c3)).toBe(1);
 
-      // Idempotent: the same answers again write and audit nothing new.
+      // One-shot: the same answers again are refused and change nothing.
       const again = await applyCaseSharingAnswers(await ownerManage(s, c3), {
         allowedGrantIds: [s.grantB],
         allowedInvitationIds: [],
       });
-      expect(isOk(again)).toBe(true);
+      expect(isErr(again) && again.error.code).toBe('invalid');
       expect(await auditCount(s, 'GRANT_CASE_EXCLUDED', c3)).toBe(3);
       expect(await auditCount(s, 'GRANT_CASE_ALLOWED', c3)).toBe(1);
       expect(
@@ -686,8 +709,9 @@ describe('per-case sharing answers (write side)', () => {
       ).toBe(3);
 
       // A ticked id that is not a current all-cases grant of this person is refused.
+      const c4 = await newCase(s, 'Japan trip 2028');
       for (const allowedGrantIds of [[scoped.value.id], ['00000000-0000-4000-8000-000000000000']]) {
-        const refused = await applyCaseSharingAnswers(await ownerManage(s, c3), {
+        const refused = await applyCaseSharingAnswers(await ownerManage(s, c4), {
           allowedGrantIds,
           allowedInvitationIds: [],
         });
@@ -737,8 +761,7 @@ describe('per-case sharing answers (write side)', () => {
   it(
     'before migration 0090 runs, refuses and lets the case creation roll back so no "no" is lost',
     async () => {
-      const s = await scenario();
-      await s.db.execute(sql`drop table grant_case_exclusions`);
+      const s = await withoutExclusionsTable(await scenario());
       const titles = async () =>
         (await s.db.select({ title: schema.missions.title }).from(schema.missions)).map(
           (m) => m.title,
@@ -761,6 +784,15 @@ describe('per-case sharing answers (write side)', () => {
       });
       await expect(attempt).rejects.toThrow('roll back the new case');
       expect(await titles()).not.toContain('Prepare Again copy');
+
+      // Every recipient ticked: there is no "no" to lose, so it goes ahead.
+      const shared = await newCase(s, 'Shared with everyone');
+      const allTicked = await applyCaseSharingAnswers(await ownerManage(s, shared), {
+        allowedGrantIds: [s.grantA, s.grantB, s.grantP],
+        allowedInvitationIds: [],
+      });
+      expect(isOk(allTicked)).toBe(true);
+      expect(await auditCount(s, 'GRANT_CASE_ALLOWED', shared)).toBe(3);
 
       // With nobody to ask about there is nothing to lose, so it goes ahead.
       for (const grantId of [s.grantA, s.grantB, s.grantP]) {
@@ -884,6 +916,486 @@ describe('per-case sharing answers (write side)', () => {
         .from(schema.grantCaseExclusions)
         .where(eq(schema.grantCaseExclusions.missionId, c3));
       expect(rows.map((r) => [r.grantId, r.sharingInvitationId])).toEqual([[no.grantId, null]]);
+    },
+    HEAVY_TIMEOUT_MS,
+  );
+});
+
+// --- Review fixes (code review and security review, 26 Oct 2026) -----------
+
+function clientOf(db: Db): PGlite {
+  return (db as unknown as { $client: PGlite }).$client;
+}
+
+async function pause(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function exceptionRows(s: Scenario, missionId: string, db: Db = s.db) {
+  return db
+    .select()
+    .from(schema.grantCaseExclusions)
+    .where(eq(schema.grantCaseExclusions.missionId, missionId));
+}
+
+async function shareAllCasesWith(s: Scenario, recipient: { organizationId: string; adminId: string }) {
+  const created = await createGrant(s.db, {
+    actorAccountId: s.owner.id,
+    applicantId: s.applicantId,
+    recipientOrganizationId: recipient.organizationId,
+    actions: ['VIEW_METADATA', 'COMMENT', 'MANAGE'],
+    purpose: 'collaboration',
+  });
+  if (!isOk(created)) throw new Error(`grant: ${created.error.message}`);
+  const accepted = await acceptGrant(s.db, {
+    actorAccountId: recipient.adminId,
+    grantId: created.value.id,
+  });
+  if (!isOk(accepted)) throw new Error('accept');
+  return created.value.id;
+}
+
+async function memoryNotShared(s: Scenario, missionId: string): Promise<string[]> {
+  const gate = await requireAccess(
+    s.db,
+    accountPrincipal(s.owner.id),
+    'VIEW_METADATA',
+    { applicantId: s.applicantId },
+    { purpose: 'application_memory' },
+  );
+  if (!isOk(gate)) throw new Error('gate');
+  const memory = await getApplicationMemory(gate.value);
+  if (!isOk(memory)) throw new Error('memory');
+  return (memory.value.cases.find((c) => c.missionId === missionId)?.notSharedWith ?? [])
+    .map((e) => `${e.recipientKind}:${e.recipientName}`)
+    .sort();
+}
+
+describe('review fixes: one-shot answers, the sharing lock, recipient-level exceptions', () => {
+  it(
+    'answers are one-shot, so the rows and the audit trail always agree, and a restore ends where the owner left it',
+    async () => {
+      const s = await scenario();
+      const yesFirst = await newCase(s, 'Yes first');
+      const noFirst = await newCase(s, 'No first');
+      // A restored branch from this moment, before any answer.
+      const restored = drizzle((await clientOf(s.db).clone()) as PGlite, { schema }) as unknown as Db;
+      await pause(5);
+      const restorePoint = new Date();
+      await pause(5);
+      const apply = async (missionId: string, allowedGrantIds: string[]) =>
+        applyCaseSharingAnswers(await ownerManage(s, missionId), {
+          allowedGrantIds,
+          allowedInvitationIds: [],
+        });
+
+      // Yes, then a later no: the later no is refused, nothing is written.
+      expect(isOk(await apply(yesFirst, [s.grantA, s.grantB, s.grantP]))).toBe(true);
+      const late = await apply(yesFirst, [s.grantB, s.grantP]);
+      expect(isErr(late) && late.error.code).toBe('invalid');
+      expect(isErr(late) && late.error.message).toContain('Allow This Case');
+      expect(await exceptionRows(s, yesFirst)).toHaveLength(0);
+      expect(await auditCount(s, 'GRANT_CASE_EXCLUDED', yesFirst)).toBe(0);
+      expect(isOk(await caseGate(s, s.a.adminId, yesFirst))).toBe(true);
+
+      // No, Allow This Case, then no again: the second no is refused.
+      expect(isOk(await apply(noFirst, [s.grantB, s.grantP]))).toBe(true);
+      expect(await exceptionRows(s, noFirst)).toHaveLength(1);
+      expect(await auditCount(s, 'GRANT_CASE_EXCLUDED', noFirst)).toBe(1);
+      const allowed = await removeCaseException(await ownerManage(s, noFirst), {
+        grantId: s.grantA,
+      });
+      expect(isOk(allowed)).toBe(true);
+      const again = await apply(noFirst, [s.grantB, s.grantP]);
+      expect(isErr(again) && again.error.code).toBe('invalid');
+      expect(await exceptionRows(s, noFirst)).toHaveLength(0);
+      expect(await auditCount(s, 'GRANT_CASE_EXCLUDED', noFirst)).toBe(1);
+      expect(await auditCount(s, 'GRANT_CASE_EXCLUSION_REMOVED', noFirst)).toBe(1);
+      expect(isOk(await caseGate(s, s.a.adminId, noFirst))).toBe(true);
+
+      // Replaying the trail onto the restored branch gives the same table.
+      const report = await reconcileRestoredBranch(s.db, restored, restorePoint);
+      expect(report.errors).toEqual([]);
+      for (const missionId of [yesFirst, noFirst]) {
+        expect(await exceptionRows(s, missionId, restored)).toHaveLength(0);
+        const gate = await requireAccess(
+          restored,
+          accountPrincipal(s.a.adminId),
+          'VIEW_METADATA',
+          { missionId },
+          { purpose: EACH_GRANT },
+        );
+        expect(isOk(gate)).toBe(true);
+      }
+    },
+    HEAVY_TIMEOUT_MS,
+  );
+
+  it(
+    'takes the person sharing lock before reading any grant or invitation it protects',
+    async () => {
+      const s = await scenario();
+      const queries: { sql: string; params: unknown[] }[] = [];
+      const logged = drizzle(clientOf(s.db), {
+        schema,
+        logger: { logQuery: (query: string, params: unknown[]) => queries.push({ sql: query, params }) },
+      }) as unknown as Db;
+      const lockKey = caseSharingLockKey(s.applicantId);
+      const indexOf = (pattern: RegExp) => queries.findIndex((q) => pattern.test(q.sql));
+      const isOurLock = (q: { sql: string; params: unknown[] }) =>
+        /pg_advisory_xact_lock/.test(q.sql) && q.params.includes(lockKey);
+      const lockIndex = () => {
+        const at = queries.findIndex(isOurLock);
+        expect(at).toBeGreaterThanOrEqual(0);
+        return at;
+      };
+
+      // Recording the answers for a new case.
+      const c3 = await newCase(s);
+      const proof = await ownerManage(s, c3, logged);
+      queries.length = 0;
+      expect(
+        isOk(
+          await applyCaseSharingAnswers(proof, {
+            allowedGrantIds: [s.grantB],
+            allowedInvitationIds: [],
+          }),
+        ),
+      ).toBe(true);
+      const answersLock = lockIndex();
+      expect(answersLock).toBeLessThan(indexOf(/from "grants"/));
+      expect(answersLock).toBeLessThan(indexOf(/from "sharing_invitations"/));
+      expect(answersLock).toBeLessThan(indexOf(/from "audit_events"/));
+
+      // Creating an all-cases invitation, then accepting it.
+      queries.length = 0;
+      const invitation = await createSharingInvitation(logged, {
+        actorAccountId: s.owner.id,
+        applicantId: s.applicantId,
+        email: 'locked@example.test',
+        actions: ['VIEW_METADATA'],
+        purpose: 'Invited review',
+        encryption,
+      });
+      if (!isOk(invitation)) throw new Error('invite');
+      expect(lockIndex()).toBeLessThan(indexOf(/insert into "sharing_invitations"/));
+      const invitee = await consentedAccount(s.db, 'locked@example.test');
+      queries.length = 0;
+      const accepted = await acceptSharingInvitation(logged, {
+        actorAccountId: invitee.id,
+        rawToken: invitation.value.rawToken,
+      });
+      expect(isOk(accepted)).toBe(true);
+      const acceptLock = lockIndex();
+      // Before the lock, only whose record the token names is looked up.
+      for (const q of queries.slice(0, acceptLock)) {
+        expect(q.sql).toMatch(/^select "applicant_id" from "sharing_invitations"/);
+      }
+      expect(acceptLock).toBeLessThan(indexOf(/update "sharing_invitations"/));
+      expect(acceptLock).toBeLessThan(indexOf(/from "grants"/));
+
+      // Creating an all-cases grant takes it; a grant for one case does not need it.
+      queries.length = 0;
+      const allCases = await createGrant(logged, {
+        actorAccountId: s.owner.id,
+        applicantId: s.applicantId,
+        recipientAccountId: invitee.id,
+        actions: ['VIEW_METADATA'],
+        purpose: 'collaboration',
+      });
+      expect(isOk(allCases)).toBe(true);
+      expect(lockIndex()).toBeLessThan(indexOf(/insert into "grants"/));
+      queries.length = 0;
+      const oneCase = await createGrant(logged, {
+        actorAccountId: s.owner.id,
+        applicantId: s.applicantId,
+        recipientAccountId: invitee.id,
+        missionId: s.c1,
+        actions: ['VIEW_METADATA'],
+        purpose: 'case only',
+      });
+      expect(isOk(oneCase)).toBe(true);
+      expect(queries.some(isOurLock)).toBe(false);
+    },
+    HEAVY_TIMEOUT_MS,
+  );
+
+  it(
+    'an ended grant does not keep the excluded case evidence requests or notices visible',
+    async () => {
+      const s = await scenario();
+      const aId = s.a.organizationId;
+      // Notices about both cases reach A's bell while A reaches both.
+      await s.db.delete(schema.notifications);
+      for (const missionId of [s.c1, s.c2]) {
+        await enqueueNotification(s.db, {
+          eventType: 'MISSION_STATUS_CHANGED',
+          channel: 'IN_APP',
+          resourceId: `bell-${missionId}`,
+          recipientAccountId: s.a.adminId,
+          applicantId: s.applicantId,
+          organizationId: aId,
+          missionId,
+          payload: { subject: `Update ${missionId}`, summary: 'A case changed', deepLinkPath: '/app' },
+        });
+      }
+      await runNotificationWorker(s.db, new FakeEmailPort(), 'https://app.example');
+      const bell = async () =>
+        (await listNotificationsForAccount(s.db, s.a.adminId)).map((n) => n.subject).sort();
+      expect(await bell()).toEqual([`Update ${s.c1}`, `Update ${s.c2}`].sort());
+      const listed = async () => {
+        const requests = await listEvidenceRequestsForOrg(s.db, s.a.adminId, aId);
+        if (!isOk(requests)) throw new Error('requests');
+        return requests.value.map((r) => r.id);
+      };
+
+      // The security reviewer's case: the request on C2 was made under the old grant;
+      // that grant is revoked, all cases are shared again, and C2 is excluded.
+      expect(isOk(await revokeGrant(s.db, { actorAccountId: s.owner.id, grantId: s.grantA }))).toBe(
+        true,
+      );
+      const fresh = await shareAllCasesWith(s, s.a);
+      await exclude(s, fresh, s.c2);
+      expect((await listMissionsForOrganization(s.db, aId)).map((m) => m.missionId)).toEqual([
+        s.c1,
+      ]);
+      expect(await listed()).not.toContain(s.requestC2);
+      expect(await listed()).toEqual(expect.arrayContaining([s.requestC1, s.requestGeneral]));
+      expect(await bell()).toEqual([`Update ${s.c1}`]);
+
+      // A paused grant is still live: the exception still hides C2.
+      await pauseGrant(s.db, { actorAccountId: s.owner.id, grantId: fresh });
+      expect(await listed()).not.toContain(s.requestC2);
+      expect(await bell()).toEqual([`Update ${s.c1}`]);
+
+      // With no live grant left, A's own past requests and notices stay as history.
+      await revokeGrant(s.db, { actorAccountId: s.owner.id, grantId: fresh });
+      expect(await listed()).toEqual(expect.arrayContaining([s.requestC1, s.requestC2]));
+      expect(await bell()).toEqual([`Update ${s.c1}`, `Update ${s.c2}`].sort());
+    },
+    HEAVY_TIMEOUT_MS,
+  );
+
+  it(
+    'exceptions follow the recipient: sharing all cases again keeps the case hidden; a grant for that case shows it',
+    async () => {
+      const s = await scenario();
+      const c3 = await newCase(s);
+      expect(
+        isOk(
+          await applyCaseSharingAnswers(await ownerManage(s, c3), {
+            allowedGrantIds: [s.grantB],
+            allowedInvitationIds: [],
+          }),
+        ),
+      ).toBe(true);
+
+      // Re-sharing all cases with A after a revoke keeps C3 hidden from A.
+      await revokeGrant(s.db, { actorAccountId: s.owner.id, grantId: s.grantA });
+      const again = await shareAllCasesWith(s, s.a);
+      expect(isOk(await caseGate(s, s.a.adminId, c3))).toBe(false);
+      expect(isOk(await caseGate(s, s.a.adminId, s.c1))).toBe(true);
+      expect(
+        (await listMissionsForOrganization(s.db, s.a.organizationId)).map((m) => m.missionId),
+      ).not.toContain(c3);
+      const carried = await s.db
+        .select()
+        .from(schema.auditEvents)
+        .where(
+          and(
+            eq(schema.auditEvents.eventType, 'GRANT_CASE_EXCLUDED'),
+            eq(schema.auditEvents.grantId, again),
+          ),
+        );
+      expect(carried.map((e) => [e.missionId, e.reason])).toEqual([[c3, 'carried_forward']]);
+      expect(await memoryNotShared(s, c3)).toEqual([
+        'organization:Agency A',
+        'person:person@example.test',
+      ]);
+
+      // A grant for that one case is an explicit share: it reaches the case, and
+      // A is no longer listed as not sharing it.
+      const scoped = await createGrant(s.db, {
+        actorAccountId: s.owner.id,
+        applicantId: s.applicantId,
+        recipientOrganizationId: s.a.organizationId,
+        missionId: c3,
+        actions: ['VIEW_METADATA'],
+        purpose: 'this case',
+      });
+      if (!isOk(scoped)) throw new Error('scoped');
+      await acceptGrant(s.db, { actorAccountId: s.a.adminId, grantId: scoped.value.id });
+      expect(isOk(await caseGate(s, s.a.adminId, c3))).toBe(true);
+      expect(await memoryNotShared(s, c3)).toEqual(['person:person@example.test']);
+      const access = await listAccessForApplicantDetailed(s.db, s.owner.id, s.applicantId);
+      if (!isOk(access)) throw new Error('access');
+      expect(
+        access.value.find((g) => g.id === again)?.caseExceptions.map((e) => e.reachedByAnotherGrant),
+      ).toEqual([true]);
+      expect(
+        access.value.find((g) => g.id === s.grantP)?.caseExceptions.map((e) => e.reachedByAnotherGrant),
+      ).toEqual([false]);
+      await revokeGrant(s.db, { actorAccountId: s.owner.id, grantId: scoped.value.id });
+
+      // An invitation to the same person carries their "no" too, shows it to the
+      // owner, and the grant it becomes keeps it.
+      const invitation = await createSharingInvitation(s.db, {
+        actorAccountId: s.owner.id,
+        applicantId: s.applicantId,
+        email: 'person@example.test',
+        actions: ['VIEW_METADATA'],
+        purpose: 'Invited review',
+        encryption,
+      });
+      if (!isOk(invitation)) throw new Error(`invite: ${invitation.error.message}`);
+      const recordProof = async (accountId: string) => {
+        const gate = await requireAccess(
+          s.db,
+          accountPrincipal(accountId),
+          'VIEW_METADATA',
+          { applicantId: s.applicantId },
+          { purpose: EACH_GRANT },
+        );
+        if (!isOk(gate)) throw new Error('gate');
+        return gate.value;
+      };
+      const onInvitations = await listInvitationCaseExceptions(await recordProof(s.owner.id));
+      if (!isOk(onInvitations)) throw new Error('invitation exceptions');
+      expect(onInvitations.value.map((e) => [e.invitationId, e.missionTitle])).toEqual([
+        [invitation.value.invitation.id, 'Japan trip 2027'],
+      ]);
+      // An organization that can view the record still cannot see the owner's exceptions.
+      expect(isErr(await listInvitationCaseExceptions(await recordProof(s.b.adminId)))).toBe(true);
+      const exported = await exportAccount(s.db, {
+        actorAccountId: s.owner.id,
+        accountId: s.owner.id,
+      });
+      if (!isOk(exported)) throw new Error('export');
+      expect(
+        exported.value.applicants[0]?.invitationCaseExceptions.map((e) => [
+          e.invitedEmail,
+          e.caseTitle,
+          e.invitationStatus,
+        ]),
+      ).toEqual([['person@example.test', 'Japan trip 2027', 'PENDING']]);
+      const accepted = await acceptSharingInvitation(s.db, {
+        actorAccountId: s.person.id,
+        rawToken: invitation.value.rawToken,
+      });
+      if (!isOk(accepted)) throw new Error(`accept: ${accepted.error.message}`);
+      expect((await exceptionRows(s, c3)).some((r) => r.grantId === accepted.value)).toBe(true);
+      await revokeGrant(s.db, { actorAccountId: s.owner.id, grantId: s.grantP });
+      expect(isOk(await caseGate(s, s.person.id, c3))).toBe(false);
+      expect(isOk(await caseGate(s, s.person.id, s.c1))).toBe(true);
+
+      // Allowing follows the recipient as well: after Allow This Case, sharing all
+      // cases with A again does not bring the old "no" back.
+      expect(
+        isOk(await removeCaseException(await ownerManage(s, c3), { grantId: again })),
+      ).toBe(true);
+      expect(await auditCount(s, 'GRANT_CASE_EXCLUSION_REMOVED', c3)).toBe(2);
+      await revokeGrant(s.db, { actorAccountId: s.owner.id, grantId: again });
+      await shareAllCasesWith(s, s.a);
+      expect(isOk(await caseGate(s, s.a.adminId, c3))).toBe(true);
+    },
+    HEAVY_TIMEOUT_MS,
+  );
+
+  it(
+    'the organization that runs a case cannot be excluded from it, and is never carried an exception for it',
+    async () => {
+      const s = await scenario();
+      const c3 = await newCase(s);
+      await s.db
+        .update(schema.missions)
+        .set({ ownerOrganizationId: s.a.organizationId })
+        .where(eq(schema.missions.id, c3));
+      const refused = await applyCaseSharingAnswers(await ownerManage(s, c3), {
+        allowedGrantIds: [s.grantB],
+        allowedInvitationIds: [],
+      });
+      expect(isErr(refused) && refused.error.code).toBe('invalid');
+      expect(isErr(refused) && refused.error.message).toContain('Agency A runs this case');
+      expect(await exceptionRows(s, c3)).toHaveLength(0);
+      expect(
+        isOk(
+          await applyCaseSharingAnswers(await ownerManage(s, c3), {
+            allowedGrantIds: [s.grantA, s.grantB],
+            allowedInvitationIds: [],
+          }),
+        ),
+      ).toBe(true);
+
+      // An exception recorded before A ran the case is not carried to A's next grant.
+      const c4 = await newCase(s, 'Japan trip 2028');
+      await applyCaseSharingAnswers(await ownerManage(s, c4), {
+        allowedGrantIds: [s.grantB, s.grantP],
+        allowedInvitationIds: [],
+      });
+      await s.db
+        .update(schema.missions)
+        .set({ ownerOrganizationId: s.a.organizationId })
+        .where(eq(schema.missions.id, c4));
+      await revokeGrant(s.db, { actorAccountId: s.owner.id, grantId: s.grantA });
+      const next = await shareAllCasesWith(s, s.a);
+      expect((await exceptionRows(s, c4)).map((r) => r.grantId)).toEqual([s.grantA]);
+      expect(isOk(await caseGate(s, s.a.adminId, c4))).toBe(true);
+      expect(next).toBeDefined();
+    },
+    HEAVY_TIMEOUT_MS,
+  );
+
+  it(
+    'a hidden case looks exactly like one that does not exist',
+    async () => {
+      const s = await scenario();
+      await exclude(s, s.grantA, s.c2);
+      const unknown = await caseGate(s, s.a.adminId, '00000000-0000-4000-8000-000000000000');
+      const hidden = await caseGate(s, s.a.adminId, s.c2);
+      expect(isErr(hidden) && hidden.error).toEqual(isErr(unknown) && unknown.error);
+      expect(isErr(hidden) && hidden.error.code).toBe('not_found');
+      // The owner and an organization that reaches the case are unaffected.
+      expect(isOk(await caseGate(s, s.owner.id, s.c2))).toBe(true);
+      expect(isOk(await caseGate(s, s.b.adminId, s.c2))).toBe(true);
+    },
+    HEAVY_TIMEOUT_MS,
+  );
+
+  it(
+    'a case id is trusted only for the person it belongs to',
+    async () => {
+      const s = await scenario();
+      const otherOwner = await consentedAccount(s.db, 'other-owner@example.test');
+      const other = await createApplicant(s.db, {
+        actorAccountId: otherOwner.id,
+        ownerAccountId: otherOwner.id,
+        displayName: 'Someone Else',
+      });
+      if (!isOk(other)) throw new Error('other');
+      const foreign = await createMission(s.db, {
+        actorAccountId: otherOwner.id,
+        applicantId: other.value.id,
+        title: 'Someone else trip',
+      });
+      if (!isOk(foreign)) throw new Error('foreign');
+      await s.db.insert(schema.missionNotes).values({
+        missionId: foreign.value.id,
+        body: 'Private to someone else',
+        visibility: 'TRAVELLER_SHARED',
+      });
+      await s.db
+        .insert(schema.missionTasks)
+        .values({ missionId: foreign.value.id, description: 'Someone else task' });
+      const aId = s.a.organizationId;
+      // A's all-cases grant is on this person, not on the other one.
+      expect(await orgGrantPermits(s.db, aId, s.applicantId, 'COMMENT', foreign.value.id)).toBe(
+        false,
+      );
+      expect(await listNotes(s.db, aId, s.applicantId, foreign.value.id)).toEqual([]);
+      expect(await listTasksForOrg(s.db, aId, s.applicantId, foreign.value.id)).toEqual([]);
+      expect(await listAppointmentsForOrg(s.db, aId, s.applicantId, foreign.value.id)).toEqual([]);
+      // The matching pair still works.
+      expect((await listNotes(s.db, aId, s.applicantId, s.c1)).length).toBeGreaterThan(0);
     },
     HEAVY_TIMEOUT_MS,
   );

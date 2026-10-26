@@ -277,11 +277,12 @@ async function forceAccountDeletionExecuted(
 // explicit access decision, replayed in order exactly like a legal hold
 // release, so the restored branch ends where the owner left it. Only the last
 // event for each grant-or-invitation and case is applied (see
-// `lastExceptionEvents`), so a second run is a clean no-op. Invitation
-// carry-over on acceptance writes no event of its own: the grant it creates
-// was made after the restore point and does not exist on the restored branch,
-// while the invitation-bound exception is replayed from its own
-// GRANT_CASE_EXCLUDED event.
+// `lastExceptionEvents`), so a second run is a clean no-op. The answers for a
+// case are one-shot and every row written or removed is audited (including an
+// exception carried forward to a new grant or invitation for the same
+// recipient, reason `carried_forward`), so the last event per pair always
+// matches the table. A grant or invitation made after the restore point does
+// not exist on the restored branch: its events are a clean no-op there.
 
 type ExceptionParent =
   | { readonly kind: 'grant'; readonly id: string }
@@ -320,24 +321,26 @@ function lastExceptionEvents(events: readonly AuditEventRow[]): ReadonlySet<numb
 
 /**
  * The exception cannot be written on the restored branch (for example the
- * branch predates migration 0090), so the parent is closed instead: an active
- * grant is paused, a grant still awaiting acceptance and a pending invitation
- * are revoked. The owner can resume or share again; the recipient never
- * silently regains the case. Audited on the restored branch.
+ * branch predates migration 0090), so the parent is closed instead: the grant
+ * (active, paused or awaiting acceptance) or the pending invitation is
+ * REVOKED. A pause could be undone by "Resume" and silently give the case
+ * back; a revocation cannot, so the recipient never regains the case without
+ * the owner sharing again on purpose. Audited on the restored branch as
+ * RECONCILIATION_CASE_EXCEPTION_FAIL_CLOSED.
  */
 async function closeExceptionParent(newDb: Db, parent: ExceptionParent, missionId: string) {
   if (parent.kind === 'grant') {
-    const paused = await newDb
-      .update(schema.grants)
-      .set({ status: 'PAUSED', updatedAt: new Date() })
-      .where(and(eq(schema.grants.id, parent.id), eq(schema.grants.status, 'ACTIVE')))
-      .returning({ id: schema.grants.id });
     const revoked = await newDb
       .update(schema.grants)
       .set({ status: 'REVOKED', updatedAt: new Date() })
-      .where(and(eq(schema.grants.id, parent.id), eq(schema.grants.status, 'PENDING_ACCEPTANCE')))
+      .where(
+        and(
+          eq(schema.grants.id, parent.id),
+          inArray(schema.grants.status, ['ACTIVE', 'PAUSED', 'PENDING_ACCEPTANCE']),
+        ),
+      )
       .returning({ id: schema.grants.id });
-    if (paused.length + revoked.length === 0) return;
+    if (revoked.length === 0) return;
   } else {
     const revoked = await newDb
       .update(schema.sharingInvitations)
