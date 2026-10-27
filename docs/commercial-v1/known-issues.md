@@ -5820,3 +5820,10 @@ Owner approved 2026-10-25. Two fixes where the product said something that was n
 - Tested at 1366x768, 1440x900, 1920x1080, 1280x600, 1280x480 and 1024x700 with both sidebar states; 229 browser checks passed; the old fixture modes are pixel-identical at 390, 768, 1024, 1280 and 1600px; nine guards were broken on purpose and went red.
 - The workspace pixel-identity test now repeats each capture until two in a row are identical (up to five tries) before comparing light and dark exactly as before. A public-page pixel test (`/privacy` at 1600px) also failed once under four parallel workers and passed on rerun; it is the same family and was left alone.
 - Not verified: real signed-in pages (fixture only), real screen readers, touch devices, Safari and Firefox.
+
+### 2026-10-27, Growth G1: homepage promise
+
+- The homepage now promises "A clean file you can stand behind." (owner decision, 27 Oct). Changed: the hero headline and its supporting line ("One private file for your passport and papers. See what is missing, keep every version, and share only the part someone needs."), the search description ("A clean file you can stand behind. Keep your passport and documents in one private profile and share only the part you choose."), the installed-app description, and the share pictures (redrawn with the new headline) with their text. Unchanged: the meta line, the title and "Share the part. Not the whole."
+- Ledger rows CL15 to CL17 added; CL01 to CL03 evidence updated. A new public-text guard blocks any claim of approval, acceptance or a guarantee (checked on the homepage, the installed-app description and the trust story; proved red by breaking the headline and the description).
+- Checked locally: 58 unit tests, 202 browser checks on a production build; the hero fits at 390, 768 and 1440px.
+- For the owner: "file" (headline) and "record" (meta line and app labels) now sit side by side and may be worth aligning. Not verified: share picture preview in chat apps (checked by eye only), live site.
