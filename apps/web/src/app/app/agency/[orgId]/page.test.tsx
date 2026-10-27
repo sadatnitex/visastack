@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   loadCases: vi.fn(),
   loadApplicants: vi.fn(),
   loadUnassignedQueue: vi.fn(),
+  loadClientsJoined: vi.fn(),
 }));
 
 vi.mock('../../../../lib/session', () => ({
@@ -74,6 +75,7 @@ function asAdmin() {
   mocks.loadUnassignedQueue.mockResolvedValue([
     { missionId: 'm1', title: 'UK Standard Visitor', applicantName: 'Rahim Uddin' },
   ]);
+  mocks.loadClientsJoined.mockResolvedValue({ total: 7, last30Days: 3 });
 }
 
 beforeEach(() => {
@@ -162,6 +164,27 @@ describe('agency Dashboard', () => {
     expect(await renderServer(Page(pageProps()))).toBe('');
     expect(mocks.loadCases).not.toHaveBeenCalled();
     expect(mocks.loadMembers).not.toHaveBeenCalled();
+  });
+
+  it('shows how many clients have joined, all time and in the last 30 days, with no names', async () => {
+    const text = textOf(await renderServer(Page(pageProps())));
+    expect(text).toMatch(/Clients Joined 7/);
+    expect(text).toMatch(/Joined in the Last 30 Days 3/);
+    expect(mocks.loadClientsJoined).toHaveBeenCalledWith({}, 'acct-1', 'o1');
+  });
+
+  it('shows the same counter to a member who is not an administrator', async () => {
+    mocks.loadOrgAccess.mockResolvedValue({ org: { id: 'o1' }, admin: false, member: true });
+    mocks.loadCases.mockResolvedValue({ admin: false, cases: [inGoodShape] });
+    const text = textOf(await renderServer(Page(pageProps())));
+    expect(text).toMatch(/Clients Joined 7/);
+  });
+
+  it('shows zero as zero, and shows nothing at all when the count is refused', async () => {
+    mocks.loadClientsJoined.mockResolvedValue({ total: 0, last30Days: 0 });
+    expect(textOf(await renderServer(Page(pageProps())))).toMatch(/Clients Joined 0/);
+    mocks.loadClientsJoined.mockResolvedValue(null);
+    expect(textOf(await renderServer(Page(pageProps())))).not.toContain('Clients Joined');
   });
 
   it('renders nothing for an organization that does not exist', async () => {

@@ -78,6 +78,10 @@ export const RATE_LIMITS = {
   STAFF_FACTOR_ATTEMPT_DAY: { limit: 20, windowMs: 24 * HOUR_MS },
   // One audit row per lock window, so a stream of refused tries cannot flood the audit chain.
   STAFF_FACTOR_LOCK_AUDIT: { limit: 1, windowMs: 5 * 60 * 1000 },
+  // The public client-invitation page and its logo (growth loop 1), per network address: a page
+  // view is one use, the logo another, so these sit far above a person opening a link a few times.
+  INVITATION_PREVIEW_IP: { limit: 60, windowMs: HOUR_MS },
+  INVITATION_LOGO_IP: { limit: 120, windowMs: HOUR_MS },
   // Online payments (S11). The gateway's callbacks are open to the internet and authenticated only
   // by asking the gateway, so each one is bounded per network address, and each payment is bounded
   // by how often it may make VisaStack call the gateway. Starting a payment is bounded per person

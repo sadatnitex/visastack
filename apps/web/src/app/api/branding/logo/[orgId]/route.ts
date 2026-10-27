@@ -1,17 +1,11 @@
 import { readOrganizationLogo } from '@visastack/services';
+import { logoResponse } from '../../../../../lib/logo-response';
 import { withSession } from '../../../../../lib/session';
 import { createStorage } from '../../../../../lib/storage';
 
 export const dynamic = 'force-dynamic';
 
 const ORG_ID = /^[a-f0-9-]{36}$/i;
-
-/** A fresh, exactly-sized copy, so a view over a larger pooled buffer never leaks bytes beyond the image. */
-function freshArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-  const body = new Uint8Array(bytes.byteLength);
-  body.set(bytes);
-  return body.buffer;
-}
 
 /**
  * An agency's logo, for the image tags in the agency workspace, the settings preview and an invitation.
@@ -29,17 +23,6 @@ export async function GET(
   return withSession(async ({ db }) => {
     const logo = await readOrganizationLogo(db, createStorage(db), orgId);
     if (!logo) return new Response('not found', { status: 404 });
-    return new Response(freshArrayBuffer(logo.bytes), {
-      status: 200,
-      headers: {
-        'Content-Type': logo.contentType,
-        'Content-Length': String(logo.bytes.byteLength),
-        'Content-Disposition': 'inline; filename="logo"',
-        'Cache-Control': 'private, max-age=86400',
-        'X-Content-Type-Options': 'nosniff',
-        'Content-Security-Policy': "default-src 'none'; sandbox",
-        'Cross-Origin-Resource-Policy': 'same-origin',
-      },
-    });
+    return logoResponse(logo, 'private, max-age=86400');
   });
 }
