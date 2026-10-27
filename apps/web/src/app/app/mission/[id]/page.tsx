@@ -57,6 +57,9 @@ import { fieldLabel } from '../../../../lib/master-profile';
 import { REQUIREMENT_GROUPS } from '../../../../lib/requirement-groups';
 import { withSession } from '../../../../lib/session';
 import { AttachPackForm, type PackOption } from './attach-pack-form';
+import { CaseMoreMenu } from './case-more-menu';
+import { CaseWelcome } from './case-welcome';
+import { caseWelcomeCopy } from './case-welcome-copy';
 import { ChangesSinceConfirmedList } from './changes-since-confirmed';
 import {
   AppointmentsPanel,
@@ -158,6 +161,9 @@ const REQUIREMENT_STATE_META: Record<
 
 type AttentionKind = 'changed' | 'missing' | 'unconfirmed' | 'tasks';
 
+/** How long after it is made a case still opens with its welcome note. */
+const WELCOME_WINDOW_MS = 60 * 60 * 1000;
+
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
 // WP-X1 next step card: wording for the first attention item. A changed case
@@ -200,10 +206,13 @@ interface RequirementDetailRow {
 
 export default async function MissionPage({
   params,
+  searchParams,
 }: {
   readonly params: Promise<{ id: string }>;
+  readonly searchParams?: Promise<{ readonly welcome?: string | string[] }>;
 }) {
   const { id } = await params;
+  const { welcome } = (await searchParams) ?? {};
   const locale = await getLocale();
   const t = createTranslator(locale);
 
@@ -541,6 +550,12 @@ export default async function MissionPage({
 
   const { mission } = data;
   const nextStates = legalTransitions(mission.state);
+  // Cancelling is final, so it is offered only from the More menu, behind a question.
+  const stageStates = nextStates.filter((state) => state !== 'CANCELLED');
+  // The welcome note greets a case that was just made (Start a Case or Start a New Case from
+  // This One both arrive with `welcome=1`); an old case opened with the same address shows none.
+  const justCreated =
+    welcome === '1' && Date.now() - new Date(mission.createdAt).getTime() < WELCOME_WINDOW_MS;
 
   const openTasks = data.tasks.filter(
     (task) => task.status === 'OPEN' || task.status === 'IN_PROGRESS',
@@ -637,12 +652,27 @@ export default async function MissionPage({
               className="btn btn-secondary"
               href={`/app/applicant/${data.applicantId}/missions/prepare-again?from=${mission.id}`}
             >
-              Prepare Again
+              Start a New Case from This One
             </Link>
             <SnapshotButton missionId={mission.id} />
+            <CaseMoreMenu
+              missionId={mission.id}
+              applicantId={data.applicantId}
+              canCancel={nextStates.includes('CANCELLED')}
+            />
           </>
         }
       />
+
+      {justCreated ? (
+        <CaseWelcome
+          {...caseWelcomeCopy({
+            packName: mission.packVersionId ? (data.packInfo?.name ?? null) : null,
+            checklistsToPick: data.packOptions.length,
+            firstGapHref: attention.find((item) => item.kind !== 'changed')?.href ?? null,
+          })}
+        />
+      ) : null}
 
       <CaseStageTracker state={mission.state} labels={STATE_LABELS} nextStates={nextStates} />
 
@@ -1107,11 +1137,15 @@ export default async function MissionPage({
           <article className="card">
             <p className="card-kicker">Workflow</p>
             <h2 className="card-title">Advance the Case</h2>
-            {nextStates.length === 0 ? (
-              <p className="card-body">This case is in a terminal state.</p>
+            {stageStates.length === 0 ? (
+              <p className="card-body">
+                {nextStates.length === 0
+                  ? 'This case is in a terminal state.'
+                  : 'There is no further stage from here. To stop the case, use More at the top of the page.'}
+              </p>
             ) : (
               <div className="u-mt-050">
-                <TransitionButtons missionId={mission.id} nextStates={nextStates} />
+                <TransitionButtons missionId={mission.id} nextStates={stageStates} />
               </div>
             )}
           </article>
@@ -1120,8 +1154,8 @@ export default async function MissionPage({
             <h2 className="card-title">Snapshots</h2>
             <p className="card-body case-memory-link">
               Each snapshot keeps exactly what it held.{' '}
-              <Link href={memoryHref(data.applicantId)}>Open Application Memory</Link> to see every
-              case for this person and compare what you confirmed with today.
+              <Link href={memoryHref(data.applicantId)}>Open Case History</Link> to see every case
+              for this person and compare what you confirmed with today.
             </p>
             {data.snapshots.length === 0 ? (
               <p className="card-body">

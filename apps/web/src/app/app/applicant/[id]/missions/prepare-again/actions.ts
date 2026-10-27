@@ -64,7 +64,7 @@ export async function prepareCaseAgainAction(
 
   if (outcome.id) {
     revalidatePath(`/app/applicant/${applicantId}/missions`);
-    redirect(`/app/mission/${outcome.id}`);
+    redirect(`/app/mission/${outcome.id}?welcome=1`);
   }
   // A refusal usually means the list changed (a newer checklist, a record
   // that went out of date, a share that ended): redraw it so a retry works.

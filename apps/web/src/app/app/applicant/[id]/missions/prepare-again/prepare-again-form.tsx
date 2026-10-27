@@ -42,7 +42,7 @@ export interface SharingQuestionView {
 const INITIAL: ActionState = { ok: true, message: '' };
 
 /**
- * Prepare Again (Programme X U02): the new case's details, the three groups
+ * Start a New Case from This One (Programme X U02): the new case's details, the three groups
  * of records with tick boxes for what to carry, and one tick box per person
  * or agency with all-cases access. Nothing is ticked for them by default:
  * leaving someone unticked means they do not see the new case.

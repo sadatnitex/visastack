@@ -45,6 +45,8 @@ vi.mock('../../../../lib/session', () => ({
 vi.mock('../../../../lib/ai', () => ({ isExplanationConfigured: async () => false }));
 vi.mock('../../../../lib/locale', () => ({ getLocale: async () => 'en' }));
 vi.mock('./attach-pack-form', () => ({ AttachPackForm: stub('AttachPackForm') }));
+vi.mock('./case-more-menu', () => ({ CaseMoreMenu: stub('CaseMoreMenu') }));
+vi.mock('./case-welcome', () => ({ CaseWelcome: stub('CaseWelcome') }));
 vi.mock('./collaboration-panels', () => ({
   AppointmentsPanel: stub('AppointmentsPanel'),
   EvidenceSelectionPanel: stub('EvidenceSelectionPanel'),
@@ -170,8 +172,13 @@ function setUp(
   );
 }
 
-const render = async () =>
-  renderServer(await MissionPage({ params: Promise.resolve({ id: 'synthetic-case' }) }));
+const render = async (query: { readonly welcome?: string } = {}) =>
+  renderServer(
+    await MissionPage({
+      params: Promise.resolve({ id: 'synthetic-case' }),
+      searchParams: Promise.resolve(query),
+    }),
+  );
 
 /** Index of each marker in the page, in document order. */
 function order(html: string, markers: readonly string[]): number[] {
@@ -458,7 +465,7 @@ describe('changed details inside the alert (WP-V3 part 3)', () => {
     expect(textOf(alertOf(await render()))).toContain('different choice of evidence');
   });
 
-  it('keeps the alert when the list cannot be read, pointing to Application Memory', async () => {
+  it('keeps the alert when the list cannot be read, pointing to Case History', async () => {
     setUp({ dirty: true, gateRefuses: true });
     const alert = alertOf(await render());
     expect(textOf(alert)).toContain('This case has changed since it was last acknowledged.');
@@ -466,7 +473,7 @@ describe('changed details inside the alert (WP-V3 part 3)', () => {
     expect(mocks.listChangesSinceConfirmed).not.toHaveBeenCalled();
   });
 
-  it('reads nothing extra for a case that has not changed, and links Application Memory from the snapshots', async () => {
+  it('reads nothing extra for a case that has not changed, and links Case History from the snapshots', async () => {
     setUp();
     const html = await render();
     expect(mocks.requireAccess).not.toHaveBeenCalled();
@@ -524,5 +531,82 @@ describe('self-reviewed note uses the shared case-scope rule (ADR 0017)', () => 
       caseExceptions: [{ missionId: 'another-case', missionTitle: 'Other', since: new Date() }],
     });
     expect(await withAccess([otherException])).not.toContain(SELF);
+  });
+});
+
+describe('owner list items 1, 3 and 10 on the case page', () => {
+  it('keeps Cancel away from the stage buttons and offers it from More only', async () => {
+    setUp();
+    const html = await render();
+    expect(stubProps(html, 'TransitionButtons')).toEqual([
+      { missionId: 'synthetic-case', nextStates: ['READY_FOR_REVIEW'] },
+    ]);
+    expect(stubProps(html, 'CaseMoreMenu')).toEqual([
+      { missionId: 'synthetic-case', applicantId: 'synthetic-family', canCancel: true },
+    ]);
+    // More sits with the header actions, above the stage tracker.
+    expect(html.indexOf('data-stub="CaseMoreMenu"')).toBeLessThan(
+      html.indexOf('aria-label="Actual case workflow state"'),
+    );
+  });
+
+  it('offers no cancel for a finished case', async () => {
+    setUp();
+    mocks.getMissionForOwner.mockResolvedValue(ok({ ...MISSION, state: 'CANCELLED' }));
+    const html = await render();
+    expect(stubProps(html, 'CaseMoreMenu')[0]).toMatchObject({ canCancel: false });
+    expect(textOf(html)).toContain('This case is in a terminal state.');
+    expect(html).not.toContain('data-stub="TransitionButtons"');
+  });
+
+  it('names the reuse and history links by what they give', async () => {
+    setUp();
+    const html = await render();
+    const text = textOf(html);
+    expect(text).toContain('Start a New Case from This One');
+    expect(text).toContain('Open Case History');
+    expect(text).not.toContain('Prepare Again');
+    expect(text).not.toContain('Application Memory');
+    expect(html).toContain(
+      'href="/app/applicant/synthetic-family/missions/prepare-again?from=synthetic-case"',
+    );
+  });
+
+  const justMade = () =>
+    mocks.getMissionForOwner.mockResolvedValue(ok({ ...MISSION, createdAt: new Date() }));
+
+  it('opens a new case with its welcome note under the header, and only then', async () => {
+    setUp();
+    justMade();
+    expect(await render()).not.toContain('data-stub="CaseWelcome"');
+    const html = await render({ welcome: '1' });
+    const [welcome] = stubProps<{ title: string; action: { href: string } }>(html, 'CaseWelcome');
+    expect(welcome?.title).toBe('Case Created');
+    // No checklist is linked and none is published in this setup: the note says so.
+    expect(welcome?.action.href).toBe('#evidence');
+    expect(html.indexOf('data-stub="CaseWelcome"')).toBeLessThan(
+      html.indexOf('aria-label="Actual case workflow state"'),
+    );
+  });
+
+  it('greets only a case made in the last hour, not an old case opened with the same address', async () => {
+    setUp();
+    mocks.getMissionForOwner.mockResolvedValue(
+      ok({ ...MISSION, createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000) }),
+    );
+    expect(await render({ welcome: '1' })).not.toContain('data-stub="CaseWelcome"');
+  });
+
+  it('names the linked checklist in the welcome note', async () => {
+    setUp({ requirements: ['CRITICAL_GAP'] });
+    mocks.getMissionForOwner.mockResolvedValue(
+      ok({ ...MISSION, packVersionId: 'pv-1', createdAt: new Date() }),
+    );
+    const [welcome] = stubProps<{ body: string[]; action: { href: string } }>(
+      await render({ welcome: '1' }),
+      'CaseWelcome',
+    );
+    expect(welcome?.body[0]).toContain('Checklist linked: Japan visitor.');
+    expect(welcome?.action.href).toBe('#readiness');
   });
 });

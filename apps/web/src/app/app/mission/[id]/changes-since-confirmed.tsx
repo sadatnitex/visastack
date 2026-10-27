@@ -28,8 +28,8 @@ export function ChangesSinceConfirmedList({
   if (!changes) {
     return (
       <p className="case-changes-note">
-        <Link href={memoryHref(applicantId)}>Open Application Memory</Link> to see what you
-        confirmed before.
+        <Link href={memoryHref(applicantId)}>Open Case History</Link> to see what you confirmed
+        before.
       </p>
     );
   }

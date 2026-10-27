@@ -209,8 +209,10 @@ const STATE_LABELS: Record<string, string> = {
   CANCELLED: 'Cancelled',
 };
 
-const DESTRUCTIVE: ReadonlySet<string> = new Set(['CANCELLED']);
-
+/**
+ * The stage buttons. Cancelling is not one of them: it is final, so it lives in the page's More
+ * menu behind a confirmation question (case-more-menu.tsx), never beside the stages.
+ */
 export function TransitionButtons({
   missionId,
   nextStates,
@@ -219,31 +221,19 @@ export function TransitionButtons({
   readonly nextStates: readonly MissionState[];
 }) {
   const [state, formAction, pending] = useActionState(transitionMissionAction, INITIAL);
+  const stages = nextStates.filter((to) => to !== 'CANCELLED');
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
       <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-        {nextStates.map((to) => (
-          <form
-            action={formAction}
-            key={to}
-            onSubmit={(e) => {
-              if (
-                DESTRUCTIVE.has(to) &&
-                !window.confirm(
-                  `Move this case to ${STATE_LABELS[to] ?? to}? This can't be undone.`,
-                )
-              ) {
-                e.preventDefault();
-              }
-            }}
-          >
+        {stages.map((to) => (
+          <form action={formAction} key={to}>
             <input type="hidden" name="missionId" value={missionId} />
             <input type="hidden" name="to" value={to} />
             <SubmitButton
               pending={pending}
               idle={STATE_LABELS[to] ?? to}
               busy={STATE_LABELS[to] ?? to}
-              className={`btn ${DESTRUCTIVE.has(to) ? 'btn-danger' : 'btn-secondary'}`}
+              className="btn btn-secondary"
             />
           </form>
         ))}

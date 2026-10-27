@@ -85,7 +85,11 @@ export async function attachPackAction(
   return result;
 }
 
-/** Move the mission through the reviewer workflow (legal transitions only). */
+/**
+ * Move the mission through the reviewer workflow (legal transitions only). Cancelling is final,
+ * so it is refused unless the request carries the answer to the page's own confirmation question
+ * (the More menu's Yes, Cancel This Case); a stray or replayed stage button cannot cancel a case.
+ */
 export async function transitionMissionAction(
   _prev: ActionState,
   formData: FormData,
@@ -93,6 +97,9 @@ export async function transitionMissionAction(
   const missionId = String(formData.get('missionId') ?? '');
   const to = String(formData.get('to') ?? '') as MissionState;
   if (missionId.length === 0 || to.length === 0) return { ok: false, message: 'Missing case.' };
+  if (to === 'CANCELLED' && formData.get('confirmCancel') !== 'yes') {
+    return { ok: false, message: 'Confirm that you want to cancel this case, then try again.' };
+  }
   const result = await withSession(async ({ db, accountId }) => {
     const transitioned = await transitionMission(db, { actorAccountId: accountId, missionId, to });
     if (!transitioned.ok) {
@@ -100,7 +107,8 @@ export async function transitionMissionAction(
     }
     return {
       ok: true,
-      message: `Case moved to ${STATE_LABELS[to] ?? to}.`,
+      message:
+        to === 'CANCELLED' ? 'This case is cancelled.' : `Case moved to ${STATE_LABELS[to] ?? to}.`,
     } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);

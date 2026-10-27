@@ -1,122 +1,239 @@
 'use client';
 
-import { useActionState } from 'react';
-import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
+import { type ReactNode, useActionState, useId, useRef } from 'react';
+import {
+  FormMessage,
+  SubmitButton,
+  useFocusInvalidField,
+} from '../../../../../components/form-feedback';
 import { Disclosure } from '../../../../../components/ui';
-import { type ActionState, createMissionAction } from './actions';
+import type { CaseCountryOption, CasePurposeGroup } from '../../../../../lib/case-choices';
+import { createMissionAction } from './actions';
+import {
+  type ActionState,
+  CASE_DETAIL_FIELDS,
+  type CaseFormField,
+  TITLE_MAX,
+} from './case-form-fields';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
-export function CreateMissionForm({ applicantId }: { readonly applicantId: string }) {
+/**
+ * Start a Case: three questions first (a name, the country from the list the app holds, and the
+ * purpose from the approved list), the rest under one fold-out. The server checks every answer
+ * and says beside each field what to fix; focus goes to the first one. A matching checklist is
+ * linked by the server once the case exists, and the case opens at the top with a welcome note.
+ */
+export function CreateMissionForm({
+  applicantId,
+  countries,
+  purposes,
+}: {
+  readonly applicantId: string;
+  readonly countries: readonly CaseCountryOption[];
+  readonly purposes: readonly CasePurposeGroup[];
+}) {
   const [state, formAction, pending] = useActionState(createMissionAction, INITIAL);
+  const formRef = useRef<HTMLFormElement>(null);
+  const baseId = useId();
+  const messageId = `${baseId}-message`;
+  useFocusInvalidField(formRef, state);
+
+  const errors = state.fieldErrors ?? {};
+  const values = state.values ?? {};
+  const detailsHaveProblem = [...CASE_DETAIL_FIELDS].some((name) => errors[name] !== undefined);
+
+  /** The attributes and message that tie one field to its own problem. */
+  const problem = (name: CaseFormField, hintId?: string) => {
+    const error = errors[name];
+    const errorId = `${baseId}-${name}-error`;
+    const describedBy = [error ? errorId : null, hintId ?? null].filter(Boolean).join(' ');
+    return {
+      control: {
+        ...(error ? { 'aria-invalid': true as const } : {}),
+        ...(describedBy ? { 'aria-describedby': describedBy } : {}),
+      },
+      message: error ? (
+        <p id={errorId} className="field-msg field-msg-err case-field-error">
+          {error}
+        </p>
+      ) : null,
+    };
+  };
+
+  const field = (
+    name: CaseFormField,
+    label: ReactNode,
+    input: (id: string, control: ReturnType<typeof problem>['control']) => ReactNode,
+    hint?: string,
+  ) => {
+    const id = `${baseId}-${name}`;
+    const hintId = hint ? `${id}-hint` : undefined;
+    const { control, message } = problem(name, hintId);
+    return (
+      <div className="field-row">
+        <label className="field-label" htmlFor={id}>
+          {label}
+        </label>
+        {hint ? (
+          <p id={hintId} className="field-hint">
+            {hint}
+          </p>
+        ) : null}
+        {input(id, control)}
+        {message}
+      </div>
+    );
+  };
+
+  const dateRange = { start: problem('travelStartDate'), end: problem('travelEndDate') };
 
   return (
-    <form action={formAction} className="field-list">
+    // Drawn afresh after each refused attempt, so every box shows what was sent.
+    <form
+      key={state.attempt ?? 0}
+      ref={formRef}
+      action={formAction}
+      className="field-list"
+      noValidate
+    >
       <input type="hidden" name="applicantId" value={applicantId} />
-      <div className="field-row">
-        <label className="field-label" htmlFor="title">
-          What is this case for?
-        </label>
+      {field('title', 'What is this case for?', (id, control) => (
         <input
-          id="title"
+          id={id}
           name="title"
           type="text"
           required
+          maxLength={TITLE_MAX}
+          autoComplete="off"
           className="input"
           placeholder="e.g. UK Student Visa - Autumn 2026"
+          defaultValue={values.title ?? ''}
+          {...control}
         />
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor="destination">
-          Where are you going?
-        </label>
-        <input
-          id="destination"
-          name="destination"
-          type="text"
+      ))}
+      {field(
+        'destination',
+        'Where are you going?',
+        (id, control) => (
+          <select
+            id={id}
+            name="destination"
+            className="input"
+            defaultValue={values.destination ?? ''}
+            {...control}
+          >
+            <option value="">Not Sure Yet</option>
+            {countries.map((country) => (
+              <option key={country.iso2} value={country.iso2}>
+                {country.name}
+              </option>
+            ))}
+          </select>
+        ),
+        'Choose a country and a purpose, and the checklist for that visa route is linked when there is one.',
+      )}
+      {field('purpose', 'What is the trip for?', (id, control) => (
+        <select
+          id={id}
+          name="purpose"
           className="input"
-          placeholder="e.g. United Kingdom"
-        />
-      </div>
+          defaultValue={values.purpose ?? ''}
+          {...control}
+        >
+          <option value="">Not Sure Yet</option>
+          {purposes.map((group) => (
+            <optgroup key={group.family} label={group.label}>
+              {group.options.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      ))}
       <Disclosure
         title="Add More Details (Optional)"
-        hint="Purpose, family trip label, dates and deadline"
+        hint="Family trip label, embassy, dates and deadline"
+        {...(detailsHaveProblem ? { open: true } : {})}
       >
-        <div className="field-row">
-          <label className="field-label" htmlFor="purpose">
-            Purpose (Optional)
-          </label>
+        {field('itineraryRef', 'Family Trip Label (Optional)', (id, control) => (
           <input
-            id="purpose"
-            name="purpose"
-            type="text"
-            className="input"
-            placeholder="e.g. Postgraduate study"
-          />
-        </div>
-        <div className="field-row">
-          <label className="field-label" htmlFor="itineraryRef">
-            Family Trip Label (Optional)
-          </label>
-          <input
-            id="itineraryRef"
+            id={id}
             name="itineraryRef"
             type="text"
             className="input"
             placeholder="e.g. Smith Family Europe 2026"
+            defaultValue={values.itineraryRef ?? ''}
+            {...control}
           />
-        </div>
-        <div className="field-row">
-          <label className="field-label" htmlFor="jurisdiction">
-            Jurisdiction / consular post (optional)
-          </label>
+        ))}
+        {field('jurisdiction', 'Embassy or Visa Centre (Optional)', (id, control) => (
           <input
-            id="jurisdiction"
+            id={id}
             name="jurisdiction"
             type="text"
             className="input"
             placeholder="e.g. US Embassy Dhaka"
+            defaultValue={values.jurisdiction ?? ''}
+            {...control}
           />
-        </div>
-        <div className="field-row">
-          <label className="field-label" htmlFor="serviceCategory">
-            Service Category (Optional)
-          </label>
+        ))}
+        {field('serviceCategory', 'Service Category (Optional)', (id, control) => (
           <input
-            id="serviceCategory"
+            id={id}
             name="serviceCategory"
             type="text"
             className="input"
             placeholder="e.g. Tourist, Student, Work"
+            defaultValue={values.serviceCategory ?? ''}
+            {...control}
           />
-        </div>
-        <div className="field-row">
-          <label className="field-label" htmlFor="travelStartDate">
-            Travel Dates (Optional)
-          </label>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <input
-              id="travelStartDate"
-              name="travelStartDate"
-              type="date"
-              className="input"
-              aria-label="Travel start date"
-            />
-            <input
-              id="travelEndDate"
-              name="travelEndDate"
-              type="date"
-              className="input"
-              aria-label="Travel end date"
-            />
+        ))}
+        <fieldset className="fieldset case-date-range">
+          <legend className="field-label">Travel Dates (Optional)</legend>
+          <div className="case-date-pair">
+            <div>
+              <label className="field-label" htmlFor={`${baseId}-travelStartDate`}>
+                Start Date
+              </label>
+              <input
+                id={`${baseId}-travelStartDate`}
+                name="travelStartDate"
+                type="date"
+                className="input"
+                defaultValue={values.travelStartDate ?? ''}
+                {...dateRange.start.control}
+              />
+              {dateRange.start.message}
+            </div>
+            <div>
+              <label className="field-label" htmlFor={`${baseId}-travelEndDate`}>
+                End Date
+              </label>
+              <input
+                id={`${baseId}-travelEndDate`}
+                name="travelEndDate"
+                type="date"
+                className="input"
+                defaultValue={values.travelEndDate ?? ''}
+                {...dateRange.end.control}
+              />
+              {dateRange.end.message}
+            </div>
           </div>
-        </div>
-        <div className="field-row">
-          <label className="field-label" htmlFor="targetDeadline">
-            Target Deadline (Optional)
-          </label>
-          <input id="targetDeadline" name="targetDeadline" type="date" className="input" />
-        </div>
+        </fieldset>
+        {field('targetDeadline', 'Target Deadline (Optional)', (id, control) => (
+          <input
+            id={id}
+            name="targetDeadline"
+            type="date"
+            className="input"
+            defaultValue={values.targetDeadline ?? ''}
+            {...control}
+          />
+        ))}
       </Disclosure>
       <div>
         <SubmitButton
@@ -125,7 +242,7 @@ export function CreateMissionForm({ applicantId }: { readonly applicantId: strin
           busy="Creating…"
           className="btn btn-primary"
         />
-        <FormMessage result={state} />
+        <FormMessage id={messageId} result={state} />
       </div>
     </form>
   );

@@ -32,6 +32,8 @@ export interface WorkspaceNavigation {
   readonly caption: string;
   /** The current traveller's photo, shown in place of their initials (WP-PH1). */
   readonly photo?: string;
+  /** The traveller this navigation is for, when it is for one. */
+  readonly travellerId?: string;
   readonly primary: readonly NavLink[];
   readonly tools: readonly NavLink[];
   readonly settings: readonly NavLink[];
@@ -51,11 +53,21 @@ export function recordSections(applicantId: string): readonly NavLink[] {
   ];
 }
 
-/** Navigation describes only the current server-authorized context list; it grants no access. */
+/**
+ * Navigation describes only the current server-authorized context list; it grants no access.
+ *
+ * On a case page the traveller is the one the case layout reported after its own owner check
+ * (`caseSubject`). Until that report arrives (the case is still loading, or the page's scripts have
+ * not run yet) the sidebar keeps the traveller that was selected before (`previousTravellerId`),
+ * or the only traveller when there is just one, instead of dropping to "Choose a Traveller"
+ * (owner list item 2). Either way the person must be in the owner's own traveller list, and the
+ * layout's report replaces the guess as soon as it comes.
+ */
 export function workspaceNavigation(
   pathname: string,
   access: WorkspaceAccess,
   caseSubject?: { readonly route: string; readonly applicantId: string } | null,
+  previousTravellerId?: string | null,
 ): WorkspaceNavigation {
   const segments = pathname.split('/').filter(Boolean);
   if (segments[1] === 'admin') {
@@ -132,7 +144,9 @@ export function workspaceNavigation(
     : !casePath
       ? (access.travellers.find((item) => item.relationship === 'SELF') ??
         (access.travellers.length === 1 ? access.travellers[0] : undefined))
-      : undefined;
+      : ((previousTravellerId
+          ? access.travellers.find((item) => item.id === previousTravellerId)
+          : undefined) ?? (access.travellers.length === 1 ? access.travellers[0] : undefined));
 
   if (segments[1] === 'applicant' && !person) return unavailable('Traveller Access Unavailable');
   const base = person ? `/app/applicant/${person.id}` : null;
@@ -146,6 +160,7 @@ export function workspaceNavigation(
     kind: 'personal',
     name: person?.name ?? (casePath ? 'Visa Case' : 'Personal Space'),
     ...(person?.photo ? { photo: person.photo } : {}),
+    ...(person ? { travellerId: person.id } : {}),
     caption:
       person?.relationship === 'SELF'
         ? 'Personal Space'

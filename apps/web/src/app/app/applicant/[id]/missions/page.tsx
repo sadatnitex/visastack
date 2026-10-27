@@ -8,6 +8,7 @@ import {
 } from '../../../../../components/case-readiness-ring';
 import { PROGRESS_IN_CASE_LINE } from '../../../../../components/progress-ring';
 import { EmptyState, PageHeader, StatusBadge } from '../../../../../components/ui';
+import { caseCountryOptions, casePurposeGroups } from '../../../../../lib/case-choices';
 import { humanizeCode } from '../../../../../lib/format-code';
 import { withSession } from '../../../../../lib/session';
 import { CreateMissionForm } from './create-mission-form';
@@ -79,7 +80,7 @@ export default async function MissionsPage({
               Prepare a Brief
             </Link>
             <Link className="btn btn-secondary" href={`/app/applicant/${id}/memory`}>
-              Application Memory
+              Case History
             </Link>
           </>
         }
@@ -131,7 +132,11 @@ export default async function MissionsPage({
           <p className="card-kicker">New</p>
           <h2 className="card-title">Start a Case</h2>
           {data.coreGranted ? (
-            <CreateMissionForm applicantId={id} />
+            <CreateMissionForm
+              applicantId={id}
+              countries={caseCountryOptions()}
+              purposes={casePurposeGroups()}
+            />
           ) : (
             <p className="card-body">
               Turn on <strong>Let VisaStack Process My Details</strong> on Home to create cases.

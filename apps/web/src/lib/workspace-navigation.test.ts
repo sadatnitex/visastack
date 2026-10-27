@@ -136,6 +136,43 @@ describe('current contextual navigation contract', () => {
       'Visa Case',
     );
   });
+  it('keeps the traveller selected before while a case has not reported its own yet (owner item 2)', () => {
+    const loading = workspaceNavigation(`/app/mission/${m1}`, access, null, p2);
+    expect(loading.name).toBe('Synthetic Family');
+    expect(loading.caption).toBe('Managed Traveller');
+    expect(loading.travellerId).toBe(p2);
+    expect(loading.primary.map((link) => link.label)).not.toContain('Choose a Traveller');
+    // The case's own report wins over the earlier choice.
+    const reported = workspaceNavigation(
+      `/app/mission/${m1}`,
+      access,
+      { route: `/app/mission/${m1}`, applicantId: p1 },
+      p2,
+    );
+    expect(reported.name).toBe('Synthetic Self');
+    expect(reported.travellerId).toBe(p1);
+  });
+  it('shows the only traveller on a case page, since every case they can open is theirs', () => {
+    const family = access.travellers[1];
+    if (!family) throw new Error('fixture');
+    const single: WorkspaceAccess = { ...access, travellers: [family] };
+    const nav = workspaceNavigation(`/app/mission/${m1}`, single);
+    expect(nav.name).toBe('Synthetic Family');
+    expect(nav.caption).not.toBe('Choose a Traveller');
+  });
+  it('never keeps an earlier traveller outside the owner-authorized list, or a reported unknown one', () => {
+    expect(workspaceNavigation(`/app/mission/${m1}`, access, null, 'unknown').name).toBe(
+      'Visa Case',
+    );
+    const nav = workspaceNavigation(
+      `/app/mission/${m1}`,
+      access,
+      { route: `/app/mission/${m1}`, applicantId: 'unknown' },
+      p2,
+    );
+    expect(nav.name).toBe('Visa Case');
+    expect(nav.travellerId).toBeUndefined();
+  });
   it('does not accept a subject outside the existing owner-authorized context list', () => {
     const nav = workspaceNavigation(`/app/mission/${m1}`, access, {
       route: `/app/mission/${m1}`,

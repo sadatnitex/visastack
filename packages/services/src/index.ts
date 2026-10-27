@@ -1642,3 +1642,4 @@ export {
   listEmailDeliveryProblems,
   resendEmail,
 } from './email-delivery-admin';
+export { type PackMatch, type PackMatchTerms, findMatchingPublicPack } from './pack-matching';
