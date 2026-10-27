@@ -772,7 +772,7 @@ export default async function ApplicantDocumentsPage({
             </article>
           ) : (
             <>
-              <article className="card u-mb-150">
+              <article className="card u-mb-150" id="add-document">
                 <p className="card-kicker">Upload</p>
                 <h2 className="card-title">Add a Document</h2>
                 <p className="card-body u-mb-125">

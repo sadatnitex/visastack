@@ -1,7 +1,11 @@
-import { getApplicant, hasConsent, listMissions } from '@visastack/services';
+import { computeReadiness, getApplicant, hasConsent, listMissions } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import {
+  CaseReadinessRing,
+  type ReadinessCounts,
+} from '../../../../../components/case-readiness-ring';
 import { EmptyState, PageHeader, StatusBadge } from '../../../../../components/ui';
 import { humanizeCode } from '../../../../../lib/format-code';
 import { withSession } from '../../../../../lib/session';
@@ -27,6 +31,9 @@ const STATE_LABELS: Record<string, string> = {
   CANCELLED: 'Cancelled',
 };
 
+/** The most cases whose readiness is worked out for the list, so a long history never slows the page. */
+const RING_LIMIT = 25;
+
 export default async function MissionsPage({
   params,
 }: {
@@ -41,7 +48,19 @@ export default async function MissionsPage({
       listMissions(db, accountId, id),
       hasConsent(db, accountId, 'CORE_PROCESSING'),
     ]);
-    return { applicant, missions: missions.ok ? missions.value : [], coreGranted };
+    const rows = missions.ok ? missions.value : [];
+    // Readiness only for a case with a checklist attached; the owner check above covers every case here.
+    const readiness = new Map<string, ReadinessCounts>();
+    await Promise.all(
+      rows
+        .filter((mission) => mission.packVersionId)
+        .slice(0, RING_LIMIT)
+        .map(async (mission) => {
+          const result = await computeReadiness(db, mission.id);
+          if (result.ok) readiness.set(mission.id, result.value);
+        }),
+    );
+    return { applicant, missions: rows, readiness, coreGranted };
   });
 
   if (!data) notFound();
@@ -70,15 +89,28 @@ export default async function MissionsPage({
           <p className="card-kicker">Your Cases</p>
           <h2 className="card-title">Active &amp; Past</h2>
           {data.missions.length === 0 ? (
-            <EmptyState icon="briefcase" title="No Cases Yet">
-              A case checks this person's documents against the requirements of one visa route.
-              Start one on the right.
+            <EmptyState
+              icon="briefcase"
+              title="No Cases Yet"
+              why="Once a checklist is attached, you see how many items are ready and what is still missing."
+              action={{ href: '#start-case', label: 'Start a Case' }}
+            >
+              A case checks this person's documents against the checklist of one visa route. Start
+              one with the form on this page.
             </EmptyState>
           ) : (
             <div className="rows u-mt-050">
               {data.missions.map((mission) => (
                 <Link className="row row-link" key={mission.id} href={`/app/mission/${mission.id}`}>
-                  <span className="row-key">{mission.title}</span>
+                  <span className="row-key">
+                    {mission.title}
+                    <span className="progress-ring-row">
+                      <CaseReadinessRing
+                        size="sm"
+                        readiness={data.readiness.get(mission.id) ?? null}
+                      />
+                    </span>
+                  </span>
                   <span className="row-end">
                     <StatusBadge tone="neutral">
                       {STATE_LABELS[mission.state] ?? humanizeCode(mission.state)}
@@ -93,7 +125,7 @@ export default async function MissionsPage({
           )}
         </article>
 
-        <article className="card">
+        <article className="card" id="start-case">
           <p className="card-kicker">New</p>
           <h2 className="card-title">Start a Case</h2>
           {data.coreGranted ? (

@@ -5,6 +5,7 @@ import {
   type Db,
   type NeedsAttention,
   accountPrincipal,
+  computeReadiness,
   getConsents,
   listApplicants,
   listDocuments,
@@ -17,6 +18,7 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { CaseReadinessRing, type ReadinessCounts } from '../../components/case-readiness-ring';
 import { Checklist, Disclosure, EmptyState, NextStepCard, StatusBadge } from '../../components/ui';
 import { holdsPlatformRole } from '../../lib/admin';
 import { formatDateOnly } from '../../lib/format-date';
@@ -156,6 +158,19 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
       }),
   );
 
+  // Readiness for the active cases Home lists, from the same source as the case page. The cases come
+  // from the gated attention read above; one without a checklist simply has no entry (its ring is empty).
+  const readinessByCase = new Map<string, ReadinessCounts>();
+  await Promise.all(
+    perApplicant
+      .flatMap((row) => row.attention?.activeCases ?? [])
+      .slice(0, HOME_CASES_VISIBLE)
+      .map(async (entry) => {
+        const result = await computeReadiness(db, entry.id);
+        if (result.ok) readinessByCase.set(entry.id, result.value);
+      }),
+  );
+
   const sharing = sharingInvitationItem(incomingGrants, now);
   // One ranked list across every person and the account itself (ADR 0016).
   const attention = rankAttentionItems([
@@ -168,6 +183,7 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
     consents,
     applicants,
     perApplicant,
+    readinessByCase,
     attention,
     sharingWaiting: sharing !== null,
   };
@@ -525,6 +541,7 @@ export default async function AppPage({
             <EmptyState
               icon="users"
               title="No Applicants Yet"
+              why="Add each person once, and every visa case reuses the same details."
               action={{ href: '/app/applicants', label: 'Add an Applicant' }}
             >
               An applicant is one person whose passport details and documents you keep here and
@@ -577,7 +594,8 @@ export default async function AppPage({
           </h2>
           {requestRows.length === 0 && activeCases.length === 0 ? (
             <p className="card-body home-attention-why">
-              No open requests or active cases right now.
+              Nothing is open right now. When an agency asks you for something, or you start a case,
+              it appears here with the next step.
             </p>
           ) : (
             <ul className="attention-list">
@@ -618,6 +636,12 @@ export default async function AppPage({
                       <span className="attention-detail">
                         Active case{' \u00b7 '}
                         {entry.person}
+                      </span>
+                      <span className="progress-ring-row">
+                        <CaseReadinessRing
+                          size="sm"
+                          readiness={data.readinessByCase.get(entry.id) ?? null}
+                        />
                       </span>
                     </span>
                     <span className="attention-end">

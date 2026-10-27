@@ -4,6 +4,7 @@ import {
   type MissionState,
 } from '@visastack/core';
 import type { Readiness } from '@visastack/services';
+import { ProgressRing } from './progress-ring';
 
 export function CaseStageTracker({
   state,
@@ -70,28 +71,14 @@ export function CasePreparationSummary({
   return (
     <section className="case-preparation-summary" aria-label="Evidence preparation completeness">
       <div className="case-preparation-ring">
-        <svg viewBox="0 0 120 120" aria-hidden="true">
-          <path
-            d="M60 10 a50 50 0 1 1 0 100 a50 50 0 1 1 0 -100"
-            fill="none"
-            stroke="var(--hairline-soft)"
-            strokeWidth="9"
-          />
-          {progress !== null ? (
-            <path
-              d="M60 10 a50 50 0 1 1 0 100 a50 50 0 1 1 0 -100"
-              fill="none"
-              stroke="var(--accent)"
-              strokeWidth="9"
-              pathLength="100"
-              strokeDasharray={`${progress} ${100 - progress}`}
-            />
-          ) : null}
-        </svg>
-        <div>
-          <strong>{progress === null ? 'N/A' : `${progress}%`}</strong>
-          <span>Required items on file</span>
-        </div>
+        <ProgressRing
+          size="lg"
+          done={readiness.satisfiedRequired}
+          total={readiness.requiredCount}
+          centre={progress === null ? 'N/A' : `${progress}%`}
+          emptyLabel="No required items"
+          emptyLine="This checklist has no required items to count."
+        />
       </div>
       <div className="case-preparation-counts">
         <h3>Evidence Progress</h3>

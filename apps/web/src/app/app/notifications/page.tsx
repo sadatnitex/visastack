@@ -26,9 +26,14 @@ export default async function NotificationsPage() {
 
       <article className="card">
         {notifications.length === 0 ? (
-          <EmptyState icon="bell" title="No Alerts Yet">
-            Updates about your cases, requests for evidence and documents nearing expiry will appear
-            here, each with a button that takes you to what needs doing.
+          <EmptyState
+            icon="bell"
+            title="No Alerts Yet"
+            why="You never have to open every case to find out what changed."
+            action={{ href: '/app', label: 'Go to Home' }}
+          >
+            This is where VisaStack tells you what needs you: a request from an agency, a document
+            close to expiring, a case that moved. Nothing needs you right now.
           </EmptyState>
         ) : (
           <div className="rows">

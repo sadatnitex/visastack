@@ -27,6 +27,7 @@ import {
   establishStepUpProof,
   tryEstablishStepUp,
 } from '../../../../../lib/step-up';
+import { SHARE_CREATED_LINE, SHARE_INVITED_LINE } from '../../../../../lib/success-lines';
 
 /** Result surfaced back to the client for inline feedback. */
 const sharingInvitationFlag = 'PERSONAL_SHARING_INVITATIONS_ENABLED';
@@ -118,8 +119,7 @@ export async function createGrantAction(
       if (!invitation.ok) return { ok: false, message: invitation.error.message };
       return {
         ok: true,
-        message:
-          'Invitation created. Email queued. They can create an account or sign in, then review and accept. You can also share the link below.',
+        message: SHARE_INVITED_LINE,
         invitationUrl: `${resolveBaseUrl()}/invitation?kind=sharing&token=${invitation.value.rawToken}`,
       };
     }
@@ -138,7 +138,7 @@ export async function createGrantAction(
     if (!created.ok) return { ok: false, message: created.error.message } satisfies ActionState;
     return {
       ok: true,
-      message: `Access shared with ${recipientEmail}. It becomes active once they accept.`,
+      message: SHARE_CREATED_LINE,
     } satisfies ActionState;
   });
 

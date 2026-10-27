@@ -106,6 +106,24 @@ describe('agency Dashboard', () => {
     expect(text).toContain('Ready');
   });
 
+  it('draws the progress ring of each case from its readiness, and an empty one where no checklist is attached', async () => {
+    mocks.loadCases.mockResolvedValue({
+      admin: true,
+      cases: [
+        needsAttention,
+        inGoodShape,
+        { ...inGoodShape, missionId: 'm3', packVersionId: null, readiness: null },
+      ],
+    });
+    const html = await renderServer(Page(pageProps()));
+    expect(html).toContain('aria-label="3 of 5 items ready"');
+    expect(html).toContain('aria-label="4 of 4 items ready"');
+    expect(html).toContain('aria-label="No checklist yet"');
+    expect(textOf(html)).toContain('No checklist is attached to this case yet.');
+    // The agency never reads a ring as a decision.
+    expect(textOf(html)).not.toMatch(/items (approved|cleared|accepted)/i);
+  });
+
   it('opens a case in its workspace on the Cases tab, not on the traveller-only case page', async () => {
     const html = await renderServer(Page(pageProps()));
     expect(html).toContain('href="/app/agency/o1/cases#mission-m1"');
