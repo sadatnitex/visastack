@@ -288,11 +288,8 @@ const DOCS: readonly Case[] = [
       usedFallback
     />
   )),
-  row('run the field reader', () => (
-    <aiReview.RunAiExtractionButton applicantId="a1" documentVersionId="v1" />
-  )),
-  row('run the text reader', () => (
-    <aiReview.RunOcrButton applicantId="a1" documentVersionId="v1" />
+  row('read a document again', () => (
+    <aiReview.ReadAgainButton applicantId="a1" documentVersionId="v1" />
   )),
   row('run the document type check', () => (
     <aiReview.RunClassificationButton applicantId="a1" documentVersionId="v1" />

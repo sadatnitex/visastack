@@ -1,14 +1,21 @@
 import type { DocumentState } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
 import { and, desc, eq, gt, sql } from 'drizzle-orm';
+import type { SystemScope } from './access';
+import { isAiDispatchAllowed } from './ai-provider-config';
+import { READER_VERSION, aiReadingIdempotencyKey } from './ai-reading-job';
+import { MRZ_TD3_MODEL_VERSION } from './ai-run-kinds';
 import { appendAuditEvent } from './audit';
-import { classifyDocumentText } from './classification';
+import { classifyDocumentText, findTd3Block } from './classification';
+import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
 import { proposeDocumentName } from './document-naming';
 import { documentVersionBelongsToApplicant } from './document-version-owner';
 import { type ServiceError, serviceError } from './errors';
 import type { DocumentConverterPort } from './extraction';
+import { type MrzReading, mrzFieldDefinitions, mrzFieldReadings } from './mrz-suggestions';
 import { buildProposedName, extensionOf } from './naming';
+import { registerFieldDefinitions } from './profile';
 
 /**
  * Document intake pipeline (Build Spec §6): quarantine → scan → normalize →
@@ -246,6 +253,8 @@ async function commitTransition(
     processingStatus: DocumentState;
     safetyStatus: DocumentVersion['safetyStatus'];
   }>,
+  /** Runs inside the same transaction once the state change has taken effect, so its writes commit or roll back with it. */
+  alsoWithin?: (tx: Db, updated: DocumentVersion) => Promise<void>,
 ): Promise<DocumentVersion | undefined> {
   return db.transaction(async (tx) => {
     const updated = first(
@@ -273,8 +282,122 @@ async function commitTransition(
         safety: updated.safetyStatus,
       },
     });
+    if (alsoWithin) await alsoWithin(tx, updated);
     return updated;
   });
+}
+
+/**
+ * Queues the automatic AI reading for a file that has just finished intake (S5, ADR 0019), when
+ * any AI step could run: the owner has switched on reading text from scans or reading details,
+ * and the platform has not switched AI off. One job per file version and reader version, however
+ * many times this runs. It only queues work: the job itself checks consent, limits and the
+ * protected-document list again when it runs, as the file's owner and nobody else.
+ */
+async function queueAiReadingIfUseful(tx: Db, version: DocumentVersion): Promise<void> {
+  if (version.safetyStatus !== 'CLEAN') return;
+  const owner = first(
+    await tx
+      .select({ accountId: schema.applicants.ownerAccountId })
+      .from(schema.documents)
+      .innerJoin(schema.applicants, eq(schema.applicants.id, schema.documents.applicantId))
+      .where(eq(schema.documents.id, version.documentId))
+      .limit(1),
+  );
+  if (!owner) return;
+  const mayReadScans = await hasConsent(tx, owner.accountId, 'AI_OCR');
+  const mayReadDetails = await hasConsent(tx, owner.accountId, 'AI_EXTRACTION');
+  if (!mayReadScans && !mayReadDetails) return;
+  if (!(await isAiDispatchAllowed(tx))) return;
+  await tx
+    .insert(schema.processingJobs)
+    .values({
+      documentVersionId: version.id,
+      jobType: 'INTAKE',
+      processingVersion: READER_VERSION,
+      idempotencyKey: aiReadingIdempotencyKey(version.id),
+    })
+    .onConflictDoNothing();
+}
+
+/**
+ * Stores a passport's machine-readable lines as suggestions (S5, ADR 0019): one zero-cost run
+ * whose model version starts with `deterministic:`, with one pending suggestion per field and the
+ * line it came from as the quotation. No AI is involved and nothing is written to the profile.
+ * Skipped when this version already has such a run, so reading a file again never lists the same
+ * details twice, and never brings back one the person already decided. Returns how many suggestions
+ * were stored.
+ */
+async function recordMrzSuggestions(
+  tx: Db,
+  input: {
+    readonly documentVersionId: string;
+    readonly applicantId: string;
+    readonly text: string;
+    readonly readings: readonly MrzReading[];
+  },
+): Promise<number> {
+  if (input.readings.length === 0) return 0;
+  const already = first(
+    await tx
+      .select({ id: schema.aiExtractionRuns.id })
+      .from(schema.aiExtractionRuns)
+      .where(
+        and(
+          eq(schema.aiExtractionRuns.documentVersionId, input.documentVersionId),
+          eq(schema.aiExtractionRuns.modelVersion, MRZ_TD3_MODEL_VERSION),
+        ),
+      )
+      .limit(1),
+  );
+  if (already) return 0;
+  await registerFieldDefinitions(tx, mrzFieldDefinitions());
+  const run = required(
+    first(
+      await tx
+        .insert(schema.aiExtractionRuns)
+        .values({
+          documentVersionId: input.documentVersionId,
+          applicantId: input.applicantId,
+          status: 'SUCCEEDED',
+          modelVersion: MRZ_TD3_MODEL_VERSION,
+          promptVersion: MRZ_TD3_MODEL_VERSION,
+          costUnits: 0,
+          provider: 'deterministic',
+        })
+        .returning({ id: schema.aiExtractionRuns.id }),
+    ),
+    'machine-readable reading run',
+  );
+  for (const reading of input.readings) {
+    const proposal = required(
+      first(
+        await tx
+          .insert(schema.fieldProposals)
+          .values({
+            aiExtractionRunId: run.id,
+            documentVersionId: input.documentVersionId,
+            applicantId: input.applicantId,
+            type: 'NEW',
+            fieldKey: reading.fieldKey,
+            value: reading.value,
+            confidence: reading.confidence,
+            rationale: reading.rationale,
+          })
+          .returning({ id: schema.fieldProposals.id }),
+      ),
+      'machine-readable field proposal',
+    );
+    const charStart = input.text.indexOf(reading.quote);
+    await tx.insert(schema.evidenceLocations).values({
+      fieldProposalId: proposal.id,
+      snippet: reading.quote,
+      charStart: charStart === -1 ? null : charStart,
+      charEnd: charStart === -1 ? null : charStart + reading.quote.length,
+      verified: charStart !== -1,
+    });
+  }
+  return input.readings.length;
 }
 
 /**
@@ -463,6 +586,19 @@ async function runExtractionStep(
         .where(eq(schema.documents.id, document.id));
     }
 
+    // A passport's machine-readable lines become suggestions at once (S5): no AI, no cost, and
+    // still only a suggestion until the person approves it.
+    const quotedLines = classification.mrz ? findTd3Block(result.text)?.quoted : undefined;
+    const mrzSuggestions =
+      classification.mrz && quotedLines
+        ? await recordMrzSuggestions(tx, {
+            documentVersionId: version.id,
+            applicantId: document.applicantId,
+            text: result.text,
+            readings: mrzFieldReadings(classification.mrz, quotedLines),
+          })
+        : 0;
+
     await tx
       .update(schema.processingRuns)
       .set({ status: 'COMPLETED', completedAt: new Date() })
@@ -480,6 +616,7 @@ async function runExtractionStep(
         classifiedType: classification.classifiedType,
         confidence: classification.confidence,
         populatedFields,
+        mrzSuggestions,
       },
     });
 
@@ -506,24 +643,44 @@ async function runExtractionStep(
   return recorded ? 'ok' : 'lost-lease';
 }
 
+/** Where the text an AI reading starts from came from. */
+export type ReadableTextSource =
+  /** The file's own text (a PDF, a Word file, plain text). */
+  | 'embedded'
+  /** Read on our own side by the private reader, nothing sent anywhere. */
+  | 'private_ocr'
+  /** Read from the picture by the AI provider. */
+  | 'ai_ocr';
+
+export interface ReadableText {
+  readonly text: string;
+  readonly source: ReadableTextSource;
+}
+
+/** The private reader's parser name (packages/adapters ocr-extraction.ts). */
+const PRIVATE_OCR_PARSER = 'tesseract-private';
+
 /**
- * The most recent successfully deterministically-extracted text for a
- * document version (AI Gateway input — packages/services/src/ai.ts). Returns
- * undefined if extraction never succeeded (e.g. `unsupported_format`), in
- * which case there is nothing grounded to hand the AI adapter.
+ * The best text there is for a document version, with where it came from (S5, ADR 0019): the newest
+ * successful reading by the file's own text or the private reader, and failing that the newest
+ * successful AI reading of the picture. Returns undefined when neither produced usable text, in
+ * which case there is nothing grounded to hand an AI step. Bound to the applicant it is read for: a
+ * version of anyone else's reads as missing (S2, M12).
  */
-export async function getLatestExtractedText(
+async function readableTextOf(
   db: Db,
   documentVersionId: string,
   applicantId: string,
-): Promise<string | undefined> {
-  // Bound to the applicant it is read for: a version of anyone else's reads as missing (S2, M12).
+): Promise<ReadableText | undefined> {
   if (!(await documentVersionBelongsToApplicant(db, documentVersionId, applicantId))) {
     return undefined;
   }
   const row = first(
     await db
-      .select({ text: schema.extractionRuns.extractedText })
+      .select({
+        text: schema.extractionRuns.extractedText,
+        parserName: schema.extractionRuns.parserName,
+      })
       .from(schema.extractionRuns)
       .where(
         and(
@@ -534,7 +691,53 @@ export async function getLatestExtractedText(
       .orderBy(desc(schema.extractionRuns.createdAt))
       .limit(1),
   );
-  return row?.text ?? undefined;
+  if (row?.text && row.text.trim().length > 0) {
+    return {
+      text: row.text,
+      source: row.parserName === PRIVATE_OCR_PARSER ? 'private_ocr' : 'embedded',
+    };
+  }
+  const ocr = first(
+    await db
+      .select({ text: schema.ocrRuns.extractedText })
+      .from(schema.ocrRuns)
+      .where(
+        and(
+          eq(schema.ocrRuns.documentVersionId, documentVersionId),
+          eq(schema.ocrRuns.status, 'SUCCEEDED'),
+        ),
+      )
+      .orderBy(desc(schema.ocrRuns.createdAt))
+      .limit(1),
+  );
+  if (ocr?.text && ocr.text.trim().length > 0) return { text: ocr.text, source: 'ai_ocr' };
+  return undefined;
+}
+
+/**
+ * The best text for a document version (AI Gateway input - packages/services/src/ai.ts): the file's
+ * own or privately read text, or failing that the AI reading of the picture. Returns undefined if
+ * nothing readable exists yet, in which case there is nothing grounded to hand the AI adapter.
+ */
+export async function getLatestExtractedText(
+  db: Db,
+  documentVersionId: string,
+  applicantId: string,
+): Promise<string | undefined> {
+  return (await readableTextOf(db, documentVersionId, applicantId))?.text;
+}
+
+/**
+ * The same best text, with where it came from, for the automatic reading job (S5). Takes the
+ * job's own scope, so only that job can ask; the applicant binding is the same as above.
+ */
+export async function getLatestReadableText(
+  db: Db,
+  _scope: SystemScope<'process-ai-reading'>,
+  documentVersionId: string,
+  applicantId: string,
+): Promise<ReadableText | undefined> {
+  return readableTextOf(db, documentVersionId, applicantId);
 }
 
 export type DocumentScanResult = typeof schema.documentScanResults.$inferSelect;
@@ -774,9 +977,14 @@ export async function processIntake(
       if (extractionStep === 'lost-lease') {
         return ok(await currentOrStale(db, input.documentVersionId, version));
       }
-      const extracted = await commitTransition(db, version, {
-        processingStatus: 'AWAITING_REVIEW',
-      });
+      // The automatic AI reading is queued in the same step that opens the file for review, so
+      // a file never waits for review without its reading having been considered (S5).
+      const extracted = await commitTransition(
+        db,
+        version,
+        { processingStatus: 'AWAITING_REVIEW' },
+        queueAiReadingIfUseful,
+      );
       if (!extracted) return ok(await currentOrStale(db, input.documentVersionId, version));
       version = extracted;
       continue;

@@ -2,6 +2,7 @@ import { isRepeatingFieldKey } from '@visastack/core/catalogue';
 import {
   type ProfileEntry,
   type ProposalWithEvidence,
+  type ReadingSource,
   isClearReading,
   isFixedFieldKey,
   isTrustedFactStatus,
@@ -48,6 +49,8 @@ export function confirmedValues(
 export function findingViewModel(
   { proposal, evidence }: ProposalWithEvidence,
   confirmed: ReadonlyMap<string, ConfirmedValue>,
+  /** Where the reading came from (decided from the records); omitted when it is not known. */
+  source?: ReadingSource,
 ): AiProposalViewModel {
   const key = proposal.fieldKey;
   const field = key ? savableField(key) : undefined;
@@ -69,6 +72,7 @@ export function findingViewModel(
     sensitive,
     ...(key && isFixedFieldKey(key) ? { fixed: true } : {}),
     ...(key && isRepeatingFieldKey(key) ? { repeating: true } : {}),
+    ...(source ? { source } : {}),
     ...(differs ? { difference: { current: showCurrent ? current.value : null } } : {}),
   };
 }

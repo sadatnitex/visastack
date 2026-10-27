@@ -799,8 +799,11 @@ export {
   type ContentLimitsResult,
   type DocumentScanResult,
   type MalwareScannerPort,
+  type ReadableText,
+  type ReadableTextSource,
   type ScanResult,
   getLatestExtractedText,
+  getLatestReadableText,
   listScanResults,
   nextIntakeState,
   processIntake,
@@ -851,6 +854,7 @@ export {
 } from './document-suggestion';
 
 export {
+  type AiReadingWorkerResult,
   type FailedJobSummary,
   type IntakeWorkerResult,
   type ProcessingJob,
@@ -858,8 +862,42 @@ export {
   requestDocumentReExtraction,
   listFailedJobs,
   retryFailedJob,
+  runAiReadingWorker,
   runIntakeWorker,
 } from './jobs';
+
+export {
+  type AiReadingPorts,
+  type AiReadingResult,
+  type ReadingLimits,
+  processAiReading,
+} from './ai-reading';
+export {
+  READER_VERSION,
+  READING_STOP_REASONS,
+  type ReadingStopReason,
+  aiReadingIdempotencyKey,
+  isAiReadingKey,
+  isReadingStopReason,
+} from './ai-reading-job';
+export {
+  DETERMINISTIC_MODEL_PREFIX,
+  MRZ_TD3_MODEL_VERSION,
+  isDeterministicModelVersion,
+} from './ai-run-kinds';
+export { type MrzReading, MRZ_FIELD_KEYS, mrzFieldReadings } from './mrz-suggestions';
+export {
+  READING_SOURCES,
+  READING_STAGES,
+  type DocumentReadingState,
+  type DocumentReadingStates,
+  type NotReadReason,
+  type ReadingSource,
+  type ReadingStage,
+  type ReadingStateFacts,
+  deriveReadingState,
+  listDocumentReadingStates,
+} from './document-reading-state';
 
 export {
   type AiCacheKeyComponents,
