@@ -3,6 +3,7 @@ import {
   type BillingStatus,
   type Invoice,
   type InvoiceStatus,
+  type ManualClaimView,
   getBillingAccountForOrganization,
   getCurrentPlanForOrganization,
   getOrganization,
@@ -12,6 +13,7 @@ import {
   listBillingStatusHistory,
   listCommercialOverridesForOrganization,
   listInvoicesForOrganization,
+  listManualClaims,
   listPlans,
 } from '@visastack/services';
 import type { Metadata } from 'next';
@@ -19,7 +21,12 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PageHeader } from '../../../../../components/ui';
 import { bootstrapAdminEmails, isPlatformOwnerAccount } from '../../../../../lib/admin';
-import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
+import {
+  formatDateOnly,
+  formatTimestamp,
+  formatTimestampDate,
+} from '../../../../../lib/format-date';
+import { CLAIM_METHOD_LABELS, CLAIM_STATUS_LABELS } from '../../../../../lib/invoice-labels';
 import {
   billingStatusLabel,
   invoiceStatusLabel,
@@ -34,12 +41,14 @@ import {
 } from '../../../../../lib/usage-format';
 import {
   ActivatePlanForm,
+  ApproveClaimButton,
   CancelDowngradeButton,
   CreateInvoiceForm,
   EndSubscriptionButton,
   GrantOverrideForm,
   OpenBillingAccountForm,
   RecordPaymentForm,
+  RejectClaimButton,
   RevokeOverrideButton,
   ScheduleDowngradeForm,
   TransitionBillingStatusForm,
@@ -77,6 +86,75 @@ const INVOICE_STATUS_TONE: Record<InvoiceStatus, string> = {
   VOID: 'badge-danger',
 };
 
+/** The agency's payment reports: waiting ones first, with the tools to decide, then the last few decisions. */
+function ClaimQueue({
+  organizationId,
+  claims,
+}: {
+  readonly organizationId: string;
+  readonly claims: readonly ManualClaimView[];
+}) {
+  const waiting = claims.filter((claim) => claim.status === 'SUBMITTED');
+  const decided = claims.filter((claim) => claim.status !== 'SUBMITTED').slice(0, 10);
+  if (claims.length === 0) return <p className="card-body">No payment reports yet.</p>;
+  return (
+    <>
+      <h3 className="invoice-subhead">Waiting for You</h3>
+      {waiting.length === 0 ? (
+        <p className="card-body u-mb-100">Nothing is waiting.</p>
+      ) : (
+        <ul className="invoice-list u-mb-100">
+          {waiting.map((claim) => (
+            <li key={claim.id} className="invoice-list-item invoice-list-item-block">
+              <span className="row-key">{claim.invoiceRef}</span>
+              <span>
+                {CLAIM_METHOD_LABELS[claim.method]},{' '}
+                {formatPrice(claim.amountMinorUnits, claim.currency)}, paid{' '}
+                {formatDateOnly(claim.paidOn)}. Reference {claim.reference}.
+              </span>
+              <span className="muted u-fs-085">
+                The invoice still owes{' '}
+                {formatPrice(claim.invoiceOutstandingMinorUnits, claim.currency)}.
+                {claim.note ? ` Note: ${claim.note}` : ''}
+              </span>
+              {claim.hasProofFile ? (
+                <a
+                  className="invoice-link"
+                  href={`/api/billing/proof/${organizationId}/${claim.id}`}
+                  download
+                >
+                  Download Proof
+                </a>
+              ) : null}
+              <div className="invoice-action-row">
+                <ApproveClaimButton organizationId={organizationId} claimId={claim.id} />
+                <RejectClaimButton organizationId={organizationId} claimId={claim.id} />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {decided.length > 0 ? (
+        <>
+          <h3 className="invoice-subhead">Decided Lately</h3>
+          <ul className="invoice-list">
+            {decided.map((claim) => (
+              <li key={claim.id} className="invoice-list-item">
+                <span>
+                  {claim.invoiceRef}, {formatPrice(claim.amountMinorUnits, claim.currency)}:{' '}
+                  {CLAIM_STATUS_LABELS[claim.status]}
+                  {claim.decidedAt ? ` on ${formatTimestampDate(claim.decidedAt)}` : ''}
+                  {claim.decisionReason ? `. Reason: ${claim.decisionReason}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+    </>
+  );
+}
+
 function invoiceAmount(invoice: Invoice): string {
   return `${formatPrice(invoice.invoicedAmountMinorUnits, invoice.currency)} invoiced, ${formatPrice(invoice.collectedAmountMinorUnits, invoice.currency)} collected`;
 }
@@ -107,6 +185,7 @@ export default async function AdminOrganizationPage({
       billing,
       billingHistory,
       invoices,
+      claims,
       overrides,
     ] = await Promise.all([
       listPlans(db),
@@ -116,6 +195,7 @@ export default async function AdminOrganizationPage({
       getBillingAccountForOrganization(db, actorRead),
       listBillingStatusHistory(db, actorRead),
       listInvoicesForOrganization(db, actorRead),
+      listManualClaims(db, actorRead),
       listCommercialOverridesForOrganization(db, orgId),
     ]);
 
@@ -130,6 +210,7 @@ export default async function AdminOrganizationPage({
       billing: billing.ok ? billing.value : undefined,
       billingHistory: billingHistory.ok ? billingHistory.value : [],
       invoices: invoices.ok ? invoices.value : [],
+      claims: claims.ok ? claims.value : [],
       overrides,
     };
   });
@@ -332,6 +413,16 @@ export default async function AdminOrganizationPage({
         )}
         <h3 style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>Create an Invoice</h3>
         <CreateInvoiceForm organizationId={orgId} plans={data.activePlans} />
+      </article>
+
+      <article className="card u-mb-150">
+        <p className="card-kicker">Commerce</p>
+        <h2 className="card-title">Payment Reports</h2>
+        <p className="card-body u-mb-100">
+          Payments the agency says it made another way. Nothing is counted until you confirm it,
+          with a fresh sign-in check. A rejection needs a reason the agency will read.
+        </p>
+        <ClaimQueue organizationId={orgId} claims={data.claims} />
       </article>
 
       <article className="card">

@@ -8047,6 +8047,137 @@ summary.visa-photo-title {
   font-size: var(--text-small);
 }
 
+/* WP-S12 agency invoices, payment reports and receipts (ADR 0020): one card per invoice with its plain
+   state, facts, actions and history. Flat, no shadows; every control keeps a 44px target. */
+.invoice-stack {
+  display: grid;
+  gap: var(--space-4);
+}
+.invoice-card {
+  display: grid;
+  gap: var(--space-3);
+}
+.invoice-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+.invoice-ref {
+  margin: 0;
+  font-size: var(--text-lead);
+  overflow-wrap: anywhere;
+}
+.invoice-note {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.invoice-hint {
+  margin: var(--space-1) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-caption);
+}
+.invoice-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+.invoice-facts dt {
+  color: var(--text-secondary);
+  font-size: var(--text-caption);
+}
+.invoice-facts dd {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.invoice-actions {
+  display: grid;
+  gap: var(--space-3);
+}
+.invoice-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+.invoice-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.invoice-recent {
+  display: grid;
+  gap: var(--space-2);
+}
+.invoice-claim {
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-4);
+}
+.invoice-claim-summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.invoice-claim-form {
+  max-width: 28rem;
+  padding-bottom: var(--space-4);
+}
+.invoice-section {
+  display: grid;
+  gap: var(--space-2);
+  border-top: 1px solid var(--hairline-soft);
+  padding-top: var(--space-3);
+}
+.invoice-subhead {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+.invoice-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.invoice-list-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+}
+.invoice-list-item-block {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+}
+.invoice-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 600;
+}
+.receipt-card {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 40rem;
+}
+.receipt-facts {
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+
 /* WP-G8A agency invitation page and clients joined counter (growth loop 1). The public invitation
    names the agency and lists the terms; the dashboard shows how many clients have joined. Flat
    surfaces only. */
