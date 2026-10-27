@@ -5853,3 +5853,9 @@ Owner approved 2026-10-25. Two fixes where the product said something that was n
 - Agency dashboard: "Clients Joined" and "Joined in the Last 30 Days", computed from invitation records (so it covers past invitations), counted per person on first acceptance, visible to active members, scoped to the organization, no names.
 - Review: 14 code review findings (inviter still an admin, counting people not invitations, advice for an already-accepted person, a dead end on a busy lookup, logo moved under /api because the page CSP middleware skips /api, one shared terms table, relative expiry instead of a UTC time, and more); security review found nothing at confidence 8 or higher; 21 guards broken on purpose and each turned a test red.
 - Not verified: the open (reviewed agency) state in a real browser (needs a database), the response headers on /api routes on Vercel, the accessibility and copy review skills (the whole-page axe tests cover the new pages). Moving the brand primitives out of the agency console folder was left for later.
+
+### 2026-10-27, Growth G1b: headline legibility
+
+- The owner reported the homepage headline read "Dean file": the "c" and "l" of "clean" touched at a letter-spacing of -0.073em (desktop) and -0.077em (phone) at weight 820. Both rules now use -0.04em at the same weight and size. Checked by eye on a production build from 320 to 1920px: clear gaps in every letter pair, two lines on desktop and tablet, three lines at 360 and 390, four at 320, no overflow.
+- A guard test (`headline-spacing-css.test.ts`) fails if the headline letter-spacing becomes tighter than -0.045em (proved red by restoring the old value); the browser check also asserts the rendered spacing.
+- Not verified: real Apple and Windows system fonts (the local build falls back to a local font), the live site.
