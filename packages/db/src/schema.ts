@@ -1589,6 +1589,9 @@ export const issuerVerifications = pgTable(
 export const dataKeys = pgTable('data_keys', {
   keyVersion: text('key_version').primaryKey(),
   wrappedDataKey: bytea('wrapped_data_key').notNull(),
+  // Which key wrapped it (for example `aws-kms:<key id>`); null means the local development
+  // key. Lets reads pick the right unwrapper and the re-wrap job count what is left to move.
+  wrappingKeyId: text('wrapping_key_id'),
   algorithm: text('algorithm').notNull().default('AES-256-GCM'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   retiredAt: timestamp('retired_at', { withTimezone: true }),

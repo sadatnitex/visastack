@@ -146,27 +146,8 @@ export function isAiTermsCheckDue(terms: AiProviderDataTerms, now: Date = new Da
   return now.getTime() - checked > AI_TERMS_RECHECK_DAYS * 24 * 60 * 60 * 1000;
 }
 
-/**
- * Postgres `undefined_table` (42P01) or `undefined_column` (42703), as raised
- * directly or wrapped by the driver: the expected failure between a deploy
- * and the migration that adds these tables.
- */
-export function isMissingRelationError(error: unknown): boolean {
-  const visit = (value: unknown, depth: number): boolean => {
-    if (typeof value !== 'object' || value === null || depth > 3) return false;
-    const { code, message, cause } = value as {
-      code?: unknown;
-      message?: unknown;
-      cause?: unknown;
-    };
-    if (code === '42P01' || code === '42703') return true;
-    if (typeof message === 'string' && /(relation|column) .* does not exist/i.test(message)) {
-      return true;
-    }
-    return visit(cause, depth + 1);
-  };
-  return visit(error, 0);
-}
+export { isMissingRelationError } from './missing-relation';
+import { isMissingRelationError } from './missing-relation';
 
 export interface AiProviderDataTermsState {
   /** False when the terms could not be read (table not there yet, or a read failure): every configuration is then "unknown". */

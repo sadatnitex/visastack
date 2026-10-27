@@ -10,6 +10,7 @@ import {
   type AccountExportWorkerResult,
   type CaseRetentionNoticeSweepResult,
   type CaseRetentionPurgeSweepResult,
+  type DataKeyRewrapSummary,
   type ErasureWorkerResult,
   type ExpirySweepResult,
   type InactiveAccountDeletionSweepResult,
@@ -18,12 +19,14 @@ import {
   type LegalHoldReminderSweepResult,
   type NotificationWorkerResult,
   type SweepResult,
+  type SystemScope,
   applyEmailDeliveryEvent,
   executeAccountDeletion,
   executeScheduledDowngrade,
   listDueDeletions,
   listDueDowngrades,
   pruneExpiredRateLimitBuckets,
+  rewrapDataKeys,
   runAccountExportWorker,
   runErasureWorker,
   runIntakeWorker,
@@ -682,6 +685,31 @@ export async function triggerRateLimitPrune(): Promise<{ readonly pruned: number
   } catch (error) {
     reportServerError('triggerRateLimitPrune', error, { step: 'prune failed' });
     return { pruned: 0 };
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * Moves every stored data key from the local key to the key service (S26). Run on the owner's
+ * word, not on a schedule: see docs/operations/key-management.md. Returns counts only.
+ */
+export async function triggerDataKeyRewrap(
+  scope: SystemScope<'rewrap-data-keys'>,
+): Promise<DataKeyRewrapSummary | { readonly error: string }> {
+  const connectionString = resolveDatabaseUrl(process.env);
+  const port = createKeyManagementPort();
+  if (!connectionString || !port) return { error: 'not_configured' };
+  const { db, pool } = createPooledDb(connectionString);
+  pool.on('error', (error) => {
+    reportServerError('triggerDataKeyRewrap', error, { step: 'idle pool connection error' });
+  });
+  try {
+    const handle = db as unknown as Parameters<typeof rewrapDataKeys>[0];
+    return await rewrapDataKeys(handle, scope, port);
+  } catch (error) {
+    reportServerError('triggerDataKeyRewrap', error, { step: 'rewrap failed' });
+    return { error: 'failed' };
   } finally {
     await pool.end();
   }

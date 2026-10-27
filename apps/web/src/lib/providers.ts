@@ -1,5 +1,6 @@
 import 'server-only';
 import {
+  AwsKmsKeyProvider,
   BasicSafetyScanner,
   BuiltinContentLimitsChecker,
   BuiltinPreviewRenderer,
@@ -65,7 +66,7 @@ const KNOWN_PROVIDERS = {
   EMAIL_PROVIDER: ['none', 'resend'],
   OBSERVABILITY_PROVIDER: ['console'],
   PAYMENT_PROVIDER: ['none'],
-  KMS_PROVIDER: ['local'],
+  KMS_PROVIDER: ['local', 'aws_kms'],
 } as const satisfies Record<string, readonly string[]>;
 
 type KnownProviderVar = keyof typeof KNOWN_PROVIDERS;
@@ -263,9 +264,35 @@ export function createPaymentPort(): PaymentPort {
  */
 export function createKeyManagementPort(): KeyManagementPort | undefined {
   checkKnownProvider('KMS_PROVIDER');
+  if (readEnv('KMS_PROVIDER') === 'aws_kms') return createAwsKmsPort();
   const masterKeyBase64 = readEnv('KMS_LOCAL_MASTER_KEY_BASE64');
   if (!masterKeyBase64) return undefined;
   return new LocalEnvelopeKeyProvider({ masterKeyBase64 });
+}
+
+let awsKmsPort: { readonly signature: string; readonly port: KeyManagementPort } | undefined;
+
+/**
+ * The real key service (`KMS_PROVIDER=aws_kms`, S26). Needs `KMS_KEY_ID` and `AWS_REGION`; the
+ * credentials come from the standard AWS environment. Anything missing returns no port at all,
+ * never the local key, so a half-set-up environment fails closed (protected fields report
+ * "encryption unavailable"). `KMS_LOCAL_MASTER_KEY_BASE64`, if still set, only opens data keys
+ * the re-wrap job has not moved yet. One instance is reused while the settings do not change.
+ */
+function createAwsKmsPort(): KeyManagementPort | undefined {
+  const keyId = readEnv('KMS_KEY_ID');
+  const region = readEnv('AWS_REGION');
+  if (!keyId || !region) return undefined;
+  const legacy = readEnv('KMS_LOCAL_MASTER_KEY_BASE64');
+  const signature = `${keyId}|${region}|${legacy ? 'legacy' : 'none'}`;
+  if (awsKmsPort?.signature === signature) return awsKmsPort.port;
+  const port = new AwsKmsKeyProvider({
+    keyId,
+    region,
+    ...(legacy ? { legacyLocalMasterKeyBase64: legacy } : {}),
+  });
+  awsKmsPort = { signature, port };
+  return port;
 }
 
 export { createStorage } from './storage';

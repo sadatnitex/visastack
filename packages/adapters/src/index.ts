@@ -8,6 +8,13 @@
 
 export { type BlobTokenFields, signBlobToken, verifyBlobToken } from './blob-token';
 
+export {
+  AWS_KMS_KEY_VERSION,
+  AWS_KMS_WRAPPING_PREFIX,
+  AwsKmsKeyProvider,
+  type AwsKmsKeyProviderOptions,
+  type KmsClientLike,
+} from './aws-kms-key-provider';
 export { NeonBlobStorage, type NeonBlobStorageOptions } from './neon-blob';
 
 export { VercelPrivateBlobStorage, type VercelPrivateBlobStorageOptions } from './vercel-blob';

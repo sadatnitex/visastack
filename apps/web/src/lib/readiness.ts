@@ -13,7 +13,8 @@ import type { Db } from '@visastack/services';
 import { type getPlatformCapabilities, resolvePlatformCapabilities } from './capabilities';
 import { evaluateCommercialReadiness, evaluateOperationalReadiness } from './commercial-readiness';
 import { getDeploymentMode } from './deployment-mode';
-import { NEON_AUTH_ENV_VARS, isPresent, isSignInConfigured } from './env';
+import { NEON_AUTH_ENV_VARS, isPresent, isSignInConfigured, readEnv } from './env';
+import { runKmsSelfTest } from './kms-self-test';
 import { SHIPPED_MIGRATIONS } from './migration-journal';
 import { validateProviderEnv } from './providers';
 
@@ -124,6 +125,10 @@ export async function evaluateReadiness(): Promise<ReadinessReport> {
     isSignInConfigured() &&
     providers.valid;
 
+  // Ask the key service once (remembered a few minutes) before the synchronous gates read the answer.
+  if (deploymentMode === 'commercial' || readEnv('KMS_PROVIDER') === 'aws_kms') {
+    await runKmsSelfTest();
+  }
   const commercial =
     deploymentMode === 'commercial'
       ? evaluateCommercialReadiness({ databaseReady: db.connected && db.schemaApplied })

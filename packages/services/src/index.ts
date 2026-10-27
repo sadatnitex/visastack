@@ -73,6 +73,8 @@ export {
 
 export { listAllApplicants, listRecentAuditEvents } from './platform-reads';
 
+export { type DataKeyRewrapSummary, rewrapDataKeys } from './data-key-rewrap';
+
 export {
   SCANNER_EVIDENCE_MAX_AGE_MS,
   SCANNER_VERIFIED_EVENT,
@@ -1204,9 +1206,12 @@ export type {
   ObservabilityPort,
   PaymentPort,
   ResolvedIdentity,
+  RewrappingKeyManagementPort,
   SendEmailInput,
   SendEmailResult,
 } from './ports';
+
+export { isRewrappingKeyManagementPort } from './ports';
 
 export {
   type DocumentLifecycleStatus,

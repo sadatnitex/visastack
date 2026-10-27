@@ -1,6 +1,7 @@
 import 'server-only';
 import { createAiExtractor } from './ai';
 import { isPresent, isSignInConfigured, readEnv } from './env';
+import { kmsSelfTestPassed } from './kms-self-test';
 
 /**
  * The commercial readiness guard (master directive §7 "PR 11"): every named
@@ -122,16 +123,18 @@ function buildGates(input: CommercialReadinessInput): readonly ReadinessGate[] {
     {
       key: 'realKeyManagement',
       label: 'real key management (KMS)',
-      // LocalEnvelopeKeyProvider (KMS_PROVIDER=local, the only
-      // implementation today, ./providers.ts's createKeyManagementPort) is
-      // explicitly NOT a real KMS (packages/adapters/src/key-management.ts's
-      // own doc comment) and refuses to construct at all once
-      // DEPLOYMENT_MODE=commercial. Hardcoded false, same pattern
-      // `realMalwareScanner` used before ClamAvScanner existed, until a
-      // genuine KMS vendor adapter (e.g. AWS KMS, GCP Cloud KMS) is
-      // registered in ./providers.ts and this gate checks for it
-      // specifically.
-      satisfied: false,
+      // LocalEnvelopeKeyProvider (KMS_PROVIDER=local) is explicitly NOT a real KMS
+      // and refuses to construct at all once DEPLOYMENT_MODE=commercial. This gate
+      // is satisfied only by the real key service (S26): KMS_PROVIDER=aws_kms with
+      // its key id and region present AND a self-test that has just passed (a
+      // throwaway key wrapped and opened with the configured credentials, see
+      // ./kms-self-test.ts). The self-test answer is the latest remembered one:
+      // false until a run has passed, so this gate can only fail closed.
+      satisfied:
+        readEnv('KMS_PROVIDER') === 'aws_kms' &&
+        isPresent('KMS_KEY_ID') &&
+        isPresent('AWS_REGION') &&
+        kmsSelfTestPassed(),
     },
     {
       key: 'safeConversion',

@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { type Db, first, required, schema } from './db';
+import { isMissingRelationError } from './missing-relation';
 import type { KeyManagementPort } from './ports';
 
 /** Mirrors the `field_sensitivity` Postgres enum (`packages/db/src/schema.ts`). */
@@ -64,15 +65,39 @@ export function resetProtectedFieldKeyCacheForTests(): void {
   unwrappedKeyCache.clear();
 }
 
-async function getExistingWrappedKey(db: Db, keyVersion: string): Promise<Buffer | undefined> {
+interface StoredDataKey {
+  readonly wrapped: Buffer;
+  readonly wrappingKeyId: string | null;
+}
+
+async function getExistingWrappedKey(
+  db: Db,
+  keyVersion: string,
+): Promise<StoredDataKey | undefined> {
   const row = first(
     await db
-      .select()
+      .select({ wrappedDataKey: schema.dataKeys.wrappedDataKey })
       .from(schema.dataKeys)
       .where(eq(schema.dataKeys.keyVersion, keyVersion))
       .limit(1),
   );
-  return row?.wrappedDataKey ? Buffer.from(row.wrappedDataKey) : undefined;
+  if (!row?.wrappedDataKey) return undefined;
+  // Read apart from the key itself so a deploy that runs before migration 0093 still reads every
+  // protected value: until the column exists every key is, truthfully, a local one.
+  let wrappingKeyId: string | null = null;
+  try {
+    const extra = first(
+      await db
+        .select({ wrappingKeyId: schema.dataKeys.wrappingKeyId })
+        .from(schema.dataKeys)
+        .where(eq(schema.dataKeys.keyVersion, keyVersion))
+        .limit(1),
+    );
+    wrappingKeyId = extra?.wrappingKeyId ?? null;
+  } catch (error) {
+    if (!isMissingRelationError(error)) throw error;
+  }
+  return { wrapped: Buffer.from(row.wrappedDataKey), wrappingKeyId };
 }
 
 /** Get (unwrapping once, then caching) the data key for `keyVersion`, generating and storing it if this is the first use of that version. */
@@ -84,8 +109,8 @@ async function getOrCreateDataKey(
   const cached = unwrappedKeyCache.get(keyVersion);
   if (cached) return cached;
 
-  let wrapped = await getExistingWrappedKey(db, keyVersion);
-  if (!wrapped) {
+  let stored = await getExistingWrappedKey(db, keyVersion);
+  if (!stored) {
     const generated = await port.generateDataKey();
     if (generated.keyVersion !== keyVersion) {
       throw new Error(
@@ -98,12 +123,18 @@ async function getOrCreateDataKey(
     // guarantees exactly one row survives regardless of which insert wins.
     await db
       .insert(schema.dataKeys)
-      .values({ keyVersion, wrappedDataKey: Buffer.from(generated.wrappedDataKey) })
+      .values({
+        keyVersion,
+        wrappedDataKey: Buffer.from(generated.wrappedDataKey),
+        ...(generated.wrappingKeyId ? { wrappingKeyId: generated.wrappingKeyId } : {}),
+      })
       .onConflictDoNothing();
-    wrapped = required(await getExistingWrappedKey(db, keyVersion), 'data key');
+    stored = required(await getExistingWrappedKey(db, keyVersion), 'data key');
   }
 
-  const unwrapped = Buffer.from(await port.unwrapDataKey(keyVersion, wrapped));
+  const unwrapped = Buffer.from(
+    await port.unwrapDataKey(keyVersion, stored.wrapped, stored.wrappingKeyId),
+  );
   unwrappedKeyCache.set(keyVersion, unwrapped);
   return unwrapped;
 }

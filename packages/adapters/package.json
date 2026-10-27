@@ -18,6 +18,7 @@
     "verify:audit-chain": "tsx src/verify-audit-chain.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-kms": "3.1157.0",
     "@aws-sdk/client-s3": "^3.1149.0",
     "@aws-sdk/lib-storage": "^3.1149.0",
     "@napi-rs/canvas": "^1.0.9",
