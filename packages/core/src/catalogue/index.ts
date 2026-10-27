@@ -16,3 +16,4 @@ export * from './document-lookup';
 export * from './queries';
 export * from './completion';
 export * from './report';
+export * from './field-policy';
