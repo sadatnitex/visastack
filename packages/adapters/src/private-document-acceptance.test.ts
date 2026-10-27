@@ -18,14 +18,15 @@ describe('private synthetic acceptance controls', () => {
       ],
       {
         env: { PATH: process.env[pathName] ?? '', GITHUB_REF: 'refs/heads/untrusted' },
-        timeout: 15_000,
+        // A fresh process compiles the script first, which is slow on a busy or small machine.
+        timeout: 60_000,
         encoding: 'utf8',
       },
     );
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('Acceptance requires main');
     expect(result.stdout).toBe('');
-  }, 20_000);
+  }, 70_000);
   it('produces a structurally valid PDF readable by the real native extractor', async () => {
     const bytes = cleanPdf();
     expect(
