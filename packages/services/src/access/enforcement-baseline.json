@@ -281,6 +281,8 @@
   "retention#documentsPastRetention",
   "retention#purgeExpiredDocuments",
   "retention#setRetentionPolicy",
+  "scanner-evidence#loadScannerEvidence",
+  "scanner-evidence#recordScannerEngineVerified",
   "sharing#acceptGrant",
   "sharing#createGrant",
   "sharing#expandGrantScope",

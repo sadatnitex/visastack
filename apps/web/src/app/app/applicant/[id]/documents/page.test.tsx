@@ -106,7 +106,7 @@ describe('the documents page while the server is still working on a file', () =>
     const html = await render();
     expect(stubProps<{ active: boolean }>(html, 'AutoRefresh')).toEqual([{ active: true }]);
     expect(textOf(html)).toContain(
-      'Some documents are still being checked. This page updates by itself, so there is no need to upload them again.',
+      'Some documents are still being checked, which can take a few minutes. This page updates by itself, so there is no need to upload them again.',
     );
   });
 

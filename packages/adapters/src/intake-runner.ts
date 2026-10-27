@@ -2,7 +2,12 @@ import { randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createPooledDb } from '@visastack/db';
-import { type Db, loadUploadQuotaConfig, runIntakeWorker } from '@visastack/services';
+import {
+  type Db,
+  loadUploadQuotaConfig,
+  recordScannerEngineVerified,
+  runIntakeWorker,
+} from '@visastack/services';
 import { ClamAvScanner, checkSignatureFreshness } from './clamav-scanner';
 import { BuiltinContentLimitsChecker } from './content-limits';
 import { IsolatedOcrExtractor } from './ocr-extraction';
@@ -79,6 +84,15 @@ export async function runIsolatedIntake(): Promise<void> {
       },
     };
     const extractor = new IsolatedOcrExtractor(storage, required('OCR_ENGINE_VERSION'));
+    // The workflow proved the live engine (clean file passes, test file caught) in the step
+    // before this one, the signatures were just checked and the storage is configured: record
+    // that, so readiness can say the scanner is really running and stop saying so if the worker
+    // stops. A failure to write this status note must never stop the queue from being processed.
+    try {
+      await recordScannerEngineVerified(handle, { engine: version });
+    } catch {
+      process.stderr.write('Scanner status note could not be recorded.\n');
+    }
     const limits = new BuiltinContentLimitsChecker({
       blobStore: storage,
       config: loadUploadQuotaConfig(),
