@@ -74,6 +74,10 @@
     {
       "path": "/api/jobs/process-database-backup",
       "schedule": "0 7 * * 0"
+    },
+    {
+      "path": "/api/jobs/process-whatsapp-inbox",
+      "schedule": "40 5 * * *"
     }
   ],
   "git": {

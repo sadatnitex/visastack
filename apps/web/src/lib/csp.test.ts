@@ -264,6 +264,11 @@ describe('buildContentSecurityPolicy', () => {
     expect(production['frame-ancestors']).toEqual(["'none'"]);
   });
 
+  it("admits only this site's own service worker and manifest", () => {
+    expect(production['worker-src']).toEqual(["'self'"]);
+    expect(production['manifest-src']).toEqual(["'self'"]);
+  });
+
   it('reports violations to the same-origin endpoint', () => {
     expect(production['report-uri']).toEqual([CSP_REPORT_PATH]);
     expect(CSP_REPORT_PATH).toBe('/api/csp-report');

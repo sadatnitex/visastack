@@ -61,7 +61,7 @@ jobs:
         working-directory: apps/web
         env:
           PLAYWRIGHT_BASE_URL: ${{ github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
-        run: npx playwright test no-secret-auth.spec.ts ux-public.spec.ts browser-security.spec.ts
+        run: npx playwright test no-secret-auth.spec.ts ux-public.spec.ts browser-security.spec.ts pwa.spec.ts
 
       - name: Upload Playwright report
         if: always()

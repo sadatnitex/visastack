@@ -57,6 +57,7 @@ vi.mock('../app/app/admin/document-protection/actions', standIn);
 vi.mock('../app/app/admin/complaints/actions', standIn);
 vi.mock('../app/app/admin/organizations/[orgId]/actions', standIn);
 vi.mock('../app/app/admin/packs/actions', standIn);
+vi.mock('../app/app/account/whatsapp/actions', standIn);
 vi.mock('../app/app/agency/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/actions', standIn);
 vi.mock('../app/app/applicant/[id]/actions', standIn);
@@ -72,6 +73,7 @@ vi.mock('../app/app/mission/[id]/snapshots/[snapshotId]/actions', standIn);
 vi.mock('../app/app/privacy/actions', standIn);
 vi.mock('../app/app/staff-code/actions', standIn);
 
+const { ConnectWhatsAppForm } = await import('../app/app/account/whatsapp/connect-form');
 const { AddApplicantForm } = await import('../app/app/add-applicant-form');
 const { ConsentButton } = await import('../app/app/consent-button');
 const adminButtons = await import('../app/app/admin/action-buttons');
@@ -200,6 +202,7 @@ const PEOPLE: readonly Case[] = [
     <ConsentButton type="SHARING" granted locale="en" label="Sharing" />
   )),
   { name: 'accept an invitation', element: () => <AcceptInvitationForm token="t1" /> },
+  { name: 'connect WhatsApp', element: () => <ConnectWhatsAppForm />, fields: ['optIn'] },
   {
     name: 'personal sharing invitation acceptance',
     element: () => <AcceptSharingInvitationForm token="synthetic-token" />,
