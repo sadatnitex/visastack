@@ -9,6 +9,7 @@ describe('isNeonProtectedPath', () => {
       '/app/applicants',
       '/app/mission/123/snapshots/9',
       '/pilot-access-denied',
+      '/oauth/authorize',
     ]) {
       expect(isNeonProtectedPath(path), path).toBe(true);
     }
@@ -25,6 +26,8 @@ describe('isNeonProtectedPath', () => {
       '/application',
       '/applications/1',
       '/apple',
+      '/oauth/token',
+      '/oauth/authorized',
     ]) {
       expect(isNeonProtectedPath(path), path).toBe(false);
     }

@@ -80,6 +80,7 @@ vi.mock('../app/app/mission/[id]/actions', standIn);
 vi.mock('../app/app/mission/[id]/snapshots/[snapshotId]/actions', standIn);
 vi.mock('../app/app/privacy/actions', standIn);
 vi.mock('../app/app/staff-code/actions', standIn);
+vi.mock('../app/oauth/authorize/actions', standIn);
 
 const { ConnectWhatsAppForm } = await import('../app/app/account/whatsapp/connect-form');
 const { AddApplicantForm } = await import('../app/app/add-applicant-form');
@@ -88,6 +89,7 @@ const adminButtons = await import('../app/app/admin/action-buttons');
 const adminForms = await import('../app/app/admin/admin-forms');
 const aiSettings = await import('../app/app/admin/ai-settings/forms');
 const protectionForms = await import('../app/app/admin/document-protection/forms');
+const aiConsentForms = await import('../app/oauth/authorize/consent-form');
 const signInRecoveryForms = await import('../app/app/admin/sign-in-recovery/forms');
 const emailDeliveryForms = await import('../app/app/admin/email/forms');
 const staffCodeForms = await import('../app/app/staff-code/forms');
@@ -1412,6 +1414,20 @@ const ADMIN: readonly Case[] = [
       notificationId={rowId()}
       kind="Client Invitation"
       date="6 Oct 2026"
+    />
+  )),
+  row('connect an AI app to a record', () => (
+    <aiConsentForms.ConsentForm
+      request={{
+        clientId: 'https://claude.ai/oauth/x',
+        redirectUri: 'https://claude.ai/api/mcp/auth_callback',
+        codeChallenge: 'c'.repeat(43),
+        resource: 'https://vs.example.test/mcp',
+        state: 'abc',
+      }}
+      appName="Claude"
+      record={{ id: rowId(), name: 'Synthetic Traveller' }}
+      cases={[{ id: rowId(), title: 'UK Visit' }]}
     />
   )),
   row('assign a complaint', () => <complaintForms.AssignComplaintForm complaintId={rowId()} />),
