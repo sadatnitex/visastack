@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
 import { and, asc, desc, eq, gt, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
+import { SystemScope } from './access';
+import { type AiReadingPorts, processAiReading } from './ai-reading';
+import { type ReadingStopReason, isAiReadingJob, isIntakeJob } from './ai-reading-job';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
@@ -222,7 +225,12 @@ function backoffSeconds(attemptsSoFar: number): number {
  * mirroring the same generosity assumption `LEASE_DURATION_MS` itself
  * already rests on.
  */
-async function claimJobs(db: Db, limit: number): Promise<ProcessingJob[]> {
+async function claimJobs(
+  db: Db,
+  limit: number,
+  /** Intake passes and automatic AI readings share the queue; each worker claims only its own kind. */
+  kind: 'intake' | 'reading' = 'intake',
+): Promise<ProcessingJob[]> {
   const leaseOwner = randomUUID();
   const rolloutGraceExpiry = new Date(Date.now() - LEASE_DURATION_MS);
   return db.transaction(async (tx) => {
@@ -249,6 +257,9 @@ async function claimJobs(db: Db, limit: number): Promise<ProcessingJob[]> {
         and(
           eq(schema.processingJobs.status, 'PENDING'),
           lte(schema.processingJobs.availableAt, sql`now()`),
+          kind === 'reading'
+            ? isAiReadingJob(schema.processingJobs.idempotencyKey)
+            : isIntakeJob(schema.processingJobs.idempotencyKey),
         ),
       )
       .orderBy(asc(schema.processingJobs.availableAt))
@@ -301,7 +312,13 @@ async function claimJobs(db: Db, limit: number): Promise<ProcessingJob[]> {
  * ordinary `claimJobs` call reclaims and reprocesses it from scratch —
  * never silently marked complete with unfinished work.
  */
-async function completeJob(db: Db, job: ProcessingJob, leaseOwner: string): Promise<boolean> {
+async function completeJob(
+  db: Db,
+  job: ProcessingJob,
+  leaseOwner: string,
+  /** For an automatic reading that finished without reading everything: the safe-to-show reason. */
+  stopReason?: ReadingStopReason,
+): Promise<boolean> {
   const updated = await db
     .update(schema.processingJobs)
     .set({
@@ -310,6 +327,7 @@ async function completeJob(db: Db, job: ProcessingJob, leaseOwner: string): Prom
       leaseOwner: null,
       leaseExpiresAt: null,
       updatedAt: new Date(),
+      ...(stopReason ? { errorCode: stopReason } : {}),
     })
     .where(
       and(
@@ -324,7 +342,12 @@ async function completeJob(db: Db, job: ProcessingJob, leaseOwner: string): Prom
 }
 
 /** A closed, display-safe failure category — never the raw internal error text. */
-export type JobErrorCode = 'SCAN_FAILED' | 'EXTRACTION_FAILED' | 'STORAGE_UNAVAILABLE' | 'UNKNOWN';
+export type JobErrorCode =
+  | 'SCAN_FAILED'
+  | 'EXTRACTION_FAILED'
+  | 'STORAGE_UNAVAILABLE'
+  | 'READING_FAILED'
+  | 'UNKNOWN';
 
 /** Best-effort classification from the document version's state at failure time — never guesses beyond what that state actually shows. */
 async function classifyFailure(db: Db, documentVersionId: string): Promise<JobErrorCode> {
@@ -365,9 +388,11 @@ async function failJob(
   job: ProcessingJob,
   leaseOwner: string,
   errorMessage: string,
+  /** Set for a kind of job whose failure is not told by the file's intake state (an automatic reading). */
+  knownErrorCode?: JobErrorCode,
 ): Promise<FailJobOutcome> {
   const exhausted = job.attempts >= job.maxAttempts;
-  const errorCode = await classifyFailure(db, job.documentVersionId);
+  const errorCode = knownErrorCode ?? (await classifyFailure(db, job.documentVersionId));
   const updated = await db
     .update(schema.processingJobs)
     .set({
@@ -533,4 +558,83 @@ export async function runIntakeWorker(
     }
   }
   return { processed, failed };
+}
+
+export interface AiReadingWorkerResult {
+  /** Files read as far as the owner allows. */
+  readonly processed: number;
+  /** Files whose reading stopped for a stated reason (no consent, switched off, a limit, protected). */
+  readonly stopped: number;
+  /** Attempts that failed and will be tried again, or were parked at FAILED. */
+  readonly failed: number;
+}
+
+/** One pass leaves time for the response; the cron route's function limit is 60 seconds. */
+const DEFAULT_READING_TIME_BUDGET_MS = 40_000;
+const DEFAULT_READING_LIMIT = 5;
+
+/**
+ * Claim and run due automatic AI readings, one at a time, until the limit or the time budget is
+ * reached (S5, ADR 0019). Under the `process-ai-reading` scope only: the scope is what lets the job
+ * act for a file's owner, and a copied or forged one is refused before anything is claimed. Safe
+ * to call at any time and from several places at once: claims are leases, so a file is read by one
+ * worker, and a finished or already-read file is a no-op.
+ */
+export async function runAiReadingWorker(
+  db: Db,
+  scope: SystemScope<'process-ai-reading'>,
+  ports: AiReadingPorts,
+  options: {
+    readonly limit?: number;
+    readonly timeBudgetMs?: number;
+    readonly observability?: ObservabilityPort;
+  } = {},
+): Promise<AiReadingWorkerResult> {
+  if (!SystemScope.isGenuine(scope) || scope.job !== 'process-ai-reading') {
+    throw new Error('automatic reading needs the scope of its own job');
+  }
+  const limit = options.limit ?? DEFAULT_READING_LIMIT;
+  const deadline = Date.now() + (options.timeBudgetMs ?? DEFAULT_READING_TIME_BUDGET_MS);
+  let processed = 0;
+  let stopped = 0;
+  let failed = 0;
+  for (let handled = 0; handled < limit && Date.now() < deadline; handled++) {
+    const [job] = await claimJobs(db, 1, 'reading');
+    if (!job) break;
+    const leaseOwner = job.leaseOwner;
+    if (!leaseOwner) continue; // claimJobs always sets one; satisfies the type.
+    try {
+      const result = await processAiReading(db, scope, ports, {
+        documentVersionId: job.documentVersionId,
+      });
+      if (await completeJob(db, job, leaseOwner, result.stopReason)) {
+        if (result.outcome === 'STOPPED') stopped++;
+        else processed++;
+      }
+    } catch (error) {
+      const outcome = await failJob(
+        db,
+        job,
+        leaseOwner,
+        error instanceof Error ? error.message : String(error),
+        'READING_FAILED',
+      );
+      if (outcome.recorded) {
+        failed++;
+        options.observability?.record({
+          name: 'job_failure',
+          severity: outcome.exhausted ? 'error' : 'warning',
+          metadata: {
+            jobType: 'AI_READING',
+            documentVersionId: job.documentVersionId,
+            errorCode: outcome.errorCode,
+            attempts: job.attempts,
+            maxAttempts: job.maxAttempts,
+            exhausted: outcome.exhausted,
+          },
+        });
+      }
+    }
+  }
+  return { processed, stopped, failed };
 }

@@ -22,17 +22,33 @@ export interface ClassificationResult {
   readonly mrz?: Td3Result;
 }
 
+/** Two adjacent MRZ lines as read for parsing (spaces removed) and as they stand in the text (trimmed only). */
+export interface Td3Block {
+  readonly lines: readonly [string, string];
+  /** The same two lines exactly as written in the text, so a quotation of them can be checked against it. */
+  readonly quoted: readonly [string, string];
+}
+
 /** Find two adjacent 44-character MRZ-shaped lines anywhere in the text. */
-function findTd3Lines(text: string): readonly [string, string] | null {
+export function findTd3Block(text: string): Td3Block | null {
   const lines = text
     .split(/\r?\n/)
-    .map((l) => l.trim().replace(/[ \t]/g, ''))
-    .filter((l) => l.length > 0);
+    .map((raw) => raw.trim())
+    .filter((raw) => raw.length > 0)
+    .map((raw) => ({ raw, compact: raw.replace(/[ \t]/g, '') }));
   for (let i = 0; i < lines.length - 1; i++) {
-    const l1 = lines[i] ?? '';
-    const l2 = lines[i + 1] ?? '';
-    if (l1.length === 44 && l2.length === 44 && /^[A-Z0-9<]+$/.test(l1 + l2)) {
-      return [l1, l2];
+    const first = lines[i];
+    const second = lines[i + 1];
+    if (!first || !second) continue;
+    if (
+      first.compact.length === 44 &&
+      second.compact.length === 44 &&
+      /^[A-Z0-9<]+$/.test(first.compact + second.compact)
+    ) {
+      return {
+        lines: [first.compact, second.compact],
+        quoted: [first.raw, second.raw],
+      };
     }
   }
   return null;
@@ -93,9 +109,9 @@ export const CLASSIFIABLE_DOCUMENT_TYPES: readonly string[] = [
  * else defers to human review.
  */
 export function classifyDocumentText(text: string): ClassificationResult {
-  const td3 = findTd3Lines(text);
+  const td3 = findTd3Block(text);
   if (td3) {
-    const parsed = parseTd3(td3);
+    const parsed = parseTd3(td3.lines);
     if (parsed.ok && parsed.value.checksValid) {
       return {
         classifiedType: 'PASSPORT',

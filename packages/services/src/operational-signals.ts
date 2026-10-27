@@ -1,5 +1,6 @@
 import type { MigrationStatus } from '@visastack/db';
 import { and, eq, gte, inArray, lt, lte, sql } from 'drizzle-orm';
+import { excludingDeterministicRuns } from './ai-run-kinds';
 import { checkRecentAuditChain } from './audit';
 import { type Db, schema } from './db';
 import { databaseErrorCode } from './error-report';
@@ -589,7 +590,14 @@ export async function collectOperationalSignals(
           })
           .from(table)
           .where(
-            and(gte(table.createdAt, hourAgo), inArray(table.status, ['SUCCEEDED', 'FAILED'])),
+            and(
+              gte(table.createdAt, hourAgo),
+              inArray(table.status, ['SUCCEEDED', 'FAILED']),
+              // Rule-based readings are not AI calls: they never dilute the failure rate.
+              table === schema.aiExtractionRuns
+                ? excludingDeterministicRuns(schema.aiExtractionRuns.modelVersion)
+                : undefined,
+            ),
           );
         failed += Number(row?.failed ?? 0);
         finished += Number(row?.finished ?? 0);

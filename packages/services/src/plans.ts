@@ -1,6 +1,7 @@
 import { type Result, err, ok } from '@visastack/core';
 import { and, desc, eq, gte, inArray, isNull, lte, notInArray, sql } from 'drizzle-orm';
 import { isActiveMember, listApplicantsForOrganization } from './agency';
+import { excludingDeterministicRuns } from './ai-run-kinds';
 import { appendAuditEvent } from './audit';
 import { type Db, first, isUniqueViolation, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -1081,6 +1082,7 @@ async function sumAiAllowanceUsed(db: Db, organizationId: string, since: Date): 
             applicants.map((a) => a.applicantId),
           ),
           gte(schema.aiExtractionRuns.createdAt, since),
+          excludingDeterministicRuns(schema.aiExtractionRuns.modelVersion),
         ),
       ),
   );

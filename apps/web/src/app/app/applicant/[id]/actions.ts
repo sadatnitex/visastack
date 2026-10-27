@@ -51,13 +51,13 @@ import {
   resolveOcrAdapter,
 } from '../../../../lib/ai';
 import { ensureDocumentFieldsRegistered } from '../../../../lib/field-registry';
-import { triggerIntakeWorker } from '../../../../lib/jobs';
 import { savableField } from '../../../../lib/master-profile';
 import { createKeyManagementPort, createPreviewRenderer } from '../../../../lib/providers';
 import { reportServerError } from '../../../../lib/server-error';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
 import { permitsPdfAdmission, validateUploadBytes } from '../../../../lib/upload-preflight';
+import { triggerIntakeAndReading } from '../../../api/jobs/process-ai-reading/run';
 import { describeClearAcceptance } from './ai-review-messages';
 import { recordGroupOfDocType } from './record-groups';
 
@@ -317,7 +317,7 @@ export async function uploadDocumentAction(
     // /api/jobs/process-intake is the durability backstop if that doesn't run.
     await enqueueIntakeJob(db, { documentVersionId: outcome.version.version.id });
     await finalizeUpload(db, intent.id, outcome.version.version.id);
-    after(() => triggerIntakeWorker());
+    after(() => triggerIntakeAndReading());
 
     // EVI-03: informational only, never blocks the upload that already
     // succeeded above, scoped to this SAME applicant's own other
@@ -1012,6 +1012,6 @@ export async function requestDocumentReadingAction(formData: FormData): Promise<
   const base = `/app/applicant/${encodeURIComponent(applicantId)}/documents?document=${encodeURIComponent(documentId)}`;
   if (!result.ok) redirect(`${base}&reading_error=${encodeURIComponent(result.error.message)}`);
   revalidatePath(`/app/applicant/${applicantId}/documents`);
-  after(() => triggerIntakeWorker());
+  after(() => triggerIntakeAndReading());
   redirect(`${base}&reading_queued=true`);
 }
