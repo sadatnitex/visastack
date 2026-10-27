@@ -310,6 +310,37 @@ describe('sidebar rail stylesheet (WP-SHELL)', () => {
     expect(body).toMatch(/pointer-events: none;/);
   });
 
+  it('makes the account menu compact for a precise pointer and keeps touch rows at 44px', () => {
+    const fine = '@media (min-width: 761px) and (hover: hover) and (pointer: fine) {';
+    const start = body.indexOf(fine);
+    expect(start).toBeGreaterThan(-1);
+    // The compact rules sit in this one query, which ends at the next rule at the left margin.
+    const rest = body.slice(start + fine.length);
+    const compact = rest.slice(0, rest.search(/\n\}\n/));
+    expect(compact).toMatch(/width: min\(17\.5rem, calc\(100vw - 1\.5rem\)\);/);
+    expect(compact).toMatch(
+      /\.account-menu-row,\s*\.account-menu-panel \.account-menu-signout button \{\s*min-height: 34px;/,
+    );
+    expect(compact).toMatch(/\.account-menu-panel \.account-menu-avatar \{\s*width: 32px;/);
+    expect(compact).toMatch(/--account-menu-pad: var\(--space-1\);/);
+    // Never below the 24px WCAG 2.2 AA minimum target.
+    for (const [, px] of compact.matchAll(/min-height: (\d+)px/g)) {
+      expect(Number(px)).toBeGreaterThanOrEqual(24);
+    }
+    // The compact padding follows the one custom property that Sign Out's pinning reads.
+    expect(compact).toMatch(/padding: var\(--account-menu-pad\) var\(--space-2\);/);
+    // Outside this query nothing shrinks the rows: the base rule keeps 44px for touch and coarse
+    // pointers, and this block never sets a row height anywhere else.
+    expect(css).toMatch(
+      /\.account-menu-row,\s*\.account-menu-panel \.account-menu-signout button \{[^}]*min-height: 44px;/,
+    );
+    expect(body.replace(compact, '')).not.toMatch(/\.account-menu-[^{}]*\{[^}]*min-height/);
+    // Sign Out stays pinned flush with the panel's own padding, whatever that padding is.
+    expect(body).toMatch(
+      /\.account-menu-signout \{\s*position: sticky;\s*bottom: calc\(-1 \* var\(--account-menu-pad\)\);\s*margin-bottom: calc\(-1 \* var\(--account-menu-pad\)\);\s*padding-bottom: var\(--account-menu-pad\);/,
+    );
+  });
+
   it('places the account menu above or beside its trigger by the measured answer only', () => {
     expect(body).toMatch(
       /\.record-account\[data-placement="above"\] \.account-menu-panel \{\s*top: auto;\s*bottom: calc\(100% \+ var\(--space-2\)\);/,

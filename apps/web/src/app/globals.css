@@ -6963,12 +6963,14 @@ body:has(.auth-shell) > .footer {
 }
 
 /* WP-UI2 account menu: the signed-in account menu (src/app/app/account-menu.tsx). One flat panel
-   that sizes to its content: who is signed in and their plan, two labelled groups of 44px rows,
-   and Sign Out on its own below a hairline. It never scrolls inside itself at normal heights; it
-   is never taller than the room the screen leaves it (the menu measures that room and sets the
-   limit, see account-menu.tsx), so only a screen too short to show it all lets it scroll. On a
-   phone the same rows open as a bottom sheet. Colours, spacing, radii and motion all come from
-   the shared tokens. */
+   that sizes to its content: who is signed in and their plan, two labelled groups of rows (44px
+   here; a laptop with a precise pointer gets the compact 34px rows and 17.5rem width further down,
+   in the WP-SHELL block), and Sign Out on its own below a hairline. It never scrolls inside itself
+   at normal heights; it is never taller than 70 percent of the window nor than the room the screen
+   leaves it, always 16px clear of the screen edge (the menu measures that and sets the limit, see
+   account-menu.tsx and popover-placement.ts), so only a window too short to show it all lets it
+   scroll. On a phone the same rows open as a bottom sheet. Colours, spacing, radii and motion all
+   come from the shared tokens. */
 .account-menu-panel {
   position: absolute;
   top: calc(100% + var(--space-2));
@@ -6978,8 +6980,9 @@ body:has(.auth-shell) > .footer {
   display: flex;
   flex-direction: column;
   width: min(19rem, calc(100vw - 1.5rem));
-  /* The menu sets --account-menu-max-height to the room below (or above) its trigger; until it
-     has measured, the whole screen less the toolbar and a margin is a safe stand-in. */
+  /* The menu sets --account-menu-max-height (the room below or above its trigger, never more than
+     70 percent of the window); until it has measured, the screen less the toolbar and a margin is
+     a safe stand-in. */
   max-height: var(--account-menu-max-height, calc(100dvh - 6rem));
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -7749,8 +7752,16 @@ summary.visa-photo-title {
   color: inherit;
 }
 
-/* A little tighter than before so the menu is no taller than its rows need, and Sign Out stays in
-   view when a short screen makes the list scroll. Rows keep their 44px height. */
+/* The account menu is a compact popover on a laptop or desktop and a roomy sheet on touch. Rows keep
+   the 44px tap height everywhere except a precise pointer (mouse or trackpad) on a laptop or larger,
+   where they are 34px (the WCAG 2.2 AA minimum target is 24px), the header and group labels are
+   tighter and the panel is 17.5rem wide, so the whole menu stays about 370px tall and never feels
+   like it fills the screen. The height is also capped by the menu itself at 70 percent of the window
+   and 16px above its bottom edge (see popover-placement.ts), so Sign Out stays pinned in view and
+   only a short window scrolls the rows. */
+.account-menu-panel {
+  --account-menu-pad: var(--space-2);
+}
 .account-menu-plan {
   padding-bottom: 0;
 }
@@ -7769,10 +7780,59 @@ summary.visa-photo-title {
      never show through beneath it. The negative margin keeps its place when nothing scrolls. */
   .account-menu-signout {
     position: sticky;
-    bottom: calc(-1 * var(--space-2));
-    margin-bottom: calc(-1 * var(--space-2));
-    padding-bottom: var(--space-2);
+    bottom: calc(-1 * var(--account-menu-pad));
+    margin-bottom: calc(-1 * var(--account-menu-pad));
+    padding-bottom: var(--account-menu-pad);
     background: var(--bg-elevated);
+  }
+}
+@media (min-width: 761px) and (hover: hover) and (pointer: fine) {
+  .account-menu-panel {
+    --account-menu-pad: var(--space-1);
+    width: min(17.5rem, calc(100vw - 1.5rem));
+    padding: var(--account-menu-pad) var(--space-2);
+  }
+  .account-menu-header {
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3) var(--space-1);
+  }
+  .account-menu-panel .account-menu-avatar {
+    width: 32px;
+    height: 32px;
+  }
+  .account-menu-who {
+    gap: 0;
+  }
+  .account-menu-name {
+    font-size: var(--text-small);
+    line-height: 1.3;
+  }
+  .account-menu-plan {
+    padding: 0 var(--space-1) var(--space-1) var(--space-3);
+  }
+  .account-menu-chip {
+    padding: calc(var(--space-1) / 2) var(--space-3);
+  }
+  .account-menu-plan-link {
+    min-height: 28px;
+    padding: 0 var(--space-1) 0 var(--space-2);
+  }
+  .account-menu-group,
+  .account-menu-signout {
+    margin-top: 0;
+    padding-top: calc(var(--space-1) / 2);
+  }
+  .account-menu-label {
+    padding: var(--space-1) var(--space-3) calc(var(--space-1) / 2);
+    line-height: 1.2;
+  }
+  .account-menu-list {
+    margin-bottom: 0;
+  }
+  .account-menu-row,
+  .account-menu-panel .account-menu-signout button {
+    min-height: 34px;
+    gap: var(--space-3);
   }
 }
 

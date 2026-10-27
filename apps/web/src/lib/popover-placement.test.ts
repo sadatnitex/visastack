@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { MIN_POPOVER_HEIGHT, placePopover } from './popover-placement';
+import {
+  MAX_POPOVER_SHARE,
+  MIN_POPOVER_HEIGHT,
+  POPOVER_EDGE_MARGIN,
+  placePopover,
+} from './popover-placement';
 
 const top = { top: 19, bottom: 63, left: 1216, right: 1322 };
 
@@ -8,28 +13,93 @@ describe('where a popover opens', () => {
     const fit = placePopover({
       trigger: top,
       viewport: { width: 1366, height: 768 },
-      contentHeight: 500,
-      width: 304,
+      contentHeight: 400,
+      width: 280,
     });
     expect(fit.placement).toBe('below');
     expect(fit.align).toBe('end');
-    // The room below: the screen less the trigger, a gap and a margin. Never taller than that.
-    expect(fit.maxHeight).toBe(768 - 63 - 8 - 12);
-    expect(fit.maxHeight).toBeGreaterThanOrEqual(500);
+    // The room below is 681px, but a popover never takes more than 70 percent of the window.
+    expect(fit.maxHeight).toBe(Math.floor(768 * MAX_POPOVER_SHARE));
+    expect(fit.maxHeight).toBeLessThan(768 - 63 - 8 - POPOVER_EDGE_MARGIN);
+    expect(fit.maxHeight).toBeGreaterThanOrEqual(400);
   });
 
-  it('is limited to the room on a short screen, so the content scrolls inside it', () => {
+  it('never takes more than 70 percent of the window, however tall the window is', () => {
+    for (const height of [600, 768, 900, 1080, 1440]) {
+      const fit = placePopover({
+        trigger: top,
+        viewport: { width: 1920, height },
+        contentHeight: 2000,
+        width: 280,
+      });
+      expect(fit.maxHeight).toBeLessThanOrEqual(Math.floor(height * 0.7));
+    }
+  });
+
+  it('keeps 16px between the popover and the bottom edge, whichever limit applies', () => {
+    expect(POPOVER_EDGE_MARGIN).toBe(16);
+    for (const height of [480, 520, 554, 600, 768, 1080]) {
+      const fit = placePopover({
+        trigger: top,
+        viewport: { width: 1366, height },
+        contentHeight: 600,
+        width: 280,
+      });
+      // The popover's bottom is the trigger's bottom, the 8px gap and its height.
+      expect(63 + 8 + fit.maxHeight).toBeLessThanOrEqual(height - POPOVER_EDGE_MARGIN);
+    }
+  });
+
+  it('judges whether it fits below by the share it may take, not by its full content', () => {
+    // 416px are free below and 492px above. The content is 600px, but it may only take 300px
+    // (30 percent of 1000), which fits below, so it stays below the trigger.
     const fit = placePopover({
-      trigger: top,
-      viewport: { width: 1280, height: 520 },
-      contentHeight: 500,
-      width: 304,
+      trigger: { top: 516, bottom: 560, left: 600, right: 706 },
+      viewport: { width: 1366, height: 1000 },
+      contentHeight: 600,
+      width: 280,
+      maxShare: 0.3,
     });
     expect(fit.placement).toBe('below');
-    expect(fit.maxHeight).toBe(520 - 63 - 8 - 12);
+    expect(fit.maxHeight).toBe(300);
+  });
+
+  it('can be told a different share', () => {
+    const fit = placePopover({
+      trigger: top,
+      viewport: { width: 1366, height: 1000 },
+      contentHeight: 900,
+      width: 280,
+      maxShare: 0.5,
+    });
+    expect(fit.maxHeight).toBe(500);
+  });
+
+  it('is limited to the room when that is less than the share, so the content scrolls inside it', () => {
+    const fit = placePopover({
+      trigger: { top: 300, bottom: 344, left: 1136, right: 1242 },
+      viewport: { width: 1280, height: 520 },
+      contentHeight: 500,
+      width: 280,
+    });
+    // Only 152px fit below and 276px above, so it opens above and takes just that room.
+    expect(fit.placement).toBe('above');
+    expect(fit.maxHeight).toBe(300 - 8 - 16);
+    expect(fit.maxHeight).toBeLessThan(Math.floor(520 * 0.7));
     expect(fit.maxHeight).toBeLessThan(500);
-    // The popover's bottom edge (its top is the trigger's bottom plus the gap) stays on screen.
-    expect(63 + 8 + fit.maxHeight + 12).toBeLessThanOrEqual(520);
+  });
+
+  it('on a short window the share is the limit, so rows scroll inside and the bottom stays clear', () => {
+    const fit = placePopover({
+      trigger: top,
+      viewport: { width: 1280, height: 480 },
+      contentHeight: 500,
+      width: 280,
+    });
+    expect(fit.placement).toBe('below');
+    expect(fit.maxHeight).toBe(Math.floor(480 * 0.7));
+    expect(fit.maxHeight).toBeLessThan(500);
+    expect(63 + 8 + fit.maxHeight + 16).toBeLessThanOrEqual(480);
   });
 
   it('opens above a trigger that sits low, when it does not fit below', () => {
@@ -40,7 +110,8 @@ describe('where a popover opens', () => {
       width: 304,
     });
     expect(fit.placement).toBe('above');
-    expect(fit.maxHeight).toBe(700 - 8 - 12);
+    // 700 - 8 - 16 = 668 above, capped at 70 percent of the window (537).
+    expect(fit.maxHeight).toBe(Math.floor(768 * 0.7));
     expect(fit.align).toBe('start');
   });
 
@@ -61,9 +132,9 @@ describe('where a popover opens', () => {
       contentHeight: 900,
       width: 304,
     });
-    // 800 - 444 - 20 = 336 below; 400 - 20 = 380 above.
+    // 800 - 444 - 24 = 332 below; 400 - 24 = 376 above.
     expect(fit.placement).toBe('above');
-    expect(fit.maxHeight).toBe(380);
+    expect(fit.maxHeight).toBe(376);
   });
 
   it('never squeezes below a usable height, even on a very short window', () => {
