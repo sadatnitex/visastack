@@ -228,9 +228,10 @@ const CORE = { CORE_PROCESSING: { grantedAt: new Date() } };
 
 describe('task-first first run (WP-V3, D8)', () => {
   it('asks someone new for core processing alone: exactly one consent control', async () => {
-    const html = await page();
+    // The country screen (Growth G2) comes first; once it is done the permission screen is step 2 of 3.
+    const html = await page({ step: 'consent' });
     const text = textOf(html);
-    expect(text).toContain('Step 1 of 2');
+    expect(text).toContain('Step 2 of 3');
     expect(text).toContain('This does not turn on AI reading, sharing with an agency or marketing');
     const buttons = stubProps<{ type: string; granted: boolean; text: string }>(
       html,
@@ -245,6 +246,7 @@ describe('task-first first run (WP-V3, D8)', () => {
     ]);
     expect(text).not.toContain('Permissions You Control');
     expect(html).toContain('href="/app?setup=later"');
+    expect(text).not.toContain('Your Country');
   });
 
   it('"Not Now" shows the ordinary home with every consent control', async () => {
@@ -256,14 +258,14 @@ describe('task-first first run (WP-V3, D8)', () => {
   it('a returning person with records who turned every permission off gets the ordinary home', async () => {
     data.applicants = [SELF];
     const html = await page();
-    expect(textOf(html)).not.toContain('Step 1 of 2');
+    expect(textOf(html)).not.toMatch(/Step \d of \d/);
     expect(stubProps(html, 'ConsentButton')).toHaveLength(6);
   });
 
   it('someone who turned core processing off with another consent still on keeps every control', async () => {
     data.consents = { MARKETING: { grantedAt: new Date() } };
     const html = await page();
-    expect(textOf(html)).not.toContain('Step 1 of 2');
+    expect(textOf(html)).not.toMatch(/Step \d of \d/);
     expect(stubProps(html, 'ConsentButton')).toHaveLength(6);
   });
 
@@ -271,7 +273,7 @@ describe('task-first first run (WP-V3, D8)', () => {
     data.consents = CORE;
     await expect(page()).rejects.toThrow('NEXT_REDIRECT:/app?welcome=1');
     const html = await page({ welcome: '1' });
-    expect(textOf(html)).toContain('Step 2 of 2');
+    expect(textOf(html)).toContain('Step 3 of 3');
     expect(stubProps<{ firstRun: boolean }>(html, 'AddApplicantForm')).toEqual([
       { firstRun: true },
     ]);
@@ -285,6 +287,7 @@ describe('task-first first run (WP-V3, D8)', () => {
     data.consents = CORE;
     const next = '/app/client-invitations/accept?token=abc';
     const html = await page({ next });
+    // Someone who came for a task is not asked for a country first: two screens, as before.
     expect(textOf(html)).toContain('Step 2 of 2');
     expect(stubProps(html, 'AddApplicantForm')).toHaveLength(1);
     // "Not Now" goes to the task too, rather than leaving the invitation behind.
@@ -297,7 +300,7 @@ describe('task-first first run (WP-V3, D8)', () => {
     data.consents = CORE;
     const text = textOf(await page({ setup: 'later', welcome: '1' }));
     expect(text).toContain('Welcome Back');
-    expect(text).not.toContain('Step 2 of 2');
+    expect(text).not.toMatch(/Step \d of \d/);
   });
 
   it('never follows a return path that leaves the site, or one back to home', async () => {
@@ -347,7 +350,7 @@ describe('task-first first run (WP-V3, D8)', () => {
     data.consents = CORE;
     data.applicants = [SELF];
     const text = textOf(await page());
-    expect(text).not.toMatch(/Step [12] of 2/);
+    expect(text).not.toMatch(/Step \d of \d/);
     expect(text).not.toContain('What do you want to do?');
     expect(text).toContain('Welcome Back');
   });
@@ -369,10 +372,11 @@ describe('task-first first run (WP-V3, D8)', () => {
       data.pendingGrants = 0;
       setup();
       data.consents = {};
-      expect(textOf(await page())).not.toContain('Step 1 of 2');
+      expect(textOf(await page())).not.toMatch(/Step \d of \d/);
+      expect(textOf(await page())).not.toContain('Where do you want to go?');
       data.consents = CORE;
       const text = textOf(await page());
-      expect(text).not.toContain('Step 2 of 2');
+      expect(text).not.toMatch(/Step \d of \d/);
       expect(text).toContain('Welcome Back');
     }
   });
@@ -384,6 +388,85 @@ describe('task-first first run (WP-V3, D8)', () => {
     const html = await page({ welcome: '1' });
     expect(textOf(html)).toContain('Complete a Request');
     expect(html).toContain('href="/app/shared"');
+  });
+});
+
+describe('first run starts with a country (Growth G2)', () => {
+  it('shows the country screen first, with the checklist box and a way to skip', async () => {
+    const html = await page();
+    const text = textOf(html);
+    expect(text).toContain('Step 1 of 3');
+    expect(text).toContain('Where do you want to go?');
+    expect(text).toContain('Which Country Do You Want to Visit?');
+    expect(text).toContain('Your checklist appears here as soon as you pick a country.');
+    // Skipping goes on to the permission screen, with no country.
+    expect(html).toContain('href="/app?step=consent"');
+    expect(stubProps(html, 'ConsentButton')).toHaveLength(0);
+    expect(text).not.toContain('Continue With');
+  });
+
+  it('keeps a carried country when the person skips the step, without recording anything', async () => {
+    const html = await page({ country: 'JP' });
+    expect(html).toContain('href="/app?country=JP&amp;step=consent"');
+  });
+
+  it('opens on a country carried from the home page, with its checklist and a Continue button', async () => {
+    const html = await page({ country: 'jp' });
+    const text = textOf(html);
+    expect(text).toContain('Showing the checklist for Japan');
+    expect(text).toContain('Continue With Japan');
+    expect(html).toMatch(/<input type="hidden" name="country" value="JP"/);
+    expect(text).toContain('It is not a decision and not a promise');
+  });
+
+  it('ignores a country it does not hold, however it is written', async () => {
+    for (const country of ['ZZ', 'Japan', '<script>', 'J', '']) {
+      const text = textOf(await page({ country }));
+      expect(text, country).toContain('Your checklist appears here');
+      expect(text, country).not.toContain('Continue With');
+    }
+  });
+
+  it('shows the chosen country on the permission screen, with a way back to change it', async () => {
+    const html = await page({ country: 'JP', step: 'consent' });
+    const text = textOf(html);
+    expect(text).toContain('Step 2 of 3');
+    expect(text).toContain('Your Country: Japan');
+    expect(html).toContain('href="/app?country=JP"');
+    expect(stubProps(html, 'ConsentButton')).toHaveLength(1);
+    // A country we do not hold shows nothing rather than a guess.
+    expect(textOf(await page({ country: 'ZZ', step: 'consent' }))).not.toContain('Your Country');
+  });
+
+  it('keeps the country through "who is this record for?" and offers its checklist at the end', async () => {
+    data.consents = CORE;
+    await expect(page({ country: 'JP' })).rejects.toThrow(
+      'NEXT_REDIRECT:/app?welcome=1&country=JP',
+    );
+    // A code we do not hold is dropped, not carried.
+    await expect(page({ country: 'ZZ' })).rejects.toThrow('NEXT_REDIRECT:/app?welcome=1');
+    const name = await page({ welcome: '1', country: 'JP' });
+    expect(textOf(name)).toContain('Step 3 of 3');
+    expect(textOf(name)).toContain('Your Country: Japan');
+    data.applicants = [SELF];
+    const done = await page({ welcome: '1', country: 'JP' });
+    expect(textOf(done)).toContain('See Your Japan Checklist');
+    expect(done).toContain('href="/app/countries/jp"');
+    expect(textOf(await page({ welcome: '1' }))).not.toContain('Checklist');
+  });
+
+  it('does not put the country screen in front of someone who came for a task', async () => {
+    const next = '/app/client-invitations/accept?token=abc';
+    const text = textOf(await page({ next }));
+    expect(text).toContain('Step 1 of 2');
+    expect(text).not.toContain('Where do you want to go?');
+  });
+
+  it('does not show the country screen once "Not Now" or a returning visit skips first run', async () => {
+    expect(textOf(await page({ setup: 'later' }))).not.toContain('Where do you want to go?');
+    data.consents = CORE;
+    data.applicants = [SELF];
+    expect(textOf(await page({ country: 'JP' }))).not.toContain('Where do you want to go?');
   });
 });
 

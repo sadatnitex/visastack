@@ -22,6 +22,8 @@ import { CaseReadinessRing, type ReadinessCounts } from '../../components/case-r
 import { PROGRESS_IN_CASE_LINE } from '../../components/progress-ring';
 import { Checklist, Disclosure, EmptyState, NextStepCard, StatusBadge } from '../../components/ui';
 import { holdsPlatformRole } from '../../lib/admin';
+import { countryNameOf, countryStartData, parseCountryParam } from '../../lib/country-start';
+import { COUNTRY_STEP_DONE } from '../../lib/country-start-links';
 import { formatDateOnly } from '../../lib/format-date';
 import {
   ATTENTION_TIER_LABELS,
@@ -35,7 +37,14 @@ import { plural } from '../../lib/plural';
 import { withSession } from '../../lib/session';
 import { requestItemLabel } from './agency/[orgId]/do-next';
 import { ConsentButton } from './consent-button';
-import { FirstRunConsent, FirstRunName, FirstRunTask, SETUP_LATER_HREF } from './first-run';
+import { confirmFirstRunCountryAction } from './country-actions';
+import {
+  FirstRunConsent,
+  FirstRunCountry,
+  FirstRunName,
+  FirstRunTask,
+  SETUP_LATER_HREF,
+} from './first-run';
 
 export const metadata: Metadata = { title: 'Overview' };
 
@@ -280,6 +289,10 @@ interface SearchParams {
   readonly next?: string | string[];
   readonly setup?: string | string[];
   readonly welcome?: string | string[];
+  /** Growth G2: the country chosen on the home page or in first run (a two-letter code). */
+  readonly country?: string | string[];
+  /** Growth G2: `consent` means the country screen is done (confirmed or skipped). */
+  readonly step?: string | string[];
 }
 
 /**
@@ -311,6 +324,11 @@ export default async function AppPage({
   const t = createTranslator(locale);
   const task = returnTask(params.next);
   const later = params.setup === 'later';
+  // The country they chose (checked against the data we hold), carried through first run.
+  const country = parseCountryParam(params.country);
+  const countryName = countryNameOf(country);
+  // Someone who came for a task (an invitation) is not asked for a country first.
+  const hasCountryStep = !task;
   const decided = await withSession(async ({ db, accountId, email }) => {
     const basics = await loadBasics(db, accountId, email);
     const coreGranted = Boolean(basics.consents.CORE_PROCESSING);
@@ -325,6 +343,11 @@ export default async function AppPage({
       !basics.platformAdmin &&
       basics.incomingGrants.length === 0;
     if (!later && newcomer && !coreGranted && grantedCount === 0) {
+      // Growth G2: pick a country first, unless that screen is done (confirmed or skipped) or
+      // the person came for a task.
+      if (hasCountryStep && params.step !== COUNTRY_STEP_DONE) {
+        return { screen: 'country' as const };
+      }
       return { screen: 'consent' as const };
     }
     if (!later && newcomer && coreGranted) return { screen: 'name' as const };
@@ -340,13 +363,39 @@ export default async function AppPage({
 
   // "Not now" with a task goes to that task (it has its own checks); otherwise to the ordinary home.
   const laterHref = task ?? SETUP_LATER_HREF;
-  if (decided.screen === 'consent')
-    return <FirstRunConsent locale={locale} laterHref={laterHref} />;
+  if (decided.screen === 'country') {
+    return (
+      <FirstRunCountry
+        data={countryStartData()}
+        iso2={country}
+        action={confirmFirstRunCountryAction}
+      />
+    );
+  }
+  if (decided.screen === 'consent') {
+    return (
+      <FirstRunConsent
+        locale={locale}
+        laterHref={laterHref}
+        hasCountryStep={hasCountryStep}
+        countryName={countryName}
+        countryIso2={country}
+      />
+    );
+  }
   if (decided.screen === 'name') {
     // Ask the name on the page that comes next, so once the applicant is saved the refreshed page
     // is already "what do you want to do?" (or, with a task, goes straight to it).
-    if (!task && params.welcome !== '1') redirect('/app?welcome=1');
-    return <FirstRunName laterHref={laterHref} />;
+    if (!task && params.welcome !== '1') {
+      redirect(country ? `/app?welcome=1&country=${country}` : '/app?welcome=1');
+    }
+    return (
+      <FirstRunName
+        laterHref={laterHref}
+        hasCountryStep={hasCountryStep}
+        countryName={countryName}
+      />
+    );
   }
   if (decided.screen === 'task' && task) redirect(task);
   if (decided.screen !== 'home') redirect('/app');
@@ -369,6 +418,8 @@ export default async function AppPage({
         briefHref={
           first ? `/app/applicant/${first.applicant.id}/outputs?output=agency_brief` : null
         }
+        countryName={countryName}
+        countryHref={country ? `/app/countries/${country.toLowerCase()}` : null}
       />
     );
   }
