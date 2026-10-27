@@ -1,4 +1,5 @@
 import { StatusBadge, type Tone } from '../../../../components/ui';
+import { TRIAGE_GROUP_TONES } from '../../../../lib/labels';
 import type { CaseTriageView } from './case-triage';
 
 const STATE_TONE: Readonly<Record<CaseTriageView['state'], Tone>> = {
@@ -33,7 +34,10 @@ export function CaseTriageSummary({
       ) : (
         <ul className="case-triage-groups">
           {view.groups.map((group) => (
-            <li key={group.group} className="case-triage-group">
+            <li
+              key={group.group}
+              className={`case-triage-group case-triage-group-${TRIAGE_GROUP_TONES[group.group]}`}
+            >
               <p className="case-triage-group-name">
                 {group.label} <span className="case-triage-count">{group.items.length}</span>
               </p>

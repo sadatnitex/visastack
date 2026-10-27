@@ -7600,6 +7600,144 @@ summary.visa-photo-title {
   align-items: center;
 }
 
+/* WP-V4 request screens (Programme X, spec B09 "Request UX", U07, and the colour polish that closes
+   WP-V4): the traveller's request list with one colour per group, the response form and its Saving,
+   Saved at and Not saved line, the question box; then the same group colours on the agency's Where
+   Things Stand, and the Do Next tier names. Existing tokens only, flat (no shadow, gradient or
+   translucent surface), 44px targets, nothing wider than its container at 320px.
+   ========================================================================== */
+.request-waiting-notice {
+  display: block;
+  margin-bottom: var(--space-5);
+}
+.request-item {
+  padding-left: 12px;
+  border-left: 3px solid var(--hairline);
+}
+.request-item-warning {
+  border-left-color: var(--warning);
+}
+.request-item-success {
+  border-left-color: var(--success);
+}
+.request-response {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.request-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.request-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+.request-choice-unavailable {
+  color: var(--text-secondary);
+}
+.request-response-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+.request-ask {
+  min-width: 0;
+}
+.request-ask-toggle {
+  cursor: pointer;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  color: var(--selected-text);
+}
+.request-ask-form {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  min-width: 0;
+}
+.request-ask-note {
+  margin: 0.25rem 0 0;
+}
+.request-questions {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.request-questions-title {
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+.request-questions-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.request-questions-list li {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.request-question-text {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.request-questions-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+}
+/* One colour per triage group on the agency's Where Things Stand, the same four families the
+   traveller's list uses (labels.ts TRIAGE_GROUP_TONES). Danger is never a group colour. */
+.case-triage-group {
+  padding-left: 10px;
+  border-left: 3px solid var(--hairline);
+}
+.case-triage-group-warning {
+  border-left-color: var(--warning);
+}
+.case-triage-group-success {
+  border-left-color: var(--success);
+}
+.case-triage-group-warning .case-triage-count {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.case-triage-group-success .case-triage-count {
+  background: var(--success-bg);
+  color: var(--success);
+}
+.case-triage-group-neutral .case-triage-count {
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+}
+/* The tier name in Do Next and on Home takes its tier's colour, matching the bar beside it. */
+.do-next-tier-1 .do-next-tier {
+  color: var(--danger);
+}
+.do-next-tier-2 .do-next-tier {
+  color: var(--selected-text);
+}
+.do-next-tier-3 .do-next-tier {
+  color: var(--warning);
+}
+
 /* WP-SHELL collapsible sidebar and account menu placement (27 Oct 2026). On a laptop or larger the
    sidebar can be hidden down to a slim icon rail with a Hide Menu / Show Menu button, and the
    choice is remembered on that device. Phones and tablets keep the bottom bar untouched, so every

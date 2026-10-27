@@ -666,6 +666,13 @@
       "when": 1793070321191,
       "tag": "0094_invoice_payments_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1793080886136,
+      "tag": "0095_whatsapp_channel",
+      "breakpoints": true
     }
   ]
 }
