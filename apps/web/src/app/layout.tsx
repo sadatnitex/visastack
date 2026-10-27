@@ -38,7 +38,7 @@ export const metadata: Metadata = {
   // Every page names itself (WCAG 2.4.2): the page's own title, then the product.
   title: { default: 'VisaStack - one profile, every visa', template: '%s | VisaStack' },
   description:
-    'A clean file you can stand behind. Keep your passport and documents in one private profile, see what is missing and share only the part you choose.',
+    'A clean file you can stand behind. Keep your passport and documents in one private profile and share only the part you choose.',
   applicationName: 'VisaStack',
   // Home-screen app on iPhone and iPad (the manifest covers other devices).
   appleWebApp: { capable: true, title: 'VisaStack', statusBarStyle: 'default' },

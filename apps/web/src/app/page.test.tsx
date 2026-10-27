@@ -150,7 +150,7 @@ describe('the public home page (Harbor C1, WP-L1)', () => {
   it('tells the story in order, from the product to the closing call to action', async () => {
     const html = await render();
     const order = [
-      'you can stand behind.',
+      'id="land-hero-title"',
       'Less paperwork. More control.',
       'Every visa starts with the same scramble',
       'Three Simple Steps',

@@ -36,6 +36,8 @@ const PUBLIC_FILES: readonly string[] = [
   'app/trust/page.tsx',
   'app/trust/[packKey]/page.tsx',
   'components/pilot-banner.tsx',
+  'components/public-trust-story.tsx',
+  'app/manifest.ts',
 ];
 
 const ENGINEERING_TALK: readonly { readonly pattern: RegExp; readonly say: string }[] = [
@@ -137,10 +139,17 @@ describe('public pages use everyday words', () => {
  * it may never claim one.
  */
 const AUTHORITY_CLAIM =
-  /\b(guarantee[sd]? (an? )?(approval|acceptance|visa|your visa|success)|(approval|acceptance|visa|success) (is )?guaranteed|visa[- ]approved|embassy[- ](approved|ready|accepted)|(approved|accepted|cleared|endorsed) by|will be (approved|accepted|granted)|approval is|sure to be (approved|accepted))\b/i;
-const DISCLAIMS = /\b(never|not|no|without)\b/i;
+  /\b(guarantee[sd]? (an? )?(approval|acceptance|visa|your visa|success)|guaranteed (fast )?(approval|acceptance|visa|fast-track)|approval (guarantee|rate)|(approval|acceptance|visa|success) (is )?guaranteed|visa[- ]approved|approved visa|embassy[- ](approved|ready|accepted|proof)|(approved|accepted|cleared|endorsed) by|(get|gets|getting) (approved|accepted)|will be (approved|accepted|granted)|approval is|visa success|sure to be (approved|accepted))\b/i;
+const DISCLAIMS = /\b(never|not|no|without|beware)\b/i;
+// Warnings that list what a scam sounds like. They name the claim in order to refuse it.
+const SCAM_WARNINGS: readonly string[] = [
+  'A guaranteed approval, or a promise no genuine visa process can make.',
+  'A claim of special access, personal contacts, or a guaranteed fast-track at the embassy or consulate.',
+];
+// A disclaimer only counts inside the same clause as the claim, so an unrelated "no queues"
+// later in the sentence cannot switch the guard off.
 const claimsAuthority = (text: string): boolean =>
-  AUTHORITY_CLAIM.test(text) && !DISCLAIMS.test(text);
+  text.split(/[,;:.!?]/).some((clause) => AUTHORITY_CLAIM.test(clause) && !DISCLAIMS.test(clause));
 
 describe('public pages never claim a decision by an authority', () => {
   it('catches a claim and lets an honest disclaimer through', () => {
@@ -148,6 +157,10 @@ describe('public pages never claim a decision by an authority', () => {
     expect(claimsAuthority('Approval guaranteed')).toBe(true);
     expect(claimsAuthority('We guarantee your visa')).toBe(true);
     expect(claimsAuthority('Beware of a guaranteed fast-track')).toBe(false);
+    expect(claimsAuthority('Embassy-approved documents, not a hassle')).toBe(true);
+    expect(claimsAuthority('Your file will be approved, no stress')).toBe(true);
+    expect(claimsAuthority('A 100% approval rate')).toBe(true);
+    expect(claimsAuthority('Get approved faster')).toBe(true);
     expect(claimsAuthority('Embassy-approved documents')).toBe(true);
     expect(claimsAuthority('Your file will be approved')).toBe(true);
     expect(claimsAuthority('Cleared by the embassy')).toBe(true);
@@ -157,7 +170,7 @@ describe('public pages never claim a decision by an authority', () => {
 
   it('has no visible text that promises approval, acceptance or a guarantee', () => {
     const hits = visible
-      .filter((v) => claimsAuthority(v.text))
+      .filter((v) => !SCAM_WARNINGS.includes(v.text) && claimsAuthority(v.text))
       .map((v) => `${relative(WEB_SRC, v.file)}:${v.line}: ${JSON.stringify(v.text)}`);
     expect(hits, hits.join('\n')).toEqual([]);
   });
