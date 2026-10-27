@@ -1434,3 +1434,106 @@ test('password recovery confirms the request and offers an explicit resend witho
   ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Send Me a Link' })).toBeVisible();
 });
+
+/** Growth G2: pick a country on the landing page and the checklist fills in at once. */
+test.describe('country checklist on the landing page (Growth G2)', () => {
+  const sizes = [
+    { name: 'phone', width: 390, height: 844 },
+    { name: 'desktop', width: 1440, height: 900 },
+  ] as const;
+
+  for (const size of sizes) {
+    test(`picking a country fills in its checklist at ${size.name} width`, async ({ page }) => {
+      await page.setViewportSize({ width: size.width, height: size.height });
+      await page.goto('/');
+      const box = page.getByLabel('Which Country Do You Want to Visit?');
+      await expect(box).toBeVisible();
+      // A comfortable target for a thumb, and nothing chosen yet.
+      expect((await box.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+      await expect(
+        page.getByText('Your checklist appears here as soon as you pick a country.'),
+      ).toBeVisible();
+
+      // Half a name picks nothing.
+      await box.fill('Germ');
+      await expect(page.locator('.country-pick-result')).toHaveCount(0);
+
+      // A whole name shows the checklist with no waiting and no spinner.
+      await box.fill('Germany');
+      await expect(page.getByRole('heading', { name: 'Germany', level: 3 })).toBeVisible();
+      const items = page.locator('.country-pick-item');
+      expect(await items.count()).toBeGreaterThanOrEqual(5);
+      await expect(items.first()).toBeVisible();
+      await expect(
+        page.getByText('not a decision and not a promise', { exact: false }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('status').filter({ hasText: 'Showing the checklist for Germany' }),
+      ).toBeVisible();
+
+      // A short list says so.
+      await box.fill('Canada');
+      await expect(page.getByRole('heading', { name: 'Canada', level: 3 })).toBeVisible();
+      await expect(
+        page.getByText('This list may not be complete.', { exact: false }),
+      ).toBeVisible();
+
+      // The button carries the country on to sign-up (or sign-in while sign-up is closed).
+      const start = page.locator('.country-pick-action a');
+      await expect(start).toBeVisible();
+      expect((await start.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+      await expect(start).toHaveAttribute(
+        'href',
+        /^\/auth\/sign-(up|in)\?next=%2Fapp%3Fcountry%3DCA$/,
+      );
+
+      // No sideways scroll, and the picker passes the automated accessibility rules.
+      const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth,
+      }));
+      expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
+        .include('.country-start')
+        .analyze();
+      const blocking = results.violations.filter(
+        (v) => v.impact === 'critical' || v.impact === 'serious',
+      );
+      expect(blocking, JSON.stringify(blocking, null, 2)).toEqual([]);
+    });
+  }
+
+  test('the chosen country survives the trip to the account page', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await page.getByLabel('Which Country Do You Want to Visit?').fill('Japan');
+    await page.locator('.country-pick-action a').click();
+    await expect(page).toHaveURL(/\/auth\/sign-(up|in)\?next=%2Fapp%3Fcountry%3DJP$/);
+    // The return path is kept in the form, so first run opens on Japan after sign-in.
+    await expect(page.locator('input[name="next"]')).toHaveValue('/app?country=JP');
+  });
+
+  test('a device that asks for less motion gets the list with no reveal', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/');
+    await page.getByLabel('Which Country Do You Want to Visit?').fill('Germany');
+    const name = await page
+      .locator('.country-pick-item')
+      .first()
+      .evaluate((element) => getComputedStyle(element).animationName);
+    expect(name).toBe('none');
+  });
+
+  test('a device that allows motion reveals the items one after another', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.goto('/');
+    await page.getByLabel('Which Country Do You Want to Visit?').fill('Germany');
+    const delays = await page
+      .locator('.country-pick-item')
+      .evaluateAll((elements) =>
+        elements.slice(0, 3).map((element) => getComputedStyle(element).animationDelay),
+      );
+    expect(delays).toEqual(['0s', '0.045s', '0.09s']);
+  });
+});

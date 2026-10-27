@@ -64,6 +64,7 @@ const SCORECARD_LABELS: Record<ProductEventType, string> = {
   PLAN_LIMIT_REACHED: 'Plan Limits Reached',
   CASH_COLLECTED: 'Cash Collections Recorded',
   CASE_PREPARED_AGAIN: 'Cases Prepared Again',
+  COUNTRY_CHECKLIST_STARTED: 'Country Checklists Started',
 };
 
 const SIGNAL_STATUS_LABEL: Record<OperationalSignal['status'], string> = {

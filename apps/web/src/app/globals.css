@@ -8047,6 +8047,215 @@ summary.visa-photo-title {
   font-size: var(--text-small);
 }
 
+/* WP-G2 pick a country, see the checklist at once (Growth G2): the country box and the checklist
+   that fills in under it, on the public home page and in the first-run country step. Flat, existing
+   tokens only. The reveal runs only when the device allows motion; otherwise the list is just there. */
+.first-run-wide {
+  max-width: 40rem;
+}
+.first-run-country {
+  margin: 0.2rem 0 0.8rem;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.first-run-country a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.country-pick {
+  display: grid;
+  gap: 1.25rem;
+  max-width: 44rem;
+}
+.country-pick-field {
+  display: grid;
+  gap: 0.4rem;
+}
+.country-pick-label {
+  font-weight: 650;
+}
+.country-pick-hint {
+  margin: 0;
+  font-size: var(--text-small);
+}
+.country-pick-status {
+  min-height: 1.25rem;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.country-pick-empty {
+  margin: 0;
+  padding: 1rem 1.1rem;
+  border: 1px dashed var(--hairline);
+  border-radius: 16px;
+  color: var(--text-secondary);
+}
+.country-pick-result {
+  display: grid;
+  gap: 0.9rem;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  border: 1px solid var(--hairline-soft);
+  border-radius: 16px;
+  background: var(--bg-elevated);
+}
+.country-pick-result > p {
+  margin: 0;
+}
+.country-pick-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+}
+.country-pick-title {
+  margin: 0;
+  font-size: 1.35rem;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+.country-pick-route {
+  display: grid;
+  gap: 0.35rem;
+}
+.country-pick-route label {
+  font-weight: 650;
+  font-size: var(--text-small);
+}
+.country-pick-route-name {
+  font-weight: 650;
+}
+.country-pick-group {
+  margin-top: 0.4rem;
+}
+.country-pick-group h3,
+.country-pick-group h4 {
+  margin: 0 0 0.25rem;
+  font-size: var(--text-small);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.country-pick-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.country-pick-item {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--hairline-soft);
+}
+.country-pick-mark {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 0.15rem;
+  border: 2px solid var(--hairline);
+  border-radius: 50%;
+}
+.country-pick-item .badge {
+  margin-left: 0.4rem;
+}
+.country-pick-note {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: var(--text-small);
+}
+.country-pick-none {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-left: 4px solid var(--accent);
+  background: var(--brand-bg);
+}
+.country-pick-official a,
+.country-pick-action .btn {
+  min-height: 44px;
+}
+.country-pick-official a {
+  display: inline-flex;
+  align-items: center;
+}
+.country-pick-action {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+  margin-top: 0.4rem;
+}
+.country-pick-action p {
+  margin: 0;
+  font-size: var(--text-small);
+}
+@media (min-width: 1024px) {
+  .country-pick-home {
+    max-width: none;
+    grid-template-columns: minmax(0, 24rem) minmax(0, 40rem);
+    align-items: start;
+    gap: 2.5rem;
+  }
+}
+@media (max-width: 520px) {
+  .country-pick-action,
+  .country-pick-action .btn {
+    width: 100%;
+    justify-items: stretch;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .country-pick-item {
+    animation: country-pick-in 260ms var(--motion-ease) both;
+  }
+  .country-pick-step-0 {
+    animation-delay: 0ms;
+  }
+  .country-pick-step-1 {
+    animation-delay: 45ms;
+  }
+  .country-pick-step-2 {
+    animation-delay: 90ms;
+  }
+  .country-pick-step-3 {
+    animation-delay: 135ms;
+  }
+  .country-pick-step-4 {
+    animation-delay: 180ms;
+  }
+  .country-pick-step-5 {
+    animation-delay: 225ms;
+  }
+  .country-pick-step-6 {
+    animation-delay: 270ms;
+  }
+  .country-pick-step-7 {
+    animation-delay: 315ms;
+  }
+  .country-pick-step-8 {
+    animation-delay: 360ms;
+  }
+  .country-pick-step-9 {
+    animation-delay: 405ms;
+  }
+  .country-pick-step-10 {
+    animation-delay: 450ms;
+  }
+  .country-pick-step-11 {
+    animation-delay: 495ms;
+  }
+}
+@keyframes country-pick-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* WP-REF visible reference codes (ADR 0018): the code beside a record's name, even-width figures
    spaced for reading aloud, with a small Copy button that keeps a 44px target. */
 .reference-code {

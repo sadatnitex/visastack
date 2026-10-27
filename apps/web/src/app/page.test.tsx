@@ -151,6 +151,7 @@ describe('the public home page (Harbor C1, WP-L1)', () => {
     const html = await render();
     const order = [
       'id="land-hero-title"',
+      'Pick a country. See what is usually asked.',
       'Less paperwork. More control.',
       'Every visa starts with the same scramble',
       'Three Simple Steps',
@@ -179,8 +180,52 @@ describe('the public home page (Harbor C1, WP-L1)', () => {
   it('gives every section a name for screen readers and keeps one top heading', async () => {
     const html = await render();
     expect(html.match(/<h1[ >]/g)?.length).toBe(1);
-    expect(html.match(/<section[^>]*aria-labelledby="land-[a-z-]+"/g)?.length).toBe(9);
+    // Nine story sections plus the country picker under the hero (Growth G2).
+    expect(html.match(/<section[^>]*aria-labelledby="land-[a-z-]+"/g)?.length).toBe(10);
     expect(html).toContain('id="land-hero-title"');
+  });
+
+  it('puts a country picker straight under the hero, with no checklist until a country is chosen', async () => {
+    const html = await render();
+    const text = textOf(html);
+    const hero = html.indexOf('id="land-hero-title"');
+    const picker = html.indexOf('id="land-country-title"');
+    const story = html.indexOf('id="land-product-title"');
+    expect(hero).toBeGreaterThan(-1);
+    expect(picker).toBeGreaterThan(hero);
+    expect(story).toBeGreaterThan(picker);
+    expect(text).toContain('Which Country Do You Want to Visit?');
+    expect(text).toContain('Your checklist appears here as soon as you pick a country.');
+    // Every country is in the browser's own list, and the box is a plain labelled field.
+    expect(html.match(/<option value="[^"]+"><\/option>/g)?.length).toBe(156);
+    expect(html).toMatch(/<label[^>]*for="[^"]+-country"[^>]*>Which Country/);
+    // Nothing is chosen, so there is no button to create an account for a country.
+    expect(text).not.toContain('Create Free Account for');
+    // The hero and its promise are untouched by the picker.
+    expect(text).toContain('A clean file you can stand behind.');
+  });
+
+  it('keeps the picker honest: a checklist is what is usually asked, never a decision or an approval', async () => {
+    const text = textOf(await render()).toLowerCase();
+    const picker = text.slice(
+      text.indexOf('see your checklist'),
+      text.indexOf('every visa starts'),
+    );
+    expect(picker).toContain('no account is needed to look');
+    for (const word of ['approved', 'approval', 'accepted', 'guarantee', 'cleared']) {
+      expect(picker, word).not.toContain(word);
+    }
+  });
+
+  it('does not show the picker to someone who is already signed in', async () => {
+    signedInState.value = true;
+    try {
+      const html = await render();
+      expect(html).not.toContain('land-country-title');
+      expect(textOf(html)).not.toContain('Which Country Do You Want to Visit?');
+    } finally {
+      signedInState.value = false;
+    }
   });
 
   it('shows no sign-in wording to someone who is already signed in', async () => {

@@ -37,6 +37,8 @@ const PUBLIC_FILES: readonly string[] = [
   'app/trust/[packKey]/page.tsx',
   'components/pilot-banner.tsx',
   'components/public-trust-story.tsx',
+  'components/country-checklist-picker.tsx',
+  'lib/country-start.ts',
   'app/manifest.ts',
 ];
 

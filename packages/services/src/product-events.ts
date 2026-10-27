@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { MISSION_STATES } from '@visastack/core';
+import { DESTINATIONS } from '@visastack/core/destinations';
 import { and, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm';
 import { type Db, schema } from './db';
 import { redactErrorMessage } from './error-report';
@@ -66,6 +67,8 @@ export const PRODUCT_EVENT_TYPES = [
   'CASH_COLLECTED',
   // Programme X U02: a case started from a previous one (metric: records carried).
   'CASE_PREPARED_AGAIN',
+  // Growth G2: a signed-in person confirmed the country they want a checklist for (label: country code).
+  'COUNTRY_CHECKLIST_STARTED',
 ] as const;
 
 export type ProductEventType = (typeof PRODUCT_EVENT_TYPES)[number];
@@ -103,6 +106,8 @@ const DIMENSION_RULES: Readonly<Partial<Record<ProductEventType, readonly string
   PLAN_CHANGED: ['SUBSCRIPTION_ACTIVATED', 'DOWNGRADE_EXECUTED'],
   PLAN_LIMIT_REACHED: ['SEATS', 'INVITATIONS', 'CASES_PER_PERIOD', 'OPEN_CASES', 'STORAGE'],
   CASH_COLLECTED: /^[A-Z]{3}$/,
+  // A closed list: only the two-letter code of a country the checklist data holds.
+  COUNTRY_CHECKLIST_STARTED: DESTINATIONS.map((destination) => destination.iso2),
 };
 
 /** The event types that may carry a measured number, and what the number is. */
@@ -334,6 +339,11 @@ export const PRODUCT_EVENT_CATEGORIES: ReadonlyArray<{
   { key: 'plan_usage', label: 'Plan usage', eventTypes: ['PLAN_CHANGED', 'PLAN_LIMIT_REACHED'] },
   { key: 'cash_collection', label: 'Cash collection', eventTypes: ['CASH_COLLECTED'] },
   { key: 'prepare_again', label: 'Prepare again', eventTypes: ['CASE_PREPARED_AGAIN'] },
+  {
+    key: 'country_start',
+    label: 'Country checklist started',
+    eventTypes: ['COUNTRY_CHECKLIST_STARTED'],
+  },
 ];
 
 export interface AnalyticsCategoryRow {

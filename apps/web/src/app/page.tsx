@@ -1,5 +1,7 @@
 import Link from 'next/link';
+import { CountryChecklistPicker } from '../components/country-checklist-picker';
 import { Icon, type IconName } from '../components/icons';
+import { countryStartData } from '../lib/country-start';
 import { isPublicBetaOpen } from '../lib/public-beta';
 import { isSignedIn } from '../lib/signed-in';
 import './landing-c1.css';
@@ -296,6 +298,31 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           </figcaption>
         </figure>
       </section>
+
+      {signedIn ? null : (
+        <section
+          className="land-section country-start"
+          id="start"
+          aria-labelledby="land-country-title"
+        >
+          <div className="land-wrap">
+            <div className="land-head">
+              <p className="land-kicker">See Your Checklist</p>
+              <h2 className="land-h2" id="land-country-title">
+                Pick a country. See what is usually asked.
+              </h2>
+              <p className="land-sub">
+                No account is needed to look. Create one only when you want to keep going.
+              </p>
+            </div>
+            <CountryChecklistPicker
+              variant="home"
+              data={countryStartData()}
+              signUpOpen={betaOpen}
+            />
+          </div>
+        </section>
+      )}
 
       <section className="c1-darkstage" id="product" aria-labelledby="land-product-title">
         <div className="c1-shell">

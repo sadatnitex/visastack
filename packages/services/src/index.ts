@@ -1251,6 +1251,8 @@ export {
   recordProductEvent,
 } from './product-events';
 
+export { recordCountryChecklistStarted } from './country-start';
+
 export { formatMinorUnits, parseDecimalToMinorUnits } from './payment-amounts';
 export {
   EXPIRE_AFTER_MS,

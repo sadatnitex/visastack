@@ -81,6 +81,9 @@ export function stayLabel(days: number | null): string | null {
   return days === null ? null : `Up to ${days} days`;
 }
 
+/** A route's list is not a full checklist unless it has at least this many items; say so rather than imply it is complete. */
+export const THIN_LIST = 5;
+
 /** The slim record the country list needs. Small on purpose: the full data stays on the server. */
 export interface CountryListItem {
   readonly iso2: string;
