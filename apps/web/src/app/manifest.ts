@@ -14,7 +14,7 @@ export default function manifest(): MetadataRoute.Manifest {
     id: '/',
     name: 'VisaStack',
     short_name: 'VisaStack',
-    description: 'Your documents. Ready when you are.',
+    description: 'A clean file you can stand behind.',
     lang: 'en',
     dir: 'ltr',
     start_url: deepLinkPath({ kind: 'workspace' }),
