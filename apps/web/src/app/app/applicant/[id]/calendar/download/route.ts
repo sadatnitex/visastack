@@ -4,6 +4,7 @@ import {
   buildIcsCalendar,
   selectCalendarEvents,
 } from '../../../../../../lib/ics';
+import { fromThisSite } from '../../../../../../lib/same-site';
 import { exportCalendarDates, readCalendarKeys } from '../load';
 
 /**
@@ -18,24 +19,6 @@ import { exportCalendarDates, readCalendarKeys } from '../load';
 export const dynamic = 'force-dynamic';
 
 const PRIVATE = { 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' };
-
-/**
- * True when the form was sent from this site: the Origin header's host is the host the request
- * was made to. A browser always sends Origin with a form POST; a missing or "null" one is refused.
- */
-function fromThisSite(request: Request): boolean {
-  const origin = request.headers.get('origin');
-  if (!origin || origin === 'null') return false;
-  let originHost: string;
-  try {
-    originHost = new URL(origin).host;
-  } catch {
-    return false;
-  }
-  const forwarded = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim();
-  const host = forwarded || request.headers.get('host') || new URL(request.url).host;
-  return originHost === host;
-}
 
 function backTo(id: string, error: 'nothing' | 'failed'): Response {
   return new Response(null, {

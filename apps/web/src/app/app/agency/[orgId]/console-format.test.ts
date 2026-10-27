@@ -125,6 +125,12 @@ describe('status vocabularies', () => {
     }
     expect([...EVIDENCE_DECIDABLE_STATUSES].sort()).toEqual(['RECEIVED', 'UNDER_REVIEW']);
   });
+
+  it('says Received, never Submitted, for an answered request (W0 ledger L7)', () => {
+    const answered = 'RECEIVED';
+    expect(REQ_STATUS[answered]?.label).toBe('Received');
+    expect(Object.values(REQ_STATUS).map((entry) => entry.label)).not.toContain('Submitted');
+  });
 });
 
 describe('overdue tasks include started ones (WP-V4, W0 ledger H4)', () => {

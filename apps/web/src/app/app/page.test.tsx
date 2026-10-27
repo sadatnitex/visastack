@@ -321,7 +321,9 @@ describe('task-first first run (WP-V3, D8)', () => {
     expect(text).toContain('What do you want to do?');
     expect(text).toContain('Update or Find My Records');
     expect(text).not.toContain('Complete a Request');
-    expect(text).not.toContain('Prepare a brief');
+    // Prepare a Brief is offered now that its screen exists, and goes to that person's outputs page.
+    expect(text).toContain('Prepare a Brief');
+    expect(html).toContain(`href="/app/applicant/${SELF.id}/outputs?output=agency_brief"`);
     expect(html).toContain(`href="/app/applicant/${SELF.id}"`);
     expect(html).toContain('href="/app"');
     data.openRequests = 1;
@@ -519,6 +521,9 @@ describe('Home composition (WP-V4, v1.2 B13 and U03)', () => {
     const work = sectionText(html, 'home-work-heading', 'id="home-journey"');
     expect(work).toContain('Requests from an Agency');
     expect(work).toContain('1 waiting for you');
+    // The same warning colour family as the request's own screen.
+    expect(work).toContain('Action Needed');
+    expect(html).toContain('badge badge-warning');
     expect(work).toContain('Synthetic Case 1');
     expect(work).toContain('Synthetic Case 2');
   });

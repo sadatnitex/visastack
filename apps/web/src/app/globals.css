@@ -7601,6 +7601,144 @@ summary.visa-photo-title {
   align-items: center;
 }
 
+/* WP-V4 request screens (Programme X, spec B09 "Request UX", U07, and the colour polish that closes
+   WP-V4): the traveller's request list with one colour per group, the response form and its Saving,
+   Saved at and Not saved line, the question box; then the same group colours on the agency's Where
+   Things Stand, and the Do Next tier names. Existing tokens only, flat (no shadow, gradient or
+   translucent surface), 44px targets, nothing wider than its container at 320px.
+   ========================================================================== */
+.request-waiting-notice {
+  display: block;
+  margin-bottom: var(--space-5);
+}
+.request-item {
+  padding-left: 12px;
+  border-left: 3px solid var(--hairline);
+}
+.request-item-warning {
+  border-left-color: var(--warning);
+}
+.request-item-success {
+  border-left-color: var(--success);
+}
+.request-response {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.request-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.request-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+.request-choice-unavailable {
+  color: var(--text-secondary);
+}
+.request-response-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+.request-ask {
+  min-width: 0;
+}
+.request-ask-toggle {
+  cursor: pointer;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  color: var(--selected-text);
+}
+.request-ask-form {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  min-width: 0;
+}
+.request-ask-note {
+  margin: 0.25rem 0 0;
+}
+.request-questions {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.request-questions-title {
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+.request-questions-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.request-questions-list li {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.request-question-text {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.request-questions-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+}
+/* One colour per triage group on the agency's Where Things Stand, the same four families the
+   traveller's list uses (labels.ts TRIAGE_GROUP_TONES). Danger is never a group colour. */
+.case-triage-group {
+  padding-left: 10px;
+  border-left: 3px solid var(--hairline);
+}
+.case-triage-group-warning {
+  border-left-color: var(--warning);
+}
+.case-triage-group-success {
+  border-left-color: var(--success);
+}
+.case-triage-group-warning .case-triage-count {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.case-triage-group-success .case-triage-count {
+  background: var(--success-bg);
+  color: var(--success);
+}
+.case-triage-group-neutral .case-triage-count {
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+}
+/* The tier name in Do Next and on Home takes its tier's colour, matching the bar beside it. */
+.do-next-tier-1 .do-next-tier {
+  color: var(--danger);
+}
+.do-next-tier-2 .do-next-tier {
+  color: var(--selected-text);
+}
+.do-next-tier-3 .do-next-tier {
+  color: var(--warning);
+}
+
 /* WP-REF visible reference codes (ADR 0018): the code beside a record's name, even-width figures
    spaced for reading aloud, with a small Copy button that keeps a 44px target. */
 .reference-code {
@@ -7640,4 +7778,192 @@ summary.visa-photo-title {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+}
+
+/* WP-S6 reading states (ADR 0019): how a file's reading is going under its name on the documents page,
+   where a suggestion came from, the Read Again retry, and the one invitation to switch reading on. Flat:
+   no shadows or gradients, targets stay 44px, and the status never relies on colour alone (the badge
+   carries the state's name). */
+.reading-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.reading-status-text {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+.reading-status .btn,
+.read-again .btn,
+.reading-offer .btn {
+  min-height: 44px;
+}
+.read-again {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: 4px;
+}
+.finding-origin {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 8px 0;
+}
+.reading-offer {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+/* WP-V5 outputs (Programme X, B10 to B12 and E04): the briefs and summaries page
+   (src/app/app/applicant/[id]/outputs/page.tsx). Flat: no shadows, no gradients. Existing tokens,
+   44px targets. The print rules show only the preview, so a trip pack prints on its own. */
+.output-templates {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+}
+.output-template {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  height: 100%;
+  min-height: 44px;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  text-decoration: none;
+}
+.output-template[aria-current="page"] {
+  border-color: var(--accent);
+  background: var(--brand-bg);
+}
+.output-template-name {
+  font-weight: 600;
+}
+.output-template-note {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.output-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.output-check {
+  min-height: 44px;
+  padding: 0.25rem 0;
+}
+.output-check-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.output-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: var(--space-4);
+}
+.output-action,
+.output-actions .btn {
+  min-height: 44px;
+}
+/* Kept in the page while empty (never display: none) so the result is announced. */
+.output-status:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.output-status {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.output-section {
+  margin-top: var(--space-5);
+}
+.output-section-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-body);
+  font-weight: 600;
+  color: var(--text);
+}
+.output-rows {
+  margin: 0;
+  display: grid;
+  gap: 0;
+}
+.output-row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 14rem) 1fr;
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--hairline-soft);
+}
+.output-row dt {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.output-row dd {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  overflow-wrap: anywhere;
+}
+.output-row-note {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.output-unknowns {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.output-footer-note {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-small);
+}
+.output-ai,
+.output-whatsapp-message {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 40rem) {
+  .output-row {
+    grid-template-columns: 1fr;
+  }
+}
+@media print {
+  .output-noprint,
+  .output-actions,
+  .output-status {
+    display: none !important;
+  }
+  .output-row {
+    break-inside: avoid;
+  }
 }

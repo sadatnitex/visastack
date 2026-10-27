@@ -670,8 +670,15 @@
     {
       "idx": 95,
       "version": "7",
-      "when": 1793072351153,
-      "tag": "0095_payment_attempts",
+      "when": 1793080886136,
+      "tag": "0095_whatsapp_channel",
+      "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1793085554569,
+      "tag": "0096_payment_attempts",
       "breakpoints": true
     }
   ]

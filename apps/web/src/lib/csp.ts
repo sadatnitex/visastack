@@ -191,6 +191,10 @@ export function buildContentSecurityPolicy(options: ContentSecurityPolicyOptions
     ['font-src', [SELF, ...(toolbar ? VERCEL_TOOLBAR.font : [])]],
     ['connect-src', [SELF, ...(toolbar ? VERCEL_TOOLBAR.connect : [])]],
     ['frame-src', toolbar ? VERCEL_TOOLBAR.frame : [NONE]],
+    // The site's own service worker (`/sw.js`). Named on its own because a browser that honours
+    // `'strict-dynamic'` ignores `'self'` in `script-src`, which would otherwise refuse it.
+    ['worker-src', [SELF]],
+    ['manifest-src', [SELF]],
     ['object-src', [NONE]],
     ['base-uri', [SELF]],
     ['form-action', [SELF, ...appOrigin, ...(options.extraFormActionOrigins ?? [])]],

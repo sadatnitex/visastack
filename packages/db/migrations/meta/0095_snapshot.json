@@ -1,5 +1,5 @@
 {
-  "id": "694c7e83-86ff-4061-ae71-f31223e7e6ea",
+  "id": "730e186a-d57b-4e47-a23c-2be66afd7a3d",
   "prevId": "636ef705-f782-47d7-9d4f-cc82948f4b8a",
   "version": "7",
   "dialect": "postgresql",
@@ -2676,6 +2676,512 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.channel_identities": {
+      "name": "channel_identities",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "channel": {
+          "name": "channel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'WHATSAPP'"
+        },
+        "provider_scope": {
+          "name": "provider_scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "external_user_id": {
+          "name": "external_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "phone_last4": {
+          "name": "phone_last4",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'PROVISIONAL'"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "opt_in_version": {
+          "name": "opt_in_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "linked_at": {
+          "name": "linked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "opted_out_at": {
+          "name": "opted_out_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "opt_changed_at": {
+          "name": "opt_changed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_inbound_at": {
+          "name": "last_inbound_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "last_auto_reply_at": {
+          "name": "last_auto_reply_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "channel_identities_one_linked_per_account": {
+          "name": "channel_identities_one_linked_per_account",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "channel",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"channel_identities\".\"status\" = 'LINKED'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "channel_identities_account_id_accounts_id_fk": {
+          "name": "channel_identities_account_id_accounts_id_fk",
+          "tableFrom": "channel_identities",
+          "tableTo": "accounts",
+          "columnsFrom": ["account_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "channel_identities_sender_unique": {
+          "name": "channel_identities_sender_unique",
+          "nullsNotDistinct": false,
+          "columns": ["channel", "provider_scope", "external_user_id"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "channel_identities_channel": {
+          "name": "channel_identities_channel",
+          "value": "\"channel_identities\".\"channel\" in ('WHATSAPP')"
+        },
+        "channel_identities_status": {
+          "name": "channel_identities_status",
+          "value": "\"channel_identities\".\"status\" in ('PROVISIONAL', 'LINKED', 'REVOKED')"
+        },
+        "channel_identities_linked_account": {
+          "name": "channel_identities_linked_account",
+          "value": "(\"channel_identities\".\"status\" = 'LINKED') = (\"channel_identities\".\"account_id\" is not null)"
+        },
+        "channel_identities_last4": {
+          "name": "channel_identities_last4",
+          "value": "\"channel_identities\".\"phone_last4\" is null or \"channel_identities\".\"phone_last4\" ~ '^[0-9]{4}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.channel_link_codes": {
+      "name": "channel_link_codes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code_hash": {
+          "name": "code_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "opt_in_version": {
+          "name": "opt_in_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "consumed_at": {
+          "name": "consumed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "channel_link_codes_account_idx": {
+          "name": "channel_link_codes_account_idx",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "channel_link_codes_account_id_accounts_id_fk": {
+          "name": "channel_link_codes_account_id_accounts_id_fk",
+          "tableFrom": "channel_link_codes",
+          "tableTo": "accounts",
+          "columnsFrom": ["account_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "channel_link_codes_hash_unique": {
+          "name": "channel_link_codes_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": ["code_hash"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.channel_messages": {
+      "name": "channel_messages",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "identity_id": {
+          "name": "identity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "direction": {
+          "name": "direction",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_message_id": {
+          "name": "provider_message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "error_code": {
+          "name": "error_code",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pricing_category": {
+          "name": "pricing_category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "billable": {
+          "name": "billable",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider_timestamp": {
+          "name": "provider_timestamp",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "channel_messages_identity_idx": {
+          "name": "channel_messages_identity_idx",
+          "columns": [
+            {
+              "expression": "identity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "channel_messages_identity_id_channel_identities_id_fk": {
+          "name": "channel_messages_identity_id_channel_identities_id_fk",
+          "tableFrom": "channel_messages",
+          "tableTo": "channel_identities",
+          "columnsFrom": ["identity_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "channel_messages_provider_unique": {
+          "name": "channel_messages_provider_unique",
+          "nullsNotDistinct": false,
+          "columns": ["provider_message_id"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "channel_messages_direction": {
+          "name": "channel_messages_direction",
+          "value": "\"channel_messages\".\"direction\" in ('IN', 'OUT')"
+        },
+        "channel_messages_state": {
+          "name": "channel_messages_state",
+          "value": "\"channel_messages\".\"state\" in ('RECEIVED', 'SENT', 'DELIVERED', 'READ', 'FAILED')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.channel_webhook_events": {
+      "name": "channel_webhook_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "channel": {
+          "name": "channel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'WHATSAPP'"
+        },
+        "event_hash": {
+          "name": "event_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload_ciphertext": {
+          "name": "payload_ciphertext",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "payload_nonce": {
+          "name": "payload_nonce",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "payload_key_version": {
+          "name": "payload_key_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "received_at": {
+          "name": "received_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "processed_at": {
+          "name": "processed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "next_attempt_at": {
+          "name": "next_attempt_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_error": {
+          "name": "last_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "channel_webhook_events_pending_idx": {
+          "name": "channel_webhook_events_pending_idx",
+          "columns": [
+            {
+              "expression": "received_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"channel_webhook_events\".\"processed_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "channel_webhook_events_hash_unique": {
+          "name": "channel_webhook_events_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": ["event_hash"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "channel_webhook_events_payload_whole": {
+          "name": "channel_webhook_events_payload_whole",
+          "value": "(\"channel_webhook_events\".\"payload_ciphertext\" is null) = (\"channel_webhook_events\".\"payload_nonce\" is null) and (\"channel_webhook_events\".\"payload_nonce\" is null) = (\"channel_webhook_events\".\"payload_key_version\" is null)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.client_invitations": {
@@ -9563,224 +10069,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.payment_attempts": {
-      "name": "payment_attempts",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "invoice_id": {
-          "name": "invoice_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "provider": {
-          "name": "provider",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "merchant_tran_id": {
-          "name": "merchant_tran_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "amount_minor_units": {
-          "name": "amount_minor_units",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "currency": {
-          "name": "currency",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "payment_attempt_status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'CREATED'"
-        },
-        "provider_session_key": {
-          "name": "provider_session_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "provider_val_id": {
-          "name": "provider_val_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "bank_tran_id": {
-          "name": "bank_tran_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "risk_level": {
-          "name": "risk_level",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "last_provider_status": {
-          "name": "last_provider_status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reason_code": {
-          "name": "reason_code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "initiated_by_account_id": {
-          "name": "initiated_by_account_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "redirected_at": {
-          "name": "redirected_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "last_checked_at": {
-          "name": "last_checked_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "recorded_at": {
-          "name": "recorded_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "payment_attempts_invoice_idx": {
-          "name": "payment_attempts_invoice_idx",
-          "columns": [
-            {
-              "expression": "invoice_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "payment_attempts_status_redirected_idx": {
-          "name": "payment_attempts_status_redirected_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "redirected_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "payment_attempts_invoice_id_invoices_id_fk": {
-          "name": "payment_attempts_invoice_id_invoices_id_fk",
-          "tableFrom": "payment_attempts",
-          "tableTo": "invoices",
-          "columnsFrom": ["invoice_id"],
-          "columnsTo": ["id"],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "payment_attempts_organization_id_organizations_id_fk": {
-          "name": "payment_attempts_organization_id_organizations_id_fk",
-          "tableFrom": "payment_attempts",
-          "tableTo": "organizations",
-          "columnsFrom": ["organization_id"],
-          "columnsTo": ["id"],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "payment_attempts_merchant_tran_unique": {
-          "name": "payment_attempts_merchant_tran_unique",
-          "nullsNotDistinct": false,
-          "columns": ["merchant_tran_id"]
-        },
-        "payment_attempts_provider_val_unique": {
-          "name": "payment_attempts_provider_val_unique",
-          "nullsNotDistinct": false,
-          "columns": ["provider", "provider_val_id"]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "payment_attempts_amount_positive": {
-          "name": "payment_attempts_amount_positive",
-          "value": "\"payment_attempts\".\"amount_minor_units\" > 0"
-        },
-        "payment_attempts_recorded_has_time": {
-          "name": "payment_attempts_recorded_has_time",
-          "value": "\"payment_attempts\".\"status\" <> 'RECORDED' or \"payment_attempts\".\"recorded_at\" is not null"
-        },
-        "payment_attempts_held_has_reason": {
-          "name": "payment_attempts_held_has_reason",
-          "value": "\"payment_attempts\".\"status\" <> 'HELD_FOR_REVIEW' or \"payment_attempts\".\"reason_code\" is not null"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.pilot_invitations": {
       "name": "pilot_invitations",
       "schema": "",
@@ -12545,20 +12833,6 @@
       "name": "pack_version_status",
       "schema": "public",
       "values": ["DRAFT", "APPROVED", "PUBLISHED", "DEPRECATED", "WITHDRAWN"]
-    },
-    "public.payment_attempt_status": {
-      "name": "payment_attempt_status",
-      "schema": "public",
-      "values": [
-        "CREATED",
-        "REDIRECTED",
-        "VALIDATED",
-        "RECORDED",
-        "FAILED",
-        "CANCELLED",
-        "EXPIRED",
-        "HELD_FOR_REVIEW"
-      ]
     },
     "public.permission_action": {
       "name": "permission_action",

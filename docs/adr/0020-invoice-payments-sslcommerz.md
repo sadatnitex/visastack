@@ -141,7 +141,7 @@ S10 is implemented: the append-only `invoice_payments` ledger and the single rec
 
 ## Implementation note, S11 (2026-10-27)
 
-S11 is implemented: `payment_attempts` (migration 0095), the `PaymentPort` contract and `SslcommerzPaymentPort`, `packages/services/src/payments.ts`, the notification and return routes, the daily `process-payment-reconciliation` job and a signed result page. Operations: `docs/operations/online-payments.md`. Choices the ADR left open:
+S11 is implemented: `payment_attempts` (migration 0096), the `PaymentPort` contract and `SslcommerzPaymentPort`, `packages/services/src/payments.ts`, the notification and return routes, the daily `process-payment-reconciliation` job and a signed result page. Operations: `docs/operations/online-payments.md`. Choices the ADR left open:
 
 - **One settling function.** The notification, the browser return, the daily job and a screen refresh all call `settlePaymentAttempt`, so one payment arriving four ways is judged by the same checks and recorded once.
 - **The notification names the payment; the gateway decides.** A callback body (signature included) is never evidence. It only supplies the transaction id and the validation id to ask the gateway about. A callback with no validation id (a reported failure or cancel) is confirmed by a query by transaction id, so a forged "failed" cannot close a real payment.

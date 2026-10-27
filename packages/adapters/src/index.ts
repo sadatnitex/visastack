@@ -123,3 +123,5 @@ export {
 export { JszipBundler } from './zip-bundler';
 
 export { hasRecentDatabaseBackup } from './backup-status';
+
+export { WhatsAppCloudPort, type WhatsAppCloudPortOptions, toGraphMessage } from './whatsapp-cloud';

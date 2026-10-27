@@ -34,6 +34,7 @@ export const SYSTEM_JOBS = [
   'process-abandoned-uploads',
   'process-account-export-expiry',
   'process-account-exports',
+  'process-ai-reading',
   'process-case-retention-notices',
   'process-case-retention-purge',
   'process-database-backup',
@@ -48,6 +49,7 @@ export const SYSTEM_JOBS = [
   'process-notifications',
   'process-payment-reconciliation',
   'process-rate-limit-prune',
+  'process-whatsapp-inbox',
   'rewrap-data-keys',
 ] as const;
 

@@ -161,4 +161,23 @@ describe('describeGrantScope follows the access rules', () => {
       'one specific case (nothing from it is shown to them yet)',
     );
   });
+
+  it('a one-time copy has nothing they can do and nothing that ends', async () => {
+    const html = await render({
+      ...NARROW,
+      permissions: [],
+      documents: { kind: 'omit' },
+      endsOn: null,
+      snapshot: true,
+    });
+    expect(row(html, 'Who')?.text).toBe('agent@example.com');
+    expect(row(html, 'Can see')?.text).toBe('Identity, Education');
+    expect(row(html, 'They can')).toBeUndefined();
+    expect(row(html, 'Ends on')).toBeUndefined();
+    expect(textOf(html)).toContain('Everything you did not select stays private.');
+    // Live access still shows both, so a grant is never described as a copy.
+    const live = await render({ ...NARROW, endsOn: null });
+    expect(row(live, 'They can')).toBeDefined();
+    expect(row(live, 'Ends on')?.warning).toBe(true);
+  });
 });

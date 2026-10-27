@@ -79,9 +79,11 @@ export interface FirstRunTaskProps {
   readonly requestHref: string | null;
   /** The first applicant's records. */
   readonly recordsHref: string;
+  /** Where a brief is prepared (the outputs page of the first applicant), when there is one. */
+  readonly briefHref?: string | null;
 }
 
-export function FirstRunTask({ requestHref, recordsHref }: FirstRunTaskProps) {
+export function FirstRunTask({ requestHref, recordsHref, briefHref = null }: FirstRunTaskProps) {
   return (
     <section className="section container first-run" aria-labelledby="first-run-title">
       <h1 className="section-title" id="first-run-title">
@@ -93,6 +95,14 @@ export function FirstRunTask({ requestHref, recordsHref }: FirstRunTaskProps) {
             <Link href={requestHref}>
               <b>Complete a Request</b>
               <span>An agency asked you for something</span>
+            </Link>
+          </li>
+        ) : null}
+        {briefHref ? (
+          <li>
+            <Link href={briefHref}>
+              <b>Prepare a Brief</b>
+              <span>Choose what goes in, then copy or download it</span>
             </Link>
           </li>
         ) : null}

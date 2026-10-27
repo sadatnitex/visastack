@@ -16,8 +16,19 @@ const securityHeaders = [
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
 ];
 
+/**
+ * One value per build, baked into the server and browser code. The service worker (`/sw.js`)
+ * carries it, so every deployment ships a worker that differs from the last one and devices
+ * learn that a newer VisaStack is available. Locally it falls back to the build time.
+ */
+const buildVersion =
+  process.env.VERCEL_DEPLOYMENT_ID ??
+  process.env.VERCEL_GIT_COMMIT_SHA ??
+  `local-${Date.now().toString(36)}`;
+
 const nextConfig = {
   reactStrictMode: true,
+  env: { VISASTACK_BUILD_VERSION: buildVersion },
   poweredByHeader: false,
   transpilePackages: ['@visastack/core', '@visastack/db'],
   // The pooled Neon driver talks to Postgres over a WebSocket via `ws`. If

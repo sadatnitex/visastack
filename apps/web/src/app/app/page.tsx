@@ -345,6 +345,9 @@ export default async function AppPage({
               : null
         }
         recordsHref={first ? `/app/applicant/${first.applicant.id}` : '/app/applicants'}
+        briefHref={
+          first ? `/app/applicant/${first.applicant.id}/outputs?output=agency_brief` : null
+        }
       />
     );
   }
@@ -597,6 +600,9 @@ export default async function AppPage({
                       </span>
                     </span>
                     <span className="attention-end">
+                      {row.waitingRequests > 0 ? (
+                        <StatusBadge tone="warning">Action Needed</StatusBadge>
+                      ) : null}
                       <span className="attention-chevron" aria-hidden="true">
                         ›
                       </span>

@@ -24,7 +24,7 @@ Added in package S11 (ADR 0020). An agency owner or admin can pay an invoice onl
 
 1. Open the SSLCOMMERZ sandbox account and note the store id and store password.
 2. In Vercel, for the Preview or a test environment first, set `PAYMENT_PROVIDER=sslcommerz`, `SSLCOMMERZ_STORE_ID`, `SSLCOMMERZ_STORE_PASSWORD` (a secret) and `SSLCOMMERZ_MODE=sandbox`. `SSLCOMMERZ_MODE` has no default: if it is missing or anything other than `sandbox` or `live`, payments stay off and the platform status reports payments as not configured.
-3. The migration `0095_payment_attempts` must have run (it creates the attempts table). Until it has, the code reports "not available yet" and records nothing.
+3. The migration `0096_payment_attempts` must have run (it creates the attempts table). Until it has, the code reports "not available yet" and records nothing.
 4. In the SSLCOMMERZ merchant panel set the notification address (IPN) to `https://<your domain>/api/payments/sslcommerz/ipn`.
 5. Make a sandbox payment of a small test invoice. Check: the invoice shows Paid, the ledger has one Online row, and paying again does nothing.
 6. Switch to live only with the owner's word: set `SSLCOMMERZ_MODE=live` with the live store id and password, and the same notification address. There is no other live switch.

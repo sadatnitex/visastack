@@ -15,9 +15,9 @@ import {
   reserveUpload,
 } from '@visastack/services';
 import { after } from 'next/server';
-import { triggerIntakeWorker } from '../../../../lib/jobs';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
+import { triggerIntakeAndReading } from '../../../api/jobs/process-ai-reading/run';
 
 export interface ActionState {
   readonly ok: boolean;
@@ -151,7 +151,7 @@ export async function submitContributorEvidenceAction(
 
     await enqueueIntakeJob(db, { documentVersionId: outcome.version.version.id });
     await finalizeUpload(db, intent.id, outcome.version.version.id);
-    after(() => triggerIntakeWorker());
+    after(() => triggerIntakeAndReading());
 
     const completed = await completeContributorSubmission(db, {
       contributorRequestId: request.id,

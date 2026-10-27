@@ -1073,7 +1073,7 @@ describe('online invoice payments (S11)', () => {
     });
   });
 
-  describe('before migration 0095 (the attempts table is missing)', () => {
+  describe('before migration 0096 (the attempts table is missing)', () => {
     beforeEach(async () => {
       await db.execute(sql`drop table payment_attempts`);
     });

@@ -41,7 +41,7 @@ import { RATE_LIMITS, checkRateLimit, checkRateLimits } from './rate-limit';
  * storing or logging a card detail, a store credential or the gateway's raw reply. Audit records
  * carry ids, kinds and plain codes only.
  *
- * Every function tolerates migration 0095 not having run: it reports "not available yet" and
+ * Every function tolerates migration 0096 not having run: it reports "not available yet" and
  * writes nothing.
  */
 
