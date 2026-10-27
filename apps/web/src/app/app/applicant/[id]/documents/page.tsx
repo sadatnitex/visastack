@@ -55,7 +55,7 @@ import { categoryLabel, evidenceDocumentGroups } from '../../../../../lib/master
 import { createKeyManagementPort } from '../../../../../lib/providers';
 import { isStillProcessing } from '../../../../../lib/resilience';
 import { withSession } from '../../../../../lib/session';
-import { permitsPdfAdmission, uploadLimitBytes } from '../../../../../lib/upload-preflight';
+import { pdfUploadsAccepted, uploadLimitBytes } from '../../../../../lib/upload-preflight';
 import {
   previewDocumentAction,
   requestDocumentReadingAction,
@@ -809,7 +809,7 @@ export default async function ApplicantDocumentsPage({
                   applicantId={id}
                   limitBytes={uploadLimitBytes(data.quota)}
                   limitLabel={mbLabel(uploadLimitBytes(data.quota))}
-                  pdfAccepted={permitsPdfAdmission(readEnv('MALWARE_SCANNER_PROVIDER'))}
+                  pdfAccepted={pdfUploadsAccepted()}
                   virusScanning={data.virusScanning}
                   kindGroups={documentGroups}
                   initialKind={initialKind}
@@ -822,9 +822,4 @@ export default async function ApplicantDocumentsPage({
       </details>
     </>
   );
-}
-
-/** Variable-keyed env read (satisfies both TS index-signature and Biome rules). */
-function readEnv(name: string): string | undefined {
-  return process.env[name];
 }

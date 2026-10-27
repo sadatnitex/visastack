@@ -69,8 +69,8 @@ const nextConfig = {
     // iPhone photo (HEIC) conversion (packages/adapters/src/heic-converter.ts): libheif built to
     // WebAssembly. Kept external so the deployed function loads the unmodified package from its
     // own files, as a separate and replaceable library (its LGPL licence asks for that), and the
-    // 2 MB decoder is not copied into the server bundle.
-    'heic-decode',
+    // decoder is not copied into the server bundle. It is only ever loaded by the conversion's
+    // worker thread (packages/adapters/src/heic-worker.cjs), which is kept external too (below).
     'libheif-js',
   ],
   webpack: (config, { isServer }) => {
@@ -87,8 +87,11 @@ const nextConfig = {
             request &&
             (/^@napi-rs\/canvas/.test(request) ||
               request === 'sharp' ||
-              request === 'heic-decode' ||
-              /^libheif-js(\/|$)/.test(request))
+              /^libheif-js(\/|$)/.test(request) ||
+              // The HEIC conversion's worker thread runs this file by its real path, so it must
+              // stay a file of its own: kept out of the bundle, it is required from the deployed
+              // files, and the output file tracing follows it and its own requires.
+              request === '@visastack/adapters/heic-worker')
           ) {
             return callback(null, `commonjs ${request}`);
           }

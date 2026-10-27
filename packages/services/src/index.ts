@@ -1653,3 +1653,4 @@ export {
 } from './naming';
 export { OWNER_RENAME_REASON, renameDocument } from './document-naming';
 export { CONVERTED_FROM_HEIC_SOURCE, type RegisteredDocumentWithVersion } from './documents';
+export { type GrowUploadReservationInput, growUploadReservation } from './uploads';

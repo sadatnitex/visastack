@@ -237,7 +237,7 @@ async function isListedUnderAutomaticTitle(tx: Db, document: Document): Promise<
   return latest?.reason === AUTOMATIC_TITLE_REASON && latest.finalName === document.approvedName;
 }
 
-/** The next free name version number for a document. */
+/** The next free name version number for a document. Call it with the document row locked. */
 async function nextNameVersionNumber(tx: Db, documentId: string): Promise<number> {
   const top = first(
     await tx
@@ -794,25 +794,38 @@ export async function setDocumentType(
   const { docType, subject } = kind.value;
 
   return db.transaction(async (tx) => {
+    // The row is locked and read again before its name is looked at, the same lock every writer
+    // of a document's names takes (`proposeDocumentName`, `renameDocument`): a name written in the
+    // meantime (a reading's suggestion, a rename) is seen here, and no two writers can pick the
+    // same name version number.
+    const current = first(
+      await tx
+        .select()
+        .from(schema.documents)
+        .where(eq(schema.documents.id, document.id))
+        .limit(1)
+        .for('update'),
+    );
+    if (!current) return err(serviceError('not_found', 'document not found'));
     // A document still listed under its automatic title takes the title of its new kind
     // ("Document, Nazmus, 27 Oct 2026" becomes "Passport, Nazmus"); a name the person chose stays.
     const retitle =
-      input.keepName !== true && applicant && (await isListedUnderAutomaticTitle(tx, document))
+      input.keepName !== true && applicant && (await isListedUnderAutomaticTitle(tx, current))
         ? buildDocumentTitle({
             docType,
             subject,
             displayName: applicant.displayName,
-            addedAt: document.createdAt,
+            addedAt: current.createdAt,
             timeZone: applicant.timezone,
           })
         : null;
-    const newTitle = retitle !== null && retitle !== document.approvedName ? retitle : null;
+    const newTitle = retitle !== null && retitle !== current.approvedName ? retitle : null;
     if (newTitle) {
       await recordAutomaticTitle(
         tx,
-        document.id,
+        current.id,
         newTitle,
-        await nextNameVersionNumber(tx, document.id),
+        await nextNameVersionNumber(tx, current.id),
       );
     }
     const updated = required(
@@ -862,7 +875,7 @@ export async function setDocumentType(
       resourceId: document.id,
       metadata: {
         docType,
-        previousDocType: document.docType,
+        previousDocType: current.docType,
         closedSuggestions,
         automaticTitleUpdated: newTitle !== null,
       },

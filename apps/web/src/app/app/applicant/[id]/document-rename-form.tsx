@@ -1,6 +1,7 @@
 'use client';
 
-import { useActionState, useRef } from 'react';
+import { MAX_DOCUMENT_NAME_LENGTH } from '@visastack/core';
+import { useActionState, useRef, useState } from 'react';
 import {
   FormMessage,
   SubmitButton,
@@ -11,24 +12,28 @@ import { type ActionState, renameDocumentAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
-/** The longest name a person can give a document (the service's MAX_DOCUMENT_NAME_LENGTH). */
-const MAX_NAME_LENGTH = 200;
-
-/**
- * The name a document is listed under, which the person can change. A new document starts with
- * its automatic title ("Passport, Nazmus"); a name saved here replaces it everywhere.
- */
-export function DocumentRenameForm({
-  applicantId,
-  documentId,
-  name,
-}: {
+interface DocumentRenameFormProps {
   readonly applicantId: string;
   readonly documentId: string;
   /** The name it is listed under now. */
   readonly name: string;
-}) {
+}
+
+/**
+ * The name a document is listed under, which the person can change. A new document starts with
+ * its automatic title ("Passport, Nazmus"); a name saved here replaces it everywhere.
+ *
+ * The form starts again whenever the listed name changes (a new automatic title after the kind is
+ * chosen, or the saved name itself), so it always shows the current name. Until then the box keeps
+ * what the person typed, including after a refused save, so nothing has to be typed twice.
+ */
+export function DocumentRenameForm(props: DocumentRenameFormProps) {
+  return <RenameForm key={props.name} {...props} />;
+}
+
+function RenameForm({ applicantId, documentId, name }: DocumentRenameFormProps) {
   const [state, formAction, pending] = useActionState(renameDocumentAction, INITIAL);
+  const [typed, setTyped] = useState(name);
   const formRef = useRef<HTMLFormElement>(null);
   const inputId = `name-${documentId}`;
   const messageId = `name-msg-${documentId}`;
@@ -46,8 +51,9 @@ export function DocumentRenameForm({
           name="name"
           type="text"
           required
-          maxLength={MAX_NAME_LENGTH}
-          defaultValue={name}
+          maxLength={MAX_DOCUMENT_NAME_LENGTH}
+          value={typed}
+          onChange={(event) => setTyped(event.currentTarget.value)}
           className="input"
           autoComplete="off"
           {...fieldProblem(state, 'name', messageId)}

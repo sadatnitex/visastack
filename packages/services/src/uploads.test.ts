@@ -4,6 +4,7 @@ import { createMigratedPglite } from '@visastack/db/testing';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { type AuthorizedApplicant, accountPrincipal, requireAccess } from './access';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
@@ -12,7 +13,13 @@ import { addDocumentVersion, registerDocument } from './documents';
 import { RATE_LIMITS } from './rate-limit';
 import { exhaustRateLimit } from './rate-limit.test-support';
 import type { BlobStore } from './storage';
-import { failUpload, finalizeUpload, reserveUpload, sweepAbandonedUploads } from './uploads';
+import {
+  failUpload,
+  finalizeUpload,
+  growUploadReservation,
+  reserveUpload,
+  sweepAbandonedUploads,
+} from './uploads';
 
 async function freshDb(): Promise<Db> {
   const client = await createMigratedPglite();
@@ -602,5 +609,153 @@ describe('sweepAbandonedUploads - 24h cleanup of abandoned reservations (directi
     // A second, immediate sweep finds nothing left to clean -- no further event.
     await sweepAbandonedUploads(db, blobStore, undefined, observability);
     expect(events).toHaveLength(1);
+  });
+});
+
+describe('growUploadReservation - a converted copy larger than the file sent (UX-B)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  async function ownerProof(accountId: string, applicantId: string) {
+    const access = await requireAccess(
+      db,
+      accountPrincipal(accountId),
+      'MANAGE',
+      { applicantId },
+      { purpose: 'owner_document_upload' },
+    );
+    if (!isOk(access)) throw new Error('access refused');
+    return access.value;
+  }
+
+  async function reserved(accountId: string, applicantId: string, sizeBytes: number) {
+    const result = await reserveUpload(db, { accountId, applicantId, sizeBytes }, tightConfig);
+    if (!isOk(result)) throw new Error('reservation refused');
+    return result.value;
+  }
+
+  it('grows the same reservation in place, without a second reservation attempt', async () => {
+    const { accountId, applicantId } = await seedApplicantWithEvidence(db, 'grow@example.com', []);
+    const intent = await reserved(accountId, applicantId, MB);
+    // Even with the upload rate limit used up, growing is not a new attempt and is not refused.
+    await exhaustRateLimit(db, accountId, 'upload.reserve', RATE_LIMITS.UPLOAD_RESERVE);
+
+    const grown = await growUploadReservation(
+      await ownerProof(accountId, applicantId),
+      { intentId: intent.id, sizeBytes: 2 * MB },
+      tightConfig,
+    );
+
+    expect(isOk(grown)).toBe(true);
+    if (!isOk(grown)) return;
+    expect(grown.value).toMatchObject({
+      id: intent.id,
+      objectKey: intent.objectKey,
+      status: 'RESERVED',
+      reservedBytes: 2 * MB,
+    });
+    const rows = await db.select().from(schema.uploadIntents);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.reservedBytes).toBe(2 * MB);
+  });
+
+  it('counts only the extra bytes against the limits, and leaves the reservation as it was when they do not fit', async () => {
+    const { accountId, applicantId } = await seedApplicantWithEvidence(db, 'fit@example.com', []);
+    const intent = await reserved(accountId, applicantId, 6 * MB);
+    const proof = await ownerProof(accountId, applicantId);
+    // A per-file limit above the applicant's, so the applicant limit is the one that decides.
+    const roomyFile = { ...tightConfig, maxUploadBytes: 20 * MB };
+
+    // 10 MB is exactly the applicant limit: it fits because the 6 MB already held is not
+    // counted twice.
+    const exact = await growUploadReservation(
+      proof,
+      { intentId: intent.id, sizeBytes: 10 * MB },
+      roomyFile,
+    );
+    expect(isOk(exact)).toBe(true);
+
+    const over = await growUploadReservation(
+      proof,
+      { intentId: intent.id, sizeBytes: 10 * MB + 1 },
+      roomyFile,
+    );
+    expect(isErr(over)).toBe(true);
+    if (isErr(over)) expect(over.error.message).toContain('applicant has reached');
+    const [row] = await db.select().from(schema.uploadIntents);
+    expect(row).toMatchObject({ status: 'RESERVED', reservedBytes: 10 * MB });
+  });
+
+  it('refuses when the extra bytes would pass the applicant limit, counting other uploads in progress', async () => {
+    const { accountId, applicantId } = await seedApplicantWithEvidence(db, 'busy@example.com', [
+      2 * MB,
+    ]);
+    const intent = await reserved(accountId, applicantId, 3 * MB);
+    await reserved(accountId, applicantId, 3 * MB);
+    const result = await growUploadReservation(
+      await ownerProof(accountId, applicantId),
+      // 2 MB stored + 3 MB for the other upload + this one grown to just over 5 MB: past 10 MB.
+      { intentId: intent.id, sizeBytes: 5 * MB + 1 },
+      tightConfig,
+    );
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.message).toContain('applicant has reached');
+    const [row] = await db
+      .select()
+      .from(schema.uploadIntents)
+      .where(eq(schema.uploadIntents.id, intent.id));
+    expect(row?.reservedBytes).toBe(3 * MB);
+  });
+
+  it("only grows a reservation that is still in progress, for the proof's own applicant", async () => {
+    const owner = await seedApplicantWithEvidence(db, 'mine@example.com', []);
+    const other = await seedApplicantWithEvidence(db, 'other@example.com', []);
+    const intent = await reserved(owner.accountId, owner.applicantId, MB);
+
+    const elsewhere = await growUploadReservation(
+      await ownerProof(other.accountId, other.applicantId),
+      { intentId: intent.id, sizeBytes: 2 * MB },
+      tightConfig,
+    );
+    expect(isErr(elsewhere)).toBe(true);
+    if (isErr(elsewhere)) expect(elsewhere.error.code).toBe('not_found');
+
+    await failUpload(db, intent.id, 'released');
+    const released = await growUploadReservation(
+      await ownerProof(owner.accountId, owner.applicantId),
+      { intentId: intent.id, sizeBytes: 2 * MB },
+      tightConfig,
+    );
+    expect(isErr(released)).toBe(true);
+    if (isErr(released)) expect(released.error.code).toBe('not_found');
+    const [row] = await db.select().from(schema.uploadIntents);
+    expect(row).toMatchObject({ status: 'FAILED', reservedBytes: MB });
+  });
+
+  it('refuses a copied proof', async () => {
+    const { accountId, applicantId } = await seedApplicantWithEvidence(db, 'copy@example.com', []);
+    const intent = await reserved(accountId, applicantId, MB);
+    const copy = { ...(await ownerProof(accountId, applicantId)) } as AuthorizedApplicant<'MANAGE'>;
+    const result = await growUploadReservation(
+      copy,
+      { intentId: intent.id, sizeBytes: 2 * MB },
+      tightConfig,
+    );
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('forbidden');
+  });
+
+  it('refuses a size above the per-file limit', async () => {
+    const { accountId, applicantId } = await seedApplicantWithEvidence(db, 'cap@example.com', []);
+    const intent = await reserved(accountId, applicantId, MB);
+    const result = await growUploadReservation(
+      await ownerProof(accountId, applicantId),
+      { intentId: intent.id, sizeBytes: 10 * MB + 1 },
+      tightConfig,
+    );
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.message).toContain('upload limit');
   });
 });

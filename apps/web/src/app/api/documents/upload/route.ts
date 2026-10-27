@@ -3,7 +3,7 @@ import { withSession } from '../../../../lib/session';
 import {
   STREAM_UPLOAD_LIMIT,
   admitsHeicUpload,
-  permitsPdfAdmission,
+  pdfUploadsAccepted,
   readBoundedUpload,
   validateUploadBytes,
 } from '../../../../lib/upload-preflight';
@@ -67,11 +67,7 @@ export async function POST(request: Request): Promise<Response> {
     }
     const admitted =
       admitsHeicUpload(bytes, contentType) ||
-      validateUploadBytes(
-        bytes,
-        contentType,
-        permitsPdfAdmission(readEnv('MALWARE_SCANNER_PROVIDER')),
-      );
+      validateUploadBytes(bytes, contentType, pdfUploadsAccepted());
     if (!admitted) return json('This file type cannot be safely processed.', 415);
     const form = new FormData();
     form.set('applicantId', applicantId);
@@ -82,8 +78,4 @@ export async function POST(request: Request): Promise<Response> {
     const result = await uploadDocumentAction({ ok: false, message: '' }, form);
     return json(result.message, result.ok ? 201 : 400, result.ok ? result.title : undefined);
   });
-}
-
-function readEnv(name: string): string | undefined {
-  return process.env[name];
 }

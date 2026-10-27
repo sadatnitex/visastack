@@ -209,4 +209,4 @@ export class FakeSslcommerzGateway {
 }
 
 // Made-up HEIC photos (flat colours only) for the iPhone photo conversion tests.
-export { MADE_UP_HEIC_LARGE, MADE_UP_HEIC_SMALL } from './heic-fixtures';
+export { MADE_UP_HEIC_HUGE, MADE_UP_HEIC_LARGE, MADE_UP_HEIC_SMALL } from './heic-fixtures';

@@ -1,3 +1,4 @@
+import { MAX_DOCUMENT_NAME_LENGTH } from '@visastack/core';
 import { documentTypeName } from '@visastack/core/catalogue/documents';
 
 /**
@@ -76,8 +77,8 @@ export function extensionOf(originalName: string): string {
   return dot === -1 ? '' : originalName.slice(dot + 1);
 }
 
-/** The longest name a person can give a document. */
-export const MAX_DOCUMENT_NAME_LENGTH = 200;
+/** The longest name a person can give a document (one value, shared with the rename form). */
+export { MAX_DOCUMENT_NAME_LENGTH };
 
 /**
  * Control characters (C0, DEL and C1) and the bidirectional overrides and isolates that can make
@@ -169,15 +170,19 @@ export interface DocumentTitleInput {
   readonly timeZone: string;
 }
 
-/** The title a document is listed under until someone renames it. */
+/**
+ * The title a document is listed under until someone renames it. An "Other" kind uses the
+ * person's own name for it when there is one ("Marriage Certificate"), and the kind's own label
+ * otherwise ("Other Letter or Statement").
+ */
 export function buildDocumentTitle(input: DocumentTitleInput): string {
   const isOther =
     input.docType !== null && (input.docType === 'OTHER' || input.docType.startsWith('OTHER_'));
-  const named = input.subject ? sanitizeNameComponent(input.subject) : '';
+  const named = isOther && input.subject ? sanitizeNameComponent(input.subject) : '';
   const kind =
     input.docType === null
       ? ''
-      : isOther
+      : named.length > 0
         ? named
         : sanitizeNameComponent(documentKindLabel(input.docType));
   const firstName = firstNameOf(input.displayName);

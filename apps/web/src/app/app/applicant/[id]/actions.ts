@@ -21,6 +21,7 @@ import {
   findDuplicateVersions,
   getApplicant,
   getLatestExtractedText,
+  growUploadReservation,
   isAiDispatchAllowed,
   isValidDocumentDateString,
   loadUploadQuotaConfig,
@@ -67,7 +68,7 @@ import {
   documentTypeSavedLine,
 } from '../../../../lib/success-lines';
 import {
-  permitsPdfAdmission,
+  pdfUploadsAccepted,
   prepareUploadBytes,
   validateUploadBytes,
 } from '../../../../lib/upload-preflight';
@@ -263,26 +264,33 @@ export async function uploadDocumentAction(
         }
         const { bytes, contentType, convertedFrom } = prepared;
         if (bytes.byteLength > intent.reservedBytes) {
-          // A converted copy can be larger than the photo that was sent: the space is reserved
-          // again for what will actually be stored, so no quota is ever exceeded.
-          await failUpload(db, intent.id, 'reserved again for the size of the converted copy');
-          const again = await reserveUpload(
+          // A converted copy can be larger than the photo that was sent: this upload's own
+          // reservation grows to what will actually be stored, in one step under the same quota
+          // rules, so no quota is ever exceeded and the reservation is never let go in between.
+          const access = await requireAccess(
             db,
-            { accountId, applicantId, sizeBytes: bytes.byteLength },
-            quotaConfig,
+            accountPrincipal(accountId),
+            'MANAGE',
+            { applicantId },
+            { purpose: 'owner_document_upload' },
           );
-          if (!again.ok) return { ok: false, message: again.error.message };
-          intent = again.value;
+          const grown = access.ok
+            ? await growUploadReservation(
+                access.value,
+                { intentId: intent.id, sizeBytes: bytes.byteLength },
+                quotaConfig,
+              )
+            : access;
+          if (!grown.ok) {
+            await failUpload(db, intent.id, 'no room for the converted copy');
+            return { ok: false, message: plainError(grown.error) };
+          }
+          intent = grown.value;
         }
         const sha256 = createHash('sha256').update(bytes).digest('hex');
 
         if (
-          !validateUploadBytes(
-            bytes,
-            contentType,
-            permitsPdfAdmission(readEnv('MALWARE_SCANNER_PROVIDER')),
-            quotaConfig.maxUploadBytes,
-          )
+          !validateUploadBytes(bytes, contentType, pdfUploadsAccepted(), quotaConfig.maxUploadBytes)
         ) {
           await failUpload(db, intent.id, 'upload rejected by structural preflight');
           return {

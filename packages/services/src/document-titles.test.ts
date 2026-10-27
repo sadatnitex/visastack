@@ -9,7 +9,7 @@ import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
-import { OWNER_RENAME_REASON, renameDocument } from './document-naming';
+import { OWNER_RENAME_REASON, proposeDocumentName, renameDocument } from './document-naming';
 import {
   CONVERTED_FROM_HEIC_SOURCE,
   listDocumentsDetailed,
@@ -22,6 +22,30 @@ import { AUTOMATIC_TITLE_REASON, buildDocumentTitle, firstNameOf, titleDate } fr
 async function freshDb(): Promise<Db> {
   const client = await createMigratedPglite();
   return drizzle(client, { schema }) as unknown as Db;
+}
+
+/** A database that also keeps every statement sent to it, in order. */
+async function recordingDb(): Promise<{ db: Db; statements: string[] }> {
+  const client = await createMigratedPglite();
+  const statements: string[] = [];
+  const db = drizzle(client, {
+    schema,
+    logger: { logQuery: (query: string) => statements.push(query.toLowerCase()) },
+  }) as unknown as Db;
+  return { db, statements };
+}
+
+/**
+ * True when the document row is locked (select ... for update) before the first name version is
+ * written, within the statements recorded since `from`.
+ */
+function lockedBeforeNameWrite(statements: readonly string[], from: number): boolean {
+  const recent = statements.slice(from);
+  const write = recent.findIndex((q) => q.startsWith('insert into "document_name_versions"'));
+  const lock = recent.findIndex(
+    (q) => q.startsWith('select') && q.includes('from "documents"') && q.endsWith('for update'),
+  );
+  return write !== -1 && lock !== -1 && lock < write;
 }
 
 async function seedOwner(db: Db, email: string, displayName = 'Md. Nazmus Sadat') {
@@ -96,8 +120,14 @@ describe('the parts of a document title', () => {
     expect(buildDocumentTitle({ ...base, docType: 'OTHER', subject: 'Marriage Certificate' })).toBe(
       'Marriage Certificate, Nazmus',
     );
-    // An "Other" kind without its own name says no more than an unknown one.
-    expect(buildDocumentTitle({ ...base, docType: 'OTHER' })).toBe('Document, Nazmus, 27 Oct 2026');
+    // An "Other" kind without its own name is listed under the kind's own label.
+    expect(buildDocumentTitle({ ...base, docType: 'OTHER' })).toBe('Other Document, Nazmus');
+    expect(buildDocumentTitle({ ...base, docType: 'OTHER_LETTER' })).toBe(
+      'Other Letter or Statement, Nazmus',
+    );
+    expect(buildDocumentTitle({ ...base, docType: 'OTHER_LETTER', subject: '  ' })).toBe(
+      'Other Letter or Statement, Nazmus',
+    );
     expect(buildDocumentTitle({ ...base, docType: null })).toBe('Document, Nazmus, 27 Oct 2026');
     expect(buildDocumentTitle({ ...base, docType: null, displayName: '' })).toBe(
       'Document, 27 Oct 2026',
@@ -304,5 +334,98 @@ describe('renaming a document', () => {
     const blank = await renameDocument(access.value, { name: ' ‮ ' });
     expect(blank.ok ? null : blank.error.code).toBe('invalid');
     expect((await documentRow(db, documentId)).approvedName).toMatch(/^Document, Nazmus, /);
+  });
+
+  it('keeps the name out of the audit trail: a manual rename records only its length', async () => {
+    const owner = await seedOwner(db, 'r3@example.com');
+    const created = await registerDocument(db, {
+      actorAccountId: owner.accountId,
+      applicantId: owner.applicantId,
+      originalName: 'scan.jpg',
+      automaticTitle: true,
+    });
+    if (!isOk(created)) throw new Error('register');
+    const documentId = created.value.id;
+    const access = await requireAccess(
+      db,
+      accountPrincipal(owner.accountId),
+      'MANAGE',
+      { documentId },
+      { purpose: 'owner_document_rename' },
+    );
+    if (!access.ok) throw new Error('access');
+    const renamed = await renameDocument(access.value, { name: 'Sadat Bank Letter' });
+    if (!isOk(renamed)) throw new Error(renamed.error.message);
+
+    const events = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.resourceId, documentId));
+    expect(JSON.stringify(events)).not.toContain('Sadat Bank Letter');
+    const rename = events.filter((event) => event.eventType === 'DOCUMENT_RENAMED');
+    expect(rename).toHaveLength(1);
+    expect(rename[0]).toMatchObject({
+      actorAccountId: owner.accountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      metadata: { versionNumber: 2, nameLength: 17, automatic: false },
+    });
+    // Not written as a system proposal and a decision: one record of what the person did.
+    expect(events.map((event) => event.eventType)).not.toContain('DOCUMENT_NAME_PROPOSED');
+    expect(events.map((event) => event.eventType)).not.toContain('DOCUMENT_NAME_DECIDED');
+    // The name lives only in the document and its name history.
+    expect((await documentRow(db, documentId)).approvedName).toBe('Sadat Bank Letter');
+    expect((await nameVersions(db, documentId)).at(-1)).toMatchObject({
+      finalName: 'Sadat Bank Letter',
+      decidedByAccountId: owner.accountId,
+    });
+  });
+});
+
+describe('one writer of a document name at a time', () => {
+  it('locks the document before working out the next name version, on every path that writes one', async () => {
+    const { db, statements } = await recordingDb();
+    const { accountId, applicantId } = await seedOwner(db, 'lock@example.com');
+    const created = await registerDocument(db, {
+      actorAccountId: accountId,
+      applicantId,
+      originalName: 'scan.jpg',
+      automaticTitle: true,
+    });
+    if (!isOk(created)) throw new Error('register');
+    const documentId = created.value.id;
+
+    // Choosing the kind, which retitles a document still under its automatic title.
+    let from = statements.length;
+    const typed = await setDocumentType(db, {
+      actorAccountId: accountId,
+      documentId,
+      docType: 'PASSPORT',
+    });
+    if (!isOk(typed)) throw new Error('type');
+    expect(typed.value.approvedName).toBe('Passport, Nazmus');
+    expect(lockedBeforeNameWrite(statements, from)).toBe(true);
+
+    // A suggestion from a reading.
+    from = statements.length;
+    const proposed = await proposeDocumentName(db, { documentId, proposedName: 'Passport Scan' });
+    if (!isOk(proposed)) throw new Error('propose');
+    expect(proposed.value.versionNumber).toBe(3);
+    expect(lockedBeforeNameWrite(statements, from)).toBe(true);
+
+    // A rename by the person.
+    const access = await requireAccess(
+      db,
+      accountPrincipal(accountId),
+      'MANAGE',
+      { documentId },
+      { purpose: 'owner_document_rename' },
+    );
+    if (!access.ok) throw new Error('access');
+    from = statements.length;
+    const renamed = await renameDocument(access.value, { name: 'My Passport' });
+    if (!isOk(renamed)) throw new Error('rename');
+    expect(renamed.value.versionNumber).toBe(4);
+    expect(lockedBeforeNameWrite(statements, from)).toBe(true);
   });
 });

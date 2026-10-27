@@ -14,8 +14,11 @@ export const HEIC_TYPES: readonly string[] = [
   'image/heif-sequence',
 ];
 
-/** The file types stored as they are. */
-const STORED_TYPES: readonly string[] = [
+/**
+ * The file types stored as they are: the one list the upload form checks a chosen file against
+ * and the server checks the bytes against (upload-preflight.ts builds its own check from it).
+ */
+export const STORED_UPLOAD_TYPES: readonly string[] = [
   'image/jpeg',
   'image/png',
   PDF_TYPE,
@@ -51,7 +54,9 @@ export function isHeicType(type: string): boolean {
 
 /** The `accept` list for the file picker: every type the server takes. */
 export function acceptAttribute(pdfAccepted: boolean): string {
-  const types = [...STORED_TYPES, ...HEIC_TYPES].filter((t) => pdfAccepted || t !== PDF_TYPE);
+  const types = [...STORED_UPLOAD_TYPES, ...HEIC_TYPES].filter(
+    (t) => pdfAccepted || t !== PDF_TYPE,
+  );
   const extensions = Object.keys(TYPE_BY_EXTENSION)
     .filter((ext) => pdfAccepted || ext !== 'pdf')
     .map((ext) => `.${ext}`);
@@ -92,7 +97,7 @@ export function checkChosenFile(
     declared && declared !== 'application/octet-stream'
       ? declared
       : (TYPE_BY_EXTENSION[extensionOf(file.name)] ?? '');
-  const known = STORED_TYPES.includes(contentType) || isHeicType(contentType);
+  const known = STORED_UPLOAD_TYPES.includes(contentType) || isHeicType(contentType);
   if (!known) {
     return {
       ok: false,
@@ -123,9 +128,19 @@ export function storedFileName(name: string, contentType: string): string {
   return extension ? `${base}.${extension}` : base;
 }
 
-/** A download name that ends in the stored file's extension, adding it when the name has none. */
+/**
+ * A download name that ends in the stored file's extension. Only a file extension this list knows
+ * counts as one: a name already ending in one for the stored type keeps it ("Scan.jpeg" for a
+ * JPEG), one ending in another known extension has it replaced ("IMG_1.HEIC" stored as a JPEG is
+ * "IMG_1.jpg"), and anything else after a last dot is part of the name ("Payslip v1.2026",
+ * "J.Smith"), so the stored file's extension is added.
+ */
 export function withFileExtension(name: string, contentType: string): string {
   const extension = EXTENSION_BY_TYPE[contentType];
-  if (!extension || /\.[A-Za-z0-9]{1,5}$/.test(name)) return name;
-  return `${name}.${extension}`;
+  if (!extension) return name;
+  const current = extensionOf(name);
+  if (!Object.hasOwn(TYPE_BY_EXTENSION, current)) return `${name}.${extension}`;
+  if (TYPE_BY_EXTENSION[current] === contentType) return name;
+  const base = name.slice(0, name.length - current.length - 1);
+  return base.trim().length > 0 ? `${base}.${extension}` : `document.${extension}`;
 }

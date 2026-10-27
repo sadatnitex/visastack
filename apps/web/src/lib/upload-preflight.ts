@@ -5,7 +5,8 @@ import {
   looksLikeHeic,
   structuralCheck,
 } from '@visastack/adapters';
-import { isHeicType } from './upload-rules';
+import { readEnv } from './env';
+import { STORED_UPLOAD_TYPES, isHeicType } from './upload-rules';
 
 // Below Vercel's 4.5 MB request ceiling, including request overhead.
 export const STREAM_UPLOAD_LIMIT = 4 * 1024 * 1024;
@@ -17,18 +18,20 @@ export const STREAM_UPLOAD_LIMIT = 4 * 1024 * 1024;
 export function uploadLimitBytes(quota: { readonly maxUploadBytes: number }): number {
   return Math.min(quota.maxUploadBytes, STREAM_UPLOAD_LIMIT);
 }
-const TYPES = new Set([
-  'image/png',
-  'image/jpeg',
-  'application/pdf',
-  'text/plain',
-  'text/markdown',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-]);
+/** The types stored as they are: the same list the upload form checks (upload-rules.ts). */
+const TYPES: ReadonlySet<string> = new Set(STORED_UPLOAD_TYPES);
 
 /** Admission to private quarantine, never an antivirus verdict. */
 export function permitsPdfAdmission(provider: string | undefined): boolean {
   return provider === 'clamav' || provider === 'github_clamav';
+}
+
+/**
+ * Whether PDF files can be added in this deployment: only when a virus scanner that reads PDFs is
+ * set up. The one place the upload form, the upload route and the upload action ask.
+ */
+export function pdfUploadsAccepted(): boolean {
+  return permitsPdfAdmission(readEnv('MALWARE_SCANNER_PROVIDER'));
 }
 
 export function validateUploadBytes(
@@ -105,6 +108,7 @@ const HEIC_FAILURE_MESSAGES: Readonly<Record<HeicConversionFailure, string>> = {
   unreadable: 'We could not read this iPhone photo. Choose a JPG or PNG copy instead.',
   too_large: 'This photo has too many pixels to add. Choose a smaller copy.',
   too_slow: 'This photo took too long to prepare. Try again, or choose a JPG or PNG copy.',
+  unavailable: 'iPhone photos cannot be added right now. Choose a JPG or PNG copy instead.',
 };
 
 let converter: HeicJpegConverter | undefined;

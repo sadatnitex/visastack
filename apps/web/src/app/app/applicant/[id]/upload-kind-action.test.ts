@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   getApplicant: vi.fn(),
   reserveUpload: vi.fn(),
+  growUploadReservation: vi.fn(),
+  requireAccess: vi.fn(),
   registerDocumentWithVersion: vi.fn(),
   failUpload: vi.fn(),
   finalizeUpload: vi.fn(),
@@ -18,6 +20,8 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   getApplicant: mocks.getApplicant,
   reserveUpload: mocks.reserveUpload,
+  growUploadReservation: mocks.growUploadReservation,
+  requireAccess: mocks.requireAccess,
   registerDocumentWithVersion: mocks.registerDocumentWithVersion,
   failUpload: mocks.failUpload,
   finalizeUpload: mocks.finalizeUpload,
@@ -69,6 +73,13 @@ beforeEach(() => {
       reservedBytes: input.sizeBytes,
     },
   }));
+  mocks.requireAccess.mockResolvedValue({ ok: true, value: { proof: 'owner of a-1' } });
+  mocks.growUploadReservation.mockImplementation(
+    async (_proof: unknown, input: { intentId: string; sizeBytes: number }) => ({
+      ok: true,
+      value: { id: input.intentId, objectKey: 'key-1', reservedBytes: input.sizeBytes },
+    }),
+  );
   mocks.putObject.mockResolvedValue(undefined);
   mocks.getObject.mockImplementation(async () => {
     const call = mocks.putObject.mock.calls[0]?.[0] as { bytes: Uint8Array } | undefined;
@@ -163,31 +174,60 @@ describe('an iPhone photo (HEIC)', () => {
     });
   });
 
-  it('reserves space again when the copy is larger than the space reserved for the photo sent', async () => {
+  it('grows its own reservation in one step when the copy is larger than the photo sent', async () => {
     // As if the photo sent were smaller than its copy (the usual case: a JPEG is about twice a HEIC).
     mocks.reserveUpload.mockResolvedValueOnce({
       ok: true,
       value: { id: 'intent-1', objectKey: 'key-1', reservedBytes: 100 },
     });
-    await uploadDocumentAction(initial, heicUpload(MADE_UP_HEIC_SMALL));
+    const result = await uploadDocumentAction(initial, heicUpload(MADE_UP_HEIC_SMALL));
+    expect(result.ok).toBe(true);
     const stored = mocks.putObject.mock.calls[0]?.[0] as { bytes: Uint8Array; objectKey: string };
     expect(stored.bytes.byteLength).toBeGreaterThan(100);
-    expect(
-      mocks.reserveUpload.mock.calls.map((call) => (call[1] as { sizeBytes: number }).sizeBytes),
-    ).toEqual([MADE_UP_HEIC_SMALL.byteLength, stored.bytes.byteLength]);
-    expect(mocks.failUpload).toHaveBeenCalledWith(
+    // One reservation attempt only (one charge against the upload rate limit), never released.
+    expect(mocks.reserveUpload).toHaveBeenCalledTimes(1);
+    expect(mocks.failUpload).not.toHaveBeenCalled();
+    // Grown through the access gate, for this applicant, by the owner.
+    expect(mocks.requireAccess).toHaveBeenCalledWith(
       {},
-      'intent-1',
-      expect.stringContaining('converted copy'),
+      expect.objectContaining({ accountId: 'owner-1' }),
+      'MANAGE',
+      { applicantId: 'a-1' },
+      { purpose: 'owner_document_upload' },
     );
-    // The copy is stored under the new reservation's key and finishes that reservation.
-    expect(stored.objectKey).toBe('key-2');
-    expect(mocks.finalizeUpload).toHaveBeenCalledWith({}, 'intent-2', 'v-1');
+    expect(mocks.growUploadReservation).toHaveBeenCalledWith(
+      { proof: 'owner of a-1' },
+      { intentId: 'intent-1', sizeBytes: stored.bytes.byteLength },
+      expect.any(Object),
+    );
+    // The copy is stored under the same reservation's key and finishes that reservation.
+    expect(stored.objectKey).toBe('key-1');
+    expect(mocks.finalizeUpload).toHaveBeenCalledWith({}, 'intent-1', 'v-1');
+  });
+
+  it('stores nothing and lets the reservation go when there is no room for the larger copy', async () => {
+    mocks.reserveUpload.mockResolvedValueOnce({
+      ok: true,
+      value: { id: 'intent-1', objectKey: 'key-1', reservedBytes: 100 },
+    });
+    mocks.growUploadReservation.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'invalid', message: 'this applicant has reached its 50 MB evidence limit' },
+    });
+    const result = await uploadDocumentAction(initial, heicUpload(MADE_UP_HEIC_SMALL));
+    expect(result).toMatchObject({
+      ok: false,
+      message: 'This applicant has reached its 50 MB evidence limit.',
+    });
+    expect(mocks.putObject).not.toHaveBeenCalled();
+    expect(mocks.reserveUpload).toHaveBeenCalledTimes(1);
+    expect(mocks.failUpload).toHaveBeenCalledWith({}, 'intent-1', expect.any(String));
   });
 
   it('keeps its reservation when the copy fits in it', async () => {
     await uploadDocumentAction(initial, heicUpload(MADE_UP_HEIC_SMALL));
     expect(mocks.reserveUpload).toHaveBeenCalledTimes(1);
+    expect(mocks.growUploadReservation).not.toHaveBeenCalled();
     expect(mocks.failUpload).not.toHaveBeenCalled();
   });
 

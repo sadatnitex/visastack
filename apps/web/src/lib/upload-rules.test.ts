@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  STORED_UPLOAD_TYPES,
   acceptAttribute,
   checkChosenFile,
   storedFileName,
@@ -81,5 +82,29 @@ describe('the names a stored file carries', () => {
       'Letter from Mr. Smith.txt',
     );
     expect(withFileExtension('anything', 'application/octet-stream')).toBe('anything');
+  });
+
+  it('counts only a known file extension as one, never a dot that is part of the name', () => {
+    expect(withFileExtension('Payslip v1.2026', 'application/pdf')).toBe('Payslip v1.2026.pdf');
+    expect(withFileExtension('J.Smith', 'image/jpeg')).toBe('J.Smith.jpg');
+    expect(withFileExtension('Statement 2026.10', 'application/pdf')).toBe('Statement 2026.10.pdf');
+    expect(withFileExtension('Letter.final', 'text/plain')).toBe('Letter.final.txt');
+    // A known extension for the stored type is kept, whatever its case or spelling.
+    expect(withFileExtension('Scan.jpeg', 'image/jpeg')).toBe('Scan.jpeg');
+    expect(withFileExtension('Scan.JPG', 'image/jpeg')).toBe('Scan.JPG');
+    // A known extension for another type is replaced by the stored file's own.
+    expect(withFileExtension('IMG_2041.HEIC', 'image/jpeg')).toBe('IMG_2041.jpg');
+    expect(withFileExtension('Scan.pdf', 'image/png')).toBe('Scan.png');
+    expect(withFileExtension('.pdf', 'image/png')).toBe('document.png');
+  });
+
+  it('has one list of stored types, which the server check is built from', () => {
+    expect(STORED_UPLOAD_TYPES).toEqual(
+      expect.arrayContaining(['image/jpeg', 'image/png', 'application/pdf', 'text/plain']),
+    );
+    // Every stored type has the extension a download gets.
+    for (const type of STORED_UPLOAD_TYPES) {
+      expect(withFileExtension('Name', type)).toMatch(/^Name\.[a-z]+$/);
+    }
   });
 });

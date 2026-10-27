@@ -187,3 +187,9 @@ export const PROFILE_PACKS = [
   'medical_attendant',
 ] as const;
 export type ProfilePack = (typeof PROFILE_PACKS)[number];
+
+/**
+ * The longest name a document can be given, in characters (UX-B). One value for the rename form's
+ * own limit and the service that cleans and saves the name.
+ */
+export const MAX_DOCUMENT_NAME_LENGTH = 200;
