@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_MINOR_UNITS } from './invoice-ledger';
-import { formatMinorUnits, parseDecimalToMinorUnits } from './payment-amounts';
+import {
+  currencyDecimals,
+  formatAmountForCurrency,
+  formatMinorUnits,
+  parseAmountForCurrency,
+  parseDecimalToMinorUnits,
+} from './payment-amounts';
 
 describe('payment amounts', () => {
   it('reads plain decimals exactly, with gateway padding', () => {
@@ -61,5 +67,33 @@ describe('payment amounts', () => {
     for (const bad of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
       expect(() => formatMinorUnits(bad)).toThrow();
     }
+  });
+
+  it('knows how many places a currency has, and assumes two for an unknown code', () => {
+    expect(currencyDecimals('BDT')).toBe(2);
+    expect(currencyDecimals(' usd ')).toBe(2);
+    expect(currencyDecimals('JPY')).toBe(0);
+    expect(currencyDecimals('BHD')).toBe(3);
+    expect(currencyDecimals('not a code')).toBe(2);
+  });
+
+  it('reads a typed amount in the invoice currency exactly, and refuses extra places', () => {
+    expect(parseAmountForCurrency('1250.50', 'BDT')).toBe(125050);
+    expect(parseAmountForCurrency('1250', 'BDT')).toBe(125000);
+    expect(parseAmountForCurrency('1250', 'JPY')).toBe(1250);
+    expect(parseAmountForCurrency('1250.0', 'JPY')).toBe(1250);
+    expect(parseAmountForCurrency('1250.5', 'JPY')).toBeNull();
+    expect(parseAmountForCurrency('1.234', 'BHD')).toBe(1234);
+    expect(parseAmountForCurrency('1.2345', 'BHD')).toBeNull();
+    expect(parseAmountForCurrency('100.505', 'BDT')).toBeNull();
+    for (const bad of ['', '-5', '1e3', '1,250', '.5', '5.', '99999999999999', '21474836.48']) {
+      expect(parseAmountForCurrency(bad, 'BDT'), bad).toBeNull();
+    }
+  });
+
+  it('writes an amount with the currency code and its own places', () => {
+    expect(formatAmountForCurrency(125050, ' bdt ')).toBe('BDT 1250.50');
+    expect(formatAmountForCurrency(1250, 'JPY')).toBe('JPY 1250');
+    expect(formatAmountForCurrency(1234, 'BHD')).toBe('BHD 1.234');
   });
 });

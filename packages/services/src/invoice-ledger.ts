@@ -3,6 +3,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { recordProductEvent } from './product-events';
+import { type PaymentReceipt, issueReceiptForPayment } from './receipts';
 
 /**
  * The cash ledger and the one recording function (Small Commercial V1 S10,
@@ -23,6 +24,9 @@ import { recordProductEvent } from './product-events';
  * 4. One ledger row, the new invoice total and status, one audit event and one
  *    cash event are written in the caller's transaction, so they commit or
  *    roll back together.
+ * 5. The same transaction issues the numbered receipt for the ledger row
+ *    (receipts.ts, S12). A replay finds the first receipt; none is ever issued
+ *    for anything but a recorded collection.
  *
  * The ledger is append-only (a database trigger refuses edits and deletes).
  * A correction is a new row with the opposite sign; `REFUND` rows are written
@@ -151,6 +155,8 @@ export interface InvoiceCollectionOutcome {
   readonly payment: InvoicePayment | null;
   /** True when this exact recording had already been made and nothing changed. */
   readonly alreadyRecorded: boolean;
+  /** The numbered receipt for the ledger row. Null while the ledger or the receipt tables do not exist yet. */
+  readonly receipt: PaymentReceipt | null;
 }
 
 /**
@@ -284,7 +290,17 @@ export async function applyInvoiceCollection(
       ) {
         return refuse('key_conflict', 'this payment key was already used for a different payment');
       }
-      return ok({ invoice, payment: existing, alreadyRecorded: true });
+      // A recording made before the receipt tables existed gets its receipt on its first replay.
+      const issued = await issueReceiptForPayment(tx, {
+        payment: existing,
+        organizationId: invoice.organizationId,
+      });
+      return ok({
+        invoice,
+        payment: existing,
+        alreadyRecorded: true,
+        receipt: issued?.receipt ?? null,
+      });
     }
   }
 
@@ -376,7 +392,15 @@ export async function applyInvoiceCollection(
     dimension: invoice.currency.trim().toUpperCase(),
     metricValue: input.amountMinorUnits,
   });
-  return ok({ invoice: updated, payment, alreadyRecorded: false });
+  const issued = payment
+    ? await issueReceiptForPayment(tx, { payment, organizationId: invoice.organizationId })
+    : null;
+  return ok({
+    invoice: updated,
+    payment,
+    alreadyRecorded: false,
+    receipt: issued?.receipt ?? null,
+  });
 }
 
 async function findExisting(

@@ -1,5 +1,6 @@
 import { getUsageForOrganization } from '@visastack/services';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { PageHeader } from '../../../../../components/ui';
 import { withSession } from '../../../../../lib/session';
 import {
@@ -49,6 +50,11 @@ export default async function OrgPlanPage({
         eyebrow="Usage &amp; Billing"
         title={<>Plan &amp; Usage</>}
         description="Every entitlement below is plan configuration, not a hardcoded limit -- each meter names its own definition and what it currently counts."
+        actions={
+          <Link className="btn btn-secondary" href={`/app/agency/${orgId}/plan/invoices`}>
+            Invoices
+          </Link>
+        }
         as="h2"
       />
 

@@ -169,6 +169,12 @@ describe('private traffic is never stored on the device', () => {
       request('/api/blob/documents%2Fkey?sig=abc&exp=1', { mode: 'cors' }),
     ],
     ['a profile photo', request('/api/photos/applicant/0f8e4c1a-2b3d-4e5f-8a9b-0c1d2e3f4a5b')],
+    [
+      'a payment proof file',
+      request(
+        '/api/billing/proof/0f8e4c1a-2b3d-4e5f-8a9b-0c1d2e3f4a5b/1a2b3c4d-5e6f-4a8b-9c0d-1e2f3a4b5c6d',
+      ),
+    ],
     ['page data for client navigation', request('/app/profile?_rsc=1x2y', { mode: 'cors' })],
     [
       'page data marked by header',

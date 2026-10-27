@@ -4,12 +4,16 @@ import { type Result, err, ok } from '@visastack/core';
 import { eq, inArray } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access/require-access';
 import { appendAuditEvent } from './audit';
-import { type Db, first, required, schema } from './db';
+import { type Db, first, schema } from './db';
 import { enqueueErasureJob } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import type { MalwareScannerPort } from './intake';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
-import type { BlobStore, StorageBucket } from './storage';
+import type { BlobStore } from './storage';
+import {
+  discardStorageObject as discardObject,
+  registerStorageObject as registerObject,
+} from './storage-objects';
 
 /**
  * Profile photos for traveller records (WP-PH1, owner request 2026-10-25).
@@ -135,43 +139,6 @@ function inputProblem(input: ProfilePhotoInput): ServiceError | undefined {
     return serviceError('invalid', 'This file is not the kind of photo it says it is.');
   }
   return undefined;
-}
-
-/** Deletes bytes, then their registration only once the bytes are gone, so a failed delete stays findable. */
-async function discardObject(
-  db: Db,
-  storage: BlobStore,
-  bucket: StorageBucket,
-  object: { readonly storageObjectId: string; readonly objectKey: string },
-): Promise<void> {
-  try {
-    await storage.deleteObject(bucket, object.objectKey);
-  } catch {
-    return;
-  }
-  await db
-    .delete(schema.storageObjects)
-    .where(eq(schema.storageObjects.id, object.storageObjectId))
-    .catch(() => undefined);
-}
-
-async function registerObject(
-  db: Db,
-  bucket: StorageBucket,
-  objectKey: string,
-  bytes: Uint8Array,
-  sha256: string,
-): Promise<string> {
-  const row = required(
-    first(
-      await db
-        .insert(schema.storageObjects)
-        .values({ bucket, objectKey, sizeBytes: bytes.byteLength, contentHash: sha256 })
-        .returning({ id: schema.storageObjects.id }),
-    ),
-    'storage object',
-  );
-  return row.id;
 }
 
 interface EncodedPhoto {

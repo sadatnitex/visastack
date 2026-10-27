@@ -695,7 +695,7 @@ describe('online invoice payments (S11)', () => {
     it('leaves the payment open when the cash ledger is not there yet', async () => {
       const { attempt, tran } = await startedAttempt('INV-S11-NOLEDGER');
       const gateway = port.succeed(tran, 125000);
-      await db.execute(sql`drop table invoice_payments`);
+      await db.execute(sql`drop table invoice_payments cascade`);
       expect(await settle(tran, gateway.valId)).toEqual({
         code: 'unavailable',
         attemptStatus: 'REDIRECTED',
