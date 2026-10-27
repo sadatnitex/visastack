@@ -15,7 +15,8 @@ export const ORG_STATUS: Record<string, { label: string; tone: string }> = {
 
 export const REQ_STATUS: Record<string, { label: string; tone: string }> = {
   OPEN: { label: 'Open', tone: 'badge-warning' },
-  RECEIVED: { label: 'Submitted', tone: 'badge-neutral' },
+  // Received, not Submitted: Submitted is reserved for a recorded submission to an authority (W0 L7).
+  RECEIVED: { label: 'Received', tone: 'badge-neutral' },
   UNDER_REVIEW: { label: 'Under Review', tone: 'badge-neutral' },
   ACCEPTED: { label: 'Accepted', tone: 'badge-success' },
   NEEDS_REPLACEMENT: { label: 'Needs Replacement', tone: 'badge-warning' },

@@ -14,15 +14,18 @@ import {
   CALENDAR_REMINDER_LABELS,
   CALENDAR_REMINDER_ORDER,
   CASE_TRIAGE_STATE_LABELS,
+  CLOSED_REQUEST_LABELS,
   COMPLAINT_STATUS_LABELS,
   DOCUMENT_TYPE_LABELS,
   INVOICE_STATUS_LABELS,
   MEMBERSHIP_ROLE_LABELS,
   ORGANIZATION_STATUS_LABELS,
   PERMISSION_ACTION_LABELS,
+  REQUEST_ITEM_STATUS_LABELS,
   REVIEW_DECISION_LABELS,
   SENT_BACK_ACTION_LABEL,
   TRIAGE_GROUP_LABELS,
+  TRIAGE_GROUP_TONES,
   TRIAGE_INDICATOR_LABELS,
   aiProviderLabel,
   attentionActionLabel,
@@ -138,6 +141,47 @@ describe('agency triage words (Programme X E02)', () => {
     expect(words).not.toMatch(/verified|approved|guarantee|submitted/i);
     // A received item is not reviewed: only the Reviewed group may say so.
     expect(TRIAGE_GROUP_LABELS.RECEIVED).not.toMatch(/review/i);
+  });
+});
+
+describe('request item words and colours (WP-V4 U07, spec B09)', () => {
+  it('names each group once in the traveller words, in Title Case, and never claims a review early', () => {
+    expect(Object.keys(REQUEST_ITEM_STATUS_LABELS).sort()).toEqual([...TRIAGE_GROUPS].sort());
+    for (const label of [
+      ...Object.values(REQUEST_ITEM_STATUS_LABELS),
+      ...Object.values(CLOSED_REQUEST_LABELS),
+    ]) {
+      expect(label).toBe(toTitleCase(label));
+    }
+    const words = [
+      ...Object.values(REQUEST_ITEM_STATUS_LABELS),
+      ...Object.values(CLOSED_REQUEST_LABELS),
+    ].join(' | ');
+    expect(words).not.toMatch(/submitted|verified|approved|fulfilled|mission/i);
+    expect(REQUEST_ITEM_STATUS_LABELS.RECEIVED).not.toMatch(/review/i);
+    // Only the Reviewed group says the agency looked.
+    const saysReviewed = TRIAGE_GROUPS.filter((g) => /review/i.test(REQUEST_ITEM_STATUS_LABELS[g]));
+    expect(saysReviewed).toEqual(['REVIEWED']);
+  });
+
+  it('gives every group exactly one colour family, and none of them is danger', () => {
+    expect(Object.keys(TRIAGE_GROUP_TONES).sort()).toEqual([...TRIAGE_GROUPS].sort());
+    expect(TRIAGE_GROUP_TONES).toEqual({
+      MISSING: 'warning',
+      PROCESSING: 'neutral',
+      RECEIVED: 'neutral',
+      NEEDS_CORRECTION: 'warning',
+      REVIEWED: 'success',
+    });
+    expect(Object.values(TRIAGE_GROUP_TONES)).not.toContain('danger');
+  });
+
+  it('calls an older Fulfilled request Closed, so it can never read as reviewed', () => {
+    expect(CLOSED_REQUEST_LABELS).toEqual({
+      CANCELLED: 'Cancelled',
+      FULFILLED: 'Closed',
+      DECLINED: 'Declined',
+    });
   });
 });
 
