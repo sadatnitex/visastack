@@ -6,6 +6,8 @@ import {
   MAX_STATIC_ENTRIES,
   OFFLINE_CSP,
   OFFLINE_HTML,
+  OFFLINE_SCRIPT,
+  OFFLINE_STYLE,
   buildRetirementScript,
   buildServiceWorkerScript,
   isServiceWorkerEnabled,
@@ -267,10 +269,13 @@ describe('offline screen', () => {
   it('allows only its own inline style and script', () => {
     const hash = (text: string) =>
       `'sha256-${createHash('sha256').update(text, 'utf8').digest('base64')}'`;
-    const style = OFFLINE_HTML.match(/<style>(.*?)<\/style>/s)?.[1] ?? '';
-    const script = OFFLINE_HTML.match(/<script>(.*?)<\/script>/s)?.[1] ?? '';
-    expect(OFFLINE_CSP).toContain(`style-src ${hash(style)}`);
-    expect(OFFLINE_CSP).toContain(`script-src ${hash(script)}`);
+    // The page holds exactly one style block and one script block, each the exported constant.
+    expect(OFFLINE_HTML.split('<style').length - 1).toBe(1);
+    expect(OFFLINE_HTML.split('<script').length - 1).toBe(1);
+    expect(OFFLINE_HTML).toContain(`<style>${OFFLINE_STYLE}</style>`);
+    expect(OFFLINE_HTML).toContain(`<script>${OFFLINE_SCRIPT}</script>`);
+    expect(OFFLINE_CSP).toContain(`style-src ${hash(OFFLINE_STYLE)}`);
+    expect(OFFLINE_CSP).toContain(`script-src ${hash(OFFLINE_SCRIPT)}`);
     expect(OFFLINE_CSP).toContain("default-src 'none'");
     expect(OFFLINE_HTML).not.toMatch(/https?:\/\//);
   });

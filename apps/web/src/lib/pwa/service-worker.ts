@@ -41,7 +41,8 @@ function sha256(text: string): string {
   return `'sha256-${createHash('sha256').update(text, 'utf8').digest('base64')}'`;
 }
 
-const OFFLINE_STYLE = [
+/** The offline screen's only stylesheet; its hash is the only style the screen's policy allows. */
+export const OFFLINE_STYLE = [
   ':root{color-scheme:light}',
   '*{box-sizing:border-box}',
   'body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;',
@@ -58,7 +59,8 @@ const OFFLINE_STYLE = [
   'button:focus-visible{outline:3px solid #13243d;outline-offset:3px}',
 ].join('');
 
-const OFFLINE_SCRIPT = [
+/** The offline screen's only script; its hash is the only script the screen's policy allows. */
+export const OFFLINE_SCRIPT = [
   "document.getElementById('retry').addEventListener('click',function(){location.reload();});",
   "window.addEventListener('online',function(){location.reload();});",
 ].join('');
