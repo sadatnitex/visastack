@@ -8047,6 +8047,37 @@ summary.visa-photo-title {
   font-size: var(--text-small);
 }
 
+/* WP-G8A agency invitation page and clients joined counter (growth loop 1). The public invitation
+   names the agency and lists the terms; the dashboard shows how many clients have joined. Flat
+   surfaces only. */
+.agency-clients-joined {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  max-width: 32rem;
+  margin-bottom: 20px;
+}
+.agency-clients-joined .stat {
+  background: #fff;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  padding: 16px;
+}
+.invitation-offer .invite-brand {
+  margin-top: 0.5rem;
+}
+.invitation-terms-list {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0 0 1.25rem;
+  padding-left: 1.25rem;
+}
+@media (max-width: 480px) {
+  .agency-clients-joined {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* WP-G2 pick a country, see the checklist at once (Growth G2): the country box and the checklist
    that fills in under it, on the public home page and in the first-run country step. Flat, existing
    tokens only. The reveal runs only when the device allows motion; otherwise the list is just there. */
@@ -8256,35 +8287,6 @@ summary.visa-photo-title {
   to {
     opacity: 1;
     transform: none;
-
-/* WP-G8A agency invitation page and clients joined counter (growth loop 1). The public invitation
-   names the agency and lists the terms; the dashboard shows how many clients have joined. Flat
-   surfaces only. */
-.agency-clients-joined {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  max-width: 32rem;
-  margin-bottom: 20px;
-}
-.agency-clients-joined .stat {
-  background: #fff;
-  border: 1px solid var(--hairline);
-  border-radius: 12px;
-  padding: 16px;
-}
-.invitation-offer .invite-brand {
-  margin-top: 0.5rem;
-}
-.invitation-terms-list {
-  display: grid;
-  gap: 0.4rem;
-  margin: 0 0 1.25rem;
-  padding-left: 1.25rem;
-}
-@media (max-width: 480px) {
-  .agency-clients-joined {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 
