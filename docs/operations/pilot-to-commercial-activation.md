@@ -49,7 +49,7 @@ never a silent fallback.
 | `JOB_PROVIDER` | `neon` | `neon` | No alternate implementation exists; the Postgres-native worker (`packages/services/src/jobs.ts`) satisfies `JobQueuePort`'s shape by construction, not by being selected from a registry. |
 | `EMAIL_PROVIDER` | `none` (`NullEmailPort`, logs only) | *(none exists)* | The directive's own pilot-provider list names no email provider. A real provider is a future PR. |
 | `OBSERVABILITY_PROVIDER` | `console` (`ConsoleObservabilityPort`) | `console` | Structured JSON to stdout, aggregated by Vercel's own log viewer — genuinely sufficient today; not a placeholder. |
-| `PAYMENT_PROVIDER` | `none` (`NullPaymentPort`, always throws) | *(none exists)* | The directive is explicit: "no payment provider." `PaymentPort.configured` stays `false` until one is built. |
+| `PAYMENT_PROVIDER` | `none` (`NullPaymentPort`, always throws) | `sslcommerz` (`SslcommerzPaymentPort`, ADR 0020) | Off unless chosen and fully configured: `SSLCOMMERZ_STORE_ID`, `SSLCOMMERZ_STORE_PASSWORD` and `SSLCOMMERZ_MODE` (exactly `sandbox` or `live`, no default). `PaymentPort.configured` is `false` otherwise. Steps: `docs/operations/online-payments.md`. |
 
 ## 3. Commercial readiness guard
 

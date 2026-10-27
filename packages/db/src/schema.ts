@@ -4253,3 +4253,72 @@ export const channelMessages = pgTable(
     ),
   ],
 );
+
+// --- Online payment attempts (Small Commercial V1 S11, ADR 0020) ---
+// One row per time an agency owner or admin starts paying an invoice through the hosted
+// gateway. The row is the VisaStack side of the conversation: `merchant_tran_id` is generated
+// here, never reused and unguessable, and it is the only thing that binds a gateway callback to
+// one invoice. The status moves only on what the gateway's own validation says, never on what a
+// browser or an unauthenticated callback claims. `RECORDED` means the money is in the cash
+// ledger (exactly one ONLINE row whose source is this attempt); `HELD_FOR_REVIEW` is money the
+// gateway confirmed that VisaStack did not count (risky, already paid, or not matching), with
+// the plain code in `reason_code`. The gateway's own transaction ids are provider references,
+// not personal data, and no card data is ever stored. `initiated_by_account_id` carries no
+// foreign key for the same reason as the ledger: it is a financial record that must outlive the
+// person. Nothing here is applicant-owned.
+export const paymentAttemptStatus = pgEnum('payment_attempt_status', [
+  'CREATED',
+  'REDIRECTED',
+  'VALIDATED',
+  'RECORDED',
+  'FAILED',
+  'CANCELLED',
+  'EXPIRED',
+  'HELD_FOR_REVIEW',
+]);
+
+export const paymentAttempts = pgTable(
+  'payment_attempts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    invoiceId: uuid('invoice_id')
+      .notNull()
+      .references(() => invoices.id, { onDelete: 'restrict' }),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'restrict' }),
+    provider: text('provider').notNull(),
+    merchantTranId: text('merchant_tran_id').notNull(),
+    amountMinorUnits: integer('amount_minor_units').notNull(),
+    currency: text('currency').notNull(),
+    status: paymentAttemptStatus('status').notNull().default('CREATED'),
+    providerSessionKey: text('provider_session_key'),
+    providerValId: text('provider_val_id'),
+    bankTranId: text('bank_tran_id'),
+    riskLevel: integer('risk_level'),
+    lastProviderStatus: text('last_provider_status'),
+    // A plain code (risky_payment, already_paid, mismatch, ...) set with HELD_FOR_REVIEW, and
+    // start_failed or start_incomplete with FAILED. Never provider text.
+    reasonCode: text('reason_code'),
+    initiatedByAccountId: uuid('initiated_by_account_id'),
+    redirectedAt: timestamp('redirected_at', { withTimezone: true }),
+    lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    index('payment_attempts_invoice_idx').on(table.invoiceId),
+    index('payment_attempts_status_redirected_idx').on(table.status, table.redirectedAt),
+    unique('payment_attempts_merchant_tran_unique').on(table.merchantTranId),
+    unique('payment_attempts_provider_val_unique').on(table.provider, table.providerValId),
+    check('payment_attempts_amount_positive', sql`${table.amountMinorUnits} > 0`),
+    check(
+      'payment_attempts_recorded_has_time',
+      sql`${table.status} <> 'RECORDED' or ${table.recordedAt} is not null`,
+    ),
+    check(
+      'payment_attempts_held_has_reason',
+      sql`${table.status} <> 'HELD_FOR_REVIEW' or ${table.reasonCode} is not null`,
+    ),
+  ],
+);
