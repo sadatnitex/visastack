@@ -29,11 +29,13 @@ describe('the public home page (Harbor C1, WP-L1)', () => {
 
   it('says what the product is for in everyday words', async () => {
     const text = textOf(await render());
-    expect(text).toContain('Your documents.');
-    expect(text).toContain('Ready when you are.');
+    // CL15: the owner's promise, in full, as one sentence for a reader or a screen reader.
+    expect(text).toContain('A clean file you can stand behind.');
+    expect(text).not.toContain('Your documents. Ready when you are.');
     expect(text).toContain('Invite-Only Pilot');
+    // CL16: the supporting line says what the file is made of, and who sees which part.
     expect(text).toContain(
-      'Keep a reusable travel record, prepare your next application and share only what you choose.',
+      'One private file for your passport and papers. See what is missing, keep every version, and share only the part someone needs.',
     );
     expect(text).toContain('One personal record. Separate cases. Explicit sharing.');
     for (const title of [
@@ -148,7 +150,7 @@ describe('the public home page (Harbor C1, WP-L1)', () => {
   it('tells the story in order, from the product to the closing call to action', async () => {
     const html = await render();
     const order = [
-      'Ready when you are.',
+      'you can stand behind.',
       'Less paperwork. More control.',
       'Every visa starts with the same scramble',
       'Three Simple Steps',

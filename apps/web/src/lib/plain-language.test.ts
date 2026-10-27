@@ -71,7 +71,7 @@ const visible = PUBLIC_FILES.flatMap((file) => {
 describe('the guard itself', () => {
   it('reads the public pages it is meant to check', () => {
     const text = visible.map((v) => v.text);
-    expect(text).toContain('Your documents.');
+    expect(text).toContain('A clean file');
     expect(text).toContain('What Works Today');
     expect(text.some((t) => t.startsWith('Invite-only test version'))).toBe(true);
     expect(visible.length).toBeGreaterThan(40);
@@ -128,4 +128,37 @@ describe('public pages use everyday words', () => {
       expect(hits, hits.join('\n')).toEqual([]);
     });
   }
+});
+
+/**
+ * The homepage promise is "A clean file you can stand behind." (Growth G1). It is about the
+ * person's own file, never about a decision by an embassy, an agency or any authority. Public
+ * text may say that VisaStack gives no such assurance (it must then say "never" or "not"), but
+ * it may never claim one.
+ */
+const AUTHORITY_CLAIM =
+  /\b(guarantee[sd]? (an? )?(approval|acceptance|visa|your visa|success)|(approval|acceptance|visa|success) (is )?guaranteed|visa[- ]approved|embassy[- ](approved|ready|accepted)|(approved|accepted|cleared|endorsed) by|will be (approved|accepted|granted)|approval is|sure to be (approved|accepted))\b/i;
+const DISCLAIMS = /\b(never|not|no|without)\b/i;
+const claimsAuthority = (text: string): boolean =>
+  AUTHORITY_CLAIM.test(text) && !DISCLAIMS.test(text);
+
+describe('public pages never claim a decision by an authority', () => {
+  it('catches a claim and lets an honest disclaimer through', () => {
+    expect(claimsAuthority('Accepted by the embassy')).toBe(true);
+    expect(claimsAuthority('Approval guaranteed')).toBe(true);
+    expect(claimsAuthority('We guarantee your visa')).toBe(true);
+    expect(claimsAuthority('Beware of a guaranteed fast-track')).toBe(false);
+    expect(claimsAuthority('Embassy-approved documents')).toBe(true);
+    expect(claimsAuthority('Your file will be approved')).toBe(true);
+    expect(claimsAuthority('Cleared by the embassy')).toBe(true);
+    expect(claimsAuthority('Never an approval guarantee')).toBe(false);
+    expect(claimsAuthority('A clean file you can stand behind.')).toBe(false);
+  });
+
+  it('has no visible text that promises approval, acceptance or a guarantee', () => {
+    const hits = visible
+      .filter((v) => claimsAuthority(v.text))
+      .map((v) => `${relative(WEB_SRC, v.file)}:${v.line}: ${JSON.stringify(v.text)}`);
+    expect(hits, hits.join('\n')).toEqual([]);
+  });
 });
