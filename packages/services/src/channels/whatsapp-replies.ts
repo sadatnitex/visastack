@@ -66,7 +66,7 @@ export function readIntent(input: {
     }
   }
   const text = (input.text ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
-  const link = LINK_PATTERN.exec(text);
+  const link = text.match(LINK_PATTERN);
   if (link) return { kind: 'link', code: `${link[1]}${link[2]}` };
   // "Stop.", "STOP!" and "stop 🙏" are an opt-out too; a sentence that mentions stopping is not.
   const bare = text.replace(/[^\p{L}\p{N} ]/gu, '').trim();
