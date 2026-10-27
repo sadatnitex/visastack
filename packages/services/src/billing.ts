@@ -652,7 +652,7 @@ export interface InvoiceLedger {
  * owners and admins: payment references and gateway transaction ids are not for
  * every reviewer or case manager in the agency.
  */
-async function invoiceLedgerReader(
+export async function invoiceLedgerReader(
   db: Db,
   input: {
     readonly actorAccountId: string;

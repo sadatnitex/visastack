@@ -27,6 +27,10 @@ const ENV_KEYS = [
   'CLAMAV_SOCKET_PATH',
   'CLAMAV_HOST',
   'CLAMAV_PORT',
+  'PAYMENT_PROVIDER',
+  'SSLCOMMERZ_STORE_ID',
+  'SSLCOMMERZ_STORE_PASSWORD',
+  'SSLCOMMERZ_MODE',
 ] as const;
 const ORIGINAL: Record<string, string | undefined> = {};
 
@@ -165,9 +169,21 @@ describe('getPlatformCapabilities', () => {
     expect(capabilities.commercialClaims).toBe('disabled');
   });
 
-  it('never reports payments as anything other than unconfigured — no provider exists', async () => {
+  it('reports payments unconfigured by default, whatever the deployment mode', async () => {
     setEnv('DEPLOYMENT_MODE', 'commercial');
     const { getPlatformCapabilities } = await import('./capabilities');
+    expect(getPlatformCapabilities().payments).toBe('unconfigured');
+  });
+
+  it('reports payments available only when the provider is chosen and fully configured (S11)', async () => {
+    const { getPlatformCapabilities } = await import('./capabilities');
+    setEnv('SSLCOMMERZ_STORE_ID', 'store-1');
+    setEnv('SSLCOMMERZ_STORE_PASSWORD', 'synthetic-password');
+    setEnv('SSLCOMMERZ_MODE', 'sandbox');
+    expect(getPlatformCapabilities().payments).toBe('unconfigured');
+    setEnv('PAYMENT_PROVIDER', 'sslcommerz');
+    expect(getPlatformCapabilities().payments).toBe('available');
+    unsetEnv('SSLCOMMERZ_MODE');
     expect(getPlatformCapabilities().payments).toBe('unconfigured');
   });
 });

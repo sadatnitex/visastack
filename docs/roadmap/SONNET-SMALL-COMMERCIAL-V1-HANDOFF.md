@@ -755,13 +755,13 @@ Generate a migration only after the previous migration is on main.
 | 2 | **S2. Security minimum (M12 to M14): DONE.** Merged as #283 (`32b4af2d`) on 26 Oct 2026, live | none | none | done |
 | 3 | **S3. Staff second factor (M08): DONE.** Merged as #284 (`d7efa6bc`); migration 0092 applied; switch `STAFF_SECOND_FACTOR` stays off until the owner turns it on | yes | O8 | done |
 | 4 | **S4. Real malware scanning (M06): DONE.** Merged as #285 (`42a67422`); scanning shows as on only while the scan runner's own proof is fresh | none | O4 | done |
-| 4a | S26. Real key management service (M18) | maybe | O16, O8 | owner word |
-| 5 | S5. Automatic reading (ADR 0019) | none expected | none | owner word |
-| 6 | S6. Reading screen states | none | none | owner word |
-| 7 | S7. WP-V4 close: request screens (U07, spec B09) and the colour polish | none | none | CR15 |
-| 8 | S8. Selected-output engine (WP-V5 core, ADR 0021 section 4) | none | none | D6 |
-| 9 | S9. WP-V5 outputs: all four, the WhatsApp message and the first-run choice | maybe | label wording | D6 |
-| 10 | S10. Cash ledger and recording function | yes | O8 | owner word |
+| 4a | **S26. Real key management service (M18): DONE in code.** Merged as #286 (`65fdc989`); migration 0093 applied; stays off until the owner completes O16 (AWS) | yes | O16, O8 | done |
+| 5 | **S5. Automatic reading (ADR 0019): DONE.** Merged as #289 (`1931fcfb`) | none | none | done |
+| 6 | **S6. Reading screen states: DONE.** Merged with S5 in #289 | none | none | done |
+| 7 | **S7. WP-V4 close: request screens and colour polish: DONE.** Merged as #291 (`0f22d2c0`) | none | none | done |
+| 8 | **S8. Selected-output engine: DONE.** Merged as #290 (`6d315980`) | none | none | done |
+| 9 | **S9. WP-V5 outputs: DONE.** Merged with S8 in #290; output label wording still an owner gate | none | label wording | done |
+| 10 | **S10. Cash ledger and recording function: DONE.** Merged as #287 (`637aff3f`); migration 0094 applied | yes | O8 | done |
 | 11 | S11. SSLCOMMERZ online flow | yes, with S10 if adjacent | O6, O8 | owner word |
 | 12 | S12. Agency invoices, manual claims and receipts | yes (receipts) | O8 | owner word |
 | 13 | S13. Authorization server for AI apps (CIMD and DCR) | yes | O8 | owner word |

@@ -1,7 +1,7 @@
 import 'server-only';
-import { createHash } from 'node:crypto';
 import { RATE_LIMITS, checkRateLimit } from '@visastack/services';
 import { headers } from 'next/headers';
+import { clientAddressFrom, hashedSubject } from './client-address';
 import { withPublicDb } from './public-db';
 import { reportServerError } from './server-error';
 
@@ -20,14 +20,10 @@ type AuthLimit =
   | 'AUTH_EMAIL_SEND_EMAIL'
   | 'AUTH_EMAIL_SEND_IP';
 
-function digest(kind: string, value: string): string {
-  return `${kind}:${createHash('sha256').update(value.trim().toLowerCase()).digest('hex').slice(0, 32)}`;
-}
+const digest = hashedSubject;
 
 async function clientAddress(): Promise<string> {
-  const list = await headers();
-  const forwarded = list.get('x-forwarded-for')?.split(',')[0]?.trim();
-  return forwarded || list.get('x-real-ip')?.trim() || 'unknown';
+  return clientAddressFrom(await headers());
 }
 
 export interface AuthThrottleInput {

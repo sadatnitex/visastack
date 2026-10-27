@@ -138,3 +138,18 @@ Spoofed browser success records nothing. An IPN with a bad signature records not
 ## Implementation note (2026-10-27)
 
 S10 is implemented: the append-only `invoice_payments` ledger and the single recording function `applyInvoiceCollection` (migration 0094). S11 and later build on it.
+
+## Implementation note, S11 (2026-10-27)
+
+S11 is implemented: `payment_attempts` (migration 0096), the `PaymentPort` contract and `SslcommerzPaymentPort`, `packages/services/src/payments.ts`, the notification and return routes, the daily `process-payment-reconciliation` job and a signed result page. Operations: `docs/operations/online-payments.md`. Choices the ADR left open:
+
+- **One settling function.** The notification, the browser return, the daily job and a screen refresh all call `settlePaymentAttempt`, so one payment arriving four ways is judged by the same checks and recorded once.
+- **The notification names the payment; the gateway decides.** A callback body (signature included) is never evidence. It only supplies the transaction id and the validation id to ask the gateway about. A callback with no validation id (a reported failure or cancel) is confirmed by a query by transaction id, so a forged "failed" cannot close a real payment.
+- **Binding.** The gateway's answer must name the attempt's own transaction id. An answer for another payment (a real validation id for payment A posted against payment B) changes nothing: it is audited and refused, and never holds B, so it cannot be used to disturb someone else's payment.
+- **Ledger keys.** The ledger row's source is the attempt (kind `ONLINE`) and its provider transaction id is the gateway's validation id. The row is written with the attempt's own amount, not the gateway's, after the two were checked equal.
+- **Risk.** Only a risk flag of exactly 0 is counted. 1 holds the payment (`risky_payment`); a missing or other value also holds it (`risk_unknown`), a fail-closed addition to the ADR.
+- **Currency.** If the gateway reports two different currencies for one payment (a converted card payment) the payment is held as a currency mismatch.
+- **Late success.** A closed attempt (failed, cancelled, expired) can still be recorded if the gateway later confirms money; only `RECORDED` and `HELD_FOR_REVIEW` are final. The daily job asks about expired payments for 7 days.
+- **Rate limits.** Per network address on both public addresses, per payment on gateway calls from callbacks, and per person and agency on starting. Refused callbacks are audited at most 30 an hour in total.
+- **Switches.** Everything is off unless `PAYMENT_PROVIDER=sslcommerz` and the store id, store password and `SSLCOMMERZ_MODE` (exactly `sandbox` or `live`, no default) are all set. A half-set configuration fails closed.
+- **Differences from the official v4 documentation: not checked.** The documentation host could not be reached (as in the Context section). The adapter and its test double follow the widely documented v4 integration; the points to confirm against the official pages before the sandbox account is used are listed in the S11 evidence (field names `tran_id`, `val_id`, `bank_tran_id`, `risk_level`, `currency_type`, `verify_key`/`verify_sign`; the signature rule; `APIConnect`/`element` in the query reply; sandbox and live hosts; whether `val_id` is stable across queries).

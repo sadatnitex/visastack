@@ -78,6 +78,16 @@ export const RATE_LIMITS = {
   STAFF_FACTOR_ATTEMPT_DAY: { limit: 20, windowMs: 24 * HOUR_MS },
   // One audit row per lock window, so a stream of refused tries cannot flood the audit chain.
   STAFF_FACTOR_LOCK_AUDIT: { limit: 1, windowMs: 5 * 60 * 1000 },
+  // Online payments (S11). The gateway's callbacks are open to the internet and authenticated only
+  // by asking the gateway, so each one is bounded per network address, and each payment is bounded
+  // by how often it may make VisaStack call the gateway. Starting a payment is bounded per person
+  // and per agency. Refused callbacks are audited at most this often in total, so a stream of
+  // junk cannot flood the audit chain.
+  PAYMENT_CALLBACK_IP: { limit: 300, windowMs: HOUR_MS },
+  PAYMENT_CALLBACK_TRAN: { limit: 30, windowMs: HOUR_MS },
+  PAYMENT_REJECT_AUDIT: { limit: 30, windowMs: HOUR_MS },
+  PAYMENT_START: { limit: 20, windowMs: HOUR_MS },
+  PAYMENT_START_ORG: { limit: 60, windowMs: HOUR_MS },
 } as const satisfies Record<string, RateLimitConfig>;
 
 export type RateLimitDecision =
