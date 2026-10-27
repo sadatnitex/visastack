@@ -5,6 +5,7 @@ import {
   NullEmailPort,
   NullPaymentPort,
   ResendEmailPort,
+  SslcommerzPaymentPort,
 } from '@visastack/adapters';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -31,6 +32,9 @@ const ENV_KEYS = [
   'RESEND_FROM_ADDRESS',
   'OBSERVABILITY_PROVIDER',
   'PAYMENT_PROVIDER',
+  'SSLCOMMERZ_STORE_ID',
+  'SSLCOMMERZ_STORE_PASSWORD',
+  'SSLCOMMERZ_MODE',
   'KMS_PROVIDER',
   'KMS_LOCAL_MASTER_KEY_BASE64',
 ] as const;
@@ -226,6 +230,70 @@ describe('createEmailPort / createObservabilityPort / createPaymentPort', () => 
     expect(() => createEmailPort()).toThrow(/EMAIL_PROVIDER/);
     expect(() => createObservabilityPort()).toThrow(/OBSERVABILITY_PROVIDER/);
     expect(() => createPaymentPort()).toThrow(/PAYMENT_PROVIDER/);
+  });
+
+  describe('online payments (S11)', () => {
+    const configure = (mode = 'sandbox') => {
+      setEnv('PAYMENT_PROVIDER', 'sslcommerz');
+      setEnv('SSLCOMMERZ_STORE_ID', 'store-1');
+      setEnv('SSLCOMMERZ_STORE_PASSWORD', 'synthetic-password');
+      setEnv('SSLCOMMERZ_MODE', mode);
+    };
+
+    it('stays off with nothing set: the Null port, not configured, no live switch', async () => {
+      const { createPaymentPort, isPaymentProviderConfigured, readSslcommerzConfig } = await import(
+        './providers'
+      );
+      expect(createPaymentPort()).toBeInstanceOf(NullPaymentPort);
+      expect(createPaymentPort().configured).toBe(false);
+      expect(isPaymentProviderConfigured()).toBe(false);
+      expect(readSslcommerzConfig()).toBeNull();
+      // Credentials alone, without choosing the provider, switch nothing on.
+      setEnv('SSLCOMMERZ_STORE_ID', 'store-1');
+      setEnv('SSLCOMMERZ_STORE_PASSWORD', 'synthetic-password');
+      setEnv('SSLCOMMERZ_MODE', 'live');
+      expect(createPaymentPort()).toBeInstanceOf(NullPaymentPort);
+      expect(isPaymentProviderConfigured()).toBe(false);
+    });
+
+    it('builds the SSLCOMMERZ port only when the provider and all three settings are present', async () => {
+      configure();
+      const { createPaymentPort, isPaymentProviderConfigured } = await import('./providers');
+      const port = createPaymentPort();
+      expect(port).toBeInstanceOf(SslcommerzPaymentPort);
+      expect(port.configured).toBe(true);
+      expect(port.provider).toBe('sslcommerz');
+      expect(isPaymentProviderConfigured()).toBe(true);
+    });
+
+    it('fails closed on a half-set or invalid configuration, never falling back to live or to nothing', async () => {
+      const { createPaymentPort, isPaymentProviderConfigured } = await import('./providers');
+      for (const missing of [
+        'SSLCOMMERZ_STORE_ID',
+        'SSLCOMMERZ_STORE_PASSWORD',
+        'SSLCOMMERZ_MODE',
+      ]) {
+        configure();
+        unsetEnv(missing);
+        expect(() => createPaymentPort(), missing).toThrow(/PAYMENT_PROVIDER=sslcommerz requires/);
+        expect(isPaymentProviderConfigured(), missing).toBe(false);
+      }
+      for (const mode of ['', 'production', 'LIVE', 'true']) {
+        configure(mode);
+        expect(() => createPaymentPort(), mode).toThrow(/requires/);
+      }
+    });
+
+    it('never puts the store password in a thrown message', async () => {
+      configure();
+      unsetEnv('SSLCOMMERZ_MODE');
+      const { createPaymentPort } = await import('./providers');
+      try {
+        createPaymentPort();
+      } catch (error) {
+        expect((error as Error).message).not.toContain('synthetic-password');
+      }
+    });
   });
 
   it('constructs a real ResendEmailPort once EMAIL_PROVIDER=resend, RESEND_API_KEY, and RESEND_FROM_ADDRESS are all configured (NTF-03)', async () => {

@@ -18,6 +18,7 @@ import {
   type IntakeWorkerResult,
   type LegalHoldReminderSweepResult,
   type NotificationWorkerResult,
+  type ReconciliationSummary,
   type SweepResult,
   type SystemScope,
   applyEmailDeliveryEvent,
@@ -26,6 +27,7 @@ import {
   listDueDeletions,
   listDueDowngrades,
   pruneExpiredRateLimitBuckets,
+  reconcilePaymentAttempts,
   rewrapDataKeys,
   runAccountExportWorker,
   runErasureWorker,
@@ -46,6 +48,7 @@ import {
 import { resolveBaseUrl } from './base-url';
 import { dispatchGithubIntake } from './github-intake';
 import { runKmsSelfTest } from './kms-self-test';
+import { withoutPaymentSecrets } from './payment-secrets';
 import {
   createContentLimitsChecker,
   createDocumentConverter,
@@ -53,6 +56,7 @@ import {
   createKeyManagementPort,
   createMalwareScanner,
   createObservabilityPort,
+  createPaymentPort,
   createStorage,
 } from './providers';
 import { reportServerError } from './server-error';
@@ -713,6 +717,37 @@ export async function triggerDataKeyRewrap(
     return await rewrapDataKeys(handle, scope, port);
   } catch (error) {
     reportServerError('triggerDataKeyRewrap', error, { step: 'rewrap failed' });
+    return { error: 'failed' };
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * Asks the payment gateway about online payments that have not been confirmed yet (S11, ADR
+ * 0020): payments the payer left open, and ones closed as expired that may still have succeeded.
+ * Does nothing (and reports `configured: false`) while no payment provider is configured. Returns
+ * counts only.
+ */
+export async function triggerPaymentReconciliation(
+  scope: SystemScope<'process-payment-reconciliation'>,
+): Promise<ReconciliationSummary | { readonly error: string }> {
+  const connectionString = resolveDatabaseUrl(process.env);
+  if (!connectionString) return { error: 'not_configured' };
+  const { db, pool } = createPooledDb(connectionString);
+  pool.on('error', (error) => {
+    reportServerError('triggerPaymentReconciliation', error, {
+      step: 'idle pool connection error',
+    });
+  });
+  try {
+    const port = createPaymentPort();
+    const handle = db as unknown as Parameters<typeof reconcilePaymentAttempts>[0];
+    return await reconcilePaymentAttempts(handle, scope, port);
+  } catch (error) {
+    reportServerError('triggerPaymentReconciliation', withoutPaymentSecrets(error), {
+      step: 'reconciliation failed',
+    });
     return { error: 'failed' };
   } finally {
     await pool.end();

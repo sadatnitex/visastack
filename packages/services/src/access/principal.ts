@@ -46,6 +46,7 @@ export const SYSTEM_JOBS = [
   'process-legal-hold-reminders',
   'process-notification-sweeps',
   'process-notifications',
+  'process-payment-reconciliation',
   'process-rate-limit-prune',
   'rewrap-data-keys',
 ] as const;

@@ -1213,6 +1213,35 @@ export {
   recordProductEvent,
 } from './product-events';
 
+export { formatMinorUnits, parseDecimalToMinorUnits } from './payment-amounts';
+export {
+  EXPIRE_AFTER_MS,
+  LATE_SUCCESS_WINDOW_MS,
+  RECENT_ATTEMPT_MS,
+  RECONCILE_MIN_AGE_MS,
+  type PaymentAttempt,
+  type PaymentAttemptStatus,
+  type PaymentResultState,
+  type PaymentResultView,
+  type PaymentReturnKind,
+  type ReconciliationSummary,
+  type SettlePaymentAttemptInput,
+  type SettlementCode,
+  type SettlementOutcome,
+  type SettlementSource,
+  type StartOnlinePaymentInput,
+  type StartedPayment,
+  getPaymentResultView,
+  isMerchantTranId,
+  listPaymentAttemptsForInvoice,
+  paymentResultState,
+  recordRejectedPaymentCallback,
+  reconcilePaymentAttempts,
+  refreshInvoicePaymentAttempts,
+  settlePaymentAttempt,
+  startOnlinePayment,
+} from './payments';
+
 export type {
   CheckoutSession,
   EmailPort,
@@ -1224,13 +1253,16 @@ export type {
   ObservabilityEvent,
   ObservabilityPort,
   PaymentPort,
+  PaymentValidation,
+  PaymentValidationStatus,
+  CreateCheckoutInput,
   ResolvedIdentity,
   RewrappingKeyManagementPort,
   SendEmailInput,
   SendEmailResult,
 } from './ports';
 
-export { isRewrappingKeyManagementPort } from './ports';
+export { PaymentProviderUnavailableError, isRewrappingKeyManagementPort } from './ports';
 
 export {
   type DocumentLifecycleStatus,

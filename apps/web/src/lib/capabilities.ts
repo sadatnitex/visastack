@@ -13,7 +13,7 @@ import {
 import { getDeploymentMode } from './deployment-mode';
 import { isPresent, isSignInConfigured, readEnv } from './env';
 import { runKmsSelfTest } from './kms-self-test';
-import { createKeyManagementPort } from './providers';
+import { createKeyManagementPort, isPaymentProviderConfigured } from './providers';
 import { isPublicBetaOpen } from './public-beta';
 import { reportCapabilityLookupFailure } from './server-error';
 
@@ -124,7 +124,9 @@ export function getPlatformCapabilities(): PlatformCapabilities {
       (isCommercial && commercialConfigurationReady()) || isPublicBetaOpen()
         ? 'available'
         : 'disabled',
-    payments: 'unconfigured',
+    // Available only when a payment provider is chosen AND fully configured (ADR 0020); the
+    // default, with nothing set, stays unconfigured.
+    payments: isPaymentProviderConfigured() ? 'available' : 'unconfigured',
     realApplicantData: !isDev && operationalConfigurationReady() ? 'available' : 'disabled',
     commercialClaims: isCommercial && commercialConfigurationReady() ? 'available' : 'disabled',
   };

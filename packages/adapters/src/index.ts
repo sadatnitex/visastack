@@ -104,7 +104,19 @@ export {
 export { NullEmailPort, ResendEmailPort, type ResendEmailPortOptions } from './email';
 export { type SvixWebhookHeaders, verifyResendWebhookSignature } from './resend-webhook';
 
-export { NullPaymentPort } from './payment';
+export {
+  FakeSslcommerzGateway,
+  type FakeGatewayOptions,
+  type FakeGatewayTransaction,
+} from './payment-fake-gateway';
+
+export {
+  NullPaymentPort,
+  SslcommerzPaymentPort,
+  type SslcommerzMode,
+  type SslcommerzPaymentPortOptions,
+  normalizeSslcommerzRecord,
+} from './payment';
 
 export { ConsoleObservabilityPort } from './observability';
 

@@ -11,6 +11,7 @@ import {
   NullEmailPort,
   NullPaymentPort,
   ResendEmailPort,
+  SslcommerzPaymentPort,
 } from '@visastack/adapters';
 import {
   type BlobStore,
@@ -65,7 +66,7 @@ const KNOWN_PROVIDERS = {
   JOB_PROVIDER: ['neon'],
   EMAIL_PROVIDER: ['none', 'resend'],
   OBSERVABILITY_PROVIDER: ['console'],
-  PAYMENT_PROVIDER: ['none'],
+  PAYMENT_PROVIDER: ['none', 'sslcommerz'],
   KMS_PROVIDER: ['local', 'aws_kms'],
 } as const satisfies Record<string, readonly string[]>;
 
@@ -238,9 +239,50 @@ export function createObservabilityPort(): ObservabilityPort {
   return new ConsoleObservabilityPort();
 }
 
-/** No payment provider is configured — `PaymentPort.configured` is always `false` until one is built and registered here. */
+export interface SslcommerzConfig {
+  readonly storeId: string;
+  readonly storePassword: string;
+  readonly mode: 'sandbox' | 'live';
+}
+
+/**
+ * The SSLCOMMERZ settings when `PAYMENT_PROVIDER=sslcommerz` and all three are present and valid
+ * (`SSLCOMMERZ_STORE_ID`, `SSLCOMMERZ_STORE_PASSWORD`, and `SSLCOMMERZ_MODE` set to exactly
+ * `sandbox` or `live`; there is no default mode, so live is never reached by leaving something
+ * out). Null otherwise, including when the provider is not chosen at all. Never throws and never
+ * returns or logs the password to anything but the adapter.
+ */
+export function readSslcommerzConfig(): SslcommerzConfig | null {
+  if (readEnv('PAYMENT_PROVIDER') !== 'sslcommerz') return null;
+  const storeId = readEnv('SSLCOMMERZ_STORE_ID')?.trim() ?? '';
+  const storePassword = readEnv('SSLCOMMERZ_STORE_PASSWORD') ?? '';
+  const mode = readEnv('SSLCOMMERZ_MODE')?.trim();
+  if (storeId === '' || storePassword === '') return null;
+  if (mode !== 'sandbox' && mode !== 'live') return null;
+  return { storeId, storePassword, mode };
+}
+
+/** True when online payments are fully configured (the same test `createPaymentPort` applies). */
+export function isPaymentProviderConfigured(): boolean {
+  return readSslcommerzConfig() !== null;
+}
+
+/**
+ * No payment provider unless `PAYMENT_PROVIDER=sslcommerz` is set with a complete configuration.
+ * A half-set configuration fails closed: it is refused loudly, never quietly turned into a
+ * payment page that cannot work, and never into the live gateway by default.
+ */
 export function createPaymentPort(): PaymentPort {
   checkKnownProvider('PAYMENT_PROVIDER');
+  if (readEnv('PAYMENT_PROVIDER') === 'sslcommerz') {
+    const config = readSslcommerzConfig();
+    if (!config) {
+      throw new Error(
+        'PAYMENT_PROVIDER=sslcommerz requires SSLCOMMERZ_STORE_ID, SSLCOMMERZ_STORE_PASSWORD and SSLCOMMERZ_MODE (sandbox or live)',
+      );
+    }
+    return new SslcommerzPaymentPort(config);
+  }
   return new NullPaymentPort();
 }
 
