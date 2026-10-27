@@ -12,8 +12,10 @@ export function progressRingWords(done: number, total: number): string {
 
 /** Whole percent, never above 100 and never negative. */
 export function progressRingPercent(done: number, total: number): number {
-  if (total <= 0) return 0;
-  return Math.max(0, Math.min(100, Math.round((done / total) * 100)));
+  if (total <= 0 || done <= 0) return 0;
+  if (done >= total) return 100;
+  // Rounding must never make a nearly-finished ring look finished, or a barely-started one look empty.
+  return Math.max(1, Math.min(99, Math.round((done / total) * 100)));
 }
 
 /**

@@ -39,6 +39,12 @@ describe('ProgressRing with a count', () => {
     expect(all).toContain('9 of 9 items ready');
   });
 
+  it('does not draw a nearly finished ring as finished', () => {
+    const html = render(<ProgressRing done={299} total={300} />);
+    expect(html).toContain('stroke-dasharray="99 1"');
+    expect(html).not.toContain('progress-ring-full');
+  });
+
   it('never shows more ready than there are items', () => {
     expect(render(<ProgressRing done={12} total={9} />)).toContain('9 of 9 items ready');
   });

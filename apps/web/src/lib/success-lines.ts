@@ -51,13 +51,13 @@ export const REQUEST_SENT_LINE = 'Request sent. It stays open until the travelle
 export function invitationReadyLine(emailQueued: boolean, expiry: string | null): string {
   const tail = expiry ? ` It stays open for ${expiry}.` : '';
   return emailQueued
-    ? `Invitation ready. An email is on its way, and the link below works too.${tail}`
+    ? `Invitation ready. An email is queued, and the link below works too.${tail}`
     : `Invitation ready. Email is not set up here, so copy the link below and send it yourself.${tail}`;
 }
 
 /** An existing account joined an agency team. */
 export function memberAddedLine(roleLabel: string): string {
-  return `Team member added as ${roleLabel}. They can open the cases you assign to them.`;
+  return `Team member added as ${roleLabel}. Their role decides which cases they can open.`;
 }
 
 /** A person's own record was shared with someone who already has an account. */
@@ -66,7 +66,7 @@ export const SHARE_CREATED_LINE =
 
 /** A share was offered to someone without an account yet. */
 export const SHARE_INVITED_LINE =
-  'Invitation ready. An email is on its way. They create an account or sign in, then review what you chose and accept. The link below works too.';
+  'Invitation ready. An email is queued. They create an account or sign in, then review what you chose and accept. The link below works too.';
 
 /** A section's "something else" item was saved. */
 export function otherItemSavedLine(sectionLabel: string): string {

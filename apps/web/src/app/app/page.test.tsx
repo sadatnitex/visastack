@@ -18,6 +18,8 @@ const data = vi.hoisted(() => ({
   gateRefuses: false,
   /** What the readiness source returns for every case; null stands for a case with no checklist attached. */
   readiness: null as { requiredCount: number; satisfiedRequired: number } | null,
+  /** The refusal code the readiness source gives when there is no count; "invalid" means no checklist is attached. */
+  readinessError: 'invalid',
 }));
 
 vi.mock('../../lib/session', () => ({
@@ -94,7 +96,7 @@ vi.mock('@visastack/services', async (importOriginal) => {
     computeReadiness: async () =>
       data.readiness
         ? { ok: true, value: data.readiness }
-        : { ok: false, error: { code: 'invalid', message: 'case has no attached pack version' } },
+        : { ok: false, error: { code: data.readinessError, message: 'no count' } },
     getConsents: async () => data.consents,
     listApplicants: async () => data.applicants,
     listGrantsForRecipientAccount: async () =>
@@ -155,6 +157,7 @@ beforeEach(() => {
   data.proposals = 0;
   data.missions = 0;
   data.readiness = null;
+  data.readinessError = 'invalid';
   data.pendingGrants = 0;
   data.memberships = [];
   data.platformAdmin = false;
@@ -517,6 +520,18 @@ describe('Home composition (WP-V4, v1.2 B13 and U03)', () => {
     expect(attention.match(/Reply to Request/g)).toHaveLength(8);
     expect(attention).toContain('Showing 8 of 11');
     expect(attention).toContain('See All Applicants');
+  });
+
+  it('does not call a case checklist-less when its count just could not be read', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.missions = 1;
+    data.readinessError = 'internal';
+    const html = await page();
+    const start = html.indexOf('id="home-work-heading"');
+    const work = html.slice(start, html.indexOf('id="home-journey"', start));
+    expect(textOf(work)).toContain('Open the case to see its progress.');
+    expect(textOf(work)).not.toContain('Pick a checklist');
   });
 
   it('lists open requests and active cases under Active Requests and Work', async () => {

@@ -248,7 +248,7 @@ export default async function ApplicantOverviewPage({
                   />
                   <p className="muted">
                     {!data.featured.packVersionId
-                      ? 'This case uses manual requirements. Review its checklist in the case.'
+                      ? "Until a checklist is attached, you review this case's requirements by hand in the case."
                       : 'Requirement completeness is not an approval prediction.'}
                   </p>
                 </div>

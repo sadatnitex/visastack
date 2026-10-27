@@ -1097,7 +1097,8 @@ export default async function MissionPage({
             ) : (
               <>
                 <p className="card-body u-mb-100">
-                  Attach a published requirement pack to compute readiness.
+                  Pick a checklist: attach a published requirement pack to see how many items are
+                  ready.
                 </p>
                 <AttachPackForm missionId={mission.id} options={data.packOptions} />
               </>

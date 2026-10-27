@@ -4,7 +4,8 @@ import {
   type MissionState,
 } from '@visastack/core';
 import type { Readiness } from '@visastack/services';
-import { ProgressRing } from './progress-ring';
+import { progressRingPercent } from '../lib/readiness-words';
+import { NO_REQUIRED_LABEL, NO_REQUIRED_LINE, ProgressRing } from './progress-ring';
 
 export function CaseStageTracker({
   state,
@@ -66,7 +67,7 @@ export function CasePreparationSummary({
   };
   const progress =
     readiness.requiredCount > 0
-      ? Math.round((readiness.satisfiedRequired / readiness.requiredCount) * 100)
+      ? progressRingPercent(readiness.satisfiedRequired, readiness.requiredCount)
       : null;
   return (
     <section className="case-preparation-summary" aria-label="Evidence preparation completeness">
@@ -76,15 +77,15 @@ export function CasePreparationSummary({
           done={readiness.satisfiedRequired}
           total={readiness.requiredCount}
           centre={progress === null ? 'N/A' : `${progress}%`}
-          emptyLabel="No required items"
-          emptyLine="This checklist has no required items to count."
+          emptyLabel={NO_REQUIRED_LABEL}
+          emptyLine={NO_REQUIRED_LINE}
         />
       </div>
       <div className="case-preparation-counts">
         <h3>Evidence Progress</h3>
         <p className="muted">
-          {readiness.satisfiedRequired} of {readiness.requiredCount} required items are on file.
-          Optional and non-applicable items are counted separately.
+          The ring counts required items that are on file. Optional and non-applicable items are
+          counted separately.
         </p>
         <dl>
           {(

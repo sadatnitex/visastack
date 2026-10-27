@@ -6,6 +6,7 @@ import {
   CaseReadinessRing,
   type ReadinessCounts,
 } from '../../../../../components/case-readiness-ring';
+import { PROGRESS_IN_CASE_LINE } from '../../../../../components/progress-ring';
 import { EmptyState, PageHeader, StatusBadge } from '../../../../../components/ui';
 import { humanizeCode } from '../../../../../lib/format-code';
 import { withSession } from '../../../../../lib/session';
@@ -108,6 +109,7 @@ export default async function MissionsPage({
                       <CaseReadinessRing
                         size="sm"
                         readiness={data.readiness.get(mission.id) ?? null}
+                        {...(mission.packVersionId ? { emptyLine: PROGRESS_IN_CASE_LINE } : {})}
                       />
                     </span>
                   </span>

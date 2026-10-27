@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { progressRingPercent, progressRingWords, readyNote } from './readiness-words';
@@ -45,6 +45,13 @@ describe('the checklist count in words', () => {
     expect(progressRingPercent(-1, 4)).toBe(0);
     expect(progressRingPercent(1, 0)).toBe(0);
     expect(progressRingPercent(1, 4)).toBe(25);
+  });
+
+  it('never lets rounding make an unfinished ring look finished or a started one look empty', () => {
+    expect(progressRingPercent(299, 300)).toBe(99);
+    expect(progressRingPercent(1, 300)).toBe(1);
+    expect(progressRingPercent(300, 300)).toBe(100);
+    expect(progressRingPercent(0, 300)).toBe(0);
   });
 });
 
@@ -125,6 +132,24 @@ describe('the main flows use them', () => {
     ['mission/[id]/actions.ts', 'evidenceChosenLine('],
   ])('%s uses %s', (path, needle) => {
     expect(read(path)).toContain(needle);
+  });
+
+  it('no screen decides what to do by comparing the wording of a success line', () => {
+    // A form that clears itself on "Saved." breaks silently when the line gets more specific.
+    const found: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (/\.tsx$/.test(entry.name) && !/\.test\.tsx$/.test(entry.name)) {
+          if (/\.message\s*(?:===|!==|==)\s*'(?!')[^']/.test(readFileSync(path, 'utf8'))) {
+            found.push(path);
+          }
+        }
+      }
+    };
+    walk(root);
+    expect(found).toEqual([]);
   });
 
   it('puts no typed value or address in a line that names what was shared or invited', () => {

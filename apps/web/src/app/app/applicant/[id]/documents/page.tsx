@@ -752,7 +752,11 @@ export default async function ApplicantDocumentsPage({
           };
         })}
       />
-      <details className="wallet-upload-disclosure" open={initialKind ? true : undefined}>
+      <details
+        className="wallet-upload-disclosure"
+        id="add-document"
+        open={initialKind ? true : undefined}
+      >
         <summary className="btn btn-secondary">Upload Document</summary>
         <div id="document-upload">
           {/*
@@ -772,7 +776,7 @@ export default async function ApplicantDocumentsPage({
             </article>
           ) : (
             <>
-              <article className="card u-mb-150" id="add-document">
+              <article className="card u-mb-150">
                 <p className="card-kicker">Upload</p>
                 <h2 className="card-title">Add a Document</h2>
                 <p className="card-body u-mb-125">

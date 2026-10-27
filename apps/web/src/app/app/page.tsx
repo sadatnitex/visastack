@@ -19,6 +19,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { CaseReadinessRing, type ReadinessCounts } from '../../components/case-readiness-ring';
+import { PROGRESS_IN_CASE_LINE } from '../../components/progress-ring';
 import { Checklist, Disclosure, EmptyState, NextStepCard, StatusBadge } from '../../components/ui';
 import { holdsPlatformRole } from '../../lib/admin';
 import { formatDateOnly } from '../../lib/format-date';
@@ -161,6 +162,7 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
   // Readiness for the active cases Home lists, from the same source as the case page. The cases come
   // from the gated attention read above; one without a checklist simply has no entry (its ring is empty).
   const readinessByCase = new Map<string, ReadinessCounts>();
+  const unreadableCases = new Set<string>();
   await Promise.all(
     perApplicant
       .flatMap((row) => row.attention?.activeCases ?? [])
@@ -168,6 +170,8 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
       .map(async (entry) => {
         const result = await computeReadiness(db, entry.id);
         if (result.ok) readinessByCase.set(entry.id, result.value);
+        // "invalid" is a case with no checklist attached; any other refusal means the count could not be read now.
+        else if (result.error.code !== 'invalid') unreadableCases.add(entry.id);
       }),
   );
 
@@ -184,6 +188,7 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
     applicants,
     perApplicant,
     readinessByCase,
+    unreadableCases,
     attention,
     sharingWaiting: sharing !== null,
   };
@@ -641,6 +646,9 @@ export default async function AppPage({
                         <CaseReadinessRing
                           size="sm"
                           readiness={data.readinessByCase.get(entry.id) ?? null}
+                          {...(data.unreadableCases.has(entry.id)
+                            ? { emptyLine: PROGRESS_IN_CASE_LINE }
+                            : {})}
                         />
                       </span>
                     </span>

@@ -18,6 +18,11 @@ import { progressRingPercent, progressRingWords } from '../lib/readiness-words';
 /** What the person is told when there is no checklist to count against yet. */
 export const NO_CHECKLIST_LINE = 'Pick a checklist to see what is ready';
 export const NO_CHECKLIST_LABEL = 'No checklist yet';
+/** A checklist exists but has nothing required to count. */
+export const NO_REQUIRED_LABEL = 'No required items';
+export const NO_REQUIRED_LINE = 'This checklist has no required items to count.';
+/** A checklist exists but its count could not be read just now. */
+export const PROGRESS_IN_CASE_LINE = 'Open the case to see its progress.';
 
 export interface ProgressRingProps {
   /** Items ready. Ignored when `total` is 0. */

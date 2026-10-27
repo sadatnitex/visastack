@@ -1,4 +1,4 @@
-import { ProgressRing } from './progress-ring';
+import { NO_REQUIRED_LABEL, NO_REQUIRED_LINE, ProgressRing } from './progress-ring';
 
 /** The counts the ring needs; `computeReadiness` (and the agency view of it) carries both. */
 export interface ReadinessCounts {
@@ -38,8 +38,8 @@ export function CaseReadinessRing({
         size={size}
         done={0}
         total={0}
-        emptyLabel="No required items"
-        emptyLine="This checklist has no required items to count."
+        emptyLabel={NO_REQUIRED_LABEL}
+        emptyLine={NO_REQUIRED_LINE}
       />
     );
   }
