@@ -260,15 +260,8 @@ export async function createClientInvitation(
       ),
       'client invitation',
     );
-    await appendAuditEvent(tx, {
-      eventType: 'CLIENT_INVITATION_CREATED',
-      actorAccountId: input.actorAccountId,
-      method: 'MANUAL',
-      result: 'ALLOWED',
-      resourceType: 'client_invitation',
-      resourceId: invitation.id,
-      metadata: { organizationId: input.organizationId },
-    });
+    // The key service is called before the audit write: that write takes the global audit lock,
+    // which must never be held while waiting on a network call.
     // The address is valid by now, so an email goes out whenever the server can send one.
     const emailQueued = input.encryption !== undefined;
     if (input.encryption) {
@@ -281,6 +274,15 @@ export async function createClientInvitation(
         encryption: input.encryption,
       });
     }
+    await appendAuditEvent(tx, {
+      eventType: 'CLIENT_INVITATION_CREATED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      resourceType: 'client_invitation',
+      resourceId: invitation.id,
+      metadata: { organizationId: input.organizationId },
+    });
     return ok({ invitation, rawToken, emailQueued });
   });
 }

@@ -752,9 +752,9 @@ Generate a migration only after the previous migration is on main.
 | Order | Package | Migration | Owner gate | Merge rule |
 |---|---|---|---|---|
 | 1 | **S1. Prepare Again: DONE.** Merged as #281 (`9f93652`) on 26 Oct 2026. CI, CodeQL, Deploy Smoke, Live signed-in check and Vercel all green; readiness ready; the new page is live behind sign-in. Next session starts at S2 | none | none | done |
-| 2 | S2. Security minimum (M12 to M14) | none | none | owner word |
-| 3 | S3. Staff second factor (M08) | yes | O8 | owner word |
-| 4 | S4. Real malware scanning (M06) | none | O4 | owner word |
+| 2 | **S2. Security minimum (M12 to M14): DONE.** Merged as #283 (`32b4af2d`) on 26 Oct 2026, live | none | none | done |
+| 3 | **S3. Staff second factor (M08): DONE.** Merged as #284 (`d7efa6bc`); migration 0092 applied; switch `STAFF_SECOND_FACTOR` stays off until the owner turns it on | yes | O8 | done |
+| 4 | **S4. Real malware scanning (M06): DONE.** Merged as #285 (`42a67422`); scanning shows as on only while the scan runner's own proof is fresh | none | O4 | done |
 | 4a | S26. Real key management service (M18) | maybe | O16, O8 | owner word |
 | 5 | S5. Automatic reading (ADR 0019) | none expected | none | owner word |
 | 6 | S6. Reading screen states | none | none | owner word |

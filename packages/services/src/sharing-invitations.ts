@@ -74,6 +74,15 @@ export async function createSharingInvitation(
       ),
       'sharing invitation',
     );
+    // The key service is called before the audit write: that write takes the global audit lock,
+    // which must never be held while waiting on a network call.
+    await queueInvitationEmail(tx, {
+      kind: 'sharing',
+      invitationId: invitation.id,
+      email,
+      rawToken,
+      encryption: input.encryption,
+    });
     await appendAuditEvent(tx, {
       eventType: 'SHARING_INVITATION_CREATED',
       actorAccountId: input.actorAccountId,
@@ -92,13 +101,6 @@ export async function createSharingInvitation(
         target: { kind: 'sharing_invitation', id: invitation.id, email },
       });
     }
-    await queueInvitationEmail(tx, {
-      kind: 'sharing',
-      invitationId: invitation.id,
-      email,
-      rawToken,
-      encryption: input.encryption,
-    });
     return ok({ invitation, rawToken });
   });
 }

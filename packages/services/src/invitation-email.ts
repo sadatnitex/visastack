@@ -7,6 +7,8 @@ import type { KeyManagementPort } from './ports';
 export interface SealedInvitationLink {
   readonly keyVersion: string;
   readonly wrappedKey: string;
+  /** Which key wrapped it; absent on links sealed before the key service existed (the local key). */
+  readonly wrappingKeyId?: string;
   readonly nonce: string;
   readonly tag: string;
   readonly ciphertext: string;
@@ -57,6 +59,7 @@ export async function queueInvitationEmail(
       sealedInvitationLink: {
         keyVersion: dataKey.keyVersion,
         wrappedKey: Buffer.from(dataKey.wrappedDataKey).toString('base64'),
+        ...(dataKey.wrappingKeyId ? { wrappingKeyId: dataKey.wrappingKeyId } : {}),
         nonce: nonce.toString('base64'),
         tag: cipher.getAuthTag().toString('base64'),
         ciphertext: ciphertext.toString('base64'),
@@ -74,6 +77,7 @@ export async function revealInvitationLink(
   const key = await encryption.unwrapDataKey(
     sealed.keyVersion,
     Buffer.from(sealed.wrappedKey, 'base64'),
+    sealed.wrappingKeyId ?? null,
   );
   const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(sealed.nonce, 'base64'));
   decipher.setAAD(Buffer.from(`invitation:${kind}:${invitationId}`));

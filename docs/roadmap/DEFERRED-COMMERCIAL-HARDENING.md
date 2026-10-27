@@ -32,7 +32,7 @@ Execution plan: [SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md](SONNET-SMALL-COMMERCIAL-
 | M15 | Hosting plan allows commercial use | Neon is on Free (checked 26 Oct). Vercel's plan name was not returned by the API; the personal team and the daily deployment limit indicate Hobby, which is for non-commercial use | Owner action O3 |
 | M16 | Repository not publicly readable while the product is proprietary | Public, temporarily (owner, 26 Oct 2026: to be made private soon). Full-history secret scan on 26 Oct (gitleaks, 867 commits, all branches): no real credential, 11 false positives | Owner action O1 |
 | M17 | Every launch checklist is maintained and reviewed; unmaintained routes run in manual mode with no automated readiness claim | One published checklist exists ("UK Visitor1": 2 requirements, not authoritative, review date passed 23 Oct 2026, used by no case) | Owner action O7, then S24 |
-| M18 | Real key management for protected fields in commercial mode | Local master key only; the code refuses it in commercial mode and the readiness gate is hard-coded false | S26 plus owner action O16 |
+| M18 | Real key management for protected fields in commercial mode | Built in S26: AWS KMS adapter behind the key port, data key re-wrap job, self-tested readiness gate (off until the owner completes O16) | S26 plus owner action O16 |
 | M19 | Honest commercial-readiness checks | The AI gate only knows the old OpenAI path; the scanner gate ignores `github_clamav`; the penetration-test gate cannot record the owner's deferral | S27 plus owner action O17 |
 
 ## Part 2. Deferred security and compliance hardening

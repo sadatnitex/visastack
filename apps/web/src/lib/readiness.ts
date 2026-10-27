@@ -13,7 +13,8 @@ import type { Db } from '@visastack/services';
 import { type getPlatformCapabilities, resolvePlatformCapabilities } from './capabilities';
 import { evaluateCommercialReadiness, evaluateOperationalReadiness } from './commercial-readiness';
 import { getDeploymentMode } from './deployment-mode';
-import { NEON_AUTH_ENV_VARS, isPresent, isSignInConfigured } from './env';
+import { NEON_AUTH_ENV_VARS, isPresent, isSignInConfigured, readEnv } from './env';
+import { runKmsSelfTest } from './kms-self-test';
 import { SHIPPED_MIGRATIONS } from './migration-journal';
 import { validateProviderEnv } from './providers';
 
@@ -58,6 +59,11 @@ export interface ReadinessReport {
 
 export async function evaluateReadiness(): Promise<ReadinessReport> {
   const deploymentMode = getDeploymentMode();
+  // The key service check runs alongside the database and storage probes, not after them.
+  const keyServiceCheck =
+    deploymentMode === 'commercial' || readEnv('KMS_PROVIDER') === 'aws_kms'
+      ? runKmsSelfTest()
+      : undefined;
 
   const env = {
     database: presenceMap(DATABASE_URL_ENV_CANDIDATES),
@@ -124,6 +130,8 @@ export async function evaluateReadiness(): Promise<ReadinessReport> {
     isSignInConfigured() &&
     providers.valid;
 
+  // The synchronous gates read the answer, so it must have arrived before they run.
+  await keyServiceCheck;
   const commercial =
     deploymentMode === 'commercial'
       ? evaluateCommercialReadiness({ databaseReady: db.connected && db.schemaApplied })

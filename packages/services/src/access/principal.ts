@@ -47,6 +47,7 @@ export const SYSTEM_JOBS = [
   'process-notification-sweeps',
   'process-notifications',
   'process-rate-limit-prune',
+  'rewrap-data-keys',
 ] as const;
 
 export type SystemJob = (typeof SYSTEM_JOBS)[number];

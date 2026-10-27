@@ -12,6 +12,7 @@ import {
 } from './commercial-readiness';
 import { getDeploymentMode } from './deployment-mode';
 import { isPresent, isSignInConfigured, readEnv } from './env';
+import { runKmsSelfTest } from './kms-self-test';
 import { createKeyManagementPort } from './providers';
 import { isPublicBetaOpen } from './public-beta';
 import { reportCapabilityLookupFailure } from './server-error';
@@ -183,6 +184,8 @@ export async function resolvePlatformCapabilities(
   const [aiExtraction, malwareScanning] = await Promise.all([
     resolveAiExtractionCapability(db),
     resolveMalwareScanning(db, base.malwareScanning),
+    // The key service answer feeds the synchronous gates read inside `getPlatformCapabilities`.
+    readEnv('KMS_PROVIDER') === 'aws_kms' ? runKmsSelfTest() : Promise.resolve(false),
   ]);
   return { ...base, aiExtraction, malwareScanning };
 }

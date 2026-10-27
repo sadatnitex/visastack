@@ -131,6 +131,12 @@ export interface GeneratedDataKey {
   readonly keyVersion: string;
   readonly plaintextDataKey: Uint8Array;
   readonly wrappedDataKey: Uint8Array;
+  /**
+   * Which key wrapped it (for example `aws-kms:<key id>`), stored beside the wrapped key so a
+   * later read, and the move from the local key to a real key service, always know who can
+   * unwrap it. Absent for the local development provider (stored as null).
+   */
+  readonly wrappingKeyId?: string;
 }
 
 /**
@@ -166,5 +172,33 @@ export interface KeyManagementPort {
    * provider (e.g. a real KMS provider asked to unwrap a key a different
    * provider wrapped).
    */
-  unwrapDataKey(keyVersion: string, wrappedDataKey: Uint8Array): Promise<Uint8Array>;
+  unwrapDataKey(
+    keyVersion: string,
+    wrappedDataKey: Uint8Array,
+    /** The wrapping key recorded when it was stored; null or absent means the local key. */
+    wrappingKeyId?: string | null,
+  ): Promise<Uint8Array>;
+}
+
+/**
+ * A provider that can also wrap an existing data key under its own key, so every stored data
+ * key can be moved from the local key to a real key service without changing a single
+ * encrypted value (the data key itself stays the same; only its wrapping changes).
+ */
+export interface RewrappingKeyManagementPort extends KeyManagementPort {
+  /** Every wrapping key id this provider records starts with this; anything else is not yet moved. */
+  wrappingKeyPrefix(): string;
+  rewrapDataKey(
+    keyVersion: string,
+    plaintextDataKey: Uint8Array,
+  ): Promise<{ readonly wrappedDataKey: Uint8Array; readonly wrappingKeyId: string }>;
+}
+
+export function isRewrappingKeyManagementPort(
+  port: KeyManagementPort,
+): port is RewrappingKeyManagementPort {
+  return (
+    typeof (port as Partial<RewrappingKeyManagementPort>).rewrapDataKey === 'function' &&
+    typeof (port as Partial<RewrappingKeyManagementPort>).wrappingKeyPrefix === 'function'
+  );
 }

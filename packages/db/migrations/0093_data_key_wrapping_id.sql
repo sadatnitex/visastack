@@ -1,0 +1,1 @@
+ALTER TABLE "data_keys" ADD COLUMN IF NOT EXISTS "wrapping_key_id" text;

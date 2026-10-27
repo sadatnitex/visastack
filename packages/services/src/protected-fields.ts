@@ -64,15 +64,36 @@ export function resetProtectedFieldKeyCacheForTests(): void {
   unwrappedKeyCache.clear();
 }
 
-async function getExistingWrappedKey(db: Db, keyVersion: string): Promise<Buffer | undefined> {
+interface StoredDataKey {
+  readonly wrapped: Buffer;
+  readonly wrappingKeyId: string | null;
+}
+
+async function getExistingWrappedKey(
+  db: Db,
+  keyVersion: string,
+): Promise<StoredDataKey | undefined> {
+  // One read for the key and the id of the key that wrapped it, so a re-wrap between two reads
+  // can never pair a new blob with an old id. The id comes out of the row as JSON: a database
+  // where migration 0093 has not run yet has no such column, and naming it directly would fail
+  // (and abort the surrounding transaction); this reads as null, which is truthfully "local".
   const row = first(
     await db
-      .select()
+      .select({
+        wrappedDataKey: schema.dataKeys.wrappedDataKey,
+        wrappingKeyId: sql<string | null>`to_jsonb(${schema.dataKeys})->>'wrapping_key_id'`,
+      })
       .from(schema.dataKeys)
       .where(eq(schema.dataKeys.keyVersion, keyVersion))
       .limit(1),
   );
-  return row?.wrappedDataKey ? Buffer.from(row.wrappedDataKey) : undefined;
+  if (!row?.wrappedDataKey) return undefined;
+  return { wrapped: Buffer.from(row.wrappedDataKey), wrappingKeyId: row.wrappingKeyId ?? null };
+}
+
+/** A drizzle transaction handle has `rollback`; the top-level database handle does not. */
+function isTransaction(db: Db): boolean {
+  return typeof (db as { rollback?: unknown }).rollback === 'function';
 }
 
 /** Get (unwrapping once, then caching) the data key for `keyVersion`, generating and storing it if this is the first use of that version. */
@@ -84,8 +105,8 @@ async function getOrCreateDataKey(
   const cached = unwrappedKeyCache.get(keyVersion);
   if (cached) return cached;
 
-  let wrapped = await getExistingWrappedKey(db, keyVersion);
-  if (!wrapped) {
+  let stored = await getExistingWrappedKey(db, keyVersion);
+  if (!stored) {
     const generated = await port.generateDataKey();
     if (generated.keyVersion !== keyVersion) {
       throw new Error(
@@ -96,15 +117,33 @@ async function getOrCreateDataKey(
     // inserted the same version first. Either wrapped form unwraps to a
     // usable key (both came from the same live port); the primary key
     // guarantees exactly one row survives regardless of which insert wins.
-    await db
-      .insert(schema.dataKeys)
-      .values({ keyVersion, wrappedDataKey: Buffer.from(generated.wrappedDataKey) })
-      .onConflictDoNothing();
-    wrapped = required(await getExistingWrappedKey(db, keyVersion), 'data key');
+    if (generated.wrappingKeyId) {
+      // The key service records who wrapped it; this needs migration 0093 to have run.
+      await db
+        .insert(schema.dataKeys)
+        .values({
+          keyVersion,
+          wrappedDataKey: Buffer.from(generated.wrappedDataKey),
+          wrappingKeyId: generated.wrappingKeyId,
+        })
+        .onConflictDoNothing();
+    } else {
+      // The local key records nothing extra, and this statement names only the original
+      // columns, so it also works on a database that has not had migration 0093 yet.
+      await db.execute(
+        sql`insert into data_keys (key_version, wrapped_data_key) values (${keyVersion}, ${Buffer.from(generated.wrappedDataKey)}) on conflict (key_version) do nothing`,
+      );
+    }
+    stored = required(await getExistingWrappedKey(db, keyVersion), 'data key');
   }
 
-  const unwrapped = Buffer.from(await port.unwrapDataKey(keyVersion, wrapped));
-  unwrappedKeyCache.set(keyVersion, unwrapped);
+  const unwrapped = Buffer.from(
+    await port.unwrapDataKey(keyVersion, stored.wrapped, stored.wrappingKeyId),
+  );
+  // Inside a transaction the stored key may be one that transaction just created and could still
+  // roll back; remembering it would let later writes use a key that was never saved. Outside a
+  // transaction every row read is committed, so it is safe to remember.
+  if (!isTransaction(db)) unwrappedKeyCache.set(keyVersion, unwrapped);
   return unwrapped;
 }
 

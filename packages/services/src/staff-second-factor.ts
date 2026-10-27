@@ -1,10 +1,10 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
-import { isMissingRelationError as isMissingTable } from './ai-data-terms';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { isMissingRelationError as isMissingTable } from './missing-relation';
 import { type PlatformAuthInput, hasAnyPlatformRole, isPlatformOwner } from './platform-roles';
 import type { KeyManagementPort } from './ports';
 import { protectValue, revealValue } from './protected-fields';

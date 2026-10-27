@@ -4,6 +4,7 @@ import { type StaffScope, staffScopeProblem as sharedStaffScopeProblem } from '.
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { isMissingRelationError } from './missing-relation';
 
 // Plain copies of the schema's constants (ai-data-terms.test.ts pins them equal): reading
 // `schema` at module load would break every package whose tests replace @visastack/db with a
@@ -144,28 +145,6 @@ export function isAiTermsCheckDue(terms: AiProviderDataTerms, now: Date = new Da
   const checked = Date.parse(`${terms.checkedOn}T00:00:00Z`);
   if (!Number.isFinite(checked)) return true;
   return now.getTime() - checked > AI_TERMS_RECHECK_DAYS * 24 * 60 * 60 * 1000;
-}
-
-/**
- * Postgres `undefined_table` (42P01) or `undefined_column` (42703), as raised
- * directly or wrapped by the driver: the expected failure between a deploy
- * and the migration that adds these tables.
- */
-export function isMissingRelationError(error: unknown): boolean {
-  const visit = (value: unknown, depth: number): boolean => {
-    if (typeof value !== 'object' || value === null || depth > 3) return false;
-    const { code, message, cause } = value as {
-      code?: unknown;
-      message?: unknown;
-      cause?: unknown;
-    };
-    if (code === '42P01' || code === '42703') return true;
-    if (typeof message === 'string' && /(relation|column) .* does not exist/i.test(message)) {
-      return true;
-    }
-    return visit(cause, depth + 1);
-  };
-  return visit(error, 0);
 }
 
 export interface AiProviderDataTermsState {

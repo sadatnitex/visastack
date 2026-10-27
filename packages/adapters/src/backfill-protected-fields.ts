@@ -1,5 +1,6 @@
 import { DATABASE_URL_ENV_CANDIDATES, createPooledDb, resolveDatabaseUrl } from '@visastack/db';
 import { backfillProtectedFields } from '@visastack/services';
+import { AwsKmsKeyProvider } from './aws-kms-key-provider';
 import { LocalEnvelopeKeyProvider } from './key-management';
 
 /**
@@ -20,6 +21,10 @@ import { LocalEnvelopeKeyProvider } from './key-management';
 const DEFAULT_LIMIT = 200;
 
 function readEnv(name: string): string | undefined {
+  return process.env[name];
+}
+
+function optionalEnv(name: string): string | undefined {
   return process.env[name];
 }
 
@@ -46,8 +51,24 @@ async function main(): Promise<void> {
     );
   }
   const actorAccountId = requireEnv('BACKFILL_ACTOR_ACCOUNT_ID');
-  const masterKeyBase64 = requireEnv('KMS_LOCAL_MASTER_KEY_BASE64');
-  const encryption = new LocalEnvelopeKeyProvider({ masterKeyBase64 });
+  // The same choice the application makes: the key service when it is switched on (so the
+  // backfill can open data keys already moved to it), the local key otherwise.
+  const kmsAccessKeyId = optionalEnv('KMS_AWS_ACCESS_KEY_ID');
+  const kmsSecretAccessKey = optionalEnv('KMS_AWS_SECRET_ACCESS_KEY');
+  const legacyLocalKey = optionalEnv('KMS_LOCAL_MASTER_KEY_BASE64');
+  const encryption =
+    optionalEnv('KMS_PROVIDER') === 'aws_kms'
+      ? new AwsKmsKeyProvider({
+          keyId: requireEnv('KMS_KEY_ID'),
+          region: requireEnv('KMS_AWS_REGION'),
+          ...(kmsAccessKeyId && kmsSecretAccessKey
+            ? { credentials: { accessKeyId: kmsAccessKeyId, secretAccessKey: kmsSecretAccessKey } }
+            : {}),
+          ...(legacyLocalKey ? { legacyLocalMasterKeyBase64: legacyLocalKey } : {}),
+        })
+      : new LocalEnvelopeKeyProvider({
+          masterKeyBase64: requireEnv('KMS_LOCAL_MASTER_KEY_BASE64'),
+        });
 
   const { db, pool } = createPooledDb(connectionString);
   try {
