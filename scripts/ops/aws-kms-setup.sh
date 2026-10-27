@@ -46,4 +46,4 @@ echo "Key ARN:     $KEY_ARN"
 echo "Policy ARN:  $POLICY_ARN"
 echo
 echo "Next: create an IAM user with only this policy, make an access key for it, and give Vercel"
-echo "AWS_REGION, KMS_KEY_ID, AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY. See docs/operations/key-management.md."
+echo "KMS_AWS_REGION, KMS_KEY_ID, KMS_AWS_ACCESS_KEY_ID and KMS_AWS_SECRET_ACCESS_KEY. See docs/operations/key-management.md."

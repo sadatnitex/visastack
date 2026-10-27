@@ -133,7 +133,10 @@ function buildGates(input: CommercialReadinessInput): readonly ReadinessGate[] {
       satisfied:
         readEnv('KMS_PROVIDER') === 'aws_kms' &&
         isPresent('KMS_KEY_ID') &&
-        isPresent('AWS_REGION') &&
+        isPresent('KMS_AWS_REGION') &&
+        // A redirected endpoint would not be the real service.
+        !isPresent('AWS_ENDPOINT_URL') &&
+        !isPresent('AWS_ENDPOINT_URL_KMS') &&
         kmsSelfTestPassed(),
     },
     {

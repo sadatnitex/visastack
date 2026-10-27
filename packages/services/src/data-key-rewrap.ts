@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, ne, or, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, notLike, or, sql } from 'drizzle-orm';
 import type { SystemScope } from './access/principal';
 import { type Db, schema } from './db';
 import { isMissingRelationError } from './missing-relation';
@@ -47,12 +47,12 @@ export async function rewrapDataKeys(
   if (!isRewrappingKeyManagementPort(port)) {
     throw new Error('the configured key provider cannot re-wrap data keys');
   }
-  const target = port.currentWrappingKeyId();
+  const prefix = port.wrappingKeyPrefix();
   const limit = Math.max(1, Math.min(options.batchSize ?? 100, 500));
   try {
     const notCurrent = or(
       isNull(schema.dataKeys.wrappingKeyId),
-      ne(schema.dataKeys.wrappingKeyId, target),
+      notLike(schema.dataKeys.wrappingKeyId, `${prefix}%`),
     );
     const countRows = async (where?: ReturnType<typeof or>) => {
       const query = db.select({ n: sql<number>`count(*)::int` }).from(schema.dataKeys);

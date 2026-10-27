@@ -186,8 +186,8 @@ export interface KeyManagementPort {
  * encrypted value (the data key itself stays the same; only its wrapping changes).
  */
 export interface RewrappingKeyManagementPort extends KeyManagementPort {
-  /** The id every key this provider wraps is recorded under. */
-  currentWrappingKeyId(): string;
+  /** Every wrapping key id this provider records starts with this; anything else is not yet moved. */
+  wrappingKeyPrefix(): string;
   rewrapDataKey(
     keyVersion: string,
     plaintextDataKey: Uint8Array,
@@ -199,6 +199,6 @@ export function isRewrappingKeyManagementPort(
 ): port is RewrappingKeyManagementPort {
   return (
     typeof (port as Partial<RewrappingKeyManagementPort>).rewrapDataKey === 'function' &&
-    typeof (port as Partial<RewrappingKeyManagementPort>).currentWrappingKeyId === 'function'
+    typeof (port as Partial<RewrappingKeyManagementPort>).wrappingKeyPrefix === 'function'
   );
 }

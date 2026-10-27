@@ -698,13 +698,14 @@ export async function triggerDataKeyRewrap(
   scope: SystemScope<'rewrap-data-keys'>,
 ): Promise<DataKeyRewrapSummary | { readonly error: string }> {
   const connectionString = resolveDatabaseUrl(process.env);
-  const port = createKeyManagementPort();
-  if (!connectionString || !port) return { error: 'not_configured' };
+  if (!connectionString) return { error: 'not_configured' };
   const { db, pool } = createPooledDb(connectionString);
   pool.on('error', (error) => {
     reportServerError('triggerDataKeyRewrap', error, { step: 'idle pool connection error' });
   });
   try {
+    const port = createKeyManagementPort();
+    if (!port) return { error: 'not_configured' };
     const handle = db as unknown as Parameters<typeof rewrapDataKeys>[0];
     return await rewrapDataKeys(handle, scope, port);
   } catch (error) {

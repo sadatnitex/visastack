@@ -1,7 +1,6 @@
 import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { type Db, first, required, schema } from './db';
-import { isMissingRelationError } from './missing-relation';
 import type { KeyManagementPort } from './ports';
 
 /** Mirrors the `field_sensitivity` Postgres enum (`packages/db/src/schema.ts`). */
@@ -74,30 +73,22 @@ async function getExistingWrappedKey(
   db: Db,
   keyVersion: string,
 ): Promise<StoredDataKey | undefined> {
+  // One read for the key and the id of the key that wrapped it, so a re-wrap between two reads
+  // can never pair a new blob with an old id. The id comes out of the row as JSON: a database
+  // where migration 0093 has not run yet has no such column, and naming it directly would fail
+  // (and abort the surrounding transaction); this reads as null, which is truthfully "local".
   const row = first(
     await db
-      .select({ wrappedDataKey: schema.dataKeys.wrappedDataKey })
+      .select({
+        wrappedDataKey: schema.dataKeys.wrappedDataKey,
+        wrappingKeyId: sql<string | null>`to_jsonb(${schema.dataKeys})->>'wrapping_key_id'`,
+      })
       .from(schema.dataKeys)
       .where(eq(schema.dataKeys.keyVersion, keyVersion))
       .limit(1),
   );
   if (!row?.wrappedDataKey) return undefined;
-  // Read apart from the key itself so a deploy that runs before migration 0093 still reads every
-  // protected value: until the column exists every key is, truthfully, a local one.
-  let wrappingKeyId: string | null = null;
-  try {
-    const extra = first(
-      await db
-        .select({ wrappingKeyId: schema.dataKeys.wrappingKeyId })
-        .from(schema.dataKeys)
-        .where(eq(schema.dataKeys.keyVersion, keyVersion))
-        .limit(1),
-    );
-    wrappingKeyId = extra?.wrappingKeyId ?? null;
-  } catch (error) {
-    if (!isMissingRelationError(error)) throw error;
-  }
-  return { wrapped: Buffer.from(row.wrappedDataKey), wrappingKeyId };
+  return { wrapped: Buffer.from(row.wrappedDataKey), wrappingKeyId: row.wrappingKeyId ?? null };
 }
 
 /** Get (unwrapping once, then caching) the data key for `keyVersion`, generating and storing it if this is the first use of that version. */
@@ -121,14 +112,23 @@ async function getOrCreateDataKey(
     // inserted the same version first. Either wrapped form unwraps to a
     // usable key (both came from the same live port); the primary key
     // guarantees exactly one row survives regardless of which insert wins.
-    await db
-      .insert(schema.dataKeys)
-      .values({
-        keyVersion,
-        wrappedDataKey: Buffer.from(generated.wrappedDataKey),
-        ...(generated.wrappingKeyId ? { wrappingKeyId: generated.wrappingKeyId } : {}),
-      })
-      .onConflictDoNothing();
+    if (generated.wrappingKeyId) {
+      // The key service records who wrapped it; this needs migration 0093 to have run.
+      await db
+        .insert(schema.dataKeys)
+        .values({
+          keyVersion,
+          wrappedDataKey: Buffer.from(generated.wrappedDataKey),
+          wrappingKeyId: generated.wrappingKeyId,
+        })
+        .onConflictDoNothing();
+    } else {
+      // The local key records nothing extra, and this statement names only the original
+      // columns, so it also works on a database that has not had migration 0093 yet.
+      await db.execute(
+        sql`insert into data_keys (key_version, wrapped_data_key) values (${keyVersion}, ${Buffer.from(generated.wrappedDataKey)}) on conflict (key_version) do nothing`,
+      );
+    }
     stored = required(await getExistingWrappedKey(db, keyVersion), 'data key');
   }
 

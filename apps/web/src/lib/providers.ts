@@ -273,22 +273,28 @@ export function createKeyManagementPort(): KeyManagementPort | undefined {
 let awsKmsPort: { readonly signature: string; readonly port: KeyManagementPort } | undefined;
 
 /**
- * The real key service (`KMS_PROVIDER=aws_kms`, S26). Needs `KMS_KEY_ID` and `AWS_REGION`; the
- * credentials come from the standard AWS environment. Anything missing returns no port at all,
+ * The real key service (`KMS_PROVIDER=aws_kms`, S26). Needs `KMS_KEY_ID` and `KMS_AWS_REGION`;
+ * the credentials are `KMS_AWS_ACCESS_KEY_ID` and `KMS_AWS_SECRET_ACCESS_KEY` (or the standard AWS
+ * credential chain when both are absent). Anything missing returns no port at all,
  * never the local key, so a half-set-up environment fails closed (protected fields report
  * "encryption unavailable"). `KMS_LOCAL_MASTER_KEY_BASE64`, if still set, only opens data keys
  * the re-wrap job has not moved yet. One instance is reused while the settings do not change.
  */
 function createAwsKmsPort(): KeyManagementPort | undefined {
   const keyId = readEnv('KMS_KEY_ID');
-  const region = readEnv('AWS_REGION');
+  const region = readEnv('KMS_AWS_REGION');
   if (!keyId || !region) return undefined;
   const legacy = readEnv('KMS_LOCAL_MASTER_KEY_BASE64');
-  const signature = `${keyId}|${region}|${legacy ? 'legacy' : 'none'}`;
+  // Names of our own, not the AWS_* ones: the hosting platform reserves those for itself.
+  const accessKeyId = readEnv('KMS_AWS_ACCESS_KEY_ID');
+  const secretAccessKey = readEnv('KMS_AWS_SECRET_ACCESS_KEY');
+  const credentials = accessKeyId && secretAccessKey ? { accessKeyId, secretAccessKey } : undefined;
+  const signature = `${keyId}|${region}|${accessKeyId ?? ''}|${legacy ? 'legacy' : 'none'}`;
   if (awsKmsPort?.signature === signature) return awsKmsPort.port;
   const port = new AwsKmsKeyProvider({
     keyId,
     region,
+    ...(credentials ? { credentials } : {}),
     ...(legacy ? { legacyLocalMasterKeyBase64: legacy } : {}),
   });
   awsKmsPort = { signature, port };

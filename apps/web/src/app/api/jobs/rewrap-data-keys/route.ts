@@ -17,5 +17,6 @@ export const maxDuration = 60;
 export async function GET(request: Request): Promise<Response> {
   const denied = rejectUnauthorizedCron(request);
   if (denied) return denied;
-  return Response.json(await triggerDataKeyRewrap(systemPrincipal('rewrap-data-keys')));
+  const result = await triggerDataKeyRewrap(systemPrincipal('rewrap-data-keys'));
+  return Response.json(result, { status: 'error' in result ? 503 : 200 });
 }

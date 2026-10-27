@@ -55,7 +55,7 @@ function kmsPort(options: {
 }): RewrappingKeyManagementPort {
   return {
     currentKeyVersion: () => 'kms-v1',
-    currentWrappingKeyId: () => 'fake-kms:key-1',
+    wrappingKeyPrefix: () => 'fake-kms:',
     async generateDataKey() {
       const plaintextDataKey = randomBytes(32);
       return {
@@ -199,10 +199,47 @@ describe('moving data keys from the local key to the key service (S26)', () => {
     expect(summary.available).toBe(false);
   });
 
-  it('keeps protected values readable before the column exists (a deploy ahead of its migration)', async () => {
-    const value = await protectValue(db, localOnly, 'before migration', 'aad');
-    resetProtectedFieldKeyCacheForTests();
+  it('keeps protecting and reading values before the column exists, even inside a transaction (a deploy ahead of its migration)', async () => {
     await db.execute(sql`alter table data_keys drop column wrapping_key_id`);
+    // The first write per key version inserts the data key, and runs inside a transaction in
+    // real use: neither the insert nor the read may touch the missing column.
+    const value = await db.transaction(async (tx) => {
+      const txDb = tx as unknown as Db;
+      const written = await protectValue(txDb, localOnly, 'before migration', 'aad');
+      resetProtectedFieldKeyCacheForTests();
+      expect(await revealValue(txDb, localOnly, { ...written, aad: 'aad' })).toBe(
+        'before migration',
+      );
+      return written;
+    });
+    resetProtectedFieldKeyCacheForTests();
     expect(await revealValue(db, localOnly, { ...value, aad: 'aad' })).toBe('before migration');
+  });
+
+  it('seals and reveals an invitation link with the key service, including the key that wrapped it', async () => {
+    const port = kmsPort({ legacy: false });
+    const { queueInvitationEmail, revealInvitationLink } = await import('./invitation-email');
+    const generated = await port.generateDataKey();
+    expect(generated.wrappingKeyId).toBe('fake-kms:key-1');
+    // The sealed link carries the wrapping key id so opening it later never guesses.
+    const token = 'A'.repeat(43);
+    const recorder = { ...port, generateDataKey: async () => generated };
+    await db.transaction(async (tx) => {
+      await queueInvitationEmail(tx as unknown as Db, {
+        kind: 'team',
+        invitationId: 'inv-1',
+        email: 'invitee@example.com',
+        rawToken: token,
+        encryption: recorder,
+      });
+    });
+    const [row] = await db.select().from(schema.notifications);
+    const sealed = (
+      row?.payload as { sealedInvitationLink: Parameters<typeof revealInvitationLink>[0] }
+    ).sealedInvitationLink;
+    expect(sealed.wrappingKeyId).toBe('fake-kms:key-1');
+    expect(await revealInvitationLink(sealed, 'team', 'inv-1', port)).toBe(
+      `/invitation?kind=team&token=${token}`,
+    );
   });
 });

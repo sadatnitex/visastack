@@ -21,13 +21,21 @@ const CONTEXT_PURPOSE = 'visastack:data-key';
 
 /** The one method of the AWS client this provider uses, so tests can supply a stand-in. */
 export interface KmsClientLike {
-  send(command: EncryptCommand | DecryptCommand): Promise<unknown>;
+  send(
+    command: EncryptCommand | DecryptCommand,
+    options?: { readonly abortSignal?: AbortSignal },
+  ): Promise<unknown>;
 }
 
+/** A stuck key service must not hold a request, or the status check, open. */
+const KMS_CALL_TIMEOUT_MS = 8_000;
+
 export interface AwsKmsKeyProviderOptions {
-  /** A KMS key id, key ARN or alias ARN. */
+  /** A KMS key id, key ARN, alias or alias ARN. */
   readonly keyId: string;
   readonly region?: string;
+  /** Explicit credentials; when absent the standard AWS credential chain is used. */
+  readonly credentials?: { readonly accessKeyId: string; readonly secretAccessKey: string };
   /** Injectable for tests; defaults to a real client using the standard AWS credential chain. */
   readonly client?: KmsClientLike;
   /** Base64 local master key, only to open data keys not yet moved to KMS. */
@@ -53,7 +61,7 @@ export class AwsKmsKeyProvider implements RewrappingKeyManagementPort {
       options.client ??
       new KMSClient({
         ...(options.region ? { region: options.region } : {}),
-        // Fail fast: a stuck key service must not hold a request open.
+        ...(options.credentials ? { credentials: options.credentials } : {}),
         maxAttempts: 3,
       });
     // The local provider refuses commercial mode; here it is read-only migration help, so the
@@ -70,8 +78,9 @@ export class AwsKmsKeyProvider implements RewrappingKeyManagementPort {
     return this.keyVersion;
   }
 
-  currentWrappingKeyId(): string {
-    return `${AWS_KMS_WRAPPING_PREFIX}${this.keyId}`;
+  /** Every key this provider wraps is recorded as `aws-kms:<key ARN>`; the prefix says "wrapped by the key service". */
+  wrappingKeyPrefix(): string {
+    return AWS_KMS_WRAPPING_PREFIX;
   }
 
   async generateDataKey(): Promise<GeneratedDataKey> {
@@ -97,16 +106,22 @@ export class AwsKmsKeyProvider implements RewrappingKeyManagementPort {
     wrappedDataKey: Uint8Array,
     wrappingKeyId?: string | null,
   ): Promise<Uint8Array> {
-    if (wrappingKeyId?.startsWith(AWS_KMS_WRAPPING_PREFIX)) {
-      // The recorded key id is checked too, so a row wrapped by a different KMS key never opens.
-      const recorded = wrappingKeyId.slice(AWS_KMS_WRAPPING_PREFIX.length);
-      if (recorded !== this.keyId) throw new Error('data key was wrapped by a different KMS key');
+    // Wrapped by the key service when the row says so, or when nothing is recorded but the key
+    // belongs to this provider's own version (written before the id was kept alongside it).
+    const byService =
+      wrappingKeyId?.startsWith(AWS_KMS_WRAPPING_PREFIX) === true ||
+      (!wrappingKeyId && keyVersion === this.keyVersion);
+    if (byService) {
+      // The key recorded when it was wrapped (its ARN, so an alias or ARN setting change never
+      // matters); KMS itself refuses a blob that was not wrapped by that key.
+      const recorded = wrappingKeyId?.slice(AWS_KMS_WRAPPING_PREFIX.length) || this.keyId;
       const response = (await this.client.send(
         new DecryptCommand({
           CiphertextBlob: wrappedDataKey,
-          KeyId: this.keyId,
+          KeyId: recorded,
           EncryptionContext: encryptionContext(keyVersion),
         }),
+        { abortSignal: AbortSignal.timeout(KMS_CALL_TIMEOUT_MS) },
       )) as { Plaintext?: Uint8Array };
       if (!response.Plaintext || response.Plaintext.length !== 32) {
         throw new Error('KMS did not return a 256-bit data key');
@@ -150,8 +165,13 @@ export class AwsKmsKeyProvider implements RewrappingKeyManagementPort {
         Plaintext: plaintext,
         EncryptionContext: encryptionContext(keyVersion),
       }),
-    )) as { CiphertextBlob?: Uint8Array };
+      { abortSignal: AbortSignal.timeout(KMS_CALL_TIMEOUT_MS) },
+    )) as { CiphertextBlob?: Uint8Array; KeyId?: string };
     if (!response.CiphertextBlob) throw new Error('KMS did not return a wrapped key');
-    return { wrappedDataKey: response.CiphertextBlob, wrappingKeyId: this.currentWrappingKeyId() };
+    // KMS answers with the key's ARN: record that, not the text that was configured.
+    return {
+      wrappedDataKey: response.CiphertextBlob,
+      wrappingKeyId: `${AWS_KMS_WRAPPING_PREFIX}${response.KeyId ?? this.keyId}`,
+    };
   }
 }
