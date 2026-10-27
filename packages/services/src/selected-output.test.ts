@@ -32,6 +32,7 @@ import {
   type Selection,
   buildSelectedOutput,
   decideField,
+  listSelectableCases,
   maskIdentifier,
   normaliseSelection,
   renderAiContext,
@@ -562,6 +563,7 @@ describe('selected output: identifiers and restricted kinds', () => {
       selection: { ...NOTHING, layers: ['money'], revealIdentifiers: true },
       basic: true,
       caseKey: false,
+      narrowToCase: false,
       confirmedOnly: false,
     });
     expect(decision).toEqual({ outcome: 'show', form: 'masked' });
@@ -620,6 +622,7 @@ describe('selected output: identifiers and restricted kinds', () => {
         selection: { ...NOTHING, layers: ['identity'] },
         basic: false,
         caseKey: false,
+        narrowToCase: false,
         confirmedOnly: false,
       }),
     ).toEqual({ outcome: 'omit', reason: 'restricted' });
@@ -691,6 +694,37 @@ describe('selected output: cases', () => {
     const money = standard.profile.money ?? [];
     expect(money.find((v) => v.fieldKey === 'tax_zone')?.relevance).toBe('required_by_case');
     expect(money.find((v) => v.fieldKey === 'annual_income')?.relevance).toBe('context');
+  });
+
+  it('brings only the basics at brief depth for a case with no checklist, and the layers at standard', async () => {
+    const { ownerId, applicantId } = await person();
+    await seedRecord(ownerId, applicantId);
+    const missionId = await caseFor(ownerId, applicantId, 'Manual case');
+    const brief = await build(ownerId, applicantId, {
+      layers: ['travel_documents'],
+      cases: { kind: 'one', missionId },
+      depth: 'brief',
+    });
+    // A case with no checklist asks for nothing, so nothing beyond the basics comes at this depth.
+    expect(brief.profile.travel_documents).toBeUndefined();
+    expect(brief.person.basics.length).toBeGreaterThan(0);
+    expect(brief.omitted.not_needed).toBeGreaterThan(0);
+    const standard = await build(ownerId, applicantId, {
+      layers: ['travel_documents'],
+      cases: { kind: 'one', missionId },
+      depth: 'standard',
+    });
+    expect(standard.profile.travel_documents).toHaveLength(2);
+  });
+
+  it("dates a summary by the person's own calendar, not by UTC", async () => {
+    const { ownerId, applicantId } = await person();
+    // 20:00 UTC on 26 October is 02:00 on 27 October in Dhaka, the default zone.
+    const late = await build(ownerId, applicantId, {}, { now: new Date('2026-10-26T20:00:00Z') });
+    expect(late.preparedOn).toBe('2026-10-27');
+    expect(late.generatedAt).toBe('2026-10-26T20:00:00.000Z');
+    const noon = await build(ownerId, applicantId, {});
+    expect(noon.preparedOn).toBe('2026-10-26');
   });
 
   it('describes the case in plain words with its checklist and readiness', async () => {
@@ -1126,6 +1160,99 @@ describe('selected output: documents', () => {
     expect(output.documentText.some((d) => d.truncated)).toBe(true);
     expect(output.documentText.length).toBeLessThanOrEqual(2);
     expect(output.omitted.not_needed).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('selected output: narrowing a summary further', () => {
+  it('keeps only the fields it is told to, and only takes away', async () => {
+    const { ownerId, applicantId } = await person();
+    await seedRecord(ownerId, applicantId);
+    const narrowed = await build(
+      ownerId,
+      applicantId,
+      { layers: ['travel_documents', 'money'] },
+      { fieldKeys: ['passport_expiry', 'annual_income'] },
+    );
+    expect(narrowed.profile.travel_documents?.map((v) => v.fieldKey)).toEqual(['passport_expiry']);
+    expect(narrowed.profile.money?.map((v) => v.fieldKey)).toEqual(['annual_income']);
+    expect(text(narrowed)).not.toContain(PASSPORT_NUMBER);
+    expect(text(narrowed)).not.toContain(TAX_ZONE);
+    expect(narrowed.omitted.not_needed).toBeGreaterThan(0);
+
+    // Naming a field never opens a layer that was not chosen, nor a protected kind.
+    const cannotWiden = await build(
+      ownerId,
+      applicantId,
+      { layers: ['travel_documents'] },
+      { fieldKeys: ['annual_income', 'religion', 'refusal_reason', 'passport_expiry'] },
+    );
+    expect(cannotWiden.profile.money).toBeUndefined();
+    expect(text(cannotWiden)).not.toContain(INCOME);
+    expect(text(cannotWiden)).not.toContain(RELIGION);
+    expect(text(cannotWiden)).not.toContain(REFUSAL);
+  });
+
+  it('narrows identity basics like any other field, so an unticked detail is not there', async () => {
+    const { ownerId, applicantId } = await person();
+    await seedRecord(ownerId, applicantId);
+    const missionId = await caseFor(ownerId, applicantId, 'London trip');
+    const output = await build(
+      ownerId,
+      applicantId,
+      { layers: ['travel_documents'], cases: { kind: 'one', missionId } },
+      { fieldKeys: ['passport_expiry', 'given_name'] },
+    );
+    expect(output.person.basics.map((v) => v.fieldKey)).toEqual(['given_name']);
+    expect(text(output)).not.toContain('1990-05-01');
+    expect(text(output)).not.toContain('Bangladeshi');
+    expect(text(output)).not.toContain('Jahan');
+  });
+
+  it('narrows the document list, expiry and text to the groups and kinds it names', async () => {
+    const { ownerId, applicantId } = await person();
+    await document(applicantId, 'FLIGHT_TICKET', {
+      expiresAt: new Date('2027-01-01T00:00:00Z'),
+      readText: 'Flight words',
+    });
+    await document(applicantId, 'PASSPORT', { expiresAt: new Date('2031-01-01T00:00:00Z') });
+    await document(applicantId, 'BANK_STATEMENT', { expiresAt: new Date('2027-02-01T00:00:00Z') });
+    await document(applicantId, 'COVER_LETTER', { readText: 'Letter words' });
+    const byKind = await build(
+      ownerId,
+      applicantId,
+      { documentList: true },
+      { documentScope: { kinds: ['FLIGHT_TICKET', 'PASSPORT'] } },
+    );
+    expect(byKind.documents.map((d) => d.kind).sort()).toEqual(['Flight Ticket', 'Passport']);
+    expect(byKind.expiry.map((e) => e.kind).sort()).toEqual(['Flight Ticket', 'Passport']);
+
+    const byGroup = await build(
+      ownerId,
+      applicantId,
+      { documentList: true, documentText: ['letters_statements', 'travel_immigration'] },
+      { documentScope: { groups: ['travel_immigration'] } },
+    );
+    expect(byGroup.documents.map((d) => d.kind)).toEqual(['Flight Ticket']);
+    expect(byGroup.documentText.map((d) => d.text)).toEqual(['Flight words']);
+    expect(text(byGroup)).not.toContain('Letter words');
+  });
+
+  it('lists only the person\u2019s own cases for a picker, and only to the owner', async () => {
+    const mine = await person('a@example.com');
+    const theirs = await person('b@example.com');
+    const first = await caseFor(mine.ownerId, mine.applicantId, 'First');
+    await caseFor(mine.ownerId, mine.applicantId, 'Second');
+    await caseFor(theirs.ownerId, theirs.applicantId, 'Not mine');
+    await db.update(schema.missions).set({ state: 'CLOSED' }).where(eq(schema.missions.id, first));
+    const listed = await listSelectableCases(await proofFor(mine.ownerId, mine.applicantId));
+    expect(isOk(listed)).toBe(true);
+    if (!isOk(listed)) return;
+    expect(listed.value.map((c) => [c.title, c.current])).toEqual([
+      ['Second', true],
+      ['First', false],
+    ]);
+    expect(listed.value[0]?.referenceCode).toMatch(/^C-[0-9A-Z]{6}$/);
+    expect(JSON.stringify(listed.value)).not.toContain('Not mine');
   });
 });
 

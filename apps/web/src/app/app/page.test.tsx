@@ -321,7 +321,9 @@ describe('task-first first run (WP-V3, D8)', () => {
     expect(text).toContain('What do you want to do?');
     expect(text).toContain('Update or Find My Records');
     expect(text).not.toContain('Complete a Request');
-    expect(text).not.toContain('Prepare a brief');
+    // Prepare a Brief is offered now that its screen exists, and goes to that person's outputs page.
+    expect(text).toContain('Prepare a Brief');
+    expect(html).toContain(`href="/app/applicant/${SELF.id}/outputs?output=agency_brief"`);
     expect(html).toContain(`href="/app/applicant/${SELF.id}"`);
     expect(html).toContain('href="/app"');
     data.openRequests = 1;

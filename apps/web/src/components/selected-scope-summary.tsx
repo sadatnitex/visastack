@@ -47,6 +47,11 @@ export interface SelectedScopeSummaryProps {
   readonly tense?: GrantTense;
   /** Ended by revoking: the planned end date is not when it ended, so none is shown. */
   readonly revoked?: boolean;
+  /**
+   * A one-time copy (WP-V5 outputs), not live access: there is nothing they "can" do and nothing
+   * that ends, so those two rows are left out. The rest reads the same.
+   */
+  readonly snapshot?: boolean;
 }
 
 /** Wording this component writes itself, shown with a capital first letter. Values people typed are left exactly as typed. */
@@ -120,13 +125,15 @@ export function SelectedScopeSummary(props: SelectedScopeSummaryProps) {
       <dl>
         {props.recipient !== undefined ? <Row term="Who">{props.recipient}</Row> : null}
         {props.purpose ? <Row term="For">{props.purpose}</Row> : null}
-        <Row term={tense === 'live' ? 'They can' : 'They could'}>
-          {props.permissions.length > 0 ? (
-            props.permissions.join(', ')
-          ) : (
-            <Phrase>nothing yet</Phrase>
-          )}
-        </Row>
+        {props.snapshot ? null : (
+          <Row term={tense === 'live' ? 'They can' : 'They could'}>
+            {props.permissions.length > 0 ? (
+              props.permissions.join(', ')
+            ) : (
+              <Phrase>nothing yet</Phrase>
+            )}
+          </Row>
+        )}
         <Row
           term={tense === 'live' ? 'Can see' : 'Could see'}
           warning={warn && profile.kind === 'whole'}
@@ -152,18 +159,23 @@ export function SelectedScopeSummary(props: SelectedScopeSummaryProps) {
             ) : null}
           </Row>
         )}
-        <Row term={tense === 'ended' ? 'Ended' : 'Ends on'} warning={warn && props.endsOn === null}>
-          {props.revoked ? (
-            <Phrase>when you revoked it</Phrase>
-          ) : props.endsOn === null ? (
-            <Phrase>no end date</Phrase>
-          ) : (
-            <>
-              {props.endsOn}
-              {props.endsNote ? ` (${props.endsNote})` : null}
-            </>
-          )}
-        </Row>
+        {props.snapshot ? null : (
+          <Row
+            term={tense === 'ended' ? 'Ended' : 'Ends on'}
+            warning={warn && props.endsOn === null}
+          >
+            {props.revoked ? (
+              <Phrase>when you revoked it</Phrase>
+            ) : props.endsOn === null ? (
+              <Phrase>no end date</Phrase>
+            ) : (
+              <>
+                {props.endsOn}
+                {props.endsNote ? ` (${props.endsNote})` : null}
+              </>
+            )}
+          </Row>
+        )}
       </dl>
       {tense === 'ended' ? null : (
         <p className="scope-summary-private">Everything you did not select stays private.</p>

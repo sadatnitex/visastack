@@ -24,6 +24,7 @@ import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { DEFAULT_EXPIRY_REMINDER_THRESHOLD_DAYS, getReminderThresholds } from './expiry';
 import { type Readiness, computeReadiness, isFactStatusEligible } from './missions';
+import { toLocalDateParts } from './notification-sweep';
 import type { KeyManagementPort } from './ports';
 import { buildFactVersionAad, revealValue } from './protected-fields';
 import { referenceCodesFor } from './reference-codes';
@@ -225,6 +226,8 @@ export type OmittedCounts = Readonly<Record<OmissionReason, number>>;
 export interface SelectedOutput {
   readonly schemaVersion: 1;
   readonly generatedAt: string;
+  /** The day it was prepared, as the person's own calendar says it (their time zone), `YYYY-MM-DD`. */
+  readonly preparedOn: string;
   /** The selection as it was applied. */
   readonly selection: Selection;
   readonly person: OutputPerson;
@@ -258,6 +261,20 @@ export interface SelectedOutputOptions {
    * (disputed values still appear as markers). Used by the confirmed-information sheet.
    */
   readonly confirmedOnly?: boolean;
+  /**
+   * Narrow the profile to these fields, identity basics included. It can only take values away:
+   * every other rule still applies to what is left. Used by the confirmed-information sheet and
+   * trip essentials, where the person picks fields rather than whole layers.
+   */
+  readonly fieldKeys?: readonly string[];
+  /**
+   * Narrow the document list, expiry dates and text to these document groups and kinds (a
+   * document passes if its group or its kind is named). Like `fieldKeys`, it only takes away.
+   */
+  readonly documentScope?: {
+    readonly groups?: readonly DocumentGroupKey[];
+    readonly kinds?: readonly string[];
+  };
 }
 
 // --- Limits and fixed lists ------------------------------------------------
@@ -380,6 +397,18 @@ export function maskIdentifier(value: string): string {
   return `***${characters.slice(-3).join('')}`;
 }
 
+/** The calendar day at `now` in `timezone` (an unknown zone counts as UTC), as `YYYY-MM-DD`. */
+function localDay(now: Date, timezone: string): string {
+  let parts: { readonly year: number; readonly month: number; readonly day: number };
+  try {
+    parts = toLocalDateParts(now, timezone);
+  } catch {
+    parts = toLocalDateParts(now, 'UTC');
+  }
+  const two = (n: number): string => String(n).padStart(2, '0');
+  return `${String(parts.year).padStart(4, '0')}-${two(parts.month)}-${two(parts.day)}`;
+}
+
 /** Plain code-point order, the same on every machine (no locale rules). */
 function compareText(a: string, b: string): number {
   if (a === b) return 0;
@@ -467,6 +496,12 @@ export interface FieldDecisionInput {
   readonly basic: boolean;
   /** The field is named by a selected case's checklist. */
   readonly caseKey: boolean;
+  /**
+   * The brief depth keeps to what the case's checklist asks for (ADR 0021 section 4). A case with
+   * no checklist asks for nothing, so at this depth only identity basics come with it; the person
+   * picks Standard to see the chosen layers in full.
+   */
+  readonly narrowToCase: boolean;
   readonly confirmedOnly: boolean;
 }
 
@@ -484,12 +519,7 @@ export function decideField(input: FieldDecisionInput): FieldDecision {
     return { outcome: 'omit', reason: 'restricted' };
   }
   // With a case selected, the brief depth keeps to what the case needs (identity basics aside).
-  if (
-    selection.cases.kind !== 'none' &&
-    selection.depth === 'brief' &&
-    !input.basic &&
-    !input.caseKey
-  ) {
+  if (input.narrowToCase && !input.basic && !input.caseKey) {
     return { outcome: 'omit', reason: 'not_needed' };
   }
   if (status === 'CONFLICTED') return { outcome: 'show', form: 'conflict' };
@@ -613,16 +643,22 @@ export async function buildSelectedOutput(
     form: 'value' | 'masked' | 'conflict';
     basic: boolean;
   }[] = [];
+  const onlyFields = options.fieldKeys ? new Set(options.fieldKeys) : null;
   for (const row of factRows) {
     if (row.status === 'SUPERSEDED') continue;
     const policy = fieldPolicyOf(row.fieldKey);
     const basic = includeBasics && IDENTITY_BASICS_KEYS.includes(row.fieldKey);
+    if (onlyFields && !onlyFields.has(row.fieldKey)) {
+      omitted.not_needed += 1;
+      continue;
+    }
     const decision = decideField({
       policy,
       status: row.status,
       selection: chosen,
       basic,
       caseKey: needs.fieldKeys.has(row.fieldKey),
+      narrowToCase: withCases && chosen.depth === 'brief',
       confirmedOnly: options.confirmedOnly === true,
     });
     if (decision.outcome === 'omit') {
@@ -721,6 +757,7 @@ export async function buildSelectedOutput(
     now,
     timezone: applicant.timezone,
     omitted,
+    scope: options.documentScope ?? null,
   });
 
   // 5. Cases, with reference codes and what comes next from the existing attention projection.
@@ -750,6 +787,7 @@ export async function buildSelectedOutput(
   return ok({
     schemaVersion: 1,
     generatedAt: now.toISOString(),
+    preparedOn: localDay(now, applicant.timezone),
     selection: chosen,
     person: {
       displayName: applicant.displayName,
@@ -764,6 +802,46 @@ export async function buildSelectedOutput(
     omitted,
     casesNotShown: notShown,
   });
+}
+
+export interface SelectableCase {
+  readonly id: string;
+  readonly title: string;
+  readonly referenceCode: string | null;
+  /** The case state in plain words. */
+  readonly state: string;
+  /** Not closed or cancelled. */
+  readonly current: boolean;
+}
+
+/** The person's own cases, newest first, for a picker. Owner only. */
+export async function listSelectableCases(
+  proof: AuthorizedApplicant<'VIEW_METADATA'>,
+): Promise<Result<SelectableCase[], ServiceError>> {
+  const owner = ownerProof(proof);
+  if (!owner.ok) return owner;
+  const rows = await proof.tx
+    .select()
+    .from(schema.missions)
+    .where(
+      and(eq(schema.missions.applicantId, proof.applicant.id), isNull(schema.missions.purgedAt)),
+    )
+    .orderBy(desc(schema.missions.createdAt), asc(schema.missions.id))
+    .limit(100);
+  const codes = await referenceCodesFor(
+    proof.tx,
+    'C',
+    rows.map((row) => row.id),
+  );
+  return ok(
+    rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      referenceCode: codes.get(row.id) ?? null,
+      state: CASE_STATE_WORDS[row.state],
+      current: !FINISHED_CASE_STATES.has(row.state),
+    })),
+  );
 }
 
 // --- Loads -----------------------------------------------------------------
@@ -986,6 +1064,7 @@ async function loadDocumentParts(
     readonly now: Date;
     readonly timezone: string;
     readonly omitted: Record<OmissionReason, number>;
+    readonly scope: SelectedOutputOptions['documentScope'] | null;
   },
 ): Promise<DocumentParts> {
   const { selection, needs, withCases, now, omitted } = input;
@@ -1060,6 +1139,11 @@ async function loadDocumentParts(
     // A file that failed its safety check, was rejected or is being erased is not listed at all.
     if (!version || !isListableVersion(version, erased.has(version.storageObjectId))) continue;
     const key = documentKey(document.docType);
+    if (input.scope) {
+      const inGroup = input.scope.groups?.includes(documentGroupOf(document.docType)) ?? false;
+      const inKind = key !== null && (input.scope.kinds?.includes(key) ?? false);
+      if (!inGroup && !inKind) continue;
+    }
     const requiredKind = key !== null && needs.documentKeys.has(key);
     const requiredNow = key !== null && needs.documentKeys.get(key) === true;
     const groupKey = documentGroupOf(document.docType);
