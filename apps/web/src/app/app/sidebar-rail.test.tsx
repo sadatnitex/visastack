@@ -268,7 +268,7 @@ describe('sidebar rail stylesheet (WP-SHELL)', () => {
 
   it('names each rail control from its accessible name, on hover and on keyboard focus', () => {
     expect(body).toMatch(
-      /\[aria-label\]:where\(:hover, :focus-visible\)::after \{\s*content: attr\(aria-label\);/,
+      /\[aria-label\]:where\(:hover, :focus-visible\)::after,\s*\.app-frame\[data-sidebar="expanded"\] \.app-sidebar-toggle:where\(:hover, :focus-visible\)::after \{\s*content: attr\(aria-label\);/,
     );
     // The label sits beside the rail and never takes pointer events.
     expect(body).toMatch(/pointer-events: none;/);

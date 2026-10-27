@@ -1,8 +1,7 @@
-import { cookies } from 'next/headers';
 import type { ReactNode } from 'react';
 import { Icon } from '../../components/icons';
 import { withSession } from '../../lib/session';
-import { SIDEBAR_COOKIE, parseSidebarState } from '../../lib/sidebar-preference';
+import { getSidebarState } from '../../lib/sidebar-state';
 import { signOutCurrentUser } from '../../lib/sign-out';
 import { loadWorkspaceChrome } from '../../lib/workspace-chrome';
 import { WorkspaceShell } from './workspace-shell';
@@ -23,7 +22,7 @@ export default async function AppLayout({ children }: { readonly children: React
   }));
 
   // This device's choice (a small cookie), so the sidebar is drawn open or as a rail from the first paint.
-  const sidebarState = parseSidebarState((await cookies()).get(SIDEBAR_COOKIE)?.value);
+  const sidebarState = await getSidebarState();
 
   return (
     <WorkspaceShell
