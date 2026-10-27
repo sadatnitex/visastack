@@ -1,5 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { AuthorizedApplicant } from './access';
 import { type ReadingStopReason, isAiReadingKey, isReadingStopReason } from './ai-reading-job';
 import { isDeterministicModelVersion } from './ai-run-kinds';
@@ -28,8 +28,12 @@ export const READING_STAGES = [
 ] as const;
 export type ReadingStage = (typeof READING_STAGES)[number];
 
-/** Why nothing was found: a stop reason from the automatic reading, or just that nothing was there. */
-export type NotReadReason = ReadingStopReason | 'NOTHING_FOUND';
+/**
+ * Why nothing was found: a stop reason from the automatic reading, that it was read and nothing was
+ * there, or that no AI reading was ever tried for the file (for example it was uploaded while
+ * reading was off).
+ */
+export type NotReadReason = ReadingStopReason | 'NOTHING_FOUND' | 'NOT_TRIED';
 
 export interface DocumentReadingState {
   readonly stage: ReadingStage;
@@ -67,7 +71,8 @@ export function deriveReadingState(facts: ReadingStateFacts): DocumentReadingSta
   if (facts.pendingSuggestions > 0) return { stage: 'found' };
   if (facts.decidedSuggestions > 0) return { stage: 'done' };
   if (job?.status === 'FAILED') return { stage: 'could_not_read', reason: 'COULD_NOT_READ' };
-  const stopReason = job && isReadingStopReason(job.errorCode) ? job.errorCode : undefined;
+  if (!job) return { stage: 'could_not_read', reason: 'NOT_TRIED' };
+  const stopReason = isReadingStopReason(job.errorCode) ? job.errorCode : undefined;
   return { stage: 'could_not_read', reason: stopReason ?? 'NOTHING_FOUND' };
 }
 
@@ -180,19 +185,20 @@ export async function listDocumentReadingStates(
     })
     .from(schema.aiExtractionRuns)
     .where(inArray(schema.aiExtractionRuns.documentVersionId, ownIds));
+  // Only whether there is text, never the text itself.
   const withOwnText = new Set(
     (
       await db
-        .select({
-          documentVersionId: schema.extractionRuns.documentVersionId,
-          text: schema.extractionRuns.extractedText,
-          status: schema.extractionRuns.status,
-        })
+        .selectDistinct({ documentVersionId: schema.extractionRuns.documentVersionId })
         .from(schema.extractionRuns)
-        .where(inArray(schema.extractionRuns.documentVersionId, ownIds))
-    )
-      .filter((row) => row.status === 'SUCCEEDED' && (row.text ?? '').trim().length > 0)
-      .map((row) => row.documentVersionId),
+        .where(
+          and(
+            inArray(schema.extractionRuns.documentVersionId, ownIds),
+            eq(schema.extractionRuns.status, 'SUCCEEDED'),
+            sql`btrim(coalesce(${schema.extractionRuns.extractedText}, '')) <> ''`,
+          ),
+        )
+    ).map((row) => row.documentVersionId),
   );
   const withPictureReading = new Set(
     (

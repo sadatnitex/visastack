@@ -52,6 +52,7 @@ const STAGE_COPY: Readonly<Record<Exclude<ReadingStage, 'done'>, ReadingStatusCo
 /** Why nothing was found, in a sentence a person can act on. */
 const REASON_COPY: Readonly<Record<NotReadReason, string>> = {
   NOTHING_FOUND: 'We did not find details in this file that we could place in your profile.',
+  NOT_TRIED: 'This file has not been read with AI.',
   NO_CONSENT: 'Reading with AI is off, so only the file itself was checked.',
   SWITCHED_OFF: 'Reading with AI is switched off for now.',
   PROTECTED: 'We only read this kind of document with AI when you ask.',

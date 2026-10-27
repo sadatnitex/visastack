@@ -1,5 +1,6 @@
 import type { MigrationStatus } from '@visastack/db';
 import { and, eq, gte, inArray, lt, lte, sql } from 'drizzle-orm';
+import { isIntakeJob } from './ai-reading-job';
 import { excludingDeterministicRuns } from './ai-run-kinds';
 import { checkRecentAuditChain } from './audit';
 import { type Db, schema } from './db';
@@ -245,6 +246,8 @@ export async function collectOperationalSignals(
           and(
             eq(schema.processingJobs.status, 'PENDING'),
             lte(schema.processingJobs.availableAt, now),
+            // An automatic AI reading may wait for the daily sweep; that is not a stalled worker.
+            isIntakeJob(schema.processingJobs.idempotencyKey),
           ),
         );
       const age = row?.age === null || row?.age === undefined ? null : Number(row.age);

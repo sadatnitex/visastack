@@ -29,7 +29,9 @@ export function isAiReadingKey(idempotencyKey: string): boolean {
 
 /** SQL for "this queue row is an automatic AI reading", on the idempotency key column. */
 export function isAiReadingJob(idempotencyKey: PgColumn): SQL {
-  return sql`${idempotencyKey} like ${`%${READING_KEY_MARKER}%`}`;
+  // `_` is a one-character wildcard in LIKE, so it is escaped: only the exact marker matches.
+  const pattern = `%${READING_KEY_MARKER.replace(/[\\_%]/g, '\\$&')}%`;
+  return sql`${idempotencyKey} like ${pattern} escape '\\'`;
 }
 
 /** SQL for "this queue row is an intake pass". */

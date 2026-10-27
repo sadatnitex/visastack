@@ -47,6 +47,7 @@ describe('the five reading states', () => {
   it('always leaves a way forward for a file that could not be read', () => {
     const reasons = [
       'NOTHING_FOUND',
+      'NOT_TRIED',
       'NO_CONSENT',
       'SWITCHED_OFF',
       'PROTECTED',

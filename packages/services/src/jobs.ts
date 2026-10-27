@@ -110,6 +110,8 @@ export async function requestDocumentReExtraction(
           and(
             eq(schema.processingJobs.documentVersionId, version.id),
             inArray(schema.processingJobs.status, ['PENDING', 'CLAIMED']),
+            // A queued AI reading does not stop the file being checked again.
+            isIntakeJob(schema.processingJobs.idempotencyKey),
           ),
         )
         .limit(1),
@@ -571,6 +573,8 @@ export interface AiReadingWorkerResult {
 
 /** One pass leaves time for the response; the cron route's function limit is 60 seconds. */
 const DEFAULT_READING_TIME_BUDGET_MS = 40_000;
+/** A reading is only started with this much of the budget left, because one can run for a while (a picture, then details). */
+const READING_START_HEADROOM_MS = 15_000;
 const DEFAULT_READING_LIMIT = 5;
 
 /**
@@ -598,7 +602,11 @@ export async function runAiReadingWorker(
   let processed = 0;
   let stopped = 0;
   let failed = 0;
-  for (let handled = 0; handled < limit && Date.now() < deadline; handled++) {
+  for (
+    let handled = 0;
+    handled < limit && Date.now() + READING_START_HEADROOM_MS < deadline;
+    handled++
+  ) {
     const [job] = await claimJobs(db, 1, 'reading');
     if (!job) break;
     const leaseOwner = job.leaseOwner;

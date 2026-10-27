@@ -10,7 +10,6 @@ import {
 } from './ai';
 import { isAiDispatchAllowed } from './ai-provider-config';
 import { READER_VERSION, type ReadingStopReason } from './ai-reading-job';
-import { excludingDeterministicRuns } from './ai-run-kinds';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, schema } from './db';
@@ -139,8 +138,12 @@ async function loadReadingTarget(
   };
 }
 
-/** True when an AI extraction (not a rule-based reading) already worked for this version. */
-async function alreadyReadByAi(db: Db, documentVersionId: string): Promise<boolean> {
+/**
+ * True when suggestions were already read for this version, by AI or by the passport's
+ * machine-readable lines. A repeated job never lists the same details twice, and an AI reading of
+ * a passport that already has its lines read would only compete with them.
+ */
+async function alreadyHasSuggestions(db: Db, documentVersionId: string): Promise<boolean> {
   const row = first(
     await db
       .select({ id: schema.aiExtractionRuns.id })
@@ -149,7 +152,6 @@ async function alreadyReadByAi(db: Db, documentVersionId: string): Promise<boole
         and(
           eq(schema.aiExtractionRuns.documentVersionId, documentVersionId),
           eq(schema.aiExtractionRuns.status, 'SUCCEEDED'),
-          excludingDeterministicRuns(schema.aiExtractionRuns.modelVersion),
         ),
       )
       .limit(1),
@@ -294,8 +296,8 @@ export async function processAiReading(
 
   // The text is in hand; reading details out of it needs the other consent.
   if (!mayReadDetails) return stopped('NO_CONSENT', { ranOcr });
-  // One AI reading per file: a repeated job never lists the same details twice.
-  if (await alreadyReadByAi(db, target.versionId)) {
+  // One reading per file (see alreadyHasSuggestions).
+  if (await alreadyHasSuggestions(db, target.versionId)) {
     return audited({ outcome: 'READ', ranOcr, ranExtraction: false, suggestions: 0 });
   }
   const extraction = await ports.extraction();

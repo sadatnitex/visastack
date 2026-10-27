@@ -65,7 +65,9 @@ describe('deriveReadingState', () => {
   });
 
   it('says We Could Not Read This One when nothing was found, with the reason when there is one', () => {
-    expect(deriveReadingState(facts())).toEqual({
+    // Never tried (uploaded while reading was off) is not the same as tried and found nothing.
+    expect(deriveReadingState(facts())).toEqual({ stage: 'could_not_read', reason: 'NOT_TRIED' });
+    expect(deriveReadingState(facts({ readingJob: { status: 'DONE', errorCode: null } }))).toEqual({
       stage: 'could_not_read',
       reason: 'NOTHING_FOUND',
     });

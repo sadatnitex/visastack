@@ -34,7 +34,7 @@ import { setConsent } from './consent';
 import type { Db } from './db';
 import { addDocumentVersion } from './documents';
 import { getLatestExtractedText, getLatestReadableText } from './intake';
-import { runAiReadingWorker, runIntakeWorker } from './jobs';
+import { requestDocumentReExtraction, runAiReadingWorker, runIntakeWorker } from './jobs';
 import { collectOperationalSignals } from './operational-signals';
 
 /**
@@ -608,5 +608,83 @@ describe('reports leave out rule-based readings', () => {
     const signals = await collectOperationalSignals(db, { now: new Date() });
     const breaker = signals.find((signal) => signal.key === 'ai_circuit_breaker');
     expect(breaker?.reading).toBe('2 of 8 AI runs in the last hour failed (25%)');
+  });
+});
+
+describe('review fixes: how the reading shares the queue and the file', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('is told apart by the exact marker, not by a look-alike with another character in it', async () => {
+    const reader = await seedReader(db, 'like@example.com', { docType: 'HOTEL_BOOKING' });
+    const { ports, calls } = countingPorts();
+    await runIntake(db, reader.versionId, extractorFor(LETTER_TEXT));
+    await db
+      .update(schema.processingJobs)
+      .set({ idempotencyKey: `${reader.versionId}:AIxREADING:1` })
+      .where(eq(schema.processingJobs.documentVersionId, reader.versionId));
+    await runAiReadingWorker(db, scope(), ports);
+    expect(calls.extract).toBe(0);
+    expect((await jobsOf(db, reader.versionId))[0]?.status).toBe('PENDING');
+  });
+
+  it('does not count a reading that waits for the daily sweep as a stalled intake worker', async () => {
+    const reader = await seedReader(db, 'age@example.com', { docType: 'HOTEL_BOOKING' });
+    await runIntake(db, reader.versionId, extractorFor(LETTER_TEXT));
+    await db
+      .update(schema.processingJobs)
+      .set({ availableAt: new Date(Date.now() - 5 * 60 * 60 * 1000) })
+      .where(eq(schema.processingJobs.documentVersionId, reader.versionId));
+    const signals = await collectOperationalSignals(db, { now: new Date() });
+    expect(signals.find((signal) => signal.key === 'job_queue_age')?.status).toBe('ok');
+  });
+
+  it('lets a file be checked again while a reading is still queued', async () => {
+    const reader = await seedReader(db, 'recheck@example.com', { docType: 'HOTEL_BOOKING' });
+    await runIntake(db, reader.versionId, extractorFor(LETTER_TEXT));
+    expect((await jobsOf(db, reader.versionId))[0]?.status).toBe('PENDING');
+    const again = await requestDocumentReExtraction(db, {
+      actorAccountId: reader.accountId,
+      documentId: reader.documentId,
+      expectedVersionId: reader.versionId,
+    });
+    expect(isOk(again)).toBe(true);
+    // A second check while an intake pass is queued is still refused.
+    expect(
+      isOk(
+        await requestDocumentReExtraction(db, {
+          actorAccountId: reader.accountId,
+          documentId: reader.documentId,
+          expectedVersionId: reader.versionId,
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it('starts no reading when too little of the time budget is left for one to finish', async () => {
+    const reader = await seedReader(db, 'budget-time@example.com', { docType: 'HOTEL_BOOKING' });
+    const { ports, calls } = countingPorts();
+    await runIntake(db, reader.versionId, extractorFor(LETTER_TEXT));
+    const result = await runAiReadingWorker(db, scope(), ports, { timeBudgetMs: 5_000 });
+    expect(result).toEqual({ processed: 0, stopped: 0, failed: 0 });
+    expect(calls.extract).toBe(0);
+    expect((await jobsOf(db, reader.versionId))[0]?.status).toBe('PENDING');
+  });
+
+  it('does not add a competing AI reading to a passport whose machine-readable lines are already suggestions', async () => {
+    const reader = await seedReader(db, 'passport-relaxed@example.com');
+    // An admin has taken passports off the protected list, so the reading is allowed to run.
+    await db.insert(schema.documentProtectionSettings).values([
+      { scope: 'CATEGORY', key: 'identity_civil', restricted: false },
+      { scope: 'DOCUMENT_TYPE', key: 'PASSPORT', restricted: false },
+    ]);
+    const { ports, calls } = countingPorts();
+    await runIntake(db, reader.versionId, extractorFor(PASSPORT_TEXT));
+    const result = await runAiReadingWorker(db, scope(), ports);
+    expect(result).toEqual({ processed: 1, stopped: 0, failed: 0 });
+    expect(calls).toMatchObject({ extract: 0, ocr: 0 });
+    expect(await proposalsOf(db, reader.versionId)).toHaveLength(8);
   });
 });
