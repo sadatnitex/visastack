@@ -8857,3 +8857,12 @@ summary.visa-photo-title {
     break-inside: avoid;
   }
 }
+
+/* WP-S13 AI app consent screen: warning tone for sensitive choices, and the app's web address */
+.ai-consent-warning {
+  color: var(--warning);
+}
+.ai-consent-host {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
