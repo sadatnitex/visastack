@@ -60,6 +60,7 @@ vi.mock('../app/app/admin/packs/actions', standIn);
 vi.mock('../app/app/account/whatsapp/actions', standIn);
 vi.mock('../app/app/agency/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/actions', standIn);
+vi.mock('../app/app/agency/[orgId]/plan/invoices/actions', standIn);
 vi.mock('../app/app/applicant/[id]/actions', standIn);
 vi.mock('../app/app/applicant/[id]/section-actions', standIn);
 vi.mock('../app/app/applicant/[id]/evidence/actions', standIn);
@@ -88,6 +89,7 @@ const packVersionButtons = await import('../app/app/admin/packs/pack-version-but
 const { PurgeButton } = await import('../app/app/admin/purge-button');
 const { ReconcileButtons } = await import('../app/app/admin/reconcile-buttons');
 const { BrandingForm } = await import('../app/app/agency/[orgId]/branding-form');
+const invoiceForms = await import('../app/app/agency/[orgId]/plan/invoices/invoice-forms');
 const { ClientInvitationForm } = await import('../app/app/agency/[orgId]/client-invitation-form');
 const { ClientInvitationRevokeButton } = await import(
   '../app/app/agency/[orgId]/client-invitation-revoke-button'
@@ -1429,6 +1431,39 @@ const ADMIN: readonly Case[] = [
   row('void an invoice', () => (
     <organisationForms.VoidInvoiceButton organizationId="o1" invoiceId={rowId()} />
   )),
+  row('confirm a reported payment', () => (
+    <organisationForms.ApproveClaimButton organizationId="o1" claimId={rowId()} />
+  )),
+  row('reject a reported payment', () => (
+    <organisationForms.RejectClaimButton organizationId="o1" claimId={rowId()} />
+  )),
+  row('pay an invoice online', () => (
+    <invoiceForms.PayOnlineButton organizationId="o1" invoiceId={rowId()} />
+  )),
+  row('check a payment or start another', () => (
+    <invoiceForms.RecentPaymentChoices
+      organizationId="o1"
+      invoiceId={rowId()}
+      startedAt="27 Oct 2026, 10:42"
+    />
+  )),
+  row('check the status of a payment', () => (
+    <invoiceForms.CheckStatusButton organizationId="o1" invoiceId={rowId()} />
+  )),
+  {
+    name: 'report a payment made another way',
+    element: () => (
+      <invoiceForms.ClaimForm
+        organizationId="o1"
+        invoiceId={rowId()}
+        currency="BDT"
+        balance="1250.50"
+        today="2026-10-27"
+      />
+    ),
+    fields: ['method', 'reference', 'amount', 'paidOn', 'note', 'proof'],
+    repeated: true,
+  },
   {
     name: 'grant an override',
     element: () => <organisationForms.GrantOverrideForm organizationId="o1" />,

@@ -680,6 +680,13 @@
       "when": 1793085554569,
       "tag": "0096_payment_attempts",
       "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1793095261595,
+      "tag": "0097_agency_invoices_receipts",
+      "breakpoints": true
     }
   ]
 }

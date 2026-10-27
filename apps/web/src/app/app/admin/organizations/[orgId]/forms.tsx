@@ -5,12 +5,14 @@ import { FormMessage, SubmitButton } from '../../../../../components/form-feedba
 import {
   type ActionState,
   activatePlanAction,
+  approveClaimAction,
   cancelScheduledDowngradeAction,
   createInvoiceAction,
   endSubscriptionAction,
   grantOverrideAction,
   openBillingAccountAction,
   recordInvoicePaymentAction,
+  rejectClaimAction,
   revokeOverrideAction,
   scheduleDowngradeAction,
   transitionBillingStatusAction,
@@ -613,6 +615,44 @@ export function RevokeOverrideButton({
       promptText="Reason for revoking this override?"
       confirmedLabel="Revoke"
       pendingLabel="Revoking…"
+    />
+  );
+}
+
+/** Confirms a payment the agency reported (S12): records it once in the ledger and issues the receipt. Needs a fresh sign-in check. */
+export function ApproveClaimButton({
+  organizationId,
+  claimId,
+}: {
+  readonly organizationId: string;
+  readonly claimId: string;
+}) {
+  const [state, formAction, pending] = useActionState(approveClaimAction, INITIAL);
+  return (
+    <form action={formAction} className="invoice-action">
+      <input type="hidden" name="organizationId" value={organizationId} />
+      <input type="hidden" name="claimId" value={claimId} />
+      <SubmitButton pending={pending} idle="Confirm Payment" busy="Confirming" />
+      <StatusMessage state={state} />
+    </form>
+  );
+}
+
+/** Rejects a reported payment with a reason the agency will read. Records no money. */
+export function RejectClaimButton({
+  organizationId,
+  claimId,
+}: {
+  readonly organizationId: string;
+  readonly claimId: string;
+}) {
+  return (
+    <ReasonPromptButton
+      action={rejectClaimAction}
+      hiddenFields={{ organizationId, claimId }}
+      promptText="Reason for not accepting this payment report? The agency will read it."
+      confirmedLabel="Reject Report"
+      pendingLabel="Rejecting…"
     />
   );
 }

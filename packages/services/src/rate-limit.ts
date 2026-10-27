@@ -88,6 +88,9 @@ export const RATE_LIMITS = {
   PAYMENT_REJECT_AUDIT: { limit: 30, windowMs: HOUR_MS },
   PAYMENT_START: { limit: 20, windowMs: HOUR_MS },
   PAYMENT_START_ORG: { limit: 60, windowMs: HOUR_MS },
+  // Reporting a payment made another way (S12): a person fills this in a few times a day at most.
+  MANUAL_CLAIM_SUBMIT: { limit: 10, windowMs: HOUR_MS },
+  MANUAL_CLAIM_SUBMIT_ORG: { limit: 30, windowMs: HOUR_MS },
 } as const satisfies Record<string, RateLimitConfig>;
 
 export type RateLimitDecision =

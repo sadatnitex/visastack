@@ -3,12 +3,15 @@
 import {
   type BillingStatus,
   activateSubscription,
+  approveManualPaymentClaim,
   cancelScheduledDowngrade,
   createInvoice,
   endSubscription,
+  formatReceiptNumber,
   grantCommercialOverride,
   openBillingAccount,
   recordInvoicePayment,
+  rejectManualPaymentClaim,
   revokeCommercialOverride,
   scheduleDowngrade,
   transitionBillingStatus,
@@ -491,6 +494,73 @@ export async function revokeOverrideAction(
     });
     if (!revoked.ok) return { ok: false, message: revoked.error.message } satisfies ActionState;
     return { ok: true, message: 'Override revoked.' } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(returnPath(organizationId));
+  return result;
+}
+
+/** Confirms a payment an agency reported (S12). Platform-owner only, step-up gated; records the money once and issues the receipt. */
+export async function approveClaimAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const organizationId = String(formData.get('organizationId') ?? '').trim();
+  const claimId = String(formData.get('claimId') ?? '').trim();
+  if (claimId.length === 0) return { ok: false, message: 'Missing payment report.' };
+
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!(await isPlatformOwnerAccount(db, { accountId, email }))) return DENIED;
+    const stepUp = await tryEstablishStepUp(
+      { accountId, action: 'MANUAL_CLAIM_APPROVE', resourceId: claimId },
+      returnPath(organizationId),
+    );
+    if (stepUp.kind === 'not_configured') {
+      return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
+    }
+    if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
+    const approved = await approveManualPaymentClaim(db, {
+      actor: { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
+      stepUpSatisfied: true,
+      claimId,
+    });
+    if (!approved.ok) return { ok: false, message: approved.error.message } satisfies ActionState;
+    const receipt = approved.value.receipt
+      ? ` Receipt ${formatReceiptNumber(approved.value.receipt.receiptNumber)} was issued.`
+      : '';
+    return {
+      ok: true,
+      message: approved.value.alreadyApproved
+        ? `This report was already confirmed.${receipt}`
+        : `Payment confirmed and recorded.${receipt}`,
+    } satisfies ActionState;
+  });
+  if (result.ok) revalidatePath(returnPath(organizationId));
+  return result;
+}
+
+/** Rejects a payment an agency reported, with a reason the agency can read (S12). Platform-owner only; records no money. */
+export async function rejectClaimAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const organizationId = String(formData.get('organizationId') ?? '').trim();
+  const claimId = String(formData.get('claimId') ?? '').trim();
+  const reason = String(formData.get('reason') ?? '').trim();
+  if (claimId.length === 0) return { ok: false, message: 'Missing payment report.' };
+  if (reason.length === 0) return { ok: false, message: 'A reason is required.' };
+
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!(await isPlatformOwnerAccount(db, { accountId, email }))) return DENIED;
+    const rejected = await rejectManualPaymentClaim(db, {
+      actor: { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
+      claimId,
+      reason,
+    });
+    if (!rejected.ok) return { ok: false, message: rejected.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: 'Report rejected. The agency can see your reason.',
+    } satisfies ActionState;
   });
   if (result.ok) revalidatePath(returnPath(organizationId));
   return result;

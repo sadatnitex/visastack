@@ -1158,6 +1158,37 @@ export {
 } from './billing';
 
 export {
+  type AgencyInvoiceView,
+  type InvoicePaymentState,
+  deriveInvoicePaymentState,
+  listAgencyInvoices,
+} from './agency-invoices';
+
+export {
+  CLAIM_NOTE_MAX,
+  CLAIM_REASON_MAX,
+  CLAIM_REFERENCE_MAX,
+  MANUAL_CLAIM_METHODS,
+  PROOF_FILE_MAX_BYTES,
+  PROOF_FILE_TYPES,
+  type ApprovedManualClaim,
+  type ManualClaimMethod,
+  type ManualClaimStatus,
+  type ManualClaimView,
+  type ManualPaymentClaim,
+  type ProofFilePorts,
+  approveManualPaymentClaim,
+  listManualClaims,
+  manualClaimsPresent,
+  readClaimProofFile,
+  rejectManualPaymentClaim,
+  submitManualPaymentClaim,
+} from './manual-claims';
+
+export { type ReceiptDetail, type ReceiptView, getReceipt, listReceipts } from './receipt-views';
+export { type PaymentReceipt, formatReceiptNumber } from './receipts';
+
+export {
   type ApplyInvoiceCollectionInput,
   type CollectionKind,
   type CollectionRefusal,
@@ -1251,7 +1282,13 @@ export {
   recordProductEvent,
 } from './product-events';
 
-export { formatMinorUnits, parseDecimalToMinorUnits } from './payment-amounts';
+export {
+  currencyDecimals,
+  formatAmountForCurrency,
+  formatMinorUnits,
+  parseAmountForCurrency,
+  parseDecimalToMinorUnits,
+} from './payment-amounts';
 export {
   EXPIRE_AFTER_MS,
   LATE_SUCCESS_WINDOW_MS,

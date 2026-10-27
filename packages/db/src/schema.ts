@@ -4322,3 +4322,157 @@ export const paymentAttempts = pgTable(
     ),
   ],
 );
+
+// --- Agency invoices, manual payment reports and receipts (Small Commercial V1 S12, ADR 0020) ---
+// `manual_payment_claims`: an agency owner or admin saying "I paid another way". A claim records
+// no money. Only a platform owner's approval does, through the one recording function, which
+// writes a MANUAL_CLAIM ledger row whose source is the claim. A decided claim is frozen by a
+// trigger (the decision, who made it and when can never be edited or removed), and at most one
+// claim per invoice can wait for a decision. The people on a claim carry no foreign keys for the
+// same reason as the ledger: a financial record outlives the person.
+export const manualClaimMethod = pgEnum('manual_claim_method', [
+  'BANK_TRANSFER',
+  'BKASH',
+  'CHEQUE',
+  'OTHER',
+]);
+
+export const manualClaimStatus = pgEnum('manual_claim_status', [
+  'SUBMITTED',
+  'APPROVED',
+  'REJECTED',
+]);
+
+export const manualPaymentClaims = pgTable(
+  'manual_payment_claims',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    invoiceId: uuid('invoice_id')
+      .notNull()
+      .references(() => invoices.id, { onDelete: 'restrict' }),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'restrict' }),
+    submittedByAccountId: uuid('submitted_by_account_id').notNull(),
+    method: manualClaimMethod('method').notNull(),
+    // A short outside reference (a transfer id, a cheque number). Never a document's content.
+    reference: text('reference').notNull(),
+    amountMinorUnits: integer('amount_minor_units').notNull(),
+    currency: text('currency').notNull(),
+    paidOn: timestamp('paid_on', { withTimezone: true }).notNull(),
+    note: text('note'),
+    status: manualClaimStatus('status').notNull().default('SUBMITTED'),
+    decidedByAccountId: uuid('decided_by_account_id'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    decisionReason: text('decision_reason'),
+    ...timestamps,
+  },
+  (table) => [
+    index('manual_payment_claims_invoice_idx').on(table.invoiceId),
+    index('manual_payment_claims_org_status_idx').on(table.organizationId, table.status),
+    uniqueIndex('manual_payment_claims_one_waiting_unique')
+      .on(table.invoiceId)
+      .where(sql`${table.status} = 'SUBMITTED'`),
+    check('manual_payment_claims_amount_positive', sql`${table.amountMinorUnits} > 0`),
+    check(
+      'manual_payment_claims_reference_bounds',
+      sql`length(btrim(${table.reference})) between 1 and 120`,
+    ),
+    check(
+      'manual_payment_claims_note_bounds',
+      sql`${table.note} is null or length(${table.note}) <= 500`,
+    ),
+    check(
+      'manual_payment_claims_decision_shape',
+      sql`(${table.status} = 'SUBMITTED' and ${table.decidedAt} is null and ${table.decidedByAccountId} is null)
+        or (${table.status} <> 'SUBMITTED' and ${table.decidedAt} is not null and ${table.decidedByAccountId} is not null)`,
+    ),
+    check(
+      'manual_payment_claims_rejection_has_reason',
+      sql`${table.status} <> 'REJECTED' or length(btrim(coalesce(${table.decisionReason}, ''))) > 0`,
+    ),
+  ],
+);
+
+// `billing_receipts`: the optional proof of payment file on a claim (a bank slip or a screenshot).
+// It is an organization-owned billing file, never a traveller document: its own table, its own
+// object-key prefix, readable only by the agency's owners and admins and by platform billing
+// staff. It is stored only after the safety scan passed (`scan_status` is therefore always
+// CLEAN), and one claim has at most one file.
+export const billingReceipts = pgTable(
+  'billing_receipts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    claimId: uuid('claim_id')
+      .notNull()
+      .unique()
+      .references(() => manualPaymentClaims.id, { onDelete: 'restrict' }),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'restrict' }),
+    storageObjectId: uuid('storage_object_id')
+      .notNull()
+      .unique()
+      .references(() => storageObjects.id, { onDelete: 'restrict' }),
+    contentType: text('content_type').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    contentSha256: text('content_sha256').notNull(),
+    scanStatus: text('scan_status').notNull().default('CLEAN'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('billing_receipts_org_idx').on(table.organizationId),
+    check('billing_receipts_scanned_clean', sql`${table.scanStatus} = 'CLEAN'`),
+    check('billing_receipts_sha256_format', sql`${table.contentSha256} ~ '^[0-9a-f]{64}$'`),
+    check('billing_receipts_size_bounds', sql`${table.sizeBytes} between 1 and 5242880`),
+    check(
+      'billing_receipts_type',
+      sql`${table.contentType} in ('application/pdf', 'image/jpeg', 'image/png')`,
+    ),
+  ],
+);
+
+// `payment_receipts`: the numbered receipt an agency receives for money that is in the ledger.
+// Exactly one receipt per ledger row (the unique `invoice_payment_id`), so a receipt exists only
+// for a recorded collection and a replay finds the first one. Numbers run 1, 2, 3 ... per
+// organization with no gaps: each number is taken from the organization's counter row inside the
+// transaction that records the money, so a recording that rolls back gives its number back, and
+// two recordings at once take turns on the counter's row lock. Receipts are append-only (a
+// trigger refuses edits and deletes). They carry amounts, currency and ids, nothing personal.
+export const paymentReceiptCounters = pgTable(
+  'payment_receipt_counters',
+  {
+    organizationId: uuid('organization_id')
+      .primaryKey()
+      .references(() => organizations.id, { onDelete: 'restrict' }),
+    lastNumber: integer('last_number').notNull().default(0),
+  },
+  (table) => [check('payment_receipt_counters_not_negative', sql`${table.lastNumber} >= 0`)],
+);
+
+export const paymentReceipts = pgTable(
+  'payment_receipts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'restrict' }),
+    invoiceId: uuid('invoice_id')
+      .notNull()
+      .references(() => invoices.id, { onDelete: 'restrict' }),
+    invoicePaymentId: uuid('invoice_payment_id')
+      .notNull()
+      .unique()
+      .references(() => invoicePayments.id, { onDelete: 'restrict' }),
+    receiptNumber: integer('receipt_number').notNull(),
+    amountMinorUnits: integer('amount_minor_units').notNull(),
+    currency: text('currency').notNull(),
+    issuedAt: timestamp('issued_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('payment_receipts_invoice_idx').on(table.invoiceId),
+    unique('payment_receipts_org_number_unique').on(table.organizationId, table.receiptNumber),
+    check('payment_receipts_number_positive', sql`${table.receiptNumber} > 0`),
+    check('payment_receipts_amount_positive', sql`${table.amountMinorUnits} > 0`),
+  ],
+);

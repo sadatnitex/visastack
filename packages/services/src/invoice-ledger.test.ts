@@ -663,8 +663,10 @@ describe('cash ledger and the one recording function (S10)', () => {
         /append-only/,
       );
       expect(await refusal(db.delete(schema.invoicePayments))).toMatch(/append-only/);
+      // Since receipts (S12) point at ledger rows, Postgres refuses the truncate on the
+      // reference before the ledger's own trigger runs; either way the ledger is not emptied.
       expect(await refusal(db.execute(sql`truncate table invoice_payments`))).toMatch(
-        /append-only/,
+        /append-only|cannot truncate a table referenced/,
       );
       const rows = await ledgerRows();
       expect(rows).toHaveLength(1);
@@ -861,7 +863,7 @@ describe('cash ledger and the one recording function (S10)', () => {
 
   describe('before migration 0094 (the table is missing)', () => {
     beforeEach(async () => {
-      await db.execute(sql`drop table invoice_payments`);
+      await db.execute(sql`drop table invoice_payments cascade`);
     });
 
     it('reports the ledger as absent', async () => {

@@ -572,7 +572,10 @@ type PreparedStart =
 
 /** A payment still being opened (a minute) or sent to the gateway less than 30 minutes ago. */
 const IN_FLIGHT_START_MS = MINUTE_MS;
-function isRecentAttempt(attempt: PaymentAttempt, now: Date): boolean {
+export function isRecentAttempt(
+  attempt: Pick<PaymentAttempt, 'status' | 'createdAt' | 'redirectedAt'>,
+  now: Date,
+): boolean {
   if (attempt.status === 'CREATED') {
     return now.getTime() - attempt.createdAt.getTime() < IN_FLIGHT_START_MS;
   }
@@ -1154,6 +1157,21 @@ export interface PaymentAttemptView {
   readonly merchantTranId: string | null;
 }
 
+/** One attempt as a screen shows it: the plain reason code and the VisaStack transaction id for platform staff only. */
+export function attemptView(row: PaymentAttempt, platform: boolean): PaymentAttemptView {
+  return {
+    id: row.id,
+    status: row.status,
+    amountMinorUnits: row.amountMinorUnits,
+    currency: row.currency,
+    createdAt: row.createdAt,
+    redirectedAt: row.redirectedAt,
+    recordedAt: row.recordedAt,
+    reasonCode: platform ? row.reasonCode : null,
+    merchantTranId: platform ? row.merchantTranId : null,
+  };
+}
+
 /**
  * The payment attempts of one invoice, newest first. Readable by the owners and admins of the
  * organization the invoice belongs to, or by a platform owner; an invoice is looked up inside the
@@ -1173,19 +1191,7 @@ export async function getInvoicePaymentAttempts(
       .orderBy(desc(schema.paymentAttempts.createdAt))
       .limit(50);
     const platform = allowed.value.reader === 'platform';
-    return ok(
-      rows.map((row) => ({
-        id: row.id,
-        status: row.status,
-        amountMinorUnits: row.amountMinorUnits,
-        currency: row.currency,
-        createdAt: row.createdAt,
-        redirectedAt: row.redirectedAt,
-        recordedAt: row.recordedAt,
-        reasonCode: platform ? row.reasonCode : null,
-        merchantTranId: platform ? row.merchantTranId : null,
-      })),
-    );
+    return ok(rows.map((row) => attemptView(row, platform)));
   } catch (error) {
     if (isMissingRelationError(error)) return ok([]);
     throw error;
