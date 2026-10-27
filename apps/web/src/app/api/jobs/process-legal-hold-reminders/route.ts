@@ -1,5 +1,9 @@
+import { after } from 'next/server';
 import { rejectUnauthorizedCron } from '../../../../lib/cron-auth';
-import { triggerLegalHoldReviewReminderSweep } from '../../../../lib/jobs';
+import {
+  triggerLegalHoldReviewReminderSweep,
+  triggerNotificationWorker,
+} from '../../../../lib/jobs';
 
 /**
  * Pushes a real reminder to every current COMPLIANCE_ADMIN once a legal
@@ -30,5 +34,7 @@ export async function GET(request: Request): Promise<Response> {
     if (result.notified < BATCH_SIZE) break; // caught up
   }
 
+  // Emails this run queued go out now, not at the next day's sending run.
+  after(() => triggerNotificationWorker().then(() => undefined));
   return Response.json({ checked, notified });
 }

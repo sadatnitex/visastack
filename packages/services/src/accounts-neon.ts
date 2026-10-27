@@ -51,14 +51,32 @@ export async function getAccountByNeonUserId(
   return id ? findByNeonUserId(db, id) : undefined;
 }
 
-async function auditConflict(db: Db, accountId: string | null): Promise<void> {
+/** Audit metadata `kind` for a refused sign-in whose address belongs to an unbound older account. */
+export const SIGN_IN_CONFLICT_UNBOUND = 'unbound_account';
+/** Audit metadata `kind` for a refused sign-in whose address is bound to a different identity. */
+export const SIGN_IN_CONFLICT_BOUND_ELSEWHERE = 'bound_elsewhere';
+
+/**
+ * Record a refused sign-in. When the address belongs to an older account that no sign-in is bound
+ * to yet, the verified identity that tried is kept, so staff can connect it after checking with the
+ * person (sign-in-recovery.ts). Nothing here grants access.
+ */
+async function auditConflict(
+  db: Db,
+  account: Pick<Account, 'id' | 'neonUserId'> | undefined,
+  neonUserId: string,
+): Promise<void> {
+  const unbound = account !== undefined && account.neonUserId === null;
   await db.transaction(async (tx) => {
     await appendAuditEvent(tx, {
       eventType: 'ACCOUNT_IDENTITY_CONFLICT',
       method: 'SYSTEM',
       result: 'DENIED',
       resourceType: 'account',
-      resourceId: accountId,
+      resourceId: account?.id ?? null,
+      metadata: unbound
+        ? { kind: SIGN_IN_CONFLICT_UNBOUND, identity: neonUserId }
+        : { kind: SIGN_IN_CONFLICT_BOUND_ELSEWHERE },
     });
   });
 }
@@ -99,7 +117,7 @@ async function createNeonAccount(
       if (byId) return ok(byId);
       const byEmail = await findByEmail(db, values.email);
       if (byEmail?.neonUserId === values.neonUserId) return ok(byEmail);
-      await auditConflict(db, byEmail?.id ?? null);
+      await auditConflict(db, byEmail, values.neonUserId);
       return identityRecoveryRequired();
     }
     throw error;
@@ -129,7 +147,7 @@ export async function provisionNeonAccount(
   if (byEmail) {
     // Another request may have provisioned this exact identity since the first lookup.
     if (byEmail.neonUserId === neonUserId) return ok(byEmail);
-    await auditConflict(db, byEmail.id);
+    await auditConflict(db, byEmail, neonUserId);
     return identityRecoveryRequired();
   }
 

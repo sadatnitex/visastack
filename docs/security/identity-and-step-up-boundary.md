@@ -156,3 +156,8 @@ legal-hold,retention,organizations}.ts`,
 Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance.
 
 Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.
+
+## Addendum, 27 October 2026: sign-in recovery for older accounts
+
+- `ACCOUNT_IDENTITY_CONFLICT` now also records, only for an older account with no sign-in bound, the opaque id of the confirmed sign-in that tried (`metadata.identity`, `metadata.kind = unbound_account`; other conflicts record `kind = bound_elsewhere` and no id). No address or other personal detail is added.
+- Staff (`ACCOUNT_SIGN_IN_RECOVERY`: security admin, or platform owner for an account that holds a platform role) can connect that sign-in after checking with the person: reason, on-page confirmation, fresh sign-in check, audited `ACCOUNT_SIGN_IN_CONNECTED`. Refused when two different sign-ins tried within 14 days, when the account already has a sign-in, or when the sign-in already reaches another account. The decision locks the account row and the audit chain. Code: `packages/services/src/sign-in-recovery.ts`; tests: `sign-in-recovery.test.ts`.

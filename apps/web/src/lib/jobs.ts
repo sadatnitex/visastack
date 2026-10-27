@@ -19,10 +19,12 @@ import {
   type IntakeWorkerResult,
   type LegalHoldReminderSweepResult,
   type NotificationWorkerResult,
+  RATE_LIMITS,
   type ReconciliationSummary,
   type SweepResult,
   type SystemScope,
   applyEmailDeliveryEvent,
+  checkRateLimit,
   executeAccountDeletion,
   executeScheduledDowngrade,
   listDueDeletions,
@@ -267,7 +269,14 @@ export async function triggerAccountExportExpirySweep(
  * since elapsed).
  */
 export async function triggerNotificationWorker(
-  options: { readonly limit?: number; readonly timeBudgetMs?: number } = {},
+  options: {
+    readonly limit?: number;
+    readonly timeBudgetMs?: number;
+    /** Only the messages about this one record, sent while the person waits. */
+    readonly resourceId?: string;
+    /** Asked first, on the same connection; the pass runs only when it answers true. */
+    readonly gate?: (db: Parameters<typeof runNotificationWorker>[0]) => Promise<boolean>;
+  } = {},
 ): Promise<NotificationWorkerResult & { readonly unavailable?: true }> {
   const connectionString = resolveDatabaseUrl(process.env);
   if (!connectionString) {
@@ -281,11 +290,13 @@ export async function triggerNotificationWorker(
   });
   try {
     const handle = db as unknown as Parameters<typeof runNotificationWorker>[0];
+    const { gate, ...workerOptions } = options;
+    if (gate && !(await gate(handle))) return { sent: 0, retrying: 0, failed: 0 };
     const encryption = createKeyManagementPort();
     return await runNotificationWorker(handle, createEmailPort(), resolveBaseUrl(), {
       timeBudgetMs: 35_000,
       ...(encryption ? { encryption } : {}),
-      ...options,
+      ...workerOptions,
     });
   } catch (error) {
     reportServerError('triggerNotificationWorker', error, { step: 'worker pass failed' });
@@ -293,6 +304,33 @@ export async function triggerNotificationWorker(
   } finally {
     await pool.end();
   }
+}
+
+/**
+ * A short pass over waiting emails, at most once a minute across the whole platform (a shared
+ * counter in the database), started after ordinary signed-in requests. The hosting plan runs the
+ * sending job once a day, so without this a retry, or an email from a flow with no instant send,
+ * could wait up to a day. Never throws: a failed pass is reported and the next request tries again.
+ */
+export async function drainWaitingEmails(): Promise<void> {
+  // One connection for both the turn check and the pass. A failed turn check counts as "not now".
+  await triggerNotificationWorker({
+    limit: 10,
+    timeBudgetMs: 10_000,
+    gate: async (db) => {
+      try {
+        const turn = await checkRateLimit(
+          db as unknown as Parameters<typeof checkRateLimit>[0],
+          { subjectId: 'platform', action: 'notifications.backstop', label: 'email' },
+          RATE_LIMITS.NOTIFICATION_BACKSTOP,
+        );
+        return turn.allowed;
+      } catch (error) {
+        reportServerError('drainWaitingEmails', error, { step: 'turn check failed' });
+        return false;
+      }
+    },
+  });
 }
 
 /**

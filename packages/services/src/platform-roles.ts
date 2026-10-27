@@ -123,7 +123,8 @@ export type PlatformAction =
   | 'DOCUMENT_PROTECTION_MANAGE'
   | 'APPLICANT_DIRECTORY_VIEW'
   | 'AUDIT_TRAIL_VIEW'
-  | 'SUPPORT_GRANT_APPROVE';
+  | 'SUPPORT_GRANT_APPROVE'
+  | 'ACCOUNT_SIGN_IN_RECOVERY';
 
 const ACTION_ROLES: Readonly<Record<PlatformAction, Exclude<PlatformRole, 'PLATFORM_OWNER'>>> = {
   RETENTION_POLICY_SET: 'COMPLIANCE_ADMIN',
@@ -149,6 +150,9 @@ const ACTION_ROLES: Readonly<Record<PlatformAction, Exclude<PlatformRole, 'PLATF
   APPLICANT_DIRECTORY_VIEW: 'COMPLIANCE_ADMIN',
   AUDIT_TRAIL_VIEW: 'SECURITY_ADMIN',
   SUPPORT_GRANT_APPROVE: 'SECURITY_ADMIN',
+  // Connecting a confirmed new sign-in to an older account that has none (sign-in-recovery.ts) is
+  // an identity-security decision. Staff accounts can only be connected by a platform owner.
+  ACCOUNT_SIGN_IN_RECOVERY: 'SECURITY_ADMIN',
   PROCESSING_JOB_RETRY: 'SUPPORT_ADMIN',
   ORPHAN_RECONCILE: 'SUPPORT_ADMIN',
   PACK_MANAGE: 'SUPPORT_ADMIN',

@@ -1,4 +1,6 @@
+import { after } from 'next/server';
 import { rejectUnauthorizedCron } from '../../../../lib/cron-auth';
+import { triggerNotificationWorker } from '../../../../lib/jobs';
 import { runWhatsAppInbox } from './run';
 
 /**
@@ -16,5 +18,7 @@ export async function GET(request: Request): Promise<Response> {
   if (denied) return denied;
 
   const result = await runWhatsAppInbox({ purge: true });
+  // Emails this run queued go out now, not at the next day's sending run.
+  after(() => triggerNotificationWorker().then(() => undefined));
   return Response.json(result, { status: result.status === 'unavailable' ? 503 : 200 });
 }

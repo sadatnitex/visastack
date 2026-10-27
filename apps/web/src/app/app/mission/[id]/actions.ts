@@ -32,6 +32,7 @@ import { redirect } from 'next/navigation';
 import { resolveAiExplainer } from '../../../../lib/ai';
 import { resolveBaseUrl } from '../../../../lib/base-url';
 import { createKeyManagementPort } from '../../../../lib/providers';
+import { sendEmailNow } from '../../../../lib/send-now';
 import { withSession } from '../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../lib/step-up';
 import { checklistAttachedLine, evidenceChosenLine } from '../../../../lib/success-lines';
@@ -392,6 +393,7 @@ export async function createContributorRequestAction(
   }
 
   const result = await withSession(async ({ db, accountId }) => {
+    const encryption = createKeyManagementPort();
     const created = await createContributorRequest(db, {
       actorAccountId: accountId,
       missionId,
@@ -399,16 +401,33 @@ export async function createContributorRequestAction(
       docType,
       purpose,
       ...(message.length > 0 ? { message } : {}),
+      ...(encryption ? { encryption } : {}),
     });
     if (!created.ok) return { ok: false, message: created.error.message } satisfies ActionState;
     const acceptUrl = `${resolveBaseUrl()}/app/contributor-requests/accept?token=${created.value.rawToken}`;
     return {
       ok: true,
       message: `Request created. Share this link with ${contributorEmail} (expires in 7 days): ${acceptUrl}`,
-    } satisfies ActionState;
+      acceptUrl,
+      ...(created.value.emailQueued ? { sendFor: created.value.request.id } : {}),
+    };
   });
-  if (result.ok) revalidatePath(`/app/mission/${missionId}`);
-  return result;
+  if (!result.ok) return result;
+  revalidatePath(`/app/mission/${missionId}`);
+  if (!('sendFor' in result) || !result.sendFor) {
+    return { ok: true, message: result.message } satisfies ActionState;
+  }
+  // Email the contributor while the owner waits, so the screen can say whether it went.
+  const email = await sendEmailNow(result.sendFor);
+  return {
+    ok: true,
+    message:
+      email === 'sent'
+        ? `Request emailed to ${contributorEmail}. If it does not arrive in a few minutes, ask them to check Spam or Promotions. This link works too (expires in 7 days): ${result.acceptUrl}`
+        : email === 'failed'
+          ? `Request created, but the email could not be sent. Share this link with ${contributorEmail} yourself (expires in 7 days): ${result.acceptUrl}`
+          : `Request created. The email has not gone out yet and VisaStack keeps trying, so you can also share this link with ${contributorEmail} (expires in 7 days): ${result.acceptUrl}`,
+  } satisfies ActionState;
 }
 
 /** Revoke a still-pending contributor request (mission owner only). */

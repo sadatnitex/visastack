@@ -29,7 +29,7 @@ import {
   isPlatformOwnerAccount,
 } from '../../../lib/admin';
 import { parseDocumentTypeInput } from '../../../lib/catalogue-input';
-import { triggerErasureWorker } from '../../../lib/jobs';
+import { triggerErasureWorker, triggerNotificationWorker } from '../../../lib/jobs';
 import { withSession } from '../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../lib/step-up';
 import { createStorage } from '../../../lib/storage';
@@ -490,7 +490,11 @@ export async function grantPlatformRoleAction(
     if (!granted.ok) return { ok: false, message: granted.error.message } satisfies ActionState;
     return { ok: true, message: `Granted ${role} to ${targetEmail}.` } satisfies ActionState;
   });
-  if (result.ok) revalidatePath('/app/admin');
+  if (result.ok) {
+    revalidatePath('/app/admin');
+    // The staff member's email about the change goes now, not at the next daily run.
+    after(() => triggerNotificationWorker().then(() => undefined));
+  }
   return result;
 }
 
@@ -527,7 +531,11 @@ export async function revokePlatformRoleAction(
     if (!revoked.ok) return { ok: false, message: revoked.error.message } satisfies ActionState;
     return { ok: true, message: 'Role revoked.' } satisfies ActionState;
   });
-  if (result.ok) revalidatePath('/app/admin');
+  if (result.ok) {
+    revalidatePath('/app/admin');
+    // The staff member's email about the change goes now, not at the next daily run.
+    after(() => triggerNotificationWorker().then(() => undefined));
+  }
   return result;
 }
 

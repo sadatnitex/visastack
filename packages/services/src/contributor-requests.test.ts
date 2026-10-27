@@ -1,6 +1,8 @@
+import { randomBytes, randomUUID } from 'node:crypto';
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
+import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
@@ -18,7 +20,9 @@ import {
 import type { Db } from './db';
 import { registerDocumentWithVersion } from './documents';
 import { createMission } from './missions';
+import { runNotificationWorker } from './notifications';
 import { createOrganization, reviewOrganization } from './organizations';
+import type { KeyManagementPort, SendEmailInput } from './ports';
 import { acceptGrant, createGrant } from './sharing';
 import { getWalletView } from './wallet';
 
@@ -478,5 +482,128 @@ describe('CAS-08 - contributor request: narrow, single-use, third-party evidence
       missionId,
     });
     expect(isErr(denied)).toBe(true);
+  });
+});
+
+describe('the contributor is emailed the link', () => {
+  // Test-only wrapped-key registry, separate from the database under test. No external email.
+  const keys = new Map<string, Uint8Array>();
+  const encryption: KeyManagementPort = {
+    currentKeyVersion: () => 'test-v1',
+    async generateDataKey() {
+      const id = randomUUID();
+      const key = randomBytes(32);
+      keys.set(id, key);
+      return { keyVersion: 'test-v1', plaintextDataKey: key, wrappedDataKey: Buffer.from(id) };
+    },
+    async unwrapDataKey(version, wrapped) {
+      const key = keys.get(Buffer.from(wrapped).toString());
+      if (version !== 'test-v1' || !key) throw new Error('Unknown key');
+      return key;
+    },
+  };
+  let db: Db;
+  let sent: SendEmailInput[];
+  const emailPort = {
+    async send(input: SendEmailInput) {
+      sent.push(input);
+      return { providerMessageId: randomUUID() };
+    },
+  };
+  const run = () =>
+    runNotificationWorker(db, emailPort, 'https://app.example.test', { encryption });
+
+  beforeEach(async () => {
+    db = await freshDb();
+    sent = [];
+  });
+
+  it('queues a sealed email that opens this request, and sends it to exactly that address', async () => {
+    const { account, missionId } = await setUp(db, 'cas08-email');
+    const created = await createContributorRequest(db, {
+      actorAccountId: account.id,
+      missionId,
+      contributorEmail: ' Sponsor@Example.com ',
+      docType: 'bank_statement',
+      purpose: 'proof of funds',
+      encryption,
+    });
+    if (!isOk(created)) throw new Error('create');
+    expect(created.value.emailQueued).toBe(true);
+    const [row] = await db.select().from(schema.notifications);
+    expect(row).toMatchObject({
+      eventType: 'CONTRIBUTOR_REQUEST_CREATED',
+      channel: 'EMAIL',
+      recipientEmail: 'sponsor@example.com',
+      resourceId: created.value.request.id,
+    });
+    // The outbox never holds the usable link or token in readable form.
+    expect(JSON.stringify(row)).not.toContain(created.value.rawToken);
+
+    expect(await run()).toEqual({ sent: 1, retrying: 0, failed: 0 });
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.to).toBe('sponsor@example.com');
+    expect(sent[0]?.body).toContain(
+      `https://app.example.test/app/contributor-requests/accept?token=${created.value.rawToken}`,
+    );
+  });
+
+  it('queues nothing without the key service, and says so', async () => {
+    const { account, missionId } = await setUp(db, 'cas08-no-key');
+    const created = await createContributorRequest(db, {
+      actorAccountId: account.id,
+      missionId,
+      contributorEmail: 'sponsor@example.com',
+      docType: 'bank_statement',
+      purpose: 'proof of funds',
+    });
+    expect(isOk(created) && created.value.emailQueued).toBe(false);
+    expect(await db.select().from(schema.notifications)).toEqual([]);
+  });
+
+  it('a revoked request never sends its email', async () => {
+    const { account, missionId } = await setUp(db, 'cas08-revoked-email');
+    const created = await createContributorRequest(db, {
+      actorAccountId: account.id,
+      missionId,
+      contributorEmail: 'sponsor@example.com',
+      docType: 'bank_statement',
+      purpose: 'proof of funds',
+      encryption,
+    });
+    if (!isOk(created)) throw new Error('create');
+    const revoked = await revokeContributorRequest(db, {
+      actorAccountId: account.id,
+      missionId,
+      requestId: created.value.request.id,
+    });
+    expect(isOk(revoked)).toBe(true);
+    expect(await run()).toEqual({ sent: 0, retrying: 0, failed: 0 });
+    expect(sent).toEqual([]);
+    const [row] = await db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.resourceId, created.value.request.id));
+    expect(row?.status).toBe('CANCELLED');
+  });
+
+  it('an expired request fails its email instead of sending a dead link', async () => {
+    const { account, missionId } = await setUp(db, 'cas08-expired-email');
+    const created = await createContributorRequest(db, {
+      actorAccountId: account.id,
+      missionId,
+      contributorEmail: 'sponsor@example.com',
+      docType: 'bank_statement',
+      purpose: 'proof of funds',
+      encryption,
+    });
+    if (!isOk(created)) throw new Error('create');
+    await db
+      .update(schema.contributorRequests)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(schema.contributorRequests.id, created.value.request.id));
+    const result = await run();
+    expect(result.sent).toBe(0);
+    expect(sent).toEqual([]);
   });
 });

@@ -47,12 +47,28 @@ export const EVIDENCE_SENT_LINE = 'Sent to the agency. It shows as received unti
 /** An agency asked a traveller for something. */
 export const REQUEST_SENT_LINE = 'Request sent. It stays open until the traveller replies.';
 
-/** An invitation was created, with or without an email being queued. */
-export function invitationReadyLine(emailQueued: boolean, expiry: string | null): string {
+/**
+ * What happened to an invitation email by the time the screen answers: handed to the mail
+ * service while the person waited (`sent`), not out yet and still being retried (`pending`),
+ * refused for good with nothing retrying it (`failed`), or email not set up here at all (`none`). "Sent" is never claimed before the mail service took it.
+ */
+export type InvitationEmailOutcome = 'sent' | 'pending' | 'failed' | 'none';
+
+const SPAM_HINT = 'If it does not arrive in a few minutes, ask them to check Spam or Promotions.';
+
+/** An invitation was created; says plainly whether its email already went out. */
+export function invitationReadyLine(email: InvitationEmailOutcome, expiry: string | null): string {
   const tail = expiry ? ` It stays open for ${expiry}.` : '';
-  return emailQueued
-    ? `Invitation ready. An email is queued, and the link below works too.${tail}`
-    : `Invitation ready. Email is not set up here, so copy the link below and send it yourself.${tail}`;
+  if (email === 'sent') {
+    return `Invitation emailed. ${SPAM_HINT} The link below works too.${tail}`;
+  }
+  if (email === 'pending') {
+    return `Invitation ready. The email has not gone out yet and VisaStack keeps trying, so share the link below to avoid a wait.${tail}`;
+  }
+  if (email === 'failed') {
+    return `Invitation ready, but the email could not be sent. Copy the link below and send it yourself.${tail}`;
+  }
+  return `Invitation ready. Email is not set up here, so copy the link below and send it yourself.${tail}`;
 }
 
 /** An existing account joined an agency team. */
@@ -66,7 +82,18 @@ export const SHARE_CREATED_LINE =
 
 /** A share was offered to someone without an account yet. */
 export const SHARE_INVITED_LINE =
-  'Invitation ready. An email is queued. They create an account or sign in, then review what you chose and accept. The link below works too.';
+  'They create an account or sign in, then review what you chose and accept.';
+
+/** The share invitation line, saying plainly whether its email already went out. */
+export function shareInvitedLine(email: Exclude<InvitationEmailOutcome, 'none'>): string {
+  if (email === 'sent') {
+    return `Invitation emailed. ${SHARE_INVITED_LINE} ${SPAM_HINT} The link below works too.`;
+  }
+  if (email === 'failed') {
+    return `Invitation ready, but the email could not be sent, so copy the link below and send it yourself. ${SHARE_INVITED_LINE}`;
+  }
+  return `Invitation ready. The email has not gone out yet and VisaStack keeps trying, so share the link below to avoid a wait. ${SHARE_INVITED_LINE}`;
+}
 
 /** A section's "something else" item was saved. */
 export function otherItemSavedLine(sectionLabel: string): string {

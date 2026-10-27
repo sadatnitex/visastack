@@ -11,11 +11,12 @@ export default async function PlatformSecurityPage() {
   const access = await withSession(async ({ db, accountId, email }) => {
     const actor = { accountId, email };
     if (!(await isPlatformAdmin(db, actor))) return null;
-    const [audit, privacy] = await Promise.all([
+    const [audit, privacy, recovery] = await Promise.all([
       hasPlatformPermission(db, actor, 'AUDIT_TRAIL_VIEW'),
       hasPlatformPermission(db, actor, 'APPLICANT_DIRECTORY_VIEW'),
+      hasPlatformPermission(db, actor, 'ACCOUNT_SIGN_IN_RECOVERY'),
     ]);
-    return { audit, privacy };
+    return { audit, privacy, recovery };
   });
   if (!access) return <AdminRestricted />;
   return (
@@ -42,6 +43,18 @@ export default async function PlatformSecurityPage() {
             <p className="card-body">Inspect the existing audit history and integrity readings.</p>
             <Link href="/app/admin/audit" className="btn btn-secondary">
               Open Audit
+            </Link>
+          </article>
+        ) : null}
+        {access.recovery ? (
+          <article className="card">
+            <h2 className="card-title">Sign-In Recovery</h2>
+            <p className="card-body">
+              Connect a confirmed new sign-in to an account made before the current sign-in, after
+              checking with the person.
+            </p>
+            <Link href="/app/admin/sign-in-recovery" className="btn btn-secondary">
+              Open Sign-In Recovery
             </Link>
           </article>
         ) : null}

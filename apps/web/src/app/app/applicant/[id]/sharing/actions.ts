@@ -21,13 +21,14 @@ import { after } from 'next/server';
 import { resolveBaseUrl } from '../../../../../lib/base-url';
 import { triggerNotificationWorker } from '../../../../../lib/jobs';
 import { createKeyManagementPort } from '../../../../../lib/providers';
+import { sendEmailNow } from '../../../../../lib/send-now';
 import { withSession } from '../../../../../lib/session';
 import {
   STEP_UP_NOT_CONFIGURED_MESSAGE,
   establishStepUpProof,
   tryEstablishStepUp,
 } from '../../../../../lib/step-up';
-import { SHARE_CREATED_LINE, SHARE_INVITED_LINE } from '../../../../../lib/success-lines';
+import { SHARE_CREATED_LINE, shareInvitedLine } from '../../../../../lib/success-lines';
 
 /** Result surfaced back to the client for inline feedback. */
 const sharingInvitationFlag = 'PERSONAL_SHARING_INVITATIONS_ENABLED';
@@ -119,8 +120,9 @@ export async function createGrantAction(
       if (!invitation.ok) return { ok: false, message: invitation.error.message };
       return {
         ok: true,
-        message: SHARE_INVITED_LINE,
+        message: shareInvitedLine('pending'),
         invitationUrl: `${resolveBaseUrl()}/invitation?kind=sharing&token=${invitation.value.rawToken}`,
+        sendFor: invitation.value.invitation.id,
       };
     }
     if (!recipient) return { ok: false, message: 'Recipient account unavailable.' };
@@ -142,13 +144,17 @@ export async function createGrantAction(
     } satisfies ActionState;
   });
 
-  if (result.ok) {
-    if (!result.invitationUrl) revalidatePath(`/app/applicant/${applicantId}/sharing`);
-    if (result.invitationUrl)
-      after(() =>
-        triggerNotificationWorker({ limit: 4, timeBudgetMs: 5000 }).then(() => undefined),
-      );
+  if (result.ok && 'sendFor' in result && result.sendFor) {
+    // Send this person's email while the owner waits, so the screen can say whether it went.
+    const email = await sendEmailNow(result.sendFor);
+    after(() => triggerNotificationWorker({ limit: 4, timeBudgetMs: 5000 }).then(() => undefined));
+    return {
+      ok: true,
+      message: shareInvitedLine(email),
+      ...(result.invitationUrl ? { invitationUrl: result.invitationUrl } : {}),
+    } satisfies ActionState;
   }
+  if (result.ok && !result.invitationUrl) revalidatePath(`/app/applicant/${applicantId}/sharing`);
   return result;
 }
 

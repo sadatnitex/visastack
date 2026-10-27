@@ -4,7 +4,10 @@ import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
+import { cancelQueuedNotificationsForResource } from './notifications';
+import type { KeyManagementPort } from './ports';
 
 /**
  * CAS-08 - Contributor request (Commercial V1 Part 4 §14): lets a mission
@@ -56,10 +59,14 @@ export interface CreateContributorRequestInput {
   readonly docType: string;
   readonly purpose: string;
   readonly message?: string;
+  /** With the key service, the contributor is emailed the link (sealed in the outbox). */
+  readonly encryption?: KeyManagementPort;
 }
 
 export interface CreatedContributorRequest {
   readonly request: ContributorRequest;
+  /** An email with the link was queued for the contributor. */
+  readonly emailQueued: boolean;
   /** The raw, unhashed token. Exists only here and in whatever link the caller hands to the contributor, never logged, never persisted. */
   readonly rawToken: string;
 }
@@ -108,6 +115,17 @@ export async function createContributorRequest(
       ),
       'contributor request',
     );
+    // The email is sealed first: it asks the key service over the network, and that wait must
+    // never happen while this transaction holds the platform-wide audit lock.
+    if (input.encryption) {
+      await queueInvitationEmail(tx, {
+        kind: 'contributor',
+        invitationId: request.id,
+        email: contributorEmail,
+        rawToken,
+        encryption: input.encryption,
+      });
+    }
     await appendAuditEvent(tx, {
       eventType: 'CONTRIBUTOR_REQUEST_CREATED',
       actorAccountId: input.actorAccountId,
@@ -119,7 +137,7 @@ export async function createContributorRequest(
       resourceId: request.id,
       metadata: { docType },
     });
-    return ok({ request, rawToken });
+    return ok({ request, rawToken, emailQueued: input.encryption !== undefined });
   });
 }
 
@@ -384,21 +402,25 @@ export async function revokeContributorRequest(
   // invitations.ts's revokeOrganizationInvitation already documents): an
   // owner of one mission must never revoke another mission's request by ID
   // alone.
-  const updated = await db
-    .update(schema.contributorRequests)
-    .set({ status: 'REVOKED', revokedAt: new Date(), updatedAt: new Date() })
-    .where(
-      and(
-        eq(schema.contributorRequests.id, input.requestId),
-        eq(schema.contributorRequests.missionId, input.missionId),
-        eq(schema.contributorRequests.status, 'PENDING'),
-      ),
-    )
-    .returning({ id: schema.contributorRequests.id });
-  if (updated.length === 0) {
-    return err(serviceError('invalid', 'request not found, already used, or already revoked'));
-  }
-  return ok(undefined);
+  return db.transaction(async (tx) => {
+    const updated = await tx
+      .update(schema.contributorRequests)
+      .set({ status: 'REVOKED', revokedAt: new Date(), updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.contributorRequests.id, input.requestId),
+          eq(schema.contributorRequests.missionId, input.missionId),
+          eq(schema.contributorRequests.status, 'PENDING'),
+        ),
+      )
+      .returning({ id: schema.contributorRequests.id });
+    if (updated.length === 0) {
+      return err(serviceError('invalid', 'request not found, already used, or already revoked'));
+    }
+    // An email not sent yet must not go out for a request that no longer works.
+    await cancelQueuedNotificationsForResource(tx, input.requestId);
+    return ok(undefined);
+  });
 }
 
 /** List a mission's contributor requests, newest first (mission owner only). */
