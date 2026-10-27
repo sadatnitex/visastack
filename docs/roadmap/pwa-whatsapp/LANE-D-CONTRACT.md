@@ -6,6 +6,12 @@ Prepared in parallel with Lanes A (S5/S6), B (S8/S9) and C (S10). Must be update
 
 Governing rules: work around the active lanes, never through them. No second VisaStack beside VisaStack: the PWA is the same app, and WhatsApp is a channel adapter onto existing services.
 
+## 0. Owner decisions in force (27 Oct 2026)
+
+- Every other package (S1 to S27 and everything between) merges and deploys continuously, automatically, in the safest order. Nothing in Lane D changes or slows that.
+- Lane D (PWA and WhatsApp) is the exception: PR #288 and every later Lane D PR stay unmerged until the major parts are done or this round ends, then merge and deploy in the safe order after an update against the converged `main`, a full re-check and the owner's merge word.
+- S25 (Bangla) is included in this round. Effect on Lane D: the PWA's own wording (offline screen, connection and update notices, the Help install card, manifest name and description) must get Bangla through the S25 approach. The offline screen is built into the worker, so it needs a per-locale copy chosen from the `lang` cookie or the page's `lang`, not a second page. WhatsApp replies and templates need Bangla variants (Meta templates are approved per language). Lane D does not start translation work itself; it follows whatever S25 sets up.
+
 ## 1. Base and collision map
 
 - Base: `main` at `65fdc9890bcd37049c143209657149698c4dcc86` (S26 merged as #286; migration 0093 applied).
