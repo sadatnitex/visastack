@@ -67,8 +67,8 @@ export const CHECK_THIS_DATE = 'Check This Date';
 
 /** One plain sentence for why a date is unsure, shown beside the tag. No values, no blame. */
 export const CHECK_THIS_DATE_WHY: Record<DeadlineDoubt, string> = {
-  kind_not_accepted: 'Read from a document you have not named yet. Confirm the date.',
+  kind_not_accepted: 'Read from a document whose type you have not confirmed yet. Check the date.',
   date_before_issue: 'This date falls before the document was issued. Look at it again.',
   far_future: 'This date is very far away. Look at it again.',
-  time_zone_unknown: 'We could not read the time zone, so the day count may be a day out.',
+  time_zone_unknown: 'We could not read the time zone, so the day count may be a day off.',
 };

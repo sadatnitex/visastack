@@ -236,6 +236,44 @@ describe('rankDeadlines', () => {
     expect(rankDeadlines(list, 0)).toEqual([]);
   });
 
+  it('always keeps the next date ahead, even when old overdue dates could fill every place', () => {
+    const overdue = [-25, -20, -10, -2].map((days) =>
+      entry({
+        key: `task_due:${days}`,
+        kind: 'task_due',
+        daysUntil: days,
+        urgency: 'overdue',
+        date: '2026-10-01',
+      }),
+    );
+    const ahead = [
+      entry({ key: 'document_expires:p', daysUntil: 9 }),
+      entry({ key: 'document_expires:q', daysUntil: 40 }),
+    ];
+    // Three places: the two most recently passed, then the next date ahead (the passport).
+    expect(rankDeadlines([...overdue, ...ahead], 3).map((e) => e.key)).toEqual([
+      'task_due:-10',
+      'task_due:-2',
+      'document_expires:p',
+    ]);
+    // One place: what is ahead wins.
+    expect(rankDeadlines([...overdue, ...ahead], 1).map((e) => e.key)).toEqual([
+      'document_expires:p',
+    ]);
+    // Nothing ahead: the passed dates fill every place, the most recent ones.
+    expect(rankDeadlines(overdue, 3).map((e) => e.key)).toEqual([
+      'task_due:-20',
+      'task_due:-10',
+      'task_due:-2',
+    ]);
+    // Little passed: what is ahead fills the rest, soonest first.
+    expect(rankDeadlines([overdue[3] as DeadlineEntry, ...ahead], 3).map((e) => e.key)).toEqual([
+      'task_due:-2',
+      'document_expires:p',
+      'document_expires:q',
+    ]);
+  });
+
   it('merges several people soonest first, whoever they belong to', () => {
     const ranked = rankDeadlines(
       [
@@ -297,6 +335,52 @@ describe('listDeadlineClock', () => {
         caseId: visa,
         href: `/app/mission/${visa}`,
       });
+    },
+    HEAVY,
+  );
+
+  it(
+    'does not let old overdue items hide what is coming next',
+    async () => {
+      const who = await person('stale@example.com');
+      const visa = await caseFor(who.ownerId, who.applicantId, 'Japan Visit');
+      for (const [name, due] of [
+        ['Old one', '2026-10-01'],
+        ['Old two', '2026-10-05'],
+        ['Old three', '2026-10-10'],
+        ['Old four', '2026-10-12'],
+      ] as const) {
+        await task(who.ownerId, visa, name, day(due));
+      }
+      const passport = await document(who.ownerId, who.applicantId, 'PASSPORT', day('2026-11-04'));
+      const entries = (await clock(who, NOW, 3)).entries;
+      expect(entries.map((e) => e.date)).toEqual(['2026-10-10', '2026-10-12', '2026-11-04']);
+      expect(entries.at(-1)?.key).toBe(`document_expires:${passport}`);
+    },
+    HEAVY,
+  );
+
+  it(
+    'finds the soonest date even when many dated items share one stored day in different zones',
+    async () => {
+      const who = await person('many@example.com', 'Asia/Dhaka');
+      const visa = await caseFor(who.ownerId, who.applicantId, 'Japan Visit');
+      // Twelve tasks on the same stored day; the one in the earliest-ending zone is the soonest.
+      for (let i = 0; i < 12; i++) {
+        await task(who.ownerId, visa, `Later ${i}`, day('2026-10-28'), 'Pacific/Pago_Pago');
+      }
+      const soonest = await task(
+        who.ownerId,
+        visa,
+        'Soonest',
+        day('2026-10-28'),
+        'Pacific/Kiritimati',
+      );
+      // 12:00 UTC on 26 Oct: 02:00 on the 27th in Kiritimati (so the 28th is tomorrow there),
+      // 01:00 on the 26th in Pago Pago (so the 28th is two days away there).
+      const result = await clock(who, NOW, 1);
+      expect(result.entries.map((e) => e.key)).toEqual([`task_due:${soonest}`]);
+      expect(result.entries[0]?.daysUntil).toBe(1);
     },
     HEAVY,
   );

@@ -3,6 +3,7 @@ import { type MessageKey, createTranslator } from '@visastack/i18n';
 import {
   type AttentionItem,
   type Db,
+  type DeadlineEntry,
   type NeedsAttention,
   accountPrincipal,
   computeReadiness,
@@ -40,7 +41,7 @@ import { withSession } from '../../lib/session';
 import { requestItemLabel } from './agency/[orgId]/do-next';
 import { ConsentButton } from './consent-button';
 import { confirmFirstRunCountryAction } from './country-actions';
-import { CLOCK_HOME_LIMIT, deadlineLines, loadDeadlineEntries } from './deadline-clock-data';
+import { CLOCK_HOME_LIMIT, deadlineLines, readDeadlineEntries } from './deadline-clock-data';
 import {
   FirstRunConsent,
   FirstRunCountry,
@@ -90,16 +91,20 @@ async function loadBasics(db: Db, accountId: string, email: string) {
 type Basics = Awaited<ReturnType<typeof loadBasics>>;
 
 /**
- * Needs Attention for one of the person's own applicants, through the central access gate as the
- * owner (`purpose: 'self'`). Anything else, or a failed read, gives null: Home then shows that
- * person without attention items rather than failing the whole page.
+ * What Home reads for one of the person's own applicants, through the central access gate as the
+ * owner (`purpose: 'self'`), with one proof for both reads: Needs Attention and the deadline clock
+ * (Growth G5). A refusal or a failed read gives null for that part: Home then shows that person
+ * without attention items, or the clock as unavailable, rather than failing the whole page.
  */
-async function loadAttention(
+async function loadPersonReads(
   db: Db,
   accountId: string,
   applicantId: string,
   now: Date,
-): Promise<NeedsAttention | null> {
+): Promise<{
+  readonly attention: NeedsAttention | null;
+  readonly deadlines: readonly DeadlineEntry[] | null;
+}> {
   const access = await requireAccess(
     db,
     accountPrincipal(accountId),
@@ -107,9 +112,14 @@ async function loadAttention(
     { applicantId },
     { purpose: 'self' },
   );
-  if (!access.ok || access.value.actor.kind !== 'applicant_owner') return null;
-  const listed = await listNeedsAttention(access.value, { now });
-  return listed.ok ? listed.value : null;
+  if (!access.ok || access.value.actor.kind !== 'applicant_owner') {
+    return { attention: null, deadlines: null };
+  }
+  const [listed, deadlines] = await Promise.all([
+    listNeedsAttention(access.value, { now }),
+    readDeadlineEntries(access.value, now, CLOCK_HOME_LIMIT),
+  ]);
+  return { attention: listed.ok ? listed.value : null, deadlines };
 }
 
 /** Sharing invitations waiting for an answer: one account-level item in the same shape. */
@@ -154,10 +164,9 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
       )
       .slice(0, HOME_APPLICANT_LIMIT)
       .map(async (applicant) => {
-        const [docs, attention, deadlines] = await Promise.all([
+        const [docs, { attention, deadlines }] = await Promise.all([
           listDocuments(db, accountId, applicant.id),
-          loadAttention(db, accountId, applicant.id, now),
-          loadDeadlineEntries(db, accountId, applicant.id, now, CLOCK_HOME_LIMIT),
+          loadPersonReads(db, accountId, applicant.id, now),
         ]);
         return {
           applicant,

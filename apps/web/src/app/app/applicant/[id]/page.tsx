@@ -37,6 +37,8 @@ export default async function ApplicantOverviewPage({
     // The page is independently guarded: parent layouts may render concurrently.
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
+    // Started now so it runs beside the reads below; it never throws (a failed read is null).
+    const deadlinesRead = loadDeadlineEntries(db, accountId, id, new Date(), CLOCK_HOME_LIMIT);
     const [profile, documents, coreGranted, proposals, missions, requests, access, sectionChoices] =
       await Promise.all([
         listApplicantProfile(db, id),
@@ -55,9 +57,8 @@ export default async function ApplicantOverviewPage({
       : [];
     const featured = active[0];
     const readiness = featured?.packVersionId ? await computeReadiness(db, featured.id) : null;
-    const deadlines = await loadDeadlineEntries(db, accountId, id, new Date(), CLOCK_HOME_LIMIT);
     return {
-      deadlines,
+      deadlines: await deadlinesRead,
       applicant,
       profile,
       documents,

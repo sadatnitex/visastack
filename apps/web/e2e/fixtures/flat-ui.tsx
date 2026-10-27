@@ -174,7 +174,7 @@ const CLOCK_LINES: readonly DeadlineLine[] = [
     urgency: 'later',
     toneWord: 'Later',
     href: '/app/applicant/synthetic/expiry',
-    check: 'Read from a document you have not named yet. Confirm the date.',
+    check: 'Read from a document whose type you have not confirmed yet. Check the date.',
   },
 ];
 function Clock() {

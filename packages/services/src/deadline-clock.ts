@@ -46,6 +46,13 @@ export const DEADLINE_CLOCK_MAX_LIMIT = 20;
 export const DEADLINE_MONTH_DAYS = 30;
 /** A document expiry further away than this is not believed without a second look. */
 const FAR_FUTURE_DAYS = 30 * 366;
+/**
+ * Rows read from each source (earliest first). Ranking and the limit are applied after day counts
+ * are worked out in each item's own time zone, so the read is wide enough that stored-date order
+ * and day-count order cannot disagree about what is soonest, and a few old overdue items cannot
+ * crowd out what is ahead. Same bound as the calendar.
+ */
+export const DEADLINE_CLOCK_SOURCE_LIMIT = 50;
 /** Longest task label carried, in characters; a longer one is cut. */
 const TASK_LABEL_MAX = 80;
 
@@ -125,21 +132,32 @@ function compareEntries(a: DeadlineEntry, b: DeadlineEntry): number {
 }
 
 /**
- * The soonest dates from any number of lists (Home merges every person's clock): by day count,
- * then by date, kind, name and key, so the order is the same for any input order. A date that
- * appears more than once (the same key) is kept once.
+ * The dates to show from any number of lists (Home merges every person's clock), soonest first:
+ * by day count, then by date, kind, name and key, so the order is the same for any input order. A
+ * date that appears more than once (the same key) is kept once.
+ *
+ * One rule decides what is kept when there are more dates than room: the next date still ahead
+ * always gets a place. Dates that have passed (shown first, as they are soonest) take the rest,
+ * the most recent first, so a few old overdue items never push out the passport that expires next
+ * week. With nothing ahead, the passed dates fill every place.
  */
 export function rankDeadlines(
   entries: readonly DeadlineEntry[],
   limit: number = DEADLINE_CLOCK_DEFAULT_LIMIT,
 ): DeadlineEntry[] {
+  if (limit <= 0) return [];
   const seen = new Set<string>();
-  const unique = entries.filter((entry) => {
-    if (seen.has(entry.key)) return false;
-    seen.add(entry.key);
-    return true;
-  });
-  return unique.sort(compareEntries).slice(0, Math.max(0, limit));
+  const sorted = entries
+    .filter((entry) => {
+      if (seen.has(entry.key)) return false;
+      seen.add(entry.key);
+      return true;
+    })
+    .sort(compareEntries);
+  const passed = sorted.filter((entry) => entry.daysUntil < 0);
+  const ahead = sorted.filter((entry) => entry.daysUntil >= 0);
+  const passedTaken = Math.min(passed.length, limit - Math.min(1, ahead.length));
+  return [...passed.slice(passed.length - passedTaken), ...ahead.slice(0, limit - passedTaken)];
 }
 
 function clampLimit(limit: number | undefined): number {
@@ -169,8 +187,8 @@ export function documentExpiryDoubt(input: {
  * `listCalendarDates` does, further requires that it was issued to the applicant's owner for this
  * applicant: a sharing grant, a copied proof or a proof for another resource is refused, so a
  * person never sees another person's dates. Cost: one read for cases, then one each for
- * appointments, tasks, requests and documents, each capped at a few rows over the limit,
- * earliest first. Nothing is written.
+ * appointments, tasks, requests and documents, each capped at `DEADLINE_CLOCK_SOURCE_LIMIT`
+ * rows, earliest first. Nothing is written.
  */
 export async function listDeadlineClock(
   access: AuthorizedApplicant<'VIEW_METADATA'>,
@@ -189,9 +207,7 @@ export async function listDeadlineClock(
   const applicantName = applicant.displayName;
   const now = options.now ?? new Date();
   const limit = clampLimit(options.limit);
-  // Two spare rows per source: day counts use each item's own zone, so two sources can swap
-  // neighbours by a day relative to their stored order.
-  const readLimit = limit + 2;
+  const readLimit = DEADLINE_CLOCK_SOURCE_LIMIT;
   // Without a zone this system recognises every count is against UTC: say so rather than guess.
   const personDoubt: DeadlineDoubt | null =
     recognisedTimeZone(applicant.timezone) === null ? 'time_zone_unknown' : null;

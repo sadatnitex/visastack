@@ -60,6 +60,8 @@ export default async function ExpiryCentrePage({
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
+    // Started now so it runs beside the reads below; it never throws (a failed read is null).
+    const deadlinesRead = loadDeadlineEntries(db, accountId, id, now, CLOCK_EXPIRY_PAGE_LIMIT);
 
     const documents = await listDocumentsDetailed(db, accountId, id);
     const documentRows = documents.ok ? documents.value : [];
@@ -95,9 +97,7 @@ export default async function ExpiryCentrePage({
         );
     });
 
-    const deadlines = await loadDeadlineEntries(db, accountId, id, now, CLOCK_EXPIRY_PAGE_LIMIT);
-
-    return { intrinsic, verifications, freshnessRows, deadlines };
+    return { intrinsic, verifications, freshnessRows, deadlines: await deadlinesRead };
   });
 
   if (!data) notFound();

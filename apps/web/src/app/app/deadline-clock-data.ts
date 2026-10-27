@@ -22,10 +22,33 @@ import { requestItemLabel } from './agency/[orgId]/do-next';
 export const CLOCK_HOME_LIMIT = 3;
 export const CLOCK_EXPIRY_PAGE_LIMIT = 5;
 
+/** The proof the access gate gives for one person, as the dates read takes it. */
+type Proof = Parameters<typeof listDeadlineClock>[0];
+
 /**
- * The next dates for one of the person's own applicants, or null when they could not be read
- * (the gate refused, or the read failed). The caller shows "unavailable" for null, never an empty
- * state: not being able to read dates is not the same as having none.
+ * The next dates for a person, with a proof the caller already holds from the gate (Home takes one
+ * proof per person for both its reads). Null when they could not be read, whether the service
+ * refused or the read failed: the card is a secondary part of the page, so a failed read says
+ * "unavailable" in the card and never takes the page down with it.
+ */
+export async function readDeadlineEntries(
+  proof: Proof,
+  now: Date,
+  limit: number,
+): Promise<readonly DeadlineEntry[] | null> {
+  try {
+    const listed = await listDeadlineClock(proof, { now, limit });
+    return listed.ok ? listed.value.entries : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The next dates for one of the person's own applicants, through the central access gate as the
+ * owner, or null when they could not be read (the gate refused, or the read failed). The caller
+ * shows "unavailable" for null, never an empty state: not being able to read dates is not the same
+ * as having none.
  */
 export async function loadDeadlineEntries(
   db: Db,
@@ -34,16 +57,19 @@ export async function loadDeadlineEntries(
   now: Date,
   limit: number,
 ): Promise<readonly DeadlineEntry[] | null> {
-  const access = await requireAccess(
-    db,
-    accountPrincipal(accountId),
-    'VIEW_METADATA',
-    { applicantId },
-    { purpose: 'self' },
-  );
-  if (!access.ok || access.value.actor.kind !== 'applicant_owner') return null;
-  const listed = await listDeadlineClock(access.value, { now, limit });
-  return listed.ok ? listed.value.entries : null;
+  try {
+    const access = await requireAccess(
+      db,
+      accountPrincipal(accountId),
+      'VIEW_METADATA',
+      { applicantId },
+      { purpose: 'self' },
+    );
+    if (!access.ok || access.value.actor.kind !== 'applicant_owner') return null;
+    return await readDeadlineEntries(access.value, now, limit);
+  } catch {
+    return null;
+  }
 }
 
 /** What a date is called: the document's type, the task's own words, what a request asks for. */

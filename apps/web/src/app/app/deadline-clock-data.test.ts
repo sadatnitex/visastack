@@ -14,7 +14,9 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   listDeadlineClock: gate.listDeadlineClock,
 }));
 
-const { deadlineLabel, deadlineLines, loadDeadlineEntries } = await import('./deadline-clock-data');
+const { deadlineLabel, deadlineLines, loadDeadlineEntries, readDeadlineEntries } = await import(
+  './deadline-clock-data'
+);
 
 const NOW = new Date('2026-10-26T12:00:00Z');
 
@@ -74,6 +76,16 @@ describe('loadDeadlineEntries goes through the access gate as the owner', () => 
     });
     expect(await loadDeadlineEntries({} as never, 'acct-1', 'p1', NOW, 3)).toBeNull();
     expect(gate.listDeadlineClock).not.toHaveBeenCalled();
+  });
+
+  it('gives null, and does not take the page down, when a read throws', async () => {
+    const proof = { actor: { kind: 'applicant_owner' }, applicantId: 'p1' };
+    gate.requireAccess.mockResolvedValue({ ok: true, value: proof });
+    gate.listDeadlineClock.mockRejectedValue(new Error('connection reset'));
+    expect(await loadDeadlineEntries({} as never, 'acct-1', 'p1', NOW, 3)).toBeNull();
+    expect(await readDeadlineEntries(proof as never, NOW, 3)).toBeNull();
+    gate.requireAccess.mockRejectedValue(new Error('connection reset'));
+    expect(await loadDeadlineEntries({} as never, 'acct-1', 'p1', NOW, 3)).toBeNull();
   });
 
   it('gives null when the read itself fails', async () => {
@@ -159,7 +171,7 @@ describe('deadlineLines', () => {
       showPerson: false,
     });
     expect(line?.phrase).toBe('Expires in 12 days, if the date is right');
-    expect(line?.check).toContain('Confirm the date');
+    expect(line?.check).toContain('Check the date');
     expect(line?.label).toBe('Document');
   });
 

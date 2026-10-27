@@ -106,7 +106,7 @@ describe('DeadlineClock with a date the system is unsure of', () => {
       line({
         key: 'x',
         phrase: 'Expires in 12 days, if the date is right',
-        check: 'Read from a document you have not named yet. Confirm the date.',
+        check: 'Read from a document whose type you have not confirmed yet. Check the date.',
       }),
     ],
   });
@@ -114,7 +114,9 @@ describe('DeadlineClock with a date the system is unsure of', () => {
   it('labels it Check This Date, gives the reason, and does not present it as certain', () => {
     expect(html).toContain('deadline-line-check');
     expect(html).toContain('<span class="deadline-tag deadline-tag-check">Check This Date</span>');
-    expect(html).toContain('Read from a document you have not named yet. Confirm the date.');
+    expect(html).toContain(
+      'Read from a document whose type you have not confirmed yet. Check the date.',
+    );
     expect(html).toContain('if the date is right');
   });
 
