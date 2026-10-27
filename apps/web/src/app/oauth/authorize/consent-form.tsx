@@ -3,11 +3,11 @@
 import { useActionState, useId } from 'react';
 import { FormMessage, NO_RESULT, SubmitButton } from '../../../components/form-feedback';
 import {
-  AI_CONNECTION_DEFAULT_DURATION,
-  AI_CONNECTION_DEFAULT_LAYERS,
   AI_CONNECTION_DURATIONS,
   AI_CONNECTION_LAYERS,
   AI_CONNECTION_WARNING_LAYERS,
+  CONSENT_DEFAULTS,
+  type ConsentInitial,
 } from '../../../lib/ai-consent-choices';
 import {
   AI_DURATION_LABELS,
@@ -28,13 +28,21 @@ export interface ConsentFormProps {
   readonly appName: string;
   readonly record: { readonly id: string; readonly name: string };
   readonly cases: readonly { readonly id: string; readonly title: string }[];
+  /** The choices to start from: the safe defaults, or the person's own after a sign-in check. */
+  readonly initial?: ConsentInitial;
 }
 
 /**
  * What the person lets their own AI app read. Nothing is preselected beyond the safe defaults in
  * ADR 0021 section 5; sensitive parts carry a warning and stay off until chosen.
  */
-export function ConsentForm({ request, appName, record, cases }: ConsentFormProps) {
+export function ConsentForm({
+  request,
+  appName,
+  record,
+  cases,
+  initial = CONSENT_DEFAULTS,
+}: ConsentFormProps) {
   const [state, formAction, pending] = useActionState(answerAiConsentAction, NO_RESULT);
   const id = useId();
   return (
@@ -56,7 +64,7 @@ export function ConsentForm({ request, appName, record, cases }: ConsentFormProp
                 type="checkbox"
                 name="layer"
                 value={layer}
-                defaultChecked={AI_CONNECTION_DEFAULT_LAYERS.includes(layer)}
+                defaultChecked={initial.layers.includes(layer)}
               />
               <span className="output-check-text">
                 <span>{AI_LAYER_LABELS[layer]}</span>
@@ -79,7 +87,13 @@ export function ConsentForm({ request, appName, record, cases }: ConsentFormProp
         <legend className="field-label">Cases</legend>
         <div className="checks">
           <label className="check output-check" htmlFor={`${id}-ai-cases-all`}>
-            <input id={`${id}-ai-cases-all`} type="radio" name="cases" value="all" defaultChecked />
+            <input
+              id={`${id}-ai-cases-all`}
+              type="radio"
+              name="cases"
+              value="all"
+              defaultChecked={initial.cases === 'all'}
+            />
             <span className="output-check-text">
               <span>All Current Cases</span>
             </span>
@@ -90,14 +104,26 @@ export function ConsentForm({ request, appName, record, cases }: ConsentFormProp
               className="check output-check"
               htmlFor={`${id}-ai-case-${item.id}`}
             >
-              <input id={`${id}-ai-case-${item.id}`} type="radio" name="cases" value={item.id} />
+              <input
+                id={`${id}-ai-case-${item.id}`}
+                type="radio"
+                name="cases"
+                value={item.id}
+                defaultChecked={initial.cases === item.id}
+              />
               <span className="output-check-text">
                 <span>Only {item.title}</span>
               </span>
             </label>
           ))}
           <label className="check output-check" htmlFor={`${id}-ai-cases-none`}>
-            <input id={`${id}-ai-cases-none`} type="radio" name="cases" value="none" />
+            <input
+              id={`${id}-ai-cases-none`}
+              type="radio"
+              name="cases"
+              value="none"
+              defaultChecked={initial.cases === 'none'}
+            />
             <span className="output-check-text">
               <span>No Cases</span>
             </span>
@@ -113,7 +139,7 @@ export function ConsentForm({ request, appName, record, cases }: ConsentFormProp
               id={`${id}-ai-document-list`}
               type="checkbox"
               name="document_list"
-              defaultChecked
+              defaultChecked={initial.documentList}
             />
             <span className="output-check-text">
               <span>List of My Documents</span>
@@ -123,7 +149,12 @@ export function ConsentForm({ request, appName, record, cases }: ConsentFormProp
             </span>
           </label>
           <label className="check output-check" htmlFor={`${id}-ai-document-text`}>
-            <input id={`${id}-ai-document-text`} type="checkbox" name="document_text" />
+            <input
+              id={`${id}-ai-document-text`}
+              type="checkbox"
+              name="document_text"
+              defaultChecked={initial.documentText}
+            />
             <span className="output-check-text">
               <span>Text Read From My Documents</span>
               <span className="muted u-fs-075 ai-consent-warning">
@@ -133,7 +164,12 @@ export function ConsentForm({ request, appName, record, cases }: ConsentFormProp
             </span>
           </label>
           <label className="check output-check" htmlFor={`${id}-ai-reveal`}>
-            <input id={`${id}-ai-reveal`} type="checkbox" name="reveal_identifiers" />
+            <input
+              id={`${id}-ai-reveal`}
+              type="checkbox"
+              name="reveal_identifiers"
+              defaultChecked={initial.revealIdentifiers}
+            />
             <span className="output-check-text">
               <span>Full Document Numbers</span>
               <span className="muted u-fs-075 ai-consent-warning">
@@ -153,7 +189,7 @@ export function ConsentForm({ request, appName, record, cases }: ConsentFormProp
           id={`${id}-ai-duration`}
           name="duration"
           className="input"
-          defaultValue={AI_CONNECTION_DEFAULT_DURATION}
+          defaultValue={initial.duration}
         >
           {AI_CONNECTION_DURATIONS.map((duration) => (
             <option key={duration} value={duration}>

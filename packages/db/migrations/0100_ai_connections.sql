@@ -2,6 +2,8 @@
 -- interrupted part way must be able to start again from the top.
 -- AI connections (Small Commercial V1 S13, ADR 0021). Additive: two types and three new tables,
 -- nothing existing is touched. Until this runs, connecting an AI app reports "not available yet".
+-- Numbered 0100 by owner decision (this session's range); its journal index is 98. The next
+-- generated migration must be renamed to follow it (0101 and up), keeping the journal order.
 DO $enum$ BEGIN
 	CREATE TYPE "public"."ai_connection_case_mode" AS ENUM('NONE', 'ONE', 'ALL_CURRENT');
 EXCEPTION WHEN duplicate_object THEN NULL;
@@ -84,4 +86,5 @@ END $fk$;
 CREATE INDEX IF NOT EXISTS "ai_connection_tokens_connection_idx" ON "ai_connection_tokens" USING btree ("connection_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "ai_connection_tokens_family_idx" ON "ai_connection_tokens" USING btree ("family_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "ai_connections_account_idx" ON "ai_connections" USING btree ("account_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "ai_connections_applicant_idx" ON "ai_connections" USING btree ("applicant_id");
+CREATE INDEX IF NOT EXISTS "ai_connections_applicant_idx" ON "ai_connections" USING btree ("applicant_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ai_connections_mission_idx" ON "ai_connections" USING btree ("mission_id");

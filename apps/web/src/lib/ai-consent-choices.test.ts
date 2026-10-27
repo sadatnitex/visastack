@@ -34,3 +34,31 @@ describe('the consent screen vocabulary', () => {
     for (const banned of ['oauth', 'mcp', 'token', 'scope']) expect(words).not.toContain(banned);
   });
 });
+
+describe('choices kept through a fresh sign-in check', () => {
+  it('come back exactly as chosen', () => {
+    const chosen: browser.ConsentInitial = {
+      layers: ['identity', 'health'],
+      cases: 'none',
+      documentList: false,
+      documentText: true,
+      revealIdentifiers: true,
+      duration: '1h',
+    };
+    const query = browser.consentChoicesToQuery(chosen);
+    expect(browser.consentChoicesFromQuery((name) => query[name])).toEqual(chosen);
+  });
+
+  it('fall back to the safe defaults for anything unknown', () => {
+    expect(browser.consentChoicesFromQuery(() => undefined)).toEqual(browser.CONSENT_DEFAULTS);
+    const odd = browser.consentChoicesFromQuery(
+      (name) =>
+        ({
+          choice_layers: 'identity,everything',
+          choice_cases: '<script>',
+          choice_duration: 'forever',
+        })[name],
+    );
+    expect(odd).toMatchObject({ layers: ['identity'], cases: 'all', duration: '30d' });
+  });
+});

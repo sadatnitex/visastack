@@ -1,5 +1,5 @@
 {
-  "id": "5839e56a-9d69-4c0c-bd99-257f0e90d7b8",
+  "id": "ce039f8e-4d99-447e-9f64-c06da0efb15c",
   "prevId": "b715d16e-4236-4df6-ba95-0c10764c864c",
   "version": "7",
   "dialect": "postgresql",
@@ -1028,6 +1028,21 @@
           "columns": [
             {
               "expression": "applicant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "ai_connections_mission_idx": {
+          "name": "ai_connections_mission_idx",
+          "columns": [
+            {
+              "expression": "mission_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

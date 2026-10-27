@@ -9,6 +9,7 @@ import {
   refreshAiTokens,
   registerAiClient,
   revokeAiToken,
+  touchAiClient,
 } from '@visastack/services';
 import {
   aiConnectorEnabled,
@@ -43,15 +44,15 @@ function field(form: Readonly<Record<string, string>>, name: string): string | u
   return form[name];
 }
 
+function busy(): Response {
+  return noStoreJson({ error: SLOW_DOWN.error, error_description: SLOW_DOWN.description }, 429, {
+    'retry-after': '60',
+  });
+}
+
 function oauthFailure(error: AiOAuthError | { error: string; description: string }): Response {
   const status =
-    error.error === 'invalid_client'
-      ? 401
-      : error.error === 'temporarily_unavailable'
-        ? 503
-        : error.error === 'slow_down'
-          ? 429
-          : 400;
+    error.error === 'invalid_client' ? 401 : error.error === 'temporarily_unavailable' ? 503 : 400;
   return noStoreJson({ error: error.error, error_description: error.description }, status);
 }
 
@@ -74,7 +75,11 @@ async function withinTokenLimit(db: Db, request: Request): Promise<boolean> {
   return decision.allowed;
 }
 
-const SLOW_DOWN = { error: 'slow_down', description: 'Too many requests. Try again later.' };
+// Not an OAuth refusal of the grant: a busy signal, so apps retry instead of dropping the sign-in.
+const SLOW_DOWN = {
+  error: 'temporarily_unavailable',
+  description: 'Too many requests. Try again shortly.',
+};
 
 /** `POST /oauth/token`: `authorization_code` (PKCE S256 required) and `refresh_token`. */
 export async function handleTokenRequest(
@@ -97,7 +102,7 @@ export async function handleTokenRequest(
   const grant = field(form, 'grant_type');
   try {
     return await deps.withDb(async (db) => {
-      if (!(await withinTokenLimit(db, request))) return oauthFailure(SLOW_DOWN);
+      if (!(await withinTokenLimit(db, request))) return busy();
       if (grant === 'authorization_code') {
         const code = field(form, 'code');
         const verifier = field(form, 'code_verifier');
@@ -122,7 +127,9 @@ export async function handleTokenRequest(
           redirectUri,
           resource,
         });
-        return result.ok ? noStoreJson(result.value) : oauthFailure(result.error);
+        if (!result.ok) return oauthFailure(result.error);
+        await touchAiClient(db, clientId);
+        return noStoreJson(result.value);
       }
       if (grant === 'refresh_token') {
         const refreshToken = field(form, 'refresh_token');
@@ -141,7 +148,9 @@ export async function handleTokenRequest(
           clientId,
           ...(resource !== undefined ? { resource } : {}),
         });
-        return result.ok ? noStoreJson(result.value) : oauthFailure(result.error);
+        if (!result.ok) return oauthFailure(result.error);
+        await touchAiClient(db, clientId);
+        return noStoreJson(result.value);
       }
       return oauthFailure({
         error: 'unsupported_grant_type',
@@ -167,7 +176,7 @@ export async function handleRevokeRequest(
   const clientId = field(form, 'client_id');
   try {
     return await deps.withDb(async (db) => {
-      if (!(await withinTokenLimit(db, request))) return oauthFailure(SLOW_DOWN);
+      if (!(await withinTokenLimit(db, request))) return busy();
       const result = await revokeAiToken(db, { token, ...(clientId ? { clientId } : {}) });
       return result.ok ? noStoreJson({}) : oauthFailure(result.error);
     });

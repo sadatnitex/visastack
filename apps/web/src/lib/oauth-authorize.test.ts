@@ -60,12 +60,35 @@ describe('checking an authorization request', () => {
     ).toEqual({ kind: 'refuse', reason: 'invalid_link' });
   });
 
-  it('accepts a loopback return address on any port', async () => {
+  it('accepts a loopback return address on any port, and then shows the computer warning', async () => {
     const check = await checkAuthorizeRequest(db, {
       ...base,
       redirect_uri: 'http://localhost:3118/callback',
     });
-    expect(check.kind).toBe('ok');
+    if (check.kind !== 'ok') throw new Error('expected ok');
+    // The app also listed claude.ai, but this code goes to the computer: that is what is shown.
+    expect(check.request.client).toMatchObject({ host: 'this computer', loopback: true });
+  });
+
+  it('never trusts a self-registered app name: it shows the app the code really goes to', async () => {
+    mocks.resolve.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        clientId: 'vsc_x',
+        clientName: 'Claude',
+        host: 'claude.ai',
+        redirectUris: ['https://chatgpt.com/connector_platform_oauth_redirect'],
+        loopbackOnly: false,
+        source: 'registered',
+      },
+    });
+    const check = await checkAuthorizeRequest(db, {
+      ...base,
+      client_id: 'vsc_x',
+      redirect_uri: 'https://chatgpt.com/connector_platform_oauth_redirect',
+    });
+    if (check.kind !== 'ok') throw new Error('expected ok');
+    expect(check.request.client).toMatchObject({ clientName: 'ChatGPT', host: 'chatgpt.com' });
   });
 
   it('sends later problems back to the app with state and iss', async () => {

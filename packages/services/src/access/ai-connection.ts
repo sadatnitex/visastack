@@ -167,6 +167,14 @@ async function issueTokenPair(
   };
 }
 
+/**
+ * Serialises everything that issues or revokes tokens in one sign-in, so a revocation that
+ * overlaps a refresh always sees, and revokes, the pair the refresh created.
+ */
+async function lockFamily(tx: Db, familyId: string): Promise<void> {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`ai-family:${familyId}`}))`);
+}
+
 async function revokeFamily(tx: Db, familyId: string, now: Date): Promise<void> {
   await tx
     .update(schema.aiConnectionTokens)
@@ -343,6 +351,7 @@ export async function exchangeAiAuthorizationCode(
           .for('update'),
       );
       if (!token) return err(dead);
+      await lockFamily(tx, token.familyId);
       if (token.consumedAt) {
         // Replay of a used code: whatever it led to stops working now.
         await revokeFamily(tx, token.familyId, now);
@@ -422,6 +431,7 @@ export async function refreshAiTokens(
           .for('update'),
       );
       if (!token) return err(dead);
+      await lockFamily(tx, token.familyId);
       if (token.consumedAt) {
         // Reuse of a rotated refresh token: someone else may hold a copy. Cut off the sign-in.
         await revokeFamily(tx, token.familyId, now);
@@ -483,6 +493,7 @@ export async function revokeAiToken(
       if (!token || (input.clientId !== undefined && !sameText(token.clientId, input.clientId))) {
         return ok(undefined);
       }
+      await lockFamily(tx, token.familyId);
       await revokeFamily(tx, token.familyId, now);
       return ok(undefined);
     }),
@@ -564,6 +575,29 @@ export async function resolveAiAccessToken(
     };
   } catch (error) {
     if (isMissingRelationError(error)) return null;
+    throw error;
+  }
+}
+
+/** Expired tokens are kept a day past their end (reuse of a used refresh token is still caught), then deleted. */
+const TOKEN_KEEP_AFTER_EXPIRY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Daily clean-up: deletes tokens a day after they expired. A used refresh token is kept until
+ * then, so presenting it again still cuts off its sign-in for as long as it could have worked.
+ * Returns how many were deleted; 0 while the table does not exist yet.
+ */
+export async function deleteExpiredAiTokens(db: Db, now: Date = new Date()): Promise<number> {
+  try {
+    const removed = await db
+      .delete(schema.aiConnectionTokens)
+      .where(
+        sql`${schema.aiConnectionTokens.expiresAt} < ${new Date(now.getTime() - TOKEN_KEEP_AFTER_EXPIRY_MS).toISOString()}::timestamptz`,
+      )
+      .returning({ id: schema.aiConnectionTokens.id });
+    return removed.length;
+  } catch (error) {
+    if (isMissingRelationError(error)) return 0;
     throw error;
   }
 }

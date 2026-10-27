@@ -1653,6 +1653,7 @@ export {
   type CreateAiConnectionInput,
   type ResolvedAiConnection,
   createAiConnection,
+  deleteExpiredAiTokens,
   exchangeAiAuthorizationCode,
   refreshAiTokens,
   resolveAiAccessToken,

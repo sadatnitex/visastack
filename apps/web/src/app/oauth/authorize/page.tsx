@@ -2,6 +2,7 @@ import { listApplicants, listMissions } from '@visastack/services';
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { aiConnectorEnabled } from '../../../lib/ai-connector';
+import { consentChoicesFromQuery } from '../../../lib/ai-consent-choices';
 import {
   type AuthorizeParams,
   checkAuthorizeRequest,
@@ -99,7 +100,7 @@ export default async function AuthorizePage({
         <span className="ai-consent-host">{request.client.host}</span> is asking to read parts of a
         VisaStack record so it can help you.
       </p>
-      {request.client.loopbackOnly ? (
+      {request.client.loopback ? (
         <p className="notice notice-warn">
           This app runs on this computer, not on a website. Allow it only if you started it yourself
           just now.
@@ -139,6 +140,7 @@ export default async function AuthorizePage({
             appName={appName}
             record={view.chosen}
             cases={view.cases}
+            initial={consentChoicesFromQuery((name) => singleParam(search[name]))}
           />
         </>
       )}

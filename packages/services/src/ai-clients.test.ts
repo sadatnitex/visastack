@@ -353,10 +353,15 @@ describe('fetchClientMetadataDocument', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('does not cache a pinned fallback', async () => {
+  it('reuses a pinned fallback for ten minutes only, then tries the live document again', async () => {
+    let now = Date.parse('2026-10-27T10:00:00Z');
     const { deps, fetchMock } = fakeDeps(() => Promise.reject(timeoutError()));
-    await fetchClientMetadataDocument(CHATGPT_ID, deps);
-    await fetchClientMetadataDocument(CHATGPT_ID, deps);
+    const timed = { ...deps, now: () => new Date(now) };
+    await fetchClientMetadataDocument(CHATGPT_ID, timed);
+    await fetchClientMetadataDocument(CHATGPT_ID, timed);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    now += 10 * 60 * 1000 + 1;
+    await fetchClientMetadataDocument(CHATGPT_ID, timed);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
@@ -427,6 +432,25 @@ describe('dynamic client registration', () => {
   async function register(body: unknown, ipSubject = 'ip-1', now = NOW) {
     return registerAiClient(db, { body, ipSubject, now });
   }
+
+  it('accepts only the published sign-in return paths on an app host', async () => {
+    for (const uri of [
+      'https://chatgpt.com/connector_platform_oauth_redirect',
+      'https://chatgpt.com/connector/oauth/abc_123',
+      'https://claude.com/api/mcp/auth_callback',
+    ]) {
+      expect((await register({ redirect_uris: [uri] }, `ok-${uri}`)).ok, uri).toBe(true);
+    }
+    for (const uri of [
+      'https://chatgpt.com/some/page',
+      'https://chatgpt.com/connector/oauth/abc/../x',
+      'https://claude.ai/api/mcp/auth_callback?next=x',
+      'https://claude.ai/',
+    ]) {
+      const refused = await register({ redirect_uris: [uri] }, `no-${uri}`);
+      expect(!refused.ok && refused.error.error, uri).toBe('invalid_redirect_uri');
+    }
+  });
 
   it('registers a public client and returns the RFC 7591 response', async () => {
     const result = await register({

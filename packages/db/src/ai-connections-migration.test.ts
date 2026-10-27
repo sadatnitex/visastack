@@ -41,8 +41,15 @@ describe('migration 0100: AI connections (S13)', () => {
            returning id`,
         );
       const id = (await connection()).rows[0]?.id;
-      // A chosen case only with "one case"; depth stays within its three words.
-      await expect(connection('ALL_CURRENT', `mission_id='${account}'`)).rejects.toThrow();
+      const mission = (
+        await client.query<{ id: string }>(
+          `insert into missions (applicant_id, title) values ('${applicant}', 'UK Visit') returning id`,
+        )
+      ).rows[0]?.id;
+      // A chosen case only with "one case" (a real case of the same record, so only the check
+      // can refuse it); depth stays within its three words.
+      await connection('ONE', `mission_id='${mission}'`);
+      await expect(connection('ALL_CURRENT', `mission_id='${mission}'`)).rejects.toThrow();
       await expect(connection('ALL_CURRENT', `depth='everything'`)).rejects.toThrow();
 
       const token = (hash: string, kind = 'ACCESS', extra = '') =>

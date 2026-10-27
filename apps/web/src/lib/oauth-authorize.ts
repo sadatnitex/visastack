@@ -1,5 +1,12 @@
 import 'server-only';
-import { type Db, redirectMatches, resolveAiClient } from '@visastack/services';
+import {
+  type Db,
+  LOOPBACK_CLIENT_HOST,
+  SUPPORTED_AI_APPS,
+  isLoopbackRedirect,
+  redirectMatches,
+  resolveAiClient,
+} from '@visastack/services';
 import { aiIssuer, aiResource } from './ai-connector';
 
 /**
@@ -26,8 +33,8 @@ export interface CheckedAuthorizeRequest {
     readonly clientId: string;
     readonly clientName: string;
     readonly host: string;
-    /** Every return address is on this computer: the screen warns about that. */
-    readonly loopbackOnly: boolean;
+    /** The code goes to an app on the person's own computer: the screen warns about that. */
+    readonly loopback: boolean;
   };
   readonly redirectUri: string;
   readonly codeChallenge: string;
@@ -104,16 +111,41 @@ export async function checkAuthorizeRequest(
   return {
     kind: 'ok',
     request: {
-      client: {
-        clientId: client.value.clientId,
-        clientName: client.value.clientName,
-        host: client.value.host,
-        loopbackOnly: client.value.loopbackOnly,
-      },
+      client: displayedClient(client.value, redirectUri),
       redirectUri,
       codeChallenge: params.code_challenge,
       resource: params.resource,
       state,
     },
+  };
+}
+
+/**
+ * What the consent screen names and shows, worked out from the return address this request will
+ * actually send the code to, never from everything the app listed. A self-registered app's own
+ * name is not trusted: on a supported app's host it is that app's name; on this computer it keeps
+ * its name but the screen warns.
+ */
+function displayedClient(
+  client: { readonly clientId: string; readonly clientName: string; readonly source: string },
+  redirectUri: string,
+): CheckedAuthorizeRequest['client'] {
+  if (isLoopbackRedirect(redirectUri)) {
+    return {
+      clientId: client.clientId,
+      clientName: client.clientName,
+      host: LOOPBACK_CLIENT_HOST,
+      loopback: true,
+    };
+  }
+  const host = new URL(redirectUri).hostname;
+  const app = SUPPORTED_AI_APPS.find((candidate) =>
+    (candidate.redirectHosts as readonly string[]).includes(host),
+  );
+  return {
+    clientId: client.clientId,
+    clientName: client.source === 'registered' && app ? app.name : client.clientName,
+    host,
+    loopback: false,
   };
 }

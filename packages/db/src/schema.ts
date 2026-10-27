@@ -4516,7 +4516,8 @@ export const aiConnections = pgTable(
     clientName: text('client_name').notNull(),
     clientHost: text('client_host').notNull(),
     // The stored choices are the authority; token scopes are informative only. Layer keys,
-    // `document_list`, and `document_text:<group>` for each document group allowed.
+    // `document_list`, and `document_text` (the document groups follow from the chosen layers:
+    // AI_DOCUMENT_TEXT_GROUPS in packages/services/src/ai-connection-scopes.ts).
     scopes: text('scopes').array().notNull().default(sql`'{}'::text[]`),
     caseMode: aiConnectionCaseMode('case_mode').notNull(),
     missionId: uuid('mission_id').references(() => missions.id, { onDelete: 'set null' }),
@@ -4534,6 +4535,7 @@ export const aiConnections = pgTable(
   (table) => [
     index('ai_connections_account_idx').on(table.accountId),
     index('ai_connections_applicant_idx').on(table.applicantId),
+    index('ai_connections_mission_idx').on(table.missionId),
     // A chosen case only with "one case"; if that case is later deleted the link clears and the
     // connection covers no case.
     check(

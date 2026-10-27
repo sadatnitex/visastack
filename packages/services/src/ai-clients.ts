@@ -163,6 +163,30 @@ function isAllowedHttpsRedirect(uri: string, hosts: readonly string[]): boolean 
 }
 
 /**
+ * The sign-in return paths the supported apps publish (27 Oct 2026). A self-registered client may
+ * use only these on an app's host, never any other page there, so a code can never be delivered
+ * to a page that might leak its address.
+ */
+const APP_RETURN_PATHS: readonly { readonly path: string; readonly prefix: boolean }[] = [
+  { path: '/api/mcp/auth_callback', prefix: false },
+  { path: '/connector_platform_oauth_redirect', prefix: false },
+  { path: '/connector/oauth/', prefix: true },
+];
+
+function isKnownAppReturnAddress(uri: string): boolean {
+  if (!isAllowedHttpsRedirect(uri, ALL_REDIRECT_HOSTS)) return false;
+  const url = parseUrl(uri);
+  // The address must already be in its plain form: no dot segments or escapes to be tidied up.
+  if (url === null || url.search !== '' || url.href !== uri) return false;
+  return APP_RETURN_PATHS.some(({ path, prefix }) =>
+    prefix
+      ? url.pathname.startsWith(path) &&
+        /^[A-Za-z0-9_-]{1,128}$/.test(url.pathname.slice(path.length))
+      : url.pathname === path,
+  );
+}
+
+/**
  * Whether a requested redirect address matches one the client registered. Exact string match,
  * except loopback, where scheme, host, path and query must match a registered loopback address
  * and the port is ignored (RFC 8252 section 7.3, applied to localhost as well as 127.0.0.1,
@@ -360,13 +384,20 @@ export function clearClientMetadataCache(): void {
   metadataCache.clear();
 }
 
-function rememberDocument(client: ResolvedAiClient, now: number): void {
+/** A pinned copy used because the live document could not be fetched is reused this long. */
+const PINNED_FALLBACK_CACHE_MS = 10 * 60 * 1000;
+
+function rememberDocument(
+  client: ResolvedAiClient,
+  now: number,
+  forMs: number = CLIENT_METADATA_CACHE_MS,
+): void {
   metadataCache.delete(client.clientId);
   if (metadataCache.size >= MAX_CACHE_ENTRIES) {
     const oldest = metadataCache.keys().next();
     if (oldest.done !== true) metadataCache.delete(oldest.value);
   }
-  metadataCache.set(client.clientId, { client, expiresAt: now + CLIENT_METADATA_CACHE_MS });
+  metadataCache.set(client.clientId, { client, expiresAt: now + forMs });
 }
 
 /** A URL client_id that is safe to fetch at all: https, a real path, no userinfo, fragment or odd port. */
@@ -590,8 +621,13 @@ export async function fetchClientMetadataDocument(
   }
   if (live.kind === 'refused') return err(refusal('unreachable', live.message));
   const pinned = PINNED_CLIENT_DOCUMENTS.get(clientId);
-  if (pinned !== undefined)
-    return clientFromDocument(pinned, clientId, app, url.hostname, 'pinned');
+  if (pinned !== undefined) {
+    // Briefly reused, so a host that blocks server fetches does not cost every page view a
+    // failed fetch; the live document is tried again after that.
+    const client = clientFromDocument(pinned, clientId, app, url.hostname, 'pinned');
+    if (client.ok) rememberDocument(client.value, now, PINNED_FALLBACK_CACHE_MS);
+    return client;
+  }
   return err(refusal('unreachable', live.message));
 }
 
@@ -658,10 +694,10 @@ function validateRegistration(body: unknown): Result<ValidRegistration, AiClient
   for (const uri of uris) {
     if (typeof uri !== 'string')
       return registrationError('invalid_redirect_uri', 'redirect_uris must be strings');
-    if (!isAllowedHttpsRedirect(uri, ALL_REDIRECT_HOSTS) && !isLoopbackRedirect(uri)) {
+    if (!isKnownAppReturnAddress(uri) && !isLoopbackRedirect(uri)) {
       return registrationError(
         'invalid_redirect_uri',
-        'each redirect URI must be https on a supported AI app host, or http://localhost or http://127.0.0.1',
+        'each redirect URI must be a supported AI app sign-in return address, or http://localhost or http://127.0.0.1',
       );
     }
     if (!redirectUris.includes(uri)) redirectUris.push(uri);

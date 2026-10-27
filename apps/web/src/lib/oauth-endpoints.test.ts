@@ -15,6 +15,7 @@ vi.mock('@visastack/services', () => ({
   refreshAiTokens: mocks.refresh,
   revokeAiToken: mocks.revoke,
   registerAiClient: mocks.register,
+  touchAiClient: vi.fn(),
   isMissingRelationError: (error: unknown) => (error as { code?: string })?.code === '42P01',
   AI_OAUTH_SCOPES_SUPPORTED: ['visastack.identity', 'offline_access'],
 }));

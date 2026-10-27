@@ -13,6 +13,7 @@ import {
 import { redirect } from 'next/navigation';
 import type { FormResult } from '../../../components/form-feedback';
 import { aiConnectorEnabled } from '../../../lib/ai-connector';
+import { consentChoicesToQuery } from '../../../lib/ai-consent-choices';
 import { authorizationResponseUrl, checkAuthorizeRequest } from '../../../lib/oauth-authorize';
 import { withPublicDb } from '../../../lib/public-db';
 import { withSession } from '../../../lib/session';
@@ -99,6 +100,15 @@ export async function answerAiConsentAction(
         resource: request.resource,
         record: applicantId,
         ...(request.state !== null ? { state: request.state } : {}),
+        // The person's choices come back with them, so the check never resets the screen.
+        ...consentChoicesToQuery({
+          layers,
+          cases: caseChoice,
+          documentList,
+          documentText,
+          revealIdentifiers,
+          duration,
+        }),
       });
       const stepUp = await tryEstablishStepUp(
         { accountId, action: 'AI_CONNECTION_FULL_NUMBERS', resourceId: applicantId },
