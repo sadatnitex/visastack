@@ -3,6 +3,7 @@ import { AppNav, WorkspaceToolbar } from '../../src/app/app/app-nav';
 import { ProfileEditor } from '../../src/app/app/applicant/[id]/profile-editor';
 import { GrantForm } from '../../src/app/app/applicant/[id]/sharing/grant-form';
 import { SubNav } from '../../src/app/app/subnav';
+import { WorkspaceShell } from '../../src/app/app/workspace-shell';
 import {
   type DocumentReviewEntry,
   DocumentReviewPanel,
@@ -18,11 +19,21 @@ import {
 import { fixtureView } from '../../src/lib/master-profile-fixture';
 import { PRIMARY_NAV, agencyTabs, applicantTabs, platformTabs } from '../../src/lib/navigation';
 
-type Mode = 'overview' | 'profile' | 'documents' | 'case' | 'sharing' | 'agency' | 'admin';
+type Mode =
+  | 'overview'
+  | 'profile'
+  | 'documents'
+  | 'case'
+  | 'sharing'
+  | 'agency'
+  | 'admin'
+  | 'shell';
 declare global {
   interface Window {
     __uiFixturePath?: string;
     __uiFixtureActions?: string[];
+    /** The sidebar state the layout would have read from this device's cookie. */
+    __uiFixtureSidebar?: 'expanded' | 'collapsed';
     __mountUiFixture?: (mode: Mode) => void;
   }
 }
@@ -52,6 +63,7 @@ const titles: Record<Mode, string> = {
   sharing: 'Sharing and access',
   agency: 'Synthetic agency workspace',
   admin: 'Platform operations',
+  shell: 'Workspace shell',
 };
 const paths: Record<Mode, string> = {
   overview: '/app',
@@ -61,6 +73,7 @@ const paths: Record<Mode, string> = {
   sharing: '/app/applicant/synthetic/sharing',
   agency: '/app/agency/synthetic',
   admin: '/app/admin',
+  shell: '/app',
 };
 const preview = async (form: FormData) => {
   window.__uiFixtureActions?.push(String(form.get('documentId')));
@@ -82,7 +95,50 @@ function Records() {
     </article>
   );
 }
+/** The real signed-in shell (sidebar, toolbar, account menu) with made-up people and no server. */
+function ShellFixture() {
+  return (
+    <WorkspaceShell
+      access={{
+        travellers: [{ id: 'synthetic', name: 'Synthetic Self', relationship: 'SELF' }],
+        agencies: [],
+        platform: null,
+      }}
+      accountName="Synthetic Self"
+      accountEmail="synthetic.self@example.test"
+      sidebarState={window.__uiFixtureSidebar ?? 'expanded'}
+      toolbarState={{
+        unread: 2,
+        personalPlan: { key: 'traveller_free', name: 'Traveller Free' },
+        agencyPlans: [],
+      }}
+      signOut={
+        <form>
+          <button type="submit" className="btn btn-secondary nav-cta">
+            Sign Out
+          </button>
+        </form>
+      }
+    >
+      <section className="section container" id="main">
+        <PageHeader
+          eyebrow="Synthetic test fixture"
+          title="Workspace shell"
+          description="Visual and interaction test only. No real records or authenticated session."
+        />
+        <article className="card">
+          <h2 className="card-title">Page content</h2>
+          <p>
+            A wide table and a long line of text show that the page uses the width the sidebar frees
+            and never scrolls sideways.
+          </p>
+        </article>
+      </section>
+    </WorkspaceShell>
+  );
+}
 function Fixture({ mode }: { mode: Mode }) {
+  if (mode === 'shell') return <ShellFixture />;
   const tabs =
     mode === 'agency'
       ? agencyTabs('synthetic', { admin: true })
@@ -232,5 +288,8 @@ window.__mountUiFixture = (mode) => {
   const main = document.querySelector('main');
   if (!main) throw new Error('Fixture carrier missing');
   main.replaceChildren();
+  // A signed-in person never sees the pilot banner (the root layout shows it to visitors only), so
+  // the shell fixture mirrors that and measures from the real top of the screen.
+  if (mode === 'shell') document.querySelector('.pilot-banner')?.remove();
   createRoot(main).render(<Fixture mode={mode} />);
 };

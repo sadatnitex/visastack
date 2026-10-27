@@ -10,8 +10,11 @@ import {
   useEffect,
   useId,
   useRef,
+  useState,
 } from 'react';
 import { Icon, type IconName } from '../../components/icons';
+import { placePopover } from '../../lib/popover-placement';
+import { useCloseOnOutsidePress } from '../../lib/use-popover';
 
 export interface AccountMenuLink {
   readonly href: string;
@@ -105,18 +108,58 @@ export function AccountMenu({
   }, [pathname]);
 
   // A tap or click anywhere else closes it, as the context chip and the More sheet do.
-  useEffect(() => {
-    const outside = (event: PointerEvent) => {
-      if (
-        event.target instanceof Node &&
-        account.current &&
-        !account.current.contains(event.target)
-      )
-        account.current.open = false;
-    };
-    document.addEventListener('pointerdown', outside);
-    return () => document.removeEventListener('pointerdown', outside);
+  useCloseOnOutsidePress(account);
+
+  // Fit the panel to the screen: open it on the side of the trigger with room, no taller than that
+  // room (taller content scrolls inside it), and never past a screen edge. The answer is written as
+  // two data attributes and one custom property that the stylesheet reads; the phone sheet ignores it.
+  const place = useCallback(() => {
+    const details = account.current;
+    const menu = panel.current;
+    const trigger = details?.querySelector('summary');
+    if (!details?.open || !menu || !trigger) return;
+    const fit = placePopover({
+      trigger: trigger.getBoundingClientRect(),
+      viewport: { width: document.documentElement.clientWidth, height: window.innerHeight },
+      contentHeight: menu.scrollHeight + (menu.offsetHeight - menu.clientHeight),
+      width: menu.offsetWidth,
+    });
+    details.setAttribute('data-placement', fit.placement);
+    details.setAttribute('data-align', fit.align);
+    details.style.setProperty('--account-menu-max-height', `${fit.maxHeight}px`);
   }, []);
+
+  const [shown, setShown] = useState(false);
+  const onToggle = () => {
+    const details = account.current;
+    if (!details) return;
+    setShown(details.open);
+    if (details.open) {
+      place();
+      return;
+    }
+    details.removeAttribute('data-placement');
+    details.removeAttribute('data-align');
+    details.style.removeProperty('--account-menu-max-height');
+  };
+
+  // While open, a resized window or a scrolled page (or any scrolling area around the menu) changes
+  // the room: measure again. Nothing is listened to while the menu is closed.
+  useEffect(() => {
+    if (!shown) return;
+    let frame = 0;
+    const again = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(place);
+    };
+    window.addEventListener('resize', again);
+    document.addEventListener('scroll', again, { passive: true, capture: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('resize', again);
+      document.removeEventListener('scroll', again, { capture: true });
+    };
+  }, [shown, place]);
 
   const rows = () => Array.from(panel.current?.querySelectorAll<HTMLElement>(ROW_SELECTOR) ?? []);
 
@@ -168,7 +211,13 @@ export function AccountMenu({
   };
 
   return (
-    <details className="record-account" ref={account} onKeyDown={onKeyDown} onBlur={onBlur}>
+    <details
+      className="record-account"
+      ref={account}
+      onKeyDown={onKeyDown}
+      onBlur={onBlur}
+      onToggle={onToggle}
+    >
       <summary aria-label={`${name}, Account Menu`} aria-controls={panelId}>
         <b className="account-name-desktop" dir="auto">
           {name}

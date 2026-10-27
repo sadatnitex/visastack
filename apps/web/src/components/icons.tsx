@@ -61,6 +61,8 @@ const PATHS = {
   key: ['M8 15a4 4 0 1 1 3.5-6H20v3h-2.5v2.5H15V12h-3.5A4 4 0 0 1 8 15Z'],
   more: ['M5 12h.01M12 12h.01M19 12h.01'],
   close: ['m6 6 12 12M18 6 6 18'],
+  // A page with its side panel marked: the show and hide control for the sidebar.
+  sidebar: ['M4 5.5h16v13H4Z', 'M9.5 5.5v13'],
 } as const;
 
 export type IconName = keyof typeof PATHS;

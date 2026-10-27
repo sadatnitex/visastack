@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { type Page, expect, test } from '@playwright/test';
+import sharp from 'sharp';
 import { PRIMARY_NAV, agencyTabs, applicantTabs, platformTabs } from '../src/lib/navigation';
 import { openUiFixture } from './flat-ui-support';
 
@@ -864,6 +865,83 @@ test.describe('authoritative appearance on public routes', () => {
   });
 });
 
+/**
+ * A capture taken the moment a page finishes loading can still catch a late repaint right after a
+ * deployment. Take it again until two captures in a row are identical (at most five tries) and use
+ * that settled one.
+ */
+async function settledScreenshot(page: Page, name: string): Promise<Buffer> {
+  const take = () =>
+    page.screenshot({
+      path: test.info().outputPath(name),
+      animations: 'disabled',
+      caret: 'hide',
+    });
+  let previous = await take();
+  for (let attempt = 1; attempt < 5; attempt++) {
+    const next = await take();
+    if (next.equals(previous)) return next;
+    previous = next;
+  }
+  return previous;
+}
+
+/**
+ * The most a pixel may differ, per colour channel out of 255, and still count as the same picture.
+ * Chromium smooths the rounded corner of a small badge slightly differently between two fresh
+ * renders (seen as two pixels off by 3), which no person can see. A real light or dark change moves
+ * colours by far more than this, so it still fails.
+ */
+const PIXEL_NOISE_LIMIT = 6;
+
+async function pixelDifference(
+  first: Buffer,
+  second: Buffer,
+): Promise<{ sameSize: boolean; worst: number; changed: number }> {
+  if (first.equals(second)) return { sameSize: true, worst: 0, changed: 0 };
+  const [a, b] = await Promise.all(
+    [first, second].map((image) =>
+      sharp(image).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
+    ),
+  );
+  if (!a || !b || a.info.width !== b.info.width || a.info.height !== b.info.height) {
+    return { sameSize: false, worst: 255, changed: -1 };
+  }
+  let worst = 0;
+  let changed = 0;
+  for (let i = 0; i < a.data.length; i += 4) {
+    let pixelWorst = 0;
+    for (let channel = 0; channel < 4; channel++) {
+      pixelWorst = Math.max(
+        pixelWorst,
+        Math.abs((a.data[i + channel] ?? 0) - (b.data[i + channel] ?? 0)),
+      );
+    }
+    if (pixelWorst > 0) changed++;
+    worst = Math.max(worst, pixelWorst);
+  }
+  return { sameSize: true, worst, changed };
+}
+
+test.describe('pixel comparison tolerance', () => {
+  const picture = (value: number) =>
+    sharp({
+      create: { width: 8, height: 8, channels: 3, background: { r: value, g: value, b: value } },
+    })
+      .png()
+      .toBuffer();
+  test('accepts invisible smoothing noise and rejects a real colour change', async () => {
+    const base = await picture(245);
+    expect((await pixelDifference(base, await picture(248))).worst).toBeLessThanOrEqual(
+      PIXEL_NOISE_LIMIT,
+    );
+    expect((await pixelDifference(base, await picture(200))).worst).toBeGreaterThan(
+      PIXEL_NOISE_LIMIT,
+    );
+    expect((await pixelDifference(base, base)).changed).toBe(0);
+  });
+});
+
 test.describe('authoritative appearance of actual workspace components', () => {
   test.use({ bypassCSP: true });
   for (const width of [1600, 390]) {
@@ -875,6 +953,7 @@ test.describe('authoritative appearance of actual workspace components', () => {
       'sharing',
       'agency',
       'admin',
+      'shell',
     ] as const) {
       test(`${mode} keeps identical pixels under both device appearances at ${width}px`, async ({
         page,
@@ -883,21 +962,13 @@ test.describe('authoritative appearance of actual workspace components', () => {
         await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
         await openUiFixture(page, mode);
         await page.evaluate(() => document.fonts.ready);
-        const light = await page.screenshot({
-          path: test.info().outputPath('appearance-light.png'),
-          animations: 'disabled',
-          caret: 'hide',
-        });
+        const light = await settledScreenshot(page, 'appearance-light.png');
         await page.emulateMedia({ colorScheme: 'dark' });
         // Compare fresh renders, matching the desktop and phone capture protocol.
         // Chromium can otherwise repaint fractional native-input edges during a media toggle.
         await openUiFixture(page, mode);
         await page.evaluate(() => document.fonts.ready);
-        const dark = await page.screenshot({
-          path: test.info().outputPath('appearance-dark.png'),
-          animations: 'disabled',
-          caret: 'hide',
-        });
+        const dark = await settledScreenshot(page, 'appearance-dark.png');
         await expect(page.locator('.app-main')).toHaveCSS('background-color', 'rgb(247, 249, 254)');
         await expect(page.locator('header.nav')).toBeHidden();
         if (width === 1600) {
@@ -910,9 +981,10 @@ test.describe('authoritative appearance of actual workspace components', () => {
         await test
           .info()
           .attach('synthetic-workspace-dark-device', { body: dark, contentType: 'image/png' });
+        const difference = await pixelDifference(light, dark);
         expect(
-          dark.equals(light),
-          'changing the device preference changes no workspace surface',
+          difference.sameSize && difference.worst <= PIXEL_NOISE_LIMIT,
+          `changing the device preference changes no workspace surface (${difference.changed} pixels differ, by at most ${difference.worst} of 255)`,
         ).toBe(true);
       });
     }
@@ -943,6 +1015,327 @@ test.describe('authoritative appearance of actual workspace components', () => {
         .getByRole('link', { name: 'Platform Administration' }),
     ).toHaveAttribute('href', '/app/admin');
   });
+});
+
+/** Box of the first match, rounded; fails loudly when nothing matches. */
+async function box(page: Page, selector: string) {
+  const found = await page.locator(selector).first().boundingBox();
+  if (!found) throw new Error(`No box for ${selector}`);
+  return found;
+}
+
+test.describe('collapsible sidebar and account menu fit the screen', () => {
+  test.use({ bypassCSP: true });
+  const sizes = [
+    [1366, 768],
+    [1440, 900],
+    [1920, 1080],
+    [1280, 600],
+    [1024, 700],
+    // A very short window: the rows no longer all fit, so the panel must scroll inside itself.
+    [1280, 480],
+  ] as const;
+
+  for (const [width, height] of sizes) {
+    for (const sidebar of ['expanded', 'collapsed'] as const) {
+      test(`account menu lies fully inside the screen at ${width}x${height} with the ${sidebar} sidebar`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height });
+        await openUiFixture(page, 'shell', { sidebar });
+        await page.locator('.record-account > summary').click();
+        const panel = await box(page, '.account-menu-panel');
+        const opener = await box(page, '.record-account > summary');
+        expect(panel.x).toBeGreaterThanOrEqual(0);
+        expect(panel.y).toBeGreaterThanOrEqual(0);
+        expect(panel.x + panel.width).toBeLessThanOrEqual(width);
+        expect(panel.y + panel.height).toBeLessThanOrEqual(height);
+        // Not too big: a comfortable popover width, and never the whole screen height.
+        expect(panel.width).toBeGreaterThanOrEqual(288);
+        expect(panel.width).toBeLessThanOrEqual(320);
+        expect(panel.height).toBeLessThan(height * 0.9);
+        // Anchored to its trigger: under it, lined up with its right edge.
+        expect(panel.y).toBeGreaterThanOrEqual(opener.y + opener.height);
+        expect(Math.abs(panel.x + panel.width - (opener.x + opener.width))).toBeLessThanOrEqual(1);
+        // The page itself never gains a scrollbar from the menu.
+        const overflow = await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        );
+        expect(overflow).toBe(0);
+        // Every row can be reached: either it fits, or the panel scrolls (Sign Out stays in view).
+        const scrolls = await page.evaluate(() => {
+          const menu = document.querySelector<HTMLElement>('.account-menu-panel');
+          return menu ? menu.scrollHeight > menu.clientHeight : false;
+        });
+        const natural = await page.evaluate(() => {
+          const menu = document.querySelector<HTMLElement>('.account-menu-panel');
+          return menu ? menu.scrollHeight : 0;
+        });
+        if (!scrolls) expect(panel.height).toBeGreaterThanOrEqual(natural);
+        await expect(page.getByRole('button', { name: 'Sign Out' })).toBeInViewport();
+        if (scrolls) {
+          // Scrolled or not, Sign Out stays pinned flush to the panel's bottom edge.
+          const out = await box(page, '.account-menu-signout button');
+          expect(panel.y + panel.height - (out.y + out.height)).toBeLessThanOrEqual(10);
+        }
+      });
+    }
+  }
+
+  test('account menu opens above a trigger that sits low, and still fits', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await openUiFixture(page, 'shell');
+    await page.evaluate(() => {
+      const bar = document.querySelector<HTMLElement>('.workspace-toolbar');
+      if (!bar) throw new Error('Toolbar missing');
+      bar.style.position = 'fixed';
+      bar.style.left = '256px';
+      bar.style.right = '0';
+      bar.style.bottom = '0';
+    });
+    await page.locator('.record-account > summary').click();
+    const panel = await box(page, '.account-menu-panel');
+    const opener = await box(page, '.record-account > summary');
+    expect(panel.y + panel.height).toBeLessThanOrEqual(opener.y);
+    expect(panel.y).toBeGreaterThanOrEqual(0);
+  });
+
+  test('account menu closes on Escape with focus back on its trigger, and on an outside click', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await openUiFixture(page, 'shell', { sidebar: 'collapsed' });
+    const trigger = page.locator('.record-account > summary');
+    await trigger.click();
+    await expect(page.locator('.account-menu-panel')).toBeVisible();
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.account-menu-panel')).toBeHidden();
+    await expect(trigger).toBeFocused();
+    await trigger.click();
+    await page.mouse.click(600, 500);
+    await expect(page.locator('.account-menu-panel')).toBeHidden();
+  });
+
+  test('the open sidebar keeps its pinned measurements and shows Hide Menu', async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await openUiFixture(page, 'shell');
+    expect((await box(page, '.app-shell-nav')).width).toBe(256);
+    expect((await box(page, '.workspace-toolbar')).height).toBe(83);
+    const hide = page.getByRole('button', { name: 'Hide Menu' });
+    await expect(hide).toBeVisible();
+    await expect(hide).toHaveAttribute('aria-expanded', 'true');
+    const target = await hide.boundingBox();
+    expect(target?.width).toBeGreaterThanOrEqual(44);
+    expect(target?.height).toBeGreaterThanOrEqual(44);
+  });
+
+  test('Hide Menu leaves a slim rail, the page takes the room, and Show Menu brings it back', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await openUiFixture(page, 'shell');
+    const mainBefore = (await box(page, '.app-main')).width;
+    const hide = page.getByRole('button', { name: 'Hide Menu' });
+    await hide.focus();
+    await page.keyboard.press('Enter');
+    const show = page.getByRole('button', { name: 'Show Menu' });
+    await expect(show).toBeFocused();
+    await expect(show).toHaveAttribute('aria-expanded', 'false');
+    expect((await box(page, '.app-shell-nav')).width).toBe(72);
+    expect((await box(page, '.app-main')).width).toBe(mainBefore + 256 - 72);
+    // No sideways scrolling, in the page or in the rail itself.
+    const scroll = await page.evaluate(() => {
+      const nav = document.querySelector<HTMLElement>('.app-shell-nav');
+      return {
+        page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        rail: nav ? nav.scrollWidth - nav.clientWidth : -1,
+      };
+    });
+    expect(scroll.page).toBe(0);
+    expect(scroll.rail).toBeLessThanOrEqual(1);
+    // Every destination is still there by name, the words are gone, and the footer note is hidden.
+    await expect(page.getByRole('link', { name: 'Record' })).toBeVisible();
+    await expect(page.getByText('You Control Access')).toBeHidden();
+    await expect(page.locator('.app-shell-nav .app-link-label').first()).toBeHidden();
+    // Keyboard: every control reached by Tab inside the rail really is inside the rail.
+    await show.focus();
+    for (let step = 0; step < 12; step++) {
+      await page.keyboard.press('Tab');
+      const inside = await page.evaluate(() => {
+        const active = document.activeElement;
+        if (!active?.closest('.app-shell-nav')) return null;
+        const rect = active.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0 && rect.right <= 72;
+      });
+      if (inside === null) break;
+      expect(inside, 'a hidden control must never take focus').toBe(true);
+    }
+    await show.focus();
+    await page.keyboard.press('Space');
+    await expect(page.getByRole('button', { name: 'Hide Menu' })).toBeFocused();
+    expect((await box(page, '.app-shell-nav')).width).toBe(256);
+    expect((await box(page, '.app-main')).width).toBe(mainBefore);
+  });
+
+  test('the choice is saved for this device as one small cookie and read back as a rail', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await openUiFixture(page, 'shell');
+    await page.getByRole('button', { name: 'Hide Menu' }).click();
+    const saved = (await page.context().cookies()).find((c) => c.name === 'visastack_sidebar');
+    expect(saved?.value).toBe('collapsed');
+    expect(saved?.path).toBe('/app');
+    expect(saved?.sameSite).toBe('Lax');
+    expect(saved?.httpOnly).toBe(false);
+    // The signed-in layout hands that value to the shell, which draws the rail from the first paint.
+    await openUiFixture(page, 'shell', { sidebar: 'collapsed' });
+    expect((await box(page, '.app-shell-nav')).width).toBe(72);
+    await expect(page.getByRole('button', { name: 'Show Menu' })).toBeVisible();
+  });
+
+  test('Hide Menu names itself on hover in the open sidebar, where it has no words', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await openUiFixture(page, 'shell');
+    const hide = page.getByRole('button', { name: 'Hide Menu' });
+    expect(await hide.evaluate((el) => getComputedStyle(el, '::after').content)).toBe('none');
+    await hide.hover();
+    expect(await hide.evaluate((el) => getComputedStyle(el, '::after').content)).toBe(
+      '"Hide Menu"',
+    );
+  });
+
+  test('Escape puts a rail label away until another control is reached', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await openUiFixture(page, 'shell', { sidebar: 'collapsed' });
+    const record = page.getByRole('link', { name: 'Record' });
+    const cases = page.getByRole('link', { name: 'Cases' });
+    const label = (link: typeof record) =>
+      link.evaluate((el) => getComputedStyle(el, '::after').content);
+    await record.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    expect(await label(record)).toBe('"Record"');
+    await page.keyboard.press('Escape');
+    expect(await label(record)).toBe('none');
+    await page.keyboard.press('Tab');
+    await expect(cases).toBeFocused();
+    expect(await label(cases)).toBe('"Cases"');
+  });
+
+  test('rail controls name themselves beside the rail on hover and keyboard focus', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await openUiFixture(page, 'shell', { sidebar: 'collapsed' });
+    const link = page.getByRole('link', { name: 'Record' });
+    const label = () =>
+      link.evaluate((element) => {
+        const style = getComputedStyle(element, '::after');
+        return { content: style.content, position: style.position, left: style.left };
+      });
+    expect((await label()).content).toBe('none');
+    await link.hover();
+    const hovered = await label();
+    expect(hovered.content).toBe('"Record"');
+    expect(hovered.position).toBe('fixed');
+    await page.mouse.move(800, 500);
+    await link.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    expect((await label()).content).toBe('"Record"');
+  });
+
+  test('beside the rail, the workspace list and More Tools open inside the screen', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 600 });
+    await openUiFixture(page, 'shell', { sidebar: 'collapsed' });
+    for (const trigger of [
+      '.app-shell-nav > .workspace-selector > summary',
+      '.workspace-tools > summary',
+    ]) {
+      await page.locator(trigger).click();
+      const list = page.locator(
+        trigger.includes('workspace-selector')
+          ? '.app-shell-nav > .workspace-selector > nav'
+          : '.workspace-tools-list',
+      );
+      await expect(list).toBeVisible();
+      const listBox = await box(
+        page,
+        trigger.includes('workspace-selector')
+          ? '.app-shell-nav > .workspace-selector > nav'
+          : '.workspace-tools-list',
+      );
+      expect(listBox.x).toBeGreaterThanOrEqual(72);
+      expect(listBox.y).toBeGreaterThanOrEqual(0);
+      expect(listBox.y + listBox.height).toBeLessThanOrEqual(600);
+      expect(listBox.x + listBox.width).toBeLessThanOrEqual(1280);
+      await page.keyboard.press('Escape');
+      await expect(list).toBeHidden();
+      await expect(page.locator(trigger)).toBeFocused();
+    }
+  });
+
+  test('the button is a laptop control: hidden on a phone and a tablet, shown from 1024px', async ({
+    page,
+  }) => {
+    for (const [width, shown] of [
+      [390, false],
+      [1023, false],
+      [1024, true],
+    ] as const) {
+      await page.setViewportSize({ width, height: 800 });
+      await openUiFixture(page, 'shell');
+      expect(await page.locator('.app-sidebar-toggle').isVisible()).toBe(shown);
+    }
+    // A saved rail never changes the phone bar.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openUiFixture(page, 'shell', { sidebar: 'collapsed' });
+    const bar = await box(page, '.app-shell-nav');
+    expect(bar.width).toBe(390);
+    await expect(page.locator('.app-more-toggle')).toBeVisible();
+  });
+
+  test('nothing animates, so reduced motion has nothing to switch off', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await openUiFixture(page, 'shell');
+    const motion = await page.evaluate(() => {
+      const names = ['.app-frame', '.app-shell-nav', '.app-main', '.app-sidebar-toggle'];
+      return names.map((selector) => {
+        const element = document.querySelector(selector);
+        const style = element ? getComputedStyle(element) : null;
+        return [selector, style?.transitionDuration, style?.animationName];
+      });
+    });
+    for (const [, duration, animation] of motion) {
+      expect(duration).toBe('0s');
+      expect(animation).toBe('none');
+    }
+  });
+
+  for (const sidebar of ['expanded', 'collapsed'] as const) {
+    test(`no serious accessibility violations in the ${sidebar} shell with the account menu open`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 1366, height: 768 });
+      await openUiFixture(page, 'shell', { sidebar });
+      await page.locator('.record-account > summary').click();
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
+        .include('.app-frame')
+        .analyze();
+      const blocking = results.violations.filter(
+        (v) => v.impact === 'critical' || v.impact === 'serious',
+      );
+      expect(blocking, JSON.stringify(blocking, null, 2)).toEqual([]);
+    });
+  }
 });
 
 test('password recovery confirms the request and offers an explicit resend without exposing accounts', async ({
