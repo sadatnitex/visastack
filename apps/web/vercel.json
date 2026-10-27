@@ -8,6 +8,10 @@
       "schedule": "0 3 * * *"
     },
     {
+      "path": "/api/jobs/process-ai-reading",
+      "schedule": "5 3 * * *"
+    },
+    {
       "path": "/api/jobs/process-deletions",
       "schedule": "10 3 * * *"
     },

@@ -7641,3 +7641,46 @@ summary.visa-photo-title {
   align-items: center;
   gap: var(--space-2);
 }
+
+/* WP-S6 reading states (ADR 0019): how a file's reading is going under its name on the documents page,
+   where a suggestion came from, the Read Again retry, and the one invitation to switch reading on. Flat:
+   no shadows or gradients, targets stay 44px, and the status never relies on colour alone (the badge
+   carries the state's name). */
+.reading-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.reading-status-text {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+.reading-status .btn,
+.read-again .btn,
+.reading-offer .btn {
+  min-height: 44px;
+}
+.read-again {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: 4px;
+}
+.finding-origin {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 8px 0;
+}
+.reading-offer {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}

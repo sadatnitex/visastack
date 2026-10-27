@@ -3,6 +3,7 @@ import { type MessageKey, type Translator, createTranslator } from '@visastack/i
 import {
   DEFAULT_DOCUMENT_PROTECTION,
   type DocumentLifecycleStatus,
+  accountPrincipal,
   classifyExpiry,
   documentCategory,
   getApplicant,
@@ -14,6 +15,7 @@ import {
   isRestrictedDocumentType,
   isServableProcessingState,
   listApplicantProfile,
+  listDocumentReadingStates,
   listDocumentsDetailed,
   listIssuerVerificationsForDocument,
   listPendingDocumentTypeProposals,
@@ -23,6 +25,7 @@ import {
   mbLabel,
   readDocumentProtectionSettings,
   referenceCodesFor,
+  requireAccess,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -33,16 +36,17 @@ import { ReferenceCode } from '../../../../../components/reference-code';
 import { PageHeader } from '../../../../../components/ui';
 import { VisaPhotoSizes } from '../../../../../components/visa-photo-sizes';
 import {
-  createAiExtractor,
   isClassificationConfigured,
   isInconsistencyConfigured,
   isOcrConfigured,
+  resolveAiExtractionAvailability,
 } from '../../../../../lib/ai';
 import {
   getPlatformCapabilities,
   resolvePlatformCapabilities,
 } from '../../../../../lib/capabilities';
 import { confirmedValues, findingViewModel } from '../../../../../lib/document-findings';
+import { readingOffer, readingStatusCopy } from '../../../../../lib/document-reading';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { documentTypeLabel } from '../../../../../lib/labels';
 import { getLocale } from '../../../../../lib/locale';
@@ -59,16 +63,16 @@ import {
   DocumentFindings,
   InconsistencyFlagReview,
   OcrResultView,
-  RunAiExtractionButton,
+  ReadAgainButton,
   RunClassificationButton,
   RunInconsistencyCheckButton,
-  RunOcrButton,
 } from '../ai-review';
 import { documentSuggestionView } from '../document-suggestion';
 import { DocumentSuggestionCard } from '../document-suggestion-card';
 import { DocumentTypeForm } from '../document-type-form';
 import { DocumentUploader } from '../document-uploader';
 import { downloadOriginalAction } from '../download-actions';
+import { ReadingOfferCard, ReadingStatus } from '../reading-status';
 import { UsageMeter } from '../usage-meter';
 
 const ORIGINAL_KINDS: readonly string[] = [...ORIGINAL_DOCUMENT_KEYS];
@@ -226,6 +230,23 @@ export default async function ApplicantDocumentsPage({
     );
     const ocrRuns = new Map(documentRows.map((doc, i) => [doc.id, ocrRunLists[i]] as const));
     const confirmed = confirmedValues(profile, encryption !== undefined);
+    // How each file's reading is going and where each suggestion came from (S6, ADR 0019). Owner
+    // only, through the access gate; if it is refused the page simply shows no reading states.
+    const readingAccess = await requireAccess(
+      db,
+      accountPrincipal(accountId),
+      'VIEW_METADATA',
+      { applicantId: id },
+      { purpose: 'self' },
+    );
+    const reading = readingAccess.ok
+      ? await listDocumentReadingStates(
+          readingAccess.value,
+          documentRows.flatMap((doc) => (doc.latestVersionId ? [doc.latestVersionId] : [])),
+        )
+      : undefined;
+    const detailsAvailable =
+      (await resolveAiExtractionAvailability(db, encryption !== undefined)) === 'available';
     // The live protection rule, for the card's fresh sign-in warning. If it cannot be read, the
     // built-in rule applies, which protects every file whose kind is not known yet.
     const protection = await readDocumentProtectionSettings(db).catch(
@@ -245,7 +266,8 @@ export default async function ApplicantDocumentsPage({
       recordsUnavailable: !documents.ok || !wallet.ok,
       coreGranted,
       aiGranted,
-      aiConfigured: Boolean(createAiExtractor()),
+      detailsAvailable,
+      reading: reading?.ok ? reading.value : undefined,
       ocrGranted,
       ocrConfigured,
       classificationConfigured,
@@ -284,6 +306,19 @@ export default async function ApplicantDocumentsPage({
     .flatMap((group) => group.choices.map((choice) => choice.key))
     .filter((key) => isRestrictedDocumentType(key, data.protection));
   const anyProcessing = data.documents.some((doc) => isStillProcessing(doc.processingStatus));
+  // A queued or running AI reading keeps the page fresh too, though the file itself is ready.
+  const readingInProgress = [...(data.reading?.states.values() ?? [])].some(
+    (state) => state.stage === 'reading' || state.stage === 'checking',
+  );
+  // One invitation for the whole page, only once documents can be processed at all.
+  const offer = data.coreGranted
+    ? readingOffer({
+        detailsAvailable: data.detailsAvailable,
+        scansAvailable: data.ocrConfigured,
+        detailsGranted: data.aiGranted,
+        scansGranted: data.ocrGranted,
+      })
+    : null;
 
   return (
     <>
@@ -309,7 +344,7 @@ export default async function ApplicantDocumentsPage({
           still being checked are unavailable for download.
         </p>
       ) : null}
-      <AutoRefresh active={anyProcessing} />
+      <AutoRefresh active={anyProcessing || readingInProgress} />
       {anyProcessing ? (
         <p className="muted">
           Some documents are still being checked, which can take a few minutes. This page updates by
@@ -344,6 +379,8 @@ export default async function ApplicantDocumentsPage({
           Couldn't save that kind of document - pick one from the list, or choose Other Document.
         </p>
       ) : null}
+
+      {offer ? <ReadingOfferCard offer={offer} /> : null}
 
       <DocumentWalletBrowser
         key={initialSelection ?? id}
@@ -386,6 +423,10 @@ export default async function ApplicantDocumentsPage({
             );
           const category = documentCategory(doc.docType);
           const suggested = doc.docType ? undefined : waitingKind;
+          // Read Again needs the switch for what it would do: text, or a scan first and then text.
+          const canReadAgain =
+            data.coreGranted &&
+            ((data.detailsAvailable && data.aiGranted) || (data.ocrConfigured && data.ocrGranted));
           return {
             id: doc.id,
             name: doc.approvedName ?? doc.originalName,
@@ -470,6 +511,22 @@ export default async function ApplicantDocumentsPage({
                     returnTo={`/app/applicant/${id}/documents?document=${doc.id}`}
                   />
                 ) : null}
+                {(() => {
+                  const state = doc.latestVersionId
+                    ? data.reading?.states.get(doc.latestVersionId)
+                    : undefined;
+                  const copy = state
+                    ? readingStatusCopy(state, {
+                        ...(doc.processingStatus && PROBLEM_NEXT_STEP[doc.processingStatus]
+                          ? { problemNextStep: PROBLEM_NEXT_STEP[doc.processingStatus] }
+                          : {}),
+                        canReadAgain,
+                      })
+                    : null;
+                  return state && copy ? (
+                    <ReadingStatus copy={copy} stage={state.stage} applicantId={id} />
+                  ) : null;
+                })()}
                 {(doc.classification?.reviewRequired === true ||
                   !doc.classification ||
                   (doc.docType === 'PASSPORT' && !doc.expiresAt)) &&
@@ -481,11 +538,14 @@ export default async function ApplicantDocumentsPage({
                     <input type="hidden" name="documentId" value={doc.id} />
                     <input type="hidden" name="versionId" value={doc.latestVersionId} />
                     <button className="btn btn-secondary" type="submit">
-                      Read This File Again
+                      Check the File Again
                     </button>
                   </form>
                 ) : null}
-                {doc.processingStatus && PROBLEM_NEXT_STEP[doc.processingStatus] ? (
+                {/* A file with no reading state (the reading service was refused) keeps the plain advice. */}
+                {doc.processingStatus &&
+                PROBLEM_NEXT_STEP[doc.processingStatus] &&
+                !(doc.latestVersionId && data.reading?.states.has(doc.latestVersionId)) ? (
                   <p className="muted u-fs-075-m0">{PROBLEM_NEXT_STEP[doc.processingStatus]}</p>
                 ) : null}
                 {(() => {
@@ -587,26 +647,34 @@ export default async function ApplicantDocumentsPage({
                   </p>
                 ) : null}
                 {(() => {
-                  if (!data.aiConfigured || !data.aiGranted || !doc.classification) return null;
                   const versionId = doc.latestVersionId;
                   if (!versionId) return null;
                   const proposalsForDoc = data.pendingProposals.filter(
                     (p) => p.proposal.documentVersionId === versionId,
                   );
+                  const stage = data.reading?.states.get(versionId)?.stage;
+                  // Read Again is the retry: offered once the first reading is over, never while it runs.
+                  const showReadAgain =
+                    canReadAgain &&
+                    doc.classification &&
+                    (stage === 'found' || stage === 'could_not_read' || stage === 'done');
                   return (
                     <>
-                      {/* New AI extraction is new processing - blocked without core
-                            processing consent, even though existing proposals below
-                            (already-completed processing output) remain reviewable
-                            (finding #23). */}
-                      {data.coreGranted ? (
-                        <RunAiExtractionButton applicantId={id} documentVersionId={versionId} />
+                      {showReadAgain ? (
+                        <ReadAgainButton applicantId={id} documentVersionId={versionId} />
                       ) : null}
+                      {/* Suggestions are shown whatever the AI switches say: the passport's
+                          machine-readable lines need no AI. Accepting still needs core processing
+                          consent (finding #23). */}
                       <DocumentFindings
                         applicantId={id}
                         canApprove={data.coreGranted}
                         proposals={proposalsForDoc.map((reading) =>
-                          findingViewModel(reading, data.confirmed),
+                          findingViewModel(
+                            reading,
+                            data.confirmed,
+                            data.reading?.sourceOfRun.get(reading.proposal.aiExtractionRunId),
+                          ),
                         )}
                       />
                     </>
@@ -634,26 +702,14 @@ export default async function ApplicantDocumentsPage({
                 })()}
                 {(() => {
                   if (!data.ocrConfigured || !data.ocrGranted || !doc.classification) return null;
-                  const versionId = doc.latestVersionId;
-                  if (!versionId) return null;
                   const latestRun = data.ocrRuns.get(doc.id);
-                  return (
-                    <>
-                      {/* Same core-processing gate as AI extraction above - new OCR
-                            is new processing, but an already-completed run's own
-                            result remains viewable regardless. */}
-                      {data.coreGranted ? (
-                        <RunOcrButton applicantId={id} documentVersionId={versionId} />
-                      ) : null}
-                      {latestRun ? (
-                        <OcrResultView
-                          text={latestRun.extractedText ?? ''}
-                          reviewIssues={latestRun.reviewIssues ?? []}
-                          usedFallback={latestRun.triggeredByRunId !== null}
-                        />
-                      ) : null}
-                    </>
-                  );
+                  return latestRun ? (
+                    <OcrResultView
+                      text={latestRun.extractedText ?? ''}
+                      reviewIssues={latestRun.reviewIssues ?? []}
+                      usedFallback={latestRun.triggeredByRunId !== null}
+                    />
+                  ) : null;
                 })()}
                 {(() => {
                   // Part 8 AI-01 item 4: same AI_EXTRACTION consent gate as
@@ -716,27 +772,6 @@ export default async function ApplicantDocumentsPage({
             </article>
           ) : (
             <>
-              {data.aiConfigured && !data.aiGranted ? (
-                <div className="card u-mb-150">
-                  <p className="card-body">
-                    Turn on <strong>Let AI Read Details from My Documents</strong> on{' '}
-                    <Link href="/app">Home</Link> to get automatic field suggestions from your
-                    documents - every suggestion still requires your explicit approval before it
-                    changes your profile.
-                  </p>
-                </div>
-              ) : null}
-
-              {data.ocrConfigured && !data.ocrGranted ? (
-                <div className="card u-mb-150">
-                  <p className="card-body">
-                    Turn on <strong>Let AI Read Text from My Scans</strong> on{' '}
-                    <Link href="/app">Home</Link> to read text from scanned or photographed
-                    documents. This sends the document's image, which shares more than text alone.
-                  </p>
-                </div>
-              ) : null}
-
               <article className="card u-mb-150">
                 <p className="card-kicker">Upload</p>
                 <h2 className="card-title">Add a Document</h2>

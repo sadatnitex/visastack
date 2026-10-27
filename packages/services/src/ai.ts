@@ -5,6 +5,7 @@ import { CATALOGUE_DOCUMENTS, isRepeatingFieldKey } from '@visastack/core/catalo
 import { and, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access';
 import { scopeFieldKeys } from './ai-field-scope';
+import { excludingDeterministicRuns } from './ai-run-kinds';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { CLASSIFIABLE_DOCUMENT_TYPES } from './classification';
@@ -346,7 +347,9 @@ export async function totalAiCostUnits(db: Db): Promise<number> {
     first(
       await db
         .select({ total: sql<string>`coalesce(sum(${schema.aiExtractionRuns.costUnits}), 0)` })
-        .from(schema.aiExtractionRuns),
+        .from(schema.aiExtractionRuns)
+        // A rule-based reading is not an AI call and costs nothing (S5, ADR 0019).
+        .where(excludingDeterministicRuns(schema.aiExtractionRuns.modelVersion)),
     ),
     first(
       await db
@@ -398,7 +401,12 @@ export async function documentAiCostUnits(db: Db, documentVersionId: string): Pr
       await db
         .select({ total: sql<string>`coalesce(sum(${schema.aiExtractionRuns.costUnits}), 0)` })
         .from(schema.aiExtractionRuns)
-        .where(eq(schema.aiExtractionRuns.documentVersionId, documentVersionId)),
+        .where(
+          and(
+            eq(schema.aiExtractionRuns.documentVersionId, documentVersionId),
+            excludingDeterministicRuns(schema.aiExtractionRuns.modelVersion),
+          ),
+        ),
     ),
     first(
       await db
@@ -463,6 +471,8 @@ export async function countAiExtractionAttempts(
       and(
         eq(schema.aiExtractionRuns.documentVersionId, documentVersionId),
         isNull(schema.aiExtractionRuns.servedFromCacheRunId),
+        // A rule-based reading (the passport's machine-readable lines) is not an AI attempt.
+        excludingDeterministicRuns(schema.aiExtractionRuns.modelVersion),
       ),
     );
   return rows.length;
@@ -3118,7 +3128,12 @@ export async function approveProposal(
  */
 export const CLEAR_PROPOSAL_CONFIDENCE = 85;
 
-const normaliseForMatch = (text: string): string => text.toLowerCase().replace(/\s+/g, ' ').trim();
+// The filler between names in a passport's machine-readable lines counts as a space.
+const normaliseForMatch = (text: string): string =>
+  text
+    .toLowerCase()
+    .replace(/[\s<]+/g, ' ')
+    .trim();
 
 export function isClearReading(
   proposal: {
