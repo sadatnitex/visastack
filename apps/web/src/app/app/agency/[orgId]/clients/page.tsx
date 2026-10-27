@@ -4,11 +4,7 @@ import Link from 'next/link';
 import { ReferenceCode } from '../../../../../components/reference-code';
 import { EmptyState } from '../../../../../components/ui';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
-import {
-  evidenceDocumentGroups,
-  evidenceFieldGroups,
-  fieldLabel,
-} from '../../../../../lib/master-profile';
+import { evidenceDocumentGroups, evidenceFieldGroups } from '../../../../../lib/master-profile';
 import { withSession } from '../../../../../lib/session';
 import { ClientInvitationForm } from '../client-invitation-form';
 import { ClientInvitationRevokeButton } from '../client-invitation-revoke-button';
@@ -21,6 +17,7 @@ import {
   loadVisibleCaseList,
 } from '../console-data';
 import { EVIDENCE_DECIDABLE_STATUSES, REQ_STATUS } from '../console-format';
+import { requestItemLabel } from '../do-next';
 import { EvidenceRequestActions } from '../evidence-request-actions';
 import { RequestEvidenceForm } from '../request-evidence-form';
 
@@ -160,10 +157,7 @@ export default async function AgencyClientsPage({
                 label: req.status,
                 tone: 'badge-neutral',
               };
-              const target =
-                req.kind === 'FIELD'
-                  ? ((req.fieldKey ? fieldLabel(req.fieldKey) : undefined) ?? req.fieldKey)
-                  : req.docType;
+              const target = requestItemLabel(req);
               return (
                 <div
                   className="row"
@@ -180,7 +174,7 @@ export default async function AgencyClientsPage({
                     }}
                   >
                     <span className="row-key">
-                      {req.kind === 'FIELD' ? 'Field' : 'Document'}: {target ?? '(unspecified)'}
+                      {req.kind === 'FIELD' ? 'Field' : 'Document'}: {target}
                     </span>
                     <span className={`badge ${rb.tone}`}>{rb.label}</span>
                   </div>

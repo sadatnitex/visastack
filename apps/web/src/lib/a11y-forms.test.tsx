@@ -110,6 +110,7 @@ const { DocumentUploader } = await import('../app/app/applicant/[id]/document-up
 const { SubmitResponseForm } = await import(
   '../app/app/applicant/[id]/evidence/submit-response-form'
 );
+const { AskAboutItemForm } = await import('../app/app/applicant/[id]/evidence/ask-about-item-form');
 const { CreateMissionForm } = await import(
   '../app/app/applicant/[id]/missions/create-mission-form'
 );
@@ -429,6 +430,33 @@ const DOCS: readonly Case[] = [
         ]}
       />
     ),
+  },
+  {
+    name: 'answer an evidence request that no longer waits on the person',
+    element: () => (
+      <SubmitResponseForm
+        applicantId="a1"
+        requestId="r4"
+        kind="DOCUMENT"
+        awaiting={false}
+        timeZone="Asia/Dhaka"
+        candidateFacts={[]}
+        candidateDocuments={[]}
+      />
+    ),
+  },
+  {
+    name: 'ask the agency a question about a request',
+    element: () => (
+      <AskAboutItemForm
+        applicantId="a1"
+        missionId="m1"
+        requestId="r1"
+        maxLength={500}
+        timeZone="Asia/Dhaka"
+      />
+    ),
+    repeated: true,
   },
   {
     name: 'answer an evidence request with nothing to offer',

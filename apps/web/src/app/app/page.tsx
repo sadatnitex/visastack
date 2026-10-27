@@ -597,6 +597,9 @@ export default async function AppPage({
                       </span>
                     </span>
                     <span className="attention-end">
+                      {row.waitingRequests > 0 ? (
+                        <StatusBadge tone="warning">Action Needed</StatusBadge>
+                      ) : null}
                       <span className="attention-chevron" aria-hidden="true">
                         ›
                       </span>
