@@ -1,8 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, gte, inArray, lte, or } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import type { SystemScope } from './access/principal';
 import { appendAuditEvent } from './audit';
+import { invoiceLedgerReader } from './billing';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import {
@@ -14,7 +15,7 @@ import {
 import { isMissingRelationError } from './missing-relation';
 import { isOrgAdmin } from './organizations';
 import type { PaymentPort, PaymentValidation } from './ports';
-import { RATE_LIMITS, checkRateLimit } from './rate-limit';
+import { RATE_LIMITS, checkRateLimit, checkRateLimits } from './rate-limit';
 
 /**
  * Online invoice payments through a hosted gateway (Small Commercial V1 S11, ADR 0020).
@@ -611,20 +612,27 @@ export async function startOnlinePayment(
       return err(serviceError('not_found', 'invoice not found'));
     }
 
-    const byPerson = await checkRateLimit(
+    // The person first, then the agency: once a person is refused they cannot spend the rest of
+    // the agency's allowance by trying again.
+    const limited = await checkRateLimits(
       db,
-      { subjectId: input.actorAccountId, action: 'payments.start', label: 'payment' },
-      RATE_LIMITS.PAYMENT_START,
+      [
+        {
+          input: { subjectId: input.actorAccountId, action: 'payments.start', label: 'payment' },
+          config: RATE_LIMITS.PAYMENT_START,
+        },
+        {
+          input: {
+            subjectId: invoice.organizationId,
+            action: 'payments.start_org',
+            label: 'payment',
+          },
+          config: RATE_LIMITS.PAYMENT_START_ORG,
+        },
+      ],
       now,
     );
-    const byAgency = await checkRateLimit(
-      db,
-      { subjectId: invoice.organizationId, action: 'payments.start_org', label: 'payment' },
-      RATE_LIMITS.PAYMENT_START_ORG,
-      now,
-    );
-    if (!byPerson.allowed) return err(serviceError('rate_limited', byPerson.reason));
-    if (!byAgency.allowed) return err(serviceError('rate_limited', byAgency.reason));
+    if (!limited.allowed) return err(serviceError('rate_limited', limited.reason));
 
     // The invoice row is locked while the balance, the recent-payment check and the new attempt
     // are settled, so two clicks arriving together cannot both start a payment.
@@ -796,6 +804,11 @@ export async function startOnlinePayment(
   }
 }
 
+/**
+ * The 15-second limit on opening a payment page (ADR 0020) is enforced here, not trusted to the
+ * adapter: the port is an interface, and a provider that never answers must still leave the
+ * attempt closed as failed. (The adapter's own socket timeout only frees its connection.)
+ */
 function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('timed out')), ms);
@@ -823,7 +836,13 @@ export interface ReconciliationSummary {
   readonly held: number;
   readonly closed: number;
   readonly stillPending: number;
+  /** Payments the gateway could not be asked about in this run. */
   readonly unavailable: number;
+  /**
+   * Payments the gateway confirmed that VisaStack did not count and that nobody has resolved yet
+   * (held for review). A number above zero is the signal that staff have something to look at.
+   */
+  readonly awaitingReview: number;
 }
 
 const EMPTY_SUMMARY: ReconciliationSummary = {
@@ -835,7 +854,21 @@ const EMPTY_SUMMARY: ReconciliationSummary = {
   closed: 0,
   stillPending: 0,
   unavailable: 0,
+  awaitingReview: 0,
 };
+
+async function countAwaitingReview(db: Db, provider: string): Promise<number> {
+  const rows = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.paymentAttempts)
+    .where(
+      and(
+        eq(schema.paymentAttempts.provider, provider),
+        eq(schema.paymentAttempts.status, 'HELD_FOR_REVIEW'),
+      ),
+    );
+  return rows[0]?.n ?? 0;
+}
 
 /** After this many gateway outages in a row a run stops asking, so a down gateway is not hammered. */
 const MAX_CONSECUTIVE_OUTAGES = 3;
@@ -889,21 +922,43 @@ export async function reconcilePaymentAttempts(
 
     const redirectedBefore = new Date(now.getTime() - RECONCILE_MIN_AGE_MS);
     const lateAfter = new Date(now.getTime() - LATE_SUCCESS_WINDOW_MS);
-    const due = await db
+    // Payments still open come first, oldest first. Closed-as-expired ones (which may yet turn out
+    // to have succeeded) take whatever room is left, least recently asked about first, so a pile
+    // of abandoned payments can never crowd out a live one and each is revisited in turn.
+    const open = await db
       .select()
       .from(attempts)
       .where(
         and(
           eq(attempts.provider, port.provider),
-          or(
-            and(eq(attempts.status, 'REDIRECTED'), lte(attempts.redirectedAt, redirectedBefore)),
-            and(eq(attempts.status, 'EXPIRED'), gte(attempts.redirectedAt, lateAfter)),
-          ),
+          eq(attempts.status, 'REDIRECTED'),
+          lte(attempts.redirectedAt, redirectedBefore),
         ),
       )
       .orderBy(attempts.redirectedAt)
       .limit(limit);
-    return await settleBatch(db, port, due, 'reconcile', now, { ...EMPTY_SUMMARY, closed });
+    const room = limit - open.length;
+    const expired =
+      room > 0
+        ? await db
+            .select()
+            .from(attempts)
+            .where(
+              and(
+                eq(attempts.provider, port.provider),
+                eq(attempts.status, 'EXPIRED'),
+                gte(attempts.redirectedAt, lateAfter),
+              ),
+            )
+            .orderBy(sql`${attempts.lastCheckedAt} asc nulls first`)
+            .limit(room)
+        : [];
+    const awaitingReview = await countAwaitingReview(db, port.provider);
+    return await settleBatch(db, port, [...open, ...expired], 'reconcile', now, {
+      ...EMPTY_SUMMARY,
+      closed,
+      awaitingReview,
+    });
   } catch (error) {
     if (isMissingRelationError(error)) return { ...EMPTY_SUMMARY, available: false };
     throw error;
@@ -917,53 +972,95 @@ async function settleBatch(
   source: SettlementSource,
   now: Date,
   start: ReconciliationSummary,
+  concurrent = false,
 ): Promise<ReconciliationSummary> {
-  let { checked, recorded, held, closed, stillPending, unavailable } = start;
-  let outagesInARow = 0;
-  for (const attempt of batch) {
-    const result = await settlePaymentAttempt(db, port, {
-      merchantTranId: attempt.merchantTranId,
-      source,
-      now,
-    });
-    checked++;
-    switch (result.code) {
-      case 'recorded':
-      case 'already_recorded':
-        recorded++;
-        break;
-      case 'held':
-        held++;
-        break;
-      case 'failed':
-      case 'cancelled':
-      case 'expired':
-        closed++;
-        break;
-      case 'unavailable':
-        unavailable++;
-        break;
-      default:
-        stillPending++;
+  const settleOne = (attempt: PaymentAttempt) =>
+    settlePaymentAttempt(db, port, { merchantTranId: attempt.merchantTranId, source, now });
+  const codes: SettlementCode[] = [];
+  if (concurrent) {
+    // A person is waiting (an invoice being opened): ask about the few payments together.
+    const results = await Promise.all(batch.map(settleOne));
+    codes.push(...results.map((r) => r.code));
+  } else {
+    let outagesInARow = 0;
+    for (const attempt of batch) {
+      const { code } = await settleOne(attempt);
+      codes.push(code);
+      outagesInARow = code === 'unavailable' ? outagesInARow + 1 : 0;
+      if (outagesInARow >= MAX_CONSECUTIVE_OUTAGES) break;
     }
-    outagesInARow = result.code === 'unavailable' ? outagesInARow + 1 : 0;
-    if (outagesInARow >= MAX_CONSECUTIVE_OUTAGES) break;
   }
-  return { ...start, checked, recorded, held, closed, stillPending, unavailable };
+  let { recorded, held, closed, stillPending, unavailable } = start;
+  for (const code of codes) {
+    if (code === 'recorded' || code === 'already_recorded') recorded++;
+    else if (code === 'held') held++;
+    else if (code === 'failed' || code === 'cancelled' || code === 'expired') closed++;
+    else if (code === 'unavailable') unavailable++;
+    else stillPending++;
+  }
+  return {
+    ...start,
+    checked: start.checked + codes.length,
+    recorded,
+    held,
+    closed,
+    stillPending,
+    unavailable,
+  };
+}
+
+/** Who is asking about the payments of one invoice: the agency's owners and admins, or platform staff. */
+export interface InvoicePaymentsReader {
+  readonly actorAccountId: string;
+  readonly organizationId: string;
+  readonly invoiceId: string;
+  readonly actorEmail?: string;
+  readonly bootstrapEmails?: readonly string[];
 }
 
 /**
- * Asks the gateway about the open payments of one invoice. For the moment someone opens the
- * invoice (the agency's owners and admins, or platform billing staff): the caller has already
- * checked who may look at it. `minAgeMs` defaults to the reconciliation age; pass 0 for an
- * explicit "Check Status". At most five payments are asked about.
+ * The reader's standing and the invoice, looked up inside the named organization only, so another
+ * agency's invoice looks exactly like a missing one (the same rule as `getInvoiceLedger`).
+ */
+async function readerFor(
+  db: Db,
+  input: InvoicePaymentsReader,
+): Promise<Result<{ reader: 'member' | 'platform'; invoiceId: string }, ServiceError>> {
+  const reader = await invoiceLedgerReader(db, input);
+  if (reader === null) {
+    return err(serviceError('forbidden', 'not allowed to see the payments of this invoice'));
+  }
+  const invoice = first(
+    await db
+      .select({ id: schema.invoices.id })
+      .from(schema.invoices)
+      .where(
+        and(
+          eq(schema.invoices.id, input.invoiceId),
+          eq(schema.invoices.organizationId, input.organizationId),
+        ),
+      )
+      .limit(1),
+  );
+  if (!invoice) return err(serviceError('not_found', 'invoice not found'));
+  return ok({ reader, invoiceId: invoice.id });
+}
+
+/**
+ * Asks the gateway about the open payments of one invoice, for the moment someone opens it (the
+ * agency's owners and admins, or platform billing staff; anyone else is refused). `minAgeMs`
+ * defaults to the reconciliation age; pass 0 for an explicit "Check Status". At most five
+ * payments are asked about, together, so opening the invoice waits no longer than one gateway
+ * call.
  */
 export async function refreshInvoicePaymentAttempts(
   db: Db,
   port: PaymentPort,
-  input: { readonly invoiceId: string; readonly minAgeMs?: number; readonly now?: Date },
-): Promise<ReconciliationSummary> {
-  if (!port.configured) return { ...EMPTY_SUMMARY, configured: false };
+  input: InvoicePaymentsReader & { readonly minAgeMs?: number; readonly now?: Date },
+): Promise<Result<ReconciliationSummary, ServiceError>> {
+  const allowed = await readerFor(db, input);
+  if (!allowed.ok) return allowed;
+  if (!port.configured) return ok({ ...EMPTY_SUMMARY, configured: false });
   const now = input.now ?? new Date();
   const minAge = Math.max(0, input.minAgeMs ?? RECONCILE_MIN_AGE_MS);
   const attempts = schema.paymentAttempts;
@@ -973,7 +1070,7 @@ export async function refreshInvoicePaymentAttempts(
       .from(attempts)
       .where(
         and(
-          eq(attempts.invoiceId, input.invoiceId),
+          eq(attempts.invoiceId, allowed.value.invoiceId),
           eq(attempts.provider, port.provider),
           inArray(attempts.status, ['REDIRECTED', 'EXPIRED']),
         ),
@@ -987,9 +1084,9 @@ export async function refreshInvoicePaymentAttempts(
         (a.status === 'REDIRECTED' ||
           now.getTime() - a.redirectedAt.getTime() <= LATE_SUCCESS_WINDOW_MS),
     );
-    return await settleBatch(db, port, eligible, 'refresh', now, EMPTY_SUMMARY);
+    return ok(await settleBatch(db, port, eligible, 'refresh', now, EMPTY_SUMMARY, true));
   } catch (error) {
-    if (isMissingRelationError(error)) return { ...EMPTY_SUMMARY, available: false };
+    if (isMissingRelationError(error)) return ok({ ...EMPTY_SUMMARY, available: false });
     throw error;
   }
 }
@@ -1040,20 +1137,57 @@ export async function getPaymentResultView(
   }
 }
 
-/** The payment attempts of one invoice, newest first (empty while the table is missing). The caller has checked who may look. */
-export async function listPaymentAttemptsForInvoice(
+/**
+ * One payment attempt as an invoice screen shows it. Gateway identifiers (session key, validation
+ * id, bank reference) and the person who started it are never part of it; the plain reason code
+ * and the VisaStack transaction id are shown to platform staff only.
+ */
+export interface PaymentAttemptView {
+  readonly id: string;
+  readonly status: PaymentAttemptStatus;
+  readonly amountMinorUnits: number;
+  readonly currency: string;
+  readonly createdAt: Date;
+  readonly redirectedAt: Date | null;
+  readonly recordedAt: Date | null;
+  readonly reasonCode: string | null;
+  readonly merchantTranId: string | null;
+}
+
+/**
+ * The payment attempts of one invoice, newest first. Readable by the owners and admins of the
+ * organization the invoice belongs to, or by a platform owner; an invoice is looked up inside the
+ * named organization only. Empty while the attempts table does not exist yet.
+ */
+export async function getInvoicePaymentAttempts(
   db: Db,
-  invoiceId: string,
-): Promise<PaymentAttempt[]> {
+  input: InvoicePaymentsReader,
+): Promise<Result<PaymentAttemptView[], ServiceError>> {
+  const allowed = await readerFor(db, input);
+  if (!allowed.ok) return allowed;
   try {
-    return await db
+    const rows = await db
       .select()
       .from(schema.paymentAttempts)
-      .where(eq(schema.paymentAttempts.invoiceId, invoiceId))
+      .where(eq(schema.paymentAttempts.invoiceId, allowed.value.invoiceId))
       .orderBy(desc(schema.paymentAttempts.createdAt))
       .limit(50);
+    const platform = allowed.value.reader === 'platform';
+    return ok(
+      rows.map((row) => ({
+        id: row.id,
+        status: row.status,
+        amountMinorUnits: row.amountMinorUnits,
+        currency: row.currency,
+        createdAt: row.createdAt,
+        redirectedAt: row.redirectedAt,
+        recordedAt: row.recordedAt,
+        reasonCode: platform ? row.reasonCode : null,
+        merchantTranId: platform ? row.merchantTranId : null,
+      })),
+    );
   } catch (error) {
-    if (isMissingRelationError(error)) return [];
+    if (isMissingRelationError(error)) return ok([]);
     throw error;
   }
 }

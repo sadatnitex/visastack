@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { systemScopeForTest } from './access/system-scope.test-support';
@@ -14,9 +14,9 @@ import {
   type PaymentAttempt,
   RECENT_ATTEMPT_MS,
   decideSettlement,
+  getInvoicePaymentAttempts,
   getPaymentResultView,
   isMerchantTranId,
-  listPaymentAttemptsForInvoice,
   newMerchantTranId,
   paymentResultState,
   reconcilePaymentAttempts,
@@ -125,7 +125,7 @@ describe('online invoice payments (S11)', () => {
     const invoiceId = await openInvoice(ref, amount);
     const started = await start(invoiceId);
     if (!isOk(started) || started.value.kind !== 'redirect') throw new Error('start');
-    const attempt = (await listPaymentAttemptsForInvoice(db, invoiceId))[0];
+    const attempt = (await attemptsOf(invoiceId))[0];
     if (!attempt) throw new Error('attempt');
     return { invoiceId, attempt, tran: attempt.merchantTranId };
   }
@@ -135,6 +135,12 @@ describe('online invoice payments (S11)', () => {
     (await db.select().from(schema.invoices).where(eq(schema.invoices.id, id)))[0];
   const attemptRow = async (id: string) =>
     (await db.select().from(schema.paymentAttempts).where(eq(schema.paymentAttempts.id, id)))[0];
+  const attemptsOf = (invoiceId: string) =>
+    db
+      .select()
+      .from(schema.paymentAttempts)
+      .where(eq(schema.paymentAttempts.invoiceId, invoiceId))
+      .orderBy(desc(schema.paymentAttempts.createdAt));
   const settle = (
     tran: string,
     valId: string | null = null,
@@ -293,7 +299,7 @@ describe('online invoice payments (S11)', () => {
       port.checkoutBehaviour = 'hang';
       const timedOut = await start(invoiceId, { timeoutMs: 20 });
       expect(isErr(timedOut) && timedOut.error.code).toBe('upstream_error');
-      const attempts = await listPaymentAttemptsForInvoice(db, invoiceId);
+      const attempts = await attemptsOf(invoiceId);
       expect(attempts).toHaveLength(2);
       expect(attempts.every((a) => a.status === 'FAILED' && a.reasonCode === 'start_failed')).toBe(
         true,
@@ -327,7 +333,7 @@ describe('online invoice payments (S11)', () => {
       const kinds = results.map((r) => (isOk(r) ? r.value.kind : 'error')).sort();
       expect(kinds).toEqual(['recent_attempt', 'redirect']);
       expect(port.checkouts).toHaveLength(1);
-      expect(await listPaymentAttemptsForInvoice(db, invoiceId)).toHaveLength(1);
+      expect(await attemptsOf(invoiceId)).toHaveLength(1);
       // An attempt that is still being opened (no gateway page yet) also counts as recent...
       const other = await openInvoice('INV-S11-INFLIGHT');
       await db.insert(schema.paymentAttempts).values({
@@ -352,6 +358,17 @@ describe('online invoice payments (S11)', () => {
       const result = await start(invoiceId);
       expect(isErr(result) && result.error.code).toBe('rate_limited');
       expect(port.checkouts).toHaveLength(0);
+    });
+
+    it('does not let a refused person spend the rest of the agency allowance', async () => {
+      const invoiceId = await openInvoice('INV-S11-LIMIT-ORG');
+      await exhaustRateLimit(db, org.ownerAccountId, 'payments.start', RATE_LIMITS.PAYMENT_START);
+      for (let i = 0; i < 5; i++) await start(invoiceId);
+      const buckets = await db
+        .select()
+        .from(schema.rateLimitBuckets)
+        .where(eq(schema.rateLimitBuckets.action, 'payments.start_org'));
+      expect(buckets).toHaveLength(0);
     });
 
     it('audits the start with ids and amounts only, never a credential or address', async () => {
@@ -835,6 +852,58 @@ describe('online invoice payments (S11)', () => {
       expect(port.queryCalls).toEqual([within.tran]);
     });
 
+    it('asks about live payments before abandoned expired ones, and rotates through the expired', async () => {
+      const abandoned = [];
+      for (let i = 0; i < 4; i++) {
+        const started = await startedAttempt(`INV-S11-REC-ABANDON-${i}`);
+        await db
+          .update(schema.paymentAttempts)
+          .set({
+            status: 'EXPIRED',
+            redirectedAt: new Date(Date.now() - (6 - i) * 60 * 60 * 1000),
+            lastCheckedAt: i < 2 ? new Date(Date.now() - 60 * 60 * 1000) : null,
+          })
+          .where(eq(schema.paymentAttempts.id, started.attempt.id));
+        port.end(started.tran, 'PENDING');
+        abandoned.push(started);
+      }
+      const live = await startedAttempt('INV-S11-REC-LIVE');
+      await backdate(live.attempt.id, new Date(Date.now() - 30 * 60 * 1000));
+      port.succeed(live.tran, 125000);
+      // Room for only two payments: the live one first, then the expired one never asked about.
+      const summary = await reconcilePaymentAttempts(
+        db,
+        systemScopeForTest('process-payment-reconciliation'),
+        port,
+        { limit: 2 },
+      );
+      expect(summary.recorded).toBe(1);
+      expect((await attemptRow(live.attempt.id))?.status).toBe('RECORDED');
+      expect(port.queryCalls).toHaveLength(2);
+      expect(port.queryCalls[0]).toBe(live.tran);
+      // The one asked about next is a never-asked expired payment, not the longest-waiting one.
+      const second = abandoned.find((a) => a.tran === port.queryCalls[1]);
+      const row = second ? await attemptRow(second.attempt.id) : undefined;
+      expect(row?.lastCheckedAt).not.toBeNull();
+      const neverAsked = abandoned.slice(2).map((a) => a.tran);
+      expect(neverAsked).toContain(port.queryCalls[1]);
+    });
+
+    it('reports how many confirmed payments are waiting for someone to look at them', async () => {
+      const a = await startedAttempt('INV-S11-REC-HELD-A');
+      const b = await startedAttempt('INV-S11-REC-HELD-B');
+      port.succeed(a.tran, 1);
+      await settle(a.tran, null);
+      port.succeed(b.tran, 2);
+      await settle(b.tran, null);
+      const summary = await reconcilePaymentAttempts(
+        db,
+        systemScopeForTest('process-payment-reconciliation'),
+        port,
+      );
+      expect(summary.awaitingReview).toBe(2);
+    });
+
     it('closes an attempt that never reached the gateway as failed after an hour', async () => {
       const invoiceId = await openInvoice('INV-S11-REC-STALE');
       const [attempt] = await db
@@ -889,14 +958,90 @@ describe('online invoice payments (S11)', () => {
       ).rejects.toThrow(/wrong job scope/);
     });
 
+    const admin = () => ({
+      actorAccountId: org.ownerAccountId,
+      organizationId: org.organizationId,
+    });
+
     it('settles the open payments of one invoice when it is opened, with an explicit check ignoring age', async () => {
       const { invoiceId, tran, attempt } = await startedAttempt('INV-S11-REFRESH');
       port.succeed(tran, 125000);
       // Too young for the ordinary refresh.
-      expect((await refreshInvoicePaymentAttempts(db, port, { invoiceId })).checked).toBe(0);
-      const checked = await refreshInvoicePaymentAttempts(db, port, { invoiceId, minAgeMs: 0 });
-      expect(checked).toMatchObject({ checked: 1, recorded: 1 });
+      const young = await refreshInvoicePaymentAttempts(db, port, { ...admin(), invoiceId });
+      expect(isOk(young) && young.value.checked).toBe(0);
+      const checked = await refreshInvoicePaymentAttempts(db, port, {
+        ...admin(),
+        invoiceId,
+        minAgeMs: 0,
+      });
+      expect(isOk(checked) && checked.value).toMatchObject({ checked: 1, recorded: 1 });
       expect((await attemptRow(attempt.id))?.status).toBe('RECORDED');
+    });
+
+    it('asks about several open payments together, so opening an invoice waits one gateway call', async () => {
+      const invoiceId = await openInvoice('INV-S11-REFRESH-MANY');
+      for (let i = 0; i < 3; i++) {
+        const started = await start(invoiceId, { startAnother: true });
+        expect(isOk(started)).toBe(true);
+      }
+      const rows = await attemptsOf(invoiceId);
+      for (const row of rows) port.end(row.merchantTranId, 'PENDING');
+      const result = await refreshInvoicePaymentAttempts(db, port, {
+        ...admin(),
+        invoiceId,
+        minAgeMs: 0,
+      });
+      expect(isOk(result) && result.value).toMatchObject({ checked: 3, stillPending: 3 });
+    });
+
+    it('lets only the agency owners and admins, or platform staff, refresh or list an invoice payments, inside its own agency', async () => {
+      const { invoiceId, attempt } = await startedAttempt('INV-S11-SCOPE');
+      const stranger = await provisionAccount(db, { email: 'stranger@elsewhere.com' });
+      if (!isOk(stranger)) throw new Error('stranger');
+      const otherOrg = await seedOrganization(db, 'other');
+      const base = { organizationId: org.organizationId, invoiceId };
+      // Not a member at all.
+      const refused = await refreshInvoicePaymentAttempts(db, port, {
+        ...base,
+        actorAccountId: stranger.value.id,
+      });
+      expect(isErr(refused) && refused.error.code).toBe('forbidden');
+      const hidden = await getInvoicePaymentAttempts(db, {
+        ...base,
+        actorAccountId: stranger.value.id,
+      });
+      expect(isErr(hidden) && hidden.error.code).toBe('forbidden');
+      // An admin of another agency, naming their own agency or this one: never this invoice.
+      for (const organizationId of [otherOrg.organizationId, org.organizationId]) {
+        const result = await getInvoicePaymentAttempts(db, {
+          actorAccountId: otherOrg.ownerAccountId,
+          organizationId,
+          invoiceId,
+        });
+        expect(isErr(result)).toBe(true);
+      }
+      expect(port.queryCalls).toHaveLength(0);
+      // The agency sees its attempt without gateway identifiers, reason codes or the transaction id.
+      const agency = await getInvoicePaymentAttempts(db, { ...admin(), invoiceId });
+      expect(isOk(agency) && agency.value).toHaveLength(1);
+      if (!isOk(agency)) return;
+      expect(agency.value[0]).toMatchObject({
+        id: attempt.id,
+        status: 'REDIRECTED',
+        amountMinorUnits: 125000,
+        reasonCode: null,
+        merchantTranId: null,
+      });
+      expect(JSON.stringify(agency.value)).not.toMatch(/Session|BANK|VAL|S1/);
+      // Platform staff also see the plain reason and the transaction id.
+      const staff = await getInvoicePaymentAttempts(db, {
+        actorAccountId: owner.accountId,
+        actorEmail: owner.actor.email,
+        bootstrapEmails: [],
+        organizationId: org.organizationId,
+        invoiceId,
+      });
+      expect(isOk(staff) && staff.value[0]?.merchantTranId).toBe(attempt.merchantTranId);
     });
   });
 
@@ -946,11 +1091,19 @@ describe('online invoice payments (S11)', () => {
           port,
         ),
       ).toMatchObject({ available: false });
-      expect(await refreshInvoicePaymentAttempts(db, port, { invoiceId })).toMatchObject({
-        available: false,
+      const refreshed = await refreshInvoicePaymentAttempts(db, port, {
+        actorAccountId: org.ownerAccountId,
+        organizationId: org.organizationId,
+        invoiceId,
       });
+      expect(isOk(refreshed) && refreshed.value).toMatchObject({ available: false });
       expect(await getPaymentResultView(db, newMerchantTranId())).toBeNull();
-      expect(await listPaymentAttemptsForInvoice(db, invoiceId)).toEqual([]);
+      const listed = await getInvoicePaymentAttempts(db, {
+        actorAccountId: org.ownerAccountId,
+        organizationId: org.organizationId,
+        invoiceId,
+      });
+      expect(isOk(listed) && listed.value).toEqual([]);
       expect(await ledger()).toHaveLength(0);
       expect(
         (

@@ -1,7 +1,12 @@
 import { PaymentProviderUnavailableError } from '@visastack/services';
 import { describe, expect, it } from 'vitest';
-import { NullPaymentPort, SslcommerzPaymentPort, normalizeSslcommerzRecord } from './payment';
-import { FakeSslcommerzGateway } from './payment-fake-gateway';
+import {
+  NullPaymentPort,
+  type PaymentProviderFailure,
+  SslcommerzPaymentPort,
+  normalizeSslcommerzRecord,
+} from './payment';
+import { FakeSslcommerzGateway } from './testing';
 
 const get = (record: Readonly<Record<string, string>> | null | undefined, name: string) =>
   record?.[name];
@@ -24,7 +29,13 @@ const checkout = (merchantTranId = TRAN, amountMinorUnits = 125050) => ({
   },
 });
 
-function build(options: { mode?: 'sandbox' | 'live'; fetch?: typeof fetch } = {}) {
+function build(
+  options: {
+    mode?: 'sandbox' | 'live';
+    fetch?: typeof fetch;
+    onFailure?: (event: PaymentProviderFailure) => void;
+  } = {},
+) {
   const gateway = new FakeSslcommerzGateway({ storeId: STORE_ID, storePassword: PASSWORD });
   const urls: string[] = [];
   const baseFetch = options.fetch ?? gateway.fetch;
@@ -39,6 +50,7 @@ function build(options: { mode?: 'sandbox' | 'live'; fetch?: typeof fetch } = {}
     fetch: recording,
     sessionTimeoutMs: 200,
     validationTimeoutMs: 200,
+    ...(options.onFailure ? { onFailure: options.onFailure } : {}),
   });
   return { port, gateway, urls };
 }
@@ -158,6 +170,72 @@ describe('SslcommerzPaymentPort', () => {
       const { port } = build({ fetch: gateway.fetch });
       const message = await messageOf(port.createCheckout(checkout()));
       expect(message).not.toContain(PASSWORD);
+    });
+  });
+
+  describe('operational visibility', () => {
+    it('tells the hook which call failed and why, in fixed words only', async () => {
+      const events: PaymentProviderFailure[] = [];
+      const down = build({ onFailure: (e) => events.push(e) });
+      down.gateway.setOutage(true);
+      await messageOf(down.port.createCheckout(checkout()));
+      await messageOf(down.port.validatePayment({ valId: 'VALID1234567' }));
+      await messageOf(down.port.queryByMerchantTranId(TRAN));
+      const wrongStore = build({
+        fetch: new FakeSslcommerzGateway({ storeId: STORE_ID, storePassword: 'other' }).fetch,
+        onFailure: (e) => events.push(e),
+      });
+      await messageOf(wrongStore.port.createCheckout(checkout()));
+      expect(events).toEqual([
+        { operation: 'checkout', reason: 'unreachable' },
+        { operation: 'validation', reason: 'unreachable' },
+        { operation: 'query', reason: 'unreachable' },
+        { operation: 'checkout', reason: 'not_accepted' },
+      ]);
+      expect(JSON.stringify(events)).not.toContain(PASSWORD);
+    });
+
+    it('is not changed by a hook that fails', async () => {
+      const down = build({
+        onFailure: () => {
+          throw new Error('hook broke');
+        },
+      });
+      down.gateway.setOutage(true);
+      const message = await messageOf(down.port.queryByMerchantTranId(TRAN));
+      expect(message).toBe('the payment provider could not be reached');
+    });
+  });
+
+  describe('reading a reply', () => {
+    it('cuts off a reply that keeps coming instead of buffering it, even without a declared size', async () => {
+      let cancelled = false;
+      let pushed = 0;
+      const endless: typeof fetch = async () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            pull(controller) {
+              pushed += 1;
+              controller.enqueue(new TextEncoder().encode('x'.repeat(65_536)));
+            },
+            cancel() {
+              cancelled = true;
+            },
+          }),
+        );
+      const events: PaymentProviderFailure[] = [];
+      const { port } = build({ fetch: endless, onFailure: (e) => events.push(e) });
+      await messageOf(port.queryByMerchantTranId(TRAN));
+      expect(events).toEqual([{ operation: 'query', reason: 'too_large' }]);
+      expect(cancelled).toBe(true);
+      expect(pushed).toBeLessThan(10);
+    });
+
+    it('refuses a declared oversize reply without reading it', async () => {
+      const declared: typeof fetch = async () =>
+        new Response('{}', { headers: { 'content-length': '5000000' } });
+      const { port } = build({ fetch: declared });
+      await messageOf(port.queryByMerchantTranId(TRAN));
     });
   });
 

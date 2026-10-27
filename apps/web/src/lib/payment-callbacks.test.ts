@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { FakeSslcommerzGateway, NullPaymentPort, SslcommerzPaymentPort } from '@visastack/adapters';
+import { NullPaymentPort, SslcommerzPaymentPort } from '@visastack/adapters';
+import { FakeSslcommerzGateway } from '@visastack/adapters/testing';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
 import {
@@ -9,11 +10,11 @@ import {
   createOrganization,
   getPlanByKey,
   grantPlatformRole,
-  listPaymentAttemptsForInvoice,
   provisionAccount,
   reviewOrganization,
   startOnlinePayment,
 } from '@visastack/services';
+import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -59,8 +60,10 @@ const formRequest = (
 const ipn = (fields: Record<string, string>, headers: Record<string, string> = {}) =>
   formRequest('/api/payments/sslcommerz/ipn', fields, headers);
 
+const attemptsOf = (forInvoice: string) =>
+  db.select().from(schema.paymentAttempts).where(eq(schema.paymentAttempts.invoiceId, forInvoice));
 const ledger = () => db.select().from(schema.invoicePayments);
-const attempt = async () => (await listPaymentAttemptsForInvoice(db, invoiceId))[0];
+const attempt = async () => (await attemptsOf(invoiceId))[0];
 const invoice = async () =>
   (await db.select().from(schema.invoices))[0] as typeof schema.invoices.$inferSelect;
 
@@ -226,7 +229,7 @@ describe('the gateway notification address', () => {
         deps(),
       );
       expect(response.status, name).toBe(200);
-      const row = (await listPaymentAttemptsForInvoice(db, fresh.invoiceId))[0];
+      const row = (await attemptsOf(fresh.invoiceId))[0];
       expect(row?.status, name).toBe('HELD_FOR_REVIEW');
     }
     expect(await ledger()).toHaveLength(0);
@@ -433,8 +436,11 @@ describe('the browser return address', () => {
       }),
       deps(),
     );
-    expect(limited.status).toBe(429);
+    // The payer sees the neutral page, never a bare error; nothing was settled.
+    expect(limited.status).toBe(303);
+    expect(new URL(limited.headers.get('location') ?? '').search).toBe('');
     expect(await ledger()).toHaveLength(0);
+    expect(gateway.requests.filter((r) => r.path.includes('validator'))).toHaveLength(0);
   });
 
   it('fails safe when payments are off or the database fails', async () => {
@@ -442,7 +448,9 @@ describe('the browser return address', () => {
       returnRequest({ tran_id: tran }),
       deps({ port: () => new NullPaymentPort() }),
     );
-    expect(off.status).toBe(503);
+    expect(off.status).toBe(303);
+    expect(new URL(off.headers.get('location') ?? '').pathname).toBe('/payments/result');
+    expect(new URL(off.headers.get('location') ?? '').search).toBe('');
     const dbDown = await handleBrowserReturn(returnRequest({ tran_id: tran }), {
       ...deps(),
       withDb: async () => {
@@ -496,6 +504,6 @@ async function freshAttempt(ref: string): Promise<{ invoiceId: string; tran: str
     urlFor: (kind, id) => `${BASE}/x/${kind}/${id}`,
   });
   if (!started.ok) throw new Error('start');
-  const attemptRow = (await listPaymentAttemptsForInvoice(db, row.id))[0];
+  const attemptRow = (await attemptsOf(row.id))[0];
   return { invoiceId: row.id, tran: attemptRow?.merchantTranId ?? '' };
 }

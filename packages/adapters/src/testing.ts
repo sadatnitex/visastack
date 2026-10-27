@@ -36,7 +36,7 @@ export interface FakeGatewayRequest {
 }
 
 function md5(value: string): string {
-  return createHash('md5').update(value, 'utf8').digest('hex');
+  return createHash('md5').update(value, 'utf8').digest('hex'); // supply-chain-allow: test double of the gateway's MD5 callback signature scheme.
 }
 
 export class FakeSslcommerzGateway {

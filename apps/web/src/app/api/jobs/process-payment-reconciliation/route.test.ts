@@ -55,3 +55,21 @@ it('does not read as finished when the run could not start or the table is missi
   mocks.reconcile.mockResolvedValue({ available: false, configured: true, checked: 0 });
   expect((await GET(request())).status).toBe(503);
 });
+it('reads as failed when every payment asked about could not be answered (a wrong store setting looks like this)', async () => {
+  mocks.reconcile.mockResolvedValue({
+    available: true,
+    configured: true,
+    checked: 3,
+    unavailable: 3,
+    recorded: 0,
+  });
+  expect((await GET(request())).status).toBe(503);
+  mocks.reconcile.mockResolvedValue({
+    available: true,
+    configured: true,
+    checked: 3,
+    unavailable: 1,
+    recorded: 2,
+  });
+  expect((await GET(request())).status).toBe(200);
+});

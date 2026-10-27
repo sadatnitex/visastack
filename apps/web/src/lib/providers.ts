@@ -281,7 +281,18 @@ export function createPaymentPort(): PaymentPort {
         'PAYMENT_PROVIDER=sslcommerz requires SSLCOMMERZ_STORE_ID, SSLCOMMERZ_STORE_PASSWORD and SSLCOMMERZ_MODE (sandbox or live)',
       );
     }
-    return new SslcommerzPaymentPort(config);
+    const observability = createObservabilityPort();
+    return new SslcommerzPaymentPort({
+      ...config,
+      // Fixed words only (which call, and why), so a wrong store setting or mode is visible in the
+      // logs instead of looking like an ordinary outage.
+      onFailure: (event) =>
+        observability.record({
+          name: 'payment_provider_failure',
+          severity: 'warning',
+          metadata: { operation: event.operation, reason: event.reason },
+        }),
+    });
   }
   return new NullPaymentPort();
 }

@@ -75,11 +75,11 @@ export default async function PaymentResultPage({
   const copy = view ? COPY[view.state] : GENERIC;
 
   return (
-    <section className="section container" style={{ maxWidth: '40rem' }}>
-      <h1 className="page-title">{copy.heading}</h1>
-      <p className="card-body">{copy.body}</p>
+    <section className="section container center">
+      <h1 className="section-title">{copy.heading}</h1>
+      <p className="section-sub">{copy.body}</p>
       {view ? (
-        <p className="card-body">
+        <p className="section-sub">
           Invoice {view.invoiceRef}: {view.currency} {formatMinorUnits(view.amountMinorUnits)}
         </p>
       ) : null}

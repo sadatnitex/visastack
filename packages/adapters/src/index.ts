@@ -105,14 +105,9 @@ export { NullEmailPort, ResendEmailPort, type ResendEmailPortOptions } from './e
 export { type SvixWebhookHeaders, verifyResendWebhookSignature } from './resend-webhook';
 
 export {
-  FakeSslcommerzGateway,
-  type FakeGatewayOptions,
-  type FakeGatewayTransaction,
-} from './payment-fake-gateway';
-
-export {
   NullPaymentPort,
   SslcommerzPaymentPort,
+  type PaymentProviderFailure,
   type SslcommerzMode,
   type SslcommerzPaymentPortOptions,
   normalizeSslcommerzRecord,

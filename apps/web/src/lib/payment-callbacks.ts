@@ -1,5 +1,4 @@
 import 'server-only';
-import { createHash } from 'node:crypto';
 import {
   type Db,
   type PaymentPort,
@@ -11,6 +10,7 @@ import {
   settlePaymentAttempt,
 } from '@visastack/services';
 import { resolveBaseUrl } from './base-url';
+import { clientAddressFrom, hashedSubject } from './client-address';
 import { signedPaymentResultPath } from './payment-result';
 import { withoutPaymentSecrets } from './payment-secrets';
 import { createPaymentPort } from './providers';
@@ -76,16 +76,14 @@ function formField(
   return form === null ? undefined : form[name];
 }
 
-function networkKey(request: Request): string {
-  const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
-  const address = forwarded || request.headers.get('x-real-ip')?.trim() || 'unknown';
-  return `net:${createHash('sha256').update(address.toLowerCase()).digest('hex').slice(0, 32)}`;
-}
-
 async function withinAddressLimit(db: Db, request: Request): Promise<boolean> {
   const decision = await checkRateLimit(
     db,
-    { subjectId: networkKey(request), action: 'payments.callback_ip', label: 'payment' },
+    {
+      subjectId: hashedSubject('net', clientAddressFrom(request.headers)),
+      action: 'payments.callback_ip',
+      label: 'payment',
+    },
     RATE_LIMITS.PAYMENT_CALLBACK_IP,
   );
   return decision.allowed;
@@ -137,6 +135,10 @@ export async function handleGatewayNotification(
         await recordRejectedPaymentCallback(db, { reason: 'unknown_transaction', source: 'ipn' });
       }
       if (failureToRetry(outcome)) {
+        // Fixed words only: which step stopped, never a reply, an address or a credential.
+        reportServerError('paymentNotification', new Error('payment could not be settled'), {
+          step: outcome.code,
+        });
         return new Response('Please try again later', {
           status: outcome.code === 'rate_limited' ? 429 : 503,
         });
@@ -151,11 +153,16 @@ export async function handleGatewayNotification(
   }
 }
 
-function redirectTo(deps: PaymentCallbackDeps, path: string): Response {
+function redirectResponse(location: URL): Response {
   return new Response(null, {
     status: 303,
-    headers: { location: new URL(path, deps.baseUrl()).toString(), 'cache-control': 'no-store' },
+    headers: { location: location.toString(), 'cache-control': 'no-store' },
   });
+}
+
+/** The result page without a payment: what anyone sees when there is nothing specific to show. */
+function redirectToGenericResult(deps: PaymentCallbackDeps): Response {
+  return redirectResponse(new URL('/payments/result', deps.baseUrl()));
 }
 
 /**
@@ -171,28 +178,34 @@ export async function handleBrowserReturn(
 ): Promise<Response> {
   try {
     const port = deps.port();
-    if (!port.configured) return new Response('Payments are not available', { status: 503 });
+    if (!port.configured) return redirectToGenericResult(deps);
     const url = new URL(request.url);
     const form = request.method === 'POST' ? await readCallbackForm(request) : null;
     const merchantTranId = formField(form, 'tran_id') ?? url.searchParams.get('t') ?? '';
-    if (!isMerchantTranId(merchantTranId)) return redirectTo(deps, '/payments/result');
+    if (!isMerchantTranId(merchantTranId)) return redirectToGenericResult(deps);
 
     return await deps.withDb(async (db) => {
-      if (!(await withinAddressLimit(db, request))) {
-        return new Response('Too many requests', { status: 429 });
-      }
+      // Too many returns from one address: the payer sees the neutral page, never a bare error.
+      if (!(await withinAddressLimit(db, request))) return redirectToGenericResult(deps);
       const outcome = await settlePaymentAttempt(db, port, {
         merchantTranId,
         valId: formField(form, 'val_id') ?? null,
         source: 'return',
       });
+      if (failureToRetry(outcome)) {
+        reportServerError('paymentReturn', new Error('payment could not be settled'), {
+          step: outcome.code,
+        });
+      }
       // Only a payment that exists gets a signed page; a made-up id gets the generic one.
-      if (outcome.code === 'unknown_transaction') return redirectTo(deps, '/payments/result');
+      if (outcome.code === 'unknown_transaction') return redirectToGenericResult(deps);
       const path = signedPaymentResultPath(merchantTranId);
-      return redirectTo(deps, path ?? '/payments/result');
+      return path === null
+        ? redirectToGenericResult(deps)
+        : redirectResponse(new URL(path, deps.baseUrl()));
     });
   } catch (error) {
     reportServerError('paymentReturn', withoutPaymentSecrets(error), { step: 'handling failed' });
-    return redirectTo(deps, '/payments/result');
+    return redirectToGenericResult(deps);
   }
 }

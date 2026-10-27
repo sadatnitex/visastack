@@ -288,11 +288,8 @@ describe('createEmailPort / createObservabilityPort / createPaymentPort', () => 
       configure();
       unsetEnv('SSLCOMMERZ_MODE');
       const { createPaymentPort } = await import('./providers');
-      try {
-        createPaymentPort();
-      } catch (error) {
-        expect((error as Error).message).not.toContain('synthetic-password');
-      }
+      expect(() => createPaymentPort()).toThrow(/requires/);
+      expect(() => createPaymentPort()).not.toThrow(/synthetic-password/);
     });
   });
 

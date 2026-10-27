@@ -61,7 +61,7 @@ const VALIDATION_PATH = '/validator/api/validationserverAPI.php';
 const QUERY_PATH = '/validator/api/merchantTransIDvalidationAPI.php';
 
 /** The longest reply read from the gateway; a larger one is treated as unreadable. */
-const MAX_REPLY_CHARS = 262_144;
+const MAX_REPLY_BYTES = 262_144;
 const SESSION_TIMEOUT_MS = 15_000;
 const VALIDATION_TIMEOUT_MS = 10_000;
 /** What the gateway's own validation ids look like: letters and digits only. */
@@ -79,13 +79,30 @@ export interface SslcommerzPaymentPortOptions {
   readonly fetch?: typeof fetch;
   readonly sessionTimeoutMs?: number;
   readonly validationTimeoutMs?: number;
+  /**
+   * Told, with fixed words only, each time the gateway could not be used, so a wrong store
+   * credential or a wrong mode shows up in the operational logs instead of looking like an
+   * ordinary outage. Never receives an address, a reply or a credential.
+   */
+  readonly onFailure?: (event: PaymentProviderFailure) => void;
+}
+
+export interface PaymentProviderFailure {
+  readonly operation: 'checkout' | 'validation' | 'query';
+  readonly reason:
+    | 'unreachable'
+    | 'error_status'
+    | 'unreadable'
+    | 'too_large'
+    | 'not_accepted'
+    | 'unexpected_address';
 }
 
 function md5Hex(value: string): string {
   // The gateway's own signature scheme is MD5 over the callback fields and the MD5 of the store
   // password, so MD5 is required here for interoperability. It only filters out noise: no money
   // is ever counted from a signature (the gateway's validation call decides).
-  return createHash('md5').update(value, 'utf8').digest('hex');
+  return createHash('md5').update(value, 'utf8').digest('hex'); // supply-chain-allow: the gateway's callback signature scheme is MD5; it is a first filter only and never proves a payment.
 }
 
 function text(value: unknown): string | null {
@@ -170,6 +187,7 @@ export class SslcommerzPaymentPort implements PaymentPort {
   readonly #fetch: typeof fetch;
   readonly #sessionTimeoutMs: number;
   readonly #validationTimeoutMs: number;
+  readonly #onFailure: ((event: PaymentProviderFailure) => void) | undefined;
 
   constructor(options: SslcommerzPaymentPortOptions) {
     const storeId = options.storeId.trim();
@@ -185,6 +203,21 @@ export class SslcommerzPaymentPort implements PaymentPort {
     this.#fetch = options.fetch ?? globalThis.fetch;
     this.#sessionTimeoutMs = options.sessionTimeoutMs ?? SESSION_TIMEOUT_MS;
     this.#validationTimeoutMs = options.validationTimeoutMs ?? VALIDATION_TIMEOUT_MS;
+    this.#onFailure = options.onFailure;
+  }
+
+  /** The one way a gateway problem leaves this class: a fixed-text error, after telling the hook. */
+  #unavailable(
+    operation: PaymentProviderFailure['operation'],
+    reason: PaymentProviderFailure['reason'],
+    message: string,
+  ): PaymentProviderUnavailableError {
+    try {
+      this.#onFailure?.({ operation, reason });
+    } catch {
+      // A broken hook must never change what the payment code sees.
+    }
+    return new PaymentProviderUnavailableError(message);
   }
 
   /** Hides the store password from any accidental serialization or logging of the port. */
@@ -217,6 +250,7 @@ export class SslcommerzPaymentPort implements PaymentPort {
       product_profile: 'non-physical-goods',
     });
     const reply = await this.#call(
+      'checkout',
       `${this.#base}${SESSION_PATH}`,
       { method: 'POST', body: form },
       this.#sessionTimeoutMs,
@@ -230,29 +264,43 @@ export class SslcommerzPaymentPort implements PaymentPort {
       !sessionKey ||
       !pageUrl
     ) {
-      throw new PaymentProviderUnavailableError('the payment provider refused to open a session');
+      throw this.#unavailable(
+        'checkout',
+        'not_accepted',
+        'the payment provider refused to open a session',
+      );
     }
     if (!this.#isGatewayPage(pageUrl)) {
-      throw new PaymentProviderUnavailableError('the payment provider sent an unexpected address');
+      throw this.#unavailable(
+        'checkout',
+        'unexpected_address',
+        'the payment provider sent an unexpected address',
+      );
     }
     return { redirectUrl: pageUrl, sessionKey };
   }
 
   async validatePayment(input: { readonly valId: string }): Promise<PaymentValidation> {
     if (!VAL_ID_PATTERN.test(input.valId)) return { status: 'INVALID', ...NOTHING_KNOWN };
-    const reply = await this.#authenticatedGet(VALIDATION_PATH, { val_id: input.valId });
+    const reply = await this.#authenticatedGet('validation', VALIDATION_PATH, {
+      val_id: input.valId,
+    });
     const body = asRecord(reply);
     if (!body || text(field(body, 'APIConnect'))?.toUpperCase() !== 'DONE') {
-      throw new PaymentProviderUnavailableError('the payment provider could not validate');
+      throw this.#unavailable(
+        'validation',
+        'not_accepted',
+        'the payment provider could not validate',
+      );
     }
     return normalizeSslcommerzRecord(body);
   }
 
   async queryByMerchantTranId(merchantTranId: string): Promise<PaymentValidation> {
-    const reply = await this.#authenticatedGet(QUERY_PATH, { tran_id: merchantTranId });
+    const reply = await this.#authenticatedGet('query', QUERY_PATH, { tran_id: merchantTranId });
     const body = asRecord(reply);
     if (!body || text(field(body, 'APIConnect'))?.toUpperCase() !== 'DONE') {
-      throw new PaymentProviderUnavailableError('the payment provider could not be queried');
+      throw this.#unavailable('query', 'not_accepted', 'the payment provider could not be queried');
     }
     const listed = field(body, 'element');
     const elements = Array.isArray(listed)
@@ -322,7 +370,11 @@ export class SslcommerzPaymentPort implements PaymentPort {
     }
   }
 
-  async #authenticatedGet(path: string, params: Record<string, string>): Promise<unknown> {
+  async #authenticatedGet(
+    operation: 'validation' | 'query',
+    path: string,
+    params: Record<string, string>,
+  ): Promise<unknown> {
     const query = new URLSearchParams({
       ...params,
       store_id: this.storeId,
@@ -330,6 +382,7 @@ export class SslcommerzPaymentPort implements PaymentPort {
       format: 'json',
     });
     return this.#call(
+      operation,
       `${this.#base}${path}?${query.toString()}`,
       { method: 'GET' },
       this.#validationTimeoutMs,
@@ -337,12 +390,18 @@ export class SslcommerzPaymentPort implements PaymentPort {
   }
 
   /**
-   * One call to a constant gateway address. The reply is read as JSON with a size cap; every
-   * failure (network, timeout, redirect, error status, oversize, not JSON) becomes the same fixed
+   * One call to a constant gateway address. The reply is read as JSON with a size cap that is
+   * enforced while reading (a reply that keeps coming is cut off, not buffered); every failure
+   * (network, timeout, redirect, error status, oversize, not JSON) becomes the same fixed
    * `PaymentProviderUnavailableError`, carrying neither the address (which can hold the store
    * password) nor the reply nor the underlying error.
    */
-  async #call(url: string, init: RequestInit, timeoutMs: number): Promise<unknown> {
+  async #call(
+    operation: PaymentProviderFailure['operation'],
+    url: string,
+    init: RequestInit,
+    timeoutMs: number,
+  ): Promise<unknown> {
     let response: Response;
     try {
       response = await this.#fetch(url, {
@@ -352,24 +411,65 @@ export class SslcommerzPaymentPort implements PaymentPort {
         signal: AbortSignal.timeout(timeoutMs),
       });
     } catch {
-      throw new PaymentProviderUnavailableError('the payment provider could not be reached');
+      throw this.#unavailable(
+        operation,
+        'unreachable',
+        'the payment provider could not be reached',
+      );
     }
     if (!response.ok) {
-      throw new PaymentProviderUnavailableError('the payment provider returned an error');
+      throw this.#unavailable(operation, 'error_status', 'the payment provider returned an error');
+    }
+    const declared = Number(response.headers.get('content-length') ?? '0');
+    if (Number.isFinite(declared) && declared > MAX_REPLY_BYTES) {
+      throw this.#unavailable(operation, 'too_large', 'the payment provider reply was too large');
     }
     let raw: string;
     try {
-      raw = await response.text();
-    } catch {
-      throw new PaymentProviderUnavailableError('the payment provider reply could not be read');
-    }
-    if (raw.length > MAX_REPLY_CHARS) {
-      throw new PaymentProviderUnavailableError('the payment provider reply was too large');
+      raw = await readCapped(response, MAX_REPLY_BYTES);
+    } catch (error) {
+      throw error instanceof ReplyTooLarge
+        ? this.#unavailable(operation, 'too_large', 'the payment provider reply was too large')
+        : this.#unavailable(
+            operation,
+            'unreadable',
+            'the payment provider reply could not be read',
+          );
     }
     try {
       return JSON.parse(raw) as unknown;
     } catch {
-      throw new PaymentProviderUnavailableError('the payment provider reply was not readable');
+      throw this.#unavailable(
+        operation,
+        'unreadable',
+        'the payment provider reply was not readable',
+      );
     }
   }
+}
+
+class ReplyTooLarge extends Error {}
+
+/** The reply text, reading no more than `maxBytes` of it: the read stops and is cancelled at the limit. */
+async function readCapped(response: Response, maxBytes: number): Promise<string> {
+  if (!response.body) {
+    const whole = await response.text();
+    if (whole.length > maxBytes) throw new ReplyTooLarge();
+    return whole;
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let received = 0;
+  let text = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    received += value.byteLength;
+    if (received > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw new ReplyTooLarge();
+    }
+    text += decoder.decode(value, { stream: true });
+  }
+  return text + decoder.decode();
 }

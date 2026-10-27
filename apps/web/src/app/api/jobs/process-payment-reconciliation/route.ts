@@ -22,6 +22,11 @@ export async function GET(request: Request): Promise<Response> {
     systemPrincipal('process-payment-reconciliation'),
   );
   // A run that could not start, or found the table missing, must not read as "nothing to do".
-  const stopped = 'error' in result || !result.available;
+  // Also when every payment asked about could not be answered: a wrong store setting or a wrong
+  // mode then shows as a failed run instead of a quiet 200.
+  const stopped =
+    'error' in result ||
+    !result.available ||
+    (result.checked > 0 && result.unavailable === result.checked);
   return Response.json(result, { status: stopped ? 503 : 200 });
 }
