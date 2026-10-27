@@ -1493,6 +1493,9 @@ test.describe('country checklist on the landing page (Growth G2)', () => {
         clientWidth: document.documentElement.clientWidth,
       }));
       expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
+      // The checklist items fade in; scan only once they have finished, so no colour is measured
+      // half way through the reveal.
+      await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
       const results = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
         .include('.country-start')
