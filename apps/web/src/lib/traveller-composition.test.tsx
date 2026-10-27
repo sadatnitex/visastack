@@ -173,7 +173,7 @@ describe('traveller composition and independent record guards', () => {
     ]);
     const html = renderToStaticMarkup(await profile(params));
     for (const text of [
-      'Profile completion',
+      'Essentials Added',
       'Profile Health',
       'Latest Changes',
       'Conflicted',
@@ -184,6 +184,65 @@ describe('traveller composition and independent record guards', () => {
       expect(html).toContain(text);
     expect(html).not.toContain('Email verified');
     expect(html).toContain('/app/applicant/person/history');
+  });
+  it('leads a new profile with the essentials, never the size of the whole profile', async () => {
+    const html = renderToStaticMarkup(await profile(params));
+    const banner = html.slice(html.indexOf('profile-completeness'), html.indexOf('split-main'));
+    expect(banner).toContain('Essentials Added');
+    expect(banner).toContain('<strong>0 of 12</strong>');
+    expect(banner).toContain('The details most visa forms ask for first.');
+    expect(banner).not.toContain('Full profile');
+    expect(banner.replace('style="width:0%"', '')).not.toContain('%');
+  });
+  it('shows the full profile figure in the banner once every essential is added', async () => {
+    const saved = (fieldKey: string, repeatingRecordKey: string | null = null) => ({
+      factId: `fact-${fieldKey}`,
+      fieldKey,
+      repeatingRecordKey,
+      value: 'Synthetic',
+      status: 'DECLARED',
+      updatedAt: '2026-10-10T12:00:00Z',
+      method: 'MANUAL',
+    });
+    const { PROFILE_ESSENTIALS } = await import('./profile-essentials');
+    service.listApplicantProfile.mockResolvedValue([
+      ...PROFILE_ESSENTIALS.filter((e) => e.kind === 'field').map((e) => saved(e.key)),
+      saved('address_line', 'home'),
+    ]);
+    const html = renderToStaticMarkup(await profile(params));
+    const banner = html.slice(html.indexOf('profile-completeness'), html.indexOf('split-main'));
+    expect(banner).toContain('<strong>12 of 12</strong>');
+    expect(banner).toMatch(/Full profile: \d+% of the details in your \d+ open sections\./);
+  });
+  it('points a new person at the essentials on the overview, then at the full profile', async () => {
+    let html = renderToStaticMarkup(await overview(params));
+    expect(html).toContain('Add Your Essentials');
+    expect(html).toContain('0 of 12 essentials added: the details most visa forms ask for first.');
+    expect(html).toContain('Essentials added');
+    expect(html).not.toContain('Details with values in open sections');
+    expect(html).not.toContain('Continue Your Profile');
+
+    service.getProfileSectionState.mockResolvedValue({
+      activated: new Set(),
+      notApplicable: new Set([
+        'given_name',
+        'family_name',
+        'date_of_birth',
+        'sex',
+        'place_of_birth',
+        'nationality',
+        'passport_number',
+        'passport_issue_date',
+        'passport_expiry',
+        'email',
+        'phone',
+      ]),
+      noneDeclared: new Set(['address']),
+    });
+    html = renderToStaticMarkup(await overview(params));
+    expect(html).not.toContain('Add Your Essentials');
+    expect(html).toContain('Continue Your Profile');
+    expect(html).toContain('Details with values in open sections');
   });
   it('keeps permission review reachable while editing is disabled', async () => {
     service.hasConsent.mockResolvedValue(false);

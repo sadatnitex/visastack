@@ -51,7 +51,11 @@ export interface CompletionResult {
 const hasValue = (values: Readonly<Record<string, readonly string[]>>, key: string): boolean =>
   (values[key]?.length ?? 0) > 0;
 
-function isAnswered(field: ModuleField, input: CompletionInput): boolean {
+/**
+ * Whether one field counts as answered, by the rules above. Exported so a screen that singles out a
+ * few fields (the profile's Essentials First list) judges them exactly as completion does.
+ */
+export function isFieldAnswered(field: ModuleField, input: CompletionInput): boolean {
   if (input.notApplicable?.has(field.key)) return true;
   if (field.group && input.noneDeclared?.has(field.group)) return true;
   const own = input.values[field.key] ?? [];
@@ -93,7 +97,7 @@ export function computeCompletion(input: CompletionInput): CompletionResult {
           : 'locked';
     const open = reason !== 'locked';
     const counted = fields.filter((field) => !field.role);
-    const done = open ? counted.filter((field) => isAnswered(field, input)).length : 0;
+    const done = open ? counted.filter((field) => isFieldAnswered(field, input)).length : 0;
     modules.push({
       key: module.key,
       label: module.label,

@@ -8857,3 +8857,58 @@ summary.visa-photo-title {
     break-inside: avoid;
   }
 }
+
+/* WP-UXC Essentials First on the profile: a short starter list with its own progress */
+.profile-essentials {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+.profile-essentials-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem 1rem;
+}
+.profile-essentials-head h3,
+.profile-essentials-head p {
+  margin: 0;
+}
+.profile-essentials-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.profile-essential {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--hairline);
+  min-width: 0;
+}
+.profile-essential-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  font-size: var(--text-small);
+}
+.profile-essentials-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+.profile-essentials-actions .btn {
+  min-height: 44px;
+}

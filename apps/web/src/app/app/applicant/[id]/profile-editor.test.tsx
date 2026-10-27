@@ -6,6 +6,7 @@ import {
   FIXTURE_LOCKED_SECTION,
   FIXTURE_OPEN_SECTION,
   FIXTURE_PASSPORT_SECTION,
+  fixtureEssentials,
   fixtureView,
 } from '../../../../lib/master-profile-fixture';
 import type { MasterProfileView } from '../../../../lib/master-profile-types';
@@ -31,6 +32,7 @@ function render(
     values?: Values;
     repeatingValues?: Record<string, Record<string, Values[string]>>;
     view?: MasterProfileView;
+    startWithAll?: boolean;
   } = {},
 ) {
   act(() =>
@@ -41,6 +43,7 @@ function render(
         repeatingValues={options.repeatingValues ?? {}}
         assurance={new Map()}
         view={options.view ?? fixtureView()}
+        startWithAll={options.startWithAll ?? false}
       />,
     ),
   );
@@ -561,5 +564,122 @@ describe('the list of profile areas', () => {
     typeInto(search, 'passport');
     expect(container.querySelector('.profile-area-rail')?.getAttribute('role')).toBeNull();
     expect(container.querySelector('.profile-area-rail button[role="tab"]')).toBeNull();
+  });
+});
+
+describe('Essentials First (owner finding 5)', () => {
+  function arrive(view: MasterProfileView = fixtureView({ essentials: fixtureEssentials() })) {
+    act(() => root.unmount());
+    root = createRoot(container);
+    render({ view });
+  }
+  const toggle = () => {
+    const button = [...container.querySelectorAll('button')].find((node) =>
+      ['Show All Sections', 'Show Essentials Only'].includes(node.textContent ?? ''),
+    );
+    if (!button) throw new Error('Missing the Show All Sections control');
+    return button;
+  };
+  const badges = () =>
+    [...container.querySelectorAll('.profile-essential-status .badge')].map(
+      (node) => node.textContent,
+    );
+
+  afterEach(() => {
+    window.location.hash = '';
+  });
+
+  it('opens on the short list with its own progress, before any section or overall count', () => {
+    arrive();
+    const text = container.textContent ?? '';
+    expect(container.querySelector('.profile-essentials h3')?.textContent).toBe('Essentials First');
+    // The count and bar sit once, in the page banner above this block.
+    expect(text).not.toContain('essentials added');
+    expect(badges()).toEqual(['Not Added Yet', 'Added', 'Not Added Yet']);
+    // Each essential is edited right here: a single detail, and the home address record.
+    expect(container.querySelector('#f-given_name')).not.toBeNull();
+    expect(text).toContain('Home Address');
+    expect(text).toContain('Add Address');
+    // Everything else waits behind the control, including the full count and the area list.
+    expect(container.querySelector('[role="tablist"]')).toBeNull();
+    expect(container.querySelector('#profile-search')).toBeNull();
+    expect(text).not.toContain('Full profile');
+    expect(text).not.toContain('What is this profile for?');
+    expect(toggle().textContent).toBe('Show All Sections');
+  });
+
+  it('shows every section and the full count behind Show All Sections, and comes back', () => {
+    arrive();
+    act(() => toggle().click());
+    const text = container.textContent ?? '';
+    expect(container.querySelector('[role="tablist"]')).not.toBeNull();
+    expect(container.querySelector('#profile-search')).not.toBeNull();
+    expect(text).toContain(
+      'Full profile: 0 of 5 details in your 2 open sections have values (0%).',
+    );
+    // The list itself steps aside, so no detail is drawn twice (one form, one id per detail).
+    expect(container.querySelector('.profile-essentials-list')).toBeNull();
+    expect(container.querySelectorAll('#f-given_name')).toHaveLength(1);
+    expect(toggle().textContent).toBe('Show Essentials Only');
+    act(() => toggle().click());
+    expect(container.querySelector('[role="tablist"]')).toBeNull();
+    expect(container.querySelectorAll('#f-given_name')).toHaveLength(1);
+  });
+
+  it('opens on all sections once every essential is added, with the list one click away', () => {
+    arrive(fixtureView({ essentials: fixtureEssentials({ givenName: true, address: true }) }));
+    expect(container.textContent).toContain('Every essential is added.');
+    expect(container.querySelector('[role="tablist"]')).not.toBeNull();
+    expect(toggle().textContent).toBe('Show Essentials Only');
+  });
+
+  it('opens all sections when the person asked for purpose suggestions or a link asks for all', () => {
+    arrive(fixtureView({ essentials: fixtureEssentials(), suggestedFamily: 'study' }));
+    expect(container.querySelector('[role="tablist"]')).not.toBeNull();
+    act(() => root.unmount());
+    root = createRoot(container);
+    render({ view: fixtureView({ essentials: fixtureEssentials() }), startWithAll: true });
+    expect(container.querySelector('[role="tablist"]')).not.toBeNull();
+  });
+
+  it('opens all sections at once when a link names one section', () => {
+    window.location.hash = '#section-passport';
+    arrive();
+    expect(tab('Travel Documents').getAttribute('aria-selected')).toBe('true');
+    expect(container.querySelector('#section-passport')).not.toBeNull();
+  });
+
+  it('sends Add Information to the first essential still to add', () => {
+    arrive();
+    const link = document.createElement('a');
+    link.href = '#profile-editor';
+    document.body.append(link);
+    try {
+      act(() => link.click());
+      expect(document.activeElement?.id).toBe('f-given_name');
+    } finally {
+      link.remove();
+    }
+  });
+
+  it('says plainly when an essential was marked as not applying, and lets it be undone', () => {
+    const essentials = fixtureEssentials();
+    arrive(
+      fixtureView({
+        essentials: {
+          ...essentials,
+          answered: 2,
+          items: essentials.items.map((item) =>
+            item.key === 'given_name' ? { ...item, answered: true, notApplicable: true } : item,
+          ),
+        },
+      }),
+    );
+    expect(badges()[0]).toBe('Does Not Apply');
+    expect(container.textContent).toContain('Given Name: marked as not applying to you.');
+    const undo = [...container.querySelectorAll('.profile-essential label')].find((node) =>
+      node.textContent?.includes('This does not apply to me'),
+    );
+    expect(undo?.querySelector<HTMLInputElement>('input')?.checked).toBe(true);
   });
 });

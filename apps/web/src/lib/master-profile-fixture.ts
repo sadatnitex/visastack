@@ -2,6 +2,7 @@ import type {
   ChoiceGroup,
   EditorFieldDef,
   EditorSection,
+  EssentialsView,
   MasterProfileView,
 } from './master-profile-types';
 
@@ -101,8 +102,59 @@ export const FIXTURE_PASSPORT_SECTION: EditorSection = {
   otherItem: otherItem('universal'),
 };
 
+/**
+ * A short Essentials First list: two single details (one added) and the home address record. The
+ * default fixture view has no essentials list, so tests of the full sections see them at once.
+ */
+export function fixtureEssentials(
+  overrides: { readonly givenName?: boolean; readonly address?: boolean } = {},
+): EssentialsView {
+  const items = [
+    {
+      key: 'given_name',
+      label: 'Given Name',
+      hint: 'As printed on your passport.',
+      sectionKey: 'identity_basics',
+      answered: overrides.givenName ?? false,
+      notApplicable: false,
+      field: field('given_name', 'Given Name'),
+    },
+    {
+      key: 'passport_number',
+      label: 'Passport Number',
+      sectionKey: 'passport',
+      answered: true,
+      notApplicable: false,
+      field: field('passport_number', 'Passport Number', { sensitivity: 'RESTRICTED' }),
+    },
+    {
+      key: 'address',
+      label: 'Home Address',
+      hint: 'Where you live now. Earlier addresses can wait.',
+      sectionKey: 'addresses',
+      answered: overrides.address ?? false,
+      notApplicable: false,
+      group: {
+        key: 'address',
+        label: 'Address',
+        noneDeclared: false,
+        fields: [field('address_line', 'Address'), field('address_city', 'City')],
+      },
+    },
+  ];
+  const answered = items.filter((item) => item.answered).length;
+  return {
+    items,
+    answered,
+    total: items.length,
+    done: answered >= items.length,
+    percent: items.length === 0 ? 100 : Math.round((100 * answered) / items.length),
+  };
+}
+
 export function fixtureView(overrides: Partial<MasterProfileView> = {}): MasterProfileView {
   return {
+    essentials: { items: [], answered: 0, total: 0, done: true, percent: 100 },
     percent: 0,
     answered: 0,
     total: 5,
