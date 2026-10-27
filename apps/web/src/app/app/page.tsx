@@ -3,6 +3,7 @@ import { type MessageKey, createTranslator } from '@visastack/i18n';
 import {
   type AttentionItem,
   type Db,
+  type DeadlineEntry,
   type NeedsAttention,
   accountPrincipal,
   computeReadiness,
@@ -13,12 +14,14 @@ import {
   listMembershipsForAccount,
   listNeedsAttention,
   rankAttentionItems,
+  rankDeadlines,
   requireAccess,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { CaseReadinessRing, type ReadinessCounts } from '../../components/case-readiness-ring';
+import { DeadlineClock } from '../../components/deadline-clock';
 import { PROGRESS_IN_CASE_LINE } from '../../components/progress-ring';
 import { Checklist, Disclosure, EmptyState, NextStepCard, StatusBadge } from '../../components/ui';
 import { holdsPlatformRole } from '../../lib/admin';
@@ -38,6 +41,7 @@ import { withSession } from '../../lib/session';
 import { requestItemLabel } from './agency/[orgId]/do-next';
 import { ConsentButton } from './consent-button';
 import { confirmFirstRunCountryAction } from './country-actions';
+import { CLOCK_HOME_LIMIT, deadlineLines, readDeadlineEntries } from './deadline-clock-data';
 import {
   FirstRunConsent,
   FirstRunCountry,
@@ -87,16 +91,20 @@ async function loadBasics(db: Db, accountId: string, email: string) {
 type Basics = Awaited<ReturnType<typeof loadBasics>>;
 
 /**
- * Needs Attention for one of the person's own applicants, through the central access gate as the
- * owner (`purpose: 'self'`). Anything else, or a failed read, gives null: Home then shows that
- * person without attention items rather than failing the whole page.
+ * What Home reads for one of the person's own applicants, through the central access gate as the
+ * owner (`purpose: 'self'`), with one proof for both reads: Needs Attention and the deadline clock
+ * (Growth G5). A refusal or a failed read gives null for that part: Home then shows that person
+ * without attention items, or the clock as unavailable, rather than failing the whole page.
  */
-async function loadAttention(
+async function loadPersonReads(
   db: Db,
   accountId: string,
   applicantId: string,
   now: Date,
-): Promise<NeedsAttention | null> {
+): Promise<{
+  readonly attention: NeedsAttention | null;
+  readonly deadlines: readonly DeadlineEntry[] | null;
+}> {
   const access = await requireAccess(
     db,
     accountPrincipal(accountId),
@@ -104,9 +112,14 @@ async function loadAttention(
     { applicantId },
     { purpose: 'self' },
   );
-  if (!access.ok || access.value.actor.kind !== 'applicant_owner') return null;
-  const listed = await listNeedsAttention(access.value, { now });
-  return listed.ok ? listed.value : null;
+  if (!access.ok || access.value.actor.kind !== 'applicant_owner') {
+    return { attention: null, deadlines: null };
+  }
+  const [listed, deadlines] = await Promise.all([
+    listNeedsAttention(access.value, { now }),
+    readDeadlineEntries(access.value, now, CLOCK_HOME_LIMIT),
+  ]);
+  return { attention: listed.ok ? listed.value : null, deadlines };
 }
 
 /** Sharing invitations waiting for an answer: one account-level item in the same shape. */
@@ -151,14 +164,15 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
       )
       .slice(0, HOME_APPLICANT_LIMIT)
       .map(async (applicant) => {
-        const [docs, attention] = await Promise.all([
+        const [docs, { attention, deadlines }] = await Promise.all([
           listDocuments(db, accountId, applicant.id),
-          loadAttention(db, accountId, applicant.id, now),
+          loadPersonReads(db, accountId, applicant.id, now),
         ]);
         return {
           applicant,
           documentCount: docs.ok ? docs.value.length : 0,
           attention,
+          deadlines,
           itemCount: attention?.items.length ?? 0,
           activeMissions: attention?.activeCaseCount ?? 0,
           // Open or sent back for a fix (ADR 0015 section 5), so a replacement request counts.
@@ -191,11 +205,21 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
     ...(sharing ? [sharing] : []),
   ]);
 
+  // The next dates across every person, soonest first (Growth G5). A person whose dates could not
+  // be read is left out of the merge and said so; if nobody's could be read, none are shown.
+  const readable = perApplicant.flatMap((row) => (row.deadlines === null ? [] : [row.deadlines]));
+  const clock = {
+    entries: rankDeadlines(readable.flat(), CLOCK_HOME_LIMIT),
+    unreadablePeople: perApplicant.length - readable.length,
+    readable: perApplicant.length === 0 || readable.length > 0,
+  };
+
   return {
     email,
     consents,
     applicants,
     perApplicant,
+    clock,
     readinessByCase,
     unreadableCases,
     attention,
@@ -522,6 +546,17 @@ export default async function AppPage({
     })),
   );
 
+  const comingUpNote = [
+    data.clock.readable && data.clock.unreadablePeople > 0
+      ? `Dates for ${plural(data.clock.unreadablePeople, 'person', 'people')} could not be read.`
+      : null,
+    peopleLeftOut
+      ? `Shows the first ${data.perApplicant.length} of ${data.applicants.length} people.`
+      : null,
+  ]
+    .filter((line): line is string => line !== null)
+    .join(' ');
+
   return (
     <section className="section container">
       <div className="u-mb-150">
@@ -585,6 +620,33 @@ export default async function AppPage({
             </p>
           ) : null}
         </section>
+      ) : null}
+
+      {coreGranted && firstApplicant ? (
+        <div className="u-mb-150">
+          <DeadlineClock
+            heading="Coming Up"
+            headingId="home-coming-up-heading"
+            lines={
+              data.clock.readable
+                ? deadlineLines(data.clock.entries, { showPerson: data.perApplicant.length > 1 })
+                : null
+            }
+            note={comingUpNote}
+            addAction={{
+              href: `/app/applicant/${firstApplicant.applicant.id}/documents`,
+              label: 'Add a Document',
+            }}
+            {...(data.perApplicant.length === 1
+              ? {
+                  more: {
+                    href: `/app/applicant/${firstApplicant.applicant.id}/expiry`,
+                    label: 'See All Dates',
+                  },
+                }
+              : {})}
+          />
+        </div>
       ) : null}
 
       {coreGranted ? (

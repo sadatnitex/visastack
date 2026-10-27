@@ -331,7 +331,8 @@ describe('the style block (WP-G2)', () => {
     expect(css.split('/* WP-G2 ').length).toBe(2);
     expect(start).toBeGreaterThan(0);
     expect(end).toBeGreaterThan(start);
-    expect(css.slice(end, end + 11)).toBe('/* WP-REF v');
+    // Other blocks may sit between this one and WP-REF; only the order matters.
+    expect(start).toBeLessThan(css.indexOf('/* WP-REF'));
   });
 
   it('reveals items only when the device allows motion, and never loops', () => {

@@ -5,6 +5,7 @@ import { GrantForm } from '../../src/app/app/applicant/[id]/sharing/grant-form';
 import { SubNav } from '../../src/app/app/subnav';
 import { WorkspaceShell } from '../../src/app/app/workspace-shell';
 import { CaseReadinessRing } from '../../src/components/case-readiness-ring';
+import { DeadlineClock, type DeadlineLine } from '../../src/components/deadline-clock';
 import {
   type DocumentReviewEntry,
   DocumentReviewPanel,
@@ -123,6 +124,76 @@ function Rings() {
       </div>
       <CaseReadinessRing readiness={null} pickHref="/app/mission/three#pack" />
     </article>
+  );
+}
+/** The deadline clock in each state: all four tones, a date to check, a long name, and nothing yet. */
+const CLOCK_LINES: readonly DeadlineLine[] = [
+  {
+    key: 'a',
+    label: 'Bank statement',
+    phrase: 'Was due 3 days ago',
+    dateText: '23 Oct 2026',
+    isoDate: '2026-10-23',
+    person: null,
+    urgency: 'overdue',
+    toneWord: 'Overdue',
+    href: '/app/applicant/synthetic/evidence',
+    check: null,
+  },
+  {
+    key: 'b',
+    label: 'Passport',
+    phrase: 'Expires tomorrow',
+    dateText: '27 Oct 2026',
+    isoDate: '2026-10-27',
+    person: 'Synthetic Traveller',
+    urgency: 'soon',
+    toneWord: 'Within a Week',
+    href: '/app/applicant/synthetic/expiry',
+    check: null,
+  },
+  {
+    key: 'c',
+    label: 'Pay the visa fee and send the receipt to the agency before the long weekend begins',
+    phrase: 'Due in 21 days',
+    dateText: '16 Nov 2026',
+    isoDate: '2026-11-16',
+    person: null,
+    urgency: 'month',
+    toneWord: 'Within a Month',
+    href: '/app/mission/synthetic',
+    check: null,
+  },
+  {
+    key: 'd',
+    label: 'Document',
+    phrase: 'Expires in about 8 months, if the date is right',
+    dateText: '30 Jun 2027',
+    isoDate: '2027-06-30',
+    person: null,
+    urgency: 'later',
+    toneWord: 'Later',
+    href: '/app/applicant/synthetic/expiry',
+    check: 'Read from a document whose type you have not confirmed yet. Check the date.',
+  },
+];
+function Clock() {
+  return (
+    <div data-fixture="deadline-clock" className="grid">
+      <DeadlineClock
+        heading="Coming Up"
+        headingId="fixture-clock-heading"
+        lines={CLOCK_LINES}
+        addAction={{ href: '/app/applicant/synthetic/documents', label: 'Add a Document' }}
+        more={{ href: '/app/applicant/synthetic/expiry', label: 'See All Dates' }}
+      />
+      <DeadlineClock
+        heading="Deadline Clock"
+        headingId="fixture-clock-empty-heading"
+        lines={[]}
+        addAction={{ href: '/app/applicant/synthetic/documents', label: 'Add a Document' }}
+      />
+    </div>
   );
 }
 function Records() {
@@ -259,6 +330,7 @@ function Fixture({ mode }: { mode: Mode }) {
                 action="Review documents"
               />
               <Rings />
+              <Clock />
               <div className="split">
                 <Records />
                 <Checklist

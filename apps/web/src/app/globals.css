@@ -8481,6 +8481,137 @@ summary.visa-photo-title {
   }
 }
 
+/* WP-G5 deadline clock (growth package G5): the next few dates that matter, soonest first, on Home, on
+   a person's overview and on the Expiry page. Every line carries its tone as a word as well as a colour
+   (overdue, within a week, within a month, later), and a date the system is unsure of carries a dashed
+   "Check This Date" tag. Flat: shared tokens only, no shadow, gradient or animation. A date is a date on
+   file, never an approval or a promise. */
+.deadline-clock {
+  min-width: 0;
+}
+.deadline-list {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.deadline-line {
+  border: 1px solid var(--hairline);
+  border-left-width: 4px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+.deadline-tone-overdue {
+  border-left-color: var(--danger);
+}
+.deadline-tone-soon {
+  border-left-color: var(--warning);
+}
+.deadline-tone-month {
+  border-left-color: var(--accent);
+}
+.deadline-tone-later {
+  border-left-color: var(--hairline);
+}
+.deadline-line-check {
+  border-style: dashed;
+  border-left-style: solid;
+}
+.deadline-link {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  flex-wrap: wrap;
+  min-height: 44px;
+  padding: var(--space-3);
+  color: var(--text);
+  text-decoration: none;
+}
+.deadline-link:hover .deadline-name {
+  text-decoration: underline;
+}
+.deadline-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+.deadline-name {
+  font-weight: 650;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.deadline-phrase {
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.deadline-date {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.deadline-why {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.deadline-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-1) var(--space-2);
+}
+.deadline-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--text-caption);
+  font-weight: 650;
+  line-height: 1.2;
+  padding: 0.28rem 0.6rem;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  background: var(--bg-subtle);
+}
+.deadline-tone-overdue .deadline-tag-tone {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+.deadline-tone-soon .deadline-tag-tone {
+  color: var(--warning);
+  background: var(--warning-bg);
+}
+.deadline-tone-month .deadline-tag-tone {
+  color: var(--accent);
+  background: var(--bg-subtle);
+}
+.deadline-tag-check {
+  color: var(--text);
+  background: var(--bg-elevated);
+  border: 1px dashed var(--text-secondary);
+}
+.deadline-clock-note {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.deadline-more {
+  margin: var(--space-2) 0 0;
+}
+.deadline-more-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 /* WP-REF visible reference codes (ADR 0018): the code beside a record's name, even-width figures
    spaced for reading aloud, with a small Copy button that keeps a 44px target. */
 .reference-code {
