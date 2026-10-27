@@ -884,6 +884,18 @@ export {
   isDeterministicModelVersion,
 } from './ai-run-kinds';
 export { type MrzReading, MRZ_FIELD_KEYS, mrzFieldReadings } from './mrz-suggestions';
+export {
+  READING_SOURCES,
+  READING_STAGES,
+  type DocumentReadingState,
+  type DocumentReadingStates,
+  type NotReadReason,
+  type ReadingSource,
+  type ReadingStage,
+  type ReadingStateFacts,
+  deriveReadingState,
+  listDocumentReadingStates,
+} from './document-reading-state';
 
 export {
   type AiCacheKeyComponents,

@@ -489,7 +489,7 @@ export async function runAiExtractionAction(
     }
     const resolved = await resolveAiExtractor(db, createKeyManagementPort());
     if (!resolved) {
-      return { ok: false, message: 'AI extraction is not configured.' } satisfies ActionState;
+      return { ok: false, message: 'Reading with AI is not set up yet.' } satisfies ActionState;
     }
     const text = await getLatestExtractedText(db, documentVersionId, applicantId);
     if (!text) {
@@ -513,7 +513,7 @@ export async function runAiExtractionAction(
       killSwitchCheck: () => isAiDispatchAllowed(db),
       ...(resolved.fallback ? { fallback: resolved.fallback } : {}),
     });
-    if (!run.ok) return { ok: false, message: run.error.message } satisfies ActionState;
+    if (!run.ok) return { ok: false, message: readingRefusal(run.error) } satisfies ActionState;
     // Only after a reading that worked, so a failing provider is never asked twice against this
     // document's budget: the same reading also says what kind of document this is and suggests
     // a name (owner request 2026-10-25). Its own failure never hides the details read above.
@@ -526,12 +526,64 @@ export async function runAiExtractionAction(
     }
     return {
       ok: true,
-      message: `AI extraction proposed ${run.value.proposals.length} field(s) for review.${kindSentence(kind)}`,
+      message: `${readingFinished(run.value.proposals.length)}${kindSentence(kind)}`,
     } satisfies ActionState;
   });
 
   if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
   return result;
+}
+
+/**
+ * A refusal from a reading step as a sentence a person can act on. The service's own wording is for
+ * logs; it can name providers and limits, so it is never shown as it is.
+ */
+function readingRefusal(error: ServiceError): string {
+  switch (error.code) {
+    case 'consent_required':
+      return 'Reading with AI is off. You can turn it on from Home.';
+    case 'rate_limited':
+      return 'Reading is busy right now. Try again in a minute.';
+    case 'invalid':
+      return 'We reached a reading limit for this file, or reading with AI is switched off for now. You can add the details yourself.';
+    case 'not_found':
+      return 'We could not find this file.';
+    default:
+      return 'The reading did not work this time. Try again later, or add the details yourself.';
+  }
+}
+
+/** What a finished reading says: how many details are waiting, in plain words. */
+function readingFinished(count: number): string {
+  if (count === 0) return 'Reading finished. We did not find details to suggest.';
+  return `Reading finished. ${count === 1 ? 'One detail is' : `${count} details are`} ready for you to check.`;
+}
+
+/**
+ * Read a file again (S6, ADR 0019), on the person's request: the same two steps the automatic
+ * reading takes, in the same order. A file with no text of its own is read as a picture first
+ * (needs the scans switch), then details are read from the best text there is (needs the details
+ * switch). Each step is the existing action, so every consent, limit, kill switch and ownership
+ * check applies exactly as it does for the automatic reading, and it only ever adds suggestions.
+ * Unlike the automatic reading it also works for kinds of document on the protected list, because
+ * the person asked for it.
+ */
+export async function readAgainAction(
+  previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const applicantId = String(formData.get('applicantId') ?? '');
+  const documentVersionId = String(formData.get('documentVersionId') ?? '');
+  const hasText = await withSession(async ({ db, accountId }) => {
+    if (!(await assertOwned(db, accountId, applicantId))) return undefined;
+    return (await getLatestExtractedText(db, documentVersionId, applicantId)) !== undefined;
+  });
+  if (hasText === undefined) return { ok: false, message: 'Not authorized.' };
+  if (!hasText) {
+    const scan = await runOcrAction(previous, formData);
+    if (!scan.ok) return scan;
+  }
+  return runAiExtractionAction(previous, formData);
 }
 
 /**
@@ -552,7 +604,10 @@ export async function runOcrAction(_prev: ActionState, formData: FormData): Prom
     }
     const resolved = await resolveOcrAdapter(db, createKeyManagementPort());
     if (!resolved) {
-      return { ok: false, message: 'AI OCR is not configured.' } satisfies ActionState;
+      return {
+        ok: false,
+        message: 'Reading scans with AI is not set up yet.',
+      } satisfies ActionState;
     }
     const rendered = await renderOcrSourceImage(
       db,
@@ -578,14 +633,14 @@ export async function runOcrAction(_prev: ActionState, formData: FormData): Prom
       killSwitchCheck: () => isAiDispatchAllowed(db),
       ...(resolved.fallback ? { fallback: resolved.fallback } : {}),
     });
-    if (!run.ok) return { ok: false, message: run.error.message } satisfies ActionState;
+    if (!run.ok) return { ok: false, message: readingRefusal(run.error) } satisfies ActionState;
     const issueCount = run.value.ocrRun.reviewIssues?.length ?? 0;
     return {
       ok: true,
       message:
         issueCount > 0
-          ? `OCR completed, but flagged ${issueCount} review issue(s) - check the extracted text below.`
-          : 'OCR completed successfully.',
+          ? `We read the text from this scan, but ${issueCount === 1 ? 'one thing needs' : `${issueCount} things need`} a look. Check the text below.`
+          : 'We read the text from this scan. Check it below.',
     } satisfies ActionState;
   });
 

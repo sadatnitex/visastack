@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReadingSource } from '@visastack/services';
 import { useActionState, useCallback, useId, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { StatusBadge } from '../../../../components/ui';
@@ -12,35 +13,39 @@ import {
   decideClassificationProposalAction,
   decideInconsistencyFlagAction,
   decideProposalAction,
-  runAiExtractionAction,
+  readAgainAction,
   runClassificationAction,
   runInconsistencyCheckAction,
-  runOcrAction,
 } from './actions';
+import { ReadingSourceNote } from './reading-status';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
-/** Manually trigger AI extraction for one document (a pilot-budgeted, human-initiated spend). */
-export function RunAiExtractionButton({
+/**
+ * Read a file again (S6, ADR 0019): the retry for a reading that found nothing, or found less than
+ * was there. It does what the automatic reading does, on request: read the picture first when the
+ * file has no text, then read details from the text. The person asked for it, so it works for
+ * kinds of document the automatic reading leaves alone.
+ */
+export function ReadAgainButton({
   applicantId,
   documentVersionId,
 }: {
   readonly applicantId: string;
   readonly documentVersionId: string;
 }) {
-  const [state, formAction, pending] = useActionState(runAiExtractionAction, INITIAL);
+  const [state, formAction, pending] = useActionState(readAgainAction, INITIAL);
 
   return (
-    <div style={{ marginTop: '0.35rem' }}>
-      <form action={formAction} style={{ display: 'inline' }}>
+    <div className="read-again">
+      <form action={formAction}>
         <input type="hidden" name="applicantId" value={applicantId} />
         <input type="hidden" name="documentVersionId" value={documentVersionId} />
         <SubmitButton
           pending={pending}
-          idle="Read Details from This Document"
-          busy="Reading details…"
+          idle="Read Again"
+          busy="Reading…"
           className="btn btn-secondary"
-          style={{ padding: '0.3rem 0.9rem', fontSize: 'var(--text-small)' }}
         />
       </form>
       <FormMessage result={state} />
@@ -55,34 +60,6 @@ const REVIEW_ISSUE_LABELS: Record<string, string> = {
   unsupported_script: 'Unsupported Script',
   missing_text: 'No Legible Text Found',
 };
-
-/** Manually trigger AI OCR for one document (image/scanned PDF) - a separate, larger disclosure than AI extraction, so its own explicit action. */
-export function RunOcrButton({
-  applicantId,
-  documentVersionId,
-}: {
-  readonly applicantId: string;
-  readonly documentVersionId: string;
-}) {
-  const [state, formAction, pending] = useActionState(runOcrAction, INITIAL);
-
-  return (
-    <div style={{ marginTop: '0.35rem' }}>
-      <form action={formAction} style={{ display: 'inline' }}>
-        <input type="hidden" name="applicantId" value={applicantId} />
-        <input type="hidden" name="documentVersionId" value={documentVersionId} />
-        <SubmitButton
-          pending={pending}
-          idle="Read Text from This Scan"
-          busy="Reading text…"
-          className="btn btn-secondary"
-          style={{ padding: '0.3rem 0.9rem', fontSize: 'var(--text-small)' }}
-        />
-      </form>
-      <FormMessage result={state} />
-    </div>
-  );
-}
 
 /**
  * Directive §9: "show low quality; ambiguous date; unsupported script;
@@ -181,6 +158,8 @@ export interface AiProposalViewModel {
   readonly fixed?: boolean;
   /** Part of a repeating record (one address among several): always decided one at a time. */
   readonly repeating?: boolean;
+  /** Where the reading came from, decided on the server from the records. */
+  readonly source?: ReadingSource;
 }
 
 /** A reading still waiting for the person: accept, change, settle a difference, or skip. */
@@ -249,6 +228,12 @@ export function AiProposalReview({
         <p className="finding-source">
           Found as <q>{quote.snippet}</q>
         </p>
+      ) : null}
+      {proposal.source ? (
+        <ReadingSourceNote
+          source={proposal.source}
+          detail={proposal.source === 'machine_readable' ? proposal.rationale : null}
+        />
       ) : null}
       {unverified ? (
         <p className="muted u-fs-085">
