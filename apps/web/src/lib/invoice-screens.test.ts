@@ -24,6 +24,7 @@ const SRC = join(process.cwd(), 'src');
 const FILES = [
   'app/app/agency/[orgId]/plan/invoices/page.tsx',
   'app/app/agency/[orgId]/plan/invoices/invoice-forms.tsx',
+  'app/app/agency/[orgId]/plan/invoices/invoice-card.tsx',
   'app/app/agency/[orgId]/plan/invoices/receipts/[receiptId]/page.tsx',
 ];
 
