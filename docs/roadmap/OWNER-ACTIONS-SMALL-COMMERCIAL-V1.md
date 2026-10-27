@@ -203,7 +203,7 @@ Plan: [SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md](SONNET-SMALL-COMMERCIAL-V1-HANDOFF
 - **You:**
   1. Create an AWS account, or use an existing one.
   2. The session gives you a short script to create one KMS key in the same region as Neon (US East), with automatic yearly rotation, and an access identity limited to encrypting and decrypting with that key.
-  3. Put its values in Vercel: `KMS_PROVIDER=aws_kms`, `AWS_KMS_KEY_ID`, `AWS_REGION`, and the access identity's keys.
+  3. Put its values in Vercel (production only): `KMS_PROVIDER=aws_kms`, `KMS_KEY_ID`, `KMS_AWS_REGION`, `KMS_AWS_ACCESS_KEY_ID`, `KMS_AWS_SECRET_ACCESS_KEY`. These names are our own because the hosting platform keeps the plain `AWS_*` names. Keep `KMS_LOCAL_MASTER_KEY_BASE64` for now. The full steps, including the data key move, are in `docs/operations/key-management.md`.
 - **Until then:** the pilot keeps the local key, and real data stays off.
 - **Cost:** roughly one US dollar a month per key plus small per-request fees (check AWS's current KMS pricing).
 

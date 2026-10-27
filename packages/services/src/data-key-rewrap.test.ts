@@ -187,6 +187,57 @@ describe('moving data keys from the local key to the key service (S26)', () => {
     expect(summary).toMatchObject({ rewrapped: 0, skipped: 1, remaining: 1 });
   });
 
+  it('does not replace the old wrapping with one it cannot open again', async () => {
+    await db.insert(schema.dataKeys).values({
+      keyVersion: 'write-only',
+      wrappedDataKey: aesWrap(LOCAL, randomBytes(32), 'local'),
+    });
+    const before = (await db.select().from(schema.dataKeys))[0];
+    const good = kmsPort({ legacy: true });
+    // A key service that accepts a wrap but cannot open it again.
+    const writeOnly: RewrappingKeyManagementPort = {
+      ...good,
+      async unwrapDataKey(version, wrapped, id) {
+        if (id?.startsWith('fake-kms:')) throw new Error('AccessDenied');
+        return good.unwrapDataKey(version, wrapped, id);
+      },
+    };
+    const summary = await rewrapDataKeys(db, scope(), writeOnly);
+    expect(summary).toMatchObject({ rewrapped: 0, failed: 1, remaining: 1 });
+    expect(summary.failedBy).toEqual({ open: 0, wrap: 0, verify: 1 });
+    const after = (await db.select().from(schema.dataKeys))[0];
+    expect(
+      Buffer.from(after?.wrappedDataKey ?? []).equals(Buffer.from(before?.wrappedDataKey ?? [])),
+    ).toBe(true);
+    expect(after?.wrappingKeyId).toBeNull();
+  });
+
+  it('records each run once in the audit trail, with counts only', async () => {
+    await protectValue(db, localOnly, 'value', 'aad');
+    await rewrapDataKeys(db, scope(), kmsPort({ legacy: true }));
+    const events = (await db.select().from(schema.auditEvents)).filter(
+      (event) => event.eventType === 'DATA_KEYS_REWRAPPED',
+    );
+    expect(events).toHaveLength(1);
+    expect(events[0]?.metadata).toEqual({ rewrapped: 1, skipped: 0, failed: 0, remaining: 0 });
+    expect(events[0]?.method).toBe('SYSTEM');
+  });
+
+  it('never remembers a key created inside a transaction that rolls back', async () => {
+    const port = kmsPort({ legacy: false });
+    await db
+      .transaction(async (tx) => {
+        await protectValue(tx as unknown as Db, port, 'lost', 'aad-lost');
+        throw new Error('something later in the transaction failed');
+      })
+      .catch(() => undefined);
+    expect(await db.select().from(schema.dataKeys)).toHaveLength(0);
+    // The next write generates and saves a key afresh, and a new process can open the value.
+    const kept = await protectValue(db, port, 'kept', 'aad-kept');
+    resetProtectedFieldKeyCacheForTests();
+    expect(await revealValue(db, port, { ...kept, aad: 'aad-kept' })).toBe('kept');
+  });
+
   it('refuses a provider that cannot re-wrap, and a scope for another job', async () => {
     await expect(rewrapDataKeys(db, scope(), localOnly)).rejects.toThrow('cannot re-wrap');
     const wrong = systemScopeForTest('process-erasure') as unknown as ReturnType<typeof scope>;

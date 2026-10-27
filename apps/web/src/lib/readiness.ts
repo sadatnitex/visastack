@@ -59,6 +59,11 @@ export interface ReadinessReport {
 
 export async function evaluateReadiness(): Promise<ReadinessReport> {
   const deploymentMode = getDeploymentMode();
+  // The key service check runs alongside the database and storage probes, not after them.
+  const keyServiceCheck =
+    deploymentMode === 'commercial' || readEnv('KMS_PROVIDER') === 'aws_kms'
+      ? runKmsSelfTest()
+      : undefined;
 
   const env = {
     database: presenceMap(DATABASE_URL_ENV_CANDIDATES),
@@ -125,10 +130,8 @@ export async function evaluateReadiness(): Promise<ReadinessReport> {
     isSignInConfigured() &&
     providers.valid;
 
-  // Ask the key service once (remembered a few minutes) before the synchronous gates read the answer.
-  if (deploymentMode === 'commercial' || readEnv('KMS_PROVIDER') === 'aws_kms') {
-    await runKmsSelfTest();
-  }
+  // The synchronous gates read the answer, so it must have arrived before they run.
+  await keyServiceCheck;
   const commercial =
     deploymentMode === 'commercial'
       ? evaluateCommercialReadiness({ databaseReady: db.connected && db.schemaApplied })

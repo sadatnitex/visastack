@@ -130,15 +130,8 @@ async function issueOrganizationInvitation(
       ),
       'organization invitation',
     );
-    await appendAuditEvent(tx, {
-      eventType: 'ORGANIZATION_INVITATION_CREATED',
-      actorAccountId: input.actorAccountId,
-      method: 'MANUAL',
-      result: 'ALLOWED',
-      resourceType: 'organization_invitation',
-      resourceId: invitation.id,
-      metadata: { organizationId: input.organizationId, role: input.role },
-    });
+    // The key service is called before the audit write: that write takes the global audit lock,
+    // which must never be held while waiting on a network call.
     if (input.encryption) {
       await queueInvitationEmail(tx, {
         kind: 'team',
@@ -149,6 +142,15 @@ async function issueOrganizationInvitation(
         encryption: input.encryption,
       });
     }
+    await appendAuditEvent(tx, {
+      eventType: 'ORGANIZATION_INVITATION_CREATED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      resourceType: 'organization_invitation',
+      resourceId: invitation.id,
+      metadata: { organizationId: input.organizationId, role: input.role },
+    });
     return ok({ invitation, rawToken });
   });
 }

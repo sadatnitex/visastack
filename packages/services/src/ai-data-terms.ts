@@ -4,6 +4,7 @@ import { type StaffScope, staffScopeProblem as sharedStaffScopeProblem } from '.
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { isMissingRelationError } from './missing-relation';
 
 // Plain copies of the schema's constants (ai-data-terms.test.ts pins them equal): reading
 // `schema` at module load would break every package whose tests replace @visastack/db with a
@@ -145,9 +146,6 @@ export function isAiTermsCheckDue(terms: AiProviderDataTerms, now: Date = new Da
   if (!Number.isFinite(checked)) return true;
   return now.getTime() - checked > AI_TERMS_RECHECK_DAYS * 24 * 60 * 60 * 1000;
 }
-
-export { isMissingRelationError } from './missing-relation';
-import { isMissingRelationError } from './missing-relation';
 
 export interface AiProviderDataTermsState {
   /** False when the terms could not be read (table not there yet, or a read failure): every configuration is then "unknown". */

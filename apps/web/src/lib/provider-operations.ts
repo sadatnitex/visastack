@@ -92,7 +92,7 @@ function rawRows(
       label: 'Encryption Key Recovery',
       reading:
         configured(['KMS_LOCAL_MASTER_KEY_BASE64']) ||
-        (env['KMS_PROVIDER'] === 'aws_kms' && configured(['KMS_KEY_ID', 'KMS_AWS_REGION']))
+        (read('KMS_PROVIDER') === 'aws_kms' && configured(['KMS_KEY_ID', 'KMS_AWS_REGION']))
           ? 'Key present; recovery unverified'
           : 'Key not configured',
       source: 'Configuration',

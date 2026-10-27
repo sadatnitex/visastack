@@ -18,5 +18,7 @@ export async function GET(request: Request): Promise<Response> {
   const denied = rejectUnauthorizedCron(request);
   if (denied) return denied;
   const result = await triggerDataKeyRewrap(systemPrincipal('rewrap-data-keys'));
-  return Response.json(result, { status: 'error' in result ? 503 : 200 });
+  // A run that could not even start, or found the column missing, must not read as "nothing left".
+  const stopped = 'error' in result || !result.available;
+  return Response.json(result, { status: stopped ? 503 : 200 });
 }

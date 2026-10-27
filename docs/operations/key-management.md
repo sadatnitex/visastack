@@ -16,7 +16,7 @@ Added in package S26 (register item M18). Protected profile fields and other pro
 3. In Vercel set, for the production environment only: `KMS_PROVIDER=aws_kms`, `KMS_KEY_ID` (the alias or the key ARN), `KMS_AWS_REGION`, `KMS_AWS_ACCESS_KEY_ID`, `KMS_AWS_SECRET_ACCESS_KEY`. These have names of our own because the hosting platform keeps the plain `AWS_*` names for itself. Keep `KMS_LOCAL_MASTER_KEY_BASE64` for now: it is used only to open data keys not yet moved, and invitation emails queued before the switch (they expire within a week, so keep it at least that long).
 4. Redeploy. The migration `0093_data_key_wrapping_id` must have run first (it adds the column that records which key wrapped each data key).
 5. Take an on-demand database backup first (Neon console or the backup workflow), then move the existing data keys: call `GET /api/jobs/rewrap-data-keys` with the header `Authorization: Bearer <CRON_SECRET>`. It answers with counts: `rewrapped`, `remaining`, `failed`. Run it again until `remaining` is 0. It is safe to run any number of times.
-6. When `remaining` is 0, the Platform overview shows the key service check as passing, and a week has passed since the switch, remove `KMS_LOCAL_MASTER_KEY_BASE64` from Vercel and redeploy. Keep an offline copy of the old local key until you have confirmed a protected value still opens.
+6. When `remaining` is 0 and a week has passed since the switch, remove `KMS_LOCAL_MASTER_KEY_BASE64` from Vercel and redeploy. The Platform overview shows the key service check as passing only after that, because a copy of the database plus that one value must not be able to open protected data. Keep an offline copy of the old local key until you have confirmed a protected value still opens.
 
 ## If something is wrong
 

@@ -18,7 +18,6 @@ import { aiWarningLimitUnits, defaultAiLimits, resolveAiLimits, unitsToUsd } fro
 import { formatDuration, formatMinorUnits, humanizeLabel } from '../../../lib/analytics-format';
 import { evaluateCommercialReadiness } from '../../../lib/commercial-readiness';
 import { getDeploymentMode } from '../../../lib/deployment-mode';
-import { runKmsSelfTest } from '../../../lib/kms-self-test';
 import { SHIPPED_MIGRATIONS } from '../../../lib/migration-journal';
 import { type ProviderStatus, describeProviderOperations } from '../../../lib/provider-operations';
 import { evaluateReadiness } from '../../../lib/readiness';
@@ -163,7 +162,6 @@ export default async function AdminOperationsPage() {
     // lives instead. `databaseReady: true` is sound here, not assumed: every
     // query above already succeeded against this same `db` handle by the
     // time this line runs, in this same request.
-    if (deploymentMode === 'commercial') await runKmsSelfTest();
     const commercial =
       deploymentMode === 'commercial'
         ? evaluateCommercialReadiness({ databaseReady: true })

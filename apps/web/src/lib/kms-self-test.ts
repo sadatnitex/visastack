@@ -49,13 +49,10 @@ export async function runKmsSelfTest(now: number = Date.now()): Promise<boolean>
   return inFlight;
 }
 
-/** The answer of the latest run; false until one has passed. */
-export function kmsSelfTestPassed(): boolean {
-  return last?.ok === true;
-}
-
-/** Test-only: forget the remembered answer. */
-export function resetKmsSelfTestForTests(): void {
-  last = null;
-  inFlight = null;
+/**
+ * The answer of the latest run; false until one has passed, and false again once a pass is older
+ * than it is trusted for, so a warm instance cannot keep reporting a pass after access is lost.
+ */
+export function kmsSelfTestPassed(now: number = Date.now()): boolean {
+  return last?.ok === true && now - last.at < REMEMBER_PASS_MS;
 }

@@ -156,7 +156,7 @@ export async function createDraftAiProviderConfigAction(
       return {
         ok: false,
         message:
-          'Encryption is not configured in this environment (KMS_LOCAL_MASTER_KEY_BASE64 unset).',
+          'Encryption is not configured in this environment (set up the key service or the local key).',
       } satisfies ActionState;
     }
     const stepUp = await tryEstablishStepUp(
@@ -384,7 +384,7 @@ export async function testAiProviderConfigAction(
       return {
         ok: false,
         message:
-          'Encryption is not configured in this environment (KMS_LOCAL_MASTER_KEY_BASE64 unset).',
+          'Encryption is not configured in this environment (set up the key service or the local key).',
       } satisfies ActionState;
     }
     const adapter = await resolveTestAdapter(db, encryption, config.value);
@@ -457,7 +457,7 @@ export async function runAiProviderConfigEvaluationAction(
       return {
         ok: false,
         message:
-          'Encryption is not configured in this environment (KMS_LOCAL_MASTER_KEY_BASE64 unset).',
+          'Encryption is not configured in this environment (set up the key service or the local key).',
       } satisfies ActionState;
     }
     const adapter = await resolveTestAdapter(db, encryption, config.value);

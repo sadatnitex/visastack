@@ -45,6 +45,7 @@ import {
 } from '@visastack/services';
 import { resolveBaseUrl } from './base-url';
 import { dispatchGithubIntake } from './github-intake';
+import { runKmsSelfTest } from './kms-self-test';
 import {
   createContentLimitsChecker,
   createDocumentConverter,
@@ -706,6 +707,8 @@ export async function triggerDataKeyRewrap(
   try {
     const port = createKeyManagementPort();
     if (!port) return { error: 'not_configured' };
+    // Never replace a wrapping unless the key service has just proved it can wrap and open.
+    if (!(await runKmsSelfTest())) return { error: 'key_service_check_failed' };
     const handle = db as unknown as Parameters<typeof rewrapDataKeys>[0];
     return await rewrapDataKeys(handle, scope, port);
   } catch (error) {

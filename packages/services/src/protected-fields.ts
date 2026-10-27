@@ -91,6 +91,11 @@ async function getExistingWrappedKey(
   return { wrapped: Buffer.from(row.wrappedDataKey), wrappingKeyId: row.wrappingKeyId ?? null };
 }
 
+/** A drizzle transaction handle has `rollback`; the top-level database handle does not. */
+function isTransaction(db: Db): boolean {
+  return typeof (db as { rollback?: unknown }).rollback === 'function';
+}
+
 /** Get (unwrapping once, then caching) the data key for `keyVersion`, generating and storing it if this is the first use of that version. */
 async function getOrCreateDataKey(
   db: Db,
@@ -135,7 +140,10 @@ async function getOrCreateDataKey(
   const unwrapped = Buffer.from(
     await port.unwrapDataKey(keyVersion, stored.wrapped, stored.wrappingKeyId),
   );
-  unwrappedKeyCache.set(keyVersion, unwrapped);
+  // Inside a transaction the stored key may be one that transaction just created and could still
+  // roll back; remembering it would let later writes use a key that was never saved. Outside a
+  // transaction every row read is committed, so it is safe to remember.
+  if (!isTransaction(db)) unwrappedKeyCache.set(keyVersion, unwrapped);
   return unwrapped;
 }
 

@@ -134,6 +134,9 @@ function buildGates(input: CommercialReadinessInput): readonly ReadinessGate[] {
         readEnv('KMS_PROVIDER') === 'aws_kms' &&
         isPresent('KMS_KEY_ID') &&
         isPresent('KMS_AWS_REGION') &&
+        // Once every data key has been moved, the local master key is removed: a database copy
+        // plus that one value must not be able to open protected data.
+        !isPresent('KMS_LOCAL_MASTER_KEY_BASE64') &&
         // A redirected endpoint would not be the real service.
         !isPresent('AWS_ENDPOINT_URL') &&
         !isPresent('AWS_ENDPOINT_URL_KMS') &&

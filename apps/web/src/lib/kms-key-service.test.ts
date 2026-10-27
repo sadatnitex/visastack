@@ -11,6 +11,7 @@ const KEYS = [
   'KMS_KEY_ID',
   'KMS_AWS_REGION',
   'AWS_ENDPOINT_URL',
+  'AWS_ENDPOINT_URL_KMS',
   'KMS_LOCAL_MASTER_KEY_BASE64',
   'DEPLOYMENT_MODE',
 ] as const;
@@ -74,13 +75,15 @@ describe('the key service self-test and the readiness gate', () => {
     expect(kmsSelfTestPassed()).toBe(false);
     selfTest.mockResolvedValue(true);
     expect(await runKmsSelfTest(1_000)).toBe(true);
-    expect(kmsSelfTestPassed()).toBe(true);
+    expect(kmsSelfTestPassed(1_000)).toBe(true);
+    // A pass older than five minutes is no longer trusted, even without a new run.
+    expect(kmsSelfTestPassed(1_000 + 6 * 60_000)).toBe(false);
     selfTest.mockResolvedValue(false);
     // A pass is remembered for five minutes: no second call to the key service.
     expect(await runKmsSelfTest(1_000 + 60_000)).toBe(true);
     expect(selfTest).toHaveBeenCalledTimes(1);
     expect(await runKmsSelfTest(1_000 + 6 * 60_000)).toBe(false);
-    expect(kmsSelfTestPassed()).toBe(false);
+    expect(kmsSelfTestPassed(1_000 + 6 * 60_000)).toBe(false);
     // A failure is remembered only briefly, so one blip does not hold readiness down.
     selfTest.mockResolvedValue(true);
     expect(await runKmsSelfTest(1_000 + 6 * 60_000 + 10_000)).toBe(false);
@@ -89,7 +92,12 @@ describe('the key service self-test and the readiness gate', () => {
 
   it('shares one call between overlapping runs, and reports no instead of throwing', async () => {
     let resolve: (value: boolean) => void = () => undefined;
-    const selfTest = vi.fn(() => new Promise<boolean>((r) => (resolve = r)));
+    const selfTest = vi.fn(
+      () =>
+        new Promise<boolean>((r) => {
+          resolve = r;
+        }),
+    );
     vi.doMock('./providers', () => ({ createKeyManagementPort: () => ({ selfTest }) }));
     const { runKmsSelfTest } = await import('./kms-self-test');
     const both = Promise.all([runKmsSelfTest(5_000), runKmsSelfTest(5_000)]);
@@ -130,6 +138,13 @@ describe('the key service self-test and the readiness gate', () => {
     setEnv('AWS_ENDPOINT_URL', 'http://localhost:4566');
     expect(gate()).toBe(false);
     setEnv('AWS_ENDPOINT_URL', undefined);
+    setEnv('AWS_ENDPOINT_URL_KMS', 'http://localhost:4566');
+    expect(gate()).toBe(false);
+    setEnv('AWS_ENDPOINT_URL_KMS', undefined);
+    setEnv('KMS_LOCAL_MASTER_KEY_BASE64', LOCAL_KEY);
+    expect(gate()).toBe(false);
+    setEnv('KMS_LOCAL_MASTER_KEY_BASE64', undefined);
+    expect(gate()).toBe(true);
     setEnv('KMS_KEY_ID', undefined);
     expect(gate()).toBe(false);
     setEnv('KMS_KEY_ID', 'alias/visastack');

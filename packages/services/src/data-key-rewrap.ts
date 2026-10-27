@@ -1,5 +1,6 @@
 import { and, asc, eq, isNull, notLike, or, sql } from 'drizzle-orm';
 import type { SystemScope } from './access/principal';
+import { appendAuditEvent } from './audit';
 import { type Db, schema } from './db';
 import { isMissingRelationError } from './missing-relation';
 import { type KeyManagementPort, isRewrappingKeyManagementPort } from './ports';
@@ -20,8 +21,10 @@ export interface DataKeyRewrapSummary {
   readonly rewrapped: number;
   /** Keys that changed under us and were left for the next run. */
   readonly skipped: number;
-  /** Keys that could not be opened or wrapped; they are left untouched. */
+  /** Keys that could not be opened, wrapped or proved readable again; they are left untouched. */
   readonly failed: number;
+  /** Which step failed, by count (never a reason text): opening the old wrapping, wrapping anew, or proving the new wrapping opens. */
+  readonly failedBy: { readonly open: number; readonly wrap: number; readonly verify: number };
   /** Keys still not wrapped by the current key after this run. */
   readonly remaining: number;
   /** False when the table or column is not there yet (migration not run). */
@@ -33,6 +36,7 @@ const UNAVAILABLE: DataKeyRewrapSummary = {
   rewrapped: 0,
   skipped: 0,
   failed: 0,
+  failedBy: { open: 0, wrap: 0, verify: 0 },
   remaining: 0,
   available: false,
 };
@@ -73,41 +77,71 @@ export async function rewrapDataKeys(
       .limit(limit);
     let rewrapped = 0;
     let skipped = 0;
-    let failed = 0;
+    const failedBy = { open: 0, wrap: 0, verify: 0 };
     for (const row of pending) {
+      let plaintext: Uint8Array;
       try {
-        const plaintext = await port.unwrapDataKey(
-          row.keyVersion,
-          row.wrappedDataKey,
-          row.wrappingKeyId,
-        );
-        const next = await port.rewrapDataKey(row.keyVersion, plaintext);
-        // Compare-and-set on what was read: a concurrent change makes this a no-op.
-        const updated = await db
-          .update(schema.dataKeys)
-          .set({
-            wrappedDataKey: Buffer.from(next.wrappedDataKey),
-            wrappingKeyId: next.wrappingKeyId,
-          })
-          .where(
-            and(
-              eq(schema.dataKeys.keyVersion, row.keyVersion),
-              eq(schema.dataKeys.wrappedDataKey, Buffer.from(row.wrappedDataKey)),
-            ),
-          )
-          .returning({ keyVersion: schema.dataKeys.keyVersion });
-        if (updated.length === 1) rewrapped += 1;
-        else skipped += 1;
+        plaintext = await port.unwrapDataKey(row.keyVersion, row.wrappedDataKey, row.wrappingKeyId);
       } catch {
-        failed += 1;
+        failedBy.open += 1;
+        continue;
       }
+      let next: { readonly wrappedDataKey: Uint8Array; readonly wrappingKeyId: string };
+      try {
+        next = await port.rewrapDataKey(row.keyVersion, plaintext);
+      } catch {
+        failedBy.wrap += 1;
+        continue;
+      }
+      // The old wrapping is replaced only after the new one is proved to open to the same key:
+      // a key service that accepts a wrap but cannot open it must never cost us the only copy.
+      try {
+        const again = await port.unwrapDataKey(
+          row.keyVersion,
+          next.wrappedDataKey,
+          next.wrappingKeyId,
+        );
+        if (!Buffer.from(again).equals(Buffer.from(plaintext))) throw new Error('mismatch');
+      } catch {
+        failedBy.verify += 1;
+        continue;
+      }
+      // Compare-and-set on what was read: a concurrent change makes this a no-op.
+      const updated = await db
+        .update(schema.dataKeys)
+        .set({
+          wrappedDataKey: Buffer.from(next.wrappedDataKey),
+          wrappingKeyId: next.wrappingKeyId,
+        })
+        .where(
+          and(
+            eq(schema.dataKeys.keyVersion, row.keyVersion),
+            eq(schema.dataKeys.wrappedDataKey, Buffer.from(row.wrappedDataKey)),
+          ),
+        )
+        .returning({ keyVersion: schema.dataKeys.keyVersion });
+      if (updated.length === 1) rewrapped += 1;
+      else skipped += 1;
     }
+    const failed = failedBy.open + failedBy.wrap + failedBy.verify;
+    const remaining = await countRows(notCurrent);
+    // One durable record of the run, counts only.
+    await db.transaction(async (tx) => {
+      await appendAuditEvent(tx, {
+        eventType: 'DATA_KEYS_REWRAPPED',
+        method: 'SYSTEM',
+        result: failed === 0 ? 'ALLOWED' : 'DENIED',
+        resourceType: 'data_keys',
+        metadata: { rewrapped, skipped, failed, remaining },
+      });
+    });
     return {
       alreadyCurrent: totalKeys - before,
       rewrapped,
       skipped,
       failed,
-      remaining: await countRows(notCurrent),
+      failedBy,
+      remaining,
       available: true,
     };
   } catch (error) {
