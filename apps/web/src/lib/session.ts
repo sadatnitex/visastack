@@ -14,6 +14,7 @@ import {
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { cache } from 'react';
+import { sendWaitingEmailsSoon } from './email-backstop';
 import { NeonIdentityPort } from './identity-provider';
 import { checkPilotAccess } from './pilot-access';
 import { reportServerError } from './server-error';
@@ -368,6 +369,7 @@ export async function withSession<T>(
   const shared = acquirePool(scope, connectionString);
   try {
     const account = await resolveOncePerRequest(scope, shared.db, user, connectionString);
+    sendWaitingEmailsSoon();
     return await fn({
       db: shared.db,
       accountId: account.accountId,

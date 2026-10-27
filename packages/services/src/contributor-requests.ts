@@ -4,7 +4,10 @@ import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
+import { cancelQueuedNotificationsForResource } from './notifications';
+import type { KeyManagementPort } from './ports';
 
 /**
  * CAS-08 - Contributor request (Commercial V1 Part 4 §14): lets a mission
@@ -56,10 +59,14 @@ export interface CreateContributorRequestInput {
   readonly docType: string;
   readonly purpose: string;
   readonly message?: string;
+  /** With the key service, the contributor is emailed the link (sealed in the outbox). */
+  readonly encryption?: KeyManagementPort;
 }
 
 export interface CreatedContributorRequest {
   readonly request: ContributorRequest;
+  /** An email with the link was queued for the contributor. */
+  readonly emailQueued: boolean;
   /** The raw, unhashed token. Exists only here and in whatever link the caller hands to the contributor, never logged, never persisted. */
   readonly rawToken: string;
 }
@@ -119,7 +126,16 @@ export async function createContributorRequest(
       resourceId: request.id,
       metadata: { docType },
     });
-    return ok({ request, rawToken });
+    if (input.encryption) {
+      await queueInvitationEmail(tx, {
+        kind: 'contributor',
+        invitationId: request.id,
+        email: contributorEmail,
+        rawToken,
+        encryption: input.encryption,
+      });
+    }
+    return ok({ request, rawToken, emailQueued: input.encryption !== undefined });
   });
 }
 
@@ -398,6 +414,8 @@ export async function revokeContributorRequest(
   if (updated.length === 0) {
     return err(serviceError('invalid', 'request not found, already used, or already revoked'));
   }
+  // An email not sent yet must not go out for a request that no longer works.
+  await cancelQueuedNotificationsForResource(db, input.requestId);
   return ok(undefined);
 }
 

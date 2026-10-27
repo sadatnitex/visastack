@@ -61,6 +61,7 @@ export function ConnectSignInForm({
         <input id={confirmId} name="confirmed" type="checkbox" value="yes" required />
         <label htmlFor={confirmId}>
           I confirmed with the person that they made this new sign-in
+          <span className="sr-only"> for {email}</span>
         </label>
       </div>
       <FormMessage id={messageId} result={state} pending={pending} pendingText="Connecting…" />

@@ -5,7 +5,6 @@ import {
   SIGN_IN_RECOVERY_REFUSED,
   connectSignInToAccount,
 } from '@visastack/services';
-import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import type { FormResult } from '../../../../components/form-feedback';
 import { bootstrapAdminEmails, staffPrincipal } from '../../../../lib/admin';
@@ -87,7 +86,8 @@ export async function connectSignInAction(
         message: 'This sign-in could not be connected. Reload the page and try again.',
       };
     }
-    revalidatePath(SIGN_IN_RECOVERY_PATH);
+    // The page is not refreshed here, so this confirmation stays in view; the list drops the
+    // account on the next visit.
     return {
       ok: true,
       message:

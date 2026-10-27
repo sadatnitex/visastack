@@ -1,10 +1,11 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, gte, inArray, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { type StaffScope, staffScopeProblem } from './access/principal';
-import { appendAuditEvent } from './audit';
+import { SIGN_IN_CONFLICT_UNBOUND } from './accounts-neon';
+import { appendAuditEvent, lockAuditChain } from './audit';
 import { type Db, first, isUniqueViolation, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
-import { isPlatformOwner } from './platform-roles';
+import { type PlatformAuthInput, isPlatformOwner } from './platform-roles';
 
 /**
  * Controlled sign-in recovery for older accounts.
@@ -18,19 +19,16 @@ import { isPlatformOwner } from './platform-roles';
  *
  * Rules a caller cannot get around:
  * - only an account with no sign-in bound to it can be connected;
- * - only an identity seen in a refused sign-in for that exact account within the last 14 days;
- * - never when two different identities tried within that window (ask the person to try again);
+ * - only an identity seen in a refused sign-in for that exact account within the window;
+ * - never when two different identities tried within the window (every attempt is counted, with
+ *   no cap, so repeated tries by one cannot hide another);
  * - an account that holds a platform role can only be connected by a platform owner;
  * - a reason and a fresh sign-in check are always required, and every connection is audited.
  */
 
-/** Audit metadata `kind` for a refused sign-in whose address belongs to an unbound older account. */
-export const SIGN_IN_CONFLICT_UNBOUND = 'unbound_account';
-/** Audit metadata `kind` for a refused sign-in whose address is bound to a different identity. */
-export const SIGN_IN_CONFLICT_BOUND_ELSEWHERE = 'bound_elsewhere';
-
 /** How long a refused sign-in stays connectable. */
-export const SIGN_IN_RECOVERY_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+export const SIGN_IN_RECOVERY_WINDOW_DAYS = 14;
+export const SIGN_IN_RECOVERY_WINDOW_MS = SIGN_IN_RECOVERY_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 
 export const SIGN_IN_RECOVERY_REASON_MAX = 500;
 
@@ -43,8 +41,8 @@ export const SIGN_IN_RECOVERY_REFUSED = {
   ownerOnly: 'only a platform owner can connect a staff account',
 } as const;
 
-/** Refused sign-ins read per listing: far above what a pilot sees in two weeks. */
-const ATTEMPT_SCAN_LIMIT = 500;
+/** Accounts listed at once: far above what a pilot sees in two weeks. */
+const LIST_LIMIT = 200;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -55,50 +53,61 @@ export interface SignInRecoveryRequest {
   readonly lastActiveAt: Date;
   /** The latest refused sign-in for this account. */
   readonly requestedAt: Date;
-  /** More than one different sign-in tried: connecting is refused until the person tries again. */
+  /** More than one different sign-in tried: connecting is refused while both are in the window. */
   readonly ambiguous: boolean;
   /** The account holds a platform role, so only a platform owner can connect it. */
   readonly holdsPlatformRole: boolean;
 }
 
-interface Attempt {
+interface AttemptSummary {
   readonly accountId: string;
+  /** The identity of the newest attempt. */
   readonly identity: string;
+  readonly identities: number;
   readonly at: Date;
 }
 
-function attemptFrom(row: {
-  resourceId: string | null;
-  occurredAt: Date;
-  metadata: unknown;
-}): Attempt | undefined {
-  const meta = row.metadata as { kind?: unknown; identity?: unknown } | null;
-  if (!row.resourceId || meta?.kind !== SIGN_IN_CONFLICT_UNBOUND) return undefined;
-  if (typeof meta.identity !== 'string' || meta.identity.trim() === '') return undefined;
-  return { accountId: row.resourceId, identity: meta.identity, at: row.occurredAt };
-}
-
-/** Refused sign-ins for unbound accounts within the window, newest first. */
-async function recentAttempts(db: Db, now: Date, accountId?: string): Promise<Attempt[]> {
+/**
+ * Refused sign-ins for unbound accounts within the window, one summary per account, counted in
+ * the database over every matching event (never a capped sample).
+ */
+async function attemptSummaries(db: Db, now: Date, accountId?: string): Promise<AttemptSummary[]> {
   const since = new Date(now.getTime() - SIGN_IN_RECOVERY_WINDOW_MS);
+  const e = schema.auditEvents;
+  const identity = sql<string>`${e.metadata}->>'identity'`;
   const rows = await db
     .select({
-      resourceId: schema.auditEvents.resourceId,
-      occurredAt: schema.auditEvents.occurredAt,
-      metadata: schema.auditEvents.metadata,
+      accountId: e.resourceId,
+      identity: sql<string>`(array_agg(${identity} order by ${e.seq} desc))[1]`,
+      identities: sql<number>`count(distinct ${identity})::int`,
+      at: sql<Date>`max(${e.occurredAt})`,
     })
-    .from(schema.auditEvents)
+    .from(e)
     .where(
       and(
-        eq(schema.auditEvents.eventType, 'ACCOUNT_IDENTITY_CONFLICT'),
-        eq(schema.auditEvents.resourceType, 'account'),
-        gte(schema.auditEvents.occurredAt, since),
-        accountId ? eq(schema.auditEvents.resourceId, accountId) : undefined,
+        eq(e.eventType, 'ACCOUNT_IDENTITY_CONFLICT'),
+        eq(e.resourceType, 'account'),
+        sql`${e.occurredAt} >= ${since.toISOString()}::timestamptz`,
+        sql`${e.metadata}->>'kind' = ${SIGN_IN_CONFLICT_UNBOUND}`,
+        sql`coalesce(${e.metadata}->>'identity', '') <> ''`,
+        accountId ? eq(e.resourceId, accountId) : undefined,
       ),
     )
-    .orderBy(desc(schema.auditEvents.seq))
-    .limit(ATTEMPT_SCAN_LIMIT);
-  return rows.map(attemptFrom).filter((a): a is Attempt => a !== undefined);
+    .groupBy(e.resourceId)
+    .orderBy(sql`max(${e.occurredAt}) desc`)
+    .limit(LIST_LIMIT);
+  return rows.flatMap((row) =>
+    row.accountId && UUID_RE.test(row.accountId)
+      ? [
+          {
+            accountId: row.accountId,
+            identity: row.identity,
+            identities: Number(row.identities),
+            at: new Date(row.at),
+          },
+        ]
+      : [],
+  );
 }
 
 async function accountsWithPlatformRoles(db: Db, accountIds: readonly string[]) {
@@ -126,15 +135,9 @@ export async function listSignInRecoveryRequests(
 ): Promise<Result<readonly SignInRecoveryRequest[], ServiceError>> {
   const problem = staffScopeProblem(staff, 'ACCOUNT_SIGN_IN_RECOVERY');
   if (problem) return err(problem);
-  const attempts = await recentAttempts(db, now);
-  const byAccount = new Map<string, Attempt[]>();
-  for (const attempt of attempts) {
-    const list = byAccount.get(attempt.accountId) ?? [];
-    list.push(attempt);
-    byAccount.set(attempt.accountId, list);
-  }
-  const ids = [...byAccount.keys()].filter((id) => UUID_RE.test(id));
-  if (ids.length === 0) return ok([]);
+  const summaries = await attemptSummaries(db, now);
+  if (summaries.length === 0) return ok([]);
+  const byAccount = new Map(summaries.map((s) => [s.accountId, s]));
   const accounts = await db
     .select({
       id: schema.accounts.id,
@@ -143,22 +146,27 @@ export async function listSignInRecoveryRequests(
       lastActiveAt: schema.accounts.lastActiveAt,
     })
     .from(schema.accounts)
-    .where(and(inArray(schema.accounts.id, ids), isNull(schema.accounts.neonUserId)));
+    .where(
+      and(inArray(schema.accounts.id, [...byAccount.keys()]), isNull(schema.accounts.neonUserId)),
+    );
   const roles = await accountsWithPlatformRoles(
     db,
     accounts.map((a) => a.id),
   );
-  const requests = accounts.map((account): SignInRecoveryRequest => {
-    const tries = byAccount.get(account.id) ?? [];
-    return {
-      accountId: account.id,
-      email: account.email,
-      joinedAt: account.createdAt,
-      lastActiveAt: account.lastActiveAt,
-      requestedAt: tries[0]?.at ?? now,
-      ambiguous: new Set(tries.map((t) => t.identity)).size > 1,
-      holdsPlatformRole: roles.has(account.id),
-    };
+  const requests = accounts.flatMap((account): SignInRecoveryRequest[] => {
+    const summary = byAccount.get(account.id);
+    if (!summary) return [];
+    return [
+      {
+        accountId: account.id,
+        email: account.email,
+        joinedAt: account.createdAt,
+        lastActiveAt: account.lastActiveAt,
+        requestedAt: summary.at,
+        ambiguous: summary.identities > 1,
+        holdsPlatformRole: roles.has(account.id),
+      },
+    ];
   });
   return ok(requests.sort((a, b) => b.requestedAt.getTime() - a.requestedAt.getTime()));
 }
@@ -169,14 +177,22 @@ export interface ConnectSignInInput {
   /** A fresh sign-in check was completed for this change. */
   readonly stepUpSatisfied: boolean;
   /** The platform-owner check input, re-run when the account holds a platform role. */
-  readonly owner: Parameters<typeof isPlatformOwner>[1];
+  readonly owner: PlatformAuthInput;
   readonly now?: Date;
+}
+
+/** Carries a refusal out of the transaction so nothing it did is kept. */
+class Refused extends Error {
+  constructor(readonly refusal: ServiceError) {
+    super(refusal.message);
+  }
 }
 
 /**
  * Connect the sign-in that recently tried to reach an older account to that account. The person
- * then signs in with it and reaches their existing records. Refused unless every rule in this
- * module's header holds, checked again inside one transaction with the account row locked.
+ * then signs in with it and reaches their existing records. Every rule in this module's header is
+ * checked inside one transaction, with the account row and the audit chain locked so no new
+ * attempt can land unseen; the fresh sign-in check is asked for only once everything else passes.
  */
 export async function connectSignInToAccount(
   db: Db,
@@ -194,13 +210,10 @@ export async function connectSignInToAccount(
     return err(serviceError('invalid', 'the reason is too long'));
   }
   if (!UUID_RE.test(input.accountId)) return err(serviceError('not_found', 'account not found'));
-  if (input.accountId === staff.accountId) {
-    return err(serviceError('invalid', 'staff cannot connect a sign-in to their own account'));
-  }
-  if (!input.stepUpSatisfied) {
-    return err(serviceError('step_up_required', 'connecting a sign-in needs a fresh sign-in'));
-  }
   const now = input.now ?? new Date();
+  const refuse = (code: ServiceError['code'], message: string): never => {
+    throw new Refused(serviceError(code, message));
+  };
 
   try {
     return await db.transaction(async (tx) => {
@@ -212,34 +225,34 @@ export async function connectSignInToAccount(
           .limit(1)
           .for('update'),
       );
-      if (!account) return err(serviceError('not_found', 'account not found'));
+      if (!account) return refuse('not_found', 'account not found');
       if (account.neonUserId !== null) {
-        return err(serviceError('invalid', SIGN_IN_RECOVERY_REFUSED.alreadyConnected));
+        return refuse('invalid', SIGN_IN_RECOVERY_REFUSED.alreadyConnected);
       }
-      const tries = await recentAttempts(tx, now, account.id);
-      const latest = tries[0];
-      if (!latest) {
-        return err(serviceError('not_found', SIGN_IN_RECOVERY_REFUSED.noAttempt));
-      }
-      if (new Set(tries.map((t) => t.identity)).size > 1) {
-        return err(serviceError('invalid', SIGN_IN_RECOVERY_REFUSED.ambiguous));
-      }
+      // No refused sign-in can be recorded from here until this transaction ends.
+      await lockAuditChain(tx);
+      const [attempt] = await attemptSummaries(tx, now, account.id);
+      if (!attempt) return refuse('not_found', SIGN_IN_RECOVERY_REFUSED.noAttempt);
+      if (attempt.identities > 1) return refuse('invalid', SIGN_IN_RECOVERY_REFUSED.ambiguous);
       const roles = await accountsWithPlatformRoles(tx, [account.id]);
       if (roles.size > 0 && !(await isPlatformOwner(tx, input.owner))) {
-        return err(serviceError('forbidden', SIGN_IN_RECOVERY_REFUSED.ownerOnly));
+        return refuse('forbidden', SIGN_IN_RECOVERY_REFUSED.ownerOnly);
       }
       const taken = first(
         await tx
           .select({ id: schema.accounts.id })
           .from(schema.accounts)
-          .where(eq(schema.accounts.neonUserId, latest.identity))
+          .where(eq(schema.accounts.neonUserId, attempt.identity))
           .limit(1),
       );
-      if (taken) return err(serviceError('invalid', SIGN_IN_RECOVERY_REFUSED.identityTaken));
+      if (taken) return refuse('invalid', SIGN_IN_RECOVERY_REFUSED.identityTaken);
+      if (!input.stepUpSatisfied) {
+        return refuse('step_up_required', 'connecting a sign-in needs a fresh sign-in');
+      }
 
       await tx
         .update(schema.accounts)
-        .set({ neonUserId: latest.identity, updatedAt: now })
+        .set({ neonUserId: attempt.identity, updatedAt: now })
         .where(and(eq(schema.accounts.id, account.id), isNull(schema.accounts.neonUserId)));
       await appendAuditEvent(tx, {
         eventType: 'ACCOUNT_SIGN_IN_CONNECTED',
@@ -251,7 +264,7 @@ export async function connectSignInToAccount(
         resourceId: account.id,
         reason,
         metadata: {
-          attemptedAt: latest.at.toISOString(),
+          attemptedAt: attempt.at.toISOString(),
           staffAccount: roles.size > 0,
           stepUp: true,
         },
@@ -259,6 +272,7 @@ export async function connectSignInToAccount(
       return ok({ accountId: account.id });
     });
   } catch (error) {
+    if (error instanceof Refused) return err(error.refusal);
     if (isUniqueViolation(error)) {
       return err(serviceError('invalid', SIGN_IN_RECOVERY_REFUSED.identityTaken));
     }

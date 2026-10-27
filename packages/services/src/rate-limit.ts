@@ -88,6 +88,9 @@ export const RATE_LIMITS = {
   // and per agency. Refused callbacks are audited at most this often in total, so a stream of
   // junk cannot flood the audit chain.
   PAYMENT_CALLBACK_IP: { limit: 300, windowMs: HOUR_MS },
+  // One platform-wide pass over waiting emails per minute, started by ordinary signed-in traffic,
+  // so a retry never waits for the once-a-day sending run (the hosting plan allows no more often).
+  NOTIFICATION_BACKSTOP: { limit: 1, windowMs: 60 * 1000 },
   PAYMENT_CALLBACK_TRAN: { limit: 30, windowMs: HOUR_MS },
   PAYMENT_REJECT_AUDIT: { limit: 30, windowMs: HOUR_MS },
   PAYMENT_START: { limit: 20, windowMs: HOUR_MS },

@@ -6,7 +6,6 @@ import { type Db, first, isUniqueViolation, lockOnEmail, required, schema } from
 import { type ServiceError, serviceError } from './errors';
 import { consumeAnyActiveInvitation } from './pilot-access';
 import { recordProductEvent } from './product-events';
-import { SIGN_IN_CONFLICT_BOUND_ELSEWHERE, SIGN_IN_CONFLICT_UNBOUND } from './sign-in-recovery';
 
 /**
  * Provision verified Neon identities without transferring legacy accounts by email.
@@ -51,6 +50,11 @@ export async function getAccountByNeonUserId(
   const id = neonUserId.trim();
   return id ? findByNeonUserId(db, id) : undefined;
 }
+
+/** Audit metadata `kind` for a refused sign-in whose address belongs to an unbound older account. */
+export const SIGN_IN_CONFLICT_UNBOUND = 'unbound_account';
+/** Audit metadata `kind` for a refused sign-in whose address is bound to a different identity. */
+export const SIGN_IN_CONFLICT_BOUND_ELSEWHERE = 'bound_elsewhere';
 
 /**
  * Record a refused sign-in. When the address belongs to an older account that no sign-in is bound

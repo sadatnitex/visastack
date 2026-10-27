@@ -55,6 +55,7 @@ vi.mock('../app/app/admin/actions', standIn);
 vi.mock('../app/app/admin/ai-settings/actions', standIn);
 vi.mock('../app/app/admin/document-protection/actions', standIn);
 vi.mock('../app/app/admin/sign-in-recovery/actions', standIn);
+vi.mock('../app/app/admin/email/actions', standIn);
 vi.mock('../app/app/admin/complaints/actions', standIn);
 vi.mock('../app/app/admin/organizations/[orgId]/actions', standIn);
 vi.mock('../app/app/admin/packs/actions', standIn);
@@ -83,6 +84,7 @@ const adminForms = await import('../app/app/admin/admin-forms');
 const aiSettings = await import('../app/app/admin/ai-settings/forms');
 const protectionForms = await import('../app/app/admin/document-protection/forms');
 const signInRecoveryForms = await import('../app/app/admin/sign-in-recovery/forms');
+const emailDeliveryForms = await import('../app/app/admin/email/forms');
 const staffCodeForms = await import('../app/app/staff-code/forms');
 const complaintForms = await import('../app/app/admin/complaints/forms');
 const organisationForms = await import('../app/app/admin/organizations/[orgId]/forms');
@@ -1382,6 +1384,13 @@ const ADMIN: readonly Case[] = [
     )),
     fields: ['reason'],
   },
+  row('send a failed email again', () => (
+    <emailDeliveryForms.ResendEmailButton
+      notificationId={rowId()}
+      kind="Client Invitation"
+      date="6 Oct 2026"
+    />
+  )),
   row('assign a complaint', () => <complaintForms.AssignComplaintForm complaintId={rowId()} />),
   row('update a complaint (open)', () => (
     <complaintForms.UpdateComplaintStatusForm complaintId={rowId()} currentStatus="OPEN" />

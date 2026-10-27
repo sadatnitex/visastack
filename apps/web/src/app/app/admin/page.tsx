@@ -12,6 +12,7 @@ import {
   totalAiCostUnits,
 } from '@visastack/services';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { PageHeader } from '../../../components/ui';
 import { bootstrapAdminEmails, isPlatformAdmin } from '../../../lib/admin';
 import { aiWarningLimitUnits, defaultAiLimits, resolveAiLimits, unitsToUsd } from '../../../lib/ai';
@@ -328,6 +329,10 @@ export default async function AdminOperationsPage() {
               <article className="card" id="admin-processing">
                 <p className="card-kicker">Processing</p>
                 <h2 className="card-title">Failed Intake Jobs</h2>
+                <p className="card-body">
+                  Emails that did not arrive have their own page.{' '}
+                  <Link href="/app/admin/email">Open Email Delivery</Link>
+                </p>
                 {data.failedJobs.length === 0 ? (
                   <p className="card-body">
                     No failed jobs. A job is parked here only after it exhausts every retry attempt.

@@ -19,10 +19,12 @@ import {
   type IntakeWorkerResult,
   type LegalHoldReminderSweepResult,
   type NotificationWorkerResult,
+  RATE_LIMITS,
   type ReconciliationSummary,
   type SweepResult,
   type SystemScope,
   applyEmailDeliveryEvent,
+  checkRateLimit,
   executeAccountDeletion,
   executeScheduledDowngrade,
   listDueDeletions,
@@ -267,7 +269,12 @@ export async function triggerAccountExportExpirySweep(
  * since elapsed).
  */
 export async function triggerNotificationWorker(
-  options: { readonly limit?: number; readonly timeBudgetMs?: number } = {},
+  options: {
+    readonly limit?: number;
+    readonly timeBudgetMs?: number;
+    /** Only the messages about this one record, sent while the person waits. */
+    readonly resourceId?: string;
+  } = {},
 ): Promise<NotificationWorkerResult & { readonly unavailable?: true }> {
   const connectionString = resolveDatabaseUrl(process.env);
   if (!connectionString) {
@@ -293,6 +300,36 @@ export async function triggerNotificationWorker(
   } finally {
     await pool.end();
   }
+}
+
+/**
+ * A short pass over waiting emails, at most once a minute across the whole platform (a shared
+ * counter in the database), started after ordinary signed-in requests. The hosting plan runs the
+ * sending job once a day, so without this a retry, or an email from a flow with no instant send,
+ * could wait up to a day. Never throws: a failed pass is reported and the next request tries again.
+ */
+export async function drainWaitingEmails(): Promise<void> {
+  const connectionString = resolveDatabaseUrl(process.env);
+  if (!connectionString) return;
+  const { db, pool } = createPooledDb(connectionString);
+  pool.on('error', (error) => {
+    reportServerError('drainWaitingEmails', error, { step: 'idle pool connection error' });
+  });
+  try {
+    const handle = db as unknown as Parameters<typeof checkRateLimit>[0];
+    const turn = await checkRateLimit(
+      handle,
+      { subjectId: 'platform', action: 'notifications.backstop', label: 'email' },
+      RATE_LIMITS.NOTIFICATION_BACKSTOP,
+    );
+    if (!turn.allowed) return;
+  } catch (error) {
+    reportServerError('drainWaitingEmails', error, { step: 'turn check failed' });
+    return;
+  } finally {
+    await pool.end();
+  }
+  await triggerNotificationWorker({ limit: 10, timeBudgetMs: 10_000 });
 }
 
 /**

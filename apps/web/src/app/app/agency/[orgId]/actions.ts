@@ -39,6 +39,7 @@ import { parseFieldKeyInput } from '../../../../lib/catalogue-input';
 import { humanizeCode } from '../../../../lib/format-code';
 import { triggerNotificationWorker } from '../../../../lib/jobs';
 import { createKeyManagementPort, createMalwareScanner } from '../../../../lib/providers';
+import { sendEmailNow } from '../../../../lib/send-now';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
 import {
@@ -214,7 +215,11 @@ export async function decideEvidenceResponseAction(
     if (!decided.ok) return { ok: false, message: decided.error.message } satisfies ActionState;
     return { ok: true, message: EVIDENCE_OUTCOME_MESSAGES[outcome] } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
+  if (result.ok) {
+    revalidatePath(`/app/agency/${organizationId}`, 'layout');
+    // The traveller's email about the decision goes now, not at the next daily run.
+    after(() => triggerNotificationWorker().then(() => undefined));
+  }
   return result;
 }
 
@@ -269,20 +274,33 @@ export async function addMemberAction(
     });
     if (!outcome.ok) return { ok: false, message: outcome.error.message } satisfies ActionState;
     if (outcome.value.kind === 'added') {
-      return { ok: true, message: memberAddedLine(humanizeCode(role)) } satisfies ActionState;
+      return {
+        ok: true,
+        message: memberAddedLine(humanizeCode(role)),
+        sendFor: outcome.value.membership.id,
+      };
     }
     const acceptUrl = `${resolveBaseUrl()}/invitation?kind=team&token=${outcome.value.rawToken}`;
     return {
       ok: true,
-      message: invitationReadyLine(Boolean(encryption), '7 days'),
+      message: invitationReadyLine('none', '7 days'),
       invitationUrl: acceptUrl,
-    } satisfies ActionState;
+      ...(encryption ? { sendFor: outcome.value.invitation.id } : {}),
+    };
   });
-  if (result.ok) {
-    revalidatePath(`/app/agency/${organizationId}`, 'layout');
-    after(() => triggerNotificationWorker().then(() => undefined));
+  if (!result.ok) return result;
+  // Send this person's email while the admin waits, so the screen can say whether it went.
+  const email = 'sendFor' in result && result.sendFor ? await sendEmailNow(result.sendFor) : null;
+  revalidatePath(`/app/agency/${organizationId}`, 'layout');
+  after(() => triggerNotificationWorker().then(() => undefined));
+  if ('invitationUrl' in result) {
+    return {
+      ok: true,
+      message: invitationReadyLine(email ?? 'none', '7 days'),
+      invitationUrl: result.invitationUrl,
+    } satisfies ActionState;
   }
-  return result;
+  return { ok: true, message: result.message } satisfies ActionState;
 }
 
 /** Revoke a still-pending member invitation (org admin). */
@@ -337,10 +355,22 @@ export async function inviteClientAction(
     const acceptUrl = `${resolveBaseUrl()}/invitation?kind=client&token=${invited.value.rawToken}`;
     return {
       ok: true,
-      message: invitationReadyLine(invited.value.emailQueued, '7 days'),
+      message: invitationReadyLine('none', '7 days'),
       invitationUrl: acceptUrl,
-    } satisfies ActionState;
+      ...(invited.value.emailQueued ? { sendFor: invited.value.invitation.id } : {}),
+    };
   });
+  if (result.ok && 'sendFor' in result && result.sendFor) {
+    // Send the client's email while the agency waits, so the screen can say whether it went.
+    const email = await sendEmailNow(result.sendFor);
+    revalidatePath(`/app/agency/${organizationId}`, 'layout');
+    after(() => triggerNotificationWorker().then(() => undefined));
+    return {
+      ok: true,
+      message: invitationReadyLine(email, '7 days'),
+      invitationUrl: result.invitationUrl,
+    } satisfies ActionState;
+  }
   if (result.ok) {
     revalidatePath(`/app/agency/${organizationId}`, 'layout');
     after(() => triggerNotificationWorker().then(() => undefined));
@@ -565,7 +595,11 @@ export async function createAppointmentForOrgAction(
     }
     return { ok: true, message: 'Appointment scheduled.' } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
+  if (result.ok) {
+    revalidatePath(`/app/agency/${organizationId}`, 'layout');
+    // The traveller's email about the appointment goes now, not at the next daily run.
+    after(() => triggerNotificationWorker().then(() => undefined));
+  }
   return result;
 }
 

@@ -167,6 +167,49 @@ describe('sign-in recovery for older accounts', () => {
     expect(isErr(result) && result.error.message).toBe(SIGN_IN_RECOVERY_REFUSED.ambiguous);
   });
 
+  it('many tries by one sign-in can never hide a different one', async () => {
+    const id = await olderAccount(db, 'old@example.com');
+    await trySignIn(db, 'old@example.com', 'neon-holder');
+    for (let i = 0; i < 520; i++) {
+      await db.transaction(async (tx) => {
+        const { appendAuditEvent } = await import('./audit');
+        await appendAuditEvent(tx, {
+          eventType: 'ACCOUNT_IDENTITY_CONFLICT',
+          method: 'SYSTEM',
+          result: 'DENIED',
+          resourceType: 'account',
+          resourceId: id,
+          metadata: { kind: 'unbound_account', identity: 'neon-other' },
+        });
+      });
+    }
+    const listed = await listSignInRecoveryRequests(db, security);
+    expect(isOk(listed) && listed.value[0]?.ambiguous).toBe(true);
+    const result = await connectSignInToAccount(db, security, {
+      accountId: id,
+      reason: 'checked',
+      stepUpSatisfied: true,
+      owner: securityAuth,
+    });
+    expect(isErr(result) && result.error.message).toBe(SIGN_IN_RECOVERY_REFUSED.ambiguous);
+    expect(await getAccountByNeonUserId(db, 'neon-other')).toBeUndefined();
+  }, 60_000);
+
+  it('asks for the fresh sign-in check only after every other rule passes', async () => {
+    const id = await olderAccount(db, 'old-staff@example.com');
+    await db
+      .insert(schema.platformRoles)
+      .values({ accountId: id, role: 'PLATFORM_OWNER', reason: 'test setup' });
+    await trySignIn(db, 'old-staff@example.com', 'neon-staff');
+    const result = await connectSignInToAccount(db, security, {
+      accountId: id,
+      reason: 'checked',
+      stepUpSatisfied: false,
+      owner: securityAuth,
+    });
+    expect(isErr(result) && result.error.message).toBe(SIGN_IN_RECOVERY_REFUSED.ownerOnly);
+  });
+
   it('lets only a platform owner connect an account that holds a platform role', async () => {
     const id = await olderAccount(db, 'old-staff@example.com');
     await db

@@ -1,8 +1,12 @@
-import { listSignInRecoveryRequests } from '@visastack/services';
+import { SIGN_IN_RECOVERY_WINDOW_DAYS, listSignInRecoveryRequests } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader } from '../../../../components/ui';
-import { bootstrapAdminEmails, staffPrincipal } from '../../../../lib/admin';
+import {
+  bootstrapAdminEmails,
+  isPlatformOwnerAccount,
+  staffPrincipal,
+} from '../../../../lib/admin';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
 import { AdminRestricted } from '../admin-restricted';
@@ -18,16 +22,21 @@ export const dynamic = 'force-dynamic';
  * with the person and connect them here.
  */
 export default async function SignInRecoveryPage() {
-  const result = await withSession(async ({ db, accountId, email }) => {
+  const access = await withSession(async ({ db, accountId, email }) => {
     const staff = await staffPrincipal(
       db,
       { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
       'ACCOUNT_SIGN_IN_RECOVERY',
     );
     if (!staff.ok) return null;
-    return listSignInRecoveryRequests(db, staff.value);
+    const [requests, owner] = await Promise.all([
+      listSignInRecoveryRequests(db, staff.value),
+      isPlatformOwnerAccount(db, { accountId, email }),
+    ]);
+    return { requests, owner };
   });
-  if (!result) return <AdminRestricted />;
+  if (!access) return <AdminRestricted />;
+  const { requests: result, owner } = access;
   return (
     <section className="section container">
       <PageHeader
@@ -41,7 +50,7 @@ export default async function SignInRecoveryPage() {
         <article className="card">
           <p className="card-body">
             Nobody is waiting. When someone with an older account creates a new sign-in, they appear
-            here for 14 days.
+            here for {SIGN_IN_RECOVERY_WINDOW_DAYS} days.
           </p>
         </article>
       ) : (
@@ -54,15 +63,15 @@ export default async function SignInRecoveryPage() {
                 {formatTimestampDate(request.lastActiveAt)}. New sign-in tried{' '}
                 {formatTimestampDate(request.requestedAt)}.
               </p>
-              {request.holdsPlatformRole ? (
-                <p className="notice notice-warn">
-                  This account holds a platform role. Only a platform owner can connect it.
-                </p>
-              ) : null}
               {request.ambiguous ? (
                 <p className="notice notice-warn">
-                  More than one new sign-in tried to reach this account, so it cannot be connected.
-                  Ask the person to try again once.
+                  More than one new sign-in tried to reach this account in the last{' '}
+                  {SIGN_IN_RECOVERY_WINDOW_DAYS} days, so it cannot be connected safely here. Check
+                  with the person which sign-in is theirs and verify them another way.
+                </p>
+              ) : request.holdsPlatformRole && !owner ? (
+                <p className="notice notice-warn">
+                  This account holds a platform role. Only a platform owner can connect it.
                 </p>
               ) : (
                 <ConnectSignInForm accountId={request.accountId} email={request.email} />

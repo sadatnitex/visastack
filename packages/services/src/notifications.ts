@@ -203,7 +203,12 @@ function nextRetryDelayMs(attemptsSoFar: number): number | null {
  * six-state vocabulary to add a seventh "claimed" state, so claiming is
  * tracked entirely through `leaseOwner`/`leaseExpiresAt` instead.
  */
-async function claimNotifications(db: Db, limit: number, now: Date): Promise<Notification[]> {
+async function claimNotifications(
+  db: Db,
+  limit: number,
+  now: Date,
+  resourceId?: string,
+): Promise<Notification[]> {
   const leaseOwner = randomUUID();
   return db.transaction(async (tx) => {
     const due = await tx
@@ -217,6 +222,7 @@ async function claimNotifications(db: Db, limit: number, now: Date): Promise<Not
             isNull(schema.notifications.leaseExpiresAt),
             lte(schema.notifications.leaseExpiresAt, now),
           ),
+          resourceId === undefined ? undefined : eq(schema.notifications.resourceId, resourceId),
         ),
       )
       .orderBy(asc(schema.notifications.nextAttemptAt))
@@ -289,6 +295,25 @@ async function checkRecipient(
       invite.expiresAt.getTime() > Date.now() &&
       applicant.ownerAccountId === invite.invitedByAccountId &&
       invite.email === notification.recipientEmail;
+    return { authorized, email: authorized ? notification.recipientEmail : null };
+  }
+  if (notification.eventType === 'CONTRIBUTOR_REQUEST_CREATED') {
+    // A request for one document from someone else: only while it is still open, unexpired and
+    // addressed to exactly this email.
+    const request =
+      notification.resourceId &&
+      first(
+        await db
+          .select()
+          .from(schema.contributorRequests)
+          .where(eq(schema.contributorRequests.id, notification.resourceId))
+          .limit(1),
+      );
+    const authorized =
+      !!request &&
+      request.status === 'PENDING' &&
+      request.expiresAt.getTime() > Date.now() &&
+      request.contributorEmail === notification.recipientEmail;
     return { authorized, email: authorized ? notification.recipientEmail : null };
   }
   if (['TEAM_INVITATION_CREATED', 'CLIENT_INVITATION_CREATED'].includes(notification.eventType)) {
@@ -489,7 +514,9 @@ async function dispatchOne(
           ? 'team'
           : notification.eventType === 'SHARING_INVITATION_CREATED'
             ? 'sharing'
-            : 'client';
+            : notification.eventType === 'CONTRIBUTOR_REQUEST_CREATED'
+              ? 'contributor'
+              : 'client';
       path = await revealInvitationLink(
         payload.sealedInvitationLink,
         kind,
@@ -573,6 +600,11 @@ export async function runNotificationWorker(
     readonly now?: Date;
     readonly timeBudgetMs?: number;
     readonly encryption?: KeyManagementPort;
+    /**
+     * Send only the messages about this one record (an invitation just created), so a person
+     * waiting on the screen gets their own email at once instead of whatever is oldest.
+     */
+    readonly resourceId?: string;
   } = {},
 ): Promise<NotificationWorkerResult> {
   if (
@@ -586,7 +618,12 @@ export async function runNotificationWorker(
       ? Number.POSITIVE_INFINITY
       : Date.now() + options.timeBudgetMs;
   const now = options.now ?? new Date();
-  const claimed = await claimNotifications(db, options.limit ?? DEFAULT_CLAIM_LIMIT, now);
+  const claimed = await claimNotifications(
+    db,
+    options.limit ?? DEFAULT_CLAIM_LIMIT,
+    now,
+    options.resourceId,
+  );
   let sent = 0;
   let retrying = 0;
   let failed = 0;

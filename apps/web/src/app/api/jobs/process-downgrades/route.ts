@@ -1,5 +1,6 @@
+import { after } from 'next/server';
 import { rejectUnauthorizedCron } from '../../../../lib/cron-auth';
-import { triggerDowngradeSweep } from '../../../../lib/jobs';
+import { triggerDowngradeSweep, triggerNotificationWorker } from '../../../../lib/jobs';
 
 /**
  * Executes every scheduled downgrade whose effective date has arrived
@@ -21,5 +22,7 @@ export async function GET(request: Request): Promise<Response> {
   if (denied) return denied;
 
   const { executed } = await triggerDowngradeSweep();
+  // Emails this run queued go out now, not at the next day's sending run.
+  after(() => triggerNotificationWorker().then(() => undefined));
   return Response.json({ executed });
 }

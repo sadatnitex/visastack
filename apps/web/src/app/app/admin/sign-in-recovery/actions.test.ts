@@ -92,7 +92,6 @@ describe('connectSignInAction', () => {
       owner: { accountId: 'synthetic-admin', email: 'admin@example.com', bootstrapEmails: [] },
       stepUpSatisfied: true,
     });
-    expect(mocks.revalidatePath).toHaveBeenCalledWith('/app/admin/sign-in-recovery');
   });
 
   it('sends a stale session to the password re-check', async () => {
@@ -105,9 +104,10 @@ describe('connectSignInAction', () => {
 
   it('explains each refusal in plain words', async () => {
     for (const message of Object.values(SIGN_IN_RECOVERY_REFUSED)) {
+      const code = message === SIGN_IN_RECOVERY_REFUSED.ownerOnly ? 'forbidden' : 'invalid';
       mocks.connectSignInToAccount.mockResolvedValueOnce({
         ok: false,
-        error: { code: 'invalid', message },
+        error: { code, message },
       });
       const result = await connectSignInAction(
         INITIAL,
@@ -116,6 +116,7 @@ describe('connectSignInAction', () => {
       expect(result.ok).toBe(false);
       expect(result.message).not.toBe(message);
       expect(result.message).toMatch(/^[A-Z]/);
+      expect(result.message).not.toContain('Only a security admin or platform owner');
     }
   });
 });

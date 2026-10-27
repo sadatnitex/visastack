@@ -10,10 +10,10 @@ export default function AccountRecoveryPage() {
     <AuthShell title="Account Access Needs Verification">
       <p className="card-body">
         We could not safely connect this sign-in to an account. Your records have not been changed.
-        If your account was made before October 2026, this new sign-in now waits for the VisaStack
-        team to confirm it with you. Once they have, sign in again with the email and password you
-        just used. If you still cannot get access, ask the person who invited you to arrange account
-        verification.
+        If you already have another sign-in for VisaStack, sign out and use that one. If your
+        account was made before VisaStack changed how people sign in, contact VisaStack support or
+        the person who invited you: once they have checked with you, sign in again with the email
+        and password you just used.
       </p>
       <p className="card-body">
         Resetting a password confirms access to your email. It does not transfer existing records to

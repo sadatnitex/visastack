@@ -301,6 +301,28 @@ describe('runNotificationWorker', () => {
     expect(emailPort.sent[0]?.idempotencyKey).toBe(`notification-${row?.id}`);
   });
 
+  it('sends only the named record when asked, ahead of an older backlog', async () => {
+    const { account } = await seedOwner(db, 'targeted-owner@example.com');
+    for (const resourceId of ['older-1', 'older-2', 'mine']) {
+      await enqueueNotification(db, {
+        eventType: 'EVIDENCE_REQUEST_CREATED',
+        channel: 'EMAIL',
+        resourceId,
+        recipientAccountId: account.id,
+        payload: PAYLOAD,
+      });
+    }
+    const emailPort = new FakeEmailPort();
+    const result = await runNotificationWorker(db, emailPort, 'https://app.example.com', {
+      resourceId: 'mine',
+      limit: 1,
+    });
+    expect(result).toEqual({ sent: 1, retrying: 0, failed: 0 });
+    const rows = await db.select().from(schema.notifications);
+    expect(rows.filter((r) => r.status === 'SENT').map((r) => r.resourceId)).toEqual(['mine']);
+    expect(rows.filter((r) => r.status === 'QUEUED')).toHaveLength(2);
+  });
+
   it('reuses the same opaque provider key when retrying a failed send', async () => {
     const { account } = await seedOwner(db, 'stable-retry@example.com');
     await enqueueNotification(db, {

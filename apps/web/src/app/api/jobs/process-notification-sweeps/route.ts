@@ -1,5 +1,6 @@
+import { after } from 'next/server';
 import { rejectUnauthorizedCron } from '../../../../lib/cron-auth';
-import { triggerNotificationSweeps } from '../../../../lib/jobs';
+import { triggerNotificationSweeps, triggerNotificationWorker } from '../../../../lib/jobs';
 
 /**
  * NTF-04 (Part 5 §4) date-threshold sweeps: task deadlines (7 days before;
@@ -35,5 +36,7 @@ export async function GET(request: Request): Promise<Response> {
 
   const result = await triggerNotificationSweeps({ limit: 200 });
   if (result.unavailable) return Response.json({ status: 'unavailable' }, { status: 503 });
+  // Emails this run queued go out now, not at the next day's sending run.
+  after(() => triggerNotificationWorker().then(() => undefined));
   return Response.json(result);
 }

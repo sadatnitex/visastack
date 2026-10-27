@@ -17,6 +17,14 @@ import { type Db, first, required, schema } from './db';
 /** Namespaced lock key for the audit chain (arbitrary, stable constant). */
 const AUDIT_CHAIN_LOCK_KEY = 4_242_042;
 
+/**
+ * Hold the audit chain's lock for the rest of this transaction, so no event can be appended until
+ * it ends. For a decision that must not miss an event committed while it is being made.
+ */
+export async function lockAuditChain(tx: Db): Promise<void> {
+  await tx.execute(sql`select pg_advisory_xact_lock(${AUDIT_CHAIN_LOCK_KEY})`);
+}
+
 /** Fields that are semantically meaningful and therefore covered by the hash. */
 export interface AuditEventInput {
   readonly eventType: string;

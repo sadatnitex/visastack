@@ -1624,8 +1624,21 @@ export {
   type ConnectSignInInput,
   SIGN_IN_RECOVERY_REASON_MAX,
   SIGN_IN_RECOVERY_REFUSED,
+  SIGN_IN_RECOVERY_WINDOW_DAYS,
   SIGN_IN_RECOVERY_WINDOW_MS,
   type SignInRecoveryRequest,
   connectSignInToAccount,
   listSignInRecoveryRequests,
 } from './sign-in-recovery';
+export {
+  EMAIL_DELIVERY_DAY_MS,
+  EMAIL_DELIVERY_LIST_LIMIT,
+  EMAIL_DELIVERY_WAITING_AFTER_MS,
+  EMAIL_RESEND_REFUSED,
+  type EmailDeliveryCounts,
+  type EmailDeliveryProblems,
+  type EmailDeliveryRow,
+  type ResendEmailInput,
+  listEmailDeliveryProblems,
+  resendEmail,
+} from './email-delivery-admin';

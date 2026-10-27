@@ -19,7 +19,9 @@ import {
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { after } from 'next/server';
 import { bootstrapAdminEmails, isPlatformOwnerAccount } from '../../../../../lib/admin';
+import { triggerNotificationWorker } from '../../../../../lib/jobs';
 import { withSession } from '../../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../../lib/step-up';
 
@@ -151,7 +153,11 @@ export async function scheduleDowngradeAction(
       message: `Downgrade scheduled for ${scheduled.value.effectiveAt.toDateString()}.`,
     } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(returnPath(organizationId));
+  if (result.ok) {
+    revalidatePath(returnPath(organizationId));
+    // The agency's email about the plan change goes now, not at the next daily run.
+    after(() => triggerNotificationWorker().then(() => undefined));
+  }
   return result;
 }
 
