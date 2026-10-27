@@ -1,4 +1,4 @@
-import { listMembershipsForAccount } from '@visastack/services';
+import { getWhatsAppConnection, listMembershipsForAccount } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { AccountPhotoCard } from '../../../components/profile-photo/account-photo-card';
@@ -8,6 +8,7 @@ import { getLocale } from '../../../lib/locale';
 import { loadOwnPhoto } from '../../../lib/profile-photos';
 import { withSession } from '../../../lib/session';
 import { signOutCurrentUser } from '../../../lib/sign-out';
+import { readWhatsAppConfig } from '../../../lib/whatsapp';
 import { setLocaleAction } from '../../actions';
 
 export const metadata: Metadata = { title: 'Account' };
@@ -17,12 +18,19 @@ export const dynamic = 'force-dynamic';
 export default async function AccountPage() {
   const locale = await getLocale();
   const data = await withSession(async ({ db, accountId, email }) => {
-    const [isAdmin, memberships, photo] = await Promise.all([
+    const [isAdmin, memberships, photo, whatsapp] = await Promise.all([
       holdsPlatformRole(db, { accountId, email }),
       listMembershipsForAccount(db, accountId),
       loadOwnPhoto(db, accountId),
+      getWhatsAppConnection(db, accountId),
     ]);
-    return { email, isAdmin, hasAgencyAccess: memberships.length > 0, photo };
+    return {
+      email,
+      isAdmin,
+      hasAgencyAccess: memberships.length > 0,
+      photo,
+      whatsappConnected: whatsapp.connected,
+    };
   });
 
   return (
@@ -54,6 +62,19 @@ export default async function AccountPage() {
             Open Privacy
           </Link>
         </article>
+
+        {readWhatsAppConfig() || data.whatsappConnected ? (
+          <article className="card">
+            <p className="card-kicker">Optional</p>
+            <h2 className="card-title">WhatsApp</h2>
+            <p className="card-body u-mb-125">
+              Ask about your cases from WhatsApp. You can disconnect it any time.
+            </p>
+            <Link href="/app/account/whatsapp" className="btn btn-secondary">
+              Open WhatsApp Settings
+            </Link>
+          </article>
+        ) : null}
 
         {data.hasAgencyAccess || data.isAdmin ? (
           <article className="card">

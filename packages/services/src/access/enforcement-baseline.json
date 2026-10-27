@@ -98,6 +98,7 @@
   "case-retention#purgeMissionUnconditionally",
   "case-retention#sweepCaseRetentionNotices",
   "case-retention#sweepCaseRetentionPurge",
+  "channels/whatsapp-link#disconnectWhatsApp",
   "client-invitations#acceptClientInvitation",
   "client-invitations#createClientInvitation",
   "client-invitations#previewClientInvitation",

@@ -48,6 +48,7 @@ export const SYSTEM_JOBS = [
   'process-notification-sweeps',
   'process-notifications',
   'process-rate-limit-prune',
+  'process-whatsapp-inbox',
   'rewrap-data-keys',
 ] as const;
 

@@ -4118,3 +4118,138 @@ export const invoicePayments = pgTable(
     check('invoice_payments_reference_present', sql`length(btrim(${table.reference})) > 0`),
   ],
 );
+
+// Lane D: WhatsApp channel (docs/roadmap/pwa-whatsapp/LANE-D-CONTRACT.md sections 5 and 6).
+// A channel identity is a WhatsApp sender, keyed on Meta's business-scoped user id, never on a
+// phone number. It reaches VisaStack records only once LINKED to exactly one account through a
+// code created in that account's signed-in session. Only the last four digits of a number are
+// kept, for the masked "ends in 1234" display. `opted_out_at` covers both STOP and Meta reporting
+// that the person blocked VisaStack: nothing is sent until they write START.
+export const channelIdentities = pgTable(
+  'channel_identities',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    channel: text('channel').notNull().default('WHATSAPP'),
+    // The business number (Meta phone number id) the person writes to.
+    providerScope: text('provider_scope').notNull(),
+    externalUserId: text('external_user_id').notNull(),
+    phoneLast4: text('phone_last4'),
+    status: text('status').notNull().default('PROVISIONAL'),
+    accountId: uuid('account_id').references(() => accounts.id, { onDelete: 'cascade' }),
+    optInVersion: text('opt_in_version'),
+    linkedAt: timestamp('linked_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    optedOutAt: timestamp('opted_out_at', { withTimezone: true }),
+    // Meta's time on the STOP or START that last changed `opted_out_at`, so an older one that
+    // arrives late (a retried delivery) never overrides a newer choice.
+    optChangedAt: timestamp('opt_changed_at', { withTimezone: true }),
+    lastInboundAt: timestamp('last_inbound_at', { withTimezone: true }).notNull().defaultNow(),
+    lastAutoReplyAt: timestamp('last_auto_reply_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('channel_identities_sender_unique').on(
+      table.channel,
+      table.providerScope,
+      table.externalUserId,
+    ),
+    uniqueIndex('channel_identities_one_linked_per_account')
+      .on(table.accountId, table.channel)
+      .where(sql`${table.status} = 'LINKED'`),
+    check('channel_identities_channel', sql`${table.channel} in ('WHATSAPP')`),
+    check(
+      'channel_identities_status',
+      sql`${table.status} in ('PROVISIONAL', 'LINKED', 'REVOKED')`,
+    ),
+    check(
+      'channel_identities_linked_account',
+      sql`(${table.status} = 'LINKED') = (${table.accountId} is not null)`,
+    ),
+    check(
+      'channel_identities_last4',
+      sql`${table.phoneLast4} is null or ${table.phoneLast4} ~ '^[0-9]{4}$'`,
+    ),
+  ],
+);
+
+// One-time codes a signed-in person sends from WhatsApp to connect it. Only a hash is kept.
+export const channelLinkCodes = pgTable(
+  'channel_link_codes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    codeHash: text('code_hash').notNull(),
+    optInVersion: text('opt_in_version').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('channel_link_codes_hash_unique').on(table.codeHash),
+    index('channel_link_codes_account_idx').on(table.accountId),
+  ],
+);
+
+// The webhook inbox: each verified delivery, encrypted, until the job has handled it. The
+// payload is cleared once handled; the row stays a few days so a repeated delivery is spotted.
+export const channelWebhookEvents = pgTable(
+  'channel_webhook_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    channel: text('channel').notNull().default('WHATSAPP'),
+    eventHash: text('event_hash').notNull(),
+    payloadCiphertext: bytea('payload_ciphertext'),
+    payloadNonce: bytea('payload_nonce'),
+    payloadKeyVersion: text('payload_key_version'),
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+    processedAt: timestamp('processed_at', { withTimezone: true }),
+    attempts: integer('attempts').notNull().default(0),
+    // After a failure the delivery waits (1, 2, 4 ... minutes) before it is tried again.
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
+    lastError: text('last_error'),
+  },
+  (table) => [
+    unique('channel_webhook_events_hash_unique').on(table.eventHash),
+    index('channel_webhook_events_pending_idx')
+      .on(table.receivedAt)
+      .where(sql`${table.processedAt} is null`),
+    check(
+      'channel_webhook_events_payload_whole',
+      sql`(${table.payloadCiphertext} is null) = (${table.payloadNonce} is null) and (${table.payloadNonce} is null) = (${table.payloadKeyVersion} is null)`,
+    ),
+  ],
+);
+
+// One row per WhatsApp message in either direction: ids, kind and delivery state only, never
+// the text. Inbound ids make a repeated message a no-op; outbound rows track delivery and cost.
+export const channelMessages = pgTable(
+  'channel_messages',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    identityId: uuid('identity_id')
+      .notNull()
+      .references(() => channelIdentities.id, { onDelete: 'cascade' }),
+    direction: text('direction').notNull(),
+    providerMessageId: text('provider_message_id').notNull(),
+    kind: text('kind').notNull(),
+    state: text('state').notNull(),
+    errorCode: integer('error_code'),
+    pricingCategory: text('pricing_category'),
+    billable: boolean('billable'),
+    providerTimestamp: timestamp('provider_timestamp', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('channel_messages_provider_unique').on(table.providerMessageId),
+    index('channel_messages_identity_idx').on(table.identityId, table.createdAt),
+    check('channel_messages_direction', sql`${table.direction} in ('IN', 'OUT')`),
+    check(
+      'channel_messages_state',
+      sql`${table.state} in ('RECEIVED', 'SENT', 'DELIVERED', 'READ', 'FAILED')`,
+    ),
+  ],
+);
