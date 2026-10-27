@@ -846,6 +846,8 @@ test.describe('authoritative appearance on public routes', () => {
     // Harbor C1 geometry and colour (WP-L1): headline weight and size, and the navy stage.
     await expect(page.locator('.c1-headline')).toHaveCSS('font-weight', '820');
     await expect(page.locator('.c1-headline')).toHaveCSS('font-size', '97px');
+    // Legibility (G1b): loose enough that the "c" and "l" of "clean" never touch (-0.04em of 97px).
+    await expect(page.locator('.c1-headline')).toHaveCSS('letter-spacing', '-3.88px');
     await expect(page.locator('.c1-darkstage')).toHaveCSS('background-color', 'rgb(11, 26, 48)');
     const missing = await page
       .locator('a[href^="/#"]')

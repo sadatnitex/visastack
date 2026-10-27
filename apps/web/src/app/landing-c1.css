@@ -63,7 +63,9 @@
 }
 .c1 .c1-headline {
   font-size: clamp(58px, 6.3vw, 97px);
-  letter-spacing: -0.073em;
+  /* G1b: -0.04em keeps the heavy, tight look but leaves a clear gap between "c" and "l" in "clean"
+     (at -0.073em they touched and read as "d"). The guard test pins the limit. */
+  letter-spacing: -0.04em;
   line-height: 0.99;
   margin: 23px auto 20px;
   font-weight: 820;
@@ -654,7 +656,7 @@
   }
   .c1 .c1-headline {
     font-size: clamp(47px, 12vw, 74px);
-    letter-spacing: -0.077em;
+    letter-spacing: -0.04em;
     line-height: 1.01;
     margin: 24px auto 17px;
   }
