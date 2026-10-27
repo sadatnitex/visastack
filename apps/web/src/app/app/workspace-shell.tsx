@@ -16,6 +16,7 @@ import { Icon } from '../../components/icons';
 import { PersonAvatar } from '../../components/profile-photo/person-avatar';
 import { isCurrentPath } from '../../lib/navigation';
 import { type SidebarState, saveSidebarState } from '../../lib/sidebar-preference';
+import { useCloseOnOutsidePress, useMediaQuery } from '../../lib/use-popover';
 import {
   type WorkspaceAccess,
   type WorkspaceNavigation,
@@ -73,17 +74,7 @@ function WorkspaceSelector({
   }, [pathname]);
   // The chip (and the list beside the slim rail) closes when someone taps anywhere else (another
   // menu, the page), as the account menu and the More sheet do, so two menus never overlap.
-  useEffect(() => {
-    if (!compact && !popover) return;
-    const outside = (event: PointerEvent) => {
-      const details = selector.current;
-      if (details?.open && event.target instanceof Node && !details.contains(event.target)) {
-        details.open = false;
-      }
-    };
-    document.addEventListener('pointerdown', outside);
-    return () => document.removeEventListener('pointerdown', outside);
-  }, [compact, popover]);
+  useCloseOnOutsidePress(selector, compact || popover);
   // A person's first name is enough to recognise them. Other contexts get a
   // short label that fits a phone and drop the initials so the label has room; the full wording is still read aloud.
   const isPerson = kind === 'personal' && access.travellers.some((t) => t.name === name);
@@ -185,17 +176,7 @@ function WorkspaceTools({
   useEffect(() => {
     if (popover && details.current) details.current.open = false;
   }, [pathname, popover]);
-  useEffect(() => {
-    if (!popover) return;
-    const outside = (event: PointerEvent) => {
-      const element = details.current;
-      if (element?.open && event.target instanceof Node && !element.contains(event.target)) {
-        element.open = false;
-      }
-    };
-    document.addEventListener('pointerdown', outside);
-    return () => document.removeEventListener('pointerdown', outside);
-  }, [popover]);
+  useCloseOnOutsidePress(details, popover);
   return (
     <details
       ref={details}
@@ -251,8 +232,38 @@ export function WorkspaceShell({
 }) {
   const pathname = usePathname();
   const [subject, setSubject] = useState<Subject | null>(null);
+  const frame = useRef<HTMLDivElement>(null);
   const [collapsed, setCollapsed] = useState(sidebarState === 'collapsed');
+  // The rail exists only from 1024px up; below that the saved choice changes nothing, so the lists
+  // there stay ordinary and keep their full names.
+  const railShown = useMediaQuery('(min-width: 1024px)') && collapsed;
   const nav = workspaceNavigation(pathname, access, subject);
+  // The small label beside a rail control can be put away with Escape (WCAG 1.4.13); it returns when
+  // the pointer or focus reaches another control.
+  useEffect(() => {
+    const element = frame.current;
+    if (!element) return;
+    const control = (target: EventTarget | null) =>
+      target instanceof Element ? target.closest('a, button, summary') : null;
+    let away: Element | null = null;
+    const dismiss = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      const hovered = [...element.querySelectorAll(':hover')].at(-1) ?? null;
+      away = control(document.activeElement) ?? control(hovered);
+      if (away) element.setAttribute('data-tips-dismissed', 'true');
+    };
+    const restore = (event: Event) => {
+      if (control(event.target) !== away) element.removeAttribute('data-tips-dismissed');
+    };
+    document.addEventListener('keydown', dismiss);
+    element.addEventListener('pointerover', restore);
+    element.addEventListener('focusin', restore);
+    return () => {
+      document.removeEventListener('keydown', dismiss);
+      element.removeEventListener('pointerover', restore);
+      element.removeEventListener('focusin', restore);
+    };
+  }, []);
   const toggleSidebar = () => {
     setCollapsed(!collapsed);
     saveSidebarState(collapsed ? 'expanded' : 'collapsed');
@@ -260,6 +271,7 @@ export function WorkspaceShell({
   return (
     <SubjectContext.Provider value={setSubject}>
       <div
+        ref={frame}
         className="app-frame"
         data-workspace={nav.kind}
         data-sidebar={collapsed ? 'collapsed' : 'expanded'}
@@ -272,12 +284,12 @@ export function WorkspaceShell({
           identity={
             <WorkspaceSelector
               // A fresh list each time the sidebar changes size, so none stays open across it.
-              key={collapsed ? 'rail' : 'full'}
+              key={railShown ? 'rail' : 'full'}
               access={access}
               name={nav.name}
               caption={nav.caption}
               photo={nav.photo}
-              popover={collapsed}
+              popover={railShown}
             />
           }
           secondaryLinks={nav.settings}
@@ -293,9 +305,9 @@ export function WorkspaceShell({
         >
           {nav.tools.length ? (
             <WorkspaceTools
-              key={collapsed ? 'rail' : 'full'}
+              key={railShown ? 'rail' : 'full'}
               tools={nav.tools}
-              popover={collapsed}
+              popover={railShown}
             />
           ) : null}
         </AppNav>

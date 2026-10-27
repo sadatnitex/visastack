@@ -7791,9 +7791,13 @@ summary.visa-photo-title {
   margin-bottom: 0;
 }
 @media (min-width: 761px) {
+  /* Sticks flush to the panel's bottom edge, covering the panel's own padding, so scrolled rows
+     never show through beneath it. The negative margin keeps its place when nothing scrolls. */
   .account-menu-signout {
     position: sticky;
-    bottom: 0;
+    bottom: calc(-1 * var(--space-2));
+    margin-bottom: calc(-1 * var(--space-2));
+    padding-bottom: var(--space-2);
     background: var(--bg-elevated);
   }
 }
@@ -7943,6 +7947,13 @@ summary.visa-photo-title {
   }
   /* A control whose list is open needs no label over its own list. */
   .app-frame[data-sidebar="collapsed"] .app-shell-nav details[open] > summary::after {
+    content: none;
+  }
+  /* Escape puts the label away until the pointer or focus moves to another control. */
+  .app-frame[data-tips-dismissed="true"]
+    .app-shell-nav
+    :where(a, button, summary)[aria-label]::after,
+  .app-frame[data-tips-dismissed="true"] .app-sidebar-toggle::after {
     content: none;
   }
 }

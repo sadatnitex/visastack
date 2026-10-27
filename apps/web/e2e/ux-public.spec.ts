@@ -1015,6 +1015,11 @@ test.describe('collapsible sidebar and account menu fit the screen', () => {
         });
         if (!scrolls) expect(panel.height).toBeGreaterThanOrEqual(natural);
         await expect(page.getByRole('button', { name: 'Sign Out' })).toBeInViewport();
+        if (scrolls) {
+          // Scrolled or not, Sign Out stays pinned flush to the panel's bottom edge.
+          const out = await box(page, '.account-menu-signout button');
+          expect(panel.y + panel.height - (out.y + out.height)).toBeLessThanOrEqual(10);
+        }
       });
     }
   }
@@ -1143,6 +1148,24 @@ test.describe('collapsible sidebar and account menu fit the screen', () => {
     expect(await hide.evaluate((el) => getComputedStyle(el, '::after').content)).toBe(
       '"Hide Menu"',
     );
+  });
+
+  test('Escape puts a rail label away until another control is reached', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await openUiFixture(page, 'shell', { sidebar: 'collapsed' });
+    const record = page.getByRole('link', { name: 'Record' });
+    const cases = page.getByRole('link', { name: 'Cases' });
+    const label = (link: typeof record) =>
+      link.evaluate((el) => getComputedStyle(el, '::after').content);
+    await record.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    expect(await label(record)).toBe('"Record"');
+    await page.keyboard.press('Escape');
+    expect(await label(record)).toBe('none');
+    await page.keyboard.press('Tab');
+    await expect(cases).toBeFocused();
+    expect(await label(cases)).toBe('"Cases"');
   });
 
   test('rail controls name themselves beside the rail on hover and keyboard focus', async ({

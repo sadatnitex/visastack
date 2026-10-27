@@ -41,7 +41,17 @@ function mount(sidebarState?: 'expanded' | 'collapsed') {
     ),
   );
 }
+/** A laptop-wide window (the rail exists) or a narrower one (the bottom bar). */
+function setWindow(laptop: boolean) {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: laptop && query === '(min-width: 1024px)',
+    media: query,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+  }));
+}
 beforeEach(() => {
+  setWindow(true);
   vi.stubGlobal('fetch', vi.fn());
   container = document.createElement('div');
   document.body.append(container);
@@ -124,6 +134,32 @@ describe('the Hide Menu and Show Menu button', () => {
       ),
     );
     expect(toggle()).toBeNull();
+  });
+});
+
+describe('the saved rail only matters on a laptop or larger', () => {
+  it('leaves the lists ordinary and fully named on a narrower window', () => {
+    setWindow(false);
+    route.pathname = '/app/shared';
+    mount('collapsed');
+    expect(selector()?.querySelector('summary')?.getAttribute('aria-label')).toBeNull();
+    expect(tools()?.querySelector('summary')?.getAttribute('aria-label')).toBeNull();
+    // The contextual page is still shown open, as before the rail existed.
+    expect(tools()?.open).toBe(true);
+  });
+});
+
+describe('the label beside a rail control can be put away', () => {
+  it('hides on Escape and returns when focus reaches another control', () => {
+    mount('collapsed');
+    const links = [...container.querySelectorAll<HTMLAnchorElement>('.app-bar a')];
+    act(() => links[0]?.focus());
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(frame()?.getAttribute('data-tips-dismissed')).toBe('true');
+    act(() => links[1]?.focus());
+    expect(frame()?.hasAttribute('data-tips-dismissed')).toBe(false);
   });
 });
 

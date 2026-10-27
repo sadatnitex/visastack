@@ -10,9 +10,11 @@ import {
   useEffect,
   useId,
   useRef,
+  useState,
 } from 'react';
 import { Icon, type IconName } from '../../components/icons';
 import { placePopover } from '../../lib/popover-placement';
+import { useCloseOnOutsidePress } from '../../lib/use-popover';
 
 export interface AccountMenuLink {
   readonly href: string;
@@ -106,18 +108,7 @@ export function AccountMenu({
   }, [pathname]);
 
   // A tap or click anywhere else closes it, as the context chip and the More sheet do.
-  useEffect(() => {
-    const outside = (event: PointerEvent) => {
-      if (
-        event.target instanceof Node &&
-        account.current &&
-        !account.current.contains(event.target)
-      )
-        account.current.open = false;
-    };
-    document.addEventListener('pointerdown', outside);
-    return () => document.removeEventListener('pointerdown', outside);
-  }, []);
+  useCloseOnOutsidePress(account);
 
   // Fit the panel to the screen: open it on the side of the trigger with room, no taller than that
   // room (taller content scrolls inside it), and never past a screen edge. The answer is written as
@@ -138,9 +129,11 @@ export function AccountMenu({
     details.style.setProperty('--account-menu-max-height', `${fit.maxHeight}px`);
   }, []);
 
+  const [shown, setShown] = useState(false);
   const onToggle = () => {
     const details = account.current;
     if (!details) return;
+    setShown(details.open);
     if (details.open) {
       place();
       return;
@@ -150,21 +143,23 @@ export function AccountMenu({
     details.style.removeProperty('--account-menu-max-height');
   };
 
-  // While open, a resized window or a scrolled page changes the room: measure again.
+  // While open, a resized window or a scrolled page (or any scrolling area around the menu) changes
+  // the room: measure again. Nothing is listened to while the menu is closed.
   useEffect(() => {
+    if (!shown) return;
     let frame = 0;
     const again = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(place);
     };
     window.addEventListener('resize', again);
-    window.addEventListener('scroll', again, { passive: true });
+    document.addEventListener('scroll', again, { passive: true, capture: true });
     return () => {
       cancelAnimationFrame(frame);
       window.removeEventListener('resize', again);
-      window.removeEventListener('scroll', again);
+      document.removeEventListener('scroll', again, { capture: true });
     };
-  }, [place]);
+  }, [shown, place]);
 
   const rows = () => Array.from(panel.current?.querySelectorAll<HTMLElement>(ROW_SELECTOR) ?? []);
 
