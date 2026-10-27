@@ -3,6 +3,7 @@
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { ReferenceCode } from '../../../../components/reference-code';
+import { TimeZoneSelect } from '../../../../components/time-zone-select';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { reviewDecisionLabel } from '../../../../lib/labels';
 import {
@@ -465,15 +466,7 @@ export function MissionCollaboration({
           />
           <input name="localDate" type="date" className="input" aria-label="Date" required />
           <input name="localTime" type="time" className="input" aria-label="Time" required />
-          <input
-            name="timezone"
-            type="text"
-            className="input"
-            placeholder="Timezone"
-            aria-label="Timezone"
-            required
-            style={{ maxWidth: '9rem' }}
-          />
+          <TimeZoneSelect name="timezone" />
           <input
             name="place"
             type="text"

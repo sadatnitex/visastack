@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { TimeZoneSelect } from '../../../../components/time-zone-select';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import {
@@ -314,15 +315,7 @@ export function AppointmentsPanel({
         />
         <input name="localDate" type="date" className="input" aria-label="Date" required />
         <input name="localTime" type="time" className="input" aria-label="Time" required />
-        <input
-          name="timezone"
-          type="text"
-          className="input"
-          placeholder="Timezone, e.g. Asia/Dhaka"
-          aria-label="Timezone"
-          required
-          style={{ maxWidth: '10rem' }}
-        />
+        <TimeZoneSelect name="timezone" />
         <input
           name="place"
           type="text"

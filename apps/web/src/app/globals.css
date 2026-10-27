@@ -5658,6 +5658,23 @@ body:has(.auth-shell) > .footer {
   min-width: 0;
 }
 
+/* WP-TZ time zone dropdown (appointment forms): a list to choose from instead of a box to type in.
+   Flat, existing tokens; the control keeps the shared .input height so the target stays easy to hit.
+   It grows to fill its row, never narrower than a readable "(UTC+06:00) Dhaka", and takes the whole
+   row on a phone. */
+.tz-select {
+  flex: 1 1 15rem;
+  min-width: min(15rem, 100%);
+  max-width: 24rem;
+  text-overflow: ellipsis;
+}
+@media (max-width: 480px) {
+  .tz-select {
+    flex-basis: 100%;
+    max-width: none;
+  }
+}
+
 /* WP-X1 case journey (approved preview: case journey, two states). Next step
    card under the stage tracker, and the changed-since-acknowledged notice
    restyled as the approved alert. Colours are existing Harbor tokens. */
