@@ -1005,7 +1005,9 @@ test.describe('authoritative appearance of actual workspace components', () => {
       // The same words are on the screen beside the ring, and the empty ring teaches.
       await expect(rings.getByText('6 of 9 items ready').first()).toBeVisible();
       await expect(rings.getByText('Pick a checklist to see what is ready').first()).toBeVisible();
-      await expect(rings.getByRole('link', { name: 'Pick a Checklist', exact: true })).toBeVisible();
+      await expect(
+        rings.getByRole('link', { name: 'Pick a Checklist', exact: true }),
+      ).toBeVisible();
       const findings = await rings.evaluate((root) => {
         const probe = document.createElement('span');
         probe.style.color = 'var(--accent)';
