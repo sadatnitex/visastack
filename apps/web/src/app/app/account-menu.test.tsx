@@ -262,20 +262,23 @@ describe('account menu placement', () => {
   };
   const limit = () => details().style.getPropertyValue('--account-menu-max-height');
 
-  it('opens under a trigger near the top, lined up with its right edge, at full height', () => {
-    layout({ top: 19, bottom: 63, left: 1216, right: 1322 }, { width: 1366, height: 768 }, 500);
+  it('opens under a trigger near the top, lined up with its right edge, never past 70 percent', () => {
+    layout({ top: 19, bottom: 63, left: 1216, right: 1322 }, { width: 1366, height: 768 }, 385);
     openAndMeasure();
     expect(details().getAttribute('data-placement')).toBe('below');
     expect(details().getAttribute('data-align')).toBe('end');
-    expect(limit()).toBe(`${768 - 63 - 8 - 12}px`);
+    // 681px are free below the trigger, but the menu never takes more than 70 percent of the window.
+    expect(limit()).toBe(`${Math.floor(768 * 0.7)}px`);
   });
 
-  it('shrinks to the room on a short screen, so the rows scroll inside the panel', () => {
+  it('shrinks to 70 percent of a short screen, so the rows scroll inside the panel', () => {
     layout({ top: 19, bottom: 63, left: 1136, right: 1242 }, { width: 1280, height: 520 }, 500);
     openAndMeasure();
     expect(details().getAttribute('data-placement')).toBe('below');
-    expect(Number.parseInt(limit(), 10)).toBe(520 - 63 - 8 - 12);
+    expect(Number.parseInt(limit(), 10)).toBe(Math.floor(520 * 0.7));
     expect(Number.parseInt(limit(), 10)).toBeLessThan(500);
+    // And it stays 16px clear of the bottom edge.
+    expect(63 + 8 + Number.parseInt(limit(), 10) + 16).toBeLessThanOrEqual(520);
   });
 
   it('opens above a trigger that sits low on the screen', () => {
@@ -283,7 +286,7 @@ describe('account menu placement', () => {
     openAndMeasure();
     expect(details().getAttribute('data-placement')).toBe('above');
     expect(details().getAttribute('data-align')).toBe('start');
-    expect(limit()).toBe(`${700 - 8 - 12}px`);
+    expect(limit()).toBe(`${Math.floor(768 * 0.7)}px`);
   });
 
   it('forgets its placement when it closes, and measures again on the next open', () => {
@@ -305,13 +308,13 @@ describe('account menu placement', () => {
   it('measures again when the window is resized while open', async () => {
     layout({ top: 19, bottom: 63, left: 1216, right: 1322 }, { width: 1366, height: 768 }, 500);
     openAndMeasure();
-    expect(limit()).toBe(`${768 - 63 - 8 - 12}px`);
+    expect(limit()).toBe(`${Math.floor(768 * 0.7)}px`);
     layout({ top: 19, bottom: 63, left: 1136, right: 1242 }, { width: 1280, height: 600 }, 500);
     await act(async () => {
       window.dispatchEvent(new Event('resize'));
       await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
     });
-    expect(limit()).toBe(`${600 - 63 - 8 - 12}px`);
+    expect(limit()).toBe(`${Math.floor(600 * 0.7)}px`);
   });
 });
 
