@@ -134,3 +134,7 @@ Spoofed browser success records nothing. An IPN with a bad signature records not
 
 - Platform billing staff can download a monthly CSV of ledger rows: date, invoice ref, organization reference code, kind, amount, currency, provider, transaction reference.
 - No traveller data appears in it, and no formulas: every value is quoted and protected against spreadsheet formula injection.
+
+## Implementation note (2026-10-27)
+
+S10 is implemented: the append-only `invoice_payments` ledger and the single recording function `applyInvoiceCollection` (migration 0094). S11 and later build on it.

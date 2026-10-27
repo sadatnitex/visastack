@@ -5762,3 +5762,11 @@ Owner approved 2026-10-25. Two fixes where the product said something that was n
 - Review: independent review found, and I fixed: invitations that bypassed the key service, writes failing before the migration, alias-versus-ARN mismatch, the host-reserved variable names, missing call time limits, and self-test hardening.
 - Mutations that turn tests red: context binding removed, verify-before-replace removed, endpoint check removed.
 - Not verified: any call to real AWS (needs owner action O16), the migration run in production, the re-wrap job against real data.
+
+### 2026-10-27, Small Commercial V1 S10: cash ledger and one recording function
+
+- What changed: new table `invoice_payments` (migration 0094, re-runnable) with an append-only trigger, unique keys on (kind, source_id) and (provider, provider_transaction_id), and an opening-balance backfill marked provider `opening_balance`. New `applyInvoiceCollection` (invoice-ledger.ts) is the single recording function: it locks the invoice row, replays by key, refuses a void invoice, a currency mismatch or more than is outstanding, then writes the ledger row, the invoice total and status, one audit event and the cash event. `recordInvoicePayment` delegates to it and gains optional currency and idempotency key. `getInvoiceLedger` gives platform staff and agency owners and admins a read of one invoice ledger. `voidInvoice` now locks the invoice row. The admin payment form sends the currency and a per-page-render key made on the server.
+- Tolerates the table being missing: admin recording behaves as before (no ledger row); other kinds say "not available yet"; the ledger read reports unavailable.
+- Evidence: 7 characterization tests (passed on the old code and the new), 40 ledger tests, a migration test (backfill, rerun, append-only, constraints). Mutations to the lock, replay, currency, void, overpayment, amount, trigger, backfill, organization scoping and recorder rules each turned a test red. Code review fixed 10 of 14 findings; security review found nothing at confidence 8 or above.
+- Not verified: parallel locking on real Postgres (PGlite runs transactions one at a time); the backfill against production data.
+- Owner decision open: the same bank transfer entered twice under different keys is counted twice (ADR 0020 says no idempotency by design for manual entries).
