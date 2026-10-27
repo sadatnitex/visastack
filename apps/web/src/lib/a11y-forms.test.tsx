@@ -8,7 +8,12 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 import { describe, expect, it, vi } from 'vitest';
 import { axeViolations } from './axe.test-support';
-import { fixtureDocumentGroups, fixtureFieldGroups, fixtureView } from './master-profile-fixture';
+import {
+  fixtureDocumentGroups,
+  fixtureEssentials,
+  fixtureFieldGroups,
+  fixtureView,
+} from './master-profile-fixture';
 import './next-mocks.test-support';
 
 /**
@@ -201,6 +206,11 @@ const PEOPLE: readonly Case[] = [
   {
     name: 'add a person',
     element: () => <AddApplicantForm />,
+    fields: ['displayName', 'authorityConfirmed'],
+  },
+  {
+    name: 'add a person (a record for yourself exists)',
+    element: () => <AddApplicantForm selfAdded />,
     fields: ['displayName', 'authorityConfirmed'],
   },
   row('consent switch (off)', () => (
@@ -481,6 +491,19 @@ const DOCS: readonly Case[] = [
 ];
 
 const PROFILE: readonly Case[] = [
+  {
+    name: 'profile editor (essentials first)',
+    element: () => (
+      <ProfileEditor
+        applicantId="a1"
+        values={{}}
+        repeatingValues={{}}
+        assurance={new Map()}
+        view={fixtureView({ essentials: fixtureEssentials() })}
+      />
+    ),
+    fields: ['value', 'effectiveFrom'],
+  },
   {
     name: 'profile editor (empty)',
     element: () => (

@@ -59,10 +59,10 @@ export default async function ApplicantProfilePage({
   searchParams,
 }: {
   readonly params: Promise<{ id: string }>;
-  readonly searchParams?: Promise<{ for?: string | string[] }>;
+  readonly searchParams?: Promise<{ for?: string | string[]; view?: string | string[] }>;
 }) {
   const { id } = await params;
-  const { for: suggestParam } = (await searchParams) ?? {};
+  const { for: suggestParam, view: viewParam } = (await searchParams) ?? {};
   const suggestFor = typeof suggestParam === 'string' && suggestParam !== '' ? suggestParam : null;
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
@@ -159,6 +159,9 @@ export default async function ApplicantProfilePage({
     uploadedDocumentTypes: data.uploadedDocumentTypes,
   });
   const completeness = view.percent;
+  const { essentials } = view;
+  const essentialsDone = essentials.done;
+  const essentialsPercent = essentials.percent;
   const changes = [...data.profile]
     .filter((entry) => entry.updatedAt)
     .sort(
@@ -210,16 +213,22 @@ export default async function ApplicantProfilePage({
             . Fact assurance is shown beside each field.
           </p>
         </div>
+        {/* Essentials lead: a new person sees "0 of 12 essentials", not the size of the whole
+            profile. The full count follows once the essentials are added (and is always shown
+            under Show All Sections). */}
         <div className="profile-completeness">
-          <span>Profile completion</span>
-          <strong>{completeness}%</strong>
+          <span>Essentials Added</span>
+          <strong>
+            {essentials.answered} of {essentials.total}
+          </strong>
           <div className="meter" aria-hidden="true">
-            <div className="meter-fill" style={{ width: `${completeness}%` }} />
+            <div className="meter-fill" style={{ width: `${essentialsPercent}%` }} />
           </div>
           <span className="muted">
-            {view.answered} of {view.total} details in your{' '}
-            {plural(view.openSections, 'open section')} have values. Opening a section adds its
-            details to this number at once. This does not verify identity.
+            {essentialsDone
+              ? `Full profile: ${completeness}% of the details in your ${plural(view.openSections, 'open section')}. `
+              : 'The details most visa forms ask for first. '}
+            This does not verify identity.
           </span>
         </div>
       </section>
@@ -239,6 +248,8 @@ export default async function ApplicantProfilePage({
               repeatingValues={repeatingValues}
               assurance={assuranceByFactId}
               view={view}
+              // A link that asks for everything, or details that disagree, open every section.
+              startWithAll={viewParam === 'all' || conflictedCount > 0}
             />
           ) : (
             <EmptyState

@@ -73,6 +73,8 @@ export default async function HistoryPage({
         versions: (await listFactHistory(db, entry.factId)).map((v) => ({
           id: v.id,
           value: v.value,
+          // A protected detail is stored locked, so its text is not on this page.
+          isProtected: v.protectedKeyVersion !== null,
           status: v.status,
           method: v.method,
           reason: v.reason,
@@ -98,11 +100,13 @@ export default async function HistoryPage({
         <article className="card">
           <EmptyState
             icon="activity"
-            title="No History Yet"
-            action={{ href: `/app/applicant/${id}/profile`, label: 'Open the Profile' }}
+            title="Nothing Saved to This Profile Yet"
+            action={{ href: `/app/applicant/${id}/profile`, label: 'Add Your Essentials' }}
           >
-            Every detail you add to the profile is kept with its date, so you can see what changed
-            and when.
+            History lists every saved version of a profile detail, with when and how it was saved.
+            Nothing has been saved to this profile yet, so there is nothing to list. Add a detail on
+            the profile, or upload a document and approve the details it suggests. Each save then
+            appears here.
           </EmptyState>
         </article>
       ) : (
@@ -157,7 +161,8 @@ export default async function HistoryPage({
                       }}
                     >
                       <span className="row-key" style={{ fontFamily: 'var(--font-mono)' }}>
-                        {v.value ?? '-'}
+                        {v.value ??
+                          (v.isProtected ? 'Protected Detail (Hidden Here)' : 'No Value Recorded')}
                       </span>
                       <span
                         className={`badge ${i === fact.versions.length - 1 ? 'badge-success' : 'badge-neutral'}`}
