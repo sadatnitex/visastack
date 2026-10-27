@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { WHATSAPP_SETTINGS_PATH } from '@visastack/services';
 import { describe, expect, it } from 'vitest';
 import {
   DEEP_LINK_ROUTES,
@@ -15,6 +16,14 @@ const ID = '0f8e4c1a-2b3d-4e5f-8a9b-0c1d2e3f4a5b';
 describe('stable deep-link routes', () => {
   it.each(Object.entries(DEEP_LINK_ROUTES))('%s still has its page (%s)', (_kind, route) => {
     expect(existsSync(join(APP_DIR, route, 'page.tsx'))).toBe(true);
+  });
+});
+
+describe('links sent from WhatsApp', () => {
+  it('point at a page that exists', () => {
+    expect(existsSync(join(APP_DIR, WHATSAPP_SETTINGS_PATH, 'page.tsx'))).toBe(true);
+    expect(existsSync(join(APP_DIR, '/app/applicants', 'page.tsx'))).toBe(true);
+    expect(existsSync(join(APP_DIR, '/app/applicant/[id]', 'page.tsx'))).toBe(true);
   });
 });
 

@@ -1480,3 +1480,47 @@ export {
   requestQuestionPrefix,
   requestQuestionText,
 } from './request-items';
+
+// Lane D: WhatsApp channel (codec, outgoing port).
+export {
+  MAX_TEXT_LENGTH as WHATSAPP_MAX_TEXT_LENGTH,
+  MAX_WEBHOOK_BYTES as WHATSAPP_MAX_WEBHOOK_BYTES,
+  parseWhatsAppWebhook,
+  verifySubscription as verifyWhatsAppSubscription,
+  verifyWebhookSignature as verifyWhatsAppSignature,
+  type DeliveryState as WhatsAppDeliveryState,
+  type IdentityChange as WhatsAppIdentityChange,
+  type InboundMessage as WhatsAppInboundMessage,
+  type ParsedWebhook as WhatsAppParsedWebhook,
+  type StatusUpdate as WhatsAppStatusUpdate,
+  type WhatsAppSender,
+} from './channels/whatsapp-webhook';
+export {
+  LIMITS as WHATSAPP_LIMITS,
+  WHATSAPP_ERROR,
+  WhatsAppSendError,
+  checkOutgoing,
+  type ListRow as WhatsAppListRow,
+  type ReplyButton as WhatsAppReplyButton,
+  type WhatsAppOutgoing,
+  type WhatsAppPort,
+  type WhatsAppRecipient,
+  type WhatsAppSendResult,
+} from './channels/whatsapp-port';
+export {
+  LINK_CODE_TTL_MS as WHATSAPP_LINK_CODE_TTL_MS,
+  WHATSAPP_OPT_IN_VERSION,
+  WHATSAPP_SETTINGS_PATH,
+  disconnectWhatsApp,
+  getWhatsAppConnection,
+  startWhatsAppLink,
+  type StartLinkResult as WhatsAppLinkStart,
+  type WhatsAppConnection,
+} from './channels/whatsapp-link';
+export {
+  ingestWhatsAppWebhook,
+  processWhatsAppInbox,
+  type IngestResult as WhatsAppIngestResult,
+  type ProcessInboxResult as WhatsAppInboxResult,
+  type WhatsAppChannelSettings,
+} from './channels/whatsapp-inbox';

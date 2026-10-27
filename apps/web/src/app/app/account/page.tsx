@@ -8,6 +8,7 @@ import { getLocale } from '../../../lib/locale';
 import { loadOwnPhoto } from '../../../lib/profile-photos';
 import { withSession } from '../../../lib/session';
 import { signOutCurrentUser } from '../../../lib/sign-out';
+import { readWhatsAppConfig } from '../../../lib/whatsapp';
 import { setLocaleAction } from '../../actions';
 
 export const metadata: Metadata = { title: 'Account' };
@@ -54,6 +55,19 @@ export default async function AccountPage() {
             Open Privacy
           </Link>
         </article>
+
+        {readWhatsAppConfig() ? (
+          <article className="card">
+            <p className="card-kicker">Optional</p>
+            <h2 className="card-title">WhatsApp</h2>
+            <p className="card-body u-mb-125">
+              Ask about your cases from WhatsApp. You can disconnect it any time.
+            </p>
+            <Link href="/app/account/whatsapp" className="btn btn-secondary">
+              Open WhatsApp Settings
+            </Link>
+          </article>
+        ) : null}
 
         {data.hasAgencyAccess || data.isAdmin ? (
           <article className="card">
