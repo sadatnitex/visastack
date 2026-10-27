@@ -36,6 +36,8 @@ const PUBLIC_FILES: readonly string[] = [
   'app/trust/page.tsx',
   'app/trust/[packKey]/page.tsx',
   'components/pilot-banner.tsx',
+  'components/public-trust-story.tsx',
+  'app/manifest.ts',
 ];
 
 const ENGINEERING_TALK: readonly { readonly pattern: RegExp; readonly say: string }[] = [
@@ -71,7 +73,7 @@ const visible = PUBLIC_FILES.flatMap((file) => {
 describe('the guard itself', () => {
   it('reads the public pages it is meant to check', () => {
     const text = visible.map((v) => v.text);
-    expect(text).toContain('Your documents.');
+    expect(text).toContain('A clean file');
     expect(text).toContain('What Works Today');
     expect(text.some((t) => t.startsWith('Invite-only test version'))).toBe(true);
     expect(visible.length).toBeGreaterThan(40);
@@ -128,4 +130,48 @@ describe('public pages use everyday words', () => {
       expect(hits, hits.join('\n')).toEqual([]);
     });
   }
+});
+
+/**
+ * The homepage promise is "A clean file you can stand behind." (Growth G1). It is about the
+ * person's own file, never about a decision by an embassy, an agency or any authority. Public
+ * text may say that VisaStack gives no such assurance (it must then say "never" or "not"), but
+ * it may never claim one.
+ */
+const AUTHORITY_CLAIM =
+  /\b(guarantee[sd]? (an? )?(approval|acceptance|visa|your visa|success)|guaranteed (fast )?(approval|acceptance|visa|fast-track)|approval (guarantee|rate)|(approval|acceptance|visa|success) (is )?guaranteed|visa[- ]approved|approved visa|embassy[- ](approved|ready|accepted|proof)|(approved|accepted|cleared|endorsed) by|(get|gets|getting) (approved|accepted)|will be (approved|accepted|granted)|approval is|visa success|sure to be (approved|accepted))\b/i;
+const DISCLAIMS = /\b(never|not|no|without|beware)\b/i;
+// Warnings that list what a scam sounds like. They name the claim in order to refuse it.
+const SCAM_WARNINGS: readonly string[] = [
+  'A guaranteed approval, or a promise no genuine visa process can make.',
+  'A claim of special access, personal contacts, or a guaranteed fast-track at the embassy or consulate.',
+];
+// A disclaimer only counts inside the same clause as the claim, so an unrelated "no queues"
+// later in the sentence cannot switch the guard off.
+const claimsAuthority = (text: string): boolean =>
+  text.split(/[,;:.!?]/).some((clause) => AUTHORITY_CLAIM.test(clause) && !DISCLAIMS.test(clause));
+
+describe('public pages never claim a decision by an authority', () => {
+  it('catches a claim and lets an honest disclaimer through', () => {
+    expect(claimsAuthority('Accepted by the embassy')).toBe(true);
+    expect(claimsAuthority('Approval guaranteed')).toBe(true);
+    expect(claimsAuthority('We guarantee your visa')).toBe(true);
+    expect(claimsAuthority('Beware of a guaranteed fast-track')).toBe(false);
+    expect(claimsAuthority('Embassy-approved documents, not a hassle')).toBe(true);
+    expect(claimsAuthority('Your file will be approved, no stress')).toBe(true);
+    expect(claimsAuthority('A 100% approval rate')).toBe(true);
+    expect(claimsAuthority('Get approved faster')).toBe(true);
+    expect(claimsAuthority('Embassy-approved documents')).toBe(true);
+    expect(claimsAuthority('Your file will be approved')).toBe(true);
+    expect(claimsAuthority('Cleared by the embassy')).toBe(true);
+    expect(claimsAuthority('Never an approval guarantee')).toBe(false);
+    expect(claimsAuthority('A clean file you can stand behind.')).toBe(false);
+  });
+
+  it('has no visible text that promises approval, acceptance or a guarantee', () => {
+    const hits = visible
+      .filter((v) => !SCAM_WARNINGS.includes(v.text) && claimsAuthority(v.text))
+      .map((v) => `${relative(WEB_SRC, v.file)}:${v.line}: ${JSON.stringify(v.text)}`);
+    expect(hits, hits.join('\n')).toEqual([]);
+  });
 });

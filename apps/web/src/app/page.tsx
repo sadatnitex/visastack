@@ -16,8 +16,11 @@ import './landing-c1.css';
  * Each statement on this page maps to a claim row in docs/upgrades/programme/COVERAGE-LEDGER.csv.
  */
 
-const HERO_HEADLINE_FIRST = 'Your documents.';
-const HERO_HEADLINE_SECOND = 'Ready when you are.';
+// The promise (owner decision, 27 Oct 2026, Growth G1): "A clean file you can stand behind."
+// It is about the person's own file being complete, current and tidy. It never says or implies
+// that any authority has approved, accepted or guaranteed anything.
+const HERO_HEADLINE_FIRST = 'A clean file';
+const HERO_HEADLINE_SECOND = 'you can stand behind.';
 
 interface PhoneFile {
   readonly name: string;
@@ -203,13 +206,12 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         ) : null}
         <p className="c1-nudge">{betaOpen ? 'Free Public Beta' : 'Invite-Only Pilot'}</p>
         <h1 className="c1-headline" id="land-hero-title">
-          {HERO_HEADLINE_FIRST}
-          <br />
+          {HERO_HEADLINE_FIRST} <br />
           {HERO_HEADLINE_SECOND}
         </h1>
         <p className="c1-subline">
-          Keep a reusable travel record, prepare your next application and share only what you
-          choose.
+          One private file for your passport and papers. See what is missing, keep every version,
+          and share only the part someone needs.
         </p>
         <div className="c1-cta">
           <a className="c1-pill" href={startHref}>

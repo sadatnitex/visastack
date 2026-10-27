@@ -92,6 +92,8 @@ test.describe('Harbor landing (WP-L1)', () => {
     await page.setViewportSize({ width: 360, height: 640 });
     await page.goto('/');
     await expect(page.locator('#land-hero-title')).toBeInViewport({ ratio: 1 });
+    // Growth G1: the owner's promise, read as one sentence.
+    await expect(page.locator('#land-hero-title')).toHaveText('A clean file you can stand behind.');
     await expect(page.locator('.c1-cta .c1-pill').first()).toBeInViewport({ ratio: 1 });
     await expect(page.locator('.c1-hero .c1-nudge')).toBeInViewport({ ratio: 1 });
     await expect(page.locator('.c1-hero .c1-nudge')).toHaveText(/public beta|pilot/i);
