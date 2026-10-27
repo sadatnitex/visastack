@@ -8880,35 +8880,6 @@ summary.visa-photo-title {
 .profile-essentials-head p {
   margin: 0;
 }
-.profile-essentials-count {
-  font-size: var(--text-small);
-}
-.profile-essentials-count strong {
-  font-size: 1.25rem;
-}
-/* The bar repeats the count written beside it, in the look of the shared .meter bar. */
-.profile-essentials-meter {
-  appearance: none;
-  display: block;
-  width: 100%;
-  height: 8px;
-  border: 0;
-  border-radius: var(--radius-pill);
-  background: var(--bg-subtle);
-  overflow: hidden;
-}
-.profile-essentials-meter::-webkit-progress-bar {
-  background: var(--bg-subtle);
-  border-radius: var(--radius-pill);
-}
-.profile-essentials-meter::-webkit-progress-value {
-  background: var(--brand);
-  border-radius: var(--radius-pill);
-}
-.profile-essentials-meter::-moz-progress-bar {
-  background: var(--brand);
-  border-radius: var(--radius-pill);
-}
 .profile-essentials-list {
   display: flex;
   flex-direction: column;

@@ -32,6 +32,7 @@ function render(
     values?: Values;
     repeatingValues?: Record<string, Record<string, Values[string]>>;
     view?: MasterProfileView;
+    startWithAll?: boolean;
   } = {},
 ) {
   act(() =>
@@ -42,6 +43,7 @@ function render(
         repeatingValues={options.repeatingValues ?? {}}
         assurance={new Map()}
         view={options.view ?? fixtureView()}
+        startWithAll={options.startWithAll ?? false}
       />,
     ),
   );
@@ -591,7 +593,8 @@ describe('Essentials First (owner finding 5)', () => {
     arrive();
     const text = container.textContent ?? '';
     expect(container.querySelector('.profile-essentials h3')?.textContent).toBe('Essentials First');
-    expect(text).toContain('1 of 3 essentials added');
+    // The count and bar sit once, in the page banner above this block.
+    expect(text).not.toContain('essentials added');
     expect(badges()).toEqual(['Not Added Yet', 'Added', 'Not Added Yet']);
     // Each essential is edited right here: a single detail, and the home address record.
     expect(container.querySelector('#f-given_name')).not.toBeNull();
@@ -614,9 +617,7 @@ describe('Essentials First (owner finding 5)', () => {
     expect(text).toContain(
       'Full profile: 0 of 5 details in your 2 open sections have values (0%).',
     );
-    // The essentials progress stays at the top; the list itself steps aside, so no detail is
-    // drawn twice (one form, one id per detail).
-    expect(text).toContain('1 of 3 essentials added');
+    // The list itself steps aside, so no detail is drawn twice (one form, one id per detail).
     expect(container.querySelector('.profile-essentials-list')).toBeNull();
     expect(container.querySelectorAll('#f-given_name')).toHaveLength(1);
     expect(toggle().textContent).toBe('Show Essentials Only');
@@ -627,10 +628,18 @@ describe('Essentials First (owner finding 5)', () => {
 
   it('opens on all sections once every essential is added, with the list one click away', () => {
     arrive(fixtureView({ essentials: fixtureEssentials({ givenName: true, address: true }) }));
-    expect(container.textContent).toContain('3 of 3 essentials added');
     expect(container.textContent).toContain('Every essential is added.');
     expect(container.querySelector('[role="tablist"]')).not.toBeNull();
     expect(toggle().textContent).toBe('Show Essentials Only');
+  });
+
+  it('opens all sections when the person asked for purpose suggestions or a link asks for all', () => {
+    arrive(fixtureView({ essentials: fixtureEssentials(), suggestedFamily: 'study' }));
+    expect(container.querySelector('[role="tablist"]')).not.toBeNull();
+    act(() => root.unmount());
+    root = createRoot(container);
+    render({ view: fixtureView({ essentials: fixtureEssentials() }), startWithAll: true });
+    expect(container.querySelector('[role="tablist"]')).not.toBeNull();
   });
 
   it('opens all sections at once when a link names one section', () => {

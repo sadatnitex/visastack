@@ -992,7 +992,8 @@ function EssentialsFirst({
 }) {
   const headingId = useId();
   const { essentials } = view;
-  const complete = essentials.answered >= essentials.total;
+  // The count and bar sit in the banner above; this block only says what to do.
+  const complete = essentials.done;
   return (
     <section className="profile-essentials" aria-labelledby={headingId}>
       <div className="profile-essentials-head">
@@ -1004,19 +1005,7 @@ function EssentialsFirst({
               : 'Start with the details most visa forms ask for first. Everything else can wait.'}
           </p>
         </div>
-        <p className="profile-essentials-count">
-          <strong>
-            {essentials.answered} of {essentials.total}
-          </strong>{' '}
-          essentials added
-        </p>
       </div>
-      <progress
-        className="profile-essentials-meter"
-        max={essentials.total}
-        value={essentials.answered}
-        aria-hidden="true"
-      />
       {showAll ? (
         <p className="muted">
           Full profile: {view.answered} of {view.total} details in your{' '}
@@ -1081,6 +1070,23 @@ interface ProfileEditorProps {
   readonly assurance: ReadonlyMap<string, FieldAssurance>;
   /** The sections, built on the server from the catalogue and what this person has opened. */
   readonly view: MasterProfileView;
+  /** Open on every section (a link that asks for it, or details that disagree). */
+  readonly startWithAll?: boolean;
+}
+
+/** Opens the first visible section's details and focuses its first field. False when none is shown. */
+function openFirstSection(root: HTMLElement | null): boolean {
+  const details = root?.querySelector<HTMLDetailsElement>(
+    '[id^="profile-panel-"]:not([hidden]) .profile-edit-section',
+  );
+  if (!details) return false;
+  let parent: HTMLElement | null = details;
+  while (parent && parent !== root) {
+    if (parent instanceof HTMLDetailsElement) parent.open = true;
+    parent = parent.parentElement;
+  }
+  details.querySelector<HTMLElement>('input:not([type="hidden"]), select')?.focus();
+  return true;
 }
 
 export function ProfileEditor({
@@ -1089,14 +1095,18 @@ export function ProfileEditor({
   repeatingValues,
   assurance,
   view,
+  startWithAll = false,
 }: ProfileEditorProps) {
   const editor = useRef<HTMLDivElement>(null);
   // Essentials First leads until every essential is added; a profile with no essentials list
   // (nothing to show) opens on all sections. A link to one section always opens all sections.
   const hasEssentials = view.essentials.total > 0;
   const [showAll, setShowAll] = useState(
-    !hasEssentials || view.essentials.answered >= view.essentials.total,
+    !hasEssentials || view.essentials.done || view.suggestedFamily !== null || startWithAll,
   );
+  // "Add Information" while only the essentials show and all of them are added: open every
+  // section, then go to the first one.
+  const openAfterShowingAll = useRef(false);
   useEffect(() => {
     const openEditor = () => {
       // "Add Information" goes to the first essential still to add while that list is showing.
@@ -1111,16 +1121,10 @@ export function ProfileEditor({
         essential.focus();
         return;
       }
-      const details = editor.current?.querySelector<HTMLDetailsElement>(
-        '[id^="profile-panel-"]:not([hidden]) .profile-edit-section',
-      );
-      if (!details) return;
-      let parent: HTMLElement | null = details;
-      while (parent && parent !== editor.current) {
-        if (parent instanceof HTMLDetailsElement) parent.open = true;
-        parent = parent.parentElement;
+      if (!openFirstSection(editor.current)) {
+        openAfterShowingAll.current = true;
+        setShowAll(true);
       }
-      details.querySelector<HTMLElement>('input:not([type="hidden"]), select')?.focus();
     };
     const hash = () => {
       if (window.location.hash === '#profile-editor') openEditor();
@@ -1137,6 +1141,11 @@ export function ProfileEditor({
       document.removeEventListener('click', click);
     };
   }, []);
+  useEffect(() => {
+    if (!showAll || !openAfterShowingAll.current) return;
+    openAfterShowingAll.current = false;
+    openFirstSection(editor.current);
+  }, [showAll]);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<string>(view.layers[0]?.key ?? 'identity');
   const searching = search.trim() !== '';

@@ -59,10 +59,10 @@ export default async function ApplicantProfilePage({
   searchParams,
 }: {
   readonly params: Promise<{ id: string }>;
-  readonly searchParams?: Promise<{ for?: string | string[] }>;
+  readonly searchParams?: Promise<{ for?: string | string[]; view?: string | string[] }>;
 }) {
   const { id } = await params;
-  const { for: suggestParam } = (await searchParams) ?? {};
+  const { for: suggestParam, view: viewParam } = (await searchParams) ?? {};
   const suggestFor = typeof suggestParam === 'string' && suggestParam !== '' ? suggestParam : null;
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
@@ -160,9 +160,8 @@ export default async function ApplicantProfilePage({
   });
   const completeness = view.percent;
   const { essentials } = view;
-  const essentialsDone = essentials.answered >= essentials.total;
-  const essentialsPercent =
-    essentials.total === 0 ? 100 : Math.round((100 * essentials.answered) / essentials.total);
+  const essentialsDone = essentials.done;
+  const essentialsPercent = essentials.percent;
   const changes = [...data.profile]
     .filter((entry) => entry.updatedAt)
     .sort(
@@ -249,6 +248,8 @@ export default async function ApplicantProfilePage({
               repeatingValues={repeatingValues}
               assurance={assuranceByFactId}
               view={view}
+              // A link that asks for everything, or details that disagree, open every section.
+              startWithAll={viewParam === 'all' || conflictedCount > 0}
             />
           ) : (
             <EmptyState

@@ -56,9 +56,15 @@ const STALENESS_BADGE: Record<StalenessStatus, { label: string; tone: string }> 
  * typed in, and never guesses one.
  */
 function missingExpiryNote(docType: string | null): string {
-  return docType === 'PASSPORT'
-    ? 'No expiry date has been read from this passport yet. It is read from the two lines of letters and numbers at the bottom of the photo page. If they were not clear, open it on Documents to check it again, or upload a sharper scan.'
-    : 'No expiry date is on file. For now, expiry dates are read only from passports, so check the date printed on this document yourself.';
+  if (docType === 'PASSPORT') {
+    return 'No expiry date has been read from this passport yet. It is read from the two lines of letters and numbers at the bottom of the photo page. If they were not clear, open it on Documents to check it again, or upload a sharper scan.';
+  }
+  // Nothing is saved about what a document is until the person accepts its kind, so an
+  // unconfirmed passport has no type yet: say what to do first rather than guess.
+  if (docType === null) {
+    return 'No expiry date is on file. Confirm what kind of document this is on Documents. For a passport, the date is then read from the two lines at the bottom of the photo page.';
+  }
+  return 'No expiry date is on file. For now, expiry dates are read only from passports, so check the date printed on this document yourself.';
 }
 
 export default async function ExpiryCentrePage({

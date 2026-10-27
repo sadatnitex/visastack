@@ -202,7 +202,11 @@ function essentialsOf(
       label: essential.label ?? groupLabelOf(essential.key, members),
       ...hint,
       sectionKey,
-      answered: isFieldAnswered(main, input),
+      // Any saved detail of the record counts (a partial address is still an address), as does
+      // the person saying there is none.
+      answered:
+        members.some((member) => isFieldAnswered(member, input)) ||
+        choices.noneDeclared.has(essential.key),
       notApplicable: false,
       group: {
         key: essential.key,
@@ -212,10 +216,14 @@ function essentialsOf(
       },
     });
   }
+  const answered = items.filter((item) => item.answered).length;
+  const total = items.length;
   return {
     items,
-    answered: items.filter((item) => item.answered).length,
-    total: items.length,
+    answered,
+    total,
+    done: answered >= total,
+    percent: total === 0 ? 100 : Math.round((100 * answered) / total),
   };
 }
 
@@ -223,9 +231,9 @@ function essentialsOf(
 export function essentialsProgress(
   entries: readonly ProfileEntryLite[],
   choices: SectionChoices,
-): { readonly answered: number; readonly total: number } {
-  const { answered, total } = essentialsOf(savedValues(entries), choices);
-  return { answered, total };
+): Omit<EssentialsView, 'items'> {
+  const { answered, total, done, percent } = essentialsOf(savedValues(entries), choices);
+  return { answered, total, done, percent };
 }
 
 export function buildMasterProfileView(input: MasterProfileInput): MasterProfileView {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useId, useRef, useState } from 'react';
+import { useActionState, useEffect, useId, useRef, useState } from 'react';
 import {
   FormMessage,
   SubmitButton,
@@ -152,6 +152,11 @@ function FirstRunApplicantForm() {
 function ApplicantForm({ selfAdded }: { readonly selfAdded: boolean }) {
   const [state, formAction, pending] = useActionState(createApplicantAction, INITIAL);
   const [relationship, setRelationship] = useState(selfAdded ? 'FAMILY_MEMBER' : 'SELF');
+  // Once a record for yourself exists (for example the one just added), the next one is for
+  // someone else, without waiting for a full page reload.
+  useEffect(() => {
+    if (selfAdded) setRelationship((current) => (current === 'SELF' ? 'FAMILY_MEMBER' : current));
+  }, [selfAdded]);
   const formRef = useRef<HTMLFormElement>(null);
   const messageId = useId();
   const selfNoteId = useId();

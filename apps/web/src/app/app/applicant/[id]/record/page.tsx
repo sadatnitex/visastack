@@ -168,7 +168,8 @@ export default async function ApplicantRecordPage({
           {closedSections === 1
             ? '1 more profile section is closed.'
             : `${closedSections} more profile sections are closed.`}{' '}
-          <Link href={`${base}/profile`}>Open them from your profile</Link> when they apply to you.
+          <Link href={`${base}/profile?view=all`}>Open them from your profile</Link> when they apply
+          to you.
         </p>
       ) : null}
     </div>

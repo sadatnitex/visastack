@@ -104,6 +104,10 @@ export interface EssentialsView {
   readonly items: readonly EssentialItem[];
   readonly answered: number;
   readonly total: number;
+  /** Every essential is answered (also true when there is nothing on the list). */
+  readonly done: boolean;
+  /** 0 to 100, for the bar; 100 when there is nothing on the list. */
+  readonly percent: number;
 }
 
 export interface MasterProfileView {

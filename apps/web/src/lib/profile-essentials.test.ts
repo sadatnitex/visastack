@@ -130,7 +130,15 @@ describe('essentials in the profile view', () => {
     expect(essentialsProgress(input.entries, input)).toEqual({
       answered: view.essentials.answered,
       total: view.essentials.total,
+      done: view.essentials.done,
+      percent: view.essentials.percent,
     });
     expect(view.essentials.answered).toBe(3);
+  });
+
+  it('counts a home address saved without its first detail', () => {
+    const input = none({ entries: [entry('address_city')] });
+    const address = buildMasterProfileView(input).essentials.items.find((item) => item.group);
+    expect(address?.answered).toBe(true);
   });
 });

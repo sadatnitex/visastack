@@ -84,7 +84,7 @@ export default async function ApplicantOverviewPage({
   const completeness = completion.percent;
   // The short starter list leads; the size of the whole profile follows once it is done.
   const essentials = essentialsProgress(data.profile, data.sectionChoices);
-  const essentialsDone = essentials.answered >= essentials.total;
+  const essentialsDone = essentials.done;
   const attention = requests.length + data.proposals.length + flagged.length;
   const next = !data.coreGranted
     ? {
@@ -407,7 +407,7 @@ export default async function ApplicantOverviewPage({
                   <div
                     className="meter-fill"
                     style={{
-                      width: `${Math.round((100 * essentials.answered) / essentials.total)}%`,
+                      width: `${essentials.percent}%`,
                     }}
                   />
                 </div>

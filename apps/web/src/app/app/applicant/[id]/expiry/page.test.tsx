@@ -173,11 +173,13 @@ describe('dates the page does not have (owner finding 6)', () => {
       value: [doc({ id: 'd2', docType: 'BANK_STATEMENT' }), doc({ id: 'd3', docType: null })],
     });
     const text = textOf(await page());
-    expect(
-      text.split(
-        'No expiry date is on file. For now, expiry dates are read only from passports, so check the date printed on this document yourself.',
-      ),
-    ).toHaveLength(3);
+    expect(text).toContain(
+      'No expiry date is on file. For now, expiry dates are read only from passports, so check the date printed on this document yourself.',
+    );
+    // A document whose kind is not confirmed yet could be a passport: it asks for the kind first.
+    expect(text).toContain(
+      'No expiry date is on file. Confirm what kind of document this is on Documents. For a passport, the date is then read from the two lines at the bottom of the photo page.',
+    );
     expect(text).not.toContain('Unknown');
   });
 

@@ -142,16 +142,19 @@ export function fixtureEssentials(
       },
     },
   ];
+  const answered = items.filter((item) => item.answered).length;
   return {
     items,
-    answered: items.filter((item) => item.answered).length,
+    answered,
     total: items.length,
+    done: answered >= items.length,
+    percent: items.length === 0 ? 100 : Math.round((100 * answered) / items.length),
   };
 }
 
 export function fixtureView(overrides: Partial<MasterProfileView> = {}): MasterProfileView {
   return {
-    essentials: { items: [], answered: 0, total: 0 },
+    essentials: { items: [], answered: 0, total: 0, done: true, percent: 100 },
     percent: 0,
     answered: 0,
     total: 5,
