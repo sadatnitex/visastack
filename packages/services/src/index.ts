@@ -1603,3 +1603,20 @@ export {
   type ProcessInboxResult as WhatsAppInboxResult,
   type WhatsAppChannelSettings,
 } from './channels/whatsapp-inbox';
+export {
+  DEADLINE_CLOCK_DEFAULT_LIMIT,
+  DEADLINE_CLOCK_MAX_LIMIT,
+  DEADLINE_CLOCK_PAST_DAYS,
+  DEADLINE_CLOCK_SOURCE_LIMIT,
+  DEADLINE_MONTH_DAYS,
+  type DeadlineClock,
+  type DeadlineClockOptions,
+  type DeadlineDoubt,
+  type DeadlineEntry,
+  type DeadlineKind,
+  type DeadlineUrgency,
+  deadlineUrgency,
+  documentExpiryDoubt,
+  listDeadlineClock,
+  rankDeadlines,
+} from './deadline-clock';

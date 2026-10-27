@@ -1,4 +1,4 @@
-import type { AttentionItem } from '@visastack/services';
+import type { AttentionItem, DeadlineEntry } from '@visastack/services';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderServer, stubProps, textOf } from '../../lib/next-mocks.test-support';
 
@@ -16,6 +16,10 @@ const data = vi.hoisted(() => ({
   items: [] as AttentionItem[],
   /** The access gate refuses (for example, a record that is no longer the person's). */
   gateRefuses: false,
+  /** What the deadline clock returns for every person (Growth G5). */
+  deadlines: [] as DeadlineEntry[],
+  /** The clock's read fails for these applicant ids. */
+  deadlineFails: [] as string[],
   /** What the readiness source returns for every case; null stands for a case with no checklist attached. */
   readiness: null as { requiredCount: number; satisfiedRequired: number } | null,
   /** The refusal code the readiness source gives when there is no count; "invalid" means no checklist is attached. */
@@ -30,9 +34,21 @@ vi.mock('../../lib/locale', () => ({ getLocale: async () => 'en' }));
 vi.mock('../../lib/admin', () => ({ holdsPlatformRole: async () => data.platformAdmin }));
 vi.mock('@visastack/services', async (importOriginal) => {
   // The real ranking, so Home's merge is the one the services tests pin (ADR 0016).
-  const { rankAttentionItems } = await importOriginal<typeof import('@visastack/services')>();
+  const { rankAttentionItems, rankDeadlines } =
+    await importOriginal<typeof import('@visastack/services')>();
   return {
     rankAttentionItems,
+    rankDeadlines,
+    listDeadlineClock: async (access: { applicantId: string }) =>
+      data.deadlineFails.includes(access.applicantId)
+        ? { ok: false, error: { code: 'upstream_error' } }
+        : {
+            ok: true,
+            value: {
+              applicantId: access.applicantId,
+              entries: data.deadlines.filter((e) => e.applicantId === access.applicantId),
+            },
+          },
     accountPrincipal: (accountId: string) => ({ kind: 'account', accountId }),
     requireAccess: async (_db: unknown, _p: unknown, _a: unknown, ref: { applicantId: string }) =>
       data.gateRefuses
@@ -163,6 +179,8 @@ beforeEach(() => {
   data.platformAdmin = false;
   data.items = [];
   data.gateRefuses = false;
+  data.deadlines = [];
+  data.deadlineFails = [];
 });
 
 describe('home (characterization before WP-V3)', () => {
@@ -782,5 +800,210 @@ describe('Home composition (WP-V4, v1.2 B13 and U03)', () => {
     data.applicants = [SELF];
     data.items = [overdueTask];
     expect(await page()).not.toContain('/calendar"');
+  });
+});
+
+describe('Coming Up: the deadline clock on Home (Growth G5)', () => {
+  const OTHER = {
+    id: '10000000-0000-4000-8000-000000000002',
+    displayName: 'Synthetic Partner',
+    createdAt: new Date('2026-02-01T00:00:00Z'),
+  };
+
+  function dated(
+    key: string,
+    person: { id: string; displayName: string },
+    overrides: Partial<DeadlineEntry> = {},
+  ): DeadlineEntry {
+    return {
+      key,
+      kind: 'document_expires',
+      applicantId: person.id,
+      applicantName: person.displayName,
+      date: '2026-11-07',
+      daysUntil: 12,
+      urgency: 'month',
+      docType: 'PASSPORT',
+      subject: null,
+      label: null,
+      doubt: null,
+      caseId: null,
+      href: `/app/applicant/${person.id}/expiry`,
+      ...overrides,
+    };
+  }
+
+  function comingUp(html: string): string {
+    const start = html.indexOf('id="home-coming-up-heading"');
+    expect(start).toBeGreaterThan(-1);
+    return html.slice(start, html.indexOf('id="home-records-heading"', start));
+  }
+
+  it('lists the next three dates across everyone, soonest first, each with a plain time and a tone word', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF, OTHER];
+    data.deadlines = [
+      dated('document_expires:far', SELF, { daysUntil: 200, urgency: 'later', date: '2027-05-14' }),
+      dated('task_due:late', OTHER, {
+        kind: 'task_due',
+        docType: null,
+        label: 'Pay the visa fee',
+        daysUntil: -3,
+        urgency: 'overdue',
+        date: '2026-10-23',
+        href: '/app/mission/case-1',
+      }),
+      dated('document_expires:soon', OTHER, { daysUntil: 1, urgency: 'soon', date: '2026-10-27' }),
+      dated('request_due:mid', SELF, {
+        kind: 'request_due',
+        docType: null,
+        subject: {
+          kind: 'request',
+          requestKind: 'DOCUMENT',
+          docType: 'BANK_STATEMENT',
+          fieldKey: null,
+        },
+        daysUntil: 12,
+        urgency: 'month',
+        date: '2026-11-07',
+        href: `/app/applicant/${SELF.id}/evidence`,
+      }),
+    ];
+    const html = comingUp(await page());
+    const text = textOf(html);
+    // Three, soonest first: overdue, tomorrow, then twelve days. The far date is left out.
+    expect(text.indexOf('Pay the visa fee')).toBeLessThan(text.indexOf('Passport'));
+    expect(text.indexOf('Passport')).toBeLessThan(text.indexOf('Bank Statement'));
+    expect(text).not.toContain('in about 6 months');
+    expect(text).toContain('Was due 3 days ago');
+    expect(text).toContain('Expires tomorrow');
+    expect(text).toContain('Due in 12 days');
+    for (const word of ['Overdue', 'Within a Week', 'Within a Month']) {
+      expect(text).toContain(word);
+    }
+    // Whose date it is, because there is more than one person.
+    expect(text).toContain('Synthetic Partner');
+    expect(text).toContain('Synthetic Self');
+    // Each links to the page where it is dealt with.
+    expect(html).toContain('href="/app/mission/case-1"');
+    expect(html).toContain(`href="/app/applicant/${SELF.id}/evidence"`);
+    expect(html).toContain(`href="/app/applicant/${OTHER.id}/expiry"`);
+  });
+
+  it('sits between Needs Attention and My Records, and keeps the order of the sections around it', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.items = [
+      attentionItem({
+        key: 'task:x',
+        kind: 'task',
+        title: 'Book the Visa Appointment',
+        applicantId: SELF.id,
+        applicantName: SELF.displayName,
+        dueDate: '2026-10-20',
+        dueState: 'overdue',
+        daysUntilDue: -6,
+      }),
+      attentionItem({
+        key: 'task:y',
+        kind: 'task',
+        title: 'Print the Photo',
+        applicantId: SELF.id,
+        applicantName: SELF.displayName,
+        dueDate: '2026-10-21',
+        dueState: 'overdue',
+        daysUntilDue: -5,
+      }),
+    ];
+    data.deadlines = [dated('document_expires:a', SELF)];
+    const html = await page();
+    const order = [
+      'id="home-attention-heading"',
+      'id="home-coming-up-heading"',
+      'id="home-records-heading"',
+      'id="home-work-heading"',
+    ].map((marker) => html.indexOf(marker));
+    expect(order.every((at) => at > -1)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  it('with one person, leaves out their name and links to the full list', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.deadlines = [dated('document_expires:a', SELF)];
+    const html = comingUp(await page());
+    expect(textOf(html)).not.toContain('Synthetic Self');
+    expect(html).toContain(
+      `<a href="/app/applicant/${SELF.id}/expiry" class="deadline-more-link">`,
+    );
+  });
+
+  it('teaches when there are no dates, with the add-document button, and does not call it unavailable', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    const html = comingUp(await page());
+    const text = textOf(html);
+    expect(text).toContain('No Dates Yet');
+    expect(text).toContain(
+      'Add a passport and its expiry date appears here, so you hear about it before it matters.',
+    );
+    expect(html).toContain(`href="/app/applicant/${SELF.id}/documents"`);
+    expect(text).toContain('Add a Document');
+    expect(text).not.toContain('unavailable');
+  });
+
+  it('labels a date it is unsure of Check This Date and words it as conditional', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.deadlines = [
+      dated('document_expires:u', SELF, { docType: null, doubt: 'kind_not_accepted' }),
+    ];
+    const text = textOf(comingUp(await page()));
+    expect(text).toContain('Check This Date');
+    expect(text).toContain('Expires in 12 days, if the date is right');
+    expect(text).toContain('Document');
+  });
+
+  it("says dates are unavailable, not empty, when nobody's could be read", async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.deadlineFails = [SELF.id];
+    const text = textOf(comingUp(await page()));
+    expect(text).toContain('Dates are unavailable right now.');
+    expect(text).not.toContain('No Dates Yet');
+  });
+
+  it('shows the dates it could read and says how many people it could not', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF, OTHER];
+    data.deadlineFails = [OTHER.id];
+    data.deadlines = [dated('document_expires:a', SELF)];
+    const text = textOf(comingUp(await page()));
+    expect(text).toContain('Expires in 12 days');
+    expect(text).toContain('Dates for 1 person could not be read.');
+  });
+
+  it('is not shown before core processing is on, or with nobody on the account', async () => {
+    data.applicants = [SELF];
+    data.deadlines = [dated('document_expires:a', SELF)];
+    expect(await page()).not.toContain('home-coming-up-heading');
+    data.consents = CORE;
+    data.applicants = [];
+    data.deadlines = [];
+    expect(await page({ setup: 'later' })).not.toContain('home-coming-up-heading');
+  });
+
+  it("never carries another person's date: only the people on this account are read", async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.deadlines = [
+      dated('document_expires:mine', SELF),
+      dated('document_expires:foreign', {
+        id: '10000000-0000-4000-8000-0000000000ff',
+        displayName: 'Someone Else',
+      }),
+    ];
+    const text = textOf(comingUp(await page()));
+    expect(text).not.toContain('Someone Else');
   });
 });
