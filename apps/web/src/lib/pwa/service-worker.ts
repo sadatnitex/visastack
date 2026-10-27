@@ -1,4 +1,12 @@
 import { createHash } from 'node:crypto';
+import {
+  CACHE_PREFIX,
+  PUBLIC_STATIC_PATHS,
+  PUBLIC_STATIC_PREFIXES,
+  STATIC_PREFIXES,
+} from './constants';
+
+export { CACHE_PREFIX, PUBLIC_STATIC_PATHS, PUBLIC_STATIC_PREFIXES, STATIC_PREFIXES };
 
 /**
  * The VisaStack service worker, generated per build by `app/sw.js/route.ts`.
@@ -15,21 +23,8 @@ import { createHash } from 'node:crypto';
  * the tests run (`service-worker.test.ts` executes it in a sandbox).
  */
 
-/** Every cache this worker creates starts with this, so a newer worker can find and remove them. */
-export const CACHE_PREFIX = 'visastack-static-';
-
 /** Most entries the static cache holds before the oldest are removed. */
 export const MAX_STATIC_ENTRIES = 200;
-
-/**
- * Content-hashed build output (scripts, styles, fonts). A changed file gets a new name, so a
- * stored copy can never go stale.
- */
-export const STATIC_PREFIXES = ['/_next/static/'] as const;
-
-/** Public brand files in `public/icons/` and the app icons Next serves from `src/app/`. */
-export const PUBLIC_STATIC_PREFIXES = ['/icons/'] as const;
-export const PUBLIC_STATIC_PATHS = ['/favicon.ico', '/icon.svg', '/apple-icon.png'] as const;
 
 /** Stored on install so the offline screen can show the brand mark. */
 export const PRECACHE_PATHS = ['/icons/icon-192.png'] as const;
@@ -137,8 +132,12 @@ function classify(request) {
   if (request.method !== 'GET') return 'network';
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return 'network';
+  // Every same-origin page load is answered here (never stored), including /api/ links opened as a
+  // page, so the navigation preload request the browser already sent is the one used. Leaving a
+  // navigation to the browser would discard that preload and send the request a second time,
+  // which a single-use link (sign-in callback, one-time download) must never see.
+  if (request.mode === 'navigate') return 'navigate';
   if (request.headers.has('rsc') || url.searchParams.has('_rsc')) return 'network';
-  if (request.mode === 'navigate') return url.pathname.startsWith('/api/') ? 'network' : 'navigate';
   if (request.headers.has('range')) return 'network';
   return isPublicStatic(url) ? 'static' : 'network';
 }
@@ -149,20 +148,23 @@ function mayStore(response) {
   return !cacheControl.includes('no-store') && !cacheControl.includes('private');
 }
 
+// Oldest first, never the files stored on install (the offline screen needs the brand mark).
 async function trim(cache) {
-  const keys = await cache.keys();
-  const excess = keys.length - MAX_STATIC_ENTRIES;
-  for (let index = 0; index < excess; index += 1) await cache.delete(keys[index]);
+  const all = await cache.keys();
+  const removable = all.filter((key) => !PRECACHE_PATHS.includes(new URL(key.url).pathname));
+  const excess = all.length - MAX_STATIC_ENTRIES;
+  for (let index = 0; index < excess; index += 1) await cache.delete(removable[index]);
 }
 
-async function fromStaticCache(request) {
+// The answer goes to the page straight away; storing it happens in the background.
+async function fromStaticCache(event) {
   const cache = await caches.open(STATIC_CACHE);
-  const stored = await cache.match(request);
+  const stored = await cache.match(event.request);
   if (stored) return stored;
-  const response = await fetch(request);
+  const response = await fetch(event.request);
   if (mayStore(response)) {
-    await cache.put(request, response.clone());
-    await trim(cache);
+    const copy = response.clone();
+    event.waitUntil(cache.put(event.request, copy).then(() => trim(cache)));
   }
   return response;
 }
@@ -221,7 +223,7 @@ self.addEventListener('message', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const kind = classify(event.request);
-  if (kind === 'static') event.respondWith(fromStaticCache(event.request));
+  if (kind === 'static') event.respondWith(fromStaticCache(event));
   else if (kind === 'navigate') event.respondWith(fromNetwork(event));
 });
 `;
@@ -249,7 +251,12 @@ self.addEventListener('activate', (event) => {
 `;
 }
 
-/** Whether this deployment serves the worker. On by default; `PWA_SERVICE_WORKER=off` retires it. */
+/**
+ * Whether this deployment serves the worker: production builds only (the dev server rebuilds
+ * files constantly), and on unless `PWA_SERVICE_WORKER=off` retires it. The layout and `/sw.js`
+ * both ask this, so pages and the worker script always agree.
+ */
 export function isServiceWorkerEnabled(read: (name: string) => string | undefined): boolean {
+  if (read('NODE_ENV') !== 'production') return false;
   return read('PWA_SERVICE_WORKER')?.trim().toLowerCase() !== 'off';
 }

@@ -59,9 +59,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
   const signedIn = await isSignedIn();
   const locale = await getLocale();
   const deploymentMode = getDeploymentMode();
-  // The service worker runs only in production builds (the dev server rebuilds files constantly).
-  const serviceWorker =
-    process.env.NODE_ENV === 'production' && isServiceWorkerEnabled((name) => process.env[name]);
+  const serviceWorker = isServiceWorkerEnabled((name) => process.env[name]);
 
   return (
     <html lang={locale} className={`${inter.variable} ${bengali.variable}`}>

@@ -97,14 +97,18 @@ function load(script: string) {
 
   async function dispatchFetch(req: FakeRequest, preloadResponse?: Response) {
     let responded: Promise<Response> | undefined;
+    const background: Promise<unknown>[] = [];
     listeners.get('fetch')?.({
       request: req,
       preloadResponse: Promise.resolve(preloadResponse),
       respondWith: (value: Promise<Response>) => {
         responded = value;
       },
+      waitUntil: (value: Promise<unknown>) => background.push(value),
     });
-    return responded === undefined ? undefined : await responded;
+    const response = responded === undefined ? undefined : await responded;
+    await Promise.all(background);
+    return response;
   }
 
   async function dispatchLifecycle(type: 'install' | 'activate') {
@@ -136,6 +140,9 @@ describe('private traffic is never stored on the device', () => {
     '/app/shared/0f8e4c1a-2b3d-4e5f-8a9b-0c1d2e3f4a5b',
     '/invitation?token=single-use-secret',
     '/app/sharing-invitations/accept?token=single-use-secret',
+    // Opened as a page: answered once from the network (never twice, never stored).
+    '/api/blob/documents%2Fkey?sig=abc&exp=1',
+    '/api/auth/callback/google?code=single-use',
   ];
 
   it.each(PRIVATE_PAGES)('fetches the page %s from the network and keeps no copy', async (path) => {
@@ -159,7 +166,6 @@ describe('private traffic is never stored on the device', () => {
       'a signed document link',
       request('/api/blob/documents%2Fkey?sig=abc&exp=1', { mode: 'cors' }),
     ],
-    ['a signed document opened as a page', request('/api/blob/k?sig=abc', { mode: 'navigate' })],
     ['a profile photo', request('/api/photos/applicant/0f8e4c1a-2b3d-4e5f-8a9b-0c1d2e3f4a5b')],
     ['page data for client navigation', request('/app/profile?_rsc=1x2y', { mode: 'cors' })],
     [
@@ -219,6 +225,16 @@ describe('public static files', () => {
     sw.network.mockImplementation(async () => basic('x', {}, 'opaqueredirect'));
     await sw.dispatchFetch(request('/_next/static/chunks/z.js'));
     expect(sw.storedUrls()).toEqual([]);
+  });
+
+  it('never trims away the brand mark the offline screen needs', async () => {
+    await sw.dispatchLifecycle('install');
+    for (let index = 0; index <= MAX_STATIC_ENTRIES; index += 1) {
+      await sw.dispatchFetch(request(`/_next/static/chunks/${index}.js`));
+    }
+    const stored = sw.storedUrls();
+    expect(stored).toHaveLength(MAX_STATIC_ENTRIES);
+    expect(stored).toContain(`${ORIGIN}/icons/icon-192.png`);
   });
 
   it(`keeps at most ${MAX_STATIC_ENTRIES} files, removing the oldest`, async () => {
@@ -298,10 +314,20 @@ describe('lifecycle and updates', () => {
 });
 
 describe('switching the worker off', () => {
-  it('reads PWA_SERVICE_WORKER, on unless it says off', () => {
-    expect(isServiceWorkerEnabled(() => undefined)).toBe(true);
-    expect(isServiceWorkerEnabled(() => 'on')).toBe(true);
-    expect(isServiceWorkerEnabled(() => ' OFF ')).toBe(false);
+  it('is on in production unless PWA_SERVICE_WORKER says off, and never outside production', () => {
+    const env =
+      (values: Record<string, string>) =>
+      (name: string): string | undefined =>
+        values[name];
+    expect(isServiceWorkerEnabled(env({ NODE_ENV: 'production' }))).toBe(true);
+    expect(isServiceWorkerEnabled(env({ NODE_ENV: 'production', PWA_SERVICE_WORKER: 'on' }))).toBe(
+      true,
+    );
+    expect(
+      isServiceWorkerEnabled(env({ NODE_ENV: 'production', PWA_SERVICE_WORKER: ' OFF ' })),
+    ).toBe(false);
+    expect(isServiceWorkerEnabled(env({ NODE_ENV: 'development' }))).toBe(false);
+    expect(isServiceWorkerEnabled(env({}))).toBe(false);
   });
 
   it('the retirement worker clears VisaStack caches, unregisters and intercepts nothing', async () => {

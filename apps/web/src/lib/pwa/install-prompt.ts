@@ -42,7 +42,30 @@ export async function promptInstall(): Promise<'accepted' | 'dismissed' | 'unava
   const event = pending;
   if (!event) return 'unavailable';
   setInstallPrompt(null);
-  await event.prompt();
-  const { outcome } = await event.userChoice;
-  return outcome;
+  try {
+    await event.prompt();
+    const { outcome } = await event.userChoice;
+    return outcome;
+  } catch {
+    // The browser withdrew the offer (already used, or no longer installable): the written
+    // steps on the card still apply.
+    return 'unavailable';
+  }
+}
+
+let capturing = false;
+
+/**
+ * Starts listening for the offer. Called once when the page script loads, before React hydrates,
+ * because the browser can fire the event early; a listener added later would miss it and the
+ * browser would show its own install bar in the middle of a task.
+ */
+export function captureInstallPrompt(win: Window): void {
+  if (capturing) return;
+  capturing = true;
+  win.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    setInstallPrompt(event as InstallPromptEvent);
+  });
+  win.addEventListener('appinstalled', () => setInstallPrompt(null));
 }

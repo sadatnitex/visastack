@@ -83,6 +83,16 @@ describe('registerServiceWorker', () => {
 });
 
 describe('applyUpdate', () => {
+  it('reloads at once when another tab already started the update', () => {
+    const { container } = fakeContainer({ controller: true });
+    const waiting = new FakeWorker();
+    waiting.state = 'activated';
+    const reload = vi.fn();
+    applyUpdate(container, asWorker(waiting), reload);
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(waiting.postMessage).not.toHaveBeenCalled();
+  });
+
   it('asks the waiting worker to start and reloads once, after it takes over', () => {
     const { container } = fakeContainer({ controller: true });
     const waiting = new FakeWorker();
@@ -97,9 +107,21 @@ describe('applyUpdate', () => {
 });
 
 describe('unregisterAll', () => {
-  it('removes every worker on the device', async () => {
+  it("removes every worker and VisaStack's stored files, leaving other caches alone", async () => {
     const { container, registration } = fakeContainer({});
-    await unregisterAll(container);
+    const names = new Set(['visastack-static-build-1', 'visastack-static-build-0', 'other']);
+    const storage = {
+      keys: async () => [...names],
+      delete: async (name: string) => names.delete(name),
+    };
+    await unregisterAll(container, storage);
+    expect(registration.unregister).toHaveBeenCalledTimes(2);
+    expect([...names]).toEqual(['other']);
+  });
+
+  it('still unregisters where the page has no cache access', async () => {
+    const { container, registration } = fakeContainer({});
+    await unregisterAll(container, undefined);
     expect(registration.unregister).toHaveBeenCalledTimes(2);
   });
 });

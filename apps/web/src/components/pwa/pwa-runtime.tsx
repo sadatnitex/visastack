@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { type InstallPromptEvent, setInstallPrompt } from '../../lib/pwa/install-prompt';
+import { captureInstallPrompt } from '../../lib/pwa/install-prompt';
 import {
   applyUpdate,
   registerServiceWorker,
@@ -16,6 +16,8 @@ type Connection = 'online' | 'offline' | 'restored';
 const RESTORED_NOTE_MS = 5000;
 
 const { dock, message, update, actions } = styles;
+
+if (typeof window !== 'undefined') captureInstallPrompt(window);
 
 /**
  * Installed-app support for every page (Lane D PWA): registers the service worker, keeps the
@@ -35,7 +37,9 @@ export function PwaRuntime({ enabled }: { readonly enabled: boolean }) {
     const container = 'serviceWorker' in navigator ? navigator.serviceWorker : undefined;
     if (!container) return;
     if (!enabled) {
-      unregisterAll(container).catch(() => undefined);
+      unregisterAll(container, 'caches' in window ? window.caches : undefined).catch(
+        () => undefined,
+      );
       return;
     }
     let stopChecks: (() => void) | undefined;
@@ -64,19 +68,13 @@ export function PwaRuntime({ enabled }: { readonly enabled: boolean }) {
     };
   }, [enabled]);
 
+  // Another tab started the update: this page now runs under the new worker, so its notice goes.
   useEffect(() => {
-    const onBeforeInstall = (event: Event) => {
-      // Keep the offer for the Help page instead of a browser bar appearing mid-task.
-      event.preventDefault();
-      setInstallPrompt(event as InstallPromptEvent);
-    };
-    const onInstalled = () => setInstallPrompt(null);
-    window.addEventListener('beforeinstallprompt', onBeforeInstall);
-    window.addEventListener('appinstalled', onInstalled);
-    return () => {
-      window.removeEventListener('beforeinstallprompt', onBeforeInstall);
-      window.removeEventListener('appinstalled', onInstalled);
-    };
+    const container = 'serviceWorker' in navigator ? navigator.serviceWorker : undefined;
+    if (!container) return;
+    const onTakeover = () => setWaiting(null);
+    container.addEventListener('controllerchange', onTakeover);
+    return () => container.removeEventListener('controllerchange', onTakeover);
   }, []);
 
   useEffect(() => {

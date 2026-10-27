@@ -79,6 +79,16 @@ describe('PwaRuntime', () => {
     await unmount();
   });
 
+  it('clears the notice when another tab has already switched to the new version', async () => {
+    const { container } = installServiceWorker({ waiting: true });
+    const { host, unmount } = await mount(<PwaRuntime enabled />);
+    await act(async () => undefined);
+    expect(host.querySelector('aside')).not.toBeNull();
+    await act(async () => container.dispatchEvent(new Event('controllerchange')));
+    expect(host.querySelector('aside')).toBeNull();
+    await unmount();
+  });
+
   it('lets the person put the update off', async () => {
     installServiceWorker({ waiting: true });
     const { host, unmount } = await mount(<PwaRuntime enabled />);

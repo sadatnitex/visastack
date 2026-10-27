@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { type Page, expect, test } from '@playwright/test';
+import { isPublicStaticUrl } from '../src/lib/pwa/constants';
 
 /**
  * Installable VisaStack (Lane D PWA) in a real browser, against a production build: the manifest
@@ -8,17 +9,6 @@ import { type Page, expect, test } from '@playwright/test';
  * Runs without secrets; signed-in pages are covered by their redirect to sign-in, which is what
  * an installed app shows before a session exists.
  */
-
-/** Same rule as `lib/pwa/service-worker.ts`: the only kinds of URL allowed in the device cache. */
-function isAllowedInCache(url: string, origin: string): boolean {
-  const parsed = new URL(url);
-  if (parsed.origin !== origin) return false;
-  return (
-    parsed.pathname.startsWith('/_next/static/') ||
-    parsed.pathname.startsWith('/icons/') ||
-    ['/favicon.ico', '/icon.svg', '/apple-icon.png'].includes(parsed.pathname)
-  );
-}
 
 async function cachedUrls(page: Page): Promise<string[]> {
   return page.evaluate(async () => {
@@ -140,7 +130,7 @@ test.describe('service worker and the cache law', () => {
 
     const urls = await cachedUrls(page);
     expect(urls.some((url) => url.includes('/_next/static/'))).toBe(true);
-    expect(urls.filter((url) => !isAllowedInCache(url, origin))).toEqual([]);
+    expect(urls.filter((url) => !isPublicStaticUrl(new URL(url), origin))).toEqual([]);
   });
 
   test('pages still come from the network once the worker controls them', async ({ page }) => {

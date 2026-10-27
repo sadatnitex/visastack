@@ -9,6 +9,8 @@
  * chooses Reload Now, so nothing they are typing or uploading is cut off.
  */
 
+import { CACHE_PREFIX } from './constants';
+
 export const SERVICE_WORKER_URL = '/sw.js';
 
 /** How often an open page asks whether a newer worker exists. */
@@ -48,13 +50,17 @@ export async function registerServiceWorker(
 
 /**
  * Starts the waiting worker and reloads once it has taken over. Called only from the person's
- * own Reload Now click.
+ * own Reload Now click. If another tab already started it, there is nothing left to wait for.
  */
 export function applyUpdate(
   container: ServiceWorkerContainer,
   waiting: ServiceWorker,
   reload: () => void,
 ): void {
+  if (waiting.state === 'activating' || waiting.state === 'activated') {
+    reload();
+    return;
+  }
   let reloaded = false;
   container.addEventListener('controllerchange', () => {
     if (reloaded) return;
@@ -64,10 +70,22 @@ export function applyUpdate(
   waiting.postMessage({ type: 'SKIP_WAITING' });
 }
 
-/** Removes every VisaStack worker on this device (used while the worker is switched off). */
-export async function unregisterAll(container: ServiceWorkerContainer): Promise<void> {
+/**
+ * Removes every VisaStack worker and its stored files on this device (used while the worker is
+ * switched off). The files are deleted here too, because unregistering first means the retirement
+ * worker may never get to run.
+ */
+export async function unregisterAll(
+  container: ServiceWorkerContainer,
+  storage: Pick<CacheStorage, 'keys' | 'delete'> | undefined,
+): Promise<void> {
   const registrations = await container.getRegistrations();
   await Promise.all(registrations.map((registration) => registration.unregister()));
+  if (!storage) return;
+  const names = await storage.keys();
+  await Promise.all(
+    names.filter((name) => name.startsWith(CACHE_PREFIX)).map((name) => storage.delete(name)),
+  );
 }
 
 /**
