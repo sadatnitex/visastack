@@ -46,17 +46,22 @@ function fixtureBundle(): Promise<string> {
 }
 export async function openUiFixture(
   page: Page,
-  mode: 'overview' | 'profile' | 'documents' | 'case' | 'sharing' | 'agency' | 'admin',
+  mode: 'overview' | 'profile' | 'documents' | 'case' | 'sharing' | 'agency' | 'admin' | 'shell',
+  options: { readonly sidebar?: 'expanded' | 'collapsed' } = {},
 ): Promise<void> {
   await page.route('**/*', (route) =>
     route.request().resourceType() === 'script' ? route.abort() : route.continue(),
   );
   await page.goto('/');
   await page.addScriptTag({ content: await fixtureBundle() });
-  await page.evaluate((value) => {
-    if (!window.__mountUiFixture) throw new Error('Actual React fixture failed to load');
-    window.__mountUiFixture(value);
-  }, mode);
+  await page.evaluate(
+    ({ value, sidebar }) => {
+      if (!window.__mountUiFixture) throw new Error('Actual React fixture failed to load');
+      if (sidebar) window.__uiFixtureSidebar = sidebar;
+      window.__mountUiFixture(value);
+    },
+    { value: mode, sidebar: options.sidebar },
+  );
   await page.locator('.app-frame').waitFor();
   // Let fonts finish and two frames paint, so a pixel capture never races the first raster.
   await page.evaluate(() =>

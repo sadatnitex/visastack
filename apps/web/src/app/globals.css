@@ -6990,9 +6990,11 @@ body:has(.auth-shell) > .footer {
 
 /* WP-UI2 account menu: the signed-in account menu (src/app/app/account-menu.tsx). One flat panel
    that sizes to its content: who is signed in and their plan, two labelled groups of 44px rows,
-   and Sign Out on its own below a hairline. It never scrolls inside itself at normal heights; only
-   a screen too short to show it all lets it scroll (short-viewport rule below). On a phone the same
-   rows open as a bottom sheet. Colours, spacing, radii and motion all come from the shared tokens. */
+   and Sign Out on its own below a hairline. It never scrolls inside itself at normal heights; it
+   is never taller than the room the screen leaves it (the menu measures that room and sets the
+   limit, see account-menu.tsx), so only a screen too short to show it all lets it scroll. On a
+   phone the same rows open as a bottom sheet. Colours, spacing, radii and motion all come from
+   the shared tokens. */
 .account-menu-panel {
   position: absolute;
   top: calc(100% + var(--space-2));
@@ -7001,7 +7003,12 @@ body:has(.auth-shell) > .footer {
   z-index: 62;
   display: flex;
   flex-direction: column;
-  width: min(300px, calc(100vw - 24px));
+  width: min(19rem, calc(100vw - 1.5rem));
+  /* The menu sets --account-menu-max-height to the room below (or above) its trigger; until it
+     has measured, the whole screen less the toolbar and a margin is a safe stand-in. */
+  max-height: var(--account-menu-max-height, calc(100dvh - 6rem));
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: var(--space-2);
   border: 1px solid var(--hairline);
   border-radius: var(--radius);
@@ -7213,14 +7220,6 @@ body:has(.auth-shell) > .footer {
 .account-menu-panel .account-menu-signout button:hover .icon,
 .account-menu-panel .account-menu-signout button:focus-visible .icon {
   color: var(--danger);
-}
-/* Short screens only: the panel takes the room below the toolbar and scrolls within it. */
-@media (min-width: 761px) and (max-height: 640px) {
-  .account-menu-panel {
-    max-height: calc(100dvh - 80px);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-  }
 }
 /* Phone: the same rows as a bottom sheet, clear of the home indicator. */
 @media (max-width: 760px) {
@@ -7599,6 +7598,215 @@ summary.visa-photo-title {
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
+}
+
+/* WP-SHELL collapsible sidebar and account menu placement (27 Oct 2026). On a laptop or larger the
+   sidebar can be hidden down to a slim icon rail with a Hide Menu / Show Menu button, and the
+   choice is remembered on that device. Phones and tablets keep the bottom bar untouched, so every
+   rule that makes the rail sits inside the laptop media query. The default (open) sidebar is not
+   changed at all: 256px wide, the same rows, the same toolbar. Nothing here animates, so there is
+   nothing for reduced motion to switch off. Flat, shared tokens only. */
+.app-frame {
+  --side-rail-width: 4.5rem;
+}
+.app-sidebar-heading {
+  position: relative;
+}
+.app-sidebar-toggle,
+.workspace-tools-icon {
+  display: none;
+}
+.app-sidebar-toggle {
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: none;
+  color: var(--text-tertiary);
+  font: inherit;
+  cursor: pointer;
+}
+.app-sidebar-toggle:hover {
+  color: var(--text);
+  background: var(--bg-subtle);
+}
+.app-sidebar-heading .app-sidebar-toggle .icon {
+  color: inherit;
+}
+
+/* A little tighter than before so the menu is no taller than its rows need, and Sign Out stays in
+   view when a short screen makes the list scroll. Rows keep their 44px height. */
+.account-menu-plan {
+  padding-bottom: 0;
+}
+.account-menu-group,
+.account-menu-signout {
+  padding-top: var(--space-1);
+}
+.account-menu-label {
+  padding-bottom: var(--space-1);
+}
+.account-menu-list {
+  margin-bottom: 0;
+}
+@media (min-width: 761px) {
+  .account-menu-signout {
+    position: sticky;
+    bottom: 0;
+    background: var(--bg-elevated);
+  }
+}
+
+/* The account menu opens on the side of its trigger that has room, and lines up with it. */
+@media (min-width: 761px) {
+  .record-account[data-placement="above"] .account-menu-panel {
+    top: auto;
+    bottom: calc(100% + var(--space-2));
+  }
+  .record-account[data-align="start"] .account-menu-panel {
+    right: auto;
+    left: 0;
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-sidebar-toggle {
+    display: inline-flex;
+    position: absolute;
+    top: -5px;
+    right: 0;
+  }
+  .app-frame[data-sidebar="expanded"] {
+    --rail-edge: var(--side-width);
+  }
+
+  /* The rail: icons only, one 44px column, the page takes the freed width. */
+  .app-frame[data-sidebar="collapsed"] {
+    grid-template-columns: var(--side-rail-width) minmax(0, 1fr);
+  }
+  .app-frame[data-sidebar="collapsed"] .app-shell-nav {
+    padding: 24px 14px;
+  }
+  .app-frame[data-sidebar="collapsed"] .app-sidebar-heading {
+    align-items: center;
+    gap: var(--space-2);
+    padding: 0 0 var(--space-4);
+  }
+  .app-frame[data-sidebar="collapsed"] .app-sidebar-heading .brand {
+    align-items: center;
+    gap: 0;
+    /* Only the mark shows; the name stays in the link for screen readers. */
+    font-size: 0;
+  }
+  .app-frame[data-sidebar="collapsed"] .app-sidebar-toggle {
+    position: static;
+  }
+  .app-frame[data-sidebar="collapsed"] .app-sidebar-context,
+  .app-frame[data-sidebar="collapsed"] .app-sidebar-account,
+  .app-frame[data-sidebar="collapsed"] .workspace-assurance {
+    display: none;
+  }
+  .app-frame[data-sidebar="collapsed"] .app-shell-links:not(.workspace-tools-list) a {
+    justify-content: center;
+    gap: 0;
+    padding: 0;
+  }
+  .app-frame[data-sidebar="collapsed"] .app-shell-links:not(.workspace-tools-list) .app-link-label {
+    display: none;
+  }
+
+  /* Who you are acting as: the avatar alone; the list opens beside the rail. */
+  .app-frame[data-sidebar="collapsed"] .app-shell-nav > .workspace-selector {
+    margin-bottom: var(--space-2);
+    border-color: transparent;
+    background: none;
+  }
+  .app-frame[data-sidebar="collapsed"] .app-shell-nav > .workspace-selector summary {
+    justify-content: center;
+    min-height: 44px;
+    padding: 0;
+  }
+  .app-frame[data-sidebar="collapsed"]
+    .app-shell-nav
+    > .workspace-selector
+    summary
+    > :not(.workspace-avatar) {
+    display: none;
+  }
+  .app-frame[data-sidebar="collapsed"] .app-shell-nav > .workspace-selector nav,
+  .app-frame[data-sidebar="collapsed"] .workspace-tools-list {
+    position: fixed;
+    left: calc(var(--side-rail-width) + var(--space-2));
+    z-index: 62;
+    width: 16rem;
+    max-height: calc(100dvh - 8rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--space-2);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    background: var(--bg-elevated);
+  }
+  /* The tools icon sits low in the rail, so its list rests on the bottom of the screen and can
+     never run off it, however short the screen. */
+  .app-frame[data-sidebar="collapsed"] .workspace-tools-list {
+    top: auto;
+    bottom: var(--space-4);
+    max-height: calc(100dvh - 2 * var(--space-4));
+  }
+
+  /* More Tools: an icon that opens the same list beside the rail. */
+  .app-frame[data-sidebar="collapsed"] .workspace-tools {
+    margin-top: var(--space-2);
+  }
+  .app-frame[data-sidebar="collapsed"] .workspace-tools summary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0;
+    border-radius: 11px;
+    list-style: none;
+  }
+  .app-frame[data-sidebar="collapsed"] .workspace-tools summary:hover {
+    background: var(--bg-subtle);
+  }
+  .app-frame[data-sidebar="collapsed"] .workspace-tools-icon {
+    display: grid;
+    place-items: center;
+    color: var(--text-tertiary);
+  }
+  .app-frame[data-sidebar="collapsed"] .workspace-tools-label {
+    display: none;
+  }
+
+  /* Each rail control names itself in a small label beside it on hover and keyboard focus, and the
+     Hide Menu button does the same in the open sidebar, where it has no words of its own. */
+  .app-frame[data-sidebar="collapsed"]
+    .app-shell-nav
+    :where(a, button, summary)[aria-label]:where(:hover, :focus-visible)::after,
+  .app-frame[data-sidebar="expanded"] .app-sidebar-toggle:where(:hover, :focus-visible)::after {
+    content: attr(aria-label);
+    position: fixed;
+    left: calc(var(--rail-edge, var(--side-rail-width)) + var(--space-2));
+    z-index: 63;
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--text);
+    color: var(--bg-elevated);
+    font-size: var(--text-caption);
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  /* A control whose list is open needs no label over its own list. */
+  .app-frame[data-sidebar="collapsed"] .app-shell-nav details[open] > summary::after {
+    content: none;
+  }
 }
 
 /* WP-REF visible reference codes (ADR 0018): the code beside a record's name, even-width figures

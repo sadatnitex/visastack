@@ -235,6 +235,86 @@ describe('account menu accessibility', () => {
   });
 });
 
+describe('account menu placement', () => {
+  /** Give jsdom (which has no layout) a trigger box, a screen size and a panel height. */
+  function layout(
+    trigger: { top: number; bottom: number; left: number; right: number },
+    screen: { width: number; height: number },
+    content: number,
+  ) {
+    vi.spyOn(summary(), 'getBoundingClientRect').mockReturnValue(trigger as DOMRect);
+    Object.defineProperty(window, 'innerHeight', { value: screen.height, configurable: true });
+    Object.defineProperty(document.documentElement, 'clientWidth', {
+      value: screen.width,
+      configurable: true,
+    });
+    const box = panel();
+    Object.defineProperty(box, 'scrollHeight', { value: content - 2, configurable: true });
+    Object.defineProperty(box, 'offsetHeight', { value: content, configurable: true });
+    Object.defineProperty(box, 'clientHeight', { value: content - 2, configurable: true });
+    Object.defineProperty(box, 'offsetWidth', { value: 304, configurable: true });
+  }
+  const openAndMeasure = () => {
+    open();
+    act(() => {
+      details().dispatchEvent(new Event('toggle'));
+    });
+  };
+  const limit = () => details().style.getPropertyValue('--account-menu-max-height');
+
+  it('opens under a trigger near the top, lined up with its right edge, at full height', () => {
+    layout({ top: 19, bottom: 63, left: 1216, right: 1322 }, { width: 1366, height: 768 }, 500);
+    openAndMeasure();
+    expect(details().getAttribute('data-placement')).toBe('below');
+    expect(details().getAttribute('data-align')).toBe('end');
+    expect(limit()).toBe(`${768 - 63 - 8 - 12}px`);
+  });
+
+  it('shrinks to the room on a short screen, so the rows scroll inside the panel', () => {
+    layout({ top: 19, bottom: 63, left: 1136, right: 1242 }, { width: 1280, height: 520 }, 500);
+    openAndMeasure();
+    expect(details().getAttribute('data-placement')).toBe('below');
+    expect(Number.parseInt(limit(), 10)).toBe(520 - 63 - 8 - 12);
+    expect(Number.parseInt(limit(), 10)).toBeLessThan(500);
+  });
+
+  it('opens above a trigger that sits low on the screen', () => {
+    layout({ top: 700, bottom: 744, left: 20, right: 126 }, { width: 1366, height: 768 }, 500);
+    openAndMeasure();
+    expect(details().getAttribute('data-placement')).toBe('above');
+    expect(details().getAttribute('data-align')).toBe('start');
+    expect(limit()).toBe(`${700 - 8 - 12}px`);
+  });
+
+  it('forgets its placement when it closes, and measures again on the next open', () => {
+    layout({ top: 700, bottom: 744, left: 20, right: 126 }, { width: 1366, height: 768 }, 500);
+    openAndMeasure();
+    expect(details().getAttribute('data-placement')).toBe('above');
+    act(() => {
+      details().open = false;
+      details().dispatchEvent(new Event('toggle'));
+    });
+    expect(details().getAttribute('data-placement')).toBeNull();
+    expect(details().getAttribute('data-align')).toBeNull();
+    expect(limit()).toBe('');
+    layout({ top: 19, bottom: 63, left: 1216, right: 1322 }, { width: 1366, height: 768 }, 500);
+    openAndMeasure();
+    expect(details().getAttribute('data-placement')).toBe('below');
+  });
+
+  it('measures again when the window is resized while open', async () => {
+    layout({ top: 19, bottom: 63, left: 1216, right: 1322 }, { width: 1366, height: 768 }, 500);
+    openAndMeasure();
+    expect(limit()).toBe(`${768 - 63 - 8 - 12}px`);
+    layout({ top: 19, bottom: 63, left: 1136, right: 1242 }, { width: 1280, height: 600 }, 500);
+    await act(async () => {
+      window.dispatchEvent(new Event('resize'));
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    });
+    expect(limit()).toBe(`${600 - 63 - 8 - 12}px`);
+  });
+});
+
 /** The marked stylesheet block for this menu, ending at the next marked block. */
 function menuCss(css: string): string {
   const start = css.indexOf('/* WP-UI2 account menu:');
@@ -268,7 +348,6 @@ function topLevel(css: string): { readonly prelude: string; readonly body: strin
 describe('account menu stylesheet (WP-UI2)', () => {
   const css = readFileSync(`${process.cwd()}/src/app/globals.css`, 'utf8');
   const block = menuCss(css);
-  const SHORT = '@media (min-width: 761px) and (max-height: 640px)';
   const PHONE = '@media (max-width: 760px)';
 
   it('is one marked block in the stylesheet, ending at the next marked block', () => {
@@ -278,26 +357,36 @@ describe('account menu stylesheet (WP-UI2)', () => {
     expect(block.slice(1)).not.toMatch(/\/\* WP-[A-Z0-9]+/);
   });
 
-  it('never scrolls inside itself at desktop heights', () => {
+  it('is never taller than the room the screen leaves it, and never a share of the screen', () => {
     const rules = topLevel(block);
     const desktop = rules.filter((rule) => !rule.prelude.startsWith('@media'));
     const panel = desktop.find((rule) => rule.prelude === '.account-menu-panel');
     expect(panel?.body).toBeDefined();
-    for (const rule of desktop) {
+    // The menu measures the room below (or above) its trigger and hands it over as one property;
+    // until it has, the whole screen less the toolbar and a margin stands in. Taller content
+    // scrolls inside the panel, so the panel itself can never run off the screen.
+    expect(panel?.body).toMatch(
+      /max-height:\s*var\(--account-menu-max-height,\s*calc\(100dvh - 6rem\)\);/,
+    );
+    expect(panel?.body).toMatch(/overflow-y:\s*auto;/);
+    expect(panel?.body).toMatch(/width:\s*min\(19rem,\s*calc\(100vw - 1\.5rem\)\);/);
+    for (const rule of desktop.filter((item) => item.prelude !== '.account-menu-panel')) {
       expect(rule.body, rule.prelude).not.toMatch(/max-height|overflow(-y)?\s*:\s*(auto|scroll)/);
     }
-    // A height limit exists only for a screen too short to show it all, or the phone sheet,
-    // and it is always the whole screen less a small offset, never a fraction of it.
-    const limited = rules.filter((rule) => /max-height\s*:/.test(rule.body));
-    expect(limited.map((rule) => rule.prelude).sort()).toEqual([PHONE, SHORT].sort());
+    // The only other height limit is the phone sheet, and it is the whole screen less a small offset.
+    const limited = rules.filter(
+      (rule) => rule.prelude.startsWith('@media') && /max-height\s*:/.test(rule.body),
+    );
+    expect(limited.map((rule) => rule.prelude)).toEqual([PHONE]);
     for (const rule of limited) {
       for (const [, value] of rule.body.matchAll(/max-height\s*:\s*([^;]+);/g)) {
         expect(value).toMatch(/^calc\(100dvh - (?!.*(?:vh|%))[\w(),\s-]+\)$/);
       }
     }
-    // The old menu rule with a fixed share of the screen is gone from the whole stylesheet.
+    // The old fixed offset for short screens and the old share of the screen are gone.
     expect(css).not.toMatch(/\.record-account nav \{/);
     expect(css).not.toContain('max-height: 65dvh');
+    expect(css).not.toContain('calc(100dvh - 80px)');
   });
 
   it('opens as a bottom sheet on a phone, clear of the home indicator', () => {

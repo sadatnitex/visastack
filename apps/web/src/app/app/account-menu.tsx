@@ -12,6 +12,7 @@ import {
   useRef,
 } from 'react';
 import { Icon, type IconName } from '../../components/icons';
+import { placePopover } from '../../lib/popover-placement';
 
 export interface AccountMenuLink {
   readonly href: string;
@@ -118,6 +119,53 @@ export function AccountMenu({
     return () => document.removeEventListener('pointerdown', outside);
   }, []);
 
+  // Fit the panel to the screen: open it on the side of the trigger with room, no taller than that
+  // room (taller content scrolls inside it), and never past a screen edge. The answer is written as
+  // two data attributes and one custom property that the stylesheet reads; the phone sheet ignores it.
+  const place = useCallback(() => {
+    const details = account.current;
+    const menu = panel.current;
+    const trigger = details?.querySelector('summary');
+    if (!details?.open || !menu || !trigger) return;
+    const fit = placePopover({
+      trigger: trigger.getBoundingClientRect(),
+      viewport: { width: document.documentElement.clientWidth, height: window.innerHeight },
+      contentHeight: menu.scrollHeight + (menu.offsetHeight - menu.clientHeight),
+      width: menu.offsetWidth,
+    });
+    details.setAttribute('data-placement', fit.placement);
+    details.setAttribute('data-align', fit.align);
+    details.style.setProperty('--account-menu-max-height', `${fit.maxHeight}px`);
+  }, []);
+
+  const onToggle = () => {
+    const details = account.current;
+    if (!details) return;
+    if (details.open) {
+      place();
+      return;
+    }
+    details.removeAttribute('data-placement');
+    details.removeAttribute('data-align');
+    details.style.removeProperty('--account-menu-max-height');
+  };
+
+  // While open, a resized window or a scrolled page changes the room: measure again.
+  useEffect(() => {
+    let frame = 0;
+    const again = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(place);
+    };
+    window.addEventListener('resize', again);
+    window.addEventListener('scroll', again, { passive: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('resize', again);
+      window.removeEventListener('scroll', again);
+    };
+  }, [place]);
+
   const rows = () => Array.from(panel.current?.querySelectorAll<HTMLElement>(ROW_SELECTOR) ?? []);
 
   const onKeyDown = (event: KeyboardEvent<HTMLDetailsElement>) => {
@@ -168,7 +216,13 @@ export function AccountMenu({
   };
 
   return (
-    <details className="record-account" ref={account} onKeyDown={onKeyDown} onBlur={onBlur}>
+    <details
+      className="record-account"
+      ref={account}
+      onKeyDown={onKeyDown}
+      onBlur={onBlur}
+      onToggle={onToggle}
+    >
       <summary aria-label={`${name}, Account Menu`} aria-controls={panelId}>
         <b className="account-name-desktop" dir="auto">
           {name}
