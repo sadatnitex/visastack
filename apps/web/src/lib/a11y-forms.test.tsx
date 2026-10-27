@@ -1391,7 +1391,7 @@ const ADMIN: readonly Case[] = [
     element: () => <organisationForms.CreateInvoiceForm organizationId="o1" plans={PLANS} />,
   },
   row('record a payment', () => (
-    <organisationForms.RecordPaymentForm organizationId="o1" invoiceId={rowId()} />
+    <organisationForms.RecordPaymentForm organizationId="o1" invoiceId={rowId()} currency="BDT" />
   )),
   row('void an invoice', () => (
     <organisationForms.VoidInvoiceButton organizationId="o1" invoiceId={rowId()} />

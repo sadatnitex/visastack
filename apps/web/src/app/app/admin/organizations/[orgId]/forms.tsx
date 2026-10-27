@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
 import {
   type ActionState,
@@ -430,11 +430,27 @@ export function CreateInvoiceForm({
 export function RecordPaymentForm({
   organizationId,
   invoiceId,
+  currency,
 }: {
   readonly organizationId: string;
   readonly invoiceId: string;
+  /** The invoice's currency. Shown for the person to confirm when it is a three-letter code. */
+  readonly currency: string;
 }) {
   const [state, formAction, pending] = useActionState(recordInvoicePaymentAction, INITIAL);
+  // One key per intended payment: a double click or a repeated send of the same form records the
+  // money once. A new key is made after every answer, so the next payment is never mistaken for it.
+  const [idempotencyKey, setIdempotencyKey] = useState('');
+  useEffect(() => {
+    // `state` is the dependency on purpose: every answer starts a new payment.
+    void state;
+    try {
+      setIdempotencyKey(crypto.randomUUID());
+    } catch {
+      setIdempotencyKey('');
+    }
+  }, [state]);
+  const confirmCurrency = /^[A-Za-z]{3}$/.test(currency.trim());
   return (
     <form
       action={formAction}
@@ -443,6 +459,7 @@ export function RecordPaymentForm({
     >
       <input type="hidden" name="organizationId" value={organizationId} />
       <input type="hidden" name="invoiceId" value={invoiceId} />
+      <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       <div className="field-row">
         <label className="field-label" htmlFor={`payment-amount-${invoiceId}`}>
           Payment Amount (Minor Units)
@@ -452,10 +469,29 @@ export function RecordPaymentForm({
           name="amountMinorUnits"
           type="number"
           min="1"
+          step="1"
           required
           className="input"
         />
       </div>
+      {confirmCurrency ? (
+        <div className="field-row">
+          <label className="field-label" htmlFor={`payment-currency-${invoiceId}`}>
+            Currency Received
+          </label>
+          <input
+            id={`payment-currency-${invoiceId}`}
+            name="currency"
+            type="text"
+            required
+            minLength={3}
+            maxLength={3}
+            autoCapitalize="characters"
+            defaultValue={currency.trim().toUpperCase()}
+            className="input"
+          />
+        </div>
+      ) : null}
       <div className="field-row">
         <label className="field-label" htmlFor={`payment-date-${invoiceId}`}>
           Collected Date

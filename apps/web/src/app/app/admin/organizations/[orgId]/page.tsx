@@ -316,7 +316,11 @@ export default async function AdminOrganizationPage({
                       alignItems: 'flex-start',
                     }}
                   >
-                    <RecordPaymentForm organizationId={orgId} invoiceId={invoice.id} />
+                    <RecordPaymentForm
+                      organizationId={orgId}
+                      invoiceId={invoice.id}
+                      currency={invoice.currency}
+                    />
                     <VoidInvoiceButton organizationId={orgId} invoiceId={invoice.id} />
                   </div>
                 ) : null}
