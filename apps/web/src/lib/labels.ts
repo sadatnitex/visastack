@@ -9,6 +9,7 @@ import type {
   TriageGroup,
   TriageIndicator,
 } from '@visastack/services';
+import type { Tone } from '../components/ui';
 
 /**
  * Plain words for the codes the database stores. Display only: nothing here is ever saved,
@@ -178,6 +179,45 @@ export const TRIAGE_INDICATOR_LABELS: Readonly<Record<TriageIndicator, string>> 
   SENT_BACK: 'Sent Back for a Fix',
   REVIEW_STARTED: 'Review Started',
   COULD_NOT_BE_USED: 'Could Not Be Used',
+};
+
+/**
+ * The same five groups in the traveller's words (spec B09, "Request UX": Missing, Processing,
+ * Received, Needs correction, Reviewed). The agency summary keeps the longer programme names above.
+ * Received is not Reviewed on any screen: only the Reviewed group may say the agency looked.
+ */
+export const REQUEST_ITEM_STATUS_LABELS: Readonly<Record<TriageGroup, string>> = {
+  MISSING: 'Missing',
+  PROCESSING: 'Processing',
+  RECEIVED: 'Received',
+  NEEDS_CORRECTION: 'Needs Correction',
+  REVIEWED: 'Reviewed',
+};
+
+/**
+ * One colour family per group, used by every screen that shows a group (the agency's Where Things
+ * Stand, the traveller's request list), so the same state never changes colour between screens.
+ * Something is waiting on the traveller (Missing, Needs Correction): warning. Something is with
+ * the agency or being checked (Processing, Received): calm neutral. Reviewed: success. Danger is
+ * kept for dates that have passed, never for a group, so a request sent back is not made to look
+ * like an error.
+ */
+export const TRIAGE_GROUP_TONES: Readonly<Record<TriageGroup, Tone>> = {
+  MISSING: 'warning',
+  PROCESSING: 'neutral',
+  RECEIVED: 'neutral',
+  NEEDS_CORRECTION: 'warning',
+  REVIEWED: 'success',
+};
+
+/**
+ * Requests that belong to no group because they are closed. Fulfilled is a value older requests
+ * may still hold; it never means an agency reviewed anything, so it reads as Closed (W0 ledger L4).
+ */
+export const CLOSED_REQUEST_LABELS: Readonly<Record<string, string>> = {
+  CANCELLED: 'Cancelled',
+  FULFILLED: 'Closed',
+  DECLINED: 'Declined',
 };
 
 /** "bank_statement" and "BANK_STATEMENT" both give "Bank Statement". */

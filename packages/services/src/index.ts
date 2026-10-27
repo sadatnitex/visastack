@@ -1469,3 +1469,14 @@ export {
   type ViewSection,
   type WhatsAppShare,
 } from './selected-output-views';
+export {
+  REQUEST_QUESTION_LIMIT,
+  REQUEST_QUESTION_MAX_LENGTH,
+  type RequestItemExtras,
+  type RequestItemRule,
+  type RequestQuestion,
+  askAboutRequestItem,
+  listRequestItemExtras,
+  requestQuestionPrefix,
+  requestQuestionText,
+} from './request-items';
