@@ -34,7 +34,7 @@ import { referenceCodesFor } from './reference-codes';
  */
 
 /** Case states that are over; their tasks, requests and confirmations no longer need doing. */
-const FINISHED_CASE_STATES: ReadonlySet<string> = new Set(['CLOSED', 'CANCELLED']);
+export const FINISHED_CASE_STATES: ReadonlySet<string> = new Set(['CLOSED', 'CANCELLED']);
 
 /** Request statuses still waiting on the traveller (ADR 0015 section 5: open or sent back). */
 export const ATTENTION_REQUEST_STATUSES = ['OPEN', 'NEEDS_REPLACEMENT'] as const;
@@ -144,7 +144,7 @@ export function attentionTier(item: AttentionTierInput): AttentionTier {
   }
 }
 
-function compareText(a: string, b: string): number {
+export function compareText(a: string, b: string): number {
   if (a === b) return 0;
   return a < b ? -1 : 1;
 }
@@ -189,12 +189,12 @@ export function rankAttentionItems(items: readonly AttentionItem[]): AttentionIt
 }
 
 /** A stored date-only value (a date entered as a day, saved as UTC midnight) as `YYYY-MM-DD`. */
-function dateOnly(value: Date): string {
+export function dateOnly(value: Date): string {
   return value.toISOString().slice(0, 10);
 }
 
 /** The day number of "today" in `timezone`; an unknown zone name counts as UTC rather than fail. */
-function todayIndex(now: Date, timezone: string): number {
+export function todayIndex(now: Date, timezone: string): number {
   let parts: { readonly year: number; readonly month: number; readonly day: number };
   try {
     parts = toLocalDateParts(now, timezone);

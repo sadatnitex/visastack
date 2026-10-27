@@ -12,10 +12,16 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { DeadlineClock } from '../../../../../components/deadline-clock';
 import { EmptyState, PageHeader, StatusBadge, type Tone } from '../../../../../components/ui';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { plural } from '../../../../../lib/plural';
 import { withSession } from '../../../../../lib/session';
+import {
+  CLOCK_EXPIRY_PAGE_LIMIT,
+  deadlineLines,
+  loadDeadlineEntries,
+} from '../../../deadline-clock-data';
 
 export const metadata: Metadata = { title: 'Expiry' };
 
@@ -89,7 +95,9 @@ export default async function ExpiryCentrePage({
         );
     });
 
-    return { intrinsic, verifications, freshnessRows };
+    const deadlines = await loadDeadlineEntries(db, accountId, id, now, CLOCK_EXPIRY_PAGE_LIMIT);
+
+    return { intrinsic, verifications, freshnessRows, deadlines };
   });
 
   if (!data) notFound();
@@ -107,6 +115,17 @@ export default async function ExpiryCentrePage({
           </Link>
         }
       />
+
+      <div className="u-mb-150">
+        <DeadlineClock
+          heading="Deadline Clock"
+          headingId="expiry-deadline-clock-heading"
+          lines={
+            data.deadlines === null ? null : deadlineLines(data.deadlines, { showPerson: false })
+          }
+          addAction={{ href: `/app/applicant/${id}/documents`, label: 'Add a Document' }}
+        />
+      </div>
 
       <div className="grid">
         <article className="card">

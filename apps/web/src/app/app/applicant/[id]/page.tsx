@@ -14,12 +14,14 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { CaseReadinessRing } from '../../../../components/case-readiness-ring';
+import { DeadlineClock } from '../../../../components/deadline-clock';
 import { EmptyState, NextStepCard, PageHeader, StatusBadge } from '../../../../components/ui';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { completionOf, fieldLabel } from '../../../../lib/master-profile';
 import { agree, plural } from '../../../../lib/plural';
 import { withSession } from '../../../../lib/session';
 import { STAGE_LABELS } from '../../agency/[orgId]/case-search-form';
+import { CLOCK_HOME_LIMIT, deadlineLines, loadDeadlineEntries } from '../../deadline-clock-data';
 
 export const metadata: Metadata = { title: 'Traveller Overview' };
 export const dynamic = 'force-dynamic';
@@ -53,7 +55,9 @@ export default async function ApplicantOverviewPage({
       : [];
     const featured = active[0];
     const readiness = featured?.packVersionId ? await computeReadiness(db, featured.id) : null;
+    const deadlines = await loadDeadlineEntries(db, accountId, id, new Date(), CLOCK_HOME_LIMIT);
     return {
+      deadlines,
       applicant,
       profile,
       documents,
@@ -312,6 +316,16 @@ export default async function ApplicantOverviewPage({
           className="split-rail"
           aria-label="Upcoming dates, recent activity and profile health"
         >
+          <DeadlineClock
+            heading="Deadline Clock"
+            headingId="applicant-deadline-clock-heading"
+            headingLevel="h3"
+            lines={
+              data.deadlines === null ? null : deadlineLines(data.deadlines, { showPerson: false })
+            }
+            addAction={{ href: `/app/applicant/${id}/documents`, label: 'Add a Document' }}
+            more={{ href: `/app/applicant/${id}/expiry`, label: 'See All Dates' }}
+          />
           <h3>Upcoming</h3>
           <article className="card">
             {agenda.length ? (

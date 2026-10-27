@@ -13,12 +13,14 @@ import {
   listMembershipsForAccount,
   listNeedsAttention,
   rankAttentionItems,
+  rankDeadlines,
   requireAccess,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { CaseReadinessRing, type ReadinessCounts } from '../../components/case-readiness-ring';
+import { DeadlineClock } from '../../components/deadline-clock';
 import { PROGRESS_IN_CASE_LINE } from '../../components/progress-ring';
 import { Checklist, Disclosure, EmptyState, NextStepCard, StatusBadge } from '../../components/ui';
 import { holdsPlatformRole } from '../../lib/admin';
@@ -38,6 +40,7 @@ import { withSession } from '../../lib/session';
 import { requestItemLabel } from './agency/[orgId]/do-next';
 import { ConsentButton } from './consent-button';
 import { confirmFirstRunCountryAction } from './country-actions';
+import { CLOCK_HOME_LIMIT, deadlineLines, loadDeadlineEntries } from './deadline-clock-data';
 import {
   FirstRunConsent,
   FirstRunCountry,
@@ -151,14 +154,16 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
       )
       .slice(0, HOME_APPLICANT_LIMIT)
       .map(async (applicant) => {
-        const [docs, attention] = await Promise.all([
+        const [docs, attention, deadlines] = await Promise.all([
           listDocuments(db, accountId, applicant.id),
           loadAttention(db, accountId, applicant.id, now),
+          loadDeadlineEntries(db, accountId, applicant.id, now, CLOCK_HOME_LIMIT),
         ]);
         return {
           applicant,
           documentCount: docs.ok ? docs.value.length : 0,
           attention,
+          deadlines,
           itemCount: attention?.items.length ?? 0,
           activeMissions: attention?.activeCaseCount ?? 0,
           // Open or sent back for a fix (ADR 0015 section 5), so a replacement request counts.
@@ -191,11 +196,21 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
     ...(sharing ? [sharing] : []),
   ]);
 
+  // The next dates across every person, soonest first (Growth G5). A person whose dates could not
+  // be read is left out of the merge and said so; if nobody's could be read, none are shown.
+  const readable = perApplicant.flatMap((row) => (row.deadlines === null ? [] : [row.deadlines]));
+  const clock = {
+    entries: rankDeadlines(readable.flat(), CLOCK_HOME_LIMIT),
+    unreadablePeople: perApplicant.length - readable.length,
+    readable: perApplicant.length === 0 || readable.length > 0,
+  };
+
   return {
     email,
     consents,
     applicants,
     perApplicant,
+    clock,
     readinessByCase,
     unreadableCases,
     attention,
@@ -522,6 +537,17 @@ export default async function AppPage({
     })),
   );
 
+  const comingUpNote = [
+    data.clock.readable && data.clock.unreadablePeople > 0
+      ? `Dates for ${plural(data.clock.unreadablePeople, 'person', 'people')} could not be read.`
+      : null,
+    peopleLeftOut
+      ? `Shows the first ${data.perApplicant.length} of ${data.applicants.length} people.`
+      : null,
+  ]
+    .filter((line): line is string => line !== null)
+    .join(' ');
+
   return (
     <section className="section container">
       <div className="u-mb-150">
@@ -585,6 +611,33 @@ export default async function AppPage({
             </p>
           ) : null}
         </section>
+      ) : null}
+
+      {coreGranted && firstApplicant ? (
+        <div className="u-mb-150">
+          <DeadlineClock
+            heading="Coming Up"
+            headingId="home-coming-up-heading"
+            lines={
+              data.clock.readable
+                ? deadlineLines(data.clock.entries, { showPerson: data.perApplicant.length > 1 })
+                : null
+            }
+            note={comingUpNote}
+            addAction={{
+              href: `/app/applicant/${firstApplicant.applicant.id}/documents`,
+              label: 'Add a Document',
+            }}
+            {...(data.perApplicant.length === 1
+              ? {
+                  more: {
+                    href: `/app/applicant/${firstApplicant.applicant.id}/expiry`,
+                    label: 'See All Dates',
+                  },
+                }
+              : {})}
+          />
+        </div>
       ) : null}
 
       {coreGranted ? (

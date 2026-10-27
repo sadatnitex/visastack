@@ -1066,6 +1066,86 @@ test.describe('authoritative appearance of actual workspace components', () => {
     );
     expect(blocking, JSON.stringify(blocking, null, 2)).toEqual([]);
   });
+  for (const [width, height] of [
+    [390, 844],
+    [1440, 900],
+  ] as const) {
+    test(`the deadline clock says every tone in words, marks a date to check, and fits at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height });
+      await openUiFixture(page, 'overview');
+      const clock = page.locator('[data-fixture="deadline-clock"]');
+      for (const word of [
+        'Overdue',
+        'Within a Week',
+        'Within a Month',
+        'Later',
+        'Check This Date',
+      ]) {
+        await expect(clock.getByText(word, { exact: true }).first()).toBeVisible();
+      }
+      await expect(clock.getByText('Was due 3 days ago')).toBeVisible();
+      await expect(clock.getByText('Expires tomorrow')).toBeVisible();
+      await expect(
+        clock.getByText('Expires in about 8 months, if the date is right'),
+      ).toBeVisible();
+      // The empty clock teaches and offers the way to add the first document.
+      await expect(clock.getByText('No Dates Yet')).toBeVisible();
+      await expect(
+        clock.getByText(
+          'Add a passport and its expiry date appears here, so you hear about it before it matters.',
+        ),
+      ).toBeVisible();
+      await expect(clock.getByRole('link', { name: 'Add a Document', exact: true })).toBeVisible();
+      const findings = await clock.evaluate((root) => {
+        const lines = [...root.querySelectorAll('.deadline-link')];
+        const tags = [...root.querySelectorAll('.deadline-tag')];
+        const moving = [...root.querySelectorAll('[class*="deadline-"]')].filter((element) => {
+          const css = getComputedStyle(element);
+          return (
+            css.animationName !== 'none' ||
+            css.transitionDuration.split(',').some((d) => d.trim() !== '0s') ||
+            css.boxShadow !== 'none' ||
+            /gradient/.test(css.backgroundImage)
+          );
+        }).length;
+        const dashed = root.querySelector('.deadline-tag-check');
+        return {
+          overflow: document.documentElement.scrollWidth > innerWidth + 1,
+          shortest: Math.min(...lines.map((line) => line.getBoundingClientRect().height)),
+          clipped: [...root.querySelectorAll('.deadline-main, .deadline-tags')].filter(
+            (element) => element.getBoundingClientRect().right > innerWidth + 1,
+          ).length,
+          tagCount: tags.length,
+          flat: moving,
+          checkStyle: dashed ? getComputedStyle(dashed).borderTopStyle : '',
+        };
+      });
+      expect(findings.overflow).toBe(false);
+      expect(findings.shortest).toBeGreaterThanOrEqual(44);
+      expect(findings.clipped).toBe(0);
+      expect(findings.tagCount).toBe(5);
+      expect(findings.flat).toBe(0);
+      expect(findings.checkStyle).toBe('dashed');
+      await clock.screenshot({
+        path: test.info().outputPath(`deadline-clock-${width}.png`),
+        animations: 'disabled',
+      });
+    });
+  }
+  test('the deadline clock has no serious accessibility violations', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await openUiFixture(page, 'overview');
+    const result = await new AxeBuilder({ page })
+      .include('[data-fixture="deadline-clock"]')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
+      .analyze();
+    const blocking = result.violations.filter(
+      (violation) => violation.impact === 'critical' || violation.impact === 'serious',
+    );
+    expect(blocking, JSON.stringify(blocking, null, 2)).toEqual([]);
+  });
   test('page finder points to existing destinations and hides administration for ordinary users', async ({
     page,
   }) => {

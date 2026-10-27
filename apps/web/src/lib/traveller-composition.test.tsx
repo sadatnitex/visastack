@@ -13,6 +13,9 @@ const service = vi.hoisted(() => ({
   listApplicantAssurance: vi.fn(),
   getProfileSectionState: vi.fn(),
   getWalletView: vi.fn(),
+  accountPrincipal: vi.fn(),
+  requireAccess: vi.fn(),
+  listDeadlineClock: vi.fn(),
 }));
 vi.mock('@visastack/services', () => service);
 vi.mock('./session', () => ({
@@ -49,6 +52,15 @@ beforeEach(() => {
   service.listEvidenceRequestsForApplicant.mockResolvedValue({ ok: true, value: [] });
   service.listAccessForApplicant.mockResolvedValue({ ok: true, value: [] });
   service.listApplicantAssurance.mockResolvedValue({ ok: true, value: [] });
+  service.accountPrincipal.mockReturnValue({ kind: 'account', accountId: 'owner' });
+  service.requireAccess.mockResolvedValue({
+    ok: true,
+    value: { actor: { kind: 'applicant_owner' }, applicantId: 'person' },
+  });
+  service.listDeadlineClock.mockResolvedValue({
+    ok: true,
+    value: { applicantId: 'person', entries: [] },
+  });
   service.getProfileSectionState.mockResolvedValue({
     activated: new Set(),
     notApplicable: new Set(),
@@ -178,5 +190,111 @@ describe('traveller composition and independent record guards', () => {
     const html = renderToStaticMarkup(await profile(params));
     expect(html).toContain('/app#permissions');
     expect(html).not.toContain('Versioned editor');
+  });
+});
+
+describe("the deadline clock on a person's overview (Growth G5)", () => {
+  const entry = (overrides: Record<string, unknown>) => ({
+    key: 'document_expires:d1',
+    kind: 'document_expires',
+    applicantId: 'person',
+    applicantName: 'Synthetic Traveller',
+    date: '2026-11-07',
+    daysUntil: 12,
+    urgency: 'month',
+    docType: 'PASSPORT',
+    subject: null,
+    label: null,
+    doubt: null,
+    caseId: null,
+    href: '/app/applicant/person/expiry',
+    ...overrides,
+  });
+
+  it("reads the person's dates through the gate as the owner, three at most", async () => {
+    renderToStaticMarkup(await overview(params));
+    expect(service.requireAccess).toHaveBeenCalledWith(
+      {},
+      { kind: 'account', accountId: 'owner' },
+      'VIEW_METADATA',
+      { applicantId: 'person' },
+      { purpose: 'self' },
+    );
+    expect(service.listDeadlineClock).toHaveBeenCalledWith(
+      expect.objectContaining({ applicantId: 'person' }),
+      expect.objectContaining({ limit: 3 }),
+    );
+  });
+
+  it('shows the dates with plain times, a tone word and a link to the full list', async () => {
+    service.listDeadlineClock.mockResolvedValue({
+      ok: true,
+      value: {
+        applicantId: 'person',
+        entries: [
+          entry({
+            key: 'task_due:t',
+            kind: 'task_due',
+            docType: null,
+            label: 'Pay the visa fee',
+            daysUntil: -2,
+            urgency: 'overdue',
+            href: '/app/mission/c1',
+          }),
+          entry({}),
+        ],
+      },
+    });
+    const html = renderToStaticMarkup(await overview(params));
+    expect(html).toContain('Deadline Clock');
+    expect(html).toContain('Pay the visa fee');
+    expect(html).toContain('Was due 2 days ago');
+    expect(html).toContain('Expires in 12 days');
+    expect(html).toContain('Overdue');
+    expect(html).toContain('Within a Month');
+    expect(html).toContain('href="/app/mission/c1"');
+    expect(html).toContain('See All Dates');
+    // The name of the person is not repeated on their own page.
+    expect(html.slice(html.indexOf('Deadline Clock'), html.indexOf('Upcoming'))).not.toContain(
+      'Synthetic Traveller',
+    );
+  });
+
+  it('teaches when there are no dates, with the add-document button', async () => {
+    const html = renderToStaticMarkup(await overview(params));
+    const clock = html.slice(html.indexOf('Deadline Clock'), html.indexOf('>Upcoming<'));
+    expect(clock).toContain('No Dates Yet');
+    expect(clock).toContain(
+      'Add a passport and its expiry date appears here, so you hear about it before it matters.',
+    );
+    expect(clock).toContain('href="/app/applicant/person/documents"');
+    expect(clock).toContain('Add a Document');
+  });
+
+  it('marks a date it is unsure of', async () => {
+    service.listDeadlineClock.mockResolvedValue({
+      ok: true,
+      value: {
+        applicantId: 'person',
+        entries: [entry({ docType: null, doubt: 'kind_not_accepted' })],
+      },
+    });
+    const html = renderToStaticMarkup(await overview(params));
+    expect(html).toContain('Check This Date');
+    expect(html).toContain('if the date is right');
+  });
+
+  it('says dates are unavailable, not empty, when they cannot be read', async () => {
+    service.listDeadlineClock.mockResolvedValue({ ok: false, error: { code: 'upstream_error' } });
+    const html = renderToStaticMarkup(await overview(params));
+    expect(html).toContain('Dates are unavailable right now.');
+    expect(html).not.toContain('No Dates Yet');
+  });
+
+  it("is not read at all for a person who is not the owner's", async () => {
+    service.getApplicant.mockResolvedValue({ ...person, ownerAccountId: 'foreign' });
+    await expect(overview(params)).rejects.toThrow('NOT_FOUND');
+    expect(service.requireAccess).not.toHaveBeenCalled();
+    expect(service.listDeadlineClock).not.toHaveBeenCalled();
   });
 });
