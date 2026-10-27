@@ -49,10 +49,10 @@ export const REQUEST_SENT_LINE = 'Request sent. It stays open until the travelle
 
 /**
  * What happened to an invitation email by the time the screen answers: handed to the mail
- * service while the person waited (`sent`), not out yet and still being retried (`pending`), or
- * email not set up here at all (`none`). "Sent" is never claimed before the mail service took it.
+ * service while the person waited (`sent`), not out yet and still being retried (`pending`),
+ * refused for good with nothing retrying it (`failed`), or email not set up here at all (`none`). "Sent" is never claimed before the mail service took it.
  */
-export type InvitationEmailOutcome = 'sent' | 'pending' | 'none';
+export type InvitationEmailOutcome = 'sent' | 'pending' | 'failed' | 'none';
 
 const SPAM_HINT = 'If it does not arrive in a few minutes, ask them to check Spam or Promotions.';
 
@@ -64,6 +64,9 @@ export function invitationReadyLine(email: InvitationEmailOutcome, expiry: strin
   }
   if (email === 'pending') {
     return `Invitation ready. The email has not gone out yet and VisaStack keeps trying, so share the link below to avoid a wait.${tail}`;
+  }
+  if (email === 'failed') {
+    return `Invitation ready, but the email could not be sent. Copy the link below and send it yourself.${tail}`;
   }
   return `Invitation ready. Email is not set up here, so copy the link below and send it yourself.${tail}`;
 }
@@ -83,9 +86,13 @@ export const SHARE_INVITED_LINE =
 
 /** The share invitation line, saying plainly whether its email already went out. */
 export function shareInvitedLine(email: Exclude<InvitationEmailOutcome, 'none'>): string {
-  return email === 'sent'
-    ? `Invitation emailed. ${SHARE_INVITED_LINE} ${SPAM_HINT} The link below works too.`
-    : `Invitation ready. The email has not gone out yet and VisaStack keeps trying, so share the link below to avoid a wait. ${SHARE_INVITED_LINE}`;
+  if (email === 'sent') {
+    return `Invitation emailed. ${SHARE_INVITED_LINE} ${SPAM_HINT} The link below works too.`;
+  }
+  if (email === 'failed') {
+    return `Invitation ready, but the email could not be sent, so copy the link below and send it yourself. ${SHARE_INVITED_LINE}`;
+  }
+  return `Invitation ready. The email has not gone out yet and VisaStack keeps trying, so share the link below to avoid a wait. ${SHARE_INVITED_LINE}`;
 }
 
 /** A section's "something else" item was saved. */

@@ -274,11 +274,7 @@ export async function addMemberAction(
     });
     if (!outcome.ok) return { ok: false, message: outcome.error.message } satisfies ActionState;
     if (outcome.value.kind === 'added') {
-      return {
-        ok: true,
-        message: memberAddedLine(humanizeCode(role)),
-        sendFor: outcome.value.membership.id,
-      };
+      return { ok: true, message: memberAddedLine(humanizeCode(role)) };
     }
     const acceptUrl = `${resolveBaseUrl()}/invitation?kind=team&token=${outcome.value.rawToken}`;
     return {

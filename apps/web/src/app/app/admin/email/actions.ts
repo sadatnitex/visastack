@@ -22,6 +22,8 @@ const REFUSED: Record<string, string> = {
     'The receiving address refused this email, so it cannot be sent again. Check the address with the person.',
   [EMAIL_RESEND_REFUSED.notFailed]:
     'This email is already waiting to be sent or has gone out. Reload the page to see where it is.',
+  [EMAIL_RESEND_REFUSED.noLongerValid]:
+    'What this email was about no longer applies (for example, the invitation was withdrawn or has run out), so it cannot be sent again. Ask the sender to make a new one.',
 };
 
 /**
@@ -53,12 +55,19 @@ export async function resendEmailAction(
       return { ok: false, message: 'This email could not be sent again. Try again in a moment.' };
     }
     revalidatePath(EMAIL_DELIVERY_PATH);
+    const { resourceId } = result.value;
+    // Only this email's record, so an older backlog cannot hold it back.
     after(() =>
-      triggerNotificationWorker({ limit: 20, timeBudgetMs: 15_000 }).then(() => undefined),
+      triggerNotificationWorker({
+        limit: 5,
+        timeBudgetMs: 15_000,
+        ...(resourceId ? { resourceId } : {}),
+      }).then(() => undefined),
     );
     return {
       ok: true,
-      message: 'Sending again now. It moves off this list once it goes out.',
+      message:
+        'Sending a fresh copy now. The failed one leaves this list; if the copy fails too, it appears here again.',
     };
   });
 }

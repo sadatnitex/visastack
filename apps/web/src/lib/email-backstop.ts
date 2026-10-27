@@ -12,10 +12,10 @@ let lastAsked = 0;
  */
 export function sendWaitingEmailsSoon(now: number = Date.now()): void {
   if (now - lastAsked < LOCAL_GAP_MS) return;
-  lastAsked = now;
   try {
     // Loaded only when needed, so a signed-in page never pulls the job code into its own path.
     after(async () => (await import('./jobs')).drainWaitingEmails());
+    lastAsked = now;
   } catch {
     // Outside a request (a script or a test): nothing to piggyback on.
   }

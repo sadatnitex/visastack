@@ -20,9 +20,11 @@ function allLines(): string[] {
     lines.evidenceChosenLine({ requiredCount: 9, satisfiedRequired: 9 }),
     lines.invitationReadyLine('sent', '7 days'),
     lines.invitationReadyLine('pending', '7 days'),
+    lines.invitationReadyLine('failed', '7 days'),
     lines.invitationReadyLine('none', null),
     lines.shareInvitedLine('sent'),
     lines.shareInvitedLine('pending'),
+    lines.shareInvitedLine('failed'),
     lines.otherItemSavedLine('Visa History'),
     lines.memberAddedLine('Reviewer'),
   );

@@ -424,7 +424,9 @@ export async function createContributorRequestAction(
     message:
       email === 'sent'
         ? `Request emailed to ${contributorEmail}. If it does not arrive in a few minutes, ask them to check Spam or Promotions. This link works too (expires in 7 days): ${result.acceptUrl}`
-        : `Request created. The email has not gone out yet and VisaStack keeps trying, so you can also share this link with ${contributorEmail} (expires in 7 days): ${result.acceptUrl}`,
+        : email === 'failed'
+          ? `Request created, but the email could not be sent. Share this link with ${contributorEmail} yourself (expires in 7 days): ${result.acceptUrl}`
+          : `Request created. The email has not gone out yet and VisaStack keeps trying, so you can also share this link with ${contributorEmail} (expires in 7 days): ${result.acceptUrl}`,
   } satisfies ActionState;
 }
 

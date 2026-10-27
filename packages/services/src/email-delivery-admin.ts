@@ -31,7 +31,11 @@ export const EMAIL_RESEND_REFUSED = {
   notEmail: 'only an email can be sent again',
   bounced: 'the receiving address refused this email, so it cannot be sent again',
   notFailed: 'only an email that failed can be sent again',
+  noLongerValid: 'what this email was about no longer applies, so it cannot be sent again',
 } as const;
+
+/** Failures that sending again cannot fix: the invitation or person is no longer valid. */
+const FINAL_FAILURES = new Set(['recipient no longer authorized', 'no recipient email resolvable']);
 
 export interface EmailDeliveryRow {
   readonly id: string;
@@ -58,21 +62,23 @@ export interface EmailDeliveryProblems {
   readonly counts: EmailDeliveryCounts;
 }
 
-const n = schema.notifications;
-
-// The full address never leaves the database: only its domain is selected.
-const rowColumns = {
-  id: n.id,
-  eventType: n.eventType,
-  status: n.status,
-  attempts: n.attempts,
-  lastError: n.lastError,
-  createdAt: n.createdAt,
-  nextAttemptAt: n.nextAttemptAt,
-  recipientDomain: sql<
-    string | null
-  >`nullif(lower(split_part(coalesce(${n.recipientEmail}, ''), '@', 2)), '')`,
-};
+// The full address never leaves the database: only its domain is selected. Built per call, never
+// at module load (tests that stub the database would crash on import).
+function rowColumns() {
+  const n = schema.notifications;
+  return {
+    id: n.id,
+    eventType: n.eventType,
+    status: n.status,
+    attempts: n.attempts,
+    lastError: n.lastError,
+    createdAt: n.createdAt,
+    nextAttemptAt: n.nextAttemptAt,
+    recipientDomain: sql<
+      string | null
+    >`nullif(lower(split_part(coalesce(${n.recipientEmail}, ''), '@', 2)), '')`,
+  };
+}
 
 /** Failed and long-waiting application emails, newest failures first, oldest waiting first. */
 export async function listEmailDeliveryProblems(
@@ -82,19 +88,21 @@ export async function listEmailDeliveryProblems(
 ): Promise<Result<EmailDeliveryProblems, ServiceError>> {
   const problem = staffScopeProblem(staff, 'PROCESSING_JOB_RETRY');
   if (problem) return err(problem);
+  // Read here, never at module load: tests that stub the database would crash on import.
+  const n = schema.notifications;
 
   const waitingBefore = new Date(now.getTime() - EMAIL_DELIVERY_WAITING_AFTER_MS);
   const since = new Date(now.getTime() - EMAIL_DELIVERY_DAY_MS).toISOString();
 
   const [failed, waiting, totals] = await Promise.all([
     db
-      .select(rowColumns)
+      .select(rowColumns())
       .from(n)
       .where(and(eq(n.channel, 'EMAIL'), inArray(n.status, ['FAILED', 'BOUNCED'])))
       .orderBy(desc(n.createdAt), desc(n.id))
       .limit(EMAIL_DELIVERY_LIST_LIMIT),
     db
-      .select(rowColumns)
+      .select(rowColumns())
       .from(n)
       .where(and(eq(n.channel, 'EMAIL'), eq(n.status, 'QUEUED'), lt(n.createdAt, waitingBefore)))
       .orderBy(asc(n.createdAt), asc(n.id))
@@ -105,7 +113,9 @@ export async function listEmailDeliveryProblems(
         deliveredToday: sql<number>`count(*) filter (where ${n.deliveredAt} >= ${since}::timestamptz)`,
         // A failure has no time of its own: count the ones created in the window, and bounces
         // by when the bounce arrived.
-        failedToday: sql<number>`count(*) filter (where (${n.status} = 'FAILED' and ${n.createdAt} >= ${since}::timestamptz) or (${n.status} = 'BOUNCED' and coalesce(${n.bouncedAt}, ${n.createdAt}) >= ${since}::timestamptz))`,
+        // No failed-at time is stored: a FAILED row's last activity is its last scheduled try (or
+        // its send, for one the mail service took and then reported as failed).
+        failedToday: sql<number>`count(*) filter (where (${n.status} = 'FAILED' and greatest(${n.createdAt}, ${n.nextAttemptAt}, coalesce(${n.sentAt}, ${n.createdAt})) >= ${since}::timestamptz) or (${n.status} = 'BOUNCED' and coalesce(${n.bouncedAt}, ${n.createdAt}) >= ${since}::timestamptz))`,
         waitingNow: sql<number>`count(*) filter (where ${n.status} = 'QUEUED')`,
       })
       .from(n)
@@ -163,9 +173,11 @@ export async function resendEmail(
   db: Db,
   staff: StaffScope<'PROCESSING_JOB_RETRY'>,
   input: ResendEmailInput,
-): Promise<Result<{ readonly id: string }, ServiceError>> {
+): Promise<Result<{ readonly id: string; readonly resourceId: string | null }, ServiceError>> {
   const problem = staffScopeProblem(staff, 'PROCESSING_JOB_RETRY');
   if (problem) return err(problem);
+  // Read here, never at module load: tests that stub the database would crash on import.
+  const n = schema.notifications;
   const id = input.notificationId.trim();
   if (!UUID.test(id)) return err(serviceError('not_found', EMAIL_RESEND_REFUSED.notFound));
 
@@ -178,6 +190,9 @@ export async function resendEmail(
     }
     if (row.status !== 'FAILED') {
       return err(serviceError('invalid', EMAIL_RESEND_REFUSED.notFailed));
+    }
+    if (row.lastError && FINAL_FAILURES.has(row.lastError)) {
+      return err(serviceError('invalid', EMAIL_RESEND_REFUSED.noLongerValid));
     }
 
     // A fresh copy, not the same row put back: the mail service treats a repeated send key as the
@@ -215,6 +230,6 @@ export async function resendEmail(
       resourceId: copy.id,
       metadata: { eventType: row.eventType, replaces: row.id },
     });
-    return ok({ id: copy.id });
+    return ok({ id: copy.id, resourceId: row.resourceId });
   });
 }

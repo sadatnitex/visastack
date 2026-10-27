@@ -12,5 +12,8 @@ export async function sendEmailNow(
   resourceId: string,
 ): Promise<Exclude<InvitationEmailOutcome, 'none'>> {
   const result = await triggerNotificationWorker({ resourceId, limit: 3, timeBudgetMs: 8_000 });
-  return result.sent > 0 ? 'sent' : 'pending';
+  if (result.sent > 0) return 'sent';
+  // Refused for good (nothing will retry it) versus still waiting for another try.
+  if (result.failed > 0 && result.retrying === 0) return 'failed';
+  return 'pending';
 }

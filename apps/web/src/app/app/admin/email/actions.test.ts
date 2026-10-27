@@ -69,7 +69,7 @@ describe('resendEmailAction', () => {
   });
 
   it('sends again with the live scope, refreshes the page and starts a short send pass', async () => {
-    mocks.resendEmail.mockResolvedValue({ ok: true, value: { id: ID } });
+    mocks.resendEmail.mockResolvedValue({ ok: true, value: { id: ID, resourceId: 'inv-1' } });
     const result = await resendEmailAction(INITIAL, form({ notificationId: ID }));
     expect(result.ok).toBe(true);
     expect(mocks.resendEmail).toHaveBeenCalledWith({}, SCOPE, { notificationId: ID });
@@ -78,8 +78,9 @@ describe('resendEmailAction', () => {
     const task = mocks.after.mock.calls[0]?.[0] as () => Promise<unknown>;
     await expect(task()).resolves.toBeUndefined();
     expect(mocks.triggerNotificationWorker).toHaveBeenCalledWith({
-      limit: 20,
+      limit: 5,
       timeBudgetMs: 15_000,
+      resourceId: 'inv-1',
     });
   });
 

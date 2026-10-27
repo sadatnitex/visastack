@@ -83,6 +83,11 @@ async function attemptSummaries(db: Db, now: Date, accountId?: string): Promise<
       at: sql<Date>`max(${e.occurredAt})`,
     })
     .from(e)
+    // Only accounts still without a sign-in, before the limit, so connected ones never take a slot.
+    .innerJoin(
+      schema.accounts,
+      and(sql`${schema.accounts.id}::text = ${e.resourceId}`, isNull(schema.accounts.neonUserId)),
+    )
     .where(
       and(
         eq(e.eventType, 'ACCOUNT_IDENTITY_CONFLICT'),

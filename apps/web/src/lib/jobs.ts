@@ -274,6 +274,8 @@ export async function triggerNotificationWorker(
     readonly timeBudgetMs?: number;
     /** Only the messages about this one record, sent while the person waits. */
     readonly resourceId?: string;
+    /** Asked first, on the same connection; the pass runs only when it answers true. */
+    readonly gate?: (db: Parameters<typeof runNotificationWorker>[0]) => Promise<boolean>;
   } = {},
 ): Promise<NotificationWorkerResult & { readonly unavailable?: true }> {
   const connectionString = resolveDatabaseUrl(process.env);
@@ -288,11 +290,13 @@ export async function triggerNotificationWorker(
   });
   try {
     const handle = db as unknown as Parameters<typeof runNotificationWorker>[0];
+    const { gate, ...workerOptions } = options;
+    if (gate && !(await gate(handle))) return { sent: 0, retrying: 0, failed: 0 };
     const encryption = createKeyManagementPort();
     return await runNotificationWorker(handle, createEmailPort(), resolveBaseUrl(), {
       timeBudgetMs: 35_000,
       ...(encryption ? { encryption } : {}),
-      ...options,
+      ...workerOptions,
     });
   } catch (error) {
     reportServerError('triggerNotificationWorker', error, { step: 'worker pass failed' });
@@ -309,27 +313,24 @@ export async function triggerNotificationWorker(
  * could wait up to a day. Never throws: a failed pass is reported and the next request tries again.
  */
 export async function drainWaitingEmails(): Promise<void> {
-  const connectionString = resolveDatabaseUrl(process.env);
-  if (!connectionString) return;
-  const { db, pool } = createPooledDb(connectionString);
-  pool.on('error', (error) => {
-    reportServerError('drainWaitingEmails', error, { step: 'idle pool connection error' });
+  // One connection for both the turn check and the pass. A failed turn check counts as "not now".
+  await triggerNotificationWorker({
+    limit: 10,
+    timeBudgetMs: 10_000,
+    gate: async (db) => {
+      try {
+        const turn = await checkRateLimit(
+          db as unknown as Parameters<typeof checkRateLimit>[0],
+          { subjectId: 'platform', action: 'notifications.backstop', label: 'email' },
+          RATE_LIMITS.NOTIFICATION_BACKSTOP,
+        );
+        return turn.allowed;
+      } catch (error) {
+        reportServerError('drainWaitingEmails', error, { step: 'turn check failed' });
+        return false;
+      }
+    },
   });
-  try {
-    const handle = db as unknown as Parameters<typeof checkRateLimit>[0];
-    const turn = await checkRateLimit(
-      handle,
-      { subjectId: 'platform', action: 'notifications.backstop', label: 'email' },
-      RATE_LIMITS.NOTIFICATION_BACKSTOP,
-    );
-    if (!turn.allowed) return;
-  } catch (error) {
-    reportServerError('drainWaitingEmails', error, { step: 'turn check failed' });
-    return;
-  } finally {
-    await pool.end();
-  }
-  await triggerNotificationWorker({ limit: 10, timeBudgetMs: 10_000 });
 }
 
 /**
