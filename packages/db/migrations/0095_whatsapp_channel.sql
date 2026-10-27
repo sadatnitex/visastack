@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS "channel_identities" (
 	"linked_at" timestamp with time zone,
 	"revoked_at" timestamp with time zone,
 	"opted_out_at" timestamp with time zone,
+	"opt_changed_at" timestamp with time zone,
 	"last_inbound_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"last_auto_reply_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -64,6 +65,7 @@ CREATE TABLE IF NOT EXISTS "channel_webhook_events" (
 	"received_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"processed_at" timestamp with time zone,
 	"attempts" integer DEFAULT 0 NOT NULL,
+	"next_attempt_at" timestamp with time zone,
 	"last_error" text,
 	CONSTRAINT "channel_webhook_events_hash_unique" UNIQUE("event_hash"),
 	CONSTRAINT "channel_webhook_events_payload_whole" CHECK (("channel_webhook_events"."payload_ciphertext" is null) = ("channel_webhook_events"."payload_nonce" is null) and ("channel_webhook_events"."payload_nonce" is null) = ("channel_webhook_events"."payload_key_version" is null))

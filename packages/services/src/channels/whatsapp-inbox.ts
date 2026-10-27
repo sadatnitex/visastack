@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { and, asc, eq, gt, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { accountPrincipal } from '../access/principal';
 import type { SystemScope } from '../access/principal';
 import { requireAccess } from '../access/require-access';
@@ -7,12 +7,14 @@ import { listApplicants } from '../applicants';
 import { appendAuditEvent } from '../audit';
 import { type Db, first, schema } from '../db';
 import { isMissingRelationError } from '../missing-relation';
+import { enqueueNotificationBothChannels } from '../notifications';
 import type { KeyManagementPort } from '../ports';
 import { protectBytes, revealBytes } from '../protected-fields';
 import { checkRateLimit } from '../rate-limit';
 import { type Selection, buildSelectedOutput } from '../selected-output';
 import {
   LINK_CODE_ATTEMPT_LIMIT,
+  LINK_CODE_GLOBAL_ATTEMPT_LIMIT,
   WHATSAPP_SETTINGS_PATH,
   hashLinkCode,
   senderSubject,
@@ -24,7 +26,6 @@ import {
   WhatsAppSendError,
 } from './whatsapp-port';
 import {
-  type ChannelIntent,
   MENU_ROWS,
   type PersonSummary,
   TEXT,
@@ -57,8 +58,8 @@ export interface WhatsAppChannelSettings {
   readonly phoneNumberId: string;
   /** The site origin used in links, for example `https://vs.obsidianglobal.studio`. */
   readonly baseUrl: string;
-  /** Where Talk to a Person sends people; omitted from the reply when unset. */
-  readonly supportEmail: string | null;
+  /** Where Talk to a Person sends people (a real, watched address). */
+  readonly supportEmail: string;
 }
 
 export type IngestResult = 'stored' | 'duplicate' | 'unavailable';
@@ -103,6 +104,10 @@ export interface ProcessInboxOptions {
   /** Most deliveries handled in one run. */
   readonly limit?: number;
   readonly timeBudgetMs?: number;
+  /** Remove data past its retention. The daily job does this; a webhook-triggered pass does not. */
+  readonly purge?: boolean;
+  /** Waits between send retries (tests pass a no-op). */
+  readonly sleep?: (ms: number) => Promise<void>;
 }
 
 export interface ProcessInboxResult {
@@ -114,15 +119,30 @@ export interface ProcessInboxResult {
   readonly purged: number;
 }
 
-/** A delivery that failed this many times is left for the purge, never retried forever. */
-export const MAX_EVENT_ATTEMPTS = 5;
-const DAY_MS = 24 * 60 * 60 * 1000;
+/** Tries per delivery; with the waits between them this spans about four hours. */
+export const MAX_EVENT_ATTEMPTS = 8;
+const MINUTE_MS = 60 * 1000;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
 export const EVENT_RETENTION_MS = 7 * DAY_MS;
+/** Message ids of connected people. */
 export const MESSAGE_RETENTION_MS = 30 * DAY_MS;
+/** Senders who never connected (and ended connections): the sender and their message ids. */
+export const UNLINKED_RETENTION_MS = 7 * DAY_MS;
 /** An unlinked sender gets the welcome at most this often. */
-export const WELCOME_GAP_MS = 12 * 60 * 60 * 1000;
+export const WELCOME_GAP_MS = 12 * HOUR_MS;
+/** Replies per sender per hour: generous for a person, a ceiling for a script. */
+export const REPLY_LIMIT_LINKED = { limit: 30, windowMs: HOUR_MS } as const;
+export const REPLY_LIMIT_UNLINKED = { limit: 6, windowMs: HOUR_MS } as const;
 /** At most this many travellers are summarised in one reply. */
 const MAX_PEOPLE = 5;
+/** Waits before resending after a temporary refusal (Meta allows one message per person every few seconds). */
+const SEND_RETRY_DELAYS_MS = [1_000, 7_000] as const;
+
+/** The wait before trying a failed delivery again: 1, 2, 4 ... minutes, at most an hour. */
+export function retryDelayMs(attempts: number): number {
+  return Math.min(HOUR_MS, MINUTE_MS * 2 ** Math.max(0, attempts - 1));
+}
 
 interface Reply {
   readonly identityId: string;
@@ -136,6 +156,7 @@ interface Context {
 }
 
 type IdentityRow = typeof schema.channelIdentities.$inferSelect;
+type To = { readonly waId: string };
 
 function link(settings: WhatsAppChannelSettings, path: string): string {
   return new URL(path, settings.baseUrl).toString();
@@ -183,6 +204,7 @@ async function upsertIdentity(ctx: Context, item: InboundMessage): Promise<Ident
   return row;
 }
 
+/** Audits what a connected person did through WhatsApp. Unconnected senders leave no audit rows. */
 async function audit(
   ctx: Context,
   identity: IdentityRow,
@@ -190,6 +212,7 @@ async function audit(
   metadata: Record<string, unknown> = {},
   accountId: string | null = identity.accountId,
 ): Promise<void> {
+  if (!accountId) return;
   await appendAuditEvent(ctx.tx, {
     eventType,
     actorAccountId: accountId,
@@ -213,12 +236,15 @@ const SUMMARY_SELECTION: Selection = {
 /**
  * The linked account's own records, through the website's access gate and selected-output
  * engine, as that account. No encryption port is passed, so protected values are left out.
+ * Travellers come oldest first, so the same five are always shown.
  */
 async function summaries(
   ctx: Context,
   accountId: string,
 ): Promise<{ people: PersonSummary[]; applicantIds: string[] } | null> {
-  const applicants = (await listApplicants(ctx.tx, accountId)).slice(0, MAX_PEOPLE);
+  const applicants = (await listApplicants(ctx.tx, accountId))
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id))
+    .slice(0, MAX_PEOPLE);
   const people: PersonSummary[] = [];
   const applicantIds: string[] = [];
   for (const applicant of applicants) {
@@ -246,7 +272,7 @@ function recordsPath(applicantIds: readonly string[]): string {
 async function readReply(
   ctx: Context,
   identity: IdentityRow,
-  to: { waId: string },
+  to: To,
   view: 'status' | 'missing' | 'expiry',
 ): Promise<WhatsAppOutgoing> {
   const accountId = identity.accountId as string;
@@ -268,7 +294,7 @@ async function readReply(
       : view === 'missing'
         ? missingText(people)
         : expiryText(people);
-  await audit(ctx, identity, 'WHATSAPP_SUMMARY_SENT', { view, travellers: people.length });
+  await audit(ctx, identity, 'WHATSAPP_SUMMARY_PREPARED', { view, travellers: people.length });
   return {
     kind: 'link',
     to,
@@ -278,23 +304,37 @@ async function readReply(
   };
 }
 
-function menu(to: { waId: string }): WhatsAppOutgoing {
-  return { kind: 'list', to, body: TEXT.menuBody, buttonLabel: TEXT.menuButton, rows: MENU_ROWS };
+function menu(to: To, lead?: string): WhatsAppOutgoing {
+  return {
+    kind: 'list',
+    to,
+    body: lead ? `${lead}\n\n${TEXT.menuBody}` : TEXT.menuBody,
+    buttonLabel: TEXT.menuButton,
+    rows: MENU_ROWS,
+  };
 }
 
 async function linkIdentity(
   ctx: Context,
   identity: IdentityRow,
-  to: { waId: string },
+  item: InboundMessage,
+  to: To,
   digits: string,
 ): Promise<WhatsAppOutgoing> {
-  const attempt = await checkRateLimit(
-    ctx.tx,
-    { subjectId: senderSubject(identity.externalUserId), action: 'whatsapp.link_attempt' },
-    LINK_CODE_ATTEMPT_LIMIT,
-    ctx.now,
-  );
-  if (!attempt.allowed) return { kind: 'text', to, body: TEXT.tooManyAttempts };
+  // Per sender, and across every sender, so guessing cannot be spread over many WhatsApp accounts.
+  for (const [subjectId, limit] of [
+    [senderSubject(identity.externalUserId), LINK_CODE_ATTEMPT_LIMIT],
+    ['whatsapp-link:all-senders', LINK_CODE_GLOBAL_ATTEMPT_LIMIT],
+  ] as const) {
+    const attempt = await checkRateLimit(
+      ctx.tx,
+      { subjectId, action: 'whatsapp.link_attempt' },
+      limit,
+      ctx.now,
+    );
+    if (!attempt.allowed) return { kind: 'text', to, body: TEXT.tooManyAttempts };
+  }
+  // Judged by when the person sent the code (Meta's signed time), not when it was processed.
   const code = first(
     await ctx.tx
       .select()
@@ -303,7 +343,8 @@ async function linkIdentity(
         and(
           eq(schema.channelLinkCodes.codeHash, hashLinkCode(digits)),
           isNull(schema.channelLinkCodes.consumedAt),
-          gt(schema.channelLinkCodes.expiresAt, ctx.now),
+          gt(schema.channelLinkCodes.expiresAt, item.sentAt),
+          lte(schema.channelLinkCodes.createdAt, item.sentAt),
         ),
       )
       .for('update'),
@@ -336,6 +377,7 @@ async function linkIdentity(
       linkedAt: ctx.now,
       revokedAt: null,
       optedOutAt: null,
+      optChangedAt: item.sentAt,
       optInVersion: code.optInVersion,
       updatedAt: ctx.now,
     })
@@ -347,16 +389,111 @@ async function linkIdentity(
     { optInVersion: code.optInVersion, replacedEarlier: replaced.length > 0 },
     code.accountId,
   );
-  return {
-    kind: 'list',
-    to,
-    body: `${TEXT.connected}\n\n${TEXT.menuBody}`,
-    buttonLabel: TEXT.menuButton,
-    rows: MENU_ROWS,
-  };
+  // The account owner hears about every new connection, so one made from a stolen session is seen.
+  const ending = identity.phoneLast4 ? ` ending in ${identity.phoneLast4}` : '';
+  await enqueueNotificationBothChannels(ctx.tx, {
+    eventType: 'WHATSAPP_CONNECTED',
+    resourceId: code.id,
+    recipientAccountId: code.accountId,
+    payload: {
+      subject: 'WhatsApp connected to your VisaStack account',
+      summary: `A WhatsApp${ending} was connected to your VisaStack account. If this was not you, disconnect it and change your password.`,
+      deepLinkPath: WHATSAPP_SETTINGS_PATH,
+    },
+  });
+  return menu(to, TEXT.connected);
 }
 
-/** Decides and applies the effect of one inbound message; returns the reply, if any. */
+/** Applies a STOP or START, unless a newer choice from the same person is already recorded. */
+async function setMessagesOff(
+  ctx: Context,
+  identity: IdentityRow,
+  item: InboundMessage,
+  off: boolean,
+): Promise<boolean> {
+  if (identity.optChangedAt && item.sentAt.getTime() <= identity.optChangedAt.getTime()) {
+    return false;
+  }
+  const changes = (identity.optedOutAt !== null) !== off;
+  await ctx.tx
+    .update(schema.channelIdentities)
+    .set({
+      optedOutAt: off ? (identity.optedOutAt ?? ctx.now) : null,
+      optChangedAt: item.sentAt,
+      updatedAt: ctx.now,
+    })
+    .where(eq(schema.channelIdentities.id, identity.id));
+  if (changes) {
+    await audit(ctx, identity, off ? 'WHATSAPP_MESSAGES_OFF' : 'WHATSAPP_MESSAGES_ON', {
+      by: 'person',
+    });
+  }
+  return changes;
+}
+
+/** Decides the effect of one inbound message and the reply, if any. */
+async function decide(
+  ctx: Context,
+  identity: IdentityRow,
+  item: InboundMessage,
+  to: To,
+): Promise<WhatsAppOutgoing | null> {
+  const intent = readIntent(item);
+  if (intent.kind === 'ignore') return null;
+  if (intent.kind === 'stop') {
+    return (await setMessagesOff(ctx, identity, item, true))
+      ? { kind: 'text', to, body: TEXT.stopped }
+      : null;
+  }
+  if (intent.kind === 'start') {
+    if (!(await setMessagesOff(ctx, identity, item, false))) return null;
+    return identity.status === 'LINKED'
+      ? menu(to, TEXT.started)
+      : { kind: 'text', to, body: TEXT.started };
+  }
+  if (intent.kind === 'link') return linkIdentity(ctx, identity, item, to, intent.code);
+  if (identity.optedOutAt) return null; // Turned off: say nothing until START.
+
+  if (identity.status !== 'LINKED') {
+    const recent =
+      identity.lastAutoReplyAt &&
+      ctx.now.getTime() - identity.lastAutoReplyAt.getTime() < WELCOME_GAP_MS;
+    if (recent || !to.waId) return null;
+    await ctx.tx
+      .update(schema.channelIdentities)
+      .set({ lastAutoReplyAt: ctx.now, updatedAt: ctx.now })
+      .where(eq(schema.channelIdentities.id, identity.id));
+    return {
+      kind: 'link',
+      to,
+      body: TEXT.welcome,
+      label: TEXT.connectLabel,
+      url: link(ctx.settings, WHATSAPP_SETTINGS_PATH),
+    };
+  }
+
+  switch (intent.kind) {
+    case 'media':
+      await audit(ctx, identity, 'WHATSAPP_DOCUMENT_DECLINED', { mediaType: item.mediaType });
+      return {
+        kind: 'link',
+        to,
+        body: TEXT.media,
+        label: TEXT.mediaLabel,
+        url: link(ctx.settings, '/app/applicants'),
+      };
+    case 'person':
+      await audit(ctx, identity, 'WHATSAPP_PERSON_REQUESTED');
+      return { kind: 'text', to, body: personText(ctx.settings.supportEmail) };
+    case 'status':
+    case 'missing':
+    case 'expiry':
+      return readReply(ctx, identity, to, intent.kind);
+    default:
+      return menu(to);
+  }
+}
+
 async function handleInbound(ctx: Context, item: InboundMessage): Promise<Reply | null> {
   if (item.phoneNumberId !== ctx.settings.phoneNumberId) return null;
   const identity = await upsertIdentity(ctx, item);
@@ -375,75 +512,21 @@ async function handleInbound(ctx: Context, item: InboundMessage): Promise<Reply 
     .onConflictDoNothing({ target: schema.channelMessages.providerMessageId })
     .returning({ id: schema.channelMessages.id });
   if (recorded.length === 0) return null; // Already handled.
-  if (!item.sender.waId) return null; // No number to answer on.
-  const to = { waId: item.sender.waId };
-  const reply = (message: WhatsAppOutgoing): Reply => ({ identityId: identity.id, message });
-  const intent: ChannelIntent = readIntent(item);
 
-  if (intent.kind === 'stop') {
-    if (identity.optedOutAt) return null;
-    await ctx.tx
-      .update(schema.channelIdentities)
-      .set({ optedOutAt: ctx.now, updatedAt: ctx.now })
-      .where(eq(schema.channelIdentities.id, identity.id));
-    await audit(ctx, identity, 'WHATSAPP_MESSAGES_OFF', { by: 'person' });
-    return reply({ kind: 'text', to, body: TEXT.stopped });
-  }
-  if (intent.kind === 'link') return reply(await linkIdentity(ctx, identity, to, intent.code));
-  if (intent.kind === 'start') {
-    if (identity.optedOutAt) {
-      await ctx.tx
-        .update(schema.channelIdentities)
-        .set({ optedOutAt: null, updatedAt: ctx.now })
-        .where(eq(schema.channelIdentities.id, identity.id));
-      await audit(ctx, identity, 'WHATSAPP_MESSAGES_ON', { by: 'person' });
-    }
-    return reply(
-      identity.status === 'LINKED'
-        ? { ...menu(to), body: `${TEXT.started}\n\n${TEXT.menuBody}` }
-        : { kind: 'text', to, body: TEXT.started },
-    );
-  }
-  if (identity.optedOutAt) return null; // Turned off: say nothing until START.
+  // The person's choices (STOP, START, a code) apply even when Meta left their number out; only
+  // the answer needs a number.
+  const to: To = { waId: item.sender.waId ?? '' };
+  const message = await decide(ctx, identity, item, to);
+  if (!message || !item.sender.waId) return null;
 
-  if (identity.status !== 'LINKED') {
-    const recent =
-      identity.lastAutoReplyAt &&
-      ctx.now.getTime() - identity.lastAutoReplyAt.getTime() < WELCOME_GAP_MS;
-    if (recent) return null;
-    await ctx.tx
-      .update(schema.channelIdentities)
-      .set({ lastAutoReplyAt: ctx.now, updatedAt: ctx.now })
-      .where(eq(schema.channelIdentities.id, identity.id));
-    return reply({
-      kind: 'link',
-      to,
-      body: TEXT.welcome,
-      label: TEXT.connectLabel,
-      url: link(ctx.settings, WHATSAPP_SETTINGS_PATH),
-    });
-  }
-
-  switch (intent.kind) {
-    case 'media':
-      await audit(ctx, identity, 'WHATSAPP_DOCUMENT_DECLINED', { mediaType: item.mediaType });
-      return reply({
-        kind: 'link',
-        to,
-        body: TEXT.media,
-        label: TEXT.mediaLabel,
-        url: link(ctx.settings, '/app/applicants'),
-      });
-    case 'person':
-      await audit(ctx, identity, 'WHATSAPP_PERSON_REQUESTED');
-      return reply({ kind: 'text', to, body: personText(ctx.settings.supportEmail) });
-    case 'status':
-    case 'missing':
-    case 'expiry':
-      return reply(await readReply(ctx, identity, to, intent.kind));
-    default:
-      return reply(menu(to));
-  }
+  const limit = identity.status === 'LINKED' ? REPLY_LIMIT_LINKED : REPLY_LIMIT_UNLINKED;
+  const allowed = await checkRateLimit(
+    ctx.tx,
+    { subjectId: senderSubject(identity.externalUserId), action: 'whatsapp.reply' },
+    limit,
+    ctx.now,
+  );
+  return allowed.allowed ? { identityId: identity.id, message } : null;
 }
 
 const STATE_FOR: Record<StatusUpdate['state'], 'SENT' | 'DELIVERED' | 'READ' | 'FAILED'> = {
@@ -464,9 +547,10 @@ async function handleStatus(ctx: Context, status: StatusUpdate): Promise<void> {
     .update(schema.channelMessages)
     .set({
       state,
-      errorCode: status.errorCodes[0] ?? null,
-      pricingCategory: status.pricingCategory,
-      billable: status.billable,
+      errorCode: sql`coalesce(${status.errorCodes[0] ?? null}::integer, ${schema.channelMessages.errorCode})`,
+      // A later status often has no pricing: keep what an earlier one recorded.
+      pricingCategory: sql`coalesce(${status.pricingCategory}::text, ${schema.channelMessages.pricingCategory})`,
+      billable: sql`coalesce(${status.billable}::boolean, ${schema.channelMessages.billable})`,
       updatedAt: ctx.now,
     })
     .where(
@@ -479,37 +563,37 @@ async function handleStatus(ctx: Context, status: StatusUpdate): Promise<void> {
     .returning({ identityId: schema.channelMessages.identityId });
   const identityId = updated[0]?.identityId;
   if (identityId && status.errorCodes.includes(WHATSAPP_ERROR.BLOCKED)) {
-    await ctx.tx
-      .update(schema.channelIdentities)
-      .set({ optedOutAt: ctx.now, updatedAt: ctx.now })
-      .where(
-        and(
-          eq(schema.channelIdentities.id, identityId),
-          isNull(schema.channelIdentities.optedOutAt),
-        ),
-      );
+    await markBlocked(ctx.tx, identityId, ctx.now);
   }
 }
 
+/** Meta says the person blocked VisaStack: the same as STOP, until they write START. */
+async function markBlocked(db: Db, identityId: string, now: Date): Promise<void> {
+  await db
+    .update(schema.channelIdentities)
+    .set({ optedOutAt: now, optChangedAt: now, updatedAt: now })
+    .where(
+      and(eq(schema.channelIdentities.id, identityId), isNull(schema.channelIdentities.optedOutAt)),
+    );
+}
+
+/**
+ * Meta reports that a person's number or business-scoped id changed. Either way the connection
+ * ends: the old id must lose access, and the person reconnects in a minute with a fresh code.
+ */
 async function handleIdentityChange(ctx: Context, change: IdentityChange): Promise<void> {
   if (change.phoneNumberId !== ctx.settings.phoneNumberId) return;
-  const where = and(
-    eq(schema.channelIdentities.providerScope, change.phoneNumberId),
-    eq(schema.channelIdentities.externalUserId, change.externalUserId),
-  );
-  if (change.kind === 'number_changed') {
-    await ctx.tx
-      .update(schema.channelIdentities)
-      .set({ phoneLast4: change.newWaId ? change.newWaId.slice(-4) : null, updatedAt: ctx.now })
-      .where(where);
-    return;
-  }
-  // A new business-scoped id means Meta no longer vouches that this is the same person.
   const ended = await ctx.tx
     .update(schema.channelIdentities)
     .set({ status: 'REVOKED', accountId: null, revokedAt: ctx.now, updatedAt: ctx.now })
-    .where(and(where, eq(schema.channelIdentities.status, 'LINKED')))
-    .returning();
+    .where(
+      and(
+        eq(schema.channelIdentities.providerScope, change.phoneNumberId),
+        eq(schema.channelIdentities.externalUserId, change.externalUserId),
+        eq(schema.channelIdentities.status, 'LINKED'),
+      ),
+    )
+    .returning({ id: schema.channelIdentities.id, accountId: schema.channelIdentities.accountId });
   for (const row of ended) {
     await appendAuditEvent(ctx.tx, {
       eventType: 'WHATSAPP_DISCONNECTED',
@@ -518,7 +602,7 @@ async function handleIdentityChange(ctx: Context, change: IdentityChange): Promi
       result: 'ALLOWED',
       resourceType: 'channel_identity',
       resourceId: row.id,
-      metadata: { channel: 'WHATSAPP', by: 'provider_id_change' },
+      metadata: { channel: 'WHATSAPP', by: change.kind },
     });
   }
 }
@@ -534,8 +618,9 @@ function failureReason(error: unknown): string {
 }
 
 /**
- * Claims the oldest waiting delivery and applies everything in it. The work runs in a savepoint,
- * so a failure undoes the delivery's changes but still counts the attempt against that same row.
+ * Claims the oldest delivery that is due and applies everything in it. The work runs in a
+ * savepoint, so a failure undoes the delivery's changes but still counts the attempt against
+ * that same row and sets when to try it again.
  */
 async function handleNextEvent(db: Db, options: ProcessInboxOptions, now: Date): Promise<Claimed> {
   return db.transaction(async (tx) => {
@@ -547,6 +632,10 @@ async function handleNextEvent(db: Db, options: ProcessInboxOptions, now: Date):
           and(
             isNull(schema.channelWebhookEvents.processedAt),
             lt(schema.channelWebhookEvents.attempts, MAX_EVENT_ATTEMPTS),
+            or(
+              isNull(schema.channelWebhookEvents.nextAttemptAt),
+              lte(schema.channelWebhookEvents.nextAttemptAt, now),
+            ),
           ),
         )
         .orderBy(asc(schema.channelWebhookEvents.receivedAt))
@@ -584,65 +673,83 @@ async function handleNextEvent(db: Db, options: ProcessInboxOptions, now: Date):
           payloadCiphertext: null,
           payloadNonce: null,
           payloadKeyVersion: null,
+          nextAttemptAt: null,
           lastError: null,
         })
         .where(eq(schema.channelWebhookEvents.id, event.id));
       return { outcome: 'handled', replies } as const;
     } catch (error) {
       if (isMissingRelationError(error)) throw error;
+      const attempts = event.attempts + 1;
       await tx
         .update(schema.channelWebhookEvents)
-        .set({ attempts: event.attempts + 1, lastError: failureReason(error) })
+        .set({
+          attempts,
+          nextAttemptAt: new Date(now.getTime() + retryDelayMs(attempts)),
+          lastError: failureReason(error),
+        })
         .where(eq(schema.channelWebhookEvents.id, event.id));
       return { outcome: 'failed' } as const;
     }
   });
 }
 
+const realSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Sends one reply, retrying a temporary refusal (throttling, a timeout, Meta's own errors) after
+ * a short wait while the pass still has time. A block from the person is final and turns
+ * messages off.
+ */
 async function send(
   db: Db,
   options: ProcessInboxOptions,
   reply: Reply,
-  now: Date,
+  clock: () => Date,
+  deadline: number,
 ): Promise<boolean> {
-  try {
-    const { providerMessageId } = await options.whatsapp.send(
-      options.settings.phoneNumberId,
-      reply.message,
-    );
-    await db
-      .insert(schema.channelMessages)
-      .values({
-        identityId: reply.identityId,
-        direction: 'OUT',
-        providerMessageId,
-        kind: reply.message.kind,
-        state: 'SENT',
-        createdAt: now,
-        updatedAt: now,
-      })
-      .onConflictDoNothing({ target: schema.channelMessages.providerMessageId });
-    return true;
-  } catch (error) {
-    if (error instanceof WhatsAppSendError && error.code === WHATSAPP_ERROR.BLOCKED) {
+  const sleep = options.sleep ?? realSleep;
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      const { providerMessageId } = await options.whatsapp.send(
+        options.settings.phoneNumberId,
+        reply.message,
+      );
+      const now = clock();
       await db
-        .update(schema.channelIdentities)
-        .set({ optedOutAt: now, updatedAt: now })
-        .where(eq(schema.channelIdentities.id, reply.identityId));
+        .insert(schema.channelMessages)
+        .values({
+          identityId: reply.identityId,
+          direction: 'OUT',
+          providerMessageId,
+          kind: reply.message.kind,
+          state: 'SENT',
+          createdAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoNothing({ target: schema.channelMessages.providerMessageId });
+      return true;
+    } catch (error) {
+      if (error instanceof WhatsAppSendError && error.code === WHATSAPP_ERROR.BLOCKED) {
+        await markBlocked(db, reply.identityId, clock());
+        return false;
+      }
+      const wait = SEND_RETRY_DELAYS_MS[attempt];
+      const retryable = error instanceof WhatsAppSendError && error.retryable;
+      if (!retryable || wait === undefined || Date.now() + wait > deadline) return false;
+      await sleep(wait);
     }
-    return false;
   }
 }
 
-/** Removes what is no longer needed: handled deliveries, old message ids, idle unlinked senders, used codes. */
+/** Removes what is no longer needed: handled deliveries, old message ids, idle senders, used codes. */
 async function purge(db: Db, now: Date): Promise<number> {
-  const eventCutoff = new Date(now.getTime() - EVENT_RETENTION_MS);
-  const messageCutoff = new Date(now.getTime() - MESSAGE_RETENTION_MS);
+  const ago = (ms: number) => new Date(now.getTime() - ms);
   const events = await db
     .delete(schema.channelWebhookEvents)
     .where(
       and(
-        lt(schema.channelWebhookEvents.receivedAt, eventCutoff),
+        lt(schema.channelWebhookEvents.receivedAt, ago(EVENT_RETENTION_MS)),
         or(
           isNotNull(schema.channelWebhookEvents.processedAt),
           sql`${schema.channelWebhookEvents.attempts} >= ${MAX_EVENT_ATTEMPTS}`,
@@ -652,14 +759,15 @@ async function purge(db: Db, now: Date): Promise<number> {
     .returning({ id: schema.channelWebhookEvents.id });
   const messages = await db
     .delete(schema.channelMessages)
-    .where(lt(schema.channelMessages.createdAt, messageCutoff))
+    .where(lt(schema.channelMessages.createdAt, ago(MESSAGE_RETENTION_MS)))
     .returning({ id: schema.channelMessages.id });
+  // Deleting an unlinked sender also deletes its message ids.
   const idle = await db
     .delete(schema.channelIdentities)
     .where(
       and(
         inArray(schema.channelIdentities.status, ['PROVISIONAL', 'REVOKED']),
-        lt(schema.channelIdentities.lastInboundAt, messageCutoff),
+        lt(schema.channelIdentities.lastInboundAt, ago(UNLINKED_RETENTION_MS)),
       ),
     )
     .returning({ id: schema.channelIdentities.id });
@@ -668,7 +776,7 @@ async function purge(db: Db, now: Date): Promise<number> {
     .where(
       or(
         isNotNull(schema.channelLinkCodes.consumedAt),
-        lt(schema.channelLinkCodes.expiresAt, new Date(now.getTime() - DAY_MS)),
+        lt(schema.channelLinkCodes.expiresAt, ago(DAY_MS)),
       ),
     )
     .returning({ id: schema.channelLinkCodes.id });
@@ -676,9 +784,9 @@ async function purge(db: Db, now: Date): Promise<number> {
 }
 
 /**
- * Handles waiting deliveries, sends the replies after each delivery's changes are saved, then
- * removes data past its retention. A reply is sent only after its state change is committed, so
- * a crash can lose a reply but never report something that did not happen.
+ * Handles due deliveries, sends each delivery's replies after its changes are saved, and (on the
+ * daily pass) removes data past its retention. A reply is sent only after its state change is
+ * committed, so a crash can lose a reply but never report something that did not happen.
  */
 export async function processWhatsAppInbox(
   _scope: SystemScope<'process-whatsapp-inbox'>,
@@ -688,13 +796,13 @@ export async function processWhatsAppInbox(
   const clock = options.now ?? (() => new Date());
   const started = Date.now();
   const limit = options.limit ?? 50;
-  const budget = options.timeBudgetMs ?? 45_000;
+  const deadline = started + (options.timeBudgetMs ?? 45_000);
   let handled = 0;
   let failed = 0;
   let sent = 0;
   let sendFailed = 0;
   try {
-    while (handled + failed < limit && Date.now() - started < budget) {
+    while (handled + failed < limit && Date.now() < deadline) {
       const claimed = await handleNextEvent(db, options, clock());
       if (claimed.outcome === 'none') break;
       if (claimed.outcome === 'failed') {
@@ -703,11 +811,11 @@ export async function processWhatsAppInbox(
       }
       handled += 1;
       for (const reply of claimed.replies) {
-        if (await send(db, options, reply, clock())) sent += 1;
+        if (await send(db, options, reply, clock, deadline)) sent += 1;
         else sendFailed += 1;
       }
     }
-    const purged = await purge(db, clock());
+    const purged = options.purge ? await purge(db, clock()) : 0;
     return { status: 'ok', handled, failed, sent, sendFailed, purged };
   } catch (error) {
     if (isMissingRelationError(error)) {

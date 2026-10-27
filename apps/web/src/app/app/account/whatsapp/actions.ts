@@ -2,7 +2,9 @@
 
 import { disconnectWhatsApp, startWhatsAppLink } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { withSession } from '../../../../lib/session';
+import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../lib/step-up';
 import { readWhatsAppConfig } from '../../../../lib/whatsapp';
 
 export interface ConnectState {
@@ -32,6 +34,14 @@ export async function startWhatsAppLinkAction(
     };
   }
   return withSession(async ({ db, accountId }) => {
+    // Connecting lets a phone read case details, so it needs a recent sign-in, like sharing does.
+    const stepUp = await tryEstablishStepUp(
+      { accountId, action: 'CONNECT_WHATSAPP', resourceId: accountId },
+      '/app/account/whatsapp',
+    );
+    if (stepUp.kind === 'not_configured')
+      return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE };
+    if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
     const started = await startWhatsAppLink(db, {
       accountId,
       optIn,

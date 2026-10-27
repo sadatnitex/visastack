@@ -1,5 +1,5 @@
 {
-  "id": "2b0cd51a-932d-4166-bb02-3a8b47d9bfe5",
+  "id": "730e186a-d57b-4e47-a23c-2be66afd7a3d",
   "prevId": "636ef705-f782-47d7-9d4f-cc82948f4b8a",
   "version": "7",
   "dialect": "postgresql",
@@ -2751,6 +2751,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "opt_changed_at": {
+          "name": "opt_changed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "last_inbound_at": {
           "name": "last_inbound_at",
           "type": "timestamp with time zone",
@@ -3128,6 +3134,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
+        },
+        "next_attempt_at": {
+          "name": "next_attempt_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         },
         "last_error": {
           "name": "last_error",

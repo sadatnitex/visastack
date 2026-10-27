@@ -1,4 +1,4 @@
-import { listMembershipsForAccount } from '@visastack/services';
+import { getWhatsAppConnection, listMembershipsForAccount } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { AccountPhotoCard } from '../../../components/profile-photo/account-photo-card';
@@ -18,12 +18,19 @@ export const dynamic = 'force-dynamic';
 export default async function AccountPage() {
   const locale = await getLocale();
   const data = await withSession(async ({ db, accountId, email }) => {
-    const [isAdmin, memberships, photo] = await Promise.all([
+    const [isAdmin, memberships, photo, whatsapp] = await Promise.all([
       holdsPlatformRole(db, { accountId, email }),
       listMembershipsForAccount(db, accountId),
       loadOwnPhoto(db, accountId),
+      getWhatsAppConnection(db, accountId),
     ]);
-    return { email, isAdmin, hasAgencyAccess: memberships.length > 0, photo };
+    return {
+      email,
+      isAdmin,
+      hasAgencyAccess: memberships.length > 0,
+      photo,
+      whatsappConnected: whatsapp.connected,
+    };
   });
 
   return (
@@ -56,7 +63,7 @@ export default async function AccountPage() {
           </Link>
         </article>
 
-        {readWhatsAppConfig() ? (
+        {readWhatsAppConfig() || data.whatsappConnected ? (
           <article className="card">
             <p className="card-kicker">Optional</p>
             <h2 className="card-title">WhatsApp</h2>

@@ -286,3 +286,37 @@ WhatsApp D2 tests (all with the fake adapter and official fixtures):
 ## 15. Next trigger
 
 Resume from fresh `main` after S5/S6 and S8/S9 are merged: verify the merge commits, create a fresh WhatsApp branch from that `main`, re-read the actual S5, S6, S8 and S9 interfaces, update this contract, confirm the `[SX]` facts on the live Meta pages, then build the D2 foundation in bounded steps (adapter and signature, inbox and identity, link flow, reads, proposals, notifications channel). The PWA branch is updated against the converged `main`, re-tested and reviewed before the normal merge rule.
+
+## 16. Stage D2: WhatsApp foundation, built (27 Oct 2026)
+
+Built on `main` `0f22d2c0` (S5/S6 #289, S8/S9 #290, S7 #291 and S10 #287 merged and verified as merge commits), merged into the Lane D branch without a rebase. Migration number 0095 was assigned by the lead session.
+
+What exists now, all off until the owner switches it on:
+
+| Part | Where | Notes |
+| --- | --- | --- |
+| Schema | `packages/db/src/schema.ts`, migration `0095_whatsapp_channel.sql` | Four new tables, additive, re-runnable. `channel_identities` (keyed on the business-scoped id; `LINKED` exactly when an account is set; one linked WhatsApp per account; `opted_out_at` plus `opt_changed_at`), `channel_link_codes` (hash only), `channel_webhook_events` (encrypted inbox with backoff), `channel_messages` (ids, kind, delivery state, cost category; never text). Closing an account deletes its rows. |
+| Codec | `packages/services/src/channels/whatsapp-webhook.ts` | Handshake, `X-Hub-Signature-256` over the raw bytes with two secrets for rotation, a tolerant reader (phone number optional). |
+| Port and adapter | `channels/whatsapp-port.ts`, `packages/adapters/src/whatsapp-cloud.ts` | Text, reply buttons, list, link button; Meta's limits checked before sending; retryable errors marked. |
+| Connecting | `channels/whatsapp-link.ts`, `/app/account/whatsapp` | Opt-in tick box, a fresh sign-in check (step-up `CONNECT_WHATSAPP`), a 10-digit code valid 10 minutes, sent from WhatsApp as `LINK 12345-67890`. Attempts are limited per sender and across all senders. The owner gets an email and an in-app notice for every new connection. Disconnect is always reachable once connected. |
+| Inbox | `channels/whatsapp-inbox.ts`, `/api/channels/whatsapp/webhook`, `/api/jobs/process-whatsapp-inbox` | Verify, store encrypted, answer 200, handle right after (`after()`) and in a daily backstop. One transaction per delivery with a savepoint; failures back off 1, 2, 4 ... minutes, eight tries. Message ids make repeats no-ops; an older STOP or START never overrides a newer one. |
+| Replies | `channels/whatsapp-replies.ts` | Plain rules, no AI: menu, case status, what is missing, expiring soon, Talk to a Person (support email required), STOP and START, documents in chat declined with a link to the private upload, reactions ignored. Reads go through `requireAccess` and `buildSelectedOutput` as the linked account, protected values left out. |
+| Limits and retention | inbox | Replies capped per sender (30 an hour connected, 6 unconnected); unconnected senders leave no audit rows; deliveries removed 7 days after handling; unconnected senders after 7 days idle; message ids of connected people after 30 days. |
+
+Changes to the earlier design, made after review:
+
+- A number change or an id change from Meta both end the connection; the person reconnects with a new code. Simpler and never leaves an old id with access.
+- A block reported by Meta sets messages off (like STOP) instead of a separate state, so the connection is kept.
+- The opt-in is recorded with its wording version on the connection and in the audit trail, not as a new consent type (avoids changing the shared consent enum).
+
+Known gaps, each with its reason:
+
+| Gap | Why | Next step |
+| --- | --- | --- |
+| Password reset does not end WhatsApp connections | Neon Auth's reset gives no account id to hook into, and there is no "sign out everywhere" | Covered for now by the step-up at connect, the owner's email on every connection, and the visible masked number; add the hook when the identity provider exposes one |
+| A reply lost in a crash between saving and sending is not resent | No outgoing outbox table yet (it would have to store the reply text, encrypted) | Add an encrypted outbox with business-initiated templates |
+| Business-initiated reminders (templates) | Templates need Meta approval first | Owner action 14.3, then a WHATSAPP notification channel |
+| Profile updates from chat and AI reading of chat text | Need the owner's decision on AI interpretation (14.4) | Proposal and confirmation flow per section 8 |
+| Meta payload shapes are from search excerpts | This environment cannot fetch developers.facebook.com | Owner action 14.1, then copy the official examples into the test fixtures and re-check the `user_id_update` notice shape |
+
+Go-live environment variables (owner, Vercel): `WHATSAPP_CHANNEL_ENABLED=on`, `WHATSAPP_APP_SECRET`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_SUPPORT_EMAIL` (required), optional `WHATSAPP_BUSINESS_NUMBER`, `WHATSAPP_GRAPH_API_VERSION`, `WHATSAPP_APP_SECRET_PREVIOUS`. The webhook URL to register in Meta is `https://vs.obsidianglobal.studio/api/channels/whatsapp/webhook`.

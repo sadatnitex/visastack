@@ -29,6 +29,7 @@ function enable() {
   vi.stubEnv('WHATSAPP_WEBHOOK_VERIFY_TOKEN', 'synthetic-verify');
   vi.stubEnv('WHATSAPP_ACCESS_TOKEN', 'synthetic-access');
   vi.stubEnv('WHATSAPP_PHONE_NUMBER_ID', '106540352242922');
+  vi.stubEnv('WHATSAPP_SUPPORT_EMAIL', 'help@vs.example.test');
 }
 
 function signed(body: string, secret = SECRET) {
@@ -52,10 +53,12 @@ afterEach(() => {
 });
 
 describe('WhatsApp webhook', () => {
-  it('does not exist while the channel is off', async () => {
+  it('refuses the handshake while off, and answers deliveries 200 without storing them', async () => {
     expect((await GET(new Request(`${URL_BASE}?hub.mode=subscribe`))).status).toBe(404);
-    expect((await POST(signed('{}'))).status).toBe(404);
+    // A 200 stops Meta retrying a delivery for seven days while the channel is switched off.
+    expect((await POST(signed('{}'))).status).toBe(200);
     expect(mocks.ingest).not.toHaveBeenCalled();
+    expect(mocks.after).not.toHaveBeenCalled();
   });
 
   it("answers Meta's handshake only with the configured token", async () => {

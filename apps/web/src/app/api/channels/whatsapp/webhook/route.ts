@@ -19,8 +19,9 @@ import { runWhatsAppInbox } from '../../../jobs/process-whatsapp-inbox/run';
  * answered at once. The delivery is handled after the answer (`after()`), and the daily job picks
  * up anything left. Nothing here reads records or logs content.
  *
- * Off (404) unless the channel is configured. A delivery that cannot be stored answers 503 so
- * Meta retries it (Meta retries anything but 200 for up to seven days).
+ * While the channel is off (or not fully configured) the handshake is refused (404) and deliveries
+ * are answered 200 and dropped, so Meta does not keep retrying them for seven days. A delivery
+ * that cannot be stored while the channel is on answers 503 so Meta retries it.
  */
 
 export const dynamic = 'force-dynamic';
@@ -39,7 +40,7 @@ export function GET(request: Request): Response {
 
 export async function POST(request: Request): Promise<Response> {
   const config = readWhatsAppConfig();
-  if (!config) return new Response(null, { status: 404 });
+  if (!config) return new Response(null, { status: 200 });
 
   const declared = Number(request.headers.get('content-length') ?? '0');
   if (declared > WHATSAPP_MAX_WEBHOOK_BYTES) return new Response(null, { status: 413 });

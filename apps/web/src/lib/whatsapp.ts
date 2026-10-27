@@ -25,7 +25,8 @@ import { reportServerError } from './server-error';
  * - `WHATSAPP_GRAPH_API_VERSION`: optional, default `v26.0`.
  * - `WHATSAPP_BUSINESS_NUMBER`: optional, the number in international digits, for the
  *   "open WhatsApp with the code ready" link.
- * - `WHATSAPP_SUPPORT_EMAIL`: optional, where Talk to a Person sends people.
+ * - `WHATSAPP_SUPPORT_EMAIL`: required, a watched address where Talk to a Person sends people
+ *   (WhatsApp requires a clear path to a person when replies are automatic).
  *
  * Values are never logged.
  */
@@ -49,19 +50,23 @@ export function readWhatsAppConfig(read: Read = defaultRead): WhatsAppConfig | n
   const verifyToken = value('WHATSAPP_WEBHOOK_VERIFY_TOKEN');
   const accessToken = value('WHATSAPP_ACCESS_TOKEN');
   const phoneNumberId = value('WHATSAPP_PHONE_NUMBER_ID');
-  if (!appSecret || !verifyToken || !accessToken || !phoneNumberId) return null;
+  const supportEmail = value('WHATSAPP_SUPPORT_EMAIL');
+  const apiVersion = value('WHATSAPP_GRAPH_API_VERSION') ?? 'v26.0';
+  if (!appSecret || !verifyToken || !accessToken || !phoneNumberId || !supportEmail) return null;
   if (!/^\d{6,20}$/.test(phoneNumberId)) return null;
+  if (!/^v\d+\.\d+$/.test(apiVersion)) return null;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(supportEmail)) return null;
   const previous = value('WHATSAPP_APP_SECRET_PREVIOUS');
   const businessNumber = value('WHATSAPP_BUSINESS_NUMBER')?.replace(/\D/g, '') ?? '';
   return {
     appSecrets: previous ? [appSecret, previous] : [appSecret],
     verifyToken,
     accessToken,
-    apiVersion: value('WHATSAPP_GRAPH_API_VERSION') ?? 'v26.0',
+    apiVersion,
     settings: {
       phoneNumberId,
       baseUrl: resolveBaseUrl(),
-      supportEmail: value('WHATSAPP_SUPPORT_EMAIL') ?? null,
+      supportEmail,
     },
     businessNumber: /^\d{6,20}$/.test(businessNumber) ? businessNumber : null,
   };
@@ -83,7 +88,11 @@ const EMPTY: WhatsAppInboxResult = {
  */
 export async function triggerWhatsAppInbox(
   scope: SystemScope<'process-whatsapp-inbox'>,
-  options: { readonly limit?: number; readonly timeBudgetMs?: number } = {},
+  options: {
+    readonly limit?: number;
+    readonly timeBudgetMs?: number;
+    readonly purge?: boolean;
+  } = {},
 ): Promise<WhatsAppInboxResult> {
   const config = readWhatsAppConfig();
   const encryption = createKeyManagementPort();

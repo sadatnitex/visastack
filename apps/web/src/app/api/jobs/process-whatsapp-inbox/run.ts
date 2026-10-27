@@ -8,7 +8,11 @@ import { triggerWhatsAppInbox } from '../../../../lib/whatsapp';
  * uses it to handle a delivery right after answering Meta, without an HTTP call.
  */
 export function runWhatsAppInbox(
-  options: { readonly limit?: number; readonly timeBudgetMs?: number } = {},
+  options: {
+    readonly limit?: number;
+    readonly timeBudgetMs?: number;
+    readonly purge?: boolean;
+  } = {},
 ) {
   return triggerWhatsAppInbox(systemPrincipal('process-whatsapp-inbox'), options);
 }

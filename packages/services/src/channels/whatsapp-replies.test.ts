@@ -17,14 +17,18 @@ const say = (text: string) => readIntent({ kind: 'text', text, replyId: null });
 
 describe('readIntent', () => {
   it('reads a link code in the forms people type it', () => {
-    expect(say('LINK 4821-0937')).toEqual({ kind: 'link', code: '48210937' });
-    expect(say('link 48210937')).toEqual({ kind: 'link', code: '48210937' });
-    expect(say('  Link 4821 0937 ')).toEqual({ kind: 'link', code: '48210937' });
-    expect(say('LINK 4821-093')).toEqual({ kind: 'menu' });
+    expect(say('LINK 48210-93715')).toEqual({ kind: 'link', code: '4821093715' });
+    expect(say('link 4821093715')).toEqual({ kind: 'link', code: '4821093715' });
+    expect(say('  Link 48210 93715 ')).toEqual({ kind: 'link', code: '4821093715' });
+    expect(say('LINK 4821-0937')).toEqual({ kind: 'menu' });
   });
 
   it('treats only a plain STOP as stop, so a sentence mentioning it is not an opt-out by accident', () => {
     expect(say('STOP')).toEqual({ kind: 'stop' });
+    expect(say('Stop.')).toEqual({ kind: 'stop' });
+    expect(say('STOP!!')).toEqual({ kind: 'stop' });
+    expect(say('Start!')).toEqual({ kind: 'start' });
+    expect(say('please stop sending the status')).not.toEqual({ kind: 'stop' });
     expect(say('unsubscribe')).toEqual({ kind: 'stop' });
     expect(say('start')).toEqual({ kind: 'start' });
     expect(readIntent({ kind: 'reply', text: null, replyId: 'stop' })).toEqual({ kind: 'stop' });
@@ -43,6 +47,10 @@ describe('readIntent', () => {
     expect(say('can I speak to a human')).toEqual({ kind: 'person' });
     expect(say('hello')).toEqual({ kind: 'menu' });
     expect(readIntent({ kind: 'media', text: null, replyId: null })).toEqual({ kind: 'media' });
+    // A reaction or a location is left unanswered, so a thumbs-up never sends the menu again.
+    expect(readIntent({ kind: 'unsupported', text: null, replyId: null })).toEqual({
+      kind: 'ignore',
+    });
   });
 });
 
@@ -58,8 +66,7 @@ describe('fixed wording', () => {
       expect(value).not.toMatch(/mission/i);
     }
     expect(TEXT.menuBody).toContain('never asks for passport, ID or bank details');
-    expect(personText(null)).not.toContain('Email');
-    expect(personText('help@example.test')).toContain('help@example.test');
+    expect(personText('help@example.test')).toContain('email help@example.test');
   });
 });
 

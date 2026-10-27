@@ -15,6 +15,6 @@ export async function GET(request: Request): Promise<Response> {
   const denied = rejectUnauthorizedCron(request);
   if (denied) return denied;
 
-  const result = await runWhatsAppInbox();
+  const result = await runWhatsAppInbox({ purge: true });
   return Response.json(result, { status: result.status === 'unavailable' ? 503 : 200 });
 }

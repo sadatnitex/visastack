@@ -9,6 +9,7 @@ const FULL: Record<string, string> = {
   WHATSAPP_WEBHOOK_VERIFY_TOKEN: 'v',
   WHATSAPP_ACCESS_TOKEN: 'a',
   WHATSAPP_PHONE_NUMBER_ID: '106540352242922',
+  WHATSAPP_SUPPORT_EMAIL: 'help@vs.example.test',
 };
 const reader = (values: Record<string, string | undefined>) => (name: string) => values[name];
 
@@ -20,6 +21,10 @@ describe('readWhatsAppConfig', () => {
       expect(readWhatsAppConfig(reader({ ...FULL, [name]: '  ' })), name).toBeNull();
     }
     expect(readWhatsAppConfig(reader({ ...FULL, WHATSAPP_PHONE_NUMBER_ID: 'abc' }))).toBeNull();
+    expect(readWhatsAppConfig(reader({ ...FULL, WHATSAPP_GRAPH_API_VERSION: '26' }))).toBeNull();
+    expect(
+      readWhatsAppConfig(reader({ ...FULL, WHATSAPP_SUPPORT_EMAIL: 'not-an-address' })),
+    ).toBeNull();
   });
 
   it('reads a full configuration with safe defaults', () => {
@@ -34,7 +39,7 @@ describe('readWhatsAppConfig', () => {
       appSecrets: ['s', 'old'],
       apiVersion: 'v26.0',
       businessNumber: '8801700000000',
-      settings: { phoneNumberId: '106540352242922', supportEmail: null },
+      settings: { phoneNumberId: '106540352242922', supportEmail: 'help@vs.example.test' },
     });
   });
 });

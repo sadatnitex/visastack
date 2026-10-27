@@ -9,6 +9,7 @@ import { LIMITS, type ListRow } from './whatsapp-port';
  */
 
 export type ChannelIntent =
+  | { readonly kind: 'ignore' }
   | { readonly kind: 'stop' }
   | { readonly kind: 'start' }
   | { readonly kind: 'link'; readonly code: string }
@@ -27,7 +28,7 @@ export const MENU_REPLY_IDS = {
   stop: 'menu:stop',
 } as const;
 
-const LINK_PATTERN = /^link\s*(\d{4})[-\s]?(\d{4})$/i;
+const LINK_PATTERN = /^link\s*(\d{5})[-\s]?(\d{5})$/i;
 const STOP_WORDS = new Set(['stop', 'unsubscribe', 'stop messages', 'opt out', 'optout']);
 const START_WORDS = new Set(['start', 'subscribe', 'resume']);
 
@@ -35,12 +36,17 @@ function matches(text: string, words: readonly string[]): boolean {
   return words.some((word) => text.includes(word));
 }
 
-/** Reads one inbound message. Unknown text shows the menu rather than guessing. */
+/**
+ * Reads one inbound message. Unknown text shows the menu rather than guessing; a reaction, a
+ * location or anything else that is not text, a button or a file is left unanswered, so a
+ * thumbs-up never sends the menu again.
+ */
 export function readIntent(input: {
   readonly kind: 'text' | 'reply' | 'media' | 'unsupported';
   readonly text: string | null;
   readonly replyId: string | null;
 }): ChannelIntent {
+  if (input.kind === 'unsupported') return { kind: 'ignore' };
   if (input.kind === 'media') return { kind: 'media' };
   if (input.kind === 'reply') {
     switch (input.replyId) {
@@ -62,8 +68,10 @@ export function readIntent(input: {
   const text = (input.text ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
   const link = LINK_PATTERN.exec(text);
   if (link) return { kind: 'link', code: `${link[1]}${link[2]}` };
-  if (STOP_WORDS.has(text)) return { kind: 'stop' };
-  if (START_WORDS.has(text)) return { kind: 'start' };
+  // "Stop.", "STOP!" and "stop 🙏" are an opt-out too; a sentence that mentions stopping is not.
+  const bare = text.replace(/[^\p{L}\p{N} ]/gu, '').trim();
+  if (STOP_WORDS.has(bare)) return { kind: 'stop' };
+  if (START_WORDS.has(bare)) return { kind: 'start' };
   if (matches(text, ['person', 'human', 'agent', 'someone', 'support', 'call me'])) {
     return { kind: 'person' };
   }
@@ -93,7 +101,7 @@ export const TEXT = {
   alreadyLinkedElsewhere:
     'This WhatsApp is already connected to a VisaStack account. Disconnect it there first, then try again.',
   codeRefused:
-    'That code did not work. Codes last 10 minutes. Create a new one from your VisaStack account.',
+    'That code did not work. Codes last 10 minutes and work once. Create a new one from your VisaStack account.',
   tooManyAttempts: 'Too many tries. Please wait an hour, then create a new code in VisaStack.',
   stopped:
     'You will not get messages from VisaStack on WhatsApp. Send START to turn them back on. Your VisaStack account is not affected.',
@@ -106,9 +114,8 @@ export const TEXT = {
   unavailable: 'VisaStack cannot show this right now. Please try again later, or open VisaStack.',
 } as const;
 
-export function personText(supportEmail: string | null): string {
-  const contact = supportEmail ? ` Email ${supportEmail} and a person will reply.` : '';
-  return `To reach a person:${contact} If an agency is handling your case, send them a message from the case page in VisaStack.`;
+export function personText(supportEmail: string): string {
+  return `To reach a person, email ${supportEmail} and a person will reply. If an agency is handling your case, you can also send them a message from the case page in VisaStack.`;
 }
 
 type Line = string;

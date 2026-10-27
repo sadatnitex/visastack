@@ -15,10 +15,12 @@ import type { KeyManagementPort } from '../ports';
 import {
   EVENT_RETENTION_MS,
   MAX_EVENT_ATTEMPTS,
+  REPLY_LIMIT_UNLINKED,
   WELCOME_GAP_MS,
   type WhatsAppChannelSettings,
   ingestWhatsAppWebhook,
   processWhatsAppInbox,
+  retryDelayMs,
 } from './whatsapp-inbox';
 import { disconnectWhatsApp, getWhatsAppConnection, startWhatsAppLink } from './whatsapp-link';
 import {
@@ -108,7 +110,12 @@ function inbound(
                   ...(sender.waId === null ? {} : { from: sender.waId ?? '8801700001234' }),
                   from_user_id: sender.userId,
                   id: options.id ?? `wamid.in.${counter}`,
-                  timestamp: String(Math.floor((options.at ?? T0).getTime() / 1000)),
+                  // Each message a second after the last, as real messages are.
+                  timestamp: String(
+                    Math.floor(
+                      (options.at ?? new Date(T0.getTime() + counter * 1000)).getTime() / 1000,
+                    ),
+                  ),
                   ...message,
                 },
               ],
@@ -210,7 +217,7 @@ describe('WhatsApp inbox', () => {
   it('connects only with a code made in the signed-in account, and shows it there', async () => {
     const owner = await account('owner@example.test');
     const started = await connect(owner, 'BD.owner');
-    expect(started.code).toMatch(/^\d{4}-\d{4}$/);
+    expect(started.code).toMatch(/^\d{5}-\d{5}$/);
     expect(port.bodies().at(-1)).toContain(TEXT.connected);
     const connection = await getWhatsAppConnection(db, owner, clock);
     expect(connection).toMatchObject({
@@ -231,16 +238,17 @@ describe('WhatsApp inbox', () => {
     const owner = await account('owner@example.test');
     const started = await startWhatsAppLink(db, { accountId: owner, optIn: true, now: clock });
     if (!isOk(started)) throw new Error('link');
-    await deliver(inbound({ userId: 'BD.x' }, text('LINK 0000-0000')));
+    await deliver(inbound({ userId: 'BD.x' }, text('LINK 00000-00000')));
     expect(port.last()).toMatchObject({ body: TEXT.codeRefused });
 
+    // Expiry is judged by when the person sent it (Meta's signed time).
     clock = new Date(T0.getTime() + 11 * 60 * 1000);
-    await deliver(inbound({ userId: 'BD.x' }, text(started.value.message)));
+    await deliver(inbound({ userId: 'BD.x' }, text(started.value.message), { at: clock }));
     expect(port.last()).toMatchObject({ body: TEXT.codeRefused });
     expect((await getWhatsAppConnection(db, owner, clock)).connected).toBe(false);
 
     for (let attempt = 0; attempt < 4; attempt += 1) {
-      await deliver(inbound({ userId: 'BD.x' }, text(`LINK 1111-111${attempt}`)));
+      await deliver(inbound({ userId: 'BD.x' }, text(`LINK 11111-1111${attempt}`)));
     }
     expect(port.last()).toMatchObject({ body: TEXT.tooManyAttempts });
   });
@@ -292,7 +300,7 @@ describe('WhatsApp inbox', () => {
     const reads = await db
       .select()
       .from(schema.auditEvents)
-      .where(eq(schema.auditEvents.eventType, 'WHATSAPP_SUMMARY_SENT'));
+      .where(eq(schema.auditEvents.eventType, 'WHATSAPP_SUMMARY_PREPARED'));
     expect(reads).toHaveLength(3);
     expect(reads.every((row) => row.actorAccountId === owner)).toBe(true);
   });
@@ -440,16 +448,22 @@ describe('WhatsApp inbox', () => {
     expect(await db.select().from(schema.channelMessages)).toHaveLength(1);
   });
 
-  it('counts a broken delivery against itself, gives up after a few tries, and lets others through', async () => {
+  it('waits longer after each failure, gives up after a few tries, and lets others through', async () => {
     const broken = new TextEncoder().encode('{not json');
     expect(await ingestWhatsAppWebhook(db, keys, broken, clock)).toBe('stored');
-    for (let run = 0; run < MAX_EVENT_ATTEMPTS + 1; run += 1) {
-      await processWhatsAppInbox(scope, db, {
+    const pass = () =>
+      processWhatsAppInbox(scope, db, {
         encryption: keys,
         whatsapp: port,
         settings: SETTINGS,
         now: () => clock,
       });
+    // One try per pass, and a second pass straight away does not retry it yet.
+    expect((await pass()).failed).toBe(1);
+    expect((await pass()).failed).toBe(0);
+    for (let run = 1; run < MAX_EVENT_ATTEMPTS + 2; run += 1) {
+      clock = new Date(clock.getTime() + retryDelayMs(run));
+      await pass();
     }
     const [row] = await db.select().from(schema.channelWebhookEvents);
     expect(row).toMatchObject({
@@ -457,23 +471,158 @@ describe('WhatsApp inbox', () => {
       lastError: 'unreadable',
       processedAt: null,
     });
-    clock = new Date(T0.getTime() + 1000);
     await deliver(inbound({ userId: 'BD.next' }, text('hi')));
     expect(port.sent).toHaveLength(1);
   });
 
-  it('removes handled deliveries, old message ids and idle unknown senders after their retention', async () => {
+  it('removes handled deliveries and unknown senders after 7 days, on the daily pass only', async () => {
+    const owner = await account('owner@example.test');
+    await connect(owner, 'BD.owner');
     await deliver(inbound({ userId: 'BD.idle' }, text('hi')));
-    clock = new Date(T0.getTime() + 31 * 24 * 60 * 60 * 1000);
+    clock = new Date(T0.getTime() + 8 * 24 * 60 * 60 * 1000);
+    const options = { encryption: keys, whatsapp: port, settings: SETTINGS, now: () => clock };
+    expect((await processWhatsAppInbox(scope, db, options)).purged).toBe(0);
+    const result = await processWhatsAppInbox(scope, db, { ...options, purge: true });
+    expect(result.purged).toBeGreaterThan(0);
+    expect(await db.select().from(schema.channelWebhookEvents)).toHaveLength(0);
+    const left = await db.select().from(schema.channelIdentities);
+    // The connected person stays; the sender who never connected is gone.
+    expect(left.map((row) => row.externalUserId)).toEqual(['BD.owner']);
+    expect(EVENT_RETENTION_MS).toBeLessThanOrEqual(8 * 24 * 60 * 60 * 1000);
+  });
+
+  it('never lets an older STOP or START that arrives late undo a newer choice', async () => {
+    const owner = await account('owner@example.test');
+    await connect(owner, 'BD.owner');
+    const startAt = new Date(T0.getTime() + 60_000);
+    const stopAt = new Date(T0.getTime() + 120_000);
+    await deliver(inbound({ userId: 'BD.owner' }, text('STOP'), { at: stopAt }));
+    // Meta's retry of an earlier START, delivered after the STOP.
+    await deliver(inbound({ userId: 'BD.owner' }, text('START'), { at: startAt }));
+    expect((await getWhatsAppConnection(db, owner, clock)).messagesOff).toBe(true);
+  });
+
+  it('applies STOP even when Meta left the number out', async () => {
+    const owner = await account('owner@example.test');
+    await connect(owner, 'BD.owner');
+    await deliver(inbound({ userId: 'BD.owner', waId: null }, text('stop')));
+    expect((await getWhatsAppConnection(db, owner, clock)).messagesOff).toBe(true);
+  });
+
+  it('does not answer a reaction', async () => {
+    const owner = await account('owner@example.test');
+    await connect(owner, 'BD.owner');
+    const before = port.sent.length;
+    await deliver(
+      inbound(
+        { userId: 'BD.owner' },
+        { type: 'reaction', reaction: { message_id: 'wamid.x', emoji: 'x' } },
+      ),
+    );
+    expect(port.sent.length).toBe(before);
+  });
+
+  it('caps replies to a sender who never connected, and writes no audit rows for them', async () => {
+    for (let index = 0; index < 10; index += 1) {
+      await deliver(inbound({ userId: 'BD.script' }, text(index % 2 === 0 ? 'STOP' : 'START')));
+    }
+    expect(port.sent.length).toBeLessThanOrEqual(REPLY_LIMIT_UNLINKED.limit);
+    const audits = await db.select().from(schema.auditEvents);
+    expect(audits.filter((row) => row.eventType.startsWith('WHATSAPP_'))).toEqual([]);
+  });
+
+  it('retries a send Meta refused for a moment, and gives up only on lasting errors', async () => {
+    const owner = await account('owner@example.test');
+    await connect(owner, 'BD.owner');
+    const before = port.sent.length;
+    let refusals = 1;
+    const send = port.send.bind(port);
+    port.send = async (numberId, message) => {
+      if (refusals > 0) {
+        refusals -= 1;
+        throw new WhatsAppSendError('slow down', WHATSAPP_ERROR.PAIR_RATE_LIMIT, true);
+      }
+      return send(numberId, message);
+    };
+    expect(
+      await ingestWhatsAppWebhook(
+        db,
+        keys,
+        bytes(inbound({ userId: 'BD.owner' }, text('status'))),
+        clock,
+      ),
+    ).toBe('stored');
     const result = await processWhatsAppInbox(scope, db, {
       encryption: keys,
       whatsapp: port,
       settings: SETTINGS,
       now: () => clock,
+      sleep: async () => undefined,
     });
-    expect(result.purged).toBeGreaterThan(0);
-    expect(await db.select().from(schema.channelWebhookEvents)).toHaveLength(0);
-    expect(await db.select().from(schema.channelIdentities)).toHaveLength(0);
-    expect(EVENT_RETENTION_MS).toBeLessThan(31 * 24 * 60 * 60 * 1000);
+    expect(result.sent).toBe(1);
+    expect(port.sent.length).toBe(before + 1);
+  });
+
+  it('keeps cost data when a later status has none', async () => {
+    const owner = await account('owner@example.test');
+    await connect(owner, 'BD.owner');
+    const status = (state: string, at: number, pricing?: Record<string, unknown>) => ({
+      object: 'whatsapp_business_account',
+      entry: [
+        {
+          changes: [
+            {
+              field: 'messages',
+              value: {
+                messaging_product: 'whatsapp',
+                metadata: { phone_number_id: NUMBER_ID },
+                statuses: [
+                  {
+                    id: 'wamid.out.1',
+                    status: state,
+                    timestamp: String(at),
+                    ...(pricing ? { pricing } : {}),
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    await deliver(status('delivered', 1761554000, { billable: true, category: 'utility' }));
+    await deliver(status('read', 1761555000));
+    const [row] = await db
+      .select()
+      .from(schema.channelMessages)
+      .where(eq(schema.channelMessages.providerMessageId, 'wamid.out.1'));
+    expect(row).toMatchObject({ state: 'READ', pricingCategory: 'utility', billable: true });
+  });
+
+  it('ends the connection when Meta says the number changed', async () => {
+    const owner = await account('owner@example.test');
+    await connect(owner, 'BD.owner');
+    await deliver(
+      inbound(
+        { userId: 'BD.owner' },
+        {
+          type: 'system',
+          system: { type: 'user_changed_number', wa_id: '8801800005678', user_id: 'BD.newid' },
+        },
+      ),
+    );
+    expect((await getWhatsAppConnection(db, owner, clock)).connected).toBe(false);
+  });
+
+  it('tells the account owner by email and in the app when a WhatsApp is connected', async () => {
+    const owner = await account('owner@example.test');
+    await connect(owner, 'BD.owner');
+    const rows = await db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.eventType, 'WHATSAPP_CONNECTED'));
+    expect(rows.map((row) => row.channel).sort()).toEqual(['EMAIL', 'IN_APP']);
+    expect(rows.every((row) => row.recipientAccountId === owner)).toBe(true);
+    expect(JSON.stringify(rows[0]?.payload)).toContain('ending in 1234');
   });
 });

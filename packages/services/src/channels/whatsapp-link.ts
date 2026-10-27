@@ -25,6 +25,21 @@ const HOUR_MS = 60 * 60 * 1000;
 export const LINK_CODE_CREATE_LIMIT = { limit: 5, windowMs: HOUR_MS } as const;
 /** Code attempts one WhatsApp sender may make in an hour. */
 export const LINK_CODE_ATTEMPT_LIMIT = { limit: 5, windowMs: HOUR_MS } as const;
+/**
+ * Code attempts from every sender together in an hour: far above real use at 1,000 people, and
+ * with 10-digit codes it keeps the chance of guessing any live code negligible.
+ */
+export const LINK_CODE_GLOBAL_ATTEMPT_LIMIT = { limit: 200, windowMs: HOUR_MS } as const;
+
+/** Ten digits, shown as `12345-67890`. */
+export const LINK_CODE_DIGITS = 10;
+
+function isUniqueViolation(error: unknown): boolean {
+  const code =
+    (error as { code?: unknown; cause?: { code?: unknown } } | null)?.code ??
+    (error as { cause?: { code?: unknown } } | null)?.cause?.code;
+  return code === '23505';
+}
 
 export function hashLinkCode(digits: string): string {
   return createHash('sha256').update(`visastack:whatsapp-link:v1:${digits}`).digest('hex');
@@ -36,7 +51,7 @@ export function senderSubject(externalUserId: string): string {
 }
 
 export interface StartLinkResult {
-  /** Shown to the person, for example `4821-0937`. */
+  /** Shown to the person, for example `48210-93715`. */
   readonly code: string;
   /** What the person sends from WhatsApp. */
   readonly message: string;
@@ -71,33 +86,39 @@ export async function startWhatsAppLink(
   );
   if (!decision.allowed) return err(serviceError('rate_limited', decision.reason));
 
-  const digits = String(randomInt(0, 100_000_000)).padStart(8, '0');
   const expiresAt = new Date(now.getTime() + LINK_CODE_TTL_MS);
-  try {
-    await db.transaction(async (tx) => {
-      await tx
-        .delete(schema.channelLinkCodes)
-        .where(
-          and(
-            eq(schema.channelLinkCodes.accountId, input.accountId),
-            isNull(schema.channelLinkCodes.consumedAt),
-          ),
-        );
-      await tx.insert(schema.channelLinkCodes).values({
-        accountId: input.accountId,
-        codeHash: hashLinkCode(digits),
-        optInVersion: WHATSAPP_OPT_IN_VERSION,
-        expiresAt,
-        createdAt: now,
+  let digits = '';
+  // Two live codes are almost never equal; if they are, the unique hash refuses it and a new one is drawn.
+  for (let attempt = 0; attempt < 3 && digits === ''; attempt += 1) {
+    const candidate = String(randomInt(0, 10 ** LINK_CODE_DIGITS)).padStart(LINK_CODE_DIGITS, '0');
+    try {
+      await db.transaction(async (tx) => {
+        await tx
+          .delete(schema.channelLinkCodes)
+          .where(
+            and(
+              eq(schema.channelLinkCodes.accountId, input.accountId),
+              isNull(schema.channelLinkCodes.consumedAt),
+            ),
+          );
+        await tx.insert(schema.channelLinkCodes).values({
+          accountId: input.accountId,
+          codeHash: hashLinkCode(candidate),
+          optInVersion: WHATSAPP_OPT_IN_VERSION,
+          expiresAt,
+          createdAt: now,
+        });
       });
-    });
-  } catch (error) {
-    if (isMissingRelationError(error)) {
-      return err(serviceError('upstream_error', 'WhatsApp is not available yet.'));
+      digits = candidate;
+    } catch (error) {
+      if (isMissingRelationError(error)) {
+        return err(serviceError('upstream_error', 'WhatsApp is not available yet.'));
+      }
+      if (!isUniqueViolation(error)) throw error;
     }
-    throw error;
   }
-  const code = `${digits.slice(0, 4)}-${digits.slice(4)}`;
+  if (digits === '') return err(serviceError('upstream_error', 'Please try again.'));
+  const code = `${digits.slice(0, 5)}-${digits.slice(5)}`;
   const message = `LINK ${code}`;
   const number = input.businessNumber?.replace(/\D/g, '') ?? '';
   return ok({

@@ -4140,6 +4140,9 @@ export const channelIdentities = pgTable(
     linkedAt: timestamp('linked_at', { withTimezone: true }),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     optedOutAt: timestamp('opted_out_at', { withTimezone: true }),
+    // Meta's time on the STOP or START that last changed `opted_out_at`, so an older one that
+    // arrives late (a retried delivery) never overrides a newer choice.
+    optChangedAt: timestamp('opt_changed_at', { withTimezone: true }),
     lastInboundAt: timestamp('last_inbound_at', { withTimezone: true }).notNull().defaultNow(),
     lastAutoReplyAt: timestamp('last_auto_reply_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -4204,6 +4207,8 @@ export const channelWebhookEvents = pgTable(
     receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
     processedAt: timestamp('processed_at', { withTimezone: true }),
     attempts: integer('attempts').notNull().default(0),
+    // After a failure the delivery waits (1, 2, 4 ... minutes) before it is tried again.
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
     lastError: text('last_error'),
   },
   (table) => [

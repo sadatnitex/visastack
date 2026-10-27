@@ -37,6 +37,8 @@ it('runs one pass and reports counts only', async () => {
   });
   const response = await GET(request('synthetic-cron'));
   expect(response.status).toBe(200);
+  // The daily pass is the one that removes data past its retention.
+  expect(mocks.run).toHaveBeenCalledWith({ purge: true });
   expect(await response.json()).toEqual({
     status: 'ok',
     handled: 2,

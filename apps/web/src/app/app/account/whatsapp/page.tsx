@@ -20,6 +20,8 @@ export default async function WhatsAppPage() {
   const available = readWhatsAppConfig() !== null;
   const connection = await withSession(({ db, accountId }) => getWhatsAppConnection(db, accountId));
   const ready = available && connection.available;
+  // A connected person can always disconnect, even while the channel itself is switched off.
+  const showConnected = connection.connected;
 
   return (
     <section className="section container">
@@ -29,12 +31,7 @@ export default async function WhatsAppPage() {
         description="Ask about your cases from WhatsApp. Everything else stays in VisaStack."
       />
       <div className="grid">
-        {!ready ? (
-          <article className="card">
-            <h2 className="card-title">WhatsApp Is Not Available Yet</h2>
-            <p className="card-body">You can use everything in VisaStack without WhatsApp.</p>
-          </article>
-        ) : connection.connected ? (
+        {showConnected ? (
           <article className="card">
             <p className="card-kicker">Connected</p>
             <h2 className="card-title">Your WhatsApp Is Connected</h2>
@@ -64,6 +61,11 @@ export default async function WhatsAppPage() {
                 Disconnect WhatsApp
               </button>
             </form>
+          </article>
+        ) : !ready ? (
+          <article className="card">
+            <h2 className="card-title">WhatsApp Is Not Available Yet</h2>
+            <p className="card-body">You can use everything in VisaStack without WhatsApp.</p>
           </article>
         ) : (
           <article className="card">
