@@ -1643,9 +1643,9 @@ export {
   resendEmail,
 } from './email-delivery-admin';
 export {
-  type PackFit,
   type PackMatch,
   type PackMatchTerms,
+  type TravellerCountries,
   type TravellerCoverage,
   type TravellerMatchTerms,
   findMatchingPublicPack,

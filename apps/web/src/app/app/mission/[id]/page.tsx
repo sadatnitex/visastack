@@ -64,7 +64,7 @@ import { withSession } from '../../../../lib/session';
 import { AttachPackForm, type PackOption } from './attach-pack-form';
 import { CaseMoreMenu } from './case-more-menu';
 import { CaseWelcome } from './case-welcome';
-import { caseWelcomeCopy } from './case-welcome-copy';
+import { type WelcomeChecklists, caseWelcomeCopy } from './case-welcome-copy';
 import { ChangesSinceConfirmedList } from './changes-since-confirmed';
 import {
   AppointmentsPanel,
@@ -159,11 +159,12 @@ function madeJustNow(createdAt: Date | string): boolean {
 }
 
 /**
- * For the welcome note of a case with no checklist: how many published checklists fit its country
- * and purpose and may cover its traveller. Null when the case names no country or no purpose, so
- * there is no route to narrow by, or when the lookup failed.
+ * For the welcome note of a case with no checklist: whether published checklists fit its country
+ * and purpose and may cover its traveller. A case that names no country or no purpose has no route
+ * to narrow by, so it is offered the picker when any checklist is published. A failed check is
+ * `unknown`, never a guess.
  */
-async function welcomeChecklistCount(
+async function welcomeChecklists(
   db: Db,
   accountId: string,
   mission: {
@@ -171,14 +172,22 @@ async function welcomeChecklistCount(
     readonly destination: string | null;
     readonly purpose: string | null;
   },
-): Promise<number | null> {
+  publishedCount: number,
+): Promise<WelcomeChecklists> {
   const route = savedCaseMatchTerms(mission.destination, mission.purpose);
-  if (!route) return null;
+  if (!route) {
+    return publishedCount > 0 ? { kind: 'pick', travellerUnconfirmed: false } : { kind: 'none' };
+  }
   try {
-    return (await checklistsToPick(db, { accountId, missionId: mission.id, ...route })).length;
+    const fitting = await checklistsToPick(db, { accountId, missionId: mission.id, ...route });
+    if (fitting.length === 0) return { kind: 'none' };
+    return {
+      kind: 'pick',
+      travellerUnconfirmed: fitting.some((checklist) => !checklist.coversTraveller),
+    };
   } catch (error) {
     reportServerError('MissionPage', error, { step: 'welcome checklists' });
-    return null;
+    return { kind: 'unknown' };
   }
 }
 
@@ -437,13 +446,19 @@ export default async function MissionPage({
     }
     // The case's visible code (ADR 0018); none while migration 0091 has not run.
     const referenceCode = await referenceCodeFor(db, 'C', mission.id);
-    const welcomeChecklists =
-      welcomeAsked && !mission.packVersionId && madeJustNow(mission.createdAt)
-        ? await welcomeChecklistCount(db, accountId, mission)
-        : 0;
+    // The welcome note greets a case that was just made; an old case opened with the same address
+    // shows none. `checklists` is null when the case already has one linked.
+    const welcomeNote =
+      welcomeAsked && madeJustNow(mission.createdAt)
+        ? {
+            checklists: mission.packVersionId
+              ? null
+              : await welcomeChecklists(db, accountId, mission, packs.length),
+          }
+        : null;
     return {
       referenceCode,
-      welcomeChecklists,
+      welcomeNote,
       mission,
       applicantName: applicant?.displayName ?? 'Applicant',
       applicantId: mission.applicantId,
@@ -578,9 +593,6 @@ export default async function MissionPage({
   // Cancelling is final, so it is offered only from the More menu, behind a question.
   const stageStates = stageButtonStates(nextStates);
   const canCancel = nextStates.includes('CANCELLED');
-  // The welcome note greets a case that was just made; an old case opened with the same address
-  // shows none.
-  const justCreated = welcomeAsked && madeJustNow(mission.createdAt);
 
   const openTasks = data.tasks.filter(
     (task) => task.status === 'OPEN' || task.status === 'IN_PROGRESS',
@@ -689,13 +701,12 @@ export default async function MissionPage({
         }
       />
 
-      {justCreated ? (
+      {data.welcomeNote ? (
         <CaseWelcome
           {...caseWelcomeCopy({
             packName: mission.packVersionId ? (data.packInfo?.name ?? null) : null,
-            // Only checklists for this case's country and purpose that may cover its traveller.
-            // Without a country and purpose to narrow by, the picker is offered when any exists.
-            checklistsToPick: data.welcomeChecklists ?? data.packOptions.length,
+            // A linked checklist whose name could not be read promises nothing.
+            checklists: data.welcomeNote.checklists ?? { kind: 'unknown' },
             firstGapHref: attention.find((item) => item.kind !== 'changed')?.href ?? null,
           })}
         />

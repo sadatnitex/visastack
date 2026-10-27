@@ -8,6 +8,8 @@ import {
 } from '../../../../../components/form-feedback';
 import { Disclosure } from '../../../../../components/ui';
 import type { CaseCountryOption, CasePurposeGroup } from '../../../../../lib/case-choices';
+import { CASE_DATE_FIELDS } from '../../../../../lib/form-dates';
+import { usePartTypedDateCheck } from '../../../../../lib/use-part-typed-date-check';
 import { createMissionAction } from './actions';
 import {
   type ActionState,
@@ -38,8 +40,13 @@ export function CreateMissionForm({
   const baseId = useId();
   const messageId = `${baseId}-message`;
   useFocusInvalidField(formRef, state);
+  // A part-typed date sends nothing, so the page stops the form and says so beside the box.
+  const dateCheck = usePartTypedDateCheck(CASE_DATE_FIELDS);
 
-  const errors = state.fieldErrors ?? {};
+  const errors: Readonly<Partial<Record<CaseFormField, string>>> = {
+    ...(state.fieldErrors ?? {}),
+    ...dateCheck.errors,
+  };
   const values = state.values ?? {};
   const detailsHaveProblem = [...CASE_DETAIL_FIELDS].some((name) => errors[name] !== undefined);
 
@@ -94,6 +101,7 @@ export function CreateMissionForm({
       key={state.attempt ?? 0}
       ref={formRef}
       action={formAction}
+      onSubmit={dateCheck.onSubmit}
       className="field-list"
       noValidate
     >

@@ -48,11 +48,29 @@ describe('prepareCaseAgainAction dates', () => {
       { ok: true, message: '' },
       form({ targetDeadline: '2026-02-30' }),
     );
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: false,
-      message: 'Target Deadline: Enter a full date: day, month and year.',
+      message: 'Check the field marked above.',
+      field: 'targetDeadline',
+      fieldErrors: { targetDeadline: 'Enter a full date: day, month and year.' },
+      values: { title: 'Japan visitor visa 2027', targetDeadline: '2026-02-30' },
+      attempt: 1,
     });
     expect(mocks.prepareCaseAgain).not.toHaveBeenCalled();
+  });
+
+  it('names every problem beside its field and focuses the first, as Start a Case does', async () => {
+    const data = form({ travelStartDate: '2027-03-10', travelEndDate: '2027-03-01' });
+    data.set('title', ' ');
+    const result = await prepareCaseAgainAction({ ok: false, message: '', attempt: 2 }, data);
+    expect(result.field).toBe('title');
+    expect(result.fieldErrors).toEqual({
+      title: 'Give the case a name, for example the visa and the year.',
+      travelEndDate: 'The trip cannot end before it starts.',
+    });
+    expect(result.message).toBe('Check the 2 fields marked above.');
+    expect(result.attempt).toBe(3);
+    expect(mocks.requireAccess).not.toHaveBeenCalled();
   });
 
   it('refuses a trip that ends before it starts', async () => {
@@ -60,7 +78,7 @@ describe('prepareCaseAgainAction dates', () => {
       { ok: true, message: '' },
       form({ travelStartDate: '2027-03-10', travelEndDate: '2027-03-01' }),
     );
-    expect(result.message).toBe('Travel End Date: The trip cannot end before it starts.');
+    expect(result.fieldErrors).toEqual({ travelEndDate: 'The trip cannot end before it starts.' });
     expect(mocks.prepareCaseAgain).not.toHaveBeenCalled();
   });
 

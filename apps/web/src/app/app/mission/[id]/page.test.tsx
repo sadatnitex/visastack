@@ -646,11 +646,10 @@ describe('owner list items 1, 3 and 10 on the case page', () => {
       );
       expect(welcome?.body[0]).toContain('There is no checklist for this route yet');
       expect(welcome?.action.href).toBe('#evidence');
-      const [, terms, fit] = mocks.listFittingPublicPacks.mock.calls[0] ?? [];
+      const [, terms] = mocks.listFittingPublicPacks.mock.calls[0] ?? [];
       expect(terms.country).toEqual(expect.arrayContaining(['JP', 'Japan']));
       expect(terms.purpose).toEqual(expect.arrayContaining(['tourism', 'Tourism']));
-      expect(terms.traveller.nationality).toEqual(expect.arrayContaining(['BD']));
-      expect(fit).toBe('possible');
+      expect(terms.traveller.nationality.terms).toEqual(expect.arrayContaining(['BD']));
     });
 
     it('asks the person to pick when a checklist fits the route', async () => {
@@ -658,13 +657,55 @@ describe('owner list items 1, 3 and 10 on the case page', () => {
       japanTourism();
       mocks.listPublishedPackVersions.mockResolvedValue(otherRoutes);
       mocks.listFittingPublicPacks.mockResolvedValue([
-        { packVersionId: 'pv-jp', packName: 'Japan Visitor', version: 1 },
+        { packVersionId: 'pv-jp', packName: 'Japan Visitor', version: 1, coversTraveller: true },
       ]);
+      const [welcome] = stubProps<{ body: string[]; action: { href: string } }>(
+        await render({ welcome: '1' }),
+        'CaseWelcome',
+      );
+      expect(welcome?.action.href).toBe('#pack');
+      expect(welcome?.body.join(' ')).not.toContain('does not confirm');
+    });
+
+    it('says when an unconfirmed nationality kept the checklist from being linked', async () => {
+      setUp();
+      japanTourism();
+      mocks.readTravellerCoverage.mockResolvedValue({ nationality: [], residence: [] });
+      mocks.listFittingPublicPacks.mockResolvedValue([
+        { packVersionId: 'pv-jp', packName: 'Japan Visitor', version: 1, coversTraveller: false },
+      ]);
+      const [welcome] = stubProps<{ body: string[]; action: { href: string } }>(
+        await render({ welcome: '1' }),
+        'CaseWelcome',
+      );
+      expect(welcome?.body.join(' ')).toContain('the profile does not confirm them yet');
+      expect(welcome?.action.href).toBe('#pack');
+    });
+
+    it('promises nothing when the lookup fails, even with checklists published', async () => {
+      setUp();
+      japanTourism();
+      mocks.listPublishedPackVersions.mockResolvedValue(otherRoutes);
+      mocks.listFittingPublicPacks.mockRejectedValue(new Error('connection reset'));
+      const [welcome] = stubProps<{ body: string[]; action: { href: string } }>(
+        await render({ welcome: '1' }),
+        'CaseWelcome',
+      );
+      const text = welcome?.body.join(' ') ?? '';
+      expect(text).not.toMatch(/pick the checklist|no checklist for this route/i);
+      expect(welcome?.action.href).toBe('#evidence');
+    });
+
+    it('offers the picker to a case with no purpose when any checklist is published', async () => {
+      setUp();
+      mocks.getMissionForOwner.mockResolvedValue(ok({ ...MISSION, createdAt: new Date() }));
+      mocks.listPublishedPackVersions.mockResolvedValue(otherRoutes);
       const [welcome] = stubProps<{ action: { href: string } }>(
         await render({ welcome: '1' }),
         'CaseWelcome',
       );
       expect(welcome?.action.href).toBe('#pack');
+      expect(mocks.listFittingPublicPacks).not.toHaveBeenCalled();
     });
 
     it('looks nothing up for a case opened without the welcome mark', async () => {

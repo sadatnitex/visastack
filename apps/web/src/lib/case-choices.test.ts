@@ -18,25 +18,43 @@ describe('case choices', () => {
       nationality: ['Bangladeshi'],
       residence: ['United Arab Emirates'],
     });
-    expect(terms.nationality).toEqual(expect.arrayContaining(['Bangladeshi', 'BD', 'Bangladesh']));
-    expect(terms.residence).toEqual(expect.arrayContaining(['AE', 'UAE']));
-    // A passport reading saves the three-letter code; a country name works too.
-    expect(travellerMatchTerms({ nationality: ['BGD'], residence: [] }).nationality).toContain(
-      'BD',
+    expect(terms.nationality.known).toBe(true);
+    expect(terms.nationality.terms).toEqual(
+      expect.arrayContaining(['Bangladeshi', 'BD', 'Bangladesh']),
     );
-    expect(travellerMatchTerms({ nationality: ['india'], residence: [] }).nationality).toContain(
-      'IN',
-    );
+    expect(terms.residence).toMatchObject({ known: true });
+    expect(terms.residence.terms).toEqual(expect.arrayContaining(['AE', 'UAE']));
+    expect(
+      travellerMatchTerms({ nationality: ['india'], residence: [] }).nationality.terms,
+    ).toContain('IN');
   });
 
-  it('keeps a word that names no country as it is, and an unknown traveller unknown', () => {
-    expect(travellerMatchTerms({ nationality: ['Congo'], residence: [] })).toEqual({
-      nationality: ['Congo'],
-      residence: [],
-    });
+  it('reads the three-letter codes a passport prints, for any country', () => {
+    for (const [code, iso2] of [
+      ['BGD', 'BD'],
+      ['IND', 'IN'],
+      ['GBR', 'GB'],
+      ['pak', 'PK'],
+    ] as const) {
+      const read = travellerMatchTerms({ nationality: [code], residence: [] }).nationality;
+      expect(read.known).toBe(true);
+      expect(read.terms).toContain(iso2);
+    }
+  });
+
+  it('counts a value that names no country as not known, and nothing confirmed as not known', () => {
+    for (const word of ['Indian', 'British', 'Congo', 'XYZ']) {
+      expect(travellerMatchTerms({ nationality: [word], residence: [] }).nationality).toEqual({
+        terms: [],
+        known: false,
+      });
+    }
+    const mixed = travellerMatchTerms({ nationality: ['BGD', 'Indian'], residence: [] });
+    expect(mixed.nationality.known).toBe(false);
+    expect(mixed.nationality.terms).toContain('BD');
     expect(travellerMatchTerms({ nationality: [], residence: [] })).toEqual({
-      nationality: [],
-      residence: [],
+      nationality: { terms: [], known: false },
+      residence: { terms: [], known: false },
     });
   });
 

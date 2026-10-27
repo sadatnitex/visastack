@@ -141,7 +141,7 @@ describe('current contextual navigation contract', () => {
     // with no traveller's links and no request to choose one.
     const loading = workspaceNavigation(`/app/mission/${m1}`, access, null);
     expect(loading.name).toBe('Visa Case');
-    expect(loading.caption).toBe('Personal Space');
+    expect(loading.caption).toBe('Case Workspace');
     const labels = loading.primary.map((link) => link.label);
     expect(labels).not.toContain('Choose a Traveller');
     expect(labels).toContain('All Travellers');

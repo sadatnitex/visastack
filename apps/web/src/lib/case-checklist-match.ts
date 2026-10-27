@@ -53,8 +53,11 @@ export async function checklistToLink(db: Db, route: CaseRoute): Promise<PackMat
   return terms ? findMatchingPublicPack(db, terms) : null;
 }
 
-/** The checklists the person could pick for this case: none meant only for other people. */
+/**
+ * The checklists the person could pick for this case: none known to be meant only for other
+ * people. Each says whether it is known to cover the traveller (`coversTraveller`).
+ */
 export async function checklistsToPick(db: Db, route: CaseRoute): Promise<readonly PackMatch[]> {
   const terms = await termsFor(db, route);
-  return terms ? listFittingPublicPacks(db, terms, 'possible') : [];
+  return terms ? listFittingPublicPacks(db, terms) : [];
 }

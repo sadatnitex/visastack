@@ -49,8 +49,11 @@ describe('choosing a checklist for a case', () => {
     expect(mocks.readTravellerCoverage).toHaveBeenCalledWith({ proof: true });
     const [, terms] = mocks.findMatchingPublicPack.mock.calls[0] ?? [];
     expect(terms.country).toEqual(ROUTE.country);
-    expect(terms.traveller.nationality).toEqual(expect.arrayContaining(['Bangladeshi', 'BD']));
-    expect(terms.traveller.residence).toEqual([]);
+    expect(terms.traveller.nationality).toEqual({
+      terms: expect.arrayContaining(['Bangladeshi', 'BD']),
+      known: true,
+    });
+    expect(terms.traveller.residence).toEqual({ terms: [], known: false });
   });
 
   it('links nothing and lists nothing when the gate refuses the case', async () => {
@@ -62,12 +65,11 @@ describe('choosing a checklist for a case', () => {
     expect(mocks.listFittingPublicPacks).not.toHaveBeenCalled();
   });
 
-  it('counts the checklists the person could pick, keeping ones that may cover them', async () => {
+  it('lists the checklists the person could pick for the route', async () => {
     await checklistsToPick(db, ROUTE);
     expect(mocks.listFittingPublicPacks).toHaveBeenCalledWith(
       db,
       expect.objectContaining({ purpose: ['tourism'] }),
-      'possible',
     );
   });
 });

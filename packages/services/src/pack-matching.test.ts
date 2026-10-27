@@ -1,6 +1,7 @@
 import { isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
+import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { accountPrincipal, requireAccess } from './access';
@@ -19,11 +20,10 @@ import { editFact, registerFieldDefinition } from './profile';
 
 const UK = ['GB', 'United Kingdom', 'UK', 'Britain'];
 const TOURISM = ['tourism', 'Tourism'];
-const UNKNOWN: TravellerMatchTerms = { nationality: [], residence: [] };
-const BANGLADESHI: TravellerMatchTerms = {
-  nationality: ['Bangladeshi', 'BD', 'Bangladesh'],
-  residence: ['BD', 'Bangladesh'],
-};
+const NONE = { terms: [], known: false };
+const UNKNOWN: TravellerMatchTerms = { nationality: NONE, residence: NONE };
+const BD = { terms: ['Bangladeshi', 'BD', 'Bangladesh'], known: true };
+const BANGLADESHI: TravellerMatchTerms = { nationality: BD, residence: BD };
 const ukTrip = (traveller: TravellerMatchTerms = UNKNOWN) => ({
   country: UK,
   purpose: TOURISM,
@@ -58,6 +58,7 @@ describe('findMatchingPublicPack', () => {
     readonly organizationId?: string;
     readonly nationality?: readonly string[];
     readonly residence?: readonly string[];
+    readonly authoritative?: boolean;
   }) {
     n += 1;
     const [row] = await db
@@ -70,6 +71,7 @@ describe('findMatchingPublicPack', () => {
         ownerOrganizationId: input.organizationId ?? null,
         nationalityApplicability: input.nationality ? [...input.nationality] : null,
         residenceApplicability: input.residence ? [...input.residence] : null,
+        authoritative: input.authoritative ?? true,
       })
       .returning();
     if (!row) throw new Error('pack');
@@ -93,6 +95,7 @@ describe('findMatchingPublicPack', () => {
       packVersionId: uk.versionIds[0],
       packName: uk.name,
       version: 1,
+      coversTraveller: true,
     });
   });
 
@@ -118,8 +121,29 @@ describe('findMatchingPublicPack', () => {
     await pack({ jurisdiction: 'UK', purpose: 'tourism', status: 'DRAFT' });
     await pack({ jurisdiction: 'UK', purpose: 'tourism', organizationId: org.id });
     await pack({ jurisdiction: 'UK', purpose: null });
+    // A platform pack that was never reviewed as part of the public catalogue.
+    await pack({ jurisdiction: 'UK', purpose: 'tourism', authoritative: false });
     await pack({ jurisdiction: null, purpose: 'tourism' });
     expect(await findMatchingPublicPack(db, ukTrip())).toBeNull();
+  });
+
+  it("never links an agency's own pack after the agency is deleted", async () => {
+    const [org] = await db
+      .insert(schema.organizations)
+      .values({ name: 'Synthetic Closing Agency' })
+      .returning();
+    if (!org) throw new Error('org');
+    await pack({
+      jurisdiction: 'UK',
+      purpose: 'tourism',
+      organizationId: org.id,
+      authoritative: false,
+    });
+    await db.delete(schema.organizations).where(eq(schema.organizations.id, org.id));
+    const [orphan] = await db.select().from(schema.packs);
+    expect(orphan?.ownerOrganizationId).toBeNull();
+    expect(await findMatchingPublicPack(db, ukTrip())).toBeNull();
+    expect(await listFittingPublicPacks(db, ukTrip())).toEqual([]);
   });
 
   it('needs both a country and a purpose', async () => {
@@ -140,10 +164,26 @@ describe('findMatchingPublicPack', () => {
     ).toMatchObject({ packVersionId: ci.versionIds[0] });
   });
 
+  it('lets accent marks of every kind through the database and decides with the exact key', async () => {
+    // U+1DC4 (a combining mark from the supplement block) lies outside the common accent block.
+    const marked = await pack({
+      jurisdiction: `Ma${String.fromCodePoint(0x1dc4)}li`,
+      purpose: 'Tourism',
+    });
+    await pack({ jurisdiction: 'Malin', purpose: 'Tourism' });
+    expect(
+      await findMatchingPublicPack(db, {
+        country: ['ML', 'Mali'],
+        purpose: TOURISM,
+        traveller: UNKNOWN,
+      }),
+    ).toMatchObject({ packVersionId: marked.versionIds[0] });
+  });
+
   it('reads only the newest published version of each matching pack', async () => {
     await pack({ jurisdiction: 'UK', purpose: 'tourism', versions: [1, 2] });
     await pack({ jurisdiction: 'Canada', purpose: 'tourism', versions: [1, 2, 3] });
-    const fitting = await listFittingPublicPacks(db, ukTrip(), 'possible');
+    const fitting = await listFittingPublicPacks(db, ukTrip());
     expect(fitting.map((row) => row.version)).toEqual([2]);
   });
 
@@ -151,14 +191,37 @@ describe('findMatchingPublicPack', () => {
     it('never links a pack meant for other nationalities', async () => {
       await pack({ jurisdiction: 'UK', purpose: 'tourism', nationality: ['IN'] });
       expect(await findMatchingPublicPack(db, ukTrip(BANGLADESHI))).toBeNull();
-      expect(await listFittingPublicPacks(db, ukTrip(BANGLADESHI), 'possible')).toEqual([]);
+      expect(await listFittingPublicPacks(db, ukTrip(BANGLADESHI))).toEqual([]);
     });
 
     it('never links a restricted pack when the traveller is not known, but still counts it to pick', async () => {
       const bd = await pack({ jurisdiction: 'UK', purpose: 'tourism', nationality: ['BD'] });
       expect(await findMatchingPublicPack(db, ukTrip())).toBeNull();
-      expect(await listFittingPublicPacks(db, ukTrip(), 'possible')).toEqual([
-        expect.objectContaining({ packVersionId: bd.versionIds[0] }),
+      expect(await listFittingPublicPacks(db, ukTrip())).toEqual([
+        expect.objectContaining({ packVersionId: bd.versionIds[0], coversTraveller: false }),
+      ]);
+    });
+
+    it('counts a value that names no country as not known, never as someone else', async () => {
+      await pack({ jurisdiction: 'UK', purpose: 'tourism', nationality: ['IN'] });
+      // "Indian" was confirmed but names no country the app can read: the pack may be theirs.
+      const unreadable = ukTrip({
+        nationality: { terms: [], known: false },
+        residence: NONE,
+      });
+      expect(await findMatchingPublicPack(db, unreadable)).toBeNull();
+      expect(await listFittingPublicPacks(db, unreadable)).toEqual([
+        expect.objectContaining({ coversTraveller: false }),
+      ]);
+    });
+
+    it('links nothing while another pack may be meant for the traveller', async () => {
+      await pack({ jurisdiction: 'UK', purpose: 'tourism' });
+      await pack({ jurisdiction: 'UK', purpose: 'tourism', nationality: ['BD'] });
+      expect(await findMatchingPublicPack(db, ukTrip())).toBeNull();
+      expect((await listFittingPublicPacks(db, ukTrip())).map((p) => p.coversTraveller)).toEqual([
+        true,
+        false,
       ]);
     });
 
@@ -178,12 +241,9 @@ describe('findMatchingPublicPack', () => {
       await pack({ jurisdiction: 'UK', purpose: 'tourism', residence: ['AE'] });
       expect(await findMatchingPublicPack(db, ukTrip(BANGLADESHI))).toBeNull();
       expect(
-        await findMatchingPublicPack(
-          db,
-          ukTrip({ nationality: BANGLADESHI.nationality, residence: [] }),
-        ),
+        await findMatchingPublicPack(db, ukTrip({ nationality: BD, residence: NONE })),
       ).toBeNull();
-      const living = ukTrip({ nationality: BANGLADESHI.nationality, residence: ['AE', 'UAE'] });
+      const living = ukTrip({ nationality: BD, residence: { terms: ['AE', 'UAE'], known: true } });
       expect(await findMatchingPublicPack(db, living)).not.toBeNull();
     });
 

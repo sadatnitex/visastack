@@ -159,9 +159,9 @@ export function workspaceNavigation(
         ? 'Personal Space'
         : person
           ? 'Managed Traveller'
-          : // A case whose traveller is not known yet: a neutral note, not a request to choose.
+          : // A case whose traveller is not known yet: a caption that names no owner.
             casePath
-            ? 'Personal Space'
+            ? 'Case Workspace'
             : 'Choose a Traveller',
     // Four tabs (WP-V3 part 2): Home, Record, Cases, Sharing. Notifications and Countries follow,
     // so on a phone they sit under More. Profile, Documents, Dates & Expiry and History are

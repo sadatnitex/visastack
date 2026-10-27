@@ -1,20 +1,20 @@
 /**
  * Reading the date boxes on the case forms (Start a Case and Start a New Case from This One), so
- * both refuse an impossible date the same way and in the same words. A date box sends a calendar
- * day as YYYY-MM-DD; anything else, or a day that does not exist (30 February), is refused rather
- * than dropped or rolled into the next month.
+ * both refuse a wrong date the same way and in the same words.
+ *
+ * Each side catches what it can see:
+ * - The browser (`usePartTypedDateCheck`): a part-typed date (a day and month with no year, say).
+ *   A date box sends nothing at all for one, so only the page can tell it from an empty box; the
+ *   form stops, marks the box and moves focus to it.
+ * - The server (`readCaseDates`): anything sent that is not a whole calendar day as YYYY-MM-DD, a
+ *   day that does not exist (30 February), and a trip that ends before it starts. It is refused,
+ *   never dropped or rolled into the next month. Without the page's scripts a part-typed date
+ *   still arrives empty and is saved as not given.
  */
 
 export const CASE_DATE_FIELDS = ['travelStartDate', 'travelEndDate', 'targetDeadline'] as const;
 
 export type CaseDateField = (typeof CASE_DATE_FIELDS)[number];
-
-/** Each date box's name, for a message that has to say which one is wrong. */
-export const CASE_DATE_LABELS: Readonly<Record<CaseDateField, string>> = {
-  travelStartDate: 'Travel Start Date',
-  travelEndDate: 'Travel End Date',
-  targetDeadline: 'Target Deadline',
-};
 
 export const DATE_NOT_REAL = 'Enter a full date: day, month and year.';
 export const TRIP_ENDS_BEFORE_START = 'The trip cannot end before it starts.';

@@ -25,7 +25,7 @@ describe('caseWelcomeCopy: what a new case says to do first, from what it holds'
   it('names the linked checklist and points to the first gap', () => {
     const copy = caseWelcomeCopy({
       packName: 'UK Visitor',
-      checklistsToPick: 3,
+      checklists: { kind: 'pick', travellerUnconfirmed: false },
       firstGapHref: '#readiness',
     });
     expect(copy.title).toBe('Case Created');
@@ -34,13 +34,45 @@ describe('caseWelcomeCopy: what a new case says to do first, from what it holds'
   });
 
   it('asks for a checklist when none is linked but some exist', () => {
-    const copy = caseWelcomeCopy({ packName: null, checklistsToPick: 2, firstGapHref: null });
+    const copy = caseWelcomeCopy({
+      packName: null,
+      checklists: { kind: 'pick', travellerUnconfirmed: false },
+      firstGapHref: null,
+    });
     expect(copy.body.join(' ')).toContain('pick the checklist');
     expect(copy.action).toEqual({ href: '#pack', label: 'Pick a Checklist' });
   });
 
+  it('says when only an unconfirmed nationality or residence kept the checklist from being linked', () => {
+    const copy = caseWelcomeCopy({
+      packName: null,
+      checklists: { kind: 'pick', travellerUnconfirmed: true },
+      firstGapHref: null,
+    });
+    const text = copy.body.join(' ');
+    expect(text).toContain('the profile does not confirm them yet');
+    expect(text).toContain('Confirm the nationality and country of residence on the profile');
+    expect(text).toContain('Or pick one now.');
+    expect(copy.action).toEqual({ href: '#pack', label: 'Pick a Checklist' });
+  });
+
+  it('promises nothing when the check could not be made', () => {
+    const copy = caseWelcomeCopy({
+      packName: null,
+      checklists: { kind: 'unknown' },
+      firstGapHref: null,
+    });
+    const text = copy.body.join(' ');
+    expect(text).not.toMatch(/pick the checklist|no checklist for this route/i);
+    expect(copy.action.href).toBe('#evidence');
+  });
+
   it('says plainly when there is no checklist for the route yet', () => {
-    const copy = caseWelcomeCopy({ packName: null, checklistsToPick: 0, firstGapHref: null });
+    const copy = caseWelcomeCopy({
+      packName: null,
+      checklists: { kind: 'none' },
+      firstGapHref: null,
+    });
     expect(copy.body.join(' ')).toContain('There is no checklist for this route yet');
     expect(copy.body.join(' ')).not.toMatch(/approved|ready to submit|guarantee/i);
     expect(copy.action.href).toBe('#evidence');
@@ -48,7 +80,11 @@ describe('caseWelcomeCopy: what a new case says to do first, from what it holds'
 });
 
 describe('CaseWelcome', () => {
-  const copy = caseWelcomeCopy({ packName: 'UK Visitor', checklistsToPick: 1, firstGapHref: null });
+  const copy = caseWelcomeCopy({
+    packName: 'UK Visitor',
+    checklists: { kind: 'none' },
+    firstGapHref: null,
+  });
 
   it('opens the page at the top, puts focus on the note and drops the welcome mark from the address', async () => {
     window.history.replaceState(null, '', '/app/mission/case-1?welcome=1#x');
