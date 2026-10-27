@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { useLatestOf } from '../../../../components/latest-result';
 import { ReferenceCode } from '../../../../components/reference-code';
 import { TimeZoneSelect } from '../../../../components/time-zone-select';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
@@ -167,6 +168,10 @@ export function MissionCollaboration({
     recordIssuerVerificationAction,
     INITIAL,
   );
+  // One status line per area (people, tasks, appointments): the latest answer replaces the last.
+  const peopleStatus = useLatestOf(assignState, unassignState);
+  const taskStatus = useLatestOf(taskCreateState, taskDecideState, taskReassignState);
+  const appointmentStatus = useLatestOf(apptCreateState, apptDecideState);
   const assignedAccountIds = new Set(assignments.map((a) => a.memberAccountId));
   const assignableMembers = members.filter((m) => !assignedAccountIds.has(m.accountId));
   const memberEmailByAccountId = new Map(members.map((m) => [m.accountId, m.email] as const));
@@ -250,8 +255,7 @@ export function MissionCollaboration({
             />
           </form>
         ) : null}
-        <FormMessage result={assignState} />
-        <FormMessage result={unassignState} />
+        <FormMessage result={peopleStatus} />
       </div>
 
       <div style={{ marginTop: '0.85rem' }}>
@@ -386,9 +390,7 @@ export function MissionCollaboration({
             className="btn btn-secondary u-btn-sm"
           />
         </form>
-        <FormMessage result={taskCreateState} />
-        <FormMessage result={taskDecideState} />
-        <FormMessage result={taskReassignState} />
+        <FormMessage result={taskStatus} />
       </div>
 
       <div style={{ marginTop: '0.85rem' }}>
@@ -488,8 +490,7 @@ export function MissionCollaboration({
             className="btn btn-secondary u-btn-sm"
           />
         </form>
-        <FormMessage result={apptCreateState} />
-        <FormMessage result={apptDecideState} />
+        <FormMessage result={appointmentStatus} />
       </div>
 
       <div style={{ marginTop: '0.85rem' }}>

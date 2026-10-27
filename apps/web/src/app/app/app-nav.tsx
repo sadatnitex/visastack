@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { type CSSProperties, type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { BrandMark } from '../../components/brand-mark';
 import { Icon, type IconName } from '../../components/icons';
+import { ShortcutHint } from '../../components/shortcut-hint';
 import { type NavLink, PRIMARY_NAV, isCurrentPath } from '../../lib/navigation';
 
 /** One icon per primary destination, keyed by its path. The words beside it carry the meaning. */
@@ -329,7 +330,7 @@ export function WorkspaceToolbar({
             if (event.key === 'Escape') setQuery('');
           }}
         />
-        <kbd className="workspace-finder-key">⌘ K</kbd>
+        <ShortcutHint keyName="K" className="workspace-finder-key" />
         {query.trim() ? (
           <nav className="workspace-finder-results" aria-label="Matching pages">
             {matches.length ? (

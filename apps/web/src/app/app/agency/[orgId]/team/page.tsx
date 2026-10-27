@@ -3,6 +3,7 @@ import { formatTimestampDate } from '../../../../../lib/format-date';
 import { membershipRoleLabel } from '../../../../../lib/labels';
 import { withSession } from '../../../../../lib/session';
 import { loadMembers, loadOrgAccess, loadPendingTeamInvitations } from '../console-data';
+import { InvitationPanel } from '../invitation-panel';
 import { InvitationRevokeButton } from '../invitation-revoke-button';
 import { AddMemberForm } from '../member-form';
 import { MemberToggleButton } from '../member-toggle-button';
@@ -53,59 +54,61 @@ export default async function AgencyTeamPage({
         Membership is organizational bookkeeping - it never grants access to an applicant's records
         on its own. Access is always an accepted grant.
       </p>
-      {data.members.length > 0 ? (
-        <div className="rows u-mb-150">
-          {data.members.map((m) => (
-            <div className="row" key={m.membershipId}>
-              <span className="row-key">
-                {m.email}
-                <span
-                  className="muted"
-                  style={{ fontSize: 'var(--text-small)', marginLeft: '0.5rem' }}
-                >
-                  {membershipRoleLabel(m.role)}
+      <InvitationPanel>
+        {data.members.length > 0 ? (
+          <div className="rows u-mb-150">
+            {data.members.map((m) => (
+              <div className="row" key={m.membershipId}>
+                <span className="row-key">
+                  {m.email}
+                  <span
+                    className="muted"
+                    style={{ fontSize: 'var(--text-small)', marginLeft: '0.5rem' }}
+                  >
+                    {membershipRoleLabel(m.role)}
+                  </span>
                 </span>
-              </span>
-              <span className="row-end">
-                <span className={`badge ${m.active ? 'badge-success' : 'badge-neutral'}`}>
-                  {m.active ? 'Active' : 'Inactive'}
+                <span className="row-end">
+                  <span className={`badge ${m.active ? 'badge-success' : 'badge-neutral'}`}>
+                    {m.active ? 'Active' : 'Inactive'}
+                  </span>
+                  {m.role !== 'OWNER' ? (
+                    <MemberToggleButton
+                      organizationId={orgId}
+                      membershipId={m.membershipId}
+                      active={m.active}
+                    />
+                  ) : null}
                 </span>
-                {m.role !== 'OWNER' ? (
-                  <MemberToggleButton
-                    organizationId={orgId}
-                    membershipId={m.membershipId}
-                    active={m.active}
-                  />
-                ) : null}
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : null}
-      {data.invitations.length > 0 ? (
-        <div className="rows u-mb-150">
-          {data.invitations.map((invitation) => (
-            <div className="row" key={invitation.id}>
-              <span className="row-key">
-                {invitation.email}
-                <span
-                  className="muted"
-                  style={{ fontSize: 'var(--text-small)', marginLeft: '0.5rem' }}
-                >
-                  {membershipRoleLabel(invitation.role)}
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {data.invitations.length > 0 ? (
+          <div className="rows u-mb-150">
+            {data.invitations.map((invitation) => (
+              <div className="row" key={invitation.id}>
+                <span className="row-key">
+                  {invitation.email}
+                  <span
+                    className="muted"
+                    style={{ fontSize: 'var(--text-small)', marginLeft: '0.5rem' }}
+                  >
+                    {membershipRoleLabel(invitation.role)}
+                  </span>
                 </span>
-              </span>
-              <span className="row-end">
-                <span className="badge badge-warning">
-                  Invited &middot; expires {formatTimestampDate(invitation.expiresAt)}
+                <span className="row-end">
+                  <span className="badge badge-warning">
+                    Invited &middot; expires {formatTimestampDate(invitation.expiresAt)}
+                  </span>
+                  <InvitationRevokeButton organizationId={orgId} invitationId={invitation.id} />
                 </span>
-                <InvitationRevokeButton organizationId={orgId} invitationId={invitation.id} />
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : null}
-      <AddMemberForm organizationId={orgId} />
+              </div>
+            ))}
+          </div>
+        ) : null}
+        <AddMemberForm organizationId={orgId} />
+      </InvitationPanel>
     </article>
   );
 }

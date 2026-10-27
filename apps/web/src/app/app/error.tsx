@@ -38,7 +38,7 @@ export default function WorkspaceError({
         </a>
       </div>
       <p className="muted error-reference">
-        Still happening? <a href="/app/help">Get help</a>
+        Still happening? <a href="/app/help#contact">Get help</a>
         {error.digest ? ` and quote reference ${error.digest}` : ''}.
       </p>
     </section>

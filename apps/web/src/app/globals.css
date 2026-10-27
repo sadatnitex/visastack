@@ -8857,3 +8857,23 @@ summary.visa-photo-title {
     break-inside: avoid;
   }
 }
+
+/* WP-UXD Help contact routes */
+.help-contact {
+  margin-top: 1.5rem;
+}
+.help-contact-route {
+  padding-block: 1rem;
+  border-top: 1px solid var(--hairline);
+}
+.help-contact-route h3 {
+  margin: 0 0 0.35rem;
+  font-size: var(--text-body);
+}
+.help-contact-route p {
+  margin: 0;
+}
+/* Keeps the keyboard hint's space until the browser knows which key to name (shortcut-hint.tsx). */
+.shortcut-hint-pending {
+  visibility: hidden;
+}

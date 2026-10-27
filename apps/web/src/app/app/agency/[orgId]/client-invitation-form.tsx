@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { useLatestResultArea } from '../../../../components/latest-result';
 import { type ActionState, inviteClientAction } from './actions';
 import { InvitationLink } from './invitation-link';
 
@@ -18,7 +19,12 @@ export function ClientInvitationForm({
     readonly active: boolean;
   }[];
 }) {
-  const [state, formAction, pending] = useActionState(inviteClientAction, INITIAL);
+  // Inside a Team or Clients panel the panel says what happened, once, for the latest action.
+  const area = useLatestResultArea<ActionState>();
+  const [state, formAction, pending] = useActionState(
+    area ? area.track(inviteClientAction) : inviteClientAction,
+    INITIAL,
+  );
   const activeMembers = members.filter((m) => m.active);
 
   if (activeMembers.length === 0) {
@@ -92,8 +98,12 @@ export function ClientInvitationForm({
           busy="Creating…"
           className="btn btn-secondary"
         />
-        <FormMessage result={state} />
-        {state.ok && state.invitationUrl ? <InvitationLink url={state.invitationUrl} /> : null}
+        {area ? null : (
+          <>
+            <FormMessage result={state} />
+            {state.ok && state.invitationUrl ? <InvitationLink url={state.invitationUrl} /> : null}
+          </>
+        )}
       </div>
     </form>
   );

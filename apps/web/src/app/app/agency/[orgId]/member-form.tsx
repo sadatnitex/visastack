@@ -2,13 +2,19 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { useLatestResultArea } from '../../../../components/latest-result';
 import { type ActionState, addMemberAction } from './actions';
 import { InvitationLink } from './invitation-link';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
 export function AddMemberForm({ organizationId }: { readonly organizationId: string }) {
-  const [state, formAction, pending] = useActionState(addMemberAction, INITIAL);
+  // Inside a Team or Clients panel the panel says what happened, once, for the latest action.
+  const area = useLatestResultArea<ActionState>();
+  const [state, formAction, pending] = useActionState(
+    area ? area.track(addMemberAction) : addMemberAction,
+    INITIAL,
+  );
   return (
     <form action={formAction} className="field-list">
       <input type="hidden" name="organizationId" value={organizationId} />
@@ -42,8 +48,12 @@ export function AddMemberForm({ organizationId }: { readonly organizationId: str
           busy="Adding…"
           className="btn btn-secondary"
         />
-        <FormMessage result={state} />
-        {state.ok && state.invitationUrl ? <InvitationLink url={state.invitationUrl} /> : null}
+        {area ? null : (
+          <>
+            <FormMessage result={state} />
+            {state.ok && state.invitationUrl ? <InvitationLink url={state.invitationUrl} /> : null}
+          </>
+        )}
       </div>
     </form>
   );

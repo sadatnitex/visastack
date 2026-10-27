@@ -86,6 +86,45 @@ export default function HelpPage() {
           <Link href="/status">What Works Today and Service Status</Link>
         </details>
       </article>
+      <article className="card help-contact" id="contact" aria-labelledby="help-contact-heading">
+        <h2 className="card-title" id="help-contact-heading">
+          Get Help from a Person
+        </h2>
+        <p>Choose the route that matches your question, so it reaches the right people.</p>
+        <section className="help-contact-route" aria-labelledby="help-contact-case">
+          <h3 id="help-contact-case">A Problem with a Case or an Agency</h3>
+          <p>
+            Open the case, then Problems and Feedback. A complaint goes to VisaStack quality staff,
+            and the agency working your case never sees it. Private feedback is seen only by you and
+            those staff. Each complaint keeps its status and history on the case.
+          </p>
+          <Link href="/app/applicants">Open a Traveller&apos;s Cases</Link>
+        </section>
+        <section className="help-contact-route" aria-labelledby="help-contact-agency">
+          <h3 id="help-contact-agency">A Question for Your Agency</h3>
+          <p>
+            If an agency invited you, ask them directly about your application. They see only what
+            you chose to share with them, and you can end that sharing from the traveller&apos;s
+            Sharing page.
+          </p>
+        </section>
+        <section className="help-contact-route" aria-labelledby="help-contact-data">
+          <h3 id="help-contact-data">Your Data and Privacy</h3>
+          <p>
+            Download a copy of your data, or ask for your account to be deleted. Both start from the
+            privacy page.
+          </p>
+          <Link href="/app/privacy">Privacy and Data Requests</Link>
+        </section>
+        <section className="help-contact-route" aria-labelledby="help-contact-status">
+          <h3 id="help-contact-status">Something Is Not Working</h3>
+          <p>
+            Check the status page first: it says what works today and lists known problems. If a
+            page shows an error with a reference, quote that reference when you raise the problem.
+          </p>
+          <Link href="/status">Service Status</Link>
+        </section>
+      </article>
     </section>
   );
 }

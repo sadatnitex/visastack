@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { useLatestOf } from '../../../../components/latest-result';
 import { TimeZoneSelect } from '../../../../components/time-zone-select';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
@@ -44,6 +45,8 @@ export function TasksPanel({
 }) {
   const [createState, createAction, createPending] = useActionState(createTaskAction, INITIAL);
   const [decideState, decideAction, decidePending] = useActionState(decideTaskAction, INITIAL);
+  // One status line for the whole task area: the latest answer replaces the one before.
+  const status = useLatestOf(createState, decideState);
   const openOrInProgress = tasks.filter((t) => t.status === 'OPEN' || t.status === 'IN_PROGRESS');
   const decided = tasks.filter((t) => t.status === 'DONE' || t.status === 'CANCELLED');
 
@@ -122,8 +125,6 @@ export function TasksPanel({
           ))}
         </div>
       )}
-      <FormMessage result={decideState} />
-
       {decided.length > 0 ? (
         <details className="u-mb-100">
           <summary className="muted" style={{ fontSize: 'var(--text-small)', cursor: 'pointer' }}>
@@ -185,7 +186,7 @@ export function TasksPanel({
           className="btn btn-secondary"
         />
       </form>
-      <FormMessage result={createState} />
+      <FormMessage result={status} />
     </article>
   );
 }
@@ -216,6 +217,8 @@ export function AppointmentsPanel({
     decideAppointmentAction,
     INITIAL,
   );
+  // One status line for the whole appointments area, as for tasks.
+  const status = useLatestOf(createState, decideState);
   const upcoming = appointments.filter((a) => a.status === 'OPEN' || a.status === 'IN_PROGRESS');
   const past = appointments.filter((a) => a.status === 'DONE' || a.status === 'CANCELLED');
 
@@ -279,8 +282,6 @@ export function AppointmentsPanel({
           ))}
         </div>
       )}
-      <FormMessage result={decideState} />
-
       {past.length > 0 ? (
         <details className="u-mb-100">
           <summary className="muted" style={{ fontSize: 'var(--text-small)', cursor: 'pointer' }}>
@@ -337,7 +338,7 @@ export function AppointmentsPanel({
           className="btn btn-secondary"
         />
       </form>
-      <FormMessage result={createState} />
+      <FormMessage result={status} />
     </article>
   );
 }
