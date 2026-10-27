@@ -316,6 +316,14 @@ describe('fetchClientMetadataDocument', () => {
       ok: false,
       error: { code: 'invalid_client' },
     });
+    // A page on the app's own host that is not its published sign-in return path.
+    clearClientMetadataCache();
+    const otherPage = { ...chatgptDocument(), redirect_uris: ['https://chatgpt.com/some/page'] };
+    const third = fakeDeps(() => jsonResponse(otherPage));
+    expect(await fetchClientMetadataDocument(CHATGPT_CALLBACK_ID, third.deps)).toMatchObject({
+      ok: false,
+      error: { code: 'invalid_client' },
+    });
   });
 
   it('refuses a confidential client document', async () => {

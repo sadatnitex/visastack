@@ -448,7 +448,11 @@ function clientFromDocument(
   const redirectUris: string[] = [];
   for (const uri of uris) {
     if (typeof uri !== 'string') return bad('client document redirect_uris must be strings');
-    if (!isAllowedHttpsRedirect(uri, app.redirectHosts) && !isLoopbackRedirect(uri)) {
+    // Only the app's own published sign-in return paths, the same rule self-registration uses, so
+    // no other page on the app's host can ever receive a code.
+    const onAppHost =
+      isAllowedHttpsRedirect(uri, app.redirectHosts) && isKnownAppReturnAddress(uri);
+    if (!onAppHost && !isLoopbackRedirect(uri)) {
       return bad('client document lists a redirect address outside the app allowlist');
     }
     if (!redirectUris.includes(uri)) redirectUris.push(uri);
