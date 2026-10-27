@@ -1100,6 +1100,7 @@ export {
   type BillingStatusHistoryEntry,
   type CreateInvoiceInput,
   type Invoice,
+  type InvoiceLedger,
   type InvoiceStatus,
   type OpenBillingAccountInput,
   type RecordInvoicePaymentInput,
@@ -1107,6 +1108,7 @@ export {
   type VoidInvoiceInput,
   createInvoice,
   getBillingAccountForOrganization,
+  getInvoiceLedger,
   isBillingSuspended,
   legalBillingTransitions,
   listBillingStatusHistory,
@@ -1116,6 +1118,23 @@ export {
   transitionBillingStatus,
   voidInvoice,
 } from './billing';
+
+export {
+  type ApplyInvoiceCollectionInput,
+  type CollectionKind,
+  type CollectionRefusal,
+  type CollectionRefusalCode,
+  type InvoiceCollectionOutcome,
+  type InvoicePayment,
+  type InvoicePaymentKind,
+  MAX_MINOR_UNITS,
+  applyInvoiceCollection,
+  invoiceLedgerPresent,
+  invoiceStatusForTotals,
+  isValidMinorUnitAmount,
+  ledgerTotal,
+  outstandingMinorUnits,
+} from './invoice-ledger';
 
 export {
   COMMERCIAL_OVERRIDE_MAX_DURATION_DAYS,
