@@ -3,7 +3,18 @@ import Link from 'next/link';
 import { InstallAppCard } from '../../../components/pwa/install-app-card';
 import { PageHeader } from '../../../components/ui';
 export const metadata: Metadata = { title: 'Help and Support' };
+
+/**
+ * The watched support inbox, when one is set up (`SUPPORT_EMAIL`). Nothing is shown without
+ * it: the page never invents an address. Read per request so setting it needs no rebuild.
+ */
+function supportEmail(): string | null {
+  const address = process.env['SUPPORT_EMAIL']?.trim();
+  return address && /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/.test(address) ? address : null;
+}
+
 export default function HelpPage() {
+  const email = supportEmail();
   return (
     <section className="section container workspace-help">
       <PageHeader
@@ -125,6 +136,12 @@ export default function HelpPage() {
             reference.
           </p>
           <Link href="/status">Service Status</Link>
+          {email ? (
+            <p>
+              No case to raise it from, or nothing here fits? Email VisaStack support at{' '}
+              <a href={`mailto:${email}`}>{email}</a>.
+            </p>
+          ) : null}
         </section>
       </article>
     </section>

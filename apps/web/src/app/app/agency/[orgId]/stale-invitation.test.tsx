@@ -61,4 +61,18 @@ describe.each(Object.entries(forms))('%s', (_name, form) => {
     expect(container.textContent).not.toContain('token=t');
     expect(container.querySelector('input[readonly]')).toBeNull();
   });
+
+  it('keeps a new link the page has not listed yet, so the only copy is never hidden', async () => {
+    act(() => root.render(form([])));
+    const formElement = container.querySelector('form');
+    if (formElement) formElement.noValidate = true;
+    await act(async () => {
+      formElement?.requestSubmit();
+    });
+    expect(container.textContent).toContain('Invitation ready.');
+    expect(container.querySelector('input[readonly]')).not.toBeNull();
+    // The message region stays in the page either way, so the next answer is announced.
+    act(() => root.render(form(['other'])));
+    expect(container.querySelector('output')).not.toBeNull();
+  });
 });

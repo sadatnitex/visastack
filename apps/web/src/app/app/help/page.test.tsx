@@ -1,7 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderServer, textOf } from '../../../lib/next-mocks.test-support';
 
 const { default: HelpPage } = await import('./page');
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe('Help and Support', () => {
   it('offers a way to reach a person, through the routes the product really has', async () => {
@@ -18,6 +22,7 @@ describe('Help and Support', () => {
   });
 
   it('invents no address, number or answer time that nobody has set up', async () => {
+    vi.stubEnv('SUPPORT_EMAIL', '');
     const html = await renderServer(HelpPage());
     const text = textOf(html);
     expect(html).not.toMatch(/mailto:|tel:|wa\.me/);
@@ -36,5 +41,13 @@ describe('Help and Support', () => {
       'Your Data and Privacy',
       'Something Is Not Working',
     ]);
+  });
+
+  it('offers the support inbox to everyone once one is set up, and only a real address', async () => {
+    vi.stubEnv('SUPPORT_EMAIL', 'help@vs.example.test');
+    const html = await renderServer(HelpPage());
+    expect(html).toContain('href="mailto:help@vs.example.test"');
+    vi.stubEnv('SUPPORT_EMAIL', 'not an address');
+    expect(await renderServer(HelpPage())).not.toContain('mailto:');
   });
 });

@@ -157,7 +157,7 @@ export function workspaceNavigation(
     // sections of Record: their pages keep their addresses and light up the Record tab.
     primary: base
       ? [
-          { href: base, label: 'Home', exact: true, alsoExactFor: ['/app'] },
+          { href: base, label: 'Home', exact: true },
           {
             href: `${base}/record`,
             label: 'Record',
@@ -169,7 +169,8 @@ export function workspaceNavigation(
           { href: '/app/countries', label: 'Countries' },
         ]
       : [
-          { href: '/app', label: 'Home', exact: true },
+          // The account-wide page is the Account Overview, not a second Home (owner list item 11).
+          { href: '/app', label: 'Account Overview', exact: true },
           {
             href: '/app/applicants',
             label: access.travellers.length ? 'Choose a Traveller' : 'Add a Traveller',
@@ -179,9 +180,9 @@ export function workspaceNavigation(
         ],
     tools: [
       { href: '/app/shared', label: 'Shared with Me' },
-      // The account page is also Home's page, so this opens its permissions section; only one
-      // link (Home) is ever current on /app.
-      { href: '/app#permissions', label: 'Account and Permissions' },
+      // The account-wide page has its own name, Account Overview, so it is never mistaken for a
+      // traveller's Home (owner list item 11). With no traveller it is already a tab.
+      ...(base ? [{ href: '/app', label: 'Account Overview', exact: true }] : []),
       ...(base ? [{ href: `${base}/evidence`, label: 'Evidence Requests' }] : []),
     ],
     settings,

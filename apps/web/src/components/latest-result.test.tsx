@@ -23,7 +23,9 @@ afterEach(() => {
 });
 
 function Latest({ results }: { readonly results: readonly FormResult[] }) {
-  const [result, source] = useLatestOf(...results);
+  const [result, source] = useLatestOf(
+    Object.fromEntries(results.map((result, index) => [`form${index}`, result])),
+  );
   return <output data-from={source}>{result.message}</output>;
 }
 const shown = () => container.querySelector('output');
@@ -38,13 +40,13 @@ describe('useLatestOf: one line for several forms in one component', () => {
     expect(shown()?.textContent).toBe('');
     render([added, EMPTY]);
     expect(shown()?.textContent).toBe('Task added.');
-    expect(shown()?.getAttribute('data-from')).toBe('0');
+    expect(shown()?.getAttribute('data-from')).toBe('form0');
     render([added, started]);
     expect(shown()?.textContent).toBe('Task started.');
-    expect(shown()?.getAttribute('data-from')).toBe('1');
+    expect(shown()?.getAttribute('data-from')).toBe('form1');
     // The same words again are a new answer, and come back to the front.
     render([line('Task added.'), started]);
-    expect(shown()?.getAttribute('data-from')).toBe('0');
+    expect(shown()?.getAttribute('data-from')).toBe('form0');
   });
 
   it('keeps the latest line while nothing changes', () => {
@@ -59,7 +61,7 @@ describe('useLatestOf: one line for several forms in one component', () => {
     render([EMPTY, EMPTY, EMPTY]);
     render([line('Task added.'), line('That task was already closed.', false), line('Saved.')]);
     expect(shown()?.textContent).toBe('That task was already closed.');
-    expect(shown()?.getAttribute('data-from')).toBe('1');
+    expect(shown()?.getAttribute('data-from')).toBe('form1');
   });
 
   it('of several successes at once, shows the last form', () => {

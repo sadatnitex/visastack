@@ -1,9 +1,9 @@
 'use client';
 
 import { useActionState } from 'react';
-import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { SubmitButton } from '../../../../components/form-feedback';
 import { type ActionState, addMemberAction } from './actions';
-import { InvitationLink } from './invitation-link';
+import { InvitationOutcome } from './invitation-outcome';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
@@ -16,8 +16,6 @@ export function AddMemberForm({
   readonly pendingInvitationIds: readonly string[];
 }) {
   const [state, formAction, pending] = useActionState(addMemberAction, INITIAL);
-  const stale =
-    state.invitationId !== undefined && !pendingInvitationIds.includes(state.invitationId);
   return (
     <form action={formAction} className="field-list">
       <input type="hidden" name="organizationId" value={organizationId} />
@@ -51,12 +49,7 @@ export function AddMemberForm({
           busy="Adding…"
           className="btn btn-secondary"
         />
-        {/* An invitation revoked (or accepted) since it was made leaves this screen with it:
-            its message and private link are no longer offered. */}
-        {stale ? null : <FormMessage result={state} />}
-        {!stale && state.ok && state.invitationUrl ? (
-          <InvitationLink url={state.invitationUrl} />
-        ) : null}
+        <InvitationOutcome state={state} pendingInvitationIds={pendingInvitationIds} />
       </div>
     </form>
   );
