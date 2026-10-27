@@ -82,7 +82,33 @@ export interface EditorLayer {
   readonly openCount: number;
 }
 
+/**
+ * One entry of the Essentials First list (lib/profile-essentials.ts), shaped for the screen. A single
+ * detail carries `field`; the home address carries `group`, the same repeating record its section uses.
+ */
+export interface EssentialItem {
+  readonly key: string;
+  readonly label: string;
+  readonly hint?: string;
+  /** The section that holds it, so the full view can be opened at the right place. */
+  readonly sectionKey: string;
+  /** Judged exactly as completion judges it: a value, "does not apply", or "none" for a record. */
+  readonly answered: boolean;
+  /** A single detail the person marked "does not apply". */
+  readonly notApplicable: boolean;
+  readonly field?: EditorFieldDef;
+  readonly group?: EditorGroup;
+}
+
+export interface EssentialsView {
+  readonly items: readonly EssentialItem[];
+  readonly answered: number;
+  readonly total: number;
+}
+
 export interface MasterProfileView {
+  /** The short starter list shown first, with its own progress. */
+  readonly essentials: EssentialsView;
   readonly percent: number;
   readonly answered: number;
   readonly total: number;

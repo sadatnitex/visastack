@@ -14,6 +14,7 @@ import type {
   EditorGroup,
   EditorLayer,
   EditorSection,
+  EssentialItem,
   MasterProfileView,
 } from '../../../../lib/master-profile-types';
 import { plural } from '../../../../lib/plural';
@@ -620,6 +621,49 @@ function SectionDocuments({
   );
 }
 
+/**
+ * One single detail with its edit form, or the note that it does not apply, plus the "does not
+ * apply" tick box while it holds no value. Sections and the Essentials First list both use it.
+ */
+function SingleField({
+  applicantId,
+  field,
+  applies,
+  values,
+  assurance,
+}: {
+  readonly applicantId: string;
+  readonly field: EditorFieldDef;
+  readonly applies: boolean;
+  readonly values: Readonly<Record<string, ProfileValue>>;
+  readonly assurance: ReadonlyMap<string, FieldAssurance>;
+}) {
+  const hasValue = Boolean(values[field.key]?.value || values[field.key]?.status);
+  return (
+    <div className="profile-field-item">
+      {applies ? (
+        <FieldWithOther
+          applicantId={applicantId}
+          field={field}
+          lookup={(fieldKey) => values[fieldKey]}
+          assurance={assurance}
+        />
+      ) : (
+        <p className="muted">{field.label}: marked as not applying to you.</p>
+      )}
+      {(hasValue && applies) || field.optional ? null : (
+        <ExemptionToggle
+          applicantId={applicantId}
+          kind="FIELD_NOT_APPLICABLE"
+          targetKey={field.key}
+          on={!applies}
+          label="This does not apply to me"
+        />
+      )}
+    </div>
+  );
+}
+
 function SectionFields({
   applicantId,
   section,
@@ -671,33 +715,16 @@ function SectionFields({
         <details className="profile-edit-section" open={search.trim() ? true : undefined}>
           <summary>Edit These Details</summary>
           <div className="field-list">
-            {singles.map((field) => {
-              const applies = !notApplicable.has(field.key);
-              const hasValue = Boolean(values[field.key]?.value || values[field.key]?.status);
-              return (
-                <div key={field.key} className="profile-field-item">
-                  {applies ? (
-                    <FieldWithOther
-                      applicantId={applicantId}
-                      field={field}
-                      lookup={(fieldKey) => values[fieldKey]}
-                      assurance={assurance}
-                    />
-                  ) : (
-                    <p className="muted">{field.label}: marked as not applying to you.</p>
-                  )}
-                  {(hasValue && applies) || field.optional ? null : (
-                    <ExemptionToggle
-                      applicantId={applicantId}
-                      kind="FIELD_NOT_APPLICABLE"
-                      targetKey={field.key}
-                      on={!applies}
-                      label="This does not apply to me"
-                    />
-                  )}
-                </div>
-              );
-            })}
+            {singles.map((field) => (
+              <SingleField
+                key={field.key}
+                applicantId={applicantId}
+                field={field}
+                applies={!notApplicable.has(field.key)}
+                values={values}
+                assurance={assurance}
+              />
+            ))}
           </div>
         </details>
       ) : null}
@@ -933,6 +960,118 @@ function AreaCount({ layer }: { readonly layer: EditorLayer }) {
   );
 }
 
+/** What an essential's badge says. "Added" never claims the value was checked or confirmed. */
+function essentialStatus(item: EssentialItem): { readonly label: string; readonly tone: string } {
+  if (!item.answered) return { label: 'Not Added Yet', tone: 'badge-neutral' };
+  if (item.notApplicable) return { label: 'Does Not Apply', tone: 'badge-neutral' };
+  if (item.group?.noneDeclared) return { label: 'None Recorded', tone: 'badge-neutral' };
+  return { label: 'Added', tone: 'badge-success' };
+}
+
+/**
+ * Essentials First: a short list of the details most visa forms ask for first, with its own
+ * progress, shown before everything else. The full set of sections sits behind "Show All Sections";
+ * each essential is also in its own section there, so nothing is only reachable from here.
+ */
+function EssentialsFirst({
+  applicantId,
+  view,
+  values,
+  repeatingValues,
+  assurance,
+  showAll,
+  onToggle,
+}: {
+  readonly applicantId: string;
+  readonly view: MasterProfileView;
+  readonly values: Readonly<Record<string, ProfileValue>>;
+  readonly repeatingValues: RepeatingValues;
+  readonly assurance: ReadonlyMap<string, FieldAssurance>;
+  readonly showAll: boolean;
+  readonly onToggle: () => void;
+}) {
+  const headingId = useId();
+  const { essentials } = view;
+  const complete = essentials.answered >= essentials.total;
+  return (
+    <section className="profile-essentials" aria-labelledby={headingId}>
+      <div className="profile-essentials-head">
+        <div>
+          <h3 id={headingId}>Essentials First</h3>
+          <p className="muted">
+            {complete
+              ? 'Every essential is added. Add more from any section when a case needs it.'
+              : 'Start with the details most visa forms ask for first. Everything else can wait.'}
+          </p>
+        </div>
+        <p className="profile-essentials-count">
+          <strong>
+            {essentials.answered} of {essentials.total}
+          </strong>{' '}
+          essentials added
+        </p>
+      </div>
+      <progress
+        className="profile-essentials-meter"
+        max={essentials.total}
+        value={essentials.answered}
+        aria-hidden="true"
+      />
+      {showAll ? (
+        <p className="muted">
+          Full profile: {view.answered} of {view.total} details in your{' '}
+          {plural(view.openSections, 'open section')} have values ({view.percent}%). Opening a
+          section adds its details to this number at once.
+        </p>
+      ) : (
+        <ol className="profile-essentials-list">
+          {essentials.items.map((item) => {
+            const status = essentialStatus(item);
+            return (
+              <li
+                key={item.key}
+                className={`profile-essential ${item.answered ? 'is-done' : 'is-missing'}`}
+              >
+                <div className="profile-essential-status">
+                  {item.group ? <strong>{item.label}</strong> : null}
+                  <span className={`badge ${status.tone}`}>{status.label}</span>
+                  {item.hint ? <span className="muted">{item.hint}</span> : null}
+                </div>
+                {item.field ? (
+                  <SingleField
+                    applicantId={applicantId}
+                    field={item.field}
+                    applies={!item.notApplicable}
+                    values={values}
+                    assurance={assurance}
+                  />
+                ) : item.group ? (
+                  <RepeatingGroup
+                    applicantId={applicantId}
+                    group={item.group}
+                    repeatingValues={repeatingValues}
+                    assurance={assurance}
+                  />
+                ) : null}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      <div className="profile-essentials-actions">
+        <button type="button" className="btn btn-secondary" onClick={onToggle}>
+          {showAll ? 'Show Essentials Only' : 'Show All Sections'}
+        </button>
+        {showAll ? null : (
+          <span className="muted">
+            Every section, with every detail you can add, including these.
+          </span>
+        )}
+      </div>
+    </section>
+  );
+}
+
 interface ProfileEditorProps {
   readonly applicantId: string;
   readonly values: Readonly<Record<string, ProfileValue>>;
@@ -952,8 +1091,26 @@ export function ProfileEditor({
   view,
 }: ProfileEditorProps) {
   const editor = useRef<HTMLDivElement>(null);
+  // Essentials First leads until every essential is added; a profile with no essentials list
+  // (nothing to show) opens on all sections. A link to one section always opens all sections.
+  const hasEssentials = view.essentials.total > 0;
+  const [showAll, setShowAll] = useState(
+    !hasEssentials || view.essentials.answered >= view.essentials.total,
+  );
   useEffect(() => {
     const openEditor = () => {
+      // "Add Information" goes to the first essential still to add while that list is showing.
+      const essential = editor.current?.querySelector<HTMLElement>(
+        [
+          '.profile-essential.is-missing input:not([type="hidden"]):not([type="checkbox"])',
+          '.profile-essential.is-missing select',
+          '.profile-essential.is-missing button',
+        ].join(', '),
+      );
+      if (essential) {
+        essential.focus();
+        return;
+      }
       const details = editor.current?.querySelector<HTMLDetailsElement>(
         '[id^="profile-panel-"]:not([hidden]) .profile-edit-section',
       );
@@ -1009,6 +1166,7 @@ export function ProfileEditor({
         l.sections.some((section) => section.key === key),
       );
       if (!layer) return;
+      setShowAll(true);
       setSelected(layer.key);
       setSearch('');
       setSectionTarget(key);
@@ -1054,109 +1212,125 @@ export function ProfileEditor({
   }
   return (
     <div ref={editor} id="profile-editor" tabIndex={-1}>
-      <SuggestionBar applicantId={applicantId} view={view} />
-      <div className="profile-areas">
-        <div className="profile-area-nav">
-          <div
-            className="profile-area-rail"
-            role={searching ? undefined : 'tablist'}
-            aria-orientation={searching ? undefined : 'vertical'}
-            aria-label="Profile areas"
-          >
-            {view.layers.map((layer, index) => (
-              <button
-                key={layer.key}
-                type="button"
-                role={searching ? undefined : 'tab'}
-                id={`profile-tab-${layer.key}`}
-                aria-selected={searching ? undefined : selected === layer.key}
-                aria-controls={`profile-panel-${layer.key}`}
-                tabIndex={searching || selected === layer.key ? 0 : -1}
-                onClick={() => selectLayer(layer.key)}
-                onKeyDown={(event) => moveBetweenAreas(event, index)}
+      {hasEssentials ? (
+        <EssentialsFirst
+          applicantId={applicantId}
+          view={view}
+          values={values}
+          repeatingValues={repeatingValues}
+          assurance={assurance}
+          showAll={showAll}
+          onToggle={() => setShowAll((shown) => !shown)}
+        />
+      ) : null}
+      {showAll ? (
+        <>
+          <SuggestionBar applicantId={applicantId} view={view} />
+          <div className="profile-areas">
+            <div className="profile-area-nav">
+              <div
+                className="profile-area-rail"
+                role={searching ? undefined : 'tablist'}
+                aria-orientation={searching ? undefined : 'vertical'}
+                aria-label="Profile areas"
               >
-                <span className="profile-area-name">{layer.label}</span>
-                <AreaCount layer={layer} />
-              </button>
-            ))}
-          </div>
-          <details
-            className="profile-area-picker"
-            open={pickerOpen}
-            onToggle={(event) => setPickerOpen(event.currentTarget.open)}
-          >
-            <summary>
-              <span className="profile-area-picker-label">Area</span>
-              <span className="profile-area-name">{current?.label}</span>
-              {current ? <AreaCount layer={current} /> : null}
-            </summary>
-            <div className="profile-area-picker-list">
-              {view.layers.map((layer) => (
-                <button
-                  key={layer.key}
-                  type="button"
-                  aria-current={!searching && selected === layer.key ? 'true' : undefined}
-                  onClick={() => chooseFromPicker(layer.key)}
-                >
-                  <span className="profile-area-name">{layer.label}</span>
-                  <AreaCount layer={layer} />
-                </button>
-              ))}
-            </div>
-          </details>
-        </div>
-        <div className="profile-area-content">
-          <Link href={`/app/applicant/${applicantId}/history`} className="profile-history-link">
-            History →
-          </Link>
-          <div className="profile-field-search">
-            <label className="field-label" htmlFor="profile-search">
-              Search All Profile Fields
-            </label>
-            <input
-              id="profile-search"
-              type="search"
-              className="input"
-              placeholder="e.g. passport, address, employer"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </div>
-          {searching && visibleLayers.length === 0 ? (
-            <output className="muted">No fields match. Try another field name.</output>
-          ) : null}
-          {view.layers.map((layer) => {
-            const visible = visibleLayers.some((item) => item.key === layer.key);
-            return (
-              <section
-                key={layer.key}
-                id={`profile-panel-${layer.key}`}
-                role={searching ? undefined : 'tabpanel'}
-                aria-labelledby={`profile-tab-${layer.key}`}
-                hidden={!visible}
+                {view.layers.map((layer, index) => (
+                  <button
+                    key={layer.key}
+                    type="button"
+                    role={searching ? undefined : 'tab'}
+                    id={`profile-tab-${layer.key}`}
+                    aria-selected={searching ? undefined : selected === layer.key}
+                    aria-controls={`profile-panel-${layer.key}`}
+                    tabIndex={searching || selected === layer.key ? 0 : -1}
+                    onClick={() => selectLayer(layer.key)}
+                    onKeyDown={(event) => moveBetweenAreas(event, index)}
+                  >
+                    <span className="profile-area-name">{layer.label}</span>
+                    <AreaCount layer={layer} />
+                  </button>
+                ))}
+              </div>
+              <details
+                className="profile-area-picker"
+                open={pickerOpen}
+                onToggle={(event) => setPickerOpen(event.currentTarget.open)}
               >
-                <h3>{layer.label}</h3>
-                <p className="muted">
-                  {layer.description} {layer.openCount} of {layer.sections.length} sections open.
-                </p>
-                {layer.sections
-                  .filter((section) => sectionMatches(section, search))
-                  .map((section) => (
-                    <SectionCard
-                      key={section.key}
-                      applicantId={applicantId}
-                      section={section}
-                      values={values}
-                      repeatingValues={repeatingValues}
-                      assurance={assurance}
-                      search={search}
-                    />
+                <summary>
+                  <span className="profile-area-picker-label">Area</span>
+                  <span className="profile-area-name">{current?.label}</span>
+                  {current ? <AreaCount layer={current} /> : null}
+                </summary>
+                <div className="profile-area-picker-list">
+                  {view.layers.map((layer) => (
+                    <button
+                      key={layer.key}
+                      type="button"
+                      aria-current={!searching && selected === layer.key ? 'true' : undefined}
+                      onClick={() => chooseFromPicker(layer.key)}
+                    >
+                      <span className="profile-area-name">{layer.label}</span>
+                      <AreaCount layer={layer} />
+                    </button>
                   ))}
-              </section>
-            );
-          })}
-        </div>
-      </div>
+                </div>
+              </details>
+            </div>
+            <div className="profile-area-content">
+              <Link href={`/app/applicant/${applicantId}/history`} className="profile-history-link">
+                History →
+              </Link>
+              <div className="profile-field-search">
+                <label className="field-label" htmlFor="profile-search">
+                  Search All Profile Fields
+                </label>
+                <input
+                  id="profile-search"
+                  type="search"
+                  className="input"
+                  placeholder="e.g. passport, address, employer"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              </div>
+              {searching && visibleLayers.length === 0 ? (
+                <output className="muted">No fields match. Try another field name.</output>
+              ) : null}
+              {view.layers.map((layer) => {
+                const visible = visibleLayers.some((item) => item.key === layer.key);
+                return (
+                  <section
+                    key={layer.key}
+                    id={`profile-panel-${layer.key}`}
+                    role={searching ? undefined : 'tabpanel'}
+                    aria-labelledby={`profile-tab-${layer.key}`}
+                    hidden={!visible}
+                  >
+                    <h3>{layer.label}</h3>
+                    <p className="muted">
+                      {layer.description} {layer.openCount} of {layer.sections.length} sections
+                      open.
+                    </p>
+                    {layer.sections
+                      .filter((section) => sectionMatches(section, search))
+                      .map((section) => (
+                        <SectionCard
+                          key={section.key}
+                          applicantId={applicantId}
+                          section={section}
+                          values={values}
+                          repeatingValues={repeatingValues}
+                          assurance={assurance}
+                          search={search}
+                        />
+                      ))}
+                  </section>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

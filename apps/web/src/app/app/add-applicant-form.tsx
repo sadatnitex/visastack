@@ -15,9 +15,17 @@ const INITIAL: ActionState = { ok: true, message: '' };
  * Adds an applicant. With `firstRun`, the same action and values are presented as the first-run
  * question "Who is this record for?" (Me, or Someone I Manage, which then asks Family Member or
  * Minor and the authority confirmation). The page moves on by itself once the applicant exists.
+ *
+ * `selfAdded`: the account already has a record for the person themselves. The form then starts
+ * on Family Member and marks Myself as already added. Myself stays a choice, because the service
+ * accepts a second record for yourself (createApplicant sets no limit); the form only says what
+ * that choice will do.
  */
-export function AddApplicantForm({ firstRun = false }: { readonly firstRun?: boolean } = {}) {
-  return firstRun ? <FirstRunApplicantForm /> : <ApplicantForm />;
+export function AddApplicantForm({
+  firstRun = false,
+  selfAdded = false,
+}: { readonly firstRun?: boolean; readonly selfAdded?: boolean } = {}) {
+  return firstRun ? <FirstRunApplicantForm /> : <ApplicantForm selfAdded={selfAdded} />;
 }
 
 /** The authority statement both forms ask for: one sentence, so a wording change reaches both. */
@@ -141,13 +149,15 @@ function FirstRunApplicantForm() {
   );
 }
 
-function ApplicantForm() {
+function ApplicantForm({ selfAdded }: { readonly selfAdded: boolean }) {
   const [state, formAction, pending] = useActionState(createApplicantAction, INITIAL);
-  const [relationship, setRelationship] = useState('SELF');
+  const [relationship, setRelationship] = useState(selfAdded ? 'FAMILY_MEMBER' : 'SELF');
   const formRef = useRef<HTMLFormElement>(null);
   const messageId = useId();
+  const selfNoteId = useId();
   useFocusInvalidField(formRef, state);
   const needsAuthority = relationship !== 'SELF';
+  const secondSelf = selfAdded && relationship === 'SELF';
 
   return (
     <form
@@ -180,11 +190,18 @@ function ApplicantForm() {
           onChange={(e) => setRelationship(e.target.value)}
           className="input"
           style={{ width: '100%', marginTop: '0.35rem' }}
+          aria-describedby={secondSelf ? selfNoteId : undefined}
         >
-          <option value="SELF">Myself</option>
+          <option value="SELF">{selfAdded ? 'Myself (Already Added)' : 'Myself'}</option>
           <option value="FAMILY_MEMBER">Family Member</option>
           <option value="MINOR_GUARDIAN">Minor (Guardian)</option>
         </select>
+        {secondSelf ? (
+          <p className="field-hint" id={selfNoteId}>
+            You already have a record for yourself. Choosing Myself again adds a second, separate
+            record; your details and documents are not copied into it.
+          </p>
+        ) : null}
       </div>
       {needsAuthority ? (
         <label

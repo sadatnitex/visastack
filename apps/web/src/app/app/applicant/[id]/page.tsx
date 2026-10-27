@@ -17,7 +17,7 @@ import { CaseReadinessRing } from '../../../../components/case-readiness-ring';
 import { DeadlineClock } from '../../../../components/deadline-clock';
 import { EmptyState, NextStepCard, PageHeader, StatusBadge } from '../../../../components/ui';
 import { formatTimestampDate } from '../../../../lib/format-date';
-import { completionOf, fieldLabel } from '../../../../lib/master-profile';
+import { completionOf, essentialsProgress, fieldLabel } from '../../../../lib/master-profile';
 import { agree, plural } from '../../../../lib/plural';
 import { withSession } from '../../../../lib/session';
 import { STAGE_LABELS } from '../../agency/[orgId]/case-search-form';
@@ -82,6 +82,9 @@ export default async function ApplicantOverviewPage({
   const completion = completionOf(data.profile, data.sectionChoices);
   const completed = completion.answered;
   const completeness = completion.percent;
+  // The short starter list leads; the size of the whole profile follows once it is done.
+  const essentials = essentialsProgress(data.profile, data.sectionChoices);
+  const essentialsDone = essentials.answered >= essentials.total;
   const attention = requests.length + data.proposals.length + flagged.length;
   const next = !data.coreGranted
     ? {
@@ -111,19 +114,26 @@ export default async function ApplicantOverviewPage({
               why: 'A document needs review before it can be relied on.',
               action: 'Open Documents',
             }
-          : completeness < 100
+          : !essentialsDone
             ? {
                 href: `/app/applicant/${id}/profile`,
-                title: 'Continue Your Profile',
-                why: `${completed} of ${completion.total} details in your open sections have values. This is completeness, not verification.`,
+                title: 'Add Your Essentials',
+                why: `${essentials.answered} of ${essentials.total} essentials added: the details most visa forms ask for first. This is completeness, not verification.`,
                 action: 'Open Profile',
               }
-            : {
-                href: `/app/applicant/${id}/missions`,
-                title: 'Start or Review a Case',
-                why: 'Reuse your existing profile for the next visa route.',
-                action: 'Open Cases',
-              };
+            : completeness < 100
+              ? {
+                  href: `/app/applicant/${id}/profile`,
+                  title: 'Continue Your Profile',
+                  why: `${completed} of ${completion.total} details in your open sections have values. This is completeness, not verification.`,
+                  action: 'Open Profile',
+                }
+              : {
+                  href: `/app/applicant/${id}/missions`,
+                  title: 'Start or Review a Case',
+                  why: 'Reuse your existing profile for the next visa route.',
+                  action: 'Open Cases',
+                };
   const agenda = data.active
     .flatMap((m) => [
       ...(m.targetDeadline
@@ -373,15 +383,36 @@ export default async function ApplicantOverviewPage({
           </article>
           <article className="card">
             <h3>Profile &amp; Sharing</h3>
-            <div className="meter-label">
-              <span>Details with values in open sections</span>
-              <span>
-                {completed} / {completion.total}
-              </span>
-            </div>
-            <div className="meter" aria-hidden="true">
-              <div className="meter-fill" style={{ width: `${completeness}%` }} />
-            </div>
+            {essentialsDone ? (
+              <>
+                <div className="meter-label">
+                  <span>Details with values in open sections</span>
+                  <span>
+                    {completed} / {completion.total}
+                  </span>
+                </div>
+                <div className="meter" aria-hidden="true">
+                  <div className="meter-fill" style={{ width: `${completeness}%` }} />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="meter-label">
+                  <span>Essentials added</span>
+                  <span>
+                    {essentials.answered} / {essentials.total}
+                  </span>
+                </div>
+                <div className="meter" aria-hidden="true">
+                  <div
+                    className="meter-fill"
+                    style={{
+                      width: `${Math.round((100 * essentials.answered) / essentials.total)}%`,
+                    }}
+                  />
+                </div>
+              </>
+            )}
             <p className="muted">Completeness does not verify identity.</p>
             <Link href={`/app/applicant/${id}/profile`}>Continue Profile →</Link>
             <p className="muted">

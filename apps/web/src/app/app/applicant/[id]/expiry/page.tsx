@@ -36,7 +36,8 @@ export const dynamic = 'force-dynamic';
  */
 
 const URGENCY_BADGE: Record<ExpiryUrgency, { label: string; tone: string }> = {
-  unknown: { label: 'Unknown', tone: 'badge-neutral' },
+  // No date is stored for it: say so, rather than "Unknown", which reads like a fault.
+  unknown: { label: 'No Date on File', tone: 'badge-neutral' },
   ok: { label: 'OK', tone: 'badge-success' },
   reminder: { label: 'Expiring Soon', tone: 'badge-warning' },
   expired: { label: 'Expired', tone: 'badge-danger' },
@@ -44,10 +45,21 @@ const URGENCY_BADGE: Record<ExpiryUrgency, { label: string; tone: string }> = {
 
 const STALENESS_BADGE: Record<StalenessStatus, { label: string; tone: string }> = {
   not_applicable: { label: 'No Freshness Rule', tone: 'badge-neutral' },
-  unknown: { label: 'Freshness Unknown', tone: 'badge-neutral' },
+  unknown: { label: 'Document Date Not Entered', tone: 'badge-neutral' },
   fresh: { label: 'Fresh', tone: 'badge-success' },
   stale: { label: 'Too Old for This Route', tone: 'badge-danger' },
 };
+
+/**
+ * Why a document shows no expiry date, and what to do. Today an expiry date is only ever filled in
+ * from a passport's machine-readable lines (intake), so the wording never suggests a date can be
+ * typed in, and never guesses one.
+ */
+function missingExpiryNote(docType: string | null): string {
+  return docType === 'PASSPORT'
+    ? 'No expiry date has been read from this passport yet. It is read from the two lines of letters and numbers at the bottom of the photo page. If they were not clear, open it on Documents to check it again, or upload a sharper scan.'
+    : 'No expiry date is on file. For now, expiry dates are read only from passports, so check the date printed on this document yourself.';
+}
 
 export default async function ExpiryCentrePage({
   params,
@@ -171,6 +183,8 @@ export default async function ExpiryCentrePage({
                             {' · '}
                             {formatTimestampDate(doc.expiresAt)}
                           </span>
+                        ) : classification.urgency === 'unknown' ? (
+                          <span className="attention-detail">{missingExpiryNote(doc.docType)}</span>
                         ) : null}
                       </span>
                       <StatusBadge tone={badge.tone.replace('badge-', '') as Tone}>
@@ -204,14 +218,24 @@ export default async function ExpiryCentrePage({
                     className="row"
                     key={`${mission.id}-${requirementKey}-${document.documentId}`}
                   >
-                    <span className="row-key">
-                      {requirementKey}
-                      <span
-                        className="muted"
-                        style={{ fontSize: 'var(--text-caption)', marginLeft: '0.5rem' }}
-                      >
-                        {mission.title}
+                    <span className="attention-text">
+                      <span className="row-key">
+                        {requirementKey}
+                        <span
+                          className="muted"
+                          style={{ fontSize: 'var(--text-caption)', marginLeft: '0.5rem' }}
+                        >
+                          {mission.title}
+                        </span>
                       </span>
+                      {document.staleness.status === 'unknown' ? (
+                        <span className="attention-detail">
+                          This route needs a recently dated document, and no date has been entered
+                          for this one, so it cannot be checked. Enter the date printed on it under
+                          Document Date on{' '}
+                          <Link href={`/app/applicant/${id}/documents`}>Documents</Link>.
+                        </span>
+                      ) : null}
                     </span>
                     <span className={`badge ${badge.tone}`}>{badge.label}</span>
                   </div>

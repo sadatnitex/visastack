@@ -13,6 +13,7 @@ import {
   amountKeyOfTaxBasis,
   computeCompletion,
   documentsSupportingFields,
+  isFieldAnswered,
   knownFieldOptions,
 } from '@visastack/core/catalogue';
 import type {
@@ -21,8 +22,11 @@ import type {
   EditorGroup,
   EditorLayer,
   EditorSection,
+  EssentialItem,
+  EssentialsView,
   MasterProfileView,
 } from './master-profile-types';
+import { PROFILE_ESSENTIALS } from './profile-essentials';
 import { PACK_LABELS, PROFILE_FIELDS } from './profile-fields';
 
 /**
@@ -149,6 +153,79 @@ export function completionOf(
     noneDeclared: choices.noneDeclared,
   });
   return { percent: result.percent, answered: result.answered, total: result.total };
+}
+
+const MODULE_FIELD_BY_KEY = new Map(MODULE_FIELDS.map((field) => [field.key, field] as const));
+
+/**
+ * The Essentials First list (lib/profile-essentials.ts) with what this person has answered. Each
+ * entry is judged by the same rule as completion (`isFieldAnswered`), so a detail marked "does not
+ * apply", or a home address marked "none", counts here exactly as it counts there.
+ */
+function essentialsOf(
+  values: Readonly<Record<string, readonly string[]>>,
+  choices: SectionChoices,
+): EssentialsView {
+  const input = {
+    activated: choices.activated,
+    values,
+    notApplicable: choices.notApplicable,
+    noneDeclared: choices.noneDeclared,
+  };
+  const items: EssentialItem[] = [];
+  for (const essential of PROFILE_ESSENTIALS) {
+    const hint = essential.hint ? { hint: essential.hint } : {};
+    if (essential.kind === 'field') {
+      const moduleField = MODULE_FIELD_BY_KEY.get(essential.key);
+      const field = moduleField ? resolveEditorField(moduleField) : undefined;
+      if (!moduleField || !field) continue;
+      items.push({
+        key: essential.key,
+        label: essential.label ?? field.label,
+        ...hint,
+        sectionKey: moduleField.module,
+        answered: isFieldAnswered(moduleField, input),
+        notApplicable: choices.notApplicable.has(essential.key),
+        field,
+      });
+      continue;
+    }
+    // A repeating record: the same details its own section shows (later sections that extend the
+    // record stay where they are). It counts once its main detail is saved, or the person said none.
+    const inGroup = MODULE_FIELDS.filter((field) => field.group === essential.key && !field.role);
+    const sectionKey = inGroup[0]?.module;
+    const members = inGroup.filter((field) => field.module === sectionKey);
+    const main = members[0];
+    if (!sectionKey || !main) continue;
+    items.push({
+      key: essential.key,
+      label: essential.label ?? groupLabelOf(essential.key, members),
+      ...hint,
+      sectionKey,
+      answered: isFieldAnswered(main, input),
+      notApplicable: false,
+      group: {
+        key: essential.key,
+        label: groupLabelOf(essential.key, members),
+        fields: members.flatMap((member) => resolveEditorField(member) ?? []),
+        noneDeclared: choices.noneDeclared.has(essential.key),
+      },
+    });
+  }
+  return {
+    items,
+    answered: items.filter((item) => item.answered).length,
+    total: items.length,
+  };
+}
+
+/** How many of the essentials are answered, for pages that show the number without the list. */
+export function essentialsProgress(
+  entries: readonly ProfileEntryLite[],
+  choices: SectionChoices,
+): { readonly answered: number; readonly total: number } {
+  const { answered, total } = essentialsOf(savedValues(entries), choices);
+  return { answered, total };
 }
 
 export function buildMasterProfileView(input: MasterProfileInput): MasterProfileView {
@@ -278,6 +355,7 @@ export function buildMasterProfileView(input: MasterProfileInput): MasterProfile
   });
 
   return {
+    essentials: essentialsOf(values, input),
     percent: completion.percent,
     answered: completion.answered,
     total: completion.total,
