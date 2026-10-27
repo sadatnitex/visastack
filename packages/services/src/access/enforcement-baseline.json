@@ -166,6 +166,7 @@
   "invitations#acceptOrganizationInvitation",
   "invitations#addMemberByEmail",
   "invitations#createOrganizationInvitation",
+  "invoice-ledger#applyInvoiceCollection",
   "jobs#enqueueIntakeJob",
   "jobs#listFailedJobs",
   "jobs#requestDocumentReExtraction",

@@ -1391,7 +1391,12 @@ const ADMIN: readonly Case[] = [
     element: () => <organisationForms.CreateInvoiceForm organizationId="o1" plans={PLANS} />,
   },
   row('record a payment', () => (
-    <organisationForms.RecordPaymentForm organizationId="o1" invoiceId={rowId()} />
+    <organisationForms.RecordPaymentForm
+      organizationId="o1"
+      invoiceId={rowId()}
+      currency="BDT"
+      idempotencyKey="6f1c2d1e-8a54-4c8f-9d55-0a1b2c3d4e5f"
+    />
   )),
   row('void an invoice', () => (
     <organisationForms.VoidInvoiceButton organizationId="o1" invoiceId={rowId()} />

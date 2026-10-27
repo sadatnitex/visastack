@@ -4051,3 +4051,70 @@ export const staffSecondFactors = pgTable(
     ),
   ],
 );
+
+// --- Cash ledger (Small Commercial V1 S10, ADR 0020) ---
+// One row per amount actually received or reversed against an invoice. The
+// ledger is append-only: a database trigger refuses every UPDATE, DELETE and
+// TRUNCATE, so a correction is always a new row with the opposite sign, never
+// an edit. `invoices.collected_amount_minor_units` is the sum of these rows,
+// written in the same transaction as each row while the invoice row is locked.
+// All five kinds exist from the start so refunds and credits (S18) need no enum
+// change. `amount_minor_units` is a positive whole number of minor currency
+// units for everything except REFUND, which is negative. Two unique keys make
+// recording the same money twice impossible at the database level: one per
+// source (an attempt, a claim, a held attempt, a refund request, or the
+// caller's idempotency key for an admin recording) and one per provider
+// transaction. `recorded_by_account_id` carries no foreign key on purpose: the
+// row is a financial record that must outlive the person who typed it, and a
+// dead account id is not personal data. It is null when a provider confirmed
+// the money.
+export const invoicePaymentKind = pgEnum('invoice_payment_kind', [
+  'ONLINE',
+  'MANUAL_CLAIM',
+  'ADMIN_RECORDED',
+  'CREDIT',
+  'REFUND',
+]);
+
+export const invoicePayments = pgTable(
+  'invoice_payments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // The order rows were written in (rows written in one transaction share a timestamp).
+    seq: bigserial('seq', { mode: 'number' }).notNull(),
+    invoiceId: uuid('invoice_id')
+      .notNull()
+      .references(() => invoices.id, { onDelete: 'restrict' }),
+    amountMinorUnits: integer('amount_minor_units').notNull(),
+    currency: text('currency').notNull(),
+    kind: invoicePaymentKind('kind').notNull(),
+    sourceId: uuid('source_id'),
+    provider: text('provider'),
+    providerTransactionId: text('provider_transaction_id'),
+    reference: text('reference').notNull(),
+    collectedDate: timestamp('collected_date', { withTimezone: true }).notNull(),
+    recordedByAccountId: uuid('recorded_by_account_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('invoice_payments_invoice_idx').on(table.invoiceId),
+    unique('invoice_payments_kind_source_unique').on(table.kind, table.sourceId),
+    unique('invoice_payments_provider_transaction_unique').on(
+      table.provider,
+      table.providerTransactionId,
+    ),
+    check(
+      'invoice_payments_amount_sign',
+      sql`(${table.kind} = 'REFUND' and ${table.amountMinorUnits} < 0) or (${table.kind} <> 'REFUND' and ${table.amountMinorUnits} > 0)`,
+    ),
+    check(
+      'invoice_payments_source_required',
+      sql`${table.kind} = 'ADMIN_RECORDED' or ${table.sourceId} is not null`,
+    ),
+    check(
+      'invoice_payments_provider_pair',
+      sql`(${table.provider} is null) = (${table.providerTransactionId} is null)`,
+    ),
+    check('invoice_payments_reference_present', sql`length(btrim(${table.reference})) > 0`),
+  ],
+);

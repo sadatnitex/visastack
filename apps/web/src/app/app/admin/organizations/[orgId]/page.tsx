@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   type BillingStatus,
   type Invoice,
@@ -316,7 +317,12 @@ export default async function AdminOrganizationPage({
                       alignItems: 'flex-start',
                     }}
                   >
-                    <RecordPaymentForm organizationId={orgId} invoiceId={invoice.id} />
+                    <RecordPaymentForm
+                      organizationId={orgId}
+                      invoiceId={invoice.id}
+                      currency={invoice.currency}
+                      idempotencyKey={randomUUID()}
+                    />
                     <VoidInvoiceButton organizationId={orgId} invoiceId={invoice.id} />
                   </div>
                 ) : null}
