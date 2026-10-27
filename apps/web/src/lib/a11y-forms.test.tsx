@@ -68,6 +68,7 @@ vi.mock('../app/app/applicant/[id]/section-actions', standIn);
 vi.mock('../app/app/applicant/[id]/evidence/actions', standIn);
 vi.mock('../app/app/applicant/[id]/missions/actions', standIn);
 vi.mock('../app/app/applicant/[id]/sharing/actions', standIn);
+vi.mock('../app/app/applicant/[id]/calendar/feed-actions', standIn);
 vi.mock('../app/app/client-invitations/accept/actions', standIn);
 vi.mock('../app/app/contributor-requests/accept/actions', standIn);
 vi.mock('../app/app/invitations/accept/actions', standIn);
@@ -163,6 +164,9 @@ const { AcknowledgementPanel } = await import(
 const { SubmissionReportPanel } = await import('../app/app/mission/[id]/submission-report-panel');
 const { DeletionPanel } = await import('../app/app/privacy/deletion-panel');
 const { LargeExportPanel } = await import('../app/app/privacy/large-export-panel');
+const { CalendarFeedPanel } = await import(
+  '../app/app/applicant/[id]/calendar/calendar-feed-panel'
+);
 
 interface Case {
   readonly name: string;
@@ -1049,6 +1053,20 @@ const PRIVACY: readonly Case[] = [
     ),
   },
   { name: 'large export (nothing requested)', element: () => <LargeExportPanel jobs={[]} /> },
+  {
+    name: 'calendar link (off)',
+    element: () => <CalendarFeedPanel applicantId="a1" status={{ state: 'off' }} />,
+  },
+  {
+    name: 'calendar link (on)',
+    element: () => (
+      <CalendarFeedPanel applicantId="a1" status={{ state: 'on', linkMadeOn: '20 Oct 2026' }} />
+    ),
+  },
+  {
+    name: 'calendar link (not available yet)',
+    element: () => <CalendarFeedPanel applicantId="a1" status={{ state: 'unavailable' }} />,
+  },
   {
     name: 'large export (every state)',
     element: () => (

@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   requireAccess: vi.fn(),
   listCalendarDates: vi.fn(),
   recordCalendarExport: vi.fn(),
+  getCalendarFeedStatus: vi.fn(),
 }));
 
 vi.mock('@visastack/services', async (importOriginal) => ({
@@ -23,6 +24,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   requireAccess: mocks.requireAccess,
   listCalendarDates: mocks.listCalendarDates,
   recordCalendarExport: mocks.recordCalendarExport,
+  getCalendarFeedStatus: mocks.getCalendarFeedStatus,
 }));
 vi.mock('../../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
@@ -125,7 +127,8 @@ describe('calendar export page (v1.2 B05)', () => {
     }
     expect(html).toMatch(/<form [^>]*action="\/app\/applicant\/a1\/calendar" method="get"/);
     expect(html).not.toMatch(/<button[^>]*disabled/);
-    expect([...html.matchAll(/<h([1-6])/g)].map((m) => Number(m[1]))).toEqual([2, 3]);
+    // The page heading, Choose Dates and Subscribe in Your Calendar App.
+    expect([...html.matchAll(/<h([1-6])/g)].map((m) => Number(m[1]))).toEqual([2, 3, 3]);
     expect(text).not.toMatch(/mission/i);
   });
 
@@ -218,5 +221,56 @@ describe('calendar export page (v1.2 B05)', () => {
     expect(textOf(await render())).toContain(
       'Only the earliest 50 of each kind of date are listed.',
     );
+  });
+});
+
+describe('subscribing in a calendar app', () => {
+  beforeEach(() => {
+    mocks.requireAccess.mockResolvedValue(ownerProof());
+    mocks.listCalendarDates.mockResolvedValue(listing());
+  });
+
+  it('offers to turn a private link on, with the warning that anyone with it sees the dates', async () => {
+    mocks.getCalendarFeedStatus.mockResolvedValue({ ok: true, value: { state: 'off' } });
+    const html = await render();
+    const text = textOf(html);
+    expect(text).toContain('Subscribe in Your Calendar App');
+    expect(text).toContain('Anyone who has this link can see these dates');
+    expect(text).toContain('Turn On Calendar Link');
+    expect(text).not.toContain('Stop Sharing');
+    expect(html).toContain('name="applicantId" value="a1"');
+    // The status is asked of the gate as the owner, like the dates.
+    expect(mocks.getCalendarFeedStatus).toHaveBeenCalledWith(ownerProof().value);
+  });
+
+  it('says a link is on without ever showing it again, and offers a new link or stopping it', async () => {
+    mocks.getCalendarFeedStatus.mockResolvedValue({
+      ok: true,
+      value: { state: 'on', linkMadeAt: new Date('2026-10-20T08:00:00Z') },
+    });
+    const html = await render();
+    const text = textOf(html);
+    expect(text).toContain('Your calendar link is on, made on 20 Oct 2026');
+    expect(text).toContain('shown only once');
+    expect(text).toContain('Make a New Link');
+    expect(text).toContain('Stop Sharing');
+    expect(text).not.toContain('Turn On Calendar Link');
+    expect(html).not.toContain('/api/calendar-feed/');
+  });
+
+  it('says it is not available yet before the table exists, also when there are no dates', async () => {
+    mocks.getCalendarFeedStatus.mockResolvedValue({ ok: true, value: { state: 'unavailable' } });
+    mocks.listCalendarDates.mockResolvedValue(listing([]));
+    const text = textOf(await render());
+    expect(text).toContain('No Dates to Add');
+    expect(text).toContain('Subscribing in your calendar app is not available yet.');
+    expect(text).not.toContain('Turn On Calendar Link');
+  });
+
+  it('shows the section as unavailable when the status cannot be read, and the page still works', async () => {
+    mocks.getCalendarFeedStatus.mockRejectedValue(new Error('database down'));
+    const text = textOf(await render());
+    expect(text).toContain('Choose Dates');
+    expect(text).toContain('Subscribing in your calendar app is not available yet.');
   });
 });

@@ -1,5 +1,6 @@
 import 'server-only';
 import type { NeonAuth } from '@neondatabase/auth/next/server';
+import { cookies } from 'next/headers';
 import { cache } from 'react';
 import { getNeonAuth } from './neon-auth';
 
@@ -17,7 +18,32 @@ import { getNeonAuth } from './neon-auth';
  */
 type RequestSession = ReturnType<NeonAuth['getSession']>;
 
-const readRequestSession: () => RequestSession = cache(() => getNeonAuth().getSession());
+/**
+ * Neon Auth's own server code forwards only the cookies whose names start with this prefix when
+ * it asks its service for the session (`extractNeonAuthCookies` in `@neondatabase/auth`, pinned by
+ * a test). A request carrying none of them sends that service an empty cookie header, which can
+ * only ever answer "nobody is signed in".
+ */
+export const NEON_AUTH_COOKIE_PREFIX = '__Secure-neon-auth';
+
+/** The answer Neon Auth gives for a visitor with no session, without the trip to ask for it. */
+const SIGNED_OUT = { data: null, error: null };
+
+/**
+ * A visitor with no Neon Auth cookie at all (almost every visitor to the public pages, whose shared
+ * header asks this on every page) is answered here instead of with a network request whose answer
+ * is already known. Any Neon Auth cookie, valid or not, still goes to Neon Auth exactly as before.
+ */
+async function readSession(): Promise<Awaited<RequestSession>> {
+  const store = await cookies();
+  const carriesNeonAuthCookie = store
+    .getAll()
+    .some((cookie) => cookie.name.startsWith(NEON_AUTH_COOKIE_PREFIX));
+  if (!carriesNeonAuthCookie) return SIGNED_OUT as Awaited<RequestSession>;
+  return getNeonAuth().getSession();
+}
+
+const readRequestSession: () => RequestSession = cache(readSession) as () => RequestSession;
 
 /** A session reader shared by `NeonIdentityPort` and the session-age check: one read per request. */
 export function requestSessionReader(): { getSession(): RequestSession } {

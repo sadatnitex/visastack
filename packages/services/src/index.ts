@@ -1642,3 +1642,22 @@ export {
   listEmailDeliveryProblems,
   resendEmail,
 } from './email-delivery-admin';
+export {
+  type CalendarFeedHolder,
+  calendarFeedsPresent,
+  isCalendarFeedSecretShape,
+  requireCalendarFeedAccess,
+  resolveCalendarFeedSecret,
+} from './access';
+export {
+  CALENDAR_FEED_LINK_REPLACED_EVENT,
+  CALENDAR_FEED_TURNED_OFF_EVENT,
+  CALENDAR_FEED_TURNED_ON_EVENT,
+  CALENDAR_FEED_UNAVAILABLE,
+  type CalendarFeedLink,
+  type CalendarFeedStatus,
+  getCalendarFeedStatus,
+  replaceCalendarFeedLink,
+  turnOffCalendarFeed,
+  turnOnCalendarFeed,
+} from './calendar-feeds';

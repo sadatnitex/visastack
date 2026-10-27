@@ -37,3 +37,12 @@ export {
   applyDocumentProtectionOverrides,
 } from './restricted-documents';
 export { StepUpProof, verifyStepUp } from './step-up-proof';
+export {
+  type CalendarFeedHolder,
+  calendarFeedsPresent,
+  generateCalendarFeedSecret,
+  hashCalendarFeedSecret,
+  isCalendarFeedSecretShape,
+  requireCalendarFeedAccess,
+  resolveCalendarFeedSecret,
+} from './calendar-feed-secret';

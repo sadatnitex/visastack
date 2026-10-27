@@ -9,6 +9,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
+import { formatTimestampDate } from '../../../../../lib/format-date';
 import {
   CALENDAR_EXPORT_LIMIT,
   describeCalendarItem,
@@ -17,7 +18,13 @@ import {
 } from '../../../../../lib/ics';
 import { CALENDAR_REMINDER_LABELS, CALENDAR_REMINDER_ORDER } from '../../../../../lib/labels';
 import { plural } from '../../../../../lib/plural';
-import { CALENDAR_KEY_FIELD, loadCalendarDates, readCalendarKeys } from './load';
+import { CalendarFeedPanel, type CalendarFeedPanelStatus } from './calendar-feed-panel';
+import {
+  CALENDAR_KEY_FIELD,
+  loadCalendarDates,
+  loadCalendarFeedStatus,
+  readCalendarKeys,
+} from './load';
 
 export const metadata: Metadata = { title: 'Add Dates to My Calendar' };
 
@@ -54,8 +61,13 @@ export default async function CalendarExportPage({
 }) {
   const { id } = await params;
   const query = await searchParams;
-  const loaded = await loadCalendarDates(id);
+  const [loaded, feed] = await Promise.all([loadCalendarDates(id), loadCalendarFeedStatus(id)]);
   if (loaded.state === 'denied') notFound();
+  const feedStatus: CalendarFeedPanelStatus =
+    feed.state === 'on'
+      ? { state: 'on', linkMadeOn: formatTimestampDate(feed.linkMadeAt) }
+      : { state: feed.state };
+  const subscribe = <CalendarFeedPanel applicantId={id} status={feedStatus} />;
 
   const pageHref = `/app/applicant/${id}/calendar`;
   const header = (
@@ -124,6 +136,7 @@ export default async function CalendarExportPage({
           Appointments, due dates and document expiry dates appear here once they are set. Items
           without a date are never added.
         </EmptyState>
+        {subscribe}
       </>
     );
   }
@@ -290,6 +303,7 @@ export default async function CalendarExportPage({
           </div>
         </form>
       </section>
+      {subscribe}
     </>
   );
 }

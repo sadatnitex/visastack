@@ -1,3 +1,4 @@
+import { unstable_rethrow } from 'next/navigation';
 import { createIdentityPort } from './providers';
 import { reportServerError } from './server-error';
 
@@ -15,6 +16,9 @@ export async function isSignedIn(reader?: SessionReader): Promise<boolean> {
   try {
     return Boolean(await (reader ?? createIdentityPort()).currentIdentity());
   } catch (error) {
+    // Next's own signals (a page found to be per-request while it is built, a redirect) are not
+    // failures: they go back to Next unchanged, so they are never logged as errors or hidden.
+    unstable_rethrow(error);
     reportServerError('public navigation identity', error);
     return false;
   }

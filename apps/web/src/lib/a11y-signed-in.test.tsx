@@ -61,11 +61,11 @@ vi.mock('@visastack/services', async (importOriginal) => ({
 const { default: RootLayout } = await import('../app/layout');
 const { default: AppLayout } = await import('../app/app/layout');
 const { default: NotificationsPage } = await import('../app/app/notifications/page');
-const { default: SharedPage } = await import('../app/app/shared/page');
+const { default: SharedPage } = await import('../app/app/shared/(list)/page');
 const { default: ApplicantsPage } = await import('../app/app/applicants/page');
 const { default: AccountPage } = await import('../app/app/account/page');
 const { default: AgencyPage } = await import('../app/app/agency/page');
-const { default: AppLoading } = await import('../app/app/loading');
+const { default: AppLoading } = await import('../app/app/applicants/loading');
 const { default: AppError } = await import('../app/error');
 
 interface Screen {
@@ -185,7 +185,7 @@ const SCREENS: readonly Screen[] = [
     },
     build: async () => await AgencyPage(),
   },
-  { name: 'loading screen', path: '/app', build: async () => <AppLoading /> },
+  { name: 'loading screen', path: '/app/applicants', build: async () => <AppLoading /> },
   {
     name: 'something went wrong, with a retry',
     path: '/app',

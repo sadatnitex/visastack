@@ -1,6 +1,8 @@
 import {
   type CalendarDates,
+  type CalendarFeedStatus,
   accountPrincipal,
+  getCalendarFeedStatus,
   listCalendarDates,
   recordCalendarExport,
   requireAccess,
@@ -83,6 +85,32 @@ export async function exportCalendarDates<
       source: 'dates',
     });
     return recorded.ok ? { state: 'ready' as const, chosen } : { state: 'failed' as const };
+  });
+}
+
+/**
+ * Whether this traveller's calendar subscription link is on, for the calendar page, through the
+ * access gate as the owner like the dates themselves. A failed read shows the section as
+ * unavailable rather than breaking the page.
+ */
+export async function loadCalendarFeedStatus(applicantId: string): Promise<CalendarFeedStatus> {
+  return withSession(async ({ db, accountId }) => {
+    const access = await requireAccess(
+      db,
+      accountPrincipal(accountId),
+      'VIEW_METADATA',
+      { applicantId },
+      { purpose: 'self' },
+    );
+    if (!access.ok || access.value.actor.kind !== 'applicant_owner') {
+      return { state: 'unavailable' as const };
+    }
+    try {
+      const status = await getCalendarFeedStatus(access.value);
+      return status.ok ? status.value : { state: 'unavailable' as const };
+    } catch {
+      return { state: 'unavailable' as const };
+    }
   });
 }
 

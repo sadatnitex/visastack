@@ -4476,3 +4476,30 @@ export const paymentReceipts = pgTable(
     check('payment_receipts_amount_positive', sql`${table.amountMinorUnits} > 0`),
   ],
 );
+
+// A private calendar subscription link for one traveller (v1.2 B05 live feed, ADR 0016). Calendar
+// apps cannot sign in, so the link carries a long random secret; only its SHA-256 is kept, so
+// nobody can read a working link back out of the database. One link per traveller at most: a new
+// link replaces the old one, and stopping it deletes the row (the old address then answers "not
+// found"). The account that turned it on is the one the feed reads as, through the access gate,
+// every time a calendar app asks; if that account no longer owns the traveller, the feed stops.
+export const calendarFeeds = pgTable(
+  'calendar_feeds',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .unique('calendar_feeds_applicant_unique')
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    ownerAccountId: uuid('owner_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    secretHash: text('secret_hash').notNull().unique('calendar_feeds_secret_hash_unique'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    linkMadeAt: timestamp('link_made_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('calendar_feeds_owner_idx').on(table.ownerAccountId),
+    check('calendar_feeds_secret_hash_shape', sql`${table.secretHash} ~ '^[0-9a-f]{64}$'`),
+  ],
+);

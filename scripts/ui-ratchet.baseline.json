@@ -72,7 +72,7 @@
     "apps/web/src/app/app/privacy/large-export-panel.tsx": 3,
     "apps/web/src/app/app/privacy/page.tsx": 1,
     "apps/web/src/app/app/shared/[grantId]/page.tsx": 2,
-    "apps/web/src/app/app/shared/page.tsx": 5,
+    "apps/web/src/app/app/shared/(list)/page.tsx": 5,
     "apps/web/src/app/auth/auth-ui.tsx": 1,
     "apps/web/src/app/global-error.tsx": 6,
     "apps/web/src/app/not-found.tsx": 3,
