@@ -110,6 +110,7 @@ const { DocumentUploader } = await import('../app/app/applicant/[id]/document-up
 const { SubmitResponseForm } = await import(
   '../app/app/applicant/[id]/evidence/submit-response-form'
 );
+const { AskAboutItemForm } = await import('../app/app/applicant/[id]/evidence/ask-about-item-form');
 const { CreateMissionForm } = await import(
   '../app/app/applicant/[id]/missions/create-mission-form'
 );
@@ -288,11 +289,8 @@ const DOCS: readonly Case[] = [
       usedFallback
     />
   )),
-  row('run the field reader', () => (
-    <aiReview.RunAiExtractionButton applicantId="a1" documentVersionId="v1" />
-  )),
-  row('run the text reader', () => (
-    <aiReview.RunOcrButton applicantId="a1" documentVersionId="v1" />
+  row('read a document again', () => (
+    <aiReview.ReadAgainButton applicantId="a1" documentVersionId="v1" />
   )),
   row('run the document type check', () => (
     <aiReview.RunClassificationButton applicantId="a1" documentVersionId="v1" />
@@ -429,6 +427,33 @@ const DOCS: readonly Case[] = [
         ]}
       />
     ),
+  },
+  {
+    name: 'answer an evidence request that no longer waits on the person',
+    element: () => (
+      <SubmitResponseForm
+        applicantId="a1"
+        requestId="r4"
+        kind="DOCUMENT"
+        awaiting={false}
+        timeZone="Asia/Dhaka"
+        candidateFacts={[]}
+        candidateDocuments={[]}
+      />
+    ),
+  },
+  {
+    name: 'ask the agency a question about a request',
+    element: () => (
+      <AskAboutItemForm
+        applicantId="a1"
+        missionId="m1"
+        requestId="r1"
+        maxLength={500}
+        timeZone="Asia/Dhaka"
+      />
+    ),
+    repeated: true,
   },
   {
     name: 'answer an evidence request with nothing to offer',
@@ -1391,7 +1416,12 @@ const ADMIN: readonly Case[] = [
     element: () => <organisationForms.CreateInvoiceForm organizationId="o1" plans={PLANS} />,
   },
   row('record a payment', () => (
-    <organisationForms.RecordPaymentForm organizationId="o1" invoiceId={rowId()} />
+    <organisationForms.RecordPaymentForm
+      organizationId="o1"
+      invoiceId={rowId()}
+      currency="BDT"
+      idempotencyKey="6f1c2d1e-8a54-4c8f-9d55-0a1b2c3d4e5f"
+    />
   )),
   row('void an invoice', () => (
     <organisationForms.VoidInvoiceButton organizationId="o1" invoiceId={rowId()} />

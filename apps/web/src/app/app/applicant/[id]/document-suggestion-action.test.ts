@@ -7,7 +7,11 @@ const mocks = vi.hoisted(() => ({
   resolveAiClassifier: vi.fn(),
   resolveAiExtractor: vi.fn(),
   runExtraction: vi.fn(),
+  runOcr: vi.fn(),
+  renderOcrSourceImage: vi.fn(),
+  resolveOcrAdapter: vi.fn(),
   getLatestExtractedText: vi.fn(),
+  getApplicant: vi.fn(),
   reportServerError: vi.fn(),
 }));
 
@@ -17,7 +21,9 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   decideDocumentSuggestion: mocks.decideDocumentSuggestion,
   suggestDocumentKind: mocks.suggestDocumentKind,
   runExtraction: mocks.runExtraction,
-  getApplicant: async () => ({ id: 'a-1', ownerAccountId: 'owner-1' }),
+  runOcr: mocks.runOcr,
+  renderOcrSourceImage: mocks.renderOcrSourceImage,
+  getApplicant: mocks.getApplicant,
   getLatestExtractedText: mocks.getLatestExtractedText,
   isAiDispatchAllowed: async () => true,
 }));
@@ -25,7 +31,7 @@ vi.mock('../../../../lib/ai', () => ({
   resolveAiClassifier: mocks.resolveAiClassifier,
   resolveAiExtractor: mocks.resolveAiExtractor,
   resolveAiInconsistencyChecker: vi.fn(),
-  resolveOcrAdapter: vi.fn(),
+  resolveOcrAdapter: mocks.resolveOcrAdapter,
 }));
 vi.mock('../../../../lib/field-registry', () => ({
   ensureDocumentFieldsRegistered: async () => 0,
@@ -39,13 +45,18 @@ vi.mock('../../../../lib/providers', () => ({
   createKeyManagementPort: () => undefined,
   createPreviewRenderer: () => undefined,
 }));
+vi.mock('../../../../lib/storage', () => ({ createStorage: () => ({}) }));
 vi.mock('../../../../lib/session', () => ({
   withSession: async (fn: (ctx: { db: object; accountId: string }) => unknown) =>
     fn({ db: {}, accountId: 'owner-1' }),
 }));
 
-const { decideDocumentSuggestionAction, runAiExtractionAction, runClassificationAction } =
-  await import('./actions');
+const {
+  decideDocumentSuggestionAction,
+  readAgainAction,
+  runAiExtractionAction,
+  runClassificationAction,
+} = await import('./actions');
 
 const initial = { ok: true, message: '' };
 const proof = { applicant: { id: 'a-1' } };
@@ -61,6 +72,7 @@ function form(fields: Record<string, string>): FormData {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.getApplicant.mockResolvedValue({ id: 'a-1', ownerAccountId: 'owner-1' });
   mocks.requireAccess.mockResolvedValue({ ok: true, value: proof });
 });
 
@@ -254,7 +266,7 @@ describe('reading details from a document', () => {
     expect(await read()).toEqual({
       ok: true,
       message:
-        'AI extraction proposed 2 field(s) for review. It also suggested what kind of document this is and a name for it. Check them below.',
+        'Reading finished. 2 details are ready for you to check. It also suggested what kind of document this is and a name for it. Check them below.',
     });
   });
 
@@ -264,7 +276,10 @@ describe('reading details from a document', () => {
       ok: false,
       error: { code: 'upstream_error', message: 'provider down' },
     });
-    expect(await read()).toEqual({ ok: false, message: 'provider down' });
+    expect(await read()).toEqual({
+      ok: false,
+      message: 'The reading did not work this time. Try again later, or add the details yourself.',
+    });
     expect(mocks.suggestDocumentKind).not.toHaveBeenCalled();
     expect(mocks.resolveAiClassifier).not.toHaveBeenCalled();
   });
@@ -277,13 +292,105 @@ describe('reading details from a document', () => {
     });
     expect(await read()).toEqual({
       ok: true,
-      message: 'AI extraction proposed 2 field(s) for review.',
+      message: 'Reading finished. 2 details are ready for you to check.',
     });
     mocks.resolveAiClassifier.mockRejectedValueOnce(new Error('key store unavailable'));
     expect(await read()).toEqual({
       ok: true,
-      message: 'AI extraction proposed 2 field(s) for review.',
+      message: 'Reading finished. 2 details are ready for you to check.',
     });
     expect(mocks.reportServerError).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('reading a file again', () => {
+  const again = () => {
+    const data = new FormData();
+    data.set('applicantId', 'a-1');
+    data.set('documentVersionId', 'v-1');
+    return readAgainAction(initial, data);
+  };
+  beforeEach(() => {
+    mocks.resolveAiClassifier.mockResolvedValue(undefined);
+    mocks.resolveAiExtractor.mockResolvedValue({ ai: {}, limits: { budgetLimitUnits: 1 } });
+    mocks.resolveOcrAdapter.mockResolvedValue({ ai: {}, limits: { budgetLimitUnits: 1 } });
+    mocks.renderOcrSourceImage.mockResolvedValue({
+      ok: true,
+      imageBytes: new Uint8Array([1]),
+      contentType: 'image/png',
+    });
+    mocks.runOcr.mockResolvedValue({ ok: true, value: { ocrRun: { reviewIssues: [] } } });
+    mocks.runExtraction.mockResolvedValue({ ok: true, value: { proposals: [{}] } });
+  });
+
+  it('reads details straight from the text when the file already has some, without reading a picture', async () => {
+    mocks.getLatestExtractedText.mockResolvedValue('some text');
+    expect(await again()).toEqual({
+      ok: true,
+      message: 'Reading finished. One detail is ready for you to check.',
+    });
+    expect(mocks.runOcr).not.toHaveBeenCalled();
+    expect(mocks.runExtraction).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads the picture first when there is no text, then reads details from what that gave', async () => {
+    mocks.getLatestExtractedText.mockResolvedValueOnce(undefined).mockResolvedValue('read text');
+    const order: string[] = [];
+    mocks.runOcr.mockImplementation(async () => {
+      order.push('picture');
+      return { ok: true, value: { ocrRun: { reviewIssues: [] } } };
+    });
+    mocks.runExtraction.mockImplementation(async () => {
+      order.push('details');
+      return { ok: true, value: { proposals: [{}, {}] } };
+    });
+    expect(await again()).toEqual({
+      ok: true,
+      message: 'Reading finished. 2 details are ready for you to check.',
+    });
+    expect(order).toEqual(['picture', 'details']);
+  });
+
+  it('stops after a picture that could not be read, and says it in plain words', async () => {
+    mocks.getLatestExtractedText.mockResolvedValue(undefined);
+    mocks.runOcr.mockResolvedValue({
+      ok: false,
+      error: { code: 'upstream_error', message: 'provider 503 from api.example.test' },
+    });
+    const result = await again();
+    expect(result).toEqual({
+      ok: false,
+      message: 'The reading did not work this time. Try again later, or add the details yourself.',
+    });
+    expect(mocks.runExtraction).not.toHaveBeenCalled();
+  });
+
+  it('turns every refusal into a sentence a person can act on, never the service’s own wording', async () => {
+    mocks.getLatestExtractedText.mockResolvedValue('some text');
+    const cases: [string, string][] = [
+      ['consent_required', 'Reading with AI is off. You can turn it on from Home.'],
+      ['rate_limited', 'Reading is busy right now. Try again in a minute.'],
+      [
+        'invalid',
+        'We reached a reading limit for this file, or reading with AI is switched off for now. You can add the details yourself.',
+      ],
+    ];
+    for (const [code, message] of cases) {
+      mocks.runExtraction.mockResolvedValue({
+        ok: false,
+        error: { code, message: 'AI budget exhausted' },
+      });
+      expect(await again()).toEqual({ ok: false, message });
+    }
+  });
+
+  it('does nothing for a traveller record that is not the signed-in owner’s', async () => {
+    const data = new FormData();
+    data.set('applicantId', 'someone-else');
+    data.set('documentVersionId', 'v-1');
+    mocks.getApplicant.mockResolvedValueOnce({ id: 'someone-else', ownerAccountId: 'other-owner' });
+    expect(await readAgainAction(initial, data)).toEqual({ ok: false, message: 'Not authorized.' });
+    expect(mocks.runOcr).not.toHaveBeenCalled();
+    expect(mocks.runExtraction).not.toHaveBeenCalled();
   });
 });

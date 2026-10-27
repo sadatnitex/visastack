@@ -169,9 +169,11 @@ describe('agency Clients', () => {
   it('shows each evidence request with its status, and decision controls only where a decision is due', async () => {
     const html = await renderServer(Page(props));
     const text = textOf(html);
-    expect(text).toContain('Document: PASSPORT');
-    expect(text).toContain('Submitted');
-    expect(text).toContain('Document: BANK_STATEMENT');
+    expect(text).toContain('Document: Passport');
+    expect(text).toContain('Received');
+    expect(text).not.toContain('Submitted');
+    expect(text).not.toContain('PASSPORT');
+    expect(text).toContain('Document: Bank Statement');
     expect(text).toContain('Open');
     expect(stubProps(html, 'EvidenceRequestActions')).toEqual([
       { organizationId: 'o1', requestId: 'r1', status: 'RECEIVED' },

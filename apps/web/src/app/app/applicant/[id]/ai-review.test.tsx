@@ -8,13 +8,12 @@ vi.mock('./actions', () => ({
   decideClassificationProposalAction: vi.fn(),
   decideInconsistencyFlagAction: vi.fn(),
   decideProposalAction: vi.fn(),
-  runAiExtractionAction: vi.fn(),
+  readAgainAction: vi.fn(),
   runClassificationAction: vi.fn(),
   runInconsistencyCheckAction: vi.fn(),
-  runOcrAction: vi.fn(),
 }));
 
-const { DocumentFindings } = await import('./ai-review');
+const { DocumentFindings, ReadAgainButton } = await import('./ai-review');
 const actions = await import('./actions');
 type Finding = Parameters<typeof DocumentFindings>[0]['proposals'][number];
 
@@ -272,5 +271,59 @@ describe('check what we found', () => {
       finish({ ok: true, message: 'Saved 2 details to your profile.' });
     });
     expect(cardButtons().every((b) => b.getAttribute('aria-disabled') !== 'true')).toBe(true);
+  });
+});
+
+describe('where each suggestion came from (S6)', () => {
+  it('names the source under each suggestion, in plain words', () => {
+    render([
+      finding({ id: 'a', fieldLabel: 'Family Name', source: 'machine_readable' }),
+      finding({ id: 'b', fieldLabel: 'City', source: 'document_text', clear: false }),
+      finding({ id: 'c', fieldLabel: 'Occupation', source: 'ai_image', clear: false }),
+      finding({ id: 'd', fieldLabel: 'Hobby', clear: false }),
+    ]);
+    const origin = (heading: string) =>
+      [...host.querySelectorAll('.finding-card')]
+        .find((card) => card.querySelector('h4')?.textContent === heading)
+        ?.querySelector('.finding-origin')?.textContent;
+    expect(origin('Family Name')).toContain('Read from the Machine-Readable Lines');
+    expect(origin('Family Name')).toContain('No AI was used.');
+    expect(origin('City')).toContain('Read from the Document');
+    expect(origin('Occupation')).toContain('Read with AI');
+    // A suggestion whose source is not known says nothing about it, rather than guessing.
+    expect(origin('Hobby')).toBeUndefined();
+  });
+
+  it('uses the suggestion’s own sentence for the machine-readable lines, such as a country shown as a code', () => {
+    render([
+      finding({
+        id: 'a',
+        fieldLabel: 'Nationality',
+        source: 'machine_readable',
+        clear: false,
+        rationale:
+          "Read from the passport's machine-readable lines. The country is shown as the code the passport prints.",
+      }),
+    ]);
+    expect(host.querySelector('.finding-origin')?.textContent).toContain(
+      'The country is shown as the code the passport prints.',
+    );
+  });
+});
+
+describe('Read Again (S6)', () => {
+  it('is one button that names itself, and says nothing about how it works', () => {
+    act(() => root.render(<ReadAgainButton applicantId="a1" documentVersionId="v1" />));
+    const buttons = [...host.querySelectorAll('button')];
+    expect(buttons.map((b) => b.textContent)).toEqual(['Read Again']);
+    expect(
+      [...host.querySelectorAll('input[type="hidden"]')].map((i) => [
+        (i as HTMLInputElement).name,
+        (i as HTMLInputElement).value,
+      ]),
+    ).toEqual([
+      ['applicantId', 'a1'],
+      ['documentVersionId', 'v1'],
+    ]);
   });
 });

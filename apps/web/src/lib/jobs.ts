@@ -8,6 +8,7 @@ import {
   type AbandonedUploadSweepResult,
   type AccountExportExpirySweepResult,
   type AccountExportWorkerResult,
+  type AiReadingWorkerResult,
   type CaseRetentionNoticeSweepResult,
   type CaseRetentionPurgeSweepResult,
   type DataKeyRewrapSummary,
@@ -28,6 +29,7 @@ import {
   pruneExpiredRateLimitBuckets,
   rewrapDataKeys,
   runAccountExportWorker,
+  runAiReadingWorker,
   runErasureWorker,
   runIntakeWorker,
   runNotificationWorker,
@@ -43,6 +45,7 @@ import {
   sweepLegalHoldReviewReminders,
   sweepTaskDeadlineReminders,
 } from '@visastack/services';
+import { createAiReadingPorts } from './ai-reading-ports';
 import { resolveBaseUrl } from './base-url';
 import { dispatchGithubIntake } from './github-intake';
 import { runKmsSelfTest } from './kms-self-test';
@@ -107,6 +110,41 @@ export async function triggerIntakeWorker(
   } catch (error) {
     reportServerError('triggerIntakeWorker', error, { step: 'worker pass failed' });
     return { processed: 0, failed: 0, unavailable: true };
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * Runs the automatic AI reading worker (S5, ADR 0019) on its own short-lived pooled connection,
+ * for the same reason as `triggerIntakeWorker`. It takes the job's own scope: only the
+ * `process-ai-reading` job route (and the helper beside it) can mint one, and the worker refuses
+ * anything else. Errors are caught and reported, never thrown: a queued reading stays PENDING (or
+ * is retried or parked at FAILED by the worker itself), so a crash here loses nothing.
+ */
+export async function triggerAiReadingWorker(
+  scope: SystemScope<'process-ai-reading'>,
+  options: { readonly limit?: number; readonly timeBudgetMs?: number } = {},
+): Promise<AiReadingWorkerResult & { readonly unavailable?: true }> {
+  const connectionString = resolveDatabaseUrl(process.env);
+  if (!connectionString) {
+    console.error('[triggerAiReadingWorker] database not configured');
+    return { processed: 0, stopped: 0, failed: 0, unavailable: true };
+  }
+
+  const { db, pool } = createPooledDb(connectionString);
+  pool.on('error', (error) => {
+    reportServerError('triggerAiReadingWorker', error, { step: 'idle pool connection error' });
+  });
+  try {
+    const handle = db as unknown as Parameters<typeof runAiReadingWorker>[0];
+    return await runAiReadingWorker(handle, scope, createAiReadingPorts(handle), {
+      ...options,
+      observability: createObservabilityPort(),
+    });
+  } catch (error) {
+    reportServerError('triggerAiReadingWorker', error, { step: 'worker pass failed' });
+    return { processed: 0, stopped: 0, failed: 0, unavailable: true };
   } finally {
     await pool.end();
   }

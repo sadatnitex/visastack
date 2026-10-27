@@ -36,8 +36,6 @@
     "apps/web/src/app/app/applicant/[id]/ai-review.tsx": 35,
     "apps/web/src/app/app/applicant/[id]/document-uploader.tsx": 3,
     "apps/web/src/app/app/applicant/[id]/documents/page.tsx": 9,
-    "apps/web/src/app/app/applicant/[id]/evidence/page.tsx": 1,
-    "apps/web/src/app/app/applicant/[id]/evidence/submit-response-form.tsx": 5,
     "apps/web/src/app/app/applicant/[id]/expiry/page.tsx": 3,
     "apps/web/src/app/app/applicant/[id]/history/page.tsx": 7,
     "apps/web/src/app/app/applicant/[id]/missions/create-mission-form.tsx": 1,

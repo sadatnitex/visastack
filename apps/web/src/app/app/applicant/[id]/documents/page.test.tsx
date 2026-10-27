@@ -8,6 +8,19 @@ const mocks = vi.hoisted(() => ({
   hasConsent: vi.fn(),
   loadUploadQuotaConfig: vi.fn(),
   referenceCodesFor: vi.fn(async (): Promise<Map<string, string>> => new Map()),
+  requireAccess: vi.fn(
+    async (): Promise<{ ok: boolean; value?: unknown; error?: unknown }> => ({
+      ok: true,
+      value: { proof: 'owner' },
+    }),
+  ),
+  listDocumentReadingStates: vi.fn(async () => ({
+    ok: true,
+    value: { states: new Map(), sourceOfRun: new Map() },
+  })),
+  listPendingProposals: vi.fn(async (): Promise<unknown[]> => []),
+  detailsAvailable: vi.fn(async () => 'unconfigured'),
+  ocrConfigured: vi.fn(async () => false),
 }));
 
 vi.mock('@visastack/services', async (importOriginal) => ({
@@ -23,14 +36,18 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   listIssuerVerificationsForDocument: async () => [],
   listPendingDocumentTypeProposals: async () => [],
   listPendingInconsistencyFlags: async () => [],
-  listPendingProposals: async () => [],
+  listPendingProposals: mocks.listPendingProposals,
+  listApplicantProfile: async () => [],
+  requireAccess: mocks.requireAccess,
+  listDocumentReadingStates: mocks.listDocumentReadingStates,
 }));
 vi.mock('../../../../../lib/ai', () => ({
   createAiExtractor: () => undefined,
   isClassificationConfigured: async () => false,
   isEnvAiExtractionConfigured: () => false,
   isInconsistencyConfigured: async () => false,
-  isOcrConfigured: async () => false,
+  isOcrConfigured: mocks.ocrConfigured,
+  resolveAiExtractionAvailability: mocks.detailsAvailable,
 }));
 vi.mock('../../../../../lib/locale', () => ({ getLocale: async () => 'en' }));
 vi.mock('../../../../../lib/session', () => ({
@@ -49,10 +66,9 @@ vi.mock('../ai-review', () => ({
   DocumentFindings: stub('DocumentFindings'),
   InconsistencyFlagReview: stub('InconsistencyFlagReview'),
   OcrResultView: stub('OcrResultView'),
-  RunAiExtractionButton: stub('RunAiExtractionButton'),
+  ReadAgainButton: stub('ReadAgainButton'),
   RunClassificationButton: stub('RunClassificationButton'),
   RunInconsistencyCheckButton: stub('RunInconsistencyCheckButton'),
-  RunOcrButton: stub('RunOcrButton'),
 }));
 vi.mock('../document-uploader', () => ({ DocumentUploader: stub('DocumentUploader') }));
 vi.mock('../document-suggestion-card', () => ({
@@ -365,5 +381,205 @@ describe('document reference codes (ADR 0018)', () => {
   it('shows no code, and no label, before migration 0091 has run', async () => {
     mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [doc('d1', 'READY')] });
     expect(textOf(await render('d1'))).not.toContain('Document Reference');
+  });
+});
+
+/** A file that finished intake, with the classification row that lets Read Again appear. */
+const read = (id: string, processingStatus = 'AWAITING_REVIEW') => ({
+  ...doc(id, processingStatus),
+  classification: { classifiedType: null, reviewRequired: true },
+});
+const statesOf = (entries: Record<string, { stage: string; reason?: string }>) => ({
+  ok: true,
+  value: {
+    states: new Map(Object.entries(entries).map(([id, state]) => [`${id}-v1`, state])),
+    sourceOfRun: new Map(),
+  },
+});
+const grants = (granted: readonly string[]) =>
+  mocks.hasConsent.mockImplementation(async (_db: unknown, _account: unknown, type: string) =>
+    granted.includes(type),
+  );
+
+describe('how each file’s reading is going (ADR 0019)', () => {
+  it('names the state under each file in the five states, and nothing once every suggestion is decided', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: ['a', 'b', 'c', 'd', 'e', 'f'].map((id) => read(id)),
+    });
+    mocks.listDocumentReadingStates.mockResolvedValue(
+      statesOf({
+        a: { stage: 'checking' },
+        b: { stage: 'reading' },
+        c: { stage: 'found' },
+        d: { stage: 'could_not_read', reason: 'NOTHING_FOUND' },
+        e: { stage: 'needs_attention' },
+        f: { stage: 'done' },
+      }),
+    );
+    const text = async (id: string) => textOf(await render(id));
+    expect(await text('a')).toContain('Checking the File');
+    expect(await text('b')).toContain('Reading the File');
+    expect(await text('c')).toContain('We Found These Details');
+    expect(await text('d')).toContain('We Could Not Read This One');
+    expect(await text('e')).toContain('Needs Attention');
+    const done = await text('f');
+    for (const name of ['Checking the File', 'Reading the File', 'We Found These Details']) {
+      expect(done).not.toContain(name);
+    }
+    expect(done).not.toContain('We Could Not Read This One');
+  });
+
+  it('gives a file that could not be read a way forward: add the details yourself', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [read('d')] });
+    mocks.listDocumentReadingStates.mockResolvedValue(
+      statesOf({ d: { stage: 'could_not_read', reason: 'LIMIT_REACHED' } }),
+    );
+    const html = await render('d');
+    expect(textOf(html)).toContain('We reached a reading limit for this file.');
+    expect(html).toContain('href="/app/applicant/a1/profile"');
+    expect(textOf(html)).toContain('Add the Details Yourself');
+  });
+
+  it('keeps the page’s plain advice for a failed file, once, in the status', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [read('e', 'NEEDS_ATTENTION')],
+    });
+    mocks.listDocumentReadingStates.mockResolvedValue(
+      statesOf({ e: { stage: 'needs_attention' } }),
+    );
+    const text = textOf(await render('e'));
+    const advice =
+      'This file could not be accepted as it is. Try a different copy, such as a clearer scan or a smaller file.';
+    expect(text.split(advice)).toHaveLength(2);
+  });
+
+  it('keeps watching a file whose reading is still queued, though the file itself is ready', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [read('b')] });
+    mocks.listDocumentReadingStates.mockResolvedValue(statesOf({ b: { stage: 'reading' } }));
+    expect(stubProps(await render('b'), 'AutoRefresh')).toEqual([{ active: true }]);
+    mocks.listDocumentReadingStates.mockResolvedValue(statesOf({ b: { stage: 'found' } }));
+    expect(stubProps(await render('b'), 'AutoRefresh')).toEqual([{ active: false }]);
+  });
+
+  it('asks the reading states only through the owner’s access proof, for the latest versions', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [read('a'), read('b')] });
+    await render();
+    expect(mocks.requireAccess).toHaveBeenCalledWith(
+      expect.anything(),
+      { kind: 'account', accountId: 'acct-1' },
+      'VIEW_METADATA',
+      { applicantId: 'a1' },
+      { purpose: 'self' },
+    );
+    expect(mocks.listDocumentReadingStates).toHaveBeenCalledWith({ proof: 'owner' }, [
+      'a-v1',
+      'b-v1',
+    ]);
+  });
+
+  it('still shows the page, without states, when the reading states are refused', async () => {
+    mocks.requireAccess.mockResolvedValueOnce({ ok: false, error: { code: 'forbidden' } });
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [read('e', 'NEEDS_ATTENTION')],
+    });
+    const text = textOf(await render('e'));
+    expect(text).toContain('This file could not be accepted as it is.');
+    expect(mocks.listDocumentReadingStates).not.toHaveBeenCalled();
+  });
+});
+
+describe('the one invitation to switch reading on, and Read Again', () => {
+  beforeEach(() => {
+    mocks.detailsAvailable.mockResolvedValue('available');
+    mocks.ocrConfigured.mockResolvedValue(true);
+  });
+
+  it('asks once for the whole page, however many documents there are', async () => {
+    grants(['CORE_PROCESSING']);
+    mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [read('a'), read('b')] });
+    const text = textOf(await render());
+    expect(text.split('Want VisaStack to read your documents for you?')).toHaveLength(2);
+    expect(text).toContain('Turn On Reading with AI');
+  });
+
+  it('is not shown once reading is on, when it cannot be used here, or before processing is allowed', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [read('a')] });
+    grants(['CORE_PROCESSING', 'AI_EXTRACTION', 'AI_OCR']);
+    expect(textOf(await render())).not.toContain('Want VisaStack to read');
+    grants(['CORE_PROCESSING']);
+    mocks.detailsAvailable.mockResolvedValue('unconfigured');
+    mocks.ocrConfigured.mockResolvedValue(false);
+    expect(textOf(await render())).not.toContain('Want VisaStack to read');
+    mocks.detailsAvailable.mockResolvedValue('available');
+    mocks.ocrConfigured.mockResolvedValue(true);
+    grants([]);
+    expect(textOf(await render())).not.toContain('Want VisaStack to read');
+  });
+
+  it('offers Read Again after the first reading is over, never while it runs, and only when reading is on', async () => {
+    grants(['CORE_PROCESSING', 'AI_EXTRACTION']);
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: ['a', 'b', 'c', 'd'].map((id) => read(id)),
+    });
+    mocks.listDocumentReadingStates.mockResolvedValue(
+      statesOf({
+        a: { stage: 'reading' },
+        b: { stage: 'found' },
+        c: { stage: 'could_not_read', reason: 'NOTHING_FOUND' },
+        d: { stage: 'checking' },
+      }),
+    );
+    const offered = async (id: string) => stubProps(await render(id), 'ReadAgainButton').length;
+    expect(await offered('a')).toBe(0);
+    expect(await offered('b')).toBe(1);
+    expect(await offered('c')).toBe(1);
+    expect(await offered('d')).toBe(0);
+    const [props] = stubProps(await render('c'), 'ReadAgainButton');
+    expect(props).toEqual({ applicantId: 'a1', documentVersionId: 'c-v1' });
+
+    grants(['CORE_PROCESSING']);
+    expect(await offered('c')).toBe(0);
+  });
+
+  it('shows the passport’s suggestions without any AI switch, each with where it came from', async () => {
+    grants(['CORE_PROCESSING']);
+    mocks.detailsAvailable.mockResolvedValue('unconfigured');
+    mocks.ocrConfigured.mockResolvedValue(false);
+    mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [read('p')] });
+    mocks.listPendingProposals.mockResolvedValue([
+      {
+        proposal: {
+          id: 'pr1',
+          type: 'NEW',
+          fieldKey: 'family_name',
+          value: 'ERIKSSON',
+          confidence: 100,
+          rationale: 'Read from the passport’s machine-readable lines.',
+          documentVersionId: 'p-v1',
+          aiExtractionRunId: 'run-mrz',
+        },
+        evidence: [{ snippet: 'P<UTOERIKSSON<<ANNA', verified: true }],
+      },
+    ]);
+    mocks.listDocumentReadingStates.mockResolvedValue({
+      ok: true,
+      value: {
+        states: new Map([['p-v1', { stage: 'found' }]]),
+        sourceOfRun: new Map([['run-mrz', 'machine_readable']]),
+      },
+    });
+    const [findings] = stubProps<{ proposals: { fieldKey: string; source?: string }[] }>(
+      await render('p'),
+      'DocumentFindings',
+    );
+    expect(findings?.proposals).toHaveLength(1);
+    expect(findings?.proposals[0]).toMatchObject({
+      fieldKey: 'family_name',
+      source: 'machine_readable',
+    });
   });
 });

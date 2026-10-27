@@ -342,10 +342,15 @@ export async function recordInvoicePaymentAction(
   const amountMinorUnits = Number(String(formData.get('amountMinorUnits') ?? ''));
   const paymentReference = String(formData.get('paymentReference') ?? '').trim();
   const reason = String(formData.get('reason') ?? '').trim();
+  const currency = String(formData.get('currency') ?? '').trim();
+  const idempotencyKey = String(formData.get('idempotencyKey') ?? '').trim();
   const collectedDate = parseDate(formData, 'collectedDate') ?? new Date();
   if (invoiceId.length === 0) return { ok: false, message: 'Missing invoice id.' };
-  if (!Number.isFinite(amountMinorUnits) || amountMinorUnits <= 0) {
-    return { ok: false, message: 'Payment amount must be a positive number.' };
+  if (idempotencyKey.length === 0) {
+    return { ok: false, message: 'This page is out of date. Reload it and try again.' };
+  }
+  if (!Number.isInteger(amountMinorUnits) || amountMinorUnits <= 0) {
+    return { ok: false, message: 'Payment amount must be a whole, positive number.' };
   }
   if (paymentReference.length === 0)
     return { ok: false, message: 'A payment reference is required.' };
@@ -369,6 +374,8 @@ export async function recordInvoicePaymentAction(
       collectedDate,
       paymentReference,
       reason,
+      ...(currency.length > 0 ? { currency } : {}),
+      idempotencyKey,
     });
     if (!recorded.ok) return { ok: false, message: recorded.error.message } satisfies ActionState;
     return {

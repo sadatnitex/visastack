@@ -430,11 +430,18 @@ export function CreateInvoiceForm({
 export function RecordPaymentForm({
   organizationId,
   invoiceId,
+  currency,
+  idempotencyKey,
 }: {
   readonly organizationId: string;
   readonly invoiceId: string;
+  /** The invoice's currency. The person types the currency they received; it must match. */
+  readonly currency: string;
+  /** Made on the server each time the page is drawn, one per intended payment: sending this form twice (a double click, a repeated send) records the money once. A fresh page brings a fresh key. */
+  readonly idempotencyKey: string;
 }) {
   const [state, formAction, pending] = useActionState(recordInvoicePaymentAction, INITIAL);
+  const confirmCurrency = /^[A-Za-z]{3}$/.test(currency.trim());
   return (
     <form
       action={formAction}
@@ -443,6 +450,7 @@ export function RecordPaymentForm({
     >
       <input type="hidden" name="organizationId" value={organizationId} />
       <input type="hidden" name="invoiceId" value={invoiceId} />
+      <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       <div className="field-row">
         <label className="field-label" htmlFor={`payment-amount-${invoiceId}`}>
           Payment Amount (Minor Units)
@@ -452,10 +460,29 @@ export function RecordPaymentForm({
           name="amountMinorUnits"
           type="number"
           min="1"
+          step="1"
           required
           className="input"
         />
       </div>
+      {confirmCurrency ? (
+        <div className="field-row">
+          <label className="field-label" htmlFor={`payment-currency-${invoiceId}`}>
+            Currency Received
+          </label>
+          <input
+            id={`payment-currency-${invoiceId}`}
+            name="currency"
+            type="text"
+            required
+            minLength={3}
+            maxLength={3}
+            autoCapitalize="characters"
+            placeholder={`e.g. ${currency.trim().toUpperCase()}`}
+            className="input"
+          />
+        </div>
+      ) : null}
       <div className="field-row">
         <label className="field-label" htmlFor={`payment-date-${invoiceId}`}>
           Collected Date

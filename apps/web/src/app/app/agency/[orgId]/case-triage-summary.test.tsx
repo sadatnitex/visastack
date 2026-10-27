@@ -52,6 +52,58 @@ describe('where a case stands', () => {
   });
 });
 
+describe('one colour per group (WP-V4 colour polish)', () => {
+  it('colours each group by the same family the traveller sees, and never uses danger for a group', async () => {
+    const mixed = view({
+      readiness: {
+        overallState: 'NOT_READY',
+        requirementResults: [
+          {
+            packRequirementId: 'q1',
+            kind: 'DOCUMENT',
+            key: 'PASSPORT',
+            optional: false,
+            state: 'SATISFIED',
+          },
+          {
+            packRequirementId: 'q2',
+            kind: 'DOCUMENT',
+            key: 'BANK_STATEMENT',
+            optional: false,
+            state: 'CRITICAL_GAP',
+          },
+          {
+            packRequirementId: 'q3',
+            kind: 'DOCUMENT',
+            key: 'PHOTO',
+            optional: false,
+            state: 'CONFLICTING',
+          },
+          {
+            packRequirementId: 'q4',
+            kind: 'DOCUMENT',
+            key: 'INSURANCE',
+            optional: false,
+            state: 'SATISFIED',
+          },
+        ],
+      },
+      decisions: [{ packRequirementId: 'q1', outcome: 'ACCEPTED', createdAt: '2026-10-01' }],
+    });
+    const html = await renderServer(<CaseTriageSummary view={mixed} headingId="t" />);
+    const pairs = [
+      ...html.matchAll(/case-triage-group-(\w+)"><p class="case-triage-group-name">([^<]+)/g),
+    ].map((m) => [m[2]?.trim(), m[1]]);
+    expect(pairs).toEqual([
+      ['Missing', 'warning'],
+      ['Received or Awaiting Confirmation', 'neutral'],
+      ['Needs Correction or Clarification', 'warning'],
+      ['Reviewed', 'success'],
+    ]);
+    expect(html).not.toContain('case-triage-group-danger');
+  });
+});
+
 describe('where a case stands, for someone who cannot see requests (WP-V4 review)', () => {
   it('calls a complete checklist Checklist Complete, never Ready for Review', async () => {
     const member = view({}, false);
