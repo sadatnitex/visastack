@@ -1,7 +1,9 @@
 'use server';
 
 import {
+  type Db,
   PROOF_FILE_MAX_BYTES,
+  type ProofFilePorts,
   formatAmountForCurrency,
   parseAmountForCurrency,
   refreshInvoicePaymentAttempts,
@@ -13,14 +15,26 @@ import { redirect } from 'next/navigation';
 import { resolveBaseUrl } from '../../../../../../lib/base-url';
 import { paymentUrlFor } from '../../../../../../lib/payment-urls';
 import { createMalwareScanner, createPaymentPort } from '../../../../../../lib/providers';
+import { reportServerError } from '../../../../../../lib/server-error';
 import { withSession } from '../../../../../../lib/session';
 import { createStorage } from '../../../../../../lib/storage';
 
 /** What an Invoices form gets back. `field` names the input a problem is about. */
+/** What was typed into the report form, kept across a refusal. */
+export interface ClaimValues {
+  readonly method: string;
+  readonly reference: string;
+  readonly amount: string;
+  readonly paidOn: string;
+  readonly note: string;
+}
+
 export interface InvoiceActionState {
   readonly ok: boolean;
   readonly message: string;
   readonly field?: string;
+  /** What was typed into a refused report (never the file), so the form can keep it. */
+  readonly values?: ClaimValues;
 }
 
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -140,9 +154,21 @@ function paidOnFrom(value: string): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+/** Storage and the safety scanner, only built when a file is attached. Null when they are not set up here. */
+function proofPorts(db: Db): ProofFilePorts | null {
+  try {
+    const storage = createStorage(db);
+    return { storage, scanner: createMalwareScanner(storage) };
+  } catch (error) {
+    reportServerError('agencyInvoices', error, { step: 'setting up proof file storage' });
+    return null;
+  }
+}
+
 /**
  * "I Paid Another Way": reports a payment made outside VisaStack, with an optional proof file.
- * Records nothing: the invoice shows Payment Reported until VisaStack confirms it.
+ * Records nothing: the invoice shows Payment Reported until VisaStack confirms it. A refusal gives
+ * back what was typed (not the file) so the person does not retype it.
  */
 export async function submitClaimAction(
   _prev: InvoiceActionState,
@@ -151,50 +177,53 @@ export async function submitClaimAction(
   const found = ids(formData);
   if (!found) return NOT_FOUND;
   const currency = text(formData, 'currency');
-  const amountText = text(formData, 'amount');
-  const amountMinorUnits = parseAmountForCurrency(amountText, currency);
+  const values: ClaimValues = {
+    method: text(formData, 'method'),
+    reference: text(formData, 'reference'),
+    amount: text(formData, 'amount'),
+    paidOn: text(formData, 'paidOn'),
+    note: text(formData, 'note'),
+  };
+  const refuse = (message: string, field?: string): InvoiceActionState => ({
+    ok: false,
+    message,
+    ...(field ? { field } : {}),
+    values,
+  });
+
+  const amountMinorUnits = parseAmountForCurrency(values.amount, currency);
   if (amountMinorUnits === null || amountMinorUnits <= 0) {
-    return {
-      ok: false,
-      message: 'Enter the amount you paid as a plain number, for example 1250.50.',
-      field: 'amount',
-    };
+    return refuse('Enter the amount you paid as a plain number, for example 1250.50.', 'amount');
   }
-  const paidOn = paidOnFrom(text(formData, 'paidOn'));
-  if (!paidOn) return { ok: false, message: 'Enter the date you paid.', field: 'paidOn' };
+  const paidOn = paidOnFrom(values.paidOn);
+  if (!paidOn) return refuse('Enter the date you paid.', 'paidOn');
 
   const proof = formData.get('proof');
   const hasFile = proof instanceof File && proof.size > 0;
   if (hasFile && proof.size > PROOF_FILE_MAX_BYTES) {
-    return { ok: false, message: 'Attach a file smaller than 5 MB.', field: 'proof' };
+    return refuse('Attach a file smaller than 4 MB.', 'proof');
   }
 
-  const note = text(formData, 'note');
   const result = await withSession(async ({ db, accountId }): Promise<InvoiceActionState> => {
-    const storage = createStorage(db);
-    const submitted = await submitManualPaymentClaim(
-      db,
-      { storage, scanner: createMalwareScanner(storage) },
-      {
-        actorAccountId: accountId,
-        invoiceId: found.invoiceId,
-        method: text(formData, 'method'),
-        reference: text(formData, 'reference'),
-        amountMinorUnits,
-        currency,
-        paidOn,
-        ...(note.length > 0 ? { note } : {}),
-        ...(hasFile
-          ? {
-              proofFile: {
-                contentType: proof.type,
-                bytes: new Uint8Array(await proof.arrayBuffer()),
-              },
-            }
-          : {}),
-      },
-    );
-    if (!submitted.ok) return { ok: false, message: submitted.error.message };
+    const submitted = await submitManualPaymentClaim(db, hasFile ? proofPorts(db) : null, {
+      actorAccountId: accountId,
+      invoiceId: found.invoiceId,
+      method: values.method,
+      reference: values.reference,
+      amountMinorUnits,
+      currency,
+      paidOn,
+      ...(values.note.length > 0 ? { note: values.note } : {}),
+      ...(hasFile
+        ? {
+            proofFile: {
+              contentType: proof.type,
+              bytes: new Uint8Array(await proof.arrayBuffer()),
+            },
+          }
+        : {}),
+    });
+    if (!submitted.ok) return refuse(submitted.error.message);
     return {
       ok: true,
       message: `Thank you. We have your report of ${formatAmountForCurrency(submitted.value.amountMinorUnits, submitted.value.currency)}. It is waiting for confirmation, and nothing is counted until VisaStack confirms it.`,

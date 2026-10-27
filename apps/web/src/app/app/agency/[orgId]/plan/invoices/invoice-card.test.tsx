@@ -43,7 +43,7 @@ const render = (view: AgencyInvoiceView, onlineAvailable = true) =>
       invoice={view}
       organizationId={ORG}
       onlineAvailable={onlineAvailable}
-      today="2026-10-27"
+      latestDate="2026-10-28"
     />,
   );
 
@@ -99,7 +99,7 @@ describe('an invoice card on the agency Invoices page', () => {
     expect(html).toContain('>Open<');
     expect(html).toContain('Pay Online');
     expect(html).toContain('I Paid Another Way');
-    expect(html).toContain('BDT 1250.50');
+    expect(html).toContain('BDT\u00a01,250.50');
     expect(html).toContain('name="amount"');
     expect(html).toContain('value="1250.50"');
   });
@@ -141,6 +141,28 @@ describe('an invoice card on the agency Invoices page', () => {
     expect(html).toContain('We found no transfer with this reference');
     expect(html).toContain(`/api/billing/proof/${ORG}/c-REJECTED`);
     expect(html).toContain('Report This Payment');
+  });
+
+  it('offers no payment while an online payment is held for a check, but keeps the report form', () => {
+    const html = render(invoice({ state: 'NEEDS_CHECK', attempts: [attempt('HELD_FOR_REVIEW')] }));
+    expect(html).not.toContain('Pay Online');
+    expect(html).toContain('Payment Needs a Check');
+    expect(html).toContain('I Paid Another Way');
+  });
+
+  it('says Payment Needs a Check on a paid invoice that also holds an online payment, with no payment actions', () => {
+    const html = render(
+      invoice({
+        status: 'PAID',
+        state: 'NEEDS_CHECK',
+        collectedAmountMinorUnits: 125050,
+        outstandingMinorUnits: 0,
+        attempts: [attempt('HELD_FOR_REVIEW')],
+      }),
+    );
+    expect(html).toContain('Payment Needs a Check');
+    expect(html).not.toContain('Pay Online');
+    expect(html).not.toContain('I Paid Another Way');
   });
 
   it('shows a paid invoice with its receipt link and no payment actions', () => {

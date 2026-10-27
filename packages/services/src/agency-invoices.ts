@@ -25,9 +25,9 @@ import { type ReceiptView, listReceipts } from './receipt-views';
  *
  * The plain state comes from facts, never from a stored label:
  *
- * - Paid: the ledger covers the invoice.
  * - Needs a Check: an online payment was confirmed by the gateway but not counted (risky, wrong
- *   amount, the invoice was settled another way). A platform admin looks at it.
+ *   amount, the invoice was settled another way). A platform admin looks at it. It outranks Paid.
+ * - Paid: the ledger covers the invoice.
  * - Payment Reported: a payment report is waiting for a platform admin.
  * - Payment Started: an online payment page was opened a few minutes ago.
  * - Open: nothing is under way. Part paid is still open, with a smaller balance.
@@ -48,11 +48,13 @@ export interface StateFacts {
   readonly now: Date;
 }
 
-/** The one place the plain state is decided. A void or paid invoice ignores everything else. */
+/** The one place the plain state is decided. A void invoice ignores everything else; money held for a check outranks Paid. */
 export function deriveInvoicePaymentState(facts: StateFacts): InvoicePaymentState {
   if (facts.status === 'VOID') return 'VOID';
-  if (facts.status === 'PAID') return 'PAID';
+  // Money the gateway confirmed but VisaStack did not count outranks Paid: an invoice paid another
+  // way that also took an online payment has cash that needs sorting out, and the agency is told.
   if (facts.attempts.some((attempt) => attempt.status === 'HELD_FOR_REVIEW')) return 'NEEDS_CHECK';
+  if (facts.status === 'PAID') return 'PAID';
   if (facts.waitingClaim) return 'PAYMENT_REPORTED';
   if (facts.attempts.some((attempt) => isRecentAttempt(attempt, facts.now))) {
     return 'PAYMENT_STARTED';
@@ -128,7 +130,7 @@ export async function listAgencyInvoices(
     if (!isMissingRelationError(error)) throw error;
   }
   const claims = await listManualClaims(db, input);
-  const receipts = await listReceipts(db, input);
+  const receipts = await listReceipts(db, { ...input, invoiceIds: ids });
 
   const platform = reader === 'platform';
   return ok(

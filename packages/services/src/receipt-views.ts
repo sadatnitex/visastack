@@ -1,5 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { invoiceLedgerReader } from './billing';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -68,26 +68,29 @@ function toView(row: {
 }
 
 /**
- * The receipts of one agency (optionally one invoice), oldest number first. Readable by the
+ * The receipts of one agency (optionally one invoice, or a set of invoices), oldest number first. Readable by the
  * agency's owners and admins or by a platform owner; everyone else is refused. Only the named
  * agency's receipts are ever read. Empty while the receipt tables do not exist yet.
  */
 export async function listReceipts(
   db: Db,
-  input: ReceiptReader & { readonly invoiceId?: string },
+  input: ReceiptReader & {
+    readonly invoiceId?: string;
+    readonly invoiceIds?: readonly string[];
+  },
 ): Promise<Result<ReceiptView[], ServiceError>> {
   if ((await invoiceLedgerReader(db, input)) === null) {
     return err(serviceError('forbidden', NOT_ALLOWED));
   }
   try {
     const receipts = schema.paymentReceipts;
-    const scope =
-      input.invoiceId === undefined
-        ? eq(receipts.organizationId, input.organizationId)
-        : and(
-            eq(receipts.organizationId, input.organizationId),
-            eq(receipts.invoiceId, input.invoiceId),
-          );
+    const filters = [eq(receipts.organizationId, input.organizationId)];
+    if (input.invoiceId !== undefined) filters.push(eq(receipts.invoiceId, input.invoiceId));
+    if (input.invoiceIds !== undefined) {
+      if (input.invoiceIds.length === 0) return ok([]);
+      filters.push(inArray(receipts.invoiceId, [...input.invoiceIds]));
+    }
+    const scope = and(...filters);
     const rows = await db
       .select(viewColumns())
       .from(receipts)

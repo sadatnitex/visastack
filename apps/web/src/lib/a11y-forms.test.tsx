@@ -1458,7 +1458,7 @@ const ADMIN: readonly Case[] = [
         invoiceId={rowId()}
         currency="BDT"
         balance="1250.50"
-        today="2026-10-27"
+        latestDate="2026-10-28"
       />
     ),
     fields: ['method', 'reference', 'amount', 'paidOn', 'note', 'proof'],

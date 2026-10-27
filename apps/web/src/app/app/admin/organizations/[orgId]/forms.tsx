@@ -629,7 +629,20 @@ export function ApproveClaimButton({
 }) {
   const [state, formAction, pending] = useActionState(approveClaimAction, INITIAL);
   return (
-    <form action={formAction} className="invoice-action">
+    <form
+      action={formAction}
+      className="invoice-action"
+      onSubmit={(event) => {
+        // Recording money cannot be undone from here, so a slip of the finger is caught first.
+        if (
+          !window.confirm(
+            'Confirm this payment? It is recorded against the invoice and a receipt is issued.',
+          )
+        ) {
+          event.preventDefault();
+        }
+      }}
+    >
       <input type="hidden" name="organizationId" value={organizationId} />
       <input type="hidden" name="claimId" value={claimId} />
       <SubmitButton pending={pending} idle="Confirm Payment" busy="Confirming" />

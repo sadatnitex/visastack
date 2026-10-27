@@ -35,6 +35,7 @@ import { RATE_LIMITS } from './rate-limit';
 import { exhaustRateLimit } from './rate-limit.test-support';
 import { getReceipt, listReceipts } from './receipt-views';
 import { formatReceiptNumber, issueReceiptForPayment } from './receipts';
+import { reconcileOrphans } from './reconciliation';
 import type {
   BlobStore,
   ListObjectsPage,
@@ -186,9 +187,11 @@ describe('the plain payment state of an invoice', () => {
     expect(state('OPEN', [attempt('HELD_FOR_REVIEW')], true)).toBe('NEEDS_CHECK');
   });
 
-  it('is Paid or Void whatever else is recorded', () => {
-    expect(state('PAID', [attempt('HELD_FOR_REVIEW')], true)).toBe('PAID');
+  it('is Paid or Void whatever else is recorded, except money held for a check', () => {
+    expect(state('PAID', [attempt('REDIRECTED')], true)).toBe('PAID');
+    expect(state('PAID', [attempt('HELD_FOR_REVIEW')], true)).toBe('NEEDS_CHECK');
     expect(state('VOID', [attempt('REDIRECTED')], true)).toBe('VOID');
+    expect(state('VOID', [attempt('HELD_FOR_REVIEW')], true)).toBe('VOID');
   });
 });
 
@@ -369,6 +372,23 @@ describe('numbered receipts (S12)', () => {
       .from(schema.paymentReceiptCounters)
       .where(eq(schema.paymentReceiptCounters.organizationId, org.organizationId));
     expect(counter?.lastNumber).toBe(12);
+  });
+
+  it('never hands out a number twice, even when the counter has fallen behind the receipts', async () => {
+    const invoiceId = await openInvoice(org.organizationId, 'INV-R-DRIFT');
+    const numberOf = (r: Awaited<ReturnType<typeof collect>>) =>
+      isOk(r) ? r.value.receipt?.receiptNumber : undefined;
+    expect(numberOf(await collect(invoiceId))).toBe(1);
+    expect(numberOf(await collect(invoiceId))).toBe(2);
+    await db
+      .update(schema.paymentReceiptCounters)
+      .set({ lastNumber: 0 })
+      .where(eq(schema.paymentReceiptCounters.organizationId, org.organizationId));
+    expect(numberOf(await collect(invoiceId))).toBe(3);
+    await db.delete(schema.paymentReceiptCounters);
+    expect(numberOf(await collect(invoiceId))).toBe(4);
+    const numbers = (await receiptRows()).map((r) => r.receiptNumber).sort((a, b) => a - b);
+    expect(numbers).toEqual([1, 2, 3, 4]);
   });
 
   it('gives a replay of the same recording the same receipt and issues no second one', async () => {
@@ -1149,11 +1169,9 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
 
     it('refuses a file that fails the safety check and stores nothing', async () => {
       const invoiceId = await openInvoice(org.organizationId, 'INV-F-UNSAFE');
-      const bytes = pdf().bytes;
-      const bad = new Uint8Array(bytes);
-      bad[5] = UNSAFE_MARKER;
+      const bad = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, UNSAFE_MARKER, 2, 3]);
       const result = await submit(invoiceId, {
-        proofFile: { contentType: 'application/pdf', bytes: bad },
+        proofFile: { contentType: 'image/jpeg', bytes: bad },
       });
       expect(isErr(result) && result.error.message).toMatch(/safety check/);
       expect(storage.objects.size).toBe(0);
@@ -1161,7 +1179,7 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
       expect(await db.select().from(schema.manualPaymentClaims)).toHaveLength(0);
     });
 
-    it('refuses the wrong kind of file, an empty file and a file over 5 MB before storing anything', async () => {
+    it('refuses the wrong kind of file, an empty file and a file over 4 MB before storing anything', async () => {
       const invoiceId = await openInvoice(org.organizationId, 'INV-F-KIND');
       const attempt = async (proofFile: { contentType: string; bytes: Uint8Array }) => {
         const result = await submit(invoiceId, { proofFile });
@@ -1171,12 +1189,12 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
         /PDF, JPEG or PNG/,
       );
       expect(await attempt({ contentType: 'application/pdf', bytes: new Uint8Array() })).toMatch(
-        /smaller than 5 MB/,
+        /smaller than 4 MB/,
       );
       const big = new Uint8Array(PROOF_FILE_MAX_BYTES + 1);
       big.set(pdf().bytes);
       expect(await attempt({ contentType: 'application/pdf', bytes: big })).toMatch(
-        /smaller than 5 MB/,
+        /smaller than 4 MB/,
       );
       // Says PDF, is not.
       expect(
@@ -1186,6 +1204,101 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
         }),
       ).toMatch(/not the kind of file/);
       expect(storage.objects.size).toBe(0);
+    });
+
+    it('asks for a photo when a PDF cannot be cleared by the scanner, and says nothing else was stored', async () => {
+      const invoiceId = await openInvoice(org.organizationId, 'INV-F-PDF');
+      const rejectsPdf: MalwareScannerPort = {
+        name: 'structural',
+        version: '1',
+        async scan(input) {
+          const object = await storage.getObject(input.objectKey);
+          return { safe: object?.contentType !== 'application/pdf' };
+        },
+      };
+      const result = await submitManualPaymentClaim(
+        db,
+        { storage, scanner: rejectsPdf },
+        claimInput(invoiceId, { proofFile: pdf() }),
+      );
+      expect(isErr(result) && result.error.message).toMatch(/Attach a photo or screenshot/);
+      expect(storage.objects.size).toBe(0);
+      // A photo passes the same scanner.
+      const png = {
+        contentType: 'image/png',
+        bytes: new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]),
+      };
+      const photo = await submitManualPaymentClaim(
+        db,
+        { storage, scanner: rejectsPdf },
+        claimInput(invoiceId, { proofFile: png }),
+      );
+      expect(isOk(photo) && photo.value.hasProofFile).toBe(true);
+    });
+
+    it('takes a report without a file when storage is not set up, and refuses only the file', async () => {
+      const invoiceId = await openInvoice(org.organizationId, 'INV-F-NOPORTS');
+      const withFile = await submitManualPaymentClaim(
+        db,
+        null,
+        claimInput(invoiceId, { proofFile: pdf() }),
+      );
+      expect(isErr(withFile) && withFile.error.code).toBe('upstream_error');
+      expect(await db.select().from(schema.manualPaymentClaims)).toHaveLength(0);
+      const without = await submitManualPaymentClaim(db, null, claimInput(invoiceId));
+      expect(isOk(without)).toBe(true);
+    });
+
+    it('records every read of a proof file, by the agency or by staff, and serves nothing it cannot record', async () => {
+      const invoiceId = await openInvoice(org.organizationId, 'INV-F-AUDIT');
+      const claim = await waitingClaim(invoiceId, { proofFile: pdf() });
+      expect(
+        isOk(
+          await readClaimProofFile(db, storage, {
+            ...readerOf(org.adminAccountId),
+            claimId: claim.id,
+          }),
+        ),
+      ).toBe(true);
+      expect(
+        isOk(
+          await readClaimProofFile(db, storage, {
+            ...readerOf(platform.accountId),
+            actorEmail: platform.email,
+            claimId: claim.id,
+          }),
+        ),
+      ).toBe(true);
+      const refused = await readClaimProofFile(db, storage, {
+        ...readerOf(org.memberAccountId),
+        claimId: claim.id,
+      });
+      expect(isErr(refused)).toBe(true);
+      const events = await db
+        .select()
+        .from(schema.auditEvents)
+        .where(eq(schema.auditEvents.eventType, 'BILLING_PROOF_VIEWED'));
+      expect(events.map((e) => (e.metadata as { viewer: string }).viewer).sort()).toEqual([
+        'member',
+        'platform',
+      ]);
+      expect(events[0]?.resourceId).toBe(claim.id);
+    });
+
+    it('is not removed by the orphan sweep when its bytes have gone missing', async () => {
+      const invoiceId = await openInvoice(org.organizationId, 'INV-F-SWEEP');
+      const claim = await waitingClaim(invoiceId, { proofFile: pdf() });
+      storage.objects.clear();
+      const report = await reconcileOrphans(db, storage, {
+        actorAccountId: platform.accountId,
+        bucket: 'CLEAN',
+        dryRun: false,
+      });
+      expect(report.dbReferencesWithoutBlob).toHaveLength(1);
+      expect(report.cleaned).toBe(0);
+      expect(await db.select().from(schema.storageObjects)).toHaveLength(1);
+      expect(await db.select().from(schema.billingReceipts)).toHaveLength(1);
+      void claim;
     });
 
     it('removes the stored file when the report is refused after the file was stored', async () => {

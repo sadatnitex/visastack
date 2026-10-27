@@ -19,7 +19,11 @@ import { formatAmountForCurrency } from './payment-amounts';
 import { type PlatformAuthInput, isPlatformOwner } from './platform-roles';
 import { RATE_LIMITS, checkRateLimits } from './rate-limit';
 import type { PaymentReceipt } from './receipts';
-import type { BlobStore, StorageBucket } from './storage';
+import type { BlobStore } from './storage';
+import {
+  discardStorageObject as discardObject,
+  registerStorageObject as registerObject,
+} from './storage-objects';
 
 /**
  * "I Paid Another Way" (Small Commercial V1 S12, ADR 0020): an agency owner or admin reports a
@@ -34,7 +38,9 @@ import type { BlobStore, StorageBucket } from './storage';
  * same transaction. A rejection needs a reason the agency can read.
  *
  * The optional proof of payment (a bank slip, a screenshot) is an agency billing file: stored
- * only after the same safety scan documents get, in its own table and its own object-key prefix,
+ * only after the safety scanner the platform has configured passed it (the structural check
+ * for photos, ClamAV when it is switched on; a PDF can only be cleared by ClamAV, so without it
+ * the person is asked for a photo instead), in its own table and its own object-key prefix,
  * readable only by the agency's owners and admins and by platform staff. It is never attached to
  * a traveller record, never part of a share, pack or export.
  *
@@ -61,7 +67,8 @@ export const MANUAL_CLAIM_METHODS: readonly ManualClaimMethod[] = [
 export const CLAIM_REFERENCE_MAX = 120;
 export const CLAIM_NOTE_MAX = 500;
 export const CLAIM_REASON_MAX = 500;
-export const PROOF_FILE_MAX_BYTES = 5 * 1024 * 1024;
+/** Below the 4.5 MB request size the hosting platform accepts, the same ceiling document uploads use. */
+export const PROOF_FILE_MAX_BYTES = 4 * 1024 * 1024;
 export const PROOF_FILE_TYPES = ['application/pdf', 'image/jpeg', 'image/png'] as const;
 const PROOF_KEY_PREFIX = 'billing-receipt-';
 const PROOF_UPLOAD_KEY_PREFIX = 'billing-receipt-upload-';
@@ -105,7 +112,7 @@ function proofFileProblem(file: ProofFileInput): ServiceError | undefined {
     return serviceError('invalid', 'Attach a PDF, JPEG or PNG file.');
   }
   if (file.bytes.byteLength === 0 || file.bytes.byteLength > PROOF_FILE_MAX_BYTES) {
-    return serviceError('invalid', 'Attach a file smaller than 5 MB.');
+    return serviceError('invalid', 'Attach a file smaller than 4 MB.');
   }
   const signature = SIGNATURES[type];
   if (!signature.every((value, i) => file.bytes[i] === value)) {
@@ -120,43 +127,6 @@ interface StoredProof {
   readonly sha256: string;
   readonly sizeBytes: number;
   readonly contentType: string;
-}
-
-/** Deletes bytes, then their registration only once the bytes are gone, so a failed delete stays findable. */
-async function discardObject(
-  db: Db,
-  storage: BlobStore,
-  bucket: StorageBucket,
-  object: { readonly storageObjectId: string; readonly objectKey: string },
-): Promise<void> {
-  try {
-    await storage.deleteObject(bucket, object.objectKey);
-  } catch {
-    return;
-  }
-  await db
-    .delete(schema.storageObjects)
-    .where(eq(schema.storageObjects.id, object.storageObjectId))
-    .catch(() => undefined);
-}
-
-async function registerObject(
-  db: Db,
-  bucket: StorageBucket,
-  objectKey: string,
-  bytes: Uint8Array,
-  sha256: string,
-): Promise<string> {
-  const row = required(
-    first(
-      await db
-        .insert(schema.storageObjects)
-        .values({ bucket, objectKey, sizeBytes: bytes.byteLength, contentHash: sha256 })
-        .returning({ id: schema.storageObjects.id }),
-    ),
-    'storage object',
-  );
-  return row.id;
 }
 
 /**
@@ -186,7 +156,14 @@ async function scanAndStoreProof(
     }
     const scan = await ports.scanner.scan({ bucket: 'QUARANTINE', objectKey: quarantineKey });
     if (!scan.safe) {
-      return err(serviceError('invalid', 'This file did not pass the safety check.'));
+      return err(
+        serviceError(
+          'invalid',
+          file.contentType === 'application/pdf'
+            ? 'We could not check this PDF for safety here. Attach a photo or screenshot of it (JPEG or PNG) instead.'
+            : 'This file did not pass the safety check.',
+        ),
+      );
     }
     const cleanKey = `${PROOF_KEY_PREFIX}${randomUUID()}`;
     const cleanId = await registerObject(db, 'CLEAN', cleanKey, stored.bytes, sha256);
@@ -313,6 +290,26 @@ export async function listManualClaims(
   }
 }
 
+/**
+ * Whether a stored object is a payment proof attached to a report. The orphan sweep asks this
+ * before it removes a storage record, so a proof whose bytes went missing is reported, never
+ * deleted from under its report. False while the claim tables do not exist yet.
+ */
+export async function billingFileReferenced(db: Db, storageObjectId: string): Promise<boolean> {
+  const present = await db
+    .select({ present: sql<boolean>`to_regclass('billing_receipts'::text) is not null` })
+    .from(sql`(select 1) as probe`);
+  if (present[0]?.present !== true) return false;
+  const row = first(
+    await db
+      .select({ id: schema.billingReceipts.id })
+      .from(schema.billingReceipts)
+      .where(eq(schema.billingReceipts.storageObjectId, storageObjectId))
+      .limit(1),
+  );
+  return row !== undefined;
+}
+
 export interface ProofFileBytes {
   readonly bytes: Uint8Array;
   readonly contentType: (typeof PROOF_FILE_TYPES)[number];
@@ -328,9 +325,8 @@ export async function readClaimProofFile(
   storage: BlobStore,
   input: ClaimReader & { readonly claimId: string },
 ): Promise<Result<ProofFileBytes, ServiceError>> {
-  if ((await invoiceLedgerReader(db, input)) === null) {
-    return err(serviceError('forbidden', NOT_ALLOWED));
-  }
+  const reader = await invoiceLedgerReader(db, input);
+  if (reader === null) return err(serviceError('forbidden', NOT_ALLOWED));
   const notFound = err(serviceError('not_found', 'file not found'));
   try {
     const row = first(
@@ -356,6 +352,20 @@ export async function readClaimProofFile(
     if (!row || !(PROOF_FILE_TYPES as readonly string[]).includes(row.contentType)) return notFound;
     const stored = await storage.getObject(row.objectKey);
     if (!stored || sha256Hex(stored.bytes) !== row.contentSha256) return notFound;
+    // A bank slip is personal financial data: every read is recorded (who, which report, as
+    // agency or as staff), and a read that cannot be recorded is not served.
+    await db.transaction((tx) =>
+      appendAuditEvent(tx, {
+        eventType: 'BILLING_PROOF_VIEWED',
+        actorAccountId: input.actorAccountId,
+        action: 'DOWNLOAD_ORIGINAL',
+        method: 'MANUAL',
+        result: 'ALLOWED',
+        resourceType: 'manual_payment_claim',
+        resourceId: input.claimId,
+        metadata: { organizationId: input.organizationId, viewer: reader },
+      }),
+    );
     return ok({
       bytes: stored.bytes,
       contentType: row.contentType as (typeof PROOF_FILE_TYPES)[number],
@@ -463,7 +473,8 @@ function inputProblem(input: SubmitManualClaimInput, now: Date): ServiceError | 
  */
 export async function submitManualPaymentClaim(
   db: Db,
-  ports: ProofFilePorts,
+  /** Needed only when a proof file is attached; a report without a file never touches storage. */
+  ports: ProofFilePorts | null,
   input: SubmitManualClaimInput,
 ): Promise<Result<ManualClaimView, ServiceError>> {
   const now = input.now ?? new Date();
@@ -509,6 +520,14 @@ export async function submitManualPaymentClaim(
 
     let proof: StoredProof | undefined;
     if (input.proofFile) {
+      if (!ports) {
+        return err(
+          serviceError(
+            'upstream_error',
+            'Attaching a file is not available right now. Send the report without a file, or try again later.',
+          ),
+        );
+      }
       const stored = await scanAndStoreProof(db, ports, input.proofFile);
       if (!stored.ok) return stored;
       proof = stored.value;
@@ -623,10 +642,10 @@ export async function submitManualPaymentClaim(
         },
       );
       // A refusal inside the transaction wrote nothing, so a stored file has no claim to belong to.
-      if (!result.ok && proof) await discardObject(db, ports.storage, 'CLEAN', proof);
+      if (!result.ok && proof && ports) await discardObject(db, ports.storage, 'CLEAN', proof);
       return result;
     } catch (error) {
-      if (proof) await discardObject(db, ports.storage, 'CLEAN', proof);
+      if (proof && ports) await discardObject(db, ports.storage, 'CLEAN', proof);
       throw error;
     }
   } catch (error) {

@@ -114,9 +114,10 @@ describe('migration 0094: cash ledger (ADR 0020, S10)', () => {
         client.query('update invoice_payments set reference = $1', ['x']),
       ).rejects.toThrow(/append-only/);
       await expect(client.query('delete from invoice_payments')).rejects.toThrow(/append-only/);
-      // Receipts (0097) reference the ledger, so Postgres refuses the truncate on that reference first.
-      await expect(client.query('truncate invoice_payments')).rejects.toThrow(
-        /append-only|cannot truncate a table referenced/,
+      // Receipts (0097) reference the ledger, so the ledger is truncated together with them: the
+      // ledger's own trigger (first in the list) is the one that must refuse.
+      await expect(client.query('truncate invoice_payments, payment_receipts')).rejects.toThrow(
+        /invoice_payments is append-only/,
       );
       expect(await rows()).toHaveLength(3);
 

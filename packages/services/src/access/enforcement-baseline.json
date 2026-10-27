@@ -184,6 +184,7 @@
   "legal-hold#releaseLegalHold",
   "legal-hold#sweepLegalHoldReviewReminders",
   "manual-claims#approveManualPaymentClaim",
+  "manual-claims#readClaimProofFile",
   "manual-claims#rejectManualPaymentClaim",
   "manual-claims#submitManualPaymentClaim",
   "material-revision#getLiveAcknowledgement",

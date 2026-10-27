@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { desc, eq, inArray } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
+import { billingFileReferenced } from './manual-claims';
 import type { BlobStore, StorageBucket } from './storage';
 
 /**
@@ -171,6 +172,8 @@ export async function reconcileOrphans(
           .limit(1),
       );
       if (stillReferenced) continue;
+      // A payment proof whose bytes went missing stays registered (its report points at it).
+      if (await billingFileReferenced(db, storageObjectId)) continue;
       await db.transaction(async (tx) => {
         await tx.delete(schema.storageObjects).where(eq(schema.storageObjects.id, storageObjectId));
         await appendAuditEvent(tx, {

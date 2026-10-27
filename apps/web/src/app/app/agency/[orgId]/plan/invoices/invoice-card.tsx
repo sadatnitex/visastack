@@ -15,6 +15,7 @@ import {
   INVOICE_STATE_LABELS,
   INVOICE_STATE_TONES,
 } from '../../../../../../lib/invoice-labels';
+import { formatPrice } from '../../../../../../lib/usage-format';
 import {
   CheckStatusButton,
   ClaimForm,
@@ -26,28 +27,30 @@ import {
 const ONLINE_CURRENCY = 'BDT';
 
 function plainAmount(minorUnits: number, currency: string): string {
-  return formatAmountForCurrency(minorUnits, currency);
+  return formatPrice(minorUnits, currency);
 }
 
 export function InvoiceCard({
   invoice,
   organizationId,
   onlineAvailable,
-  today,
+  latestDate,
 }: {
   readonly invoice: AgencyInvoiceView;
   readonly organizationId: string;
   readonly onlineAvailable: boolean;
-  readonly today: string;
+  /** The latest day a payment can have been made (YYYY-MM-DD, anywhere on earth). */
+  readonly latestDate: string;
 }) {
-  const open = invoice.state !== 'PAID' && invoice.state !== 'VOID';
+  const open = invoice.status !== 'PAID' && invoice.status !== 'VOID';
   const reported = invoice.state === 'PAYMENT_REPORTED';
   const canPayOnline =
     open &&
     onlineAvailable &&
+    invoice.state !== 'NEEDS_CHECK' &&
     invoice.currency === ONLINE_CURRENCY &&
     invoice.outstandingMinorUnits > 0;
-  const balance = plainAmount(invoice.outstandingMinorUnits, invoice.currency)
+  const balance = formatAmountForCurrency(invoice.outstandingMinorUnits, invoice.currency)
     .slice(invoice.currency.length)
     .trim();
   const headingId = `invoice-${invoice.id}`;
@@ -115,7 +118,7 @@ export function InvoiceCard({
               invoiceId={invoice.id}
               currency={invoice.currency}
               balance={balance}
-              today={today}
+              latestDate={latestDate}
             />
           )}
         </div>

@@ -9,6 +9,7 @@ import {
 } from '../../../../../../components/form-feedback';
 import { CLAIM_METHOD_LABELS } from '../../../../../../lib/invoice-labels';
 import {
+  type ClaimValues,
   type InvoiceActionState,
   checkPaymentAction,
   startPaymentAction,
@@ -120,23 +121,26 @@ export function ClaimForm({
   invoiceId,
   currency,
   balance,
-  today,
+  latestDate,
 }: {
   readonly organizationId: string;
   readonly invoiceId: string;
   readonly currency: string;
   /** What the invoice still owes, as plain digits in the invoice currency (for example 1250.50). */
   readonly balance: string;
-  /** Today as YYYY-MM-DD, the latest date that can be chosen. */
-  readonly today: string;
+  /** The latest date that can be chosen (YYYY-MM-DD): the newest day anywhere on earth, so nobody is blocked from choosing their own today. */
+  readonly latestDate: string;
 }) {
   const [state, formAction, pending] = useActionState(submitClaimAction, INITIAL);
   const formRef = useRef<HTMLFormElement>(null);
   const messageId = useId();
   const base = useId();
   useFocusInvalidField(formRef, state);
+  // When a report is refused the page gives back what was typed (never the file), because a form
+  // action clears an uncontrolled form once it finishes.
+  const kept: Partial<ClaimValues> = state.values ?? {};
   return (
-    <details className="invoice-claim">
+    <details className="invoice-claim" open={state.values !== undefined ? true : undefined}>
       <summary className="invoice-claim-summary">I Paid Another Way</summary>
       <form ref={formRef} action={formAction} className="field-list invoice-claim-form">
         <input type="hidden" name="organizationId" value={organizationId} />
@@ -150,12 +154,14 @@ export function ClaimForm({
           <label className="field-label" htmlFor={`${base}-method`}>
             How You Paid
           </label>
+          {/* The key makes the list start again from what was kept: a list does not take a new default by itself. */}
           <select
+            key={kept.method ?? 'first'}
             id={`${base}-method`}
             name="method"
             className="input"
             required
-            defaultValue="BANK_TRANSFER"
+            defaultValue={kept.method ?? 'BANK_TRANSFER'}
             {...fieldProblem(state, 'method', messageId)}
           >
             {Object.entries(CLAIM_METHOD_LABELS).map(([value, label]) => (
@@ -177,6 +183,7 @@ export function ClaimForm({
             required
             maxLength={120}
             autoComplete="off"
+            defaultValue={kept.reference ?? ''}
             {...fieldProblem(state, 'reference', messageId)}
           />
           <p className="invoice-hint">A transfer id, bKash transaction id or cheque number.</p>
@@ -192,7 +199,7 @@ export function ClaimForm({
             inputMode="decimal"
             className="input"
             required
-            defaultValue={balance}
+            defaultValue={kept.amount ?? balance}
             autoComplete="off"
             {...fieldProblem(state, 'amount', messageId)}
           />
@@ -207,7 +214,8 @@ export function ClaimForm({
             type="date"
             className="input"
             required
-            max={today}
+            max={latestDate}
+            defaultValue={kept.paidOn ?? ''}
             {...fieldProblem(state, 'paidOn', messageId)}
           />
         </div>
@@ -221,6 +229,7 @@ export function ClaimForm({
             className="input"
             rows={2}
             maxLength={500}
+            defaultValue={kept.note ?? ''}
             {...fieldProblem(state, 'note', messageId)}
           />
         </div>
@@ -237,8 +246,9 @@ export function ClaimForm({
             {...fieldProblem(state, 'proof', messageId)}
           />
           <p className="invoice-hint">
-            A PDF, JPEG or PNG file under 5 MB. Only your owners and admins and VisaStack staff can
-            open it.
+            A photo or screenshot (JPEG or PNG) or a PDF, under 4 MB. Only your owners and admins
+            and VisaStack staff can open it. If you report again after an error, choose the file
+            again.
           </p>
         </div>
         <SubmitButton pending={pending} idle="Report This Payment" busy="Sending Your Report" />

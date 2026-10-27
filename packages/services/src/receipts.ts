@@ -72,17 +72,20 @@ export async function issueReceiptForPayment(
   );
   if (existing) return { receipt: existing, created: false };
 
-  // The counter row is the turnstile: the first recording for an agency creates it at 1, every
-  // later one adds 1 while holding its lock until the transaction ends.
+  // The counter row is the turnstile: the first recording for an agency creates it, every later
+  // one adds 1 while holding its lock until the transaction ends. The next number is always one
+  // past the highest receipt already issued to the agency, so a counter that fell behind (the
+  // opening receipts the migration writes, a restore) can never hand out a number twice.
   const counters = schema.paymentReceiptCounters;
+  const highest = sql`coalesce((select max(r.receipt_number) from payment_receipts r where r.organization_id = ${input.organizationId}), 0)`;
   const counter = required(
     first(
       await tx
         .insert(counters)
-        .values({ organizationId: input.organizationId, lastNumber: 1 })
+        .values({ organizationId: input.organizationId, lastNumber: sql`${highest} + 1` })
         .onConflictDoUpdate({
           target: counters.organizationId,
-          set: { lastNumber: sql`${counters.lastNumber} + 1` },
+          set: { lastNumber: sql`greatest(${counters.lastNumber}, ${highest}) + 1` },
         })
         .returning({ lastNumber: counters.lastNumber }),
     ),

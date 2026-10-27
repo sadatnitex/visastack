@@ -1,10 +1,11 @@
-import { formatAmountForCurrency, getReceipt } from '@visastack/services';
+import { getReceipt } from '@visastack/services';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { PageHeader } from '../../../../../../../../components/ui';
 import { formatDateOnly, formatTimestamp } from '../../../../../../../../lib/format-date';
 import { receiptKindLabel } from '../../../../../../../../lib/invoice-labels';
 import { withSession } from '../../../../../../../../lib/session';
+import { formatPrice } from '../../../../../../../../lib/usage-format';
 
 export const metadata: Metadata = { title: 'Payment Receipt' };
 
@@ -60,7 +61,7 @@ export default async function ReceiptPage({
           </div>
           <div>
             <dt>Amount Received</dt>
-            <dd>{formatAmountForCurrency(receipt.amountMinorUnits, receipt.currency)}</dd>
+            <dd>{formatPrice(receipt.amountMinorUnits, receipt.currency)}</dd>
           </div>
           <div>
             <dt>How It Was Paid</dt>

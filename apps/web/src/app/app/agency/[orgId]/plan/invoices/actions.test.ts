@@ -189,7 +189,8 @@ describe('reporting a payment made another way', () => {
     expect(result.message).toContain('BDT 1250.50');
     expect(result.message).toMatch(/nothing is counted until VisaStack confirms it/);
     const [, ports, input] = mocks.submitManualPaymentClaim.mock.calls[0] ?? [];
-    expect(ports).toEqual({ storage: { storage: true }, scanner: { scanner: true } });
+    // No file attached, so storage and the scanner are not even set up.
+    expect(ports).toBeNull();
     expect(input).toMatchObject({
       actorAccountId: 'acct-1',
       invoiceId: INVOICE,
@@ -209,11 +210,32 @@ describe('reporting a payment made another way', () => {
     }
     expect(await run({ paidOn: '25/10/2026' })).toMatchObject({ ok: false, field: 'paidOn' });
     expect(await run({ paidOn: '' })).toMatchObject({ ok: false, field: 'paidOn' });
-    const big = new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'slip.pdf', {
+    const big = new File([new Uint8Array(4 * 1024 * 1024 + 1)], 'slip.pdf', {
       type: 'application/pdf',
     });
     expect(await run({ proof: big })).toMatchObject({ ok: false, field: 'proof' });
     expect(mocks.submitManualPaymentClaim).not.toHaveBeenCalled();
+  });
+
+  it('gives back what was typed (not the file) with every refusal, so the form can keep it', async () => {
+    const typed = {
+      method: 'BKASH',
+      reference: 'TRX-9',
+      amount: 'abc',
+      paidOn: '2026-10-25',
+      note: 'a note',
+    };
+    const result = await run(typed);
+    expect(result).toMatchObject({ ok: false, field: 'amount', values: typed });
+    mocks.submitManualPaymentClaim.mockResolvedValue({
+      ok: false,
+      error: {
+        code: 'invalid',
+        message: 'A payment report for this invoice is already waiting for confirmation.',
+      },
+    });
+    const refused = await run({ ...typed, amount: '10' });
+    expect(refused).toMatchObject({ ok: false, values: { ...typed, amount: '10' } });
   });
 
   it('hands the proof file to the service with its type and bytes', async () => {
@@ -225,7 +247,8 @@ describe('reporting a payment made another way', () => {
       type: 'application/pdf',
     });
     await run({ proof: file });
-    const input = mocks.submitManualPaymentClaim.mock.calls[0]?.[2];
+    const [, ports, input] = mocks.submitManualPaymentClaim.mock.calls[0] ?? [];
+    expect(ports).toEqual({ storage: { storage: true }, scanner: { scanner: true } });
     expect(input.proofFile.contentType).toBe('application/pdf');
     expect(Array.from(input.proofFile.bytes)).toEqual([0x25, 0x50, 0x44, 0x46, 0x2d]);
   });
@@ -238,7 +261,7 @@ describe('reporting a payment made another way', () => {
         message: 'This invoice is already paid. There is nothing left to report.',
       },
     });
-    expect(await run()).toEqual({
+    expect(await run()).toMatchObject({
       ok: false,
       message: 'This invoice is already paid. There is nothing left to report.',
     });

@@ -4,7 +4,6 @@ import {
   type Invoice,
   type InvoiceStatus,
   type ManualClaimView,
-  formatAmountForCurrency,
   getBillingAccountForOrganization,
   getCurrentPlanForOrganization,
   getOrganization,
@@ -22,7 +21,11 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PageHeader } from '../../../../../components/ui';
 import { bootstrapAdminEmails, isPlatformOwnerAccount } from '../../../../../lib/admin';
-import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
+import {
+  formatDateOnly,
+  formatTimestamp,
+  formatTimestampDate,
+} from '../../../../../lib/format-date';
 import { CLAIM_METHOD_LABELS, CLAIM_STATUS_LABELS } from '../../../../../lib/invoice-labels';
 import {
   billingStatusLabel,
@@ -106,12 +109,12 @@ function ClaimQueue({
               <span className="row-key">{claim.invoiceRef}</span>
               <span>
                 {CLAIM_METHOD_LABELS[claim.method]},{' '}
-                {formatAmountForCurrency(claim.amountMinorUnits, claim.currency)}, paid{' '}
-                {formatTimestampDate(claim.paidOn)}. Reference {claim.reference}.
+                {formatPrice(claim.amountMinorUnits, claim.currency)}, paid{' '}
+                {formatDateOnly(claim.paidOn)}. Reference {claim.reference}.
               </span>
               <span className="muted u-fs-085">
                 The invoice still owes{' '}
-                {formatAmountForCurrency(claim.invoiceOutstandingMinorUnits, claim.currency)}.
+                {formatPrice(claim.invoiceOutstandingMinorUnits, claim.currency)}.
                 {claim.note ? ` Note: ${claim.note}` : ''}
               </span>
               {claim.hasProofFile ? (
@@ -138,8 +141,7 @@ function ClaimQueue({
             {decided.map((claim) => (
               <li key={claim.id} className="invoice-list-item">
                 <span>
-                  {claim.invoiceRef},{' '}
-                  {formatAmountForCurrency(claim.amountMinorUnits, claim.currency)}:{' '}
+                  {claim.invoiceRef}, {formatPrice(claim.amountMinorUnits, claim.currency)}:{' '}
                   {CLAIM_STATUS_LABELS[claim.status]}
                   {claim.decidedAt ? ` on ${formatTimestampDate(claim.decidedAt)}` : ''}
                   {claim.decisionReason ? `. Reason: ${claim.decisionReason}` : ''}

@@ -42,13 +42,15 @@ async function checkOpenPayments(
   if (open.length === 0) return false;
   try {
     const port = createPaymentPort();
-    for (const invoice of open) {
-      await refreshInvoicePaymentAttempts(db, port, {
-        actorAccountId: accountId,
-        organizationId,
-        invoiceId: invoice.id,
-      });
-    }
+    await Promise.all(
+      open.map((invoice) =>
+        refreshInvoicePaymentAttempts(db, port, {
+          actorAccountId: accountId,
+          organizationId,
+          invoiceId: invoice.id,
+        }),
+      ),
+    );
     return true;
   } catch (error) {
     reportServerError('agencyInvoices', error, { step: 'checking open payments' });
@@ -78,7 +80,8 @@ export default async function AgencyInvoicesPage({
     return listed.ok ? { invoices: listed.value, allowed: true } : { invoices: [], allowed: false };
   });
   const onlineAvailable = isPaymentProviderConfigured();
-  const today = new Date().toISOString().slice(0, 10);
+  // The newest calendar day anywhere on earth (UTC+14), so nobody is stopped from choosing their own today.
+  const latestDate = new Date(Date.now() + 14 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
   return (
     <>
@@ -107,7 +110,7 @@ export default async function AgencyInvoicesPage({
               invoice={invoice}
               organizationId={orgId}
               onlineAvailable={onlineAvailable}
-              today={today}
+              latestDate={latestDate}
             />
           ))}
         </div>

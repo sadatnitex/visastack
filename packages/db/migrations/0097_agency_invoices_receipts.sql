@@ -181,6 +181,11 @@ DROP TRIGGER IF EXISTS "billing_receipts_append_only_rows" ON "billing_receipts"
 CREATE TRIGGER "billing_receipts_append_only_rows" BEFORE UPDATE OR DELETE ON "billing_receipts"
 	FOR EACH ROW EXECUTE FUNCTION "visastack_billing_append_only"();
 --> statement-breakpoint
+DROP TRIGGER IF EXISTS "billing_receipts_append_only_truncate" ON "billing_receipts";
+--> statement-breakpoint
+CREATE TRIGGER "billing_receipts_append_only_truncate" BEFORE TRUNCATE ON "billing_receipts"
+	FOR EACH STATEMENT EXECUTE FUNCTION "visastack_billing_append_only"();
+--> statement-breakpoint
 -- A claim is decided once. While it waits, only the decision fields may change (the money,
 -- the method, the reference, the date, the invoice and the person who reported it are fixed);
 -- once decided, nothing changes at all; a claim is never deleted.

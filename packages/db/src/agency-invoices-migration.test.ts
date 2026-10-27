@@ -216,6 +216,7 @@ describe('migration 0097: agency invoices, claims and receipts (ADR 0020, S12)',
         /append-only/,
       );
       await expect(client.query('delete from billing_receipts')).rejects.toThrow(/append-only/);
+      await expect(client.query('truncate billing_receipts')).rejects.toThrow(/append-only/);
     },
     MIGRATION_TIMEOUT_MS,
   );
