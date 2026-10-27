@@ -79,12 +79,21 @@ export function AppNav({
   identity,
   secondaryLinks = [],
   footer,
+  sidebarCollapsed = false,
+  onToggleSidebar,
 }: {
   readonly links: readonly NavLink[];
   readonly accountLabel?: string;
   readonly identity?: ReactNode;
   readonly secondaryLinks?: readonly NavLink[];
   readonly footer?: ReactNode;
+  /** True when the laptop sidebar is shown as a slim rail. The look itself is set by the shell frame. */
+  readonly sidebarCollapsed?: boolean;
+  /**
+   * Shows the Hide Menu / Show Menu button on a laptop or larger. Left out, the sidebar is fixed
+   * open, as in the layout tests.
+   */
+  readonly onToggleSidebar?: () => void;
   /** The switch controls (Agency, Admin, Sign out), supplied by the server layout. */
   readonly children?: ReactNode;
 }) {
@@ -92,6 +101,7 @@ export function AppNav({
   const [hash, setHash] = useState('');
   const [open, setOpen] = useState(false);
   const panelId = useId();
+  const navId = useId();
   const toggleRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -167,12 +177,26 @@ export function AppNav({
   );
 
   return (
-    <div className="app-shell-nav" data-open={open ? 'true' : 'false'}>
+    <div className="app-shell-nav" id={navId} data-open={open ? 'true' : 'false'}>
       <div className="app-sidebar-heading">
         <Link className="brand" href="/">
           <BrandMark />
           VisaStack
         </Link>
+        {onToggleSidebar ? (
+          // Laptop and larger only (the stylesheet hides it on a phone). One button in both states,
+          // so keyboard focus stays on it when the sidebar changes size.
+          <button
+            type="button"
+            className="app-sidebar-toggle"
+            aria-expanded={!sidebarCollapsed}
+            aria-controls={navId}
+            aria-label={sidebarCollapsed ? 'Show Menu' : 'Hide Menu'}
+            onClick={onToggleSidebar}
+          >
+            <Icon name="sidebar" size={20} />
+          </button>
+        ) : null}
       </div>
       {identity ?? (
         <Link href="/app/account" className="app-sidebar-account">

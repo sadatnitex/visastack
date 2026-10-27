@@ -15,6 +15,8 @@ import {
 import { Icon } from '../../components/icons';
 import { PersonAvatar } from '../../components/profile-photo/person-avatar';
 import { isCurrentPath } from '../../lib/navigation';
+import { type SidebarState, saveSidebarState } from '../../lib/sidebar-preference';
+import { useCloseOnOutsidePress, useMediaQuery } from '../../lib/use-popover';
 import {
   type WorkspaceAccess,
   type WorkspaceNavigation,
@@ -50,6 +52,7 @@ function WorkspaceSelector({
   name,
   caption,
   compact = false,
+  popover = false,
   kind = 'personal',
   photo,
 }: {
@@ -57,6 +60,8 @@ function WorkspaceSelector({
   readonly name: string;
   readonly caption: string;
   readonly compact?: boolean;
+  /** The sidebar is a slim rail: the list opens beside it as a popover and closes like one. */
+  readonly popover?: boolean;
   readonly kind?: WorkspaceKind;
   readonly photo?: string | undefined;
 }) {
@@ -67,19 +72,9 @@ function WorkspaceSelector({
   useEffect(() => {
     if (selector.current) selector.current.open = false;
   }, [pathname]);
-  // The chip closes when someone taps anywhere else (another menu, the page),
-  // as the account menu and the More sheet do, so two menus never overlap.
-  useEffect(() => {
-    if (!compact) return;
-    const outside = (event: PointerEvent) => {
-      const details = selector.current;
-      if (details?.open && event.target instanceof Node && !details.contains(event.target)) {
-        details.open = false;
-      }
-    };
-    document.addEventListener('pointerdown', outside);
-    return () => document.removeEventListener('pointerdown', outside);
-  }, [compact]);
+  // The chip (and the list beside the slim rail) closes when someone taps anywhere else (another
+  // menu, the page), as the account menu and the More sheet do, so two menus never overlap.
+  useCloseOnOutsidePress(selector, compact || popover);
   // A person's first name is enough to recognise them. Other contexts get a
   // short label that fits a phone and drop the initials so the label has room; the full wording is still read aloud.
   const isPerson = kind === 'personal' && access.travellers.some((t) => t.name === name);
@@ -106,7 +101,11 @@ function WorkspaceSelector({
         }
       }}
     >
-      <summary aria-controls={id}>
+      {/* Beside the rail only the avatar shows, so the summary carries the full name itself. */}
+      <summary
+        aria-controls={id}
+        aria-label={popover ? `${name}, ${caption}, Switch Workspace` : undefined}
+      >
         {compact && !isPerson ? null : (
           <PersonAvatar
             className="workspace-avatar"
@@ -158,12 +157,67 @@ function WorkspaceSelector({
   );
 }
 
+/**
+ * The contextual destinations that have no icon of their own. In the full sidebar the list opens in
+ * place; beside the slim rail it is an icon that opens a popover, so these pages stay reachable
+ * and the choice never costs a destination.
+ */
+function WorkspaceTools({
+  tools,
+  popover,
+}: {
+  readonly tools: WorkspaceNavigation['tools'];
+  readonly popover: boolean;
+}) {
+  const pathname = usePathname();
+  const details = useRef<HTMLDetailsElement>(null);
+  const current = tools.some((item) => isCurrentPath(pathname, item));
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new route closes the popover
+  useEffect(() => {
+    if (popover && details.current) details.current.open = false;
+  }, [pathname, popover]);
+  useCloseOnOutsidePress(details, popover);
+  return (
+    <details
+      ref={details}
+      className="workspace-tools"
+      open={popover ? false : current}
+      onKeyDown={(event) => {
+        if (popover && event.key === 'Escape' && details.current?.open) {
+          details.current.open = false;
+          details.current.querySelector('summary')?.focus();
+          event.stopPropagation();
+        }
+      }}
+    >
+      <summary aria-label={popover ? 'More Tools' : undefined}>
+        <span className="workspace-tools-icon">
+          <Icon name="more" size={20} />
+        </span>
+        <span className="workspace-tools-label">More Tools</span>
+      </summary>
+      <nav className="app-shell-links workspace-tools-list" aria-label="Contextual tools">
+        {tools.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            aria-current={isCurrentPath(pathname, item) ? 'page' : undefined}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </nav>
+    </details>
+  );
+}
+
 export function WorkspaceShell({
   access,
   accountName,
   accountEmail,
   toolbarState,
   signOut,
+  sidebarState = 'expanded',
   children,
 }: {
   readonly access: WorkspaceAccess;
@@ -172,23 +226,70 @@ export function WorkspaceShell({
   readonly accountEmail?: string | undefined;
   readonly toolbarState?: WorkspaceToolbarState;
   readonly signOut: ReactNode;
+  /** The sidebar state this device chose, read from its cookie by the layout so the first paint is right. */
+  readonly sidebarState?: SidebarState;
   readonly children: ReactNode;
 }) {
   const pathname = usePathname();
   const [subject, setSubject] = useState<Subject | null>(null);
+  const frame = useRef<HTMLDivElement>(null);
+  const [collapsed, setCollapsed] = useState(sidebarState === 'collapsed');
+  // The rail exists only from 1024px up; below that the saved choice changes nothing, so the lists
+  // there stay ordinary and keep their full names.
+  const railShown = useMediaQuery('(min-width: 1024px)') && collapsed;
   const nav = workspaceNavigation(pathname, access, subject);
+  // The small label beside a rail control can be put away with Escape (WCAG 1.4.13); it returns when
+  // the pointer or focus reaches another control.
+  useEffect(() => {
+    const element = frame.current;
+    if (!element) return;
+    const control = (target: EventTarget | null) =>
+      target instanceof Element ? target.closest('a, button, summary') : null;
+    let away: Element | null = null;
+    const dismiss = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      const hovered = [...element.querySelectorAll(':hover')].at(-1) ?? null;
+      away = control(document.activeElement) ?? control(hovered);
+      if (away) element.setAttribute('data-tips-dismissed', 'true');
+    };
+    const restore = (event: Event) => {
+      if (control(event.target) !== away) element.removeAttribute('data-tips-dismissed');
+    };
+    document.addEventListener('keydown', dismiss);
+    element.addEventListener('pointerover', restore);
+    element.addEventListener('focusin', restore);
+    return () => {
+      document.removeEventListener('keydown', dismiss);
+      element.removeEventListener('pointerover', restore);
+      element.removeEventListener('focusin', restore);
+    };
+  }, []);
+  const toggleSidebar = () => {
+    setCollapsed(!collapsed);
+    saveSidebarState(collapsed ? 'expanded' : 'collapsed');
+  };
   return (
     <SubjectContext.Provider value={setSubject}>
-      <div className="app-frame" data-workspace={nav.kind}>
+      <div
+        ref={frame}
+        className="app-frame"
+        data-workspace={nav.kind}
+        data-sidebar={collapsed ? 'collapsed' : 'expanded'}
+      >
         <AppNav
           links={nav.primary}
           accountLabel={accountName}
+          sidebarCollapsed={collapsed}
+          onToggleSidebar={toggleSidebar}
           identity={
             <WorkspaceSelector
+              // A fresh list each time the sidebar changes size, so none stays open across it.
+              key={railShown ? 'rail' : 'full'}
               access={access}
               name={nav.name}
               caption={nav.caption}
               photo={nav.photo}
+              popover={railShown}
             />
           }
           secondaryLinks={nav.settings}
@@ -203,23 +304,11 @@ export function WorkspaceShell({
           }
         >
           {nav.tools.length ? (
-            <details
-              className="workspace-tools"
-              open={nav.tools.some((item) => isCurrentPath(pathname, item))}
-            >
-              <summary>More Tools</summary>
-              <nav className="app-shell-links" aria-label="Contextual tools">
-                {nav.tools.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    aria-current={isCurrentPath(pathname, item) ? 'page' : undefined}
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-              </nav>
-            </details>
+            <WorkspaceTools
+              key={railShown ? 'rail' : 'full'}
+              tools={nav.tools}
+              popover={railShown}
+            />
           ) : null}
         </AppNav>
         <div className="app-main">
