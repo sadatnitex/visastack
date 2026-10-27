@@ -1620,3 +1620,12 @@ export {
   listDeadlineClock,
   rankDeadlines,
 } from './deadline-clock';
+export {
+  type ConnectSignInInput,
+  SIGN_IN_RECOVERY_REASON_MAX,
+  SIGN_IN_RECOVERY_REFUSED,
+  SIGN_IN_RECOVERY_WINDOW_MS,
+  type SignInRecoveryRequest,
+  connectSignInToAccount,
+  listSignInRecoveryRequests,
+} from './sign-in-recovery';
