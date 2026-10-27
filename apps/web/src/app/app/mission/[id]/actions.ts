@@ -31,6 +31,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { resolveAiExplainer } from '../../../../lib/ai';
 import { resolveBaseUrl } from '../../../../lib/base-url';
+import { caseStateLabel } from '../../../../lib/case-stages';
 import { createKeyManagementPort } from '../../../../lib/providers';
 import { sendEmailNow } from '../../../../lib/send-now';
 import { withSession } from '../../../../lib/session';
@@ -42,22 +43,6 @@ export interface ActionState {
   readonly ok: boolean;
   readonly message: string;
 }
-
-const STATE_LABELS: Record<string, string> = {
-  DRAFT: 'Draft',
-  INTAKE: 'Intake',
-  IN_REVIEW: 'In Review',
-  AWAITING_APPLICANT: 'Awaiting Applicant',
-  SUBMISSION_READY: 'Submission Ready',
-  SUBMITTED: 'Submitted',
-  IN_PROGRESS: 'In Progress',
-  READY_FOR_REVIEW: 'Ready for Review',
-  UNDER_REVIEW: 'Under Review',
-  READY_TO_EXPORT: 'Ready to Export',
-  LOCKED: 'Locked',
-  CLOSED: 'Closed',
-  CANCELLED: 'Cancelled',
-};
 
 /** Attach a PUBLISHED pack version to the mission. */
 export async function attachPackAction(
@@ -108,7 +93,7 @@ export async function transitionMissionAction(
     return {
       ok: true,
       message:
-        to === 'CANCELLED' ? 'This case is cancelled.' : `Case moved to ${STATE_LABELS[to] ?? to}.`,
+        to === 'CANCELLED' ? 'This case is cancelled.' : `Case moved to ${caseStateLabel(to)}.`,
     } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);

@@ -4,6 +4,7 @@ import {
   caseCountry,
   casePurpose,
 } from '../../../../../lib/case-choices';
+import { readCaseDates } from '../../../../../lib/form-dates';
 import {
   type ActionState,
   CASE_FORM_FIELDS,
@@ -29,18 +30,6 @@ export interface CaseFormInput {
   readonly travelStartDate: Date | undefined;
   readonly travelEndDate: Date | undefined;
   readonly targetDeadline: Date | undefined;
-}
-
-const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
-
-/** A calendar date as the date box sends it (YYYY-MM-DD), checked to be a real day. */
-function readDate(raw: string): Date | 'invalid' | undefined {
-  if (raw.length === 0) return undefined;
-  if (!DATE_ONLY.test(raw)) return 'invalid';
-  const parsed = new Date(`${raw}T00:00:00.000Z`);
-  return Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== raw
-    ? 'invalid'
-    : parsed;
 }
 
 function text(formData: FormData, name: string): string {
@@ -71,19 +60,8 @@ export function readCaseForm(
   const purpose = purposeKey.length > 0 ? casePurpose(purposeKey) : null;
   if (purposeKey.length > 0 && !purpose) errors.purpose = 'Choose a purpose from the list.';
 
-  const dates: Partial<Record<'travelStartDate' | 'travelEndDate' | 'targetDeadline', Date>> = {};
-  for (const name of ['travelStartDate', 'travelEndDate', 'targetDeadline'] as const) {
-    const read = readDate(values[name] ?? '');
-    if (read === 'invalid') errors[name] = 'Enter a full date: day, month and year.';
-    else if (read) dates[name] = read;
-  }
-  if (
-    dates.travelStartDate &&
-    dates.travelEndDate &&
-    dates.travelEndDate.getTime() < dates.travelStartDate.getTime()
-  ) {
-    errors.travelEndDate = 'The trip cannot end before it starts.';
-  }
+  const { dates, errors: dateErrors } = readCaseDates((name) => values[name] ?? '');
+  Object.assign(errors, dateErrors);
 
   const invalid = CASE_FORM_FIELDS.filter((name) => errors[name] !== undefined);
   const first = invalid[0];

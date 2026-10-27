@@ -245,18 +245,12 @@ export function WorkspaceShell({
   const subject =
     subjects.find((item) => pathname === item.route || pathname.startsWith(`${item.route}/`)) ??
     null;
-  // The traveller shown last, kept while a case page has not reported its own yet.
-  const [previousTraveller, setPreviousTraveller] = useState<string | null>(null);
   const frame = useRef<HTMLDivElement>(null);
   const [collapsed, setCollapsed] = useState(sidebarState === 'collapsed');
   // The rail exists only from 1024px up; below that the saved choice changes nothing, so the lists
   // there stay ordinary and keep their full names.
   const railShown = useMediaQuery('(min-width: 1024px)') && collapsed;
-  const nav = workspaceNavigation(pathname, access, subject, previousTraveller);
-  const shownTraveller = nav.travellerId ?? null;
-  useEffect(() => {
-    if (shownTraveller) setPreviousTraveller(shownTraveller);
-  }, [shownTraveller]);
+  const nav = workspaceNavigation(pathname, access, subject);
   // The small label beside a rail control can be put away with Escape (WCAG 1.4.13); it returns when
   // the pointer or focus reaches another control.
   useEffect(() => {

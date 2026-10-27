@@ -1,6 +1,7 @@
 import { createTranslator } from '@visastack/i18n';
 import {
   type ChangesSinceConfirmed,
+  type Db,
   type OverallReadinessState,
   type RequirementResultState,
   accountPrincipal,
@@ -50,11 +51,15 @@ import { ReferenceCode } from '../../../../components/reference-code';
 import { Disclosure, PageHeader, StatusBadge } from '../../../../components/ui';
 import { isExplanationConfigured } from '../../../../lib/ai';
 import { memoryHref } from '../../../../lib/application-memory-labels';
+import { checklistsToPick } from '../../../../lib/case-checklist-match';
+import { savedCaseMatchTerms } from '../../../../lib/case-choices';
+import { CASE_STATE_LABELS, caseStateLabel, stageButtonStates } from '../../../../lib/case-stages';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { getLocale } from '../../../../lib/locale';
 import { fieldLabel } from '../../../../lib/master-profile';
 import { REQUIREMENT_GROUPS } from '../../../../lib/requirement-groups';
+import { reportServerError } from '../../../../lib/server-error';
 import { withSession } from '../../../../lib/session';
 import { AttachPackForm, type PackOption } from './attach-pack-form';
 import { CaseMoreMenu } from './case-more-menu';
@@ -83,22 +88,6 @@ import { SubmissionReportPanel } from './submission-report-panel';
 export const metadata: Metadata = { title: 'Case' };
 
 export const dynamic = 'force-dynamic';
-
-const STATE_LABELS: Record<string, string> = {
-  DRAFT: 'Draft',
-  INTAKE: 'Intake',
-  IN_REVIEW: 'In Review',
-  AWAITING_APPLICANT: 'Awaiting Applicant',
-  SUBMISSION_READY: 'Submission Ready',
-  SUBMITTED: 'Submitted',
-  IN_PROGRESS: 'In Progress',
-  READY_FOR_REVIEW: 'Ready for Review',
-  UNDER_REVIEW: 'Under Review',
-  READY_TO_EXPORT: 'Ready to Export',
-  LOCKED: 'Locked',
-  CLOSED: 'Closed',
-  CANCELLED: 'Cancelled',
-};
 
 // A snapshot taken once the mission has reached this stage of the reviewer
 // workflow is the application packet (Build Spec §4.5's "pack production"),
@@ -164,6 +153,35 @@ type AttentionKind = 'changed' | 'missing' | 'unconfirmed' | 'tasks';
 /** How long after it is made a case still opens with its welcome note. */
 const WELCOME_WINDOW_MS = 60 * 60 * 1000;
 
+/** Whether a case was made recently enough to open with its welcome note. */
+function madeJustNow(createdAt: Date | string): boolean {
+  return Date.now() - new Date(createdAt).getTime() < WELCOME_WINDOW_MS;
+}
+
+/**
+ * For the welcome note of a case with no checklist: how many published checklists fit its country
+ * and purpose and may cover its traveller. Null when the case names no country or no purpose, so
+ * there is no route to narrow by, or when the lookup failed.
+ */
+async function welcomeChecklistCount(
+  db: Db,
+  accountId: string,
+  mission: {
+    readonly id: string;
+    readonly destination: string | null;
+    readonly purpose: string | null;
+  },
+): Promise<number | null> {
+  const route = savedCaseMatchTerms(mission.destination, mission.purpose);
+  if (!route) return null;
+  try {
+    return (await checklistsToPick(db, { accountId, missionId: mission.id, ...route })).length;
+  } catch (error) {
+    reportServerError('MissionPage', error, { step: 'welcome checklists' });
+    return null;
+  }
+}
+
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
 // WP-X1 next step card: wording for the first attention item. A changed case
@@ -213,6 +231,8 @@ export default async function MissionPage({
 }) {
   const { id } = await params;
   const { welcome } = (await searchParams) ?? {};
+  // Start a Case and Start a New Case from This One both arrive with `welcome=1`.
+  const welcomeAsked = welcome === '1';
   const locale = await getLocale();
   const t = createTranslator(locale);
 
@@ -417,8 +437,13 @@ export default async function MissionPage({
     }
     // The case's visible code (ADR 0018); none while migration 0091 has not run.
     const referenceCode = await referenceCodeFor(db, 'C', mission.id);
+    const welcomeChecklists =
+      welcomeAsked && !mission.packVersionId && madeJustNow(mission.createdAt)
+        ? await welcomeChecklistCount(db, accountId, mission)
+        : 0;
     return {
       referenceCode,
+      welcomeChecklists,
       mission,
       applicantName: applicant?.displayName ?? 'Applicant',
       applicantId: mission.applicantId,
@@ -551,11 +576,11 @@ export default async function MissionPage({
   const { mission } = data;
   const nextStates = legalTransitions(mission.state);
   // Cancelling is final, so it is offered only from the More menu, behind a question.
-  const stageStates = nextStates.filter((state) => state !== 'CANCELLED');
-  // The welcome note greets a case that was just made (Start a Case or Start a New Case from
-  // This One both arrive with `welcome=1`); an old case opened with the same address shows none.
-  const justCreated =
-    welcome === '1' && Date.now() - new Date(mission.createdAt).getTime() < WELCOME_WINDOW_MS;
+  const stageStates = stageButtonStates(nextStates);
+  const canCancel = nextStates.includes('CANCELLED');
+  // The welcome note greets a case that was just made; an old case opened with the same address
+  // shows none.
+  const justCreated = welcomeAsked && madeJustNow(mission.createdAt);
 
   const openTasks = data.tasks.filter(
     (task) => task.status === 'OPEN' || task.status === 'IN_PROGRESS',
@@ -631,7 +656,7 @@ export default async function MissionPage({
           <>
             <span>
               {mission.destination ? `${mission.destination} · ` : ''}
-              {STATE_LABELS[mission.state] ?? mission.state}
+              {caseStateLabel(mission.state)}
             </span>
             <ReferenceCode code={data.referenceCode} label="Case Reference" />
             {data.liveAcknowledgedAt ? (
@@ -658,7 +683,7 @@ export default async function MissionPage({
             <CaseMoreMenu
               missionId={mission.id}
               applicantId={data.applicantId}
-              canCancel={nextStates.includes('CANCELLED')}
+              canCancel={canCancel}
             />
           </>
         }
@@ -668,13 +693,20 @@ export default async function MissionPage({
         <CaseWelcome
           {...caseWelcomeCopy({
             packName: mission.packVersionId ? (data.packInfo?.name ?? null) : null,
-            checklistsToPick: data.packOptions.length,
+            // Only checklists for this case's country and purpose that may cover its traveller.
+            // Without a country and purpose to narrow by, the picker is offered when any exists.
+            checklistsToPick: data.welcomeChecklists ?? data.packOptions.length,
             firstGapHref: attention.find((item) => item.kind !== 'changed')?.href ?? null,
           })}
         />
       ) : null}
 
-      <CaseStageTracker state={mission.state} labels={STATE_LABELS} nextStates={nextStates} />
+      <CaseStageTracker
+        state={mission.state}
+        labels={CASE_STATE_LABELS}
+        nextStates={stageStates}
+        cancelInMore={canCancel}
+      />
 
       {data.isDirty ? (
         <div className="case-alert">

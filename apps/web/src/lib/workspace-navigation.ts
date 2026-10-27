@@ -32,8 +32,6 @@ export interface WorkspaceNavigation {
   readonly caption: string;
   /** The current traveller's photo, shown in place of their initials (WP-PH1). */
   readonly photo?: string;
-  /** The traveller this navigation is for, when it is for one. */
-  readonly travellerId?: string;
   readonly primary: readonly NavLink[];
   readonly tools: readonly NavLink[];
   readonly settings: readonly NavLink[];
@@ -56,18 +54,16 @@ export function recordSections(applicantId: string): readonly NavLink[] {
 /**
  * Navigation describes only the current server-authorized context list; it grants no access.
  *
- * On a case page the traveller is the one the case layout reported after its own owner check
- * (`caseSubject`). Until that report arrives (the case is still loading, or the page's scripts have
- * not run yet) the sidebar keeps the traveller that was selected before (`previousTravellerId`),
- * or the only traveller when there is just one, instead of dropping to "Choose a Traveller"
- * (owner list item 2). Either way the person must be in the owner's own traveller list, and the
- * layout's report replaces the guess as soon as it comes.
+ * On a case page the traveller is only ever the one known to own that case: the one the case
+ * layout reported after its own owner check (`caseSubject`; the frame remembers each case's report
+ * for the visit, so going back to a case shows its traveller at once). Until a case has reported,
+ * or when it never does (a case that is not this account's), the sidebar shows a neutral case
+ * state with no traveller's links, never a guess (owner list item 2).
  */
 export function workspaceNavigation(
   pathname: string,
   access: WorkspaceAccess,
   caseSubject?: { readonly route: string; readonly applicantId: string } | null,
-  previousTravellerId?: string | null,
 ): WorkspaceNavigation {
   const segments = pathname.split('/').filter(Boolean);
   if (segments[1] === 'admin') {
@@ -144,9 +140,7 @@ export function workspaceNavigation(
     : !casePath
       ? (access.travellers.find((item) => item.relationship === 'SELF') ??
         (access.travellers.length === 1 ? access.travellers[0] : undefined))
-      : ((previousTravellerId
-          ? access.travellers.find((item) => item.id === previousTravellerId)
-          : undefined) ?? (access.travellers.length === 1 ? access.travellers[0] : undefined));
+      : undefined;
 
   if (segments[1] === 'applicant' && !person) return unavailable('Traveller Access Unavailable');
   const base = person ? `/app/applicant/${person.id}` : null;
@@ -160,13 +154,15 @@ export function workspaceNavigation(
     kind: 'personal',
     name: person?.name ?? (casePath ? 'Visa Case' : 'Personal Space'),
     ...(person?.photo ? { photo: person.photo } : {}),
-    ...(person ? { travellerId: person.id } : {}),
     caption:
       person?.relationship === 'SELF'
         ? 'Personal Space'
         : person
           ? 'Managed Traveller'
-          : 'Choose a Traveller',
+          : // A case whose traveller is not known yet: a neutral note, not a request to choose.
+            casePath
+            ? 'Personal Space'
+            : 'Choose a Traveller',
     // Four tabs (WP-V3 part 2): Home, Record, Cases, Sharing. Notifications and Countries follow,
     // so on a phone they sit under More. Profile, Documents, Dates & Expiry and History are
     // sections of Record: their pages keep their addresses and light up the Record tab.
@@ -187,7 +183,11 @@ export function workspaceNavigation(
           { href: '/app', label: 'Home', exact: true },
           {
             href: '/app/applicants',
-            label: access.travellers.length ? 'Choose a Traveller' : 'Add a Traveller',
+            label: casePath
+              ? 'All Travellers'
+              : access.travellers.length
+                ? 'Choose a Traveller'
+                : 'Add a Traveller',
           },
           { href: '/app/notifications', label: 'Notifications' },
           { href: '/app/countries', label: 'Countries' },

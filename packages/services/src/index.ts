@@ -1642,4 +1642,14 @@ export {
   listEmailDeliveryProblems,
   resendEmail,
 } from './email-delivery-admin';
-export { type PackMatch, type PackMatchTerms, findMatchingPublicPack } from './pack-matching';
+export {
+  type PackFit,
+  type PackMatch,
+  type PackMatchTerms,
+  type TravellerCoverage,
+  type TravellerMatchTerms,
+  findMatchingPublicPack,
+  listFittingPublicPacks,
+  packMatchKey,
+  readTravellerCoverage,
+} from './pack-matching';

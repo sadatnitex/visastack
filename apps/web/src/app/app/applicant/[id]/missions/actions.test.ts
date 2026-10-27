@@ -10,7 +10,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   createMission: vi.fn(),
   attachPackVersion: vi.fn(),
-  findMatchingPublicPack: vi.fn(),
+  checklistToLink: vi.fn(),
+  reportServerError: vi.fn(),
   revalidatePath: vi.fn(),
   redirect: vi.fn((url: string) => {
     throw new Error(`REDIRECT ${url}`);
@@ -19,7 +20,12 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@visastack/services', () => ({
   createMission: mocks.createMission,
   attachPackVersion: mocks.attachPackVersion,
-  findMatchingPublicPack: mocks.findMatchingPublicPack,
+}));
+vi.mock('../../../../../lib/case-checklist-match', () => ({
+  checklistToLink: mocks.checklistToLink,
+}));
+vi.mock('../../../../../lib/server-error', () => ({
+  reportServerError: mocks.reportServerError,
 }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
@@ -42,7 +48,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.createMission.mockResolvedValue({ ok: true, value: { id: 'case-1' } });
   mocks.attachPackVersion.mockResolvedValue({ ok: true, value: {} });
-  mocks.findMatchingPublicPack.mockResolvedValue(null);
+  mocks.checklistToLink.mockResolvedValue(null);
 });
 
 describe('createMissionAction: checking the answers', () => {
@@ -143,7 +149,7 @@ describe('createMissionAction: a good form', () => {
   });
 
   it('links the one matching checklist, asking with every name the country and purpose go by', async () => {
-    mocks.findMatchingPublicPack.mockResolvedValue({
+    mocks.checklistToLink.mockResolvedValue({
       packVersionId: 'pv-uk',
       packName: 'UK Visitor',
       version: 2,
@@ -151,9 +157,11 @@ describe('createMissionAction: a good form', () => {
     await expect(
       createMissionAction(PREV, form({ title: 'Trip', destination: 'GB', purpose: 'tourism' })),
     ).rejects.toThrow('REDIRECT');
-    const [, terms] = mocks.findMatchingPublicPack.mock.calls[0] ?? [];
+    const [, terms] = mocks.checklistToLink.mock.calls[0] ?? [];
     expect(terms.country).toEqual(expect.arrayContaining(['GB', 'United Kingdom', 'UK']));
     expect(terms.purpose).toEqual(['tourism', 'Tourism']);
+    // The traveller is read for the new case, so a checklist for other people is left out.
+    expect(terms).toMatchObject({ accountId: 'owner', missionId: 'case-1' });
     expect(mocks.attachPackVersion).toHaveBeenCalledWith(
       { tag: 'db' },
       { actorAccountId: 'owner', missionId: 'case-1', packVersionId: 'pv-uk' },
@@ -164,7 +172,7 @@ describe('createMissionAction: a good form', () => {
     await expect(
       createMissionAction(PREV, form({ title: 'Trip', destination: 'FR', purpose: 'tourism' })),
     ).rejects.toThrow('REDIRECT');
-    const [, terms] = mocks.findMatchingPublicPack.mock.calls[0] ?? [];
+    const [, terms] = mocks.checklistToLink.mock.calls[0] ?? [];
     expect(terms.country).toEqual(expect.arrayContaining(['FR', 'France', 'Schengen']));
   });
 
@@ -172,7 +180,7 @@ describe('createMissionAction: a good form', () => {
     await expect(
       createMissionAction(PREV, form({ title: 'Trip', destination: 'GB' })),
     ).rejects.toThrow('REDIRECT');
-    expect(mocks.findMatchingPublicPack).not.toHaveBeenCalled();
+    expect(mocks.checklistToLink).not.toHaveBeenCalled();
     await expect(
       createMissionAction(PREV, form({ title: 'Trip', destination: 'GB', purpose: 'tourism' })),
     ).rejects.toThrow('REDIRECT');
@@ -180,7 +188,7 @@ describe('createMissionAction: a good form', () => {
   });
 
   it('still opens the case when linking the checklist is refused', async () => {
-    mocks.findMatchingPublicPack.mockResolvedValue({
+    mocks.checklistToLink.mockResolvedValue({
       packVersionId: 'pv',
       packName: 'P',
       version: 1,
@@ -189,5 +197,26 @@ describe('createMissionAction: a good form', () => {
     await expect(
       createMissionAction(PREV, form({ title: 'Trip', destination: 'GB', purpose: 'tourism' })),
     ).rejects.toThrow('REDIRECT /app/mission/case-1?welcome=1');
+  });
+
+  it('never shows an error once the case exists: a failed lookup still opens the new case', async () => {
+    mocks.checklistToLink.mockRejectedValue(new Error('connection reset'));
+    await expect(
+      createMissionAction(PREV, form({ title: 'Trip', destination: 'GB', purpose: 'tourism' })),
+    ).rejects.toThrow('REDIRECT /app/mission/case-1?welcome=1');
+    expect(mocks.createMission).toHaveBeenCalledTimes(1);
+    expect(mocks.attachPackVersion).not.toHaveBeenCalled();
+    expect(mocks.reportServerError).toHaveBeenCalledWith('createMissionAction', expect.any(Error), {
+      step: 'checklist link',
+    });
+  });
+
+  it('never shows an error once the case exists: a failed link still opens the new case', async () => {
+    mocks.checklistToLink.mockResolvedValue({ packVersionId: 'pv', packName: 'P', version: 1 });
+    mocks.attachPackVersion.mockRejectedValue(new Error('deadlock'));
+    await expect(
+      createMissionAction(PREV, form({ title: 'Trip', destination: 'GB', purpose: 'tourism' })),
+    ).rejects.toThrow('REDIRECT /app/mission/case-1?welcome=1');
+    expect(mocks.reportServerError).toHaveBeenCalledTimes(1);
   });
 });

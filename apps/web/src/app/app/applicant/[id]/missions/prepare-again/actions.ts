@@ -3,9 +3,13 @@
 import { accountPrincipal, prepareCaseAgain, requireAccess } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import {
+  CASE_DATE_FIELDS,
+  CASE_DATE_LABELS,
+  readCaseDates,
+} from '../../../../../../lib/form-dates';
 import { withSession } from '../../../../../../lib/session';
 import type { ActionState } from '../actions';
-import { parseOptionalDate } from '../form-dates';
 
 /** `<requirement>|f|<fact>` or `<requirement>|d|<document>`; anything else is dropped and the service refuses what does not match its own list. */
 function parseCarry(values: readonly FormDataEntryValue[]) {
@@ -29,9 +33,11 @@ export async function prepareCaseAgainAction(
   const title = String(formData.get('title') ?? '').trim();
   if (title.length === 0) return { ok: false, message: 'Give the case a title.' };
   const expected = String(formData.get('expectedPackVersionId') ?? '');
-  const travelStartDate = parseOptionalDate(formData.get('travelStartDate'));
-  const travelEndDate = parseOptionalDate(formData.get('travelEndDate'));
-  const targetDeadline = parseOptionalDate(formData.get('targetDeadline'));
+  // The same date check as Start a Case: an impossible date is refused, never dropped.
+  const { dates, errors } = readCaseDates((name) => formData.get(name));
+  const wrong = CASE_DATE_FIELDS.find((name) => errors[name] !== undefined);
+  if (wrong) return { ok: false, message: `${CASE_DATE_LABELS[wrong]}: ${errors[wrong]}` };
+  const { travelStartDate, travelEndDate, targetDeadline } = dates;
 
   const outcome = await withSession(async ({ db, accountId }) => {
     const access = await requireAccess(

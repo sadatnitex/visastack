@@ -31,6 +31,8 @@ const mocks = vi.hoisted(() => ({
   listSubmissionsForMission: vi.fn(),
   listTasks: vi.fn(),
   listChangesSinceConfirmed: vi.fn(),
+  listFittingPublicPacks: vi.fn(),
+  readTravellerCoverage: vi.fn(),
   requireAccess: vi.fn(),
 }));
 
@@ -142,6 +144,8 @@ function setUp(
     mocks[name].mockResolvedValue(ok([]));
   }
   mocks.listPublishedPackVersions.mockResolvedValue([]);
+  mocks.listFittingPublicPacks.mockResolvedValue([]);
+  mocks.readTravellerCoverage.mockResolvedValue({ nationality: ['Bangladeshi'], residence: [] });
   mocks.listMissionsByItineraryRef.mockResolvedValue([]);
   mocks.listNotesForOwner.mockResolvedValue([]);
   mocks.listTasks.mockResolvedValue(
@@ -608,5 +612,81 @@ describe('owner list items 1, 3 and 10 on the case page', () => {
     );
     expect(welcome?.body[0]).toContain('Checklist linked: Japan visitor.');
     expect(welcome?.action.href).toBe('#readiness');
+  });
+
+  describe('the welcome note counts only checklists that fit this case', () => {
+    const otherRoutes = [
+      {
+        packVersionId: 'pv-uk',
+        packKey: 'uk',
+        packName: 'UK Visitor',
+        version: 1,
+        requirementCount: 3,
+      },
+      {
+        packVersionId: 'pv-ca',
+        packKey: 'ca',
+        packName: 'Canada Study',
+        version: 2,
+        requirementCount: 4,
+      },
+    ];
+    const japanTourism = () =>
+      mocks.getMissionForOwner.mockResolvedValue(
+        ok({ ...MISSION, purpose: 'Tourism', createdAt: new Date() }),
+      );
+
+    it('says there is no checklist for this route when only other routes are published', async () => {
+      setUp();
+      japanTourism();
+      mocks.listPublishedPackVersions.mockResolvedValue(otherRoutes);
+      const [welcome] = stubProps<{ body: string[]; action: { href: string } }>(
+        await render({ welcome: '1' }),
+        'CaseWelcome',
+      );
+      expect(welcome?.body[0]).toContain('There is no checklist for this route yet');
+      expect(welcome?.action.href).toBe('#evidence');
+      const [, terms, fit] = mocks.listFittingPublicPacks.mock.calls[0] ?? [];
+      expect(terms.country).toEqual(expect.arrayContaining(['JP', 'Japan']));
+      expect(terms.purpose).toEqual(expect.arrayContaining(['tourism', 'Tourism']));
+      expect(terms.traveller.nationality).toEqual(expect.arrayContaining(['BD']));
+      expect(fit).toBe('possible');
+    });
+
+    it('asks the person to pick when a checklist fits the route', async () => {
+      setUp();
+      japanTourism();
+      mocks.listPublishedPackVersions.mockResolvedValue(otherRoutes);
+      mocks.listFittingPublicPacks.mockResolvedValue([
+        { packVersionId: 'pv-jp', packName: 'Japan Visitor', version: 1 },
+      ]);
+      const [welcome] = stubProps<{ action: { href: string } }>(
+        await render({ welcome: '1' }),
+        'CaseWelcome',
+      );
+      expect(welcome?.action.href).toBe('#pack');
+    });
+
+    it('looks nothing up for a case opened without the welcome mark', async () => {
+      setUp();
+      japanTourism();
+      await render();
+      expect(mocks.listFittingPublicPacks).not.toHaveBeenCalled();
+      expect(mocks.readTravellerCoverage).not.toHaveBeenCalled();
+    });
+  });
+
+  it('lists only the stage buttons as next steps and points to More for cancelling', async () => {
+    setUp();
+    const html = await render();
+    const tracker = textOf(
+      html.slice(
+        html.indexOf('aria-label="Actual case workflow state"'),
+        html.indexOf('</section>', html.indexOf('aria-label="Actual case workflow state"')),
+      ),
+    );
+    expect(tracker).toContain('allows Ready for Review next;');
+    expect(tracker).not.toMatch(/Cancelled next|, Cancelled/);
+    expect(tracker).toContain('To stop the case, use More at the top of the page.');
   });
 });

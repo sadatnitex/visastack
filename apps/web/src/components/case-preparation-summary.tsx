@@ -7,15 +7,23 @@ import type { Readiness } from '@visastack/services';
 import { progressRingPercent } from '../lib/readiness-words';
 import { NO_REQUIRED_LABEL, NO_REQUIRED_LINE, ProgressRing } from './progress-ring';
 
+/**
+ * The case's stages with the current one marked. `nextStates` are the stages the page offers as
+ * buttons; when cancelling is offered from the page's More menu instead (`cancelInMore`), the line
+ * below says so rather than listing it as a next stage.
+ */
 export function CaseStageTracker({
   state,
   labels,
   nextStates,
+  cancelInMore = false,
 }: {
   readonly state: MissionState;
   readonly labels: Readonly<Record<string, string>>;
   readonly nextStates: readonly MissionState[];
+  readonly cancelInMore?: boolean;
 }) {
+  const cancelLine = cancelInMore ? ' To stop the case, use More at the top of the page.' : '';
   const legacy = (LEGACY_ONLY_MISSION_STATES as readonly string[]).includes(state);
   const stages: readonly MissionState[] = legacy
     ? [
@@ -40,8 +48,10 @@ export function CaseStageTracker({
       <p className="muted">
         Only the current state is marked. This is not a completed-stage history.{' '}
         {nextStates.length
-          ? `The workflow allows ${nextStates.map((stage) => labels[stage] ?? stage).join(', ')} next; permissions and applicant confirmation are checked by the existing actions.`
-          : 'This case is in a terminal state.'}
+          ? `The workflow allows ${nextStates.map((stage) => labels[stage] ?? stage).join(', ')} next; permissions and applicant confirmation are checked by the existing actions.${cancelLine}`
+          : cancelInMore
+            ? `There is no further stage from here.${cancelLine}`
+            : 'This case is in a terminal state.'}
       </p>
     </section>
   );

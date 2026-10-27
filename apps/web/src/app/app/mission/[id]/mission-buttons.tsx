@@ -3,6 +3,7 @@
 import type { MissionState } from '@visastack/core';
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { CASE_STATE_LABELS } from '../../../../lib/case-stages';
 import {
   type ActionState,
   setItineraryRefAction,
@@ -193,25 +194,10 @@ export function SnapshotButton({
   );
 }
 
-const STATE_LABELS: Record<string, string> = {
-  DRAFT: 'Draft',
-  INTAKE: 'Intake',
-  IN_REVIEW: 'In Review',
-  AWAITING_APPLICANT: 'Awaiting Applicant',
-  SUBMISSION_READY: 'Submission Ready',
-  SUBMITTED: 'Submitted',
-  IN_PROGRESS: 'In Progress',
-  READY_FOR_REVIEW: 'Ready for Review',
-  UNDER_REVIEW: 'Under Review',
-  READY_TO_EXPORT: 'Ready to Export',
-  LOCKED: 'Locked',
-  CLOSED: 'Closed',
-  CANCELLED: 'Cancelled',
-};
-
 /**
- * The stage buttons. Cancelling is not one of them: it is final, so it lives in the page's More
- * menu behind a confirmation question (case-more-menu.tsx), never beside the stages.
+ * The stage buttons, one for each stage the page passes (`stageButtonStates`). Cancelling is not
+ * one of them: it is final, so it lives in the page's More menu behind a confirmation question
+ * (case-more-menu.tsx), never beside the stages.
  */
 export function TransitionButtons({
   missionId,
@@ -221,18 +207,17 @@ export function TransitionButtons({
   readonly nextStates: readonly MissionState[];
 }) {
   const [state, formAction, pending] = useActionState(transitionMissionAction, INITIAL);
-  const stages = nextStates.filter((to) => to !== 'CANCELLED');
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
       <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-        {stages.map((to) => (
+        {nextStates.map((to) => (
           <form action={formAction} key={to}>
             <input type="hidden" name="missionId" value={missionId} />
             <input type="hidden" name="to" value={to} />
             <SubmitButton
               pending={pending}
-              idle={STATE_LABELS[to] ?? to}
-              busy={STATE_LABELS[to] ?? to}
+              idle={CASE_STATE_LABELS[to]}
+              busy={CASE_STATE_LABELS[to]}
               className="btn btn-secondary"
             />
           </form>

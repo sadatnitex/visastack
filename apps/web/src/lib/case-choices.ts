@@ -1,9 +1,16 @@
+import { packMatchKey } from '@visastack/core';
 import {
   CATALOGUE_PURPOSES,
   PURPOSE_FAMILY_KEYS,
   type PurposeFamilyKey,
 } from '@visastack/core/catalogue';
-import { DESTINATIONS, SCHENGEN_ISO2, SCHENGEN_ROUTE_COUNTRY } from '@visastack/core/destinations';
+import {
+  DESTINATIONS,
+  SCHENGEN_ISO2,
+  SCHENGEN_ROUTE_COUNTRY,
+  destinationByIso2,
+} from '@visastack/core/destinations';
+import type { TravellerCoverage, TravellerMatchTerms } from '@visastack/services';
 import { COUNTRY_ALIASES } from './country-start';
 
 /**
@@ -70,8 +77,8 @@ export function casePurposeGroups(): readonly CasePurposeGroup[] {
 
 /** The country a submitted code names, or null when the list does not hold it. */
 export function caseCountry(iso2: string): CaseCountryOption | null {
-  const code = iso2.trim().toUpperCase();
-  return caseCountryOptions().find((country) => country.iso2 === code) ?? null;
+  const destination = destinationByIso2(iso2);
+  return destination ? { iso2: destination.iso2, name: destination.country } : null;
 }
 
 /** The purpose a submitted key names, or null when the picker does not offer it. */
@@ -102,4 +109,107 @@ export function countryMatchTerms(country: CaseCountryOption): readonly string[]
 /** Every name a checklist may use for this purpose: its key and its label. */
 export function purposeMatchTerms(purpose: CasePurposeOption): readonly string[] {
   return [purpose.key, purpose.label];
+}
+
+/**
+ * Words people save as a nationality that name no country by themselves. The app's reference data
+ * is written for Bangladeshi travellers, and the profile suggests "Bangladeshi", so that word and
+ * the passport code a document reading saves are known; any other such word is matched as written.
+ */
+const NATIONALITY_WORDS: Readonly<Record<string, readonly string[]>> = {
+  BD: ['Bangladeshi', 'BGD'],
+};
+
+let countriesByName: ReadonlyMap<string, CaseCountryOption> | undefined;
+
+/** Every country's two-letter code and English name, for the people's own countries. */
+function everyCountry(): readonly CaseCountryOption[] {
+  const names = new Intl.DisplayNames(['en'], { type: 'region', fallback: 'none' });
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const found: CaseCountryOption[] = [];
+  for (const first of letters) {
+    for (const second of letters) {
+      const iso2 = `${first}${second}`;
+      // Reserved and private-use codes name no country.
+      if (iso2 === 'ZZ' || iso2 === 'EU' || iso2 === 'EZ' || iso2 === 'UN') continue;
+      if ((first === 'Q' || first === 'X') && iso2 !== 'XK') continue;
+      const name = names.of(iso2);
+      if (name && name !== iso2) found.push({ iso2, name });
+    }
+  }
+  return found;
+}
+
+/**
+ * The country a saved or typed name stands for (its code, its name, another common name or a
+ * known nationality word), or null. A case's own country comes from the picker's list; a
+ * traveller's nationality may be any country, so every country is known here.
+ */
+function countryNamed(text: string): CaseCountryOption | null {
+  if (!countriesByName) {
+    const byName = new Map<string, CaseCountryOption>();
+    const add = (name: string, country: CaseCountryOption) => {
+      const key = packMatchKey(name);
+      if (key.length > 0 && !byName.has(key)) byName.set(key, country);
+    };
+    for (const country of [...caseCountryOptions(), ...everyCountry()]) {
+      for (const name of countryNames(country)) add(name, country);
+    }
+    countriesByName = byName;
+  }
+  return countriesByName.get(packMatchKey(text)) ?? null;
+}
+
+/** A country's code, name, other common names and known nationality words. */
+function countryNames(country: CaseCountryOption): readonly string[] {
+  return [
+    country.iso2,
+    country.name,
+    ...(COUNTRY_ALIASES[country.iso2] ?? []),
+    ...(NATIONALITY_WORDS[country.iso2] ?? []),
+  ];
+}
+
+/**
+ * Every name a checklist may use for one of the traveller's own countries (a nationality or a
+ * residence): the value as saved and, when it names a country, that country's code, names and
+ * nationality words. A value that names no country stays as it is, so it fits only a checklist
+ * that uses the same word.
+ */
+function travellerCountryTerms(values: readonly string[]): readonly string[] {
+  return values.flatMap((value) => {
+    const country = countryNamed(value);
+    return country ? [value, ...countryNames(country)] : [value];
+  });
+}
+
+/** The traveller's confirmed values as checklist match terms; empty lists mean "not known". */
+export function travellerMatchTerms(coverage: TravellerCoverage): TravellerMatchTerms {
+  return {
+    nationality: travellerCountryTerms(coverage.nationality),
+    residence: travellerCountryTerms(coverage.residence),
+  };
+}
+
+/**
+ * The country and purpose a saved case names, as checklist match terms, or null when it names no
+ * country or no purpose. A case started from the pickers saved the country's name and the
+ * purpose's label; an older case may hold other words, which are matched as they are.
+ */
+export function savedCaseMatchTerms(
+  destination: string | null,
+  purpose: string | null,
+): { readonly country: readonly string[]; readonly purpose: readonly string[] } | null {
+  const place = destination?.trim() ?? '';
+  const reason = purpose?.trim() ?? '';
+  if (place.length === 0 || reason.length === 0) return null;
+  const country = countryNamed(place);
+  const wanted = packMatchKey(reason);
+  const option = casePurposeGroups()
+    .flatMap((group) => group.options)
+    .find((item) => packMatchKey(item.label) === wanted || packMatchKey(item.key) === wanted);
+  return {
+    country: country ? countryMatchTerms(country) : [place],
+    purpose: option ? purposeMatchTerms(option) : [reason],
+  };
 }

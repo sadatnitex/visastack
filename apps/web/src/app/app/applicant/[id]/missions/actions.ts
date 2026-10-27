@@ -1,9 +1,16 @@
 'use server';
 
-import { attachPackVersion, createMission, findMatchingPublicPack } from '@visastack/services';
+import { type Db, attachPackVersion, createMission } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { countryMatchTerms, purposeMatchTerms } from '../../../../../lib/case-choices';
+import { checklistToLink } from '../../../../../lib/case-checklist-match';
+import {
+  type CaseCountryOption,
+  type CasePurposeOption,
+  countryMatchTerms,
+  purposeMatchTerms,
+} from '../../../../../lib/case-choices';
+import { reportServerError } from '../../../../../lib/server-error';
 import { withSession } from '../../../../../lib/session';
 import { readCaseForm } from './case-form';
 import type { ActionState } from './case-form-fields';
@@ -18,10 +25,47 @@ const REFUSAL_WORDS: Readonly<Partial<Record<string, string>>> = {
 };
 
 /**
+ * Link the one published checklist that certainly covers the new case's country, purpose and
+ * traveller, through the same owner-checked attach the case page uses. Best effort: the case
+ * already exists, so nothing here may turn the start into an error (pressing Start Case again
+ * would make a second case). A refusal or a failure leaves the case without a checklist, and the
+ * case page's welcome note then says so in its own words.
+ */
+async function linkChecklistIfOneFits(
+  db: Db,
+  accountId: string,
+  missionId: string,
+  country: CaseCountryOption,
+  purpose: CasePurposeOption,
+): Promise<void> {
+  try {
+    const match = await checklistToLink(db, {
+      accountId,
+      missionId,
+      country: countryMatchTerms(country),
+      purpose: purposeMatchTerms(purpose),
+    });
+    if (!match) return;
+    const attached = await attachPackVersion(db, {
+      actorAccountId: accountId,
+      missionId,
+      packVersionId: match.packVersionId,
+    });
+    if (!attached.ok) {
+      reportServerError('createMissionAction', new Error(attached.error.code), {
+        step: 'checklist link refused',
+      });
+    }
+  } catch (error) {
+    reportServerError('createMissionAction', error, { step: 'checklist link' });
+  }
+}
+
+/**
  * Create a case for an applicant, then open it at the top with its welcome note. When exactly one
- * published checklist covers the chosen country and purpose it is linked straight away, through
- * the same owner-checked attach the case page uses; otherwise the case page asks the person to
- * pick one. The service still checks ownership, consent and the title itself.
+ * published checklist covers the chosen country and purpose, and is meant for this traveller, it
+ * is linked straight away; otherwise the case page asks the person to pick one, or says there is
+ * none yet. The service still checks ownership, consent and the title itself.
  */
 export async function createMissionAction(
   prev: ActionState,
@@ -55,18 +99,7 @@ export async function createMissionAction(
       return { state, id: null };
     }
     if (input.country && input.purpose) {
-      const match = await findMatchingPublicPack(db, {
-        country: countryMatchTerms(input.country),
-        purpose: purposeMatchTerms(input.purpose),
-      });
-      // A refused attach leaves the case without a checklist; the case page then says so.
-      if (match) {
-        await attachPackVersion(db, {
-          actorAccountId: accountId,
-          missionId: created.value.id,
-          packVersionId: match.packVersionId,
-        });
-      }
+      await linkChecklistIfOneFits(db, accountId, created.value.id, input.country, input.purpose);
     }
     return { state: { ok: true, message: '' } as ActionState, id: created.value.id };
   });
