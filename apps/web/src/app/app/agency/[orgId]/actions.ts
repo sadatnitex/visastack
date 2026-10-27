@@ -36,10 +36,16 @@ import {
   getPlatformCapabilities,
 } from '../../../../lib/capabilities';
 import { parseFieldKeyInput } from '../../../../lib/catalogue-input';
+import { humanizeCode } from '../../../../lib/format-code';
 import { triggerNotificationWorker } from '../../../../lib/jobs';
 import { createKeyManagementPort, createMalwareScanner } from '../../../../lib/providers';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
+import {
+  REQUEST_SENT_LINE,
+  invitationReadyLine,
+  memberAddedLine,
+} from '../../../../lib/success-lines';
 
 /** Result surfaced back to the client for inline feedback. */
 export interface ActionState {
@@ -127,7 +133,7 @@ export async function requestEvidenceAction(
       ...(dueDate ? { dueDate } : {}),
     });
     if (!requested.ok) return { ok: false, message: requested.error.message } satisfies ActionState;
-    return { ok: true, message: 'Evidence request sent.' } satisfies ActionState;
+    return { ok: true, message: REQUEST_SENT_LINE } satisfies ActionState;
   });
 
   if (result.ok) {
@@ -263,14 +269,12 @@ export async function addMemberAction(
     });
     if (!outcome.ok) return { ok: false, message: outcome.error.message } satisfies ActionState;
     if (outcome.value.kind === 'added') {
-      return { ok: true, message: `${memberEmail} added as ${role}.` } satisfies ActionState;
+      return { ok: true, message: memberAddedLine(humanizeCode(role)) } satisfies ActionState;
     }
     const acceptUrl = `${resolveBaseUrl()}/invitation?kind=team&token=${outcome.value.rawToken}`;
     return {
       ok: true,
-      message: encryption
-        ? 'Invitation created. Email queued. You can also copy the link below. It expires in 7 days.'
-        : 'Invitation created. Email is unavailable. Copy and share the link below. It expires in 7 days.',
+      message: invitationReadyLine(Boolean(encryption), '7 days'),
       invitationUrl: acceptUrl,
     } satisfies ActionState;
   });
@@ -333,9 +337,7 @@ export async function inviteClientAction(
     const acceptUrl = `${resolveBaseUrl()}/invitation?kind=client&token=${invited.value.rawToken}`;
     return {
       ok: true,
-      message: invited.value.emailQueued
-        ? 'Invitation created. Email queued. You can also copy the link below. It expires in 7 days.'
-        : 'Invitation created. Email sending is not set up on this server, so copy and share the link below. It expires in 7 days.',
+      message: invitationReadyLine(invited.value.emailQueued, '7 days'),
       invitationUrl: acceptUrl,
     } satisfies ActionState;
   });

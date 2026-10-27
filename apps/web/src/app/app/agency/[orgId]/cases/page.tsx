@@ -50,6 +50,7 @@ export default async function AgencyCasesPage({
         <EmptyState
           title="No Cases Yet"
           icon="briefcase"
+          why="Once a client accepts, their cases appear here with how many checklist items are ready."
           {...(data.admin
             ? { action: { href: `/app/agency/${orgId}/clients`, label: 'Invite a Client' } }
             : {})}

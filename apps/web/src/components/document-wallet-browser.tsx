@@ -205,10 +205,16 @@ export function DocumentWalletBrowser({
             <EmptyState
               icon="file"
               title={documents.length ? 'No Documents Match' : 'No Documents Yet'}
+              {...(documents.length
+                ? {}
+                : {
+                    why: 'You add each paper once, and it can fill a checklist item on any visa case.',
+                    action: { href: '#add-document', label: 'Add a Document' },
+                  })}
             >
               {documents.length
                 ? 'Clear the search or choose another category or status.'
-                : 'Upload a document to organize it here. Only authorized recipients can open shared files.'}
+                : 'This is your document vault: passports, bank statements, photos and the other papers you use again and again. Add your first one with the form on this page.'}
             </EmptyState>
           )}
           {pageCount > 1 ? (

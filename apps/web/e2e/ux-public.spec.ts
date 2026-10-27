@@ -991,6 +991,81 @@ test.describe('authoritative appearance of actual workspace components', () => {
       });
     }
   }
+  for (const [width, height] of [
+    [390, 844],
+    [1440, 900],
+  ] as const) {
+    test(`the progress ring is an image with its words, flat, and fits at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height });
+      await openUiFixture(page, 'overview');
+      const rings = page.locator('[data-fixture="rings"]');
+      await expect(rings.getByRole('img', { name: '6 of 9 items ready' }).first()).toBeVisible();
+      await expect(rings.getByRole('img', { name: '4 of 4 items ready' })).toBeVisible();
+      await expect(rings.getByRole('img', { name: 'No checklist yet' }).first()).toBeVisible();
+      // The same words are on the screen beside the ring, and the empty ring teaches.
+      await expect(rings.getByText('6 of 9 items ready').first()).toBeVisible();
+      await expect(rings.getByText('Pick a checklist to see what is ready').first()).toBeVisible();
+      await expect(
+        rings.getByRole('link', { name: 'Pick a Checklist', exact: true }),
+      ).toBeVisible();
+      const findings = await rings.evaluate((root) => {
+        const probe = document.createElement('span');
+        probe.style.color = 'var(--accent)';
+        document.body.append(probe);
+        const accent = getComputedStyle(probe).color;
+        probe.remove();
+        const fill = root.querySelector('.progress-ring-fill');
+        const fillStroke = fill ? getComputedStyle(fill).stroke : '';
+        const sizes = [...root.querySelectorAll('.progress-ring svg')].map(
+          (svg) => svg.getBoundingClientRect().width,
+        );
+        const moving = [...root.querySelectorAll('.progress-ring *')].filter((element) => {
+          const css = getComputedStyle(element);
+          return (
+            css.animationName !== 'none' ||
+            css.transitionDuration.split(',').some((d) => d.trim() !== '0s')
+          );
+        }).length;
+        const link = root.querySelector('.progress-ring-action');
+        return {
+          overflow: document.documentElement.scrollWidth > innerWidth + 1,
+          fillIsAccent: fillStroke === accent,
+          smallestRing: Math.min(...sizes),
+          moving,
+          linkHeight: link ? link.getBoundingClientRect().height : 0,
+          clipped: [...root.querySelectorAll('.progress-ring-text, .progress-ring-words')].filter(
+            (element) => element.getBoundingClientRect().right > innerWidth + 1,
+          ).length,
+        };
+      });
+      expect(findings.overflow).toBe(false);
+      expect(findings.fillIsAccent).toBe(true);
+      expect(findings.smallestRing).toBeGreaterThanOrEqual(43.5);
+      expect(findings.moving).toBe(0);
+      expect(findings.linkHeight).toBeGreaterThanOrEqual(44);
+      expect(findings.clipped).toBe(0);
+      await rings.screenshot({
+        path: test.info().outputPath(`rings-${width}.png`),
+        animations: 'disabled',
+      });
+    });
+  }
+  test('the progress ring and the screen around it have no serious accessibility violations', async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await openUiFixture(page, 'overview');
+    const result = await new AxeBuilder({ page })
+      .include('[data-fixture="rings"]')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
+      .analyze();
+    const blocking = result.violations.filter(
+      (violation) => violation.impact === 'critical' || violation.impact === 'serious',
+    );
+    expect(blocking, JSON.stringify(blocking, null, 2)).toEqual([]);
+  });
   test('page finder points to existing destinations and hides administration for ordinary users', async ({
     page,
   }) => {

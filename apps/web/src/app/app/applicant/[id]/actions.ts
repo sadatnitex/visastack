@@ -51,11 +51,18 @@ import {
   resolveOcrAdapter,
 } from '../../../../lib/ai';
 import { ensureDocumentFieldsRegistered } from '../../../../lib/field-registry';
+import { documentTypeLabel } from '../../../../lib/labels';
 import { savableField } from '../../../../lib/master-profile';
 import { createKeyManagementPort, createPreviewRenderer } from '../../../../lib/providers';
 import { reportServerError } from '../../../../lib/server-error';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
+import {
+  SUGGESTION_SAVED_LINE,
+  detailSavedLine,
+  documentAddedLine,
+  documentTypeSavedLine,
+} from '../../../../lib/success-lines';
 import { permitsPdfAdmission, validateUploadBytes } from '../../../../lib/upload-preflight';
 import { triggerIntakeAndReading } from '../../../api/jobs/process-ai-reading/run';
 import { describeClearAcceptance } from './ai-review-messages';
@@ -126,7 +133,7 @@ export async function saveFactAction(_prev: ActionState, formData: FormData): Pr
       ...(encryption ? { encryption } : {}),
     });
     if (!edit.ok) return { ok: false, message: edit.error.message } satisfies ActionState;
-    return { ok: true, message: `${def.label} saved.` } satisfies ActionState;
+    return { ok: true, message: detailSavedLine(def.label) } satisfies ActionState;
   });
 
   if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
@@ -338,7 +345,10 @@ export async function uploadDocumentAction(
 
     return {
       ok: true,
-      message: `${originalName} uploaded and queued for a safety scan.${duplicateNote}`,
+      message: documentAddedLine(
+        kind.value.docType ? documentTypeLabel(kind.value.docType) : null,
+        duplicateNote,
+      ),
     } satisfies ActionState;
   });
 
@@ -834,7 +844,7 @@ export async function decideClassificationProposalAction(
     if (!approved.ok) return { ok: false, message: approved.error.message } satisfies ActionState;
     return {
       ok: true,
-      message: 'Document type approved and saved.',
+      message: documentTypeSavedLine(documentTypeLabel(approved.value.suggestedType)),
     } satisfies ActionState;
   });
 
@@ -919,7 +929,7 @@ export async function decideProposalAction(
           ? 'Saved, and marked to check: it differs from a detail you had confirmed.'
           : resolutionRaw === 'changed'
             ? 'Saved as the new value. The earlier one stays in your history.'
-            : 'Saved to your profile.',
+            : SUGGESTION_SAVED_LINE,
     } satisfies ActionState;
   });
 

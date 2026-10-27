@@ -16,6 +16,10 @@ const data = vi.hoisted(() => ({
   items: [] as AttentionItem[],
   /** The access gate refuses (for example, a record that is no longer the person's). */
   gateRefuses: false,
+  /** What the readiness source returns for every case; null stands for a case with no checklist attached. */
+  readiness: null as { requiredCount: number; satisfiedRequired: number } | null,
+  /** The refusal code the readiness source gives when there is no count; "invalid" means no checklist is attached. */
+  readinessError: 'invalid',
 }));
 
 vi.mock('../../lib/session', () => ({
@@ -89,6 +93,10 @@ vi.mock('@visastack/services', async (importOriginal) => {
         },
       };
     },
+    computeReadiness: async () =>
+      data.readiness
+        ? { ok: true, value: data.readiness }
+        : { ok: false, error: { code: data.readinessError, message: 'no count' } },
     getConsents: async () => data.consents,
     listApplicants: async () => data.applicants,
     listGrantsForRecipientAccount: async () =>
@@ -148,6 +156,8 @@ beforeEach(() => {
   data.openRequests = 0;
   data.proposals = 0;
   data.missions = 0;
+  data.readiness = null;
+  data.readinessError = 'invalid';
   data.pendingGrants = 0;
   data.memberships = [];
   data.platformAdmin = false;
@@ -512,6 +522,18 @@ describe('Home composition (WP-V4, v1.2 B13 and U03)', () => {
     expect(attention).toContain('See All Applicants');
   });
 
+  it('does not call a case checklist-less when its count just could not be read', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.missions = 1;
+    data.readinessError = 'internal';
+    const html = await page();
+    const start = html.indexOf('id="home-work-heading"');
+    const work = html.slice(start, html.indexOf('id="home-journey"', start));
+    expect(textOf(work)).toContain('Open the case to see its progress.');
+    expect(textOf(work)).not.toContain('Pick a checklist');
+  });
+
   it('lists open requests and active cases under Active Requests and Work', async () => {
     data.consents = CORE;
     data.applicants = [SELF];
@@ -526,6 +548,28 @@ describe('Home composition (WP-V4, v1.2 B13 and U03)', () => {
     expect(html).toContain('badge badge-warning');
     expect(work).toContain('Synthetic Case 1');
     expect(work).toContain('Synthetic Case 2');
+  });
+
+  it('draws the progress ring on each active case from its readiness, and an empty one where no checklist is attached', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.missions = 2;
+    data.readiness = { requiredCount: 9, satisfiedRequired: 3 };
+    const rawWork = async () => {
+      const html = await page();
+      const start = html.indexOf('id="home-work-heading"');
+      return html.slice(start, html.indexOf('id="home-journey"', start));
+    };
+    const ready = await rawWork();
+    expect(ready.match(/aria-label="3 of 9 items ready"/g)).toHaveLength(2);
+    expect(ready).toContain('>3 of 9 items ready<');
+    data.readiness = null;
+    const empty = await rawWork();
+    expect(empty.match(/aria-label="No checklist yet"/g)).toHaveLength(2);
+    expect(empty).toContain('Pick a checklist to see what is ready');
+    // Inside a link row there is no second link to nest.
+    expect(empty).not.toContain('Pick a Checklist');
+    expect(empty).not.toMatch(/\d+ of \d+ items ready/);
   });
 
   it('when the gate refuses, still shows Home without attention items', async () => {

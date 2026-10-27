@@ -4,10 +4,12 @@ import { ProfileEditor } from '../../src/app/app/applicant/[id]/profile-editor';
 import { GrantForm } from '../../src/app/app/applicant/[id]/sharing/grant-form';
 import { SubNav } from '../../src/app/app/subnav';
 import { WorkspaceShell } from '../../src/app/app/workspace-shell';
+import { CaseReadinessRing } from '../../src/components/case-readiness-ring';
 import {
   type DocumentReviewEntry,
   DocumentReviewPanel,
 } from '../../src/components/document-review-panel';
+import { ProgressRing } from '../../src/components/progress-ring';
 import {
   AttentionList,
   Checklist,
@@ -78,6 +80,51 @@ const paths: Record<Mode, string> = {
 const preview = async (form: FormData) => {
   window.__uiFixtureActions?.push(String(form.get('documentId')));
 };
+/** The progress ring in each place it appears: large, medium, in list rows, full, and empty with its teaching line. */
+function Rings() {
+  return (
+    <article className="card" data-fixture="rings">
+      <h2 className="card-title">Checklist progress</h2>
+      <div className="case-preparation-summary">
+        <div className="case-preparation-ring">
+          <ProgressRing size="lg" done={6} total={9} centre="67%" />
+        </div>
+        <div className="case-preparation-counts">
+          <h3>Evidence progress</h3>
+          <p className="muted">Completeness is not an approval probability.</p>
+        </div>
+      </div>
+      <ProgressRing done={3} total={9} />
+      <div className="rows">
+        <a className="row row-link" href="/app/mission/one">
+          <span className="row-key">
+            Visitor visa, a title long enough to wrap on a narrow phone screen
+            <span className="progress-ring-row">
+              <CaseReadinessRing size="sm" readiness={{ requiredCount: 9, satisfiedRequired: 6 }} />
+            </span>
+          </span>
+        </a>
+        <a className="row row-link" href="/app/mission/two">
+          <span className="row-key">
+            Study visa
+            <span className="progress-ring-row">
+              <CaseReadinessRing size="sm" readiness={{ requiredCount: 4, satisfiedRequired: 4 }} />
+            </span>
+          </span>
+        </a>
+        <a className="row row-link" href="/app/mission/three">
+          <span className="row-key">
+            Family visit
+            <span className="progress-ring-row">
+              <CaseReadinessRing size="sm" readiness={null} />
+            </span>
+          </span>
+        </a>
+      </div>
+      <CaseReadinessRing readiness={null} pickHref="/app/mission/three#pack" />
+    </article>
+  );
+}
 function Records() {
   return (
     <article className="card">
@@ -211,6 +258,7 @@ function Fixture({ mode }: { mode: Mode }) {
                 href="/app/applicant/synthetic/documents"
                 action="Review documents"
               />
+              <Rings />
               <div className="split">
                 <Records />
                 <Checklist

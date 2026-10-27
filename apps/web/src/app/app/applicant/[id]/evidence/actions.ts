@@ -8,6 +8,7 @@ import {
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { withSession } from '../../../../../lib/session';
+import { EVIDENCE_SENT_LINE } from '../../../../../lib/success-lines';
 
 /**
  * Result surfaced back to the client for inline feedback. `savedAt` is set only when the server
@@ -61,7 +62,7 @@ export async function submitEvidenceResponseAction(
     }
     return {
       ok: true,
-      message: 'The agency will review it.',
+      message: EVIDENCE_SENT_LINE,
       savedAt: (submitted.value.respondedAt ?? submitted.value.updatedAt).toISOString(),
     } satisfies ActionState;
   });

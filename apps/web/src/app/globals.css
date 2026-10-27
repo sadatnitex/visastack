@@ -4259,28 +4259,8 @@ body:has(.auth-shell) > .footer {
   border-bottom: 1px solid var(--hairline);
 }
 .case-preparation-ring {
-  position: relative;
-}
-.case-preparation-ring svg {
-  display: block;
-  width: 100%;
-}
-.case-preparation-ring > div {
-  position: absolute;
-  inset: 0;
   display: flex;
-  flex-direction: column;
   justify-content: center;
-  align-items: center;
-  text-align: center;
-  padding: 1.5rem;
-}
-.case-preparation-ring strong {
-  font-size: 1.75rem;
-}
-.case-preparation-ring span {
-  font-size: var(--text-caption);
-  color: var(--text-tertiary);
 }
 .case-preparation-counts h3 {
   margin: 0;
@@ -5070,19 +5050,13 @@ body:has(.auth-shell) > .footer {
   border-top: 1px solid var(--hairline-soft);
 }
 .case-evidence-overview .case-preparation-summary {
-  grid-template-columns: 6.5rem minmax(0, 1fr);
+  grid-template-columns: 8rem minmax(0, 1fr);
   gap: 1rem;
   padding: 1rem;
   margin: 1rem 0;
   border: 1px solid var(--hairline-soft);
   border-radius: var(--radius-sm);
   background: var(--brand-tint-2);
-}
-.case-evidence-overview .case-preparation-ring > div {
-  padding: 0.8rem;
-}
-.case-evidence-overview .case-preparation-ring strong {
-  font-size: 1.5rem;
 }
 .case-evidence-overview .case-preparation-counts dl {
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -5110,7 +5084,7 @@ body:has(.auth-shell) > .footer {
     grid-template-columns: minmax(0, 1fr);
   }
   .case-evidence-overview .case-preparation-ring {
-    width: 6.5rem;
+    width: 8rem;
     margin: 0 auto;
   }
   .case-evidence-overview .case-preparation-counts dl {
@@ -7956,6 +7930,121 @@ summary.visa-photo-title {
   .app-frame[data-tips-dismissed="true"] .app-sidebar-toggle::after {
     content: none;
   }
+}
+
+/* WP-G3 progress ring, specific success lines and teaching empty states (growth package G3). The ring
+   says how many checklist items are ready, in words as well as a drawing: flat, shared tokens only, no
+   shadow, gradient or animation (so nothing to switch off for reduced motion). Readiness is a count of
+   what is on file, never an approval. */
+.progress-ring {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: 100%;
+  min-width: 0;
+}
+.progress-ring-graphic {
+  position: relative;
+  display: block;
+  flex: none;
+  width: 4.5rem;
+}
+.progress-ring-sm .progress-ring-graphic {
+  width: 2.75rem;
+}
+.progress-ring-lg {
+  flex-direction: column;
+  text-align: center;
+}
+.progress-ring-lg .progress-ring-graphic {
+  width: 11rem;
+}
+.progress-ring svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.progress-ring-track {
+  stroke: var(--hairline);
+  stroke-width: 9;
+}
+.progress-ring-fill {
+  stroke: var(--accent);
+  stroke-width: 9;
+}
+.progress-ring-full .progress-ring-fill {
+  stroke: var(--success);
+}
+.progress-ring-centre {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-lead);
+  font-weight: 700;
+  color: var(--text);
+}
+.progress-ring-lg .progress-ring-centre {
+  font-size: var(--text-display);
+}
+.progress-ring-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.progress-ring-lg .progress-ring-text {
+  align-items: center;
+}
+.progress-ring-words {
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.progress-ring-line {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.progress-ring-action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: underline;
+}
+/* The large ring fills the column the case summary gives it, whatever width that is. */
+.case-preparation-ring .progress-ring {
+  width: 100%;
+}
+.case-preparation-ring .progress-ring-lg .progress-ring-graphic {
+  width: 100%;
+}
+.case-evidence-overview .progress-ring-lg .progress-ring-centre {
+  font-size: var(--text-title);
+}
+.traveller-checklist > strong {
+  display: block;
+  margin-bottom: var(--space-2);
+}
+/* A ring inside a list row or a table cell sits on its own line under the row's text. */
+.progress-ring-row {
+  display: flex;
+  margin-top: var(--space-2);
+}
+/* The line in an empty list that says why the next step helps, in the same quiet voice as the body. */
+.empty-state-body:has(+ .empty-state-why) {
+  margin-bottom: var(--space-2);
+}
+.empty-state-why {
+  margin: 0 0 0.9rem;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
 }
 
 /* WP-REF visible reference codes (ADR 0018): the code beside a record's name, even-width figures

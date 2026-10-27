@@ -1,6 +1,7 @@
 import { CANONICAL_CASE_STATES, LEGACY_ONLY_MISSION_STATES } from '@visastack/core';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { CaseReadinessRing } from '../../../../components/case-readiness-ring';
 import { Checklist, EmptyState, StatusBadge } from '../../../../components/ui';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
@@ -402,7 +403,14 @@ export default async function AgencyDashboardPage({
             ) : null}
             {data.missions.length === 0 ? (
               <div className="u-mt-100">
-                <EmptyState title="No Cases Yet" icon="briefcase">
+                <EmptyState
+                  title="No Cases Yet"
+                  icon="briefcase"
+                  why="Once a client accepts, their cases appear here with how many checklist items are ready."
+                  {...(data.admin
+                    ? { action: { href: `/app/agency/${orgId}/clients`, label: 'Invite a Client' } }
+                    : {})}
+                >
                   {data.admin
                     ? 'No cases are reachable yet - an applicant must grant this organization access to a specific case.'
                     : "You aren't assigned to any cases yet - ask an admin to assign you to one."}
@@ -460,11 +468,19 @@ export default async function AgencyDashboardPage({
                                     : `${required - satisfied} missing`
                                   : 'Readiness Unavailable'}
                           </StatusBadge>
-                          {mission.readiness && required > 0 && !mission.manualMode ? (
-                            <span className="cell-sub">
-                              {satisfied} of {required} required
+                          {mission.manualMode ? null : (
+                            <span className="progress-ring-row">
+                              <CaseReadinessRing
+                                size="sm"
+                                readiness={mission.readiness}
+                                emptyLine={
+                                  mission.packVersionId
+                                    ? 'Progress is not available right now.'
+                                    : 'No checklist is attached to this case yet.'
+                                }
+                              />
                             </span>
-                          ) : null}
+                          )}
                         </td>
                         <td data-label="Deadline">
                           {mission.targetDeadline ? (

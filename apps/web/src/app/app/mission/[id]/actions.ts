@@ -34,6 +34,7 @@ import { resolveBaseUrl } from '../../../../lib/base-url';
 import { createKeyManagementPort } from '../../../../lib/providers';
 import { withSession } from '../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../lib/step-up';
+import { checklistAttachedLine, evidenceChosenLine } from '../../../../lib/success-lines';
 
 /** Result surfaced back to the client for inline feedback. */
 export interface ActionState {
@@ -73,7 +74,11 @@ export async function attachPackAction(
       packVersionId,
     });
     if (!attached.ok) return { ok: false, message: attached.error.message } satisfies ActionState;
-    return { ok: true, message: 'Pack attached.' } satisfies ActionState;
+    const readiness = await computeReadiness(db, missionId);
+    return {
+      ok: true,
+      message: checklistAttachedLine(readiness.ok ? readiness.value : null),
+    } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
   return result;
@@ -141,7 +146,11 @@ export async function selectEvidenceAction(
       ...(documentId ? { documentId } : {}),
     });
     if (!selected.ok) return { ok: false, message: selected.error.message } satisfies ActionState;
-    return { ok: true, message: 'Evidence selected.' } satisfies ActionState;
+    const readiness = await computeReadiness(db, missionId);
+    return {
+      ok: true,
+      message: evidenceChosenLine(readiness.ok ? readiness.value : null),
+    } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
   return result;

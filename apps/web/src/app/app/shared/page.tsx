@@ -39,10 +39,11 @@ export default async function SharedWithMePage() {
           <EmptyState
             icon="share"
             title="Nothing Shared with You Yet"
+            why="You see only the parts they choose to share, and only after you accept."
             action={{ href: '/app/help', label: 'How Sharing Works' }}
           >
-            When someone invites you to see their information, the invitation appears here. Nothing
-            is shared until you accept.
+            This is where people share parts of their file with you. When someone invites you, the
+            invitation appears here. Ask them to send one, or open the link they gave you.
           </EmptyState>
         ) : (
           <div className="rows">
