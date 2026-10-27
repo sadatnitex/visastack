@@ -55,7 +55,7 @@ const { default: PilotAccessDeniedPage } = await import('../app/pilot-access-den
 const { StatusView } = await import('../app/status/status-view');
 const { default: TrustCatalogPage } = await import('../app/trust/page');
 const { default: TrustRoutePage } = await import('../app/trust/[packKey]/page');
-const { AgencyNotReviewed, BusyInvitation, ClientInvitationOffer, ClosedInvitation } = await import(
+const { AgencyNotReviewed, ClientInvitationOffer, ClosedInvitation } = await import(
   '../app/invitation/client-invitation-offer'
 );
 const { clientInvitationTerms } = await import('./client-invitation-terms');
@@ -77,6 +77,7 @@ const invitationOffer = (): ReactElement => (
     }
     token={INVITATION_TOKEN}
     next={encodeURIComponent(`/app/client-invitations/accept?token=${INVITATION_TOKEN}`)}
+    now={new Date('2026-10-28T10:00:00.000Z')}
   />
 );
 
@@ -235,7 +236,6 @@ const PAGES: readonly Page[] = [
     build: async () => <AgencyNotReviewed agencyName="Acme Visas" />,
   },
   { name: 'client invitation that is no longer open', build: async () => <ClosedInvitation /> },
-  { name: 'client invitation page busy', build: async () => <BusyInvitation /> },
   { name: 'page not found', build: async () => <NotFound /> },
   {
     name: 'something went wrong',

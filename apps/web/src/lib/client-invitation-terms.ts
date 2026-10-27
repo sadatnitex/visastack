@@ -58,19 +58,21 @@ function joinWithOr(items: readonly string[]): string {
   return `${items.slice(0, -1).join(', ')} or ${items[items.length - 1]}`;
 }
 
-/** The expiry as a day and a time that mean the same thing to everyone who reads the page. */
-export function formatInvitationExpiry(expiresAt: Date): string {
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * When the invitation ends, in words that hold for a reader in any time zone: the time left, rounded
+ * down (so it never promises more than there is), then the calendar day it falls on. The day is the
+ * one in UTC; the time left is what decides.
+ */
+export function describeInvitationExpiry(expiresAt: Date, now: Date): string {
   const day = expiresAt.toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
     timeZone: 'UTC',
   });
-  const time = expiresAt.toLocaleTimeString('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: 'UTC',
-  });
-  return `${day}, ${time} UTC`;
+  const days = Math.floor((expiresAt.getTime() - now.getTime()) / DAY_MS);
+  const left = days >= 2 ? `in ${days} days` : days === 1 ? 'in 1 day' : 'in less than a day';
+  return `${left}, on ${day}`;
 }

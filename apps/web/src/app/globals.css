@@ -8066,12 +8066,6 @@ summary.visa-photo-title {
 .invitation-offer .invite-brand {
   margin-top: 0.5rem;
 }
-.invitation-unreviewed {
-  margin: 0.5rem 0 1rem;
-}
-.invitation-unreviewed .card-body {
-  margin: 0 0 0.35rem;
-}
 .invitation-terms-list {
   display: grid;
   gap: 0.4rem;

@@ -6,6 +6,7 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { InvitingAgency } from '../../../../components/inviting-agency';
+import { clientInvitationTerms } from '../../../../lib/client-invitation-terms';
 import { withSession } from '../../../../lib/session';
 import { AcceptClientInvitationForm } from './accept-form';
 import { ConsentGate } from './consent-gate';
@@ -17,15 +18,6 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = 'force-dynamic';
-
-/** What each default grant action actually lets the agency do, in plain language: shown before the traveller commits to anything. */
-const GRANT_ACTION_LABELS: Readonly<Record<string, string>> = {
-  VIEW_METADATA: 'View Your Profile Information',
-  PREVIEW: 'Preview Your Documents',
-  COMMENT: 'Comment on Your Case',
-  PROPOSE_EDIT: 'Propose edits to your profile (you approve each one before it applies)',
-  MANAGE: 'Manage your case: assign their staff, request evidence from you, add case notes',
-};
 
 /**
  * Accept an agency's client invitation (Commercial V1 Part 4 §6, IAM-03).
@@ -67,6 +59,8 @@ export default async function AcceptClientInvitationPage({
     return { preview, consents, applicants, branding };
   });
 
+  // The same sentences the public page showed before sign-in, from the same real access.
+  const terms = data.preview.ok ? clientInvitationTerms(data.preview.value.grantActions) : null;
   const coreGranted = data.consents?.CORE_PROCESSING === true;
   const sharingGranted = data.consents?.SHARING === true;
 
@@ -104,15 +98,24 @@ export default async function AcceptClientInvitationPage({
             <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.5rem' }}>
               If you accept, they will be able to:
             </p>
-            <ul style={{ margin: '0 0 1.25rem', paddingLeft: '1.25rem' }}>
-              {data.preview.value.grantActions.map((action) => (
-                <li key={action} className="muted u-fs-085">
-                  {GRANT_ACTION_LABELS[action] ?? action}
-                </li>
-              ))}
-            </ul>
+            {terms ? (
+              <>
+                <ul style={{ margin: '0 0 1.25rem', paddingLeft: '1.25rem' }}>
+                  {terms.agencyCan.map((sentence) => (
+                    <li key={sentence} className="muted u-fs-085">
+                      {sentence}
+                    </li>
+                  ))}
+                </ul>
+                {terms.agencyCannot ? <p className="card-body">{terms.agencyCannot}</p> : null}
+              </>
+            ) : (
+              <p className="card-body">
+                This invitation cannot be shown right now. Ask the agency to send it again.
+              </p>
+            )}
 
-            {!coreGranted || !sharingGranted ? (
+            {!terms ? null : !coreGranted || !sharingGranted ? (
               <>
                 <p className="card-body">Turn these on before accepting (both are required):</p>
                 <ConsentGate core={coreGranted} sharing={sharingGranted} />

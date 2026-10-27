@@ -3,6 +3,10 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@neondatabase/auth/next/server', () => ({ createNeonAuth: vi.fn() }));
+// The client invitation page looks its link up in the database; these tests are about the handoff.
+vi.mock('../lib/invitation-preview', () => ({
+  loadClientInvitationPage: async () => ({ state: 'unavailable' }),
+}));
 
 const SEARCH = (value: Record<string, string> = {}) => ({ searchParams: Promise.resolve(value) });
 const TOKEN = 'A'.repeat(43);

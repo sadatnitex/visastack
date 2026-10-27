@@ -1,7 +1,7 @@
 import { PERMISSION_ACTIONS, type PermissionAction } from '@visastack/core';
 import { DEFAULT_CLIENT_GRANT_ACTIONS } from '@visastack/services';
 import { describe, expect, it } from 'vitest';
-import { clientInvitationTerms, formatInvitationExpiry } from './client-invitation-terms';
+import { clientInvitationTerms, describeInvitationExpiry } from './client-invitation-terms';
 
 const EM_DASH = String.fromCharCode(0x2014);
 
@@ -63,13 +63,15 @@ describe('the terms shown before sign-in come from the real grant', () => {
 });
 
 describe('the expiry reads the same everywhere', () => {
-  it('gives the day and the time in UTC, whatever the reader time zone is', () => {
-    expect(formatInvitationExpiry(new Date('2026-11-03T14:30:00.000Z'))).toBe(
-      '3 Nov 2026, 14:30 UTC',
-    );
-    expect(formatInvitationExpiry(new Date('2026-11-03T00:05:00.000Z'))).toBe(
-      '3 Nov 2026, 00:05 UTC',
-    );
+  const ends = new Date('2026-11-03T14:30:00.000Z');
+  const at = (iso: string) => describeInvitationExpiry(ends, new Date(iso));
+
+  it('gives the time left, rounded down, then the day, whatever the reader time zone is', () => {
+    expect(at('2026-10-27T14:30:00.000Z')).toBe('in 7 days, on 3 Nov 2026');
+    expect(at('2026-10-27T14:31:00.000Z')).toBe('in 6 days, on 3 Nov 2026');
+    expect(at('2026-11-01T20:00:00.000Z')).toBe('in 1 day, on 3 Nov 2026');
+    expect(at('2026-11-02T14:30:00.000Z')).toBe('in 1 day, on 3 Nov 2026');
+    expect(at('2026-11-03T08:00:00.000Z')).toBe('in less than a day, on 3 Nov 2026');
   });
 });
 

@@ -133,13 +133,19 @@ describe('the public invitation page lookup', () => {
   });
 
   it('stops after the allowed number of looks from one address', async () => {
-    const limit = RATE_LIMITS.INVITATION_PREVIEW_IP.limit;
-    let last = 'open';
-    for (let i = 0; i < limit + 1; i += 1) {
-      last = (await loadClientInvitationPage(UNKNOWN)).state;
-    }
-    expect(last).toBe('busy');
-  }, 60_000);
+    const config = RATE_LIMITS.INVITATION_PREVIEW_IP;
+    // One look from the limit, in this hour and the next, so an hour change cannot matter.
+    await db.insert(schema.rateLimitBuckets).values(
+      [0, 1].map((step) => ({
+        subjectId: hashedSubject('net', state.address),
+        action: 'invitation.preview_ip',
+        windowStart: new Date((Math.floor(Date.now() / config.windowMs) + step) * config.windowMs),
+        count: config.limit - 1,
+      })),
+    );
+    expect((await loadClientInvitationPage(UNKNOWN)).state).toBe('closed');
+    expect((await loadClientInvitationPage(UNKNOWN)).state).toBe('busy');
+  });
 
   it('keeps only a short hash of the address, never the address', async () => {
     await loadClientInvitationPage(UNKNOWN);

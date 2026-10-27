@@ -3,32 +3,33 @@ import Link from 'next/link';
 import { InvitingAgency } from '../../components/inviting-agency';
 import {
   type ClientInvitationTerms,
-  formatInvitationExpiry,
+  describeInvitationExpiry,
 } from '../../lib/client-invitation-terms';
 
 /**
- * What a traveller sees, before signing in or creating an account, when an agency VisaStack has
- * reviewed has invited them
- * (growth loop 1, Option B): who is asking and what they would get, in plain words. Every figure and
- * sentence comes from the real invitation and the real access it gives; nothing here accepts
- * anything, and it carries nothing about the person invited.
+ * What a traveller sees, before signing in or creating an account, when an agency that VisaStack has
+ * reviewed invites them (growth loop 1, Option B): who is asking and what they would get, in plain
+ * words. Every figure and sentence comes from the real invitation and the real access it gives;
+ * nothing here accepts anything, and it carries nothing about the person invited.
  */
 export function ClientInvitationOffer({
   view,
   terms,
   token,
   next,
+  now,
 }: {
   readonly view: PublicClientInvitationView;
   readonly terms: ClientInvitationTerms;
   readonly token: string;
   /** The already-encoded address to return to after signing in. */
   readonly next: string;
+  readonly now: Date;
 }) {
   const logoUrl =
     view.logoVersion === null
       ? null
-      : `/invitation/logo?token=${encodeURIComponent(token)}&v=${encodeURIComponent(view.logoVersion)}`;
+      : `/api/branding/invitation-logo?token=${encodeURIComponent(token)}&v=${encodeURIComponent(view.logoVersion)}`;
   return (
     <section className="section container">
       <span className="eyebrow">VisaStack Invitation</span>
@@ -63,9 +64,9 @@ export function ClientInvitationOffer({
           <li>Nothing is shared until you accept.</li>
           <li>You can stop sharing at any time.</li>
           <li>
-            This invitation expires on{' '}
+            This invitation expires{' '}
             <time dateTime={view.expiresAt.toISOString()}>
-              {formatInvitationExpiry(view.expiresAt)}
+              {describeInvitationExpiry(view.expiresAt, now)}
             </time>
             .
           </li>
@@ -77,7 +78,7 @@ export function ClientInvitationOffer({
 
         <p className="card-body">
           Create an account or sign in to review this invitation. Use the email address that
-          received it.
+          received this invitation.
         </p>
         <div className="action-row">
           <Link className="btn btn-primary" href={`/auth/sign-up?next=${next}`}>
@@ -124,34 +125,25 @@ export function AgencyNotReviewed({ agencyName }: { readonly agencyName: string 
   );
 }
 
-/** The same page for a link that is unknown, expired, withdrawn or already used: nothing tells them apart. */
+/**
+ * The same page for a link that is unknown, expired, withdrawn, already used or no longer acceptable:
+ * nothing tells them apart. Someone who already accepted is pointed to their own workspace first,
+ * because asking the agency again would only start a second case.
+ */
 export function ClosedInvitation() {
   return (
     <section className="section container">
       <h1 className="section-title">This Invitation Is No Longer Open</h1>
       <article className="card">
         <p className="card-body">
-          It may have expired, been withdrawn or already been used. Ask the agency that invited you
-          to send a new one.
+          It may have expired, been withdrawn or already been used. If you already accepted it, sign
+          in to find your case. If not, ask the agency that invited you to send a new one.
         </p>
-        <p className="card-body">
-          Already signed in? <Link href="/app">Go to Workspace</Link>
-        </p>
-      </article>
-    </section>
-  );
-}
-
-/** Shown when one connection has opened a great many invitation links in an hour. */
-export function BusyInvitation() {
-  return (
-    <section className="section container">
-      <h1 className="section-title">Please Try Again Shortly</h1>
-      <article className="card">
-        <p className="card-body">
-          Too many invitation links were opened from your connection in the last hour. Wait a few
-          minutes, then open your link again.
-        </p>
+        <div className="action-row">
+          <Link className="btn btn-secondary" href="/auth/sign-in?next=%2Fapp">
+            Sign In
+          </Link>
+        </div>
       </article>
     </section>
   );

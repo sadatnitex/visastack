@@ -242,6 +242,24 @@ describe('the public view of a client invitation', () => {
         .set({ contactDestination: '+8801700000000' })
         .where(eq(dbSchema.clientInvitations.id, phone.invitation.id));
 
+      // Acceptance is made on behalf of whoever sent it; one who has left leaves nothing to accept.
+      const leaverAgency = await agency(db, 'l', 'Leaver Agency', true);
+      const fromLeaver = await invite(db, leaverAgency, 'leaver@example.com');
+      expect(await getPublicClientInvitationView(db, fromLeaver.rawToken)).not.toBeNull();
+      await db
+        .update(dbSchema.memberships)
+        .set({ active: false })
+        .where(eq(dbSchema.memberships.accountId, leaverAgency.adminId));
+      expect(await getPublicClientInvitationView(db, fromLeaver.rawToken)).toBeNull();
+      const traveller2 = await consentedTraveller(db, 'leaver@example.com');
+      const refused = await acceptClientInvitation(db, {
+        actorAccountId: traveller2,
+        rawToken: fromLeaver.rawToken,
+        applicantChoice: { kind: 'new' },
+      });
+      // The page and acceptance agree: both say no.
+      expect(isErr(refused)).toBe(true);
+
       const closedAgency = await agency(db, 'c', 'Closed Agency', true);
       const fromClosed = await invite(db, closedAgency, 'closed@example.com');
       for (const status of ['SUSPENDED', 'REJECTED', 'CLOSED'] as const) {
@@ -427,7 +445,12 @@ describe('clients joined (agency dashboard counter)', () => {
 
   async function accepted(agencyOf: Agency, email: string, daysAgo = 0) {
     const sent = await invite(db, agencyOf, email);
-    const traveller = await consentedTraveller(db, email);
+    // The same person may be invited again: reuse their account.
+    const [existing] = await db
+      .select({ id: dbSchema.accounts.id })
+      .from(dbSchema.accounts)
+      .where(eq(dbSchema.accounts.email, email));
+    const traveller = existing?.id ?? (await consentedTraveller(db, email));
     const result = await acceptClientInvitation(db, {
       actorAccountId: traveller,
       rawToken: sent.rawToken,
@@ -449,6 +472,18 @@ describe('clients joined (agency dashboard counter)', () => {
       organizationId: a.orgId,
     });
     expect(isOk(result) && result.value).toEqual({ total: 0, last30Days: 0 });
+  });
+
+  it('counts people: the same client accepting twice is one client, who joined when first accepted', async () => {
+    await accepted(a, 'repeat@example.com', 45);
+    await accepted(a, 'repeat@example.com');
+    await accepted(a, 'fresh@example.com');
+    const result = await getClientsJoined(db, {
+      actorAccountId: a.adminId,
+      organizationId: a.orgId,
+    });
+    // Two people. Only the fresh one joined in the last 30 days; the repeat one joined 45 days ago.
+    expect(isOk(result) && result.value).toEqual({ total: 2, last30Days: 1 });
   });
 
   it('counts accepted invitations all time and in the last 30 days, and nothing else', async () => {

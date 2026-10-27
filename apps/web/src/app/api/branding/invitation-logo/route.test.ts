@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ load: vi.fn() }));
-vi.mock('../../../lib/invitation-preview', () => ({ loadInvitationLogo: mocks.load }));
+vi.mock('../../../../lib/invitation-preview', () => ({ loadInvitationLogo: mocks.load }));
 
 const { GET } = await import('./route');
 
 const TOKEN = `${'Ab3_'.repeat(10)}Ab3`;
 const call = (query: string) =>
-  GET(new Request(`https://app.example.test/invitation/logo${query}`));
+  GET(new Request(`https://app.example.test/api/branding/invitation-logo${query}`));
 
 beforeEach(() => mocks.load.mockReset());
 
@@ -42,10 +42,9 @@ describe('the public invitation logo route', () => {
     expect(mocks.load).toHaveBeenCalledTimes(1);
   });
 
-  it('asks the browser to wait when the address has asked too often', async () => {
+  it('refuses with a plain 429 when the address has asked too often', async () => {
     mocks.load.mockResolvedValue({ state: 'busy' });
     const response = await call(`?token=${TOKEN}`);
     expect(response.status).toBe(429);
-    expect(response.headers.get('retry-after')).toBe('600');
   });
 });

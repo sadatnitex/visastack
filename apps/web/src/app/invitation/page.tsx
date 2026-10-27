@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { clientInvitationTerms } from '../../lib/client-invitation-terms';
 import { loadClientInvitationPage } from '../../lib/invitation-preview';
+import { INVITATION_TOKEN_PATTERN } from '../../lib/invitation-token';
 import {
   AgencyNotReviewed,
-  BusyInvitation,
   ClientInvitationOffer,
   ClosedInvitation,
 } from './client-invitation-offer';
@@ -19,9 +19,10 @@ export const dynamic = 'force-dynamic';
 /**
  * A public account handoff. A team or sharing invitation shows only the generic handoff. A client
  * invitation (growth loop 1, Option B) first names the agency and shows the terms, read by the link's
- * own token and counted per network address; a link that is no longer open says so in one neutral way,
- * and if the lookup cannot be made it falls back to the generic handoff. Opening a link never accepts
- * anything: acceptance remains behind sign-in and the authenticated service checks.
+ * own token and counted per network address; a link that is no longer open says so in one neutral way.
+ * If the lookup cannot be made, or this address has already looked at a great many links this hour,
+ * it falls back to the generic handoff, which says nothing about the link. Opening a link never
+ * accepts anything: acceptance remains behind sign-in and the authenticated service checks.
  */
 export default async function InvitationPage({
   searchParams,
@@ -32,7 +33,7 @@ export default async function InvitationPage({
   if (
     !['team', 'client', 'sharing'].includes(kind ?? '') ||
     !token ||
-    !/^[A-Za-z0-9_-]{43}$/.test(token)
+    !INVITATION_TOKEN_PATTERN.test(token)
   ) {
     return (
       <section className="section container">
@@ -51,12 +52,20 @@ export default async function InvitationPage({
   if (kind === 'client') {
     const page = await loadClientInvitationPage(token);
     if (page.state === 'closed') return <ClosedInvitation />;
-    if (page.state === 'busy') return <BusyInvitation />;
     if (page.state === 'open') {
       if (!page.view.verified) return <AgencyNotReviewed agencyName={page.view.agencyName} />;
       const terms = clientInvitationTerms(page.view.grantActions);
-      if (terms)
-        return <ClientInvitationOffer view={page.view} terms={terms} token={token} next={next} />;
+      if (terms) {
+        return (
+          <ClientInvitationOffer
+            view={page.view}
+            terms={terms}
+            token={token}
+            next={next}
+            now={new Date()}
+          />
+        );
+      }
     }
   }
   return (

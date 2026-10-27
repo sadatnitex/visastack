@@ -395,8 +395,9 @@ const OPEN_ORGANIZATION_STATUSES: readonly string[] = ['ACTIVE', 'PENDING_VERIFI
 
 /**
  * The one lookup behind the public page and its logo: by hashed token only, and `null` for a token
- * that is unknown, expired, revoked, already used, or whose agency can no longer invite, so the
- * caller can say the same thing for all of them. An invitation nobody can accept (an older one sent
+ * that is unknown, expired, revoked, already used, or that acceptance would refuse (the agency can
+ * no longer invite, or the person who sent it is no longer an OWNER or ADMIN), so the caller can say
+ * the same thing for all of them. An invitation nobody can accept (an older one sent
  * to a phone number) is closed too.
  */
 async function findOpenInvitationForPublic(
@@ -408,6 +409,7 @@ async function findOpenInvitationForPublic(
     await db
       .select({
         organizationId: schema.clientInvitations.organizationId,
+        invitedByAccountId: schema.clientInvitations.invitedByAccountId,
         contactDestination: schema.clientInvitations.contactDestination,
         expiresAt: schema.clientInvitations.expiresAt,
         status: schema.clientInvitations.status,
@@ -430,6 +432,10 @@ async function findOpenInvitationForPublic(
   if (row.expiresAt.getTime() < now.getTime()) return null;
   if (!isAcceptableInvitationContact(row.contactDestination)) return null;
   if (!OPEN_ORGANIZATION_STATUSES.includes(row.agencyStatus)) return null;
+  // Acceptance is made on behalf of the person who sent it, who must still be an active OWNER or
+  // ADMIN then (`acceptGrant`). One who has since left or been demoted leaves an offer nobody can
+  // take up, so it is closed here too rather than shown and refused after sign-up.
+  if (!(await isOrgAdmin(db, row.invitedByAccountId, row.organizationId))) return null;
   const verified = row.agencyStatus === 'ACTIVE';
   return {
     organizationId: row.organizationId,
@@ -472,9 +478,9 @@ export async function readPublicClientInvitationLogo(
 }
 
 export interface ClientsJoined {
-  /** Accepted client invitations, all time. */
+  /** Clients who have joined through an invitation, all time. */
   readonly total: number;
-  /** Accepted in the 30 days up to now. */
+  /** Clients who joined (first accepted) in the 30 days up to now. */
   readonly last30Days: number;
 }
 
@@ -483,8 +489,10 @@ const CLIENTS_JOINED_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 /**
  * How many clients have joined an organization through an invitation, counted from the
  * invitation records themselves (so it covers every past invitation, with no dependence on
- * the event log). Two numbers and nothing else: no names, no addresses. Any active member may
- * see it, like the other counts on the agency dashboard; anyone else is refused.
+ * the event log). A client is a person: someone who accepts a second invitation from the same
+ * agency is still one client, and counts as having joined when they first accepted. Two numbers
+ * and nothing else: no names, no addresses. Any active member may see it, like the other counts
+ * on the agency dashboard; anyone else is refused.
  */
 export async function getClientsJoined(
   db: Db,
@@ -498,19 +506,31 @@ export async function getClientsJoined(
     return err(serviceError('forbidden', 'only a member of this organization can see this'));
   }
   const since = new Date((input.now ?? new Date()).getTime() - CLIENTS_JOINED_WINDOW_MS);
+  const perClient = db
+    .select({
+      firstAcceptedAt: sql<Date>`min(${schema.clientInvitations.acceptedAt})`.as(
+        'first_accepted_at',
+      ),
+    })
+    .from(schema.clientInvitations)
+    .where(
+      and(
+        eq(schema.clientInvitations.organizationId, input.organizationId),
+        eq(schema.clientInvitations.status, 'ACCEPTED'),
+      ),
+    )
+    // One row per person; an accepting account that no longer exists still counts as its own client.
+    .groupBy(
+      sql`coalesce(${schema.clientInvitations.acceptedByAccountId}::text, ${schema.clientInvitations.id}::text)`,
+    )
+    .as('per_client');
   const row = first(
     await db
       .select({
         total: sql<string>`count(*)`,
-        last30Days: sql<string>`count(*) filter (where ${schema.clientInvitations.acceptedAt} >= ${since.toISOString()})`,
+        last30Days: sql<string>`count(*) filter (where ${perClient.firstAcceptedAt} >= ${since.toISOString()})`,
       })
-      .from(schema.clientInvitations)
-      .where(
-        and(
-          eq(schema.clientInvitations.organizationId, input.organizationId),
-          eq(schema.clientInvitations.status, 'ACCEPTED'),
-        ),
-      ),
+      .from(perClient),
   );
   return ok({ total: Number(row?.total ?? 0), last30Days: Number(row?.last30Days ?? 0) });
 }
