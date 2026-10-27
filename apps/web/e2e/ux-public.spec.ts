@@ -864,6 +864,27 @@ test.describe('authoritative appearance on public routes', () => {
   });
 });
 
+/**
+ * A capture taken the moment a page finishes loading can still catch a late repaint right after a
+ * deployment. Take it again until two captures in a row are identical (at most five tries) and use
+ * that settled one. The light and dark comparison that follows is unchanged and still exact.
+ */
+async function settledScreenshot(page: Page, name: string): Promise<Buffer> {
+  const take = () =>
+    page.screenshot({
+      path: test.info().outputPath(name),
+      animations: 'disabled',
+      caret: 'hide',
+    });
+  let previous = await take();
+  for (let attempt = 1; attempt < 5; attempt++) {
+    const next = await take();
+    if (next.equals(previous)) return next;
+    previous = next;
+  }
+  return previous;
+}
+
 test.describe('authoritative appearance of actual workspace components', () => {
   test.use({ bypassCSP: true });
   for (const width of [1600, 390]) {
@@ -884,21 +905,13 @@ test.describe('authoritative appearance of actual workspace components', () => {
         await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
         await openUiFixture(page, mode);
         await page.evaluate(() => document.fonts.ready);
-        const light = await page.screenshot({
-          path: test.info().outputPath('appearance-light.png'),
-          animations: 'disabled',
-          caret: 'hide',
-        });
+        const light = await settledScreenshot(page, 'appearance-light.png');
         await page.emulateMedia({ colorScheme: 'dark' });
         // Compare fresh renders, matching the desktop and phone capture protocol.
         // Chromium can otherwise repaint fractional native-input edges during a media toggle.
         await openUiFixture(page, mode);
         await page.evaluate(() => document.fonts.ready);
-        const dark = await page.screenshot({
-          path: test.info().outputPath('appearance-dark.png'),
-          animations: 'disabled',
-          caret: 'hide',
-        });
+        const dark = await settledScreenshot(page, 'appearance-dark.png');
         await expect(page.locator('.app-main')).toHaveCSS('background-color', 'rgb(247, 249, 254)');
         await expect(page.locator('header.nav')).toBeHidden();
         if (width === 1600) {
