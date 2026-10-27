@@ -11,6 +11,7 @@ import { appendAuditEvent } from '../audit';
 import { type Db, first, required, schema } from '../db';
 import { isMissingRelationError } from '../missing-relation';
 import { AuthorizedApplicant } from './require-access';
+import { StepUpProof } from './step-up-proof';
 
 /**
  * The token store behind AI connections (ADR 0021 sections 2 and 3). It lives with the access gate
@@ -41,6 +42,7 @@ const CHALLENGE_RE = /^[A-Za-z0-9_-]{43}$/;
 
 export type AiOAuthErrorCode =
   | 'invalid_request'
+  | 'access_denied'
   | 'invalid_grant'
   | 'invalid_client'
   | 'invalid_target'
@@ -214,6 +216,12 @@ export interface CreateAiConnectionInput {
   readonly codeChallenge: string;
   readonly redirectUri: string;
   readonly resource: string;
+  /**
+   * Required when `choices.revealIdentifiers` is on: a fresh identity check for exporting this
+   * record (`EXPORT_PROFILE` on the record), the same proof the composer asks for before it shows
+   * a full number. Without it full numbers are refused, whatever the screen sent.
+   */
+  readonly stepUp?: StepUpProof;
   readonly now?: Date;
 }
 
@@ -237,6 +245,16 @@ export async function createAiConnection(
     return err(oauthError('invalid_request', 'a valid S256 code_challenge is required'));
   }
   const { choices } = input;
+  if (
+    choices.revealIdentifiers &&
+    !StepUpProof.covers(input.stepUp, {
+      accountId: proof.applicant.ownerAccountId ?? '',
+      action: 'EXPORT_PROFILE',
+      resourceId: proof.applicant.id,
+    })
+  ) {
+    return err(oauthError('access_denied', 'full document numbers need a fresh identity check'));
+  }
   if (choices.caseMode === 'ONE' && !choices.missionId) {
     return err(oauthError('invalid_request', 'choose the case to connect'));
   }

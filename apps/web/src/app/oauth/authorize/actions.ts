@@ -6,6 +6,7 @@ import {
   type AiCaseMode,
   type AiConnectionDuration,
   type AiConnectionLayer,
+  type StepUpProof,
   accountPrincipal,
   createAiConnection,
   requireAccess,
@@ -17,7 +18,7 @@ import { consentChoicesToQuery } from '../../../lib/ai-consent-choices';
 import { authorizationResponseUrl, checkAuthorizeRequest } from '../../../lib/oauth-authorize';
 import { withPublicDb } from '../../../lib/public-db';
 import { withSession } from '../../../lib/session';
-import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../lib/step-up';
+import { STEP_UP_NOT_CONFIGURED_MESSAGE, establishStepUpProof } from '../../../lib/step-up';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -90,6 +91,7 @@ export async function answerAiConsentAction(
   const documentText = formData.get('document_text') === 'on';
 
   const outcome = await withSession(async ({ db, accountId }) => {
+    let fullNumbersProof: StepUpProof | undefined;
     if (revealIdentifiers) {
       const back = new URLSearchParams({
         response_type: 'code',
@@ -110,13 +112,16 @@ export async function answerAiConsentAction(
           duration,
         }),
       });
-      const stepUp = await tryEstablishStepUp(
-        { accountId, action: 'AI_CONNECTION_FULL_NUMBERS', resourceId: applicantId },
+      // The same check, and the same proof, the record's own export asks for before showing a
+      // full number: the connection keeps that right only because the person passed it here.
+      const stepUp = await establishStepUpProof(
+        { accountId, action: 'EXPORT_PROFILE', resourceId: applicantId },
         `/oauth/authorize?${back.toString()}`,
       );
       if (stepUp.kind === 'not_configured') return { kind: 'step_up_unavailable' } as const;
       if (stepUp.kind === 'reauth_required')
         return { kind: 'reauth', url: stepUp.reauthUrl } as const;
+      fullNumbersProof = stepUp.proof;
     }
     return db.transaction(async (tx) => {
       const proof = await requireAccess(
@@ -146,6 +151,7 @@ export async function answerAiConsentAction(
         codeChallenge: request.codeChallenge,
         redirectUri: request.redirectUri,
         resource: request.resource,
+        ...(fullNumbersProof ? { stepUp: fullNumbersProof } : {}),
       });
       return created.ok
         ? ({ kind: 'created', code: created.value.code } as const)
