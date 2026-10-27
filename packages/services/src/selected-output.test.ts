@@ -1480,3 +1480,31 @@ describe('selected output: size', () => {
     );
   }, 60_000);
 });
+
+describe('selected output: narrowing to named documents (S14)', () => {
+  it('passes only the documents named by reference, and nothing for an empty scope', async () => {
+    const { ownerId, applicantId } = await person();
+    const one = await document(applicantId, 'COVER_LETTER', { readText: 'First letter' });
+    await document(applicantId, 'COVER_LETTER', { readText: 'Second letter' });
+    const code = (await referenceCodesFor(db, 'D', [one.documentId])).get(one.documentId);
+    if (!code) throw new Error('code');
+    const named = await build(
+      ownerId,
+      applicantId,
+      { documentList: true, documentText: ['letters_statements'] },
+      { documentScope: { referenceCodes: [code] } },
+    );
+    expect(named.documents.map((d) => d.referenceCode)).toEqual([code]);
+    expect(named.documentText.map((d) => d.text)).toEqual(['First letter']);
+    // Named together with a group it is not in: both must match, so nothing passes.
+    const both = await build(
+      ownerId,
+      applicantId,
+      { documentList: true },
+      { documentScope: { groups: ['financial'], referenceCodes: [code] } },
+    );
+    expect(both.documents).toEqual([]);
+    const empty = await build(ownerId, applicantId, { documentList: true }, { documentScope: {} });
+    expect(empty.documents).toEqual([]);
+  });
+});

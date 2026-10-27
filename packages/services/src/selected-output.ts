@@ -270,10 +270,13 @@ export interface SelectedOutputOptions {
   /**
    * Narrow the document list, expiry dates and text to these document groups and kinds (a
    * document passes if its group or its kind is named). Like `fieldKeys`, it only takes away.
+   * `referenceCodes` (`D-XXXXXX`, as the output shows them) narrows further to those documents:
+   * given alone, only they pass; given with groups or kinds, a document must match both.
    */
   readonly documentScope?: {
     readonly groups?: readonly DocumentGroupKey[];
     readonly kinds?: readonly string[];
+    readonly referenceCodes?: readonly string[];
   };
 }
 
@@ -1140,9 +1143,17 @@ async function loadDocumentParts(
     if (!version || !isListableVersion(version, erased.has(version.storageObjectId))) continue;
     const key = documentKey(document.docType);
     if (input.scope) {
-      const inGroup = input.scope.groups?.includes(documentGroupOf(document.docType)) ?? false;
-      const inKind = key !== null && (input.scope.kinds?.includes(key) ?? false);
-      if (!inGroup && !inKind) continue;
+      const { groups, kinds, referenceCodes } = input.scope;
+      // An empty scope still passes nothing, as before reference codes could narrow it.
+      if (groups !== undefined || kinds !== undefined || referenceCodes === undefined) {
+        const inGroup = groups?.includes(documentGroupOf(document.docType)) ?? false;
+        const inKind = key !== null && (kinds?.includes(key) ?? false);
+        if (!inGroup && !inKind) continue;
+      }
+      if (referenceCodes !== undefined) {
+        const code = codes.get(document.id);
+        if (code === undefined || !referenceCodes.includes(code)) continue;
+      }
     }
     const requiredKind = key !== null && needs.documentKeys.has(key);
     const requiredNow = key !== null && needs.documentKeys.get(key) === true;

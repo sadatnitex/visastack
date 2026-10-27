@@ -1701,3 +1701,21 @@ export {
   touchAiClient,
 } from './ai-clients';
 export { isMissingRelationError } from './missing-relation';
+// S14: the AI connector's gate and its five read-only tools (ADR 0021 sections 3, 6 and 7).
+export {
+  AI_CONNECTION_PURPOSE,
+  type AiCaller,
+  type AiContextGateway,
+  type AiGrantedScope,
+  authenticateAiRequest,
+  withAiConnection,
+} from './access/with-ai-connection';
+export {
+  AI_RESPONSE_LIMIT_BYTES,
+  AI_TOOLS,
+  type AiToolDefinition,
+  type AiToolName,
+  type AiToolOutcome,
+  type AiToolResult,
+  runAiTool,
+} from './ai-tools';
