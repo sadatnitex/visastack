@@ -81,7 +81,7 @@ export function FirstRunCountry({
       </p>
       <CountryChecklistPicker variant="first-run" data={data} initialIso2={iso2} action={action} />
       <p className="first-run-later">
-        <Link href={permissionStepHref(null)}>Skip for Now</Link>
+        <Link href={permissionStepHref(iso2)}>Skip for Now</Link>
       </p>
     </section>
   );

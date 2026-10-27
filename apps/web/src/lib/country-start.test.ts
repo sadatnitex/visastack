@@ -1,6 +1,11 @@
 import { DESTINATIONS, routesForDestination } from '@visastack/core/destinations';
 import { describe, expect, it } from 'vitest';
-import { countryNameOf, countryStartData, parseCountryParam } from './country-start';
+import {
+  COUNTRY_ALIASES,
+  countryNameOf,
+  countryStartData,
+  parseCountryParam,
+} from './country-start';
 import {
   COUNTRY_PARAM,
   appHrefForCountry,
@@ -142,6 +147,27 @@ describe('the picker data matches the country pages', () => {
     ).length;
     expect(data.withChecklist).toBe(counted);
     expect(counted).toBeGreaterThan(0);
+  });
+
+  it('holds every other name to a country in the data, and to one country only', () => {
+    const plain = (text: string) => text.trim().toLowerCase();
+    const owner = new Map<string, string>();
+    for (const country of data.countries) owner.set(plain(country.name), country.iso2);
+    for (const [iso2, names] of Object.entries(COUNTRY_ALIASES)) {
+      const country = data.countries.find((c) => c.iso2 === iso2);
+      expect(country, `${iso2} is not a country in the data`).toBeDefined();
+      expect(country?.aka).toEqual(names);
+      for (const name of names) {
+        // A name that is already another country's own name would send people to the wrong place.
+        expect(owner.get(plain(name)) ?? iso2, name).toBe(iso2);
+        expect(
+          Object.entries(COUNTRY_ALIASES).filter(
+            ([other, list]) => other !== iso2 && list.some((n) => plain(n) === plain(name)),
+          ),
+          name,
+        ).toEqual([]);
+      }
+    }
   });
 
   it('only links to official pages over https', () => {

@@ -120,9 +120,26 @@ describe('the country box', () => {
     show();
     type('Jap');
     expect(container.querySelector('.country-pick-result')).toBeNull();
-    expect(status()).toBe('No country matches yet. Pick one from the list.');
     type('Ger');
     expect(container.querySelector('.country-pick-result')).toBeNull();
+  });
+
+  it('says "no country matches" once the box is left, never on each letter typed', () => {
+    show();
+    type('J');
+    type('Ja');
+    // A screen reader hears nothing while the name is still being typed.
+    expect(status()).toBe('');
+    const input = container.querySelector<HTMLInputElement>('input[list]');
+    act(() => {
+      input?.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+    });
+    expect(status()).toBe('No country matches. Pick one from the list.');
+    // Typing again takes the message away at once.
+    type('Jap');
+    expect(status()).toBe('');
+    type('Japan');
+    expect(status()).toContain('Showing the checklist for Japan');
   });
 
   it.each([
@@ -132,6 +149,9 @@ describe('the country box', () => {
     ['turkiye', 'TR'],
     ['UK', 'GB'],
     ['uae', 'AE'],
+    ['Czech Republic', 'CZ'],
+    ['ivory coast', 'CI'],
+    ['Hong Kong', 'HK'],
     ['usa', 'US'],
   ])('understands %j', (typed, iso2) => {
     show();

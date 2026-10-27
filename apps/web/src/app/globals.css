@@ -8165,6 +8165,9 @@ summary.visa-photo-title {
   margin-top: 0.15rem;
   font-size: var(--text-small);
 }
+.country-pick-list > p {
+  margin: 0.75rem 0 0;
+}
 .country-pick-none {
   margin: 0;
   padding: 0.75rem 1rem;

@@ -405,6 +405,11 @@ describe('first run starts with a country (Growth G2)', () => {
     expect(text).not.toContain('Continue With');
   });
 
+  it('keeps a carried country when the person skips the step, without recording anything', async () => {
+    const html = await page({ country: 'JP' });
+    expect(html).toContain('href="/app?country=JP&amp;step=consent"');
+  });
+
   it('opens on a country carried from the home page, with its checklist and a Continue button', async () => {
     const html = await page({ country: 'jp' });
     const text = textOf(html);

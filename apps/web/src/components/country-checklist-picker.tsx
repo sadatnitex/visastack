@@ -15,19 +15,6 @@ import { startHrefForCountry } from '../lib/country-start-links';
  * keyboard, a screen reader and a phone's picker without any custom widget.
  */
 
-/** How the browser sees names we also answer to. Keys are lower case, without accents. */
-const ALIASES: Readonly<Record<string, string>> = {
-  uk: 'GB',
-  britain: 'GB',
-  'great britain': 'GB',
-  usa: 'US',
-  us: 'US',
-  america: 'US',
-  uae: 'AE',
-  emirates: 'AE',
-  turkey: 'TR',
-};
-
 function plain(text: string): string {
   return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim().replace(/\s+/g, ' ');
 }
@@ -36,10 +23,12 @@ function plain(text: string): string {
 function resolveCountry(text: string, countries: readonly StartCountry[]): StartCountry | null {
   const wanted = plain(text);
   if (wanted === '') return null;
-  const byName = countries.find((country) => plain(country.name) === wanted);
-  if (byName) return byName;
-  const iso2 = ALIASES[wanted];
-  return iso2 ? (countries.find((country) => country.iso2 === iso2) ?? null) : null;
+  return (
+    countries.find(
+      (country) =>
+        plain(country.name) === wanted || country.aka.some((other) => plain(other) === wanted),
+    ) ?? null
+  );
 }
 
 /** The conditions on an item, each as its own short line under it. */
@@ -80,6 +69,8 @@ export function CountryChecklistPicker({
   const initial = data.countries.find((country) => country.iso2 === initialIso2) ?? null;
   const [text, setText] = useState(initial?.name ?? '');
   const [routeKey, setRouteKey] = useState<string | null>(null);
+  // "No country matches" is said once the person leaves the box, not on every letter typed.
+  const [leftBox, setLeftBox] = useState(false);
 
   const country = resolveCountry(text, data.countries);
   const routeKeys = country?.routeKeys ?? [];
@@ -95,11 +86,17 @@ export function CountryChecklistPicker({
     status = hasList
       ? `Showing the checklist for ${country.name}: ${route?.total} items.`
       : `There is no checklist for ${country.name} yet.`;
-  } else if (text.trim() !== '') {
-    status = 'No country matches yet. Pick one from the list.';
+  } else if (leftBox && text.trim() !== '') {
+    status = 'No country matches. Pick one from the list.';
   }
 
-  let index = 0;
+  // Where each group starts in the whole list, so the reveal runs item by item across groups.
+  const starts: number[] = [];
+  let running = 0;
+  for (const group of route?.groups ?? []) {
+    starts.push(running);
+    running += group.items.length;
+  }
   return (
     <div className={`country-pick country-pick-${variant}`}>
       <div className="country-pick-field">
@@ -114,13 +111,15 @@ export function CountryChecklistPicker({
           value={text}
           onChange={(event) => {
             setText(event.target.value);
+            setLeftBox(false);
             // A new country starts on its fullest list, never on the last country's visa type.
             setRouteKey(null);
           }}
+          onBlur={() => setLeftBox(true)}
           autoComplete="off"
           autoCapitalize="words"
           spellCheck={false}
-          enterKeyHint="go"
+          enterKeyHint="done"
           placeholder="For example: Japan"
           aria-describedby={`${hintId} ${statusId}`}
         />
@@ -175,17 +174,16 @@ export function CountryChecklistPicker({
 
           {hasList && route ? (
             <div className="country-pick-list" key={`${country.iso2}:${route.key}`}>
-              {route.groups.map((group) => (
+              {route.groups.map((group, groupAt) => (
                 <div key={group.kind} className="country-pick-group">
                   <GroupHeading>{group.label}</GroupHeading>
                   <ul>
-                    {group.items.map((item) => {
-                      const step = Math.min(index, 11);
-                      index += 1;
+                    {group.items.map((item, itemAt) => {
+                      const step = Math.min((starts[groupAt] ?? 0) + itemAt, 11);
                       const conditions = itemConditions(item);
                       return (
                         <li
-                          key={item.text}
+                          key={`${itemAt}-${item.text}`}
                           className={`country-pick-item country-pick-step-${step}`}
                         >
                           <span className="country-pick-mark" aria-hidden="true" />
@@ -241,7 +239,9 @@ export function CountryChecklistPicker({
                   ? `Create Free Account for ${country.name}`
                   : `Sign In to Start With ${country.name}`}
               </Link>
-              <p className="muted">Your country comes with you, so you start where you left off.</p>
+              <p className="muted">
+                We keep your country for the next step, so your checklist is waiting.
+              </p>
             </div>
           ) : action ? (
             <form className="country-pick-action" action={action}>

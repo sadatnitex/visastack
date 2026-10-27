@@ -38,6 +38,8 @@ export interface StartRoute {
 export interface StartCountry {
   readonly iso2: string;
   readonly name: string;
+  /** Other names people type for it (checked against the data in the tests). */
+  readonly aka: readonly string[];
   /** What the entry rule is, in plain words (never "approved"). */
   readonly entry: string;
   readonly researched: boolean;
@@ -52,6 +54,27 @@ export interface StartData {
   /** How many countries have a checklist today. */
   readonly withChecklist: number;
 }
+
+/**
+ * Other names people type for a country, by its code. Only whole names count when the box is read,
+ * so none of these can be reached by a half-typed word. A test holds each code to a country in the
+ * data and each name to a country that has no other claim on it.
+ */
+export const COUNTRY_ALIASES: Readonly<Record<string, readonly string[]>> = {
+  AE: ['UAE', 'Emirates'],
+  CI: ['Ivory Coast'],
+  CZ: ['Czech Republic'],
+  GB: ['UK', 'Britain', 'Great Britain', 'England'],
+  HK: ['Hong Kong'],
+  LA: ['Lao'],
+  MK: ['Macedonia'],
+  MM: ['Burma'],
+  NL: ['Holland'],
+  TL: ['East Timor'],
+  TR: ['Turkey'],
+  US: ['USA', 'US', 'America'],
+  VN: ['Viet Nam'],
+};
 
 const KIND_LABEL: Readonly<Record<StartItemKind, string>> = {
   DOCUMENT: 'Documents',
@@ -101,6 +124,7 @@ function buildStartData(): StartData {
     countries.push({
       iso2: destination.iso2,
       name: destination.country,
+      aka: COUNTRY_ALIASES[destination.iso2] ?? [],
       entry: ENTRY_LABEL[destination.entryStatus],
       researched: destination.researched,
       // The fullest list first; ties keep the order the data gives.
