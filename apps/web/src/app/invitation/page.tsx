@@ -1,5 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { clientInvitationTerms } from '../../lib/client-invitation-terms';
+import { loadClientInvitationPage } from '../../lib/invitation-preview';
+import {
+  AgencyNotReviewed,
+  BusyInvitation,
+  ClientInvitationOffer,
+  ClosedInvitation,
+} from './client-invitation-offer';
 
 export const metadata: Metadata = {
   title: 'Your Invitation',
@@ -8,7 +16,13 @@ export const metadata: Metadata = {
 };
 export const dynamic = 'force-dynamic';
 
-/** A public account handoff only. Details and acceptance remain behind authenticated service checks. */
+/**
+ * A public account handoff. A team or sharing invitation shows only the generic handoff. A client
+ * invitation (growth loop 1, Option B) first names the agency and shows the terms, read by the link's
+ * own token and counted per network address; a link that is no longer open says so in one neutral way,
+ * and if the lookup cannot be made it falls back to the generic handoff. Opening a link never accepts
+ * anything: acceptance remains behind sign-in and the authenticated service checks.
+ */
 export default async function InvitationPage({
   searchParams,
 }: {
@@ -34,6 +48,17 @@ export default async function InvitationPage({
         ? '/app/sharing-invitations/accept'
         : '/app/client-invitations/accept';
   const next = encodeURIComponent(`${path}?token=${token}`);
+  if (kind === 'client') {
+    const page = await loadClientInvitationPage(token);
+    if (page.state === 'closed') return <ClosedInvitation />;
+    if (page.state === 'busy') return <BusyInvitation />;
+    if (page.state === 'open') {
+      if (!page.view.verified) return <AgencyNotReviewed agencyName={page.view.agencyName} />;
+      const terms = clientInvitationTerms(page.view.grantActions);
+      if (terms)
+        return <ClientInvitationOffer view={page.view} terms={terms} token={token} next={next} />;
+    }
+  }
   return (
     <section className="section container">
       <span className="eyebrow">VisaStack Invitation</span>

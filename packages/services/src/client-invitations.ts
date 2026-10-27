@@ -4,6 +4,7 @@ import { and, desc, eq, lt, or, sql } from 'drizzle-orm';
 import { assignMember, isActiveMember } from './agency';
 import { createApplicant, getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
+import { logoVersion, readOrganizationLogo } from './branding';
 import { type Db, first, required, schema } from './db';
 import { isEmailAddress } from './email-address';
 import { type ServiceError, serviceError } from './errors';
@@ -12,8 +13,10 @@ import { generateInvitationToken, hashInvitationToken } from './invitation-token
 import { createMission } from './missions';
 import { isOrgAdmin } from './organizations';
 import type { KeyManagementPort } from './ports';
+import { elapsedSeconds, recordProductEvent } from './product-events';
 import { RATE_LIMITS, checkRateLimits } from './rate-limit';
 import { acceptGrant, createGrant } from './sharing';
+import type { BlobStore } from './storage';
 
 /**
  * Agency invites a traveller (Commercial V1 Part 4 §6, IAM-03; v1.2 PR1/S1 B09).
@@ -163,7 +166,7 @@ async function recordWrongRecipient(
  * `orgGrantPermits`, and without it the named case owner could never
  * actually be assigned.
  */
-const DEFAULT_CLIENT_GRANT_ACTIONS: readonly PermissionAction[] = [
+export const DEFAULT_CLIENT_GRANT_ACTIONS: readonly PermissionAction[] = [
   'VIEW_METADATA',
   'PREVIEW',
   'COMMENT',
@@ -283,6 +286,14 @@ export async function createClientInvitation(
       resourceId: invitation.id,
       metadata: { organizationId: input.organizationId },
     });
+    // Growth loop 1: counted once per invitation, with no address, name or text. It never
+    // stands in the way of the invitation (savepoint, see `recordProductEvent`).
+    await recordProductEvent(tx, {
+      eventType: 'CLIENT_INVITE_SENT',
+      accountId: input.actorAccountId,
+      organizationId: input.organizationId,
+      onceFor: invitation.id,
+    });
     return ok({ invitation, rawToken, emailQueued });
   });
 }
@@ -357,6 +368,151 @@ export async function previewClientInvitation(
     grantActions: DEFAULT_CLIENT_GRANT_ACTIONS,
     expiresAt: row.expiresAt,
   });
+}
+
+/**
+ * What anyone holding the link may see before signing in (growth loop 1, Option B: name the agency
+ * and show the terms). Only what the page needs to be honest about who is asking and what they
+ * would get: never the person the agency typed, the address it was sent to, the route it names,
+ * who sent it, or any id. `verified` is the platform's own review result (the organization is
+ * ACTIVE), and the agency's logo and accent colour are given only then, so an agency nobody has
+ * reviewed is never dressed as one that was.
+ */
+export interface PublicClientInvitationView {
+  readonly agencyName: string;
+  readonly verified: boolean;
+  /** Present only for a verified agency that chose one. */
+  readonly accentColor: string | null;
+  /** A short token that changes with the logo, present only for a verified agency that has one. */
+  readonly logoVersion: string | null;
+  /** The access the agency receives on acceptance: the real grant, so the terms shown are true. */
+  readonly grantActions: readonly PermissionAction[];
+  readonly expiresAt: Date;
+}
+
+/** An agency that has been reviewed is ACTIVE; one still waiting for review may invite, but is shown plainly. */
+const OPEN_ORGANIZATION_STATUSES: readonly string[] = ['ACTIVE', 'PENDING_VERIFICATION'];
+
+/**
+ * The one lookup behind the public page and its logo: by hashed token only, and `null` for a token
+ * that is unknown, expired, revoked, already used, or whose agency can no longer invite, so the
+ * caller can say the same thing for all of them. An invitation nobody can accept (an older one sent
+ * to a phone number) is closed too.
+ */
+async function findOpenInvitationForPublic(
+  db: Db,
+  rawToken: string,
+  now: Date,
+): Promise<{ readonly organizationId: string; readonly view: PublicClientInvitationView } | null> {
+  const row = first(
+    await db
+      .select({
+        organizationId: schema.clientInvitations.organizationId,
+        contactDestination: schema.clientInvitations.contactDestination,
+        expiresAt: schema.clientInvitations.expiresAt,
+        status: schema.clientInvitations.status,
+        agencyName: schema.organizations.name,
+        agencyStatus: schema.organizations.status,
+        accentColor: schema.organizations.accentColor,
+        logoObjectKey: schema.organizations.logoObjectKey,
+      })
+      .from(schema.clientInvitations)
+      .innerJoin(
+        schema.organizations,
+        eq(schema.clientInvitations.organizationId, schema.organizations.id),
+      )
+      .where(eq(schema.clientInvitations.tokenHash, hashInvitationToken(rawToken)))
+      .limit(1),
+  );
+  if (!row) return null;
+  if (row.status !== 'PENDING') return null;
+  // The same test acceptance makes: past its end, it is closed.
+  if (row.expiresAt.getTime() < now.getTime()) return null;
+  if (!isAcceptableInvitationContact(row.contactDestination)) return null;
+  if (!OPEN_ORGANIZATION_STATUSES.includes(row.agencyStatus)) return null;
+  const verified = row.agencyStatus === 'ACTIVE';
+  return {
+    organizationId: row.organizationId,
+    view: {
+      agencyName: row.agencyName,
+      verified,
+      accentColor: verified ? row.accentColor : null,
+      logoVersion: verified && row.logoObjectKey ? logoVersion(row.logoObjectKey) : null,
+      grantActions: DEFAULT_CLIENT_GRANT_ACTIONS,
+      expiresAt: row.expiresAt,
+    },
+  };
+}
+
+/**
+ * The public, signed-out view of a client invitation (see `PublicClientInvitationView`). Read-only
+ * and never consuming the token. `null` means "no longer open", and is the same answer for a token
+ * that never existed, one that expired, was withdrawn or was used: nothing here lets anyone tell
+ * those apart or test which addresses an agency has invited. The caller limits how often one
+ * network address may ask.
+ */
+export async function getPublicClientInvitationView(
+  db: Db,
+  rawToken: string,
+  now: Date = new Date(),
+): Promise<PublicClientInvitationView | null> {
+  return (await findOpenInvitationForPublic(db, rawToken, now))?.view ?? null;
+}
+
+/** The inviting agency's logo for the public page: only for a still-open invitation from a verified agency. */
+export async function readPublicClientInvitationLogo(
+  db: Db,
+  storage: Pick<BlobStore, 'getObject'>,
+  rawToken: string,
+  now: Date = new Date(),
+): Promise<{ readonly bytes: Uint8Array; readonly contentType: string } | undefined> {
+  const found = await findOpenInvitationForPublic(db, rawToken, now);
+  if (!found?.view.verified || found.view.logoVersion === null) return undefined;
+  return readOrganizationLogo(db, storage, found.organizationId);
+}
+
+export interface ClientsJoined {
+  /** Accepted client invitations, all time. */
+  readonly total: number;
+  /** Accepted in the 30 days up to now. */
+  readonly last30Days: number;
+}
+
+const CLIENTS_JOINED_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * How many clients have joined an organization through an invitation, counted from the
+ * invitation records themselves (so it covers every past invitation, with no dependence on
+ * the event log). Two numbers and nothing else: no names, no addresses. Any active member may
+ * see it, like the other counts on the agency dashboard; anyone else is refused.
+ */
+export async function getClientsJoined(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly organizationId: string;
+    readonly now?: Date;
+  },
+): Promise<Result<ClientsJoined, ServiceError>> {
+  if (!(await isActiveMember(db, input.actorAccountId, input.organizationId))) {
+    return err(serviceError('forbidden', 'only a member of this organization can see this'));
+  }
+  const since = new Date((input.now ?? new Date()).getTime() - CLIENTS_JOINED_WINDOW_MS);
+  const row = first(
+    await db
+      .select({
+        total: sql<string>`count(*)`,
+        last30Days: sql<string>`count(*) filter (where ${schema.clientInvitations.acceptedAt} >= ${since.toISOString()})`,
+      })
+      .from(schema.clientInvitations)
+      .where(
+        and(
+          eq(schema.clientInvitations.organizationId, input.organizationId),
+          eq(schema.clientInvitations.status, 'ACCEPTED'),
+        ),
+      ),
+  );
+  return ok({ total: Number(row?.total ?? 0), last30Days: Number(row?.last30Days ?? 0) });
 }
 
 /** Carries a `ServiceError` out through a transaction rollback (a returned `err()` does not itself abort the transaction, only a throw does; mirrors `documents.ts`'s `RegistrationAborted`). */
@@ -554,6 +710,14 @@ export async function acceptClientInvitation(
           missionId: mission.id,
           grantId: grant.id,
         },
+      });
+      // Growth loop 1: once per invitation; the number is the seconds from sent to accepted.
+      await recordProductEvent(tx, {
+        eventType: 'CLIENT_INVITE_ACCEPTED',
+        accountId: input.actorAccountId,
+        organizationId: invitation.organizationId,
+        metricValue: elapsedSeconds(invitation.createdAt),
+        onceFor: invitation.id,
       });
 
       return ok({ applicantId, missionId: mission.id, organizationId: invitation.organizationId });

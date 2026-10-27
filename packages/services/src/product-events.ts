@@ -66,6 +66,9 @@ export const PRODUCT_EVENT_TYPES = [
   'CASH_COLLECTED',
   // Programme X U02: a case started from a previous one (metric: records carried).
   'CASE_PREPARED_AGAIN',
+  // Growth loop 1 (agency invites its clients). No label; once per invitation.
+  'CLIENT_INVITE_SENT',
+  'CLIENT_INVITE_ACCEPTED',
 ] as const;
 
 export type ProductEventType = (typeof PRODUCT_EVENT_TYPES)[number];
@@ -113,6 +116,7 @@ const METRIC_EVENTS: ReadonlySet<ProductEventType> = new Set([
   'ACCOUNT_ACTIVATED', // seconds from account creation
   'CASH_COLLECTED', // minor currency units
   'CASE_PREPARED_AGAIN', // records carried into the new case
+  'CLIENT_INVITE_ACCEPTED', // seconds from the invitation being sent
 ]);
 
 export interface RecordProductEventInput {
@@ -334,6 +338,11 @@ export const PRODUCT_EVENT_CATEGORIES: ReadonlyArray<{
   { key: 'plan_usage', label: 'Plan usage', eventTypes: ['PLAN_CHANGED', 'PLAN_LIMIT_REACHED'] },
   { key: 'cash_collection', label: 'Cash collection', eventTypes: ['CASH_COLLECTED'] },
   { key: 'prepare_again', label: 'Prepare again', eventTypes: ['CASE_PREPARED_AGAIN'] },
+  {
+    key: 'agency_invites',
+    label: 'Agency client invitations',
+    eventTypes: ['CLIENT_INVITE_SENT', 'CLIENT_INVITE_ACCEPTED'],
+  },
 ];
 
 export interface AnalyticsCategoryRow {

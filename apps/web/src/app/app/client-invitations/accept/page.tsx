@@ -5,9 +5,8 @@ import {
   previewClientInvitation,
 } from '@visastack/services';
 import type { Metadata } from 'next';
-import { agencyBrand } from '../../../../lib/agency-brand';
+import { InvitingAgency } from '../../../../components/inviting-agency';
 import { withSession } from '../../../../lib/session';
-import { AgencyBrandScope, AgencyMark } from '../../agency/[orgId]/org-branding-header';
 import { AcceptClientInvitationForm } from './accept-form';
 import { ConsentGate } from './consent-gate';
 
@@ -27,28 +26,6 @@ const GRANT_ACTION_LABELS: Readonly<Record<string, string>> = {
   PROPOSE_EDIT: 'Propose edits to your profile (you approve each one before it applies)',
   MANAGE: 'Manage your case: assign their staff, request evidence from you, add case notes',
 };
-
-/** The inviting agency as the traveller sees it: its mark, its name and the fixed "Powered by VisaStack". */
-function InvitingAgency({
-  name,
-  accentColor,
-  logoUrl,
-}: {
-  readonly name: string;
-  readonly accentColor: string | null;
-  readonly logoUrl: string | null;
-}) {
-  const brand = agencyBrand({ name, accentColor, logoUrl });
-  return (
-    <AgencyBrandScope brand={brand} className="invite-brand">
-      <AgencyMark brand={brand} size="md" />
-      <p className="invite-brand-text">
-        <strong>{brand.name}</strong>
-        <span>Powered by VisaStack</span>
-      </p>
-    </AgencyBrandScope>
-  );
-}
 
 /**
  * Accept an agency's client invitation (Commercial V1 Part 4 §6, IAM-03).

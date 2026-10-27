@@ -8047,6 +8047,43 @@ summary.visa-photo-title {
   font-size: var(--text-small);
 }
 
+/* WP-G8A agency invitation page and clients joined counter (growth loop 1). The public invitation
+   names the agency and lists the terms; the dashboard shows how many clients have joined. Flat
+   surfaces only. */
+.agency-clients-joined {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  max-width: 32rem;
+  margin-bottom: 20px;
+}
+.agency-clients-joined .stat {
+  background: #fff;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  padding: 16px;
+}
+.invitation-offer .invite-brand {
+  margin-top: 0.5rem;
+}
+.invitation-unreviewed {
+  margin: 0.5rem 0 1rem;
+}
+.invitation-unreviewed .card-body {
+  margin: 0 0 0.35rem;
+}
+.invitation-terms-list {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0 0 1.25rem;
+  padding-left: 1.25rem;
+}
+@media (max-width: 480px) {
+  .agency-clients-joined {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* WP-REF visible reference codes (ADR 0018): the code beside a record's name, even-width figures
    spaced for reading aloud, with a small Copy button that keeps a 44px target. */
 .reference-code {

@@ -11,6 +11,7 @@ import { CaseSearchForm, STAGE_LABELS } from './case-search-form';
 import {
   loadApplicants,
   loadCases,
+  loadClientsJoined,
   loadEvidenceRequests,
   loadMembers,
   loadOrgAccess,
@@ -82,14 +83,16 @@ export default async function AgencyDashboardPage({
     // The layout explains the "no role" case; there is nothing to load for it.
     if (!access?.member) return null;
     const members = await loadMembers(db, accountId, orgId, access);
-    const [requests, caseList, unassignedQueue, clients] = await Promise.all([
+    const [requests, caseList, unassignedQueue, clients, clientsJoined] = await Promise.all([
       loadEvidenceRequests(db, accountId, orgId, access, { withFileStates: true }),
       loadCases(db, accountId, orgId, members),
       loadUnassignedQueue(db, orgId, access),
       loadApplicants(db, orgId, access),
+      loadClientsJoined(db, accountId, orgId),
     ]);
     return {
       admin: access.admin,
+      clientsJoined,
       organizationName: access.org.name ?? null,
       clients,
       members,
@@ -303,6 +306,12 @@ export default async function AgencyDashboardPage({
           <Stat label="Assigned Cases" value={data.missions.length} />
         )}
       </section>
+      {data.clientsJoined ? (
+        <section className="agency-clients-joined" aria-label="Clients joined">
+          <Stat label="Clients Joined" value={data.clientsJoined.total} />
+          <Stat label="Joined in the Last 30 Days" value={data.clientsJoined.last30Days} />
+        </section>
+      ) : null}
       {data.admin && setupSteps.some((step) => !step.done) ? (
         <details className="agency-setup-disclosure">
           <summary>

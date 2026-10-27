@@ -55,6 +55,30 @@ const { default: PilotAccessDeniedPage } = await import('../app/pilot-access-den
 const { StatusView } = await import('../app/status/status-view');
 const { default: TrustCatalogPage } = await import('../app/trust/page');
 const { default: TrustRoutePage } = await import('../app/trust/[packKey]/page');
+const { AgencyNotReviewed, BusyInvitation, ClientInvitationOffer, ClosedInvitation } = await import(
+  '../app/invitation/client-invitation-offer'
+);
+const { clientInvitationTerms } = await import('./client-invitation-terms');
+const { DEFAULT_CLIENT_GRANT_ACTIONS } = await import('@visastack/services');
+
+const INVITATION_TOKEN = `${'Ab3_'.repeat(10)}Ab3`;
+const invitationOffer = (): ReactElement => (
+  <ClientInvitationOffer
+    view={{
+      agencyName: 'Acme Visas',
+      verified: true,
+      accentColor: '#1a4f8b',
+      logoVersion: 'abc123',
+      grantActions: DEFAULT_CLIENT_GRANT_ACTIONS,
+      expiresAt: new Date('2026-11-03T14:30:00.000Z'),
+    }}
+    terms={
+      clientInvitationTerms(DEFAULT_CLIENT_GRANT_ACTIONS) ?? { agencyCan: [], agencyCannot: null }
+    }
+    token={INVITATION_TOKEN}
+    next={encodeURIComponent(`/app/client-invitations/accept?token=${INVITATION_TOKEN}`)}
+  />
+);
 
 type StatusProps = Parameters<typeof StatusView>[0];
 
@@ -202,6 +226,16 @@ const PAGES: readonly Page[] = [
       })) as ReactElement;
     },
   },
+  {
+    name: 'client invitation (agency VisaStack has reviewed)',
+    build: async () => invitationOffer(),
+  },
+  {
+    name: 'client invitation (agency not reviewed yet)',
+    build: async () => <AgencyNotReviewed agencyName="Acme Visas" />,
+  },
+  { name: 'client invitation that is no longer open', build: async () => <ClosedInvitation /> },
+  { name: 'client invitation page busy', build: async () => <BusyInvitation /> },
   { name: 'page not found', build: async () => <NotFound /> },
   {
     name: 'something went wrong',
