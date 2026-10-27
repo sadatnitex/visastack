@@ -19,7 +19,6 @@ import {
 import { EVIDENCE_DECIDABLE_STATUSES, REQ_STATUS } from '../console-format';
 import { requestItemLabel } from '../do-next';
 import { EvidenceRequestActions } from '../evidence-request-actions';
-import { InvitationPanel } from '../invitation-panel';
 import { RequestEvidenceForm } from '../request-evidence-form';
 
 export const metadata: Metadata = { title: 'Agency Clients' };
@@ -74,68 +73,67 @@ export default async function AgencyClientsPage({
           profiles the resulting case attaches to, and their acceptance is what actually grants this
           organization access, never the invitation itself.
         </p>
-        <InvitationPanel>
-          {data.clientInvitations.length > 0 ? (
-            <div className="rows u-mb-150">
-              {data.clientInvitations.map((invitation) => (
-                <div className="row" key={invitation.id}>
-                  <span className="row-key">
-                    {invitation.displayName}
-                    <span
-                      className="muted"
-                      style={{ fontSize: 'var(--text-small)', marginLeft: '0.5rem' }}
-                    >
-                      {invitation.contactDestination}
+        {data.clientInvitations.length > 0 ? (
+          <div className="rows u-mb-150">
+            {data.clientInvitations.map((invitation) => (
+              <div className="row" key={invitation.id}>
+                <span className="row-key">
+                  {invitation.displayName}
+                  <span
+                    className="muted"
+                    style={{ fontSize: 'var(--text-small)', marginLeft: '0.5rem' }}
+                  >
+                    {invitation.contactDestination}
+                  </span>
+                </span>
+                <span className="row-end">
+                  {!isAcceptableInvitationContact(invitation.contactDestination) ? (
+                    // Saved without a valid email address before invitations became email-only:
+                    // nobody can accept it.
+                    <span className="badge badge-danger">
+                      Cannot be accepted &middot; revoke and invite again by email
                     </span>
-                  </span>
-                  <span className="row-end">
-                    {!isAcceptableInvitationContact(invitation.contactDestination) ? (
-                      // Saved without a valid email address before invitations became email-only:
-                      // nobody can accept it.
-                      <span className="badge badge-danger">
-                        Cannot be accepted &middot; revoke and invite again by email
-                      </span>
-                    ) : new Date(invitation.expiresAt).getTime() < Date.now() ? (
-                      <span className="badge badge-neutral">
-                        Expired {formatTimestampDate(invitation.expiresAt)} &middot; invite again
-                      </span>
-                    ) : (
-                      <span className="badge badge-warning">
-                        Invited &middot; expires {formatTimestampDate(invitation.expiresAt)}
-                      </span>
-                    )}
-                    <ClientInvitationRevokeButton
-                      organizationId={orgId}
-                      invitationId={invitation.id}
-                    />
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="u-mb-150">
-              <EmptyState
-                icon="users"
-                title="No Clients Invited Yet"
-                why="You see each client's progress here once they accept."
-                action={{ href: '#invite-client', label: 'Invite a Client' }}
-              >
-                This is where you invite the people you help. Each one gets a link, creates their
-                file, and chooses what to share with you. Start with the form below.
-              </EmptyState>
-            </div>
-          )}
-          <div id="invite-client">
-            <ClientInvitationForm
-              organizationId={orgId}
-              members={data.members.map((m) => ({
-                accountId: m.accountId,
-                email: m.email,
-                active: m.active,
-              }))}
-            />
+                  ) : new Date(invitation.expiresAt).getTime() < Date.now() ? (
+                    <span className="badge badge-neutral">
+                      Expired {formatTimestampDate(invitation.expiresAt)} &middot; invite again
+                    </span>
+                  ) : (
+                    <span className="badge badge-warning">
+                      Invited &middot; expires {formatTimestampDate(invitation.expiresAt)}
+                    </span>
+                  )}
+                  <ClientInvitationRevokeButton
+                    organizationId={orgId}
+                    invitationId={invitation.id}
+                  />
+                </span>
+              </div>
+            ))}
           </div>
-        </InvitationPanel>
+        ) : (
+          <div className="u-mb-150">
+            <EmptyState
+              icon="users"
+              title="No Clients Invited Yet"
+              why="You see each client's progress here once they accept."
+              action={{ href: '#invite-client', label: 'Invite a Client' }}
+            >
+              This is where you invite the people you help. Each one gets a link, creates their
+              file, and chooses what to share with you. Start with the form below.
+            </EmptyState>
+          </div>
+        )}
+        <div id="invite-client">
+          <ClientInvitationForm
+            pendingInvitationIds={data.clientInvitations.map((invitation) => invitation.id)}
+            organizationId={orgId}
+            members={data.members.map((m) => ({
+              accountId: m.accountId,
+              email: m.email,
+              active: m.active,
+            }))}
+          />
+        </div>
       </article>
 
       <article className="card u-mb-150" id="ask-for-evidence">

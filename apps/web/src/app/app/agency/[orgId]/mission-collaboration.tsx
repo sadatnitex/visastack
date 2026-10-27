@@ -169,9 +169,9 @@ export function MissionCollaboration({
     INITIAL,
   );
   // One status line per area (people, tasks, appointments): the latest answer replaces the last.
-  const peopleStatus = useLatestOf(assignState, unassignState);
-  const taskStatus = useLatestOf(taskCreateState, taskDecideState, taskReassignState);
-  const appointmentStatus = useLatestOf(apptCreateState, apptDecideState);
+  const [peopleStatus] = useLatestOf(assignState, unassignState);
+  const [taskStatus] = useLatestOf(taskCreateState, taskDecideState, taskReassignState);
+  const [appointmentStatus] = useLatestOf(apptCreateState, apptDecideState);
   const assignedAccountIds = new Set(assignments.map((a) => a.memberAccountId));
   const assignableMembers = members.filter((m) => !assignedAccountIds.has(m.accountId));
   const memberEmailByAccountId = new Map(members.map((m) => [m.accountId, m.email] as const));

@@ -2,19 +2,22 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
-import { useLatestResultArea } from '../../../../components/latest-result';
 import { type ActionState, addMemberAction } from './actions';
 import { InvitationLink } from './invitation-link';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
-export function AddMemberForm({ organizationId }: { readonly organizationId: string }) {
-  // Inside a Team or Clients panel the panel says what happened, once, for the latest action.
-  const area = useLatestResultArea<ActionState>();
-  const [state, formAction, pending] = useActionState(
-    area ? area.track(addMemberAction) : addMemberAction,
-    INITIAL,
-  );
+export function AddMemberForm({
+  organizationId,
+  pendingInvitationIds,
+}: {
+  readonly organizationId: string;
+  /** Invitations still waiting, as the page last read them. */
+  readonly pendingInvitationIds: readonly string[];
+}) {
+  const [state, formAction, pending] = useActionState(addMemberAction, INITIAL);
+  const stale =
+    state.invitationId !== undefined && !pendingInvitationIds.includes(state.invitationId);
   return (
     <form action={formAction} className="field-list">
       <input type="hidden" name="organizationId" value={organizationId} />
@@ -48,12 +51,12 @@ export function AddMemberForm({ organizationId }: { readonly organizationId: str
           busy="Adding…"
           className="btn btn-secondary"
         />
-        {area ? null : (
-          <>
-            <FormMessage result={state} />
-            {state.ok && state.invitationUrl ? <InvitationLink url={state.invitationUrl} /> : null}
-          </>
-        )}
+        {/* An invitation revoked (or accepted) since it was made leaves this screen with it:
+            its message and private link are no longer offered. */}
+        {stale ? null : <FormMessage result={state} />}
+        {!stale && state.ok && state.invitationUrl ? (
+          <InvitationLink url={state.invitationUrl} />
+        ) : null}
       </div>
     </form>
   );

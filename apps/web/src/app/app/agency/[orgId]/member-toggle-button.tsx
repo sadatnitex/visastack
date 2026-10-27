@@ -2,7 +2,6 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
-import { useLatestResultArea } from '../../../../components/latest-result';
 import { type ActionState, toggleMemberAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -16,12 +15,7 @@ export function MemberToggleButton({
   readonly membershipId: string;
   readonly active: boolean;
 }) {
-  // Inside a Team or Clients panel the panel says what happened, once, for the latest action.
-  const area = useLatestResultArea<ActionState>();
-  const [state, formAction, pending] = useActionState(
-    area ? area.track(toggleMemberAction) : toggleMemberAction,
-    INITIAL,
-  );
+  const [state, formAction, pending] = useActionState(toggleMemberAction, INITIAL);
   return (
     <div
       style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}
@@ -44,7 +38,7 @@ export function MemberToggleButton({
           className="btn btn-secondary u-btn-sm"
         />
       </form>
-      {area ? null : <FormMessage result={state} />}
+      <FormMessage result={state} />
     </div>
   );
 }

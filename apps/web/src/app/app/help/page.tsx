@@ -98,7 +98,7 @@ export default function HelpPage() {
             and the agency working your case never sees it. Private feedback is seen only by you and
             those staff. Each complaint keeps its status and history on the case.
           </p>
-          <Link href="/app/applicants">Open a Traveller&apos;s Cases</Link>
+          <Link href="/app/applicants">Go to Your Travellers</Link>
         </section>
         <section className="help-contact-route" aria-labelledby="help-contact-agency">
           <h3 id="help-contact-agency">A Question for Your Agency</h3>
@@ -119,8 +119,10 @@ export default function HelpPage() {
         <section className="help-contact-route" aria-labelledby="help-contact-status">
           <h3 id="help-contact-status">Something Is Not Working</h3>
           <p>
-            Check the status page first: it says what works today and lists known problems. If a
-            page shows an error with a reference, quote that reference when you raise the problem.
+            Check the status page first: it says what works today and lists known problems. If the
+            problem is not listed, raise it from the case it affects, under Problems and Feedback:
+            it reaches VisaStack staff. If a page showed an error with a reference, include that
+            reference.
           </p>
           <Link href="/status">Service Status</Link>
         </section>
