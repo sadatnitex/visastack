@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { InstallAppCard } from '../../../components/pwa/install-app-card';
 import { PageHeader } from '../../../components/ui';
 export const metadata: Metadata = { title: 'Help and Support' };
 export default function HelpPage() {
@@ -37,6 +38,7 @@ export default function HelpPage() {
           <Link href="/app/privacy">Privacy and Consent</Link>
           <Link href="/app/shared">Shared with Me</Link>
         </article>
+        <InstallAppCard />
       </div>
       <article className="card help-questions">
         <h2 className="card-title">Common Questions</h2>

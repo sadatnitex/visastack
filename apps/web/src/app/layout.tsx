@@ -4,10 +4,12 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { BrandMark } from '../components/brand-mark';
 import { PilotBanner } from '../components/pilot-banner';
+import { PwaRuntime } from '../components/pwa/pwa-runtime';
 import { SiteNavigation } from '../components/site-navigation';
 import { getDeploymentMode } from '../lib/deployment-mode';
 import { getLocale } from '../lib/locale';
 import { isPublicBetaOpen } from '../lib/public-beta';
+import { isServiceWorkerEnabled } from '../lib/pwa/service-worker';
 import { isSignedIn } from '../lib/signed-in';
 import { setLocaleAction } from './actions';
 import './globals.css';
@@ -37,6 +39,11 @@ export const metadata: Metadata = {
   title: { default: 'VisaStack - one profile, every visa', template: '%s | VisaStack' },
   description:
     'Keep your passport, documents and visa details in one private profile and reuse them for every application. Review changes and control what you share.',
+  applicationName: 'VisaStack',
+  // Home-screen app on iPhone and iPad (the manifest covers other devices).
+  appleWebApp: { capable: true, title: 'VisaStack', statusBarStyle: 'default' },
+  // Stop phones turning passport, reference and account numbers into call or map links.
+  formatDetection: { telephone: false, email: false, address: false },
 };
 
 // The approved reference stays light, independently of the device appearance.
@@ -52,6 +59,9 @@ export default async function RootLayout({ children }: { readonly children: Reac
   const signedIn = await isSignedIn();
   const locale = await getLocale();
   const deploymentMode = getDeploymentMode();
+  // The service worker runs only in production builds (the dev server rebuilds files constantly).
+  const serviceWorker =
+    process.env.NODE_ENV === 'production' && isServiceWorkerEnabled((name) => process.env[name]);
 
   return (
     <html lang={locale} className={`${inter.variable} ${bengali.variable}`}>
@@ -109,6 +119,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
             </nav>
           </div>
         </footer>
+        <PwaRuntime enabled={serviceWorker} />
       </body>
     </html>
   );
