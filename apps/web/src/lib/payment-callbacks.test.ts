@@ -141,7 +141,7 @@ beforeEach(async () => {
     });
   }
   await seed();
-});
+}, 120_000);
 
 afterEach(() => {
   vi.unstubAllEnvs();

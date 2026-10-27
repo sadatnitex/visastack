@@ -8,6 +8,7 @@ import { SourceNote } from '../../../components/source-note';
 import { EmptyState, PageHeader, StatusBadge } from '../../../components/ui';
 import {
   ENTRY_LABEL,
+  THIN_LIST,
   isUnofficial,
   moneyLabel,
   needsChecking,
@@ -29,9 +30,6 @@ const KIND_LABEL: Readonly<Record<string, string>> = {
   PROCESS_STEP: 'Steps',
 };
 const KIND_ORDER = ['DOCUMENT', 'DETAIL', 'PROCESS_STEP'] as const;
-
-/** A route's list is not a full checklist unless it is long; say so rather than imply it is complete. */
-const THIN_LIST = 5;
 
 function Fact({ label, children }: { readonly label: string; readonly children: React.ReactNode }) {
   return (
