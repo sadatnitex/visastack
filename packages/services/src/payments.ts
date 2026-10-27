@@ -559,6 +559,29 @@ export interface StartOnlinePaymentInput {
   readonly timeoutMs?: number;
 }
 
+type PreparedStart =
+  | { readonly kind: 'recent'; readonly attemptId: string; readonly startedAt: Date }
+  | {
+      readonly kind: 'created';
+      readonly attempt: PaymentAttempt;
+      readonly amount: number;
+      readonly invoiceRef: string;
+      readonly customer: { readonly name: string; readonly email: string };
+    };
+
+/** A payment still being opened (a minute) or sent to the gateway less than 30 minutes ago. */
+const IN_FLIGHT_START_MS = MINUTE_MS;
+function isRecentAttempt(attempt: PaymentAttempt, now: Date): boolean {
+  if (attempt.status === 'CREATED') {
+    return now.getTime() - attempt.createdAt.getTime() < IN_FLIGHT_START_MS;
+  }
+  return (
+    attempt.status === 'REDIRECTED' &&
+    attempt.redirectedAt !== null &&
+    now.getTime() - attempt.redirectedAt.getTime() < RECENT_ATTEMPT_MS
+  );
+}
+
 const NOT_AVAILABLE = 'Online payment is not available yet. Please try again later.';
 const START_FAILED = 'We could not open the payment page. Nothing was charged. Try again.';
 
@@ -603,94 +626,130 @@ export async function startOnlinePayment(
     if (!byPerson.allowed) return err(serviceError('rate_limited', byPerson.reason));
     if (!byAgency.allowed) return err(serviceError('rate_limited', byAgency.reason));
 
-    if (invoice.status === 'PAID')
-      return err(serviceError('invalid', 'This invoice is already paid.'));
-    if (invoice.status !== 'OPEN' && invoice.status !== 'PARTIALLY_PAID') {
-      return err(serviceError('invalid', 'This invoice cannot be paid online.'));
-    }
-    if (normalizeCurrency(invoice.currency) !== 'BDT') {
-      return err(serviceError('invalid', 'Only invoices in Bangladeshi taka can be paid online.'));
-    }
-    const amount = outstandingMinorUnits(
-      invoice.invoicedAmountMinorUnits,
-      invoice.collectedAmountMinorUnits,
-    );
-    if (amount <= 0) return err(serviceError('invalid', 'This invoice is already paid.'));
-    // Without the ledger no payment could be counted safely, so none is started.
-    if (!(await invoiceLedgerPresent(db))) return err(serviceError('invalid', NOT_AVAILABLE));
-
+    // The invoice row is locked while the balance, the recent-payment check and the new attempt
+    // are settled, so two clicks arriving together cannot both start a payment.
     const attempts = schema.paymentAttempts;
-    if (input.startAnother !== true) {
-      const recent = first(
-        await db
-          .select()
-          .from(attempts)
-          .where(and(eq(attempts.invoiceId, invoice.id), eq(attempts.status, 'REDIRECTED')))
-          .orderBy(desc(attempts.redirectedAt))
-          .limit(1),
-      );
-      if (
-        recent?.redirectedAt &&
-        now.getTime() - recent.redirectedAt.getTime() < RECENT_ATTEMPT_MS
-      ) {
-        return ok({ kind: 'recent_attempt', attemptId: recent.id, startedAt: recent.redirectedAt });
-      }
-    }
-
-    const payer = first(
-      await db
-        .select({ email: schema.accounts.email })
-        .from(schema.accounts)
-        .where(eq(schema.accounts.id, input.actorAccountId))
-        .limit(1),
-    );
-    const organization = first(
-      await db
-        .select({ name: schema.organizations.name })
-        .from(schema.organizations)
-        .where(eq(schema.organizations.id, invoice.organizationId))
-        .limit(1),
-    );
-    if (!payer || !organization) return err(serviceError('not_found', 'invoice not found'));
-
     const merchantTranId = newMerchantTranId();
-    const created = await db.transaction(async (tx) => {
-      const row = required(
-        first(
+    const prepared = await db.transaction(
+      async (tx): Promise<Result<PreparedStart, ServiceError>> => {
+        const locked = first(
           await tx
-            .insert(attempts)
-            .values({
-              invoiceId: invoice.id,
-              organizationId: invoice.organizationId,
-              provider: port.provider,
-              merchantTranId,
-              amountMinorUnits: amount,
-              currency: normalizeCurrency(invoice.currency),
-              status: 'CREATED',
-              initiatedByAccountId: input.actorAccountId,
-            })
-            .returning(),
-        ),
-        'payment attempt',
-      );
-      await appendAuditEvent(tx, {
-        eventType: 'PAYMENT_ATTEMPT_STARTED',
-        actorAccountId: input.actorAccountId,
-        action: 'MANAGE',
-        method: 'MANUAL',
-        result: 'ALLOWED',
-        resourceType: 'payment_attempt',
-        resourceId: row.id,
-        metadata: {
-          invoiceId: invoice.id,
-          organizationId: invoice.organizationId,
-          provider: port.provider,
-          amountMinorUnits: amount,
-          currency: normalizeCurrency(invoice.currency),
-        },
+            .select()
+            .from(schema.invoices)
+            .where(eq(schema.invoices.id, invoice.id))
+            .limit(1)
+            .for('update'),
+        );
+        if (!locked) return err(serviceError('not_found', 'invoice not found'));
+        if (locked.status === 'PAID') {
+          return err(serviceError('invalid', 'This invoice is already paid.'));
+        }
+        if (locked.status !== 'OPEN' && locked.status !== 'PARTIALLY_PAID') {
+          return err(serviceError('invalid', 'This invoice cannot be paid online.'));
+        }
+        if (normalizeCurrency(locked.currency) !== 'BDT') {
+          return err(
+            serviceError('invalid', 'Only invoices in Bangladeshi taka can be paid online.'),
+          );
+        }
+        const amount = outstandingMinorUnits(
+          locked.invoicedAmountMinorUnits,
+          locked.collectedAmountMinorUnits,
+        );
+        if (amount <= 0) return err(serviceError('invalid', 'This invoice is already paid.'));
+        // Without the ledger no payment could be counted safely, so none is started.
+        if (!(await invoiceLedgerPresent(tx))) return err(serviceError('invalid', NOT_AVAILABLE));
+
+        if (input.startAnother !== true) {
+          const earlier = await tx
+            .select()
+            .from(attempts)
+            .where(
+              and(
+                eq(attempts.invoiceId, locked.id),
+                inArray(attempts.status, ['CREATED', 'REDIRECTED']),
+              ),
+            )
+            .orderBy(desc(attempts.createdAt))
+            .limit(5);
+          const recent = earlier.find((a) => isRecentAttempt(a, now));
+          if (recent) {
+            return ok({
+              kind: 'recent',
+              attemptId: recent.id,
+              startedAt: recent.redirectedAt ?? recent.createdAt,
+            });
+          }
+        }
+
+        const payer = first(
+          await tx
+            .select({ email: schema.accounts.email })
+            .from(schema.accounts)
+            .where(eq(schema.accounts.id, input.actorAccountId))
+            .limit(1),
+        );
+        const organization = first(
+          await tx
+            .select({ name: schema.organizations.name })
+            .from(schema.organizations)
+            .where(eq(schema.organizations.id, locked.organizationId))
+            .limit(1),
+        );
+        if (!payer || !organization) return err(serviceError('not_found', 'invoice not found'));
+
+        const row = required(
+          first(
+            await tx
+              .insert(attempts)
+              .values({
+                invoiceId: locked.id,
+                organizationId: locked.organizationId,
+                provider: port.provider,
+                merchantTranId,
+                amountMinorUnits: amount,
+                currency: normalizeCurrency(locked.currency),
+                status: 'CREATED',
+                initiatedByAccountId: input.actorAccountId,
+              })
+              .returning(),
+          ),
+          'payment attempt',
+        );
+        await appendAuditEvent(tx, {
+          eventType: 'PAYMENT_ATTEMPT_STARTED',
+          actorAccountId: input.actorAccountId,
+          action: 'MANAGE',
+          method: 'MANUAL',
+          result: 'ALLOWED',
+          resourceType: 'payment_attempt',
+          resourceId: row.id,
+          metadata: {
+            invoiceId: locked.id,
+            organizationId: locked.organizationId,
+            provider: port.provider,
+            amountMinorUnits: amount,
+            currency: normalizeCurrency(locked.currency),
+          },
+        });
+        return ok({
+          kind: 'created',
+          attempt: row,
+          amount,
+          invoiceRef: locked.invoiceRef,
+          customer: { name: organization.name, email: payer.email },
+        });
+      },
+    );
+    if (!prepared.ok) return prepared;
+    if (prepared.value.kind === 'recent') {
+      return ok({
+        kind: 'recent_attempt',
+        attemptId: prepared.value.attemptId,
+        startedAt: prepared.value.startedAt,
       });
-      return row;
-    });
+    }
+    const { attempt: created, amount, invoiceRef, customer } = prepared.value;
 
     let session: Awaited<ReturnType<PaymentPort['createCheckout']>>;
     try {
@@ -698,9 +757,9 @@ export async function startOnlinePayment(
         port.createCheckout({
           merchantTranId,
           amountMinorUnits: amount,
-          currency: normalizeCurrency(invoice.currency),
-          invoiceRef: invoice.invoiceRef,
-          customer: { name: organization.name, email: payer.email },
+          currency: created.currency,
+          invoiceRef,
+          customer,
           urls: {
             success: input.urlFor('success', merchantTranId),
             fail: input.urlFor('fail', merchantTranId),

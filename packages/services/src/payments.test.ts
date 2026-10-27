@@ -320,6 +320,32 @@ describe('online invoice payments (S11)', () => {
       expect(isOk(later) && later.value.kind).toBe('redirect');
     });
 
+    it('starts only one payment when two clicks arrive together, and treats a payment still being opened as recent', async () => {
+      const invoiceId = await openInvoice('INV-S11-DOUBLE');
+      const results = await Promise.all([start(invoiceId), start(invoiceId)]);
+      expect(results.every((r) => isOk(r))).toBe(true);
+      const kinds = results.map((r) => (isOk(r) ? r.value.kind : 'error')).sort();
+      expect(kinds).toEqual(['recent_attempt', 'redirect']);
+      expect(port.checkouts).toHaveLength(1);
+      expect(await listPaymentAttemptsForInvoice(db, invoiceId)).toHaveLength(1);
+      // An attempt that is still being opened (no gateway page yet) also counts as recent...
+      const other = await openInvoice('INV-S11-INFLIGHT');
+      await db.insert(schema.paymentAttempts).values({
+        invoiceId: other,
+        organizationId: org.organizationId,
+        provider: 'sslcommerz',
+        merchantTranId: newMerchantTranId(),
+        amountMinorUnits: 125000,
+        currency: 'BDT',
+        status: 'CREATED',
+      });
+      const blocked = await start(other);
+      expect(isOk(blocked) && blocked.value.kind).toBe('recent_attempt');
+      // ...but only for a minute: an old unfinished CREATED attempt does not block a new payment.
+      const later = await start(other, { now: new Date(Date.now() + 5 * 60 * 1000) });
+      expect(isOk(later) && later.value.kind).toBe('redirect');
+    });
+
     it('limits how often one person may start payments', async () => {
       const invoiceId = await openInvoice('INV-S11-LIMIT');
       await exhaustRateLimit(db, org.ownerAccountId, 'payments.start', RATE_LIMITS.PAYMENT_START);
