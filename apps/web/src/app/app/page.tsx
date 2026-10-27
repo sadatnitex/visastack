@@ -345,6 +345,9 @@ export default async function AppPage({
               : null
         }
         recordsHref={first ? `/app/applicant/${first.applicant.id}` : '/app/applicants'}
+        briefHref={
+          first ? `/app/applicant/${first.applicant.id}/outputs?output=agency_brief` : null
+        }
       />
     );
   }
