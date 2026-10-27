@@ -1105,61 +1105,90 @@ async function box(page: Page, selector: string) {
 
 test.describe('collapsible sidebar and account menu fit the screen', () => {
   test.use({ bypassCSP: true });
+  // Width, height and device scale factor. The scaled ones are a 1920x1080 laptop at 125 and 150
+  // percent, where the real viewport is a lot smaller than the screen.
   const sizes = [
-    [1366, 768],
-    [1440, 900],
-    [1920, 1080],
-    [1280, 600],
-    [1024, 700],
+    [1366, 768, 1],
+    [1440, 900, 1],
+    [1920, 1080, 1],
+    [1280, 600, 1],
+    [1280, 600, 1.5],
+    [910, 554, 1.5],
+    [1024, 700, 1],
     // A very short window: the rows no longer all fit, so the panel must scroll inside itself.
-    [1280, 480],
+    [1280, 480, 1],
   ] as const;
 
-  for (const [width, height] of sizes) {
+  for (const [width, height, scale] of sizes) {
     for (const sidebar of ['expanded', 'collapsed'] as const) {
-      test(`account menu lies fully inside the screen at ${width}x${height} with the ${sidebar} sidebar`, async ({
-        page,
-      }) => {
-        await page.setViewportSize({ width, height });
-        await openUiFixture(page, 'shell', { sidebar });
-        await page.locator('.record-account > summary').click();
-        const panel = await box(page, '.account-menu-panel');
-        const opener = await box(page, '.record-account > summary');
-        expect(panel.x).toBeGreaterThanOrEqual(0);
-        expect(panel.y).toBeGreaterThanOrEqual(0);
-        expect(panel.x + panel.width).toBeLessThanOrEqual(width);
-        expect(panel.y + panel.height).toBeLessThanOrEqual(height);
-        // Not too big: a comfortable popover width, and never the whole screen height.
-        expect(panel.width).toBeGreaterThanOrEqual(288);
-        expect(panel.width).toBeLessThanOrEqual(320);
-        expect(panel.height).toBeLessThan(height * 0.9);
-        // Anchored to its trigger: under it, lined up with its right edge.
-        expect(panel.y).toBeGreaterThanOrEqual(opener.y + opener.height);
-        expect(Math.abs(panel.x + panel.width - (opener.x + opener.width))).toBeLessThanOrEqual(1);
-        // The page itself never gains a scrollbar from the menu.
-        const overflow = await page.evaluate(
-          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-        );
-        expect(overflow).toBe(0);
-        // Every row can be reached: either it fits, or the panel scrolls (Sign Out stays in view).
-        const scrolls = await page.evaluate(() => {
-          const menu = document.querySelector<HTMLElement>('.account-menu-panel');
-          return menu ? menu.scrollHeight > menu.clientHeight : false;
+      test.describe(`${width}x${height} at ${scale}x with the ${sidebar} sidebar`, () => {
+        test.use({ deviceScaleFactor: scale });
+        test('account menu is compact, clear of every edge and never most of the screen', async ({
+          page,
+        }) => {
+          await page.setViewportSize({ width, height });
+          await openUiFixture(page, 'shell', { sidebar });
+          await page.locator('.record-account > summary').click();
+          const panel = await box(page, '.account-menu-panel');
+          const opener = await box(page, '.record-account > summary');
+          expect(panel.x).toBeGreaterThanOrEqual(0);
+          expect(panel.y).toBeGreaterThanOrEqual(0);
+          expect(panel.x + panel.width).toBeLessThanOrEqual(width);
+          // At least 16px clear of the bottom edge, never touching it.
+          expect(height - (panel.y + panel.height)).toBeGreaterThanOrEqual(16);
+          // A compact popover: 17.5rem wide, never the whole screen height, never above 70 percent.
+          expect(panel.width).toBeGreaterThanOrEqual(272);
+          expect(panel.width).toBeLessThanOrEqual(288);
+          expect(panel.height).toBeLessThanOrEqual(height * 0.7 + 1);
+          // Precise pointer: 34px rows (WCAG 2.2 AA asks for 24px), not the 44px touch rows.
+          expect((await box(page, '.account-menu-row')).height).toBe(34);
+          // Anchored to its trigger: under it, lined up with its right edge.
+          expect(panel.y).toBeGreaterThanOrEqual(opener.y + opener.height);
+          expect(Math.abs(panel.x + panel.width - (opener.x + opener.width))).toBeLessThanOrEqual(
+            1,
+          );
+          // The page itself never gains a scrollbar from the menu.
+          const overflow = await page.evaluate(
+            () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          );
+          expect(overflow).toBe(0);
+          // Every row can be reached: either it fits, or the panel scrolls (Sign Out stays in view).
+          const { scrolls, natural } = await page.evaluate(() => {
+            const menu = document.querySelector<HTMLElement>('.account-menu-panel');
+            return {
+              scrolls: menu ? menu.scrollHeight > menu.clientHeight : false,
+              natural: menu ? menu.scrollHeight : 0,
+            };
+          });
+          if (!scrolls) expect(panel.height).toBeGreaterThanOrEqual(natural);
+          // From 768px tall up, nothing scrolls and the menu is clearly less than half the window.
+          if (height >= 768) {
+            expect(scrolls).toBe(false);
+            expect(panel.height).toBeLessThan(height * 0.5);
+          }
+          await expect(page.getByRole('button', { name: 'Sign Out' })).toBeInViewport();
+          if (scrolls) {
+            // Scrolled or not, Sign Out stays pinned flush to the panel's bottom edge.
+            const out = await box(page, '.account-menu-signout button');
+            expect(panel.y + panel.height - (out.y + out.height)).toBeLessThanOrEqual(10);
+          }
         });
-        const natural = await page.evaluate(() => {
-          const menu = document.querySelector<HTMLElement>('.account-menu-panel');
-          return menu ? menu.scrollHeight : 0;
-        });
-        if (!scrolls) expect(panel.height).toBeGreaterThanOrEqual(natural);
-        await expect(page.getByRole('button', { name: 'Sign Out' })).toBeInViewport();
-        if (scrolls) {
-          // Scrolled or not, Sign Out stays pinned flush to the panel's bottom edge.
-          const out = await box(page, '.account-menu-signout button');
-          expect(panel.y + panel.height - (out.y + out.height)).toBeLessThanOrEqual(10);
-        }
       });
     }
   }
+
+  test.describe('a touch screen at laptop width keeps the roomy rows', () => {
+    test.use({ hasTouch: true, viewport: { width: 1024, height: 768 } });
+    test('rows stay 44px tall when the pointer is coarse', async ({ page }) => {
+      await openUiFixture(page, 'shell');
+      expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
+      await page.locator('.record-account > summary').click();
+      expect((await box(page, '.account-menu-row')).height).toBe(44);
+      const panel = await box(page, '.account-menu-panel');
+      expect(768 - (panel.y + panel.height)).toBeGreaterThanOrEqual(16);
+      expect(panel.height).toBeLessThanOrEqual(768 * 0.7 + 1);
+    });
+  });
 
   test('account menu opens above a trigger that sits low, and still fits', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
