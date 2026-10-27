@@ -27,6 +27,7 @@ import { hasActiveOrVerifiedErasureJob } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { isValidDocumentDateString } from './expiry';
 import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
+import { AUTOMATIC_TITLE_REASON, buildDocumentTitle } from './naming';
 import { listMembershipsForAccount } from './organizations';
 import { recordProductEvent } from './product-events';
 import { assignReferenceCode } from './reference-codes';
@@ -69,7 +70,15 @@ export interface RegisterDocumentInput {
   readonly docType?: string;
   /** What an "Other" document is, kept as given. Use `prepareDocumentKind` to check a choice first. */
   readonly subject?: string;
+  /** How the document arrived ('UPLOAD', or `CONVERTED_FROM_HEIC_SOURCE` for a converted iPhone photo). */
   readonly source?: string;
+  /**
+   * List the document under its automatic title ("Passport, Nazmus", or "Document, Nazmus,
+   * 27 Oct 2026" while its kind is not known) instead of the file's own name. The title is saved as
+   * the document's name, with a name version recording that it was automatic, so choosing the kind
+   * later can replace it and a name the person gives it never is.
+   */
+  readonly automaticTitle?: boolean;
   // CAS-08: whether this document appears in the applicant's own browsable
   // wallet. True for every normal, owner-initiated registration (the
   // default below matches that). A contributor-initiated one passes this
@@ -113,7 +122,7 @@ export async function registerDocument(
   }
 
   return db.transaction(async (tx) => {
-    const document = required(
+    const inserted = required(
       first(
         await tx
           .insert(schema.documents)
@@ -130,6 +139,29 @@ export async function registerDocument(
       ),
       'document',
     );
+    // The title's day is the document's own creation day, in the traveller's time zone.
+    const title = input.automaticTitle
+      ? buildDocumentTitle({
+          docType: inserted.docType,
+          subject: inserted.subject,
+          displayName: applicant.displayName,
+          addedAt: inserted.createdAt,
+          timeZone: applicant.timezone,
+        })
+      : null;
+    const document = title
+      ? required(
+          first(
+            await tx
+              .update(schema.documents)
+              .set({ approvedName: title })
+              .where(eq(schema.documents.id, inserted.id))
+              .returning(),
+          ),
+          'document',
+        )
+      : inserted;
+    if (title) await recordAutomaticTitle(tx, document.id, title, 1);
     // The visible code people quote (ADR 0018), in the same transaction.
     await assignReferenceCode(tx, 'D', document.id);
     await appendAuditEvent(tx, {
@@ -140,10 +172,82 @@ export async function registerDocument(
       applicantId: input.applicantId,
       resourceType: 'document',
       resourceId: document.id,
-      metadata: { docType: input.docType ?? null },
+      // Kinds only, never the title: an audit record holds no personal content.
+      metadata: {
+        docType: input.docType ?? null,
+        source: input.source ?? null,
+        automaticTitle: title !== null,
+      },
     });
     return ok(document);
   });
+}
+
+/** `documents.source` for an iPhone photo (HEIC or HEIF) stored as a converted JPEG copy. */
+export const CONVERTED_FROM_HEIC_SOURCE = 'UPLOAD_CONVERTED_FROM_HEIC';
+
+/**
+ * Save an automatic title as a decided name version: written by the system (no deciding account),
+ * with `AUTOMATIC_TITLE_REASON`, so `currentAutomaticTitle` can tell it from a name a person chose.
+ */
+async function recordAutomaticTitle(
+  tx: Db,
+  documentId: string,
+  title: string,
+  versionNumber: number,
+): Promise<void> {
+  await tx.insert(schema.documentNameVersions).values({
+    documentId,
+    versionNumber,
+    proposedName: title,
+    finalName: title,
+    decision: 'ACCEPTED_UNCHANGED',
+    reason: AUTOMATIC_TITLE_REASON,
+    decidedAt: new Date(),
+  });
+}
+
+/**
+ * True while a document is still listed under its automatic title: its latest decided name is
+ * one the system wrote, and it is still the name in use. A name the person gave it, or accepted
+ * from a suggestion, ends that for good.
+ */
+async function isListedUnderAutomaticTitle(tx: Db, document: Document): Promise<boolean> {
+  if (document.approvedName === null) return false;
+  const latest = first(
+    await tx
+      .select({
+        reason: schema.documentNameVersions.reason,
+        finalName: schema.documentNameVersions.finalName,
+      })
+      .from(schema.documentNameVersions)
+      .where(
+        and(
+          eq(schema.documentNameVersions.documentId, document.id),
+          ne(schema.documentNameVersions.decision, 'PENDING'),
+          ne(schema.documentNameVersions.decision, 'REJECTED'),
+        ),
+      )
+      .orderBy(
+        desc(schema.documentNameVersions.decidedAt),
+        desc(schema.documentNameVersions.versionNumber),
+      )
+      .limit(1),
+  );
+  return latest?.reason === AUTOMATIC_TITLE_REASON && latest.finalName === document.approvedName;
+}
+
+/** The next free name version number for a document. */
+async function nextNameVersionNumber(tx: Db, documentId: string): Promise<number> {
+  const top = first(
+    await tx
+      .select({ versionNumber: schema.documentNameVersions.versionNumber })
+      .from(schema.documentNameVersions)
+      .where(eq(schema.documentNameVersions.documentId, documentId))
+      .orderBy(desc(schema.documentNameVersions.versionNumber))
+      .limit(1),
+  );
+  return (top?.versionNumber ?? 0) + 1;
 }
 
 export interface AddDocumentVersionInput {
@@ -309,6 +413,13 @@ export interface RegisterDocumentWithVersionInput {
   readonly sha256?: string;
   readonly walletVisible?: boolean;
   readonly onBehalfOfContributorRequestId?: string;
+  /** See `RegisterDocumentInput.automaticTitle`. */
+  readonly automaticTitle?: boolean;
+}
+
+/** A new document's first version, with the document as registered (its name included). */
+export interface RegisteredDocumentWithVersion extends AddDocumentVersionResult {
+  readonly document: Document;
 }
 
 /** Carries a `ServiceError` out through a transaction rollback (a returned `err()` does not itself abort the transaction — only a throw does). */
@@ -332,7 +443,7 @@ class RegistrationAborted extends Error {
 export async function registerDocumentWithVersion(
   db: Db,
   input: RegisterDocumentWithVersionInput,
-): Promise<Result<AddDocumentVersionResult, ServiceError>> {
+): Promise<Result<RegisteredDocumentWithVersion, ServiceError>> {
   try {
     return await db.transaction(async (tx) => {
       const registered = await registerDocument(tx, {
@@ -346,6 +457,7 @@ export async function registerDocumentWithVersion(
         ...(input.onBehalfOfContributorRequestId !== undefined
           ? { onBehalfOfContributorRequestId: input.onBehalfOfContributorRequestId }
           : {}),
+        ...(input.automaticTitle !== undefined ? { automaticTitle: input.automaticTitle } : {}),
       });
       if (!registered.ok) throw new RegistrationAborted(registered.error);
 
@@ -362,7 +474,7 @@ export async function registerDocumentWithVersion(
       });
       if (!versioned.ok) throw new RegistrationAborted(versioned.error);
 
-      return ok(versioned.value);
+      return ok({ ...versioned.value, document: registered.value });
     });
   } catch (error) {
     if (error instanceof RegistrationAborted) return err(error.serviceError);
@@ -654,6 +766,11 @@ export async function setDocumentType(
     readonly docType: string | null;
     /** What an "Other" document is. Ignored for every other type. */
     readonly subject?: string | null;
+    /**
+     * Leave the document's name as it is even when it is still the automatic title. For a caller
+     * that names the document itself in the same transaction (accepting a suggestion does).
+     */
+    readonly keepName?: boolean;
   },
 ): Promise<Result<Document, ServiceError>> {
   const document = first(
@@ -677,11 +794,32 @@ export async function setDocumentType(
   const { docType, subject } = kind.value;
 
   return db.transaction(async (tx) => {
+    // A document still listed under its automatic title takes the title of its new kind
+    // ("Document, Nazmus, 27 Oct 2026" becomes "Passport, Nazmus"); a name the person chose stays.
+    const retitle =
+      input.keepName !== true && applicant && (await isListedUnderAutomaticTitle(tx, document))
+        ? buildDocumentTitle({
+            docType,
+            subject,
+            displayName: applicant.displayName,
+            addedAt: document.createdAt,
+            timeZone: applicant.timezone,
+          })
+        : null;
+    const newTitle = retitle !== null && retitle !== document.approvedName ? retitle : null;
+    if (newTitle) {
+      await recordAutomaticTitle(
+        tx,
+        document.id,
+        newTitle,
+        await nextNameVersionNumber(tx, document.id),
+      );
+    }
     const updated = required(
       first(
         await tx
           .update(schema.documents)
-          .set({ docType, subject })
+          .set({ docType, subject, ...(newTitle ? { approvedName: newTitle } : {}) })
           .where(eq(schema.documents.id, input.documentId))
           .returning(),
       ),
@@ -722,7 +860,12 @@ export async function setDocumentType(
       applicantId: document.applicantId,
       resourceType: 'document',
       resourceId: document.id,
-      metadata: { docType, previousDocType: document.docType, closedSuggestions },
+      metadata: {
+        docType,
+        previousDocType: document.docType,
+        closedSuggestions,
+        automaticTitleUpdated: newTitle !== null,
+      },
     });
     for (const missionId of await missionsSelectingDocument(tx, document.id)) {
       await incrementMaterialRevision(tx, missionId);
@@ -781,6 +924,8 @@ export interface DocumentSummary {
   readonly docType: string | null;
   /** What an "Other" document is, in the person's own words. */
   readonly subject: string | null;
+  /** How it arrived: 'UPLOAD', `CONVERTED_FROM_HEIC_SOURCE`, or null when not recorded. */
+  readonly source?: string | null;
   readonly latestVersionId: string | null;
   readonly latestVersionNumber?: number | null;
   readonly updatedAt?: string;
@@ -863,6 +1008,7 @@ export async function listDocumentsDetailed(
       approvedName: doc.approvedName,
       docType: doc.docType,
       subject: doc.subject,
+      source: doc.source,
       latestVersionId: version?.id ?? null,
       latestVersionNumber: version?.versionNumber ?? null,
       updatedAt: new Date(

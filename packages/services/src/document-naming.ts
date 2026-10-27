@@ -1,8 +1,10 @@
 import { type Result, err, ok } from '@visastack/core';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
+import { AuthorizedApplicant } from './access';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { cleanDocumentName } from './naming';
 
 /**
  * Automatic filename proposal workflow (master directive §11/§21E).
@@ -200,4 +202,75 @@ export async function listNameVersions(
     .from(schema.documentNameVersions)
     .where(eq(schema.documentNameVersions.documentId, documentId))
     .orderBy(desc(schema.documentNameVersions.versionNumber));
+}
+
+/** Recorded on the name version a person writes with `renameDocument`. */
+export const OWNER_RENAME_REASON = 'renamed by the owner';
+
+/**
+ * Give a document a name of the person's own. The owner only, through the access gate, with the
+ * proof made for this document. The name is cleaned the way every name a person types is
+ * (`cleanDocumentName`) and saved through the same history as every other decided name: a name
+ * version written and decided in one transaction, so nothing is left waiting. A name suggested by
+ * a reading and still waiting stays waiting; the person can still accept or skip it.
+ */
+export async function renameDocument(
+  proof: AuthorizedApplicant<'MANAGE'>,
+  input: { readonly name: string },
+): Promise<Result<DocumentNameVersion, ServiceError>> {
+  if (
+    !AuthorizedApplicant.isGenuine(proof, 'MANAGE') ||
+    proof.actor.kind !== 'applicant_owner' ||
+    proof.resource.kind !== 'document'
+  ) {
+    return err(serviceError('forbidden', 'only the owner can rename this document'));
+  }
+  const name = cleanDocumentName(input.name);
+  if (name.length === 0) return err(serviceError('invalid', 'enter a name for this document'));
+  const documentId = proof.resource.document.id;
+  const actorAccountId = proof.applicant.ownerAccountId;
+
+  try {
+    return await proof.tx.transaction(async (tx) => {
+      const document = first(
+        await tx
+          .select({ id: schema.documents.id, applicantId: schema.documents.applicantId })
+          .from(schema.documents)
+          .where(
+            and(
+              eq(schema.documents.id, documentId),
+              eq(schema.documents.applicantId, proof.applicant.id),
+            ),
+          )
+          .limit(1)
+          .for('update'),
+      );
+      if (!document) throw new RenameRefused(serviceError('not_found', 'document not found'));
+      const proposed = await proposeDocumentName(tx, {
+        documentId,
+        proposedName: name,
+        reason: OWNER_RENAME_REASON,
+      });
+      if (!proposed.ok) throw new RenameRefused(proposed.error);
+      const decided = await decideDocumentName(tx, {
+        actorAccountId,
+        nameVersionId: proposed.value.id,
+        decision: 'ACCEPTED_UNCHANGED',
+        finalName: name,
+        reason: OWNER_RENAME_REASON,
+      });
+      if (!decided.ok) throw new RenameRefused(decided.error);
+      return ok(decided.value);
+    });
+  } catch (error) {
+    if (error instanceof RenameRefused) return err(error.serviceError);
+    throw error;
+  }
+}
+
+/** Carries a refusal out through the transaction, so nothing it started is kept. */
+class RenameRefused extends Error {
+  constructor(readonly serviceError: ServiceError) {
+    super(serviceError.message);
+  }
 }

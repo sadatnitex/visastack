@@ -2,6 +2,7 @@ import { getApplicant } from '@visastack/services';
 import { withSession } from '../../../../lib/session';
 import {
   STREAM_UPLOAD_LIMIT,
+  admitsHeicUpload,
   permitsPdfAdmission,
   readBoundedUpload,
   validateUploadBytes,
@@ -12,16 +13,36 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const json = (message: string, status: number) =>
+const json = (message: string, status: number, title?: string) =>
   Response.json(
-    { message },
+    { message, ...(title ? { title } : {}) },
     {
       status,
       headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
     },
   );
 
-/** Authenticated, same-origin raw-body upload. Original evidence bytes are never rewritten. */
+/**
+ * A header value sent percent-encoded (so a name in any script survives the trip), or '' when it
+ * is missing or not valid encoding.
+ */
+function encodedHeader(request: Request, name: string): string {
+  const raw = request.headers.get(name);
+  if (!raw) return '';
+  try {
+    return decodeURIComponent(raw).slice(0, 200);
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Authenticated, same-origin raw-body upload, one file per request (the upload form sends each
+ * file this way so it can show how far each one has got). Original evidence bytes are never
+ * rewritten, except that an iPhone photo (HEIC or HEIF) is stored as a converted JPEG copy, which
+ * the upload action records. The kind of document, when chosen, arrives in `X-Document-Kind` and
+ * the name of an "Other" kind in `X-Document-Name`; both are checked by the action like a form's.
+ */
 export async function POST(request: Request): Promise<Response> {
   if (request.headers.get('origin') !== new URL(request.url).origin)
     return json('Not authorized.', 403);
@@ -44,21 +65,22 @@ export async function POST(request: Request): Promise<Response> {
     } catch {
       return json('The upload could not be read.', 400);
     }
-    if (
-      !validateUploadBytes(
+    const admitted =
+      admitsHeicUpload(bytes, contentType) ||
+      validateUploadBytes(
         bytes,
         contentType,
         permitsPdfAdmission(readEnv('MALWARE_SCANNER_PROVIDER')),
-      )
-    ) {
-      return json('This file type cannot be safely processed.', 415);
-    }
+      );
+    if (!admitted) return json('This file type cannot be safely processed.', 415);
     const form = new FormData();
     form.set('applicantId', applicantId);
+    form.set('docType', encodedHeader(request, 'x-document-kind'));
+    form.set('subject', encodedHeader(request, 'x-document-name'));
     // Do not accept a caller-controlled path or header as the stored filename.
     form.set('file', new File([Buffer.from(bytes)], 'document', { type: contentType }));
     const result = await uploadDocumentAction({ ok: false, message: '' }, form);
-    return json(result.message, result.ok ? 201 : 400);
+    return json(result.message, result.ok ? 201 : 400, result.ok ? result.title : undefined);
   });
 }
 

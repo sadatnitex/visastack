@@ -21,6 +21,7 @@
     "@visastack/db": "workspace:*",
     "@visastack/i18n": "workspace:*",
     "@visastack/services": "workspace:*",
+    "heic-decode": "2.1.0",
     "jszip": "^3.10.1",
     "next": "^15.5.28",
     "react": "^19.0.0",

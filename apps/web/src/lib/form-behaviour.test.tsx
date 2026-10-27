@@ -18,20 +18,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const actions = vi.hoisted(() => ({
   createApplicant: vi.fn(),
-  upload: vi.fn(),
 }));
 vi.mock('../app/app/actions', () => ({
   createApplicantAction: (...args: unknown[]) => actions.createApplicant(...args),
 }));
-vi.mock('../app/app/applicant/[id]/actions', () => ({
-  uploadDocumentAction: (...args: unknown[]) => actions.upload(...args),
-}));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => undefined }) }));
 
 const { AddApplicantForm } = await import('../app/app/add-applicant-form');
-const { DocumentUploader, UPLOADING_SLOW_TEXT, UPLOADING_TEXT, UPLOAD_UNKNOWN_OUTCOME } =
-  await import('../app/app/applicant/[id]/document-uploader');
+const { DocumentUploader, UPLOAD_UNKNOWN_OUTCOME } = await import(
+  '../app/app/applicant/[id]/document-uploader'
+);
 const { StatusClient } = await import('../app/status/status-client');
-const { SLOW_AFTER_MS } = await import('./resilience');
 
 let container: HTMLDivElement;
 let root: Root;
@@ -125,75 +122,88 @@ describe('a form whose problem is about one field', () => {
 });
 
 describe('an upload that takes a while', () => {
-  it('says it is working, keeps the button focusable, refuses a second click, then says how it went', async () => {
-    const held = gate<{ ok: boolean; message: string }>();
-    actions.upload.mockReturnValue(held.promise);
+  it('keeps the buttons focusable, says which file is going, then how each one went', async () => {
+    const sent: Array<{ onload: (() => void) | null; status: number; responseText: string }> = [];
+    class HeldRequest {
+      upload = { onprogress: null };
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      ontimeout: (() => void) | null = null;
+      onabort: (() => void) | null = null;
+      status = 0;
+      responseText = '';
+      timeout = 0;
+      open() {}
+      setRequestHeader() {}
+      send() {
+        sent.push(this);
+      }
+    }
+    vi.stubGlobal('XMLHttpRequest', HeldRequest);
     await act(async () => root.render(<DocumentUploader applicantId="a1" />));
-    const button = $<HTMLButtonElement>('button[type="submit"]');
-    const polite = $('output');
-    button.focus();
+    const choose = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Choose Files',
+    ) as HTMLButtonElement;
+    const input = $<HTMLInputElement>('[data-testid="document-files"]');
+    const polite = $('output.upload-summary');
+    choose.focus();
 
-    await press(button);
-
-    expect(actions.upload).toHaveBeenCalledTimes(1);
-    expect(button.getAttribute('aria-disabled')).toBe('true');
-    expect(button.hasAttribute('disabled')).toBe(false);
-    expect(button.textContent).toBe('Uploading…');
-    expect(document.activeElement).toBe(button);
-    expect(polite.textContent).toBe(UPLOADING_TEXT);
-
-    // A second click, or the Enter key (which the browser turns into a click), changes nothing.
-    await press(button);
-
-    await act(async () => held.resolve({ ok: true, message: 'Uploaded passport.pdf.' }));
-    // React queues a second submission behind the first rather than running it at once, so
-    // the proof it was refused is that nothing runs after the first one finishes either.
-    await act(async () => {
-      for (let turn = 0; turn < 10; turn++) await Promise.resolve();
+    Object.defineProperty(input, 'files', {
+      value: [new File(['x'], 'passport.jpg', { type: 'image/jpeg' })],
+      configurable: true,
     });
-    expect(actions.upload).toHaveBeenCalledTimes(1);
-    expect(button.hasAttribute('aria-disabled')).toBe(false);
-    expect(button.textContent).toBe('Upload Document');
-    expect(polite.textContent).toBe('Uploaded passport.pdf.');
-    expect(document.activeElement).toBe(button);
-  });
-
-  it('says it is taking longer than usual once the wait passes the point where that is true', async () => {
-    vi.useFakeTimers();
-    const held = gate<{ ok: boolean; message: string }>();
-    actions.upload.mockReturnValue(held.promise);
-    await act(async () => root.render(<DocumentUploader applicantId="a1" />));
-    await press($<HTMLButtonElement>('button[type="submit"]'));
-    expect($('output').textContent).toBe(UPLOADING_TEXT);
-
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(SLOW_AFTER_MS - 1);
+      input.dispatchEvent(new Event('change', { bubbles: true }));
     });
-    expect($('output').textContent).toBe(UPLOADING_TEXT);
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1);
-    });
-    expect($('output').textContent).toBe(UPLOADING_SLOW_TEXT);
 
-    // Every action a test starts is finished before it ends. React holds all later updates
-    // behind an action that is still running, so one left hanging would hide the next test's.
-    await act(async () => held.resolve({ ok: true, message: '' }));
+    expect(sent).toHaveLength(1);
+    expect(polite.textContent).toBe('Uploading 1 of 1: passport.jpg.');
+    // Nothing becomes disabled and focus stays where the person is, so more files can be added.
+    expect(container.querySelector('[disabled]')).toBeNull();
+    expect(document.activeElement).toBe(choose);
+
+    const request = sent[0] as (typeof sent)[number];
+    await act(async () => {
+      request.status = 201;
+      request.responseText = JSON.stringify({ message: 'Passport added.' });
+      request.onload?.();
+    });
+    expect(polite.textContent).toBe('1 file added.');
+    expect(document.activeElement).toBe(choose);
   });
 
   it('says it could not confirm the outcome when no answer ever comes, instead of an error screen', async () => {
-    actions.upload.mockRejectedValue(new TypeError('Failed to fetch'));
+    const sent: Array<{ onerror: (() => void) | null }> = [];
+    class LostRequest {
+      upload = { onprogress: null };
+      onload = null;
+      onerror: (() => void) | null = null;
+      ontimeout = null;
+      onabort = null;
+      status = 0;
+      responseText = '';
+      timeout = 0;
+      open() {}
+      setRequestHeader() {}
+      send() {
+        sent.push(this);
+      }
+    }
+    vi.stubGlobal('XMLHttpRequest', LostRequest);
     await act(async () => root.render(<DocumentUploader applicantId="a1" />));
-    const button = $<HTMLButtonElement>('button[type="submit"]');
-    button.focus();
+    const input = $<HTMLInputElement>('[data-testid="document-files"]');
+    Object.defineProperty(input, 'files', {
+      value: [new File(['x'], 'passport.jpg', { type: 'image/jpeg' })],
+      configurable: true,
+    });
+    await act(async () => {
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await act(async () => sent[0]?.onerror?.());
 
-    await press(button);
-
-    const alert = $('[role="alert"]');
-    expect(alert.textContent).toBe(UPLOAD_UNKNOWN_OUTCOME);
-    expect(alert.textContent).not.toMatch(/failed/i);
-    expect(button.hasAttribute('aria-disabled')).toBe(false);
-    // No field is named, so focus is not taken from where the person already is.
-    expect(document.activeElement).toBe(button);
+    const line = $('.upload-item-status');
+    expect(line.textContent).toContain(UPLOAD_UNKNOWN_OUTCOME);
+    expect(line.textContent).not.toMatch(/failed/i);
   });
 });
 

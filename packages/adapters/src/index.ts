@@ -125,3 +125,13 @@ export { JszipBundler } from './zip-bundler';
 export { hasRecentDatabaseBackup } from './backup-status';
 
 export { WhatsAppCloudPort, type WhatsAppCloudPortOptions, toGraphMessage } from './whatsapp-cloud';
+
+// UX-B: iPhone photos (HEIC or HEIF) converted to JPEG before they are stored.
+export {
+  HeicConversionError,
+  type HeicConversionFailure,
+  type HeicConversionResult,
+  HeicJpegConverter,
+  type HeicJpegConverterOptions,
+  looksLikeHeic,
+} from './heic-converter';

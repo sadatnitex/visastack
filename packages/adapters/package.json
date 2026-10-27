@@ -28,6 +28,7 @@
     "@visastack/db": "workspace:*",
     "@visastack/services": "workspace:*",
     "drizzle-orm": "^0.45.2",
+    "heic-decode": "2.1.0",
     "mammoth": "^1.12.0",
     "sharp": "^0.35.5",
     "unpdf": "^1.8.1"

@@ -17,6 +17,10 @@ export function documentAddedLine(typeLabel: string | null, duplicateNote = ''):
   return `${first}${duplicateNote}`;
 }
 
+/** Added after the upload line when an iPhone photo (HEIC) was stored as a JPG copy. */
+export const HEIC_CONVERTED_NOTE =
+  ' The iPhone photo was saved as a JPG copy so it opens anywhere.';
+
 /** A typed detail was saved to the profile. */
 export function detailSavedLine(fieldLabel: string): string {
   return `${fieldLabel} saved to your profile.`;

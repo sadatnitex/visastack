@@ -66,6 +66,12 @@ const nextConfig = {
     // a native image library, kept external like the canvas above so the deployed function loads
     // the real package and its platform binary.
     'sharp',
+    // iPhone photo (HEIC) conversion (packages/adapters/src/heic-converter.ts): libheif built to
+    // WebAssembly. Kept external so the deployed function loads the unmodified package from its
+    // own files, as a separate and replaceable library (its LGPL licence asks for that), and the
+    // 2 MB decoder is not copied into the server bundle.
+    'heic-decode',
+    'libheif-js',
   ],
   webpack: (config, { isServer }) => {
     if (isServer) {
@@ -77,7 +83,13 @@ const nextConfig = {
       config.externals = [
         ...existing,
         ({ request }, callback) => {
-          if (request && (/^@napi-rs\/canvas/.test(request) || request === 'sharp')) {
+          if (
+            request &&
+            (/^@napi-rs\/canvas/.test(request) ||
+              request === 'sharp' ||
+              request === 'heic-decode' ||
+              /^libheif-js(\/|$)/.test(request))
+          ) {
             return callback(null, `commonjs ${request}`);
           }
           callback();
