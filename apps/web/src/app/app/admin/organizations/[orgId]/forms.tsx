@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
 import {
   type ActionState,
@@ -431,25 +431,16 @@ export function RecordPaymentForm({
   organizationId,
   invoiceId,
   currency,
+  idempotencyKey,
 }: {
   readonly organizationId: string;
   readonly invoiceId: string;
-  /** The invoice's currency. Shown for the person to confirm when it is a three-letter code. */
+  /** The invoice's currency. The person types the currency they received; it must match. */
   readonly currency: string;
+  /** Made on the server each time the page is drawn, one per intended payment: sending this form twice (a double click, a repeated send) records the money once. A fresh page brings a fresh key. */
+  readonly idempotencyKey: string;
 }) {
   const [state, formAction, pending] = useActionState(recordInvoicePaymentAction, INITIAL);
-  // One key per intended payment: a double click or a repeated send of the same form records the
-  // money once. A new key is made after every answer, so the next payment is never mistaken for it.
-  const [idempotencyKey, setIdempotencyKey] = useState('');
-  useEffect(() => {
-    // `state` is the dependency on purpose: every answer starts a new payment.
-    void state;
-    try {
-      setIdempotencyKey(crypto.randomUUID());
-    } catch {
-      setIdempotencyKey('');
-    }
-  }, [state]);
   const confirmCurrency = /^[A-Za-z]{3}$/.test(currency.trim());
   return (
     <form
@@ -487,7 +478,7 @@ export function RecordPaymentForm({
             minLength={3}
             maxLength={3}
             autoCapitalize="characters"
-            defaultValue={currency.trim().toUpperCase()}
+            placeholder={`e.g. ${currency.trim().toUpperCase()}`}
             className="input"
           />
         </div>

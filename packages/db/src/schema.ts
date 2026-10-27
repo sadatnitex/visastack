@@ -4080,6 +4080,8 @@ export const invoicePayments = pgTable(
   'invoice_payments',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    // The order rows were written in (rows written in one transaction share a timestamp).
+    seq: bigserial('seq', { mode: 'number' }).notNull(),
     invoiceId: uuid('invoice_id')
       .notNull()
       .references(() => invoices.id, { onDelete: 'restrict' }),

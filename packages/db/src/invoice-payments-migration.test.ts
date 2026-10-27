@@ -66,8 +66,10 @@ describe('migration 0094: cash ledger (ADR 0020, S10)', () => {
             kind: string;
             reference: string;
             source_id: string | null;
+            provider: string | null;
+            provider_transaction_id: string | null;
           }>(
-            'select invoice_id, amount_minor_units, currency, kind, reference, source_id from invoice_payments order by amount_minor_units',
+            'select invoice_id, amount_minor_units, currency, kind, reference, source_id, provider, provider_transaction_id from invoice_payments order by amount_minor_units',
           )
         ).rows;
       const opened = await rows();
@@ -79,6 +81,8 @@ describe('migration 0094: cash ledger (ADR 0020, S10)', () => {
         kind: 'ADMIN_RECORDED',
         reference: 'wire-9',
         source_id: null,
+        provider: 'opening_balance',
+        provider_transaction_id: `${partly}:4000`,
       });
       expect(opened.find((r) => r.invoice_id === paid)).toMatchObject({
         amount_minor_units: 7000,

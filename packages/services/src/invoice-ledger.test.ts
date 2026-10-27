@@ -221,7 +221,7 @@ describe('cash ledger and the one recording function (S10)', () => {
       expect(invoice?.collectedAmountMinorUnits).toBe(7000);
     });
 
-    it('counts a gateway payment as cash and a credit as no cash', async () => {
+    it('counts a gateway payment and a credit that settles a held payment as cash', async () => {
       const invoiceId = await openInvoice('INV-L-KINDS');
       const online = await collect(invoiceId, {
         kind: 'ONLINE',
@@ -242,7 +242,7 @@ describe('cash ledger and the one recording function (S10)', () => {
       const cash = (await db.select().from(schema.productEvents)).filter(
         (e) => e.eventType === 'CASH_COLLECTED',
       );
-      expect(cash.map((e) => e.metricValue)).toEqual([3000]);
+      expect(cash.map((e) => e.metricValue).sort()).toEqual([2000, 3000]);
       const audits = await db
         .select()
         .from(schema.auditEvents)
@@ -458,6 +458,25 @@ describe('cash ledger and the one recording function (S10)', () => {
       expect((await invoiceRow(invoiceId))?.status).toBe('PAID');
     });
 
+    it('refuses a fractional or oversized invoiced amount with a message, not a database error', async () => {
+      const now = new Date();
+      for (const amount of [100.5, MAX_MINOR_UNITS + 1, 3_000_000_000]) {
+        const result = await createInvoice(db, {
+          actor: owner.actor,
+          stepUpSatisfied: true,
+          organizationId: org.organizationId,
+          planId,
+          periodStart: now,
+          periodEnd: new Date(now.getTime() + 86_400_000),
+          invoiceRef: `INV-L-BAD-${amount}`,
+          invoicedAmountMinorUnits: amount,
+          currency: 'BDT',
+          dueDate: now,
+        });
+        expect(isErr(result) && result.error.code, String(amount)).toBe('invalid');
+      }
+    });
+
     it('refuses an unknown invoice', async () => {
       const result = await collect('00000000-0000-0000-0000-000000000000');
       expect(isErr(result) && result.error.code).toBe('not_found');
@@ -512,6 +531,15 @@ describe('cash ledger and the one recording function (S10)', () => {
         { sourceId: 'not-a-uuid' },
         { kind: 'MANUAL_CLAIM' },
         { kind: 'CREDIT' },
+        { recordedByAccountId: null },
+        { kind: 'MANUAL_CLAIM', sourceId: randomUUID(), recordedByAccountId: null },
+        {
+          kind: 'ONLINE',
+          sourceId: randomUUID(),
+          provider: 'sslcommerz',
+          providerTransactionId: 'VAL-WHO',
+          recordedByAccountId: owner.accountId,
+        },
         { kind: 'ONLINE', sourceId: randomUUID() },
         { provider: 'sslcommerz' },
         { providerTransactionId: 'X' },
@@ -575,6 +603,45 @@ describe('cash ledger and the one recording function (S10)', () => {
       await collect(invoiceId);
       const select = queries.find((q) => /from "invoices"/.test(q) && /^select/i.test(q));
       expect(select).toMatch(/for update/i);
+      // The lock is taken before anything is written, and only then is money counted.
+      const lockAt = queries.findIndex((q) => /for update/i.test(q));
+      const insertAt = queries.findIndex((q) => /^insert into "invoice_payments"/i.test(q));
+      const updateAt = queries.findIndex((q) => /^update "invoices"/i.test(q));
+      expect(lockAt).toBeGreaterThanOrEqual(0);
+      expect(lockAt).toBeLessThan(insertAt);
+      expect(insertAt).toBeLessThan(updateAt);
+    });
+
+    it('locks the invoice before a void decides, so a payment cannot slip in after the check', async () => {
+      const invoiceId = await openInvoice('INV-L-VOID-LOCK');
+      queries.length = 0;
+      const voided = await voidInvoice(db, {
+        actor: owner.actor,
+        stepUpSatisfied: true,
+        invoiceId,
+        reason: 'issued in error',
+      });
+      expect(isOk(voided)).toBe(true);
+      const lockAt = queries.findIndex((q) => /from "invoices"/.test(q) && /for update/i.test(q));
+      const updateAt = queries.findIndex((q) => /^update "invoices"/i.test(q));
+      expect(lockAt).toBeGreaterThanOrEqual(0);
+      expect(lockAt).toBeLessThan(updateAt);
+    });
+
+    it('refuses to record outside a transaction, where the lock would not hold', async () => {
+      const invoiceId = await openInvoice('INV-L-NOTX');
+      await expect(
+        applyInvoiceCollection(db, {
+          invoiceId,
+          amountMinorUnits: 100,
+          currency: 'BDT',
+          kind: 'ADMIN_RECORDED',
+          reference: 'x',
+          collectedDate: new Date(),
+          recordedByAccountId: owner.accountId,
+        }),
+      ).rejects.toThrow(/inside a database transaction/);
+      expect(await ledgerRows()).toHaveLength(0);
     });
   });
 
@@ -709,6 +776,71 @@ describe('cash ledger and the one recording function (S10)', () => {
         bootstrapEmails: [],
       });
       expect(isErr(notStaff) && notStaff.error.code).toBe('forbidden');
+    });
+
+    it('keeps payment references from agency reviewers and case managers, and shows them to staff who are also members', async () => {
+      const invoiceId = await paidInvoice('INV-L-VIS-ROLES', org.organizationId);
+      const reviewer = await provisionAccount(db, { email: 'reviewer-member@acme.com' });
+      if (!isOk(reviewer)) throw new Error('reviewer');
+      await db.insert(schema.memberships).values({
+        accountId: reviewer.value.id,
+        organizationId: org.organizationId,
+        role: 'REVIEWER',
+      });
+      const asReviewer = await getInvoiceLedger(db, {
+        actorAccountId: reviewer.value.id,
+        organizationId: org.organizationId,
+        invoiceId,
+      });
+      expect(isErr(asReviewer) && asReviewer.error.code).toBe('forbidden');
+
+      // A platform owner who is also an active member of the agency still sees the staff view.
+      await db.insert(schema.memberships).values({
+        accountId: owner.accountId,
+        organizationId: org.organizationId,
+        role: 'ADMIN',
+      });
+      const asStaffMember = await getInvoiceLedger(db, {
+        actorAccountId: owner.accountId,
+        organizationId: org.organizationId,
+        invoiceId,
+        actorEmail: owner.actor.email,
+        bootstrapEmails: [],
+      });
+      expect(isOk(asStaffMember) && asStaffMember.value.entries[0]?.recordedByAccountId).toBe(
+        owner.accountId,
+      );
+    });
+
+    it('lists entries in the order they were written, even inside one transaction', async () => {
+      const invoiceId = await openInvoice('INV-L-ORDER', 10000);
+      await db.transaction(async (tx) => {
+        for (let i = 1; i <= 6; i += 1) {
+          const done = await applyInvoiceCollection(tx, {
+            invoiceId,
+            amountMinorUnits: 100,
+            currency: 'BDT',
+            kind: 'ADMIN_RECORDED',
+            reference: `step-${i}`,
+            collectedDate: new Date(),
+            recordedByAccountId: owner.accountId,
+          });
+          expect(isOk(done)).toBe(true);
+        }
+      });
+      const ledger = await getInvoiceLedger(db, {
+        actorAccountId: org.ownerAccountId,
+        organizationId: org.organizationId,
+        invoiceId,
+      });
+      expect(isOk(ledger) && ledger.value.entries.map((e) => e.reference)).toEqual([
+        'step-1',
+        'step-2',
+        'step-3',
+        'step-4',
+        'step-5',
+        'step-6',
+      ]);
     });
 
     it('refuses to record when the caller is not a platform owner, and writes nothing', async () => {

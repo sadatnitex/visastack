@@ -346,6 +346,9 @@ export async function recordInvoicePaymentAction(
   const idempotencyKey = String(formData.get('idempotencyKey') ?? '').trim();
   const collectedDate = parseDate(formData, 'collectedDate') ?? new Date();
   if (invoiceId.length === 0) return { ok: false, message: 'Missing invoice id.' };
+  if (idempotencyKey.length === 0) {
+    return { ok: false, message: 'This page is out of date. Reload it and try again.' };
+  }
   if (!Number.isInteger(amountMinorUnits) || amountMinorUnits <= 0) {
     return { ok: false, message: 'Payment amount must be a whole, positive number.' };
   }
@@ -372,7 +375,7 @@ export async function recordInvoicePaymentAction(
       paymentReference,
       reason,
       ...(currency.length > 0 ? { currency } : {}),
-      ...(idempotencyKey.length > 0 ? { idempotencyKey } : {}),
+      idempotencyKey,
     });
     if (!recorded.ok) return { ok: false, message: recorded.error.message } satisfies ActionState;
     return {

@@ -14,6 +14,7 @@ import {
   isValidMinorUnitAmount,
   ledgerTotal,
 } from './invoice-ledger';
+import { isOrgAdmin } from './organizations';
 import { type PlatformAuthInput, isPlatformOwner } from './platform-roles';
 
 /**
@@ -390,6 +391,14 @@ export async function createInvoice(
   if (!Number.isFinite(input.invoicedAmountMinorUnits) || input.invoicedAmountMinorUnits < 0) {
     return err(serviceError('invalid', 'invoiced amount must be a non-negative number'));
   }
+  if (
+    input.invoicedAmountMinorUnits !== 0 &&
+    !isValidMinorUnitAmount(input.invoicedAmountMinorUnits)
+  ) {
+    return err(
+      serviceError('invalid', 'invoiced amount must be a whole number of minor units in range'),
+    );
+  }
   if (input.periodEnd.getTime() <= input.periodStart.getTime()) {
     return err(serviceError('invalid', 'periodEnd must be after periodStart'));
   }
@@ -565,16 +574,24 @@ export async function voidInvoice(
   const reason = input.reason.trim();
   if (reason.length === 0) return err(serviceError('invalid', 'a reason is required'));
 
-  const invoice = first(
-    await db.select().from(schema.invoices).where(eq(schema.invoices.id, input.invoiceId)).limit(1),
-  );
-  if (!invoice) return err(serviceError('not_found', 'invoice not found'));
-  if (invoice.status === 'VOID') return ok(invoice);
-  if (invoice.collectedAmountMinorUnits > 0) {
-    return err(serviceError('invalid', 'cannot void an invoice with any amount already collected'));
-  }
-
   return db.transaction(async (tx) => {
+    // Read under the same row lock a payment takes, so an invoice cannot be voided in the
+    // instant after money was recorded against it.
+    const invoice = first(
+      await tx
+        .select()
+        .from(schema.invoices)
+        .where(eq(schema.invoices.id, input.invoiceId))
+        .limit(1)
+        .for('update'),
+    );
+    if (!invoice) return err(serviceError('not_found', 'invoice not found'));
+    if (invoice.status === 'VOID') return ok(invoice);
+    if (invoice.collectedAmountMinorUnits > 0) {
+      return err(
+        serviceError('invalid', 'cannot void an invoice with any amount already collected'),
+      );
+    }
     const updated = required(
       first(
         await tx
@@ -630,7 +647,33 @@ export interface InvoiceLedger {
 }
 
 /**
- * The cash ledger of one invoice. Readable by an active member of the
+ * Who may read an invoice's cash ledger. Platform staff first (they see
+ * everything, including who recorded each payment), then the agency's own
+ * owners and admins: payment references and gateway transaction ids are not for
+ * every reviewer or case manager in the agency.
+ */
+async function invoiceLedgerReader(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly organizationId: string;
+    readonly actorEmail?: string;
+    readonly bootstrapEmails?: readonly string[];
+  },
+): Promise<'member' | 'platform' | null> {
+  if (input.actorEmail !== undefined) {
+    const owner = await isPlatformOwner(db, {
+      accountId: input.actorAccountId,
+      email: input.actorEmail,
+      bootstrapEmails: input.bootstrapEmails ?? [],
+    });
+    if (owner) return 'platform';
+  }
+  return (await isOrgAdmin(db, input.actorAccountId, input.organizationId)) ? 'member' : null;
+}
+
+/**
+ * The cash ledger of one invoice. Readable by the owners and admins of the
  * organization the invoice belongs to, or by a platform owner. An invoice is
  * looked up inside the named organization only, so another agency's invoice
  * looks exactly like a missing one. The staff account that typed a payment in
@@ -646,9 +689,9 @@ export async function getInvoiceLedger(
     readonly bootstrapEmails?: readonly string[];
   },
 ): Promise<Result<InvoiceLedger, ServiceError>> {
-  const reader = await organizationBillingReader(db, input);
+  const reader = await invoiceLedgerReader(db, input);
   if (reader === null) {
-    return err(serviceError('forbidden', 'not an active member of this organization'));
+    return err(serviceError('forbidden', 'not allowed to see this ledger'));
   }
   const invoice = first(
     await db
@@ -670,7 +713,7 @@ export async function getInvoiceLedger(
     .select()
     .from(schema.invoicePayments)
     .where(eq(schema.invoicePayments.invoiceId, invoice.id))
-    .orderBy(asc(schema.invoicePayments.createdAt), asc(schema.invoicePayments.id));
+    .orderBy(asc(schema.invoicePayments.seq));
   const entries =
     reader === 'platform' ? rows : rows.map((row) => ({ ...row, recordedByAccountId: null }));
   return ok({ available: true, entries, totalMinorUnits: ledgerTotal(rows) });

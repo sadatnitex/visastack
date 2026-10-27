@@ -153,6 +153,18 @@ export interface InvoiceCollectionOutcome {
   readonly alreadyRecorded: boolean;
 }
 
+/**
+ * The recording writes the new invoice total as a value worked out under the
+ * row lock, which only holds inside a transaction. Handed the bare database
+ * handle, two recordings could both read the old total and the later write
+ * would erase the earlier one. A programmer fault, so it throws.
+ */
+function assertInTransaction(tx: Db): void {
+  if (typeof (tx as unknown as { rollback?: unknown }).rollback !== 'function') {
+    throw new Error('applyInvoiceCollection must run inside a database transaction');
+  }
+}
+
 /** Whether migration 0094 has created the ledger on this database. Never raises, so a surrounding transaction is never aborted. */
 export async function invoiceLedgerPresent(db: Db): Promise<boolean> {
   const rows = await db
@@ -167,11 +179,14 @@ function auditMethod(kind: CollectionKind): 'MANUAL' | 'API' | 'SYSTEM' {
   return 'MANUAL';
 }
 
-const COLLECTION_KINDS: readonly string[] = ['ONLINE', 'MANUAL_CLAIM', 'ADMIN_RECORDED', 'CREDIT'];
+/** The kinds that bring money in: every ledger kind except the reversing one. Read when called, never at load. */
+function collectionKinds(): readonly string[] {
+  return schema.invoicePaymentKind.enumValues.filter((kind) => kind !== 'REFUND');
+}
 
 function validate(input: ApplyInvoiceCollectionInput): CollectionRefusal | null {
   // The type already excludes a refund; this holds for a caller that bypasses it.
-  if (!COLLECTION_KINDS.includes(input.kind)) {
+  if (!collectionKinds().includes(input.kind)) {
     return { code: 'invalid', message: 'this kind of entry is not a collection' };
   }
   if (!isValidMinorUnitAmount(input.amountMinorUnits)) {
@@ -204,6 +219,15 @@ function validate(input: ApplyInvoiceCollectionInput): CollectionRefusal | null 
   if (input.kind === 'ONLINE' && !hasProvider) {
     return { code: 'invalid', message: 'an online payment needs its provider transaction' };
   }
+  // NULL means "a provider confirmed this money" (ADR 0020). A person-confirmed kind must name
+  // the person, and a provider-confirmed one must not, or the two could not be told apart later.
+  const hasRecorder = (input.recordedByAccountId ?? null) !== null;
+  if ((input.kind === 'ADMIN_RECORDED' || input.kind === 'MANUAL_CLAIM') && !hasRecorder) {
+    return { code: 'invalid', message: 'a payment confirmed by a person needs that person' };
+  }
+  if (input.kind === 'ONLINE' && hasRecorder) {
+    return { code: 'invalid', message: 'a provider-confirmed payment has no recording person' };
+  }
   return null;
 }
 
@@ -221,14 +245,13 @@ export async function applyInvoiceCollection(
   tx: Db,
   input: ApplyInvoiceCollectionInput,
 ): Promise<Result<InvoiceCollectionOutcome, CollectionRefusal>> {
+  assertInTransaction(tx);
   const invalid = validate(input);
   if (invalid) return err(invalid);
 
-  const ledgerPresent = await invoiceLedgerPresent(tx);
-  if (!ledgerPresent && input.kind !== 'ADMIN_RECORDED') {
-    return refuse('unavailable', 'payments are not available yet');
-  }
-
+  // The lock comes first and the ledger probe second. Migration 0094 locks the same invoice rows
+  // while it opens each ledger, so a recording is either wholly before it (and the migration
+  // counts it) or wholly after it (and sees the table): none can straddle it.
   const invoice = first(
     await tx
       .select()
@@ -238,6 +261,11 @@ export async function applyInvoiceCollection(
       .for('update'),
   );
   if (!invoice) return refuse('not_found', 'invoice not found');
+
+  const ledgerPresent = await invoiceLedgerPresent(tx);
+  if (!ledgerPresent && input.kind !== 'ADMIN_RECORDED') {
+    return refuse('unavailable', 'payments are not available yet');
+  }
 
   const sourceId = input.sourceId ?? null;
   const provider = input.provider ?? null;
@@ -296,9 +324,8 @@ export async function applyInvoiceCollection(
       .returning();
     payment = first(inserted) ?? null;
     if (payment === null) {
-      // Lost a race on a unique key held by another invoice's row (the replay
-      // check above only finds rows the lock could not have hidden). Nothing
-      // has been written; report it as a key clash.
+      // Another transaction recorded the same key an instant ago, against a different
+      // invoice (so our invoice lock did not order us). Nothing has been written.
       return refuse('key_conflict', 'this payment key was already used for a different payment');
     }
   }
@@ -341,16 +368,14 @@ export async function applyInvoiceCollection(
   });
   // OPS-04 cash collection: money actually received, as currency and amount
   // only (the reference and the reason stay in the audit record). A credit
-  // moves value between invoices and is not cash, so it is not counted.
-  if (input.kind !== 'CREDIT') {
-    await recordProductEvent(tx, {
-      eventType: 'CASH_COLLECTED',
-      accountId: null,
-      organizationId: invoice.organizationId,
-      dimension: invoice.currency.trim().toUpperCase(),
-      metricValue: input.amountMinorUnits,
-    });
-  }
+  // settles a held online payment that was never counted, so it is cash too.
+  await recordProductEvent(tx, {
+    eventType: 'CASH_COLLECTED',
+    accountId: null,
+    organizationId: invoice.organizationId,
+    dimension: invoice.currency.trim().toUpperCase(),
+    metricValue: input.amountMinorUnits,
+  });
   return ok({ invoice: updated, payment, alreadyRecorded: false });
 }
 

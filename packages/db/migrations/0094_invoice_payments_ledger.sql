@@ -10,6 +10,7 @@ END $enum$;
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "invoice_payments" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"seq" bigserial NOT NULL,
 	"invoice_id" uuid NOT NULL,
 	"amount_minor_units" integer NOT NULL,
 	"currency" text NOT NULL,
@@ -37,15 +38,21 @@ END $fk$;
 CREATE INDEX IF NOT EXISTS "invoice_payments_invoice_idx" ON "invoice_payments" USING btree ("invoice_id");
 --> statement-breakpoint
 -- Opening balance: money recorded before the ledger existed (and any recorded between the
--- deploy and this migration) becomes one ADMIN_RECORDED row per invoice, for exactly the part
--- of the collected total that no ledger row covers yet. Running it again adds nothing, because
--- afterwards every invoice's ledger already equals its collected total.
-INSERT INTO "invoice_payments" ("invoice_id", "amount_minor_units", "currency", "kind", "source_id", "reference", "collected_date", "recorded_by_account_id")
+-- deploy and this migration) becomes one row per invoice, for exactly the part of the collected
+-- total that no ledger row covers yet. The history before today is not reconstructed: the row
+-- carries the invoice's latest payment reference and date. It is marked as an opening balance
+-- (provider 'opening_balance', transaction '<invoice id>:<collected total>') so reports can tell
+-- it from a real recording; that key also makes a re-run add nothing. The invoice rows are
+-- locked while they are read (FOR UPDATE OF i), so a payment being recorded at this moment either
+-- commits first and is counted here, or waits and sees the ledger.
+INSERT INTO "invoice_payments" ("invoice_id", "amount_minor_units", "currency", "kind", "source_id", "provider", "provider_transaction_id", "reference", "collected_date", "recorded_by_account_id")
 SELECT i."id",
 	(i."collected_amount_minor_units" - coalesce(l."total", 0))::integer,
 	upper(btrim(i."currency")),
 	'ADMIN_RECORDED',
 	NULL,
+	'opening_balance',
+	i."id"::text || ':' || i."collected_amount_minor_units"::text,
 	coalesce(nullif(btrim(i."payment_reference"), ''), 'Opening balance'),
 	coalesce(i."collected_date", i."updated_at"),
 	NULL
@@ -53,7 +60,9 @@ FROM "invoices" i
 LEFT JOIN (
 	SELECT "invoice_id", sum("amount_minor_units") AS "total" FROM "invoice_payments" GROUP BY "invoice_id"
 ) l ON l."invoice_id" = i."id"
-WHERE i."collected_amount_minor_units" > coalesce(l."total", 0);
+WHERE i."collected_amount_minor_units" > coalesce(l."total", 0)
+FOR UPDATE OF i
+ON CONFLICT DO NOTHING;
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION "visastack_invoice_payments_append_only"() RETURNS trigger
 LANGUAGE plpgsql AS $fn$

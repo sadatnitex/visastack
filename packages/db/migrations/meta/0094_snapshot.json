@@ -1,5 +1,5 @@
 {
-  "id": "0d8137f9-25d9-4548-9686-f3c9c1a0fd35",
+  "id": "636ef705-f782-47d7-9d4f-cc82948f4b8a",
   "prevId": "a942b72a-73e3-4bce-a69b-497d1806a35a",
   "version": "7",
   "dialect": "postgresql",
@@ -6577,6 +6577,12 @@
           "primaryKey": true,
           "notNull": true,
           "default": "gen_random_uuid()"
+        },
+        "seq": {
+          "name": "seq",
+          "type": "bigserial",
+          "primaryKey": false,
+          "notNull": true
         },
         "invoice_id": {
           "name": "invoice_id",
