@@ -752,7 +752,11 @@ export default async function ApplicantDocumentsPage({
           };
         })}
       />
-      <details className="wallet-upload-disclosure" open={initialKind ? true : undefined}>
+      <details
+        className="wallet-upload-disclosure"
+        id="add-document"
+        open={initialKind ? true : undefined}
+      >
         <summary className="btn btn-secondary">Upload Document</summary>
         <div id="document-upload">
           {/*

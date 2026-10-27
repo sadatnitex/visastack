@@ -45,6 +45,7 @@ import {
   CasePreparationSummary,
   CaseStageTracker,
 } from '../../../../components/case-preparation-summary';
+import { CaseReadinessRing } from '../../../../components/case-readiness-ring';
 import { ReferenceCode } from '../../../../components/reference-code';
 import { Disclosure, PageHeader, StatusBadge } from '../../../../components/ui';
 import { isExplanationConfigured } from '../../../../lib/ai';
@@ -879,7 +880,13 @@ export default async function MissionPage({
                 </p>
               </>
             ) : (
-              <p className="card-body">Attach a requirement pack to see readiness.</p>
+              <>
+                <CaseReadinessRing readiness={null} pickHref="#pack" size="lg" />
+                <p className="card-body">
+                  A checklist lists the papers this visa route asks for and shows which ones you
+                  already have on file.
+                </p>
+              </>
             )}
           </article>
 
@@ -1050,7 +1057,7 @@ export default async function MissionPage({
               />
             </details>
           </article>
-          <article className="card">
+          <article className="card" id="pack">
             <p className="card-kicker">Requirements</p>
             <h2 className="card-title">Requirement Pack</h2>
             {mission.packVersionId && data.packInfo ? (
@@ -1090,7 +1097,8 @@ export default async function MissionPage({
             ) : (
               <>
                 <p className="card-body u-mb-100">
-                  Attach a published requirement pack to compute readiness.
+                  Pick a checklist: attach a published requirement pack to see how many items are
+                  ready.
                 </p>
                 <AttachPackForm missionId={mission.id} options={data.packOptions} />
               </>

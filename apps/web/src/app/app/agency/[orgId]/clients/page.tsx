@@ -110,18 +110,32 @@ export default async function AgencyClientsPage({
               </div>
             ))}
           </div>
-        ) : null}
-        <ClientInvitationForm
-          organizationId={orgId}
-          members={data.members.map((m) => ({
-            accountId: m.accountId,
-            email: m.email,
-            active: m.active,
-          }))}
-        />
+        ) : (
+          <div className="u-mb-150">
+            <EmptyState
+              icon="users"
+              title="No Clients Invited Yet"
+              why="You see each client's progress here once they accept."
+              action={{ href: '#invite-client', label: 'Invite a Client' }}
+            >
+              This is where you invite the people you help. Each one gets a link, creates their
+              file, and chooses what to share with you. Start with the form below.
+            </EmptyState>
+          </div>
+        )}
+        <div id="invite-client">
+          <ClientInvitationForm
+            organizationId={orgId}
+            members={data.members.map((m) => ({
+              accountId: m.accountId,
+              email: m.email,
+              active: m.active,
+            }))}
+          />
+        </div>
       </article>
 
-      <article className="card u-mb-150">
+      <article className="card u-mb-150" id="ask-for-evidence">
         <p className="card-kicker">Collect</p>
         <h2 className="card-title">Request Evidence</h2>
         <p className="card-body u-mb-125">
@@ -146,9 +160,14 @@ export default async function AgencyClientsPage({
           Evidence Requests
         </h2>
         {data.requests.length === 0 ? (
-          <EmptyState icon="clipboard" title="No Evidence Requests Yet">
-            Ask a client for a specific document or detail. You will see here when it arrives and
-            when it is overdue.
+          <EmptyState
+            icon="clipboard"
+            title="No Evidence Requests Yet"
+            why="Clients reply from their own documents, so you get the right paper without chasing."
+            action={{ href: '#ask-for-evidence', label: 'Request Evidence' }}
+          >
+            This is where you ask a client for a specific document or detail. You will see here when
+            it arrives and when it is overdue.
           </EmptyState>
         ) : (
           <div className="rows u-mt-050">

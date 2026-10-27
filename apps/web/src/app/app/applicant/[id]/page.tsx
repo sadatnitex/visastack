@@ -13,6 +13,7 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { CaseReadinessRing } from '../../../../components/case-readiness-ring';
 import { EmptyState, NextStepCard, PageHeader, StatusBadge } from '../../../../components/ui';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { completionOf, fieldLabel } from '../../../../lib/master-profile';
@@ -238,27 +239,16 @@ export default async function ApplicantOverviewPage({
                   {data.featured.serviceCategory ?? 'Personal application'}
                 </p>
                 <div className="traveller-checklist">
-                  <div className="meter-label">
-                    <strong>Checklist Progress</strong>
-                    <span>
-                      {data.readiness?.ok
-                        ? `${data.readiness.value.satisfiedRequired} of ${data.readiness.value.requiredCount} required items`
-                        : 'Not calculated'}
-                    </span>
-                  </div>
-                  {data.readiness?.ok && data.readiness.value.requiredCount > 0 ? (
-                    <div className="meter" aria-hidden="true">
-                      <div
-                        className="meter-fill"
-                        style={{
-                          width: `${(data.readiness.value.satisfiedRequired / data.readiness.value.requiredCount) * 100}%`,
-                        }}
-                      />
-                    </div>
-                  ) : null}
+                  <strong>Checklist Progress</strong>
+                  <CaseReadinessRing
+                    readiness={data.readiness?.ok ? data.readiness.value : null}
+                    {...(data.featured.packVersionId
+                      ? { emptyLine: 'Progress could not be worked out. Refresh to try again.' }
+                      : { pickHref: `/app/mission/${data.featured.id}#pack` })}
+                  />
                   <p className="muted">
                     {!data.featured.packVersionId
-                      ? 'This case uses manual requirements. Review its checklist in the case.'
+                      ? "Until a checklist is attached, you review this case's requirements by hand in the case."
                       : 'Requirement completeness is not an approval prediction.'}
                   </p>
                 </div>
@@ -275,9 +265,11 @@ export default async function ApplicantOverviewPage({
               <EmptyState
                 icon="briefcase"
                 title="No Active Case Yet"
+                why="Then you can see which checklist items are ready and which are still missing."
                 action={{ href: `/app/applicant/${id}/missions`, label: 'Start a Visa Case' }}
               >
-                Create a case to organize this traveller's requirements and documents.
+                A case is where one visa application comes together. Start one for the route you are
+                planning, and your saved documents are checked against its checklist.
               </EmptyState>
             )}
           </article>

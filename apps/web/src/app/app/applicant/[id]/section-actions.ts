@@ -12,6 +12,7 @@ import { revalidatePath } from 'next/cache';
 import { savableField } from '../../../../lib/master-profile';
 import { createKeyManagementPort } from '../../../../lib/providers';
 import { withSession } from '../../../../lib/session';
+import { otherItemSavedLine } from '../../../../lib/success-lines';
 import type { ActionState } from './actions';
 
 /**
@@ -149,7 +150,7 @@ export async function saveOtherItemAction(
       });
       if (!edit.ok) return { ok: false, message: edit.error.message };
     }
-    return { ok: true, message: 'Saved.' };
+    return { ok: true, message: otherItemSavedLine(module.label) };
   });
   if (result.ok) refresh(applicantId);
   return result;

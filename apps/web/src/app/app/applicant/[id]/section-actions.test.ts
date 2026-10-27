@@ -163,7 +163,10 @@ describe('saving a something-else item', () => {
 
   it('saves the section, title, details and date as one record under the right pack, and skips empty parts', async () => {
     const result = await saveOtherItemAction(initial, form(base));
-    expect(result).toEqual({ ok: true, message: 'Saved.' });
+    const section = CATALOGUE_MODULES.find((module) => module.key === 'identity_basics');
+    // The line says where it went, never the typed values.
+    expect(result).toEqual({ ok: true, message: `Saved under ${section?.label}.` });
+    expect(result.message).not.toContain('Village certificate');
     const keys = mocks.editFact.mock.calls.map((call) => call[1].fieldKey);
     expect(keys).toEqual([
       'other_item_universal_section',

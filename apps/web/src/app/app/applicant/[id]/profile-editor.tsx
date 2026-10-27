@@ -501,7 +501,8 @@ function OtherItems({
   const baseId = useId();
   useFocusInvalidField(formRef, state);
   useEffect(() => {
-    if (state.ok && state.message === 'Saved.') formRef.current?.reset();
+    // Any success clears the form so a second click cannot save the same item twice; the wording is free to change.
+    if (state.ok && state.message !== '') formRef.current?.reset();
   }, [state]);
   const { sectionFieldKey, fields } = section.otherItem;
   const recordKeys = Object.entries(repeatingValues[sectionFieldKey] ?? {})

@@ -130,7 +130,14 @@ describe('traveller composition and independent record guards', () => {
     });
     const html = renderToStaticMarkup(await overview(params));
     expect(service.computeReadiness).toHaveBeenCalledWith({}, 'latest');
-    expect(html).toContain('2 of 5 required items');
+    expect(html).toContain('aria-label="2 of 5 items ready"');
+    expect(html).toContain('>2 of 5 items ready<');
+    // The case's progress is the ring now; the bar that remains on the page is profile completeness.
+    const checklist = html.slice(
+      html.indexOf('traveller-checklist'),
+      html.indexOf('Continue Case'),
+    );
+    expect(checklist).not.toContain('meter');
     expect(html).toContain('/app/mission/latest');
     expect(html).not.toContain('Closed case');
   });

@@ -95,7 +95,8 @@ describe('safe copies stay grantable (stored as DOWNLOAD_REDACTED)', () => {
     );
     expect(result).toEqual({
       ok: true,
-      message: 'Access shared with synthetic@example.com. It becomes active once they accept.',
+      message:
+        'Shared. They see only what you chose, and only after they accept. You can stop it at any time below.',
     });
     expect(mocks.createGrant).toHaveBeenCalledWith(
       {},

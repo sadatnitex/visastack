@@ -166,9 +166,15 @@ export default async function EvidencePage({
 
       <article className="card">
         {data.requests.length === 0 ? (
-          <EmptyState icon="clipboard" title="No Evidence Requests">
-            When an agency asks for a document or a detail, it appears here with what is needed,
-            why, and the date it is needed by.
+          <EmptyState
+            icon="clipboard"
+            title="No Evidence Requests"
+            why="You reply from your saved documents in one step, and you decide what to send."
+            action={{ href: `/app/applicant/${id}/documents`, label: 'Open Documents' }}
+          >
+            This is where an agency asks you for a document or a detail. A request appears here with
+            what is needed, why, and the date it is needed by. Keeping your documents up to date
+            makes replying quick.
           </EmptyState>
         ) : (
           <div className="rows">

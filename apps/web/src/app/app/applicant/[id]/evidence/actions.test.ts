@@ -44,7 +44,7 @@ describe('submitEvidenceResponseAction: the time it reports is the server time',
     );
     expect(result).toEqual({
       ok: true,
-      message: 'The agency will review it.',
+      message: 'Sent to the agency. It shows as received until they review it.',
       savedAt: '2026-10-27T08:32:00.000Z',
     });
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/app/applicant/a1/evidence');

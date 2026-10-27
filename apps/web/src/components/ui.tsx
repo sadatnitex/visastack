@@ -92,15 +92,21 @@ export function AttentionList({ items }: { readonly items: readonly AttentionEnt
   );
 }
 
-/** An empty area that says what it is for and what to do about it. It always shows an icon (a folder when none is given) so an empty list never reads as a broken one. */
+/**
+ * An empty area that teaches: what this place is for and the one next step (the children), why
+ * doing it helps (`why`), and the button that does it (`action`). It always shows an icon (a folder
+ * when none is given) so an empty list never reads as a broken one.
+ */
 export function EmptyState({
   title,
   children,
+  why,
   action,
   icon,
 }: {
   readonly title: string;
   readonly children: ReactNode;
+  readonly why?: string;
   readonly action?: { readonly href: string; readonly label: string };
   readonly icon?: IconName;
 }) {
@@ -109,6 +115,7 @@ export function EmptyState({
       <IconTile name={icon ?? 'folder'} />
       <p className="empty-state-title">{title}</p>
       <p className="empty-state-body">{children}</p>
+      {why ? <p className="empty-state-why">{why}</p> : null}
       {action ? (
         <Link href={action.href} className="btn btn-secondary">
           {action.label}
