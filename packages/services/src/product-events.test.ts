@@ -341,6 +341,8 @@ describe('product event categories (OPS-04)', () => {
       'prepare_again',
       // Growth G2 (owner decision 27 Oct 2026: the first three minutes start with a country).
       'country_start',
+      // Growth loop 1 (agency invites its clients).
+      'agency_invites',
     ]);
     for (const category of PRODUCT_EVENT_CATEGORIES) {
       expect(category.eventTypes.length, category.key).toBeGreaterThan(0);
@@ -403,7 +405,7 @@ describe('getProductAnalytics', () => {
     const result = await getProductAnalytics(db, NOW);
     expect(result.available).toBe(true);
     if (!result.available) return;
-    expect(result.categories).toHaveLength(16);
+    expect(result.categories).toHaveLength(PRODUCT_EVENT_CATEGORIES.length);
     for (const category of result.categories) {
       expect(category).toMatchObject({ total: 0, last7Days: 0, last30Days: 0 });
     }

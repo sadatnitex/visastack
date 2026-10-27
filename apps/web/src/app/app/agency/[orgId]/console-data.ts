@@ -5,6 +5,7 @@ import {
   type TriageDocumentState,
   accountPrincipal,
   computeReadiness,
+  getClientsJoined,
   getLiveAcknowledgement,
   getOrganization,
   isActiveMember,
@@ -210,6 +211,17 @@ export async function loadPendingClientInvitations(
 /** The applicants the "Request Evidence" form can target: only ever shown to an administrator. */
 export async function loadApplicants(db: Db, orgId: string, access: Pick<OrgAccess, 'admin'>) {
   return access.admin ? listApplicantsForOrganization(db, orgId) : [];
+}
+
+/**
+ * How many clients have joined through an invitation (growth loop 1): the number accepted all time
+ * and in the last 30 days, counted from the invitation records. Any active member sees it, like
+ * the other counts on the dashboard; the service refuses everyone else, and the page then shows
+ * nothing rather than a zero that would be untrue.
+ */
+export async function loadClientsJoined(db: Db, accountId: string, orgId: string) {
+  const result = await getClientsJoined(db, { actorAccountId: accountId, organizationId: orgId });
+  return result.ok ? result.value : null;
 }
 
 /**

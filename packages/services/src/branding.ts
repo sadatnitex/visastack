@@ -118,7 +118,7 @@ export function organizationLogoPath(organizationId: string, version: string): s
 }
 
 /** A short, stable stand-in for a logo's stored key, used only to change the address when the logo changes. */
-function logoVersion(objectKey: string): string {
+export function logoVersion(objectKey: string): string {
   return objectKey.replace(/[^A-Za-z0-9]/g, '').slice(0, 12);
 }
 

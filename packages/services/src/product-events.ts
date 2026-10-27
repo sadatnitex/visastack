@@ -69,6 +69,9 @@ export const PRODUCT_EVENT_TYPES = [
   'CASE_PREPARED_AGAIN',
   // Growth G2: a signed-in person confirmed the country they want a checklist for (label: country code).
   'COUNTRY_CHECKLIST_STARTED',
+  // Growth loop 1 (agency invites its clients). No label; once per invitation.
+  'CLIENT_INVITE_SENT',
+  'CLIENT_INVITE_ACCEPTED',
 ] as const;
 
 export type ProductEventType = (typeof PRODUCT_EVENT_TYPES)[number];
@@ -118,6 +121,7 @@ const METRIC_EVENTS: ReadonlySet<ProductEventType> = new Set([
   'ACCOUNT_ACTIVATED', // seconds from account creation
   'CASH_COLLECTED', // minor currency units
   'CASE_PREPARED_AGAIN', // records carried into the new case
+  'CLIENT_INVITE_ACCEPTED', // seconds from the invitation being sent
 ]);
 
 export interface RecordProductEventInput {
@@ -343,6 +347,11 @@ export const PRODUCT_EVENT_CATEGORIES: ReadonlyArray<{
     key: 'country_start',
     label: 'Country checklist started',
     eventTypes: ['COUNTRY_CHECKLIST_STARTED'],
+  },
+  {
+    key: 'agency_invites',
+    label: 'Agency client invitations',
+    eventTypes: ['CLIENT_INVITE_SENT', 'CLIENT_INVITE_ACCEPTED'],
   },
 ];
 
