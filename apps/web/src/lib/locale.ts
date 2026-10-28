@@ -29,7 +29,10 @@ export function localeCookieOptions(secure: boolean) {
 
 /** Read the visitor's locale preference, defaulting to English (always English while choice is off). */
 export async function getLocale(): Promise<Locale> {
-  if (!LANGUAGE_CHOICE_ENABLED) return resolveLocale(undefined);
+  // Read the request even while the choice is off: the root layout's call here is what keeps
+  // every page rendered per request, and a page built ahead of time would carry no fresh
+  // script nonce, so its scripts would be blocked by the page's own security policy.
   const store = await cookies();
+  if (!LANGUAGE_CHOICE_ENABLED) return resolveLocale(undefined);
   return resolveLocale(store.get(LOCALE_COOKIE)?.value);
 }

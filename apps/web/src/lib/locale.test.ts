@@ -1,13 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 
 const choice = vi.hoisted(() => ({ enabled: false, saved: 'bn' as string | undefined }));
+const readRequest = vi.hoisted(() => ({ count: 0 }));
 vi.mock('next/headers', () => ({
-  cookies: async () => ({
-    get: (name: string) =>
-      name === 'visastack_locale' && choice.saved !== undefined
-        ? { value: choice.saved }
-        : undefined,
-  }),
+  cookies: async () => (
+    readRequest.count++,
+    {
+      get: (name: string) =>
+        name === 'visastack_locale' && choice.saved !== undefined
+          ? { value: choice.saved }
+          : undefined,
+    }
+  ),
 }));
 vi.mock('./language-choice', () => ({
   get LANGUAGE_CHOICE_ENABLED() {
@@ -33,6 +37,14 @@ describe('the language a page is shown in', () => {
     choice.saved = undefined;
     expect(await getLocale()).toBe('en');
     choice.enabled = false;
+  });
+
+  it('still reads the request while choice is off, so every page stays rendered per request', async () => {
+    // A page built ahead of time would carry no fresh script nonce (browser-security.spec).
+    choice.enabled = false;
+    const before = readRequest.count;
+    await getLocale();
+    expect(readRequest.count).toBe(before + 1);
   });
 
   it('is off today: translation is deferred until the owner says the rest is done', () => {
