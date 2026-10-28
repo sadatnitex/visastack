@@ -7,7 +7,15 @@ import {
 } from '@visastack/services';
 import { describe, expect, it } from 'vitest';
 import * as browser from './ai-consent-choices';
-import { AI_DURATION_LABELS, AI_LAYER_LABELS, AI_LAYER_NOTES } from './ai-consent-labels';
+import {
+  AI_DOCUMENT_LIST_LABEL,
+  AI_DOCUMENT_TEXT_LABEL,
+  AI_DURATION_LABELS,
+  AI_FULL_NUMBERS_LABEL,
+  AI_LAYER_LABELS,
+  AI_LAYER_NOTES,
+  aiAccessLabels,
+} from './ai-consent-labels';
 
 describe('the consent screen vocabulary', () => {
   it('is the same list the server stores and checks', () => {
@@ -30,6 +38,9 @@ describe('the consent screen vocabulary', () => {
       AI_LAYER_LABELS,
       AI_LAYER_NOTES,
       AI_DURATION_LABELS,
+      AI_DOCUMENT_LIST_LABEL,
+      AI_DOCUMENT_TEXT_LABEL,
+      AI_FULL_NUMBERS_LABEL,
     ]).toLowerCase();
     for (const banned of ['oauth', 'mcp', 'token', 'scope']) expect(words).not.toContain(banned);
   });
@@ -60,5 +71,103 @@ describe('choices kept through a fresh sign-in check', () => {
         })[name],
     );
     expect(odd).toMatchObject({ layers: ['identity'], cases: 'all', duration: '30d' });
+  });
+});
+
+describe('the case the consent screen starts with (ADR 0021 section 5)', () => {
+  const CASE = '11111111-1111-4111-8111-111111111111';
+  it('is the case the person came from, or else all current cases', () => {
+    expect(browser.settleConsentCases(browser.CONSENT_DEFAULTS, [CASE], CASE).cases).toBe(CASE);
+    expect(browser.settleConsentCases(browser.CONSENT_DEFAULTS, [CASE]).cases).toBe('all');
+  });
+  it('never preselects a case that is not on the screen, and keeps the person own choice', () => {
+    const stale = { ...browser.CONSENT_DEFAULTS, cases: CASE };
+    expect(browser.settleConsentCases(stale, []).cases).toBe('all');
+    expect(browser.settleConsentCases(browser.CONSENT_DEFAULTS, [], CASE).cases).toBe('all');
+    const chosen = { ...browser.CONSENT_DEFAULTS, cases: 'none' };
+    expect(browser.settleConsentCases(chosen, [CASE], CASE)).toBe(chosen);
+  });
+});
+
+describe('what a stored connection can read, in the consent words', () => {
+  it('lists the chosen parts in the consent order and ignores anything unknown', () => {
+    expect(aiAccessLabels(['document_text', 'money', 'identity', 'document_list', 'odd'])).toEqual([
+      'Personal Details',
+      'Money',
+      'List of My Documents',
+      'Text Read From My Documents',
+    ]);
+    expect(aiAccessLabels([])).toEqual([]);
+  });
+  it('knows the Change Access durations', () => {
+    expect(browser.isAiChangeDuration('keep')).toBe(true);
+    expect(browser.isAiChangeDuration('7d')).toBe(true);
+    expect(browser.isAiChangeDuration('forever')).toBe(false);
+    expect(browser.isAiChangeDuration(undefined)).toBe(false);
+  });
+});
+
+describe('reading the submitted choices (one parser for consent and Change Access)', () => {
+  const CASE = '11111111-1111-4111-8111-111111111111';
+  const form = (fields: Record<string, string | string[]>) => {
+    const data = new FormData();
+    for (const [name, value] of Object.entries(fields)) {
+      for (const item of Array.isArray(value) ? value : [value]) data.append(name, item);
+    }
+    return data;
+  };
+
+  it('reads the choices in the stored vocabulary and drops anything unknown', () => {
+    const parsed = browser.parseAiAccessChoices(
+      form({
+        layer: ['money', 'identity', 'everything'],
+        cases: CASE,
+        document_list: 'on',
+        reveal_identifiers: 'on',
+        duration: '7d',
+      }),
+    );
+    expect(parsed).toEqual({
+      ok: true,
+      value: {
+        layers: ['identity', 'money'],
+        cases: CASE,
+        caseMode: 'ONE',
+        missionId: CASE,
+        documentList: true,
+        documentText: false,
+        revealIdentifiers: true,
+        duration: '7d',
+      },
+    });
+  });
+
+  it('defaults to all current cases and the screen default for How Long', () => {
+    const consent = browser.parseAiAccessChoices(form({}));
+    expect(consent.ok && consent.value).toMatchObject({
+      caseMode: 'ALL_CURRENT',
+      cases: 'all',
+      duration: '30d',
+    });
+    const change = browser.parseAiAccessChoices(form({ cases: 'none' }), { allowKeep: true });
+    expect(change.ok && change.value).toMatchObject({ caseMode: 'NONE', duration: 'keep' });
+  });
+
+  it('names the field at fault, and offers "keep" only on Change Access', () => {
+    expect(browser.parseAiAccessChoices(form({ cases: '<script>' }))).toMatchObject({
+      ok: false,
+      field: 'cases',
+    });
+    expect(browser.parseAiAccessChoices(form({ duration: 'forever' }))).toMatchObject({
+      ok: false,
+      field: 'duration',
+    });
+    expect(browser.parseAiAccessChoices(form({ duration: 'keep' }))).toMatchObject({
+      ok: false,
+      field: 'duration',
+    });
+    expect(browser.parseAiAccessChoices(form({ duration: 'keep' }), { allowKeep: true }).ok).toBe(
+      true,
+    );
   });
 });

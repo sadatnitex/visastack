@@ -1769,3 +1769,15 @@ export {
   type AiToolResult,
   runAiTool,
 } from './ai-tools';
+// S15: the owner's AI Connections controls on the Sharing page (ADR 0021 sections 3 and 5).
+export {
+  AI_RECENTLY_ENDED_MS,
+  type AiConnectionList,
+  type AiConnectionManageError,
+  type AiConnectionSummary,
+  type ChangeAiConnectionInput,
+  changeAiConnection,
+  getAiConnection,
+  listAiConnections,
+  turnOffAiConnection,
+} from './access/ai-connection-manage';

@@ -1,11 +1,6 @@
 'use server';
 
 import {
-  AI_CONNECTION_DURATIONS,
-  AI_CONNECTION_LAYERS,
-  type AiCaseMode,
-  type AiConnectionDuration,
-  type AiConnectionLayer,
   type StepUpProof,
   accountPrincipal,
   createAiConnection,
@@ -14,7 +9,7 @@ import {
 import { redirect } from 'next/navigation';
 import type { FormResult } from '../../../components/form-feedback';
 import { aiConnectorEnabled } from '../../../lib/ai-connector';
-import { consentChoicesToQuery } from '../../../lib/ai-consent-choices';
+import { consentChoicesToQuery, parseAiAccessChoices } from '../../../lib/ai-consent-choices';
 import { authorizationResponseUrl, checkAuthorizeRequest } from '../../../lib/oauth-authorize';
 import { withPublicDb } from '../../../lib/public-db';
 import { withSession } from '../../../lib/session';
@@ -69,26 +64,18 @@ export async function answerAiConsentAction(
 
   const applicantId = text(formData, 'record') ?? '';
   if (!UUID_RE.test(applicantId)) return { ok: false, message: 'Choose the record to connect.' };
-  const layers = formData
-    .getAll('layer')
-    .filter((value): value is AiConnectionLayer =>
-      (AI_CONNECTION_LAYERS as readonly unknown[]).includes(value),
-    );
-  const caseChoice = text(formData, 'cases') ?? 'all';
-  const caseMode: AiCaseMode =
-    caseChoice === 'none' ? 'NONE' : caseChoice === 'all' ? 'ALL_CURRENT' : 'ONE';
-  const missionId = caseMode === 'ONE' ? caseChoice : undefined;
-  if (missionId !== undefined && !UUID_RE.test(missionId)) {
-    return { ok: false, message: 'Choose a case, all current cases or none.', field: 'cases' };
-  }
-  const durationRaw = text(formData, 'duration') ?? '30d';
-  if (!(AI_CONNECTION_DURATIONS as readonly string[]).includes(durationRaw)) {
-    return { ok: false, message: 'Choose how long the app may read.', field: 'duration' };
-  }
-  const duration = durationRaw as AiConnectionDuration;
-  const revealIdentifiers = formData.get('reveal_identifiers') === 'on';
-  const documentList = formData.get('document_list') === 'on';
-  const documentText = formData.get('document_text') === 'on';
+  const parsed = parseAiAccessChoices(formData);
+  if (!parsed.ok) return parsed;
+  const {
+    layers,
+    cases: caseChoice,
+    caseMode,
+    missionId,
+    documentList,
+    documentText,
+    revealIdentifiers,
+    duration,
+  } = parsed.value;
 
   const outcome = await withSession(async ({ db, accountId }) => {
     let fullNumbersProof: StepUpProof | undefined;

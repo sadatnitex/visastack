@@ -1,4 +1,8 @@
-import type { AiConnectionDuration, AiConnectionLayer } from './ai-consent-choices';
+import {
+  AI_CONNECTION_LAYERS,
+  type AiConnectionDuration,
+  type AiConnectionLayer,
+} from './ai-consent-choices';
 
 /** What each choice on the AI app consent screen is called (ADR 0021 section 5). */
 export const AI_LAYER_LABELS: Readonly<Record<AiConnectionLayer, string>> = {
@@ -33,3 +37,23 @@ export const AI_DURATION_LABELS: Readonly<Record<AiConnectionDuration, string>> 
   '30d': '30 Days',
   until_off: 'Until I Turn It Off',
 };
+
+/** The document choices, named the same on the consent screen and on the Sharing page. */
+export const AI_DOCUMENT_LIST_LABEL = 'List of My Documents';
+export const AI_DOCUMENT_TEXT_LABEL = 'Text Read From My Documents';
+export const AI_FULL_NUMBERS_LABEL = 'Full Document Numbers';
+
+/**
+ * What a stored connection lets the app read, in the consent screen's own words and order. The
+ * stored strings are layer keys plus `document_list` and `document_text`; anything else is left
+ * out rather than guessed at.
+ */
+export function aiAccessLabels(scopes: readonly string[]): string[] {
+  return [
+    ...AI_CONNECTION_LAYERS.filter((layer) => scopes.includes(layer)).map(
+      (layer) => AI_LAYER_LABELS[layer],
+    ),
+    ...(scopes.includes('document_list') ? [AI_DOCUMENT_LIST_LABEL] : []),
+    ...(scopes.includes('document_text') ? [AI_DOCUMENT_TEXT_LABEL] : []),
+  ];
+}

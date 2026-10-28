@@ -21,14 +21,15 @@ import { StepUpProof } from './step-up-proof';
  * - A code works once, for 60 seconds, and only with the client, return address, PKCE verifier
  *   and resource it was issued for. Presenting a used code again cuts off everything it led to.
  * - Access tokens last 60 minutes. Refresh tokens rotate on every use; reusing an old one cuts off
- *   the whole sign-in (its token family). No token outlives its connection.
+ *   the whole sign-in (its token family). No token works after its connection ends: every use
+ *   checks the stored connection, whose end the owner can move.
  * - Revoking is immediate: every request looks its token up again.
  * - Error codes follow RFC 6749 (`invalid_grant` for a dead code or refresh token).
  */
 
 export const AI_CODE_TTL_MS = 60 * 1000;
 export const AI_ACCESS_TTL_MS = 60 * 60 * 1000;
-/** A refresh token's own life; it is also cut to the connection's end. Rotation renews it. */
+/** A refresh token's own life. Rotation renews it; the connection's end is checked on every use. */
 export const AI_REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 /** `last_used_at` is written at most this often. */
 const LAST_USED_WRITE_GAP_MS = 60 * 1000;
@@ -100,16 +101,17 @@ function connectionAlive(connection: ConnectionRow, now: Date): boolean {
   return connection.expiresAt === null || connection.expiresAt.getTime() > now.getTime();
 }
 
-function refreshExpiry(connection: ConnectionRow, now: Date): Date {
-  const own = now.getTime() + AI_REFRESH_TTL_MS;
-  const end = connection.expiresAt?.getTime() ?? Number.POSITIVE_INFINITY;
-  return new Date(Math.min(own, end));
+/**
+ * A token's own life. It is not cut to the connection's end: every use checks the stored
+ * connection (`connectionAlive`) first, so a token stops the moment its connection ends, and an
+ * end the owner moves later (Change Access) is honoured without reissuing anything.
+ */
+function refreshExpiry(now: Date): Date {
+  return new Date(now.getTime() + AI_REFRESH_TTL_MS);
 }
 
-function accessExpiry(connection: ConnectionRow, now: Date): Date {
-  const own = now.getTime() + AI_ACCESS_TTL_MS;
-  const end = connection.expiresAt?.getTime() ?? Number.POSITIVE_INFINITY;
-  return new Date(Math.min(own, end));
+function accessExpiry(now: Date): Date {
+  return new Date(now.getTime() + AI_ACCESS_TTL_MS);
 }
 
 async function insertToken(
@@ -145,7 +147,7 @@ async function issueTokenPair(
   resource: string,
   now: Date,
 ): Promise<AiTokenSet> {
-  const accessExpires = accessExpiry(connection, now);
+  const accessExpires = accessExpiry(now);
   const access = await insertToken(tx, {
     connectionId: connection.id,
     kind: 'ACCESS',
@@ -158,7 +160,7 @@ async function issueTokenPair(
     kind: 'REFRESH',
     familyId,
     resource,
-    expiresAt: refreshExpiry(connection, now),
+    expiresAt: refreshExpiry(now),
   });
   return {
     access_token: access,
