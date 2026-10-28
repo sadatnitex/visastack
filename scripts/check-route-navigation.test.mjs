@@ -54,3 +54,16 @@ test('adding a page without a navigation or flow reference is rejected', (t) => 
   const report = fixture(t, ['', 'app/forgotten'], "const home = { href: '/' };");
   assert.deepEqual(report.uncovered, ['/app/forgotten']);
 });
+
+test('a route group folder never appears in the address, even as the last folder', (t) => {
+  const report = fixture(
+    t,
+    ['', 'app/shared/(list)', 'app/shared/[grantId]', '(marketing)/trust'],
+    `
+    const links = [{ href: '/' }, { href: '/app/shared' }, { href: '/trust' }];
+    function grant(id) { return <a href={'/app/shared/' + id}>Shared</a>; }
+  `,
+  );
+  assert.deepEqual(report.invalid, []);
+  assert.deepEqual(report.uncovered, []);
+});

@@ -23,4 +23,14 @@ describe('isSignedIn', () => {
     };
     expect(await isSignedIn(broken)).toBe(false);
   });
+
+  it("hands Next's own signals back to Next instead of reporting them as failures", async () => {
+    const { redirect } = await import('next/navigation');
+    const signal = {
+      currentIdentity: async () => {
+        redirect('/auth/sign-in');
+      },
+    };
+    await expect(isSignedIn(signal)).rejects.toThrow('NEXT_REDIRECT');
+  });
 });

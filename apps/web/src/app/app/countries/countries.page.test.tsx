@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { renderServer, textOf } from '../../../lib/next-mocks.test-support';
+import CountriesPage from './(list)/page';
 import CountryPage from './[iso2]/page';
-import CountriesPage from './page';
 
 const detail = (iso2: string) => renderServer(CountryPage({ params: Promise.resolve({ iso2 }) }));
 

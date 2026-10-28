@@ -114,6 +114,12 @@ export const RATE_LIMITS = {
   // Reporting a payment made another way (S12): a person fills this in a few times a day at most.
   MANUAL_CLAIM_SUBMIT: { limit: 10, windowMs: HOUR_MS },
   MANUAL_CLAIM_SUBMIT_ORG: { limit: 30, windowMs: HOUR_MS },
+  // A private calendar subscription link (v1.2 B05 live feed). Calendar apps check a link every
+  // few minutes to every few hours, so one link is bounded well above that. Only unknown links are
+  // counted per network address, so a large calendar service fetching many people's real links
+  // from one address is never slowed, while trying made-up links in bulk is.
+  CALENDAR_FEED_READ: { limit: 60, windowMs: HOUR_MS },
+  CALENDAR_FEED_MISS_IP: { limit: 120, windowMs: HOUR_MS },
 } as const satisfies Record<string, RateLimitConfig>;
 
 export type RateLimitDecision =
@@ -180,6 +186,32 @@ export async function checkRateLimit(
     };
   }
   return { allowed: true };
+}
+
+/**
+ * Whether the current window's count for (subjectId, action) has already reached `config.limit`,
+ * without counting anything. For limits that charge only failures: refuse early when the bucket is
+ * full, and charge with `checkRateLimit` only once the attempt has failed.
+ */
+export async function isRateLimitReached(
+  db: Db,
+  input: CheckRateLimitInput,
+  config: RateLimitConfig,
+  now: Date = new Date(),
+): Promise<boolean> {
+  const windowStart = windowStartFor(now, config.windowMs);
+  const rows = await db
+    .select({ count: schema.rateLimitBuckets.count })
+    .from(schema.rateLimitBuckets)
+    .where(
+      and(
+        eq(schema.rateLimitBuckets.subjectId, input.subjectId),
+        eq(schema.rateLimitBuckets.action, input.action),
+        eq(schema.rateLimitBuckets.windowStart, windowStart),
+      ),
+    )
+    .limit(1);
+  return (rows[0]?.count ?? 0) >= config.limit;
 }
 
 /**

@@ -20,35 +20,41 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { CaseReadinessRing, type ReadinessCounts } from '../../components/case-readiness-ring';
-import { DeadlineClock } from '../../components/deadline-clock';
-import { PROGRESS_IN_CASE_LINE } from '../../components/progress-ring';
-import { Checklist, Disclosure, EmptyState, NextStepCard, StatusBadge } from '../../components/ui';
-import { holdsPlatformRole } from '../../lib/admin';
-import { countryNameOf, countryStartData, parseCountryParam } from '../../lib/country-start';
-import { COUNTRY_STEP_DONE } from '../../lib/country-start-links';
-import { formatDateOnly } from '../../lib/format-date';
+import { CaseReadinessRing, type ReadinessCounts } from '../../../components/case-readiness-ring';
+import { DeadlineClock } from '../../../components/deadline-clock';
+import { PROGRESS_IN_CASE_LINE } from '../../../components/progress-ring';
+import {
+  Checklist,
+  Disclosure,
+  EmptyState,
+  NextStepCard,
+  StatusBadge,
+} from '../../../components/ui';
+import { holdsPlatformRole } from '../../../lib/admin';
+import { countryNameOf, countryStartData, parseCountryParam } from '../../../lib/country-start';
+import { COUNTRY_STEP_DONE } from '../../../lib/country-start-links';
+import { formatDateOnly } from '../../../lib/format-date';
 import {
   ATTENTION_TIER_LABELS,
   CONSENT_PLAIN,
   attentionActionLabel,
   documentTypeLabel,
-} from '../../lib/labels';
-import { getLocale } from '../../lib/locale';
-import { safeReturnPath } from '../../lib/neon-recency';
-import { plural } from '../../lib/plural';
-import { withSession } from '../../lib/session';
-import { requestItemLabel } from './agency/[orgId]/do-next';
-import { ConsentButton } from './consent-button';
-import { confirmFirstRunCountryAction } from './country-actions';
-import { CLOCK_HOME_LIMIT, deadlineLines, readDeadlineEntries } from './deadline-clock-data';
+} from '../../../lib/labels';
+import { getLocale } from '../../../lib/locale';
+import { safeReturnPath } from '../../../lib/neon-recency';
+import { plural } from '../../../lib/plural';
+import { withSession } from '../../../lib/session';
+import { requestItemLabel } from '../agency/[orgId]/do-next';
+import { ConsentButton } from '../consent-button';
+import { confirmFirstRunCountryAction } from '../country-actions';
+import { CLOCK_HOME_LIMIT, deadlineLines, readDeadlineEntries } from '../deadline-clock-data';
 import {
   FirstRunConsent,
   FirstRunCountry,
   FirstRunName,
   FirstRunTask,
   SETUP_LATER_HREF,
-} from './first-run';
+} from '../first-run';
 
 export const metadata: Metadata = { title: 'Account Overview' };
 

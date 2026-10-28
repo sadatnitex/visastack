@@ -17,6 +17,8 @@ import {
 } from '../../../../../lib/ics';
 import { CALENDAR_REMINDER_LABELS, CALENDAR_REMINDER_ORDER } from '../../../../../lib/labels';
 import { plural } from '../../../../../lib/plural';
+import { formatMoment } from '../../../../../lib/save-status';
+import { CalendarFeedPanel, type CalendarFeedPanelStatus } from './calendar-feed-panel';
 import { CALENDAR_KEY_FIELD, loadCalendarDates, readCalendarKeys } from './load';
 
 export const metadata: Metadata = { title: 'Add Dates to My Calendar' };
@@ -56,6 +58,13 @@ export default async function CalendarExportPage({
   const query = await searchParams;
   const loaded = await loadCalendarDates(id);
   if (loaded.state === 'denied') notFound();
+  const { feed } = loaded;
+  // When the current link was made, in the traveller's own time zone.
+  const feedStatus: CalendarFeedPanelStatus =
+    feed.state === 'on'
+      ? { state: 'on', linkMadeOn: formatMoment(feed.linkMadeAt, loaded.timeZone) }
+      : { state: feed.state };
+  const subscribe = <CalendarFeedPanel applicantId={id} status={feedStatus} />;
 
   const pageHref = `/app/applicant/${id}/calendar`;
   const header = (
@@ -88,6 +97,7 @@ export default async function CalendarExportPage({
         <p role="alert" className="notice notice-warn">
           We could not load your dates just now. Refresh to try again.
         </p>
+        {subscribe}
       </>
     );
   }
@@ -124,6 +134,7 @@ export default async function CalendarExportPage({
           Appointments, due dates and document expiry dates appear here once they are set. Items
           without a date are never added.
         </EmptyState>
+        {subscribe}
       </>
     );
   }
@@ -290,6 +301,7 @@ export default async function CalendarExportPage({
           </div>
         </form>
       </section>
+      {subscribe}
     </>
   );
 }

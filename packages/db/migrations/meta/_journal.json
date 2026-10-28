@@ -694,6 +694,13 @@
       "when": 1793125828278,
       "tag": "0100_ai_connections",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1793149409759,
+      "tag": "0101_calendar_feeds",
+      "breakpoints": true
     }
   ]
 }

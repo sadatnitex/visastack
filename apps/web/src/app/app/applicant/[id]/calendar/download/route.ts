@@ -4,6 +4,7 @@ import {
   buildIcsCalendar,
   selectCalendarEvents,
 } from '../../../../../../lib/ics';
+import { PRIVATE_NO_STORE_HEADERS } from '../../../../../../lib/private-headers';
 import { fromThisSite } from '../../../../../../lib/same-site';
 import { exportCalendarDates, readCalendarKeys } from '../load';
 
@@ -18,7 +19,7 @@ import { exportCalendarDates, readCalendarKeys } from '../load';
  */
 export const dynamic = 'force-dynamic';
 
-const PRIVATE = { 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' };
+const PRIVATE = PRIVATE_NO_STORE_HEADERS;
 
 function backTo(id: string, error: 'nothing' | 'failed'): Response {
   return new Response(null, {

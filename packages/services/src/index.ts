@@ -1725,6 +1725,26 @@ export {
 export { OWNER_RENAME_REASON, renameDocument } from './document-naming';
 export { CONVERTED_FROM_HEIC_SOURCE, type RegisteredDocumentWithVersion } from './documents';
 export { type GrowUploadReservationInput, growUploadReservation } from './uploads';
+export {
+  type CalendarFeedHolder,
+  isCalendarFeedSecretShape,
+  requireCalendarFeedAccess,
+  resolveCalendarFeedSecret,
+} from './access';
+export {
+  CALENDAR_FEED_LINK_REPLACED_EVENT,
+  CALENDAR_FEED_SHARING_NEEDED,
+  CALENDAR_FEED_TURNED_OFF_EVENT,
+  CALENDAR_FEED_TURNED_ON_EVENT,
+  CALENDAR_FEED_UNAVAILABLE,
+  type CalendarFeedLink,
+  type CalendarFeedStatus,
+  getCalendarFeedStatus,
+  replaceCalendarFeedLink,
+  turnOffCalendarFeed,
+  turnOnCalendarFeed,
+} from './calendar-feeds';
+export { isRateLimitReached } from './rate-limit';
 // S14: the AI connector's gate and its five read-only tools (ADR 0021 sections 3, 6 and 7).
 export {
   AI_CONNECTION_PURPOSE,
