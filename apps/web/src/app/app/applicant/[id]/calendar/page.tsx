@@ -77,7 +77,7 @@ export default async function CalendarExportPage({
     />
   );
   const notes = (
-    <div className="notice u-mb-150">
+    <div className="notice notice-stack u-mb-150">
       <p className="u-m-0">
         This is a one-time copy. If a date changes later, your calendar will not update; download a
         new file. Calendar apps that support updates replace the dates you added before; others may

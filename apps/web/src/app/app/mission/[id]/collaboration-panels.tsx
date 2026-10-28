@@ -61,18 +61,10 @@ export function TasksPanel({
       ) : (
         <div className="rows u-mb-100">
           {openOrInProgress.map((task) => (
-            <form
-              action={decideAction}
-              key={task.id}
-              className="row task-row"
-              style={{ alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}
-            >
+            <form action={decideAction} key={task.id} className="row task-row">
               <input type="hidden" name="missionId" value={missionId} />
               <input type="hidden" name="taskId" value={task.id} />
-              <span
-                className="row-key"
-                style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}
-              >
+              <span className="row-key">
                 {task.description}
                 <span
                   className={`badge ${task.priority === 'URGENT' || task.priority === 'HIGH' ? 'badge-warning' : 'badge-neutral'}`}
@@ -151,7 +143,7 @@ export function TasksPanel({
         <input
           name="description"
           type="text"
-          className="input"
+          className="input collab-add-wide"
           placeholder="Add a task…"
           aria-label="Task description"
           required
@@ -167,7 +159,7 @@ export function TasksPanel({
         <input
           name="dueTimezone"
           type="text"
-          className="input"
+          className="input collab-add-wide"
           placeholder="Timezone, e.g. Asia/Dhaka"
           aria-label="Due timezone (optional)"
         />
@@ -298,14 +290,14 @@ export function AppointmentsPanel({
         <input
           name="title"
           type="text"
-          className="input"
+          className="input collab-add-wide"
           placeholder="e.g. Visa interview prep call"
           aria-label="Appointment title"
           required
         />
         <input name="localDate" type="date" className="input" aria-label="Date" required />
         <input name="localTime" type="time" className="input" aria-label="Time" required />
-        <TimeZoneSelect name="timezone" />
+        <TimeZoneSelect name="timezone" className="collab-add-wide" />
         <input
           name="place"
           type="text"

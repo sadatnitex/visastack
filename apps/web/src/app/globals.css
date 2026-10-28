@@ -9738,12 +9738,13 @@ summary.visa-photo-title {
 /* WP-UXH visual pass: small alignment fixes on the screens changed on 27 and 28 October. Flat:
    hairlines, spacing and type tokens only. Every control keeps its 44px target. */
 
-/* Button rows that had no rule: the invitation link and others. */
+/* Button rows that had no rule (the invitation link and others): the same row as .cta-row, with
+   the buttons centred on one line. */
 .action-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: 0.75rem;
 }
 /* The step list on a phone: three equal columns, so no single step drops to a line of its own. */
 @media (max-width: 480px) {
@@ -9798,8 +9799,10 @@ summary.visa-photo-title {
 .case-more-list .case-more-item {
   text-decoration: none;
 }
-.case-more-panel {
-  width: min(24rem, calc(100vw - 2rem));
+@media (min-width: 641px) {
+  .case-more-panel {
+    width: min(24rem, calc(100vw - 2rem));
+  }
 }
 .case-stage-region > .muted {
   max-width: 80ch;
@@ -9808,7 +9811,16 @@ summary.visa-photo-title {
 /* Case tasks and appointments: the title and its labels wrap together, the row's buttons stay
    together at the end, and both Add forms line their fields up in one grid with the button on its
    own row. */
+.task-row {
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
 .task-row .row-key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
   flex: 1 1 14rem;
   min-width: 0;
 }
@@ -9827,11 +9839,12 @@ summary.visa-photo-title {
   gap: var(--space-2);
   align-items: center;
 }
-.collab-add-form > input[name="description"],
-.collab-add-form > input[name="title"],
-.collab-add-form > select[name="timezone"],
+.collab-add-form > .collab-add-wide,
 .collab-add-form > button[type="submit"] {
   grid-column: 1 / -1;
+}
+.collab-add-form > .tz-select {
+  max-width: none;
 }
 .collab-add-form > button[type="submit"] {
   justify-self: start;
@@ -9873,13 +9886,13 @@ summary.visa-photo-title {
 
 /* Calendar: the result line sits level with the buttons, and the note below them starts a step
    lower; two paragraphs in one notice keep a gap between them. */
-.calendar-actions {
+.calendar-feed-actions {
   align-items: center;
 }
-.calendar-actions + .muted {
-  margin-top: var(--space-3) !important;
+.calendar-feed-note {
+  margin: var(--space-3) 0 0;
 }
-.notice:has(> p.u-m-0 + p.u-m-0) {
+.notice-stack {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -9887,8 +9900,8 @@ summary.visa-photo-title {
 
 /* Help: four guide cards sit two by two rather than three and one; contact lines keep a readable
    length. */
-@media (min-width: 900px) {
-  .help-guide-grid:has(> :nth-child(4)) {
+@media (min-width: 701px) {
+  .help-guide-grid:has(> :nth-child(4):last-child) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -9896,8 +9909,9 @@ summary.visa-photo-title {
   max-width: 75ch;
 }
 
-/* Staff mode on a phone: Leave Staff Mode lines up with the words, not under the lock. */
-@media (max-width: 700px) {
+/* Staff mode on a narrow phone, where the link drops to its own line: Leave Staff Mode lines up
+   with the words, not under the lock (the lock is drawn at 18px in workspace-shell.tsx). */
+@media (max-width: 480px) {
   .staff-mode-banner .staff-mode-leave {
     margin-inline-start: calc(18px + var(--space-3));
   }
