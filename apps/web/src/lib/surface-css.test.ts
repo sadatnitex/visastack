@@ -20,6 +20,21 @@ function rules(selector: string): string[] {
   );
 }
 
+/** The at-rule that holds the rule written with this selector, or '' when it sits at the top. */
+function enclosing(selector: string): string {
+  const at = css.indexOf(`\n  ${selector} {`);
+  if (at < 0) return '';
+  let depth = 0;
+  for (let i = at; i >= 0; i -= 1) {
+    if (css[i] === '}') depth += 1;
+    if (css[i] === '{') {
+      if (depth === 0) return css.slice(css.lastIndexOf('\n', i) + 1, i).trim();
+      depth -= 1;
+    }
+  }
+  return '';
+}
+
 /** The last rule for this selector that sets the property (any property when none is named). */
 function last(selector: string, property?: string): string {
   const found = rules(selector).filter(
@@ -61,12 +76,22 @@ describe('surfaces and edges by role (WP-C2)', () => {
     expect(active).toMatch(/border: 1px solid var\(--edge-card\);/);
     expect(active).toMatch(/font-weight: 650;/);
     expect(active).toMatch(/position: relative;/);
-    const bar = last('.app-shell-links a[aria-current="page"]::before');
+    const [bar, highContrast] = rules('.app-shell-links a[aria-current="page"]::before');
     expect(bar).toMatch(/content: "";/);
     expect(bar).toMatch(/width: 3px;/);
     expect(bar).toMatch(/background: var\(--brand\);/);
-    // The phone bottom bar keeps its own look: no pill and no bar there.
+    // Windows high contrast drops backgrounds; the bar keeps a system colour there.
+    expect(enclosing('.app-shell-links a[aria-current="page"]::before')).toBe(
+      '@media (forced-colors: active)',
+    );
+    expect(highContrast).toMatch(/forced-color-adjust: none;/);
+    expect(highContrast).toMatch(/background: Highlight;/);
+    // The phone bottom bar keeps its own look: no bar there, and only there (the bar wraps the
+    // first links at every width).
     expect(last('.app-bar a[aria-current="page"]::before')).toMatch(/content: none;/);
+    expect(enclosing('.app-bar a[aria-current="page"]::before')).toMatch(
+      /^@media \(max-width: \d+px\)$/,
+    );
     expect(last('.account-menu-row[aria-current="page"]')).toMatch(
       /background: var\(--brand-tint-3\);/,
     );

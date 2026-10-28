@@ -848,6 +848,13 @@ main {
   border-radius: 2px;
   background: var(--brand);
 }
+/* Windows high contrast drops backgrounds: draw the bar in the system highlight colour. */
+@media (forced-colors: active) {
+  .app-shell-links a[aria-current="page"]::before {
+    forced-color-adjust: none;
+    background: Highlight;
+  }
+}
 .app-shell-links a[aria-current="page"] .icon {
   color: var(--brand);
 }

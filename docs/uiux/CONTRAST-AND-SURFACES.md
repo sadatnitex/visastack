@@ -31,7 +31,7 @@ Status words after the change: success 8.21, warning 8.21, danger 8.75 on white;
 | Sidebar and search field | `--sidebar-bg` | `#e3e9f3` | Navigation, clearly apart from the page |
 | Cards and header | `--bg-elevated` | `#ffffff` | Content and the header bar |
 | Card edge | `--edge-card` | `#d3dce9` | Outline of cards, panels, the workspace switcher and the search field |
-| Control edge | `--edge-control` | `#7f8faa` | Edge of things you press and floating layers (secondary buttons, the account menu, the ring track) |
+| Control edge | `--edge-control` | `#7f8faa` | Applied in this package to secondary buttons, the account menu and the ring track. Text fields and the other popovers (search results, the workspace finder, the collapsed rail's tool list, the case More panel) still use `--hairline`; see the owner calls below |
 
 ## Contrast budget
 
@@ -56,6 +56,19 @@ Seen during the scan, out of scope for a colour package (they change layout or w
 | Sharing | Turn Off is the loudest control on the page |
 | Several pages | Disclosures with no visible marker: More Tools, Recently Turned Off, Permissions You Control, "Add the Date This Became True" |
 | Several pages | Links are styled three ways; status chips differ between list and detail |
+
+## Owner calls raised by review
+
+These came out of the code review of this package. The values are the owner's, so none was changed without a decision.
+
+| Item | Now | Options |
+| --- | --- | --- |
+| Progress ring: filled part against the empty part | 2.5:1 (was 5.5:1 accent, 4.1:1 success), because the track got darker to reach 3.28:1 on white | The ring always shows its number in text beside it, so nobody depends on the arc alone. Keep, or set the track to `--edge-card` (fill against track back above 4:1, track on white 1.38:1) |
+| Text fields and the other popovers | Edges at 1.5:1 on white while secondary buttons are now 3.28:1 | Extend `--edge-control` to `.input` and the popovers in a follow-up package with its own screenshots |
+| Disabled buttons | Their words use `--text-tertiary`, now darker (5.4:1 on their fill) | Disabled stays told apart by its fill and the not-allowed pointer; check with the owner when hover, pressed and disabled states are scanned |
+| Phone bottom bar | The current tab keeps the thin outline it already had on main (now in `--edge-card`) | Unchanged look by decision; the brand bar and white pill do not show there |
+
+Windows high contrast mode drops backgrounds, so the current page's bar is drawn in the system highlight colour there.
 
 ## Not covered by the scan
 

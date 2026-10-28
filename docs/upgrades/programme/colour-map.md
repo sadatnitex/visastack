@@ -106,7 +106,7 @@ Owner-requested package after a measured scan of the live signed-in site (28 and
 | `.btn-secondary` border | `--hairline` | `--edge-control` |
 | `.account-menu-panel` border | `--hairline` | `--edge-control` |
 | `.account-menu-row[aria-current="page"]` fill | `--brand-bg` | `--brand-tint-3` |
-| `.app-shell-links a[aria-current="page"]` | `--brand-bg` fill, `--hairline` edge | white pill, `--edge-card` edge, 3px `--brand` bar (hidden in the phone bottom bar) |
+| `.app-shell-links a[aria-current="page"]` | `--brand-bg` fill, `--hairline` edge | white pill, `--edge-card` edge, 3px `--brand` bar (hidden in the phone bottom bar; the system highlight colour in Windows high contrast mode) |
 | Pressed depth switch segment, wide and phone | `--hairline` edge | `--brand` edge |
 | `.progress-ring-track` | `--hairline` | `--edge-control` (3.28 on white) |
 | `.land-step-num`, `.land-step > *:not(.land-step-num)` | ghost numerals at 1.05 | removed; the "Step N" kicker carries the order |
