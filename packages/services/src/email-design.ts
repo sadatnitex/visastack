@@ -79,10 +79,7 @@ export function renderEmail(
   context: { readonly baseUrl: string; readonly recipient: string },
 ): RenderedEmail {
   const url = safeUrl(content.action.url, context.baseUrl);
-  const logo = safeUrl(
-    new URL('/icons/icon-192.png', productOrigin(context.baseUrl)).href,
-    context.baseUrl,
-  );
+  const logo = `${productOrigin(context.baseUrl)}/icons/icon-192.png`;
   const sentTo = `This email was sent to ${context.recipient}.`;
 
   const text = [
