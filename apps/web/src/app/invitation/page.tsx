@@ -83,7 +83,7 @@ export default async function InvitationPage({
         <li>2 Review</li>
         <li>3 You decide</li>
       </ol>
-      <article className="card">
+      <article className="card invitation-card">
         <p className="card-body">
           <strong>Opening the link does not accept it.</strong>
         </p>

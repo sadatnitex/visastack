@@ -93,7 +93,7 @@ export function ClientInvitationForm({
           pending={pending}
           idle="Invite Client"
           busy="Creating…"
-          className="btn btn-secondary"
+          className="btn btn-primary"
         />
         <InvitationOutcome state={state} pendingInvitationIds={pendingInvitationIds} />
       </div>

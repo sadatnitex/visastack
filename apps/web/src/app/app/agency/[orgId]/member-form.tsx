@@ -47,7 +47,7 @@ export function AddMemberForm({
           pending={pending}
           idle="Add Member"
           busy="Adding…"
-          className="btn btn-secondary"
+          className="btn btn-primary"
         />
         <InvitationOutcome state={state} pendingInvitationIds={pendingInvitationIds} />
       </div>

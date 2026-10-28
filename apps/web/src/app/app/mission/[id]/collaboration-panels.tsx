@@ -64,14 +64,14 @@ export function TasksPanel({
             <form
               action={decideAction}
               key={task.id}
-              className="row"
+              className="row task-row"
               style={{ alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}
             >
               <input type="hidden" name="missionId" value={missionId} />
               <input type="hidden" name="taskId" value={task.id} />
               <span
                 className="row-key"
-                style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}
+                style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}
               >
                 {task.description}
                 <span
@@ -92,7 +92,7 @@ export function TasksPanel({
                   </span>
                 ) : null}
               </span>
-              <div style={{ display: 'flex', gap: '0.4rem' }}>
+              <div className="task-row-actions">
                 {task.status === 'OPEN' ? (
                   <SubmitButton
                     pending={decidePending}
@@ -146,10 +146,7 @@ export function TasksPanel({
         </details>
       ) : null}
 
-      <form
-        action={createAction}
-        style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}
-      >
+      <form action={createAction} className="collab-add-form">
         <input type="hidden" name="missionId" value={missionId} />
         <input
           name="description"
@@ -158,7 +155,6 @@ export function TasksPanel({
           placeholder="Add a task…"
           aria-label="Task description"
           required
-          style={{ flex: 1, minWidth: '10rem' }}
         />
         <select name="priority" className="input" defaultValue="NORMAL" aria-label="Priority">
           {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
@@ -167,20 +163,13 @@ export function TasksPanel({
             </option>
           ))}
         </select>
-        <input
-          name="dueDate"
-          type="date"
-          className="input"
-          aria-label="Due Date (Optional)"
-          style={{ maxWidth: '9rem' }}
-        />
+        <input name="dueDate" type="date" className="input" aria-label="Due Date (Optional)" />
         <input
           name="dueTimezone"
           type="text"
           className="input"
           placeholder="Timezone, e.g. Asia/Dhaka"
           aria-label="Due timezone (optional)"
-          style={{ maxWidth: '10rem' }}
         />
         <SubmitButton
           pending={createPending}
@@ -304,10 +293,7 @@ export function AppointmentsPanel({
         </details>
       ) : null}
 
-      <form
-        action={createAction}
-        style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}
-      >
+      <form action={createAction} className="collab-add-form">
         <input type="hidden" name="missionId" value={missionId} />
         <input
           name="title"
@@ -316,7 +302,6 @@ export function AppointmentsPanel({
           placeholder="e.g. Visa interview prep call"
           aria-label="Appointment title"
           required
-          style={{ flex: 1, minWidth: '10rem' }}
         />
         <input name="localDate" type="date" className="input" aria-label="Date" required />
         <input name="localTime" type="time" className="input" aria-label="Time" required />

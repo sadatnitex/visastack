@@ -59,7 +59,9 @@ function NewLink({ url }: { readonly url: string }) {
           Copy Link
         </button>
       </div>
-      <output aria-live="polite">{message}</output>
+      <output className="field-msg" aria-live="polite">
+        {message}
+      </output>
       <p className="muted u-m-0">Then add it to your calendar app:</p>
       <ul className="muted u-m-0">
         <li>

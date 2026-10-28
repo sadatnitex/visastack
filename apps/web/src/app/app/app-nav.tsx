@@ -53,6 +53,10 @@ const CONTEXT_ICONS: Readonly<Record<string, IconName>> = {
  */
 const BAR_LINKS = 4;
 const MOBILE_LABELS: Readonly<Record<string, string>> = {
+  'Account Overview': 'Overview',
+  'All Travellers': 'Travellers',
+  // Platform staff: the organizations listed there are the agencies that registered.
+  Organizations: 'Agencies',
   'My Profile': 'Profile',
   'Visa Cases': 'Cases',
   'Choose a Traveller': 'Travellers',
