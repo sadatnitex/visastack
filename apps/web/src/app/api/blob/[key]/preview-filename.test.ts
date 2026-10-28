@@ -18,6 +18,12 @@ describe('previewFilename: display name for a rendered redacted preview', () => 
     expect(previewFilename('notes.md', 'application/octet-stream')).toBe('notes.md');
   });
 
+  it('keeps a dot that is part of the name, counting only known extensions', () => {
+    expect(previewFilename('Payslip v1.2026', 'image/png')).toBe('Payslip v1.2026-preview.png');
+    expect(previewFilename('J.Smith.pdf', 'image/png')).toBe('J.Smith-preview.png');
+    expect(previewFilename('.pdf', 'image/png')).toBe('document-preview.png');
+  });
+
   it('passes undefined through unchanged', () => {
     expect(previewFilename(undefined, 'image/png')).toBeUndefined();
   });

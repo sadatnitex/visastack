@@ -1,3 +1,5 @@
+import { previewName } from '../../../../lib/upload-rules';
+
 /**
  * Split out for the same reason as `headers.ts`: Next's App Router only
  * allows recognized handler/config exports from a route file.
@@ -22,7 +24,5 @@ export function previewFilename(
   if (!original) return original;
   const extension = EXTENSION_BY_CONTENT_TYPE[renderedContentType];
   if (!extension) return original;
-  const dot = original.lastIndexOf('.');
-  const base = dot === -1 ? original : original.slice(0, dot);
-  return `${base}-preview.${extension}`;
+  return previewName(original, extension);
 }
