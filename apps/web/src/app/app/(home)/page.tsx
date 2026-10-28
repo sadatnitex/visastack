@@ -5,7 +5,6 @@ import {
   type Db,
   type DeadlineEntry,
   type NeedsAttention,
-  accountPrincipal,
   computeReadiness,
   getConsents,
   listApplicants,
@@ -15,7 +14,6 @@ import {
   listNeedsAttention,
   rankAttentionItems,
   rankDeadlines,
-  requireAccess,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -39,18 +37,13 @@ import { depthWord } from '../../../lib/ccd/depth-words';
 import { readDepth } from '../../../lib/ccd/depth.server';
 import { countryNameOf, countryStartData, parseCountryParam } from '../../../lib/country-start';
 import { COUNTRY_STEP_DONE } from '../../../lib/country-start-links';
-import { formatDateOnly } from '../../../lib/format-date';
-import {
-  ATTENTION_TIER_LABELS,
-  CONSENT_PLAIN,
-  attentionActionLabel,
-  documentTypeLabel,
-} from '../../../lib/labels';
+import { ATTENTION_TIER_LABELS, CONSENT_PLAIN, attentionActionLabel } from '../../../lib/labels';
 import { getLocale } from '../../../lib/locale';
 import { safeReturnPath } from '../../../lib/neon-recency';
+import { openOwnerGate } from '../../../lib/owner-gate';
 import { plural } from '../../../lib/plural';
 import { withSession } from '../../../lib/session';
-import { requestItemLabel } from '../agency/[orgId]/do-next';
+import { attentionContext, attentionHeading, attentionWhen } from '../attention-display';
 import { ConsentButton } from '../consent-button';
 import { confirmFirstRunCountryAction } from '../country-actions';
 import { CLOCK_HOME_LIMIT, deadlineLines, readDeadlineEntries } from '../deadline-clock-data';
@@ -117,19 +110,11 @@ async function loadPersonReads(
   readonly attention: NeedsAttention | null;
   readonly deadlines: readonly DeadlineEntry[] | null;
 }> {
-  const access = await requireAccess(
-    db,
-    accountPrincipal(accountId),
-    'VIEW_METADATA',
-    { applicantId },
-    { purpose: 'self' },
-  );
-  if (!access.ok || access.value.actor.kind !== 'applicant_owner') {
-    return { attention: null, deadlines: null };
-  }
+  const access = await openOwnerGate(db, accountId, applicantId);
+  if (!access) return { attention: null, deadlines: null };
   const [listed, deadlines] = await Promise.all([
-    listNeedsAttention(access.value, { now }),
-    readDeadlineEntries(access.value, now, CLOCK_HOME_LIMIT),
+    listNeedsAttention(access, { now }),
+    readDeadlineEntries(access, now, CLOCK_HOME_LIMIT),
   ]);
   return { attention: listed.ok ? listed.value : null, deadlines };
 }
@@ -274,51 +259,6 @@ function CalendarLinks({
       .
     </p>
   );
-}
-
-/**
- * The heading for one item: what a request asks for or which document is expiring, by its own
- * name, otherwise the plain heading the item came with. Server-only: the request label reads the
- * field catalogue, which never goes to the browser.
- */
-function attentionHeading(item: AttentionItem): string {
-  const subject = item.subject;
-  if (subject?.kind === 'request') {
-    return requestItemLabel({
-      kind: subject.requestKind,
-      fieldKey: subject.fieldKey,
-      docType: subject.docType,
-    });
-  }
-  if (subject?.kind === 'document' && subject.docType) return documentTypeLabel(subject.docType);
-  return item.title;
-}
-
-/** Who and which case an item is about, in a short line. */
-function attentionContext(item: AttentionItem): string {
-  const parts = [item.applicantName, item.caseTitle].filter(
-    (part): part is string => typeof part === 'string' && part.length > 0,
-  );
-  if (item.count !== null) {
-    parts.push(
-      item.kind === 'sharing_invitations'
-        ? plural(item.count, 'invitation')
-        : plural(item.count, 'suggested detail'),
-    );
-  }
-  return parts.join(' \u00b7 ');
-}
-
-/** The date line for an item, or null when it has no date (an unknown date gets a badge). */
-function attentionWhen(item: AttentionItem): string | null {
-  if (item.dueDate === null) return null;
-  const date = formatDateOnly(item.dueDate);
-  if (item.kind === 'document_expiry') {
-    return item.dueState === 'overdue' ? `Expired on ${date}` : `Expires on ${date}`;
-  }
-  if (item.daysUntilDue === 0) return `Due today, ${date}`;
-  if (item.dueState === 'overdue') return `Was due on ${date}`;
-  return `Due on ${date}`;
 }
 
 interface SearchParams {

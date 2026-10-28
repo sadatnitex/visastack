@@ -16,8 +16,10 @@ const service = vi.hoisted(() => ({
   accountPrincipal: vi.fn(),
   requireAccess: vi.fn(),
   listDeadlineClock: vi.fn(),
+  listNeedsAttention: vi.fn(),
 }));
 vi.mock('@visastack/services', () => service);
+vi.mock('./ccd/depth.server', () => ({ readDepth: async () => 'auto' }));
 vi.mock('./session', () => ({
   withSession: (callback: (ctx: unknown) => unknown) => callback({ db: {}, accountId: 'owner' }),
 }));
@@ -61,6 +63,17 @@ beforeEach(() => {
     ok: true,
     value: { applicantId: 'person', entries: [] },
   });
+  service.listNeedsAttention.mockResolvedValue({
+    ok: true,
+    value: {
+      applicantId: 'person',
+      applicantName: 'Synthetic Traveller',
+      items: [],
+      activeCases: [],
+      activeCaseCount: 0,
+      requests: { waitingOnYou: 0, withAgency: 0 },
+    },
+  });
   service.getProfileSectionState.mockResolvedValue({
     activated: new Set(),
     notApplicable: new Set(),
@@ -77,6 +90,7 @@ describe('traveller composition and independent record guards', () => {
     expect(service.listApplicantProfile).not.toHaveBeenCalled();
     expect(service.listDocumentsDetailed).not.toHaveBeenCalled();
     expect(service.listApplicantAssurance).not.toHaveBeenCalled();
+    expect(service.listNeedsAttention).not.toHaveBeenCalled();
   });
   it('preserves all structural overview regions for an empty account without inventing a case', async () => {
     const html = renderToStaticMarkup(await overview(params));
@@ -355,5 +369,67 @@ describe("the deadline clock on a person's overview (Growth G5)", () => {
     await expect(overview(params)).rejects.toThrow('NOT_FOUND');
     expect(service.requireAccess).not.toHaveBeenCalled();
     expect(service.listDeadlineClock).not.toHaveBeenCalled();
+  });
+
+  it('takes the next step from the same ranking as Account Home, with its wording', async () => {
+    service.listNeedsAttention.mockResolvedValue({
+      ok: true,
+      value: {
+        applicantId: 'person',
+        applicantName: 'Synthetic Traveller',
+        items: [
+          {
+            key: 'evidence_request:r1',
+            kind: 'evidence_request',
+            tier: 1,
+            title: 'Document Requested',
+            why: 'An agency asked you for a document. Reply with a file from your documents.',
+            applicantId: 'person',
+            applicantName: 'Synthetic Traveller',
+            caseId: null,
+            caseTitle: 'Japan visitor',
+            dueDate: null,
+            dueState: 'none',
+            daysUntilDue: null,
+            sentBack: false,
+            count: null,
+            subject: {
+              kind: 'request',
+              requestKind: 'DOCUMENT',
+              docType: 'BANK_STATEMENT',
+              fieldKey: null,
+            },
+            href: '/app/applicant/person/evidence',
+            createdAt: '2026-10-01T00:00:00.000Z',
+          },
+        ],
+        activeCases: [],
+        activeCaseCount: 0,
+        requests: { waitingOnYou: 1, withAgency: 0 },
+      },
+    });
+    const html = renderToStaticMarkup(await overview(params));
+    expect(html).toContain('Bank Statement');
+    expect(html).toContain(
+      'Synthetic Traveller \u00b7 Japan visitor. An agency asked you for a document.',
+    );
+    expect(html).toContain('Reply to Request');
+    expect(html).not.toContain('Reply to an Evidence Request');
+  });
+
+  it('falls back to its own checks when the ranking cannot be read', async () => {
+    service.listNeedsAttention.mockResolvedValue({ ok: false, error: { code: 'upstream_error' } });
+    service.listEvidenceRequestsForApplicant.mockResolvedValue({
+      ok: true,
+      value: [{ id: 'r1', status: 'OPEN' }],
+    });
+    const html = renderToStaticMarkup(await overview(params));
+    expect(html).toContain('Reply to an Evidence Request');
+  });
+
+  it('points an empty profile at the essentials, not at an all-clear', async () => {
+    const html = renderToStaticMarkup(await overview(params));
+    expect(html).toContain('Add Your Essentials');
+    expect(html).not.toContain('Nothing Needs You Right Now');
   });
 });
