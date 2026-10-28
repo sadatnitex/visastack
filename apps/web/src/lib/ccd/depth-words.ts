@@ -30,11 +30,20 @@ export const DEPTH_WORDS = {
   'depth.profile.everything': 'Everything: profile health and the latest changes.',
   'depth.cases.glance': 'Glance: the case you are on, and a way to start another.',
   'depth.cases.browse': 'Browse: every case, with its progress and stage.',
-  'depth.cases.everything': 'Everything: the Start a Case form, briefs and case history.',
+  'depth.cases.everything':
+    'Everything: briefs, case history and, once you have a case, the Start a Case form.',
   'depth.case.glance': 'Glance: the next step, the reminder and your progress.',
-  'depth.case.browse': 'Browse: the stages, the checklist, case details and the requirement pack.',
+  'depth.case.browse':
+    'Browse: the stages, the checklist, case details, the requirement pack, tasks, appointments, letters and notes.',
   'depth.case.everything':
-    'Everything: evidence, tasks, appointments, letters, notes, snapshots and outcome.',
+    'Everything: choosing evidence, submission and outcome, problems, snapshots and the itinerary.',
+  'depth.notifications.glance': 'Glance: what is new.',
+  'depth.notifications.browse': 'Browse: what is new and the recent ones you have read.',
+  'depth.notifications.everything': 'Everything: the older ones you have read.',
+  'depth.privacy.glance': 'Glance: your three rights, each one tap away, and the export downloads.',
+  'depth.privacy.browse': 'Browse: what an export holds, and your consent history.',
+  'depth.privacy.everything':
+    'Everything: large exports, deleting your account and your permissions.',
   'depth.account.glance': 'Glance: who you are signed in as.',
   'depth.account.browse': 'Browse: {parts}.',
   'depth.account.everything': 'Everything: {parts}.',

@@ -242,7 +242,7 @@ describe('signed-in pages, as whole pages in the signed-in shell', () => {
 
 describe('what each state says, in plain words', () => {
   it('tells a person with no alerts what will appear here', async () => {
-    expect(textOf(await shellMarkup(SCREENS[0] as Screen))).toContain('No Alerts Yet');
+    expect(textOf(await shellMarkup(SCREENS[0] as Screen))).toContain('No Notifications Yet');
   });
 
   it('shows a pending share as waiting for the person, with the one action that moves it on', async () => {

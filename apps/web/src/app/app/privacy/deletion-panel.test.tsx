@@ -3,7 +3,11 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('./actions', () => ({ requestDeletionAction: vi.fn(), cancelDeletionAction: vi.fn() }));
+const actions = vi.hoisted(() => ({
+  requestDeletionAction: vi.fn(),
+  cancelDeletionAction: vi.fn(),
+}));
+vi.mock('./actions', () => actions);
 
 const { DeletionPanel } = await import('./deletion-panel');
 
@@ -45,5 +49,48 @@ describe('DeletionPanel', () => {
     expect(find('Yes, Schedule Deletion')).toBeUndefined();
     expect(find('Request Account Deletion')).toBeDefined();
     expect(confirmSpy).not.toHaveBeenCalled();
+  });
+
+  it('keeps the card on screen and says so after a cancel moves it back to Everything', async () => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    actions.cancelDeletionAction.mockResolvedValue({
+      ok: true,
+      message: 'Deletion request cancelled.',
+    });
+    window.matchMedia = ((query: string) => ({
+      matches: true,
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    })) as unknown as typeof window.matchMedia;
+    const scope = document.createElement('div');
+    scope.setAttribute('data-depth-scope', '');
+    scope.setAttribute('data-depth', 'glance');
+    const card = document.createElement('article');
+    card.id = 'delete-account';
+    card.setAttribute('data-level', 'everything');
+    scope.append(card);
+    document.body.append(scope);
+    const root = createRoot(card);
+    const impact = {
+      applicants: [],
+      missionCount: 0,
+      documentCount: 0,
+      activePlatformRoleCount: 0,
+      authoredMissionNoteCount: 0,
+    };
+    await act(async () => {
+      root.render(<DeletionPanel scheduledFor="2026-11-04T08:00:00Z" impact={impact} holds={[]} />);
+    });
+    await act(async () => {
+      card.querySelector('form')?.requestSubmit();
+    });
+    // The page's refresh: no deletion pending any more.
+    await act(async () => {
+      root.render(<DeletionPanel scheduledFor={null} impact={impact} holds={[]} />);
+    });
+    expect(actions.cancelDeletionAction).toHaveBeenCalled();
+    expect(scope.getAttribute('data-depth')).toBe('everything');
+    expect(card.textContent).toContain('Deletion request cancelled.');
   });
 });

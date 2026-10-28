@@ -510,7 +510,8 @@ test.describe
       // runs in `finally`, unconditionally, regardless of what the
       // assertions above it do.
       await signIn(page);
-      await page.goto('/app/privacy');
+      // The deletion card sits at Everything; its anchor opens that level (CCD-5).
+      await page.goto('/app/privacy#delete-account');
       if (
         await page
           .getByRole('button', { name: 'Cancel Deletion' })

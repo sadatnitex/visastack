@@ -1,0 +1,138 @@
+{
+  "no consent changes yet": [
+    {
+      "kind": "heading",
+      "name": "Your Data Rights",
+      "detail": "1"
+    },
+    {
+      "kind": "text",
+      "name": "Export everything, review your consent history, or delete your account."
+    },
+    {
+      "kind": "text",
+      "name": "Portability"
+    },
+    {
+      "kind": "heading",
+      "name": "Export Your Data",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Download a complete, structured snapshot of your account: identity, consents, applicants, Master Profile facts with full history, document metadata, and your audit trail."
+    },
+    {
+      "kind": "link",
+      "name": "Download Export (JSON)",
+      "detail": "/app/privacy/export"
+    },
+    {
+      "kind": "link",
+      "name": "Download export (CSV/ZIP)",
+      "detail": "/app/privacy/export?format=csv"
+    },
+    {
+      "kind": "text",
+      "name": "Erasure"
+    },
+    {
+      "kind": "heading",
+      "name": "Delete Your Account",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Deletion is reversible during a 7-day grace window, then permanent. Your audit trail is preserved and anonymized. An active legal hold blocks deletion until released."
+    },
+    {
+      "kind": "text",
+      "name": "Transparency"
+    },
+    {
+      "kind": "heading",
+      "name": "Consent History",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "No Changes Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Each time you turn a permission on or off, it is recorded here with the date."
+    },
+    {
+      "kind": "component",
+      "name": "LargeExportPanel"
+    },
+    {
+      "kind": "component",
+      "name": "DeletionPanel"
+    }
+  ],
+  "consent history and a deletion scheduled": [
+    {
+      "kind": "heading",
+      "name": "Your Data Rights",
+      "detail": "1"
+    },
+    {
+      "kind": "text",
+      "name": "Export everything, review your consent history, or delete your account."
+    },
+    {
+      "kind": "text",
+      "name": "Portability"
+    },
+    {
+      "kind": "heading",
+      "name": "Export Your Data",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Download a complete, structured snapshot of your account: identity, consents, applicants, Master Profile facts with full history, document metadata, and your audit trail."
+    },
+    {
+      "kind": "link",
+      "name": "Download Export (JSON)",
+      "detail": "/app/privacy/export"
+    },
+    {
+      "kind": "link",
+      "name": "Download export (CSV/ZIP)",
+      "detail": "/app/privacy/export?format=csv"
+    },
+    {
+      "kind": "text",
+      "name": "Erasure"
+    },
+    {
+      "kind": "heading",
+      "name": "Delete Your Account",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Deletion is reversible during a 7-day grace window, then permanent. Your audit trail is preserved and anonymized. An active legal hold blocks deletion until released."
+    },
+    {
+      "kind": "text",
+      "name": "Transparency"
+    },
+    {
+      "kind": "heading",
+      "name": "Consent History",
+      "detail": "2"
+    },
+    {
+      "kind": "component",
+      "name": "LargeExportPanel"
+    },
+    {
+      "kind": "component",
+      "name": "DeletionPanel"
+    }
+  ]
+}

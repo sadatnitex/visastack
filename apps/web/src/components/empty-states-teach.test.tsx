@@ -25,7 +25,7 @@ const MAIN_LISTS: readonly (readonly [string, string, string])[] = [
   ['Cases', 'app/app/applicant/[id]/missions/page.tsx', 'No Cases Yet'],
   ['Active case on the person page', 'app/app/applicant/[id]/page.tsx', 'No Active Case Yet'],
   ['Shared with me', 'app/app/shared/(list)/page.tsx', 'Nothing Shared with You Yet'],
-  ['Notifications', 'app/app/notifications/page.tsx', 'No Alerts Yet'],
+  ['Notifications', 'app/app/notifications/page.tsx', 'No Notifications Yet'],
   ['Requests (traveller)', 'app/app/applicant/[id]/evidence/page.tsx', 'No Evidence Requests'],
   ['Agency cases tab', 'app/app/agency/[orgId]/cases/page.tsx', 'No Cases Yet'],
   ['Agency dashboard', 'app/app/agency/[orgId]/page.tsx', 'No Cases Yet'],

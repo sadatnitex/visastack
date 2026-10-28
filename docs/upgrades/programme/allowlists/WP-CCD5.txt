@@ -7,3 +7,15 @@ apps/web/src/app/globals.css
 apps/web/src/components/depth*.tsx
 apps/web/src/lib/ccd/**
 scripts/ui-ratchet.baseline.json
+apps/web/src/app/app/notifications/page.tsx
+apps/web/src/app/app/privacy/page.tsx
+apps/web/src/lib/a11y-signed-in.test.tsx
+apps/web/src/components/empty-states-teach.test.tsx
+apps/web/src/app/app/notifications/loading.tsx
+apps/web/src/app/app/privacy/actions.ts
+apps/web/src/app/app/privacy/deletion-panel.tsx
+apps/web/src/app/app/privacy/deletion-panel.test.tsx
+apps/web/src/lib/page-titles.test.ts
+apps/web/e2e/authenticated-workspace.spec.ts
+apps/web/src/app/app/applicant/[id]/missions/page.tsx
+apps/web/src/app/app/applicant/[id]/missions/page.test.tsx

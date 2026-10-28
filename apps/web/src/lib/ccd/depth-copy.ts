@@ -9,7 +9,9 @@ export type DepthCopyScreen =
   | 'profile'
   | 'expiry'
   | 'cases'
-  | 'case';
+  | 'case'
+  | 'notifications'
+  | 'privacy';
 
 /** The shared words plus one screen's three sentences, by the screen's name. */
 export function depthCopyFor(screen: DepthCopyScreen): DepthSwitchCopy {

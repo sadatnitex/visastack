@@ -70,5 +70,7 @@ describe('the Cases page on three levels (CCD-4)', () => {
     const text = textOf(await render());
     expect(text).toContain('Your cases could not be loaded. Refresh to try again.');
     expect(text).not.toContain('No active case yet.');
+    expect(text).not.toContain('No Cases Yet');
+    expect(levelOfForm(await render())).toBe('everything');
   });
 });
