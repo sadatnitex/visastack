@@ -137,6 +137,39 @@ describe('sweepTaskDeadlineReminders', () => {
     expect(rows).toHaveLength(2); // in-app + email
     expect(rows[0]?.recipientAccountId).toBe(account.id);
     expect(rows.every((r) => r.idempotencyKey.endsWith(':due_7d'))).toBe(true);
+    // The due day on the task's own calendar, and never the task's own words.
+    const payload = rows[0]?.payload as { summary: string };
+    expect(payload.summary).toBe('A task on "M" is due on 22 Jun 2026.');
+    expect(payload.summary).not.toContain('Submit form');
+  });
+
+  it('says a task due today is due today, not past its date', async () => {
+    const { account, applicantId } = await seedOwner(db, 'task-sweep-today@example.com');
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'M',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    const now = new Date('2026-06-15T03:00:00.000Z');
+    const task = await createTask(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      description: 'Submit form',
+      dueDate: new Date('2026-06-15T00:00:00.000Z'),
+      dueTimezone: 'Asia/Dhaka',
+    });
+    if (!isOk(task)) throw new Error('task');
+    await sweepTaskDeadlineReminders(db, now);
+    const [row] = await db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.eventType, 'TASK_DEADLINE'));
+    expect(row?.payload).toMatchObject({
+      subject: 'Task due today',
+      summary: 'A task on "M" is due today, 15 Jun 2026.',
+      timing: 'today',
+    });
   });
 
   it('is idempotent across repeated runs on the same day -- never floods', async () => {

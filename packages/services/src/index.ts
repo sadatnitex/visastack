@@ -795,6 +795,12 @@ export {
   sweepExpiryReminders,
   sweepTaskDeadlineReminders,
 } from './notification-sweep';
+export {
+  NOTIFICATION_EMAIL_COPY,
+  type EmailContent,
+  notificationEmail,
+  renderEmail,
+} from './email-design';
 
 export {
   type MrzError,

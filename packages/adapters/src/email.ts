@@ -99,6 +99,7 @@ export class ResendEmailPort implements EmailPort {
           to: [input.to],
           subject: input.subject,
           text: input.body,
+          ...(input.html ? { html: input.html } : {}),
         }),
       });
     } catch {

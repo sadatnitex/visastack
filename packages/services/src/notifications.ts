@@ -4,6 +4,7 @@ import { err, ok } from '@visastack/core';
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 import { orgCaseRecordVisibleSql, withCaseExclusions } from './access/grant-scope';
 import { type Db, first, schema } from './db';
+import { notificationEmail, renderEmail } from './email-design';
 import { type ServiceError, serviceError } from './errors';
 import { type SealedInvitationLink, revealInvitationLink } from './invitation-email';
 import { listMembershipsForAccount } from './organizations';
@@ -79,6 +80,8 @@ export interface NotificationPayload {
   readonly summary: string;
   readonly deepLinkPath: string;
   readonly sealedInvitationLink?: SealedInvitationLink;
+  /** Task reminders only: whether the due day is ahead, today or past, for the email's heading. */
+  readonly timing?: 'upcoming' | 'today' | 'overdue';
 }
 
 /** Deterministic composition of "event; recipient; channel; threshold where applicable" plus the driving resource, so two different resources of the same event/recipient/channel never collide. */
@@ -524,11 +527,24 @@ async function dispatchOne(
         encryption,
       );
     }
+    const email = renderEmail(
+      notificationEmail({
+        eventType: notification.eventType,
+        subject: payload.subject,
+        summary: payload.summary,
+        url: `${baseUrl}${path}`,
+        ...(payload.timing ? { timing: payload.timing } : {}),
+      }),
+      { baseUrl, recipient: recipient.email },
+    );
     const sent = await emailPort.send({
       to: recipient.email,
       subject: payload.subject,
-      body: `${payload.summary}\n\n${baseUrl}${path}`,
-      idempotencyKey: `notification-${notification.id}`,
+      body: email.text,
+      html: email.html,
+      // A new key for the designed email: a retry of an attempt made before it carries a different
+      // body, which the provider would refuse under the old key.
+      idempotencyKey: `notification-${notification.id}-designed`,
     });
     const updated = await db
       .update(schema.notifications)

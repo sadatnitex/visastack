@@ -6,6 +6,7 @@ import {
   incrementMaterialRevision,
   missionsSelectingDocument,
 } from './material-revision';
+import { titleDate } from './naming';
 import { enqueueNotificationBothChannels } from './notifications';
 import { recordProductEvent } from './product-events';
 
@@ -96,6 +97,18 @@ export interface SweepResult {
   readonly enqueued: number;
 }
 
+const TASK_SUBJECT = {
+  upcoming: 'Task due soon',
+  today: 'Task due today',
+  overdue: 'Overdue task on your case',
+} as const;
+
+function taskSummary(caseTitle: string, day: string, timing: keyof typeof TASK_SUBJECT): string {
+  if (timing === 'today') return `A task on "${caseTitle}" is due today, ${day}.`;
+  if (timing === 'overdue') return `A task on "${caseTitle}" was due on ${day}.`;
+  return `A task on "${caseTitle}" is due on ${day}.`;
+}
+
 /**
  * Walks every OPEN/IN_PROGRESS task with a due date and enqueues a reminder
  * for whichever threshold today crosses, in the task's own `dueTimezone`
@@ -133,10 +146,13 @@ export async function sweepTaskDeadlineReminders(
 
   let enqueued = 0;
   for (const row of rows) {
-    if (!row.dueDate) continue;
+    const dueDate = row.dueDate;
+    if (!dueDate) continue;
     const timezone = row.dueTimezone ?? row.applicantTimezone;
-    const threshold = computeTaskDeadlineThreshold(row.dueDate, timezone, now);
+    const threshold = computeTaskDeadlineThreshold(dueDate, timezone, now);
     if (!threshold) continue;
+    const daysLeft = localDateDiffInDays(now, dueDate, timezone);
+    const timing = daysLeft > 0 ? 'upcoming' : daysLeft === 0 ? 'today' : 'overdue';
 
     await db.transaction(async (tx) => {
       await enqueueNotificationBothChannels(tx, {
@@ -147,8 +163,10 @@ export async function sweepTaskDeadlineReminders(
         applicantId: row.applicantId,
         missionId: row.missionId,
         payload: {
-          subject: threshold.startsWith('overdue') ? 'Overdue task on your case' : 'Task due soon',
-          summary: `A task on "${row.missionTitle}" needs your attention.`,
+          subject: TASK_SUBJECT[timing],
+          // The date only, never the task's own words (they can be private).
+          summary: taskSummary(row.missionTitle, titleDate(dueDate, timezone), timing),
+          timing,
           deepLinkPath: `/app/mission/${row.missionId}`,
         },
       });

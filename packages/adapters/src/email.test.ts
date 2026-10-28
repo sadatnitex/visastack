@@ -85,6 +85,26 @@ describe('ResendEmailPort', () => {
     expect(body.to).toEqual(['applicant@example.com']);
     expect(body.subject).toBe('Evidence requested');
     expect(body.text).toBe('Please review your evidence request.');
+    expect(body).not.toHaveProperty('html');
+  });
+
+  it('sends the designed HTML beside the plain text when there is one', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, { id: 'msg_html' }));
+    const port = new ResendEmailPort({
+      apiKey: 're_test_key',
+      from: 'VisaStack <n@example.com>',
+      fetchImpl,
+    });
+    await port.send({
+      to: 'a@example.com',
+      subject: 's',
+      body: 'plain words',
+      html: '<p>designed</p>',
+    });
+    const [, requestInit] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(requestInit.body as string);
+    expect(body.text).toBe('plain words');
+    expect(body.html).toBe('<p>designed</p>');
   });
 
   it('uses a custom apiBaseUrl when supplied', async () => {

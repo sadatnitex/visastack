@@ -298,7 +298,7 @@ describe('runNotificationWorker', () => {
 
     const row = (await db.select().from(schema.notifications))[0];
     expect(row?.providerMessageId).toBe('fake-message-1');
-    expect(emailPort.sent[0]?.idempotencyKey).toBe(`notification-${row?.id}`);
+    expect(emailPort.sent[0]?.idempotencyKey).toBe(`notification-${row?.id}-designed`);
   });
 
   it('sends only the named record when asked, ahead of an older backlog', async () => {
@@ -351,7 +351,7 @@ describe('runNotificationWorker', () => {
       await runNotificationWorker(db, port, 'https://app.example.com', { now: row.nextAttemptAt }),
     ).toEqual({ sent: 1, retrying: 0, failed: 0 });
     expect(attempts).toHaveLength(2);
-    expect(attempts[0]?.idempotencyKey).toBe(`notification-${row.id}`);
+    expect(attempts[0]?.idempotencyKey).toBe(`notification-${row.id}-designed`);
     expect(attempts[1]?.idempotencyKey).toBe(attempts[0]?.idempotencyKey);
   });
 
