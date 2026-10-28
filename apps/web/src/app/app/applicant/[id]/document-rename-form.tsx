@@ -23,17 +23,21 @@ interface DocumentRenameFormProps {
  * The name a document is listed under, which the person can change. A new document starts with
  * its automatic title ("Passport, Nazmus"); a name saved here replaces it everywhere.
  *
- * The form starts again whenever the listed name changes (a new automatic title after the kind is
- * chosen, or the saved name itself), so it always shows the current name. Until then the box keeps
- * what the person typed, including after a refused save, so nothing has to be typed twice.
+ * The box shows the listed name again whenever that name changes (a new automatic title after the
+ * kind is chosen, or the saved name as it was cleaned), without starting the form again, so the
+ * confirmation and the focus stay where they are. Until then it keeps what the person typed,
+ * including after a refused save, so nothing has to be typed twice.
  */
-export function DocumentRenameForm(props: DocumentRenameFormProps) {
-  return <RenameForm key={props.name} {...props} />;
-}
-
-function RenameForm({ applicantId, documentId, name }: DocumentRenameFormProps) {
+export function DocumentRenameForm({ applicantId, documentId, name }: DocumentRenameFormProps) {
   const [state, formAction, pending] = useActionState(renameDocumentAction, INITIAL);
   const [typed, setTyped] = useState(name);
+  const [listedName, setListedName] = useState(name);
+  if (name !== listedName) {
+    // Adjusted while rendering (React's pattern for state that follows a prop), not in an effect,
+    // so the box never shows the old name for a frame.
+    setListedName(name);
+    setTyped(name);
+  }
   const formRef = useRef<HTMLFormElement>(null);
   const inputId = `name-${documentId}`;
   const messageId = `name-msg-${documentId}`;

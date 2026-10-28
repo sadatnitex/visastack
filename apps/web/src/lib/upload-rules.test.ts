@@ -68,6 +68,9 @@ describe('the names a stored file carries', () => {
     expect(storedFileName('scan.pdf', 'application/pdf')).toBe('scan.pdf');
     expect(storedFileName('.png', 'image/png')).toBe('document.png');
     expect(storedFileName('', 'text/plain')).toBe('document.txt');
+    // Only a known extension is one: a dot that is part of the name stays.
+    expect(storedFileName('Payslip v1.2026', 'application/pdf')).toBe('Payslip v1.2026.pdf');
+    expect(storedFileName('J.Smith.HEIC', 'image/jpeg')).toBe('J.Smith.jpg');
   });
 
   it('gives a download the extension a title does not have, and keeps one that is there', () => {

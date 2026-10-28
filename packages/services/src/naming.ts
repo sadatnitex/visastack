@@ -1,4 +1,4 @@
-import { MAX_DOCUMENT_NAME_LENGTH } from '@visastack/core';
+import { MAX_DOCUMENT_NAME_LENGTH, isOtherDocumentType } from '@visastack/core';
 import { documentTypeName } from '@visastack/core/catalogue/documents';
 
 /**
@@ -176,9 +176,8 @@ export interface DocumentTitleInput {
  * otherwise ("Other Letter or Statement").
  */
 export function buildDocumentTitle(input: DocumentTitleInput): string {
-  const isOther =
-    input.docType !== null && (input.docType === 'OTHER' || input.docType.startsWith('OTHER_'));
-  const named = isOther && input.subject ? sanitizeNameComponent(input.subject) : '';
+  const named =
+    isOtherDocumentType(input.docType) && input.subject ? sanitizeNameComponent(input.subject) : '';
   const kind =
     input.docType === null
       ? ''

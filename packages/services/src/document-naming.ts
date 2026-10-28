@@ -23,7 +23,13 @@ export interface ProposeDocumentNameInput {
   readonly reason?: string;
 }
 
-/** The next free name version number for a document. Call it with the document row locked. */
+/**
+ * The next free name version number for a document. Call it with the document row locked
+ * (`select ... for update` in the same transaction), as every writer of a document's names does.
+ * documents.ts keeps the same private helper: exporting one shared copy would make it an ungated
+ * export reading an applicant-owned table, which the access ratchet (access/enforcement.test.ts)
+ * refuses and whose baseline may only shrink.
+ */
 async function nextNameVersionNumber(tx: Db, documentId: string): Promise<number> {
   const top = first(
     await tx
@@ -84,7 +90,9 @@ export async function proposeDocumentName(
       applicantId: document.applicantId,
       resourceType: 'document',
       resourceId: document.id,
-      metadata: { versionNumber: nextNumber, proposedName: input.proposedName },
+      // Counts only: the audit trail is never edited or removed, so a name (which can hold a
+      // person's name) is kept only in the name history, which erasing their data removes.
+      metadata: { versionNumber: nextNumber, nameLength: input.proposedName.length },
     });
 
     return ok(version);
@@ -181,7 +189,12 @@ export async function decideDocumentName(
       applicantId: document.applicantId,
       resourceType: 'document',
       resourceId: document.id,
-      metadata: { decision: input.decision, finalName: updated.finalName },
+      metadata: {
+        decision: input.decision,
+        versionNumber: updated.versionNumber,
+        nameLength: updated.finalName === null ? null : updated.finalName.length,
+        edited: input.decision === 'ACCEPTED_EDITED',
+      },
     });
 
     return ok(updated);

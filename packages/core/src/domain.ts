@@ -193,3 +193,12 @@ export type ProfilePack = (typeof PROFILE_PACKS)[number];
  * own limit and the service that cleans and saves the name.
  */
 export const MAX_DOCUMENT_NAME_LENGTH = 200;
+
+/**
+ * True for an "Other" kind of document: `OTHER` itself or one of the catalogue's `OTHER_...` kinds
+ * (`OTHER_LETTER` and the like). These are the kinds that can carry the person's own name for
+ * what the document is. The one rule the forms, the titles and the services share.
+ */
+export function isOtherDocumentType(docType: string | null | undefined): boolean {
+  return typeof docType === 'string' && (docType === 'OTHER' || docType.startsWith('OTHER_'));
+}

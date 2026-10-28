@@ -9,7 +9,12 @@ import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
-import { OWNER_RENAME_REASON, proposeDocumentName, renameDocument } from './document-naming';
+import {
+  OWNER_RENAME_REASON,
+  decideDocumentName,
+  proposeDocumentName,
+  renameDocument,
+} from './document-naming';
 import {
   CONVERTED_FROM_HEIC_SOURCE,
   listDocumentsDetailed,
@@ -427,5 +432,137 @@ describe('one writer of a document name at a time', () => {
     if (!isOk(renamed)) throw new Error('rename');
     expect(renamed.value.versionNumber).toBe(4);
     expect(lockedBeforeNameWrite(statements, from)).toBe(true);
+  });
+});
+
+describe('a waiting name suggestion', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  async function documentWithSuggestion(email: string) {
+    const owner = await seedOwner(db, email);
+    const created = await registerDocument(db, {
+      actorAccountId: owner.accountId,
+      applicantId: owner.applicantId,
+      originalName: 'scan.jpg',
+      automaticTitle: true,
+    });
+    if (!isOk(created)) throw new Error('register');
+    const proposed = await proposeDocumentName(db, {
+      documentId: created.value.id,
+      proposedName: 'Passport - Nazmus Sadat.jpg',
+    });
+    if (!isOk(proposed)) throw new Error('propose');
+    return { ...owner, documentId: created.value.id, suggestionId: proposed.value.id };
+  }
+
+  async function waiting(accountId: string, applicantId: string) {
+    const listed = await listDocumentsDetailed(db, accountId, applicantId);
+    if (!isOk(listed)) throw new Error('list');
+    return listed.value[0]?.pendingNameVersion ?? null;
+  }
+
+  it('stays waiting when choosing the kind gives the document a new automatic title', async () => {
+    const s = await documentWithSuggestion('w1@example.com');
+    const typed = await setDocumentType(db, {
+      actorAccountId: s.accountId,
+      documentId: s.documentId,
+      docType: 'PASSPORT',
+    });
+    if (!isOk(typed)) throw new Error('type');
+    expect(typed.value.approvedName).toBe('Passport, Nazmus');
+    // The title was written above the suggestion, and the suggestion is still offered.
+    expect((await nameVersions(db, s.documentId)).at(-1)?.reason).toBe(AUTOMATIC_TITLE_REASON);
+    expect(await waiting(s.accountId, s.applicantId)).toEqual({
+      id: s.suggestionId,
+      proposedName: 'Passport - Nazmus Sadat.jpg',
+    });
+
+    // It can still be accepted.
+    const accepted = await decideDocumentName(db, {
+      actorAccountId: s.accountId,
+      nameVersionId: s.suggestionId,
+      decision: 'ACCEPTED_UNCHANGED',
+      finalName: 'Passport - Nazmus Sadat.jpg',
+    });
+    expect(isOk(accepted)).toBe(true);
+    expect((await documentRow(db, s.documentId)).approvedName).toBe('Passport - Nazmus Sadat.jpg');
+    expect(await waiting(s.accountId, s.applicantId)).toBeNull();
+  });
+
+  it('stays waiting after the person renames the document, and can still be skipped', async () => {
+    const s = await documentWithSuggestion('w2@example.com');
+    const access = await requireAccess(
+      db,
+      accountPrincipal(s.accountId),
+      'MANAGE',
+      { documentId: s.documentId },
+      { purpose: 'owner_document_rename' },
+    );
+    if (!access.ok) throw new Error('access');
+    const renamed = await renameDocument(access.value, { name: 'My Passport' });
+    if (!isOk(renamed)) throw new Error('rename');
+    expect(renamed.value.versionNumber).toBeGreaterThan(2);
+    expect((await waiting(s.accountId, s.applicantId))?.id).toBe(s.suggestionId);
+
+    const skipped = await decideDocumentName(db, {
+      actorAccountId: s.accountId,
+      nameVersionId: s.suggestionId,
+      decision: 'REJECTED',
+    });
+    expect(isOk(skipped)).toBe(true);
+    expect((await documentRow(db, s.documentId)).approvedName).toBe('My Passport');
+    expect(await waiting(s.accountId, s.applicantId)).toBeNull();
+  });
+
+  it('keeps names out of the audit trail when a suggestion is made and decided', async () => {
+    const s = await documentWithSuggestion('w3@example.com');
+    const edited = await decideDocumentName(db, {
+      actorAccountId: s.accountId,
+      nameVersionId: s.suggestionId,
+      decision: 'ACCEPTED_EDITED',
+      finalName: 'Sadat Passport Copy',
+    });
+    expect(isOk(edited)).toBe(true);
+    const events = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.resourceId, s.documentId));
+    const text = JSON.stringify(events);
+    expect(text).not.toContain('Nazmus');
+    expect(text).not.toContain('Sadat');
+    expect(events.find((e) => e.eventType === 'DOCUMENT_NAME_PROPOSED')?.metadata).toEqual({
+      versionNumber: 2,
+      nameLength: 'Passport - Nazmus Sadat.jpg'.length,
+    });
+    expect(events.find((e) => e.eventType === 'DOCUMENT_NAME_DECIDED')?.metadata).toEqual({
+      decision: 'ACCEPTED_EDITED',
+      versionNumber: 2,
+      nameLength: 'Sadat Passport Copy'.length,
+      edited: true,
+    });
+  });
+});
+
+describe('a new document under its automatic title', () => {
+  it('is written with its title in one insert, not inserted and then updated', async () => {
+    const { db, statements } = await recordingDb();
+    const { accountId, applicantId } = await seedOwner(db, 'one@example.com');
+    const from = statements.length;
+    const created = await registerDocument(db, {
+      actorAccountId: accountId,
+      applicantId,
+      originalName: 'scan.jpg',
+      docType: 'PASSPORT',
+      automaticTitle: true,
+    });
+    if (!isOk(created)) throw new Error('register');
+    expect(created.value.approvedName).toBe('Passport, Nazmus');
+    const recent = statements.slice(from);
+    const insert = recent.find((q) => q.startsWith('insert into "documents"'));
+    expect(insert).toContain('"approved_name"');
+    expect(recent.some((q) => q.startsWith('update "documents"'))).toBe(false);
   });
 });

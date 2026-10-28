@@ -1,3 +1,4 @@
+import { isOtherDocumentType } from '@visastack/core';
 import { ORIGINAL_DOCUMENT_KEYS, resolveDocumentType } from '@visastack/core/catalogue';
 import { type MessageKey, type Translator, createTranslator } from '@visastack/i18n';
 import {
@@ -435,7 +436,7 @@ export default async function ApplicantDocumentsPage({
             name: doc.approvedName ?? doc.originalName,
             // An "Other" kind shows the name the person gave it, when there is one.
             kind: doc.docType
-              ? doc.subject && (doc.docType === 'OTHER' || doc.docType.startsWith('OTHER_'))
+              ? doc.subject && isOtherDocumentType(doc.docType)
                 ? doc.subject
                 : documentTypeLabel(doc.docType)
               : null,

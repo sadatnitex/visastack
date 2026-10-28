@@ -119,28 +119,48 @@ export function checkChosenFile(
   return { ok: true, contentType };
 }
 
+/**
+ * A file name without its file extension, counting only an extension this list knows ("Scan.pdf"
+ * is "Scan", "IMG_1.HEIC" is "IMG_1"). Anything else after a last dot is part of the name
+ * ("Payslip v1.2026", "J.Smith" stay whole). The one rule every name below uses.
+ */
+export function fileNameBase(name: string): string {
+  const current = extensionOf(name);
+  if (current === '' || !Object.hasOwn(TYPE_BY_EXTENSION, current)) return name;
+  return name.slice(0, name.length - current.length - 1);
+}
+
+/** The base of a name, or "document" when nothing is left of it (a name that was only ".png"). */
+function baseOrDocument(name: string): string {
+  return fileNameBase(name).trim() || 'document';
+}
+
 /** A stored file's name with the extension of what is actually stored ("IMG_1.HEIC" stored as JPEG is "IMG_1.jpg"). */
 export function storedFileName(name: string, contentType: string): string {
   const extension = EXTENSION_BY_TYPE[contentType];
-  const dot = name.lastIndexOf('.');
-  // A name that is only an extension (".png") has no base of its own.
-  const base = (dot === -1 ? name : name.slice(0, dot)).trim() || 'document';
+  const base = baseOrDocument(name);
   return extension ? `${base}.${extension}` : base;
 }
 
 /**
- * A download name that ends in the stored file's extension. Only a file extension this list knows
- * counts as one: a name already ending in one for the stored type keeps it ("Scan.jpeg" for a
- * JPEG), one ending in another known extension has it replaced ("IMG_1.HEIC" stored as a JPEG is
- * "IMG_1.jpg"), and anything else after a last dot is part of the name ("Payslip v1.2026",
- * "J.Smith"), so the stored file's extension is added.
+ * A download name that ends in the stored file's extension. A name already ending in a known
+ * extension for the stored type keeps it ("Scan.jpeg" for a JPEG); one ending in another known
+ * extension has it replaced ("IMG_1.HEIC" stored as a JPEG is "IMG_1.jpg"); anything else after a
+ * last dot is part of the name, so the stored file's extension is added ("Payslip v1.2026.pdf").
  */
 export function withFileExtension(name: string, contentType: string): string {
   const extension = EXTENSION_BY_TYPE[contentType];
   if (!extension) return name;
-  const current = extensionOf(name);
-  if (!Object.hasOwn(TYPE_BY_EXTENSION, current)) return `${name}.${extension}`;
-  if (TYPE_BY_EXTENSION[current] === contentType) return name;
-  const base = name.slice(0, name.length - current.length - 1);
-  return base.trim().length > 0 ? `${base}.${extension}` : `document.${extension}`;
+  if (TYPE_BY_EXTENSION[extensionOf(name)] === contentType && fileNameBase(name).trim() !== '') {
+    return name;
+  }
+  return `${baseOrDocument(name)}.${extension}`;
+}
+
+/**
+ * The name of a preview made in another format than the stored file ("passport.pdf" shown as a
+ * picture is "passport-preview.png"), with the same rule for what counts as an extension.
+ */
+export function previewName(name: string, extension: string): string {
+  return `${baseOrDocument(name)}-preview.${extension}`;
 }

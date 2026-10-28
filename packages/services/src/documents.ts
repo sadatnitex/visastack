@@ -7,7 +7,7 @@ import type {
   PermissionAction,
   Result,
 } from '@visastack/core';
-import { err, ok } from '@visastack/core';
+import { err, isOtherDocumentType, ok } from '@visastack/core';
 import { resolveDocumentType } from '@visastack/core/catalogue/documents';
 import { type Actor, type Grant as PolicyGrant, authorize } from '@visastack/policy';
 import { and, desc, eq, inArray, ne } from 'drizzle-orm';
@@ -122,7 +122,19 @@ export async function registerDocument(
   }
 
   return db.transaction(async (tx) => {
-    const inserted = required(
+    // The title's day is the document's own creation day, in the traveller's time zone: the
+    // moment is fixed first so the title and the row agree, and both are written in one insert.
+    const createdAt = new Date();
+    const title = input.automaticTitle
+      ? buildDocumentTitle({
+          docType: input.docType ?? null,
+          subject: input.subject ?? null,
+          displayName: applicant.displayName,
+          addedAt: createdAt,
+          timeZone: applicant.timezone,
+        })
+      : null;
+    const document = required(
       first(
         await tx
           .insert(schema.documents)
@@ -134,33 +146,13 @@ export async function registerDocument(
             source: input.source ?? null,
             uploaderAccountId: input.actorAccountId,
             walletVisible: input.walletVisible ?? true,
+            createdAt,
+            ...(title ? { approvedName: title } : {}),
           })
           .returning(),
       ),
       'document',
     );
-    // The title's day is the document's own creation day, in the traveller's time zone.
-    const title = input.automaticTitle
-      ? buildDocumentTitle({
-          docType: inserted.docType,
-          subject: inserted.subject,
-          displayName: applicant.displayName,
-          addedAt: inserted.createdAt,
-          timeZone: applicant.timezone,
-        })
-      : null;
-    const document = title
-      ? required(
-          first(
-            await tx
-              .update(schema.documents)
-              .set({ approvedName: title })
-              .where(eq(schema.documents.id, inserted.id))
-              .returning(),
-          ),
-          'document',
-        )
-      : inserted;
     if (title) await recordAutomaticTitle(tx, document.id, title, 1);
     // The visible code people quote (ADR 0018), in the same transaction.
     await assignReferenceCode(tx, 'D', document.id);
@@ -237,7 +229,10 @@ async function isListedUnderAutomaticTitle(tx: Db, document: Document): Promise<
   return latest?.reason === AUTOMATIC_TITLE_REASON && latest.finalName === document.approvedName;
 }
 
-/** The next free name version number for a document. Call it with the document row locked. */
+/**
+ * The next free name version number for a document. Call it with the document row locked. The
+ * same private helper as document-naming.ts's (see there for why it is not shared).
+ */
 async function nextNameVersionNumber(tx: Db, documentId: string): Promise<number> {
   const top = first(
     await tx
@@ -716,11 +711,6 @@ export async function setDocumentDate(
   });
 }
 
-/** True for the catalogue's "Other ..." types, the only ones that carry a name written by the person. */
-function isOtherDocumentType(key: string): boolean {
-  return key === 'OTHER' || key.startsWith('OTHER_');
-}
-
 /**
  * Check a choice of "kind of document" before it is stored. The name must be one the catalogue knows (its
  * key or any alias is accepted and stored as the one standard key). An "Other" type may carry a short name
@@ -972,7 +962,7 @@ export async function listDocumentsDetailed(
   // (docs/operations/capacity.md).
   const documentIds = listed.value.map((doc) => doc.id);
   const latestVersion = new Map<string, DocumentVersion>();
-  const latestNameVersion = new Map<string, typeof schema.documentNameVersions.$inferSelect>();
+  const pendingNameVersion = new Map<string, typeof schema.documentNameVersions.$inferSelect>();
   const latestClassification = new Map<
     string,
     typeof schema.documentClassifications.$inferSelect
@@ -989,11 +979,19 @@ export async function listDocumentsDetailed(
     const nameVersions = await db
       .select()
       .from(schema.documentNameVersions)
-      .where(inArray(schema.documentNameVersions.documentId, documentIds))
+      .where(
+        and(
+          inArray(schema.documentNameVersions.documentId, documentIds),
+          eq(schema.documentNameVersions.decision, 'PENDING'),
+        ),
+      )
       .orderBy(desc(schema.documentNameVersions.versionNumber));
+    // The waiting suggestion is the newest name version still waiting for a decision. Names
+    // decided after it (an automatic title, a rename) are not suggestions and never replace it:
+    // only a newer suggestion does, and a newer AI suggestion closes the older one itself.
     for (const nameVersion of nameVersions) {
-      if (!latestNameVersion.has(nameVersion.documentId)) {
-        latestNameVersion.set(nameVersion.documentId, nameVersion);
+      if (!pendingNameVersion.has(nameVersion.documentId)) {
+        pendingNameVersion.set(nameVersion.documentId, nameVersion);
       }
     }
     const latestVersionIds = [...latestVersion.values()].map((version) => version.id);
@@ -1013,7 +1011,7 @@ export async function listDocumentsDetailed(
 
   const summaries: DocumentSummary[] = listed.value.map((doc) => {
     const version = latestVersion.get(doc.id);
-    const nameVersion = latestNameVersion.get(doc.id);
+    const nameVersion = pendingNameVersion.get(doc.id);
     const classification = version ? latestClassification.get(version.id) : undefined;
     return {
       id: doc.id,
@@ -1036,10 +1034,9 @@ export async function listDocumentsDetailed(
       createdAt: doc.createdAt.toISOString(),
       documentDate: doc.documentDate,
       expiresAt: doc.expiresAt ? doc.expiresAt.toISOString() : null,
-      pendingNameVersion:
-        nameVersion && nameVersion.decision === 'PENDING'
-          ? { id: nameVersion.id, proposedName: nameVersion.proposedName }
-          : null,
+      pendingNameVersion: nameVersion
+        ? { id: nameVersion.id, proposedName: nameVersion.proposedName }
+        : null,
       classification: classification
         ? {
             classifiedType: classification.classifiedType,

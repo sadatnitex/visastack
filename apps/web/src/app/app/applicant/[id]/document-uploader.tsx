@@ -1,5 +1,6 @@
 'use client';
 
+import { isOtherDocumentType } from '@visastack/core';
 import { useRouter } from 'next/navigation';
 import { type DragEvent, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { type UploadOutcome, sendDocumentFile } from '../../../../lib/document-upload-client';
@@ -42,9 +43,6 @@ interface UploadItem {
 
 const ACTIVE: ReadonlySet<ItemStatus> = new Set(['waiting', 'sending', 'checking']);
 const RETRYABLE: ReadonlySet<ItemStatus> = new Set(['refused', 'unknown']);
-
-/** The catalogue's "Other ..." kinds, the only ones that carry a name written by the person. */
-const isOtherKind = (key: string): boolean => key === 'OTHER' || key.startsWith('OTHER_');
 
 const files = (count: number) => `${count} ${count === 1 ? 'file' : 'files'}`;
 
@@ -145,7 +143,7 @@ export function DocumentUploader({
     if (chosen.length === 0) return;
     const rules = { limitBytes, limitLabel, pdfAccepted };
     const docType = kind;
-    const subject = isOtherKind(kind) ? kindName.trim() : '';
+    const subject = isOtherDocumentType(kind) ? kindName.trim() : '';
     const added = chosen.map((file, index): UploadItem => {
       const check = checkChosenFile(file, rules);
       const base = {
@@ -274,7 +272,7 @@ export function DocumentUploader({
               </optgroup>
             ))}
           </select>
-          {isOtherKind(kind) ? (
+          {isOtherDocumentType(kind) ? (
             <>
               <label className="field-label" htmlFor={kindNameId}>
                 Name for an Other Type

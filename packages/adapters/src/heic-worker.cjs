@@ -19,18 +19,21 @@
  *
  * What bounds the memory here:
  * - The decoder's WebAssembly memory has a hard ceiling. The module ships allowing growth to 2 GB;
- *   before it is started its memory maximum is rewritten (`limitModuleMemory`) to the ceiling the
- *   caller sends, sized from the pixel budget. Past it every allocation fails and the decode stops
- *   with an error, so a crafted file can never make the decoder take more memory than the largest
- *   photo that is accepted anyway. This holds whatever the picture data claims, including picture
- *   sizes the container does not declare.
+ *   its memory maximum is rewritten (`limitModuleMemory`) to a ceiling sized from the pixel
+ *   budget and compiled once per process (`limitedDecoderModule`), and each thread instantiates
+ *   that compiled module with a fresh memory of its own. Past the ceiling every allocation fails
+ *   and the decode stops with an error, so a crafted file can never make the decoder take more
+ *   memory than the largest photo that is accepted anyway, whatever the picture data claims.
  * - Before decoding, the size the container declares must fit the pixel budget. libheif itself
  *   also reads the picture size from the HEVC settings stored in the container and refuses a
- *   frame larger than the declared size before decoding it ("Security limit exceeded"), and a
- *   decoded frame of any other size than the declared one is refused.
+ *   frame larger than the declared size before decoding it ("Security limit exceeded"), and the
+ *   decoded image's own size and pixel plane are checked against the declared size before any
+ *   pixel is copied (`decodePrimary`).
  * - The thread's JavaScript heap is capped by the caller (`resourceLimits`); the decoded pixels
  *   (width x height x 4 bytes, inside the budget) and sharp's work are outside that heap and are
  *   bounded by the pixel budget (sharp also has its own pixel limit and time limit).
+ * - The caller runs one conversion at a time per process (heic-converter.ts), so the ceiling is
+ *   also the most the decoder takes in a process.
  */
 
 const { readFileSync } = require('node:fs');
@@ -114,8 +117,15 @@ class Refusal extends Error {
   }
 }
 
-/** Decode the primary picture to RGBA pixels inside the WebAssembly ceiling. */
-async function decodePrimary(libheif, input, maxInputPixels) {
+/**
+ * Decode the primary picture to RGBA pixels inside the WebAssembly ceiling. Uses libheif-js's own
+ * decode call directly (the same one its `display` helper uses), because `display` only copies
+ * into a buffer the caller sized and reports back that same buffer, so it cannot say what size the
+ * decoder actually produced, and a failure inside its timer would leave the promise waiting. Here
+ * the decoded image's own size and its pixel plane's size are checked against the declared size
+ * before a single pixel is copied, and the decoder's image is always released.
+ */
+function decodePrimary(libheif, input, maxInputPixels) {
   const decoder = new libheif.HeifDecoder();
   const images = decoder.decode(input);
   if (!Array.isArray(images) || images.length === 0) throw new Refusal('unreadable');
@@ -126,34 +136,93 @@ async function decodePrimary(libheif, input, maxInputPixels) {
     throw new Refusal('unreadable');
   }
   if (width * height > maxInputPixels) throw new Refusal('too_large');
-  const target = { data: new Uint8ClampedArray(width * height * 4), width, height };
-  const decoded = await new Promise((resolve) => {
-    try {
-      primary.display(target, (result) => resolve(result));
-    } catch {
-      resolve(null);
+
+  const decoded = libheif.heif_js_decode_image2(
+    primary.handle,
+    libheif.heif_colorspace.heif_colorspace_RGB,
+    libheif.heif_chroma.heif_chroma_interleaved_RGBA,
+  );
+  // A failed decode comes back as an error record ({ code, subcode, message }), not an image.
+  if (!decoded || 'code' in decoded || !decoded.image) throw new Refusal('unreadable');
+  try {
+    const rowBytes = width * 4;
+    const plane = Array.isArray(decoded.channels)
+      ? decoded.channels.find(
+          (channel) => channel.id === libheif.heif_channel.heif_channel_interleaved,
+        )
+      : undefined;
+    if (
+      decoded.width !== width ||
+      decoded.height !== height ||
+      !plane ||
+      plane.width !== width ||
+      plane.height !== height ||
+      !Number.isSafeInteger(plane.stride) ||
+      plane.stride < rowBytes ||
+      !plane.data ||
+      plane.data.length < plane.stride * (height - 1) + rowBytes
+    ) {
+      throw new Refusal('unreadable');
     }
-  });
-  if (!decoded || decoded.width !== width || decoded.height !== height) {
-    throw new Refusal('unreadable');
+    const data = new Uint8ClampedArray(rowBytes * height);
+    if (plane.stride === rowBytes) {
+      data.set(plane.data.subarray(0, rowBytes * height));
+    } else {
+      for (let row = 0; row < height; row++) {
+        const from = row * plane.stride;
+        data.set(plane.data.subarray(from, from + rowBytes), row * rowBytes);
+      }
+    }
+    return { data, width, height };
+  } finally {
+    libheif.heif_image_release(decoded.image);
   }
-  return target;
+}
+
+/** libheif.wasm as shipped, read once per process. */
+let shippedBinary;
+/** Compiled decoder modules by memory ceiling (in pages); one in practice, never many. */
+const compiledByCeiling = new Map();
+const MAX_COMPILED = 4;
+
+/**
+ * The decoder module with its memory ceiling, compiled once per process and per ceiling, on the
+ * thread that starts the conversions (the request thread; compiling is asynchronous there). The
+ * compiled module is handed to each worker thread, which only instantiates it: every instance
+ * gets its own memory, so each photo still has a fresh decoder that ending its thread frees.
+ */
+function limitedDecoderModule(maxDecoderMemoryBytes) {
+  if (!Number.isSafeInteger(maxDecoderMemoryBytes) || maxDecoderMemoryBytes < 1) {
+    return Promise.reject(new RangeError('memory ceiling out of range'));
+  }
+  shippedBinary ??= readFileSync(require.resolve('libheif-js/libheif-wasm/libheif.wasm'));
+  const pages = Math.max(
+    initialMemoryPages(shippedBinary),
+    Math.min(MAX_WASM_PAGES, Math.ceil(maxDecoderMemoryBytes / WASM_PAGE_BYTES)),
+  );
+  let compiled = compiledByCeiling.get(pages);
+  if (!compiled) {
+    if (compiledByCeiling.size >= MAX_COMPILED) compiledByCeiling.clear();
+    compiled = WebAssembly.compile(limitModuleMemory(shippedBinary, pages));
+    compiled.catch(() => compiledByCeiling.delete(pages));
+    compiledByCeiling.set(pages, compiled);
+  }
+  return compiled;
 }
 
 async function convert(data) {
   let libheif;
   let sharp;
-  let binary;
   try {
+    if (!(data.decoderModule instanceof WebAssembly.Module)) throw new Error('no decoder module');
     const glue = require('libheif-js/libheif-wasm/libheif.js');
-    binary = readFileSync(require.resolve('libheif-js/libheif-wasm/libheif.wasm'));
     sharp = require('sharp');
-    const ceilingPages = Math.max(
-      initialMemoryPages(binary),
-      Math.min(MAX_WASM_PAGES, Math.ceil(data.maxDecoderMemoryBytes / WASM_PAGE_BYTES)),
-    );
     libheif = glue({
-      wasmBinary: limitModuleMemory(binary, ceilingPages),
+      // The module arrives compiled, with its memory ceiling already in it.
+      instantiateWasm: (imports, done) => {
+        const instance = new WebAssembly.Instance(data.decoderModule, imports);
+        return done(instance, data.decoderModule);
+      },
       print: () => undefined,
       printErr: () => undefined,
     });
@@ -166,7 +235,7 @@ async function convert(data) {
   const memoryBytes = () => libheif.HEAPU8?.buffer?.byteLength ?? 0;
   try {
     const input = new Uint8Array(data.input);
-    const pixels = await decodePrimary(libheif, input, data.maxInputPixels);
+    const pixels = decodePrimary(libheif, input, data.maxInputPixels);
     const raw = Buffer.from(pixels.data.buffer, pixels.data.byteOffset, pixels.data.byteLength);
     const { data: jpeg, info } = await sharp(raw, {
       raw: { width: pixels.width, height: pixels.height, channels: 4 },
@@ -193,7 +262,13 @@ async function convert(data) {
   }
 }
 
-module.exports = { workerFile: __filename, limitModuleMemory, initialMemoryPages };
+module.exports = {
+  workerFile: __filename,
+  limitModuleMemory,
+  initialMemoryPages,
+  limitedDecoderModule,
+  decodePrimary,
+};
 
 if (parentPort && workerData && workerData.heicWorker === true) {
   convert(workerData).then(

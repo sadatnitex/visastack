@@ -95,6 +95,18 @@ beforeEach(() => {
   mocks.findDuplicateVersions.mockResolvedValue([]);
 });
 
+describe('a file identical to one already in the vault', () => {
+  it("says so without naming the other document, whose name can hold a person's name", async () => {
+    mocks.findDuplicateVersions.mockResolvedValueOnce([
+      { documentId: 'd-0', displayName: 'Passport, Nazmus' },
+    ]);
+    const result = await uploadDocumentAction(initial, upload({}));
+    expect(result.ok).toBe(true);
+    expect(result.message).toContain('This looks identical to a document already in the vault.');
+    expect(result.message).not.toContain('Nazmus');
+  });
+});
+
 describe('choosing the kind of document when uploading', () => {
   it('stores the standard key for the chosen kind, and the name given to an Other kind', async () => {
     const result = await uploadDocumentAction(initial, upload({ docType: 'payslip' }));
@@ -217,11 +229,56 @@ describe('an iPhone photo (HEIC)', () => {
     const result = await uploadDocumentAction(initial, heicUpload(MADE_UP_HEIC_SMALL));
     expect(result).toMatchObject({
       ok: false,
-      message: 'This applicant has reached its 50 MB evidence limit.',
+      message:
+        'The converted copy does not fit in the storage space left. This applicant has reached its 50 MB evidence limit.',
     });
     expect(mocks.putObject).not.toHaveBeenCalled();
     expect(mocks.reserveUpload).toHaveBeenCalledTimes(1);
-    expect(mocks.failUpload).toHaveBeenCalledWith({}, 'intent-1', expect.any(String));
+    expect(mocks.failUpload).toHaveBeenCalledWith(
+      {},
+      'intent-1',
+      'converted copy: applicant evidence limit',
+    );
+  });
+
+  it('says plainly when the converted copy is larger than the per-file limit', async () => {
+    mocks.reserveUpload.mockResolvedValueOnce({
+      ok: true,
+      value: { id: 'intent-1', objectKey: 'key-1', reservedBytes: 100 },
+    });
+    mocks.growUploadReservation.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'invalid', message: 'file exceeds the 20 MB upload limit' },
+    });
+    const result = await uploadDocumentAction(initial, heicUpload(MADE_UP_HEIC_SMALL));
+    expect(result.ok).toBe(false);
+    expect(result.message).toMatch(/^The converted copy is larger than the [\d.]+ MB limit\./);
+    expect(mocks.failUpload).toHaveBeenCalledWith(
+      {},
+      'intent-1',
+      'converted copy: larger than the per-file limit',
+    );
+  });
+
+  it('records why a reservation could not grow when the upload is no longer in progress', async () => {
+    mocks.reserveUpload.mockResolvedValueOnce({
+      ok: true,
+      value: { id: 'intent-1', objectKey: 'key-1', reservedBytes: 100 },
+    });
+    mocks.growUploadReservation.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'not_found', message: 'this upload is no longer in progress' },
+    });
+    const result = await uploadDocumentAction(initial, heicUpload(MADE_UP_HEIC_SMALL));
+    expect(result).toMatchObject({
+      ok: false,
+      message: 'This upload took too long and was stopped. Try again.',
+    });
+    expect(mocks.failUpload).toHaveBeenCalledWith(
+      {},
+      'intent-1',
+      'converted copy: reservation no longer active',
+    );
   });
 
   it('keeps its reservation when the copy fits in it', async () => {

@@ -274,16 +274,19 @@ export async function uploadDocumentAction(
             { applicantId },
             { purpose: 'owner_document_upload' },
           );
-          const grown = access.ok
-            ? await growUploadReservation(
-                access.value,
-                { intentId: intent.id, sizeBytes: bytes.byteLength },
-                quotaConfig,
-              )
-            : access;
+          if (!access.ok) {
+            await failUpload(db, intent.id, 'converted copy: access refused when growing space');
+            return { ok: false, message: 'Not authorized.' };
+          }
+          const grown = await growUploadReservation(
+            access.value,
+            { intentId: intent.id, sizeBytes: bytes.byteLength },
+            quotaConfig,
+          );
           if (!grown.ok) {
-            await failUpload(db, intent.id, 'no room for the converted copy');
-            return { ok: false, message: plainError(grown.error) };
+            const refusal = convertedCopyRefusal(grown.error, quotaConfig.maxUploadBytes);
+            await failUpload(db, intent.id, refusal.reason);
+            return { ok: false, message: refusal.message };
           }
           intent = grown.value;
         }
@@ -385,10 +388,10 @@ export async function uploadDocumentAction(
           excludeDocumentId: uploadedDocumentId,
         })
       : [];
+    // Never the other document's name: it can hold a first name, and this message can end up in
+    // a log. The vault list on the page shows every document by its name.
     const duplicateNote =
-      duplicates.length > 0
-        ? ` This looks identical to ${duplicates.map((d) => `"${d.displayName}"`).join(', ')}, already in the vault.`
-        : '';
+      duplicates.length > 0 ? ' This looks identical to a document already in the vault.' : '';
 
     return {
       ok: true,
@@ -787,6 +790,51 @@ const KIND_ANSWERS: Readonly<Record<DocumentKindSuggestion['status'], string>> =
   already_suggested: 'A suggestion for this document is already waiting below.',
   rules_confident: 'We already know what kind of document this is. Check the suggestion below.',
 };
+
+/**
+ * Why there was no room for a converted iPhone photo that came out larger than the photo sent: a
+ * plain sentence for the person, and an accurate reason for the upload record (counts and causes,
+ * never a name).
+ */
+function convertedCopyRefusal(
+  error: ServiceError,
+  maxUploadBytes: number,
+): { readonly message: string; readonly reason: string } {
+  const text = error.message;
+  if (error.code === 'invalid' && text.includes('upload limit')) {
+    return {
+      message: `The converted copy is larger than the ${mbLabel(maxUploadBytes)} limit. Choose a smaller photo, or a JPG or PNG copy.`,
+      reason: 'converted copy: larger than the per-file limit',
+    };
+  }
+  const quota = (
+    [
+      ['applicant has reached', 'applicant evidence limit', true],
+      ['account has reached', 'account evidence limit', true],
+      ['plan storage limit', 'organization plan storage limit', true],
+      ['platform storage capacity', 'platform capacity', true],
+      ['suspended billing', 'organization billing suspended', false],
+    ] as const
+  ).find(([phrase]) => text.includes(phrase));
+  if (error.code === 'invalid' && quota) {
+    return {
+      message: quota[2]
+        ? `The converted copy does not fit in the storage space left. ${plainError(error)}`
+        : plainError(error),
+      reason: `converted copy: ${quota[1]}`,
+    };
+  }
+  if (error.code === 'not_found') {
+    return {
+      message: 'This upload took too long and was stopped. Try again.',
+      reason: 'converted copy: reservation no longer active',
+    };
+  }
+  return {
+    message: plainError(error),
+    reason: `converted copy: reservation could not grow (${error.code})`,
+  };
+}
 
 /** A service refusal as a sentence a person can read. */
 function plainError(error: ServiceError): string {

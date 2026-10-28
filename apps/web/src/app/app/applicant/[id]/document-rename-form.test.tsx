@@ -67,6 +67,29 @@ describe('renaming a document', () => {
     expect(current.value).toBe('Passport, Nazmus');
   });
 
+  it('keeps the confirmation and the focus after a save, and shows the saved name', async () => {
+    renameDocumentAction.mockResolvedValue({
+      ok: true,
+      message: 'Name saved. It shows everywhere this document is listed.',
+    });
+    const { host, input, form } = await mount('Passport, Nazmus');
+    input.focus();
+    await act(async () => type(input, '  My   Passport  '));
+    await act(async () => form.requestSubmit());
+    expect(host.textContent).toContain('Name saved.');
+
+    // The page refreshes with the name as the service saved it (cleaned).
+    await act(async () => {
+      root?.render(<DocumentRenameForm applicantId="a-1" documentId="d-1" name="My Passport" />);
+    });
+    const current = host.querySelector('input[name="name"]') as HTMLInputElement;
+    // The same box, not a new form: the message and the focus are still there.
+    expect(current).toBe(input);
+    expect(current.value).toBe('My Passport');
+    expect(host.textContent).toContain('Name saved.');
+    expect(document.activeElement).toBe(current);
+  });
+
   it('limits the name to the same length the service keeps', async () => {
     const { MAX_DOCUMENT_NAME_LENGTH } = await import('@visastack/core');
     const { input } = await mount('Passport, Nazmus');
