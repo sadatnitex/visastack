@@ -393,7 +393,6 @@ export function MissionCollaboration({
             ))}
           </select>
           <input name="dueDate" type="date" className="input" aria-label="Due Date (Optional)" />
-          <TimeZoneSelect name="dueTimezone" label="Due Time Zone (Optional)" required={false} />
           <SubmitButton
             pending={taskCreatePending}
             idle="Add"

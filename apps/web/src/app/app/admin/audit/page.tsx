@@ -5,7 +5,7 @@ import { EmptyState } from '../../../../components/ui';
 import { PageHeader } from '../../../../components/ui';
 import { bootstrapAdminEmails, isPlatformAdmin, staffPrincipal } from '../../../../lib/admin';
 import { formatTimestamp } from '../../../../lib/format-date';
-import { eventTypeLabel } from '../../../../lib/labels';
+import { auditResultLabel, eventTypeLabel } from '../../../../lib/labels';
 import { withSession } from '../../../../lib/session';
 import { tolerantReader } from '../../../../lib/tolerate';
 import { AdminNotForRole, AdminRestricted } from '../admin-restricted';
@@ -62,8 +62,8 @@ export default async function AdminAuditPage() {
             <p className="card-kicker">Transparency</p>
             <h2 className="card-title">Recent Audit Events</h2>
             <p className="card-body u-mb-100">
-              The last {data.auditEvents.length} entries of the platform's append-only, hash-chained
-              audit trail - every sensitive action across every tenant, newest first.
+              The platform's append-only, hash-chained audit trail: every sensitive action across
+              every tenant.
             </p>
             {data.auditEvents.length === 0 ? (
               <EmptyState title="No Audit Events Yet" icon="activity">
@@ -82,7 +82,15 @@ export default async function AdminAuditPage() {
                   ]
                     .filter((part): part is string => part !== null)
                     .join(' \u00b7 '),
-                  result: event.result,
+                  ...(event.result
+                    ? {
+                        outcome: {
+                          label: auditResultLabel(event.result),
+                          tone:
+                            event.result === 'DENIED' ? ('danger' as const) : ('neutral' as const),
+                        },
+                      }
+                    : {}),
                   at: event.occurredAt.toISOString(),
                   when: formatTimestamp(event.occurredAt),
                 }))}

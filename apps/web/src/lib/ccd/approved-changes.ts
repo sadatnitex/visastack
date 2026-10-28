@@ -164,6 +164,21 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
         'When the list could not be read, the page says so instead of "No Cases Yet", which invited a duplicate case.',
     }),
   ),
+  ...[0, 2].map(
+    (count): ApprovedChange => ({
+      screen: 'sharing',
+      from: {
+        kind: 'text',
+        name: `What actually happened to your data, not just what a grant permits - the most recent ${count} events.`,
+      },
+      to: {
+        kind: 'text',
+        name: 'What actually happened to your data, not just what a grant permits.',
+      },
+      reason:
+        'The log under it now says how many entries it holds and how far back they go (owner, 28 Oct 2026).',
+    }),
+  ),
   {
     screen: 'sharing',
     from: { kind: 'heading', name: 'Sharing & Access', detail: '2' },

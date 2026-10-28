@@ -477,9 +477,6 @@ export async function createTaskForOrgAction(
     : undefined;
   const dueDateRaw = String(formData.get('dueDate') ?? '').trim();
   const dueDate = dueDateRaw.length > 0 ? new Date(dueDateRaw) : undefined;
-  const dueTimezoneRaw = String(formData.get('dueTimezone') ?? '').trim();
-  // The picker fills in this device's zone; it means something only with a due date.
-  const dueTimezone = dueDate && dueTimezoneRaw.length > 0 ? dueTimezoneRaw : undefined;
   const assigneeAccountId = String(formData.get('assigneeAccountId') ?? '').trim();
 
   const result = await withSession(async ({ db, accountId }) => {
@@ -490,7 +487,6 @@ export async function createTaskForOrgAction(
       description,
       ...(priority ? { priority } : {}),
       ...(dueDate ? { dueDate } : {}),
-      ...(dueTimezone ? { dueTimezone } : {}),
       ...(assigneeAccountId ? { assigneeAccountId } : {}),
     });
     if (!task.ok) return { ok: false, message: task.error.message } satisfies ActionState;

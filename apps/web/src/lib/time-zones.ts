@@ -120,6 +120,11 @@ function regionOf(id: string): string {
 }
 
 /** One option for a zone, or null when the runtime does not know it. */
+/** A real IANA time zone name this runtime knows, as the picker offers (never free text). */
+export function isKnownTimeZone(id: string): boolean {
+  return id.length <= 64 && offsetMinutesAt(id, new Date()) !== null;
+}
+
 export function describeTimeZone(id: string, at: Date): TimeZoneOption | null {
   const offsetMinutes = offsetMinutesAt(id, at);
   if (offsetMinutes === null) return null;

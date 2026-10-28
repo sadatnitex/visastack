@@ -13,7 +13,7 @@ const entries: ActivityLogEntry[] = [
     id: '1',
     what: 'Document Viewed',
     who: 'agent@example.test',
-    result: 'ALLOWED',
+    outcome: { label: 'Allowed', tone: 'success' },
     at: hoursAgo(1),
     when: 'Today',
   },
@@ -21,7 +21,7 @@ const entries: ActivityLogEntry[] = [
     id: '2',
     what: 'Document Download',
     who: 'System',
-    result: 'DENIED',
+    outcome: { label: 'Blocked', tone: 'danger' },
     at: hoursAgo(30),
     when: 'Yesterday',
   },
@@ -73,21 +73,21 @@ const type = (value: string) =>
 describe('the activity log', () => {
   it('keeps every entry in one box the keyboard can scroll, newest first', () => {
     const box = host.querySelector('.activity-log-scroll');
-    expect(box?.getAttribute('aria-label')).toBe("Access Log Entries");
+    expect(box?.getAttribute('aria-label')).toBe('Access Log Entries');
     expect(box?.getAttribute('tabindex')).toBe('0');
     expect(rows()).toHaveLength(3);
-    expect(host.textContent).toContain('3 entries, newest first.');
+    expect(host.textContent).toContain('The 3 newest entries, back to Last month.');
   });
 
   it('finds activities by what happened, who, result, period and words', () => {
     choose('What Happened', 'Document Viewed');
     expect(rows()).toHaveLength(1);
-    expect(host.textContent).toContain('Showing 1 of 3.');
+    expect(host.textContent).toContain('Showing 1 of the 3 newest entries, back to Last month.');
     choose('What Happened', '');
     choose('Who', 'System');
     expect(rows()[0]).toContain('Document Download');
     choose('Who', '');
-    choose('Result', 'DENIED');
+    choose('Result', 'Blocked');
     expect(rows()).toHaveLength(1);
     expect(rows()[0]).toContain('Blocked');
     choose('Result', '');
@@ -112,9 +112,24 @@ describe('the activity log', () => {
   it('offers the result filter only when entries carry a result', () => {
     act(() =>
       root.render(
-        <ActivityLog entries={entries.map((e) => ({ ...e, result: null }))} label="Notes" />,
+        <ActivityLog entries={entries.map(({ outcome: _outcome, ...e }) => e)} label="Notes" />,
       ),
     );
     expect(select('Result')).toBeUndefined();
+  });
+
+  it('stops filtering by a value that has left the list after a refresh', () => {
+    choose('Who', 'System');
+    expect(rows()).toHaveLength(1);
+    act(() =>
+      root.render(
+        <ActivityLog
+          entries={entries.filter((e) => e.who !== 'System')}
+          label="Access Log Entries"
+        />,
+      ),
+    );
+    expect(rows()).toHaveLength(2);
+    expect(select('Who').value).toBe('');
   });
 });

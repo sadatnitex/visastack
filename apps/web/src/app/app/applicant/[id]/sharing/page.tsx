@@ -487,8 +487,7 @@ export default async function SharingPage({
               <p className="card-kicker">Transparency</p>
               <h2 className="card-title">Access Log</h2>
               <p className="card-body u-mb-100">
-                What actually happened to your data, not just what a grant permits - the most recent{' '}
-                {data.auditEvents.length} event{data.auditEvents.length === 1 ? '' : 's'}.
+                What actually happened to your data, not just what a grant permits.
               </p>
               {data.auditEvents.length === 0 ? (
                 <EmptyState icon="activity" title="No Activity Yet">
@@ -501,7 +500,14 @@ export default async function SharingPage({
                     id: String(e.seq),
                     what: humanizeCode(e.eventType),
                     who: e.actorEmail ?? 'System',
-                    result: e.result,
+                    ...(e.result
+                      ? {
+                          outcome:
+                            e.result === 'ALLOWED'
+                              ? { label: 'Allowed', tone: 'success' as const }
+                              : { label: 'Blocked', tone: 'danger' as const },
+                        }
+                      : {}),
                     at: e.occurredAt,
                     when: formatTimestamp(e.occurredAt),
                   }))}

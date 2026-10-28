@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useId, useMemo, useState } from 'react';
 import { StatusBadge } from './ui';
 
@@ -8,16 +7,16 @@ export interface ActivityLogEntry {
   readonly id: string;
   /** What happened, in plain words; also the "What Happened" filter. */
   readonly what: string;
-  /** A second line: the case, the document or the note itself. */
+  /** A second line, for example the record or the reason; searched too. */
   readonly detail?: string;
   /** Who did it; also the "Who" filter, offered only when entries name someone. */
   readonly who?: string;
-  readonly result?: 'ALLOWED' | 'DENIED' | null;
+  /** The outcome as the page words it ("Allowed", "Blocked"); also the "Result" filter. */
+  readonly outcome?: { readonly label: string; readonly tone: 'success' | 'danger' | 'neutral' };
   /** ISO time, for the period filter and the machine-readable <time>. */
   readonly at: string;
   /** The same time as people read it. */
   readonly when: string;
-  readonly href?: string;
 }
 
 const PERIODS = [
@@ -30,37 +29,50 @@ type PeriodKey = (typeof PERIODS)[number]['key'];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Each distinct value once, in the order it first appears (newest first). */
+/** Each distinct value once, sorted. */
 function distinct(values: readonly string[]): string[] {
-  return [...new Set(values)];
+  return [...new Set(values)].sort();
+}
+
+/** A chosen filter value that is no longer among the options counts as no filter. */
+function stillOffered(value: string, options: readonly string[]): string {
+  return options.includes(value) ? value : '';
 }
 
 /**
  * A log that stays the same height however long it grows: the entries scroll inside their own
  * box, and a search and a few filters find one activity among many. Filtering happens here, over
- * the entries the page already loaded; nothing extra is read.
+ * the entries the page already loaded (newest first); the summary line says how far back they go,
+ * so a period filter never seems to cover more than was loaded.
  */
 export function ActivityLog({
   entries,
   label,
 }: {
   readonly entries: readonly ActivityLogEntry[];
-  /** The accessible name of the scrolling box, for example "Access log entries". */
+  /** The accessible name of the scrolling box, for example "Access Log Entries". */
   readonly label: string;
 }) {
   const id = useId();
   const [query, setQuery] = useState('');
-  const [kind, setKind] = useState('');
-  const [who, setWho] = useState('');
-  const [result, setResult] = useState('');
+  const [whatChoice, setWhat] = useState('');
+  const [whoChoice, setWho] = useState('');
+  const [outcomeChoice, setOutcome] = useState('');
   const [period, setPeriod] = useState<PeriodKey>('any');
 
-  const kinds = useMemo(() => distinct(entries.map((entry) => entry.what)).sort(), [entries]);
+  const whats = useMemo(() => distinct(entries.map((entry) => entry.what)), [entries]);
   const people = useMemo(
-    () => distinct(entries.flatMap((entry) => (entry.who ? [entry.who] : []))).sort(),
+    () => distinct(entries.flatMap((entry) => (entry.who ? [entry.who] : []))),
     [entries],
   );
-  const hasResults = entries.some((entry) => entry.result);
+  const outcomes = useMemo(
+    () => distinct(entries.flatMap((entry) => (entry.outcome ? [entry.outcome.label] : []))),
+    [entries],
+  );
+  // After the page refreshes, a value that has left the list must not keep filtering unseen.
+  const what = stillOffered(whatChoice, whats);
+  const who = stillOffered(whoChoice, people);
+  const outcome = stillOffered(outcomeChoice, outcomes);
 
   const shown = useMemo(() => {
     const words = query.trim().toLowerCase();
@@ -68,23 +80,25 @@ export function ActivityLog({
     const since = days === null ? null : Date.now() - days * DAY_MS;
     return entries.filter(
       (entry) =>
-        (!kind || entry.what === kind) &&
+        (!what || entry.what === what) &&
         (!who || entry.who === who) &&
-        (!result || entry.result === result) &&
+        (!outcome || entry.outcome?.label === outcome) &&
         (since === null || new Date(entry.at).getTime() >= since) &&
         (!words ||
           [entry.what, entry.detail ?? '', entry.who ?? ''].some((text) =>
             text.toLowerCase().includes(words),
           )),
     );
-  }, [entries, query, kind, who, result, period]);
+  }, [entries, query, what, who, outcome, period]);
 
-  const filtered = Boolean(query.trim() || kind || who || result || period !== 'any');
+  const filtered = Boolean(query.trim() || what || who || outcome || period !== 'any');
+  const oldest = entries.at(-1);
+  const reach = oldest ? `, back to ${oldest.when}` : '';
   const clear = () => {
     setQuery('');
-    setKind('');
+    setWhat('');
     setWho('');
-    setResult('');
+    setOutcome('');
     setPeriod('any');
   };
 
@@ -99,20 +113,20 @@ export function ActivityLog({
             type="search"
             className="input"
             value={query}
-            placeholder="A name, a document, a person"
+            placeholder="Search this log"
             onChange={(event) => setQuery(event.target.value)}
           />
         </label>
-        <label className="activity-log-field" htmlFor={`${id}-kind`}>
+        <label className="activity-log-field" htmlFor={`${id}-what`}>
           <span className="field-label">What Happened</span>
           <select
-            id={`${id}-kind`}
+            id={`${id}-what`}
             className="input"
-            value={kind}
-            onChange={(event) => setKind(event.target.value)}
+            value={what}
+            onChange={(event) => setWhat(event.target.value)}
           >
             <option value="">Everything</option>
-            {kinds.map((option) => (
+            {whats.map((option) => (
               <option key={option} value={option}>
                 {option}
               </option>
@@ -137,18 +151,21 @@ export function ActivityLog({
             </select>
           </label>
         ) : null}
-        {hasResults ? (
-          <label className="activity-log-field" htmlFor={`${id}-result`}>
+        {outcomes.length > 0 ? (
+          <label className="activity-log-field" htmlFor={`${id}-outcome`}>
             <span className="field-label">Result</span>
             <select
-              id={`${id}-result`}
+              id={`${id}-outcome`}
               className="input"
-              value={result}
-              onChange={(event) => setResult(event.target.value)}
+              value={outcome}
+              onChange={(event) => setOutcome(event.target.value)}
             >
-              <option value="">Allowed or Blocked</option>
-              <option value="ALLOWED">Allowed</option>
-              <option value="DENIED">Blocked</option>
+              <option value="">Any Result</option>
+              {outcomes.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
             </select>
           </label>
         ) : null}
@@ -171,8 +188,8 @@ export function ActivityLog({
       <div className="activity-log-summary">
         <output className="muted u-fs-085">
           {filtered
-            ? `Showing ${shown.length} of ${entries.length}.`
-            : `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}, newest first.`}
+            ? `Showing ${shown.length} of the ${entries.length} newest entries${reach}.`
+            : `The ${entries.length} newest ${entries.length === 1 ? 'entry' : 'entries'}${reach}.`}
         </output>
         {filtered ? (
           <button type="button" className="btn btn-secondary u-btn-sm" onClick={clear}>
@@ -189,19 +206,15 @@ export function ActivityLog({
             {shown.map((entry) => (
               <li className="row activity-log-row" key={entry.id}>
                 <span className="activity-log-what">
-                  <span className="row-key">
-                    {entry.href ? <Link href={entry.href}>{entry.what}</Link> : entry.what}
-                  </span>
+                  <span className="row-key">{entry.what}</span>
                   {entry.detail ? (
                     <span className="activity-log-detail">{entry.detail}</span>
                   ) : null}
                   {entry.who ? <span className="muted u-fs-085">{entry.who}</span> : null}
                 </span>
                 <span className="row-end">
-                  {entry.result ? (
-                    <StatusBadge tone={entry.result === 'ALLOWED' ? 'success' : 'danger'}>
-                      {entry.result === 'ALLOWED' ? 'Allowed' : 'Blocked'}
-                    </StatusBadge>
+                  {entry.outcome ? (
+                    <StatusBadge tone={entry.outcome.tone}>{entry.outcome.label}</StatusBadge>
                   ) : null}
                   <time className="muted u-fs-085" dateTime={entry.at}>
                     {entry.when}
