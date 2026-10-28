@@ -6169,3 +6169,8 @@ Owner approved 2026-10-25. Two fixes where the product said something that was n
 - Guards seen failing: a pending grant shown at Glance, a waiting request hidden at Glance, Pause and Revoke wrapped in a Browse block, a sent file that could not be used hidden at Glance, the sent-form block not kept in view.
 - Review (max) fixes: invitations not yet accepted are at Browse (not Everything) and counted at Glance; a sent file that could not be used shows at Glance with its guidance and the question box; after a form is sent, the depth switch keeps the block the person used on screen when the refreshed page moves it deeper (an answered request, the first share), so the "Saved" line and the share confirmation are seen; the Sharing level sentences follow where the form really is; the tab title is "Evidence Requests"; level tests read the real on-screen level (a block around an element counts); the staging sharing journey opens the form by its anchor.
 - Not verified live: these signed-in pages at phone and desktop widths.
+
+### 2026-10-28, CCD-7 first part: the dark Next Step banner
+- Owner asked why the black banner of the mockups was missing: it had not been built. The Next Step on Home, the traveller page and the Case page now uses the dark chapter colour already in the product (the sign-in page panel), full at Glance and shorter at Browse and Everything, with a white focus ring on the dark surface. Style only; no markup, link or level change.
+- Checked: rendered at Glance, Browse, Everything and phone width in a browser from the real stylesheet; flat-design, UI ratchet, type scale and text floor guards pass.
+- Not built: the single-line pill at Everything (it would hide the reason sentence). Not verified live: the signed-in pages themselves.
