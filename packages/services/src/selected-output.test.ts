@@ -1516,11 +1516,21 @@ describe('selected output: identifiers inside document text (S14 second review)'
     expect(mask('Passport No BX7319046, bx 7319 046; also CD9876543.')).toBe(
       'Passport No ***046, ***046; also ***543.',
     );
-    // A value with other characters is found exactly (escaped), with no shape matching.
-    expect(mask('Ref AB-12/34 and AB-99/99')).toBe('Ref ***/34 and AB-99/99');
+    // Punctuation never hides a number: values compare by their letters and digits only, and
+    // a same-shape number written with separators is masked too.
+    expect(mask('Ref AB-12/34, AB1234 and AB-99/99')).toBe('Ref ***234, ***234 and ***999');
     // A value without digits never masks other words of its shape; a short value is ignored.
     expect(mask('Jahan Khan met Karim Ahmed; 12 days')).toBe('***han met Karim Ahmed; 12 days');
     // Part of a longer number of the same shape is left alone (whole words only).
     expect(mask('Account 12345678901')).toBe('Account 12345678901');
+  });
+
+  it('finds a stored number however either side punctuates it', () => {
+    const fromDashed = identifierTextMasker(['123-45-6789']);
+    expect(fromDashed('SSN 123456789 on file')).toBe('SSN ***789 on file');
+    const fromPlain = identifierTextMasker(['199026941234']);
+    expect(fromPlain('NID 1990-2694-1234 and 1990.2694.1234 and 1990 2694 1234')).toBe(
+      'NID ***234 and ***234 and ***234',
+    );
   });
 });

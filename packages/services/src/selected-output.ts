@@ -1265,32 +1265,35 @@ function escapeRegExp(character: string): string {
   return character.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 }
 
+/** What may sit between an identifier's characters in text: spaces, hyphens, dots, slashes. */
+const SEPARATOR = '[\\s\\-./]';
+const SEPARATORS = /[^\p{L}\p{N}]+/gu;
+
 /**
  * Masks the person's own identifiers inside text, to the same form as everywhere else (last three
- * characters). Each stored value is found exactly, in any letter case and with spaces anywhere
- * between its characters; a value of six or more letters and digits also masks any other text of
- * the same shape (for example an older passport number), as a whole word.
+ * characters). Each stored value is compared by its letters and digits only, in any letter case,
+ * so "199026941234", "1990-2694-1234" and "1990 2694 1234" are the same number however either
+ * side writes it. A value of six or more letters and digits with a digit in it also masks any
+ * other text of the same shape (for example an older passport number), as a whole word.
  */
 export function identifierTextMasker(values: readonly string[]): (text: string) => string {
   const patterns: RegExp[] = [];
-  for (const value of new Set(values.map((v) => v.replace(/\s+/g, '')))) {
+  for (const value of new Set(values.map((v) => v.replace(SEPARATORS, '')))) {
     const characters = Array.from(value);
     if (characters.length < MIN_MASKED_IN_TEXT) continue;
-    patterns.push(new RegExp(characters.map(escapeRegExp).join('\\s*'), 'giu'));
+    patterns.push(new RegExp(characters.map(escapeRegExp).join(`${SEPARATOR}*`), 'giu'));
     // Same-shape matching only for a value with digits in it: a word-like value would mask words.
-    if (
-      characters.length >= MIN_SHAPE_MATCH &&
-      /^[\p{L}\p{N}]+$/u.test(value) &&
-      /\p{N}/u.test(value)
-    ) {
-      const shape = characters.map((c) => (/\p{N}/u.test(c) ? '\\p{N}' : '\\p{L}')).join('');
+    if (characters.length >= MIN_SHAPE_MATCH && /\p{N}/u.test(value)) {
+      const shape = characters
+        .map((c) => (/\p{N}/u.test(c) ? '\\p{N}' : '\\p{L}'))
+        .join(`${SEPARATOR}?`);
       patterns.push(new RegExp(`(?<![\\p{L}\\p{N}])${shape}(?![\\p{L}\\p{N}])`, 'gu'));
     }
   }
   return (text) =>
     patterns.reduce(
       (current, pattern) =>
-        current.replace(pattern, (found) => maskIdentifier(found.replace(/\s+/g, ''))),
+        current.replace(pattern, (found) => maskIdentifier(found.replace(SEPARATORS, ''))),
       text,
     );
 }
