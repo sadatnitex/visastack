@@ -77,7 +77,12 @@ describe('surfaces stay separable (WP-C2)', () => {
     ['edge-card', 'workspace-bg', 1.25, 'a card edge must show on the page'],
     ['edge-card', 'bg-elevated', 1.3, 'a card edge must show on white'],
     ['edge-control', 'bg-elevated', 3, 'a control or floating layer edge must meet 3:1 on white'],
-    ['edge-control', 'workspace-bg', 3, 'a control or floating layer edge must meet 3:1 on the page'],
+    [
+      'edge-control',
+      'workspace-bg',
+      3,
+      'a control or floating layer edge must meet 3:1 on the page',
+    ],
     ['text-secondary', 'text-tertiary', 1.3, 'body and meta text must look like two tiers'],
     ['text', 'text-secondary', 1.5, 'headings and body text must look like two tiers'],
   ])('%s against %s', (a, b, minimum, words) => {

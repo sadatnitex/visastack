@@ -6207,7 +6207,7 @@ Owner approved 2026-10-25. Two fixes where the product said something that was n
 - Review (high) fixes: no page has two h1s (Countries and Case Activity keep their own; Case Activity's header became that h1); unfinished setup stays in view at every level; the pipeline joins a requested list at Glance; the search sentence sits with the search form; the switch's Glance sentence names a requested list; plural words from the shared helper; the page name lookup reads only its own names.
 - Not verified live: the signed-in agency pages at phone and desktop widths.
 
-### 2026-10-29, WP-C2: surfaces and edges that separate (owner contrast map)
+### 2026-10-28, WP-C2: surfaces and edges that separate (owner contrast map)
 - The signed-in app passed text contrast but read as one pale sheet. Sidebar, card edges, control edges, the current-page marker, the depth switch's pressed level, the progress ring track and the two lower text tiers now separate by tone and edges only; status words are darker. No shadow, gradient, layout, copy or behaviour change. Values and the contrast budget: docs/uiux/CONTRAST-AND-SURFACES.md; token record: docs/upgrades/programme/colour-map.md (WP-C2).
 - Landing "How it works": the ghost step numerals (1.05:1) are removed; the "Step N" line keeps the order.
 - Guards: palette-contrast.test.ts "surfaces stay separable" and the new surface-css.test.ts; each new guard was seen failing with the stylesheet broken (literal colour on cards, wrong button edge, wrong bar colour, a shadow or the wrong edge on the pressed level, faded placeholder, the numeral back, the old ring track).
