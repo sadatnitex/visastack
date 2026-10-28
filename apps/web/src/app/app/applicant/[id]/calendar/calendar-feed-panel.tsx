@@ -59,7 +59,9 @@ function NewLink({ url }: { readonly url: string }) {
           Copy Link
         </button>
       </div>
-      <output aria-live="polite">{message}</output>
+      <output className="field-msg" aria-live="polite">
+        {message}
+      </output>
       <p className="muted u-m-0">Then add it to your calendar app:</p>
       <ul className="muted u-m-0">
         <li>
@@ -144,7 +146,7 @@ export function CalendarFeedPanel({
           {result.link ? <NewLink key={result.link} url={result.link} /> : null}
           <form
             action={act}
-            className="calendar-actions u-mt-100"
+            className="calendar-actions calendar-feed-actions u-mt-100"
             onSubmit={(event) => {
               const submitter = (event.nativeEvent as SubmitEvent).submitter;
               setSent(submitter?.getAttribute('value') ?? null);
@@ -184,7 +186,7 @@ export function CalendarFeedPanel({
             <FormMessage id={messageId} result={result} />
           </form>
           {state === 'on' ? (
-            <p className="muted u-fs-085 u-m-0">
+            <p className="muted u-fs-085 calendar-feed-note">
               Making a new link stops the old one at once: add the new link to your calendar app
               again. Stop Sharing turns the link off; your calendar app then gets no new dates.
             </p>
