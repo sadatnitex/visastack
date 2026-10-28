@@ -1,9 +1,23 @@
+import { createHash, randomBytes } from 'node:crypto';
 import { isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
+import {
+  createAiConnection,
+  exchangeAiAuthorizationCode,
+  refreshAiTokens,
+  resolveAiAccessToken,
+} from './access/ai-connection';
+import {
+  changeAiConnection,
+  getAiConnection,
+  turnOffAiConnection,
+} from './access/ai-connection-manage';
+import { accountPrincipal } from './access/principal';
+import { requireAccess } from './access/require-access';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { reconcileRestoredBranch } from './backup-reconciliation';
@@ -1268,5 +1282,270 @@ describe('reconcileRestoredBranch: per-case sharing exceptions (ADR 0017)', () =
     expect(again.errors).toHaveLength(1);
     const [still] = await newDb.select().from(schema.grants).where(eq(schema.grants.id, c.grantId));
     expect(still?.status).toBe('REVOKED');
+  });
+});
+
+describe('reconcileRestoredBranch: AI connections (S15)', () => {
+  const RESOURCE = 'https://vs.example.test/mcp';
+  const REDIRECT = 'https://claude.ai/api/mcp/auth_callback';
+  const CLIENT = {
+    clientId: 'https://claude.ai/oauth/claude-code-client-metadata',
+    clientName: 'Claude',
+    clientHost: 'claude.ai',
+  };
+  let oldDb: Db;
+  let newDb: Db;
+
+  beforeEach(async () => {
+    oldDb = await freshDb();
+    newDb = await freshDb();
+  });
+
+  async function ownerProof(db: Db, accountId: string, applicantId: string) {
+    const proof = await requireAccess(
+      db,
+      accountPrincipal(accountId),
+      'VIEW_METADATA',
+      { applicantId },
+      { purpose: 'ai_connection' },
+    );
+    if (!isOk(proof)) throw new Error('proof');
+    return proof.value;
+  }
+
+  /**
+   * A live connection (record, case, connection and its tokens) that existed identically on both
+   * branches at the restore point. Connected "until turned off", so only what reconciliation does
+   * decides whether it still works.
+   */
+  async function sharedConnection(email: string) {
+    const owner = await seedAccount(oldDb, email);
+    await mirrorRow(newDb, schema.accounts, owner);
+    const applicant = await seedApplicant(oldDb, owner.id);
+    await mirrorRow(newDb, schema.applicants, applicant);
+    const mission = await createMission(oldDb, {
+      actorAccountId: owner.id,
+      applicantId: applicant.id,
+      title: 'UK Visit',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    const [missionRow] = await oldDb
+      .select()
+      .from(schema.missions)
+      .where(eq(schema.missions.id, mission.value.id));
+    if (!missionRow) throw new Error('setup');
+    await mirrorRow(newDb, schema.missions, missionRow);
+    const verifier = randomBytes(32).toString('base64url');
+    const created = await createAiConnection(await ownerProof(oldDb, owner.id, applicant.id), {
+      client: CLIENT,
+      choices: {
+        layers: ['identity', 'travel_documents', 'money'],
+        caseMode: 'ALL_CURRENT',
+        documentList: true,
+        documentText: false,
+        revealIdentifiers: false,
+        duration: 'until_off',
+      },
+      codeChallenge: createHash('sha256').update(verifier, 'ascii').digest('base64url'),
+      redirectUri: REDIRECT,
+      resource: RESOURCE,
+    });
+    if (!isOk(created)) throw new Error(created.error.description);
+    const tokens = await exchangeAiAuthorizationCode(oldDb, {
+      code: created.value.code,
+      codeVerifier: verifier,
+      clientId: CLIENT.clientId,
+      redirectUri: REDIRECT,
+      resource: RESOURCE,
+    });
+    if (!isOk(tokens)) throw new Error(tokens.error.description);
+    const connectionId = created.value.connectionId;
+    for (const row of await oldDb
+      .select()
+      .from(schema.aiConnections)
+      .where(eq(schema.aiConnections.id, connectionId))) {
+      await mirrorRow(newDb, schema.aiConnections, row);
+    }
+    for (const row of await oldDb
+      .select()
+      .from(schema.aiConnectionTokens)
+      .where(eq(schema.aiConnectionTokens.connectionId, connectionId))) {
+      await mirrorRow(newDb, schema.aiConnectionTokens, row);
+    }
+    return {
+      ownerId: owner.id,
+      applicantId: applicant.id,
+      missionId: mission.value.id,
+      connectionId,
+      access: tokens.value.access_token,
+      refresh: tokens.value.refresh_token,
+    };
+  }
+
+  async function restoredRow(connectionId: string) {
+    const [row] = await newDb
+      .select()
+      .from(schema.aiConnections)
+      .where(eq(schema.aiConnections.id, connectionId));
+    return row;
+  }
+
+  async function liveTokensOnNew(connectionId: string) {
+    const rows = await newDb
+      .select()
+      .from(schema.aiConnectionTokens)
+      .where(eq(schema.aiConnectionTokens.connectionId, connectionId));
+    return rows.filter((row) => row.revokedAt === null).length;
+  }
+
+  it('turns a connection turned off after the restore point off again, tokens and all, and a second run is a no-op', async () => {
+    const c = await sharedConnection('ai-off@example.com');
+    // Before reconciling, the restored branch still lets the app in.
+    expect(
+      await resolveAiAccessToken(newDb, { token: c.access, resource: RESOURCE }),
+    ).not.toBeNull();
+    await turnOffAiConnection(await ownerProof(oldDb, c.ownerId, c.applicantId), {
+      connectionId: c.connectionId,
+    });
+
+    const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(report.errors).toEqual([]);
+    expect(report.counts.aiConnectionsRevoked).toBe(1);
+    const row = await restoredRow(c.connectionId);
+    expect(row?.revokedAt).not.toBeNull();
+    expect(row?.revokedReason).toBe('backup_resurrection_reconciliation');
+    expect(await liveTokensOnNew(c.connectionId)).toBe(0);
+    expect(await resolveAiAccessToken(newDb, { token: c.access, resource: RESOURCE })).toBeNull();
+    const refreshed = await refreshAiTokens(newDb, {
+      refreshToken: c.refresh,
+      clientId: CLIENT.clientId,
+    });
+    expect(refreshed.ok).toBe(false);
+    const audited = await newDb
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'RECONCILIATION_AI_CONNECTION_REVOKED'));
+    expect(audited.map((event) => [event.resourceType, event.resourceId, event.method])).toEqual([
+      ['ai_connection', c.connectionId, 'SYSTEM'],
+    ]);
+
+    const again = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(again.counts.aiConnectionsRevoked).toBe(0);
+    expect(again.errors).toEqual([]);
+  });
+
+  it('never touches a connection whose turn-off predates the restore point', async () => {
+    const c = await sharedConnection('ai-before@example.com');
+    await turnOffAiConnection(await ownerProof(oldDb, c.ownerId, c.applicantId), {
+      connectionId: c.connectionId,
+    });
+    // The backup was taken after this turn-off (the audit chain cannot be backdated).
+    const report = await reconcileRestoredBranch(oldDb, newDb, new Date(Date.now() + 1000));
+    expect(report.counts.aiConnectionsRevoked).toBe(0);
+    expect((await restoredRow(c.connectionId))?.revokedAt).toBeNull();
+  });
+
+  it('re-applies narrowed access and an earlier end that has passed: off, with its tokens dead', async () => {
+    const c = await sharedConnection('ai-narrowed@example.com');
+    // After the restore point the owner kept only Personal Details, one case, and an end of
+    // one hour from then, which has long passed.
+    const changed = await changeAiConnection(await ownerProof(oldDb, c.ownerId, c.applicantId), {
+      connectionId: c.connectionId,
+      choices: {
+        layers: ['identity'],
+        caseMode: 'ONE',
+        missionId: c.missionId,
+        documentList: false,
+        documentText: false,
+        revealIdentifiers: false,
+        duration: '1h',
+      },
+      now: AFTER,
+    });
+    expect(changed.ok).toBe(true);
+
+    const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(report.errors).toEqual([]);
+    expect(report.counts.aiConnectionsNarrowed).toBe(1);
+    const row = await restoredRow(c.connectionId);
+    expect(row).toMatchObject({
+      scopes: ['identity'],
+      caseMode: 'ONE',
+      missionId: c.missionId,
+      revealIdentifiers: false,
+    });
+    expect(row?.expiresAt?.getTime()).toBe(AFTER.getTime() + 60 * 60 * 1000);
+    expect(await liveTokensOnNew(c.connectionId)).toBe(0);
+    expect(await resolveAiAccessToken(newDb, { token: c.access, resource: RESOURCE })).toBeNull();
+    const again = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(again.counts.aiConnectionsNarrowed).toBe(0);
+  });
+
+  it('never widens: access the owner added after the restore point is not given back', async () => {
+    const c = await sharedConnection('ai-widened@example.com');
+    // Narrowed on the restored branch's own state at the restore point: one case, no Money.
+    await newDb
+      .update(schema.aiConnections)
+      .set({ scopes: ['identity'], caseMode: 'ONE', missionId: c.missionId })
+      .where(eq(schema.aiConnections.id, c.connectionId));
+    await oldDb
+      .update(schema.aiConnections)
+      .set({ scopes: ['identity'], caseMode: 'ONE', missionId: c.missionId })
+      .where(eq(schema.aiConnections.id, c.connectionId));
+    // After the restore point the owner widened it on the old branch.
+    await changeAiConnection(await ownerProof(oldDb, c.ownerId, c.applicantId), {
+      connectionId: c.connectionId,
+      choices: {
+        layers: ['identity', 'money', 'health'],
+        caseMode: 'ALL_CURRENT',
+        documentList: true,
+        documentText: true,
+        revealIdentifiers: false,
+        duration: 'until_off',
+      },
+    });
+    const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(report.counts.aiConnectionsNarrowed).toBe(0);
+    expect(await restoredRow(c.connectionId)).toMatchObject({
+      scopes: ['identity'],
+      caseMode: 'ONE',
+      missionId: c.missionId,
+    });
+    expect(await liveTokensOnNew(c.connectionId)).toBeGreaterThan(0);
+  });
+
+  it('a connection whose own end has passed stays off on the restored branch without any replay', async () => {
+    const c = await sharedConnection('ai-ended@example.com');
+    const ended = new Date(Date.now() - 60 * 1000);
+    for (const db of [oldDb, newDb]) {
+      await db
+        .update(schema.aiConnections)
+        .set({ expiresAt: ended })
+        .where(eq(schema.aiConnections.id, c.connectionId));
+    }
+    const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(report.errors).toEqual([]);
+    expect(await resolveAiAccessToken(newDb, { token: c.access, resource: RESOURCE })).toBeNull();
+    const refreshed = await refreshAiTokens(newDb, {
+      refreshToken: c.refresh,
+      clientId: CLIENT.clientId,
+    });
+    expect(refreshed.ok).toBe(false);
+    // Nor can the restored branch be talked into reviving it.
+    const proof = await ownerProof(newDb, c.ownerId, c.applicantId);
+    const read = await getAiConnection(proof, c.connectionId);
+    expect(read.ok === false && read.error.code).toBe('ended');
+  });
+
+  it('is a clean no-op when the restored branch predates the AI connection tables', async () => {
+    const c = await sharedConnection('ai-no-table@example.com');
+    await turnOffAiConnection(await ownerProof(oldDb, c.ownerId, c.applicantId), {
+      connectionId: c.connectionId,
+    });
+    await newDb.execute(sql`drop table ai_connection_tokens`);
+    await newDb.execute(sql`drop table ai_connections`);
+    const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(report.errors).toEqual([]);
+    expect(report.counts.aiConnectionsRevoked).toBe(0);
   });
 });

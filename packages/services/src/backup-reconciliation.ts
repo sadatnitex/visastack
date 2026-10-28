@@ -7,6 +7,7 @@ import { getConsents } from './consent';
 import { type Db, first, schema } from './db';
 import { executeAccountDeletion } from './deletion';
 import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
+import { isMissingRelationError } from './missing-relation';
 
 /**
  * Backup resurrection reconciliation (master directive Part 7 §15). See
@@ -88,6 +89,8 @@ const RECONCILED_EVENT_TYPES = [
   'ERASURE_VERIFIED',
   'GRANT_CASE_EXCLUDED',
   'GRANT_CASE_EXCLUSION_REMOVED',
+  'AI_CONNECTION_REVOKED',
+  'AI_CONNECTION_CHANGED',
 ] as const;
 
 type ReconciledEventType = (typeof RECONCILED_EVENT_TYPES)[number];
@@ -107,6 +110,10 @@ export interface ReconciliationCounts {
   readonly caseExceptionsAdded: number;
   /** Per-case sharing exceptions the owner removed after the restore point, removed again. */
   readonly caseExceptionsRemoved: number;
+  /** AI connections the owner turned off after the restore point, turned off again (S15). */
+  readonly aiConnectionsRevoked: number;
+  /** AI connections whose access the owner narrowed after the restore point, narrowed again. */
+  readonly aiConnectionsNarrowed: number;
 }
 
 export interface ReconciliationError {
@@ -229,6 +236,160 @@ async function forceOrganizationStatus(
     .set({ status: targetStatus, updatedAt: new Date() })
     .where(eq(schema.organizations.id, resourceId));
   return true;
+}
+
+const AI_RECONCILED_REASON = 'backup_resurrection_reconciliation';
+
+/** Ends every live token of one AI connection on the restored branch. */
+async function revokeAiConnectionTokens(tx: Db, connectionId: string, now: Date): Promise<number> {
+  const rows = await tx
+    .update(schema.aiConnectionTokens)
+    .set({ revokedAt: now })
+    .where(
+      and(
+        eq(schema.aiConnectionTokens.connectionId, connectionId),
+        isNull(schema.aiConnectionTokens.revokedAt),
+      ),
+    )
+    .returning({ id: schema.aiConnectionTokens.id });
+  return rows.length;
+}
+
+/**
+ * `AI_CONNECTION_REVOKED` (the owner's Turn Off, S15): the connection and every token it has end
+ * on the restored branch too, exactly as the original did in one transaction. The connection's
+ * own `revoked_at` is what every use checks; its tokens are revoked as well so none is left live.
+ * A restored branch from before the AI connection tables existed has no such connection: no-op.
+ */
+async function forceAiConnectionRevoked(newDb: Db, resourceId: string): Promise<boolean> {
+  try {
+    return await newDb.transaction(async (tx) => {
+      const now = new Date();
+      const connections = await tx
+        .update(schema.aiConnections)
+        .set({ revokedAt: now, revokedReason: AI_RECONCILED_REASON })
+        .where(and(eq(schema.aiConnections.id, resourceId), isNull(schema.aiConnections.revokedAt)))
+        .returning({ id: schema.aiConnections.id });
+      const tokens = await revokeAiConnectionTokens(tx, resourceId, now);
+      return connections.length > 0 || tokens > 0;
+    });
+  } catch (error) {
+    if (isMissingRelationError(error)) return false;
+    throw error;
+  }
+}
+
+type AiConnectionRow = typeof schema.aiConnections.$inferSelect;
+
+/** The earlier of two ends; `null` is "until turned off", which is later than any date. */
+function earlierEnd(a: Date | null, b: Date | null): Date | null {
+  if (a === null) return b;
+  if (b === null) return a;
+  return a.getTime() <= b.getTime() ? a : b;
+}
+
+/**
+ * The cases both branches allow: none beats one case beats all current cases, and two different
+ * single cases leave none. `ONE` with no case (its case was deleted) already covers none.
+ */
+function narrowerCases(
+  restored: AiConnectionRow,
+  source: AiConnectionRow,
+): Pick<AiConnectionRow, 'caseMode' | 'missionId'> {
+  const none = { caseMode: 'NONE' as const, missionId: null };
+  const covers = (row: AiConnectionRow) =>
+    row.caseMode === 'ONE' && row.missionId === null ? 'NONE' : row.caseMode;
+  const restoredMode = covers(restored);
+  const sourceMode = covers(source);
+  if (restoredMode === 'NONE' || sourceMode === 'NONE') return none;
+  if (sourceMode === 'ALL_CURRENT')
+    return { caseMode: restored.caseMode, missionId: restored.missionId };
+  if (restoredMode === 'ALL_CURRENT') return { caseMode: 'ONE', missionId: source.missionId };
+  return restored.missionId === source.missionId
+    ? { caseMode: 'ONE', missionId: restored.missionId }
+    : none;
+}
+
+/**
+ * `AI_CONNECTION_CHANGED` (Change Access, S15). The change may have narrowed access (fewer
+ * parts, fewer cases, full numbers off, an earlier end) or widened it. Following the principle
+ * that reconciliation only ever tightens, the restored connection is narrowed to what BOTH
+ * branches allow, comparing against the pre-incident branch's current row (the ground truth, as
+ * for erasure): the parts both allow, the narrower case choice, full numbers only if both have
+ * them, and the earlier end. A widening is never replayed; the owner can change access again. When
+ * the earlier end has already passed, the connection's tokens are revoked too, so a connection
+ * whose end came sooner after the restore point is off on the restored branch with its tokens
+ * dead. A connection whose own stored end passes needs no replay: the restored branch holds that
+ * end and every use checks it.
+ */
+async function forceAiConnectionNarrowed(
+  oldDb: Db,
+  newDb: Db,
+  resourceId: string,
+): Promise<boolean> {
+  try {
+    const source = first(
+      await oldDb
+        .select()
+        .from(schema.aiConnections)
+        .where(eq(schema.aiConnections.id, resourceId))
+        .limit(1),
+    );
+    if (!source) return false;
+    return await newDb.transaction(async (tx) => {
+      const restored = first(
+        await tx
+          .select()
+          .from(schema.aiConnections)
+          .where(eq(schema.aiConnections.id, resourceId))
+          .limit(1)
+          .for('update'),
+      );
+      if (!restored) return false;
+      const now = new Date();
+      let cases = narrowerCases(restored, source);
+      if (cases.missionId !== null) {
+        const mission = first(
+          await tx
+            .select({ id: schema.missions.id })
+            .from(schema.missions)
+            .where(
+              and(
+                eq(schema.missions.id, cases.missionId),
+                eq(schema.missions.applicantId, restored.applicantId),
+              ),
+            )
+            .limit(1),
+        );
+        if (!mission) cases = { caseMode: 'NONE', missionId: null };
+      }
+      const narrowed = {
+        scopes: restored.scopes.filter((scope) => source.scopes.includes(scope)),
+        caseMode: cases.caseMode,
+        missionId: cases.missionId,
+        revealIdentifiers: restored.revealIdentifiers && source.revealIdentifiers,
+        expiresAt: earlierEnd(restored.expiresAt, source.expiresAt),
+      };
+      const changed =
+        narrowed.scopes.length !== restored.scopes.length ||
+        narrowed.caseMode !== restored.caseMode ||
+        narrowed.missionId !== restored.missionId ||
+        narrowed.revealIdentifiers !== restored.revealIdentifiers ||
+        narrowed.expiresAt?.getTime() !== restored.expiresAt?.getTime();
+      if (changed) {
+        await tx
+          .update(schema.aiConnections)
+          .set(narrowed)
+          .where(eq(schema.aiConnections.id, resourceId));
+      }
+      const ended = narrowed.expiresAt !== null && narrowed.expiresAt.getTime() <= now.getTime();
+      const tokens = ended ? await revokeAiConnectionTokens(tx, resourceId, now) : 0;
+      return changed || tokens > 0;
+    });
+  } catch (error) {
+    if (isMissingRelationError(error)) return false;
+    throw error;
+  }
 }
 
 /**
@@ -619,6 +780,8 @@ const EVENT_META: Readonly<
     counter: 'caseExceptionsRemoved',
     resourceType: 'case_exception',
   },
+  AI_CONNECTION_REVOKED: { counter: 'aiConnectionsRevoked', resourceType: 'ai_connection' },
+  AI_CONNECTION_CHANGED: { counter: 'aiConnectionsNarrowed', resourceType: 'ai_connection' },
 };
 
 async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<boolean> {
@@ -651,6 +814,10 @@ async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<b
       return forceCaseExcluded(newDb, event);
     case 'GRANT_CASE_EXCLUSION_REMOVED':
       return forceCaseExclusionRemoved(newDb, event);
+    case 'AI_CONNECTION_REVOKED':
+      return forceAiConnectionRevoked(newDb, resourceId);
+    case 'AI_CONNECTION_CHANGED':
+      return forceAiConnectionNarrowed(oldDb, newDb, resourceId);
     default:
       return false;
   }
@@ -686,6 +853,8 @@ export async function reconcileRestoredBranch(
     erasuresVerified: 0,
     caseExceptionsAdded: 0,
     caseExceptionsRemoved: 0,
+    aiConnectionsRevoked: 0,
+    aiConnectionsNarrowed: 0,
   };
   const errors: ReconciliationError[] = [];
   const mutableCounts = counts as {
