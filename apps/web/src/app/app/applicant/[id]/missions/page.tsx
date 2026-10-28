@@ -92,7 +92,7 @@ export default async function MissionsPage({
           <article className="card" {...atLevel('browse')}>
             <h2 className="card-title">All Cases</h2>
             {!data.missionsRead ? (
-              // Never "No Cases Yet" when the list could not be read: that invites a duplicate case.
+              // A failed read never claims there are no cases: that invites a duplicate case.
               <p className="notice notice-warn u-mt-050">
                 Your cases could not be loaded. Refresh to try again.
               </p>
