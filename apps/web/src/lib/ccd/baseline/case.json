@@ -1,0 +1,1343 @@
+{
+  "a new case with no checklist": [
+    {
+      "kind": "link",
+      "name": "← Rahman family · Cases",
+      "detail": "/app/applicant/synthetic-family/missions"
+    },
+    {
+      "kind": "heading",
+      "name": "Japan visitor visa",
+      "detail": "1"
+    },
+    {
+      "kind": "link",
+      "name": "Add Evidence",
+      "detail": "#evidence"
+    },
+    {
+      "kind": "link",
+      "name": "Start a New Case from This One",
+      "detail": "/app/applicant/synthetic-family/missions/prepare-again?from=synthetic-case"
+    },
+    {
+      "kind": "text",
+      "name": "Draft"
+    },
+    {
+      "kind": "text",
+      "name": "In Progress"
+    },
+    {
+      "kind": "text",
+      "name": "Ready for Review"
+    },
+    {
+      "kind": "text",
+      "name": "Under Review"
+    },
+    {
+      "kind": "text",
+      "name": "Ready to Export"
+    },
+    {
+      "kind": "text",
+      "name": "Locked"
+    },
+    {
+      "kind": "text",
+      "name": "Submission Ready"
+    },
+    {
+      "kind": "text",
+      "name": "Submitted"
+    },
+    {
+      "kind": "text",
+      "name": "Closed"
+    },
+    {
+      "kind": "text",
+      "name": "Cancelled"
+    },
+    {
+      "kind": "text",
+      "name": "Only the current state is marked. This is not a completed-stage history. The workflow allows Ready for Review next; permissions and applicant confirmation are checked by the existing actions. To stop the case, use More at the top of the page."
+    },
+    {
+      "kind": "text",
+      "name": "Preparing a file is not the same as submitting it. VisaStack does not submit applications or predict decisions."
+    },
+    {
+      "kind": "text",
+      "name": "Nothing needs attention right now"
+    },
+    {
+      "kind": "link",
+      "name": "Readiness",
+      "detail": "#readiness"
+    },
+    {
+      "kind": "link",
+      "name": "Evidence",
+      "detail": "#evidence"
+    },
+    {
+      "kind": "link",
+      "name": "Tasks and Letters",
+      "detail": "#work"
+    },
+    {
+      "kind": "link",
+      "name": "Snapshots",
+      "detail": "#snapshots"
+    },
+    {
+      "kind": "link",
+      "name": "Contributors and Notes",
+      "detail": "#notes"
+    },
+    {
+      "kind": "link",
+      "name": "Submission and Outcome",
+      "detail": "#outcome"
+    },
+    {
+      "kind": "text",
+      "name": "Self-reviewed No agency currently has access to this case, so you are the only one assessing it."
+    },
+    {
+      "kind": "link",
+      "name": "Pick a Checklist",
+      "detail": "#pack"
+    },
+    {
+      "kind": "text",
+      "name": "A checklist lists the papers this visa route asks for and shows which ones you already have on file."
+    },
+    {
+      "kind": "button",
+      "name": "Select or Update EvidenceOpen when you need to make a change"
+    },
+    {
+      "kind": "button",
+      "name": "Tasks, Appointments and LettersOpen when you need to make a change"
+    },
+    {
+      "kind": "button",
+      "name": "Contributors and Notes from Your AgencyAsk a sponsor for one document, read shared notes"
+    },
+    {
+      "kind": "text",
+      "name": "Delegate"
+    },
+    {
+      "kind": "heading",
+      "name": "Ask a Contributor",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Ask a sponsor or family member - who never gets a wallet, profile, or case view of any kind - for exactly one named document. They see only what you type below before deciding whether to upload."
+    },
+    {
+      "kind": "text",
+      "name": "Collaboration"
+    },
+    {
+      "kind": "heading",
+      "name": "Notes from Your Agency",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Notes an agency working this case has chosen to share with you. An agency's own internal notes are never shown here."
+    },
+    {
+      "kind": "text",
+      "name": "No notes shared with you yet."
+    },
+    {
+      "kind": "button",
+      "name": "Submission and OutcomeOpen when you need to make a change"
+    },
+    {
+      "kind": "button",
+      "name": "Problems and FeedbackRaise a complaint or give feedback on this case"
+    },
+    {
+      "kind": "text",
+      "name": "Case"
+    },
+    {
+      "kind": "heading",
+      "name": "Case Details",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Jurisdiction not set"
+    },
+    {
+      "kind": "text",
+      "name": "Travel dates not set"
+    },
+    {
+      "kind": "button",
+      "name": "Edit Case Details"
+    },
+    {
+      "kind": "text",
+      "name": "Requirements"
+    },
+    {
+      "kind": "heading",
+      "name": "Requirement Pack",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Pick a checklist: attach a published requirement pack to see how many items are ready."
+    },
+    {
+      "kind": "text",
+      "name": "Workflow"
+    },
+    {
+      "kind": "heading",
+      "name": "Advance the Case",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "History"
+    },
+    {
+      "kind": "heading",
+      "name": "Snapshots",
+      "detail": "2"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case History",
+      "detail": "/app/applicant/synthetic-family/memory"
+    },
+    {
+      "kind": "text",
+      "name": "No snapshots yet. Capture one to freeze this case's evidence and checksum."
+    },
+    {
+      "kind": "text",
+      "name": "Family Trip"
+    },
+    {
+      "kind": "heading",
+      "name": "Itinerary Reference",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "An optional label linking this case to another family member's, purely for display. Access and permissions stay entirely separate per case."
+    },
+    {
+      "kind": "component",
+      "name": "SnapshotButton"
+    },
+    {
+      "kind": "component",
+      "name": "CaseMoreMenu"
+    },
+    {
+      "kind": "component",
+      "name": "EvidenceSelectionPanel"
+    },
+    {
+      "kind": "component",
+      "name": "TasksPanel"
+    },
+    {
+      "kind": "component",
+      "name": "AppointmentsPanel"
+    },
+    {
+      "kind": "component",
+      "name": "LettersPanel"
+    },
+    {
+      "kind": "component",
+      "name": "ContributorRequestsPanel"
+    },
+    {
+      "kind": "component",
+      "name": "SubmissionReportPanel"
+    },
+    {
+      "kind": "component",
+      "name": "OutcomePanel"
+    },
+    {
+      "kind": "component",
+      "name": "ComplaintPanel"
+    },
+    {
+      "kind": "component",
+      "name": "FeedbackPanel"
+    },
+    {
+      "kind": "component",
+      "name": "CaseDetailsForm"
+    },
+    {
+      "kind": "component",
+      "name": "AttachPackForm"
+    },
+    {
+      "kind": "component",
+      "name": "TransitionButtons"
+    },
+    {
+      "kind": "component",
+      "name": "ItineraryForm"
+    }
+  ],
+  "a busy case with a checklist and open tasks": [
+    {
+      "kind": "link",
+      "name": "← Rahman family · Cases",
+      "detail": "/app/applicant/synthetic-family/missions"
+    },
+    {
+      "kind": "heading",
+      "name": "Japan visitor visa",
+      "detail": "1"
+    },
+    {
+      "kind": "link",
+      "name": "Add Evidence",
+      "detail": "#evidence"
+    },
+    {
+      "kind": "link",
+      "name": "Start a New Case from This One",
+      "detail": "/app/applicant/synthetic-family/missions/prepare-again?from=synthetic-case"
+    },
+    {
+      "kind": "text",
+      "name": "Draft"
+    },
+    {
+      "kind": "text",
+      "name": "In Progress"
+    },
+    {
+      "kind": "text",
+      "name": "Ready for Review"
+    },
+    {
+      "kind": "text",
+      "name": "Under Review"
+    },
+    {
+      "kind": "text",
+      "name": "Ready to Export"
+    },
+    {
+      "kind": "text",
+      "name": "Locked"
+    },
+    {
+      "kind": "text",
+      "name": "Submission Ready"
+    },
+    {
+      "kind": "text",
+      "name": "Submitted"
+    },
+    {
+      "kind": "text",
+      "name": "Closed"
+    },
+    {
+      "kind": "text",
+      "name": "Cancelled"
+    },
+    {
+      "kind": "text",
+      "name": "Only the current state is marked. This is not a completed-stage history. The workflow allows Ready for Review next; permissions and applicant confirmation are checked by the existing actions. To stop the case, use More at the top of the page."
+    },
+    {
+      "kind": "heading",
+      "name": "Next Step",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Fix 2 required items"
+    },
+    {
+      "kind": "text",
+      "name": "Some required items are missing, out of date or do not match."
+    },
+    {
+      "kind": "link",
+      "name": "See What Needs Fixing",
+      "detail": "#readiness"
+    },
+    {
+      "kind": "text",
+      "name": "Preparing a file is not the same as submitting it. VisaStack does not submit applications or predict decisions."
+    },
+    {
+      "kind": "link",
+      "name": "2required items missing",
+      "detail": "#readiness"
+    },
+    {
+      "kind": "link",
+      "name": "1need a check",
+      "detail": "#readiness"
+    },
+    {
+      "kind": "link",
+      "name": "2open tasks",
+      "detail": "#work"
+    },
+    {
+      "kind": "link",
+      "name": "Readiness",
+      "detail": "#readiness"
+    },
+    {
+      "kind": "link",
+      "name": "Evidence",
+      "detail": "#evidence"
+    },
+    {
+      "kind": "link",
+      "name": "Tasks and Letters",
+      "detail": "#work"
+    },
+    {
+      "kind": "link",
+      "name": "Snapshots",
+      "detail": "#snapshots"
+    },
+    {
+      "kind": "link",
+      "name": "Contributors and Notes",
+      "detail": "#notes"
+    },
+    {
+      "kind": "link",
+      "name": "Submission and Outcome",
+      "detail": "#outcome"
+    },
+    {
+      "kind": "text",
+      "name": "Self-reviewed No agency currently has access to this case, so you are the only one assessing it."
+    },
+    {
+      "kind": "heading",
+      "name": "Evidence Progress",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "The ring counts required items that are on file. Optional and non-applicable items are counted separately."
+    },
+    {
+      "kind": "text",
+      "name": "Applicant confirmation: Awaiting confirmation"
+    },
+    {
+      "kind": "text",
+      "name": "Completeness is not an approval probability. Review each requirement below."
+    },
+    {
+      "kind": "text",
+      "name": "Needs Action"
+    },
+    {
+      "kind": "text",
+      "name": "2 requirement(s) still needed"
+    },
+    {
+      "kind": "heading",
+      "name": "Evidence Checklist",
+      "detail": "3"
+    },
+    {
+      "kind": "heading",
+      "name": "Needs You 2",
+      "detail": "4"
+    },
+    {
+      "kind": "link",
+      "name": "Provide Evidence ↓",
+      "detail": "#evidence"
+    },
+    {
+      "kind": "link",
+      "name": "Provide Evidence ↓",
+      "detail": "#evidence"
+    },
+    {
+      "kind": "heading",
+      "name": "Needs a Check 1",
+      "detail": "4"
+    },
+    {
+      "kind": "heading",
+      "name": "Done 1",
+      "detail": "4"
+    },
+    {
+      "kind": "text",
+      "name": "Readiness is completeness only - never an approval likelihood."
+    },
+    {
+      "kind": "button",
+      "name": "Select or Update EvidenceOpen when you need to make a change"
+    },
+    {
+      "kind": "button",
+      "name": "Tasks, Appointments and LettersOpen when you need to make a change"
+    },
+    {
+      "kind": "button",
+      "name": "Contributors and Notes from Your AgencyAsk a sponsor for one document, read shared notes"
+    },
+    {
+      "kind": "text",
+      "name": "Delegate"
+    },
+    {
+      "kind": "heading",
+      "name": "Ask a Contributor",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Ask a sponsor or family member - who never gets a wallet, profile, or case view of any kind - for exactly one named document. They see only what you type below before deciding whether to upload."
+    },
+    {
+      "kind": "text",
+      "name": "Collaboration"
+    },
+    {
+      "kind": "heading",
+      "name": "Notes from Your Agency",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Notes an agency working this case has chosen to share with you. An agency's own internal notes are never shown here."
+    },
+    {
+      "kind": "text",
+      "name": "No notes shared with you yet."
+    },
+    {
+      "kind": "button",
+      "name": "Submission and OutcomeOpen when you need to make a change"
+    },
+    {
+      "kind": "button",
+      "name": "Problems and FeedbackRaise a complaint or give feedback on this case"
+    },
+    {
+      "kind": "text",
+      "name": "Case"
+    },
+    {
+      "kind": "heading",
+      "name": "Case Details",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Jurisdiction not set"
+    },
+    {
+      "kind": "text",
+      "name": "Travel dates not set"
+    },
+    {
+      "kind": "button",
+      "name": "Edit Case Details"
+    },
+    {
+      "kind": "text",
+      "name": "Requirements"
+    },
+    {
+      "kind": "heading",
+      "name": "Requirement Pack",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "JP · visitor"
+    },
+    {
+      "kind": "text",
+      "name": "Workflow"
+    },
+    {
+      "kind": "heading",
+      "name": "Advance the Case",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "History"
+    },
+    {
+      "kind": "heading",
+      "name": "Snapshots",
+      "detail": "2"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case History",
+      "detail": "/app/applicant/synthetic-family/memory"
+    },
+    {
+      "kind": "text",
+      "name": "No snapshots yet. Capture one to freeze this case's evidence and checksum."
+    },
+    {
+      "kind": "text",
+      "name": "Family Trip"
+    },
+    {
+      "kind": "heading",
+      "name": "Itinerary Reference",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "An optional label linking this case to another family member's, purely for display. Access and permissions stay entirely separate per case."
+    },
+    {
+      "kind": "component",
+      "name": "SnapshotButton"
+    },
+    {
+      "kind": "component",
+      "name": "CaseMoreMenu"
+    },
+    {
+      "kind": "component",
+      "name": "EvidenceSelectionPanel"
+    },
+    {
+      "kind": "component",
+      "name": "TasksPanel"
+    },
+    {
+      "kind": "component",
+      "name": "AppointmentsPanel"
+    },
+    {
+      "kind": "component",
+      "name": "LettersPanel"
+    },
+    {
+      "kind": "component",
+      "name": "ContributorRequestsPanel"
+    },
+    {
+      "kind": "component",
+      "name": "SubmissionReportPanel"
+    },
+    {
+      "kind": "component",
+      "name": "OutcomePanel"
+    },
+    {
+      "kind": "component",
+      "name": "ComplaintPanel"
+    },
+    {
+      "kind": "component",
+      "name": "FeedbackPanel"
+    },
+    {
+      "kind": "component",
+      "name": "CaseDetailsForm"
+    },
+    {
+      "kind": "component",
+      "name": "TransitionButtons"
+    },
+    {
+      "kind": "component",
+      "name": "ItineraryForm"
+    }
+  ],
+  "a case that changed since it was confirmed": [
+    {
+      "kind": "link",
+      "name": "← Rahman family · Cases",
+      "detail": "/app/applicant/synthetic-family/missions"
+    },
+    {
+      "kind": "heading",
+      "name": "Japan visitor visa",
+      "detail": "1"
+    },
+    {
+      "kind": "link",
+      "name": "Add Evidence",
+      "detail": "#evidence"
+    },
+    {
+      "kind": "link",
+      "name": "Start a New Case from This One",
+      "detail": "/app/applicant/synthetic-family/missions/prepare-again?from=synthetic-case"
+    },
+    {
+      "kind": "text",
+      "name": "Draft"
+    },
+    {
+      "kind": "text",
+      "name": "In Progress"
+    },
+    {
+      "kind": "text",
+      "name": "Ready for Review"
+    },
+    {
+      "kind": "text",
+      "name": "Under Review"
+    },
+    {
+      "kind": "text",
+      "name": "Ready to Export"
+    },
+    {
+      "kind": "text",
+      "name": "Locked"
+    },
+    {
+      "kind": "text",
+      "name": "Submission Ready"
+    },
+    {
+      "kind": "text",
+      "name": "Submitted"
+    },
+    {
+      "kind": "text",
+      "name": "Closed"
+    },
+    {
+      "kind": "text",
+      "name": "Cancelled"
+    },
+    {
+      "kind": "text",
+      "name": "Only the current state is marked. This is not a completed-stage history. The workflow allows Ready for Review next; permissions and applicant confirmation are checked by the existing actions. To stop the case, use More at the top of the page."
+    },
+    {
+      "kind": "text",
+      "name": "This case has changed since it was last acknowledged."
+    },
+    {
+      "kind": "text",
+      "name": "A material edit invalidated the previous sign-off. Capture a new snapshot and acknowledge it again before relying on this case as submission-ready."
+    },
+    {
+      "kind": "link",
+      "name": "Open Case History",
+      "detail": "/app/applicant/synthetic-family/memory"
+    },
+    {
+      "kind": "text",
+      "name": "Preparing a file is not the same as submitting it. VisaStack does not submit applications or predict decisions."
+    },
+    {
+      "kind": "link",
+      "name": "1Changed Since Confirmed",
+      "detail": "#snapshots"
+    },
+    {
+      "kind": "link",
+      "name": "Readiness",
+      "detail": "#readiness"
+    },
+    {
+      "kind": "link",
+      "name": "Evidence",
+      "detail": "#evidence"
+    },
+    {
+      "kind": "link",
+      "name": "Tasks and Letters",
+      "detail": "#work"
+    },
+    {
+      "kind": "link",
+      "name": "Snapshots",
+      "detail": "#snapshots"
+    },
+    {
+      "kind": "link",
+      "name": "Contributors and Notes",
+      "detail": "#notes"
+    },
+    {
+      "kind": "link",
+      "name": "Submission and Outcome",
+      "detail": "#outcome"
+    },
+    {
+      "kind": "text",
+      "name": "Self-reviewed No agency currently has access to this case, so you are the only one assessing it."
+    },
+    {
+      "kind": "heading",
+      "name": "Evidence Progress",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "The ring counts required items that are on file. Optional and non-applicable items are counted separately."
+    },
+    {
+      "kind": "text",
+      "name": "Applicant confirmation: Awaiting confirmation"
+    },
+    {
+      "kind": "text",
+      "name": "Completeness is not an approval probability. Review each requirement below."
+    },
+    {
+      "kind": "text",
+      "name": "Needs Action"
+    },
+    {
+      "kind": "text",
+      "name": "0 requirement(s) still needed"
+    },
+    {
+      "kind": "heading",
+      "name": "Evidence Checklist",
+      "detail": "3"
+    },
+    {
+      "kind": "heading",
+      "name": "Done 1",
+      "detail": "4"
+    },
+    {
+      "kind": "text",
+      "name": "Readiness is completeness only - never an approval likelihood."
+    },
+    {
+      "kind": "button",
+      "name": "Select or Update EvidenceOpen when you need to make a change"
+    },
+    {
+      "kind": "button",
+      "name": "Tasks, Appointments and LettersOpen when you need to make a change"
+    },
+    {
+      "kind": "button",
+      "name": "Contributors and Notes from Your AgencyAsk a sponsor for one document, read shared notes"
+    },
+    {
+      "kind": "text",
+      "name": "Delegate"
+    },
+    {
+      "kind": "heading",
+      "name": "Ask a Contributor",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Ask a sponsor or family member - who never gets a wallet, profile, or case view of any kind - for exactly one named document. They see only what you type below before deciding whether to upload."
+    },
+    {
+      "kind": "text",
+      "name": "Collaboration"
+    },
+    {
+      "kind": "heading",
+      "name": "Notes from Your Agency",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Notes an agency working this case has chosen to share with you. An agency's own internal notes are never shown here."
+    },
+    {
+      "kind": "text",
+      "name": "No notes shared with you yet."
+    },
+    {
+      "kind": "button",
+      "name": "Submission and OutcomeOpen when you need to make a change"
+    },
+    {
+      "kind": "button",
+      "name": "Problems and FeedbackRaise a complaint or give feedback on this case"
+    },
+    {
+      "kind": "text",
+      "name": "Case"
+    },
+    {
+      "kind": "heading",
+      "name": "Case Details",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Jurisdiction not set"
+    },
+    {
+      "kind": "text",
+      "name": "Travel dates not set"
+    },
+    {
+      "kind": "button",
+      "name": "Edit Case Details"
+    },
+    {
+      "kind": "text",
+      "name": "Requirements"
+    },
+    {
+      "kind": "heading",
+      "name": "Requirement Pack",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "JP · visitor"
+    },
+    {
+      "kind": "text",
+      "name": "Workflow"
+    },
+    {
+      "kind": "heading",
+      "name": "Advance the Case",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "History"
+    },
+    {
+      "kind": "heading",
+      "name": "Snapshots",
+      "detail": "2"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case History",
+      "detail": "/app/applicant/synthetic-family/memory"
+    },
+    {
+      "kind": "text",
+      "name": "No snapshots yet. Capture one to freeze this case's evidence and checksum."
+    },
+    {
+      "kind": "text",
+      "name": "Family Trip"
+    },
+    {
+      "kind": "heading",
+      "name": "Itinerary Reference",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "An optional label linking this case to another family member's, purely for display. Access and permissions stay entirely separate per case."
+    },
+    {
+      "kind": "component",
+      "name": "SnapshotButton"
+    },
+    {
+      "kind": "component",
+      "name": "CaseMoreMenu"
+    },
+    {
+      "kind": "component",
+      "name": "SnapshotButton"
+    },
+    {
+      "kind": "component",
+      "name": "EvidenceSelectionPanel"
+    },
+    {
+      "kind": "component",
+      "name": "TasksPanel"
+    },
+    {
+      "kind": "component",
+      "name": "AppointmentsPanel"
+    },
+    {
+      "kind": "component",
+      "name": "LettersPanel"
+    },
+    {
+      "kind": "component",
+      "name": "ContributorRequestsPanel"
+    },
+    {
+      "kind": "component",
+      "name": "SubmissionReportPanel"
+    },
+    {
+      "kind": "component",
+      "name": "OutcomePanel"
+    },
+    {
+      "kind": "component",
+      "name": "ComplaintPanel"
+    },
+    {
+      "kind": "component",
+      "name": "FeedbackPanel"
+    },
+    {
+      "kind": "component",
+      "name": "CaseDetailsForm"
+    },
+    {
+      "kind": "component",
+      "name": "TransitionButtons"
+    },
+    {
+      "kind": "component",
+      "name": "ItineraryForm"
+    }
+  ],
+  "a closed case": [
+    {
+      "kind": "link",
+      "name": "← Rahman family · Cases",
+      "detail": "/app/applicant/synthetic-family/missions"
+    },
+    {
+      "kind": "heading",
+      "name": "Japan visitor visa",
+      "detail": "1"
+    },
+    {
+      "kind": "link",
+      "name": "Add Evidence",
+      "detail": "#evidence"
+    },
+    {
+      "kind": "link",
+      "name": "Start a New Case from This One",
+      "detail": "/app/applicant/synthetic-family/missions/prepare-again?from=synthetic-case"
+    },
+    {
+      "kind": "text",
+      "name": "Draft"
+    },
+    {
+      "kind": "text",
+      "name": "Intake"
+    },
+    {
+      "kind": "text",
+      "name": "In Review"
+    },
+    {
+      "kind": "text",
+      "name": "Awaiting Applicant"
+    },
+    {
+      "kind": "text",
+      "name": "Submission Ready"
+    },
+    {
+      "kind": "text",
+      "name": "Submitted"
+    },
+    {
+      "kind": "text",
+      "name": "Closed"
+    },
+    {
+      "kind": "text",
+      "name": "Cancelled"
+    },
+    {
+      "kind": "text",
+      "name": "Only the current state is marked. This is not a completed-stage history. This case is in a terminal state."
+    },
+    {
+      "kind": "text",
+      "name": "Preparing a file is not the same as submitting it. VisaStack does not submit applications or predict decisions."
+    },
+    {
+      "kind": "text",
+      "name": "Nothing needs attention right now"
+    },
+    {
+      "kind": "link",
+      "name": "Readiness",
+      "detail": "#readiness"
+    },
+    {
+      "kind": "link",
+      "name": "Evidence",
+      "detail": "#evidence"
+    },
+    {
+      "kind": "link",
+      "name": "Tasks and Letters",
+      "detail": "#work"
+    },
+    {
+      "kind": "link",
+      "name": "Snapshots",
+      "detail": "#snapshots"
+    },
+    {
+      "kind": "link",
+      "name": "Contributors and Notes",
+      "detail": "#notes"
+    },
+    {
+      "kind": "link",
+      "name": "Submission and Outcome",
+      "detail": "#outcome"
+    },
+    {
+      "kind": "text",
+      "name": "Self-reviewed No agency currently has access to this case, so you are the only one assessing it."
+    },
+    {
+      "kind": "heading",
+      "name": "Evidence Progress",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "The ring counts required items that are on file. Optional and non-applicable items are counted separately."
+    },
+    {
+      "kind": "text",
+      "name": "Applicant confirmation: Awaiting confirmation"
+    },
+    {
+      "kind": "text",
+      "name": "Completeness is not an approval probability. Review each requirement below."
+    },
+    {
+      "kind": "text",
+      "name": "Needs Action"
+    },
+    {
+      "kind": "text",
+      "name": "0 requirement(s) still needed"
+    },
+    {
+      "kind": "heading",
+      "name": "Evidence Checklist",
+      "detail": "3"
+    },
+    {
+      "kind": "heading",
+      "name": "Done 1",
+      "detail": "4"
+    },
+    {
+      "kind": "text",
+      "name": "Readiness is completeness only - never an approval likelihood."
+    },
+    {
+      "kind": "button",
+      "name": "Select or Update EvidenceOpen when you need to make a change"
+    },
+    {
+      "kind": "button",
+      "name": "Tasks, Appointments and LettersOpen when you need to make a change"
+    },
+    {
+      "kind": "button",
+      "name": "Contributors and Notes from Your AgencyAsk a sponsor for one document, read shared notes"
+    },
+    {
+      "kind": "text",
+      "name": "Delegate"
+    },
+    {
+      "kind": "heading",
+      "name": "Ask a Contributor",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Ask a sponsor or family member - who never gets a wallet, profile, or case view of any kind - for exactly one named document. They see only what you type below before deciding whether to upload."
+    },
+    {
+      "kind": "text",
+      "name": "Collaboration"
+    },
+    {
+      "kind": "heading",
+      "name": "Notes from Your Agency",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Notes an agency working this case has chosen to share with you. An agency's own internal notes are never shown here."
+    },
+    {
+      "kind": "text",
+      "name": "No notes shared with you yet."
+    },
+    {
+      "kind": "button",
+      "name": "Submission and OutcomeOpen when you need to make a change"
+    },
+    {
+      "kind": "button",
+      "name": "Problems and FeedbackRaise a complaint or give feedback on this case"
+    },
+    {
+      "kind": "text",
+      "name": "Case"
+    },
+    {
+      "kind": "heading",
+      "name": "Case Details",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Jurisdiction not set"
+    },
+    {
+      "kind": "text",
+      "name": "Travel dates not set"
+    },
+    {
+      "kind": "button",
+      "name": "Edit Case Details"
+    },
+    {
+      "kind": "text",
+      "name": "Requirements"
+    },
+    {
+      "kind": "heading",
+      "name": "Requirement Pack",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "JP · visitor"
+    },
+    {
+      "kind": "text",
+      "name": "Workflow"
+    },
+    {
+      "kind": "heading",
+      "name": "Advance the Case",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "This case is in a terminal state."
+    },
+    {
+      "kind": "text",
+      "name": "History"
+    },
+    {
+      "kind": "heading",
+      "name": "Snapshots",
+      "detail": "2"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case History",
+      "detail": "/app/applicant/synthetic-family/memory"
+    },
+    {
+      "kind": "text",
+      "name": "No snapshots yet. Capture one to freeze this case's evidence and checksum."
+    },
+    {
+      "kind": "text",
+      "name": "Family Trip"
+    },
+    {
+      "kind": "heading",
+      "name": "Itinerary Reference",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "An optional label linking this case to another family member's, purely for display. Access and permissions stay entirely separate per case."
+    },
+    {
+      "kind": "component",
+      "name": "SnapshotButton"
+    },
+    {
+      "kind": "component",
+      "name": "CaseMoreMenu"
+    },
+    {
+      "kind": "component",
+      "name": "EvidenceSelectionPanel"
+    },
+    {
+      "kind": "component",
+      "name": "TasksPanel"
+    },
+    {
+      "kind": "component",
+      "name": "AppointmentsPanel"
+    },
+    {
+      "kind": "component",
+      "name": "LettersPanel"
+    },
+    {
+      "kind": "component",
+      "name": "ContributorRequestsPanel"
+    },
+    {
+      "kind": "component",
+      "name": "SubmissionReportPanel"
+    },
+    {
+      "kind": "component",
+      "name": "OutcomePanel"
+    },
+    {
+      "kind": "component",
+      "name": "ComplaintPanel"
+    },
+    {
+      "kind": "component",
+      "name": "FeedbackPanel"
+    },
+    {
+      "kind": "component",
+      "name": "CaseDetailsForm"
+    },
+    {
+      "kind": "component",
+      "name": "ItineraryForm"
+    }
+  ]
+}

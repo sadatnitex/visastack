@@ -428,7 +428,8 @@ test.describe
       await ensureConsent(page, 'Let VisaStack Process My Details');
       const applicantUrl = await createApplicant(page, 'E2E Mission');
 
-      await page.goto(`${applicantUrl}/missions`);
+      // The Start a Case form sits at the deepest level of the Cases page; its anchor opens it.
+      await page.goto(`${applicantUrl}/missions#start-case`);
       const missionTitle = `E2E Mission ${Date.now()}`;
       await page.getByLabel('What is this case for?').fill(missionTitle);
       await page.getByRole('button', { name: 'Create Case' }).click();

@@ -47,6 +47,8 @@ import {
   CaseStageTracker,
 } from '../../../../components/case-preparation-summary';
 import { CaseReadinessRing } from '../../../../components/case-readiness-ring';
+import { DepthScope, atLevel } from '../../../../components/depth';
+import { DepthSwitch } from '../../../../components/depth-switch';
 import { ReferenceCode } from '../../../../components/reference-code';
 import { Disclosure, PageHeader, StatusBadge } from '../../../../components/ui';
 import { isExplanationConfigured } from '../../../../lib/ai';
@@ -54,6 +56,8 @@ import { memoryHref } from '../../../../lib/application-memory-labels';
 import { checklistsToPick } from '../../../../lib/case-checklist-match';
 import { savedCaseMatchTerms } from '../../../../lib/case-choices';
 import { CASE_STATE_LABELS, caseStateLabel, stageButtonStates } from '../../../../lib/case-stages';
+import { depthCopyFor } from '../../../../lib/ccd/depth-copy';
+import { readDepth } from '../../../../lib/ccd/depth.server';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { getLocale } from '../../../../lib/locale';
@@ -654,6 +658,13 @@ export default async function MissionPage({
   // order, is the next step. A changed case shows its alert instead (that is
   // its next step); an empty list keeps the existing success badge and no card.
   const nextStep = data.isDirty ? undefined : attention[0];
+  const depth = await readDepth('case');
+  // The next step card shows only when nothing changed since the last confirmation.
+  const showNextStep = nextStep !== undefined && nextStep.kind !== 'changed';
+  // The one primary button on the page belongs to the next step or the changed-case alert; the
+  // welcome note and the checklist picker offer theirs only when neither is there.
+  const hasNextStepOrAlert = data.isDirty || showNextStep;
+  const hasChecklist = Boolean(data.readiness) && data.requirementDetails.length > 0;
 
   return (
     <section className="section container">
@@ -701,559 +712,599 @@ export default async function MissionPage({
         }
       />
 
-      {data.welcomeNote ? (
-        <CaseWelcome
-          {...caseWelcomeCopy({
-            packName: mission.packVersionId ? (data.packInfo?.name ?? null) : null,
-            // A linked checklist whose name could not be read promises nothing.
-            checklists: data.welcomeNote.checklists ?? { kind: 'unknown' },
-            firstGapHref: attention.find((item) => item.kind !== 'changed')?.href ?? null,
-          })}
-        />
-      ) : null}
+      <DepthScope family="case" depth={depth}>
+        <DepthSwitch family="case" initial={depth} copy={depthCopyFor('case')} />
 
-      <CaseStageTracker
-        state={mission.state}
-        labels={CASE_STATE_LABELS}
-        nextStates={stageStates}
-        cancelInMore={canCancel}
-      />
-
-      {data.isDirty ? (
-        <div className="case-alert">
-          <p className="case-alert-title">This case has changed since it was last acknowledged.</p>
-          <p className="case-alert-body">
-            A material edit invalidated the previous sign-off. Capture a new snapshot and
-            acknowledge it again before relying on this case as submission-ready.
-          </p>
-          {/* WP-V3 part 3: the list of changed details. */}
-          <ChangesSinceConfirmedList
-            applicantId={data.applicantId}
-            changes={data.changesSinceConfirmed}
+        {data.welcomeNote ? (
+          <CaseWelcome
+            {...caseWelcomeCopy({
+              packName: mission.packVersionId ? (data.packInfo?.name ?? null) : null,
+              // A linked checklist whose name could not be read promises nothing.
+              checklists: data.welcomeNote.checklists ?? { kind: 'unknown' },
+              firstGapHref: attention.find((item) => item.kind !== 'changed')?.href ?? null,
+            })}
+            primary={!hasNextStepOrAlert}
           />
-          <SnapshotButton
-            missionId={mission.id}
-            label="Take a New Snapshot"
-            primary
-            align="start"
-          />
-        </div>
-      ) : null}
-
-      {nextStep && nextStep.kind !== 'changed' ? (
-        <section className="case-next-step" aria-labelledby="case-next-step-heading">
-          <h2 className="case-next-step-kicker" id="case-next-step-heading">
-            Next Step
-          </h2>
-          <p className="case-next-step-title">
-            {NEXT_STEP_COPY[nextStep.kind].title(nextStep.count)}
-          </p>
-          <p className="case-next-step-body">{NEXT_STEP_COPY[nextStep.kind].body}</p>
-          <a className="btn btn-primary" href={nextStep.href}>
-            {NEXT_STEP_COPY[nextStep.kind].action}
-          </a>
-        </section>
-      ) : null}
-      {/* Owner-approved wording, 25 Oct 2026. */}
-      <p className="case-journey-reminder">
-        Preparing a file is not the same as submitting it. VisaStack does not submit applications or
-        predict decisions.
-      </p>
-      {/* WP-V4 places the request triage summary directly under the next step. */}
-
-      <div className="case-context-strip">
-        {mission.manualMode ? (
-          <details className="case-manual-notice">
-            <summary>Manual assessment: this route has no automated requirement pack</summary>
-            <p>
-              You are responsible for confirming what this case needs. Completeness is not an
-              official readiness assessment, on this page or in an exported snapshot.
-            </p>
-          </details>
         ) : null}
 
-        <ul className="case-attention" aria-label="What needs attention on this case">
-          {attention.length === 0 ? (
-            <li>
-              <span className="case-attention-ok">
-                <StatusBadge tone="success">Nothing needs attention right now</StatusBadge>
-              </span>
-            </li>
-          ) : (
-            attention.map((item) => (
-              <li key={item.label}>
-                <a href={item.href}>
-                  <StatusBadge tone={item.tone}>{item.count}</StatusBadge>
-                  {item.label}
-                </a>
-              </li>
-            ))
-          )}
-        </ul>
-      </div>
+        <div {...atLevel('browse')}>
+          <CaseStageTracker
+            state={mission.state}
+            labels={CASE_STATE_LABELS}
+            nextStates={stageStates}
+            cancelInMore={canCancel}
+          />
+        </div>
 
-      <nav className="jump-nav" aria-label="Sections of this case">
-        <a href="#readiness">Readiness</a>
-        <a href="#evidence">Evidence</a>
-        <a href="#work">Tasks and Letters</a>
-        <a href="#snapshots">Snapshots</a>
-        <a href="#notes">Contributors and Notes</a>
-        <a href="#outcome">Submission and Outcome</a>
-      </nav>
+        {data.isDirty ? (
+          <div className="case-alert">
+            <p className="case-alert-title">
+              This case has changed since it was last acknowledged.
+            </p>
+            <p className="case-alert-body">
+              A material edit invalidated the previous sign-off. Capture a new snapshot and
+              acknowledge it again before relying on this case as submission-ready.
+            </p>
+            {/* WP-V3 part 3: the list of changed details. */}
+            <ChangesSinceConfirmedList
+              applicantId={data.applicantId}
+              changes={data.changesSinceConfirmed}
+            />
+            <SnapshotButton
+              missionId={mission.id}
+              label="Take a New Snapshot"
+              primary
+              align="start"
+            />
+            <p className="case-alert-body">
+              <a href="#snapshots">Open Snapshots</a> to confirm the new one.
+            </p>
+          </div>
+        ) : null}
 
-      <div className="split">
-        <div className="split-main">
-          <article className="card case-evidence-overview" id="readiness">
-            {data.selfReviewed ? (
-              <p
-                className="muted"
-                style={{ fontSize: 'var(--text-small)', marginBottom: '0.75rem' }}
-              >
-                <span className="badge badge-neutral">Self-reviewed</span> No agency currently has
-                access to this case, so you are the only one assessing it.
+        {showNextStep && nextStep ? (
+          <section className="case-next-step" aria-labelledby="case-next-step-heading">
+            <h2 className="case-next-step-kicker" id="case-next-step-heading">
+              Next Step
+            </h2>
+            <p className="case-next-step-title">
+              {NEXT_STEP_COPY[nextStep.kind].title(nextStep.count)}
+            </p>
+            <p className="case-next-step-body">{NEXT_STEP_COPY[nextStep.kind].body}</p>
+            <a className="btn btn-primary" href={nextStep.href}>
+              {NEXT_STEP_COPY[nextStep.kind].action}
+            </a>
+          </section>
+        ) : null}
+        {/* Owner-approved wording, 25 Oct 2026. */}
+        <p className="case-journey-reminder">
+          Preparing a file is not the same as submitting it. VisaStack does not submit applications
+          or predict decisions.
+        </p>
+        {/* WP-V4 places the request triage summary directly under the next step. */}
+
+        <div className="case-context-strip">
+          {mission.manualMode ? (
+            <details className="case-manual-notice">
+              <summary>Manual assessment: this route has no automated requirement pack</summary>
+              <p>
+                You are responsible for confirming what this case needs. Completeness is not an
+                official readiness assessment, on this page or in an exported snapshot.
               </p>
-            ) : null}
-            {data.readiness ? (
-              <>
-                <CasePreparationSummary
-                  readiness={data.readiness}
-                  acknowledged={Boolean(data.liveAcknowledgedAt) && !data.isDirty}
-                />
-                <p className={`badge ${OVERALL_STATE_META[data.readiness.overallState].tone}`}>
-                  {OVERALL_STATE_META[data.readiness.overallState].label}
+            </details>
+          ) : null}
+
+          <ul
+            className="case-attention"
+            aria-label="What needs attention on this case"
+            {...atLevel('browse')}
+          >
+            {attention.length === 0 ? (
+              <li>
+                <span className="case-attention-ok">
+                  <StatusBadge tone="success">Nothing needs attention right now</StatusBadge>
+                </span>
+              </li>
+            ) : (
+              attention.map((item) => (
+                <li key={item.label}>
+                  <a href={item.href}>
+                    <StatusBadge tone={item.tone}>{item.count}</StatusBadge>
+                    {item.label}
+                  </a>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+
+        {/* At every level: each link opens the level its section lives at. */}
+        <nav className="jump-nav" aria-label="Sections of this case">
+          <a href="#readiness">Readiness</a>
+          <a href="#evidence">Evidence</a>
+          <a href="#work">Tasks and Letters</a>
+          <a href="#snapshots">Snapshots</a>
+          <a href="#notes">Contributors and Notes</a>
+          <a href="#outcome">Submission and Outcome</a>
+        </nav>
+
+        <div className="split case-working-area">
+          <div className="split-main">
+            <article
+              className="card case-evidence-overview"
+              // With a checklist, #readiness points at the checklist itself (Browse), so a link to it
+              // opens that level; without one, it is the summary card.
+              {...(hasChecklist ? {} : { id: 'readiness' })}
+            >
+              {data.selfReviewed ? (
+                <p
+                  {...atLevel('browse')}
+                  className="muted"
+                  style={{ fontSize: 'var(--text-small)', marginBottom: '0.75rem' }}
+                >
+                  <span className="badge badge-neutral">Self-reviewed</span> No agency currently has
+                  access to this case, so you are the only one assessing it.
                 </p>
-                {data.readiness.overallState !== 'MANUAL_ONLY' ? (
-                  <p
-                    className="muted"
-                    style={{ fontSize: 'var(--text-small)', marginBottom: '1rem' }}
-                  >
-                    {data.readiness.overallState === 'READY_FOR_APPLICANT_REVIEW'
-                      ? t('mission.readiness.ready')
-                      : data.readiness.overallState === 'NEEDS_REVIEW'
-                        ? t('mission.readiness.needsReview', {
-                            count: data.requiredUnverifiedCount,
-                          })
-                        : t('mission.readiness.missing', { count: data.requiredHardGapCount })}
+              ) : null}
+              {data.readiness ? (
+                <>
+                  <CasePreparationSummary
+                    readiness={data.readiness}
+                    acknowledged={Boolean(data.liveAcknowledgedAt) && !data.isDirty}
+                  />
+                  <p className={`badge ${OVERALL_STATE_META[data.readiness.overallState].tone}`}>
+                    {OVERALL_STATE_META[data.readiness.overallState].label}
                   </p>
-                ) : null}
-                {data.requirementDetails.length > 0 ? (
-                  <>
-                    <h3 className="case-checklist-heading">Evidence Checklist</h3>
-                    {REQUIREMENT_GROUPS.map((group) => {
-                      const groupRows = data.requirementDetails.filter((r) =>
-                        group.states.includes(r.state),
-                      );
-                      if (groupRows.length === 0) return null;
-                      return (
-                        <Fragment key={group.heading}>
-                          <h4 className="case-group-heading">
-                            {group.heading} <span className="muted">{groupRows.length}</span>
-                          </h4>
-                          <div className="rows">
-                            {groupRows.map((r) => {
-                              const meta = REQUIREMENT_STATE_META[r.state];
-                              const label =
-                                r.kind === 'FIELD'
-                                  ? (fieldLabel(r.key) ?? humanizeCode(r.key))
-                                  : humanizeCode(r.key);
-                              const sourceLine = [r.publisher, r.sourceTitle]
-                                .filter(Boolean)
-                                .join(' · ');
-                              const sourceHref = safeHttpUrl(r.sourceUrl);
-                              return (
-                                <div
-                                  className="row"
-                                  key={r.packRequirementId}
-                                  style={{
-                                    flexDirection: 'column',
-                                    alignItems: 'stretch',
-                                    gap: '0.3rem',
-                                  }}
-                                >
+                  {data.readiness.overallState !== 'MANUAL_ONLY' ? (
+                    <p
+                      className="muted"
+                      style={{ fontSize: 'var(--text-small)', marginBottom: '1rem' }}
+                    >
+                      {data.readiness.overallState === 'READY_FOR_APPLICANT_REVIEW'
+                        ? t('mission.readiness.ready')
+                        : data.readiness.overallState === 'NEEDS_REVIEW'
+                          ? t('mission.readiness.needsReview', {
+                              count: data.requiredUnverifiedCount,
+                            })
+                          : t('mission.readiness.missing', { count: data.requiredHardGapCount })}
+                    </p>
+                  ) : null}
+                  {data.requirementDetails.length > 0 ? (
+                    <div id="readiness" {...atLevel('browse')}>
+                      <h3 className="case-checklist-heading">Evidence Checklist</h3>
+                      {REQUIREMENT_GROUPS.map((group) => {
+                        const groupRows = data.requirementDetails.filter((r) =>
+                          group.states.includes(r.state),
+                        );
+                        if (groupRows.length === 0) return null;
+                        return (
+                          <Fragment key={group.heading}>
+                            <h4 className="case-group-heading">
+                              {group.heading} <span className="muted">{groupRows.length}</span>
+                            </h4>
+                            <div className="rows">
+                              {groupRows.map((r) => {
+                                const meta = REQUIREMENT_STATE_META[r.state];
+                                const label =
+                                  r.kind === 'FIELD'
+                                    ? (fieldLabel(r.key) ?? humanizeCode(r.key))
+                                    : humanizeCode(r.key);
+                                const sourceLine = [r.publisher, r.sourceTitle]
+                                  .filter(Boolean)
+                                  .join(' · ');
+                                const sourceHref = safeHttpUrl(r.sourceUrl);
+                                return (
                                   <div
+                                    className="row"
+                                    key={r.packRequirementId}
                                     style={{
-                                      display: 'flex',
-                                      justifyContent: 'space-between',
-                                      alignItems: 'center',
-                                      gap: '0.75rem',
+                                      flexDirection: 'column',
+                                      alignItems: 'stretch',
+                                      gap: '0.3rem',
                                     }}
                                   >
-                                    <span className="row-key">
-                                      {label || '(unnamed)'}
-                                      {r.optional ? ' · optional' : ''}
-                                    </span>
-                                    <span className={`badge ${meta.tone}`}>{meta.label}</span>
-                                  </div>
-                                  {meta.next ? (
-                                    <span className="muted u-fs-085">
-                                      {meta.next}
-                                      {r.state === 'CONFLICTING' ? (
-                                        <>
-                                          {' '}
-                                          <Link href={`/app/applicant/${data.applicantId}/profile`}>
-                                            Resolve on Profile →
-                                          </Link>
-                                        </>
-                                      ) : null}
-                                      {r.state === 'CRITICAL_GAP' ||
-                                      r.state === 'EXPIRING_STALE' ? (
-                                        <>
-                                          {' '}
-                                          <a href="#evidence">Provide Evidence ↓</a>
-                                        </>
-                                      ) : null}
-                                    </span>
-                                  ) : null}
-                                  {r.citation ? (
-                                    <span className="muted u-fs-075">
-                                      Cite: {sourceLine || r.citation}
-                                      {r.observedDate
-                                        ? ` · as of ${formatDateOnly(r.observedDate)}`
-                                        : ''}
-                                      {sourceHref ? (
-                                        <>
-                                          {' · '}
-                                          <a href={sourceHref} target="_blank" rel="noreferrer">
-                                            source
-                                          </a>
-                                        </>
-                                      ) : null}
-                                    </span>
-                                  ) : null}
-                                  {r.sourceInaccessible ? (
-                                    <span
-                                      className="badge badge-danger"
-                                      style={{ alignSelf: 'flex-start' }}
+                                    <div
+                                      style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        gap: '0.75rem',
+                                      }}
                                     >
-                                      Source Currently Unreachable - Under Review
-                                    </span>
-                                  ) : null}
-                                  {data.explanationConfigured &&
-                                  (r.state === 'CRITICAL_GAP' || r.state === 'ATTENTION') ? (
-                                    <ExplainGapButton
-                                      missionId={data.mission.id}
-                                      packRequirementId={r.packRequirementId}
-                                      explanation={
-                                        data.explanationsByRequirement.get(r.packRequirementId)
-                                          ?.explanation ?? null
-                                      }
-                                    />
-                                  ) : null}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </Fragment>
-                      );
-                    })}
-                  </>
-                ) : null}
-                <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '1rem' }}>
-                  Readiness is completeness only - never an approval likelihood.
-                </p>
-              </>
-            ) : (
-              <>
-                <CaseReadinessRing readiness={null} pickHref="#pack" size="lg" />
-                <p className="card-body">
-                  A checklist lists the papers this visa route asks for and shows which ones you
-                  already have on file.
-                </p>
-              </>
-            )}
-          </article>
-
-          <Disclosure title="Select or Update Evidence" hint="Open when you need to make a change">
-            <div className="grid u-mt-150" id="evidence">
-              <EvidenceSelectionPanel
-                missionId={mission.id}
-                candidates={data.candidates.map((c) => ({
-                  packRequirementId: c.packRequirementId,
-                  kind: c.kind,
-                  label:
-                    c.kind === 'FIELD'
-                      ? (fieldLabel(c.key) ?? humanizeCode(c.key))
-                      : humanizeCode(c.key),
-                  citation: c.citation,
-                  factCandidates: c.factCandidates.map((f) => ({
-                    factId: f.factId,
-                    value: f.value,
-                    repeatingRecordKey: f.repeatingRecordKey,
-                    eligible: isFactStatusEligible(f.status),
-                  })),
-                  documentCandidates: c.documentCandidates.map((d) => ({
-                    documentId: d.documentId,
-                    displayName: d.displayName,
-                    eligible: d.eligible,
-                    staleness: d.staleness.status,
-                  })),
-                  selectedFactIds: c.selectedFactIds,
-                  selectedDocumentIds: c.selectedDocumentIds,
-                  selectionIdsByCandidate: data.selectionIdsByCandidate,
-                }))}
-              />
-            </div>
-          </Disclosure>
-
-          <Disclosure
-            title="Tasks, Appointments and Letters"
-            hint="Open when you need to make a change"
-          >
-            <div className="grid u-mt-150" id="work">
-              <TasksPanel missionId={mission.id} tasks={data.tasks} />
-              <AppointmentsPanel missionId={mission.id} appointments={data.appointments} />
-              <LettersPanel
-                missionId={mission.id}
-                letters={data.letters.map((l) => ({
-                  id: l.id,
-                  version: l.version,
-                  content: l.content,
-                  createdAt: l.createdAt.toISOString(),
-                }))}
-                canGenerate={data.candidates.some(
-                  (c) =>
-                    c.factCandidates.some((f) => isFactStatusEligible(f.status)) ||
-                    c.documentCandidates.some((d) => d.eligible),
-                )}
-              />
-            </div>
-          </Disclosure>
-
-          <div id="notes">
-            <Disclosure
-              title="Contributors and Notes from Your Agency"
-              hint="Ask a sponsor for one document, read shared notes"
-            >
-              <div className="grid">
-                <article className="card">
-                  <p className="card-kicker">Delegate</p>
-                  <h2 className="card-title">Ask a Contributor</h2>
-                  <p className="card-body u-mb-125">
-                    Ask a sponsor or family member - who never gets a wallet, profile, or case view
-                    of any kind - for exactly one named document. They see only what you type below
-                    before deciding whether to upload.
-                  </p>
-                  <ContributorRequestsPanel
-                    missionId={mission.id}
-                    requests={data.contributorRequests}
-                  />
-                </article>
-
-                <article className="card">
-                  <p className="card-kicker">Collaboration</p>
-                  <h2 className="card-title">Notes from Your Agency</h2>
-                  <p className="card-body u-mb-125">
-                    Notes an agency working this case has chosen to share with you. An agency's own
-                    internal notes are never shown here.
-                  </p>
-                  {data.notes.length === 0 ? (
-                    <p className="muted u-fs-085">No notes shared with you yet.</p>
-                  ) : (
-                    <div className="rows">
-                      {data.notes.map((n) => (
-                        <div
-                          className="row"
-                          key={n.id}
-                          style={{ flexDirection: 'column', alignItems: 'flex-start' }}
-                        >
-                          <span className="u-fs-085">{n.body}</span>
-                          <span
-                            className="muted"
-                            style={{ fontSize: 'var(--text-caption)', marginTop: '0.2rem' }}
-                          >
-                            {n.authorEmail ?? 'Unknown'}, {formatTimestampDate(n.createdAt)}
-                          </span>
-                        </div>
-                      ))}
+                                      <span className="row-key">
+                                        {label || '(unnamed)'}
+                                        {r.optional ? ' · optional' : ''}
+                                      </span>
+                                      <span className={`badge ${meta.tone}`}>{meta.label}</span>
+                                    </div>
+                                    {meta.next ? (
+                                      <span className="muted u-fs-085">
+                                        {meta.next}
+                                        {r.state === 'CONFLICTING' ? (
+                                          <>
+                                            {' '}
+                                            <Link
+                                              href={`/app/applicant/${data.applicantId}/profile`}
+                                            >
+                                              Resolve on Profile →
+                                            </Link>
+                                          </>
+                                        ) : null}
+                                        {r.state === 'CRITICAL_GAP' ||
+                                        r.state === 'EXPIRING_STALE' ? (
+                                          <>
+                                            {' '}
+                                            <a href="#evidence">Provide Evidence ↓</a>
+                                          </>
+                                        ) : null}
+                                      </span>
+                                    ) : null}
+                                    {r.citation ? (
+                                      <span className="muted u-fs-075">
+                                        Cite: {sourceLine || r.citation}
+                                        {r.observedDate
+                                          ? ` · as of ${formatDateOnly(r.observedDate)}`
+                                          : ''}
+                                        {sourceHref ? (
+                                          <>
+                                            {' · '}
+                                            <a href={sourceHref} target="_blank" rel="noreferrer">
+                                              source
+                                            </a>
+                                          </>
+                                        ) : null}
+                                      </span>
+                                    ) : null}
+                                    {r.sourceInaccessible ? (
+                                      <span
+                                        className="badge badge-danger"
+                                        style={{ alignSelf: 'flex-start' }}
+                                      >
+                                        Source Currently Unreachable - Under Review
+                                      </span>
+                                    ) : null}
+                                    {data.explanationConfigured &&
+                                    (r.state === 'CRITICAL_GAP' || r.state === 'ATTENTION') ? (
+                                      <ExplainGapButton
+                                        missionId={data.mission.id}
+                                        packRequirementId={r.packRequirementId}
+                                        explanation={
+                                          data.explanationsByRequirement.get(r.packRequirementId)
+                                            ?.explanation ?? null
+                                        }
+                                      />
+                                    ) : null}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </Fragment>
+                        );
+                      })}
                     </div>
-                  )}
-                </article>
-              </div>
-            </Disclosure>
-          </div>
+                  ) : null}
+                  <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '1rem' }}>
+                    Readiness is completeness only - never an approval likelihood.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <CaseReadinessRing readiness={null} pickHref="#pack" size="lg" />
+                  <p className="card-body">
+                    A checklist lists the papers this visa route asks for and shows which ones you
+                    already have on file.
+                  </p>
+                </>
+              )}
+            </article>
 
-          <Disclosure title="Submission and Outcome" hint="Open when you need to make a change">
-            <div className="grid u-mt-150" id="outcome">
-              <SubmissionReportPanel
-                missionId={mission.id}
-                submissions={data.submissions}
-                eligible={mission.state === 'SUBMISSION_READY'}
-              />
-              <OutcomePanel
-                missionId={mission.id}
-                outcomes={data.outcomes}
-                evidenceOptions={data.evidenceOptions}
-              />
-            </div>
-          </Disclosure>
-
-          <div className="u-mt-150">
-            <Disclosure
-              title="Problems and Feedback"
-              hint="Raise a complaint or give feedback on this case"
-            >
-              <div className="grid">
-                <ComplaintPanel missionId={mission.id} complaints={data.complaints} />
-                <FeedbackPanel
-                  missionId={mission.id}
-                  feedback={data.feedback}
-                  canSubmit={data.canSubmitFeedback}
-                />
-              </div>
-            </Disclosure>
-          </div>
-        </div>
-        <aside className="split-rail" aria-label="About this case">
-          <article className="card">
-            <p className="card-kicker">Case</p>
-            <h2 className="card-title">Case Details</h2>
-            <p className="card-body">
-              {mission.jurisdiction || 'Jurisdiction not set'}
-              {mission.serviceCategory ? ` · ${mission.serviceCategory}` : ''}
-            </p>
-            <p className="muted">
-              {mission.travelStartDate
-                ? formatDateOnly(mission.travelStartDate)
-                : 'Travel dates not set'}
-              {mission.travelEndDate ? ` to ${formatDateOnly(mission.travelEndDate)}` : ''}
-            </p>
-            <details className="case-details-edit">
-              <summary>Edit Case Details</summary>
-              <CaseDetailsForm
-                missionId={mission.id}
-                jurisdiction={mission.jurisdiction}
-                serviceCategory={mission.serviceCategory}
-                travelStartDate={mission.travelStartDate}
-                travelEndDate={mission.travelEndDate}
-                targetDeadline={mission.targetDeadline}
-                manualMode={mission.manualMode}
-              />
-            </details>
-          </article>
-          <article className="card" id="pack">
-            <p className="card-kicker">Requirements</p>
-            <h2 className="card-title">Requirement Pack</h2>
-            {mission.packVersionId && data.packInfo ? (
-              <>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: '0.75rem',
-                    marginBottom: '0.5rem',
-                  }}
-                >
-                  <span className="card-body u-m-0">{data.packInfo.name}</span>
-                  <span
-                    className={`badge ${data.packInfo.authoritative ? 'badge-success' : 'badge-neutral'}`}
-                  >
-                    {data.packInfo.authoritative
-                      ? 'Official Requirement Pack'
-                      : 'Agency Custom Checklist'}
-                  </span>
+            <div className="depth-item" {...atLevel('everything')}>
+              <Disclosure
+                title="Select or Update Evidence"
+                hint="Open when you need to make a change"
+              >
+                <div className="grid u-mt-150" id="evidence">
+                  <EvidenceSelectionPanel
+                    missionId={mission.id}
+                    candidates={data.candidates.map((c) => ({
+                      packRequirementId: c.packRequirementId,
+                      kind: c.kind,
+                      label:
+                        c.kind === 'FIELD'
+                          ? (fieldLabel(c.key) ?? humanizeCode(c.key))
+                          : humanizeCode(c.key),
+                      citation: c.citation,
+                      factCandidates: c.factCandidates.map((f) => ({
+                        factId: f.factId,
+                        value: f.value,
+                        repeatingRecordKey: f.repeatingRecordKey,
+                        eligible: isFactStatusEligible(f.status),
+                      })),
+                      documentCandidates: c.documentCandidates.map((d) => ({
+                        documentId: d.documentId,
+                        displayName: d.displayName,
+                        eligible: d.eligible,
+                        staleness: d.staleness.status,
+                      })),
+                      selectedFactIds: c.selectedFactIds,
+                      selectedDocumentIds: c.selectedDocumentIds,
+                      selectionIdsByCandidate: data.selectionIdsByCandidate,
+                    }))}
+                  />
                 </div>
-                {data.packInfo.jurisdiction || data.packInfo.route ? (
-                  <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
-                    {[data.packInfo.jurisdiction, data.packInfo.route].filter(Boolean).join(' · ')}
-                  </p>
-                ) : null}
-                {data.packInfo.effectiveDate ? (
-                  <p
-                    className="muted"
-                    style={{ fontSize: 'var(--text-small)', margin: '0.35rem 0 0' }}
+              </Disclosure>
+            </div>
+
+            <div className="depth-item" {...atLevel('browse')}>
+              <Disclosure
+                title="Tasks, Appointments and Letters"
+                hint="Open when you need to make a change"
+              >
+                <div className="grid u-mt-150" id="work">
+                  <TasksPanel missionId={mission.id} tasks={data.tasks} />
+                  <AppointmentsPanel missionId={mission.id} appointments={data.appointments} />
+                  <LettersPanel
+                    missionId={mission.id}
+                    letters={data.letters.map((l) => ({
+                      id: l.id,
+                      version: l.version,
+                      content: l.content,
+                      createdAt: l.createdAt.toISOString(),
+                    }))}
+                    canGenerate={data.candidates.some(
+                      (c) =>
+                        c.factCandidates.some((f) => isFactStatusEligible(f.status)) ||
+                        c.documentCandidates.some((d) => d.eligible),
+                    )}
+                  />
+                </div>
+              </Disclosure>
+            </div>
+
+            <div id="notes" {...atLevel('browse')}>
+              <Disclosure
+                title="Contributors and Notes from Your Agency"
+                hint="Ask a sponsor for one document, read shared notes"
+              >
+                <div className="grid">
+                  <article className="card">
+                    <p className="card-kicker">Delegate</p>
+                    <h2 className="card-title">Ask a Contributor</h2>
+                    <p className="card-body u-mb-125">
+                      Ask a sponsor or family member - who never gets a wallet, profile, or case
+                      view of any kind - for exactly one named document. They see only what you type
+                      below before deciding whether to upload.
+                    </p>
+                    <ContributorRequestsPanel
+                      missionId={mission.id}
+                      requests={data.contributorRequests}
+                    />
+                  </article>
+
+                  <article className="card">
+                    <p className="card-kicker">Collaboration</p>
+                    <h2 className="card-title">Notes from Your Agency</h2>
+                    <p className="card-body u-mb-125">
+                      Notes an agency working this case has chosen to share with you. An agency's
+                      own internal notes are never shown here.
+                    </p>
+                    {data.notes.length === 0 ? (
+                      <p className="muted u-fs-085">No notes shared with you yet.</p>
+                    ) : (
+                      <div className="rows">
+                        {data.notes.map((n) => (
+                          <div
+                            className="row"
+                            key={n.id}
+                            style={{ flexDirection: 'column', alignItems: 'flex-start' }}
+                          >
+                            <span className="u-fs-085">{n.body}</span>
+                            <span
+                              className="muted"
+                              style={{ fontSize: 'var(--text-caption)', marginTop: '0.2rem' }}
+                            >
+                              {n.authorEmail ?? 'Unknown'}, {formatTimestampDate(n.createdAt)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </article>
+                </div>
+              </Disclosure>
+            </div>
+
+            <div className="depth-item" {...atLevel('everything')}>
+              <Disclosure title="Submission and Outcome" hint="Open when you need to make a change">
+                <div className="grid u-mt-150" id="outcome">
+                  <SubmissionReportPanel
+                    missionId={mission.id}
+                    submissions={data.submissions}
+                    eligible={mission.state === 'SUBMISSION_READY'}
+                  />
+                  <OutcomePanel
+                    missionId={mission.id}
+                    outcomes={data.outcomes}
+                    evidenceOptions={data.evidenceOptions}
+                  />
+                </div>
+              </Disclosure>
+            </div>
+
+            <div className="u-mt-150" {...atLevel('everything')}>
+              <Disclosure
+                title="Problems and Feedback"
+                hint="Raise a complaint or give feedback on this case"
+              >
+                <div className="grid">
+                  <ComplaintPanel missionId={mission.id} complaints={data.complaints} />
+                  <FeedbackPanel
+                    missionId={mission.id}
+                    feedback={data.feedback}
+                    canSubmit={data.canSubmitFeedback}
+                  />
+                </div>
+              </Disclosure>
+            </div>
+          </div>
+          <aside className="split-rail" aria-label="About this case" {...atLevel('browse')}>
+            <article className="card" {...atLevel('browse')}>
+              <p className="card-kicker">Case</p>
+              <h2 className="card-title">Case Details</h2>
+              <p className="card-body">
+                {mission.jurisdiction || 'Jurisdiction not set'}
+                {mission.serviceCategory ? ` · ${mission.serviceCategory}` : ''}
+              </p>
+              <p className="muted">
+                {mission.travelStartDate
+                  ? formatDateOnly(mission.travelStartDate)
+                  : 'Travel dates not set'}
+                {mission.travelEndDate ? ` to ${formatDateOnly(mission.travelEndDate)}` : ''}
+              </p>
+              <details className="case-details-edit">
+                <summary>Edit Case Details</summary>
+                <CaseDetailsForm
+                  missionId={mission.id}
+                  jurisdiction={mission.jurisdiction}
+                  serviceCategory={mission.serviceCategory}
+                  travelStartDate={mission.travelStartDate}
+                  travelEndDate={mission.travelEndDate}
+                  targetDeadline={mission.targetDeadline}
+                  manualMode={mission.manualMode}
+                />
+              </details>
+            </article>
+            <article className="card" id="pack" {...atLevel('browse')}>
+              <p className="card-kicker">Requirements</p>
+              <h2 className="card-title">Requirement Pack</h2>
+              {mission.packVersionId && data.packInfo ? (
+                <>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: '0.75rem',
+                      marginBottom: '0.5rem',
+                    }}
                   >
-                    In effect since {formatDateOnly(data.packInfo.effectiveDate)}
-                  </p>
-                ) : null}
-              </>
-            ) : (
-              <>
-                <p className="card-body u-mb-100">
-                  Pick a checklist: attach a published requirement pack to see how many items are
-                  ready.
-                </p>
-                <AttachPackForm missionId={mission.id} options={data.packOptions} />
-              </>
-            )}
-          </article>
-          <article className="card">
-            <p className="card-kicker">Workflow</p>
-            <h2 className="card-title">Advance the Case</h2>
-            {stageStates.length === 0 ? (
-              <p className="card-body">
-                {nextStates.length === 0
-                  ? 'This case is in a terminal state.'
-                  : 'There is no further stage from here. To stop the case, use More at the top of the page.'}
-              </p>
-            ) : (
-              <div className="u-mt-050">
-                <TransitionButtons missionId={mission.id} nextStates={stageStates} />
-              </div>
-            )}
-          </article>
-          <article className="card" id="snapshots">
-            <p className="card-kicker">History</p>
-            <h2 className="card-title">Snapshots</h2>
-            <p className="card-body case-memory-link">
-              Each snapshot keeps exactly what it held.{' '}
-              <Link href={memoryHref(data.applicantId)}>Open Case History</Link> to see every case
-              for this person and compare what you confirmed with today.
-            </p>
-            {data.snapshots.length === 0 ? (
-              <p className="card-body">
-                No snapshots yet. Capture one to freeze this case's evidence and checksum.
-              </p>
-            ) : (
-              <div className="rows u-mt-050">
-                {data.snapshots.map((snap) => {
-                  const content = snap.content as { state?: string } | null;
-                  const isPacket = content?.state ? PACKET_STATES.has(content.state) : false;
-                  return (
-                    <Link
-                      href={`/app/mission/${mission.id}/snapshots/${snap.id}`}
-                      className="row"
-                      key={snap.id}
-                      style={{ textDecoration: 'none', color: 'inherit' }}
+                    <span className="card-body u-m-0">{data.packInfo.name}</span>
+                    <span
+                      className={`badge ${data.packInfo.authoritative ? 'badge-success' : 'badge-neutral'}`}
                     >
-                      <span className="row-key">
-                        Version {snap.version}
-                        {isPacket ? (
-                          <span className="badge badge-success" style={{ marginLeft: '0.5rem' }}>
-                            Application Packet
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className="row-val u-fs-075" title={snap.checksum}>
-                        {snap.checksum.slice(0, 12)}…
-                      </span>
+                      {data.packInfo.authoritative
+                        ? 'Official Requirement Pack'
+                        : 'Agency Custom Checklist'}
+                    </span>
+                  </div>
+                  {data.packInfo.jurisdiction || data.packInfo.route ? (
+                    <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
+                      {[data.packInfo.jurisdiction, data.packInfo.route]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
+                  ) : null}
+                  {data.packInfo.effectiveDate ? (
+                    <p
+                      className="muted"
+                      style={{ fontSize: 'var(--text-small)', margin: '0.35rem 0 0' }}
+                    >
+                      In effect since {formatDateOnly(data.packInfo.effectiveDate)}
+                    </p>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <p className="card-body u-mb-100">
+                    Pick a checklist: attach a published requirement pack to see how many items are
+                    ready.
+                  </p>
+                  <AttachPackForm
+                    missionId={mission.id}
+                    options={data.packOptions}
+                    primary={!hasNextStepOrAlert && !data.welcomeNote}
+                  />
+                </>
+              )}
+            </article>
+            <article className="card" {...atLevel('browse')}>
+              <p className="card-kicker">Workflow</p>
+              <h2 className="card-title">Advance the Case</h2>
+              {stageStates.length === 0 ? (
+                <p className="card-body">
+                  {nextStates.length === 0
+                    ? 'This case is in a terminal state.'
+                    : 'There is no further stage from here. To stop the case, use More at the top of the page.'}
+                </p>
+              ) : (
+                <div className="u-mt-050">
+                  <TransitionButtons missionId={mission.id} nextStates={stageStates} />
+                </div>
+              )}
+            </article>
+            <article className="card" id="snapshots" {...atLevel('everything')}>
+              <p className="card-kicker">History</p>
+              <h2 className="card-title">Snapshots</h2>
+              <p className="card-body case-memory-link">
+                Each snapshot keeps exactly what it held.{' '}
+                <Link href={memoryHref(data.applicantId)}>Open Case History</Link> to see every case
+                for this person and compare what you confirmed with today.
+              </p>
+              {data.snapshots.length === 0 ? (
+                <p className="card-body">
+                  No snapshots yet. Capture one to freeze this case's evidence and checksum.
+                </p>
+              ) : (
+                <div className="rows u-mt-050">
+                  {data.snapshots.map((snap) => {
+                    const content = snap.content as { state?: string } | null;
+                    const isPacket = content?.state ? PACKET_STATES.has(content.state) : false;
+                    return (
+                      <Link
+                        href={`/app/mission/${mission.id}/snapshots/${snap.id}`}
+                        className="row"
+                        key={snap.id}
+                        style={{ textDecoration: 'none', color: 'inherit' }}
+                      >
+                        <span className="row-key">
+                          Version {snap.version}
+                          {isPacket ? (
+                            <span className="badge badge-success" style={{ marginLeft: '0.5rem' }}>
+                              Application Packet
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="row-val u-fs-075" title={snap.checksum}>
+                          {snap.checksum.slice(0, 12)}…
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </article>
+            <article className="card" {...atLevel('everything')}>
+              <p className="card-kicker">Family Trip</p>
+              <h2 className="card-title">Itinerary Reference</h2>
+              <p className="card-body u-mb-100">
+                An optional label linking this case to another family member's, purely for display.
+                Access and permissions stay entirely separate per case.
+              </p>
+              <ItineraryForm missionId={mission.id} itineraryRef={mission.itineraryRef} />
+              {data.linkedMissions.length > 0 ? (
+                <div className="rows u-mt-100">
+                  {data.linkedMissions.map((m) => (
+                    <Link className="row row-link" key={m.id} href={`/app/mission/${m.id}`}>
+                      <span className="row-key">{m.applicantName}</span>
+                      <span className="muted">{m.title}</span>
                     </Link>
-                  );
-                })}
-              </div>
-            )}
-          </article>
-          <article className="card">
-            <p className="card-kicker">Family Trip</p>
-            <h2 className="card-title">Itinerary Reference</h2>
-            <p className="card-body u-mb-100">
-              An optional label linking this case to another family member's, purely for display.
-              Access and permissions stay entirely separate per case.
-            </p>
-            <ItineraryForm missionId={mission.id} itineraryRef={mission.itineraryRef} />
-            {data.linkedMissions.length > 0 ? (
-              <div className="rows u-mt-100">
-                {data.linkedMissions.map((m) => (
-                  <Link className="row row-link" key={m.id} href={`/app/mission/${m.id}`}>
-                    <span className="row-key">{m.applicantName}</span>
-                    <span className="muted">{m.title}</span>
-                  </Link>
-                ))}
-              </div>
-            ) : null}
-          </article>
-        </aside>
-      </div>
+                  ))}
+                </div>
+              ) : null}
+            </article>
+          </aside>
+        </div>
+      </DepthScope>
     </section>
   );
 }

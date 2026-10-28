@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { APPROVED_CHANGES } from './approved-changes';
+import { APPROVED_CHANGES, APPROVED_RULES } from './approved-changes';
 import {
   type InventoryEntry,
   badLevelWords,
@@ -59,8 +59,13 @@ export function registerParity(screen: {
       readFileSync(join(BASELINE_DIR, `${screen.name}.json`), 'utf8'),
     ) as Record<string, InventoryEntry[]>;
     const approved = APPROVED_CHANGES.filter((change) => change.screen === screen.name);
+    const rules = APPROVED_RULES.filter((rule) => rule.screens.includes(screen.name));
     it.each(screen.states.map((s) => [s.name, s] as const))('%s', async (_name, state) => {
-      const now = new Set(inventory(await html(state)).map(entryKey));
+      // Counted, not just present: two identical buttons before must still be two after.
+      const now = new Map<string, number>();
+      for (const key of inventory(await html(state)).map(entryKey)) {
+        now.set(key, (now.get(key) ?? 0) + 1);
+      }
       const before = baseline[state.name] ?? [];
       const missing = before
         .filter((entry) => {
@@ -72,7 +77,14 @@ export function registerParity(screen: {
               : typeof replacement === 'function'
                 ? replacement(state.name)
                 : (replacement ?? null);
-          return wanted !== null && !now.has(entryKey(wanted));
+          if (wanted === null) return false;
+          const forms = [wanted, ...rules.flatMap((rule) => rule.alternatives(wanted))].map(
+            entryKey,
+          );
+          const found = forms.find((key) => (now.get(key) ?? 0) > 0);
+          if (found === undefined) return true;
+          now.set(found, (now.get(found) ?? 0) - 1);
+          return false;
         })
         .map(entryKey);
       expect(missing).toEqual([]);

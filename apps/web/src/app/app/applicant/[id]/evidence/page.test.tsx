@@ -284,7 +284,7 @@ describe('what the checklist says and the questions already asked', () => {
     expect(text).toContain('Your Questions');
     expect(text).toContain('Asked 27 Oct 2026, 14:32 GMT+6');
     expect(text).toContain('Is a photo of the page enough?');
-    expect(html).toContain('href="/app/mission/m1"');
+    expect(html).toContain('href="/app/mission/m1#notes"');
     const asks = stubProps<{ missionId: string; requestId: string; maxLength: number }>(
       html,
       'AskAboutItemForm',

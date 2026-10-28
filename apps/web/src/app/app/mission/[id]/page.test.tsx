@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { levelContaining } from '../../../../lib/ccd/reveal';
 import { renderServer, stub, stubProps, textOf } from '../../../../lib/next-mocks.test-support';
 
 const ok = <T,>(value: T) => ({ ok: true as const, value });
@@ -46,6 +47,7 @@ vi.mock('../../../../lib/session', () => ({
 }));
 vi.mock('../../../../lib/ai', () => ({ isExplanationConfigured: async () => false }));
 vi.mock('../../../../lib/locale', () => ({ getLocale: async () => 'en' }));
+vi.mock('../../../../lib/ccd/depth.server', () => ({ readDepth: async () => 'auto' }));
 vi.mock('./attach-pack-form', () => ({ AttachPackForm: stub('AttachPackForm') }));
 vi.mock('./case-more-menu', () => ({ CaseMoreMenu: stub('CaseMoreMenu') }));
 vi.mock('./case-welcome', () => ({ CaseWelcome: stub('CaseWelcome') }));
@@ -729,5 +731,63 @@ describe('owner list items 1, 3 and 10 on the case page', () => {
     expect(tracker).toContain('allows Ready for Review next;');
     expect(tracker).not.toMatch(/Cancelled next|, Cancelled/);
     expect(tracker).toContain('To stop the case, use More at the top of the page.');
+  });
+});
+
+describe('the case on Glance, Browse and Everything (CCD-4)', () => {
+  const dom = async (html: string) => new (await import('jsdom')).JSDOM(html).window.document;
+  // The deepest level around the element, as the page's own link handling works it out; an
+  // element that is not there fails the test instead of passing as Glance.
+  const levelOf = (doc: Document, selector: string) => {
+    const element = doc.querySelector<HTMLElement>(selector);
+    const scope = doc.querySelector<HTMLElement>('[data-depth-scope]');
+    expect(element, selector).not.toBeNull();
+    expect(scope).not.toBeNull();
+    return levelContaining(element as HTMLElement, scope as HTMLElement);
+  };
+
+  it('keeps the honesty line at every level', async () => {
+    setUp({ requirements: ['CRITICAL_GAP'], openTasks: 1 });
+    const doc = await dom(await render());
+    const line = [...doc.querySelectorAll('p')].find((p) =>
+      p.textContent?.startsWith('Preparing a file is not the same as submitting it.'),
+    );
+    expect(line).toBeDefined();
+    expect(line?.closest('[data-level]')).toBeNull();
+  });
+
+  it('puts every section a link can point at where the link opens it', async () => {
+    setUp({ requirements: ['CRITICAL_GAP', 'SATISFIED'], openTasks: 1 });
+    const doc = await dom(await render());
+    for (const id of ['#readiness', '#pack', '#work', '#notes']) {
+      expect(levelOf(doc, id), id).toBe('browse');
+    }
+    for (const id of ['#evidence', '#outcome', '#snapshots']) {
+      expect(levelOf(doc, id), id).toBe('everything');
+    }
+    // The section links themselves are at every level.
+    expect(levelOf(doc, 'nav.jump-nav')).toBe('glance');
+    expect(doc.querySelectorAll('#readiness')).toHaveLength(1);
+  });
+
+  it('keeps the summary card as #readiness when there is no checklist', async () => {
+    setUp();
+    const doc = await dom(await render());
+    expect(levelOf(doc, '#readiness')).toBe('glance');
+  });
+
+  it('offers one primary button: the next step, not the checklist picker beside it', async () => {
+    setUp({ openTasks: 2 });
+    const html = await render();
+    expect(stubProps<{ primary?: boolean }>(html, 'AttachPackForm')).toEqual([
+      expect.objectContaining({ primary: false }),
+    ]);
+  });
+
+  it('lets the checklist picker be the primary when nothing else asks for action', async () => {
+    setUp();
+    const html = await render();
+    const [picker] = stubProps<{ primary?: boolean }>(html, 'AttachPackForm');
+    expect(picker?.primary).toBe(!html.includes('case-next-step-heading'));
   });
 });

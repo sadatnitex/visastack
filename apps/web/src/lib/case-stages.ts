@@ -29,3 +29,18 @@ export function caseStateLabel(state: string): string {
 export function stageButtonStates(nextStates: readonly MissionState[]): readonly MissionState[] {
   return nextStates.filter((state) => state !== 'CANCELLED');
 }
+
+/** Stages after which a case is no longer being worked on. */
+const FINISHED_CASE_STATES: ReadonlySet<string> = new Set(['CLOSED', 'CANCELLED']);
+
+/**
+ * The cases still being worked on, the most recently changed first: the first one is "the case
+ * you are on" on the traveller's page and the Cases page.
+ */
+export function openCasesNewestFirst<
+  T extends { readonly state: string; readonly updatedAt: Date },
+>(cases: readonly T[]): T[] {
+  return cases
+    .filter((item) => !FINISHED_CASE_STATES.has(item.state))
+    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+}

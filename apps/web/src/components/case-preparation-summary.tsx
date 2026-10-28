@@ -92,7 +92,7 @@ export function CasePreparationSummary({
         />
       </div>
       <div className="case-preparation-counts">
-        <h3>Evidence Progress</h3>
+        <h2>Evidence Progress</h2>
         <p className="muted">
           The ring counts required items that are on file. Optional and non-applicable items are
           counted separately.

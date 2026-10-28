@@ -222,7 +222,7 @@ export default async function DocumentInsightsPage({
             <EmptyState
               icon="folder"
               title="No Open Cases"
-              action={{ href: `/app/applicant/${id}/missions`, label: 'Start a Case' }}
+              action={{ href: `/app/applicant/${id}/missions#start-case`, label: 'Start a Case' }}
             >
               Each visa application is a case. Its readiness appears here once you start one.
             </EmptyState>

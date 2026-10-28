@@ -79,7 +79,7 @@ describe('CaseMoreMenu', () => {
     const { open } = mount();
     open();
     act(() => button('Cancel Case')?.click());
-    const question = container.querySelector('h3');
+    const question = container.querySelector('h2');
     expect(question?.textContent).toBe('Cancel this case?');
     expect(document.activeElement).toBe(question);
     const region = question?.closest('section');

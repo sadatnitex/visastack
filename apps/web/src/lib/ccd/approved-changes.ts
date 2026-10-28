@@ -47,7 +47,7 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
   {
     screen: 'traveller',
     from: { kind: 'link', name: 'New Visa Case', detail: '/app/applicant/person/missions' },
-    to: { kind: 'link', name: 'Start a Case', detail: '/app/applicant/person/missions' },
+    to: { kind: 'link', name: 'Start a Case', detail: '/app/applicant/person/missions#start-case' },
     reason:
       'D3: one name for starting a case. It is now a secondary button; the Next Step holds the one primary.',
   },
@@ -125,5 +125,53 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     },
     to: { kind: 'link', name: 'Dates & Expiry \u2192', detail: '/app/applicant/person/expiry' },
     reason: 'D3: one name for the Dates & Expiry page.',
+  },
+  {
+    screen: 'cases',
+    from: { kind: 'heading', name: 'Visa Cases', detail: '2' },
+    to: { kind: 'heading', name: 'Cases', detail: '1' },
+    reason:
+      'D3 and D2: the page is "Cases", eyebrow the traveller\'s name, as the one page heading.',
+  },
+  {
+    screen: 'cases',
+    from: { kind: 'heading', name: 'Active & Past', detail: '2' },
+    to: { kind: 'heading', name: 'All Cases', detail: '2' },
+    reason: 'D3: the list section is "All Cases".',
+  },
+  {
+    screen: 'cases',
+    from: { kind: 'text', name: 'Your Cases' },
+    to: null,
+    reason: 'D3 retires "Your Cases"; the small label above the list repeated the page name.',
+  },
+  {
+    screen: 'case',
+    from: { kind: 'heading', name: 'Evidence Progress', detail: '3' },
+    to: { kind: 'heading', name: 'Evidence Progress', detail: '2' },
+    reason: 'D2: no skipped heading level under the case title; same words and size.',
+  },
+];
+
+/**
+ * Approved changes that apply to a kind of element rather than one element: a link that now
+ * carries an anchor so it lands on what it names (ADR 0023, links never land hidden).
+ */
+export interface ApprovedRule {
+  readonly screens: readonly string[];
+  readonly reason: string;
+  /** Other forms the same element may now take. */
+  readonly alternatives: (entry: InventoryEntry) => readonly InventoryEntry[];
+}
+
+export const APPROVED_RULES: readonly ApprovedRule[] = [
+  {
+    screens: ['home', 'traveller'],
+    reason:
+      'CCD-4: every Start a Case link opens the form, which sits deeper on the Cases page, through its #start-case anchor.',
+    alternatives: (entry) =>
+      entry.kind === 'link' && entry.detail?.endsWith('/missions')
+        ? [{ ...entry, detail: `${entry.detail}#start-case` }]
+        : [],
   },
 ];

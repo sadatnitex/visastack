@@ -6,7 +6,7 @@ import { type DEPTH_LEVELS, isDepthLevel } from './depth';
  * sentences, each with the name it is announced by. The parity test compares a screen's list
  * before and after Calm Core With Depths, so nothing can quietly disappear (ADR 0023).
  */
-export type InventoryKind = 'heading' | 'link' | 'button' | 'field' | 'text';
+export type InventoryKind = 'heading' | 'link' | 'button' | 'field' | 'text' | 'component';
 
 export interface InventoryEntry {
   readonly kind: InventoryKind;
@@ -61,6 +61,12 @@ export function inventory(html: string): InventoryEntry[] {
       const type = el.getAttribute('type') ?? tag;
       entries.push({ kind: 'field', name: fieldName(el, doc), detail: type });
     }
+  }
+  // Components a test replaced with a stand-in (`stub()` in next-mocks.test-support): their own
+  // controls are not in the markup, so the stand-in itself is counted, once per occurrence.
+  for (const el of main.querySelectorAll('[data-stub]')) {
+    if (el.closest('noscript')) continue;
+    entries.push({ kind: 'component', name: el.getAttribute('data-stub') ?? '' });
   }
   return entries;
 }
