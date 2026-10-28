@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from './axe.test-support';
+import { headingProblems } from './ccd/inventory';
 import { navigationState, textOf } from './next-mocks.test-support';
 
 /**
@@ -26,6 +27,7 @@ vi.mock('next/font/local', () => ({
   default: () => ({ variable: 'font-variable', className: 'font-class' }),
 }));
 vi.mock('./locale', () => ({ getLocale: async () => 'en' }));
+vi.mock('./ccd/depth.server', () => ({ readDepth: async () => 'auto' }));
 vi.mock('./session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
     fn({ db: {}, accountId: 'acct-1', email: 'traveller@example.com' }),
@@ -219,6 +221,15 @@ describe('signed-in pages, as whole pages in the signed-in shell', () => {
       expect(await axeViolations(await shellMarkup(screen), { wholePage: true })).toEqual([]);
     },
     30_000,
+  );
+
+  // Screens already converted to Calm Core With Depths. Each package adds its screens here, so a
+  // page can never go back to two headings at the top or a skipped level (docs/uiux/ccd).
+  it.each(SCREENS.filter((s) => s.path === '/app/account').map((s) => [s.name, s] as const))(
+    '%s has one h1 and no skipped heading levels',
+    async (_name, screen) => {
+      expect(headingProblems(await shellMarkup(screen))).toEqual([]);
+    },
   );
 
   it('marks the current section in the signed-in navigation', async () => {

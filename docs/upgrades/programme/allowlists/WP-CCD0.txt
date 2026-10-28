@@ -1,0 +1,9 @@
+# CCD-0 recon and contract: documents only.
+docs/adr/0023-calm-core-with-depths.md
+docs/uiux/ccd/**
+docs/upgrades/programme/WORK-PACKAGES.md
+docs/upgrades/programme/STATUS.md
+docs/upgrades/programme/COVERAGE-LEDGER.csv
+docs/upgrades/programme/allowlists/WP-CCD*.txt
+docs/commercial-v1/known-issues.md
+docs/uiux/EXPERIENCE-UPGRADE-HANDOFF.md

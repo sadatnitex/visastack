@@ -316,3 +316,42 @@ Every value and token name in this table was checked against the Harbor package 
 **Allowlist seed:** `apps/web/src/app/page.tsx` and its test (landing copy only), `docs/upgrades/**`, test files.
 
 **Acceptance:** the programme definition of done in `PROGRAMME.md` section 13.
+
+---
+
+# CCD: Calm Core With Depths (owner, 28 Oct 2026)
+
+Plan: `docs/adr/0023-calm-core-with-depths.md`. Guard and ledger: `docs/uiux/ccd/PARITY-LEDGER.md`. Names: `docs/uiux/ccd/VOCABULARY.md`. Visual reference: the approved CCD canvas (https://claude.ai/artifact/7XCTBjyC2h8c6mZmscEpv4); its CSS is a mockup, rebuild with the existing tokens. Draft pull requests only; never merged without the owner's merge word. One package per session.
+
+## WP-CCD0 Recon and contract (docs)
+
+**Class** D. **Branch** `claude/gifted-brahmagupta-kznuzm` (shared with CCD1 for the first pull request). **Done:** ADR 0023, vocabulary table, parity ledger, work packages, allowlists. Findings: R1 and R2 need new reads (not adopted); the request-count fix agrees with ADR 0015; no contract exception for "traveller".
+
+## WP-CCD1 Foundation, proven on Account
+
+**Class** P. **Depends on** CCD0. **Built:** depth switch, level attributes and CSS gating, `vs_depth` cookie, anchor and `?depth=` reveal, noscript, one-H1 check, parity harness, Account screen. Also: the AI connector now declares the VisaStack logo in its server details. **Allowlist:** `allowlists/WP-CCD1.txt`. **Acceptance:** Account parity green in three states; switch, cookie, reveal and heading guards each seen failing when the real code is broken.
+
+## WP-CCD2 Ranking and Home
+
+Single ranking source for Home and the traveller overview (D1 without R1 and R2 unless approved), Home and Traveller home converted, new vocabulary. **Allowlist seed:** `allowlists/WP-CCD2.txt`.
+
+## WP-CCD3 Record
+
+My Profile, Documents (with D5 upload rules from the server constants), Dates & Expiry, All Records and History naming. **Allowlist seed:** `allowlists/WP-CCD3.txt`.
+
+## WP-CCD4 Cases
+
+Cases and Case, the busiest screen; Plan agent first; `/code-review max`; parity with the busy-case fixture. **Allowlist seed:** `allowlists/WP-CCD4.txt`.
+
+## WP-CCD5 People and privacy
+
+Evidence Requests, Sharing, Privacy & Consent, Notifications; `/code-review max` and `/security-review`. **Allowlist seed:** `allowlists/WP-CCD5.txt`.
+
+## WP-CCD6 Agency
+
+D4 request-count fix with shared constants, Agency Overview, Agency Cases, agency naming and H1s; Plan agent first. **Allowlist seed:** `allowlists/WP-CCD6.txt`.
+
+## WP-CCD7 Polish and heart pass
+
+The experience behaviours across all screens, copy, accessibility and design passes, checks at 390, 768 and 1280 wide. **Allowlist seed:** `allowlists/WP-CCD7.txt`.
+
