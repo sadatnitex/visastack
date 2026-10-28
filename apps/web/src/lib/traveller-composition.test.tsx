@@ -95,7 +95,7 @@ describe('traveller composition and independent record guards', () => {
   it('preserves all structural overview regions for an empty account without inventing a case', async () => {
     const html = renderToStaticMarkup(await overview(params));
     for (const text of [
-      'Active Visa Cases',
+      'Active Cases',
       'Documents in Your Wallet',
       'Items Needing Attention',
       'Continue Where You Left Off',

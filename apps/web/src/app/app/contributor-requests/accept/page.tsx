@@ -106,8 +106,8 @@ export default async function AcceptContributorRequestPage({
             </p>
 
             <div className="notice notice-warn u-mb-125">
-              This document may be included in the case file the applicant reviews and submits for
-              their case. Do not upload anything you would not want the applicant and anyone helping
+              This document may be included in the case file the traveller reviews and submits for
+              their case. Do not upload anything you would not want the traveller and anyone helping
               with their case to eventually see.
             </div>
 

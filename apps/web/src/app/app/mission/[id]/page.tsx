@@ -446,7 +446,7 @@ export default async function MissionPage({
     for (const m of otherLinked) {
       if (linkedApplicantNames.has(m.applicantId)) continue;
       const linkedApplicant = await getApplicant(db, m.applicantId);
-      linkedApplicantNames.set(m.applicantId, linkedApplicant?.displayName ?? 'Applicant');
+      linkedApplicantNames.set(m.applicantId, linkedApplicant?.displayName ?? 'Traveller');
     }
     // The case's visible code (ADR 0018); none while migration 0091 has not run.
     const referenceCode = await referenceCodeFor(db, 'C', mission.id);
@@ -464,7 +464,7 @@ export default async function MissionPage({
       referenceCode,
       welcomeNote,
       mission,
-      applicantName: applicant?.displayName ?? 'Applicant',
+      applicantName: applicant?.displayName ?? 'Traveller',
       applicantId: mission.applicantId,
       liveAcknowledgedAt: liveAcknowledgement?.createdAt.toISOString() ?? null,
       isDirty,
@@ -562,7 +562,7 @@ export default async function MissionPage({
       linkedMissions: otherLinked.map((m) => ({
         id: m.id,
         title: m.title,
-        applicantName: linkedApplicantNames.get(m.applicantId) ?? 'Applicant',
+        applicantName: linkedApplicantNames.get(m.applicantId) ?? 'Traveller',
       })),
       packOptions: packs.map(
         (p): PackOption => ({
@@ -684,10 +684,10 @@ export default async function MissionPage({
             <ReferenceCode code={data.referenceCode} label="Case Reference" />
             {data.liveAcknowledgedAt ? (
               <StatusBadge tone="success">
-                Confirmed by the applicant on {formatTimestampDate(data.liveAcknowledgedAt)}
+                Confirmed by the traveller on {formatTimestampDate(data.liveAcknowledgedAt)}
               </StatusBadge>
             ) : (
-              <StatusBadge tone="neutral">Applicant has not confirmed yet</StatusBadge>
+              <StatusBadge tone="neutral">Traveller has not confirmed yet</StatusBadge>
             )}
           </>
         }

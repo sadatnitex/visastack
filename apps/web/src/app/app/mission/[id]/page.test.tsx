@@ -215,7 +215,7 @@ describe('case page as it is today (WP-X1 characterization)', () => {
     const html = await render();
     const text = textOf(html);
     expect(text).toContain('Japan visitor visa');
-    expect(text).toContain('Applicant has not confirmed yet');
+    expect(text).toContain('Traveller has not confirmed yet');
     expect(text).toContain('Nothing needs attention right now');
     expect(html).toContain('aria-label="Actual case workflow state"');
     expect(html).toContain('aria-current="step"');

@@ -16,7 +16,7 @@ const REASON_PLACEHOLDER: Record<
   string
 > = {
   NEEDS_REPLACEMENT: 'What needs to be replaced, and why',
-  CONTRADICTION: 'What this evidence contradicts on the applicant profile',
+  CONTRADICTION: "What this evidence contradicts on the traveller's profile",
   CORRECTION_PROPOSED: 'The correction you suggest, and why',
 };
 

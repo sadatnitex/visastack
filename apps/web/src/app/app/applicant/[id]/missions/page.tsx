@@ -64,7 +64,7 @@ export default async function MissionsPage({
       <PageHeader
         eyebrow={data.applicant.displayName}
         title="Cases"
-        description="A case assembles this applicant's evidence against a published requirement pack."
+        description="A case assembles this traveller's evidence against a published requirement pack."
         actions={
           <a className="btn btn-secondary" href="#start-case">
             Start a Case

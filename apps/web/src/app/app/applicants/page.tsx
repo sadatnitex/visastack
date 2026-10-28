@@ -8,7 +8,7 @@ import { relationshipLabel } from '../../../lib/relationship-labels';
 import { withSession } from '../../../lib/session';
 import { AddApplicantForm } from '../add-applicant-form';
 
-export const metadata: Metadata = { title: 'Applicants' };
+export const metadata: Metadata = { title: 'All Travellers' };
 
 export const dynamic = 'force-dynamic';
 
@@ -25,19 +25,19 @@ export default async function ApplicantsPage() {
   return (
     <section className="section container">
       <PageHeader
-        eyebrow="Applicants"
+        eyebrow="Travellers"
         title="People on Your Account"
         description="Yourself and anyone you manage records for - family members or a minor under your guardianship."
       />
 
       <div className="grid">
         <article className="card">
-          <p className="card-kicker">All Applicants</p>
+          <p className="card-kicker">All Travellers</p>
           <h2 className="card-title">
             {data.applicants.length} {data.applicants.length === 1 ? 'person' : 'people'}
           </h2>
           {data.applicants.length === 0 ? (
-            <EmptyState icon="users" title="No Applicants Yet">
+            <EmptyState icon="users" title="No Travellers Yet">
               Add yourself first. Your passport details and documents are entered once and reused
               for every application.
             </EmptyState>
@@ -62,13 +62,13 @@ export default async function ApplicantsPage() {
 
         <article className="card">
           <p className="card-kicker">New</p>
-          <h2 className="card-title">Add an Applicant</h2>
+          <h2 className="card-title">Add a Traveller</h2>
           {data.coreGranted ? (
             <AddApplicantForm selfAdded={data.applicants.some((a) => a.relationship === 'SELF')} />
           ) : (
             <p className="card-body">
               Turn on <strong>Let VisaStack Process My Details</strong> on{' '}
-              <Link href="/app">Home</Link> to start adding applicant records.
+              <Link href="/app">Home</Link> to start adding traveller records.
             </p>
           )}
         </article>

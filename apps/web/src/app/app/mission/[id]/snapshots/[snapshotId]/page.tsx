@@ -147,7 +147,7 @@ export default async function MissionSnapshotPage({
         <div className="notice notice-warn u-mb-150">
           <strong>Not narrowed to this case.</strong> This case had no automated requirement pack
           attached when captured, so there is no case-specific selection to disclose from - the
-          facts and documents below are this applicant's full record, not limited to this case.
+          facts and documents below are this traveller's full record, not limited to this case.
         </div>
       ) : content.evidenceScope === undefined ? (
         <div className="notice notice-warn u-mb-150">

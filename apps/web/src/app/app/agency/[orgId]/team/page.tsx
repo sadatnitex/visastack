@@ -50,7 +50,7 @@ export default async function AgencyTeamPage({
       <p className="card-kicker">Team</p>
       <h2 className="card-title">Members</h2>
       <p className="card-body u-mb-125">
-        Membership is organizational bookkeeping - it never grants access to an applicant's records
+        Membership is organizational bookkeeping - it never grants access to a traveller's records
         on its own. Access is always an accepted grant.
       </p>
       {data.members.length > 0 ? (
