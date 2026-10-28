@@ -3,15 +3,15 @@ import { describe, expect, it, vi } from 'vitest';
 const choice = vi.hoisted(() => ({ enabled: false, saved: 'bn' as string | undefined }));
 const readRequest = vi.hoisted(() => ({ count: 0 }));
 vi.mock('next/headers', () => ({
-  cookies: async () => (
-    readRequest.count++,
-    {
+  cookies: async () => {
+    readRequest.count += 1;
+    return {
       get: (name: string) =>
         name === 'visastack_locale' && choice.saved !== undefined
           ? { value: choice.saved }
           : undefined,
-    }
-  ),
+    };
+  },
 }));
 vi.mock('./language-choice', () => ({
   get LANGUAGE_CHOICE_ENABLED() {
