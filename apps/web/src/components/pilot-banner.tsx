@@ -1,4 +1,5 @@
 import type { DeploymentMode } from '@visastack/core';
+import { type VersionNoticeCopy as BannerCopy, VersionNotice } from './version-notice';
 
 /**
  * Unmistakable deployment-mode banner (master recovery directive §7 "PR 1"): in
@@ -12,13 +13,14 @@ import type { DeploymentMode } from '@visastack/core';
  * Rendered globally from the root layout, not a per-section opt-in. `mode` is
  * computed server-side (`getDeploymentMode()`); the client never decides what this
  * says.
+ *
+ * Owner list item 17 (the beta banner once), together with the rule above that every page says
+ * this is a test version: the full notice shows once per visitor, on the first page they open.
+ * After that (`seen` comes from a small cookie, `lib/version-notice.ts`), and after Hide This
+ * Notice, every page keeps a slim one-line label: the version name from the same copy below and
+ * the What Works Today link, which also carries the full words under About This Version. Nothing
+ * removes the label.
  */
-interface BannerCopy {
-  readonly label: string;
-  readonly detail: string;
-  /** Phone version: the same meaning in a few words, so the notice stays one or two lines. */
-  readonly short: string;
-}
 
 /**
  * Exported so a test can tie the deployment smoke check (`scripts/smoke.mjs`, which
@@ -39,34 +41,33 @@ export const PILOT_BANNER_COPY = {
   },
 } as const satisfies Partial<Record<DeploymentMode, BannerCopy>>;
 
+/** The words the notice shows in a deployment mode, or null in commercial mode (no notice). */
+export function versionNoticeCopy(
+  mode: DeploymentMode,
+  registrationOpen = false,
+): BannerCopy | null {
+  if (mode === 'commercial') return null;
+  return mode === 'controlled_pilot' && registrationOpen
+    ? {
+        label: 'VisaStack Public Beta',
+        detail:
+          'Free to use at your own risk. Some protections, such as virus scanning of uploads, are not switched on yet.',
+        short: 'Free, at your own risk.',
+      }
+    : PILOT_BANNER_COPY[mode];
+}
+
 export function PilotBanner({
   mode,
   registrationOpen = false,
+  seen = false,
 }: {
   readonly mode: DeploymentMode;
   readonly registrationOpen?: boolean;
+  /** This device has already seen the notice (or hid it), so only the slim label shows. */
+  readonly seen?: boolean;
 }) {
-  if (mode === 'commercial') return null;
-  const copy =
-    mode === 'controlled_pilot' && registrationOpen
-      ? {
-          label: 'VisaStack Public Beta',
-          detail:
-            'Free to use at your own risk. Some protections, such as virus scanning of uploads, are not switched on yet.',
-          short: 'Free, at your own risk.',
-        }
-      : PILOT_BANNER_COPY[mode];
-  // A named region, so the notice is a landmark a screen reader user can find and skip,
-  // not loose content above the page's own landmarks.
-  return (
-    <section className="pilot-banner" aria-label="About this version">
-      <span className="pilot-banner-label">{copy.label}</span>
-      {/* One of these two shows, by screen width; the link below gives the full list either way. */}
-      <span className="pilot-banner-detail">{copy.detail}</span>
-      <span className="pilot-banner-short">{copy.short}</span>
-      <a className="pilot-banner-link" href="/status">
-        What Works Today
-      </a>
-    </section>
-  );
+  const copy = versionNoticeCopy(mode, registrationOpen);
+  if (!copy) return null;
+  return <VersionNotice copy={copy} folded={seen} />;
 }

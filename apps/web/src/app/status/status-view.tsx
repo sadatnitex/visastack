@@ -1,3 +1,4 @@
+import type { VersionNoticeCopy } from '../../components/version-notice';
 import { VERDICT_WORDS, capabilityRows, verdictOf } from './capability-names';
 
 /** What one health check answered: whether it succeeded, the status word it gave, and its body. */
@@ -36,12 +37,18 @@ export function StatusView({
   updatedAt,
   loading,
   onRefresh,
+  versionNotice = null,
 }: {
   readonly live: ProbeResult | null;
   readonly ready: ProbeResult | null;
   readonly updatedAt: string;
   readonly loading: boolean;
   readonly onRefresh: () => void;
+  /**
+   * The notice a visitor saw at the top of their first page, kept here in full so it stays
+   * reachable once it has folded away (the footer links to it). Null in commercial mode.
+   */
+  readonly versionNotice?: VersionNoticeCopy | null;
 }) {
   const verdict = VERDICT_WORDS[verdictOf(live, ready)];
   const rows = capabilityRows(ready?.data.platform);
@@ -96,6 +103,21 @@ export function StatusView({
           ) : null}
         </>
       )}
+
+      {versionNotice ? (
+        <article
+          className="card u-mb-125"
+          id="about-this-version"
+          aria-labelledby="about-this-version-title"
+        >
+          <h2 className="card-title" id="about-this-version-title">
+            About This Version
+          </h2>
+          <p className="u-m-0">
+            <b>{versionNotice.label}.</b> {versionNotice.detail}
+          </p>
+        </article>
+      ) : null}
 
       <div className="toolbar">
         <span className="muted u-fs-085">

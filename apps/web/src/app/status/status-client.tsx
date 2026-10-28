@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import type { VersionNoticeCopy } from '../../components/version-notice';
 import { type ProbeResult, StatusView } from './status-view';
 
 /**
@@ -22,7 +23,9 @@ async function probe(path: string): Promise<ProbeResult> {
   }
 }
 
-export function StatusClient() {
+export function StatusClient({
+  versionNotice = null,
+}: { readonly versionNotice?: VersionNoticeCopy | null } = {}) {
   const [live, setLive] = useState<ProbeResult | null>(null);
   const [ready, setReady] = useState<ProbeResult | null>(null);
   const [updatedAt, setUpdatedAt] = useState<string>('');
@@ -50,6 +53,7 @@ export function StatusClient() {
       updatedAt={updatedAt}
       loading={loading}
       onRefresh={() => void refresh()}
+      versionNotice={versionNotice}
     />
   );
 }
