@@ -10155,14 +10155,15 @@ summary.visa-photo-title {
 }
 
 /* WP-CCD7 next step: the dark Next Step banner of the approved mockups (Home, the traveller page
-   and the Case page), built from the existing chapter colours. Full at Glance (and without
+   and the Case page), on the brand ink of the page headings (owner, 28 Oct 2026), with the
+   chapter's light text for the reason. Full at Glance (and without
    scripts); the shorter form at Browse and Everything comes from the variables set on the scope
    below, so both banners change in one place. The button stays the screen's one primary action,
    shown light on the dark surface. */
 .next-step,
 .case-next-step {
   padding: var(--ns-pad, 28px);
-  background: var(--chapter-bg);
+  background: var(--text);
   color: var(--chapter-text);
   /* Transparent edges keep an outline in high contrast mode, where backgrounds are dropped. */
   border: 1px solid transparent;

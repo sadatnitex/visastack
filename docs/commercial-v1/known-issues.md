@@ -6175,3 +6175,6 @@ Owner approved 2026-10-25. Two fixes where the product said something that was n
 - Checked: rendered at Glance, Browse, auto on desktop and phone, print and high contrast in a browser from the real stylesheet; contrast 10.9:1 for the reason text, 17.4:1 for the title, 15.6:1 for the button; flat-design, UI ratchet, type scale and text floor guards pass.
 - Review (high) fixes: the urgent and settled coloured edge is kept; print and high contrast keep the banner readable and outlined; the button hover is visible; title sizes come from the type scale; one set of rules for both banners through variables on the scope.
 - Not built: the single-line pill at Everything (it would hide the reason sentence). Not verified live: the signed-in pages themselves.
+
+### 2026-10-28, CCD-7: the Next Step banner in the brand ink
+- Owner: the banner must use the brand colour of the page headings ("Welcome back, {name}"). It used the darker sign-in navy (#0b1a30); it now uses the heading ink (--text, #13243d), so it is the same colour as the headings. Reason text keeps the chapter's light text (9.8:1), title and button 15.6:1. Style only.
