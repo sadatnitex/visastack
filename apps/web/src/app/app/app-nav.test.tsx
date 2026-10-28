@@ -182,6 +182,38 @@ describe('phone navigation and the context chip (WP-X3)', () => {
   });
 });
 
+describe('short words on the phone bar (UX-H)', () => {
+  // Voice control users say the word they see, so it must be part of the link's spoken name.
+  it('every short word is part of its link name, in every context', () => {
+    const PLATFORM: WorkspaceAccess = {
+      ...FULL,
+      platform: { owner: true, ai: true, complaints: true, audit: true, privacy: true },
+    };
+    const contexts: ReadonlyArray<readonly [WorkspaceAccess, string]> = [
+      [FULL, '/app'],
+      [NONE, '/app'],
+      [NONE, '/app/mission/30000000-0000-4000-8000-000000000001'],
+      [FULL, `/app/applicant/${SELF}`],
+      [FULL, '/app/agency/20000000-0000-4000-8000-000000000001'],
+      [PLATFORM, '/app/admin'],
+    ];
+    const shortened = new Set<string>();
+    for (const [access, pathname] of contexts) {
+      route.pathname = pathname;
+      mount(access);
+      for (const link of container.querySelectorAll('a[aria-label]')) {
+        const compact = link.querySelector('.app-link-compact')?.textContent;
+        if (!compact) continue;
+        const name = link.getAttribute('aria-label') ?? '';
+        expect(name.toLowerCase()).toContain(compact.toLowerCase());
+        if (compact !== name) shortened.add(`${name} > ${compact}`);
+      }
+    }
+    expect(shortened).toContain('Account Overview > Overview');
+    expect(shortened).toContain('All Travellers > Travellers');
+  });
+});
+
 describe('the chip is a phone-only part of the stylesheet', () => {
   it('is hidden by default and shown below the sidebar breakpoint', async () => {
     const { readFileSync } = await import('node:fs');

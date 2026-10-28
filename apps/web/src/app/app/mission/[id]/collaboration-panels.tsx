@@ -61,18 +61,10 @@ export function TasksPanel({
       ) : (
         <div className="rows u-mb-100">
           {openOrInProgress.map((task) => (
-            <form
-              action={decideAction}
-              key={task.id}
-              className="row"
-              style={{ alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}
-            >
+            <form action={decideAction} key={task.id} className="row task-row">
               <input type="hidden" name="missionId" value={missionId} />
               <input type="hidden" name="taskId" value={task.id} />
-              <span
-                className="row-key"
-                style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}
-              >
+              <span className="row-key">
                 {task.description}
                 <span
                   className={`badge ${task.priority === 'URGENT' || task.priority === 'HIGH' ? 'badge-warning' : 'badge-neutral'}`}
@@ -92,7 +84,7 @@ export function TasksPanel({
                   </span>
                 ) : null}
               </span>
-              <div style={{ display: 'flex', gap: '0.4rem' }}>
+              <div className="task-row-actions">
                 {task.status === 'OPEN' ? (
                   <SubmitButton
                     pending={decidePending}
@@ -146,19 +138,15 @@ export function TasksPanel({
         </details>
       ) : null}
 
-      <form
-        action={createAction}
-        style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}
-      >
+      <form action={createAction} className="collab-add-form">
         <input type="hidden" name="missionId" value={missionId} />
         <input
           name="description"
           type="text"
-          className="input"
+          className="input collab-add-wide"
           placeholder="Add a task…"
           aria-label="Task description"
           required
-          style={{ flex: 1, minWidth: '10rem' }}
         />
         <select name="priority" className="input" defaultValue="NORMAL" aria-label="Priority">
           {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
@@ -167,20 +155,13 @@ export function TasksPanel({
             </option>
           ))}
         </select>
-        <input
-          name="dueDate"
-          type="date"
-          className="input"
-          aria-label="Due Date (Optional)"
-          style={{ maxWidth: '9rem' }}
-        />
+        <input name="dueDate" type="date" className="input" aria-label="Due Date (Optional)" />
         <input
           name="dueTimezone"
           type="text"
-          className="input"
+          className="input collab-add-wide"
           placeholder="Timezone, e.g. Asia/Dhaka"
           aria-label="Due timezone (optional)"
-          style={{ maxWidth: '10rem' }}
         />
         <SubmitButton
           pending={createPending}
@@ -304,23 +285,19 @@ export function AppointmentsPanel({
         </details>
       ) : null}
 
-      <form
-        action={createAction}
-        style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}
-      >
+      <form action={createAction} className="collab-add-form">
         <input type="hidden" name="missionId" value={missionId} />
         <input
           name="title"
           type="text"
-          className="input"
+          className="input collab-add-wide"
           placeholder="e.g. Visa interview prep call"
           aria-label="Appointment title"
           required
-          style={{ flex: 1, minWidth: '10rem' }}
         />
         <input name="localDate" type="date" className="input" aria-label="Date" required />
         <input name="localTime" type="time" className="input" aria-label="Time" required />
-        <TimeZoneSelect name="timezone" />
+        <TimeZoneSelect name="timezone" className="collab-add-wide" />
         <input
           name="place"
           type="text"

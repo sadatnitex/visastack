@@ -9816,3 +9816,185 @@ summary.visa-photo-title {
   border-top: 1px solid var(--hairline-soft);
   padding-top: var(--space-3);
 }
+
+/* WP-UXH visual pass: small alignment fixes on the screens changed on 27 and 28 October. Flat:
+   hairlines, spacing and type tokens only. Every control keeps its 44px target. */
+
+/* Button rows that had no rule (the invitation link and others): the same row as .cta-row, with
+   the buttons centred on one line. */
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+/* The step list on a phone: three equal columns, so no single step drops to a line of its own. */
+@media (max-width: 480px) {
+  .auth-steps {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+/* Empty lists: reading lines stay a comfortable length on a wide screen, and the box inside a card
+   gives the words more room on a phone. */
+.empty-state-body,
+.empty-state-why {
+  max-width: 68ch;
+}
+@media (max-width: 700px) {
+  .card .empty-state {
+    padding: var(--space-4);
+  }
+}
+
+/* Essentials First: one rule between details (the field's own rule doubled the item's). On a
+   phone the list sits flat in its card, so the boxes get the width. */
+.profile-essential .profile-field-item {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+@media (max-width: 700px) {
+  .profile-essentials {
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+}
+/* "Add the Date This Became True" is something to tap: give it a full target on touch screens. */
+@media (pointer: coarse), (max-width: 700px) {
+  .field-backdate > summary {
+    line-height: 1.5;
+    padding-block: calc((44px - 1.5em) / 2);
+  }
+}
+
+/* A form straight under a card title starts a step lower, as the other card contents do. */
+.card > .card-title + .field-list {
+  margin-top: var(--space-3);
+}
+
+/* Case page: the More menu's items read alike (no underline on the link), the cancel question's
+   two buttons fit on one line, and the stage note keeps a readable line length. */
+.case-more-list .case-more-item {
+  text-decoration: none;
+}
+@media (min-width: 641px) {
+  .case-more-panel {
+    width: min(24rem, calc(100vw - 2rem));
+  }
+}
+.case-stage-region > .muted {
+  max-width: 80ch;
+}
+
+/* Case tasks and appointments: the title and its labels wrap together, the row's buttons stay
+   together at the end, and both Add forms line their fields up in one grid with the button on its
+   own row. */
+.task-row {
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.task-row .row-key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+.task-row .badge {
+  white-space: nowrap;
+}
+.task-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+.collab-add-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--space-2);
+  align-items: center;
+}
+.collab-add-form > .collab-add-wide,
+.collab-add-form > button[type="submit"] {
+  grid-column: 1 / -1;
+}
+.collab-add-form > .tz-select {
+  max-width: none;
+}
+.collab-add-form > button[type="submit"] {
+  justify-self: start;
+}
+
+/* Document upload: a long file name wraps beside its size instead of pushing the size to a line of
+   its own; the kind picker keeps a field's width on a wide card; and on a phone the per-file lines
+   are reading text at 16px. */
+.upload-item-head {
+  flex-wrap: nowrap;
+  align-items: baseline;
+}
+.upload-item-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.upload-item-size {
+  flex: none;
+  white-space: nowrap;
+}
+.uploader > .field-stack {
+  max-width: 40rem;
+}
+@media (max-width: 700px) {
+  .upload-drop-hint,
+  .upload-summary,
+  .upload-item-name,
+  .upload-item-title,
+  .upload-item-status {
+    font-size: var(--text-body);
+  }
+}
+
+/* Agency invitation forms: the result line sits a step below the button that sent it. */
+.field-list > div > .btn + .field-msg:not(:empty),
+.field-list > div > .btn + .field-msg:empty + .field-msg:not(:empty) {
+  margin-top: var(--space-2);
+}
+
+/* Calendar: the result line sits level with the buttons, and the note below them starts a step
+   lower; two paragraphs in one notice keep a gap between them. */
+.calendar-feed-actions {
+  align-items: center;
+}
+.calendar-feed-note {
+  margin: var(--space-3) 0 0;
+}
+.notice-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Help: four guide cards sit two by two rather than three and one; contact lines keep a readable
+   length. */
+@media (min-width: 701px) {
+  .help-guide-grid:has(> :nth-child(4):last-child) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.help-contact-route p {
+  max-width: 75ch;
+}
+
+/* Staff mode on a narrow phone, where the link drops to its own line: Leave Staff Mode lines up
+   with the words, not under the lock (the lock is drawn at 18px in workspace-shell.tsx). */
+@media (max-width: 480px) {
+  .staff-mode-banner .staff-mode-leave {
+    margin-inline-start: calc(18px + var(--space-3));
+  }
+}
