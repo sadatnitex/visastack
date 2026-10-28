@@ -84,4 +84,46 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     to: { kind: 'heading', name: 'Selected Document', detail: '2' },
     reason: 'D2: no skipped heading levels; the panel heading follows the page heading.',
   },
+  {
+    screen: 'expiry',
+    from: { kind: 'heading', name: 'Expiry & Freshness', detail: '2' },
+    to: { kind: 'heading', name: 'Dates & Expiry', detail: '1' },
+    reason:
+      'D3 and D2: one name for the page ("Dates & Expiry", eyebrow "Record"), as the one page heading.',
+  },
+  {
+    screen: 'traveller',
+    from: {
+      kind: 'link',
+      name: 'Document Expiry Centre \u2192',
+      detail: '/app/applicant/person/expiry',
+    },
+    to: { kind: 'link', name: 'Dates & Expiry \u2192', detail: '/app/applicant/person/expiry' },
+    reason: 'D3: "Expiry Centre" is retired; the page is Dates & Expiry everywhere.',
+  },
+  {
+    screen: 'profile',
+    from: { kind: 'heading', name: 'My Profile', detail: '2' },
+    to: { kind: 'heading', name: 'My Profile', detail: '1' },
+    reason:
+      'D2: the page name is the one page heading (eyebrow "Record" replaces "Your Canonical Record").',
+  },
+  ...['Karim Hossain', 'Profile Health', 'Latest Changes'].map(
+    (name): ApprovedChange => ({
+      screen: 'profile',
+      from: { kind: 'heading', name, detail: '3' },
+      to: { kind: 'heading', name, detail: '2' },
+      reason: 'D2: no skipped heading levels under the page heading; same words and size.',
+    }),
+  ),
+  {
+    screen: 'profile',
+    from: {
+      kind: 'link',
+      name: 'Check Document Expiry \u2192',
+      detail: '/app/applicant/person/expiry',
+    },
+    to: { kind: 'link', name: 'Dates & Expiry \u2192', detail: '/app/applicant/person/expiry' },
+    reason: 'D3: one name for the Dates & Expiry page.',
+  },
 ];

@@ -1,0 +1,251 @@
+{
+  "a new profile": [
+    {
+      "kind": "heading",
+      "name": "My Profile",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "One reusable set of details. Every saved change stays in your history."
+    },
+    {
+      "kind": "link",
+      "name": "Add Information",
+      "detail": "#profile-editor"
+    },
+    {
+      "kind": "heading",
+      "name": "Karim Hossain",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Nationality not recorded · Profile created 1 Jan 2026"
+    },
+    {
+      "kind": "text",
+      "name": "Personal profile. Fact assurance is shown beside each field."
+    },
+    {
+      "kind": "link",
+      "name": "History",
+      "detail": "/app/applicant/person/history"
+    },
+    {
+      "kind": "heading",
+      "name": "Profile Health",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "These are distinct recorded states, not an overall verification score. Check field details for agency reviews and issuer confirmations."
+    },
+    {
+      "kind": "link",
+      "name": "Check Document Expiry →",
+      "detail": "/app/applicant/person/expiry"
+    },
+    {
+      "kind": "heading",
+      "name": "Latest Changes",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "No Saved Changes Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Your saved field versions will appear here."
+    },
+    {
+      "kind": "link",
+      "name": "All Profile History →",
+      "detail": "/app/applicant/person/history"
+    },
+    {
+      "kind": "text",
+      "name": "AI suggestions do not change your profile until you approve them. Human and issuer assurance remain separate."
+    },
+    {
+      "kind": "link",
+      "name": "Review Document Suggestions →",
+      "detail": "/app/applicant/person/documents"
+    }
+  ],
+  "core processing off": [
+    {
+      "kind": "heading",
+      "name": "My Profile",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "One reusable set of details. Every saved change stays in your history."
+    },
+    {
+      "kind": "link",
+      "name": "Review Permissions",
+      "detail": "/app#permissions"
+    },
+    {
+      "kind": "heading",
+      "name": "Karim Hossain",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Nationality not recorded · Profile created 1 Jan 2026"
+    },
+    {
+      "kind": "text",
+      "name": "Personal profile. Fact assurance is shown beside each field."
+    },
+    {
+      "kind": "text",
+      "name": "Choose Whether to Save Your Profile"
+    },
+    {
+      "kind": "text",
+      "name": "Turn on “Let VisaStack Process My Details” on Home to edit this profile. Existing values are not changed."
+    },
+    {
+      "kind": "link",
+      "name": "Review Permissions",
+      "detail": "/app#permissions"
+    },
+    {
+      "kind": "link",
+      "name": "History",
+      "detail": "/app/applicant/person/history"
+    },
+    {
+      "kind": "heading",
+      "name": "Profile Health",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "These are distinct recorded states, not an overall verification score. Check field details for agency reviews and issuer confirmations."
+    },
+    {
+      "kind": "link",
+      "name": "Check Document Expiry →",
+      "detail": "/app/applicant/person/expiry"
+    },
+    {
+      "kind": "heading",
+      "name": "Latest Changes",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "No Saved Changes Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Your saved field versions will appear here."
+    },
+    {
+      "kind": "link",
+      "name": "All Profile History →",
+      "detail": "/app/applicant/person/history"
+    },
+    {
+      "kind": "text",
+      "name": "AI suggestions do not change your profile until you approve them. Human and issuer assurance remain separate."
+    },
+    {
+      "kind": "link",
+      "name": "Review Document Suggestions →",
+      "detail": "/app/applicant/person/documents"
+    }
+  ],
+  "confirmed, supported and conflicting details": [
+    {
+      "kind": "heading",
+      "name": "My Profile",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "One reusable set of details. Every saved change stays in your history."
+    },
+    {
+      "kind": "link",
+      "name": "Add Information",
+      "detail": "#profile-editor"
+    },
+    {
+      "kind": "heading",
+      "name": "Karim Hossain",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Bangladeshi · Profile created 1 Jan 2026"
+    },
+    {
+      "kind": "text",
+      "name": "Personal profile. Fact assurance is shown beside each field."
+    },
+    {
+      "kind": "text",
+      "name": "1 field has conflicting proposed values. Review the fields marked Conflicted before relying on them."
+    },
+    {
+      "kind": "link",
+      "name": "History",
+      "detail": "/app/applicant/person/history"
+    },
+    {
+      "kind": "heading",
+      "name": "Profile Health",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "These are distinct recorded states, not an overall verification score. Check field details for agency reviews and issuer confirmations."
+    },
+    {
+      "kind": "link",
+      "name": "Check Document Expiry →",
+      "detail": "/app/applicant/person/expiry"
+    },
+    {
+      "kind": "heading",
+      "name": "Latest Changes",
+      "detail": "3"
+    },
+    {
+      "kind": "link",
+      "name": "Given NameMANUAL",
+      "detail": "/app/applicant/person/history"
+    },
+    {
+      "kind": "link",
+      "name": "Family NameMANUAL",
+      "detail": "/app/applicant/person/history"
+    },
+    {
+      "kind": "link",
+      "name": "NationalityMANUAL",
+      "detail": "/app/applicant/person/history"
+    },
+    {
+      "kind": "link",
+      "name": "All Profile History →",
+      "detail": "/app/applicant/person/history"
+    },
+    {
+      "kind": "text",
+      "name": "AI suggestions do not change your profile until you approve them. Human and issuer assurance remain separate."
+    },
+    {
+      "kind": "link",
+      "name": "Review Document Suggestions →",
+      "detail": "/app/applicant/person/documents"
+    }
+  ]
+}

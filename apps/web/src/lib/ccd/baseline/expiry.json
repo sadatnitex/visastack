@@ -1,0 +1,356 @@
+{
+  "nothing yet": [
+    {
+      "kind": "heading",
+      "name": "Expiry & Freshness",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Three separate signals - a document's own expiry, whether a route needs it more recently dated, and how long an issuer confirmation stays valid. Never merged into one status."
+    },
+    {
+      "kind": "link",
+      "name": "Add Dates to My Calendar",
+      "detail": "/app/applicant/person/calendar"
+    },
+    {
+      "kind": "text",
+      "name": "Dates That Matter"
+    },
+    {
+      "kind": "heading",
+      "name": "Deadline Clock",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "No Dates Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Add a passport and its expiry date appears here, so you hear about it before it matters."
+    },
+    {
+      "kind": "link",
+      "name": "Add a Document",
+      "detail": "/app/applicant/person/documents"
+    },
+    {
+      "kind": "text",
+      "name": "Intrinsic Expiry"
+    },
+    {
+      "kind": "heading",
+      "name": "Documents",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "No Documents Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Documents with an expiry date, such as a passport, appear here so you hear about them before they run out."
+    },
+    {
+      "kind": "link",
+      "name": "Add a Document",
+      "detail": "/app/applicant/person/documents"
+    },
+    {
+      "kind": "text",
+      "name": "Case-Specific Freshness"
+    },
+    {
+      "kind": "heading",
+      "name": "Route Rules",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Some requirements demand evidence dated within a set window, separate from the document's own expiry."
+    },
+    {
+      "kind": "text",
+      "name": "No Date Rules Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Some visa routes need a document dated within a set window, such as a bank statement from the last 30 days. They appear here once a case uses such a route."
+    },
+    {
+      "kind": "text",
+      "name": "Verification Expiry"
+    },
+    {
+      "kind": "heading",
+      "name": "Issuer Confirmations",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "No Confirmations Yet"
+    },
+    {
+      "kind": "text",
+      "name": "When an issuer, such as a bank or employer, confirms a document, the confirmation and how long it stays valid appear here."
+    }
+  ],
+  "a passport expiring soon, a statement and one of unknown kind": [
+    {
+      "kind": "heading",
+      "name": "Expiry & Freshness",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Three separate signals - a document's own expiry, whether a route needs it more recently dated, and how long an issuer confirmation stays valid. Never merged into one status."
+    },
+    {
+      "kind": "link",
+      "name": "Add Dates to My Calendar",
+      "detail": "/app/applicant/person/calendar"
+    },
+    {
+      "kind": "text",
+      "name": "Dates That Matter"
+    },
+    {
+      "kind": "heading",
+      "name": "Deadline Clock",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "No Dates Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Add a passport and its expiry date appears here, so you hear about it before it matters."
+    },
+    {
+      "kind": "link",
+      "name": "Add a Document",
+      "detail": "/app/applicant/person/documents"
+    },
+    {
+      "kind": "text",
+      "name": "Intrinsic Expiry"
+    },
+    {
+      "kind": "heading",
+      "name": "Documents",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Case-Specific Freshness"
+    },
+    {
+      "kind": "heading",
+      "name": "Route Rules",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Some requirements demand evidence dated within a set window, separate from the document's own expiry."
+    },
+    {
+      "kind": "text",
+      "name": "No Date Rules Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Some visa routes need a document dated within a set window, such as a bank statement from the last 30 days. They appear here once a case uses such a route."
+    },
+    {
+      "kind": "text",
+      "name": "Verification Expiry"
+    },
+    {
+      "kind": "heading",
+      "name": "Issuer Confirmations",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "No Confirmations Yet"
+    },
+    {
+      "kind": "text",
+      "name": "When an issuer, such as a bank or employer, confirms a document, the confirmation and how long it stays valid appear here."
+    }
+  ],
+  "a route rule waiting for a document date": [
+    {
+      "kind": "heading",
+      "name": "Expiry & Freshness",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Three separate signals - a document's own expiry, whether a route needs it more recently dated, and how long an issuer confirmation stays valid. Never merged into one status."
+    },
+    {
+      "kind": "link",
+      "name": "Add Dates to My Calendar",
+      "detail": "/app/applicant/person/calendar"
+    },
+    {
+      "kind": "text",
+      "name": "Dates That Matter"
+    },
+    {
+      "kind": "heading",
+      "name": "Deadline Clock",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "No Dates Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Add a passport and its expiry date appears here, so you hear about it before it matters."
+    },
+    {
+      "kind": "link",
+      "name": "Add a Document",
+      "detail": "/app/applicant/person/documents"
+    },
+    {
+      "kind": "text",
+      "name": "Intrinsic Expiry"
+    },
+    {
+      "kind": "heading",
+      "name": "Documents",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Case-Specific Freshness"
+    },
+    {
+      "kind": "heading",
+      "name": "Route Rules",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Some requirements demand evidence dated within a set window, separate from the document's own expiry."
+    },
+    {
+      "kind": "link",
+      "name": "Documents",
+      "detail": "/app/applicant/person/documents"
+    },
+    {
+      "kind": "text",
+      "name": "Verification Expiry"
+    },
+    {
+      "kind": "heading",
+      "name": "Issuer Confirmations",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "No Confirmations Yet"
+    },
+    {
+      "kind": "text",
+      "name": "When an issuer, such as a bank or employer, confirms a document, the confirmation and how long it stays valid appear here."
+    }
+  ],
+  "dates could not be read": [
+    {
+      "kind": "heading",
+      "name": "Expiry & Freshness",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Three separate signals - a document's own expiry, whether a route needs it more recently dated, and how long an issuer confirmation stays valid. Never merged into one status."
+    },
+    {
+      "kind": "link",
+      "name": "Add Dates to My Calendar",
+      "detail": "/app/applicant/person/calendar"
+    },
+    {
+      "kind": "text",
+      "name": "Dates That Matter"
+    },
+    {
+      "kind": "heading",
+      "name": "Deadline Clock",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Dates are unavailable right now. Refresh to try again."
+    },
+    {
+      "kind": "text",
+      "name": "Intrinsic Expiry"
+    },
+    {
+      "kind": "heading",
+      "name": "Documents",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "No Documents Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Documents with an expiry date, such as a passport, appear here so you hear about them before they run out."
+    },
+    {
+      "kind": "link",
+      "name": "Add a Document",
+      "detail": "/app/applicant/person/documents"
+    },
+    {
+      "kind": "text",
+      "name": "Case-Specific Freshness"
+    },
+    {
+      "kind": "heading",
+      "name": "Route Rules",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Some requirements demand evidence dated within a set window, separate from the document's own expiry."
+    },
+    {
+      "kind": "text",
+      "name": "No Date Rules Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Some visa routes need a document dated within a set window, such as a bank statement from the last 30 days. They appear here once a case uses such a route."
+    },
+    {
+      "kind": "text",
+      "name": "Verification Expiry"
+    },
+    {
+      "kind": "heading",
+      "name": "Issuer Confirmations",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "No Confirmations Yet"
+    },
+    {
+      "kind": "text",
+      "name": "When an issuer, such as a bank or employer, confirms a document, the confirmation and how long it stays valid appear here."
+    }
+  ]
+}

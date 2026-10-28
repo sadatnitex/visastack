@@ -20,3 +20,11 @@ scripts/ui-ratchet.baseline.json
 # Heading levels under the Documents page heading (one h1, no skipped levels)
 apps/web/src/app/app/applicant/[id]/reading-status.tsx
 apps/web/src/components/visa-photo-sizes.tsx
+# Renamed links to Dates & Expiry (D3)
+apps/web/src/app/app/applicant/[id]/insights/page.tsx
+apps/web/src/app/app/applicant/[id]/page.tsx
+# Shared switch wording helper used by Home and the traveller page; tests of the profile page
+apps/web/src/app/app/(home)/page.tsx
+apps/web/src/lib/traveller-composition.test.tsx
+apps/web/src/app/app/applicant/[id]/record-browser.tsx
+apps/web/src/app/app/applicant/[id]/record-browser.test.tsx

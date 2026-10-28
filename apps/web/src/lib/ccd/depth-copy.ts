@@ -1,6 +1,18 @@
 import type { DepthSwitchCopy } from '../../components/depth-switch';
 import { depthWord } from './depth-words';
 
+/** The screens whose three sentences are plain words in depth-words.ts. */
+export type DepthCopyScreen = 'home' | 'traveller' | 'documents' | 'profile' | 'expiry';
+
+/** The shared words plus one screen's three sentences, by the screen's name. */
+export function depthCopyFor(screen: DepthCopyScreen): DepthSwitchCopy {
+  return depthCopy({
+    glance: depthWord(`depth.${screen}.glance`),
+    browse: depthWord(`depth.${screen}.browse`),
+    everything: depthWord(`depth.${screen}.everything`),
+  });
+}
+
 /** The words every depth switch shares, plus this screen's three sentences. */
 export function depthCopy(summaries: DepthSwitchCopy['summaries']): DepthSwitchCopy {
   return {

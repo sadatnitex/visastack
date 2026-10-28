@@ -90,10 +90,9 @@ export default async function HistoryPage({
   return (
     <>
       <PageHeader
-        eyebrow="Provenance"
-        title="Fact History"
+        eyebrow="Record"
+        title="History"
         description="Every value is an immutable version - nothing is ever overwritten. This is the full, ordered trail with its provenance."
-        as="h2"
       />
 
       {data.facts.length === 0 ? (

@@ -32,8 +32,7 @@ import {
   StatusBadge,
 } from '../../../components/ui';
 import { holdsPlatformRole } from '../../../lib/admin';
-import { depthCopy } from '../../../lib/ccd/depth-copy';
-import { depthWord } from '../../../lib/ccd/depth-words';
+import { depthCopyFor } from '../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../lib/ccd/depth.server';
 import { countryNameOf, countryStartData, parseCountryParam } from '../../../lib/country-start';
 import { COUNTRY_STEP_DONE } from '../../../lib/country-start-links';
@@ -515,11 +514,7 @@ export default async function AppPage({
   // A greeting is a sentence, so it keeps sentence case (decision D3), not the Title Case of labels.
   const greeting = firstName ? `Welcome back, ${firstName}` : 'Welcome back';
   const depth = await readDepth('home');
-  const depthWords = depthCopy({
-    glance: depthWord('depth.home.glance'),
-    browse: depthWord('depth.home.browse'),
-    everything: depthWord('depth.home.everything'),
-  });
+  const depthWords = depthCopyFor('home');
 
   return (
     <section className="section container">

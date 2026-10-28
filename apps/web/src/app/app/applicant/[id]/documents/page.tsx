@@ -49,8 +49,7 @@ import {
   getPlatformCapabilities,
   resolvePlatformCapabilities,
 } from '../../../../../lib/capabilities';
-import { depthCopy } from '../../../../../lib/ccd/depth-copy';
-import { depthWord } from '../../../../../lib/ccd/depth-words';
+import { depthCopyFor } from '../../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
 import { confirmedValues, findingViewModel } from '../../../../../lib/document-findings';
 import { readingOffer, readingStatusCopy } from '../../../../../lib/document-reading';
@@ -331,14 +330,10 @@ export default async function ApplicantDocumentsPage({
 
   // A link that opens one document (?document=) must land on it: the list and the selected
   // document sit at Browse, so such a visit starts at Browse at least, without saving that.
-  const savedDepth = await readDepth('record');
+  const savedDepth = await readDepth('documents');
   const depth =
     initialSelection && (savedDepth === 'auto' || savedDepth === 'glance') ? 'browse' : savedDepth;
-  const depthWords = depthCopy({
-    glance: depthWord('depth.documents.glance'),
-    browse: depthWord('depth.documents.browse'),
-    everything: depthWord('depth.documents.everything'),
-  });
+  const depthWords = depthCopyFor('documents');
 
   return (
     <>
@@ -357,8 +352,8 @@ export default async function ApplicantDocumentsPage({
           </>
         }
       />
-      <DepthScope family="record" depth={depth}>
-        <DepthSwitch family="record" initial={depth} copy={depthWords} />
+      <DepthScope family="documents" depth={depth}>
+        <DepthSwitch family="documents" initial={depth} copy={depthWords} />
         {downloadError ? (
           <p role="alert" className="card-body">
             We could not download this document. Try again after confirming your account. Documents

@@ -134,7 +134,7 @@ export function RecordBrowser({
             className="card record-hub-group"
             aria-labelledby={`${groupsId}-${index}`}
           >
-            <h3 id={`${groupsId}-${index}`}>{name}</h3>
+            <h2 id={`${groupsId}-${index}`}>{name}</h2>
             {rows.length ? (
               <ul className="record-hub-list">
                 {rows.map((item) => (

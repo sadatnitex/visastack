@@ -6137,3 +6137,11 @@ Owner approved 2026-10-25. Two fixes where the product said something that was n
 - Review (max) found 14 items; all fixed except: the plan's Glance list of the documents that need review is not built (Glance shows the counts; the tile opens the list); the panel's per-document forms stay at Browse rather than Everything, because hiding preview and download broke selection links and the staging upload journey; the reading offer keeps its own primary button beside Upload Document (two primaries while the offer shows).
 - Guards seen failing: a tile that does not open the list, a switch that does not follow, a scope that follows a refresh, a document link with no raise.
 - Not verified live: the signed-in Documents page at phone and desktop widths.
+
+### 2026-10-28, CCD-3 slice 3b: My Profile, Dates & Expiry, All Records and History
+- My Profile: identity, completion and "You Decide What Becomes a Fact" at Glance; the editor at Browse; Profile Health and Latest Changes at Everything. The editor's area list and field forms stay together at Browse (they are one component; splitting them is a later change).
+- Dates & Expiry: the Deadline Clock at Glance, each document's own expiry at Browse, route rules and issuer confirmations at Everything. Named "Dates & Expiry" everywhere it was "Expiry & Freshness", "Expiry Centre", "Document Expiry Centre" or "Open Expiry Centre" (the admin pack page keeps its staff label).
+- All Records and History: naming and one h1 only ("History" was "Fact History"; eyebrow "Record").
+- Parity: three profile states and four expiry states captured from main before the edit; approved changes are heading levels and names only.
+- Not verified live: these signed-in pages at phone and desktop widths.
+- Review (high) fixes: All Records group titles are h2 so the page never skips from h1 to h3; route rules and issuer confirmations stay at Browse so stale or undated evidence is never hidden by default; the conflicting-values warning moved to Glance; Documents, My Profile and Dates & Expiry each remember their own level; the heading sizes now use the existing rules (no new size); the tab titles read "My Profile" and "Dates & Expiry"; "Check Document Expiry" became "Dates & Expiry"; one helper builds each screen's switch sentences.
