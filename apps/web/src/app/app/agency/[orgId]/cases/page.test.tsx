@@ -19,6 +19,7 @@ vi.mock('../../../../../lib/session', () => ({
     fn({ db: {}, accountId: 'acct-1', email: 'member@example.com' }),
 }));
 vi.mock('../console-data', () => mocks);
+vi.mock('../../../../../lib/ccd/depth.server', () => ({ readDepth: async () => 'auto' }));
 vi.mock('../mission-collaboration', async () => {
   const { stub } = await import('../../../../../lib/next-mocks.test-support');
   return { MissionCollaboration: stub('MissionCollaboration') };

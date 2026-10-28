@@ -173,18 +173,28 @@ export function DepthSwitch({
     const revealId = (id: string | null) => {
       const target = id ? document.getElementById(id) : null;
       if (!target) return;
-      const raised = raiseToShow(target, scope, isPhone());
+      const raised = raiseToShow(target, scope, isPhone(), { asLinkTarget: true });
       if (!raised) return; // already on screen: the browser's own scroll to the anchor is enough
       show(raised);
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => focusTarget(target));
     };
     const reveal = () => revealId(readHashId());
-    // A click on a link to the same anchor again does not change the address, so no hashchange
-    // fires; the click itself raises the level before the browser scrolls.
+    // A click on a link to the same anchor again does not change the address, and a link to this
+    // page written as a full path (search results) moves through the router, so no hashchange
+    // fires for either: the click itself raises the level before the browser scrolls.
     const onClick = (event: MouseEvent) => {
-      const link = (event.target as Element | null)?.closest?.('a[href^="#"]');
-      if (link) revealId(decodeHash(link.getAttribute('href')?.slice(1) ?? ''));
+      const link = (event.target as Element | null)?.closest?.('a[href*="#"]');
+      const href = link?.getAttribute('href');
+      if (!href) return;
+      let to: URL;
+      try {
+        to = new URL(href, window.location.href);
+      } catch {
+        return; // an address the browser cannot read either: leave it to the browser
+      }
+      if (to.origin !== window.location.origin || to.pathname !== window.location.pathname) return;
+      revealId(decodeHash(to.hash.slice(1)));
     };
     reveal();
     window.addEventListener('hashchange', reveal);
