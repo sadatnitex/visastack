@@ -5999,6 +5999,15 @@ Owner approved 2026-10-25. Two fixes where the product said something that was n
 - Staff pages: Ctrl or Cmd and K is left to the browser; the traveller and agency sidebars are exactly as before. The icon-name guard no longer counts an empty `alt` or an `aria-hidden` child as a name. The unused sign-up choice styles are removed.
 - Checked locally with the stylesheet and the real fixture components in headless Chromium (coarse and precise pointer, 360 to 1440px), outside the Playwright suite: no target, text, field or axe finding on the screens the browser checks cover. Not verified: the Playwright run itself, real devices and screen readers.
 
+### 2026-10-28, Tooling: the local full check guards its port, its server and its code
+- Three wasted local runs had the same shape: a leftover server held the check port so the new one failed to start and the browser steps tested an old build; a restart killed a check while the caller kept waiting; a helper edited files or main was merged in the middle of a run.
+- scripts/agent/full-check.sh now stops a leftover Next server on its port (anything else there aborts the run), runs the browser and smoke steps only when the server answering serves the build the run just made (its build id is in the page), always stops its server on exit, records the commit and working tree at the start and end and marks the run STALE if they differ, and can resume from a step (FROM=build).
+- Proved: an unrelated program on the port aborts the run with a plain line; a leftover Next server on the port is stopped and the run continues.
+
+### 2026-10-28, Tooling: the port guard reads the kernel's table
+- The first port guard used lsof, which in the agent container did not see a detached `next-server` (its command line names no port, and stopping `next start` leaves it running under init). The guard now reads the LISTEN row for the port from /proc/net/tcp and finds the process holding that socket, so such a leftover is found and stopped; any other program on the port still aborts the run.
+- Proved with a detached stand-in named next-server (stopped, run continues) and an unrelated program (run aborts).
+
 ### 2026-10-28, UX-G: invitation page redesign
 
 - `/invitation` (client, team and sharing links) now opens on a hero: the agency's mark and name with "Powered by VisaStack" (reviewed client invitations only), the heading, a one-line promise ("Acme Visas wants to work on your visa case with you."), the expiry as a badge ("Expires 3 Nov 2026, 6 Days Left": UTC day, time left rounded down), the main buttons, and one quiet line: "Opening this link accepts nothing. You decide after you review."
