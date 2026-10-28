@@ -37,6 +37,7 @@ import { sendEmailNow } from '../../../../lib/send-now';
 import { withSession } from '../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../lib/step-up';
 import { checklistAttachedLine, evidenceChosenLine } from '../../../../lib/success-lines';
+import { isKnownTimeZone } from '../../../../lib/time-zones';
 
 /** Result surfaced back to the client for inline feedback. */
 export interface ActionState {
@@ -190,7 +191,11 @@ export async function createTaskAction(
   const dueDateRaw = String(formData.get('dueDate') ?? '').trim();
   const dueDate = dueDateRaw.length > 0 ? new Date(dueDateRaw) : undefined;
   const dueTimezoneRaw = String(formData.get('dueTimezone') ?? '').trim();
-  const dueTimezone = dueTimezoneRaw.length > 0 ? dueTimezoneRaw : undefined;
+  // The picker fills in this device's zone; it means something only with a due date.
+  const dueTimezone = dueDate && dueTimezoneRaw.length > 0 ? dueTimezoneRaw : undefined;
+  if (dueTimezone && !isKnownTimeZone(dueTimezone)) {
+    return { ok: false, message: 'Choose a time zone from the list.' };
+  }
 
   const result = await withSession(async ({ db, accountId }) => {
     const task = await createTask(db, {

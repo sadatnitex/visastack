@@ -6178,3 +6178,13 @@ Owner approved 2026-10-25. Two fixes where the product said something that was n
 
 ### 2026-10-28, CCD-7: the Next Step banner in the brand ink
 - Owner: the banner must use the brand colour of the page headings ("Welcome back, {name}"). It used the darker sign-in navy (#0b1a30); it now uses the heading ink (--text, #13243d), so it is the same colour as the headings. Reason text keeps the chapter's light text (9.8:1), title and button 15.6:1. Style only.
+
+### 2026-10-28, owner request: a time zone picker where a time zone is typed
+- The traveller's Tasks form had a free-text time zone box. It now uses the same time zone list as Appointments (grouped by region, this device's zone chosen first, optional). The zone is saved only together with a due date, and the action refuses a name that is not a real time zone (a hand-made request could otherwise store any text). Both tested; guard seen failing.
+- No other free-text time zone field exists (every form searched). The agency's Tasks form keeps no time zone on purpose: a task's own zone can tell where a traveller lives, and an existing test keeps it out of the agency's browser.
+
+### 2026-10-28, owner request: logs that keep their height and can be filtered
+- The Sharing Access Log and the platform Audit page grew the page with every new event. Both now show their entries in one box of fixed height that scrolls inside (keyboard focusable, named for screen readers), under a search and filters: What Happened, Who (when entries name someone), Allowed or Blocked, and a period (24 hours, 7 days, 30 days). "Showing N of M" and Clear Filters say what is filtered.
+- Each page now reads the newest 300 entries instead of 100 (Access Log) or 50 (Audit), filtered in the browser; nothing new is read or stored. The summary says how far back the loaded entries go, so a period filter never seems to cover more than was loaded. A filter whose value leaves the list after a refresh stops filtering. One shared component (components/activity-log.tsx), tested; the Audit page keeps its "Denied" wording and neutral "Allowed".
+- Review (high) fixes folded in: the repeated count in each card's intro removed (approved parity change), the unused exact-code component removed.
+- Not changed: the agency Case Activity page (a short list of case notes, not an audit log).
