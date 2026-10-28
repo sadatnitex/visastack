@@ -6178,3 +6178,8 @@ Owner approved 2026-10-25. Two fixes where the product said something that was n
 
 ### 2026-10-28, CCD-7: the Next Step banner in the brand ink
 - Owner: the banner must use the brand colour of the page headings ("Welcome back, {name}"). It used the darker sign-in navy (#0b1a30); it now uses the heading ink (--text, #13243d), so it is the same colour as the headings. Reason text keeps the chapter's light text (9.8:1), title and button 15.6:1. Style only.
+
+### 2026-10-28, owner request: a time zone picker on every Tasks form
+- The traveller's Tasks form had a free-text time zone box and the agency's Tasks form had none. Both now use the same time zone list as Appointments (grouped by region, this device's zone chosen first, optional). The agency action now passes the chosen zone, which the service already stored and validated.
+- The zone is saved only together with a due date (the picker always fills one in); tested, and the guard seen failing.
+- No other free-text time zone field remains in the app (searched every form).

@@ -156,12 +156,11 @@ export function TasksPanel({
           ))}
         </select>
         <input name="dueDate" type="date" className="input" aria-label="Due Date (Optional)" />
-        <input
+        <TimeZoneSelect
           name="dueTimezone"
-          type="text"
-          className="input collab-add-wide"
-          placeholder="Timezone, e.g. Asia/Dhaka"
-          aria-label="Due timezone (optional)"
+          label="Due Time Zone (Optional)"
+          required={false}
+          className="collab-add-wide"
         />
         <SubmitButton
           pending={createPending}

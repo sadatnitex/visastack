@@ -190,7 +190,8 @@ export async function createTaskAction(
   const dueDateRaw = String(formData.get('dueDate') ?? '').trim();
   const dueDate = dueDateRaw.length > 0 ? new Date(dueDateRaw) : undefined;
   const dueTimezoneRaw = String(formData.get('dueTimezone') ?? '').trim();
-  const dueTimezone = dueTimezoneRaw.length > 0 ? dueTimezoneRaw : undefined;
+  // The picker fills in this device's zone; it means something only with a due date.
+  const dueTimezone = dueDate && dueTimezoneRaw.length > 0 ? dueTimezoneRaw : undefined;
 
   const result = await withSession(async ({ db, accountId }) => {
     const task = await createTask(db, {
