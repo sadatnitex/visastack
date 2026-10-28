@@ -19,8 +19,7 @@ import { DeadlineClock } from '../../../../components/deadline-clock';
 import { DepthScope, atLevel } from '../../../../components/depth';
 import { DepthSwitch } from '../../../../components/depth-switch';
 import { EmptyState, NextStepCard, PageHeader, StatusBadge } from '../../../../components/ui';
-import { depthCopy } from '../../../../lib/ccd/depth-copy';
-import { depthWord } from '../../../../lib/ccd/depth-words';
+import { depthCopyFor } from '../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../lib/ccd/depth.server';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { attentionActionLabel } from '../../../../lib/labels';
@@ -239,11 +238,7 @@ export default async function ApplicantOverviewPage({
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 5);
   const depth = await readDepth('traveller-home');
-  const depthWords = depthCopy({
-    glance: depthWord('depth.traveller.glance'),
-    browse: depthWord('depth.traveller.browse'),
-    everything: depthWord('depth.traveller.everything'),
-  });
+  const depthWords = depthCopyFor('traveller');
   return (
     <div className="traveller-overview">
       <PageHeader
@@ -437,7 +432,7 @@ export default async function ApplicantOverviewPage({
                     individual case calendar.
                   </EmptyState>
                 )}
-                <Link href={`/app/applicant/${id}/expiry`}>Document Expiry Centre →</Link>
+                <Link href={`/app/applicant/${id}/expiry`}>Dates &amp; Expiry →</Link>
               </article>
               <h3>Recent Activity</h3>
               <article className="card">

@@ -87,7 +87,7 @@ describe('the Record browser', () => {
     act(() => root.render(<RecordBrowser items={items} />));
     expect(titles()).toEqual(['About You', 'Synthetic Passport', 'Synthetic Bank Letter']);
     expect(
-      [...container.querySelectorAll('.record-hub-group h3')].map((h) => h.textContent),
+      [...container.querySelectorAll('.record-hub-group h2')].map((h) => h.textContent),
     ).toEqual(['You', 'Identity', 'Money']);
     const labels = [...container.querySelectorAll('.wallet-filter-controls label')];
     expect(labels.map((label) => label.firstChild?.textContent?.trim())).toEqual([
@@ -102,7 +102,7 @@ describe('the Record browser', () => {
     expect(count?.className).not.toContain('sr-only');
     // Each group is named by its own heading, and the filters are announced as one group.
     for (const section of container.querySelectorAll('section.record-hub-group')) {
-      const heading = section.querySelector('h3');
+      const heading = section.querySelector('h2');
       expect(section.getAttribute('aria-label')).toBeNull();
       expect(section.getAttribute('aria-labelledby')).toBe(heading?.id);
     }

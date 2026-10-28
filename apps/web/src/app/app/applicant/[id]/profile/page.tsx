@@ -12,9 +12,13 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { DepthScope, atLevel } from '../../../../../components/depth';
+import { DepthSwitch } from '../../../../../components/depth-switch';
 import { initialsOf } from '../../../../../components/profile-photo/crop';
 import { ProfilePhotoControl } from '../../../../../components/profile-photo/profile-photo-control';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
+import { depthCopyFor } from '../../../../../lib/ccd/depth-copy';
+import { readDepth } from '../../../../../lib/ccd/depth.server';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { buildMasterProfileView, fieldLabel } from '../../../../../lib/master-profile';
 import { agree, plural } from '../../../../../lib/plural';
@@ -22,7 +26,7 @@ import { ownedPhotoUrl } from '../../../../../lib/profile-photos';
 import { withSession } from '../../../../../lib/session';
 import { type FieldAssurance, ProfileEditor } from '../profile-editor';
 
-export const metadata: Metadata = { title: 'Profile' };
+export const metadata: Metadata = { title: 'My Profile' };
 
 /** RSC boundary: dates must cross as ISO strings, never `Date` objects. */
 function toClientAssurance(view: FactAssuranceView): FieldAssurance {
@@ -171,11 +175,12 @@ export default async function ApplicantProfilePage({
     .slice(0, 5);
   const confirmed = data.profile.filter((entry) => entry.status === 'APPLICANT_CONFIRMED').length;
   const supported = data.profile.filter((entry) => entry.status === 'DOCUMENT_SUPPORTED').length;
+  const depth = await readDepth('profile');
+  const depthWords = depthCopyFor('profile');
   return (
     <div className="master-profile">
       <PageHeader
-        as="h2"
-        eyebrow="Your Canonical Record"
+        eyebrow="Record"
         title="My Profile"
         description="One reusable set of details. Every saved change stays in your history."
         actions={
@@ -190,136 +195,141 @@ export default async function ApplicantProfilePage({
           )
         }
       />
-      <section
-        className="profile-identity-banner"
-        aria-label="Selected traveller and profile completion"
-      >
-        <ProfilePhotoControl
-          applicantId={data.applicant.id}
-          initials={initialsOf(data.applicant.displayName)}
-          photoUrl={data.photoUrl}
-          avatarClassName="profile-identity-avatar"
-        />
-        <div className="profile-identity-copy">
-          <h3>{data.applicant.displayName}</h3>
-          <p className="muted">
-            {nationality?.value || 'Nationality not recorded'} · Profile created{' '}
-            {formatTimestampDate(data.applicant.createdAt)}
-          </p>
-          <p className="muted">
-            {data.applicant.relationship === 'SELF'
-              ? 'Personal profile'
-              : 'Managed traveller profile'}
-            . Fact assurance is shown beside each field.
-          </p>
-        </div>
-        {/* Essentials lead: a new person sees "0 of 12 essentials", not the size of the whole
+      <DepthScope family="profile" depth={depth}>
+        <DepthSwitch family="profile" initial={depth} copy={depthWords} />
+        <section
+          className="profile-identity-banner"
+          aria-label="Selected traveller and profile completion"
+        >
+          <ProfilePhotoControl
+            applicantId={data.applicant.id}
+            initials={initialsOf(data.applicant.displayName)}
+            photoUrl={data.photoUrl}
+            avatarClassName="profile-identity-avatar"
+          />
+          <div className="profile-identity-copy">
+            <h2>{data.applicant.displayName}</h2>
+            <p className="muted">
+              {nationality?.value || 'Nationality not recorded'} · Profile created{' '}
+              {formatTimestampDate(data.applicant.createdAt)}
+            </p>
+            <p className="muted">
+              {data.applicant.relationship === 'SELF'
+                ? 'Personal profile'
+                : 'Managed traveller profile'}
+              . Fact assurance is shown beside each field.
+            </p>
+          </div>
+          {/* Essentials lead: a new person sees "0 of 12 essentials", not the size of the whole
             profile. The full count follows once the essentials are added (and is always shown
             under Show All Sections). */}
-        <div className="profile-completeness">
-          <span>Essentials Added</span>
-          <strong>
-            {essentials.answered} of {essentials.total}
-          </strong>
-          <div className="meter" aria-hidden="true">
-            <div className="meter-fill" style={{ width: `${essentialsPercent}%` }} />
+          <div className="profile-completeness">
+            <span>Essentials Added</span>
+            <strong>
+              {essentials.answered} of {essentials.total}
+            </strong>
+            <div className="meter" aria-hidden="true">
+              <div className="meter-fill" style={{ width: `${essentialsPercent}%` }} />
+            </div>
+            <span className="muted">
+              {essentialsDone
+                ? `Full profile: ${completeness}% of the details in your ${plural(view.openSections, 'open section')}. `
+                : 'The details most visa forms ask for first. '}
+              This does not verify identity.
+            </span>
           </div>
-          <span className="muted">
-            {essentialsDone
-              ? `Full profile: ${completeness}% of the details in your ${plural(view.openSections, 'open section')}. `
-              : 'The details most visa forms ask for first. '}
-            This does not verify identity.
-          </span>
-        </div>
-      </section>
-      <div className="split profile-working-area">
-        <article className="card split-main">
-          {conflictedCount > 0 ? (
-            <p className="notice notice-warn" role="alert">
-              {plural(conflictedCount, 'field')} {agree(conflictedCount, 'has', 'have')} conflicting
-              proposed values. Review the fields marked <strong>Conflicted</strong> before relying
-              on them.
-            </p>
-          ) : null}
-          {data.coreGranted ? (
-            <ProfileEditor
-              applicantId={id}
-              values={values}
-              repeatingValues={repeatingValues}
-              assurance={assuranceByFactId}
-              view={view}
-              // A link that asks for everything, or details that disagree, open every section.
-              startWithAll={viewParam === 'all' || conflictedCount > 0}
-            />
-          ) : (
-            <EmptyState
-              icon="lock"
-              title="Choose Whether to Save Your Profile"
-              action={{ href: '/app#permissions', label: 'Review Permissions' }}
-            >
-              Turn on “Let VisaStack Process My Details” on Home to edit this profile. Existing
-              values are not changed.
-            </EmptyState>
-          )}
-          <p className="muted profile-version-note">
-            Every save appends an immutable version with its source. Earlier values remain in{' '}
-            <Link href={`/app/applicant/${id}/history`}>History</Link>.
+        </section>
+        {conflictedCount > 0 ? (
+          <p className="notice notice-warn" role="alert">
+            {plural(conflictedCount, 'field')} {agree(conflictedCount, 'has', 'have')} conflicting
+            proposed values. Review the fields marked <strong>Conflicted</strong> before relying on
+            them.
           </p>
-        </article>
-        <aside className="split-rail" aria-label="Profile health and latest changes">
-          <h3>Profile Health</h3>
-          <article className="card rows">
-            <div className="row">
-              <span>Confirmed by applicant</span>
-              <strong>{confirmed}</strong>
-            </div>
-            <div className="row">
-              <span>Document-supported fields</span>
-              <strong>{supported}</strong>
-            </div>
-            <div className="row">
-              <span>Conflicting fields</span>
-              <strong>{conflictedCount}</strong>
-            </div>
-            <p className="muted">
-              These are distinct recorded states, not an overall verification score. Check field
-              details for agency reviews and issuer confirmations.
-            </p>
-            <Link href={`/app/applicant/${id}/expiry`}>Check Document Expiry →</Link>
-          </article>
-          <h3>Latest Changes</h3>
-          <article className="card">
-            {changes.length ? (
-              <ol className="traveller-activity">
-                {changes.map((entry) => (
-                  <li key={entry.factId}>
-                    <Link href={`/app/applicant/${id}/history`}>
-                      <strong>{fieldLabel(entry.fieldKey) ?? 'Profile Detail'}</strong>
-                      <span>{entry.method ?? 'Recorded Update'}</span>
-                    </Link>
-                    <time dateTime={entry.updatedAt as string}>
-                      {formatTimestampDate(entry.updatedAt as string)}
-                    </time>
-                  </li>
-                ))}
-              </ol>
+        ) : null}
+        <div className="split profile-working-area">
+          <article className="card split-main" {...atLevel('browse')}>
+            {data.coreGranted ? (
+              <ProfileEditor
+                applicantId={id}
+                values={values}
+                repeatingValues={repeatingValues}
+                assurance={assuranceByFactId}
+                view={view}
+                // A link that asks for everything, or details that disagree, open every section.
+                startWithAll={viewParam === 'all' || conflictedCount > 0}
+              />
             ) : (
-              <EmptyState icon="activity" title="No Saved Changes Yet">
-                Your saved field versions will appear here.
+              <EmptyState
+                icon="lock"
+                title="Choose Whether to Save Your Profile"
+                action={{ href: '/app#permissions', label: 'Review Permissions' }}
+              >
+                Turn on “Let VisaStack Process My Details” on Home to edit this profile. Existing
+                values are not changed.
               </EmptyState>
             )}
-            <Link href={`/app/applicant/${id}/history`}>All Profile History →</Link>
-          </article>
-          <div className="profile-review-note">
-            <strong>You Decide What Becomes a Fact</strong>
-            <p>
-              AI suggestions do not change your profile until you approve them. Human and issuer
-              assurance remain separate.
+            <p className="muted profile-version-note">
+              Every save appends an immutable version with its source. Earlier values remain in{' '}
+              <Link href={`/app/applicant/${id}/history`}>History</Link>.
             </p>
-            <Link href={`/app/applicant/${id}/documents`}>Review Document Suggestions →</Link>
-          </div>
-        </aside>
-      </div>
+          </article>
+          <aside className="split-rail" aria-label="Profile health and latest changes">
+            <div className="depth-item" {...atLevel('everything')}>
+              <h2>Profile Health</h2>
+              <article className="card rows">
+                <div className="row">
+                  <span>Confirmed by applicant</span>
+                  <strong>{confirmed}</strong>
+                </div>
+                <div className="row">
+                  <span>Document-supported fields</span>
+                  <strong>{supported}</strong>
+                </div>
+                <div className="row">
+                  <span>Conflicting fields</span>
+                  <strong>{conflictedCount}</strong>
+                </div>
+                <p className="muted">
+                  These are distinct recorded states, not an overall verification score. Check field
+                  details for agency reviews and issuer confirmations.
+                </p>
+                <Link href={`/app/applicant/${id}/expiry`}>Dates &amp; Expiry →</Link>
+              </article>
+              <h2>Latest Changes</h2>
+              <article className="card">
+                {changes.length ? (
+                  <ol className="traveller-activity">
+                    {changes.map((entry) => (
+                      <li key={entry.factId}>
+                        <Link href={`/app/applicant/${id}/history`}>
+                          <strong>{fieldLabel(entry.fieldKey) ?? 'Profile Detail'}</strong>
+                          <span>{entry.method ?? 'Recorded Update'}</span>
+                        </Link>
+                        <time dateTime={entry.updatedAt as string}>
+                          {formatTimestampDate(entry.updatedAt as string)}
+                        </time>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <EmptyState icon="activity" title="No Saved Changes Yet">
+                    Your saved field versions will appear here.
+                  </EmptyState>
+                )}
+                <Link href={`/app/applicant/${id}/history`}>All Profile History →</Link>
+              </article>
+            </div>
+            <div className="profile-review-note">
+              <strong>You Decide What Becomes a Fact</strong>
+              <p>
+                AI suggestions do not change your profile until you approve them. Human and issuer
+                assurance remain separate.
+              </p>
+              <Link href={`/app/applicant/${id}/documents`}>Review Document Suggestions →</Link>
+            </div>
+          </aside>
+        </div>
+      </DepthScope>
     </div>
   );
 }

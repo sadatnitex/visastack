@@ -131,7 +131,7 @@ export default async function ApplicantRecordPage({
   return (
     <div className="stack record-hub-page">
       <PageHeader
-        as="h2"
+        eyebrow="Record"
         title="All Records"
         description={`Everything saved for ${data.applicant.displayName}, in one place. Find a detail or a document, see which copy is current, then use it in a case or share it.`}
         actions={

@@ -17,6 +17,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   ...service,
 }));
+vi.mock('../../../../../lib/ccd/depth.server', () => ({ readDepth: async () => 'auto' }));
 vi.mock('../../../../../lib/session', () => ({
   withSession: (callback: (ctx: unknown) => unknown) => callback({ db: {}, accountId: 'owner' }),
 }));
@@ -222,5 +223,21 @@ describe('dates the page does not have (owner finding 6)', () => {
     expect(html).toContain(
       'Enter the date printed on it under Document Date on <a href="/app/applicant/person/documents">Documents</a>.',
     );
+  });
+});
+
+describe('Dates & Expiry levels (CCD-3)', () => {
+  it('keeps route rules and issuer confirmations at Browse, so stale evidence is never hidden by default', async () => {
+    const html = await page();
+    const { JSDOM } = await import('jsdom');
+    const doc = new JSDOM(html).window.document;
+    const levelOf = (title: string) =>
+      [...doc.querySelectorAll('h2')]
+        .find((h) => h.textContent === title)
+        ?.closest('[data-level]')
+        ?.getAttribute('data-level');
+    expect(levelOf('Route Rules')).toBe('browse');
+    expect(levelOf('Issuer Confirmations')).toBe('browse');
+    expect(doc.querySelector('h1')?.textContent).toBe('Dates & Expiry');
   });
 });

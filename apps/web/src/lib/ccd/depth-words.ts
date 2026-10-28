@@ -20,6 +20,14 @@ export const DEPTH_WORDS = {
   'depth.documents.browse':
     'Browse: the full list, search, and the document you picked with its details.',
   'depth.documents.everything': 'Everything: adding new documents.',
+  'depth.expiry.glance': 'Glance: the dates that come up next.',
+  'depth.expiry.browse':
+    "Browse: each document's own expiry, route rules and issuer confirmations.",
+  'depth.expiry.everything': 'Everything: nothing more on this screen.',
+  'depth.profile.glance':
+    'Glance: who this is, how complete the profile is, and that you decide what becomes a fact.',
+  'depth.profile.browse': 'Browse: the details, section by section, to read and edit.',
+  'depth.profile.everything': 'Everything: profile health and the latest changes.',
   'depth.account.glance': 'Glance: who you are signed in as.',
   'depth.account.browse': 'Browse: {parts}.',
   'depth.account.everything': 'Everything: {parts}.',

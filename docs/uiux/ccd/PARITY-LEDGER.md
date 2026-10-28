@@ -13,9 +13,9 @@ Levels: **Glance** (the one thing that matters now), **Browse** (the normal work
 | 01 | Sign In | `/auth/sign-in` | none | Not converted: no switch, content unchanged (by design) |
 | 02 | Home | `/app` | CCD-2 (slice 2a) | **Built and tested** (not seen live) |
 | 03 | Traveller home | `/app/applicant/{id}` | CCD-2 (slice 2b) | **Built and tested** (not seen live) |
-| 04 | My Profile | `/profile` | CCD-3 | Planned |
+| 04 | My Profile | `/profile` | CCD-3 (slice 3b) | **Built and tested** (not seen live) |
 | 05 | Documents | `/documents` | CCD-3 (slice 3a) | **Built and tested** (not seen live) |
-| 06 | Dates & Expiry | `/expiry` | CCD-3 | Planned |
+| 06 | Dates & Expiry | `/expiry` | CCD-3 (slice 3b) | **Built and tested** (not seen live) |
 | 07 | Notifications | `/app/notifications` | CCD-5 | Planned |
 | 08 | Cases | `/missions` | CCD-4 | Planned |
 | 09 | Case | `/app/mission/{id}` | CCD-4 | Planned |
@@ -108,6 +108,41 @@ Baseline: `apps/web/src/lib/ccd/baseline/documents.json`, five states (empty wal
 Decision D5: the limits line above the file picker now ends "PDF files can be added only while our virus scan is switched on." whenever PDF files are refused, built from the same switch the server uses; a picked PDF gets the same reason and what to do instead. The size it prints was already the server's real limit (the smaller of the account quota and the 4 MB one request can carry).
 
 Approved changes: the h1 and the Selected Document heading level. Nothing removed. Not built: a Glance list of the documents that need review (Glance shows the counts; a tile opens the list).
+
+## 04. My Profile (`/app/applicant/{id}/profile`)
+
+Baseline: `baseline/profile.json`, three states (a new profile; core processing off; confirmed, supported and conflicting details). Test: `parity-profile.test.tsx`.
+
+| What it is | Level it lives at now | Condition (unchanged) |
+|---|---|---|
+| Page heading "My Profile", eyebrow "Record" (was "Your Canonical Record") | Glance; the one h1 (approved change) | always |
+| Add Information (or Review Permissions) | Glance | always |
+| Identity banner: photo, name (now an h2, same size), nationality, profile kind, Essentials Added meter | Glance | always |
+| You Decide What Becomes a Fact, with Review Document Suggestions | Glance | always |
+| Conflicting values notice | Glance (moved above the editor so it is never hidden) | only with conflicting values |
+| The profile editor (or the choose-to-save message), the history note | Browse; `#profile-editor` links raise the level first | as before |
+| Profile Health, Latest Changes (titles now h2, same size) | Everything | always |
+
+Approved changes: heading levels only. Not built here: splitting the editor's area list (Browse) from its field forms (Everything); both are inside one editor and stay at Browse.
+
+## 06. Dates & Expiry (`/app/applicant/{id}/expiry`)
+
+Baseline: `baseline/expiry.json`, four states (nothing yet; a passport expiring soon with other documents; a route rule waiting for a date; dates could not be read). Test: `parity-expiry.test.tsx`.
+
+| What it is | Level it lives at now | Condition (unchanged) |
+|---|---|---|
+| Page heading "Dates & Expiry", eyebrow "Record" (was "Expiry & Freshness" under "Expiry Centre") | Glance; the one h1 (approved change) | always |
+| Add Dates to My Calendar | Glance | always |
+| Deadline Clock (the dates that come up next) | Glance | always |
+| Intrinsic Expiry, Route Rules and Issuer Confirmations cards | Browse (route rules and confirmations were planned for Everything; kept at Browse so stale or undated evidence is never hidden by default) | always |
+
+Approved changes: the heading. Links elsewhere that said "Document Expiry Centre" or "Open Expiry Centre" now say "Dates & Expiry".
+
+Each Record page remembers its own level (families documents, profile and expiry), so a choice on one never changes another.
+
+## All Records and History (naming and heading only)
+
+Not converted to levels. All Records: "All Records" is the one h1 with eyebrow "Record"; its group titles are now h2 (same size). History: "History" (was "Fact History") is the one h1 with eyebrow "Record" (was "Provenance").
 
 ## Screens 02 to 15: the level plan (from the approved canvas)
 

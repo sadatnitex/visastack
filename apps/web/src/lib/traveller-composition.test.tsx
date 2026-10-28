@@ -432,4 +432,25 @@ describe("the deadline clock on a person's overview (Growth G5)", () => {
     expect(html).toContain('Add Your Essentials');
     expect(html).not.toContain('Nothing Needs You Right Now');
   });
+
+  it('keeps the conflicting-values warning at every level of My Profile', async () => {
+    service.listApplicantProfile.mockResolvedValue([
+      {
+        factId: 'f1',
+        fieldKey: 'given_name',
+        repeatingRecordKey: null,
+        value: 'Synthetic',
+        status: 'CONFLICTED',
+        updatedAt: '2026-10-10T12:00:00Z',
+        method: 'MANUAL',
+      },
+    ]);
+    const html = renderToStaticMarkup(await profile(params));
+    const { JSDOM } = await import('jsdom');
+    const alert = [...new JSDOM(html).window.document.querySelectorAll('[role="alert"]')].find(
+      (node) => node.textContent?.includes('conflicting proposed values'),
+    );
+    expect(alert?.textContent).toContain('conflicting proposed values');
+    expect(alert?.closest('[data-level]')).toBeNull();
+  });
 });

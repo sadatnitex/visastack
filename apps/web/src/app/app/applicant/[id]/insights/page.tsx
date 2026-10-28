@@ -209,7 +209,7 @@ export default async function DocumentInsightsPage({
             </ol>
           )}
           <Link className="btn btn-secondary insights-action" href={`/app/applicant/${id}/expiry`}>
-            Open Expiry Centre
+            Open Dates &amp; Expiry
           </Link>
         </section>
 
