@@ -215,6 +215,7 @@ Baseline: `baseline/evidence.json`, five states (no requests; two waiting, one r
 | Page title "Evidence Requests" (h1), eyebrow the traveller's name, the description | Glance; was "Requests from Agencies" as an h2 (D3) | always |
 | "N requests are waiting for you" notice | Glance | something waiting |
 | A request waiting on the person: its name, due and status badges, why it is needed, the reason it was sent back, the reply form | Glance (tested) | waiting |
+| A sent file that could not be used (Needs Correction while received or under review): the request, its guidance and the question box | Glance (tested), so the way forward is never hidden | file unusable |
 | "Nothing is waiting for you." | Glance only; the list then starts at Browse | requests, none waiting |
 | Needed by, the checklist note, the request reference, the next-step guidance | Browse | as before |
 | Requests already answered or closed (received, accepted, cancelled) | Browse | as before |
@@ -234,15 +235,17 @@ Baseline: `baseline/sharing.json`, three states (nobody has access; active, paus
 | Who Has Access card, its count line, the failed-read alert | Glance | always |
 | The revoke warning ("Pausing or revoking stops all future access...") | Glance, so at every level (tested) | any access |
 | Live and paused access: the recipient, status, the Pause, Resume and Revoke buttons and their sentence | Glance (tested) | live or paused |
-| "N more are waiting to be accepted or have ended. Choose Browse to see them." | Glance only (new) | some pending or ended |
+| "N more are waiting to be accepted or have ended. Choose Browse to see them." | Glance only (new); counts pending or ended access and invitations not yet accepted | some pending or ended |
 | What each person can see (the scope summary), when it was accepted, cases not covered, the new-items confirmation | Browse | as before |
 | Access waiting to be accepted, and access that has ended (revoked, expired or past its end date) | Browse, with their buttons | as before |
 | AI connections | Glance (unchanged: a connected AI can read the record, so it is part of who has access) | always |
 | Access Log | Browse | always |
-| Sharing invitations | Everything | invitations on |
+| Sharing invitations, with Revoke Invitation | Browse (planned for Everything; kept at Browse because an invitation not yet accepted can still become access); counted in the Glance line (tested) | invitations on |
 | Grant Access form | Everything; Browse while nobody has access; Glance when the person came from Share on a document | as before |
 
 At an explicit Glance or Browse that hides the form, the access column takes the full width.
+
+On every converted screen: after a form is sent, if the refreshed page moves the block the person just used to a deeper level (an answered request, the first share), the level rises to keep it on screen for up to a minute, without saving the choice; choosing a level on the switch ends this (tested in `depth-switch.test.tsx`).
 
 ## Screens 02 to 15: the level plan (from the approved canvas)
 

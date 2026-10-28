@@ -35,7 +35,7 @@ import { AWAITING_SUBMISSION, dueLabel } from './due-label';
 import { requestItemView } from './request-item';
 import { SubmitResponseForm } from './submit-response-form';
 
-export const metadata: Metadata = { title: 'Evidence' };
+export const metadata: Metadata = { title: 'Evidence Requests' };
 
 export const dynamic = 'force-dynamic';
 
@@ -151,8 +151,22 @@ export default async function EvidencePage({
   const awaiting = data.requests.filter((r) => AWAITING_SUBMISSION.has(r.status));
   const timeZone = data.applicant.timezone;
   const depth = await readDepth('evidence-requests');
-  // With nothing waiting, the list itself starts at Browse: no empty card at Glance.
-  const nothingWaiting = data.requests.length > 0 && awaiting.length === 0;
+  const items = new Map(
+    sorted.map((req) => [
+      req.id,
+      requestItemView({
+        request: req,
+        document: respondingDocumentState(req, data.documents, data.documentsRead),
+        rule: data.extras.rules.get(req.id),
+      }),
+    ]),
+  );
+  // Glance is what needs the person: a request waiting on a reply, and a sent file that could
+  // not be used (they ask the agency about it). Everything else starts at Browse.
+  const needsPerson = (req: (typeof sorted)[number]) =>
+    AWAITING_SUBMISSION.has(req.status) || items.get(req.id)?.group === 'NEEDS_CORRECTION';
+  // With nothing for the person to do, the list itself starts at Browse: no empty card at Glance.
+  const nothingWaiting = data.requests.length > 0 && !data.requests.some(needsPerson);
 
   return (
     <>
@@ -200,12 +214,17 @@ export default async function EvidencePage({
           ) : (
             <div className="rows">
               {sorted.map((req) => {
-                const item = requestItemView({
-                  request: req,
-                  document: respondingDocumentState(req, data.documents, data.documentsRead),
-                  rule: data.extras.rules.get(req.id),
-                });
+                const item =
+                  items.get(req.id) ??
+                  requestItemView({
+                    request: req,
+                    document: respondingDocumentState(req, data.documents, data.documentsRead),
+                    rule: data.extras.rules.get(req.id),
+                  });
                 const awaitingReply = AWAITING_SUBMISSION.has(req.status);
+                // The file sent could not be used: its guidance and the question box are the
+                // way forward, so they show with the request.
+                const unusableFile = !awaitingReply && item.group === 'NEEDS_CORRECTION';
                 const target = requestTarget(req);
                 const itemName = `${req.kind === 'FIELD' ? 'Detail' : 'Document'}: ${target}`;
                 const decisions = data.decisionsByRequest.get(req.id) ?? [];
@@ -231,7 +250,7 @@ export default async function EvidencePage({
                     className={`case-row request-item request-item-${item.tone}`}
                     key={req.id}
                     id={`request-${req.id}`}
-                    {...(awaitingReply ? {} : atLevel('browse'))}
+                    {...(needsPerson(req) ? {} : atLevel('browse'))}
                   >
                     <div className="case-row-head">
                       <span className="case-row-title">
@@ -258,11 +277,11 @@ export default async function EvidencePage({
                       </p>
                     ) : null}
                     {code ? (
-                      <div {...atLevel('browse')}>
+                      <div className="depth-item" {...atLevel('browse')}>
                         <ReferenceCode code={code} label="Request Reference" />
                       </div>
                     ) : null}
-                    <p className="case-row-meta u-m-0" {...atLevel('browse')}>
+                    <p className="case-row-meta u-m-0" {...(unusableFile ? {} : atLevel('browse'))}>
                       {item.guidance}
                     </p>
                     {req.respondedAt && ANSWERED_STATUSES.has(req.status) ? (
@@ -325,12 +344,18 @@ export default async function EvidencePage({
                     ) : null}
                     {canAsk && req.missionId ? (
                       questions.length >= REQUEST_QUESTION_LIMIT ? (
-                        <p className="case-row-meta u-m-0" {...atLevel('everything')}>
+                        <p
+                          className="case-row-meta u-m-0"
+                          {...(unusableFile ? {} : atLevel('everything'))}
+                        >
                           You have asked several questions about this item. The agency answers in
                           the case notes.
                         </p>
                       ) : (
-                        <details className="request-ask" {...atLevel('everything')}>
+                        <details
+                          className="request-ask"
+                          {...(unusableFile ? {} : atLevel('everything'))}
+                        >
                           <summary className="request-ask-toggle">
                             Ask the Agency About This Item
                             <span className="sr-only">: {itemName}</span>

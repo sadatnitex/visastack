@@ -2,6 +2,7 @@ import { JSDOM } from 'jsdom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderServer, stub } from '../next-mocks.test-support';
 import { registerParity } from './parity-kit.test-support';
+import { levelContaining } from './reveal';
 
 /** Sharing (screen 11): see parity-kit.test-support.ts for how the comparison works. */
 
@@ -189,7 +190,9 @@ describe('sharing levels', () => {
         }),
       ),
     ).window.document;
-  const levelOf = (el: Element | null | undefined) => el?.getAttribute('data-level') ?? 'glance';
+  // The level at which an element is really on screen: its own and every block around it.
+  const levelOf = (el: Element | null | undefined) =>
+    el ? levelContaining(el as HTMLElement, el.ownerDocument.body) : 'none';
   const rowFor = (doc: Document, label: string) =>
     [...doc.querySelectorAll('.sharing-grant')].find((row) => row.textContent?.includes(label));
   beforeEach(() => {
@@ -234,6 +237,30 @@ describe('sharing levels', () => {
     expect(
       levelOf((await page({ document: 'not-mine' })).getElementById('new-sharing-request')),
     ).toBe('browse');
+  });
+
+  it('counts invitations not yet accepted at Glance and lists them at Browse', async () => {
+    vi.stubEnv('PERSONAL_SHARING_INVITATIONS_ENABLED', 'true');
+    state.invitations = [
+      {
+        id: 'inv-1',
+        email: 'friend@example.test',
+        status: 'PENDING',
+        purpose: 'Visa review',
+        missionId: null,
+        expiresAt: new Date('2030-01-01T00:00:00Z'),
+      },
+    ];
+    try {
+      const doc = await page();
+      expect(doc.querySelector('[data-only="glance"]')?.textContent).toContain(
+        '1 more is waiting to be accepted or has ended.',
+      );
+      expect(levelOf(doc.querySelector('.sharing-invitation-history'))).toBe('browse');
+    } finally {
+      vi.unstubAllEnvs();
+      state.invitations = [];
+    }
   });
 
   it('never treats a failed read as nobody having access', async () => {

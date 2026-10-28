@@ -11,7 +11,6 @@ export type DepthCopyScreen =
   | 'cases'
   | 'case'
   | 'evidence'
-  | 'sharing'
   | 'notifications'
   | 'privacy';
 

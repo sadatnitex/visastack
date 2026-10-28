@@ -2,6 +2,7 @@ import { JSDOM } from 'jsdom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderServer, stub } from '../next-mocks.test-support';
 import { registerParity } from './parity-kit.test-support';
+import { levelContaining } from './reveal';
 
 /** Evidence Requests (screen 10): see parity-kit.test-support.ts for how the comparison works. */
 
@@ -155,7 +156,9 @@ describe('evidence request levels', () => {
   const page = async () =>
     new JSDOM(await renderServer(EvidencePage({ params: Promise.resolve({ id: 'person' }) })))
       .window.document;
-  const levelOf = (el: Element | null) => el?.getAttribute('data-level') ?? 'glance';
+  // The level at which an element is really on screen: its own and every block around it.
+  const levelOf = (el: Element | null | undefined) =>
+    el ? levelContaining(el as HTMLElement, el.ownerDocument.body) : 'none';
   beforeEach(() => {
     state.decisions = [];
     state.codes = new Map([['r1', 'R-7K2Q9M']]);
@@ -196,6 +199,37 @@ describe('evidence request levels', () => {
     expect(reason?.textContent).toContain('The last page is cut off.');
     expect(levelOf(reason)).toBe('glance');
     expect(levelOf(doc.getElementById('request-r5'))).toBe('glance');
+  });
+
+  it('shows a sent file that could not be used at Glance, with its guidance and the question box', async () => {
+    state.requests = {
+      ok: true,
+      value: [
+        { ...base, id: 'r1', status: 'RECEIVED', respondingDocumentId: 'd9', missionId: 'm1' },
+      ],
+    };
+    state.documents = [
+      {
+        id: 'd9',
+        originalName: 'scan.pdf',
+        approvedName: null,
+        docType: 'BANK_STATEMENT',
+        latestVersionId: 'v1',
+        safetyStatus: 'QUARANTINED',
+        processingStatus: 'FAILED',
+      },
+    ];
+    state.questions = new Map();
+    const doc = await page();
+    const row = doc.getElementById('request-r1');
+    expect(levelOf(row)).toBe('glance');
+    const guidance = [...(row?.querySelectorAll('p') ?? [])].find((p) =>
+      p.textContent?.includes('could not be used'),
+    );
+    expect(levelOf(guidance)).toBe('glance');
+    expect(levelOf(row?.querySelector('details.request-ask'))).toBe('glance');
+    expect(doc.querySelector('[data-only="glance"]')).toBeNull();
+    state.documents = [];
   });
 
   it('says nothing is waiting at Glance and starts the list at Browse', async () => {

@@ -25,7 +25,8 @@ import {
 import { EmptyState, PageHeader, StatusBadge } from '../../../../../components/ui';
 import { aiConnectorEnabled } from '../../../../../lib/ai-connector';
 import { consentChoicesFromQuery, isAiChangeDuration } from '../../../../../lib/ai-consent-choices';
-import { depthCopyFor } from '../../../../../lib/ccd/depth-copy';
+import { depthCopy } from '../../../../../lib/ccd/depth-copy';
+import { depthWord } from '../../../../../lib/ccd/depth-words';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
 import { humanizeCode } from '../../../../../lib/format-code';
 import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
@@ -188,7 +189,12 @@ export default async function SharingPage({
   // accepted, and access that has ended, are at Browse.
   const holdsAccess = (grant: (typeof data.grants)[number]) =>
     !hasEnded(grant) && (grant.status === 'ACTIVE' || grant.status === 'PAUSED');
-  const notAtGlance = data.grants.filter((grant) => !holdsAccess(grant)).length;
+  // Invitations not yet accepted can still turn into access, so Glance counts them too.
+  const pendingInvitations = data.invitations.filter(
+    (invite) => invite.status === 'PENDING' && invite.expiresAt.getTime() > Date.now(),
+  ).length;
+  const notAtGlance =
+    data.grants.filter((grant) => !holdsAccess(grant)).length + pendingInvitations;
   // Started from Share on a document: the form is what the person came for.
   const startsWithDocument =
     typeof documentParam === 'string' && data.documents.some((d) => d.id === documentParam);
@@ -213,7 +219,23 @@ export default async function SharingPage({
       />
 
       <DepthScope family="sharing" depth={depth}>
-        <DepthSwitch family="sharing" initial={depth} copy={depthCopyFor('sharing')} />
+        <DepthSwitch
+          family="sharing"
+          initial={depth}
+          copy={depthCopy({
+            glance: depthWord(
+              composerLevel === null ? 'depth.sharing.glance.withForm' : 'depth.sharing.glance',
+            ),
+            browse: depthWord(
+              composerLevel === 'browse' ? 'depth.sharing.browse.withForm' : 'depth.sharing.browse',
+            ),
+            everything: depthWord(
+              composerLevel === 'everything'
+                ? 'depth.sharing.everything'
+                : 'depth.sharing.everything.nothingMore',
+            ),
+          })}
+        />
         <div className="sharing-workspace">
           <div className="sharing-access-column">
             <article className="card">
@@ -279,7 +301,7 @@ export default async function SharingPage({
                           </span>
                           <span className={`badge ${badge.tone}`}>{badge.label}</span>
                         </div>
-                        <div {...atLevel('browse')}>
+                        <div className="depth-item" {...atLevel('browse')}>
                           <SelectedScopeSummary
                             purpose={grant.purpose}
                             permissions={grant.actions.map((a) =>
@@ -360,7 +382,7 @@ export default async function SharingPage({
                         grant.caseExceptions.length > 0 &&
                         (grant.expiryAt === null ||
                           new Date(grant.expiryAt).getTime() > Date.now()) ? (
-                          <div {...atLevel('browse')}>
+                          <div className="depth-item" {...atLevel('browse')}>
                             <CaseExceptions
                               applicantId={id}
                               grantId={grant.id}
@@ -376,7 +398,7 @@ export default async function SharingPage({
                         {(() => {
                           const candidates = data.scopeExpansions.get(grant.id);
                           return candidates && candidates.length > 0 ? (
-                            <div {...atLevel('browse')}>
+                            <div className="depth-item" {...atLevel('browse')}>
                               <ScopeExpansionForm
                                 applicantId={id}
                                 grantId={grant.id}
@@ -402,7 +424,7 @@ export default async function SharingPage({
             />
 
             {data.invitations.length ? (
-              <details className="card sharing-invitation-history" {...atLevel('everything')}>
+              <details className="card sharing-invitation-history" {...atLevel('browse')}>
                 <summary>
                   Sharing invitations:{' '}
                   {
