@@ -1140,6 +1140,7 @@ const AGENCY: readonly Case[] = [
     element: () => (
       <ClientInvitationForm
         organizationId="o1"
+        pendingInvitationIds={[]}
         members={[
           { accountId: 'm1', email: 'staff@example.com', active: true },
           { accountId: 'm2', email: 'former@example.com', active: false },
@@ -1153,7 +1154,10 @@ const AGENCY: readonly Case[] = [
   row('withdraw a staff invitation', () => (
     <InvitationRevokeButton organizationId="o1" invitationId="i1" />
   )),
-  { name: 'add a team member', element: () => <AddMemberForm organizationId="o1" /> },
+  {
+    name: 'add a team member',
+    element: () => <AddMemberForm organizationId="o1" pendingInvitationIds={[]} />,
+  },
   row('switch a team member on or off (active)', () => (
     <MemberToggleButton organizationId="o1" membershipId="m1" active />
   )),

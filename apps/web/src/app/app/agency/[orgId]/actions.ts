@@ -53,6 +53,8 @@ export interface ActionState {
   readonly ok: boolean;
   readonly message: string;
   readonly invitationUrl?: string;
+  /** The invitation the message is about, so a screen can drop it once it is revoked. */
+  readonly invitationId?: string;
 }
 
 /**
@@ -281,6 +283,7 @@ export async function addMemberAction(
       ok: true,
       message: invitationReadyLine('none', '7 days'),
       invitationUrl: acceptUrl,
+      invitationId: outcome.value.invitation.id,
       ...(encryption ? { sendFor: outcome.value.invitation.id } : {}),
     };
   });
@@ -294,6 +297,7 @@ export async function addMemberAction(
       ok: true,
       message: invitationReadyLine(email ?? 'none', '7 days'),
       invitationUrl: result.invitationUrl,
+      invitationId: result.invitationId,
     } satisfies ActionState;
   }
   return { ok: true, message: result.message } satisfies ActionState;
@@ -353,6 +357,7 @@ export async function inviteClientAction(
       ok: true,
       message: invitationReadyLine('none', '7 days'),
       invitationUrl: acceptUrl,
+      invitationId: invited.value.invitation.id,
       ...(invited.value.emailQueued ? { sendFor: invited.value.invitation.id } : {}),
     };
   });
@@ -365,6 +370,7 @@ export async function inviteClientAction(
       ok: true,
       message: invitationReadyLine(email, '7 days'),
       invitationUrl: result.invitationUrl,
+      invitationId: result.invitationId,
     } satisfies ActionState;
   }
   if (result.ok) {
