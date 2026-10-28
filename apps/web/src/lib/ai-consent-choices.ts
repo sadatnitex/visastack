@@ -44,7 +44,9 @@ export const CONSENT_DEFAULTS: ConsentInitial = {
 };
 
 /** The choices as query parameters, so a fresh sign-in check returns to the same screen. */
-export function consentChoicesToQuery(choice: ConsentInitial): Record<string, string> {
+export function consentChoicesToQuery(
+  choice: Omit<ConsentInitial, 'duration'> & { readonly duration: string },
+): Record<string, string> {
   return {
     choice_layers: choice.layers.join(','),
     choice_cases: choice.cases,
@@ -77,4 +79,34 @@ export function consentChoicesFromQuery(
       ? (duration as AiConnectionDuration)
       : AI_CONNECTION_DEFAULT_DURATION,
   };
+}
+
+/**
+ * The case choice the screen can actually show. A crafted or stale case id that is not one of the
+ * record's listed cases falls back to all current cases, so a radio is always selected. When the
+ * person came from a case (`openedFromCase`) and has not chosen yet, that one case is the default
+ * (ADR 0021 section 5: "one case if opened from a case, else all current").
+ */
+export function settleConsentCases(
+  initial: ConsentInitial,
+  caseIds: readonly string[],
+  openedFromCase?: string,
+): ConsentInitial {
+  if (initial === CONSENT_DEFAULTS && openedFromCase && caseIds.includes(openedFromCase)) {
+    return { ...initial, cases: openedFromCase };
+  }
+  if (initial.cases !== 'all' && initial.cases !== 'none' && !caseIds.includes(initial.cases)) {
+    return { ...initial, cases: 'all' };
+  }
+  return initial;
+}
+
+/** On Change Access, "How Long" can also leave the end where it is. */
+export const AI_KEEP_END = 'keep';
+export type AiChangeDuration = AiConnectionDuration | typeof AI_KEEP_END;
+
+export function isAiChangeDuration(value: string | undefined): value is AiChangeDuration {
+  return (
+    value === AI_KEEP_END || (AI_CONNECTION_DURATIONS as readonly string[]).includes(value ?? '')
+  );
 }

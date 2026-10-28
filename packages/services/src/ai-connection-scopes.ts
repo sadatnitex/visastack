@@ -86,7 +86,9 @@ const DOCUMENT_LIST_SCOPE = 'document_list';
 const DOCUMENT_TEXT_SCOPE = 'document_text';
 
 /** The stored form of the choices: one string per granted thing, nothing else. */
-export function scopesFromChoices(choices: AiConnectionChoices): string[] {
+export function scopesFromChoices(
+  choices: Pick<AiConnectionChoices, 'layers' | 'documentList' | 'documentText'>,
+): string[] {
   const layers = AI_CONNECTION_LAYERS.filter((layer) => choices.layers.includes(layer));
   return [
     ...layers,

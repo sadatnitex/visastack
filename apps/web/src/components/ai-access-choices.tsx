@@ -1,0 +1,195 @@
+import { useId } from 'react';
+import {
+  AI_CONNECTION_LAYERS,
+  AI_CONNECTION_WARNING_LAYERS,
+  type ConsentInitial,
+} from '../lib/ai-consent-choices';
+import {
+  AI_DOCUMENT_LIST_LABEL,
+  AI_DOCUMENT_TEXT_LABEL,
+  AI_FULL_NUMBERS_LABEL,
+  AI_LAYER_LABELS,
+  AI_LAYER_NOTES,
+} from '../lib/ai-consent-labels';
+
+export interface AiAccessChoicesProps {
+  readonly appName: string;
+  readonly cases: readonly { readonly id: string; readonly title: string }[];
+  /** What the fields start with: the safe defaults on consent, the stored choices on a change. */
+  readonly initial: Omit<ConsentInitial, 'duration'>;
+  readonly durations: readonly { readonly value: string; readonly label: string }[];
+  readonly defaultDuration: string;
+  /** Points the matching field at the form's error message. */
+  readonly invalid?: { readonly field: string; readonly messageId: string };
+}
+
+/**
+ * The choices of what an AI app may read (ADR 0021 section 5), one set of fields for the consent
+ * screen and for Change Access on the Sharing page, so both always offer the same choices with
+ * the same names. Sensitive parts carry a warning and are never preselected by the defaults.
+ */
+export function AiAccessChoices({
+  appName,
+  cases,
+  initial,
+  durations,
+  defaultDuration,
+  invalid,
+}: AiAccessChoicesProps) {
+  const id = useId();
+  const problem = (field: string) =>
+    invalid?.field === field
+      ? { 'aria-invalid': true as const, 'aria-describedby': invalid.messageId }
+      : {};
+  return (
+    <>
+      <fieldset className="fieldset">
+        <legend className="field-label">What {appName} Can Read</legend>
+        <div className="checks">
+          {AI_CONNECTION_LAYERS.map((layer) => (
+            <label key={layer} className="check output-check" htmlFor={`${id}-ai-layer-${layer}`}>
+              <input
+                id={`${id}-ai-layer-${layer}`}
+                type="checkbox"
+                name="layer"
+                value={layer}
+                defaultChecked={initial.layers.includes(layer)}
+              />
+              <span className="output-check-text">
+                <span>{AI_LAYER_LABELS[layer]}</span>
+                <span
+                  className={
+                    AI_CONNECTION_WARNING_LAYERS.includes(layer)
+                      ? 'muted u-fs-075 ai-consent-warning'
+                      : 'muted u-fs-075'
+                  }
+                >
+                  {AI_LAYER_NOTES[layer]}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset className="fieldset">
+        <legend className="field-label">Cases</legend>
+        <div className="checks">
+          <label className="check output-check" htmlFor={`${id}-ai-cases-all`}>
+            <input
+              id={`${id}-ai-cases-all`}
+              type="radio"
+              name="cases"
+              value="all"
+              defaultChecked={initial.cases === 'all'}
+              {...problem('cases')}
+            />
+            <span className="output-check-text">
+              <span>All Current Cases</span>
+            </span>
+          </label>
+          {cases.map((item) => (
+            <label
+              key={item.id}
+              className="check output-check"
+              htmlFor={`${id}-ai-case-${item.id}`}
+            >
+              <input
+                id={`${id}-ai-case-${item.id}`}
+                type="radio"
+                name="cases"
+                value={item.id}
+                defaultChecked={initial.cases === item.id}
+              />
+              <span className="output-check-text">
+                <span>Only {item.title}</span>
+              </span>
+            </label>
+          ))}
+          <label className="check output-check" htmlFor={`${id}-ai-cases-none`}>
+            <input
+              id={`${id}-ai-cases-none`}
+              type="radio"
+              name="cases"
+              value="none"
+              defaultChecked={initial.cases === 'none'}
+            />
+            <span className="output-check-text">
+              <span>No Cases</span>
+            </span>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset className="fieldset">
+        <legend className="field-label">Documents</legend>
+        <div className="checks">
+          <label className="check output-check" htmlFor={`${id}-ai-document-list`}>
+            <input
+              id={`${id}-ai-document-list`}
+              type="checkbox"
+              name="document_list"
+              defaultChecked={initial.documentList}
+            />
+            <span className="output-check-text">
+              <span>{AI_DOCUMENT_LIST_LABEL}</span>
+              <span className="muted u-fs-075">
+                Kind, dates and status only. No file is shared.
+              </span>
+            </span>
+          </label>
+          <label className="check output-check" htmlFor={`${id}-ai-document-text`}>
+            <input
+              id={`${id}-ai-document-text`}
+              type="checkbox"
+              name="document_text"
+              defaultChecked={initial.documentText}
+            />
+            <span className="output-check-text">
+              <span>{AI_DOCUMENT_TEXT_LABEL}</span>
+              <span className="muted u-fs-075 ai-consent-warning">
+                Sensitive: the words read from documents in the parts you allow above. Protected
+                document types are never included.
+              </span>
+            </span>
+          </label>
+          <label className="check output-check" htmlFor={`${id}-ai-reveal`}>
+            <input
+              id={`${id}-ai-reveal`}
+              type="checkbox"
+              name="reveal_identifiers"
+              defaultChecked={initial.revealIdentifiers}
+              {...problem('reveal_identifiers')}
+            />
+            <span className="output-check-text">
+              <span>{AI_FULL_NUMBERS_LABEL}</span>
+              <span className="muted u-fs-075 ai-consent-warning">
+                Sensitive: shows whole passport and ID numbers instead of the last three characters.
+                You confirm it is you before this is allowed.
+              </span>
+            </span>
+          </label>
+        </div>
+      </fieldset>
+
+      <div className="field-row">
+        <label className="field-label" htmlFor={`${id}-ai-duration`}>
+          How Long
+        </label>
+        <select
+          id={`${id}-ai-duration`}
+          name="duration"
+          className="input"
+          defaultValue={defaultDuration}
+          {...problem('duration')}
+        >
+          {durations.map((duration) => (
+            <option key={duration.value} value={duration.value}>
+              {duration.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    </>
+  );
+}

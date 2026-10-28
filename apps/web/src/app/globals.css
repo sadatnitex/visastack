@@ -9250,3 +9250,85 @@ summary.visa-photo-title {
     transition: none;
   }
 }
+
+/* WP-S15 AI Connections on the Sharing page: one flat row per connected AI app, its facts and its controls */
+.ai-connections .ai-connections-notice {
+  display: block;
+  margin-bottom: var(--space-3);
+}
+.ai-connection-list {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.ai-connection {
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-3);
+}
+.ai-connection-name {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: 650;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.ai-connection-name .ai-consent-host {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.ai-connection-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--space-2) var(--space-4);
+}
+.ai-connection-facts dt {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.ai-connection-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.ai-connection-actions {
+  align-items: flex-start;
+}
+.ai-connection-actions .btn,
+.ai-connection-turn-off .btn {
+  min-height: 44px;
+}
+.ai-connection-turn-off {
+  display: grid;
+  gap: var(--space-2);
+}
+.ai-connections-ended {
+  margin-top: var(--space-4);
+}
+.ai-connections-ended summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 600;
+}
+.ai-connection-change > summary {
+  width: fit-content;
+  list-style: none;
+}
+.ai-connection-change > summary::-webkit-details-marker {
+  display: none;
+}
+.ai-connection-change[open] > summary {
+  margin-bottom: var(--space-3);
+}
+.ai-connection-change[open] {
+  border-top: 1px solid var(--hairline-soft);
+  padding-top: var(--space-3);
+}

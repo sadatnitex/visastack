@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   listSharingInvitations: vi.fn(),
   listInvitationCaseExceptions: vi.fn(),
   requireAccess: vi.fn(),
+  listAiConnections: vi.fn(),
+  listMissions: vi.fn(),
 }));
 vi.mock('@visastack/services', async (original) => ({
   ...(await original<typeof import('@visastack/services')>()),
@@ -24,6 +26,7 @@ vi.mock('./grant-form', () => ({ GrantForm: stub('GrantForm') }));
 vi.mock('./grant-op-buttons', () => ({ GrantOpButtons: stub('GrantOpButtons') }));
 vi.mock('./scope-expansion-form', () => ({ ScopeExpansionForm: stub('ScopeExpansionForm') }));
 vi.mock('./case-exceptions', () => ({ CaseExceptions: stub('CaseExceptions') }));
+vi.mock('./ai-connections', () => ({ AiConnectionsSection: stub('AiConnectionsSection') }));
 const { default: Page } = await import('./page');
 const render = () => renderServer(Page({ params: Promise.resolve({ id: 'owned' }) }));
 function grant(status: string, id = status) {
@@ -51,6 +54,11 @@ beforeEach(() => {
   });
   mocks.listAuditEventsForApplicant.mockResolvedValue([]);
   mocks.listApplicantProfile.mockResolvedValue([]);
+  mocks.requireAccess.mockResolvedValue({ ok: true, value: { proof: 'owner' } });
+  mocks.listAiConnections.mockResolvedValue({
+    ok: true,
+    value: { available: true, active: [], recentlyEnded: [] },
+  });
 });
 describe('actual authorized sharing composition', () => {
   it('refuses foreign ownership before any sharing/document/audit read', async () => {
@@ -59,6 +67,7 @@ describe('actual authorized sharing composition', () => {
     expect(mocks.listAccessForApplicantDetailed).not.toHaveBeenCalled();
     expect(mocks.listDocumentsDetailed).not.toHaveBeenCalled();
     expect(mocks.listAuditEventsForApplicant).not.toHaveBeenCalled();
+    expect(mocks.listAiConnections).not.toHaveBeenCalled();
   });
   it('keeps pending acceptance separate from active access and preserves narrow document names', async () => {
     mocks.listAccessForApplicantDetailed.mockResolvedValue({
@@ -315,5 +324,95 @@ describe('per-case sharing exceptions on the Sharing page', () => {
       ],
     });
     expect(stubProps(await render(), 'CaseExceptions')).toHaveLength(0);
+  });
+});
+
+describe('AI Connections on the Sharing page', () => {
+  type SectionProps = {
+    applicantId: string;
+    list: { available: boolean; active: unknown[] };
+    connectorOn: boolean;
+    notice?: string;
+    cases: { id: string; title: string }[];
+    returning?: { connectionId: string; choices: { layers: string[] }; duration: string };
+  };
+  const renderWith = (search: Record<string, string> = {}) =>
+    renderServer(
+      Page({ params: Promise.resolve({ id: 'owned' }), searchParams: Promise.resolve(search) }),
+    );
+
+  it('reads the connections through the gate as the owner, even while connecting is off', async () => {
+    vi.stubEnv('AI_CONNECTOR_ENABLED', 'false');
+    try {
+      const html = await renderWith({ ai: 'off' });
+      expect(mocks.requireAccess).toHaveBeenCalledWith(
+        {},
+        expect.anything(),
+        'VIEW_METADATA',
+        { applicantId: 'owned' },
+        { purpose: 'ai_connection' },
+      );
+      expect(mocks.listAiConnections).toHaveBeenCalledWith({ proof: 'owner' });
+      const [props] = stubProps<SectionProps>(html, 'AiConnectionsSection');
+      expect(props).toMatchObject({ applicantId: 'owned', connectorOn: false, notice: 'off' });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('passes the switch on, ignores an unknown notice, and survives a refused gate', async () => {
+    vi.stubEnv('AI_CONNECTOR_ENABLED', 'true');
+    try {
+      const [on] = stubProps<SectionProps>(
+        await renderWith({ ai: 'oops' }),
+        'AiConnectionsSection',
+      );
+      expect(on?.connectorOn).toBe(true);
+      expect(on?.notice).toBeUndefined();
+      mocks.requireAccess.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
+      mocks.listAiConnections.mockClear();
+      const [refused] = stubProps<SectionProps>(await renderWith(), 'AiConnectionsSection');
+      expect(mocks.listAiConnections).not.toHaveBeenCalled();
+      expect(refused?.list).toEqual({ available: false, active: [], recentlyEnded: [] });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('offers the current cases and reopens Change Access with the choices from a sign-in check', async () => {
+    vi.stubEnv('AI_CONNECTOR_ENABLED', 'true');
+    try {
+      const html0 = await renderWith();
+      expect(mocks.listMissions).not.toHaveBeenCalled();
+      expect(stubProps<SectionProps>(html0, 'AiConnectionsSection')[0]?.cases).toEqual([]);
+      mocks.listAiConnections.mockResolvedValue({
+        ok: true,
+        value: { available: true, active: [{ id: 'c1' }], recentlyEnded: [] },
+      });
+      mocks.listMissions.mockResolvedValue({
+        ok: true,
+        value: [
+          { id: 'm1', title: 'UK Visit', state: 'ACTIVE' },
+          { id: 'm2', title: 'Old Trip', state: 'CLOSED' },
+        ],
+      });
+      const [props] = stubProps<SectionProps>(
+        await renderWith({
+          ai_change: 'c1',
+          choice_layers: 'identity',
+          choice_cases: 'm1',
+          choice_duration: 'keep',
+        }),
+        'AiConnectionsSection',
+      );
+      expect(props?.cases).toEqual([{ id: 'm1', title: 'UK Visit' }]);
+      expect(props?.returning).toMatchObject({
+        connectionId: 'c1',
+        choices: { layers: ['identity'] },
+        duration: 'keep',
+      });
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

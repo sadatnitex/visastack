@@ -73,6 +73,7 @@ vi.mock('../app/app/applicant/[id]/section-actions', standIn);
 vi.mock('../app/app/applicant/[id]/evidence/actions', standIn);
 vi.mock('../app/app/applicant/[id]/missions/actions', standIn);
 vi.mock('../app/app/applicant/[id]/sharing/actions', standIn);
+vi.mock('../app/app/applicant/[id]/sharing/ai-connection-actions', standIn);
 vi.mock('../app/app/applicant/[id]/calendar/feed-actions', standIn);
 vi.mock('../app/app/client-invitations/accept/actions', standIn);
 vi.mock('../app/app/contributor-requests/accept/actions', standIn);
@@ -147,6 +148,10 @@ const { ScopeExpansionForm } = await import(
   '../app/app/applicant/[id]/sharing/scope-expansion-form'
 );
 const { CaseExceptions } = await import('../app/app/applicant/[id]/sharing/case-exceptions');
+const { AiConnectionTurnOff } = await import(
+  '../app/app/applicant/[id]/sharing/ai-connection-turn-off'
+);
+const { ChangeAccessForm } = await import('../app/app/applicant/[id]/sharing/ai-connection-change');
 vi.mock('../app/app/sharing-invitations/accept/actions', standIn);
 const { AcceptSharingInvitationForm } = await import(
   '../app/app/sharing-invitations/accept/accept-form'
@@ -611,6 +616,33 @@ const SHARING: readonly Case[] = [
       ]}
     />
   )),
+  row('turn off an AI app', () => (
+    <AiConnectionTurnOff applicantId="a1" connectionId={rowId()} appName="Claude" />
+  )),
+  {
+    name: 'change what an AI app can read',
+    element: () => (
+      <ChangeAccessForm
+        applicantId="a1"
+        connectionId="c1"
+        appName="Claude"
+        cases={[{ id: 'm1', title: 'UK Visit' }]}
+        initial={{
+          layers: ['identity'],
+          cases: 'm1',
+          documentList: true,
+          documentText: false,
+          revealIdentifiers: false,
+        }}
+        durations={[
+          { value: 'keep', label: 'Keep the Current End (6 Nov 2026, 14:05)' },
+          { value: '7d', label: '7 Days from Now' },
+        ]}
+        defaultDuration="keep"
+      />
+    ),
+    fields: ['cases', 'duration', 'reveal_identifiers'],
+  },
   {
     name: 'widen a share to new documents',
     element: () => <ScopeExpansionForm applicantId="a1" grantId="g1" candidates={DOCUMENTS} />,
@@ -1477,20 +1509,23 @@ const ADMIN: readonly Case[] = [
       date="6 Oct 2026"
     />
   )),
-  row('connect an AI app to a record', () => (
-    <aiConsentForms.ConsentForm
-      request={{
-        clientId: 'https://claude.ai/oauth/x',
-        redirectUri: 'https://claude.ai/api/mcp/auth_callback',
-        codeChallenge: 'c'.repeat(43),
-        resource: 'https://vs.example.test/mcp',
-        state: 'abc',
-      }}
-      appName="Claude"
-      record={{ id: rowId(), name: 'Synthetic Traveller' }}
-      cases={[{ id: rowId(), title: 'UK Visit' }]}
-    />
-  )),
+  {
+    ...row('connect an AI app to a record', () => (
+      <aiConsentForms.ConsentForm
+        request={{
+          clientId: 'https://claude.ai/oauth/x',
+          redirectUri: 'https://claude.ai/api/mcp/auth_callback',
+          codeChallenge: 'c'.repeat(43),
+          resource: 'https://vs.example.test/mcp',
+          state: 'abc',
+        }}
+        appName="Claude"
+        record={{ id: rowId(), name: 'Synthetic Traveller' }}
+        cases={[{ id: rowId(), title: 'UK Visit' }]}
+      />
+    )),
+    fields: ['cases', 'duration'],
+  },
   row('assign a complaint', () => <complaintForms.AssignComplaintForm complaintId={rowId()} />),
   row('update a complaint (open)', () => (
     <complaintForms.UpdateComplaintStatusForm complaintId={rowId()} currentStatus="OPEN" />

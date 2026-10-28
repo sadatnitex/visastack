@@ -4,10 +4,12 @@ import {
   documentCategory,
   getApplicant,
   listAccessForApplicantDetailed,
+  listAiConnections,
   listApplicantProfile,
   listAuditEventsForApplicant,
   listDocumentsDetailed,
   listInvitationCaseExceptions,
+  listMissions,
   listSharingInvitations,
   previewScopeExpansion,
   requireAccess,
@@ -19,6 +21,8 @@ import {
   describeGrantScope,
 } from '../../../../../components/selected-scope-summary';
 import { EmptyState, PageHeader, StatusBadge } from '../../../../../components/ui';
+import { aiConnectorEnabled } from '../../../../../lib/ai-connector';
+import { consentChoicesFromQuery, isAiChangeDuration } from '../../../../../lib/ai-consent-choices';
 import { humanizeCode } from '../../../../../lib/format-code';
 import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
 import { grantStatusBadge } from '../../../../../lib/grant-status';
@@ -28,6 +32,7 @@ import { categoryLabel, newCategoriesWithData } from '../../../../../lib/master-
 import { plural } from '../../../../../lib/plural';
 import { withSession } from '../../../../../lib/session';
 import { revokeSharingInvitationAction } from './actions';
+import { type AiChangeReturn, AiConnectionsSection } from './ai-connections';
 import { CaseExceptions } from './case-exceptions';
 import { GrantForm } from './grant-form';
 import { GrantOpButtons } from './grant-op-buttons';
@@ -44,11 +49,34 @@ export default async function SharingPage({
   searchParams,
 }: {
   readonly params: Promise<{ id: string }>;
-  /** `document`: one document to start the new sharing request with, from Share on the Record. */
-  readonly searchParams?: Promise<{ readonly document?: string | string[] }>;
+  /**
+   * `document`: one document to start the new sharing request with, from Share on the Record.
+   * `ai`: what just happened to an AI connection (`off` or `changed`), after the page reloaded.
+   * `ai_change` with `choice_*`: Change Access choices coming back from a fresh sign-in check.
+   */
+  readonly searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
-  const { document: documentParam } = (await searchParams) ?? {};
+  const search = (await searchParams) ?? {};
+  const one = (name: string) => {
+    const value = search[name];
+    return Array.isArray(value) ? value[0] : value;
+  };
+  const documentKey = 'document';
+  const documentParam = search[documentKey];
+  const aiParam = one('ai');
+  const aiNotice = aiParam === 'off' || aiParam === 'changed' ? aiParam : undefined;
+  const connectorOn = aiConnectorEnabled();
+  const aiChangeId = one('ai_change');
+  const aiChangeDuration = one('choice_duration');
+  const aiReturning: AiChangeReturn | undefined =
+    aiChangeId && one('choice_layers') !== undefined
+      ? {
+          connectionId: aiChangeId,
+          choices: consentChoicesFromQuery(one),
+          duration: isAiChangeDuration(aiChangeDuration) ? aiChangeDuration : 'keep',
+        }
+      : undefined;
   const t = createTranslator(await getLocale());
 
   const data = await withSession(async ({ db, accountId }) => {
@@ -101,7 +129,34 @@ export default async function SharingPage({
       if (gate.ok) invitationExceptions = await listInvitationCaseExceptions(gate.value);
     }
 
+    // AI connections of this record, through the central access gate (owner only). Read even
+    // while connecting AI apps is off, so a live connection can still be turned off.
+    const aiGate = await requireAccess(
+      db,
+      accountPrincipal(accountId),
+      'VIEW_METADATA',
+      { applicantId: id },
+      { purpose: 'ai_connection' },
+    );
+    const aiListed = aiGate.ok ? await listAiConnections(aiGate.value) : null;
+    const aiConnections = aiListed?.ok
+      ? aiListed.value
+      : { available: false, active: [], recentlyEnded: [] };
+    // The cases Change Access can offer: only needed when a connection can be changed.
+    const aiCases =
+      connectorOn && aiConnections.active.length > 0
+        ? await listMissions(db, accountId, id).then((missions) =>
+            missions.ok
+              ? missions.value
+                  .filter((mission) => mission.state !== 'CANCELLED' && mission.state !== 'CLOSED')
+                  .map((mission) => ({ id: mission.id, title: mission.title }))
+              : [],
+          )
+        : [];
+
     return {
+      aiConnections,
+      aiCases,
       invitations,
       invitationExceptions: invitationExceptions.ok ? invitationExceptions.value : [],
       applicant,
@@ -285,6 +340,15 @@ export default async function SharingPage({
               </div>
             )}
           </article>
+
+          <AiConnectionsSection
+            applicantId={id}
+            list={data.aiConnections}
+            connectorOn={connectorOn}
+            cases={data.aiCases}
+            {...(aiNotice ? { notice: aiNotice } : {})}
+            {...(aiReturning ? { returning: aiReturning } : {})}
+          />
 
           {data.invitations.length ? (
             <details className="card sharing-invitation-history">
