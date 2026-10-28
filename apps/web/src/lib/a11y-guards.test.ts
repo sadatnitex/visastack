@@ -122,8 +122,9 @@ describe('motion stays on the shared speeds', () => {
   });
 
   it('turns every transition and animation off for visitors who ask for less motion', () => {
+    // Pseudo-elements are not matched by * alone: the disclosure arrow turns through ::after.
     expect(css).toMatch(
-      /@media \(prefers-reduced-motion: reduce\) \{\s*\* \{\s*animation: none !important;\s*transition: none !important;/,
+      /@media \(prefers-reduced-motion: reduce\) \{\s*(?:\/\*[^*]*\*\/\s*)?\*,\s*\*::before,\s*\*::after \{\s*animation: none !important;\s*transition: none !important;/,
     );
   });
 });

@@ -199,27 +199,39 @@ const plural = (count: number, one: string, many: string) => `${count} ${count =
 
 // WP-X1 next step card: wording for the first attention item. A changed case
 // is shown by its own alert instead, so it has no card wording.
+// CCD section 6: it speaks of this case by its name, and names the first item to fix.
 const NEXT_STEP_COPY: Record<
   Exclude<AttentionKind, 'changed'>,
-  { readonly title: (count: number) => string; readonly body: string; readonly action: string }
+  {
+    readonly title: (count: number, caseTitle: string) => string;
+    readonly body: (firstItem: string | null) => string;
+    readonly action: string;
+  }
 > = {
   // Counts missing, out-of-date and mismatched required items together.
   missing: {
-    title: (count) => `Fix ${plural(count, 'required item', 'required items')}`,
-    body: 'Some required items are missing, out of date or do not match.',
+    title: (count, caseTitle) =>
+      `Fix ${plural(count, 'required item', 'required items')} for ${caseTitle}`,
+    body: (firstItem) =>
+      `${firstItem ? `First to fix: ${firstItem}. ` : ''}Some required items are missing, out of date or do not match.`,
     action: 'See What Needs Fixing',
   },
   unconfirmed: {
-    title: (count) => `Confirm ${plural(count, 'item', 'items')}`,
-    body: 'Whether these apply depends on case details that are not confirmed yet.',
+    title: (count, caseTitle) => `Confirm ${plural(count, 'item', 'items')} for ${caseTitle}`,
+    body: () => 'Whether these apply depends on case details that are not confirmed yet.',
     action: 'See What to Confirm',
   },
   tasks: {
-    title: (count) => `Finish ${plural(count, 'open task', 'open tasks')}`,
-    body: 'Your open tasks are listed under Tasks, appointments and letters.',
+    title: (count, caseTitle) =>
+      `Finish ${plural(count, 'open task', 'open tasks')} for ${caseTitle}`,
+    body: () => 'Your open tasks are listed under Tasks, appointments and letters.',
     action: 'Open Tasks',
   },
 };
+
+/** A checklist item's name, as the checklist shows it. */
+const requirementLabel = (r: { readonly kind: 'FIELD' | 'DOCUMENT'; readonly key: string }) =>
+  r.kind === 'FIELD' ? (fieldLabel(r.key) ?? humanizeCode(r.key)) : humanizeCode(r.key);
 
 interface RequirementDetailRow {
   readonly packRequirementId: string;
@@ -366,11 +378,15 @@ export default async function MissionPage({
         ),
     );
     const explanationsByRequirement = new Map(explanationEntries);
-    const requiredHardGapCount = requirementDetails.filter(
+    const requiredHardGaps = requirementDetails.filter(
       (r) =>
         !r.optional &&
         (r.state === 'CRITICAL_GAP' || r.state === 'CONFLICTING' || r.state === 'EXPIRING_STALE'),
-    ).length;
+    );
+    const requiredHardGapCount = requiredHardGaps.length;
+    // The first in checklist order: the Next Step names it.
+    const firstHardGap = requiredHardGaps[0];
+    const firstHardGapLabel = firstHardGap ? requirementLabel(firstHardGap) : null;
     const requiredUnverifiedCount = requirementDetails.filter(
       (r) => !r.optional && r.state === 'UNVERIFIED',
     ).length;
@@ -520,6 +536,7 @@ export default async function MissionPage({
       readiness: readinessValue,
       requirementDetails,
       requiredHardGapCount,
+      firstHardGapLabel,
       requiredUnverifiedCount,
       explanationConfigured,
       explanationsByRequirement,
@@ -768,9 +785,11 @@ export default async function MissionPage({
               Next Step
             </h2>
             <p className="case-next-step-title">
-              {NEXT_STEP_COPY[nextStep.kind].title(nextStep.count)}
+              {NEXT_STEP_COPY[nextStep.kind].title(nextStep.count, mission.title)}
             </p>
-            <p className="case-next-step-body">{NEXT_STEP_COPY[nextStep.kind].body}</p>
+            <p className="case-next-step-body">
+              {NEXT_STEP_COPY[nextStep.kind].body(data.firstHardGapLabel)}
+            </p>
             <a className="btn btn-primary" href={nextStep.href}>
               {NEXT_STEP_COPY[nextStep.kind].action}
             </a>
@@ -885,10 +904,7 @@ export default async function MissionPage({
                             <div className="rows">
                               {groupRows.map((r) => {
                                 const meta = REQUIREMENT_STATE_META[r.state];
-                                const label =
-                                  r.kind === 'FIELD'
-                                    ? (fieldLabel(r.key) ?? humanizeCode(r.key))
-                                    : humanizeCode(r.key);
+                                const label = requirementLabel(r);
                                 const sourceLine = [r.publisher, r.sourceTitle]
                                   .filter(Boolean)
                                   .join(' · ');

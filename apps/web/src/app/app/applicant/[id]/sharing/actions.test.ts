@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   requireAccess: vi.fn(),
   removeCaseException: vi.fn(),
   establishStepUpProof: vi.fn(),
+  revokeSharingInvitation: vi.fn(),
 }));
 vi.mock('@visastack/services', async (original) => ({
   ...(await original<typeof import('@visastack/services')>()),
@@ -21,6 +22,7 @@ vi.mock('@visastack/services', async (original) => ({
   getAccountByEmail: mocks.getAccountByEmail,
   requireAccess: mocks.requireAccess,
   removeCaseException: mocks.removeCaseException,
+  revokeSharingInvitation: mocks.revokeSharingInvitation,
 }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
@@ -34,7 +36,8 @@ vi.mock('../../../../../lib/step-up', () => ({
 vi.mock('../../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) => fn({ db: {}, accountId: 'owner' }),
 }));
-const { allowCaseAction, createGrantAction, updateGrantAction } = await import('./actions');
+const { allowCaseAction, createGrantAction, revokeSharingInvitationAction, updateGrantAction } =
+  await import('./actions');
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.redirect.mockImplementation(() => {
@@ -54,10 +57,16 @@ describe('sharing transition navigation', () => {
     async (op) => {
       const service = mocks[`${op}Grant`];
       service.mockResolvedValue({ ok: true, value: { applicantId: 'actual-applicant' } });
+      // The reloaded page says what changed (CCD quiet closure), named by a fixed word.
+      const done = { pause: 'paused', resume: 'resumed', revoke: 'revoked' }[op];
       expect(await updateGrantAction({ ok: true, message: '' }, form(op))).toEqual({
         ok: true,
-        message: 'Access updated.',
-        refreshPath: '/app/applicant/actual-applicant/sharing',
+        message: {
+          pause: 'Access paused. They cannot see anything until you resume it.',
+          resume: 'Access resumed. They can see what you shared again.',
+          revoke: 'Access revoked. They lose it on their next request.',
+        }[op],
+        refreshPath: `/app/applicant/actual-applicant/sharing?done=${done}`,
       });
       expect(service).toHaveBeenCalledWith({}, { actorAccountId: 'owner', grantId: 'owned-grant' });
       expect(mocks.redirect).not.toHaveBeenCalled();
@@ -180,5 +189,43 @@ describe('Allow This Case', () => {
       message: 'Confirmation unavailable.',
     });
     expect(mocks.revalidatePath).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('withdrawing an invitation', () => {
+  const invitationForm = () => {
+    const data = new FormData();
+    data.set('invitationId', 'inv-1');
+    data.set('applicantId', 'owned');
+    return data;
+  };
+
+  it('lands on Sharing, which then says the link no longer works', async () => {
+    vi.stubEnv('PERSONAL_SHARING_INVITATIONS_ENABLED', 'true');
+    try {
+      mocks.revokeSharingInvitation.mockResolvedValue({ ok: true, value: undefined });
+      await expect(revokeSharingInvitationAction(invitationForm())).rejects.toThrow('redirected');
+      expect(mocks.redirect).toHaveBeenCalledWith(
+        '/app/applicant/owned/sharing?done=invitation-withdrawn',
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('says so when it could not be withdrawn, in fixed words, never the reason text', async () => {
+    vi.stubEnv('PERSONAL_SHARING_INVITATIONS_ENABLED', 'true');
+    try {
+      mocks.revokeSharingInvitation.mockResolvedValue({
+        ok: false,
+        error: { message: 'Invitation is no longer pending.' },
+      });
+      await expect(revokeSharingInvitationAction(invitationForm())).rejects.toThrow('redirected');
+      expect(mocks.redirect).toHaveBeenCalledWith(
+        '/app/applicant/owned/sharing?done=invitation-not-withdrawn',
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

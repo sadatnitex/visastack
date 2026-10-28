@@ -27,8 +27,12 @@ export function detailSavedLine(fieldLabel: string): string {
 }
 
 /** A suggested detail was approved and written to the profile. */
-export const SUGGESTION_SAVED_LINE =
-  'Saved to your profile. It can now fill checklist items that need it.';
+/** What a saved detail is now used for, after one or after several (they share the words). */
+export const DETAIL_IN_USE_LINE = 'It can now fill checklist items that need it.';
+export const DETAILS_IN_USE_LINE = 'They can now fill checklist items that need them.';
+
+/** A suggested detail was approved and written to the profile. */
+export const SUGGESTION_SAVED_LINE = `Saved to your profile. ${DETAIL_IN_USE_LINE}`;
 
 /** A suggested document type was approved. */
 export function documentTypeSavedLine(typeLabel: string): string {
@@ -91,12 +95,39 @@ export const SHARE_INVITED_LINE =
 /** The share invitation line, saying plainly whether its email already went out. */
 export function shareInvitedLine(email: Exclude<InvitationEmailOutcome, 'none'>): string {
   if (email === 'sent') {
-    return `Invitation emailed. ${SHARE_INVITED_LINE} ${SPAM_HINT} The link below works too.`;
+    // Two sentences (CCD section 6): what happened, then what they do and the way round a lost email.
+    return 'Invitation emailed: they sign in or create an account, then accept what you chose. If it does not arrive in a few minutes, ask them to check Spam or Promotions, or send them the link below.';
   }
   if (email === 'failed') {
     return `Invitation ready, but the email could not be sent, so copy the link below and send it yourself. ${SHARE_INVITED_LINE}`;
   }
   return `Invitation ready. The email has not gone out yet and VisaStack keeps trying, so share the link below to avoid a wait. ${SHARE_INVITED_LINE}`;
+}
+
+/** A change to someone's access finished (Sharing). Each says what changed and what it means now. */
+export const ACCESS_REVOKED_LINE = 'Access revoked. They lose it on their next request.';
+export const ACCESS_PAUSED_LINE = 'Access paused. They cannot see anything until you resume it.';
+export const ACCESS_RESUMED_LINE = 'Access resumed. They can see what you shared again.';
+export const INVITATION_WITHDRAWN_LINE = 'Invitation withdrawn. Its link no longer works.';
+export const INVITATION_NOT_WITHDRAWN_LINE =
+  'The invitation could not be withdrawn. They may have taken it up already, so check who has access below.';
+
+/**
+ * The finished change named by the Sharing page address (`?done=`), which survives the reload
+ * that shows the new access list. Only these fixed words are ever shown, never the address text.
+ */
+const ACCESS_DONE_LINES: Readonly<Record<string, string>> = {
+  revoked: ACCESS_REVOKED_LINE,
+  paused: ACCESS_PAUSED_LINE,
+  resumed: ACCESS_RESUMED_LINE,
+  'invitation-withdrawn': INVITATION_WITHDRAWN_LINE,
+  'invitation-not-withdrawn': INVITATION_NOT_WITHDRAWN_LINE,
+};
+
+export function accessDoneLine(done: string | undefined): string | null {
+  return done !== undefined && Object.hasOwn(ACCESS_DONE_LINES, done)
+    ? (ACCESS_DONE_LINES[done] ?? null)
+    : null;
 }
 
 /** A section's "something else" item was saved. */

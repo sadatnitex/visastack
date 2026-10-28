@@ -37,9 +37,11 @@ import { getLocale } from '../../../../../lib/locale';
 import { categoryLabel, newCategoriesWithData } from '../../../../../lib/master-profile';
 import { plural } from '../../../../../lib/plural';
 import { withSession } from '../../../../../lib/session';
+import { accessDoneLine } from '../../../../../lib/success-lines';
 import { revokeSharingInvitationAction } from './actions';
 import { type AiChangeReturn, AiConnectionsSection } from './ai-connections';
 import { CaseExceptions } from './case-exceptions';
+import { DoneNotice } from './done-notice';
 import { GrantForm } from './grant-form';
 import { GrantOpButtons } from './grant-op-buttons';
 import { ScopeExpansionForm } from './scope-expansion-form';
@@ -75,6 +77,8 @@ export default async function SharingPage({
   const documentParam = search[documentKey];
   const aiParam = one('ai');
   const aiNotice = aiParam === 'off' || aiParam === 'changed' ? aiParam : undefined;
+  // What the last change to access did, after the reload that shows the new list (fixed words only).
+  const doneLine = accessDoneLine(one('done'));
   const connectorOn = aiConnectorEnabled();
   const aiChangeId = one('ai_change');
   const aiChangeDuration = one('choice_duration');
@@ -246,6 +250,7 @@ export default async function SharingPage({
             <article className="card">
               <p className="card-kicker">Controlled Collaboration</p>
               <h2 className="card-title">Who Has Access</h2>
+              {doneLine ? <DoneNotice line={doneLine} /> : null}
               <p className="card-body">
                 {data.accessAvailable
                   ? `${plural(data.grants.filter((grant) => grant.status === 'ACTIVE').length, 'active grant')}. Pending, paused and ended grants are labelled separately below.`

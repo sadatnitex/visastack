@@ -30,7 +30,12 @@ import { agree, plural } from '../../../../lib/plural';
 import { withSession } from '../../../../lib/session';
 import { STAGE_LABELS } from '../../agency/[orgId]/case-search-form';
 import { attentionContext, attentionHeading } from '../../attention-display';
-import { CLOCK_HOME_LIMIT, deadlineLines, loadDeadlineEntries } from '../../deadline-clock-data';
+import {
+  CLOCK_HOME_LIMIT,
+  deadlineLines,
+  loadDeadlineEntries,
+  validUntilLine,
+} from '../../deadline-clock-data';
 
 export const metadata: Metadata = { title: 'Traveller Home' };
 export const dynamic = 'force-dynamic';
@@ -176,7 +181,14 @@ export default async function ApplicantOverviewPage({
                       title: 'Nothing Needs You Right Now',
                       why: data.featured
                         ? `You are up to date. Pick up ${data.featured.title} where you left off.`
-                        : 'You are up to date. Start a case when you plan your next trip.',
+                        : [
+                            'You are up to date.',
+                            // One real fact, never an invented task (CCD section 6).
+                            data.deadlines && validUntilLine(data.deadlines, { showPerson: false }),
+                            'Start a case when you plan your next trip.',
+                          ]
+                            .filter(Boolean)
+                            .join(' '),
                       action: data.featured ? 'Continue Case' : 'Start a Case',
                       tone: 'ok' as const,
                     };

@@ -422,3 +422,32 @@ describe('AI Connections on the Sharing page', () => {
     }
   });
 });
+
+describe('after a change to access, the reloaded page says what changed (CCD quiet closure)', () => {
+  const renderDone = (done: string) =>
+    renderServer(
+      Page({ params: Promise.resolve({ id: 'owned' }), searchParams: Promise.resolve({ done }) }),
+    );
+
+  it.each([
+    ['revoked', 'Access revoked. They lose it on their next request.'],
+    ['paused', 'Access paused. They cannot see anything until you resume it.'],
+    ['resumed', 'Access resumed. They can see what you shared again.'],
+    ['invitation-withdrawn', 'Invitation withdrawn. Its link no longer works.'],
+    [
+      'invitation-not-withdrawn',
+      'The invitation could not be withdrawn. They may have taken it up already, so check who has access below.',
+    ],
+  ])('%s', async (done, line) => {
+    const html = await renderDone(done);
+    expect(html).toContain(`<p class="notice notice-ok u-mb-100">${line}</p>`);
+  });
+
+  it('shows only those fixed words, never text from the address', async () => {
+    for (const done of ['Your access was stolen', 'toString', '__proto__', '']) {
+      const html = await renderDone(done);
+      expect(html, done).not.toContain('notice-ok');
+      expect(html, done).not.toContain('stolen');
+    }
+  });
+});

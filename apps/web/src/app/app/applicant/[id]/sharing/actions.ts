@@ -28,7 +28,13 @@ import {
   establishStepUpProof,
   tryEstablishStepUp,
 } from '../../../../../lib/step-up';
-import { SHARE_CREATED_LINE, shareInvitedLine } from '../../../../../lib/success-lines';
+import {
+  ACCESS_PAUSED_LINE,
+  ACCESS_RESUMED_LINE,
+  ACCESS_REVOKED_LINE,
+  SHARE_CREATED_LINE,
+  shareInvitedLine,
+} from '../../../../../lib/success-lines';
 
 /** Result surfaced back to the client for inline feedback. */
 const sharingInvitationFlag = 'PERSONAL_SHARING_INVITATIONS_ENABLED';
@@ -177,11 +183,18 @@ export async function updateGrantAction(
 
   if (!result.ok) return { ok: false, message: result.error.message };
   // A full page request refreshes the dynamic grant list after the result reaches
-  // the client. Never derive that destination from the hidden route identifier.
+  // the client. Never derive that destination from the hidden route identifier. The
+  // address names what finished, so the reloaded page can say so (CCD quiet closure).
+  const done = op === 'revoke' ? 'revoked' : op === 'pause' ? 'paused' : 'resumed';
   return {
     ok: true,
-    message: 'Access updated.',
-    refreshPath: `/app/applicant/${result.value.applicantId}/sharing`,
+    message:
+      op === 'revoke'
+        ? ACCESS_REVOKED_LINE
+        : op === 'pause'
+          ? ACCESS_PAUSED_LINE
+          : ACCESS_RESUMED_LINE,
+    refreshPath: `/app/applicant/${result.value.applicantId}/sharing?done=${done}`,
   };
 }
 
@@ -226,11 +239,13 @@ export async function revokeSharingInvitationAction(formData: FormData): Promise
     revokeSharingInvitation(db, accountId, id),
   );
   const applicantId = String(formData.get('applicantId') ?? '');
+  // Either way the page says what happened, in fixed words (the address never carries text).
   if (!result.ok)
     redirect(
-      `/app/applicant/${encodeURIComponent(applicantId)}/sharing?error=${encodeURIComponent(result.error.message)}`,
+      `/app/applicant/${encodeURIComponent(applicantId)}/sharing?done=invitation-not-withdrawn`,
     );
   revalidatePath(`/app/applicant/${applicantId}/sharing`);
+  redirect(`/app/applicant/${encodeURIComponent(applicantId)}/sharing?done=invitation-withdrawn`);
 }
 
 /**
