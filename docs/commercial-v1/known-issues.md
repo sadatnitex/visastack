@@ -6090,6 +6090,8 @@ Owner approved 2026-10-25. Two fixes where the product said something that was n
   - Each was restored from a copy and is green again.
 - Not verified:
   - No live connector run (no real Claude or ChatGPT connection on the deployed site).
-  - The connector stays off in production (`AI_CONNECTOR_ENABLED` unset), so the status page will show AI App Connections as Switched Off for Now.
+  - Correction, verified 28 Oct 2026: the owner has already set `AI_CONNECTOR_ENABLED=true` in production (the authorization server metadata answers there), so after this merge the status page will show AI App Connections as available. No real AI app connection has been run end to end yet.
   - The staff card has not been checked in a browser.
   - Tokens an AI app revokes itself still write no audit event (unchanged from S15).
+- PR browser check on #317 (head 54061efc) failed twice on the GitHub runner, never locally (30 of 30 repeats): after the footer link "About This Version" the status page showed the feature list instead of that section on a 360x640 phone. Root cause in the page, not the test: the status page loads its feature list after the browser has already jumped to the linked section, and the list then pushes the section down; the new "AI App Connections" row pushed it fully off a phone screen. Fix: once the first answer is on the page, the status page brings the linked section back into view, once (status-client.tsx). New test status-client.test.tsx, seen red with the fix removed and green with it restored.
+- Same run, open and not caused by this change: "account menu opens above a trigger that sits low" failed once and passed on its retry (menu bottom 1131 against a trigger at 704). S16 touches no menu code or styles; recorded with the earlier intermittent pixel test as open and unproven.
