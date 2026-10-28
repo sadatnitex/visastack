@@ -7,7 +7,8 @@
 # caller is told when it ends or dies; never two at once on the same port.
 #
 # Guards, each learned from a wasted run:
-# - the port: anything still listening on it is a leftover `next start`/`next-server` and is
+# - the port: anything still listening on it (found through /proc/net/tcp, so a detached
+#   `next-server` whose command line names no port is found too) is a leftover Next server and is
 #   stopped; anything else there aborts the run (never test against a stranger);
 # - the server: the browser steps run only when the server answering on the port serves the
 #   build this run just made (its BUILD_ID is in the page), and the server is always stopped
@@ -36,14 +37,25 @@ step build pnpm --filter @visastack/web build || { echo DONE >> "$L/summary.txt"
 step supplychain node scripts/supply-chain/scan.mjs --no-skips --json "$L/supply-chain.json"
 
 # Free the port: only an earlier Next server may be stopped.
-for pid in $(lsof -t -iTCP:"$P" -sTCP:LISTEN 2>/dev/null | sort -u); do
+# Who listens on the port, read from the kernel's own table (lsof cannot see every process here):
+# the socket inode of the LISTEN row for this port, then the process holding that inode.
+port_pids(){
+  hex=$(printf '%04X' "$1")
+  inodes=$(awk -v h=":$hex" '$2 ~ h"$" && $4 == "0A" {print $10}' /proc/net/tcp /proc/net/tcp6 2>/dev/null)
+  for ino in $inodes; do
+    for fd in /proc/[0-9]*/fd/*; do
+      [ "$(readlink "$fd" 2>/dev/null)" = "socket:[$ino]" ] && echo "$fd" | cut -d/ -f3
+    done
+  done | sort -u
+}
+for pid in $(port_pids "$P"); do
   cmd=$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null)
   case "$cmd" in
     *next-server*|*"next start"*|*next/dist/bin/next*) kill "$pid"; echo "port $P: stopped leftover server $pid" >> "$L/summary.txt" ;;
     *) echo "FAILED port $P is held by another program ($cmd); not testing against it" >> "$L/summary.txt"; echo DONE >> "$L/summary.txt"; exit 4 ;;
   esac
 done
-for i in $(seq 1 20); do lsof -t -iTCP:"$P" -sTCP:LISTEN >/dev/null 2>&1 || break; sleep 1; done
+for i in $(seq 1 20); do [ -z "$(port_pids "$P")" ] && break; sleep 1; done
 
 cd apps/web
 BUILD_ID=$(cat .next/BUILD_ID 2>/dev/null)

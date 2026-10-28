@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { createIdentityPort } from './providers';
 import { reportServerError } from './server-error';
 
@@ -23,7 +24,7 @@ export interface SessionReader {
  * Auth through the identity port. A read that fails counts as signed out: a hiccup must never break a public page, and the
  * workspace itself still checks the session on its own.
  */
-export async function isSignedIn(reader?: SessionReader): Promise<boolean> {
+async function readSignedIn(reader?: SessionReader): Promise<boolean> {
   try {
     return Boolean(await (reader ?? createIdentityPort()).currentIdentity());
   } catch (error) {
@@ -34,3 +35,9 @@ export async function isSignedIn(reader?: SessionReader): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * The same answer, read once per request: the layout and a page that both ask (the public
+ * invitation page) share one session read.
+ */
+export const isSignedIn = cache(readSignedIn);

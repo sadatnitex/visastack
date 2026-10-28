@@ -2050,3 +2050,107 @@ test.describe('staff pages say staff mode and keep traveller context out (owner 
     await expect(page.locator('.staff-mode-banner')).toHaveCount(0);
   });
 });
+
+test.describe('public invitation page on a phone (UX-G)', () => {
+  // A well-formed link that is never looked up: team and sharing invitations show the handoff only.
+  const TOKEN = 'A'.repeat(43);
+  for (const kind of ['team', 'sharing']) {
+    test.describe(`${kind} invitation at 390px`, () => {
+      test.beforeEach(async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.goto(`/invitation?kind=${kind}&token=${TOKEN}`);
+      });
+
+      test('the main action shows in the first screen', async ({ page }) => {
+        const primary = page.locator('.invitation-hero .invitation-actions .btn-primary');
+        await expect(primary).toHaveText('Create an Account to Review');
+        await expect(primary).toBeInViewport({ ratio: 1 });
+        await expect(page.locator('.invitation-hero .invitation-reassure')).toBeInViewport();
+      });
+
+      test('has no critical or serious automated accessibility violations', async ({ page }) => {
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
+          .analyze();
+        const blocking = results.violations.filter(
+          (v) => v.impact === 'critical' || v.impact === 'serious',
+        );
+        expect(blocking, JSON.stringify(blocking, null, 2)).toEqual([]);
+      });
+
+      test('every button and link on the page is at least 44px tall, or sits inside a sentence', async ({
+        page,
+      }) => {
+        const small = await page
+          .locator('.invitation-page a, .invitation-page button')
+          .evaluateAll((elements) =>
+            elements
+              .filter((element) => !element.closest('li, p'))
+              .map((element) => ({
+                text: element.textContent?.trim(),
+                height: element.getBoundingClientRect().height,
+              }))
+              .filter((target) => target.height < 44),
+          );
+        expect(small).toEqual([]);
+      });
+
+      test('pins the main buttons to the bottom only after the top ones scroll away', async ({
+        page,
+      }) => {
+        const bar = page.locator('.invitation-sticky');
+        await expect(bar).toHaveAttribute('data-shown', 'false');
+        await expect(bar).toBeHidden();
+        // Make the page long enough to scroll the top buttons out of view, whatever its length.
+        await page.evaluate(() => {
+          document.body.style.minHeight = '3000px';
+          window.scrollTo(0, 1500);
+        });
+        await expect(bar).toHaveAttribute('data-shown', 'true');
+        await expect(bar).toBeVisible();
+        await expect(bar.locator('.btn-primary')).toHaveText('Create an Account to Review');
+        // The bar slides in; measure it once it has come to rest at the bottom of the screen.
+        await expect
+          .poll(() => bar.evaluate((element) => Math.round(element.getBoundingClientRect().bottom)))
+          .toBe(844);
+        const sizes = await bar.evaluate((element) => ({
+          bar: element.getBoundingClientRect().height,
+          room: Number.parseFloat(getComputedStyle(document.body).paddingBottom),
+          bottom: Math.round(element.getBoundingClientRect().bottom),
+          shadow: getComputedStyle(element).boxShadow,
+        }));
+        expect(sizes.room).toBeGreaterThanOrEqual(sizes.bar);
+        expect(sizes.bottom).toBe(844);
+        expect(sizes.shadow).toBe('none');
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await expect(bar).toHaveAttribute('data-shown', 'false');
+      });
+    });
+
+    for (const width of [320, 360, 390]) {
+      test(`${kind} invitation at ${width}px keeps the steps on one line and never scrolls sideways`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto(`/invitation?kind=${kind}&token=${TOKEN}`);
+        const items = page.locator('ol.invitation-steps > li');
+        await expect(items).toHaveCount(3);
+        const layout = await page.evaluate(() => {
+          const steps = document.querySelector('ol.invitation-steps');
+          const boxes = [...(steps?.children ?? [])].map((item) => item.getBoundingClientRect());
+          return {
+            tops: boxes.map((box) => Math.round(box.top)),
+            clipped: steps ? steps.scrollWidth > steps.clientWidth + 1 : true,
+            overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
+          };
+        });
+        expect(new Set(layout.tops).size).toBe(1);
+        expect(layout.clipped).toBe(false);
+        expect(layout.overflow).toBe(false);
+        await expect(page.locator('ol.invitation-steps [aria-current="step"]')).toContainText(
+          'Sign In',
+        );
+      });
+    }
+  }
+});
