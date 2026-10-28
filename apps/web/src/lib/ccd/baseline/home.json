@@ -1,0 +1,953 @@
+{
+  "core processing off, one traveller": [
+    {
+      "kind": "heading",
+      "name": "Account Overview",
+      "detail": "1"
+    },
+    {
+      "kind": "text",
+      "name": "Signed in as me@example.com. What needs you across every traveller on this account, with your agency work and the permissions you control."
+    },
+    {
+      "kind": "text",
+      "name": "Next Step"
+    },
+    {
+      "kind": "heading",
+      "name": "Turn On Core Processing to Begin",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "VisaStack cannot create applicant or profile records until you allow this. You can turn it off again at any time."
+    },
+    {
+      "kind": "link",
+      "name": "Choose Permissions",
+      "detail": "#permissions"
+    },
+    {
+      "kind": "text",
+      "name": "Get Started"
+    },
+    {
+      "kind": "heading",
+      "name": "My Next Journey",
+      "detail": "2"
+    },
+    {
+      "kind": "link",
+      "name": "1Allow Core ProcessingNeeded before anything can be saved. You can turn it off at any time.",
+      "detail": "#permissions"
+    },
+    {
+      "kind": "text",
+      "name": "✓Add an ApplicantStart with yourself, or someone you manage records for.Done"
+    },
+    {
+      "kind": "link",
+      "name": "3Add a First DocumentA passport page is the usual start.",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000001/documents"
+    },
+    {
+      "kind": "link",
+      "name": "4Start a CaseCheck your documents against one visa route.",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000001/missions"
+    },
+    {
+      "kind": "button",
+      "name": "Permissions You Control0 of 6 on"
+    },
+    {
+      "kind": "text",
+      "name": "Each one is on or off, and you can change it at any time. Turning one off never requires turning another back on. \"Let VisaStack Process My Details\" is needed before any applicant or profile can be created; the others are optional."
+    }
+  ],
+  "nothing started yet, agency member": [
+    {
+      "kind": "heading",
+      "name": "Account Overview",
+      "detail": "1"
+    },
+    {
+      "kind": "text",
+      "name": "Signed in as me@example.com. What needs you across every traveller on this account, with your agency work and the permissions you control."
+    },
+    {
+      "kind": "text",
+      "name": "Next Step"
+    },
+    {
+      "kind": "heading",
+      "name": "Add an Applicant",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Start with yourself, or someone you manage records for."
+    },
+    {
+      "kind": "link",
+      "name": "Add an Applicant",
+      "detail": "/app/applicants"
+    },
+    {
+      "kind": "text",
+      "name": "People"
+    },
+    {
+      "kind": "heading",
+      "name": "My Records",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "No Applicants Yet"
+    },
+    {
+      "kind": "text",
+      "name": "An applicant is one person whose passport details and documents you keep here and reuse for each visa application."
+    },
+    {
+      "kind": "text",
+      "name": "Add each person once, and every visa case reuses the same details."
+    },
+    {
+      "kind": "link",
+      "name": "Add an Applicant",
+      "detail": "/app/applicants"
+    },
+    {
+      "kind": "text",
+      "name": "Get Started"
+    },
+    {
+      "kind": "heading",
+      "name": "My Next Journey",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "✓Allow Core ProcessingNeeded before anything can be saved. You can turn it off at any time.Done"
+    },
+    {
+      "kind": "link",
+      "name": "2Add an ApplicantStart with yourself, or someone you manage records for.",
+      "detail": "/app/applicants"
+    },
+    {
+      "kind": "link",
+      "name": "3Add a First DocumentA passport page is the usual start.",
+      "detail": "/app/applicants"
+    },
+    {
+      "kind": "link",
+      "name": "4Start a CaseCheck your documents against one visa route.",
+      "detail": "/app/applicants"
+    },
+    {
+      "kind": "button",
+      "name": "Permissions You Control1 of 6 on"
+    },
+    {
+      "kind": "text",
+      "name": "Each one is on or off, and you can change it at any time. Turning one off never requires turning another back on. \"Let VisaStack Process My Details\" is needed before any applicant or profile can be created; the others are optional."
+    }
+  ],
+  "busy: requests, items, dates, a sharing invitation, one active case": [
+    {
+      "kind": "heading",
+      "name": "Account Overview",
+      "detail": "1"
+    },
+    {
+      "kind": "text",
+      "name": "Signed in as me@example.com. What needs you across every traveller on this account, with your agency work and the permissions you control."
+    },
+    {
+      "kind": "text",
+      "name": "Next Step"
+    },
+    {
+      "kind": "heading",
+      "name": "Bank Statement",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Karim Hossain · Japan Tourist Visa. An agency asked you for a document. Reply with a file from your documents."
+    },
+    {
+      "kind": "link",
+      "name": "Reply to Request",
+      "detail": "/app/applicant/x/evidence"
+    },
+    {
+      "kind": "text",
+      "name": "Also Waiting"
+    },
+    {
+      "kind": "heading",
+      "name": "Needs Attention",
+      "detail": "2"
+    },
+    {
+      "kind": "heading",
+      "name": "Book the Appointment",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Karim Hossain · Japan Tourist Visa"
+    },
+    {
+      "kind": "text",
+      "name": "A task on this case is still open."
+    },
+    {
+      "kind": "text",
+      "name": "Due on Nov 5, 2026"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case: Book the Appointment",
+      "detail": "/app/mission/case-01-0"
+    },
+    {
+      "kind": "heading",
+      "name": "Sharing Invitations Waiting for Your Answer",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "1 invitation"
+    },
+    {
+      "kind": "text",
+      "name": "Someone wants to share their information with you. Nothing is shared until you accept."
+    },
+    {
+      "kind": "link",
+      "name": "See Invitations: Sharing Invitations Waiting for Your Answer",
+      "detail": "/app/shared"
+    },
+    {
+      "kind": "heading",
+      "name": "Suggested Details Waiting for Your Decision",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Karim Hossain · 2 suggested details"
+    },
+    {
+      "kind": "text",
+      "name": "Details were read from a document."
+    },
+    {
+      "kind": "link",
+      "name": "Review Suggestions: Suggested Details Waiting for Your Decision",
+      "detail": "/app/applicant/x/documents"
+    },
+    {
+      "kind": "text",
+      "name": "Dates That Matter"
+    },
+    {
+      "kind": "heading",
+      "name": "Coming Up",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "No Dates Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Add a passport and its expiry date appears here, so you hear about it before it matters."
+    },
+    {
+      "kind": "link",
+      "name": "Add a Document",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000001/documents"
+    },
+    {
+      "kind": "text",
+      "name": "People"
+    },
+    {
+      "kind": "heading",
+      "name": "My Records",
+      "detail": "2"
+    },
+    {
+      "kind": "link",
+      "name": "Karim Hossain3 documents · 1 active case · 2 open requestsAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000001"
+    },
+    {
+      "kind": "link",
+      "name": "Add Dates to My Calendar",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000001/calendar"
+    },
+    {
+      "kind": "text",
+      "name": "In Progress"
+    },
+    {
+      "kind": "heading",
+      "name": "Active Requests and Work",
+      "detail": "2"
+    },
+    {
+      "kind": "link",
+      "name": "Requests from an AgencyKarim Hossain · 2 waiting for you · 1 with the agencyAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000001/evidence"
+    },
+    {
+      "kind": "link",
+      "name": "Synthetic Case 1Active case · Karim Hossain6 of 8 items ready›",
+      "detail": "/app/mission/case-01-0"
+    },
+    {
+      "kind": "heading",
+      "name": "My Next Journey",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Planning another trip? Start a case and check your saved documents against it."
+    },
+    {
+      "kind": "link",
+      "name": "Start a Case",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000001/missions"
+    },
+    {
+      "kind": "button",
+      "name": "Permissions You Control1 of 6 on"
+    },
+    {
+      "kind": "text",
+      "name": "Each one is on or off, and you can change it at any time. Turning one off never requires turning another back on. \"Let VisaStack Process My Details\" is needed before any applicant or profile can be created; the others are optional."
+    }
+  ],
+  "all clear with a case and documents": [
+    {
+      "kind": "heading",
+      "name": "Account Overview",
+      "detail": "1"
+    },
+    {
+      "kind": "text",
+      "name": "Signed in as me@example.com. What needs you across every traveller on this account, with your agency work and the permissions you control."
+    },
+    {
+      "kind": "text",
+      "name": "Next Step"
+    },
+    {
+      "kind": "heading",
+      "name": "You Are Up to Date",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Nothing is waiting for you. Open an applicant to add documents or start a case."
+    },
+    {
+      "kind": "link",
+      "name": "View Applicants",
+      "detail": "/app/applicants"
+    },
+    {
+      "kind": "text",
+      "name": "Dates That Matter"
+    },
+    {
+      "kind": "heading",
+      "name": "Coming Up",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "No Dates Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Add a passport and its expiry date appears here, so you hear about it before it matters."
+    },
+    {
+      "kind": "link",
+      "name": "Add a Document",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000001/documents"
+    },
+    {
+      "kind": "text",
+      "name": "People"
+    },
+    {
+      "kind": "heading",
+      "name": "My Records",
+      "detail": "2"
+    },
+    {
+      "kind": "link",
+      "name": "Karim Hossain2 documents · 1 active case›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000001"
+    },
+    {
+      "kind": "link",
+      "name": "Add Dates to My Calendar",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000001/calendar"
+    },
+    {
+      "kind": "text",
+      "name": "In Progress"
+    },
+    {
+      "kind": "heading",
+      "name": "Active Requests and Work",
+      "detail": "2"
+    },
+    {
+      "kind": "link",
+      "name": "Synthetic Case 1Active case · Karim HossainPick a checklist to see what is ready›",
+      "detail": "/app/mission/case-01-0"
+    },
+    {
+      "kind": "heading",
+      "name": "My Next Journey",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Planning another trip? Start a case and check your saved documents against it."
+    },
+    {
+      "kind": "link",
+      "name": "Start a Case",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000001/missions"
+    },
+    {
+      "kind": "button",
+      "name": "Permissions You Control1 of 6 on"
+    },
+    {
+      "kind": "text",
+      "name": "Each one is on or off, and you can change it at any time. Turning one off never requires turning another back on. \"Let VisaStack Process My Details\" is needed before any applicant or profile can be created; the others are optional."
+    }
+  ],
+  "a household of two": [
+    {
+      "kind": "heading",
+      "name": "Account Overview",
+      "detail": "1"
+    },
+    {
+      "kind": "text",
+      "name": "Signed in as me@example.com. What needs you across every traveller on this account, with your agency work and the permissions you control."
+    },
+    {
+      "kind": "text",
+      "name": "Next Step"
+    },
+    {
+      "kind": "heading",
+      "name": "Start a Case",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Check your documents against one visa route."
+    },
+    {
+      "kind": "link",
+      "name": "Continue",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000001/missions"
+    },
+    {
+      "kind": "text",
+      "name": "Dates That Matter"
+    },
+    {
+      "kind": "heading",
+      "name": "Coming Up",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "No Dates Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Add a passport and its expiry date appears here, so you hear about it before it matters."
+    },
+    {
+      "kind": "link",
+      "name": "Add a Document",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000001/documents"
+    },
+    {
+      "kind": "text",
+      "name": "People"
+    },
+    {
+      "kind": "heading",
+      "name": "My Records",
+      "detail": "2"
+    },
+    {
+      "kind": "link",
+      "name": "Karim Hossain1 document · 0 active cases›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000001"
+    },
+    {
+      "kind": "link",
+      "name": "Amina Rahman1 document · 0 active cases›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000002"
+    },
+    {
+      "kind": "link",
+      "name": "Karim Hossain",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000001/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "Amina Rahman",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000002/calendar"
+    },
+    {
+      "kind": "text",
+      "name": "In Progress"
+    },
+    {
+      "kind": "heading",
+      "name": "Active Requests and Work",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Nothing is open right now. When an agency asks you for something, or you start a case, it appears here with the next step."
+    },
+    {
+      "kind": "text",
+      "name": "Get Started"
+    },
+    {
+      "kind": "heading",
+      "name": "My Next Journey",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "✓Allow Core ProcessingNeeded before anything can be saved. You can turn it off at any time.Done"
+    },
+    {
+      "kind": "text",
+      "name": "✓Add an ApplicantStart with yourself, or someone you manage records for.Done"
+    },
+    {
+      "kind": "text",
+      "name": "✓Add a First DocumentA passport page is the usual start.Done"
+    },
+    {
+      "kind": "link",
+      "name": "4Start a CaseCheck your documents against one visa route.",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000001/missions"
+    },
+    {
+      "kind": "button",
+      "name": "Permissions You Control1 of 6 on"
+    },
+    {
+      "kind": "text",
+      "name": "Each one is on or off, and you can change it at any time. Turning one off never requires turning another back on. \"Let VisaStack Process My Details\" is needed before any applicant or profile can be created; the others are optional."
+    }
+  ],
+  "more people than Home reads": [
+    {
+      "kind": "heading",
+      "name": "Account Overview",
+      "detail": "1"
+    },
+    {
+      "kind": "text",
+      "name": "Signed in as me@example.com. What needs you across every traveller on this account, with your agency work and the permissions you control."
+    },
+    {
+      "kind": "text",
+      "name": "Next Step"
+    },
+    {
+      "kind": "heading",
+      "name": "Renew",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Person 1. A task on this case is still open."
+    },
+    {
+      "kind": "link",
+      "name": "Open Case",
+      "detail": "/app"
+    },
+    {
+      "kind": "text",
+      "name": "Dates That Matter"
+    },
+    {
+      "kind": "heading",
+      "name": "Coming Up",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "No Dates Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Add a passport and its expiry date appears here, so you hear about it before it matters."
+    },
+    {
+      "kind": "link",
+      "name": "Add a Document",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000001/documents"
+    },
+    {
+      "kind": "text",
+      "name": "Shows the first 25 of 27 people."
+    },
+    {
+      "kind": "text",
+      "name": "People"
+    },
+    {
+      "kind": "heading",
+      "name": "My Records",
+      "detail": "2"
+    },
+    {
+      "kind": "link",
+      "name": "Person 11 document · 1 active caseAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000001"
+    },
+    {
+      "kind": "link",
+      "name": "Person 21 document · 1 active caseAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000002"
+    },
+    {
+      "kind": "link",
+      "name": "Person 31 document · 1 active caseAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000003"
+    },
+    {
+      "kind": "link",
+      "name": "Person 41 document · 1 active caseAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000004"
+    },
+    {
+      "kind": "link",
+      "name": "Person 51 document · 1 active caseAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000005"
+    },
+    {
+      "kind": "link",
+      "name": "Person 61 document · 1 active caseAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000006"
+    },
+    {
+      "kind": "link",
+      "name": "Person 71 document · 1 active caseAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000007"
+    },
+    {
+      "kind": "link",
+      "name": "Person 81 document · 1 active caseAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000008"
+    },
+    {
+      "kind": "link",
+      "name": "Person 91 document · 1 active caseAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000009"
+    },
+    {
+      "kind": "link",
+      "name": "Person 101 document · 1 active caseAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000010"
+    },
+    {
+      "kind": "link",
+      "name": "Person 111 document · 1 active caseAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000011"
+    },
+    {
+      "kind": "link",
+      "name": "Person 121 document · 1 active caseAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000012"
+    },
+    {
+      "kind": "link",
+      "name": "Person 131 document · 1 active caseAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000013"
+    },
+    {
+      "kind": "link",
+      "name": "Person 141 document · 1 active caseAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000014"
+    },
+    {
+      "kind": "link",
+      "name": "Person 151 document · 1 active caseAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000015"
+    },
+    {
+      "kind": "link",
+      "name": "Person 161 document · 1 active caseAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000016"
+    },
+    {
+      "kind": "link",
+      "name": "Person 171 document · 1 active caseAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000017"
+    },
+    {
+      "kind": "link",
+      "name": "Person 181 document · 1 active caseAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000018"
+    },
+    {
+      "kind": "link",
+      "name": "Person 191 document · 1 active caseAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000019"
+    },
+    {
+      "kind": "link",
+      "name": "Person 201 document · 1 active caseAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000020"
+    },
+    {
+      "kind": "link",
+      "name": "Person 211 document · 1 active caseAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000021"
+    },
+    {
+      "kind": "link",
+      "name": "Person 221 document · 1 active caseAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000022"
+    },
+    {
+      "kind": "link",
+      "name": "Person 231 document · 1 active caseAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000023"
+    },
+    {
+      "kind": "link",
+      "name": "Person 241 document · 1 active caseAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000024"
+    },
+    {
+      "kind": "link",
+      "name": "Person 251 document · 1 active caseAction Needed›",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000025"
+    },
+    {
+      "kind": "link",
+      "name": "Person 1",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000001/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "Person 2",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000002/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "Person 3",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000003/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "Person 4",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000004/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "Person 5",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000005/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "Person 6",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000006/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "Person 7",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000007/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "Person 8",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000008/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "Person 9",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000009/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "Person 10",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000010/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "Person 11",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000011/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "Person 12",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000012/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "Person 13",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000013/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "Person 14",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000014/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "Person 15",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000015/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "Person 16",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000016/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "Person 17",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000017/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "Person 18",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000018/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "Person 19",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000019/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "Person 20",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000020/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "Person 21",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000021/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "Person 22",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000022/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "Person 23",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000023/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "Person 24",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000024/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "Person 25",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000025/calendar"
+    },
+    {
+      "kind": "link",
+      "name": "See All Applicants",
+      "detail": "/app/applicants"
+    },
+    {
+      "kind": "text",
+      "name": "In Progress"
+    },
+    {
+      "kind": "heading",
+      "name": "Active Requests and Work",
+      "detail": "2"
+    },
+    {
+      "kind": "link",
+      "name": "Synthetic Case 1Active case · Person 1Pick a checklist to see what is ready›",
+      "detail": "/app/mission/case-01-0"
+    },
+    {
+      "kind": "link",
+      "name": "Synthetic Case 1Active case · Person 2Pick a checklist to see what is ready›",
+      "detail": "/app/mission/case-02-0"
+    },
+    {
+      "kind": "link",
+      "name": "Synthetic Case 1Active case · Person 3Pick a checklist to see what is ready›",
+      "detail": "/app/mission/case-03-0"
+    },
+    {
+      "kind": "link",
+      "name": "Synthetic Case 1Active case · Person 4Pick a checklist to see what is ready›",
+      "detail": "/app/mission/case-04-0"
+    },
+    {
+      "kind": "link",
+      "name": "Synthetic Case 1Active case · Person 5Pick a checklist to see what is ready›",
+      "detail": "/app/mission/case-05-0"
+    },
+    {
+      "kind": "link",
+      "name": "Synthetic Case 1Active case · Person 6Pick a checklist to see what is ready›",
+      "detail": "/app/mission/case-06-0"
+    },
+    {
+      "kind": "text",
+      "name": "Showing 6 of 25 active cases. Open a person to see all of theirs."
+    },
+    {
+      "kind": "heading",
+      "name": "My Next Journey",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Planning another trip? Start a case and check your saved documents against it."
+    },
+    {
+      "kind": "link",
+      "name": "Start a Case",
+      "detail": "/app/applicant/10000000-0000-4000-8000-000000000001/missions"
+    },
+    {
+      "kind": "button",
+      "name": "Permissions You Control1 of 6 on"
+    },
+    {
+      "kind": "text",
+      "name": "Each one is on or off, and you can change it at any time. Turning one off never requires turning another back on. \"Let VisaStack Process My Details\" is needed before any applicant or profile can be created; the others are optional."
+    }
+  ]
+}

@@ -189,6 +189,25 @@ describe('links never land on hidden content', () => {
     other.remove();
   });
 
+  it('opens the target on every click of an in-page link, even when the address is unchanged', async () => {
+    window.history.replaceState(null, '', '/app/account#deep');
+    await act(async () => {
+      root.render(
+        <>
+          {page('glance')}
+          <a id="to-deep" href="#deep">
+            Show deep
+          </a>
+        </>,
+      );
+    });
+    expect(scope().getAttribute('data-depth')).toBe('everything');
+    act(() => button('Glance').click());
+    expect(scope().getAttribute('data-depth')).toBe('glance');
+    act(() => (container.querySelector('#to-deep') as HTMLAnchorElement).click());
+    expect(scope().getAttribute('data-depth')).toBe('everything');
+  });
+
   it('leaves the level alone when the target is already shown', async () => {
     window.history.replaceState(null, '', '/app/account#top-part');
     await act(async () => {

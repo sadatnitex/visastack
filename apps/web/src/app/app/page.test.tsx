@@ -1,4 +1,5 @@
 import type { AttentionItem, DeadlineEntry } from '@visastack/services';
+import { JSDOM } from 'jsdom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderServer, stubProps, textOf } from '../../lib/next-mocks.test-support';
 
@@ -31,6 +32,7 @@ vi.mock('../../lib/session', () => ({
     fn({ db: {}, accountId: 'acct-1', email: 'me@example.com' }),
 }));
 vi.mock('../../lib/locale', () => ({ getLocale: async () => 'en' }));
+vi.mock('../../lib/ccd/depth.server', () => ({ readDepth: async () => 'auto' }));
 vi.mock('../../lib/admin', () => ({ holdsPlatformRole: async () => data.platformAdmin }));
 vi.mock('@visastack/services', async (importOriginal) => {
   // The real ranking, so Home's merge is the one the services tests pin (ADR 0016).
@@ -1005,5 +1007,78 @@ describe('Coming Up: the deadline clock on Home (Growth G5)', () => {
     ];
     const text = textOf(comingUp(await page()));
     expect(text).not.toContain('Someone Else');
+  });
+});
+
+describe('Home depth levels (CCD-2)', () => {
+  const own = { ...SELF, displayName: 'Karim Hossain', relationship: 'SELF' };
+
+  it('greets the person by first name, from the record they keep for themselves', async () => {
+    data.consents = { CORE_PROCESSING: { grantedAt: new Date() } };
+    data.applicants = [own as never];
+    const html = await renderServer(Page({}));
+    expect(html).toMatch(/<h1[^>]*>Welcome back, Karim<\/h1>/);
+  });
+
+  it('greets without a name when there is no record of their own', async () => {
+    data.consents = { CORE_PROCESSING: { grantedAt: new Date() } };
+    data.applicants = [{ ...SELF, relationship: 'SPOUSE' } as never];
+    const html = await renderServer(Page({}));
+    expect(html).toMatch(/<h1[^>]*>Welcome back<\/h1>/);
+  });
+
+  it('keeps the next step at every level and puts the working view at Browse and the rest at Everything', async () => {
+    data.consents = { CORE_PROCESSING: { grantedAt: new Date() } };
+    data.applicants = [own as never];
+    data.documents = 1;
+    data.missions = 1;
+    data.items = [
+      attentionItem({ key: 'task:a', tier: 3, title: 'Book It', dueState: 'due_soon' }),
+    ];
+    data.openRequests = 1;
+    const html = await renderServer(Page({}));
+    expect(html).toContain('data-depth-scope="home"');
+    const levelOf = (selector: string) =>
+      new JSDOM(html).window.document
+        .querySelector(selector)
+        ?.closest('[data-level]')
+        ?.getAttribute('data-level');
+    expect(levelOf('#home-attention-heading')).toBe('browse');
+    expect(levelOf('#home-records-heading')).toBe('browse');
+    expect(levelOf('#home-work-heading')).toBe('browse');
+    expect(levelOf('#permissions')).toBe('everything');
+    expect(levelOf('#home-journey')).toBe('everything');
+    // The next step comes before every gated block, so it shows at Glance.
+    expect(html.indexOf('Next Step')).toBeGreaterThan(-1);
+    expect(html.indexOf('Next Step')).toBeLessThan(html.indexOf('data-level='));
+  });
+
+  it('says how many more things are waiting, only at Glance, with a link that opens them', async () => {
+    data.consents = { CORE_PROCESSING: { grantedAt: new Date() } };
+    data.applicants = [own as never];
+    data.items = [
+      attentionItem({ key: 'task:a', tier: 3, title: 'First', dueState: 'due_soon' }),
+      attentionItem({ key: 'task:b', tier: 4, title: 'Second', dueState: 'due_soon' }),
+      attentionItem({ key: 'task:c', tier: 5, title: 'Third', dueState: 'due_soon' }),
+    ];
+    const html = await renderServer(Page({}));
+    expect(html).toContain('data-only="glance"');
+    expect(textOf(html)).toContain('2 more things are waiting.');
+    expect(html).toContain('href="#home-attention-heading"');
+  });
+
+  it('shows no waiting line when nothing else is waiting', async () => {
+    data.consents = { CORE_PROCESSING: { grantedAt: new Date() } };
+    data.applicants = [own as never];
+    const html = await renderServer(Page({}));
+    expect(html).not.toContain('data-only="glance"');
+  });
+
+  it('keeps the permissions at every level while core processing is off, because they are the next step', async () => {
+    data.applicants = [own as never];
+    const html = await renderServer(Page({}));
+    const permissions = new JSDOM(html).window.document.querySelector('#permissions');
+    expect(permissions).not.toBeNull();
+    expect(permissions?.closest('[data-level]')).toBeNull();
   });
 });
