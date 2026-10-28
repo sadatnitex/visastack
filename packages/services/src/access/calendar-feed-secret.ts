@@ -1,6 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
+import { hasConsent } from '../consent';
 import { type Db, schema } from '../db';
+import { isMissingRelationError } from '../missing-relation';
 import { type AccountPrincipal, accountPrincipal } from './principal';
 import { AuthorizedApplicant, requireAccess } from './require-access';
 
@@ -36,25 +38,6 @@ export function hashCalendarFeedSecret(secret: string): string {
   return createHash('sha256').update(`${HASH_PREFIX}${secret}`).digest('hex');
 }
 
-/** The relation the presence check looks for, unqualified like the queries that use it. */
-const FEEDS_RELATION = 'calendar_feeds';
-/** Database handles that have already shown the table exists (it is never dropped). */
-const PRESENT = new WeakSet<object>();
-
-/**
- * Whether the migration that adds `calendar_feeds` has run. `to_regclass` never raises, so a
- * surrounding transaction is never aborted. Only "present" is remembered, per database handle.
- */
-export async function calendarFeedsPresent(db: Db): Promise<boolean> {
-  if (PRESENT.has(db)) return true;
-  const rows = await db
-    .select({ present: sql<boolean>`to_regclass(${FEEDS_RELATION}::text) is not null` })
-    .from(sql`(select 1) as probe`);
-  const present = rows[0]?.present === true;
-  if (present) PRESENT.add(db);
-  return present;
-}
-
 /**
  * A link that exists: which link (for its own rate limit) and which traveller. Deliberately
  * carries no principal: the account behind the link is kept here, out of reach, and is only ever
@@ -78,16 +61,22 @@ export async function resolveCalendarFeedSecret(
   secret: string,
 ): Promise<CalendarFeedHolder | null> {
   if (!isCalendarFeedSecretShape(secret)) return null;
-  if (!(await calendarFeedsPresent(db))) return null;
-  const rows = await db
-    .select({
-      id: schema.calendarFeeds.id,
-      applicantId: schema.calendarFeeds.applicantId,
-      ownerAccountId: schema.calendarFeeds.ownerAccountId,
-    })
-    .from(schema.calendarFeeds)
-    .where(eq(schema.calendarFeeds.secretHash, hashCalendarFeedSecret(secret)))
-    .limit(1);
+  let rows: { id: string; applicantId: string; ownerAccountId: string }[];
+  try {
+    rows = await db
+      .select({
+        id: schema.calendarFeeds.id,
+        applicantId: schema.calendarFeeds.applicantId,
+        ownerAccountId: schema.calendarFeeds.ownerAccountId,
+      })
+      .from(schema.calendarFeeds)
+      .where(eq(schema.calendarFeeds.secretHash, hashCalendarFeedSecret(secret)))
+      .limit(1);
+  } catch (error) {
+    // Before the migration runs there are no links; any other failure is a real one.
+    if (isMissingRelationError(error)) return null;
+    throw error;
+  }
   const row = rows[0];
   if (!row) return null;
   const holder: CalendarFeedHolder = Object.freeze({
@@ -101,8 +90,8 @@ export async function resolveCalendarFeedSecret(
 /**
  * The owner's `VIEW_METADATA` proof for the link's traveller, asked of `requireAccess` as the
  * account that made the link, against live state, or null: when that account no longer owns the
- * traveller (a link never reads as anyone else, and never as someone shared with), or when the
- * holder did not come from `resolveCalendarFeedSecret`.
+ * traveller (a link never reads as anyone else, and never as someone shared with), when the owner
+ * has turned sharing off, or when the holder did not come from `resolveCalendarFeedSecret`.
  */
 export async function requireCalendarFeedAccess(
   db: Db,
@@ -118,5 +107,8 @@ export async function requireCalendarFeedAccess(
     { purpose: 'self' },
   );
   if (!access.ok || access.value.actor.kind !== 'applicant_owner') return null;
-  return AuthorizedApplicant.isGenuine(access.value, 'VIEW_METADATA') ? access.value : null;
+  if (!AuthorizedApplicant.isGenuine(access.value, 'VIEW_METADATA')) return null;
+  // A link anyone holding it can read is sharing: it stops while sharing is turned off.
+  if (!(await hasConsent(db, access.value.applicant.ownerAccountId, 'SHARING'))) return null;
+  return access.value;
 }

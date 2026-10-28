@@ -1,25 +1,60 @@
 import {
+  type AuthorizedApplicant,
   type CalendarDates,
   type CalendarFeedStatus,
   accountPrincipal,
   getCalendarFeedStatus,
+  isMissingRelationError,
   listCalendarDates,
   recordCalendarExport,
   requireAccess,
 } from '@visastack/services';
+import { reportServerError } from '../../../../../lib/server-error';
 import { withSession } from '../../../../../lib/session';
 
+/** The calendar link's state for the page; `unknown` when it could not be read (logged). */
+export type CalendarFeedPageStatus = CalendarFeedStatus | { readonly state: 'unknown' };
+
 /**
- * The traveller's dated items for the calendar page and its download, through the central access
- * gate as the owner (`purpose: 'self'`). Anyone else, including someone the traveller shared with,
- * gets `denied`, which both callers answer with "not found", as sibling owner-only pages do.
+ * The link's state with the proof the page already holds. "Not available yet" only before the
+ * table exists; any other failure is logged and shown as "could not check", which still offers
+ * Stop Sharing (stopping works without knowing the state).
  */
-export async function loadCalendarDates(
-  applicantId: string,
-): Promise<
-  | { readonly state: 'ready'; readonly dates: CalendarDates }
+async function feedStatusFor(
+  access: AuthorizedApplicant<'VIEW_METADATA'>,
+): Promise<CalendarFeedPageStatus> {
+  try {
+    const status = await getCalendarFeedStatus(access);
+    if (status.ok) return status.value;
+    reportServerError('calendarFeedStatus', new Error(status.error.message));
+    return { state: 'unknown' };
+  } catch (error) {
+    if (isMissingRelationError(error)) return { state: 'unavailable' };
+    reportServerError('calendarFeedStatus', error);
+    return { state: 'unknown' };
+  }
+}
+
+/**
+ * The traveller's dated items for the calendar page, and the state of their calendar link, through
+ * the central access gate as the owner (`purpose: 'self'`), one proof for both. Anyone else,
+ * including someone the traveller shared with, gets `denied`, which the page and the download
+ * answer with "not found", as sibling owner-only pages do. `timeZone` is the traveller's, for
+ * showing moments.
+ */
+export async function loadCalendarDates(applicantId: string): Promise<
+  | {
+      readonly state: 'ready';
+      readonly dates: CalendarDates;
+      readonly feed: CalendarFeedPageStatus;
+      readonly timeZone: string;
+    }
   | { readonly state: 'denied' }
-  | { readonly state: 'failed' }
+  | {
+      readonly state: 'failed';
+      readonly feed: CalendarFeedPageStatus;
+      readonly timeZone: string;
+    }
 > {
   return withSession(async ({ db, accountId }) => {
     const access = await requireAccess(
@@ -32,10 +67,14 @@ export async function loadCalendarDates(
     if (!access.ok || access.value.actor.kind !== 'applicant_owner') {
       return { state: 'denied' as const };
     }
-    const listed = await listCalendarDates(access.value);
+    const timeZone = access.value.applicant.timezone || 'UTC';
+    const [listed, feed] = await Promise.all([
+      listCalendarDates(access.value),
+      feedStatusFor(access.value),
+    ]);
     return listed.ok
-      ? { state: 'ready' as const, dates: listed.value }
-      : { state: 'failed' as const };
+      ? { state: 'ready' as const, dates: listed.value, feed, timeZone }
+      : { state: 'failed' as const, feed, timeZone };
   });
 }
 
@@ -85,32 +124,6 @@ export async function exportCalendarDates<
       source: 'dates',
     });
     return recorded.ok ? { state: 'ready' as const, chosen } : { state: 'failed' as const };
-  });
-}
-
-/**
- * Whether this traveller's calendar subscription link is on, for the calendar page, through the
- * access gate as the owner like the dates themselves. A failed read shows the section as
- * unavailable rather than breaking the page.
- */
-export async function loadCalendarFeedStatus(applicantId: string): Promise<CalendarFeedStatus> {
-  return withSession(async ({ db, accountId }) => {
-    const access = await requireAccess(
-      db,
-      accountPrincipal(accountId),
-      'VIEW_METADATA',
-      { applicantId },
-      { purpose: 'self' },
-    );
-    if (!access.ok || access.value.actor.kind !== 'applicant_owner') {
-      return { state: 'unavailable' as const };
-    }
-    try {
-      const status = await getCalendarFeedStatus(access.value);
-      return status.ok ? status.value : { state: 'unavailable' as const };
-    } catch {
-      return { state: 'unavailable' as const };
-    }
   });
 }
 

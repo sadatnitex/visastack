@@ -1085,8 +1085,15 @@ const PRIVACY: readonly Case[] = [
   {
     name: 'calendar link (on)',
     element: () => (
-      <CalendarFeedPanel applicantId="a1" status={{ state: 'on', linkMadeOn: '20 Oct 2026' }} />
+      <CalendarFeedPanel
+        applicantId="a1"
+        status={{ state: 'on', linkMadeOn: '20 Oct 2026, 14:00 GMT+6' }}
+      />
     ),
+  },
+  {
+    name: 'calendar link (could not be checked)',
+    element: () => <CalendarFeedPanel applicantId="a1" status={{ state: 'unknown' }} />,
   },
   {
     name: 'calendar link (not available yet)',

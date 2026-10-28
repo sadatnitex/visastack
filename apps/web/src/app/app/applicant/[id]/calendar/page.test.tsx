@@ -250,7 +250,8 @@ describe('subscribing in a calendar app', () => {
     });
     const html = await render();
     const text = textOf(html);
-    expect(text).toContain('Your calendar link is on, made on 20 Oct 2026');
+    // In the traveller's own time zone (Dhaka is six hours ahead of UTC).
+    expect(text).toContain('Your calendar link is on, made on 20 Oct 2026, 14:00 GMT+6');
     expect(text).toContain('shown only once');
     expect(text).toContain('Make a New Link');
     expect(text).toContain('Stop Sharing');
@@ -267,10 +268,26 @@ describe('subscribing in a calendar app', () => {
     expect(text).not.toContain('Turn On Calendar Link');
   });
 
-  it('shows the section as unavailable when the status cannot be read, and the page still works', async () => {
+  it('says it could not check, still offering Stop Sharing, when the status cannot be read', async () => {
     mocks.getCalendarFeedStatus.mockRejectedValue(new Error('database down'));
     const text = textOf(await render());
     expect(text).toContain('Choose Dates');
+    expect(text).toContain('We could not check your calendar link just now.');
+    expect(text).toContain('Stop Sharing');
+    expect(text).not.toContain('not available yet');
+  });
+
+  it('says not available yet only when the table is missing', async () => {
+    mocks.getCalendarFeedStatus.mockRejectedValue(
+      Object.assign(new Error('relation "calendar_feeds" does not exist'), { code: '42P01' }),
+    );
+    const text = textOf(await render());
     expect(text).toContain('Subscribing in your calendar app is not available yet.');
+  });
+
+  it('reads the link with the same gate proof as the dates: one gate question for the page', async () => {
+    mocks.getCalendarFeedStatus.mockResolvedValue({ ok: true, value: { state: 'off' } });
+    await render();
+    expect(mocks.requireAccess).toHaveBeenCalledOnce();
   });
 });

@@ -39,7 +39,6 @@ export {
 export { StepUpProof, verifyStepUp } from './step-up-proof';
 export {
   type CalendarFeedHolder,
-  calendarFeedsPresent,
   generateCalendarFeedSecret,
   hashCalendarFeedSecret,
   isCalendarFeedSecretShape,

@@ -4,7 +4,7 @@ import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
 import { eq, like, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { accountPrincipal, requireAccess } from './access';
 import {
   generateCalendarFeedSecret,
@@ -17,6 +17,7 @@ import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import {
   CALENDAR_FEED_LINK_REPLACED_EVENT,
+  CALENDAR_FEED_SHARING_NEEDED,
   CALENDAR_FEED_TURNED_OFF_EVENT,
   CALENDAR_FEED_TURNED_ON_EVENT,
   getCalendarFeedStatus,
@@ -275,6 +276,60 @@ describe('turning a calendar link on, replacing it and stopping it', () => {
         .from(schema.auditEvents)
         .where(eq(schema.auditEvents.applicantId, early.applicantId));
       expect(audit.some((e) => e.eventType.startsWith('CALENDAR_FEED_'))).toBe(false);
+    },
+    HEAVY,
+  );
+
+  it(
+    'needs the sharing consent to turn a link on or make a new one, but never to stop it',
+    async () => {
+      const { ownerId, applicantId } = await person('feed-consent@example.com');
+      const on = await turnOnCalendarFeed(await share(ownerId, applicantId));
+      if (!isOk(on)) throw new Error('turn on');
+      await setConsent(db, {
+        actorAccountId: ownerId,
+        accountId: ownerId,
+        type: 'SHARING',
+        granted: false,
+      });
+      const replaced = await replaceCalendarFeedLink(await share(ownerId, applicantId));
+      expect(!replaced.ok && replaced.error).toEqual({
+        code: 'consent_required',
+        message: CALENDAR_FEED_SHARING_NEEDED,
+      });
+      // The link reads nothing while sharing is off.
+      const holder = await resolveCalendarFeedSecret(db, on.value.secret);
+      if (!holder) throw new Error('holder');
+      expect(await requireCalendarFeedAccess(db, holder)).toBeNull();
+      // Stopping always works.
+      expect(isOk(await turnOffCalendarFeed(await share(ownerId, applicantId)))).toBe(true);
+      const again = await turnOnCalendarFeed(await share(ownerId, applicantId));
+      expect(!again.ok && again.error.code).toBe('consent_required');
+      expect(await db.select().from(schema.calendarFeeds)).toEqual([]);
+    },
+    HEAVY,
+  );
+
+  it(
+    'logs the cause of a failed change, never the link or its hash, and answers plainly',
+    async () => {
+      const { ownerId, applicantId } = await person('feed-broken@example.com');
+      await db.execute(sql`create function calendar_feeds_boom() returns trigger as $$
+        begin raise exception 'synthetic storage failure'; end $$ language plpgsql`);
+      await db.execute(sql`create trigger calendar_feeds_boom before insert on calendar_feeds
+        for each row execute function calendar_feeds_boom()`);
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      try {
+        const on = await turnOnCalendarFeed(await share(ownerId, applicantId));
+        expect(!on.ok && on.error.code).toBe('upstream_error');
+        const lines = logged.mock.calls.map((call) => call.join(' '));
+        expect(lines.some((line) => line.includes('calendarFeeds'))).toBe(true);
+        // The database's own code for the raised error; the query's values are never logged.
+        expect(lines.some((line) => line.includes('P0001'))).toBe(true);
+        for (const line of lines) expect(line).not.toMatch(/[0-9a-f]{64}|[A-Za-z0-9_-]{43}/);
+      } finally {
+        logged.mockRestore();
+      }
     },
     HEAVY,
   );

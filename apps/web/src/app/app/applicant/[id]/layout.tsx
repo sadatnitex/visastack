@@ -1,6 +1,7 @@
 import { getApplicant } from '@visastack/services';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { isRecordId } from '../../../../lib/record-id';
 import { withSession } from '../../../../lib/session';
 import { RecordSections } from './record-sections';
 
@@ -15,6 +16,7 @@ export default async function ApplicantWorkspaceLayout({
   readonly params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  if (!isRecordId(id)) notFound();
   const applicant = await withSession(async ({ db, accountId }) => {
     const a = await getApplicant(db, id);
     if (!a || a.ownerAccountId !== accountId) return null;

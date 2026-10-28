@@ -1703,13 +1703,13 @@ export {
 export { isMissingRelationError } from './missing-relation';
 export {
   type CalendarFeedHolder,
-  calendarFeedsPresent,
   isCalendarFeedSecretShape,
   requireCalendarFeedAccess,
   resolveCalendarFeedSecret,
 } from './access';
 export {
   CALENDAR_FEED_LINK_REPLACED_EVENT,
+  CALENDAR_FEED_SHARING_NEEDED,
   CALENDAR_FEED_TURNED_OFF_EVENT,
   CALENDAR_FEED_TURNED_ON_EVENT,
   CALENDAR_FEED_UNAVAILABLE,
@@ -1720,3 +1720,4 @@ export {
   turnOffCalendarFeed,
   turnOnCalendarFeed,
 } from './calendar-feeds';
+export { isRateLimitReached } from './rate-limit';

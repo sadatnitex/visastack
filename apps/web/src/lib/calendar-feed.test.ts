@@ -24,7 +24,7 @@ vi.mock('./public-db', () => ({
   withPublicDb: async (work: (db: unknown) => unknown) => work(state.db),
 }));
 
-const { calendarFeedSecretFrom, calendarFeedUrls, loadCalendarFeed } = await import(
+const { calendarFeedSecretFrom, calendarFeedUrl, loadCalendarFeed } = await import(
   './calendar-feed'
 );
 
@@ -39,20 +39,17 @@ let db: Db;
 let owner: { accountId: string; applicantId: string };
 let other: { accountId: string; applicantId: string };
 
-async function person(email: string, caseTitle: string, due: string) {
+async function person(email: string, caseTitle: string, due: string, name: string) {
   const made = await provisionAccount(db, { email });
   if (!made.ok) throw new Error('provision');
   const accountId = made.value.id;
-  await setConsent(db, {
-    actorAccountId: accountId,
-    accountId,
-    type: 'CORE_PROCESSING',
-    granted: true,
-  });
+  for (const type of ['CORE_PROCESSING', 'SHARING'] as const) {
+    await setConsent(db, { actorAccountId: accountId, accountId, type, granted: true });
+  }
   const applicant = await createApplicant(db, {
     actorAccountId: accountId,
     ownerAccountId: accountId,
-    displayName: 'Synthetic Traveller',
+    displayName: name,
   });
   if (!applicant.ok) throw new Error('applicant');
   const mission = await createMission(db, {
@@ -96,8 +93,8 @@ const nextAddress = () => `203.0.113.${++address}`;
 beforeAll(async () => {
   db = drizzle(await createMigratedPglite(), { schema }) as unknown as Db;
   state.db = db;
-  owner = await person('feed-owner@example.test', CASE_TITLE, '2026-11-03');
-  other = await person('feed-other@example.test', OTHER_CASE, '2026-12-24');
+  owner = await person('feed-owner@example.test', CASE_TITLE, '2026-11-03', 'Nusrat Jahan');
+  other = await person('feed-other@example.test', OTHER_CASE, '2026-12-24', 'Rahim Uddin');
 }, HEAVY);
 
 beforeEach(async () => {
@@ -113,14 +110,15 @@ describe('the live calendar feed', () => {
       if (answer.state !== 'feed') throw new Error(`expected a feed, got ${answer.state}`);
       const ics = answer.ics;
       expect(ics).toMatch(/^BEGIN:VCALENDAR\r\n/);
-      expect(ics).toContain('X-WR-CALNAME:VisaStack Dates');
+      // Named with the first name only, so two travellers' calendars can be told apart.
+      expect(ics).toMatch(/X-WR-CALNAME:VisaStack Dates\\?, Nusrat\r\n/);
       expect(ics).toContain('SUMMARY:Task Due\r\n');
       expect(ics).toContain('DTSTART;VALUE=DATE:20261103');
       expect(ics).toContain('DESCRIPTION:From VisaStack. Open VisaStack for the details.');
       expect(ics).toMatch(/UID:[0-9a-f]{32}@visastack/);
       expect(ics).toMatch(/SEQUENCE:\d+/);
       expect(ics).toContain('CLASS:PRIVATE');
-      for (const secretThing of [CASE_TITLE, 'BX7319046', TASK_TEXT, '0123456789', 'Synthetic']) {
+      for (const secretThing of [CASE_TITLE, 'BX7319046', TASK_TEXT, '0123456789', 'Jahan']) {
         expect(ics).not.toContain(secretThing);
       }
       expect(ics).not.toContain('BEGIN:VALARM');
@@ -189,6 +187,28 @@ describe('the live calendar feed', () => {
   );
 
   it(
+    'answers not found while the owner has sharing turned off, and works again once it is on',
+    async () => {
+      const secret = await turnOn(owner);
+      const sharing = (granted: boolean) =>
+        setConsent(db, {
+          actorAccountId: owner.accountId,
+          accountId: owner.accountId,
+          type: 'SHARING',
+          granted,
+        });
+      await sharing(false);
+      try {
+        expect((await loadCalendarFeed(secret, nextAddress(), NOW)).state).toBe('not_found');
+      } finally {
+        await sharing(true);
+      }
+      expect((await loadCalendarFeed(secret, nextAddress(), NOW)).state).toBe('feed');
+    },
+    HEAVY,
+  );
+
+  it(
     'slows an address that tries unknown links, but never one fetching real links',
     async () => {
       const secret = await turnOn(owner);
@@ -198,8 +218,8 @@ describe('the live calendar feed', () => {
         expect((await loadCalendarFeed(guess, guesser, NOW)).state).toBe('not_found');
       }
       expect((await loadCalendarFeed('C'.repeat(43), guesser, NOW)).state).toBe('busy');
-      // A real link from the same address still works: only unknown links are slowed.
-      expect((await loadCalendarFeed(secret, guesser, NOW)).state).toBe('feed');
+      // A full bucket is refused before any lookup, so not even a real link is read for it.
+      expect((await loadCalendarFeed(secret, guesser, NOW)).state).toBe('busy');
 
       // A calendar service fetching real links from one address is never counted for them.
       const service = nextAddress();
@@ -231,12 +251,11 @@ describe('the live calendar feed', () => {
 });
 
 describe('calendar link addresses', () => {
-  it('builds the https and webcal forms, and reads the secret back with or without .ics', () => {
+  it('builds only the https form, and reads the secret back with or without .ics', () => {
     const secret = 'S'.repeat(43);
-    expect(calendarFeedUrls('https://vs.example.test/', secret)).toEqual({
-      https: `https://vs.example.test/api/calendar-feed/${secret}.ics`,
-      webcal: `webcal://vs.example.test/api/calendar-feed/${secret}.ics`,
-    });
+    expect(calendarFeedUrl('https://vs.example.test/', secret)).toBe(
+      `https://vs.example.test/api/calendar-feed/${secret}.ics`,
+    );
     expect(calendarFeedSecretFrom(`${secret}.ics`)).toBe(secret);
     expect(calendarFeedSecretFrom(secret)).toBe(secret);
     expect(calendarFeedSecretFrom(`${secret}.ics.ics`)).toBeNull();

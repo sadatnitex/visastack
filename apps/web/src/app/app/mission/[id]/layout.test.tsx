@@ -8,6 +8,8 @@ vi.mock('../../../../lib/session', () => ({
 }));
 vi.mock('../../workspace-shell', () => ({ WorkspaceCaseSubject: stub('WorkspaceCaseSubject') }));
 const { default: Layout } = await import('./layout');
+const CASE = '00000000-0000-4000-8000-0000000000c1';
+const FOREIGN = '00000000-0000-4000-8000-0000000000c2';
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -18,18 +20,27 @@ describe('case navigation subject is supplied only by the owned record', () => {
       value: { applicantId: 'synthetic-family' },
     });
     const html = await renderServer(
-      Layout({ children: <p>Case content</p>, params: Promise.resolve({ id: 'synthetic-case' }) }),
+      Layout({ children: <p>Case content</p>, params: Promise.resolve({ id: CASE }) }),
     );
-    expect(mocks.getMissionForOwner).toHaveBeenCalledWith({}, 'synthetic-owner', 'synthetic-case');
+    expect(mocks.getMissionForOwner).toHaveBeenCalledWith({}, 'synthetic-owner', CASE);
     expect(stubProps(html, 'WorkspaceCaseSubject')).toEqual([
-      { route: '/app/mission/synthetic-case', applicantId: 'synthetic-family' },
+      { route: `/app/mission/${CASE}`, applicantId: 'synthetic-family' },
     ]);
     expect(html).toContain('Case content');
   });
   it('refuses a case before supplying any subject or rendering private content', async () => {
     mocks.getMissionForOwner.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
     await expect(
-      Layout({ children: <p>Private case</p>, params: Promise.resolve({ id: 'foreign-case' }) }),
+      Layout({ children: <p>Private case</p>, params: Promise.resolve({ id: FOREIGN }) }),
     ).rejects.toThrow('NEXT_NOT_FOUND');
+  });
+  it('is not found, without any lookup, for an id that is not a record id', async () => {
+    for (const id of ['synthetic-case', `${CASE}x`, '../etc']) {
+      await expect(
+        Layout({ children: <p>Private case</p>, params: Promise.resolve({ id }) }),
+        id,
+      ).rejects.toThrow('NEXT_NOT_FOUND');
+    }
+    expect(mocks.getMissionForOwner).not.toHaveBeenCalled();
   });
 });

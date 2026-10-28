@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { CountriesView } from './countries-view';
+import { CountriesView } from '../countries-view';
 
 export const metadata: Metadata = { title: 'Countries' };
 

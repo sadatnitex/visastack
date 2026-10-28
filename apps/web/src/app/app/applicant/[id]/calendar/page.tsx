@@ -9,7 +9,6 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
-import { formatTimestampDate } from '../../../../../lib/format-date';
 import {
   CALENDAR_EXPORT_LIMIT,
   describeCalendarItem,
@@ -18,13 +17,9 @@ import {
 } from '../../../../../lib/ics';
 import { CALENDAR_REMINDER_LABELS, CALENDAR_REMINDER_ORDER } from '../../../../../lib/labels';
 import { plural } from '../../../../../lib/plural';
+import { formatMoment } from '../../../../../lib/save-status';
 import { CalendarFeedPanel, type CalendarFeedPanelStatus } from './calendar-feed-panel';
-import {
-  CALENDAR_KEY_FIELD,
-  loadCalendarDates,
-  loadCalendarFeedStatus,
-  readCalendarKeys,
-} from './load';
+import { CALENDAR_KEY_FIELD, loadCalendarDates, readCalendarKeys } from './load';
 
 export const metadata: Metadata = { title: 'Add Dates to My Calendar' };
 
@@ -61,11 +56,13 @@ export default async function CalendarExportPage({
 }) {
   const { id } = await params;
   const query = await searchParams;
-  const [loaded, feed] = await Promise.all([loadCalendarDates(id), loadCalendarFeedStatus(id)]);
+  const loaded = await loadCalendarDates(id);
   if (loaded.state === 'denied') notFound();
+  const { feed } = loaded;
+  // When the current link was made, in the traveller's own time zone.
   const feedStatus: CalendarFeedPanelStatus =
     feed.state === 'on'
-      ? { state: 'on', linkMadeOn: formatTimestampDate(feed.linkMadeAt) }
+      ? { state: 'on', linkMadeOn: formatMoment(feed.linkMadeAt, loaded.timeZone) }
       : { state: feed.state };
   const subscribe = <CalendarFeedPanel applicantId={id} status={feedStatus} />;
 
@@ -100,6 +97,7 @@ export default async function CalendarExportPage({
         <p role="alert" className="notice notice-warn">
           We could not load your dates just now. Refresh to try again.
         </p>
+        {subscribe}
       </>
     );
   }

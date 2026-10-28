@@ -180,6 +180,32 @@ export async function checkRateLimit(
 }
 
 /**
+ * Whether the current window's count for (subjectId, action) has already reached `config.limit`,
+ * without counting anything. For limits that charge only failures: refuse early when the bucket is
+ * full, and charge with `checkRateLimit` only once the attempt has failed.
+ */
+export async function isRateLimitReached(
+  db: Db,
+  input: CheckRateLimitInput,
+  config: RateLimitConfig,
+  now: Date = new Date(),
+): Promise<boolean> {
+  const windowStart = windowStartFor(now, config.windowMs);
+  const rows = await db
+    .select({ count: schema.rateLimitBuckets.count })
+    .from(schema.rateLimitBuckets)
+    .where(
+      and(
+        eq(schema.rateLimitBuckets.subjectId, input.subjectId),
+        eq(schema.rateLimitBuckets.action, input.action),
+        eq(schema.rateLimitBuckets.windowStart, windowStart),
+      ),
+    )
+    .limit(1);
+  return (rows[0]?.count ?? 0) >= config.limit;
+}
+
+/**
  * Give one count back for the current window, never below zero. For limits that only mean to
  * bound failures: the attempt is counted before it is checked (so parallel guesses cannot all
  * slip through), and a success returns its count.

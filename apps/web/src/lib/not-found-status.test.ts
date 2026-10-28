@@ -35,6 +35,15 @@ const STILL_STREAMED: Readonly<Record<string, string>> = {
     'inside the case loading screen (case page package); the case itself answers 404',
 };
 
+/**
+ * Pages with no record check that still have no loading screen, each for a stated reason. Every
+ * entry must still lack one (the last test fails once it is given one).
+ */
+const NO_LOADING_SCREEN: Readonly<Record<string, string>> = {
+  'agency/page.tsx':
+    "the agency folder is another package's; a loading screen in it would wrap every agency record check, so this page needs its own route group there",
+};
+
 function dirs(root: string): string[] {
   const out: string[] = [];
   for (const name of readdirSync(root)) {
@@ -125,5 +134,41 @@ describe('a missing or refused record answers 404, not a 200 page', () => {
         `${route} answers 404 now: remove it from the list`,
       ).toBeGreaterThan(0);
     }
+  });
+
+  it('names only pages that really still lack a loading screen, so the list only shrinks', () => {
+    for (const page of Object.keys(NO_LOADING_SCREEN)) {
+      expect(existsSync(join(SIGNED_IN, page)), `${page} no longer exists`).toBe(true);
+      expect(loadingAbove(join(SIGNED_IN, page)), `${page} has a loading screen now`).toBeNull();
+    }
+  });
+});
+
+/** The nearest `loading.tsx` at or above a page's folder, up to `/app`, or null. */
+function loadingAbove(page: string): string | null {
+  for (let dir = dirname(page); dir.startsWith(SIGNED_IN); dir = dirname(dir)) {
+    if (existsSync(join(dir, 'loading.tsx'))) return dir;
+    if (dir === SIGNED_IN) break;
+  }
+  return null;
+}
+
+describe('every signed-in page without a record check keeps a loading screen (UX-02)', () => {
+  const pages = dirs(SIGNED_IN)
+    .map((dir) => join(dir, 'page.tsx'))
+    .filter((file) => existsSync(file));
+
+  it('finds the pages it guards, Home among them', () => {
+    expect(pages.length).toBeGreaterThan(40);
+    expect(pages.map((p) => relative(SIGNED_IN, p))).toContain('(home)/page.tsx');
+  });
+
+  it('shows a loading screen on every page that does not refuse a record itself', () => {
+    const bare = pages
+      .filter((page) => !callsNotFound(page))
+      .map((page) => relative(SIGNED_IN, page))
+      .filter((page) => !(page in NO_LOADING_SCREEN))
+      .filter((page) => loadingAbove(join(SIGNED_IN, page)) === null);
+    expect(bare, bare.join('\n')).toEqual([]);
   });
 });

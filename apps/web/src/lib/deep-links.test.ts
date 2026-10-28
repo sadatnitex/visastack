@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { WHATSAPP_SETTINGS_PATH } from '@visastack/services';
 import { describe, expect, it } from 'vitest';
@@ -11,11 +11,23 @@ import {
 } from './deep-links';
 
 const APP_DIR = join(__dirname, '..', 'app');
+
+/** Whether a page serves `route`, directly or from a route group folder such as `(home)`. */
+function hasPage(route: string): boolean {
+  if (existsSync(join(APP_DIR, route, 'page.tsx'))) return true;
+  const dir = join(APP_DIR, route);
+  return (
+    existsSync(dir) &&
+    readdirSync(dir).some(
+      (name) => /^\(.+\)$/.test(name) && existsSync(join(dir, name, 'page.tsx')),
+    )
+  );
+}
 const ID = '0f8e4c1a-2b3d-4e5f-8a9b-0c1d2e3f4a5b';
 
 describe('stable deep-link routes', () => {
   it.each(Object.entries(DEEP_LINK_ROUTES))('%s still has its page (%s)', (_kind, route) => {
-    expect(existsSync(join(APP_DIR, route, 'page.tsx'))).toBe(true);
+    expect(hasPage(route)).toBe(true);
   });
 });
 

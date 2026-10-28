@@ -31,7 +31,7 @@ const MAIN_LISTS: readonly (readonly [string, string, string])[] = [
   ['Agency dashboard', 'app/app/agency/[orgId]/page.tsx', 'No Cases Yet'],
   ['Agency clients', 'app/app/agency/[orgId]/clients/page.tsx', 'No Clients Invited Yet'],
   ['Agency requests', 'app/app/agency/[orgId]/clients/page.tsx', 'No Evidence Requests Yet'],
-  ['Home people', 'app/app/page.tsx', 'No Applicants Yet'],
+  ['Home people', 'app/app/(home)/page.tsx', 'No Applicants Yet'],
 ];
 
 describe('EmptyState', () => {

@@ -132,7 +132,7 @@ vi.mock('./add-applicant-form', async () => {
   return { AddApplicantForm: stub('AddApplicantForm') };
 });
 
-const { default: Page } = await import('./page');
+const { default: Page } = await import('./(home)/page');
 
 /** A Needs Attention item in the projection's shape; `tier` is worked out again by the ranking. */
 function attentionItem(

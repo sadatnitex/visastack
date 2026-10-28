@@ -1,6 +1,17 @@
-import { unstable_rethrow } from 'next/navigation';
 import { createIdentityPort } from './providers';
 import { reportServerError } from './server-error';
+
+/**
+ * Next's own control-flow signals all carry a string `digest` (its documented shape; Next exports no
+ * stable check that works under every test double). An application error has none.
+ */
+function isNextSignal(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    typeof (error as { digest?: unknown }).digest === 'string'
+  );
+}
 
 /** The one thing the public pages need to know: does this visitor have a session? */
 export interface SessionReader {
@@ -18,7 +29,7 @@ export async function isSignedIn(reader?: SessionReader): Promise<boolean> {
   } catch (error) {
     // Next's own signals (a page found to be per-request while it is built, a redirect) are not
     // failures: they go back to Next unchanged, so they are never logged as errors or hidden.
-    unstable_rethrow(error);
+    if (isNextSignal(error)) throw error;
     reportServerError('public navigation identity', error);
     return false;
   }

@@ -2,9 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ loadCalendarFeed: vi.fn() }));
 
-vi.mock('next/headers', () => ({
-  headers: async () => new Headers({ 'x-forwarded-for': '198.51.100.7, 10.0.0.1' }),
-}));
 vi.mock('../../../../lib/calendar-feed', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../../lib/calendar-feed')>()),
   loadCalendarFeed: mocks.loadCalendarFeed,
@@ -15,9 +12,12 @@ const { GET } = await import('./route');
 
 const SECRET = 'k'.repeat(43);
 const get = (file: string) =>
-  GET(new Request(`https://vs.example.test/api/calendar-feed/${file}`), {
-    params: Promise.resolve({ file }),
-  });
+  GET(
+    new Request(`https://vs.example.test/api/calendar-feed/${file}`, {
+      headers: { 'x-forwarded-for': '198.51.100.7, 10.0.0.1' },
+    }),
+    { params: Promise.resolve({ file }) },
+  );
 const ICS = 'BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n';
 
 beforeEach(() => {
