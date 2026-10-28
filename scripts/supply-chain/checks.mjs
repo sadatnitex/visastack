@@ -183,6 +183,8 @@ export const LICENCE_EXCEPTIONS = {
   '@img/sharp-libvips-linuxmusl-arm64': 'same as above, arm musl build',
   '@img/sharp-libvips-darwin-arm64': 'same as above, Mac build',
   '@img/sharp-libvips-darwin-x64': 'same as above, Mac build',
+  'libheif-js':
+    'LGPL HEIC decoder (libheif built to WebAssembly) used only on the server, in its own worker thread, to turn iPhone photos into JPEG copies; unmodified package from npm, loaded at run time from its own files and never bundled (next.config.mjs, packages/adapters/src/heic-worker.cjs), so it stays a separate, replaceable library',
 };
 
 export function classifyLicences(byLicence) {

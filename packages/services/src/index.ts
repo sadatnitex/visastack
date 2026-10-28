@@ -1712,6 +1712,18 @@ export {
   packMatchKey,
   readTravellerCoverage,
 } from './pack-matching';
+
+// UX-B document upload: automatic titles, renaming, and the record of a converted iPhone photo.
+export {
+  AUTOMATIC_TITLE_REASON,
+  type DocumentTitleInput,
+  buildDocumentTitle,
+  firstNameOf,
+  titleDate,
+} from './naming';
+export { OWNER_RENAME_REASON, renameDocument } from './document-naming';
+export { CONVERTED_FROM_HEIC_SOURCE, type RegisteredDocumentWithVersion } from './documents';
+export { type GrowUploadReservationInput, growUploadReservation } from './uploads';
 export {
   type CalendarFeedHolder,
   isCalendarFeedSecretShape,

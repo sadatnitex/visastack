@@ -1,6 +1,8 @@
+import { isOtherDocumentType } from '@visastack/core';
 import { ORIGINAL_DOCUMENT_KEYS, resolveDocumentType } from '@visastack/core/catalogue';
 import { type MessageKey, type Translator, createTranslator } from '@visastack/i18n';
 import {
+  CONVERTED_FROM_HEIC_SOURCE,
   DEFAULT_DOCUMENT_PROTECTION,
   type DocumentLifecycleStatus,
   accountPrincipal,
@@ -54,6 +56,7 @@ import { categoryLabel, evidenceDocumentGroups } from '../../../../../lib/master
 import { createKeyManagementPort } from '../../../../../lib/providers';
 import { isStillProcessing } from '../../../../../lib/resilience';
 import { withSession } from '../../../../../lib/session';
+import { pdfUploadsAccepted, uploadLimitBytes } from '../../../../../lib/upload-preflight';
 import {
   previewDocumentAction,
   requestDocumentReadingAction,
@@ -67,6 +70,7 @@ import {
   RunClassificationButton,
   RunInconsistencyCheckButton,
 } from '../ai-review';
+import { DocumentRenameForm } from '../document-rename-form';
 import { documentSuggestionView } from '../document-suggestion';
 import { DocumentSuggestionCard } from '../document-suggestion-card';
 import { DocumentTypeForm } from '../document-type-form';
@@ -432,7 +436,7 @@ export default async function ApplicantDocumentsPage({
             name: doc.approvedName ?? doc.originalName,
             // An "Other" kind shows the name the person gave it, when there is one.
             kind: doc.docType
-              ? doc.subject && (doc.docType === 'OTHER' || doc.docType.startsWith('OTHER_'))
+              ? doc.subject && isOtherDocumentType(doc.docType)
                 ? doc.subject
                 : documentTypeLabel(doc.docType)
               : null,
@@ -505,6 +509,12 @@ export default async function ApplicantDocumentsPage({
                     ) : null}
                   </span>
                 </div>
+                {doc.source === CONVERTED_FROM_HEIC_SOURCE ? (
+                  <p className="muted u-fs-075-m0">
+                    Saved as a JPG copy of the iPhone photo (HEIC) that was uploaded, so it opens
+                    anywhere. The HEIC file itself was not kept.
+                  </p>
+                ) : null}
                 {previewable && isPassportPhotoType(doc.docType) ? (
                   <VisaPhotoSizes
                     documentId={doc.id}
@@ -594,6 +604,11 @@ export default async function ApplicantDocumentsPage({
                     Used to judge freshness for routes that require recently-dated evidence.
                   </span>
                 </form>
+                <DocumentRenameForm
+                  applicantId={id}
+                  documentId={doc.id}
+                  name={doc.approvedName ?? doc.originalName}
+                />
                 <DocumentTypeForm
                   applicantId={id}
                   documentId={doc.id}
@@ -778,10 +793,10 @@ export default async function ApplicantDocumentsPage({
             <>
               <article className="card u-mb-150">
                 <p className="card-kicker">Upload</p>
-                <h2 className="card-title">Add a Document</h2>
+                <h2 className="card-title">Add Documents</h2>
                 <p className="card-body u-mb-125">
-                  Documents are stored privately and pass a structural safety scan before they can
-                  be previewed.
+                  Add several at once. Documents are stored privately and pass a structural safety
+                  scan before they can be previewed.
                 </p>
                 <div className="u-mb-125">
                   <UsageMeter
@@ -793,7 +808,9 @@ export default async function ApplicantDocumentsPage({
                 <DocumentUploader
                   key={initialKind}
                   applicantId={id}
-                  limitLabel={mbLabel(data.quota.maxUploadBytes)}
+                  limitBytes={uploadLimitBytes(data.quota)}
+                  limitLabel={mbLabel(uploadLimitBytes(data.quota))}
+                  pdfAccepted={pdfUploadsAccepted()}
                   virusScanning={data.virusScanning}
                   kindGroups={documentGroups}
                   initialKind={initialKind}

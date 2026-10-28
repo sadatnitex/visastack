@@ -3,8 +3,9 @@
 import { createHash } from 'node:crypto';
 import type { ApplicantId, Result } from '@visastack/core';
 import type { Actor, Db, DocumentKindSuggestion, ServiceError } from '@visastack/services';
-import type { AddDocumentVersionResult } from '@visastack/services';
+import type { RegisteredDocumentWithVersion } from '@visastack/services';
 import {
+  CONVERTED_FROM_HEIC_SOURCE,
   accountPrincipal,
   acknowledgeInconsistencyFlag,
   approveClearProposals,
@@ -20,6 +21,7 @@ import {
   findDuplicateVersions,
   getApplicant,
   getLatestExtractedText,
+  growUploadReservation,
   isAiDispatchAllowed,
   isValidDocumentDateString,
   loadUploadQuotaConfig,
@@ -30,6 +32,7 @@ import {
   registerFieldDefinition,
   rejectDocumentTypeProposal,
   rejectProposal,
+  renameDocument,
   renderOcrSourceImage,
   requestDocumentReExtraction,
   requireAccess,
@@ -58,12 +61,18 @@ import { reportServerError } from '../../../../lib/server-error';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
 import {
+  HEIC_CONVERTED_NOTE,
   SUGGESTION_SAVED_LINE,
   detailSavedLine,
   documentAddedLine,
   documentTypeSavedLine,
 } from '../../../../lib/success-lines';
-import { permitsPdfAdmission, validateUploadBytes } from '../../../../lib/upload-preflight';
+import {
+  pdfUploadsAccepted,
+  prepareUploadBytes,
+  validateUploadBytes,
+} from '../../../../lib/upload-preflight';
+import { storedFileName } from '../../../../lib/upload-rules';
 import { triggerIntakeAndReading } from '../../../api/jobs/process-ai-reading/run';
 import { describeClearAcceptance } from './ai-review-messages';
 import { recordGroupOfDocType } from './record-groups';
@@ -74,6 +83,8 @@ export interface ActionState {
   readonly message: string;
   /** The input a problem is about, when the action knows (the form marks it invalid and moves focus to it). */
   readonly field?: string;
+  /** An added document's title ("Passport, Nazmus"), for an upload list to show. */
+  readonly title?: string;
 }
 
 /** Variable-keyed env read (satisfies both TS index-signature and Biome rules). */
@@ -187,8 +198,7 @@ export async function uploadDocumentAction(
   );
   if (!kind.ok) return { ok: false, message: kind.error.message, field: 'docType' };
 
-  const contentType = file.type || 'application/octet-stream';
-  const originalName = file.name || 'document';
+  const declaredType = file.type || 'application/octet-stream';
 
   const result = await withSession(async ({ db, accountId }) => {
     if (!(await assertOwned(db, accountId, applicantId))) {
@@ -203,7 +213,7 @@ export async function uploadDocumentAction(
     if (!reservation.ok) {
       return { ok: false, message: reservation.error.message } satisfies ActionState;
     }
-    const intent = reservation.value;
+    let intent = reservation.value;
     // Opaque key only — never the applicant id, email, or filename (§10).
     // The bucket/applicant association lives solely in the domain tables
     // (documents/document_versions/storage_objects), never in the object
@@ -224,29 +234,66 @@ export async function uploadDocumentAction(
     // references this object key, so a later failure enqueueing the intake
     // job must never delete the blob out from under it.
     const outcome = await (async (): Promise<
-      { ok: true; version: AddDocumentVersionResult } | { ok: false; message: string }
+      | { ok: true; version: RegisteredDocumentWithVersion; convertedFrom: 'HEIC' | null }
+      | { ok: false; message: string }
     > => {
       try {
-        const bytes = new Uint8Array(await file.arrayBuffer());
-        if (bytes.byteLength !== file.size) {
+        const sent = new Uint8Array(await file.arrayBuffer());
+        if (sent.byteLength !== file.size) {
           // The browser's declared size didn't match what was actually read —
           // fail closed rather than trust a mismatched declaration.
           await failUpload(
             db,
             intent.id,
-            `declared size ${file.size} did not match actual bytes read ${bytes.byteLength}`,
+            `declared size ${file.size} did not match actual bytes read ${sent.byteLength}`,
           );
           return { ok: false, message: 'Upload failed: the file changed while uploading.' };
+        }
+
+        // An iPhone photo (HEIC or HEIF) becomes a new JPEG here, before anything is stored, so
+        // every later step meets a format it handles. The HEIC bytes stay in this request's
+        // memory only and are never written anywhere.
+        const prepared = await prepareUploadBytes(
+          sent,
+          declaredType,
+          quotaConfig.maxImageMegapixels,
+        );
+        if (!prepared.ok) {
+          await failUpload(db, intent.id, prepared.reason);
+          return { ok: false, message: prepared.message };
+        }
+        const { bytes, contentType, convertedFrom } = prepared;
+        if (bytes.byteLength > intent.reservedBytes) {
+          // A converted copy can be larger than the photo that was sent: this upload's own
+          // reservation grows to what will actually be stored, in one step under the same quota
+          // rules, so no quota is ever exceeded and the reservation is never let go in between.
+          const access = await requireAccess(
+            db,
+            accountPrincipal(accountId),
+            'MANAGE',
+            { applicantId },
+            { purpose: 'owner_document_upload' },
+          );
+          if (!access.ok) {
+            await failUpload(db, intent.id, 'converted copy: access refused when growing space');
+            return { ok: false, message: 'Not authorized.' };
+          }
+          const grown = await growUploadReservation(
+            access.value,
+            { intentId: intent.id, sizeBytes: bytes.byteLength },
+            quotaConfig,
+          );
+          if (!grown.ok) {
+            const refusal = convertedCopyRefusal(grown.error, quotaConfig.maxUploadBytes);
+            await failUpload(db, intent.id, refusal.reason);
+            return { ok: false, message: refusal.message };
+          }
+          intent = grown.value;
         }
         const sha256 = createHash('sha256').update(bytes).digest('hex');
 
         if (
-          !validateUploadBytes(
-            bytes,
-            contentType,
-            permitsPdfAdmission(readEnv('MALWARE_SCANNER_PROVIDER')),
-            quotaConfig.maxUploadBytes,
-          )
+          !validateUploadBytes(bytes, contentType, pdfUploadsAccepted(), quotaConfig.maxUploadBytes)
         ) {
           await failUpload(db, intent.id, 'upload rejected by structural preflight');
           return {
@@ -292,8 +339,11 @@ export async function uploadDocumentAction(
         const created = await registerDocumentWithVersion(db, {
           actorAccountId: accountId,
           applicantId,
-          originalName,
-          source: 'UPLOAD',
+          // The file's name only with the extension of what is stored; the document itself is
+          // listed under its automatic title ("Passport, Nazmus"), never this name.
+          originalName: storedFileName(file.name || 'document', contentType),
+          automaticTitle: true,
+          source: convertedFrom === 'HEIC' ? CONVERTED_FROM_HEIC_SOURCE : 'UPLOAD',
           ...(kind.value.docType !== null ? { docType: kind.value.docType } : {}),
           ...(kind.value.subject !== null ? { subject: kind.value.subject } : {}),
           bucket: 'QUARANTINE',
@@ -306,7 +356,7 @@ export async function uploadDocumentAction(
           await failUpload(db, intent.id, created.error.message);
           return { ok: false, message: created.error.message };
         }
-        return { ok: true, version: created.value };
+        return { ok: true, version: created.value, convertedFrom };
       } catch (error) {
         await storage.deleteObject('QUARANTINE', intent.objectKey).catch(() => undefined);
         await failUpload(db, intent.id, error instanceof Error ? error.message : String(error));
@@ -338,17 +388,22 @@ export async function uploadDocumentAction(
           excludeDocumentId: uploadedDocumentId,
         })
       : [];
+    // Never the other document's name: it can hold a first name, and this message can end up in
+    // a log. The vault list on the page shows every document by its name.
     const duplicateNote =
-      duplicates.length > 0
-        ? ` This looks identical to ${duplicates.map((d) => `"${d.displayName}"`).join(', ')}, already in the vault.`
-        : '';
+      duplicates.length > 0 ? ' This looks identical to a document already in the vault.' : '';
 
     return {
       ok: true,
       message: documentAddedLine(
         kind.value.docType ? documentTypeLabel(kind.value.docType) : null,
-        duplicateNote,
+        `${outcome.convertedFrom === 'HEIC' ? HEIC_CONVERTED_NOTE : ''}${duplicateNote}`,
       ),
+      // The name the document is listed under, for the upload list on screen. Kept out of the
+      // message, which can end up in a log.
+      ...(outcome.version.document.approvedName
+        ? { title: outcome.version.document.approvedName }
+        : {}),
     } satisfies ActionState;
   });
 
@@ -736,11 +791,100 @@ const KIND_ANSWERS: Readonly<Record<DocumentKindSuggestion['status'], string>> =
   rules_confident: 'We already know what kind of document this is. Check the suggestion below.',
 };
 
+/**
+ * Why there was no room for a converted iPhone photo that came out larger than the photo sent: a
+ * plain sentence for the person, and an accurate reason for the upload record (counts and causes,
+ * never a name).
+ */
+function convertedCopyRefusal(
+  error: ServiceError,
+  maxUploadBytes: number,
+): { readonly message: string; readonly reason: string } {
+  const text = error.message;
+  if (error.code === 'invalid' && text.includes('upload limit')) {
+    return {
+      message: `The converted copy is larger than the ${mbLabel(maxUploadBytes)} limit. Choose a smaller photo, or a JPG or PNG copy.`,
+      reason: 'converted copy: larger than the per-file limit',
+    };
+  }
+  const quota = (
+    [
+      ['applicant has reached', 'applicant evidence limit', true],
+      ['account has reached', 'account evidence limit', true],
+      ['plan storage limit', 'organization plan storage limit', true],
+      ['platform storage capacity', 'platform capacity', true],
+      ['suspended billing', 'organization billing suspended', false],
+    ] as const
+  ).find(([phrase]) => text.includes(phrase));
+  if (error.code === 'invalid' && quota) {
+    return {
+      message: quota[2]
+        ? `The converted copy does not fit in the storage space left. ${plainError(error)}`
+        : plainError(error),
+      reason: `converted copy: ${quota[1]}`,
+    };
+  }
+  if (error.code === 'not_found') {
+    return {
+      message: 'This upload took too long and was stopped. Try again.',
+      reason: 'converted copy: reservation no longer active',
+    };
+  }
+  return {
+    message: plainError(error),
+    reason: `converted copy: reservation could not grow (${error.code})`,
+  };
+}
+
 /** A service refusal as a sentence a person can read. */
 function plainError(error: ServiceError): string {
   const text = error.message.trim();
   if (text.length === 0) return 'Something went wrong. Try again.';
   return `${text.charAt(0).toUpperCase()}${text.slice(1)}${/[.!?]$/.test(text) ? '' : '.'}`;
+}
+
+/**
+ * Give a document a name of the person's own (UX-B). The owner only, through the access gate
+ * with a proof for this one document; the name is cleaned and saved with its history.
+ */
+export async function renameDocumentAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const applicantId = String(formData.get('applicantId') ?? '');
+  const documentId = String(formData.get('documentId') ?? '');
+  const name = String(formData.get('name') ?? '');
+  if (name.trim().length === 0) {
+    return { ok: false, message: 'Enter a name for this document.', field: 'name' };
+  }
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const access = await requireAccess(
+      db,
+      accountPrincipal(accountId),
+      'MANAGE',
+      { documentId },
+      { purpose: 'owner_document_rename' },
+    );
+    if (!access.ok || access.value.applicant.id !== applicantId) {
+      return { ok: false, message: 'Not authorized.' } satisfies ActionState;
+    }
+    const renamed = await renameDocument(access.value, { name });
+    if (!renamed.ok) {
+      return {
+        ok: false,
+        message: plainError(renamed.error),
+        ...(renamed.error.code === 'invalid' ? { field: 'name' } : {}),
+      } satisfies ActionState;
+    }
+    return {
+      ok: true,
+      message: 'Name saved. It shows everywhere this document is listed.',
+    } satisfies ActionState;
+  });
+
+  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
+  return result;
 }
 
 /**

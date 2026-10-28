@@ -387,12 +387,15 @@ test.describe
         `Date of Issue: ${new Date().toISOString().slice(0, 10)}`,
       ].join('\n');
       const documentFileName = `e2e-synthetic-passport-${Date.now()}.txt`;
-      await page.locator('input[aria-label="Document file"]').setInputFiles({
+      // Choosing a file starts its upload at once; the list under the drop area says when it is in.
+      await page.locator('input[aria-label="Document Files"]').setInputFiles({
         name: documentFileName,
         mimeType: 'text/plain',
         buffer: Buffer.from(syntheticContent, 'utf-8'),
       });
-      await page.getByRole('button', { name: 'Upload Document' }).click();
+      await expect(page.locator('output.upload-summary')).toHaveText('1 file added.', {
+        timeout: 60_000,
+      });
       const documentsUrl = page.url();
 
       // Real processing (scan -> normalize -> classify), never faked progress
@@ -404,7 +407,9 @@ test.describe
       // processIntake is SUPPOSED to stop, pending the human review this
       // test performs immediately below) while FAILING outright on a real
       // failure terminal state (Codex review, PR-E2, round 2).
-      await waitForSuccessfulProcessingStatus(page, documentsUrl, new RegExp(documentFileName));
+      // A new document is listed under its automatic title ("Document, <first name>, <day>"),
+      // never under the file's own name.
+      await waitForSuccessfulProcessingStatus(page, documentsUrl, /Document, E2E, /);
 
       // Filename review is CONDITIONAL: only present when classification
       // confidence cleared the review-required bar (packages/adapters'
