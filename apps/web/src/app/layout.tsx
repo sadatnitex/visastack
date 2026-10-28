@@ -3,7 +3,7 @@ import localFont from 'next/font/local';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { BrandMark } from '../components/brand-mark';
-import { PilotBanner } from '../components/pilot-banner';
+import { PilotBanner, versionNoticeCopy } from '../components/pilot-banner';
 import { PwaRuntime } from '../components/pwa/pwa-runtime';
 import { SiteNavigation } from '../components/site-navigation';
 import { getDeploymentMode } from '../lib/deployment-mode';
@@ -12,6 +12,7 @@ import { getLocale } from '../lib/locale';
 import { isPublicBetaOpen } from '../lib/public-beta';
 import { isServiceWorkerEnabled } from '../lib/pwa/service-worker';
 import { isSignedIn } from '../lib/signed-in';
+import { hasSeenVersionNotice } from '../lib/version-notice-state';
 import { setLocaleAction } from './actions';
 import './globals.css';
 
@@ -61,6 +62,10 @@ export default async function RootLayout({ children }: { readonly children: Reac
   const locale = await getLocale();
   const deploymentMode = getDeploymentMode();
   const serviceWorker = isServiceWorkerEnabled((name) => process.env[name]);
+  // A visitor sees the notice about this version in full once; after that it stays one link away
+  // (footer, What Works Today). A signed-in person never sees it, so their cookie is not read.
+  const noticeSeen = signedIn || (await hasSeenVersionNotice());
+  const hasNotice = versionNoticeCopy(deploymentMode) !== null;
 
   return (
     <html lang={locale} className={`${inter.variable} ${bengali.variable}`}>
@@ -69,7 +74,11 @@ export default async function RootLayout({ children }: { readonly children: Reac
           Skip to Content
         </a>
         {!signedIn ? (
-          <PilotBanner mode={deploymentMode} registrationOpen={isPublicBetaOpen()} />
+          <PilotBanner
+            mode={deploymentMode}
+            registrationOpen={isPublicBetaOpen()}
+            seen={noticeSeen}
+          />
         ) : null}
         <header className="nav">
           <Link className="brand" href="/">
@@ -117,6 +126,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
               <Link href="/#capabilities">Features</Link>
               <Link href="/trust">Public Trust</Link>
               <Link href="/status">Status</Link>
+              {hasNotice ? <Link href="/status#about-this-version">About This Version</Link> : null}
               <Link href="/privacy">Privacy</Link>
               <Link href="/terms">Terms</Link>
               {/* A plain link, like the header's: `/app` sends a visitor on to the sign-in provider, and a

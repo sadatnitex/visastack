@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderServer, textOf } from '../lib/next-mocks.test-support';
-const state = vi.hoisted(() => ({ signedIn: false, languageChoice: false }));
+const state = vi.hoisted(() => ({ signedIn: false, languageChoice: false, noticeSeen: false }));
+vi.mock('../lib/version-notice-state', () => ({
+  hasSeenVersionNotice: async () => state.noticeSeen,
+}));
 vi.mock('next/font/local', () => ({ default: () => ({ variable: 'synthetic-font' }) }));
 vi.mock('../lib/signed-in', () => ({ isSignedIn: async () => state.signedIn }));
 vi.mock('../lib/locale', () => ({ getLocale: async () => 'en' }));
@@ -25,6 +28,22 @@ describe('public beta notice audience', () => {
     const html = await renderServer(RootLayout({ children: <p>Signed-in page</p> }));
     expect(html).not.toContain('pilot-banner');
     expect(textOf(html)).not.toContain('Free to use at your own risk.');
+  });
+});
+describe('the notice is shown in full once per visitor (owner list item 17)', () => {
+  it('folds away once this device has seen it, and stays one footer link away', async () => {
+    state.signedIn = false;
+    state.noticeSeen = false;
+    let html = await renderServer(RootLayout({ children: <p>First page</p> }));
+    expect(html).toContain('class="pilot-banner"');
+    expect(html).toContain('href="/status#about-this-version"');
+    state.noticeSeen = true;
+    html = await renderServer(RootLayout({ children: <p>Next page</p> }));
+    expect(html).not.toContain('pilot-banner');
+    expect(textOf(html)).not.toContain('Free to use at your own risk.');
+    expect(html).toContain('href="/status#about-this-version"');
+    expect(textOf(html)).toContain('About This Version');
+    state.noticeSeen = false;
   });
 });
 describe('the language switch', () => {

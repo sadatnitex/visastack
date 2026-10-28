@@ -9250,3 +9250,140 @@ summary.visa-photo-title {
     transition: none;
   }
 }
+
+/* WP-QAE accessibility floors (owner list items 13, 14, 17 and 18): touch targets, smallest text,
+   the version notice that folds away, and the staff mode banner. One block, shared rules only. */
+
+/* 14. A finger is about 9mm wide: on a touch screen every control that stands on its own is at
+   least 44px each way. Links inside a line of text stay part of the sentence (WCAG 2.5.8 inline
+   exception); visually hidden controls (screen reader text, the skip link before it is focused,
+   hidden file pickers opened by a real button) are left alone. A precise pointer keeps the
+   compact sizes the design pins, such as the 34px account menu rows. */
+@media (pointer: coarse) {
+  :is(
+      a[href],
+      button,
+      summary,
+      select,
+      textarea,
+      [role="button"],
+      [role="tab"],
+      input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="range"])
+    ):not(.sr-only):not(.skip-link):not([aria-hidden="true"]) {
+    min-width: 44px !important;
+    min-height: 44px !important;
+  }
+  /* A tick box or option is pressed through its whole label. */
+  label:has(> input[type="checkbox"]),
+  label:has(> input[type="radio"]) {
+    min-height: 44px;
+  }
+  /* The notice's link reads as part of its sentence on a touch screen; the notice row itself is
+     the 44px target height, and its Hide button takes the full row. */
+  .pilot-banner {
+    min-height: 44px;
+    padding-inline-end: 44px;
+  }
+  .pilot-banner-link {
+    display: inline;
+  }
+  .pilot-banner .pilot-banner-hide {
+    width: 44px;
+  }
+}
+
+/* 14. No visible text below 12px. A <small> inside caption-sized text would otherwise shrink to
+   10px; this keeps it at the caption size or larger. Rules that size small text on purpose still
+   win, and all of them use the shared scale. */
+small {
+  font-size: max(12px, 0.833em);
+}
+/* The trust page label was 10px to match the reference; it is now the 12px caption size, with the
+   same 12px line so nothing on the page moves. */
+.trust-hero .eyebrow {
+  font-size: var(--text-caption);
+  line-height: 1;
+}
+/* 14. Phones: reading text is 16px, and every field is 16px so a phone never zooms in when it is
+   tapped. Labels, badges and notes keep the smaller sizes of the shared scale. */
+@media (max-width: 700px) {
+  :is(main, .app-main, .auth-form-panel) :is(.card-body, .notice, .page-description),
+  .staff-mode-banner {
+    font-size: var(--text-body);
+  }
+  :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+    font-size: var(--text-body) !important;
+  }
+}
+
+/* 17. The version notice: shown in full on the first page only, with a button to put it away at
+   once. The button sits in the notice's own end padding, so the notice keeps its height. */
+.pilot-banner {
+  position: relative;
+  padding-inline: 2.75rem;
+}
+.pilot-banner-hide {
+  position: absolute;
+  inset-block: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.pilot-banner-hide:hover {
+  background: var(--bg-subtle);
+}
+.pilot-banner-hide:focus-visible {
+  outline-offset: -3px;
+}
+@media (max-width: 1023px) {
+  .pilot-banner {
+    padding-inline: 0.75rem 2.25rem;
+  }
+  .pilot-banner > .pilot-banner-hide {
+    margin: 0;
+  }
+}
+
+/* 18. Staff mode: a plain strip at the top of every platform page, in the notice colours. */
+.staff-mode-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--hairline);
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-size: var(--text-small);
+  line-height: 1.5;
+}
+.staff-mode-banner p {
+  flex: 1 1 18rem;
+  min-width: 0;
+  margin: 0;
+}
+.staff-mode-banner .icon {
+  flex: none;
+}
+.staff-mode-leave {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: inherit;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+@media (max-width: 700px) {
+  .staff-mode-banner {
+    padding: var(--space-3) var(--space-4);
+  }
+}

@@ -141,11 +141,17 @@ function WorkspaceSelector({
       </summary>
       <nav id={id} aria-label="Available workspaces">
         <p>Personal space</p>
-        {access.travellers.map((person) => (
-          <Link key={person.id} href={`/app/applicant/${person.id}`}>
-            {person.name}
-          </Link>
-        ))}
+        {/* Staff mode keeps traveller names off platform screens (owner list item 18): one way
+            back to the account's own overview, where the travellers are listed. */}
+        {kind === 'platform' ? (
+          <Link href="/app">Account Overview</Link>
+        ) : (
+          access.travellers.map((person) => (
+            <Link key={person.id} href={`/app/applicant/${person.id}`}>
+              {person.name}
+            </Link>
+          ))
+        )}
         {access.agencies.length ? <p>Agencies</p> : null}
         {access.agencies.map((agency) => (
           <Link key={agency.id} href={`/app/agency/${agency.id}`}>
@@ -155,6 +161,26 @@ function WorkspaceSelector({
         {access.platform ? <Link href="/app/admin">Platform Operations</Link> : null}
       </nav>
     </details>
+  );
+}
+
+/**
+ * Staff mode, said plainly at the top of every platform page (owner list item 18), so nobody
+ * mistakes platform tools for their own traveller space. It grants nothing: every platform page
+ * keeps its own permission checks, and the way out goes to the account's own overview.
+ */
+function StaffModeBanner() {
+  return (
+    <section className="staff-mode-banner" aria-label="Staff Mode">
+      <Icon name="lock" size={18} />
+      <p>
+        <b>Staff Mode.</b> You are using platform tools. What you change here can affect other
+        people&apos;s accounts.
+      </p>
+      <Link className="staff-mode-leave" href="/app">
+        Leave Staff Mode
+      </Link>
+    </section>
   );
 }
 
@@ -301,19 +327,30 @@ export function WorkspaceShell({
               access={access}
               name={nav.name}
               caption={nav.caption}
+              kind={nav.kind}
               photo={nav.photo}
               popover={railShown}
             />
           }
           secondaryLinks={nav.settings}
           footer={
-            <p className="workspace-assurance">
-              <Icon name="shield" size={18} />
-              <span>
-                <b>You Control Access</b>
-                <small>Sharing follows your saved permissions.</small>
-              </span>
-            </p>
+            nav.kind === 'platform' ? (
+              <p className="workspace-assurance">
+                <Icon name="lock" size={18} />
+                <span>
+                  <b>Staff Mode</b>
+                  <small>Platform tools for VisaStack staff.</small>
+                </span>
+              </p>
+            ) : (
+              <p className="workspace-assurance">
+                <Icon name="shield" size={18} />
+                <span>
+                  <b>You Control Access</b>
+                  <small>Sharing follows your saved permissions.</small>
+                </span>
+              </p>
+            )
           }
         >
           {nav.tools.length ? (
@@ -344,6 +381,7 @@ export function WorkspaceShell({
             {...(toolbarState ? { state: toolbarState } : {})}
             signOut={signOut}
           />
+          {nav.kind === 'platform' ? <StaffModeBanner /> : null}
           {children}
         </div>
       </div>

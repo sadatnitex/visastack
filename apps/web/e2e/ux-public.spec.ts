@@ -865,9 +865,14 @@ test.describe('authoritative appearance on public routes', () => {
       );
     expect(missing).toEqual([]);
     await page.goto('/trust');
-    await expect(page.locator('.trust-hero .eyebrow')).toHaveCSS('font-size', '10px');
+    // The 12px caption size (owner list item 14), on the same 12px line, so the title stays put.
+    await expect(page.locator('.trust-hero .eyebrow')).toHaveCSS('font-size', '12px');
+    await expect(page.locator('.trust-hero .eyebrow')).toHaveCSS('line-height', '12px');
     const trustTitle = await page.locator('#trust-story-title').boundingBox();
-    const banner = await page.locator('.pilot-banner').boundingBox();
+    // The notice shows in full on a visitor's first page only (owner list item 17), so on this
+    // second page it may already have folded away; the title sits under it either way.
+    const notice = page.locator('.pilot-banner');
+    const banner = (await notice.count()) ? await notice.boundingBox() : null;
     expect(trustTitle?.x).toBe(116);
     expect(trustTitle?.y).toBeCloseTo(206 + (banner?.height ?? 0), 0);
     await page.goto('/auth/sign-up');
@@ -1656,5 +1661,300 @@ test.describe('country checklist on the landing page (Growth G2)', () => {
         elements.slice(0, 3).map((element) => getComputedStyle(element).animationDelay),
       );
     expect(delays).toEqual(['0s', '0.045s', '0.09s']);
+  });
+});
+
+/*
+ * QA-E (owner list items 13, 14, 17 and 18). Every screen below is the real component rendered
+ * by the UI fixture (no session, no server) or a real public page, measured in a real browser.
+ */
+
+/** Every interactive target that stands on its own and is smaller than 44px either way. */
+async function smallTargets(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const name = (element: Element) =>
+      `${element.tagName.toLowerCase()}.${(element.getAttribute('class') ?? '').trim().split(/\s+/).join('.')} "${(element.getAttribute('aria-label') ?? element.textContent ?? '').trim().slice(0, 40)}"`;
+    const misses: string[] = [];
+    const controls = document.querySelectorAll<HTMLElement>(
+      'a[href], button, summary, select, textarea, [role="button"], [role="tab"], input:not([type="hidden"])',
+    );
+    for (const control of controls) {
+      if (control.matches('.sr-only, .skip-link') || control.closest('[aria-hidden="true"]'))
+        continue;
+      if (!control.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue;
+      // A link inside a line of text is part of the sentence (WCAG 2.5.8 inline exception).
+      if (getComputedStyle(control).display === 'inline') continue;
+      let box = control.getBoundingClientRect();
+      // A tick box or option is pressed through its label, so the label is its target.
+      if (
+        control instanceof HTMLInputElement &&
+        (control.type === 'checkbox' || control.type === 'radio')
+      ) {
+        const label = control.labels?.[0];
+        if (label) box = label.getBoundingClientRect();
+      }
+      if (box.width < 1 || box.height < 1) continue;
+      if (box.width < 43.5 || box.height < 43.5)
+        misses.push(`${name(control)} ${Math.round(box.width)}x${Math.round(box.height)}`);
+    }
+    return misses;
+  });
+}
+
+/** Every piece of visible text set below 12px, with where it is and its size. */
+async function smallText(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const misses = new Set<string>();
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const words = node.textContent?.trim();
+      const parent = node.parentElement;
+      if (!words || !parent || parent.closest('script, style, noscript, template')) continue;
+      if (!parent.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue;
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      if (![...range.getClientRects()].some((box) => box.width > 0 && box.height > 0)) continue;
+      const size = Number.parseFloat(getComputedStyle(parent).fontSize);
+      if (size > 0 && size < 11.95)
+        misses.add(
+          `${parent.tagName.toLowerCase()}.${parent.className} "${words.slice(0, 30)}" ${size}px`,
+        );
+    }
+    return [...misses];
+  });
+}
+
+/** Reading text on a phone that is smaller than 16px. */
+async function smallReadingText(page: Page): Promise<string[]> {
+  return page.evaluate(() =>
+    [
+      ...document.querySelectorAll<HTMLElement>(
+        ':is(main, .app-main, .auth-form-panel) :is(.card-body, .notice, .page-description), .staff-mode-banner',
+      ),
+    ]
+      .filter((element) => element.checkVisibility({ checkVisibilityCSS: true }))
+      .filter((element) => Number.parseFloat(getComputedStyle(element).fontSize) < 15.95)
+      .map(
+        (element) =>
+          `${element.className} "${(element.textContent ?? '').trim().slice(0, 30)}" ${getComputedStyle(element).fontSize}`,
+      ),
+  );
+}
+
+const SIGNED_IN_MODES = [
+  'overview',
+  'profile',
+  'documents',
+  'case',
+  'sharing',
+  'agency',
+  'admin',
+  'shell',
+  'staff',
+] as const;
+
+test.describe('signed-in screens pass the automated accessibility scan (owner list item 13)', () => {
+  test.use({ bypassCSP: true });
+  for (const mode of SIGNED_IN_MODES) {
+    for (const [width, height] of [
+      [390, 844],
+      [1440, 900],
+    ] as const) {
+      test(`${mode} at ${width}px has no serious or critical violations`, async ({ page }) => {
+        test.setTimeout(60_000);
+        await page.setViewportSize({ width, height });
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await openUiFixture(page, mode);
+        const result = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
+          .analyze();
+        const blocking = result.violations.filter(
+          (violation) => violation.impact === 'critical' || violation.impact === 'serious',
+        );
+        expect(blocking, JSON.stringify(blocking, null, 2)).toEqual([]);
+        // Every link and button, icon-only ones included, has a name a screen reader can say.
+        const unnamed = await page.evaluate(() =>
+          [...document.querySelectorAll<HTMLElement>('main a[href], main button, main summary')]
+            .filter((control) => control.checkVisibility())
+            .filter(
+              (control) =>
+                !control.getAttribute('aria-label')?.trim() &&
+                !control.getAttribute('aria-labelledby') &&
+                !control.getAttribute('title') &&
+                !control.innerText.trim(),
+            )
+            .map((control) => control.outerHTML.slice(0, 120)),
+        );
+        expect(unnamed).toEqual([]);
+      });
+    }
+  }
+});
+
+test.describe('touch screens get 44px targets and readable text (owner list item 14)', () => {
+  test.use({ bypassCSP: true, hasTouch: true, viewport: { width: 390, height: 844 } });
+  for (const mode of ['shell', 'overview', 'documents', 'staff'] as const) {
+    test(`${mode}: every control is at least 44px and no text is under 12px`, async ({ page }) => {
+      test.setTimeout(60_000);
+      await openUiFixture(page, mode);
+      expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
+      expect(await smallTargets(page)).toEqual([]);
+      expect(await smallText(page)).toEqual([]);
+      expect(await page.evaluate(() => getComputedStyle(document.body).fontSize)).toBe('16px');
+      expect(await smallReadingText(page)).toEqual([]);
+      // Bigger targets never push the page sideways.
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+      ).toBeLessThanOrEqual(1);
+    });
+  }
+  for (const path of ['/auth/sign-up', '/auth/sign-in'] as const) {
+    test(`${path}: every control is at least 44px and no text is under 12px`, async ({ page }) => {
+      test.setTimeout(60_000);
+      await page.goto(path);
+      await expect(page.locator('h1')).toBeVisible();
+      await page.evaluate(() => document.fonts.ready);
+      expect(await smallTargets(page)).toEqual([]);
+      expect(await smallText(page)).toEqual([]);
+      expect(await smallReadingText(page)).toEqual([]);
+      // A phone never zooms in on a field: every field is 16px.
+      const fields = await page
+        .locator('main input:visible, main select:visible, main textarea:visible')
+        .evaluateAll((elements) =>
+          elements
+            .filter(
+              (element) => !['checkbox', 'radio'].includes((element as HTMLInputElement).type),
+            )
+            .map((element) => getComputedStyle(element).fontSize),
+        );
+      expect(fields.length).toBeGreaterThan(0);
+      expect(new Set(fields)).toEqual(new Set(['16px']));
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+      ).toBeLessThanOrEqual(1);
+    });
+  }
+});
+
+test.describe('a precise pointer keeps no text under 12px on wide screens (owner list item 14)', () => {
+  test.use({ bypassCSP: true });
+  for (const mode of ['shell', 'overview', 'staff'] as const) {
+    test(`${mode} at 1440px has no text under 12px`, async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await openUiFixture(page, mode);
+      expect(await smallText(page)).toEqual([]);
+    });
+  }
+  test('the trust page has no text under 12px', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/trust');
+    await expect(page.locator('#trust-story-title')).toBeVisible();
+    expect(await smallText(page)).toEqual([]);
+  });
+});
+
+test.describe('the notice about this version shows once per visitor (owner list item 17)', () => {
+  /** The notice writes its small cookie once the page is running; wait for it, not for a clock. */
+  async function noticeRemembered(page: Page) {
+    await expect
+      .poll(
+        async () =>
+          (await page.context().cookies()).find((cookie) => cookie.name === 'visastack_notice')
+            ?.value,
+        { timeout: 20_000 },
+      )
+      .toBe('seen');
+  }
+
+  test('shows in full on the first page, then folds away, and stays one footer link away', async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/terms');
+    const notice = page.getByRole('region', { name: 'About this version' });
+    await expect(notice).toBeVisible();
+    await noticeRemembered(page);
+    await page.goto('/privacy');
+    await expect(page.locator('h1')).toBeVisible();
+    await expect(page.locator('.pilot-banner')).toHaveCount(0);
+    await page
+      .getByRole('contentinfo')
+      .getByRole('link', { name: 'About This Version', exact: true })
+      .click();
+    await expect(page).toHaveURL(/\/status#about-this-version$/);
+    await expect(page.locator('#about-this-version')).toContainText(
+      /VisaStack (Public Beta|Private Pilot|Test Build)\./,
+    );
+    await expect(page.locator('#about-this-version')).toBeInViewport();
+  });
+
+  test('Hide This Notice puts it away at once, keeps the keyboard on the page, and is remembered', async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/terms');
+    const notice = page.getByRole('region', { name: 'About this version' });
+    await expect(notice).toBeVisible();
+    // The cookie is written by the running page, so the button below is working by now.
+    await noticeRemembered(page);
+    await page.getByRole('button', { name: 'Hide This Notice', exact: true }).click();
+    await expect(page.locator('.pilot-banner')).toHaveCount(0);
+    await expect
+      .poll(() => page.evaluate(() => document.activeElement?.tagName ?? 'BODY'))
+      .not.toBe('BODY');
+    await page.reload();
+    await expect(page.locator('h1')).toBeVisible();
+    await expect(page.locator('.pilot-banner')).toHaveCount(0);
+  });
+});
+
+test.describe('sign-up on a phone asks only for what the account needs (owner list item 17)', () => {
+  test('no traveller or agency choice, three fields and the acknowledgement', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/auth/sign-up');
+    const form = page.locator('form').filter({ has: page.locator('input[name="email"]') });
+    await expect(form).toBeVisible();
+    await expect(form.locator('input[name="usageIntent"]')).toHaveCount(0);
+    await expect(form.locator('input:visible')).toHaveCount(4);
+    await expect(form.getByLabel('Your Name (Optional)')).toBeVisible();
+    await expect(form.locator('input[name="acceptNotices"]')).not.toBeChecked();
+    await expect(page.getByText('you do so at your own risk')).toBeVisible();
+  });
+});
+
+test.describe('staff pages say staff mode and keep traveller context out (owner list item 18)', () => {
+  test.use({ bypassCSP: true });
+  for (const [width, height] of [
+    [390, 844],
+    [1440, 900],
+  ] as const) {
+    test(`at ${width}px the staff banner shows and no traveller name or search appears`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height });
+      await openUiFixture(page, 'staff');
+      const banner = page.getByRole('region', { name: 'Staff Mode', exact: true });
+      await expect(banner).toBeVisible();
+      await expect(banner).toContainText('You are using platform tools.');
+      await expect(banner.getByRole('link', { name: 'Leave Staff Mode' })).toHaveAttribute(
+        'href',
+        '/app',
+      );
+      await expect(page.locator('.app-frame')).toHaveAttribute('data-workspace', 'platform');
+      // Nothing about a traveller, even inside the closed menus.
+      await expect(page.getByText('Synthetic Child')).toHaveCount(0);
+      await expect(page.locator('a[href^="/app/applicant/"]')).toHaveCount(0);
+      await expect(page.getByText(/your (own )?records?/i)).toHaveCount(0);
+      await expect(page.locator('search, .record-search-toggle, .record-plan-badge')).toHaveCount(
+        0,
+      );
+      await expect(page.getByText('You Control Access')).toHaveCount(0);
+    });
+  }
+  test('the traveller shell shows no staff banner', async ({ page }) => {
+    await openUiFixture(page, 'shell');
+    await expect(page.locator('.staff-mode-banner')).toHaveCount(0);
   });
 });

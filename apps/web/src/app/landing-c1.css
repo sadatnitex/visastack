@@ -57,7 +57,10 @@
 }
 .c1 .c1-nudge {
   text-transform: uppercase;
-  font-size: 11px;
+  /* A11Y-EXCEPTION (QA-E, owner list item 14): no visible text below 12px. The line keeps its
+     earlier 17px height, so the hero does not move. */
+  font-size: 12px;
+  line-height: 17px;
   letter-spacing: 0.19em;
   font-weight: 760;
 }
@@ -320,7 +323,8 @@
   position: absolute;
   bottom: 14px;
   right: 35px;
-  font-size: 11px;
+  /* A11Y-EXCEPTION (QA-E): 12px minimum for real text. */
+  font-size: 12px;
 }
 
 /* C1-FROZEN: dark product chapter */
@@ -374,7 +378,8 @@
 .c1 .c1-small-label {
   font-weight: 750;
   letter-spacing: 0.13em;
-  font-size: 10px;
+  /* A11Y-EXCEPTION (QA-E): 12px minimum for real text. */
+  font-size: 12px;
   text-transform: uppercase;
 }
 .c1 .c1-feature-big {
@@ -665,7 +670,9 @@
     padding: 0 12px;
   }
   .c1 .c1-nudge {
-    font-size: 10px;
+    /* A11Y-EXCEPTION (QA-E): 12px minimum, on the earlier 15.5px line so the hero does not move. */
+    font-size: 12px;
+    line-height: 15.5px;
   }
   .c1 .c1-devices {
     margin-top: 50px;
