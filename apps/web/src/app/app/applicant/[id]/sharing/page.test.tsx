@@ -434,9 +434,13 @@ describe('after a change to access, the reloaded page says what changed (CCD qui
     ['paused', 'Access paused. They cannot see anything until you resume it.'],
     ['resumed', 'Access resumed. They can see what you shared again.'],
     ['invitation-withdrawn', 'Invitation withdrawn. Its link no longer works.'],
+    [
+      'invitation-not-withdrawn',
+      'The invitation could not be withdrawn. It may have been accepted already, so check who has access below.',
+    ],
   ])('%s', async (done, line) => {
     const html = await renderDone(done);
-    expect(html).toContain(`<output class="notice notice-ok u-mb-100">${line}</output>`);
+    expect(html).toContain(`<p class="notice notice-ok u-mb-100">${line}</p>`);
   });
 
   it('shows only those fixed words, never text from the address', async () => {

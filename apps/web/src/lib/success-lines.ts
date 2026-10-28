@@ -27,8 +27,12 @@ export function detailSavedLine(fieldLabel: string): string {
 }
 
 /** A suggested detail was approved and written to the profile. */
-export const SUGGESTION_SAVED_LINE =
-  'Saved to your profile. It can now fill checklist items that need it.';
+/** What a saved detail is now used for, after one or after several (they share the words). */
+export const DETAIL_IN_USE_LINE = 'It can now fill checklist items that need it.';
+export const DETAILS_IN_USE_LINE = 'They can now fill checklist items that need them.';
+
+/** A suggested detail was approved and written to the profile. */
+export const SUGGESTION_SAVED_LINE = `Saved to your profile. ${DETAIL_IN_USE_LINE}`;
 
 /** A suggested document type was approved. */
 export function documentTypeSavedLine(typeLabel: string): string {
@@ -92,7 +96,7 @@ export const SHARE_INVITED_LINE =
 export function shareInvitedLine(email: Exclude<InvitationEmailOutcome, 'none'>): string {
   if (email === 'sent') {
     // Two sentences (CCD section 6): what happened, then what they do and the way round a lost email.
-    return 'Invitation emailed: they sign in or create an account, then accept what you chose. If it does not arrive, ask them to check Spam, or send them the link below.';
+    return 'Invitation emailed: they sign in or create an account, then accept what you chose. If it does not arrive in a few minutes, ask them to check Spam or Promotions, or send them the link below.';
   }
   if (email === 'failed') {
     return `Invitation ready, but the email could not be sent, so copy the link below and send it yourself. ${SHARE_INVITED_LINE}`;
@@ -105,6 +109,8 @@ export const ACCESS_REVOKED_LINE = 'Access revoked. They lose it on their next r
 export const ACCESS_PAUSED_LINE = 'Access paused. They cannot see anything until you resume it.';
 export const ACCESS_RESUMED_LINE = 'Access resumed. They can see what you shared again.';
 export const INVITATION_WITHDRAWN_LINE = 'Invitation withdrawn. Its link no longer works.';
+export const INVITATION_NOT_WITHDRAWN_LINE =
+  'The invitation could not be withdrawn. It may have been accepted already, so check who has access below.';
 
 /**
  * The finished change named by the Sharing page address (`?done=`), which survives the reload
@@ -115,6 +121,7 @@ const ACCESS_DONE_LINES: Readonly<Record<string, string>> = {
   paused: ACCESS_PAUSED_LINE,
   resumed: ACCESS_RESUMED_LINE,
   'invitation-withdrawn': INVITATION_WITHDRAWN_LINE,
+  'invitation-not-withdrawn': INVITATION_NOT_WITHDRAWN_LINE,
 };
 
 export function accessDoneLine(done: string | undefined): string | null {

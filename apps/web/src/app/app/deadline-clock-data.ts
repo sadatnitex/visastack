@@ -128,7 +128,8 @@ export function validUntilLine(
   options: { readonly showPerson: boolean },
 ): string | null {
   const entry = entries.find(
-    (e) => e.kind === 'document_expires' && e.doubt === null && e.daysUntil >= 0,
+    // Only a date well ahead: one due soon belongs on the clock as a date to act on, not here.
+    (e) => e.kind === 'document_expires' && e.doubt === null && e.urgency === 'later',
   );
   if (!entry) return null;
   const what = deadlineLabel(entry);

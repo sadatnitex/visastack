@@ -212,4 +212,20 @@ describe('withdrawing an invitation', () => {
       vi.unstubAllEnvs();
     }
   });
+
+  it('says so when it could not be withdrawn, in fixed words, never the reason text', async () => {
+    vi.stubEnv('PERSONAL_SHARING_INVITATIONS_ENABLED', 'true');
+    try {
+      mocks.revokeSharingInvitation.mockResolvedValue({
+        ok: false,
+        error: { message: 'Invitation is no longer pending.' },
+      });
+      await expect(revokeSharingInvitationAction(invitationForm())).rejects.toThrow('redirected');
+      expect(mocks.redirect).toHaveBeenCalledWith(
+        '/app/applicant/owned/sharing?done=invitation-not-withdrawn',
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });

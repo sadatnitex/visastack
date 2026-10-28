@@ -10218,6 +10218,8 @@ summary.visa-photo-title {
 .next-step-title,
 .case-next-step .case-next-step-title {
   margin: var(--ns-title-gap, 10px) 0 0;
+  /* A case title can be one long word (a pasted reference): it wraps, never widens the page. */
+  overflow-wrap: anywhere;
   font-size: var(--ns-title-size, var(--text-title));
   font-weight: 700;
   letter-spacing: -0.03em;

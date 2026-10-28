@@ -485,7 +485,8 @@ export default async function AppPage({
               // A calm all-clear with one real fact, never an invented task (CCD section 6).
               why: [
                 'Nothing is waiting for you.',
-                validUntilLine(data.clock.entries, { showPerson: true }),
+                // Whose date it is only when there is more than one person, as the clock card.
+                validUntilLine(data.clock.entries, { showPerson: data.perApplicant.length > 1 }),
                 'Open a traveller to add documents or start a case.',
               ]
                 .filter(Boolean)

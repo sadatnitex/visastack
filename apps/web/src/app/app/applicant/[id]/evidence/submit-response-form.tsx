@@ -144,11 +144,12 @@ export function SubmitResponseForm({
               </label>
             ))}
       </fieldset>
-      {choices.length === 1 ? (
+      {/* The hint follows what is chosen now, so it stays true if the list changes later. */}
+      {choices.length === 1 && selection === onlyChoice ? (
         <p className="muted u-fs-085">
           This is the only one that fits, so it is already chosen. Check it, then send.
         </p>
-      ) : choices.length > 1 ? (
+      ) : choices.length > 0 && !choices.includes(selection) ? (
         <p className="muted u-fs-085">Choose which one to send.</p>
       ) : null}
       <div className="request-response-actions">

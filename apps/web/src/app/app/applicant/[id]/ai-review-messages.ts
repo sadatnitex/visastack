@@ -1,3 +1,5 @@
+import { DETAILS_IN_USE_LINE, DETAIL_IN_USE_LINE } from '../../../../lib/success-lines';
+
 /** Plain wording for the result of accepting clear details at once. */
 export function describeClearAcceptance({
   approved,
@@ -30,11 +32,7 @@ export function describeClearAcceptance({
   // Quiet closure (CCD section 6): when all went in, say what it means next, in the same words as
   // accepting one suggestion.
   if (approved > 0 && alreadyDecided === 0 && leftForReview === 0) {
-    parts.push(
-      approved === 1
-        ? 'It can now fill checklist items that need it.'
-        : 'They can now fill checklist items that need them.',
-    );
+    parts.push(approved === 1 ? DETAIL_IN_USE_LINE : DETAILS_IN_USE_LINE);
   }
   return parts.join(' ');
 }

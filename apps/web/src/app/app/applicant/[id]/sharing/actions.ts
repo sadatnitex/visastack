@@ -239,9 +239,10 @@ export async function revokeSharingInvitationAction(formData: FormData): Promise
     revokeSharingInvitation(db, accountId, id),
   );
   const applicantId = String(formData.get('applicantId') ?? '');
+  // Either way the page says what happened, in fixed words (the address never carries text).
   if (!result.ok)
     redirect(
-      `/app/applicant/${encodeURIComponent(applicantId)}/sharing?error=${encodeURIComponent(result.error.message)}`,
+      `/app/applicant/${encodeURIComponent(applicantId)}/sharing?done=invitation-not-withdrawn`,
     );
   revalidatePath(`/app/applicant/${applicantId}/sharing`);
   redirect(`/app/applicant/${encodeURIComponent(applicantId)}/sharing?done=invitation-withdrawn`);

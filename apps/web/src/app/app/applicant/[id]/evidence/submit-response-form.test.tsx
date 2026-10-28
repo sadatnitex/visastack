@@ -75,6 +75,11 @@ describe('the evidence reply form anticipates, and the person decides', () => {
     ).toBe('');
   });
 
+  it('says nothing about a choice it did not make', () => {
+    const form = render({ kind: 'DOCUMENT', candidateDocuments: [doc('d1', false)] });
+    expect(form.text).not.toContain('Choose which one to send.');
+  });
+
   it('chooses nothing when no finished document fits yet', () => {
     const form = render({ kind: 'DOCUMENT', candidateDocuments: [doc('d1', false)] });
     expect(form.sent).toBe('');
