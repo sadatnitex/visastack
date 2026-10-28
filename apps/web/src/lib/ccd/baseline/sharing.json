@@ -1,0 +1,293 @@
+{
+  "nobody has access": [
+    {
+      "kind": "heading",
+      "name": "Sharing & Access",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "You control every grant. Access is purpose-bound, takes effect only once accepted, and can be paused or revoked at any time."
+    },
+    {
+      "kind": "link",
+      "name": "New Sharing Request",
+      "detail": "#new-sharing-request"
+    },
+    {
+      "kind": "text",
+      "name": "Controlled Collaboration"
+    },
+    {
+      "kind": "heading",
+      "name": "Who Has Access",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "0 active grants. Pending, paused and ended grants are labelled separately below."
+    },
+    {
+      "kind": "text",
+      "name": "Nobody Has Access Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Your profile and documents are private. When you share with someone, they appear here with what they can see and until when."
+    },
+    {
+      "kind": "text",
+      "name": "Transparency"
+    },
+    {
+      "kind": "heading",
+      "name": "Access Log",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "What actually happened to your data, not just what a grant permits - the most recent 0 events."
+    },
+    {
+      "kind": "text",
+      "name": "No Activity Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Every time your information is opened, shared or changed, it is recorded here."
+    },
+    {
+      "kind": "text",
+      "name": "New Sharing Request"
+    },
+    {
+      "kind": "heading",
+      "name": "Grant Access",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Share with an existing VisaStack user by email. They must accept before any access begins."
+    },
+    {
+      "kind": "component",
+      "name": "AiConnectionsSection"
+    },
+    {
+      "kind": "component",
+      "name": "GrantForm"
+    }
+  ],
+  "active, paused, pending, revoked, with exceptions, expansions, invitations and a log": [
+    {
+      "kind": "heading",
+      "name": "Sharing & Access",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "You control every grant. Access is purpose-bound, takes effect only once accepted, and can be paused or revoked at any time."
+    },
+    {
+      "kind": "link",
+      "name": "New Sharing Request",
+      "detail": "#new-sharing-request"
+    },
+    {
+      "kind": "text",
+      "name": "Controlled Collaboration"
+    },
+    {
+      "kind": "heading",
+      "name": "Who Has Access",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "1 active grant. Pending, paused and ended grants are labelled separately below."
+    },
+    {
+      "kind": "text",
+      "name": "Pausing or revoking stops all future access immediately. It cannot remotely erase copies the recipient already downloaded before that point."
+    },
+    {
+      "kind": "text",
+      "name": "Everything you did not select stays private."
+    },
+    {
+      "kind": "text",
+      "name": "Accepted 2 Oct 2026"
+    },
+    {
+      "kind": "text",
+      "name": "Pause stops access straight away and you can resume it later. Revoke ends this access."
+    },
+    {
+      "kind": "text",
+      "name": "Everything you did not select stays private."
+    },
+    {
+      "kind": "text",
+      "name": "Pause stops access straight away and you can resume it later. Revoke ends this access."
+    },
+    {
+      "kind": "text",
+      "name": "Everything you did not select stays private."
+    },
+    {
+      "kind": "text",
+      "name": "Pause stops access straight away and you can resume it later. Revoke ends this access."
+    },
+    {
+      "kind": "button",
+      "name": "Sharing invitations: 1 pending"
+    },
+    {
+      "kind": "text",
+      "name": "No access starts until the recipient reviews and accepts. To resend, revoke a pending invitation and create a new one."
+    },
+    {
+      "kind": "field",
+      "name": "invitationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "applicantId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "button",
+      "name": "Revoke Invitation"
+    },
+    {
+      "kind": "text",
+      "name": "Transparency"
+    },
+    {
+      "kind": "heading",
+      "name": "Access Log",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "What actually happened to your data, not just what a grant permits - the most recent 2 events."
+    },
+    {
+      "kind": "text",
+      "name": "New Sharing Request"
+    },
+    {
+      "kind": "heading",
+      "name": "Grant Access",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Invite someone by email, even if they do not have an account yet. They must sign in with that email and accept before access begins."
+    },
+    {
+      "kind": "component",
+      "name": "GrantOpButtons"
+    },
+    {
+      "kind": "component",
+      "name": "CaseExceptions"
+    },
+    {
+      "kind": "component",
+      "name": "ScopeExpansionForm"
+    },
+    {
+      "kind": "component",
+      "name": "GrantOpButtons"
+    },
+    {
+      "kind": "component",
+      "name": "GrantOpButtons"
+    },
+    {
+      "kind": "component",
+      "name": "AiConnectionsSection"
+    },
+    {
+      "kind": "component",
+      "name": "GrantForm"
+    }
+  ],
+  "access records could not be read": [
+    {
+      "kind": "heading",
+      "name": "Sharing & Access",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "You control every grant. Access is purpose-bound, takes effect only once accepted, and can be paused or revoked at any time."
+    },
+    {
+      "kind": "link",
+      "name": "New Sharing Request",
+      "detail": "#new-sharing-request"
+    },
+    {
+      "kind": "text",
+      "name": "Controlled Collaboration"
+    },
+    {
+      "kind": "heading",
+      "name": "Who Has Access",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Access records are unavailable. Reload before making changes."
+    },
+    {
+      "kind": "text",
+      "name": "We could not load sharing records. This does not mean nobody has access."
+    },
+    {
+      "kind": "text",
+      "name": "Transparency"
+    },
+    {
+      "kind": "heading",
+      "name": "Access Log",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "What actually happened to your data, not just what a grant permits - the most recent 0 events."
+    },
+    {
+      "kind": "text",
+      "name": "No Activity Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Every time your information is opened, shared or changed, it is recorded here."
+    },
+    {
+      "kind": "text",
+      "name": "New Sharing Request"
+    },
+    {
+      "kind": "heading",
+      "name": "Grant Access",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Share with an existing VisaStack user by email. They must accept before any access begins."
+    },
+    {
+      "kind": "text",
+      "name": "Document records are unavailable. Reload to review the exact scope before sharing."
+    },
+    {
+      "kind": "component",
+      "name": "AiConnectionsSection"
+    }
+  ]
+}

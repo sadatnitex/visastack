@@ -19,8 +19,12 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { DepthScope, atLevel } from '../../../../../components/depth';
+import { DepthSwitch } from '../../../../../components/depth-switch';
 import { ReferenceCode } from '../../../../../components/reference-code';
 import { EmptyState, PageHeader, StatusBadge } from '../../../../../components/ui';
+import { depthCopyFor } from '../../../../../lib/ccd/depth-copy';
+import { readDepth } from '../../../../../lib/ccd/depth.server';
 import { humanizeCode } from '../../../../../lib/format-code';
 import { formatDateOnly } from '../../../../../lib/format-date';
 import { fieldLabel } from '../../../../../lib/master-profile';
@@ -31,7 +35,7 @@ import { AWAITING_SUBMISSION, dueLabel } from './due-label';
 import { requestItemView } from './request-item';
 import { SubmitResponseForm } from './submit-response-form';
 
-export const metadata: Metadata = { title: 'Evidence' };
+export const metadata: Metadata = { title: 'Evidence Requests' };
 
 export const dynamic = 'force-dynamic';
 
@@ -125,6 +129,7 @@ export default async function EvidencePage({
       applicant,
       referenceCodes,
       requests: requestList,
+      requestsRead: requests.ok,
       profile,
       documents: documents.ok ? documents.value : [],
       documentsRead: documents.ok,
@@ -145,179 +150,234 @@ export default async function EvidencePage({
   });
   const awaiting = data.requests.filter((r) => AWAITING_SUBMISSION.has(r.status));
   const timeZone = data.applicant.timezone;
+  const depth = await readDepth('evidence-requests');
+  const items = new Map(
+    sorted.map((req) => [
+      req.id,
+      requestItemView({
+        request: req,
+        document: respondingDocumentState(req, data.documents, data.documentsRead),
+        rule: data.extras.rules.get(req.id),
+      }),
+    ]),
+  );
+  // Glance is what needs the person: a request waiting on a reply, and a sent file that could
+  // not be used (they ask the agency about it). Everything else starts at Browse.
+  const needsPerson = (req: (typeof sorted)[number]) =>
+    AWAITING_SUBMISSION.has(req.status) || items.get(req.id)?.group === 'NEEDS_CORRECTION';
+  // With nothing for the person to do, the list itself starts at Browse: no empty card at Glance.
+  const nothingWaiting = data.requests.length > 0 && !data.requests.some(needsPerson);
 
   return (
     <>
       <PageHeader
-        eyebrow="Evidence Requests"
-        title="Requests from Agencies"
+        eyebrow={data.applicant.displayName}
+        title="Evidence Requests"
         description="An agency request is that organisation asking you for something, never an official visa requirement on its own. You decide what to submit, and can reuse anything already in your wallet."
-        as="h2"
       />
 
-      {awaiting.length > 0 ? (
-        <output className="notice notice-warn request-waiting-notice">
-          {awaiting.length === 1
-            ? '1 request is waiting for you.'
-            : `${awaiting.length} requests are waiting for you.`}{' '}
-          Reply to each one below.
-        </output>
-      ) : null}
+      <DepthScope family="evidence-requests" depth={depth}>
+        <DepthSwitch family="evidence-requests" initial={depth} copy={depthCopyFor('evidence')} />
 
-      <article className="card">
-        {data.requests.length === 0 ? (
-          <EmptyState
-            icon="clipboard"
-            title="No Evidence Requests"
-            why="You reply from your saved documents in one step, and you decide what to send."
-            action={{ href: `/app/applicant/${id}/documents`, label: 'Open Documents' }}
-          >
-            This is where an agency asks you for a document or a detail. A request appears here with
-            what is needed, why, and the date it is needed by. Keeping your documents up to date
-            makes replying quick.
-          </EmptyState>
-        ) : (
-          <div className="rows">
-            {sorted.map((req) => {
-              const item = requestItemView({
-                request: req,
-                document: respondingDocumentState(req, data.documents, data.documentsRead),
-                rule: data.extras.rules.get(req.id),
-              });
-              const awaitingReply = AWAITING_SUBMISSION.has(req.status);
-              const target = requestTarget(req);
-              const itemName = `${req.kind === 'FIELD' ? 'Detail' : 'Document'}: ${target}`;
-              const decisions = data.decisionsByRequest.get(req.id) ?? [];
-              const latestDecision = decisions[0];
-              const candidateFacts =
-                req.kind === 'FIELD'
-                  ? data.profile.filter(
-                      (entry) => entry.fieldKey === req.fieldKey && entry.value !== null,
-                    )
-                  : [];
-              const candidateDocuments =
-                req.kind === 'DOCUMENT'
-                  ? data.documents.filter((doc) => doc.docType === req.docType)
-                  : [];
-              const due = req.dueDate
-                ? dueLabel(req.dueDate, req.status, data.applicant.timezone)
-                : null;
-              const code = data.referenceCodes.get(req.id);
-              const questions = data.extras.questions.get(req.id) ?? [];
-              const canAsk = Boolean(req.missionId && code && item.group !== null);
-              return (
-                <div
-                  className={`case-row request-item request-item-${item.tone}`}
-                  key={req.id}
-                  id={`request-${req.id}`}
-                >
-                  <div className="case-row-head">
-                    <span className="case-row-title">
-                      {req.kind === 'FIELD' ? 'Detail' : 'Document'}: {target}
-                    </span>
-                    <span className="case-row-badges">
-                      {due ? <StatusBadge tone={due.tone}>{due.label}</StatusBadge> : null}
-                      <StatusBadge tone={item.tone}>{item.statusLabel}</StatusBadge>
-                    </span>
-                  </div>
-                  <p className="case-row-meta u-m-0">
-                    {req.message
-                      ? `Why it is needed: \u201c${req.message}\u201d`
-                      : 'The agency did not add a reason. Ask them if you are unsure.'}
-                  </p>
-                  {req.dueDate ? (
-                    <p className="case-row-meta u-m-0">Needed by {formatDateOnly(req.dueDate)}</p>
-                  ) : null}
-                  {item.rule ? <p className="case-row-meta u-m-0">{item.rule}</p> : null}
-                  <ReferenceCode code={code} label="Request Reference" />
-                  <p className="case-row-meta u-m-0">{item.guidance}</p>
-                  {req.respondedAt && ANSWERED_STATUSES.has(req.status) ? (
-                    <p className="case-row-meta u-m-0">
-                      You sent this on {formatMoment(req.respondedAt, timeZone)}.
-                    </p>
-                  ) : null}
-                  {latestDecision?.reason ? (
-                    <p className="field-msg field-msg-err u-m-0">
-                      {DECISION_PREFIX[latestDecision.outcome] ?? ''}
-                      {latestDecision.reason}
-                    </p>
-                  ) : null}
-                  {item.group !== null ? (
-                    <SubmitResponseForm
-                      applicantId={id}
-                      requestId={req.id}
-                      kind={req.kind}
-                      awaiting={awaitingReply}
-                      timeZone={timeZone}
-                      itemLabel={itemName}
-                      candidateFacts={candidateFacts.map((f) => ({
-                        factId: f.factId,
-                        value: f.value ?? '',
-                      }))}
-                      candidateDocuments={candidateDocuments.map((d) => ({
-                        documentId: d.id,
-                        displayName: d.approvedName ?? d.originalName,
-                        usable: d.safetyStatus === 'CLEAN' && d.processingStatus !== 'FAILED',
-                        statusLabel:
-                          d.safetyStatus === 'CLEAN'
-                            ? (d.processingStatus ?? 'PROCESSING')
-                            : (d.safetyStatus ?? 'PROCESSING'),
-                      }))}
-                    />
-                  ) : null}
-                  {questions.length > 0 ? (
-                    <div className="request-questions">
-                      <p className="request-questions-title u-m-0">Your Questions</p>
-                      <ul className="request-questions-list">
-                        {questions.map((question) => (
-                          <li key={question.askedAt.toISOString()}>
-                            <span className="case-row-meta">
-                              Asked {formatMoment(question.askedAt, timeZone)}
-                            </span>
-                            <span className="request-question-text">{question.text}</span>
-                          </li>
-                        ))}
-                      </ul>
-                      {req.missionId ? (
-                        <Link
-                          href={`/app/mission/${req.missionId}#notes`}
-                          className="request-questions-link"
-                        >
-                          Read Replies in the Case Notes
-                          <span className="sr-only">: {itemName}</span>
-                        </Link>
-                      ) : null}
+        {nothingWaiting ? (
+          <p className="muted" data-only="glance">
+            Nothing is waiting for you.
+          </p>
+        ) : null}
+
+        {awaiting.length > 0 ? (
+          <output className="notice notice-warn request-waiting-notice">
+            {awaiting.length === 1
+              ? '1 request is waiting for you.'
+              : `${awaiting.length} requests are waiting for you.`}{' '}
+            Reply to each one below.
+          </output>
+        ) : null}
+
+        <article className="card" {...(nothingWaiting ? atLevel('browse') : {})}>
+          {!data.requestsRead ? (
+            // A failed read never claims there are no requests: one may be waiting.
+            <p className="notice notice-warn u-m-0" role="alert">
+              Your requests could not be loaded. Refresh to try again.
+            </p>
+          ) : data.requests.length === 0 ? (
+            <EmptyState
+              icon="clipboard"
+              title="No Evidence Requests"
+              why="You reply from your saved documents in one step, and you decide what to send."
+              action={{ href: `/app/applicant/${id}/documents`, label: 'Open Documents' }}
+            >
+              This is where an agency asks you for a document or a detail. A request appears here
+              with what is needed, why, and the date it is needed by. Keeping your documents up to
+              date makes replying quick.
+            </EmptyState>
+          ) : (
+            <div className="rows">
+              {sorted.map((req) => {
+                const item =
+                  items.get(req.id) ??
+                  requestItemView({
+                    request: req,
+                    document: respondingDocumentState(req, data.documents, data.documentsRead),
+                    rule: data.extras.rules.get(req.id),
+                  });
+                const awaitingReply = AWAITING_SUBMISSION.has(req.status);
+                // The file sent could not be used: its guidance and the question box are the
+                // way forward, so they show with the request.
+                const unusableFile = !awaitingReply && item.group === 'NEEDS_CORRECTION';
+                const target = requestTarget(req);
+                const itemName = `${req.kind === 'FIELD' ? 'Detail' : 'Document'}: ${target}`;
+                const decisions = data.decisionsByRequest.get(req.id) ?? [];
+                const latestDecision = decisions[0];
+                const candidateFacts =
+                  req.kind === 'FIELD'
+                    ? data.profile.filter(
+                        (entry) => entry.fieldKey === req.fieldKey && entry.value !== null,
+                      )
+                    : [];
+                const candidateDocuments =
+                  req.kind === 'DOCUMENT'
+                    ? data.documents.filter((doc) => doc.docType === req.docType)
+                    : [];
+                const due = req.dueDate
+                  ? dueLabel(req.dueDate, req.status, data.applicant.timezone)
+                  : null;
+                const code = data.referenceCodes.get(req.id);
+                const questions = data.extras.questions.get(req.id) ?? [];
+                const canAsk = Boolean(req.missionId && code && item.group !== null);
+                return (
+                  <div
+                    className={`case-row request-item request-item-${item.tone}`}
+                    key={req.id}
+                    id={`request-${req.id}`}
+                    {...(needsPerson(req) ? {} : atLevel('browse'))}
+                  >
+                    <div className="case-row-head">
+                      <span className="case-row-title">
+                        {req.kind === 'FIELD' ? 'Detail' : 'Document'}: {target}
+                      </span>
+                      <span className="case-row-badges">
+                        {due ? <StatusBadge tone={due.tone}>{due.label}</StatusBadge> : null}
+                        <StatusBadge tone={item.tone}>{item.statusLabel}</StatusBadge>
+                      </span>
                     </div>
-                  ) : null}
-                  {canAsk && req.missionId ? (
-                    questions.length >= REQUEST_QUESTION_LIMIT ? (
-                      <p className="case-row-meta u-m-0">
-                        You have asked several questions about this item. The agency answers in the
-                        case notes.
+                    <p className="case-row-meta u-m-0">
+                      {req.message
+                        ? `Why it is needed: \u201c${req.message}\u201d`
+                        : 'The agency did not add a reason. Ask them if you are unsure.'}
+                    </p>
+                    {req.dueDate ? (
+                      <p className="case-row-meta u-m-0" {...atLevel('browse')}>
+                        Needed by {formatDateOnly(req.dueDate)}
                       </p>
-                    ) : (
-                      <details className="request-ask">
-                        <summary className="request-ask-toggle">
-                          Ask the Agency About This Item
-                          <span className="sr-only">: {itemName}</span>
-                        </summary>
-                        <AskAboutItemForm
-                          applicantId={id}
-                          missionId={req.missionId}
-                          requestId={req.id}
-                          maxLength={REQUEST_QUESTION_MAX_LENGTH}
-                          timeZone={timeZone}
-                          itemLabel={itemName}
-                        />
-                      </details>
-                    )
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </article>
+                    ) : null}
+                    {item.rule ? (
+                      <p className="case-row-meta u-m-0" {...atLevel('browse')}>
+                        {item.rule}
+                      </p>
+                    ) : null}
+                    {code ? (
+                      <div className="depth-item" {...atLevel('browse')}>
+                        <ReferenceCode code={code} label="Request Reference" />
+                      </div>
+                    ) : null}
+                    <p className="case-row-meta u-m-0" {...(unusableFile ? {} : atLevel('browse'))}>
+                      {item.guidance}
+                    </p>
+                    {req.respondedAt && ANSWERED_STATUSES.has(req.status) ? (
+                      <p className="case-row-meta u-m-0">
+                        You sent this on {formatMoment(req.respondedAt, timeZone)}.
+                      </p>
+                    ) : null}
+                    {latestDecision?.reason ? (
+                      <p className="field-msg field-msg-err u-m-0">
+                        {DECISION_PREFIX[latestDecision.outcome] ?? ''}
+                        {latestDecision.reason}
+                      </p>
+                    ) : null}
+                    {item.group !== null ? (
+                      <SubmitResponseForm
+                        applicantId={id}
+                        requestId={req.id}
+                        kind={req.kind}
+                        awaiting={awaitingReply}
+                        timeZone={timeZone}
+                        itemLabel={itemName}
+                        candidateFacts={candidateFacts.map((f) => ({
+                          factId: f.factId,
+                          value: f.value ?? '',
+                        }))}
+                        candidateDocuments={candidateDocuments.map((d) => ({
+                          documentId: d.id,
+                          displayName: d.approvedName ?? d.originalName,
+                          usable: d.safetyStatus === 'CLEAN' && d.processingStatus !== 'FAILED',
+                          statusLabel:
+                            d.safetyStatus === 'CLEAN'
+                              ? (d.processingStatus ?? 'PROCESSING')
+                              : (d.safetyStatus ?? 'PROCESSING'),
+                        }))}
+                      />
+                    ) : null}
+                    {questions.length > 0 ? (
+                      <div className="request-questions" {...atLevel('browse')}>
+                        <p className="request-questions-title u-m-0">Your Questions</p>
+                        <ul className="request-questions-list">
+                          {questions.map((question) => (
+                            <li key={question.askedAt.toISOString()}>
+                              <span className="case-row-meta">
+                                Asked {formatMoment(question.askedAt, timeZone)}
+                              </span>
+                              <span className="request-question-text">{question.text}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        {req.missionId ? (
+                          <Link
+                            href={`/app/mission/${req.missionId}#notes`}
+                            className="request-questions-link"
+                          >
+                            Read Replies in the Case Notes
+                            <span className="sr-only">: {itemName}</span>
+                          </Link>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {canAsk && req.missionId ? (
+                      questions.length >= REQUEST_QUESTION_LIMIT ? (
+                        <p
+                          className="case-row-meta u-m-0"
+                          {...(unusableFile ? {} : atLevel('everything'))}
+                        >
+                          You have asked several questions about this item. The agency answers in
+                          the case notes.
+                        </p>
+                      ) : (
+                        <details
+                          className="request-ask"
+                          {...(unusableFile ? {} : atLevel('everything'))}
+                        >
+                          <summary className="request-ask-toggle">
+                            Ask the Agency About This Item
+                            <span className="sr-only">: {itemName}</span>
+                          </summary>
+                          <AskAboutItemForm
+                            applicantId={id}
+                            missionId={req.missionId}
+                            requestId={req.id}
+                            maxLength={REQUEST_QUESTION_MAX_LENGTH}
+                            timeZone={timeZone}
+                            itemLabel={itemName}
+                          />
+                        </details>
+                      )
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </article>
+      </DepthScope>
     </>
   );
 }

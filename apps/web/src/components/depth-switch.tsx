@@ -26,6 +26,9 @@ export interface DepthSwitchCopy {
   readonly status: string;
 }
 
+/** How long after a form is sent its block is kept on screen while the page refreshes. */
+const KEEP_SENT_IN_VIEW_MS = 60_000;
+
 function readSaved(): Partial<Record<DepthFamily, DepthLevel>> {
   const match = document.cookie.split('; ').find((part) => part.startsWith(`${DEPTH_COOKIE}=`));
   return parseDepthCookie(match?.slice(DEPTH_COOKIE.length + 1));
@@ -76,6 +79,8 @@ export function DepthSwitch({
     setStatus(words.current.status.replace('{level}', words.current.levels[level]));
   // The one way the buttons and the spoken status follow a new level, from any cause.
   const lastLevel = useRef<DepthChoice>(initial);
+  // The blocks around the form the person last sent, nearest first, and when they sent it.
+  const sent = useRef<{ readonly ids: readonly string[]; readonly at: number } | null>(null);
   const show = (level: DepthLevel) => {
     if (lastLevel.current === level) return;
     lastLevel.current = level;
@@ -104,6 +109,52 @@ export function DepthSwitch({
     });
     observer.observe(scope, { attributes: true, attributeFilter: ['data-depth'] });
     return () => observer.disconnect();
+  }, []);
+
+  // A sent form refreshes the page with new data, and that data can move the block the person
+  // just used to a deeper level (an answered request, the first share). Keep that block on
+  // screen so they see what happened; choosing a level on the switch ends this.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once; show reads refs
+  useEffect(() => {
+    const scope = root.current?.closest<HTMLElement>('[data-depth-scope]');
+    if (!scope) return;
+    const onSubmit = (event: Event) => {
+      const ids: string[] = [];
+      for (
+        let node = event.target instanceof Element ? event.target : null;
+        node && node !== scope;
+        node = node.parentElement
+      ) {
+        if (node.id) ids.push(node.id);
+      }
+      sent.current = ids.length > 0 ? { ids, at: Date.now() } : null;
+    };
+    const keepInView = () => {
+      const last = sent.current;
+      if (!last) return;
+      if (Date.now() - last.at > KEEP_SENT_IN_VIEW_MS) {
+        sent.current = null;
+        return;
+      }
+      const target = last.ids
+        .map((id) => document.getElementById(id))
+        .find((element): element is HTMLElement => element !== null && scope.contains(element));
+      if (!target) return;
+      const raised = raiseToShow(target, scope, window.matchMedia(DEPTH_PHONE_QUERY).matches);
+      if (raised) show(raised);
+    };
+    const observer = new MutationObserver(keepInView);
+    observer.observe(scope, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['data-level'],
+    });
+    scope.addEventListener('submit', onSubmit, true);
+    return () => {
+      observer.disconnect();
+      scope.removeEventListener('submit', onSubmit, true);
+    };
   }, []);
 
   // Links from emails and notifications (?depth=) and in-page anchors (#evidence): never land
@@ -149,6 +200,7 @@ export function DepthSwitch({
     choice !== 'auto' ? choice : phone === null ? null : resolveAuto(phone);
 
   const choose = (level: DepthLevel) => {
+    sent.current = null;
     const scope = root.current?.closest<HTMLElement>('[data-depth-scope]');
     scope?.setAttribute('data-depth', level);
     save(family, level);

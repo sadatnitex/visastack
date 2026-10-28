@@ -19,8 +19,8 @@ Levels: **Glance** (the one thing that matters now), **Browse** (the normal work
 | 07 | Notifications | `/app/notifications` | CCD-5 (slice 5a) | **Built and tested** (not seen live) |
 | 08 | Cases | `/missions` | CCD-4 | **Built and tested** (not seen live) |
 | 09 | Case | `/app/mission/{id}` | CCD-4 | **Built and tested** (not seen live) |
-| 10 | Evidence Requests | `/evidence` | CCD-5 | Planned |
-| 11 | Sharing | `/sharing` | CCD-5 | Planned |
+| 10 | Evidence Requests | `/evidence` | CCD-5 (slice 5b) | **Built and tested** (not seen live) |
+| 11 | Sharing | `/sharing` | CCD-5 (slice 5b) | **Built and tested** (not seen live) |
 | 12 | Privacy & Consent | `/app/privacy` | CCD-5 (slice 5a) | **Built and tested** (not seen live) |
 | 13 | Your Account | `/app/account` | CCD-1 | **Built and tested** (not seen live) |
 | 14 | Agency Overview | `/app/agency/{orgId}` | CCD-6 | Planned |
@@ -205,6 +205,47 @@ Baseline: `baseline/privacy.json`, two states (no consent changes yet; consent h
 | Export with files (the large export panel) | Everything | always |
 | Delete Your Account | Everything; **Glance while a deletion is scheduled**, so cancelling it is never hidden (tested) | always |
 | New line linking to Permissions You Control on Home (`/app#permissions`) | Everything | always |
+
+## 10. Evidence Requests (`/app/applicant/{id}/evidence`)
+
+Baseline: `baseline/evidence.json`, five states (no requests; two waiting, one received, one accepted, with a question asked; one sent back with a reason; nothing waiting; requests could not be read). Stubbed forms are counted. Test: `parity-evidence.test.tsx`.
+
+| What it is | Level it lives at now | Condition (unchanged) |
+|---|---|---|
+| Page title "Evidence Requests" (h1), eyebrow the traveller's name, the description | Glance; was "Requests from Agencies" as an h2 (D3) | always |
+| "N requests are waiting for you" notice | Glance | something waiting |
+| A request waiting on the person: its name, due and status badges, why it is needed, the reason it was sent back, the reply form | Glance (tested) | waiting |
+| A sent file that could not be used (Needs Correction while received or under review): the request, its guidance and the question box | Glance (tested), so the way forward is never hidden | file unusable |
+| "Nothing is waiting for you." | Glance only; the list then starts at Browse | requests, none waiting |
+| Needed by, the checklist note, the request reference, the next-step guidance | Browse | as before |
+| Requests already answered or closed (received, accepted, cancelled) | Browse | as before |
+| Your Questions and the link to replies in the case notes | Browse | questions asked |
+| Ask the Agency About This Item, and the "asked several questions" line | Everything | a case and a reference |
+| Requests that could not be read | Every level: "Your requests could not be loaded. Refresh to try again." (was the empty state, which claimed there were none; approved change) | read failed |
+
+Links from notifications (`#request-{id}`) open the level that shows the request.
+
+## 11. Sharing (`/app/applicant/{id}/sharing`)
+
+Baseline: `baseline/sharing.json`, three states (nobody has access; active, paused, pending and revoked access with exceptions, a scope confirmation, invitations and a log; records could not be read). Stubbed panels are counted. Test: `parity-sharing.test.tsx`.
+
+| What it is | Level it lives at now | Condition (unchanged) |
+|---|---|---|
+| Page title "Sharing" (h1), eyebrow the traveller's name, New Sharing Request (opens the form's level) | Glance; was "Sharing & Access" as an h2 (D3) | always |
+| Who Has Access card, its count line, the failed-read alert | Glance | always |
+| The revoke warning ("Pausing or revoking stops all future access...") | Glance, so at every level (tested) | any access |
+| Live and paused access: the recipient, status, the Pause, Resume and Revoke buttons and their sentence | Glance (tested) | live or paused |
+| "N more are waiting to be accepted or have ended. Choose Browse to see them." | Glance only (new); counts pending or ended access and invitations not yet accepted | some pending or ended |
+| What each person can see (the scope summary), when it was accepted, cases not covered, the new-items confirmation | Browse | as before |
+| Access waiting to be accepted, and access that has ended (revoked, expired or past its end date) | Browse, with their buttons | as before |
+| AI connections | Glance (unchanged: a connected AI can read the record, so it is part of who has access) | always |
+| Access Log | Browse | always |
+| Sharing invitations, with Revoke Invitation | Browse (planned for Everything; kept at Browse because an invitation not yet accepted can still become access); counted in the Glance line (tested) | invitations on |
+| Grant Access form | Everything; Browse while nobody has access; Glance when the person came from Share on a document | as before |
+
+At an explicit Glance or Browse that hides the form, the access column takes the full width.
+
+On every converted screen: after a form is sent, if the refreshed page moves the block the person just used to a deeper level (an answered request, the first share), the level rises to keep it on screen for up to a minute, without saving the choice; choosing a level on the switch ends this (tested in `depth-switch.test.tsx`).
 
 ## Screens 02 to 15: the level plan (from the approved canvas)
 

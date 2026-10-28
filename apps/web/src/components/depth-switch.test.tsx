@@ -226,6 +226,40 @@ describe('links never land on hidden content', () => {
   });
 });
 
+describe('a form the person just sent', () => {
+  const sendFormIn = (block: HTMLElement) => {
+    const form = document.createElement('form');
+    form.addEventListener('submit', (event) => event.preventDefault());
+    block.append(form);
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+  };
+
+  it('keeps its block on screen when the refreshed page moves it to a deeper level', async () => {
+    act(() => root.render(page('glance')));
+    const top = container.querySelector<HTMLElement>('#top-part') as HTMLElement;
+    sendFormIn(top);
+    await act(async () => {
+      top.setAttribute('data-level', 'everything');
+      await Promise.resolve();
+    });
+    expect(scope().getAttribute('data-depth')).toBe('everything');
+    expect(button('Everything').getAttribute('aria-pressed')).toBe('true');
+    expect(document.cookie).not.toContain(DEPTH_COOKIE);
+  });
+
+  it('stops once the person chooses a level themselves', async () => {
+    act(() => root.render(page('glance')));
+    const top = container.querySelector<HTMLElement>('#top-part') as HTMLElement;
+    sendFormIn(top);
+    act(() => button('Glance').click());
+    await act(async () => {
+      top.setAttribute('data-level', 'browse');
+      await Promise.resolve();
+    });
+    expect(scope().getAttribute('data-depth')).toBe('glance');
+  });
+});
+
 describe('the server markup', () => {
   it('renders every block, whatever the level, so nothing leaves the page', () => {
     const html = renderToStaticMarkup(page('glance'));

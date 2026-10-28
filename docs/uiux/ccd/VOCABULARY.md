@@ -10,8 +10,8 @@ Approved by the owner on 2026-10-28 (decision D3). Applies to user-facing words:
 | Cases list | Cases; eyebrow = traveller name; section "All Cases" | "Visa Cases", "Your Cases", "Active & Past" | **Done on the Cases page (CCD-4)**; the menu label "Visa Cases" and the traveller page's "Active Visa Cases" and "Start a Visa Case" remain for the naming pass in CCD-7 |
 | Start a case | Start a Case | "New Visa Case", "Start a Visa Case" | Traveller page done (CCD-2 slice 2b); the Cases screen follows in CCD-4 |
 | Alerts | Notifications | "Alerts", "Updates on Your Cases" | Done (CCD-5 slice 5a) |
-| Requests to the traveller | Evidence Requests | "Requests from Agencies" | Planned CCD-5 |
-| Sharing | Sharing | "Sharing & Access" | Planned CCD-5 |
+| Requests to the traveller | Evidence Requests | "Requests from Agencies" | Done (CCD-5 slice 5b) |
+| Sharing | Sharing | "Sharing & Access" | Done (CCD-5 slice 5b) |
 | Privacy page | Privacy & Consent | "Your Data Rights" | Done (CCD-5 slice 5a) |
 | Account page | Your Account, the email shown under the heading | email as the heading | **Done (CCD-1)** |
 | Downloads on Privacy | "Download Export (JSON)" and "Download Export (CSV/ZIP)" | the lower-case variant | Done (CCD-5 slice 5a) |

@@ -456,7 +456,8 @@ test.describe
       await ensureConsent(page, 'Let Me Share with Others');
       const applicantUrl = await createApplicant(page, 'E2E Sharing Safety');
 
-      await page.goto(`${applicantUrl}/sharing`);
+      // The Grant Access form opens its own level from its anchor (CCD-5).
+      await page.goto(`${applicantUrl}/sharing#new-sharing-request`);
       const unownedEmail = `e2e-unowned-${Date.now()}@example.invalid`;
       await page.getByLabel('Recipient Email').fill(unownedEmail);
       await page.getByLabel('Purpose').fill('E2E unowned-recipient safety check');
@@ -581,7 +582,7 @@ test.describe
         (await page.locator('h1').first().textContent())?.trim() ?? 'E2E Cross Account';
 
       // First grant: created and revoked before the recipient ever accepts.
-      await page.goto(`${sharedFixture.applicantUrl}/sharing`);
+      await page.goto(`${sharedFixture.applicantUrl}/sharing#new-sharing-request`);
       await page.getByLabel('Recipient Email').fill(email2 ?? '');
       await page.getByLabel('Purpose').fill('E2E revoke before acceptance');
       await page.getByRole('button', { name: 'Review and Confirm' }).click();
@@ -606,7 +607,7 @@ test.describe
 
       // Second grant, kept for the following tests: view-only, one permission.
       sharedFixture.grantPurpose = `E2E narrow share ${Date.now()}`;
-      await page.goto(`${sharedFixture.applicantUrl}/sharing`);
+      await page.goto(`${sharedFixture.applicantUrl}/sharing#new-sharing-request`);
       await page.getByLabel('Recipient Email').fill(email2 ?? '');
       await page.getByLabel('Purpose').fill(sharedFixture.grantPurpose);
       await page.getByLabel('Preview Documents').uncheck();

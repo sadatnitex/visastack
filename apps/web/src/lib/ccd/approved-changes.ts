@@ -165,6 +165,40 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     }),
   ),
   {
+    screen: 'sharing',
+    from: { kind: 'heading', name: 'Sharing & Access', detail: '2' },
+    to: { kind: 'heading', name: 'Sharing', detail: '1' },
+    reason:
+      'D3 and D2: the page is "Sharing", eyebrow the traveller\'s name, as the one page heading.',
+  },
+  {
+    screen: 'evidence',
+    from: { kind: 'heading', name: 'Requests from Agencies', detail: '2' },
+    to: { kind: 'heading', name: 'Evidence Requests', detail: '1' },
+    reason:
+      'D3 and D2: the page is "Evidence Requests", eyebrow the traveller\'s name, as the one page heading.',
+  },
+  ...[
+    { kind: 'text', name: 'No Evidence Requests' },
+    {
+      kind: 'text',
+      name: 'This is where an agency asks you for a document or a detail. A request appears here with what is needed, why, and the date it is needed by. Keeping your documents up to date makes replying quick.',
+    },
+    {
+      kind: 'text',
+      name: 'You reply from your saved documents in one step, and you decide what to send.',
+    },
+    { kind: 'link', name: 'Open Documents', detail: '/app/applicant/person/documents' },
+  ].map(
+    (entry): ApprovedChange => ({
+      screen: 'evidence',
+      from: entry as InventoryEntry,
+      to: (state) => (state === 'requests could not be read' ? null : (entry as InventoryEntry)),
+      reason:
+        'When the requests could not be read, the page says so instead of claiming there are none.',
+    }),
+  ),
+  {
     screen: 'case',
     from: { kind: 'heading', name: 'Evidence Progress', detail: '3' },
     to: { kind: 'heading', name: 'Evidence Progress', detail: '2' },

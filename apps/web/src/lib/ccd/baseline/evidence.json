@@ -1,0 +1,208 @@
+{
+  "no requests yet": [
+    {
+      "kind": "heading",
+      "name": "Requests from Agencies",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "An agency request is that organisation asking you for something, never an official visa requirement on its own. You decide what to submit, and can reuse anything already in your wallet."
+    },
+    {
+      "kind": "text",
+      "name": "No Evidence Requests"
+    },
+    {
+      "kind": "text",
+      "name": "This is where an agency asks you for a document or a detail. A request appears here with what is needed, why, and the date it is needed by. Keeping your documents up to date makes replying quick."
+    },
+    {
+      "kind": "text",
+      "name": "You reply from your saved documents in one step, and you decide what to send."
+    },
+    {
+      "kind": "link",
+      "name": "Open Documents",
+      "detail": "/app/applicant/person/documents"
+    }
+  ],
+  "two waiting, one received, one accepted, with a question asked": [
+    {
+      "kind": "heading",
+      "name": "Requests from Agencies",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "An agency request is that organisation asking you for something, never an official visa requirement on its own. You decide what to submit, and can reuse anything already in your wallet."
+    },
+    {
+      "kind": "text",
+      "name": "Why it is needed: “For the embassy file”"
+    },
+    {
+      "kind": "text",
+      "name": "Needed by Nov 10, 2026"
+    },
+    {
+      "kind": "text",
+      "name": "The checklist asks for something dated within the last 90 days."
+    },
+    {
+      "kind": "button",
+      "name": "Copy Reference R-7K2Q9M"
+    },
+    {
+      "kind": "text",
+      "name": "Next: send a document from your wallet, or add a new one first. Only documents that have finished their safety checks can be sent."
+    },
+    {
+      "kind": "text",
+      "name": "Your Questions"
+    },
+    {
+      "kind": "text",
+      "name": "Asked 27 Oct 2026, 14:32 GMT+6Is a photo enough?"
+    },
+    {
+      "kind": "link",
+      "name": "Read Replies in the Case Notes: Document: Bank Statement",
+      "detail": "/app/mission/m1#notes"
+    },
+    {
+      "kind": "button",
+      "name": "Ask the Agency About This Item: Document: Bank Statement"
+    },
+    {
+      "kind": "text",
+      "name": "The agency did not add a reason. Ask them if you are unsure."
+    },
+    {
+      "kind": "text",
+      "name": "Next: send the detail from your profile, or add it there first."
+    },
+    {
+      "kind": "text",
+      "name": "The agency did not add a reason. Ask them if you are unsure."
+    },
+    {
+      "kind": "button",
+      "name": "Copy Reference R-3H8P2W"
+    },
+    {
+      "kind": "text",
+      "name": "The agency has it and will review it. Nothing more is needed from you yet. Received does not mean accepted."
+    },
+    {
+      "kind": "text",
+      "name": "You sent this on 20 Oct 2026, 14:00 GMT+6."
+    },
+    {
+      "kind": "text",
+      "name": "The agency did not add a reason. Ask them if you are unsure."
+    },
+    {
+      "kind": "text",
+      "name": "The agency reviewed what you sent and accepted it. Nothing more is needed."
+    },
+    {
+      "kind": "component",
+      "name": "SubmitResponseForm"
+    },
+    {
+      "kind": "component",
+      "name": "AskAboutItemForm"
+    },
+    {
+      "kind": "component",
+      "name": "SubmitResponseForm"
+    },
+    {
+      "kind": "component",
+      "name": "SubmitResponseForm"
+    },
+    {
+      "kind": "component",
+      "name": "SubmitResponseForm"
+    }
+  ],
+  "one sent back with a reason": [
+    {
+      "kind": "heading",
+      "name": "Requests from Agencies",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "An agency request is that organisation asking you for something, never an official visa requirement on its own. You decide what to submit, and can reuse anything already in your wallet."
+    },
+    {
+      "kind": "text",
+      "name": "The agency did not add a reason. Ask them if you are unsure."
+    },
+    {
+      "kind": "text",
+      "name": "Next: send a replacement. The reason is shown below."
+    },
+    {
+      "kind": "text",
+      "name": "Replacement needed: The last page is cut off."
+    },
+    {
+      "kind": "component",
+      "name": "SubmitResponseForm"
+    }
+  ],
+  "nothing waiting": [
+    {
+      "kind": "heading",
+      "name": "Requests from Agencies",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "An agency request is that organisation asking you for something, never an official visa requirement on its own. You decide what to submit, and can reuse anything already in your wallet."
+    },
+    {
+      "kind": "text",
+      "name": "The agency did not add a reason. Ask them if you are unsure."
+    },
+    {
+      "kind": "text",
+      "name": "The agency reviewed what you sent and accepted it. Nothing more is needed."
+    },
+    {
+      "kind": "component",
+      "name": "SubmitResponseForm"
+    }
+  ],
+  "requests could not be read": [
+    {
+      "kind": "heading",
+      "name": "Requests from Agencies",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "An agency request is that organisation asking you for something, never an official visa requirement on its own. You decide what to submit, and can reuse anything already in your wallet."
+    },
+    {
+      "kind": "text",
+      "name": "No Evidence Requests"
+    },
+    {
+      "kind": "text",
+      "name": "This is where an agency asks you for a document or a detail. A request appears here with what is needed, why, and the date it is needed by. Keeping your documents up to date makes replying quick."
+    },
+    {
+      "kind": "text",
+      "name": "You reply from your saved documents in one step, and you decide what to send."
+    },
+    {
+      "kind": "link",
+      "name": "Open Documents",
+      "detail": "/app/applicant/person/documents"
+    }
+  ]
+}

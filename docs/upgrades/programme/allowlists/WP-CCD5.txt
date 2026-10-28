@@ -19,3 +19,7 @@ apps/web/src/lib/page-titles.test.ts
 apps/web/e2e/authenticated-workspace.spec.ts
 apps/web/src/app/app/applicant/[id]/missions/page.tsx
 apps/web/src/app/app/applicant/[id]/missions/page.test.tsx
+apps/web/src/app/app/applicant/[id]/evidence/page.tsx
+apps/web/src/app/app/applicant/[id]/evidence/page.test.tsx
+apps/web/src/app/app/applicant/[id]/sharing/page.tsx
+apps/web/src/app/app/applicant/[id]/sharing/page.test.tsx
