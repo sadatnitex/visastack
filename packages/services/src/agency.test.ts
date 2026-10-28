@@ -3,7 +3,7 @@ import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
 import { and, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EACH_GRANT, accountPrincipal, requireAccess } from './access';
 import type { AuthorizedApplicant } from './access';
 import { provisionAccount } from './accounts';
@@ -1024,14 +1024,25 @@ describe('agency collaboration — assignments, notes, evidence', () => {
         docType: 'bank_statement',
       });
 
-    for (let i = 0; i < RATE_LIMITS.EVIDENCE_REQUEST.limit; i++) {
-      const result = await attempt();
-      expect(isOk(result)).toBe(true);
-    }
-    const overLimit = await attempt();
-    expect(isErr(overLimit)).toBe(true);
-    if (isErr(overLimit)) {
-      expect(overLimit.error.code).toBe('rate_limited');
+    // The limit counts in fixed clock-hour windows; a slow run that crossed the hour would start
+    // a new window midway. Hold the clock still so every attempt lands in one window.
+    // Mid-way through the next hour: later than everything set up above, so the access stays valid.
+    const hour = 60 * 60 * 1000;
+    const pinned = Math.floor(Date.now() / hour) * hour + hour + hour / 2;
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(pinned);
+    try {
+      for (let i = 0; i < RATE_LIMITS.EVIDENCE_REQUEST.limit; i++) {
+        const result = await attempt();
+        expect(isOk(result)).toBe(true);
+      }
+      const overLimit = await attempt();
+      expect(isErr(overLimit)).toBe(true);
+      if (isErr(overLimit)) {
+        expect(overLimit.error.code).toBe('rate_limited');
+      }
+    } finally {
+      vi.useRealTimers();
     }
   });
 
