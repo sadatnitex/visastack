@@ -18,3 +18,5 @@ apps/web/src/app/app/applicant/[id]/page.tsx
 apps/web/src/app/app/applicant/[id]/insights/page.tsx
 apps/web/src/app/app/applicant/[id]/evidence/page.tsx
 apps/web/src/lib/case-stages.ts
+apps/web/src/app/app/applicant/[id]/evidence/page.test.tsx
+apps/web/src/app/app/applicant/[id]/insights/page.test.tsx
