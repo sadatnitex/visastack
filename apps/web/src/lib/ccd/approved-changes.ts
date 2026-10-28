@@ -187,6 +187,16 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
   },
   {
     screen: 'agency-home',
+    from: {
+      kind: 'text',
+      name: 'Cases that need action come first. Search covers only the cases you are already allowed to see, by traveller, case title, reference, destination or stage.',
+    },
+    to: { kind: 'text', name: 'Cases that need action come first.' },
+    reason:
+      'The sentence about search moved beside the search form, at the level that shows it (both sentences kept).',
+  },
+  {
+    screen: 'agency-home',
     from: { kind: 'link', name: 'Invite Traveller', detail: '/app/agency/o1/clients' },
     to: { kind: 'link', name: 'Invite a Client', detail: '/app/agency/o1/clients' },
     reason: 'D3: one name, "Invite a Client".',

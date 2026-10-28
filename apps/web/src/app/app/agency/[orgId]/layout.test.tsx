@@ -77,11 +77,14 @@ describe('agency console layout', () => {
       /<span class="eyebrow">Dhaka Visa Desk<\/span><h1 class="page-title">Cases<\/h1>/,
     );
     expect(html.match(/<h1/g)).toHaveLength(1);
-    // Plan & Usage renders its own h1, so the heading names the agency as plain text there.
-    navigationState.pathname = '/app/agency/o1/plan';
-    html = await renderServer(Layout({ children: null, params }));
-    expect(html).not.toContain('<h1');
-    expect(textOf(html)).toContain('Dhaka Visa Desk');
+    // Plan & Usage, Countries and Case Activity render their own h1, so the heading names the
+    // agency as plain text there and no page has two.
+    for (const page of ['plan', 'countries', 'countries/fr', 'activity']) {
+      navigationState.pathname = `/app/agency/o1/${page}`;
+      html = await renderServer(Layout({ children: null, params }));
+      expect(html, page).not.toContain('<h1');
+      expect(textOf(html), page).toContain('Dhaka Visa Desk');
+    }
   });
 
   it('tells someone with no role so, and renders neither the bar nor the page', async () => {

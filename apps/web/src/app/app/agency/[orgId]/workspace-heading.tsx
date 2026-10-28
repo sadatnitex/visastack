@@ -12,15 +12,14 @@ const PAGE_NAMES: Readonly<Record<string, string>> = {
   cases: 'Cases',
   clients: 'Clients',
   team: 'Team',
-  settings: 'Settings',
-  countries: 'Countries',
-  activity: 'Case Activity',
+  settings: 'Agency Settings',
 };
 
 /**
  * Display only. The server layout still checks membership and supplies every permission.
  * The agency's name sits above as the eyebrow and the page's own name is the one h1 (D3). A page
- * that renders its own h1 (Plan & Usage) gets the agency's name as plain text instead.
+ * that renders its own h1 (Plan & Usage, Countries, Case Activity) gets the agency's name as plain
+ * text instead, so no page has two.
  */
 export function AgencyWorkspaceHeading({
   organizationId,
@@ -39,7 +38,11 @@ export function AgencyWorkspaceHeading({
   const section = pathname.startsWith(`${base}/`)
     ? (pathname.slice(base.length + 1).split('/')[0] ?? '')
     : '';
-  const pageName = overview ? PAGE_NAMES[''] : PAGE_NAMES[section];
+  const pageName = overview
+    ? PAGE_NAMES['']
+    : Object.hasOwn(PAGE_NAMES, section)
+      ? PAGE_NAMES[section]
+      : undefined;
   return (
     <AgencyBrandScope brand={brand} className="agency-hero">
       <AgencyMark brand={brand} size="lg" />

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { atLevel } from '../../../../components/depth';
+import { agree } from '../../../../lib/plural';
 import type { DoNextItem, DoNextTier } from './do-next';
 import { FollowUpCopy } from './follow-up-copy';
 
@@ -88,8 +89,8 @@ export function DoNextList({
       )}
       {items.length > 1 ? (
         <p className="muted do-next-more" data-only="glance">
-          {items.length === 2 ? '1 more needs' : `${items.length - 1} more need`} you. Choose Browse
-          to see {items.length === 2 ? 'it' : 'them'}.
+          {items.length - 1} more {agree(items.length - 1, 'needs', 'need')} you. Choose Browse to
+          see {agree(items.length - 1, 'it', 'them')}.
         </p>
       ) : null}
       {items.length > shown.length ? (

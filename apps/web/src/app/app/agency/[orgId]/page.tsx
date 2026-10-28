@@ -277,7 +277,7 @@ export default async function AgencyDashboardPage({
 
   const depth = await readDepth('agency-home');
   const depthWords = depthCopy({
-    glance: depthWord('depth.agency-home.glance'),
+    glance: depthWord(filtered ? 'depth.agency-home.glance.filtered' : 'depth.agency-home.glance'),
     browse: depthWord(
       data.admin ? 'depth.agency-home.browse.admin' : 'depth.agency-home.browse.member',
     ),
@@ -336,7 +336,8 @@ export default async function AgencyDashboardPage({
         </section>
       ) : null}
       {data.admin && setupSteps.some((step) => !step.done) ? (
-        <details className="agency-setup-disclosure" {...atLevel('everything')}>
+        // Shown only while setup is unfinished, and then it is the next thing to do: every level.
+        <details className="agency-setup-disclosure">
           <summary>
             Finish agency setup: {setupSteps.filter((step) => step.done).length} of{' '}
             {setupSteps.length} complete
@@ -363,7 +364,7 @@ export default async function AgencyDashboardPage({
             <section
               className="card pipeline-card"
               aria-labelledby="pipeline-heading"
-              {...atLevel('browse')}
+              {...(listLevel ? atLevel(listLevel) : {})}
             >
               <h2 className="card-title" id="pipeline-heading">
                 Case Pipeline
@@ -391,7 +392,7 @@ export default async function AgencyDashboardPage({
             <section
               className="card pipeline-card"
               aria-labelledby="pipeline-heading"
-              {...atLevel('browse')}
+              {...(listLevel ? atLevel(listLevel) : {})}
             >
               <h2 className="card-title" id="pipeline-heading">
                 Case Pipeline
@@ -407,11 +408,12 @@ export default async function AgencyDashboardPage({
             <h2 className="card-title" id="inbox-heading">
               Cases and Attention
             </h2>
-            <p className="card-body u-mb-100">
-              Cases that need action come first. Search covers only the cases you are already
-              allowed to see, by traveller, case title, reference, destination or stage.
-            </p>
+            <p className="card-body u-mb-100">Cases that need action come first.</p>
             <div className="depth-item" {...(filtered ? {} : atLevel('everything'))}>
+              <p className="card-body u-mb-100">
+                Search covers only the cases you are already allowed to see, by traveller, case
+                title, reference, destination or stage.
+              </p>
               <CaseSearchForm
                 orgId={orgId}
                 members={data.members.map((m) => ({ accountId: m.accountId, email: m.email }))}

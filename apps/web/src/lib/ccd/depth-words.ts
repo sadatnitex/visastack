@@ -50,6 +50,8 @@ export const DEPTH_WORDS = {
   'depth.sharing.everything': 'Everything: the form to share with someone new.',
   'depth.sharing.everything.nothingMore': 'Everything: nothing more on this screen.',
   'depth.agency-home.glance': 'Glance: your numbers and the first thing to do.',
+  'depth.agency-home.glance.filtered':
+    'Glance: your numbers, the first thing to do and the cases you asked for.',
   'depth.agency-home.browse.admin':
     'Browse: everything to do, the case pipeline, the case list, evidence requests and your team.',
   'depth.agency-home.browse.member':

@@ -209,6 +209,7 @@ describe('agency overview levels', () => {
     state.search = { quick: 'unassigned' };
     const doc = await page();
     expect(levelOf(byHeading(doc, 'Cases and Attention'))).toBe('glance');
+    expect(levelOf(byHeading(doc, 'Case Pipeline'))).toBe('glance');
     expect(levelOf(doc.querySelector('.agency-working-area form'))).toBe('glance');
   });
 
@@ -220,5 +221,12 @@ describe('agency overview levels', () => {
     );
     expect(levelOf(notice)).toBe('browse');
     expect(levelOf(byHeading(doc, 'Your Case Work'))).toBe('browse');
+  });
+
+  it('keeps unfinished setup in view at every level, because it is the next thing to do', async () => {
+    state.cases = [];
+    state.members = [me];
+    const doc = await page();
+    expect(levelOf(doc.querySelector('.agency-setup-disclosure'))).toBe('glance');
   });
 });

@@ -262,12 +262,13 @@ Baseline: `baseline/agency-home.json`, five states (a new agency; a busy adminis
 | Do Next: heading, intro and the first item | Glance | always |
 | "N more need you. Choose Browse to see them." | Glance only (new) | more than one item |
 | Do Next items 2 to 8, "Showing N of M" | Browse | as before |
-| Case Pipeline, Cases and Attention (quick views, table, empty states) | Browse; at Glance when a search, stage or quick view asked for the list | always |
-| Search form | Everything; at Glance with a search or quick view | always |
+| Case Pipeline, Cases and Attention (quick views, table, empty states) | Browse; both at Glance when a search, stage or quick view asked for the list (tested) | always |
+| Search form and its sentence ("Search covers only...", split from the list's intro, approved change) | Everything; at Glance with a search or quick view | always |
 | Evidence Requests, Your Team (administrator); Your Case Work (member); the member notice | Browse | as before |
-| Reassignment Queue, Case Activity, Clients Joined, Finish Agency Setup, Attention Details | Everything | as before |
+| Reassignment Queue, Case Activity, Clients Joined, Attention Details | Everything | as before |
+| Finish Agency Setup | Every level (planned for Everything; it shows only while setup is unfinished, and then it is the next thing to do) (tested) | setup unfinished |
 
-Every other agency page gets the same heading: the agency's name above and the page's name as the one h1 (Cases, Clients, Team, Settings, Countries, Case Activity); Plan & Usage keeps its own h1 and shows the agency's name as plain text (tested).
+Every other agency page gets the same heading: the agency's name above and the page's name as the one h1 (Cases, Clients, Team, Agency Settings, matching the menu). Plan & Usage, Countries and Case Activity keep their own h1 (Case Activity's header is now that h1) and the heading shows the agency's name as plain text (tested).
 
 ## Screens 02 to 15: the level plan (from the approved canvas)
 
