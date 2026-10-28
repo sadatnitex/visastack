@@ -170,12 +170,15 @@ test.describe('the app under the policy', () => {
     });
   }
 
-  test('switching language, a Server Action, raises no violation', async ({ page }) => {
+  test('a Server Action raises no violation', async ({ page }) => {
     await trackViolations(page);
-    await page.goto('/');
+    await page.goto('/auth/forgot-password');
     await waitForHydration(page);
-    await page.getByRole('button', { name: 'বাংলা' }).click();
-    await expect(page.locator('html')).toHaveAttribute('lang', 'bn');
+    // The browser accepts this address but the server does not (no dot after the @), so the
+    // action answers by itself with a redirect and never calls the sign-in service.
+    await page.getByLabel('Email Address').fill('person@example');
+    await page.getByRole('button', { name: 'Send Me a Link' }).click();
+    await expect(page).toHaveURL(/\/auth\/forgot-password\?e=invalid$/);
     expect(await violations(page)).toEqual([]);
   });
 

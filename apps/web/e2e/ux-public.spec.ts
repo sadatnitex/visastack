@@ -129,16 +129,23 @@ test.describe('keyboard navigation', () => {
   });
 });
 
-test.describe('language switching', () => {
-  test('switching to Bangla changes the html lang attribute and persists across navigation', async ({
+test.describe('language choice', () => {
+  // Translation is deferred (owner decision), so the switch is hidden and every page is English,
+  // even for someone who saved a Bangla choice before (src/lib/locale.ts LANGUAGE_CHOICE_ENABLED).
+  test('offers no language switch and stays English while translation has not started', async ({
     page,
+    context,
+    baseURL,
   }) => {
     await page.goto('/');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-    await page.getByRole('button', { name: 'বাংলা' }).click();
-    await expect(page.locator('html')).toHaveAttribute('lang', 'bn');
+    await expect(page.getByRole('button', { name: 'বাংলা' })).toHaveCount(0);
+    await expect(page.locator('.lang-switch')).toHaveCount(0);
+    await context.addCookies([
+      { name: 'visastack_locale', value: 'bn', url: baseURL ?? page.url() },
+    ]);
     await page.goto('/status');
-    await expect(page.locator('html')).toHaveAttribute('lang', 'bn');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   });
 });
 

@@ -8922,6 +8922,26 @@ summary.visa-photo-title {
   overflow-wrap: anywhere;
 }
 
+/* WP-UXD Help contact routes */
+.help-contact {
+  margin-top: 1.5rem;
+}
+.help-contact-route {
+  padding-block: 1rem;
+  border-top: 1px solid var(--hairline);
+}
+.help-contact-route h3 {
+  margin: 0 0 0.35rem;
+  font-size: var(--text-body);
+}
+.help-contact-route p {
+  margin: 0;
+}
+/* Keeps the keyboard hint's space until the browser knows which key to name (shortcut-hint.tsx). */
+.shortcut-hint-pending {
+  visibility: hidden;
+}
+
 /* WP-UXA case screens (owner list items 1, 3 and 10): the Start a Case field messages, the welcome
    note a new case opens with, the case page's More menu with its cancel question, and the brief
    and summary choices drawn as real cards. Flat: borders and existing tokens only, no shadows or

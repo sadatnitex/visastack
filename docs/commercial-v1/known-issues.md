@@ -5903,6 +5903,15 @@ Owner approved 2026-10-25. Two fixes where the product said something that was n
 - Migration 0100 (`ai_connections`, `ai_connection_tokens`, `oauth_clients`; additive, re-runnable). Until it runs, connecting reports "not available yet". Owner pre-approved the run for this session.
 - Not verified: a live connection from Claude or ChatGPT (needs the switch on and S14's route); the default DNS check in the fetcher against real hosts.
 
+### 2026-10-27, Interface: stale states and polish (owner list items 8, 9, 11, 12)
+- Agency invitations (team and client): the "Invitation ready" line and its private link belong to one invitation. Once that invitation is revoked or accepted, the page no longer lists it and the form drops both, so a dead link is never offered. The forms still submit before the page's scripts load. A new link the page has not listed yet stays visible, so its only copy is never hidden, and "Link copied." never carries over to the next invitation.
+- One status line per area: tasks, appointments, people on a case and the selected-evidence panel each show only the latest answer ("Task added." no longer sits beside "Task started."). The line appears beside the button that was pressed (below the list for Start, Done and Cancel; below the form for Add). If two answers arrive together, a problem wins over a success.
+- Help: a "Get Help from a Person" card with routes for a case or agency problem, a question for the agency, data and privacy, and something not working (status page first, then Problems and Feedback on the affected case, which reaches VisaStack staff). Keyboard hints name the right key for the device (Ctrl on Windows and Linux).
+- Language switch hidden while translation is deferred; every page is English and the language action changes nothing while the switch is off. A saved choice is kept, not deleted, and returns if the switch is turned back on.
+- Two home pages: the account-wide page is now called Account Overview in its heading and in the navigation (a tool link in a traveller workspace, the first tab with no traveller), and a traveller's Home tab is current only on that traveller's own page.
+- Help shows a support inbox to everyone, including people with no case yet, once SUPPORT_EMAIL is set (a watched address). Unset, no address is shown.
+- Not verified: SUPPORT_EMAIL is not set in production yet, so until it is, people with no case have only the status page.
+
 ### 2026-10-27, UX-A: case screens (start a case, sidebar, cancel, names)
 
 - No migration, no new events. Start a Case now asks for the country (from the countries the app holds) and the purpose (from the owner-approved list, adviser-only routes left out) with each problem shown beside its field; a new case opens at the top with a welcome note. "Prepare Again" is now "Start a New Case from This One" and "Application Memory" is now "Case History". Cancel Case moved from the stage buttons to a More menu with a confirmation question; the stage tracker no longer lists Cancelled as a next stage and says to use More instead.

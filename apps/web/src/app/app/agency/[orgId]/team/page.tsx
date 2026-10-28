@@ -105,7 +105,10 @@ export default async function AgencyTeamPage({
           ))}
         </div>
       ) : null}
-      <AddMemberForm organizationId={orgId} />
+      <AddMemberForm
+        organizationId={orgId}
+        pendingInvitationIds={data.invitations.map((invitation) => invitation.id)}
+      />
     </article>
   );
 }

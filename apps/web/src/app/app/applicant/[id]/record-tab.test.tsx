@@ -67,8 +67,8 @@ describe('the four-tab shell (WP-V3 part 2)', () => {
     const tools = [...container.querySelectorAll('.workspace-tools nav a')].map(
       (a) => a.textContent,
     );
-    expect(tools).toContain('Account and Permissions');
-    expect(tools).not.toContain('Account Overview');
+    // The account-wide page keeps its own name, so it is never a second Home.
+    expect(tools).toContain('Account Overview');
   });
 
   it('marks Record as the current tab on each of its sections, and no other tab', () => {
@@ -84,28 +84,25 @@ describe('the four-tab shell (WP-V3 part 2)', () => {
     }
   });
 
-  it('with no traveller yet there is no Record or Cases tab to open, only Home and Add a Traveller', () => {
+  it('with no traveller yet there is no Record or Cases tab to open, only the account and Add a Traveller', () => {
     mount(NONE);
     expect(labelsOf('.app-bar .app-shell-links a')).toEqual([
-      'Home',
+      'Account Overview',
       'Add a Traveller',
       'Notifications',
       'Countries',
     ]);
   });
 
-  it('on the account page only Home is current, though Account and Permissions opens it too', () => {
+  it('on the account page only Account Overview is current, never a traveller Home', () => {
     for (const access of [FULL, NONE]) {
       act(() => root.render(<span />));
       route.pathname = '/app';
       mount(access);
       const current = [...container.querySelectorAll('.app-shell-nav a[aria-current="page"]')];
-      expect(current.map((a) => a.textContent?.trim())).toHaveLength(1);
-      expect(current[0]?.getAttribute('aria-label')).toBe('Home');
-      const tool = [...container.querySelectorAll('.workspace-tools nav a')].find(
-        (a) => a.textContent === 'Account and Permissions',
-      );
-      expect(tool?.getAttribute('href')).toBe('/app#permissions');
+      expect(current).toHaveLength(1);
+      expect(current[0]?.textContent).toContain('Account Overview');
+      expect(current[0]?.getAttribute('href')).toBe('/app');
     }
   });
 });

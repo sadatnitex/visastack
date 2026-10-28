@@ -42,7 +42,7 @@ describe('current contextual navigation contract', () => {
       '/app/privacy',
     );
     expect(nav.tools.map((link) => link.label)).toEqual(
-      expect.arrayContaining(['Shared with Me', 'Account and Permissions', 'Evidence Requests']),
+      expect.arrayContaining(['Shared with Me', 'Account Overview', 'Evidence Requests']),
     );
   });
   it('offers the country rules even before a traveller exists, and marks them current on their own pages', () => {
@@ -233,7 +233,7 @@ describe('workspace navigation link list (characterization)', () => {
     ]);
     expect(pairs(nav.tools)).toEqual([
       ['Shared with Me', '/app/shared'],
-      ['Account and Permissions', '/app#permissions'],
+      ['Account Overview', '/app'],
       ['Evidence Requests', `${base}/evidence`],
     ]);
     expect(nav.settings).toEqual([]);
@@ -249,15 +249,12 @@ describe('workspace navigation link list (characterization)', () => {
   it('a personal space with no traveller yet', () => {
     const nav = workspaceNavigation('/app', none);
     expect(pairs(nav.primary)).toEqual([
-      ['Home', '/app'],
+      ['Account Overview', '/app'],
       ['Add a Traveller', '/app/applicants'],
       ['Notifications', '/app/notifications'],
       ['Countries', '/app/countries'],
     ]);
-    expect(pairs(nav.tools)).toEqual([
-      ['Shared with Me', '/app/shared'],
-      ['Account and Permissions', '/app#permissions'],
-    ]);
+    expect(pairs(nav.tools)).toEqual([['Shared with Me', '/app/shared']]);
   });
 
   it('an agency workspace, for an administrator and for a case worker', () => {
@@ -369,7 +366,7 @@ describe('no destination is lost by the four-tab change', () => {
     ).toEqual([]);
   });
 
-  it('the account page has one name in the navigation: only Home is current on /app', () => {
+  it('the account page has one name in the navigation: only Account Overview is current on /app', () => {
     for (const [who, nav] of [
       ['a traveller', workspaceNavigation('/app', linkAccess)],
       ['no traveller yet', workspaceNavigation('/app', none)],
@@ -378,7 +375,7 @@ describe('no destination is lost by the four-tab change', () => {
       expect(
         current.map((link) => link.label),
         who,
-      ).toEqual(['Home']);
+      ).toEqual(['Account Overview']);
     }
   });
 });

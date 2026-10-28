@@ -10,6 +10,13 @@ const revalidatePath = vi.fn();
 
 vi.mock('next/headers', () => ({ cookies: async () => ({ set }) }));
 vi.mock('next/cache', () => ({ revalidatePath: (...args: unknown[]) => revalidatePath(...args) }));
+// The cookie rules below are tested with language choice on; the gate is tested on its own.
+const choice = vi.hoisted(() => ({ enabled: true }));
+vi.mock('../lib/language-choice', () => ({
+  get LANGUAGE_CHOICE_ENABLED() {
+    return choice.enabled;
+  },
+}));
 
 const { setLocaleAction } = await import('./actions');
 const { LOCALE_COOKIE, localeCookieOptions } = await import('../lib/locale');
@@ -23,6 +30,16 @@ function form(locale: string): FormData {
 beforeEach(() => {
   set.mockReset();
   revalidatePath.mockReset();
+  choice.enabled = true;
+});
+
+describe('setLocaleAction while language choice is off', () => {
+  it('saves nothing and refreshes nothing, even when asked directly', async () => {
+    choice.enabled = false;
+    await setLocaleAction(form('bn'));
+    expect(set).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
 });
 
 afterEach(() => {

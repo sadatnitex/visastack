@@ -39,6 +39,6 @@ describe('the error screen inside the signed-in area', () => {
       <WorkspaceError error={new Error('x')} reset={() => undefined} />,
     );
     expect(html).toContain('<a class="btn btn-secondary" href="/app">');
-    expect(html).toContain('<a href="/app/help">');
+    expect(html).toContain('<a href="/app/help#contact">');
   });
 });
