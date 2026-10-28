@@ -1,7 +1,8 @@
 'use client';
 
 import { useActionState } from 'react';
-import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { FormMessage, NO_RESULT, SubmitButton } from '../../../../components/form-feedback';
+import { useLatestOf } from '../../../../components/latest-result';
 import { ReferenceCode } from '../../../../components/reference-code';
 import { TimeZoneSelect } from '../../../../components/time-zone-select';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
@@ -167,6 +168,19 @@ export function MissionCollaboration({
     recordIssuerVerificationAction,
     INITIAL,
   );
+  // One status line per area (people, tasks, appointments): the latest answer replaces the last.
+  // Task and appointment lines sit by the button pressed: below the list for an action on a row,
+  // below the form for Add. Both places stay in the page, empty when unused.
+  const [peopleStatus] = useLatestOf({ assign: assignState, unassign: unassignState });
+  const [taskStatus, taskFrom] = useLatestOf({
+    add: taskCreateState,
+    decide: taskDecideState,
+    reassign: taskReassignState,
+  });
+  const [appointmentStatus, appointmentFrom] = useLatestOf({
+    add: apptCreateState,
+    decide: apptDecideState,
+  });
   const assignedAccountIds = new Set(assignments.map((a) => a.memberAccountId));
   const assignableMembers = members.filter((m) => !assignedAccountIds.has(m.accountId));
   const memberEmailByAccountId = new Map(members.map((m) => [m.accountId, m.email] as const));
@@ -250,8 +264,7 @@ export function MissionCollaboration({
             />
           </form>
         ) : null}
-        <FormMessage result={assignState} />
-        <FormMessage result={unassignState} />
+        <FormMessage result={peopleStatus} />
       </div>
 
       <div style={{ marginTop: '0.85rem' }}>
@@ -348,6 +361,7 @@ export function MissionCollaboration({
             ))}
           </div>
         )}
+        <FormMessage result={taskFrom === 'add' ? NO_RESULT : taskStatus} />
         <form
           action={taskCreateAction}
           style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}
@@ -386,9 +400,7 @@ export function MissionCollaboration({
             className="btn btn-secondary u-btn-sm"
           />
         </form>
-        <FormMessage result={taskCreateState} />
-        <FormMessage result={taskDecideState} />
-        <FormMessage result={taskReassignState} />
+        <FormMessage result={taskFrom === 'add' ? taskStatus : NO_RESULT} />
       </div>
 
       <div style={{ marginTop: '0.85rem' }}>
@@ -449,6 +461,7 @@ export function MissionCollaboration({
             ))}
           </div>
         )}
+        <FormMessage result={appointmentFrom === 'add' ? NO_RESULT : appointmentStatus} />
         <form
           action={apptCreateAction}
           style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}
@@ -488,8 +501,7 @@ export function MissionCollaboration({
             className="btn btn-secondary u-btn-sm"
           />
         </form>
-        <FormMessage result={apptCreateState} />
-        <FormMessage result={apptDecideState} />
+        <FormMessage result={appointmentFrom === 'add' ? appointmentStatus : NO_RESULT} />
       </div>
 
       <div style={{ marginTop: '0.85rem' }}>

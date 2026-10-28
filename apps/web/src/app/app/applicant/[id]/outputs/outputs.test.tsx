@@ -216,6 +216,13 @@ describe('the briefs and summaries page', () => {
     expect(html).toMatch(
       /aria-current="page"[^>]*><span class="output-template-name">Agency Brief/,
     );
+    // The chosen card says so in words, not only in colour, and only that card does.
+    const cards = html.match(/<a [^>]*class="output-template"[\s\S]*?<\/a>/g) ?? [];
+    expect(cards).toHaveLength(5);
+    const selected = cards.filter((card) => card.includes('output-template-selected'));
+    expect(selected).toHaveLength(1);
+    expect(selected[0]).toContain('aria-current="page"');
+    expect(selected[0]).toContain('>Selected</span>');
     // Identity and travel documents are on; money is not, and nothing from it appears.
     expect(html).toMatch(/name="layer" checked="" value="identity"/);
     expect(html).not.toMatch(/name="layer" checked="" value="money"/);

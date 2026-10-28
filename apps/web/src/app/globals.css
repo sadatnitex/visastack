@@ -8922,6 +8922,211 @@ summary.visa-photo-title {
   overflow-wrap: anywhere;
 }
 
+/* WP-UXD Help contact routes */
+.help-contact {
+  margin-top: 1.5rem;
+}
+.help-contact-route {
+  padding-block: 1rem;
+  border-top: 1px solid var(--hairline);
+}
+.help-contact-route h3 {
+  margin: 0 0 0.35rem;
+  font-size: var(--text-body);
+}
+.help-contact-route p {
+  margin: 0;
+}
+/* Keeps the keyboard hint's space until the browser knows which key to name (shortcut-hint.tsx). */
+.shortcut-hint-pending {
+  visibility: hidden;
+}
+
+/* WP-UXA case screens (owner list items 1, 3 and 10): the Start a Case field messages, the welcome
+   note a new case opens with, the case page's More menu with its cancel question, and the brief
+   and summary choices drawn as real cards. Flat: borders and existing tokens only, no shadows or
+   gradients; every control is at least 44px tall and keeps the site's focus ring. */
+.case-field-error {
+  margin-top: 0.35rem;
+}
+.case-date-range {
+  margin: 0;
+}
+.case-date-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.75rem;
+}
+.case-date-pair .field-label {
+  font-weight: 400;
+}
+.case-welcome {
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 1rem 1.15rem;
+  margin-bottom: 1.25rem;
+}
+.case-welcome-title {
+  font-size: var(--text-body);
+  font-weight: 650;
+  margin: 0 0 0.35rem;
+}
+.case-welcome-title:focus {
+  outline: none;
+}
+.case-welcome-title:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.case-welcome-body {
+  margin: 0 0 0.5rem;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.case-welcome-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+.case-more {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3rem;
+}
+.case-more-menu > summary {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 44px;
+  cursor: pointer;
+}
+.case-more-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.case-more-menu[open] > summary .icon {
+  transform: rotate(180deg);
+}
+.case-more-panel {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 20;
+  width: min(22rem, calc(100vw - 2rem));
+  background: var(--bg-elevated);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: 0.5rem;
+}
+.case-more-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.case-more-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.case-more-item:hover,
+.case-more-item:focus-visible {
+  background: var(--bg-subtle);
+  text-decoration: none;
+}
+.case-more-danger {
+  color: var(--danger);
+}
+.case-cancel-confirm {
+  padding: 0.5rem;
+}
+.case-cancel-question {
+  font-size: var(--text-body);
+  font-weight: 650;
+  margin: 0 0 0.5rem;
+  color: var(--danger);
+}
+.case-cancel-question:focus {
+  outline: none;
+}
+.case-cancel-question:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.case-cancel-consequences {
+  margin: 0 0 0.75rem;
+  padding-left: 1.1rem;
+  font-size: var(--text-small);
+  color: var(--text);
+}
+.case-cancel-consequences li + li {
+  margin-top: 0.3rem;
+}
+.case-cancel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+/* Phones: the menu opens in the page flow under its button, full width, so nothing covers it. */
+@media (max-width: 640px) {
+  .case-more {
+    align-items: stretch;
+    width: 100%;
+  }
+  .case-more-panel {
+    position: static;
+    width: 100%;
+    margin-top: 0.35rem;
+  }
+}
+.output-templates .output-template {
+  position: relative;
+  gap: 0.3rem;
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--text);
+  text-decoration: none;
+}
+.output-templates .output-template:hover {
+  border-color: var(--accent);
+  text-decoration: none;
+}
+.output-templates .output-template:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
+.output-templates .output-template[aria-current="page"] {
+  border: 2px solid var(--accent);
+  padding: calc(1rem - 1px) calc(1.15rem - 1px);
+  background: var(--brand-bg);
+}
+.output-templates .output-template-name {
+  font-weight: 650;
+  color: var(--text);
+}
+.output-template-selected {
+  align-self: flex-start;
+  margin-top: 0.25rem;
+}
+
 /* WP-UXB document upload (UX-B): several files at once, a drop area that also has buttons, and
    one line per file with its own progress and result. Flat: hairlines and tints, no shadows. */
 .uploader-limits {

@@ -130,6 +130,8 @@ const { AskAboutItemForm } = await import('../app/app/applicant/[id]/evidence/as
 const { CreateMissionForm } = await import(
   '../app/app/applicant/[id]/missions/create-mission-form'
 );
+const { caseCountryOptions, casePurposeGroups } = await import('./case-choices');
+const { CaseMoreMenu } = await import('../app/app/mission/[id]/case-more-menu');
 const { PrepareAgainForm } = await import(
   '../app/app/applicant/[id]/missions/prepare-again/prepare-again-form'
 );
@@ -623,7 +625,20 @@ const SHARING: readonly Case[] = [
 ];
 
 const CASES_MISSION: readonly Case[] = [
-  { name: 'start a case', element: () => <CreateMissionForm applicantId="a1" /> },
+  {
+    name: 'start a case',
+    element: () => (
+      <CreateMissionForm
+        applicantId="a1"
+        countries={caseCountryOptions()}
+        purposes={casePurposeGroups()}
+      />
+    ),
+  },
+  {
+    name: 'the case page More menu, with cancel',
+    element: () => <CaseMoreMenu missionId="m1" applicantId="a1" canCancel />,
+  },
   {
     name: 'prepare a case again',
     element: () => (
@@ -1157,6 +1172,7 @@ const AGENCY: readonly Case[] = [
     element: () => (
       <ClientInvitationForm
         organizationId="o1"
+        pendingInvitationIds={[]}
         members={[
           { accountId: 'm1', email: 'staff@example.com', active: true },
           { accountId: 'm2', email: 'former@example.com', active: false },
@@ -1170,7 +1186,10 @@ const AGENCY: readonly Case[] = [
   row('withdraw a staff invitation', () => (
     <InvitationRevokeButton organizationId="o1" invitationId="i1" />
   )),
-  { name: 'add a team member', element: () => <AddMemberForm organizationId="o1" /> },
+  {
+    name: 'add a team member',
+    element: () => <AddMemberForm organizationId="o1" pendingInvitationIds={[]} />,
+  },
   row('switch a team member on or off (active)', () => (
     <MemberToggleButton organizationId="o1" membershipId="m1" active />
   )),

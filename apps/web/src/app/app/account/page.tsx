@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { AccountPhotoCard } from '../../../components/profile-photo/account-photo-card';
 import { PageHeader } from '../../../components/ui';
 import { holdsPlatformRole } from '../../../lib/admin';
+import { LANGUAGE_CHOICE_ENABLED } from '../../../lib/language-choice';
 import { getLocale } from '../../../lib/locale';
 import { loadOwnPhoto } from '../../../lib/profile-photos';
 import { withSession } from '../../../lib/session';
@@ -40,17 +41,20 @@ export default async function AccountPage() {
       <div className="grid">
         {data.photo ? <AccountPhotoCard photo={data.photo} /> : null}
 
-        <article className="card">
-          <p className="card-kicker">Preferences</p>
-          <h2 className="card-title">Language</h2>
-          <p className="card-body u-mb-125">Applies immediately across the whole product.</p>
-          <form action={setLocaleAction}>
-            <input type="hidden" name="locale" value={locale === 'en' ? 'bn' : 'en'} />
-            <button type="submit" className="btn btn-secondary">
-              Switch to {locale === 'en' ? 'বাংলা' : 'English'}
-            </button>
-          </form>
-        </article>
+        {/* Hidden until translation work starts (see LANGUAGE_CHOICE_ENABLED). */}
+        {LANGUAGE_CHOICE_ENABLED ? (
+          <article className="card">
+            <p className="card-kicker">Preferences</p>
+            <h2 className="card-title">Language</h2>
+            <p className="card-body u-mb-125">Applies immediately across the whole product.</p>
+            <form action={setLocaleAction}>
+              <input type="hidden" name="locale" value={locale === 'en' ? 'bn' : 'en'} />
+              <button type="submit" className="btn btn-secondary">
+                Switch to {locale === 'en' ? 'বাংলা' : 'English'}
+              </button>
+            </form>
+          </article>
+        ) : null}
 
         <article className="card">
           <p className="card-kicker">Data Rights</p>

@@ -1701,6 +1701,17 @@ export {
   touchAiClient,
 } from './ai-clients';
 export { isMissingRelationError } from './missing-relation';
+export {
+  type PackMatch,
+  type PackMatchTerms,
+  type TravellerCountries,
+  type TravellerCoverage,
+  type TravellerMatchTerms,
+  findMatchingPublicPack,
+  listFittingPublicPacks,
+  packMatchKey,
+  readTravellerCoverage,
+} from './pack-matching';
 
 // UX-B document upload: automatic titles, renaming, and the record of a converted iPhone photo.
 export {

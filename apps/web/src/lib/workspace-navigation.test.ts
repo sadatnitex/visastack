@@ -42,7 +42,7 @@ describe('current contextual navigation contract', () => {
       '/app/privacy',
     );
     expect(nav.tools.map((link) => link.label)).toEqual(
-      expect.arrayContaining(['Shared with Me', 'Account and Permissions', 'Evidence Requests']),
+      expect.arrayContaining(['Shared with Me', 'Account Overview', 'Evidence Requests']),
     );
   });
   it('offers the country rules even before a traveller exists, and marks them current on their own pages', () => {
@@ -136,6 +136,42 @@ describe('current contextual navigation contract', () => {
       'Visa Case',
     );
   });
+  it('never guesses the traveller on a case page before the case reports its own (owner item 2)', () => {
+    // No report yet (still loading, or a case that is not this account's): a neutral case state,
+    // with no traveller's links and no request to choose one.
+    const loading = workspaceNavigation(`/app/mission/${m1}`, access, null);
+    expect(loading.name).toBe('Visa Case');
+    expect(loading.caption).toBe('Case Workspace');
+    const labels = loading.primary.map((link) => link.label);
+    expect(labels).not.toContain('Choose a Traveller');
+    expect(labels).toContain('All Travellers');
+    expect(loading.primary.some((link) => link.href.startsWith('/app/applicant/'))).toBe(false);
+    // Even with a single traveller nothing is assumed: the case may not be theirs.
+    const family = access.travellers[1];
+    if (!family) throw new Error('fixture');
+    const single: WorkspaceAccess = { ...access, travellers: [family] };
+    expect(workspaceNavigation(`/app/mission/${m1}`, single).name).toBe('Visa Case');
+    // Another case's report never stands in for this one.
+    const otherCase = workspaceNavigation(`/app/mission/${m1}`, access, {
+      route: '/app/mission/another-case',
+      applicantId: p2,
+    });
+    expect(otherCase.name).toBe('Visa Case');
+  });
+  it("shows the case's own traveller as soon as the case reports it, on every page of the case", () => {
+    const subject = { route: `/app/mission/${m1}`, applicantId: p1 };
+    expect(workspaceNavigation(`/app/mission/${m1}`, access, subject).name).toBe('Synthetic Self');
+    const sub = workspaceNavigation(`/app/mission/${m1}/snapshots/s1`, access, subject);
+    expect(sub.name).toBe('Synthetic Self');
+    expect(sub.primary.map((link) => link.href)).toContain(`/app/applicant/${p1}/missions`);
+  });
+  it('never shows a reported traveller outside the owner-authorized list', () => {
+    const nav = workspaceNavigation(`/app/mission/${m1}`, access, {
+      route: `/app/mission/${m1}`,
+      applicantId: 'unknown',
+    });
+    expect(nav.name).toBe('Visa Case');
+  });
   it('does not accept a subject outside the existing owner-authorized context list', () => {
     const nav = workspaceNavigation(`/app/mission/${m1}`, access, {
       route: `/app/mission/${m1}`,
@@ -197,7 +233,7 @@ describe('workspace navigation link list (characterization)', () => {
     ]);
     expect(pairs(nav.tools)).toEqual([
       ['Shared with Me', '/app/shared'],
-      ['Account and Permissions', '/app#permissions'],
+      ['Account Overview', '/app'],
       ['Evidence Requests', `${base}/evidence`],
     ]);
     expect(nav.settings).toEqual([]);
@@ -213,15 +249,12 @@ describe('workspace navigation link list (characterization)', () => {
   it('a personal space with no traveller yet', () => {
     const nav = workspaceNavigation('/app', none);
     expect(pairs(nav.primary)).toEqual([
-      ['Home', '/app'],
+      ['Account Overview', '/app'],
       ['Add a Traveller', '/app/applicants'],
       ['Notifications', '/app/notifications'],
       ['Countries', '/app/countries'],
     ]);
-    expect(pairs(nav.tools)).toEqual([
-      ['Shared with Me', '/app/shared'],
-      ['Account and Permissions', '/app#permissions'],
-    ]);
+    expect(pairs(nav.tools)).toEqual([['Shared with Me', '/app/shared']]);
   });
 
   it('an agency workspace, for an administrator and for a case worker', () => {
@@ -333,7 +366,7 @@ describe('no destination is lost by the four-tab change', () => {
     ).toEqual([]);
   });
 
-  it('the account page has one name in the navigation: only Home is current on /app', () => {
+  it('the account page has one name in the navigation: only Account Overview is current on /app', () => {
     for (const [who, nav] of [
       ['a traveller', workspaceNavigation('/app', linkAccess)],
       ['no traveller yet', workspaceNavigation('/app', none)],
@@ -342,7 +375,7 @@ describe('no destination is lost by the four-tab change', () => {
       expect(
         current.map((link) => link.label),
         who,
-      ).toEqual(['Home']);
+      ).toEqual(['Account Overview']);
     }
   });
 });

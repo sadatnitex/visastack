@@ -13,7 +13,7 @@ import { humanizeCode } from '../../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
 import { withSession } from '../../../../../lib/session';
 
-export const metadata: Metadata = { title: 'Application Memory' };
+export const metadata: Metadata = { title: 'Case History' };
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +25,7 @@ function eventDate(event: MemoryEvent): string {
 }
 
 /**
- * v1.2 B08 (U06) Application Memory, WP-V3 part 3: every case of one person,
+ * v1.2 B08 (U06) Case History (once called Application Memory), WP-V3 part 3: every case of one person,
  * oldest record first within a case, with what was prepared, confirmed,
  * shared, reported as submitted and decided. Owner only.
  */
@@ -54,8 +54,8 @@ export default async function ApplicationMemoryPage({
     <>
       <PageHeader
         back={{ href: `/app/applicant/${id}/missions`, label: 'Cases' }}
-        eyebrow="History"
-        title="Application Memory"
+        eyebrow="Cases"
+        title="Case History"
         description="Every case for this person: what was prepared, what you confirmed, who it was shared with, and what you reported as submitted. A snapshot never changes after it is taken."
         as="h2"
       />

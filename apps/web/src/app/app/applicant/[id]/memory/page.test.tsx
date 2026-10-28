@@ -31,7 +31,7 @@ beforeEach(() => {
   mocks.requireAccess.mockResolvedValue(ok({ synthetic: 'proof' }));
 });
 
-describe('Application Memory page (v1.2 B08, WP-V3 part 3)', () => {
+describe('Case History page (once Application Memory; v1.2 B08, WP-V3 part 3)', () => {
   it('shows each case with its records in order, prepared, confirmed and reported kept apart', async () => {
     mocks.getApplicationMemory.mockResolvedValue(
       ok({
@@ -85,7 +85,8 @@ describe('Application Memory page (v1.2 B08, WP-V3 part 3)', () => {
     );
     const html = await render();
     const text = textOf(html);
-    expect(text).toContain('Application Memory');
+    expect(text).toContain('Case History');
+    expect(text).not.toContain('Application Memory');
     expect(text).toContain('Japan visitor visa');
     expect(text).toContain('Managed by Harbor Visas');
     expect(text).toContain('Snapshot 1 prepared');

@@ -8,29 +8,14 @@ import {
 } from '../../../../../components/case-readiness-ring';
 import { PROGRESS_IN_CASE_LINE } from '../../../../../components/progress-ring';
 import { EmptyState, PageHeader, StatusBadge } from '../../../../../components/ui';
-import { humanizeCode } from '../../../../../lib/format-code';
+import { caseCountryOptions, casePurposeGroups } from '../../../../../lib/case-choices';
+import { caseStateLabel } from '../../../../../lib/case-stages';
 import { withSession } from '../../../../../lib/session';
 import { CreateMissionForm } from './create-mission-form';
 
 export const metadata: Metadata = { title: 'Cases' };
 
 export const dynamic = 'force-dynamic';
-
-const STATE_LABELS: Record<string, string> = {
-  DRAFT: 'Draft',
-  INTAKE: 'Intake',
-  IN_REVIEW: 'In Review',
-  AWAITING_APPLICANT: 'Awaiting Applicant',
-  SUBMISSION_READY: 'Submission Ready',
-  SUBMITTED: 'Submitted',
-  IN_PROGRESS: 'In Progress',
-  READY_FOR_REVIEW: 'Ready for Review',
-  UNDER_REVIEW: 'Under Review',
-  READY_TO_EXPORT: 'Ready to Export',
-  LOCKED: 'Locked',
-  CLOSED: 'Closed',
-  CANCELLED: 'Cancelled',
-};
 
 /** The most cases whose readiness is worked out for the list, so a long history never slows the page. */
 const RING_LIMIT = 25;
@@ -79,7 +64,7 @@ export default async function MissionsPage({
               Prepare a Brief
             </Link>
             <Link className="btn btn-secondary" href={`/app/applicant/${id}/memory`}>
-              Application Memory
+              Case History
             </Link>
           </>
         }
@@ -114,9 +99,7 @@ export default async function MissionsPage({
                     </span>
                   </span>
                   <span className="row-end">
-                    <StatusBadge tone="neutral">
-                      {STATE_LABELS[mission.state] ?? humanizeCode(mission.state)}
-                    </StatusBadge>
+                    <StatusBadge tone="neutral">{caseStateLabel(mission.state)}</StatusBadge>
                     <span className="muted" aria-hidden="true">
                       →
                     </span>
@@ -131,7 +114,11 @@ export default async function MissionsPage({
           <p className="card-kicker">New</p>
           <h2 className="card-title">Start a Case</h2>
           {data.coreGranted ? (
-            <CreateMissionForm applicantId={id} />
+            <CreateMissionForm
+              applicantId={id}
+              countries={caseCountryOptions()}
+              purposes={casePurposeGroups()}
+            />
           ) : (
             <p className="card-body">
               Turn on <strong>Let VisaStack Process My Details</strong> on Home to create cases.
