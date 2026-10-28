@@ -1,4 +1,7 @@
 import type { PermissionAction } from '@visastack/core';
+import { eq } from 'drizzle-orm';
+import { type Db, first, schema } from '../db';
+import { isMissingRelationError } from '../missing-relation';
 import { type StepUpAssuranceFields, verifyStepUpAssurance } from '../step-up';
 
 /**
@@ -93,4 +96,63 @@ export function verifyStepUp(
   if (secret.length === 0) return undefined;
   if (!verifyStepUpAssurance(secret, token, expected)) return undefined;
   return mint(expected.accountId, expected.action, expected.resourceId, token.exp * 1000);
+}
+
+/** How long a proof made for one AI connection call lives: long enough for one call, no more. */
+const AI_CONNECTION_PROOF_MS = 60 * 1000;
+
+/**
+ * The standing identity check behind an AI connection whose owner turned on "Full Document
+ * Numbers". The person confirmed who they are on the consent screen before that choice could be
+ * saved (S13), and the stored connection is the authority from then on (ADR 0021 section 5).
+ *
+ * Nothing is taken on trust from the caller: the connection is read again here, and a proof is
+ * made only when it is live (activated, not turned off, not past its end), has full numbers on,
+ * and its account still owns the record. The proof covers exactly `EXPORT_PROFILE` on that one
+ * record, for that owner, for one minute (never past the connection's own end), which is what the
+ * context composer asks for. Only the AI gate (`with-ai-connection.ts`) may call this; a guard
+ * test fails on any other caller.
+ */
+export async function stepUpFromAiConnection(
+  tx: Db,
+  connectionId: string,
+): Promise<StepUpProof | undefined> {
+  // Always the real time, as in the access gate: a caller-chosen clock could revive an ended connection.
+  const now = Date.now();
+  try {
+    const row = first(
+      await tx
+        .select({
+          accountId: schema.aiConnections.accountId,
+          applicantId: schema.aiConnections.applicantId,
+          revealIdentifiers: schema.aiConnections.revealIdentifiers,
+          activatedAt: schema.aiConnections.activatedAt,
+          revokedAt: schema.aiConnections.revokedAt,
+          expiresAt: schema.aiConnections.expiresAt,
+          ownerAccountId: schema.applicants.ownerAccountId,
+        })
+        .from(schema.aiConnections)
+        .innerJoin(schema.applicants, eq(schema.applicants.id, schema.aiConnections.applicantId))
+        .where(eq(schema.aiConnections.id, connectionId))
+        .limit(1),
+    );
+    if (
+      !row ||
+      !row.revealIdentifiers ||
+      !row.activatedAt ||
+      row.revokedAt ||
+      row.ownerAccountId !== row.accountId ||
+      (row.expiresAt !== null && row.expiresAt.getTime() <= now)
+    ) {
+      return undefined;
+    }
+    const end = Math.min(
+      now + AI_CONNECTION_PROOF_MS,
+      row.expiresAt?.getTime() ?? Number.POSITIVE_INFINITY,
+    );
+    return mint(row.accountId, 'EXPORT_PROFILE', row.applicantId, end);
+  } catch (error) {
+    if (isMissingRelationError(error)) return undefined;
+    throw error;
+  }
 }

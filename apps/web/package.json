@@ -14,6 +14,7 @@
     "preview": "vitest run -c vitest.preview.config.ts && node preview/shoot.mjs && node preview/sheet.mjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
     "@neondatabase/auth": "0.5.0-beta",
     "@neondatabase/serverless": "^0.10.4",
     "@visastack/adapters": "workspace:*",
