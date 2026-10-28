@@ -40,7 +40,8 @@ export function fieldProblem(
 
 /**
  * When an action says which input its problem is about, put keyboard focus on that
- * input so the person lands where they have to fix it, and a screen reader reads the
+ * input (for a radio group, the chosen radio or else the first) so the person lands where they
+ * have to fix it, and a screen reader reads the
  * error with it (the input points to the message through `fieldProblem`). Runs once
  * per result, not on every render.
  */
@@ -51,7 +52,18 @@ export function useFocusInvalidField(
   useEffect(() => {
     if (!isFailure(result) || result.field === undefined) return;
     const control = form.current?.elements.namedItem(result.field);
-    if (control instanceof HTMLElement) control.focus();
+    if (control instanceof HTMLElement) {
+      control.focus();
+      return;
+    }
+    // Several controls share the name (a radio group, a set of checkboxes): the chosen one, or
+    // else the first, is where the person fixes it.
+    if (typeof RadioNodeList !== 'undefined' && control instanceof RadioNodeList) {
+      const items = Array.from(control).filter(
+        (item): item is HTMLInputElement => item instanceof HTMLInputElement,
+      );
+      (items.find((item) => item.checked) ?? items[0])?.focus();
+    }
   }, [result, form]);
 }
 

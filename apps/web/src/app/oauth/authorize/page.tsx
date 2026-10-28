@@ -2,7 +2,7 @@ import { listApplicants, listMissions } from '@visastack/services';
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { aiConnectorEnabled } from '../../../lib/ai-connector';
-import { consentChoicesFromQuery } from '../../../lib/ai-consent-choices';
+import { consentChoicesFromQuery, settleConsentCases } from '../../../lib/ai-consent-choices';
 import {
   type AuthorizeParams,
   checkAuthorizeRequest,
@@ -75,6 +75,9 @@ export default async function AuthorizePage({
   const { request } = check;
   const recordKey = 'record';
   const recordParam = singleParam(search[recordKey]);
+  // Set when the person starts from one of their cases: that case is the default choice.
+  const caseKey = 'case';
+  const caseParam = singleParam(search[caseKey]);
   const view = await withSession(async ({ db, accountId }) => {
     const records = (await listApplicants(db, accountId)).map((row) => ({
       id: row.id,
@@ -116,7 +119,11 @@ export default async function AuthorizePage({
               <li key={row.id}>
                 <a
                   className="btn btn-secondary"
-                  href={`/oauth/authorize?${new URLSearchParams({ ...params, record: row.id }).toString()}`}
+                  href={`/oauth/authorize?${new URLSearchParams({
+                    ...params,
+                    record: row.id,
+                    ...(caseParam !== undefined ? { case: caseParam } : {}),
+                  }).toString()}`}
                 >
                   {row.name}
                 </a>
@@ -140,7 +147,11 @@ export default async function AuthorizePage({
             appName={appName}
             record={view.chosen}
             cases={view.cases}
-            initial={consentChoicesFromQuery((name) => singleParam(search[name]))}
+            initial={settleConsentCases(
+              consentChoicesFromQuery((name) => singleParam(search[name])),
+              view.cases.map((item) => item.id),
+              caseParam,
+            )}
           />
         </>
       )}
