@@ -31,6 +31,7 @@ const ENV_KEYS = [
   'SSLCOMMERZ_STORE_ID',
   'SSLCOMMERZ_STORE_PASSWORD',
   'SSLCOMMERZ_MODE',
+  'AI_CONNECTOR_ENABLED',
 ] as const;
 const ORIGINAL: Record<string, string | undefined> = {};
 
@@ -62,13 +63,13 @@ describe('getPlatformCapabilities', () => {
   // (docs/audits/post-programme-defect-register.md finding D-T1). A generous
   // explicit timeout avoids a spurious CI failure unrelated to this test's
   // own correctness.
-  it('reports every one of the 20 registry fields (no gap left undefined)', async () => {
+  it('reports every one of the 21 registry fields (no gap left undefined)', async () => {
     const { getPlatformCapabilities } = await import('./capabilities');
     const capabilities = getPlatformCapabilities();
     for (const key of PLATFORM_CAPABILITY_KEYS) {
       expect(capabilities[key]).toBeDefined();
     }
-    expect(PLATFORM_CAPABILITY_KEYS.length).toBe(20);
+    expect(PLATFORM_CAPABILITY_KEYS.length).toBe(21);
   }, 15_000);
 
   it('reports agencyCollaboration available once its PR 1 defects are repaired (PR 2) and everything else is configured', async () => {
@@ -185,6 +186,22 @@ describe('getPlatformCapabilities', () => {
     expect(getPlatformCapabilities().payments).toBe('available');
     unsetEnv('SSLCOMMERZ_MODE');
     expect(getPlatformCapabilities().payments).toBe('unconfigured');
+  });
+
+  it('reports the AI connector disabled unless AI_CONNECTOR_ENABLED is exactly "true" (S16)', async () => {
+    const { getPlatformCapabilities } = await import('./capabilities');
+    expect(getPlatformCapabilities().aiConnector).toBe('disabled');
+    for (const value of ['false', '1', 'yes', 'TRUE', '']) {
+      setEnv('AI_CONNECTOR_ENABLED', value);
+      expect(getPlatformCapabilities().aiConnector, value).toBe('disabled');
+    }
+    setEnv('AI_CONNECTOR_ENABLED', 'true');
+    expect(getPlatformCapabilities().aiConnector).toBe('available');
+    // Whatever the deployment mode: the switch alone decides.
+    setEnv('DEPLOYMENT_MODE', 'controlled_pilot');
+    expect(getPlatformCapabilities().aiConnector).toBe('available');
+    unsetEnv('AI_CONNECTOR_ENABLED');
+    expect(getPlatformCapabilities().aiConnector).toBe('disabled');
   });
 });
 

@@ -27,6 +27,7 @@ export const CAPABILITY_NAMES: { readonly [K in keyof PlatformCapabilities]: str
   packGeneration: 'Preparing Application Packs',
   publicSignup: 'Open Sign-Up for Anyone',
   payments: 'Payments',
+  aiConnector: 'AI App Connections',
   realApplicantData: 'All Protections for Real Personal Data in Place',
   commercialClaims: null,
 };

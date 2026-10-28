@@ -10,6 +10,7 @@ import {
 import { appendAuditEvent } from '../audit';
 import { type Db, first, schema } from '../db';
 import { isMissingRelationError } from '../missing-relation';
+import { elapsedSeconds, recordProductEvent } from '../product-events';
 import { AuthorizedApplicant } from './require-access';
 import { StepUpProof } from './step-up-proof';
 
@@ -30,7 +31,9 @@ import { StepUpProof } from './step-up-proof';
  *   change, so the owner may lengthen or shorten it. The owner is the authority over their own
  *   connection and could connect again for the same effect; the stored end still bounds every
  *   token at use time.
- * - Audit: `AI_CONNECTION_REVOKED` and `AI_CONNECTION_CHANGED`, with ids and kinds only.
+ * - Audit: `AI_CONNECTION_REVOKED` and `AI_CONNECTION_CHANGED`, with ids and kinds only. Turning
+ *   off also records the `AI_CONNECTOR_REVOKED` product event (S16): no label, only how long the
+ *   connection lived.
  * - Before the migration has run, the list is empty and marked unavailable; changes refuse.
  */
 
@@ -316,6 +319,13 @@ export async function turnOffAiConnection(
           ? { missionId: connection.missionId }
           : {}),
         metadata: { reason: 'owner_turned_off' },
+      });
+      // S16 telemetry, best effort (a savepoint that never throws): how long the connection lived.
+      await recordProductEvent(tx, {
+        eventType: 'AI_CONNECTOR_REVOKED',
+        accountId: owner.accountId,
+        metricValue: elapsedSeconds(connection.createdAt, now),
+        onceFor: connection.id,
       });
       return ok({ alreadyOff: false });
     });

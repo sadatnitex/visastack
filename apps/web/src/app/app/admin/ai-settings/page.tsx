@@ -1,6 +1,7 @@
 import {
   type AiProviderConfig,
   aiProviderTermsFor,
+  getAiConnectionCounts,
   hasAnyAiProviderConfig,
   listAiProviderConfigHistory,
   loadAiDataRuleSetting,
@@ -9,11 +10,14 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader } from '../../../../components/ui';
-import { bootstrapAdminEmails, hasPlatformPermission } from '../../../../lib/admin';
+import { bootstrapAdminEmails, hasPlatformPermission, staffPrincipal } from '../../../../lib/admin';
 import { unitsToUsd } from '../../../../lib/ai';
+import { aiConnectorEnabled } from '../../../../lib/ai-connector';
 import { currentAiDataMode } from '../../../../lib/ai-data-rule';
 import { formatTimestamp } from '../../../../lib/format-date';
+import { reportServerError } from '../../../../lib/server-error';
 import { withSession } from '../../../../lib/session';
+import { AiConnectionsCard } from './ai-connections-card';
 import { DataTermsPanel, TermsRows } from './data-terms';
 import {
   ActivateConfigButton,
@@ -62,7 +66,21 @@ export default async function AiSettingsPage() {
     const fallback = active?.fallbackEnabled
       ? history.find((config) => config.id === active.fallbackProviderConfigId)
       : undefined;
+    const staff = await staffPrincipal(
+      db,
+      { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
+      'AI_SETTINGS_MANAGE',
+    );
+    // The count card must never take the provider settings down with it: a failed read is
+    // logged and the card says the counts are not available.
+    const connectionCounts = staff.ok
+      ? await getAiConnectionCounts(db, staff.value).catch((error: unknown) => {
+          reportServerError('aiConnectionCounts', error);
+          return null;
+        })
+      : null;
     return {
+      connectionCounts: connectionCounts?.ok ? connectionCounts.value : null,
       active,
       fallback,
       authorized: true as const,
@@ -135,6 +153,8 @@ export default async function AiSettingsPage() {
         fallback={data.fallback}
         termsFor={(configId) => aiProviderTermsFor(data.terms, configId)}
       />
+
+      <AiConnectionsCard counts={data.connectionCounts} enabled={aiConnectorEnabled()} />
 
       <article className="card u-mb-150">
         <p className="card-kicker">New Configuration</p>

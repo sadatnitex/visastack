@@ -218,6 +218,19 @@ describe('GET /api/health/ready — honest health (200 vs 503)', () => {
     expect(body.platform.bulkExport).toBe('available');
   });
 
+  it('reports the AI connector switched off unless AI_CONNECTOR_ENABLED is "true" (S16)', async () => {
+    vi.stubEnv('AI_CONNECTOR_ENABLED', '');
+    mockDb({});
+    const off = await (await import('./route')).GET();
+    expect((await off.json()).platform.aiConnector).toBe('disabled');
+
+    vi.resetModules();
+    vi.stubEnv('AI_CONNECTOR_ENABLED', 'true');
+    mockDb({});
+    const on = await (await import('./route')).GET();
+    expect((await on.json()).platform.aiConnector).toBe('available');
+  });
+
   it('withholds the verbose env/db breakdown but still reports deploymentMode and platform on a real deployment', async () => {
     setEnv('VERCEL_ENV', 'production');
     mockDb({});

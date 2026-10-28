@@ -12,6 +12,11 @@ import { appendAuditEvent } from '../audit';
 import { type Db, first, schema } from '../db';
 import type { KeyManagementPort } from '../ports';
 import {
+  type AI_CONTEXT_DENIAL_LABELS,
+  AI_CONTEXT_TOOL_LABELS,
+  recordProductEvent,
+} from '../product-events';
+import {
   type CaseSelection,
   type SelectedOutput,
   type SelectedOutputOptions,
@@ -44,10 +49,15 @@ import { stepUpFromAiConnection } from './step-up-proof';
  * Tools live in `../ai-tools/` and may import nothing that reads data except this module; a guard
  * test (`ai-tools/boundary.test.ts`) fails otherwise.
  *
- * Audit (the part S14 needs; S16 adds the rest): one `AI_CONTEXT_SERVED` or `AI_CONTEXT_DENIED`
- * event per tool call, describing what the tool actually returned: the connection, client host,
- * tool, layers, case, counts, depth and denial reason. Never a value, document text or token. A
- * call that fails part-way is still recorded, as denied with the reason `failed`.
+ * Audit: one `AI_CONTEXT_SERVED` or `AI_CONTEXT_DENIED` event per tool call, describing what the
+ * tool actually returned: the connection, client host, tool, layers, case, counts, depth and
+ * denial reason. Never a value, document text or token. A call that fails part-way is still
+ * recorded, as denied with the reason `failed`.
+ *
+ * Telemetry (S16): beside each audit record, one product event, `AI_CONTEXT_REQUESTED` (label:
+ * the tool; number: sections returned) or `AI_CONTEXT_DENIED` (label: the denial reason). It is
+ * best effort: `recordProductEvent` writes in a savepoint and never throws, so a failed event
+ * never changes the answer or the audit record.
  */
 
 export const AI_CONNECTION_PURPOSE = 'ai_connection';
@@ -289,6 +299,27 @@ function auditBase(target: AuditTarget) {
   };
 }
 
+/** The product-event label for each denial reason: the same code, upper case. */
+const DENIAL_LABEL: Readonly<Record<AiDenialReason, (typeof AI_CONTEXT_DENIAL_LABELS)[number]>> = {
+  layer_not_granted: 'LAYER_NOT_GRANTED',
+  cases_not_granted: 'CASES_NOT_GRANTED',
+  case_not_shared: 'CASE_NOT_SHARED',
+  case_unavailable: 'CASE_UNAVAILABLE',
+  document_list_not_granted: 'DOCUMENT_LIST_NOT_GRANTED',
+  document_text_not_granted: 'DOCUMENT_TEXT_NOT_GRANTED',
+  document_not_shared: 'DOCUMENT_NOT_SHARED',
+  document_protected: 'DOCUMENT_PROTECTED',
+  no_text: 'NO_TEXT',
+  too_large: 'TOO_LARGE',
+  failed: 'FAILED',
+};
+
+/** The product-event label for a tool: one of the five known names, or none at all. */
+function toolLabel(tool: string): (typeof AI_CONTEXT_TOOL_LABELS)[number] | undefined {
+  const upper = tool.toUpperCase();
+  return AI_CONTEXT_TOOL_LABELS.find((label) => label === upper);
+}
+
 async function auditDenied(
   tx: Db,
   target: AuditTarget,
@@ -301,6 +332,11 @@ async function auditDenied(
     result: 'DENIED',
     reason,
     metadata: { clientHost: target.clientHost, tool, caseMode: target.caseMode, reason },
+  });
+  await recordProductEvent(tx, {
+    eventType: 'AI_CONTEXT_DENIED',
+    accountId: target.accountId,
+    dimension: DENIAL_LABEL[reason],
   });
 }
 
@@ -461,6 +497,13 @@ export async function withAiConnection<T>(
             documentTexts: record.documentTexts,
             depth: depth ?? scope.depth,
           },
+        });
+        const label = toolLabel(request.tool);
+        await recordProductEvent(tx, {
+          eventType: 'AI_CONTEXT_REQUESTED',
+          accountId: connection.accountId,
+          ...(label ? { dimension: label } : {}),
+          metricValue: new Set(record.layers).size,
         });
       }
       return ok(value);

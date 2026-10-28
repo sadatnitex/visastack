@@ -72,11 +72,44 @@ export const PRODUCT_EVENT_TYPES = [
   // Growth loop 1 (agency invites its clients). No label; once per invitation.
   'CLIENT_INVITE_SENT',
   'CLIENT_INVITE_ACCEPTED',
+  // S16 (ADR 0021 section 7): the AI connector. Labels and numbers only: never a value, task
+  // text, document text, token or code.
+  'AI_CONNECTOR_CONNECTED',
+  'AI_CONTEXT_REQUESTED',
+  'AI_CONTEXT_DENIED',
+  'AI_CONNECTOR_REVOKED',
 ] as const;
 
 export type ProductEventType = (typeof PRODUCT_EVENT_TYPES)[number];
 
 const AI_TASK_KINDS = ['EXTRACTION', 'CLASSIFICATION', 'INCONSISTENCY'] as const;
+
+/** `AI_CONNECTOR_CONNECTED`'s label: which cases the person shared (the connection's case mode). */
+export const AI_CONNECTOR_CASE_LABELS = ['NONE', 'ONE', 'ALL_CURRENT'] as const;
+
+/** `AI_CONTEXT_REQUESTED`'s label: the tool the app called, one of the five ADR 0021 names. */
+export const AI_CONTEXT_TOOL_LABELS = [
+  'PREPARE_CONTEXT',
+  'LIST_CASES',
+  'GET_PROFILE_SECTION',
+  'LIST_DOCUMENTS',
+  'GET_DOCUMENT_TEXT',
+] as const;
+
+/** `AI_CONTEXT_DENIED`'s label: the denial reason code, as the audit records it. */
+export const AI_CONTEXT_DENIAL_LABELS = [
+  'LAYER_NOT_GRANTED',
+  'CASES_NOT_GRANTED',
+  'CASE_NOT_SHARED',
+  'CASE_UNAVAILABLE',
+  'DOCUMENT_LIST_NOT_GRANTED',
+  'DOCUMENT_TEXT_NOT_GRANTED',
+  'DOCUMENT_NOT_SHARED',
+  'DOCUMENT_PROTECTED',
+  'NO_TEXT',
+  'TOO_LARGE',
+  'FAILED',
+] as const;
 
 /**
  * The label an event type may carry. An array is a closed list; a pattern is for
@@ -111,6 +144,9 @@ const DIMENSION_RULES: Readonly<Partial<Record<ProductEventType, readonly string
   CASH_COLLECTED: /^[A-Z]{3}$/,
   // A closed list: only the two-letter code of a country the checklist data holds.
   COUNTRY_CHECKLIST_STARTED: DESTINATIONS.map((destination) => destination.iso2),
+  AI_CONNECTOR_CONNECTED: AI_CONNECTOR_CASE_LABELS,
+  AI_CONTEXT_REQUESTED: AI_CONTEXT_TOOL_LABELS,
+  AI_CONTEXT_DENIED: AI_CONTEXT_DENIAL_LABELS,
 };
 
 /** The event types that may carry a measured number, and what the number is. */
@@ -122,6 +158,9 @@ const METRIC_EVENTS: ReadonlySet<ProductEventType> = new Set([
   'CASH_COLLECTED', // minor currency units
   'CASE_PREPARED_AGAIN', // records carried into the new case
   'CLIENT_INVITE_ACCEPTED', // seconds from the invitation being sent
+  'AI_CONNECTOR_CONNECTED', // profile sections the person granted
+  'AI_CONTEXT_REQUESTED', // profile sections the answer returned
+  'AI_CONNECTOR_REVOKED', // seconds from the connection being created
 ]);
 
 export interface RecordProductEventInput {
@@ -352,6 +391,16 @@ export const PRODUCT_EVENT_CATEGORIES: ReadonlyArray<{
     key: 'agency_invites',
     label: 'Agency client invitations',
     eventTypes: ['CLIENT_INVITE_SENT', 'CLIENT_INVITE_ACCEPTED'],
+  },
+  {
+    key: 'ai_connector',
+    label: 'AI app connections',
+    eventTypes: [
+      'AI_CONNECTOR_CONNECTED',
+      'AI_CONTEXT_REQUESTED',
+      'AI_CONTEXT_DENIED',
+      'AI_CONNECTOR_REVOKED',
+    ],
   },
 ];
 

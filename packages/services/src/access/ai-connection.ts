@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 import { type Result, err, ok } from '@visastack/core';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import {
+  AI_CONNECTION_LAYERS,
   type AiConnectionChoices,
   aiConnectionExpiry,
   oauthScopeNames,
@@ -10,6 +11,7 @@ import {
 import { appendAuditEvent } from '../audit';
 import { type Db, first, required, schema } from '../db';
 import { isMissingRelationError } from '../missing-relation';
+import { recordProductEvent } from '../product-events';
 import { AuthorizedApplicant } from './require-access';
 import { StepUpProof } from './step-up-proof';
 
@@ -330,6 +332,15 @@ export async function createAiConnection(
         revealIdentifiers: choices.revealIdentifiers,
         duration: choices.duration,
       },
+    });
+    // S16 telemetry, best effort (a savepoint that never throws): the case mode and how many
+    // sections were granted, nothing else.
+    await recordProductEvent(tx, {
+      eventType: 'AI_CONNECTOR_CONNECTED',
+      accountId: ownerAccountId,
+      dimension: choices.caseMode,
+      metricValue: AI_CONNECTION_LAYERS.filter((layer) => choices.layers.includes(layer)).length,
+      onceFor: connection.id,
     });
     return ok({ connectionId: connection.id, code });
   });
