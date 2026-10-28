@@ -36,6 +36,7 @@ const list = (overrides: Partial<AiConnectionList> = {}): AiConnectionList => ({
   available: true,
   active: [],
   recentlyEnded: [],
+  activeTotal: overrides.active?.length ?? 0,
   ...overrides,
 });
 
@@ -230,5 +231,24 @@ describe('Change Access in each row', () => {
     expect(html).not.toMatch(/checked="" value="money"/);
     expect(html).toMatch(/checked="" value="m1"/);
     expect(html).toMatch(/<option value="7d" selected="">/);
+  });
+
+  it('says how many more are connected when the list is capped, never dropping them silently', () => {
+    const text = textOf(
+      render({
+        applicantId: APPLICANT,
+        connectorOn: true,
+        list: list({ active: [connection()], activeTotal: 4 }),
+      }),
+    );
+    expect(text).toContain('And 3 more connected AI apps, not shown here.');
+  });
+
+  it('still says what just happened while connecting is off and nothing is left', () => {
+    const text = textOf(
+      render({ applicantId: APPLICANT, connectorOn: false, notice: 'off', list: list() }),
+    );
+    expect(text).toContain('Turned off. That app can no longer read this record.');
+    expect(text).not.toContain('No AI apps are connected');
   });
 });

@@ -4,7 +4,7 @@ import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createAiConnection,
   exchangeAiAuthorizationCode,
@@ -1300,6 +1300,9 @@ describe('reconcileRestoredBranch: AI connections (S15)', () => {
     oldDb = await freshDb();
     newDb = await freshDb();
   });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   async function ownerProof(db: Db, accountId: string, applicantId: string) {
     const proof = await requireAccess(
@@ -1412,8 +1415,13 @@ describe('reconcileRestoredBranch: AI connections (S15)', () => {
     expect(report.errors).toEqual([]);
     expect(report.counts.aiConnectionsRevoked).toBe(1);
     const row = await restoredRow(c.connectionId);
-    expect(row?.revokedAt).not.toBeNull();
-    expect(row?.revokedReason).toBe('backup_resurrection_reconciliation');
+    // The owner's own turn-off, as it happened: its time and its reason.
+    const [source] = await oldDb
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'AI_CONNECTION_REVOKED'));
+    expect(row?.revokedAt?.getTime()).toBe(source?.occurredAt.getTime());
+    expect(row?.revokedReason).toBe('turned off by owner');
     expect(await liveTokensOnNew(c.connectionId)).toBe(0);
     expect(await resolveAiAccessToken(newDb, { token: c.access, resource: RESOURCE })).toBeNull();
     const refreshed = await refreshAiTokens(newDb, {
@@ -1449,7 +1457,11 @@ describe('reconcileRestoredBranch: AI connections (S15)', () => {
     const c = await sharedConnection('ai-narrowed@example.com');
     // After the restore point the owner kept only Personal Details, one case, and an end of
     // one hour from then, which has long passed.
-    const changed = await changeAiConnection(await ownerProof(oldDb, c.ownerId, c.applicantId), {
+    const changedAt = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const proof = await ownerProof(oldDb, c.ownerId, c.applicantId);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(changedAt);
+    const changed = await changeAiConnection(proof, {
       connectionId: c.connectionId,
       choices: {
         layers: ['identity'],
@@ -1460,8 +1472,8 @@ describe('reconcileRestoredBranch: AI connections (S15)', () => {
         revealIdentifiers: false,
         duration: '1h',
       },
-      now: AFTER,
     });
+    vi.useRealTimers();
     expect(changed.ok).toBe(true);
 
     const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
@@ -1474,7 +1486,7 @@ describe('reconcileRestoredBranch: AI connections (S15)', () => {
       missionId: c.missionId,
       revealIdentifiers: false,
     });
-    expect(row?.expiresAt?.getTime()).toBe(AFTER.getTime() + 60 * 60 * 1000);
+    expect(row?.expiresAt?.getTime()).toBe(changedAt.getTime() + 60 * 60 * 1000);
     expect(await liveTokensOnNew(c.connectionId)).toBe(0);
     expect(await resolveAiAccessToken(newDb, { token: c.access, resource: RESOURCE })).toBeNull();
     const again = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
@@ -1547,5 +1559,54 @@ describe('reconcileRestoredBranch: AI connections (S15)', () => {
     const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
     expect(report.errors).toEqual([]);
     expect(report.counts.aiConnectionsRevoked).toBe(0);
+  });
+
+  /** One side keeps one case, the other all current cases; `closed` closes that case on the restored branch. */
+  async function mixedCases(restoredHasOne: boolean, closed: boolean) {
+    const c = await sharedConnection(`ai-mixed-${restoredHasOne}-${closed}@example.com`);
+    const one = { scopes: ['identity'], caseMode: 'ONE' as const, missionId: c.missionId };
+    const all = { scopes: ['identity'], caseMode: 'ALL_CURRENT' as const, missionId: null };
+    await newDb
+      .update(schema.aiConnections)
+      .set(restoredHasOne ? one : all)
+      .where(eq(schema.aiConnections.id, c.connectionId));
+    await oldDb
+      .update(schema.aiConnections)
+      .set(restoredHasOne ? all : one)
+      .where(eq(schema.aiConnections.id, c.connectionId));
+    if (closed) {
+      await newDb
+        .update(schema.missions)
+        .set({ state: 'CLOSED' })
+        .where(eq(schema.missions.id, c.missionId));
+    }
+    await oldDb.insert(schema.auditEvents).values({
+      occurredAt: AFTER,
+      eventType: 'AI_CONNECTION_CHANGED',
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      resourceType: 'ai_connection',
+      resourceId: c.connectionId,
+      hash: `test-hash-${c.connectionId}`,
+    });
+    const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(report.errors).toEqual([]);
+    return { c, row: await restoredRow(c.connectionId) };
+  }
+
+  it('one case against all current cases keeps the case only while it is current, in both directions', async () => {
+    // Pre-incident branch narrowed all current cases to one open case: that one case.
+    const toOne = await mixedCases(false, false);
+    expect(toOne.row).toMatchObject({ caseMode: 'ONE', missionId: toOne.c.missionId });
+    // The same, but that case is closed on the restored branch: all current cases never
+    // covered it, so nothing is left.
+    const toClosed = await mixedCases(false, true);
+    expect(toClosed.row).toMatchObject({ caseMode: 'NONE', missionId: null });
+    // The restored branch has one open case, the pre-incident branch all current cases: kept.
+    const keepOne = await mixedCases(true, false);
+    expect(keepOne.row).toMatchObject({ caseMode: 'ONE', missionId: keepOne.c.missionId });
+    // The restored branch has one closed case: not among all current cases, so none.
+    const closedOne = await mixedCases(true, true);
+    expect(closedOne.row).toMatchObject({ caseMode: 'NONE', missionId: null });
   });
 });

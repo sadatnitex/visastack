@@ -177,7 +177,9 @@ export function AiConnectionsSection({
   /** What just happened, after the page reloaded. */
   readonly notice?: 'off' | 'changed';
 }) {
-  if (!connectorOn && list.active.length === 0) return null;
+  // While connecting is off the card shows only what can still be acted on, or what just happened.
+  if (!connectorOn && list.active.length === 0 && !notice) return null;
+  const onlyNotice = !connectorOn && list.active.length === 0;
   return (
     <article
       className="card ai-connections"
@@ -199,7 +201,7 @@ export function AiConnectionsSection({
             : 'Access changed. The app gets the new access on its next request.'}
         </output>
       ) : null}
-      {!list.available ? (
+      {onlyNotice ? null : !list.available ? (
         <p className="card-body muted">
           AI connections cannot be shown right now. Try again later.
         </p>
@@ -235,6 +237,13 @@ export function AiConnectionsSection({
           ))}
         </ul>
       )}
+      {list.activeTotal > list.active.length ? (
+        <p className="card-body muted">
+          And {list.activeTotal - list.active.length} more connected AI{' '}
+          {list.activeTotal - list.active.length === 1 ? 'app' : 'apps'}, not shown here. Turn off
+          ones you no longer use to see the rest.
+        </p>
+      ) : null}
       {connectorOn && list.recentlyEnded.length > 0 ? (
         <details className="ai-connections-ended">
           <summary>Recently Turned Off ({list.recentlyEnded.length})</summary>

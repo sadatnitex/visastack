@@ -41,6 +41,9 @@ export function AiAccessChoices({
     invalid?.field === field
       ? { 'aria-invalid': true as const, 'aria-describedby': invalid.messageId }
       : {};
+  // The whole group is described by the message too, so it is read with the group's name.
+  const problemGroup = (field: string) =>
+    invalid?.field === field ? { 'aria-describedby': invalid.messageId } : {};
   return (
     <>
       <fieldset className="fieldset">
@@ -72,7 +75,7 @@ export function AiAccessChoices({
         </div>
       </fieldset>
 
-      <fieldset className="fieldset">
+      <fieldset className="fieldset" {...problemGroup('cases')}>
         <legend className="field-label">Cases</legend>
         <div className="checks">
           <label className="check output-check" htmlFor={`${id}-ai-cases-all`}>
@@ -100,6 +103,7 @@ export function AiAccessChoices({
                 name="cases"
                 value={item.id}
                 defaultChecked={initial.cases === item.id}
+                {...problem('cases')}
               />
               <span className="output-check-text">
                 <span>Only {item.title}</span>
@@ -113,6 +117,7 @@ export function AiAccessChoices({
               name="cases"
               value="none"
               defaultChecked={initial.cases === 'none'}
+              {...problem('cases')}
             />
             <span className="output-check-text">
               <span>No Cases</span>

@@ -1,13 +1,9 @@
 'use server';
 
 import {
-  AI_CONNECTION_LAYERS,
-  type AiCaseMode,
-  type AiConnectionLayer,
   type StepUpProof,
   accountPrincipal,
   changeAiConnection,
-  getAiConnection,
   requireAccess,
   turnOffAiConnection,
 } from '@visastack/services';
@@ -15,13 +11,25 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import type { FormResult } from '../../../../../components/form-feedback';
 import { aiConnectorEnabled } from '../../../../../lib/ai-connector';
-import { consentChoicesToQuery, isAiChangeDuration } from '../../../../../lib/ai-consent-choices';
+import {
+  type AiChangeDuration,
+  type ConsentInitial,
+  consentChoicesToQuery,
+  parseAiAccessChoices,
+} from '../../../../../lib/ai-consent-choices';
 import { withSession } from '../../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, establishStepUpProof } from '../../../../../lib/step-up';
+
+/** The Change Access choices as the person submitted them, so a retry shows (and saves) them. */
+export type SubmittedAiChoices = Omit<ConsentInitial, 'duration'> & {
+  readonly duration: AiChangeDuration;
+};
 
 /** A form result that can also send the browser back to the refreshed Sharing page. */
 export interface AiConnectionActionState extends FormResult {
   readonly refreshPath?: string;
+  /** Change Access only: what was submitted, kept after React resets the form. */
+  readonly choices?: SubmittedAiChoices;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -87,7 +95,9 @@ export async function turnOffAiConnectionAction(
 
 /**
  * Change Access: the same choices as the consent screen. Every value is checked again here and in
- * the service; turning Full Document Numbers on asks for the same fresh identity check as consent.
+ * the service. The service decides whether a fresh identity check is needed (only when Full
+ * Document Numbers goes from off to on); if it is, the check runs with the person's choices kept,
+ * and the change is tried again with its proof.
  */
 export async function changeAiAccessAction(
   _prev: AiConnectionActionState,
@@ -98,105 +108,83 @@ export async function changeAiAccessAction(
   const applicantId = text(formData, 'applicantId');
   const connectionId = text(formData, 'connectionId');
   if (!UUID_RE.test(applicantId) || !UUID_RE.test(connectionId)) return NOT_FOUND;
-  const layers = formData
-    .getAll('layer')
-    .filter((value): value is AiConnectionLayer =>
-      (AI_CONNECTION_LAYERS as readonly unknown[]).includes(value),
-    );
-  const caseChoice = text(formData, 'cases') || 'all';
-  const caseMode: AiCaseMode =
-    caseChoice === 'none' ? 'NONE' : caseChoice === 'all' ? 'ALL_CURRENT' : 'ONE';
-  const missionId = caseMode === 'ONE' ? caseChoice : undefined;
-  if (missionId !== undefined && !UUID_RE.test(missionId)) {
-    return { ok: false, message: 'Choose a case, all current cases or none.', field: 'cases' };
-  }
-  const duration = text(formData, 'duration') || 'keep';
-  if (!isAiChangeDuration(duration)) {
-    return { ok: false, message: 'Choose how long the app may read.', field: 'duration' };
-  }
-  const revealIdentifiers = formData.get('reveal_identifiers') === 'on';
-  const documentList = formData.get('document_list') === 'on';
-  const documentText = formData.get('document_text') === 'on';
+  const parsed = parseAiAccessChoices(formData, { allowKeep: true });
+  if (!parsed.ok) return parsed;
+  const { caseMode, missionId, ...rest } = parsed.value;
+  const submitted: SubmittedAiChoices = {
+    layers: rest.layers,
+    cases: rest.cases,
+    documentList: rest.documentList,
+    documentText: rest.documentText,
+    revealIdentifiers: rest.revealIdentifiers,
+    duration: rest.duration,
+  };
   const choices = {
-    layers,
+    layers: rest.layers,
     caseMode,
     ...(missionId !== undefined ? { missionId } : {}),
-    documentList,
-    documentText,
-    revealIdentifiers,
-    duration,
+    documentList: rest.documentList,
+    documentText: rest.documentText,
+    revealIdentifiers: rest.revealIdentifiers,
+    duration: rest.duration,
   };
 
   const outcome = await withSession(async ({ db, accountId }) => {
-    let fullNumbersProof: StepUpProof | undefined;
-    if (revealIdentifiers) {
-      // Only a change from off to on needs the check; keeping it on does not.
-      const current = await db.transaction(async (tx) => {
+    const attempt = (stepUp?: StepUpProof) =>
+      db.transaction(async (tx) => {
         const proof = await ownerGate(tx, accountId, applicantId);
-        return proof ? getAiConnection(proof, connectionId) : null;
+        if (!proof) return { kind: 'denied' } as const;
+        const result = await changeAiConnection(proof, {
+          connectionId,
+          choices,
+          ...(stepUp ? { stepUp } : {}),
+        });
+        return result.ok ? ({ kind: 'done' } as const) : ({ kind: result.error.code } as const);
       });
-      if (current === null) return { kind: 'denied' } as const;
-      if (current.ok && !current.value.revealIdentifiers) {
-        const back = new URLSearchParams(
-          consentChoicesToQuery({
-            layers,
-            cases: caseChoice,
-            documentList,
-            documentText,
-            revealIdentifiers,
-            duration,
-          }),
-        );
-        const stepUp = await establishStepUpProof(
-          { accountId, action: 'EXPORT_PROFILE', resourceId: applicantId },
-          `/app/applicant/${applicantId}/sharing?ai_change=${connectionId}&${back.toString()}#ai-connections`,
-        );
-        if (stepUp.kind === 'not_configured') return { kind: 'step_up_unavailable' } as const;
-        if (stepUp.kind === 'reauth_required') {
-          return { kind: 'reauth', url: stepUp.reauthUrl } as const;
-        }
-        fullNumbersProof = stepUp.proof;
-      }
-    }
-    return db.transaction(async (tx) => {
-      const proof = await ownerGate(tx, accountId, applicantId);
-      if (!proof) return { kind: 'denied' } as const;
-      const result = await changeAiConnection(proof, {
-        connectionId,
-        choices,
-        ...(fullNumbersProof ? { stepUp: fullNumbersProof } : {}),
-      });
-      return result.ok ? ({ kind: 'done' } as const) : ({ kind: result.error.code } as const);
+    const first = await attempt();
+    if (first.kind !== 'step_up_required') return first;
+    // The same check, and the same proof, as the consent screen and the record's own export.
+    const back = new URLSearchParams({
+      ai_change: connectionId,
+      ...consentChoicesToQuery(submitted),
     });
+    const stepUp = await establishStepUpProof(
+      { accountId, action: 'EXPORT_PROFILE', resourceId: applicantId },
+      `/app/applicant/${applicantId}/sharing?${back.toString()}#ai-connections`,
+    );
+    if (stepUp.kind === 'not_configured') return { kind: 'step_up_unavailable' } as const;
+    if (stepUp.kind === 'reauth_required')
+      return { kind: 'reauth', url: stepUp.reauthUrl } as const;
+    return attempt(stepUp.proof);
   });
 
   if (outcome.kind === 'reauth') redirect(outcome.url);
-  if (outcome.kind === 'step_up_unavailable') {
-    return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE };
-  }
+  const failed = (message: string, field?: string): AiConnectionActionState => ({
+    ok: false,
+    message,
+    ...(field ? { field } : {}),
+    choices: submitted,
+  });
+  if (outcome.kind === 'step_up_unavailable') return failed(STEP_UP_NOT_CONFIGURED_MESSAGE);
   if (outcome.kind === 'denied' || outcome.kind === 'not_owner') {
-    return { ok: false, message: 'Only the owner of this record can change its AI apps.' };
+    return failed('Only the owner of this record can change its AI apps.');
   }
-  if (outcome.kind === 'unavailable') return NOT_AVAILABLE;
+  if (outcome.kind === 'unavailable') return failed(NOT_AVAILABLE.message);
   if (outcome.kind === 'ended') {
-    return {
-      ok: false,
-      message:
-        'This connection has ended, so its access cannot be changed. Connect it again from the AI app.',
-    };
+    return failed(
+      'This connection has ended, so its access cannot be changed. Connect it again from the AI app.',
+    );
   }
   if (outcome.kind === 'case_not_on_record' || outcome.kind === 'invalid') {
-    return { ok: false, message: 'Choose a case, all current cases or none.', field: 'cases' };
+    return failed('Choose a case, all current cases or none.', 'cases');
   }
   if (outcome.kind === 'step_up_required') {
-    return {
-      ok: false,
-      message:
-        'To turn on Full Document Numbers, confirm it is you first: save again and sign in when asked.',
-      field: 'reveal_identifiers',
-    };
+    return failed(
+      'To turn on Full Document Numbers, confirm it is you first: save again and sign in when asked.',
+      'reveal_identifiers',
+    );
   }
-  if (outcome.kind !== 'done') return NOT_FOUND;
+  if (outcome.kind !== 'done') return failed(NOT_FOUND.message);
   revalidatePath(`/app/applicant/${applicantId}/sharing`);
   return {
     ok: true,

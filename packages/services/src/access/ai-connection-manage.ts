@@ -1,5 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, count, desc, eq, gt, gte, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 import {
   type AiCaseMode,
   type AiConnectionChoices,
@@ -37,8 +37,11 @@ import { StepUpProof } from './step-up-proof';
 /** How far back "Recently Turned Off" looks. */
 export const AI_RECENTLY_ENDED_MS = 30 * 24 * 60 * 60 * 1000;
 const RECENTLY_ENDED_LIMIT = 10;
-/** A record has a handful of connections at most; the list is bounded all the same. */
-const LIST_LIMIT = 100;
+/**
+ * A record has a handful of live connections; the live list is bounded all the same, and
+ * `activeTotal` says how many there are, so the page can say "and N more" instead of dropping any.
+ */
+export const AI_ACTIVE_LIST_LIMIT = 50;
 
 export const AI_CONNECTION_REVOKED_REASON = 'turned off by owner';
 
@@ -66,7 +69,10 @@ export interface AiConnectionSummary {
 export interface AiConnectionList {
   /** False while the tables do not exist yet: the list then says nothing either way. */
   readonly available: boolean;
+  /** The newest live connections, at most `AI_ACTIVE_LIST_LIMIT`. */
   readonly active: readonly AiConnectionSummary[];
+  /** How many live connections there are in all (more than `active` holds when capped). */
+  readonly activeTotal: number;
   /** Turned off or run out in the last 30 days, newest first, at most ten. */
   readonly recentlyEnded: readonly AiConnectionSummary[];
 }
@@ -135,72 +141,104 @@ function summary(row: ConnectionRow, caseTitle: string | null, now: Date): AiCon
   };
 }
 
-async function ownedRows(owner: Owner, connectionId?: string) {
-  return owner.tx
-    .select({ connection: schema.aiConnections, caseTitle: schema.missions.title })
-    .from(schema.aiConnections)
-    .leftJoin(
-      schema.missions,
-      and(
-        eq(schema.missions.id, schema.aiConnections.missionId),
-        eq(schema.missions.applicantId, schema.aiConnections.applicantId),
-      ),
-    )
-    .where(
-      and(
-        eq(schema.aiConnections.applicantId, owner.applicantId),
-        eq(schema.aiConnections.accountId, owner.accountId),
-        ...(connectionId ? [eq(schema.aiConnections.id, connectionId)] : []),
-      ),
-    )
-    .orderBy(desc(schema.aiConnections.createdAt))
-    .limit(LIST_LIMIT);
-}
+const missionJoin = () =>
+  and(
+    eq(schema.missions.id, schema.aiConnections.missionId),
+    eq(schema.missions.applicantId, schema.aiConnections.applicantId),
+  );
+
+/** The owner's own finished connections of this record (a consent never finished reads nothing). */
+const ownedFinished = (owner: Owner) =>
+  and(
+    eq(schema.aiConnections.applicantId, owner.applicantId),
+    eq(schema.aiConnections.accountId, owner.accountId),
+    isNotNull(schema.aiConnections.activatedAt),
+  );
+
+/** Live: not turned off and not past its end. */
+const liveAt = (now: Date) =>
+  and(
+    isNull(schema.aiConnections.revokedAt),
+    or(isNull(schema.aiConnections.expiresAt), gt(schema.aiConnections.expiresAt, now)),
+  );
+
+/** Ended since `since`: turned off then, or run out then without being turned off. */
+const endedBetween = (since: Date, now: Date) =>
+  or(
+    gte(schema.aiConnections.revokedAt, since),
+    and(
+      isNull(schema.aiConnections.revokedAt),
+      gte(schema.aiConnections.expiresAt, since),
+      lte(schema.aiConnections.expiresAt, now),
+    ),
+  );
 
 /**
- * Every connection of this record the owner can still act on (live and activated: a consent the
- * app never finished is not shown, it can never read anything), plus the recently ended ones.
+ * Every live connection of this record (newest first, capped, with the full count), plus the
+ * recently ended ones. Each list is filtered and limited in the database on its own, so old live
+ * connections are never pushed out by newer ended ones.
  */
 export async function listAiConnections(
   proof: AuthorizedApplicant<'VIEW_METADATA'>,
-  options: { readonly now?: Date } = {},
 ): Promise<Result<AiConnectionList, AiConnectionManageError>> {
   const owner = ownerOf(proof);
   if (!owner) return err({ code: 'not_owner' });
-  const now = options.now ?? new Date();
+  const now = new Date();
+  const since = new Date(now.getTime() - AI_RECENTLY_ENDED_MS);
   try {
-    const rows = await ownedRows(owner);
-    const all = rows
-      .filter((row) => row.connection.activatedAt !== null)
-      .map((row) => summary(row.connection, row.caseTitle, now));
-    const since = now.getTime() - AI_RECENTLY_ENDED_MS;
+    const select = () =>
+      owner.tx
+        .select({ connection: schema.aiConnections, caseTitle: schema.missions.title })
+        .from(schema.aiConnections)
+        .leftJoin(schema.missions, missionJoin());
+    const [active, [total], ended] = await Promise.all([
+      select()
+        .where(and(ownedFinished(owner), liveAt(now)))
+        .orderBy(desc(schema.aiConnections.createdAt))
+        .limit(AI_ACTIVE_LIST_LIMIT),
+      owner.tx
+        .select({ value: count() })
+        .from(schema.aiConnections)
+        .where(and(ownedFinished(owner), liveAt(now))),
+      select()
+        .where(and(ownedFinished(owner), endedBetween(since, now)))
+        .orderBy(
+          desc(sql`coalesce(${schema.aiConnections.revokedAt}, ${schema.aiConnections.expiresAt})`),
+        )
+        .limit(RECENTLY_ENDED_LIMIT),
+    ]);
     return ok({
       available: true,
-      active: all.filter((item) => item.endedAt === null),
-      recentlyEnded: all
-        .filter((item) => item.endedAt !== null && item.endedAt.getTime() >= since)
-        .sort((a, b) => (b.endedAt?.getTime() ?? 0) - (a.endedAt?.getTime() ?? 0))
-        .slice(0, RECENTLY_ENDED_LIMIT),
+      active: active.map((row) => summary(row.connection, row.caseTitle, now)),
+      activeTotal: Number(total?.value ?? active.length),
+      recentlyEnded: ended.map((row) => summary(row.connection, row.caseTitle, now)),
     });
   } catch (error) {
-    if (isMissingRelationError(error))
-      return ok({ available: false, active: [], recentlyEnded: [] });
+    if (isMissingRelationError(error)) {
+      return ok({ available: false, active: [], activeTotal: 0, recentlyEnded: [] });
+    }
     throw error;
   }
 }
 
-/** One live connection of this record, for the Change Access screen. */
+/** One live connection of this record. */
 export async function getAiConnection(
   proof: AuthorizedApplicant<'VIEW_METADATA'>,
   connectionId: string,
-  options: { readonly now?: Date } = {},
 ): Promise<Result<AiConnectionSummary, AiConnectionManageError>> {
   const owner = ownerOf(proof);
   if (!owner) return err({ code: 'not_owner' });
-  const now = options.now ?? new Date();
+  const now = new Date();
   try {
-    const row = first(await ownedRows(owner, connectionId));
-    if (!row || row.connection.activatedAt === null) return err({ code: 'not_found' });
+    const row = first(
+      await owner.tx
+        .select({ connection: schema.aiConnections, caseTitle: schema.missions.title })
+        .from(schema.aiConnections)
+        .leftJoin(schema.missions, missionJoin())
+        .where(and(ownedFinished(owner), eq(schema.aiConnections.id, connectionId)))
+        .limit(1),
+    );
+    if (!row) return err({ code: 'not_found' });
     const item = summary(row.connection, row.caseTitle, now);
     return item.endedAt === null ? ok(item) : err({ code: 'ended' });
   } catch (error) {
@@ -229,20 +267,26 @@ async function lockOwned(tx: Db, owner: Owner, connectionId: string) {
 
 /**
  * Turn Off: ends the connection and every token it has, at once, in one transaction. Turning
- * off a connection that has already ended is a quiet success (`alreadyOff`), so a double click or
- * a second tab never shows an error; nothing is written or audited a second time.
+ * off a connection that has already ended (turned off, or past its end) is a quiet success
+ * (`alreadyOff`), so a double click or a second tab never shows an error; nothing is audited a
+ * second time.
  */
 export async function turnOffAiConnection(
   proof: AuthorizedApplicant<'VIEW_METADATA'>,
-  input: { readonly connectionId: string; readonly now?: Date },
+  input: { readonly connectionId: string },
 ): Promise<Result<{ readonly alreadyOff: boolean }, AiConnectionManageError>> {
   const owner = ownerOf(proof);
   if (!owner) return err({ code: 'not_owner' });
-  const now = input.now ?? new Date();
+  // Always the real time, as in the access gate: a caller-chosen clock could decide liveness.
+  const now = new Date();
   try {
     return await owner.tx.transaction(async (tx) => {
       const connection = await lockOwned(tx, owner, input.connectionId);
       if (!connection) return err({ code: 'not_found' } as const);
+      // Already ended by time: it is off. Nothing is rewritten and nothing audited again.
+      if (!connection.revokedAt && endOf(connection, now).endedAt !== null) {
+        return ok({ alreadyOff: true });
+      }
       // Tokens are cut off even when the connection already ended, so none is ever left live. A
       // refresh racing this one may still add a pair, but every use checks the connection's own
       // `revoked_at` first, so such a pair never works.
@@ -289,7 +333,6 @@ export interface ChangeAiConnectionInput {
   };
   /** Required only when Full Document Numbers goes from off to on. */
   readonly stepUp?: StepUpProof;
-  readonly now?: Date;
 }
 
 /**
@@ -304,7 +347,8 @@ export async function changeAiConnection(
   if (!owner) return err({ code: 'not_owner' });
   const { choices } = input;
   if (choices.caseMode === 'ONE' && !choices.missionId) return err({ code: 'invalid' });
-  const now = input.now ?? new Date();
+  // Always the real time: the new end counts from now, and liveness is never caller-chosen.
+  const now = new Date();
   try {
     return await owner.tx.transaction(async (tx) => {
       const connection = await lockOwned(tx, owner, input.connectionId);

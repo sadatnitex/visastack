@@ -51,11 +51,14 @@ export function ChangeAccessForm({
       <input type="hidden" name="applicantId" value={applicantId} />
       <input type="hidden" name="connectionId" value={connectionId} />
       <AiAccessChoices
+        // React resets a form after its action; starting again from what was submitted (a new key
+        // re-applies the defaults) keeps the person's choices for the retry.
+        key={state.choices ? JSON.stringify(state.choices) : 'stored'}
         appName={appName}
         cases={cases}
-        initial={initial}
+        initial={state.choices ?? initial}
         durations={durations}
-        defaultDuration={defaultDuration}
+        defaultDuration={state.choices?.duration ?? defaultDuration}
         {...(isFailure(state) && state.field ? { invalid: { field: state.field, messageId } } : {})}
       />
       <p className="card-body">

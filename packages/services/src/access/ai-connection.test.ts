@@ -269,8 +269,9 @@ describe('AI connection tokens', () => {
     const { code, verifier, connectionId } = await consent({ ...CHOICES, duration: '1h' }, now);
     const tokens = await exchange(code, verifier, { now });
     if (!isOk(tokens)) throw new Error('tokens');
-    // The access token never outlives the connection.
-    expect(tokens.value.expires_in).toBeLessThanOrEqual(3600);
+    expect(tokens.value.expires_in).toBe(3600);
+    // Past the connection's end nothing works, whatever each token's own life: every use checks
+    // the stored connection.
     const later = new Date(now.getTime() + 61 * 60 * 1000);
     expect(
       await resolveAiAccessToken(db, {
@@ -279,6 +280,12 @@ describe('AI connection tokens', () => {
         now: later,
       }),
     ).toBeNull();
+    const pastEnd = await refreshAiTokens(db, {
+      refreshToken: tokens.value.refresh_token,
+      clientId: CLIENT.clientId,
+      now: later,
+    });
+    expect(isErr(pastEnd)).toBe(true);
 
     await db
       .update(schema.aiConnections)

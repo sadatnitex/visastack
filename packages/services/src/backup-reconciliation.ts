@@ -1,5 +1,6 @@
 import { CONSENT_TYPES, type ConsentType, isOk } from '@visastack/core';
 import { and, asc, eq, gt, inArray, isNull, ne } from 'drizzle-orm';
+import { AI_CONNECTION_REVOKED_REASON } from './access/ai-connection-manage';
 import { caseExclusionsTablePresent } from './access/grant-scope';
 import { appendAuditEvent } from './audit';
 import { purgeMissionUnconditionally } from './case-retention';
@@ -238,8 +239,6 @@ async function forceOrganizationStatus(
   return true;
 }
 
-const AI_RECONCILED_REASON = 'backup_resurrection_reconciliation';
-
 /** Ends every live token of one AI connection on the restored branch. */
 async function revokeAiConnectionTokens(tx: Db, connectionId: string, now: Date): Promise<number> {
   const rows = await tx
@@ -257,17 +256,24 @@ async function revokeAiConnectionTokens(tx: Db, connectionId: string, now: Date)
 
 /**
  * `AI_CONNECTION_REVOKED` (the owner's Turn Off, S15): the connection and every token it has end
- * on the restored branch too, exactly as the original did in one transaction. The connection's
+ * on the restored branch too, exactly as the original did in one transaction, with the original
+ * time and reason. The connection's
  * own `revoked_at` is what every use checks; its tokens are revoked as well so none is left live.
  * A restored branch from before the AI connection tables existed has no such connection: no-op.
  */
-async function forceAiConnectionRevoked(newDb: Db, resourceId: string): Promise<boolean> {
+async function forceAiConnectionRevoked(
+  newDb: Db,
+  resourceId: string,
+  occurredAt: Date,
+): Promise<boolean> {
   try {
     return await newDb.transaction(async (tx) => {
-      const now = new Date();
+      // The owner's own turn-off, as it happened: its time and its reason. The
+      // RECONCILIATION_AI_CONNECTION_REVOKED audit row records that reconciliation applied it.
+      const now = occurredAt;
       const connections = await tx
         .update(schema.aiConnections)
-        .set({ revokedAt: now, revokedReason: AI_RECONCILED_REASON })
+        .set({ revokedAt: now, revokedReason: AI_CONNECTION_REVOKED_REASON })
         .where(and(eq(schema.aiConnections.id, resourceId), isNull(schema.aiConnections.revokedAt)))
         .returning({ id: schema.aiConnections.id });
       const tokens = await revokeAiConnectionTokens(tx, resourceId, now);
@@ -290,23 +296,32 @@ function earlierEnd(a: Date | null, b: Date | null): Date | null {
 
 /**
  * The cases both branches allow: none beats one case beats all current cases, and two different
- * single cases leave none. `ONE` with no case (its case was deleted) already covers none.
+ * single cases leave none. `ONE` with no case (its case was deleted) already covers none. When
+ * one side has one case and the other all current cases, the one case is allowed by both only
+ * while it is current (`mustBeCurrent`): a closed or cancelled case is not among all current
+ * cases, so keeping it would widen the side that had all current cases.
  */
 function narrowerCases(
   restored: AiConnectionRow,
   source: AiConnectionRow,
-): Pick<AiConnectionRow, 'caseMode' | 'missionId'> {
-  const none = { caseMode: 'NONE' as const, missionId: null };
+): Pick<AiConnectionRow, 'caseMode' | 'missionId'> & { readonly mustBeCurrent: boolean } {
+  const none = { caseMode: 'NONE' as const, missionId: null, mustBeCurrent: false };
   const covers = (row: AiConnectionRow) =>
     row.caseMode === 'ONE' && row.missionId === null ? 'NONE' : row.caseMode;
   const restoredMode = covers(restored);
   const sourceMode = covers(source);
   if (restoredMode === 'NONE' || sourceMode === 'NONE') return none;
-  if (sourceMode === 'ALL_CURRENT')
-    return { caseMode: restored.caseMode, missionId: restored.missionId };
-  if (restoredMode === 'ALL_CURRENT') return { caseMode: 'ONE', missionId: source.missionId };
+  if (sourceMode === 'ALL_CURRENT' && restoredMode === 'ALL_CURRENT') {
+    return { caseMode: 'ALL_CURRENT', missionId: null, mustBeCurrent: false };
+  }
+  if (sourceMode === 'ALL_CURRENT') {
+    return { caseMode: 'ONE', missionId: restored.missionId, mustBeCurrent: true };
+  }
+  if (restoredMode === 'ALL_CURRENT') {
+    return { caseMode: 'ONE', missionId: source.missionId, mustBeCurrent: true };
+  }
   return restored.missionId === source.missionId
-    ? { caseMode: 'ONE', missionId: restored.missionId }
+    ? { caseMode: 'ONE', missionId: restored.missionId, mustBeCurrent: false }
     : none;
 }
 
@@ -347,21 +362,25 @@ async function forceAiConnectionNarrowed(
       );
       if (!restored) return false;
       const now = new Date();
-      let cases = narrowerCases(restored, source);
-      if (cases.missionId !== null) {
+      const narrowestCases = narrowerCases(restored, source);
+      let cases: Pick<AiConnectionRow, 'caseMode' | 'missionId'> = narrowestCases;
+      if (narrowestCases.missionId !== null) {
         const mission = first(
           await tx
-            .select({ id: schema.missions.id })
+            .select({ id: schema.missions.id, state: schema.missions.state })
             .from(schema.missions)
             .where(
               and(
-                eq(schema.missions.id, cases.missionId),
+                eq(schema.missions.id, narrowestCases.missionId),
                 eq(schema.missions.applicantId, restored.applicantId),
               ),
             )
             .limit(1),
         );
-        if (!mission) cases = { caseMode: 'NONE', missionId: null };
+        const closed = mission?.state === 'CLOSED' || mission?.state === 'CANCELLED';
+        if (!mission || (narrowestCases.mustBeCurrent && closed)) {
+          cases = { caseMode: 'NONE', missionId: null };
+        }
       }
       const narrowed = {
         scopes: restored.scopes.filter((scope) => source.scopes.includes(scope)),
@@ -815,7 +834,7 @@ async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<b
     case 'GRANT_CASE_EXCLUSION_REMOVED':
       return forceCaseExclusionRemoved(newDb, event);
     case 'AI_CONNECTION_REVOKED':
-      return forceAiConnectionRevoked(newDb, resourceId);
+      return forceAiConnectionRevoked(newDb, resourceId, event.occurredAt);
     case 'AI_CONNECTION_CHANGED':
       return forceAiConnectionNarrowed(oldDb, newDb, resourceId);
     default:

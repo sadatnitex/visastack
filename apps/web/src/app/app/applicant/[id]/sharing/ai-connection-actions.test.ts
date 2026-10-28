@@ -4,7 +4,6 @@ const mocks = vi.hoisted(() => ({
   requireAccess: vi.fn(),
   turnOffAiConnection: vi.fn(),
   changeAiConnection: vi.fn(),
-  getAiConnection: vi.fn(),
   establishStepUpProof: vi.fn(),
   revalidatePath: vi.fn(),
   redirect: vi.fn(),
@@ -14,7 +13,6 @@ vi.mock('@visastack/services', async (original) => ({
   requireAccess: mocks.requireAccess,
   turnOffAiConnection: mocks.turnOffAiConnection,
   changeAiConnection: mocks.changeAiConnection,
-  getAiConnection: mocks.getAiConnection,
 }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
@@ -118,8 +116,9 @@ describe('Change Access', () => {
     });
   });
 
-  it('turning Full Document Numbers on asks for a fresh check that returns to the same choices', async () => {
-    mocks.getAiConnection.mockResolvedValue({ ok: true, value: { revealIdentifiers: false } });
+  it('asks for a fresh check only when the service needs one, keeping the choices, then tries again', async () => {
+    const needsCheck = { ok: false, error: { code: 'step_up_required' } };
+    mocks.changeAiConnection.mockResolvedValue(needsCheck);
     mocks.establishStepUpProof.mockResolvedValue({
       kind: 'reauth_required',
       reauthUrl: '/reauth',
@@ -127,6 +126,8 @@ describe('Change Access', () => {
     await expect(
       changeAiAccessAction(NONE, form({ ...choices, reveal_identifiers: 'on' })),
     ).rejects.toThrow('redirected:/reauth');
+    // Tried once without a check; the check returns to this row with the same choices.
+    expect(mocks.changeAiConnection).toHaveBeenCalledTimes(1);
     const [request, back] = mocks.establishStepUpProof.mock.calls[0] ?? [];
     expect(request).toEqual({
       accountId: 'owner',
@@ -137,21 +138,42 @@ describe('Change Access', () => {
     expect(back).toMatch(/#ai-connections$/);
     expect(back).toContain('choice_reveal=1');
     expect(back).toContain('choice_duration=7d');
-    expect(mocks.changeAiConnection).not.toHaveBeenCalled();
 
     const proof = { kind: 'step-up' };
+    mocks.changeAiConnection.mockReset();
+    mocks.changeAiConnection
+      .mockResolvedValueOnce(needsCheck)
+      .mockResolvedValueOnce({ ok: true, value: { expiresAt: null } });
     mocks.establishStepUpProof.mockResolvedValue({ kind: 'proof', proof });
-    mocks.changeAiConnection.mockResolvedValue({ ok: true, value: { expiresAt: null } });
-    await changeAiAccessAction(NONE, form({ ...choices, reveal_identifiers: 'on' }));
-    expect(mocks.changeAiConnection.mock.calls[0]?.[1]).toMatchObject({ stepUp: proof });
+    const saved = await changeAiAccessAction(NONE, form({ ...choices, reveal_identifiers: 'on' }));
+    expect(saved.ok).toBe(true);
+    expect(mocks.changeAiConnection.mock.calls[0]?.[1]).not.toHaveProperty('stepUp');
+    expect(mocks.changeAiConnection.mock.calls[1]?.[1]).toMatchObject({ stepUp: proof });
   });
 
-  it('keeping Full Document Numbers on needs no new check', async () => {
-    mocks.getAiConnection.mockResolvedValue({ ok: true, value: { revealIdentifiers: true } });
+  it('keeping Full Document Numbers on, or turning it off, needs no check', async () => {
     mocks.changeAiConnection.mockResolvedValue({ ok: true, value: { expiresAt: null } });
     await changeAiAccessAction(NONE, form({ ...choices, reveal_identifiers: 'on' }));
+    await changeAiAccessAction(NONE, form(choices));
     expect(mocks.establishStepUpProof).not.toHaveBeenCalled();
-    expect(mocks.changeAiConnection.mock.calls[0]?.[1]).not.toHaveProperty('stepUp');
+    expect(mocks.changeAiConnection).toHaveBeenCalledTimes(2);
+  });
+
+  it('gives the submitted choices back with a failure, so a retry saves what was chosen', async () => {
+    mocks.changeAiConnection.mockResolvedValue({
+      ok: false,
+      error: { code: 'case_not_on_record' },
+    });
+    const result = await changeAiAccessAction(NONE, form({ ...choices, document_text: 'on' }));
+    expect(result).toMatchObject({ ok: false, field: 'cases' });
+    expect(result.choices).toEqual({
+      layers: ['identity', 'money'],
+      cases: CASE,
+      documentList: true,
+      documentText: true,
+      revealIdentifiers: false,
+      duration: '7d',
+    });
   });
 
   it('names the field at fault and refuses while connecting is off', async () => {
@@ -162,7 +184,9 @@ describe('Change Access', () => {
       ok: false,
       field: 'cases',
     });
+    // Still refused after the check (for example the record changed hands in between).
     mocks.changeAiConnection.mockResolvedValue({ ok: false, error: { code: 'step_up_required' } });
+    mocks.establishStepUpProof.mockResolvedValue({ kind: 'proof', proof: {} });
     expect(await changeAiAccessAction(NONE, form(choices))).toMatchObject({
       ok: false,
       field: 'reveal_identifiers',

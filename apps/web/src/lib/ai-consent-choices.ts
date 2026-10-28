@@ -110,3 +110,75 @@ export function isAiChangeDuration(value: string | undefined): value is AiChange
     value === AI_KEEP_END || (AI_CONNECTION_DURATIONS as readonly string[]).includes(value ?? '')
   );
 }
+
+const CASE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The choices a consent or Change Access form sent, checked and in the stored vocabulary. */
+export interface ParsedAiAccessChoices<D extends string> {
+  readonly layers: AiConnectionLayer[];
+  /** 'all', 'none' or a case id, as the form sent it (to show the same choice again). */
+  readonly cases: string;
+  readonly caseMode: 'NONE' | 'ONE' | 'ALL_CURRENT';
+  readonly missionId?: string;
+  readonly documentList: boolean;
+  readonly documentText: boolean;
+  readonly revealIdentifiers: boolean;
+  readonly duration: D;
+}
+
+export type AiAccessChoicesParse<D extends string> =
+  | { readonly ok: true; readonly value: ParsedAiAccessChoices<D> }
+  | { readonly ok: false; readonly message: string; readonly field: 'cases' | 'duration' };
+
+function formText(formData: FormData, name: string): string | undefined {
+  const value = formData.get(name);
+  return typeof value === 'string' && value.length <= 2048 ? value : undefined;
+}
+
+/**
+ * Reads the AI access choices out of a submitted form: one parser for the consent screen and
+ * Change Access, so the two can never read the same fields differently. Unknown parts are
+ * dropped, a case must be a case id (the server still checks it is on the record), and How Long
+ * must be one of the offered durations ("keep" only where Change Access offers it).
+ */
+export function parseAiAccessChoices(
+  formData: FormData,
+  options: { readonly allowKeep: true },
+): AiAccessChoicesParse<AiChangeDuration>;
+export function parseAiAccessChoices(
+  formData: FormData,
+  options?: { readonly allowKeep?: false },
+): AiAccessChoicesParse<AiConnectionDuration>;
+export function parseAiAccessChoices(
+  formData: FormData,
+  options: { readonly allowKeep?: boolean } = {},
+): AiAccessChoicesParse<string> {
+  const layers = AI_CONNECTION_LAYERS.filter((layer) => formData.getAll('layer').includes(layer));
+  const cases = formText(formData, 'cases') || 'all';
+  const caseMode = cases === 'none' ? 'NONE' : cases === 'all' ? 'ALL_CURRENT' : 'ONE';
+  if (caseMode === 'ONE' && !CASE_ID_RE.test(cases)) {
+    return { ok: false, message: 'Choose a case, all current cases or none.', field: 'cases' };
+  }
+  const duration =
+    formText(formData, 'duration') ||
+    (options.allowKeep ? AI_KEEP_END : AI_CONNECTION_DEFAULT_DURATION);
+  const offered = options.allowKeep
+    ? isAiChangeDuration(duration)
+    : (AI_CONNECTION_DURATIONS as readonly string[]).includes(duration);
+  if (!offered) {
+    return { ok: false, message: 'Choose how long the app may read.', field: 'duration' };
+  }
+  return {
+    ok: true,
+    value: {
+      layers,
+      cases,
+      caseMode,
+      ...(caseMode === 'ONE' ? { missionId: cases } : {}),
+      documentList: formData.get('document_list') === 'on',
+      documentText: formData.get('document_text') === 'on',
+      revealIdentifiers: formData.get('reveal_identifiers') === 'on',
+      duration,
+    },
+  };
+}

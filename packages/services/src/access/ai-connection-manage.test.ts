@@ -2,9 +2,9 @@ import { createHash, randomBytes } from 'node:crypto';
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { provisionAccount } from '../accounts';
 import type { AiConnectionChoices } from '../ai-connection-scopes';
 import { createApplicant } from '../applicants';
@@ -19,6 +19,7 @@ import {
   resolveAiAccessToken,
 } from './ai-connection';
 import {
+  AI_ACTIVE_LIST_LIMIT,
   AI_RECENTLY_ENDED_MS,
   type ChangeAiConnectionInput,
   changeAiConnection,
@@ -54,6 +55,20 @@ let db: Db;
 beforeEach(async () => {
   db = drizzle(await createMigratedPglite(), { schema }) as unknown as Db;
 });
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+/** Runs `work` with the clock at `when` (only `Date` is faked; the services read the real clock). */
+async function at<T>(when: Date, work: () => Promise<T>): Promise<T> {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(when);
+  try {
+    return await work();
+  } finally {
+    vi.useRealTimers();
+  }
+}
 
 async function person(email: string) {
   const provisioned = await provisionAccount(db, { email });
@@ -199,7 +214,8 @@ describe('listing AI connections', () => {
       connectionId: off.connectionId,
     });
     const later = new Date(now.getTime() + 2 * 60 * 60 * 1000);
-    const listed = await listAiConnections(await proofFor(ownerId, applicantId), { now: later });
+    const proof = await proofFor(ownerId, applicantId);
+    const listed = await at(later, () => listAiConnections(proof));
     if (!isOk(listed)) throw new Error('list');
     expect(listed.value.active).toEqual([]);
     expect(
@@ -207,8 +223,49 @@ describe('listing AI connections', () => {
     ).toEqual({ [off.connectionId]: 'owner', [ranOut.connectionId]: 'time' });
 
     const muchLater = new Date(now.getTime() + AI_RECENTLY_ENDED_MS + 3 * 60 * 60 * 1000);
-    const old = await listAiConnections(await proofFor(ownerId, applicantId), { now: muchLater });
+    const old = await at(muchLater, () => listAiConnections(proof));
     expect(isOk(old) && old.value.recentlyEnded).toEqual([]);
+  });
+
+  it('never lets newer ended connections push an older live one out, and counts every live one', async () => {
+    const { ownerId, applicantId } = await person('owner@example.com');
+    const { connectionId: oldest } = await connected(ownerId, applicantId);
+    const [template] = await db
+      .select()
+      .from(schema.aiConnections)
+      .where(eq(schema.aiConnections.id, oldest));
+    if (!template) throw new Error('setup');
+    const { id: _id, ...rest } = template;
+    const later = (minutes: number) => new Date(template.createdAt.getTime() + minutes * 60_000);
+    // 100 newer connections, all turned off a while ago.
+    await db.insert(schema.aiConnections).values(
+      Array.from({ length: 100 }, (_, index) => ({
+        ...rest,
+        createdAt: later(index + 1),
+        revokedAt: later(index + 2),
+        revokedReason: 'turned off by owner',
+      })),
+    );
+    // And more live ones than the list holds.
+    await db.insert(schema.aiConnections).values(
+      Array.from({ length: AI_ACTIVE_LIST_LIMIT + 2 }, (_, index) => ({
+        ...rest,
+        createdAt: later(200 + index),
+      })),
+    );
+    const listed = await listAiConnections(await proofFor(ownerId, applicantId));
+    if (!isOk(listed)) throw new Error('list');
+    expect(listed.value.activeTotal).toBe(AI_ACTIVE_LIST_LIMIT + 3);
+    expect(listed.value.active).toHaveLength(AI_ACTIVE_LIST_LIMIT);
+    expect(listed.value.recentlyEnded).toHaveLength(10);
+    // The oldest live one is still reachable: alone with the 100 ended, it is listed.
+    await db
+      .update(schema.aiConnections)
+      .set({ revokedAt: new Date(), revokedReason: 'turned off by owner' })
+      .where(sql`${schema.aiConnections.createdAt} >= ${later(200).toISOString()}::timestamptz`);
+    const again = await listAiConnections(await proofFor(ownerId, applicantId));
+    expect(isOk(again) && again.value.active.map((item) => item.id)).toEqual([oldest]);
+    expect(isOk(again) && again.value.activeTotal).toBe(1);
   });
 
   it('refuses anyone but the owner, and never shows another record or account', async () => {
@@ -306,6 +363,29 @@ describe('turning a connection off', () => {
   });
 });
 
+describe('a connection that ran out', () => {
+  it('counts as already off: a quiet success, nothing rewritten, nothing audited', async () => {
+    const { ownerId, applicantId } = await person('owner@example.com');
+    const start = new Date();
+    const { connectionId } = await connected(ownerId, applicantId, { ...CHOICES, duration: '1h' });
+    const proof = await proofFor(ownerId, applicantId);
+    const off = await at(new Date(start.getTime() + 2 * 60 * 60 * 1000), () =>
+      turnOffAiConnection(proof, { connectionId }),
+    );
+    expect(isOk(off) && off.value.alreadyOff).toBe(true);
+    const [row] = await db
+      .select()
+      .from(schema.aiConnections)
+      .where(eq(schema.aiConnections.id, connectionId));
+    expect(row?.revokedAt).toBeNull();
+    const events = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'AI_CONNECTION_REVOKED'));
+    expect(events).toEqual([]);
+  });
+});
+
 describe('changing access', () => {
   it('takes effect on the next call and is audited with kinds only', async () => {
     const { ownerId, applicantId } = await person('owner@example.com');
@@ -364,10 +444,10 @@ describe('changing access', () => {
     expect(isOk(kept) && kept.value.expiresAt?.getTime()).toBe(
       start.getTime() + 30 * 24 * 60 * 60 * 1000,
     );
-    const changedAt = new Date();
-    const shorter = await changeAiConnection(
-      await proofFor(ownerId, applicantId),
-      change(connectionId, {}, { now: changedAt, choices: { ...CHOICES, duration: '1h' } }),
+    const changedAt = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    const proof = await proofFor(ownerId, applicantId);
+    const shorter = await at(changedAt, () =>
+      changeAiConnection(proof, change(connectionId, { duration: '1h' })),
     );
     expect(isOk(shorter) && shorter.value.expiresAt?.getTime()).toBe(
       changedAt.getTime() + 60 * 60 * 1000,
@@ -381,6 +461,49 @@ describe('changing access', () => {
       change(connectionId, { duration: 'until_off' }),
     );
     expect(isOk(untilOff) && untilOff.value.expiresAt).toBeNull();
+  });
+
+  it('a lengthened connection keeps working past its old end; a shortened one stops at the new end', async () => {
+    const { ownerId, applicantId } = await person('owner@example.com');
+    const start = new Date();
+    const hourAndMore = new Date(start.getTime() + 61 * 60 * 1000);
+    const longer = await connected(ownerId, applicantId, { ...CHOICES, duration: '1h' });
+    const proof = await proofFor(ownerId, applicantId);
+    expect(
+      isOk(await changeAiConnection(proof, change(longer.connectionId, { duration: '7d' }))),
+    ).toBe(true);
+    // Past the old end the sign-in still renews, and the new access works.
+    const renewed = await refreshAiTokens(db, {
+      refreshToken: longer.refresh,
+      clientId: CLIENT.clientId,
+      now: hourAndMore,
+    });
+    if (!isOk(renewed)) throw new Error(renewed.error.description);
+    expect(
+      await resolveAiAccessToken(db, {
+        token: renewed.value.access_token,
+        resource: RESOURCE,
+        now: hourAndMore,
+      }),
+    ).not.toBeNull();
+
+    const shorter = await connected(ownerId, applicantId, { ...CHOICES, duration: '7d' });
+    expect(
+      isOk(await changeAiConnection(proof, change(shorter.connectionId, { duration: '1h' }))),
+    ).toBe(true);
+    const stopped = await refreshAiTokens(db, {
+      refreshToken: shorter.refresh,
+      clientId: CLIENT.clientId,
+      now: hourAndMore,
+    });
+    expect(isErr(stopped)).toBe(true);
+    expect(
+      await resolveAiAccessToken(db, {
+        token: shorter.token,
+        resource: RESOURCE,
+        now: hourAndMore,
+      }),
+    ).toBeNull();
   });
 
   it('turning Full Document Numbers on needs a fresh identity check for exporting this record', async () => {

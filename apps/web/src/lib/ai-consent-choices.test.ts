@@ -106,3 +106,68 @@ describe('what a stored connection can read, in the consent words', () => {
     expect(browser.isAiChangeDuration(undefined)).toBe(false);
   });
 });
+
+describe('reading the submitted choices (one parser for consent and Change Access)', () => {
+  const CASE = '11111111-1111-4111-8111-111111111111';
+  const form = (fields: Record<string, string | string[]>) => {
+    const data = new FormData();
+    for (const [name, value] of Object.entries(fields)) {
+      for (const item of Array.isArray(value) ? value : [value]) data.append(name, item);
+    }
+    return data;
+  };
+
+  it('reads the choices in the stored vocabulary and drops anything unknown', () => {
+    const parsed = browser.parseAiAccessChoices(
+      form({
+        layer: ['money', 'identity', 'everything'],
+        cases: CASE,
+        document_list: 'on',
+        reveal_identifiers: 'on',
+        duration: '7d',
+      }),
+    );
+    expect(parsed).toEqual({
+      ok: true,
+      value: {
+        layers: ['identity', 'money'],
+        cases: CASE,
+        caseMode: 'ONE',
+        missionId: CASE,
+        documentList: true,
+        documentText: false,
+        revealIdentifiers: true,
+        duration: '7d',
+      },
+    });
+  });
+
+  it('defaults to all current cases and the screen default for How Long', () => {
+    const consent = browser.parseAiAccessChoices(form({}));
+    expect(consent.ok && consent.value).toMatchObject({
+      caseMode: 'ALL_CURRENT',
+      cases: 'all',
+      duration: '30d',
+    });
+    const change = browser.parseAiAccessChoices(form({ cases: 'none' }), { allowKeep: true });
+    expect(change.ok && change.value).toMatchObject({ caseMode: 'NONE', duration: 'keep' });
+  });
+
+  it('names the field at fault, and offers "keep" only on Change Access', () => {
+    expect(browser.parseAiAccessChoices(form({ cases: '<script>' }))).toMatchObject({
+      ok: false,
+      field: 'cases',
+    });
+    expect(browser.parseAiAccessChoices(form({ duration: 'forever' }))).toMatchObject({
+      ok: false,
+      field: 'duration',
+    });
+    expect(browser.parseAiAccessChoices(form({ duration: 'keep' }))).toMatchObject({
+      ok: false,
+      field: 'duration',
+    });
+    expect(browser.parseAiAccessChoices(form({ duration: 'keep' }), { allowKeep: true }).ok).toBe(
+      true,
+    );
+  });
+});

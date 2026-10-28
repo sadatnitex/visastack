@@ -82,11 +82,27 @@ export default async function SharingPage({
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
-    const [access, documents, auditEvents, profileEntries] = await Promise.all([
+    // AI connections of this record, through the central access gate (owner only). Read even
+    // while connecting AI apps is off, so a live connection can still be turned off.
+    const readAiConnections = async () => {
+      const aiGate = await requireAccess(
+        db,
+        accountPrincipal(accountId),
+        'VIEW_METADATA',
+        { applicantId: id },
+        { purpose: 'ai_connection' },
+      );
+      const listed = aiGate.ok ? await listAiConnections(aiGate.value) : null;
+      return listed?.ok
+        ? listed.value
+        : { available: false, active: [], activeTotal: 0, recentlyEnded: [] };
+    };
+    const [access, documents, auditEvents, profileEntries, aiConnections] = await Promise.all([
       listAccessForApplicantDetailed(db, accountId, id),
       listDocumentsDetailed(db, accountId, id),
       listAuditEventsForApplicant(db, accountId, id),
       listApplicantProfile(db, id),
+      readAiConnections(),
     ]);
     const grants = access.ok ? access.value : [];
 
@@ -129,19 +145,6 @@ export default async function SharingPage({
       if (gate.ok) invitationExceptions = await listInvitationCaseExceptions(gate.value);
     }
 
-    // AI connections of this record, through the central access gate (owner only). Read even
-    // while connecting AI apps is off, so a live connection can still be turned off.
-    const aiGate = await requireAccess(
-      db,
-      accountPrincipal(accountId),
-      'VIEW_METADATA',
-      { applicantId: id },
-      { purpose: 'ai_connection' },
-    );
-    const aiListed = aiGate.ok ? await listAiConnections(aiGate.value) : null;
-    const aiConnections = aiListed?.ok
-      ? aiListed.value
-      : { available: false, active: [], recentlyEnded: [] };
     // The cases Change Access can offer: only needed when a connection can be changed.
     const aiCases =
       connectorOn && aiConnections.active.length > 0

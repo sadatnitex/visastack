@@ -373,7 +373,12 @@ describe('AI Connections on the Sharing page', () => {
       mocks.listAiConnections.mockClear();
       const [refused] = stubProps<SectionProps>(await renderWith(), 'AiConnectionsSection');
       expect(mocks.listAiConnections).not.toHaveBeenCalled();
-      expect(refused?.list).toEqual({ available: false, active: [], recentlyEnded: [] });
+      expect(refused?.list).toEqual({
+        available: false,
+        active: [],
+        activeTotal: 0,
+        recentlyEnded: [],
+      });
     } finally {
       vi.unstubAllEnvs();
     }
