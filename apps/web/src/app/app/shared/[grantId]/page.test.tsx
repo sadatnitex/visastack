@@ -90,4 +90,14 @@ describe('Visa Photo Sizes on a shared record', () => {
     expect(section?.actingFor).toBe('individual');
     expect(mocks.mayUseVisaPhotoSizes.mock.calls[0]?.[3]).toBe('individual');
   });
+
+  it('is not found for an unknown or refused grant, the same answer for both', async () => {
+    mocks.getRecipientWorkspace.mockResolvedValue({ ok: false, error: { code: 'NOT_FOUND' } });
+    await expect(render()).rejects.toThrow('NEXT_NOT_FOUND');
+    expect(mocks.getRecipientWorkspace).toHaveBeenCalledWith(
+      { db: true },
+      { actorAccountId: 'agent-1', grantId: 'grant-1' },
+    );
+    expect(mocks.mayUseVisaPhotoSizes).not.toHaveBeenCalled();
+  });
 });

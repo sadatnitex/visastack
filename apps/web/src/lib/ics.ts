@@ -247,12 +247,26 @@ export function selectCalendarEvents(
   };
 }
 
-/** The calendar file for the chosen events. */
+/** The calendar file for the chosen events; `calendarName` replaces the general name. */
 export function buildIcsCalendar(
   events: readonly CalendarEvent[],
-  options: { readonly now?: Date } = {},
+  options: { readonly now?: Date; readonly calendarName?: string } = {},
 ): string {
-  return serializeCalendar(events, { now: options.now ?? new Date(), calendarName: CALENDAR_NAME });
+  return serializeCalendar(events, {
+    now: options.now ?? new Date(),
+    calendarName: options.calendarName ?? CALENDAR_NAME,
+  });
+}
+
+/**
+ * The name a subscribed calendar shows, "VisaStack Dates, Nazmus", so two travellers' calendars can
+ * be told apart: the first word of the traveller's name, cleaned like a case name (and left out
+ * whole if it holds a number, a link or an address), cut at 40 characters.
+ */
+export function calendarFeedName(displayName: string): string {
+  const first = calendarCaseName(displayName)?.split(' ')[0];
+  const name = first ? Array.from(first).slice(0, 40).join('') : '';
+  return name ? `${CALENDAR_NAME}, ${name}` : CALENDAR_NAME;
 }
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;

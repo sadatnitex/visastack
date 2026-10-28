@@ -2,11 +2,11 @@ import { type MessageKey, createTranslator } from '@visastack/i18n';
 import { listGrantsForRecipientAccount } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { EmptyState, PageHeader } from '../../../components/ui';
-import { formatTimestampDate } from '../../../lib/format-date';
-import { getLocale } from '../../../lib/locale';
-import { withSession } from '../../../lib/session';
-import { acceptGrantAction } from './actions';
+import { EmptyState, PageHeader } from '../../../../components/ui';
+import { formatTimestampDate } from '../../../../lib/format-date';
+import { getLocale } from '../../../../lib/locale';
+import { withSession } from '../../../../lib/session';
+import { acceptGrantAction } from '../actions';
 
 export const metadata: Metadata = { title: 'Shared with Me' };
 

@@ -53,7 +53,13 @@ export const CALENDAR_ITEMS: CalendarItem[] = [
 ];
 
 export function ownerProof() {
-  return { ok: true, value: { actor: { kind: 'applicant_owner', applicantId: 'a1' } } };
+  return {
+    ok: true,
+    value: {
+      actor: { kind: 'applicant_owner', applicantId: 'a1' },
+      applicant: { id: 'a1', timezone: 'Asia/Dhaka' },
+    },
+  };
 }
 
 export function sharedProof() {

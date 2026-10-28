@@ -36,7 +36,8 @@ export function auditNavigation(cwd = process.cwd()) {
   const pages = files
     .filter((p) => p.startsWith('apps/web/src/app/') && p.endsWith('/page.tsx'))
     .map((p) => `/${p.slice('apps/web/src/app/'.length, -'/page.tsx'.length)}`)
-    .map((p) => (p === '/' ? '/' : p.replace(/\([^/]+\)\//g, '')));
+    // Route groups such as `(list)` never appear in the address, including as the last folder.
+    .map((p) => p.replace(/\/\([^/]+\)(?=\/|$)/g, '') || '/');
   const handlers = files
     .filter((p) => p.startsWith('apps/web/src/app/') && p.endsWith('/route.ts'))
     .map((p) => `/${p.slice('apps/web/src/app/'.length, -'/route.ts'.length)}`);

@@ -24,14 +24,14 @@ const MAIN_LISTS: readonly (readonly [string, string, string])[] = [
   ['Documents', 'components/document-wallet-browser.tsx', 'No Documents Yet'],
   ['Cases', 'app/app/applicant/[id]/missions/page.tsx', 'No Cases Yet'],
   ['Active case on the person page', 'app/app/applicant/[id]/page.tsx', 'No Active Case Yet'],
-  ['Shared with me', 'app/app/shared/page.tsx', 'Nothing Shared with You Yet'],
+  ['Shared with me', 'app/app/shared/(list)/page.tsx', 'Nothing Shared with You Yet'],
   ['Notifications', 'app/app/notifications/page.tsx', 'No Alerts Yet'],
   ['Requests (traveller)', 'app/app/applicant/[id]/evidence/page.tsx', 'No Evidence Requests'],
   ['Agency cases tab', 'app/app/agency/[orgId]/cases/page.tsx', 'No Cases Yet'],
   ['Agency dashboard', 'app/app/agency/[orgId]/page.tsx', 'No Cases Yet'],
   ['Agency clients', 'app/app/agency/[orgId]/clients/page.tsx', 'No Clients Invited Yet'],
   ['Agency requests', 'app/app/agency/[orgId]/clients/page.tsx', 'No Evidence Requests Yet'],
-  ['Home people', 'app/app/page.tsx', 'No Applicants Yet'],
+  ['Home people', 'app/app/(home)/page.tsx', 'No Applicants Yet'],
 ];
 
 describe('EmptyState', () => {
