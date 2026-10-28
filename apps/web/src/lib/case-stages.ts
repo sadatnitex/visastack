@@ -5,7 +5,7 @@ export const CASE_STATE_LABELS: Readonly<Record<MissionState, string>> = {
   DRAFT: 'Draft',
   INTAKE: 'Intake',
   IN_REVIEW: 'In Review',
-  AWAITING_APPLICANT: 'Awaiting Applicant',
+  AWAITING_APPLICANT: 'Awaiting Traveller',
   SUBMISSION_READY: 'Submission Ready',
   SUBMITTED: 'Submitted',
   IN_PROGRESS: 'In Progress',

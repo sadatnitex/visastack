@@ -21,18 +21,18 @@ export interface NavLink {
 
 /** Persistent primary navigation for a signed-in traveller. */
 export const PRIMARY_NAV: readonly NavLink[] = [
-  { href: '/app', label: 'Overview', exact: true },
+  { href: '/app', label: 'Account Overview', exact: true },
   {
     href: '/app/applicants',
-    label: 'Applicants',
+    label: 'All Travellers',
     // A person's workspace and their case pages sit outside `/app/applicants`.
     alsoCurrentFor: ['/app/applicant/', '/app/mission/'],
   },
   { href: '/app/shared', label: 'Shared with Me' },
-  { href: '/app/notifications', label: 'Alerts' },
-  { href: '/app/privacy', label: 'Privacy' },
+  { href: '/app/notifications', label: 'Notifications' },
+  { href: '/app/privacy', label: 'Privacy & Consent' },
   { href: '/app/countries', label: 'Countries' },
-  { href: '/app/account', label: 'Account' },
+  { href: '/app/account', label: 'Your Account' },
 ];
 
 /**

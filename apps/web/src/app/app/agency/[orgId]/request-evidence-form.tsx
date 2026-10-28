@@ -41,16 +41,16 @@ export function RequestEvidenceForm({
       <input type="hidden" name="organizationId" value={organizationId} />
       <div className="field-row">
         <label className="field-label" htmlFor="applicantId">
-          Applicant
+          Traveller
         </label>
         {applicants.length === 0 ? (
           <p className="muted u-fs-085">
-            No applicant has granted this organization access yet. Nothing to request from.
+            No traveller has granted this organization access yet. Nothing to request from.
           </p>
         ) : (
           <select id="applicantId" name="applicantId" required className="input" defaultValue="">
             <option value="" disabled>
-              Choose an applicant…
+              Choose a traveller…
             </option>
             {applicants.map((a) => (
               <option key={a.applicantId} value={a.applicantId}>
@@ -66,7 +66,7 @@ export function RequestEvidenceForm({
             Case (only needed if this organization's access is limited to one case)
           </label>
           <select id="missionId" name="missionId" className="input" defaultValue="">
-            <option value="">Applicant-Wide (Default)</option>
+            <option value="">Whole Traveller Record (Default)</option>
             {missions.map((m) => (
               <option key={m.missionId} value={m.missionId}>
                 {m.applicantName}: {m.title}

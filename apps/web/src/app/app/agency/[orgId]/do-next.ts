@@ -109,7 +109,11 @@ export interface DoNextInput {
 }
 
 /** Cases that are finished or handed over need nothing from the agency's list. */
-const CLOSED_CASE_STATES: ReadonlySet<string> = new Set(['CLOSED', 'CANCELLED', 'SUBMITTED']);
+export const CLOSED_CASE_STATES: ReadonlySet<string> = new Set([
+  'CLOSED',
+  'CANCELLED',
+  'SUBMITTED',
+]);
 
 const time = (value: Date | string | null | undefined): number => {
   if (value === null || value === undefined) return 0;

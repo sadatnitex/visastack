@@ -1,0 +1,1413 @@
+{
+  "an administrator with no cases": [
+    {
+      "kind": "link",
+      "name": "← Agency Overview",
+      "detail": "/app/agency/o1"
+    },
+    {
+      "kind": "heading",
+      "name": "Cases",
+      "detail": "1"
+    },
+    {
+      "kind": "text",
+      "name": "Your clients, cases and team in one place."
+    },
+    {
+      "kind": "text",
+      "name": "Powered by VisaStack"
+    },
+    {
+      "kind": "text",
+      "name": "Collaborate"
+    },
+    {
+      "kind": "heading",
+      "name": "Cases",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Assign a team member and leave case notes on any case this organization has a grant for."
+    },
+    {
+      "kind": "text",
+      "name": "No Cases Yet"
+    },
+    {
+      "kind": "text",
+      "name": "No cases are reachable yet - an applicant must grant this organization access to a specific case."
+    },
+    {
+      "kind": "text",
+      "name": "Once a client accepts, their cases appear here with how many checklist items are ready."
+    },
+    {
+      "kind": "link",
+      "name": "Invite a Client",
+      "detail": "/app/agency/o1/clients"
+    }
+  ],
+  "a member with no cases": [
+    {
+      "kind": "link",
+      "name": "← Agency Overview",
+      "detail": "/app/agency/o1"
+    },
+    {
+      "kind": "heading",
+      "name": "Cases",
+      "detail": "1"
+    },
+    {
+      "kind": "text",
+      "name": "Your clients, cases and team in one place."
+    },
+    {
+      "kind": "text",
+      "name": "Powered by VisaStack"
+    },
+    {
+      "kind": "text",
+      "name": "Collaborate"
+    },
+    {
+      "kind": "heading",
+      "name": "Cases",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Leave case notes and record decisions on cases you're assigned to."
+    },
+    {
+      "kind": "text",
+      "name": "No Cases Yet"
+    },
+    {
+      "kind": "text",
+      "name": "You aren't assigned to any cases yet - ask an admin to assign you to one."
+    },
+    {
+      "kind": "text",
+      "name": "Once a client accepts, their cases appear here with how many checklist items are ready."
+    }
+  ],
+  "a busy administrator": [
+    {
+      "kind": "link",
+      "name": "← Agency Overview",
+      "detail": "/app/agency/o1"
+    },
+    {
+      "kind": "heading",
+      "name": "Cases",
+      "detail": "1"
+    },
+    {
+      "kind": "text",
+      "name": "Your clients, cases and team in one place."
+    },
+    {
+      "kind": "text",
+      "name": "Powered by VisaStack"
+    },
+    {
+      "kind": "text",
+      "name": "Collaborate"
+    },
+    {
+      "kind": "heading",
+      "name": "Cases",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Assign a team member and leave case notes on any case this organization has a grant for."
+    },
+    {
+      "kind": "button",
+      "name": "Copy Reference C-M17K2Q"
+    },
+    {
+      "kind": "heading",
+      "name": "Where Things Stand",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Nothing has been asked for or checked yet."
+    },
+    {
+      "kind": "text",
+      "name": "Assigned"
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "memberAccountId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "button",
+      "name": "×"
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Member to assign",
+      "detail": "select"
+    },
+    {
+      "kind": "button",
+      "name": "Assign"
+    },
+    {
+      "kind": "text",
+      "name": "Tasks"
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "taskId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Reassign task",
+      "detail": "select"
+    },
+    {
+      "kind": "button",
+      "name": "Reassign"
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "taskId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "button",
+      "name": "Start"
+    },
+    {
+      "kind": "button",
+      "name": "Done"
+    },
+    {
+      "kind": "button",
+      "name": "Cancel"
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "taskId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Reassign task",
+      "detail": "select"
+    },
+    {
+      "kind": "button",
+      "name": "Reassign"
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "taskId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "button",
+      "name": "Done"
+    },
+    {
+      "kind": "button",
+      "name": "Cancel"
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Task description",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Assignee",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Priority",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Due Date (Optional)",
+      "detail": "date"
+    },
+    {
+      "kind": "button",
+      "name": "Add"
+    },
+    {
+      "kind": "text",
+      "name": "Appointments"
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "appointmentId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "button",
+      "name": "Done"
+    },
+    {
+      "kind": "button",
+      "name": "Cancel"
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Appointment title",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Date",
+      "detail": "date"
+    },
+    {
+      "kind": "field",
+      "name": "Time",
+      "detail": "time"
+    },
+    {
+      "kind": "field",
+      "name": "Time Zone",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Place",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Channel",
+      "detail": "text"
+    },
+    {
+      "kind": "button",
+      "name": "Schedule"
+    },
+    {
+      "kind": "text",
+      "name": "Notes"
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Case note",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Note visibility",
+      "detail": "select"
+    },
+    {
+      "kind": "button",
+      "name": "Add"
+    },
+    {
+      "kind": "text",
+      "name": "Decisions"
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Requirement",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Decision",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Decision reason",
+      "detail": "text"
+    },
+    {
+      "kind": "button",
+      "name": "Record"
+    },
+    {
+      "kind": "text",
+      "name": "Issuer confirmations (EVI-05)"
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "applicantId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Requirement this confirmation covers",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Issuer identity",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Contact method",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Exact claim",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Issuer response",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Valid until",
+      "detail": "date"
+    },
+    {
+      "kind": "button",
+      "name": "Record Confirmation"
+    },
+    {
+      "kind": "text",
+      "name": "Requires evidence already selected for that requirement; a staff checkbox alone is never accepted as confirmation."
+    },
+    {
+      "kind": "button",
+      "name": "Copy Reference C-M27K2Q"
+    },
+    {
+      "kind": "heading",
+      "name": "Where Things Stand",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Received or Awaiting Confirmation 1"
+    },
+    {
+      "kind": "text",
+      "name": "Photo"
+    },
+    {
+      "kind": "text",
+      "name": "Assigned"
+    },
+    {
+      "kind": "text",
+      "name": "Nobody assigned yet."
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Member to assign",
+      "detail": "select"
+    },
+    {
+      "kind": "button",
+      "name": "Assign"
+    },
+    {
+      "kind": "text",
+      "name": "Tasks"
+    },
+    {
+      "kind": "text",
+      "name": "No open tasks."
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Task description",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Assignee",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Priority",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Due Date (Optional)",
+      "detail": "date"
+    },
+    {
+      "kind": "button",
+      "name": "Add"
+    },
+    {
+      "kind": "text",
+      "name": "Appointments"
+    },
+    {
+      "kind": "text",
+      "name": "No appointments scheduled."
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Appointment title",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Date",
+      "detail": "date"
+    },
+    {
+      "kind": "field",
+      "name": "Time",
+      "detail": "time"
+    },
+    {
+      "kind": "field",
+      "name": "Time Zone",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Place",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Channel",
+      "detail": "text"
+    },
+    {
+      "kind": "button",
+      "name": "Schedule"
+    },
+    {
+      "kind": "text",
+      "name": "Notes"
+    },
+    {
+      "kind": "text",
+      "name": "No notes yet."
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Case note",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Note visibility",
+      "detail": "select"
+    },
+    {
+      "kind": "button",
+      "name": "Add"
+    },
+    {
+      "kind": "text",
+      "name": "Decisions"
+    },
+    {
+      "kind": "text",
+      "name": "No decisions recorded yet."
+    },
+    {
+      "kind": "text",
+      "name": "Only an assigned member can record a decision."
+    },
+    {
+      "kind": "text",
+      "name": "Issuer confirmations (EVI-05)"
+    },
+    {
+      "kind": "text",
+      "name": "No issuer confirmed yet. Lack of this is not a readiness failure on its own."
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "applicantId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Requirement this confirmation covers",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Issuer identity",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Contact method",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Exact claim",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Issuer response",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Valid until",
+      "detail": "date"
+    },
+    {
+      "kind": "button",
+      "name": "Record Confirmation"
+    },
+    {
+      "kind": "text",
+      "name": "Requires evidence already selected for that requirement; a staff checkbox alone is never accepted as confirmation."
+    }
+  ],
+  "a member": [
+    {
+      "kind": "link",
+      "name": "← Agency Overview",
+      "detail": "/app/agency/o1"
+    },
+    {
+      "kind": "heading",
+      "name": "Cases",
+      "detail": "1"
+    },
+    {
+      "kind": "text",
+      "name": "Your clients, cases and team in one place."
+    },
+    {
+      "kind": "text",
+      "name": "Powered by VisaStack"
+    },
+    {
+      "kind": "text",
+      "name": "Collaborate"
+    },
+    {
+      "kind": "heading",
+      "name": "Cases",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Leave case notes and record decisions on cases you're assigned to."
+    },
+    {
+      "kind": "button",
+      "name": "Copy Reference C-M17K2Q"
+    },
+    {
+      "kind": "heading",
+      "name": "Where Things Stand",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Nothing has been asked for or checked yet."
+    },
+    {
+      "kind": "text",
+      "name": "Items asked of the traveller are shown to agency administrators."
+    },
+    {
+      "kind": "text",
+      "name": "Assigned"
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "memberAccountId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "button",
+      "name": "×"
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Member to assign",
+      "detail": "select"
+    },
+    {
+      "kind": "button",
+      "name": "Assign"
+    },
+    {
+      "kind": "text",
+      "name": "Tasks"
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "taskId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Reassign task",
+      "detail": "select"
+    },
+    {
+      "kind": "button",
+      "name": "Reassign"
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "taskId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "button",
+      "name": "Start"
+    },
+    {
+      "kind": "button",
+      "name": "Done"
+    },
+    {
+      "kind": "button",
+      "name": "Cancel"
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "taskId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Reassign task",
+      "detail": "select"
+    },
+    {
+      "kind": "button",
+      "name": "Reassign"
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "taskId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "button",
+      "name": "Done"
+    },
+    {
+      "kind": "button",
+      "name": "Cancel"
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Task description",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Assignee",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Priority",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Due Date (Optional)",
+      "detail": "date"
+    },
+    {
+      "kind": "button",
+      "name": "Add"
+    },
+    {
+      "kind": "text",
+      "name": "Appointments"
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "appointmentId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "button",
+      "name": "Done"
+    },
+    {
+      "kind": "button",
+      "name": "Cancel"
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Appointment title",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Date",
+      "detail": "date"
+    },
+    {
+      "kind": "field",
+      "name": "Time",
+      "detail": "time"
+    },
+    {
+      "kind": "field",
+      "name": "Time Zone",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Place",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Channel",
+      "detail": "text"
+    },
+    {
+      "kind": "button",
+      "name": "Schedule"
+    },
+    {
+      "kind": "text",
+      "name": "Notes"
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Case note",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Note visibility",
+      "detail": "select"
+    },
+    {
+      "kind": "button",
+      "name": "Add"
+    },
+    {
+      "kind": "text",
+      "name": "Decisions"
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Requirement",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Decision",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Decision reason",
+      "detail": "text"
+    },
+    {
+      "kind": "button",
+      "name": "Record"
+    },
+    {
+      "kind": "text",
+      "name": "Issuer confirmations (EVI-05)"
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "applicantId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Requirement this confirmation covers",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Issuer identity",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Contact method",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Exact claim",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Issuer response",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Valid until",
+      "detail": "date"
+    },
+    {
+      "kind": "button",
+      "name": "Record Confirmation"
+    },
+    {
+      "kind": "text",
+      "name": "Requires evidence already selected for that requirement; a staff checkbox alone is never accepted as confirmation."
+    },
+    {
+      "kind": "button",
+      "name": "Copy Reference C-M27K2Q"
+    },
+    {
+      "kind": "heading",
+      "name": "Where Things Stand",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Nothing has been asked for or checked yet."
+    },
+    {
+      "kind": "text",
+      "name": "Items asked of the traveller are shown to agency administrators."
+    },
+    {
+      "kind": "text",
+      "name": "Assigned"
+    },
+    {
+      "kind": "text",
+      "name": "Nobody assigned yet."
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Member to assign",
+      "detail": "select"
+    },
+    {
+      "kind": "button",
+      "name": "Assign"
+    },
+    {
+      "kind": "text",
+      "name": "Tasks"
+    },
+    {
+      "kind": "text",
+      "name": "No open tasks."
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Task description",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Assignee",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Priority",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Due Date (Optional)",
+      "detail": "date"
+    },
+    {
+      "kind": "button",
+      "name": "Add"
+    },
+    {
+      "kind": "text",
+      "name": "Appointments"
+    },
+    {
+      "kind": "text",
+      "name": "No appointments scheduled."
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Appointment title",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Date",
+      "detail": "date"
+    },
+    {
+      "kind": "field",
+      "name": "Time",
+      "detail": "time"
+    },
+    {
+      "kind": "field",
+      "name": "Time Zone",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Place",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Channel",
+      "detail": "text"
+    },
+    {
+      "kind": "button",
+      "name": "Schedule"
+    },
+    {
+      "kind": "text",
+      "name": "Notes"
+    },
+    {
+      "kind": "text",
+      "name": "No notes yet."
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Case note",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Note visibility",
+      "detail": "select"
+    },
+    {
+      "kind": "button",
+      "name": "Add"
+    },
+    {
+      "kind": "text",
+      "name": "Decisions"
+    },
+    {
+      "kind": "text",
+      "name": "No decisions recorded yet."
+    },
+    {
+      "kind": "text",
+      "name": "Only an assigned member can record a decision."
+    },
+    {
+      "kind": "text",
+      "name": "Issuer confirmations (EVI-05)"
+    },
+    {
+      "kind": "text",
+      "name": "No issuer confirmed yet. Lack of this is not a readiness failure on its own."
+    },
+    {
+      "kind": "field",
+      "name": "organizationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "missionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "applicantId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Requirement this confirmation covers",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Issuer identity",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Contact method",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Exact claim",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Issuer response",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Valid until",
+      "detail": "date"
+    },
+    {
+      "kind": "button",
+      "name": "Record Confirmation"
+    },
+    {
+      "kind": "text",
+      "name": "Requires evidence already selected for that requirement; a staff checkbox alone is never accepted as confirmation."
+    }
+  ]
+}

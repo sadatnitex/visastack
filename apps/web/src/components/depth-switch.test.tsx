@@ -34,6 +34,9 @@ function page(depth: 'auto' | 'glance' | 'browse' | 'everything', words: DepthSw
     <DepthScope family="account" depth={depth}>
       <DepthSwitch family="account" initial={depth} copy={words} />
       <section id="top-part">Top</section>
+      <section id="case-row" data-reveal="everything">
+        Case row
+      </section>
       <section id="notes" data-level="browse" tabIndex={-1}>
         <h2>Notes</h2>
         <p id="deep" data-level="everything">
@@ -142,6 +145,37 @@ describe('links never land on hidden content', () => {
     expect(scope().getAttribute('data-depth')).toBe('everything');
   });
 
+  it('opens the level a target asks for with data-reveal, though the target shows at Glance', async () => {
+    window.history.replaceState(null, '', '/app/account#case-row');
+    await act(async () => {
+      root.render(page('glance'));
+    });
+    expect(scope().getAttribute('data-depth')).toBe('everything');
+  });
+
+  it('opens the target of a link to this page written as a full path', async () => {
+    act(() => root.render(page('glance')));
+    const link = document.createElement('a');
+    link.setAttribute('href', '/app/account#case-row');
+    link.addEventListener('click', (event) => event.preventDefault());
+    container.append(link);
+    act(() => link.click());
+    expect(scope().getAttribute('data-depth')).toBe('everything');
+    const away = document.createElement('a');
+    away.setAttribute('href', '/app/other#deep');
+    away.addEventListener('click', (event) => event.preventDefault());
+    container.append(away);
+    act(() => button('Glance').click());
+    act(() => away.click());
+    expect(scope().getAttribute('data-depth')).toBe('glance');
+    const broken = document.createElement('a');
+    broken.setAttribute('href', 'http://[bad#deep');
+    broken.addEventListener('click', (event) => event.preventDefault());
+    container.append(broken);
+    expect(() => act(() => broken.click())).not.toThrow();
+    expect(scope().getAttribute('data-depth')).toBe('glance');
+  });
+
   it('follows a later change of the address bar', async () => {
     await act(async () => {
       root.render(page('glance'));
@@ -245,6 +279,17 @@ describe('a form the person just sent', () => {
     expect(scope().getAttribute('data-depth')).toBe('everything');
     expect(button('Everything').getAttribute('aria-pressed')).toBe('true');
     expect(document.cookie).not.toContain(DEPTH_COOKIE);
+  });
+
+  it('keeps the chosen level for a form sent inside a row that asks links for more', async () => {
+    act(() => root.render(page('glance')));
+    const row = container.querySelector<HTMLElement>('#case-row') as HTMLElement;
+    sendFormIn(row);
+    await act(async () => {
+      container.querySelector('#deep')?.setAttribute('data-level', 'browse');
+      await Promise.resolve();
+    });
+    expect(scope().getAttribute('data-depth')).toBe('glance');
   });
 
   it('stops once the person chooses a level themselves', async () => {

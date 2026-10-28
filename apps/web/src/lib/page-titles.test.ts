@@ -74,8 +74,8 @@ describe('page titles', () => {
   it('names each page for what it is, in the words the navigation uses', () => {
     const titleOf = (file: string) =>
       staticTitle.exec(pages.find((p) => p.file === file)?.source ?? '')?.[1];
-    expect(titleOf('app/applicants/page.tsx')).toBe('Applicants');
-    // D3: the page is "Notifications"; the menu label follows in the CCD-7 naming pass.
+    expect(titleOf('app/applicants/page.tsx')).toBe('All Travellers');
+    // D3: the page is "Notifications", as the menu and the finder name it (CCD-7).
     expect(titleOf('app/notifications/page.tsx')).toBe('Notifications');
     expect(titleOf('app/shared/(list)/page.tsx')).toBe('Shared with Me');
     expect(titleOf('app/applicant/[id]/documents/page.tsx')).toBe('Documents');

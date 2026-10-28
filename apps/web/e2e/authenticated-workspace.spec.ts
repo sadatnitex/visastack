@@ -174,7 +174,7 @@ async function createApplicant(
   await page.goto('/app/applicants');
   const applicantName = `${namePrefix} ${Date.now()}`;
   await page.getByLabel(/full name/i).fill(applicantName);
-  await page.getByRole('button', { name: /create applicant|add applicant/i }).click();
+  await page.getByRole('button', { name: /create applicant|add applicant|add traveller/i }).click();
   await expect(page.getByText(applicantName)).toBeVisible();
   await page.getByText(applicantName).click();
   await expect(page).toHaveURL(/\/app\/applicant\/[^/]+$/);
@@ -252,7 +252,9 @@ test.describe('authenticated workspace journey', () => {
     // "Full Name" is the form's real accessible label (Codex review,
     // PR-E2, round 2 — apps/web/src/app/app/add-applicant-form.tsx:16-25).
     await page.getByLabel(/full name/i).fill(applicantName);
-    await page.getByRole('button', { name: /create applicant|add applicant/i }).click();
+    await page
+      .getByRole('button', { name: /create applicant|add applicant|add traveller/i })
+      .click();
     await expect(page.getByText(applicantName)).toBeVisible();
 
     await page.getByText(applicantName).click();
@@ -298,7 +300,9 @@ test.describe('authenticated workspace journey', () => {
     await page.getByRole('link', { name: 'Applicants' }).click();
     const unicodeName = `উদাহরণ 例え 😀 ${Date.now()}`;
     await page.getByLabel(/full name/i).fill(unicodeName);
-    await page.getByRole('button', { name: /create applicant|add applicant/i }).click();
+    await page
+      .getByRole('button', { name: /create applicant|add applicant|add traveller/i })
+      .click();
     await expect(page.getByText(unicodeName)).toBeVisible();
   });
 

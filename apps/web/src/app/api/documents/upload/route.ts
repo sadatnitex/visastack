@@ -52,7 +52,7 @@ export async function POST(request: Request): Promise<Response> {
   }
   const applicantId = new URL(request.url).searchParams.get('applicantId');
   if (!applicantId || !/^[a-f0-9-]{36}$/i.test(applicantId))
-    return json('Choose an applicant.', 400);
+    return json('Choose a traveller.', 400);
   const contentType = request.headers.get('content-type')?.split(';')[0]?.trim() ?? '';
   // Authenticate before spending memory on the body. Ownership, quota, durable
   // registration, stored-byte verification and job enqueue remain in the action.

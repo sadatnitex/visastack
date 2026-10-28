@@ -622,7 +622,7 @@ describe('Home composition (WP-V4, v1.2 B13 and U03)', () => {
     const attention = sectionText(await page(), 'home-attention-heading', 'home-records-heading');
     expect(attention.match(/Reply to Request/g)).toHaveLength(8);
     expect(attention).toContain('Showing 8 of 11');
-    expect(attention).toContain('See All Applicants');
+    expect(attention).toContain('See All Travellers');
   });
 
   it('does not call a case checklist-less when its count just could not be read', async () => {
@@ -734,7 +734,7 @@ describe('Home composition (WP-V4, v1.2 B13 and U03)', () => {
     expect(records).toContain('Home shows the first 25 of 27 people.');
     const attention = sectionText(html, 'home-attention-heading', 'home-records-heading');
     expect(attention).toContain('This list covers the first 25 of 27 people.');
-    expect(attention).toContain('See All Applicants');
+    expect(attention).toContain('See All Travellers');
   });
 
   it('never says nothing is waiting when some people were not read', async () => {

@@ -48,7 +48,7 @@ export function CaseStageTracker({
       <p className="muted">
         Only the current state is marked. This is not a completed-stage history.{' '}
         {nextStates.length
-          ? `The workflow allows ${nextStates.map((stage) => labels[stage] ?? stage).join(', ')} next; permissions and applicant confirmation are checked by the existing actions.${cancelLine}`
+          ? `The workflow allows ${nextStates.map((stage) => labels[stage] ?? stage).join(', ')} next; permissions and traveller confirmation are checked by the existing actions.${cancelLine}`
           : cancelInMore
             ? `There is no further stage from here.${cancelLine}`
             : 'This case is in a terminal state.'}
@@ -115,7 +115,7 @@ export function CasePreparationSummary({
           ))}
         </dl>
         <p className="case-confirmation-state">
-          <strong>Applicant confirmation: </strong>
+          <strong>Traveller confirmation: </strong>
           {acknowledged ? 'Current snapshot confirmed' : 'Awaiting confirmation'}
         </p>
         <p className="muted">
