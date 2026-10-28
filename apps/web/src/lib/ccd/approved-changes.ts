@@ -72,4 +72,16 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     to: { kind: 'link', name: 'Reply to Request', detail: '/app/applicant/person/evidence' },
     reason: "D1: Home's button for the same request.",
   },
+  {
+    screen: 'documents',
+    from: { kind: 'heading', name: 'Documents', detail: '2' },
+    to: { kind: 'heading', name: 'Documents', detail: '1' },
+    reason: 'D2: the page name is the one page heading (h1).',
+  },
+  {
+    screen: 'documents',
+    from: { kind: 'heading', name: 'Selected Document', detail: '3' },
+    to: { kind: 'heading', name: 'Selected Document', detail: '2' },
+    reason: 'D2: no skipped heading levels; the panel heading follows the page heading.',
+  },
 ];

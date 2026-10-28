@@ -10117,3 +10117,9 @@ summary.visa-photo-title {
 .depth-scope:not(:has(.depth-nojs))[data-depth="glance"] .traveller-working-area {
   grid-template-columns: minmax(0, 1fr);
 }
+
+/* WP-CCD3 documents: "Selected Document" is now a section heading (h2 under the page's one h1),
+   kept at the size it had as an h3. */
+.wallet-selected-document .wallet-selected-title {
+  font-size: 1.17em;
+}

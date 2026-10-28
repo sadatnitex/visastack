@@ -74,6 +74,14 @@ export function DepthSwitch({
   words.current = copy;
   const announce = (level: DepthLevel) =>
     setStatus(words.current.status.replace('{level}', words.current.levels[level]));
+  // The one way the buttons and the spoken status follow a new level, from any cause.
+  const lastLevel = useRef<DepthChoice>(initial);
+  const show = (level: DepthLevel) => {
+    if (lastLevel.current === level) return;
+    lastLevel.current = level;
+    setChoice(level);
+    announce(level);
+  };
 
   useEffect(() => {
     const query = window.matchMedia(DEPTH_PHONE_QUERY);
@@ -81,6 +89,21 @@ export function DepthSwitch({
     update();
     query.addEventListener('change', update);
     return () => query.removeEventListener('change', update);
+  }, []);
+
+  // Another part of the page may raise the level (a filter tile, a link): keep the buttons and
+  // the spoken status in step with what is on screen.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once; announce reads a ref
+  useEffect(() => {
+    const scope = root.current?.closest<HTMLElement>('[data-depth-scope]');
+    if (!scope) return;
+    const observer = new MutationObserver(() => {
+      const value = scope.getAttribute('data-depth');
+      if (!isDepthLevel(value)) return;
+      show(value);
+    });
+    observer.observe(scope, { attributes: true, attributeFilter: ['data-depth'] });
+    return () => observer.disconnect();
   }, []);
 
   // Links from emails and notifications (?depth=) and in-page anchors (#evidence): never land
@@ -93,8 +116,7 @@ export function DepthSwitch({
     const wanted = new URLSearchParams(window.location.search).get('depth');
     if (isDepthLevel(wanted) && wanted !== currentLevel(scope, isPhone())) {
       scope.setAttribute('data-depth', wanted);
-      setChoice(wanted);
-      announce(wanted);
+      show(wanted);
     }
     let frame = 0;
     const revealId = (id: string | null) => {
@@ -102,8 +124,7 @@ export function DepthSwitch({
       if (!target) return;
       const raised = raiseToShow(target, scope, isPhone());
       if (!raised) return; // already on screen: the browser's own scroll to the anchor is enough
-      setChoice(raised);
-      announce(raised);
+      show(raised);
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => focusTarget(target));
     };
@@ -130,9 +151,8 @@ export function DepthSwitch({
   const choose = (level: DepthLevel) => {
     const scope = root.current?.closest<HTMLElement>('[data-depth-scope]');
     scope?.setAttribute('data-depth', level);
-    setChoice(level);
     save(family, level);
-    announce(level);
+    show(level);
   };
 
   return (

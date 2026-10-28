@@ -65,7 +65,7 @@ export function ReadingSourceNote({
 export function ReadingOfferCard({ offer }: { readonly offer: ReadingOffer }) {
   return (
     <article className="card reading-offer u-mb-150">
-      <h3 className="card-title">{offer.question}</h3>
+      <h2 className="card-title">{offer.question}</h2>
       <p className="card-body">{offer.detail}</p>
       <Link className="btn btn-primary" href="/app#permissions">
         {offer.action}

@@ -111,6 +111,15 @@ describe('the depth switch', () => {
   });
 });
 
+describe('a server refresh of the page', () => {
+  it('keeps the level the person or a link chose, instead of the one first rendered', async () => {
+    act(() => root.render(page('glance')));
+    act(() => button('Everything').click());
+    act(() => root.render(page('browse')));
+    expect(scope().getAttribute('data-depth')).toBe('everything');
+  });
+});
+
 describe('links never land on hidden content', () => {
   it('raises the level for an anchor inside a hidden block, then moves focus there', async () => {
     window.history.replaceState(null, '', '/app/account#notes');

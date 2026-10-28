@@ -14,7 +14,7 @@ Levels: **Glance** (the one thing that matters now), **Browse** (the normal work
 | 02 | Home | `/app` | CCD-2 (slice 2a) | **Built and tested** (not seen live) |
 | 03 | Traveller home | `/app/applicant/{id}` | CCD-2 (slice 2b) | **Built and tested** (not seen live) |
 | 04 | My Profile | `/profile` | CCD-3 | Planned |
-| 05 | Documents | `/documents` | CCD-3 | Planned |
+| 05 | Documents | `/documents` | CCD-3 (slice 3a) | **Built and tested** (not seen live) |
 | 06 | Dates & Expiry | `/expiry` | CCD-3 | Planned |
 | 07 | Notifications | `/app/notifications` | CCD-5 | Planned |
 | 08 | Cases | `/missions` | CCD-4 | Planned |
@@ -89,6 +89,25 @@ Approved changes on this screen: the heading, the Start a Case button, and the w
 Calm all-clear: when nothing is waiting and the profile is complete, the Next Step reads "Nothing Needs You Right Now" with "Continue Case" (or "Start a Case") as the primary action.
 
 Not built yet: the "Every Page for this traveller" list (new content, CCD-7).
+
+## 05. Documents (`/app/applicant/{id}/documents`)
+
+Baseline: `apps/web/src/lib/ccd/baseline/documents.json`, five states (empty wallet; core processing off with a document; several documents with one selected; a failed file selected; records could not be loaded). Test: `apps/web/src/lib/ccd/parity-documents.test.tsx`.
+
+| What it is | Level it lives at now | Condition (unchanged) |
+|---|---|---|
+| Page heading "Documents", eyebrow "Record" | Glance; now the page's one h1 (approved change; eyebrow was "Your Private Wallet") | always |
+| See Document Insights, Upload Document (header buttons) | Glance | always |
+| Download, reading, preview, date and kind error notices; "still being checked" line | Glance | only when they apply |
+| Four filter tiles (All, Ready to Use, Needs Review, Expiring) | Glance; tapping one at Glance opens the list (raises to Browse) | always |
+| Reading offer card | Glance (above the tiles, so nothing jumps when the list opens) | only when reading can be offered |
+| List, category, search, pages, Selected Document panel | Browse; the panel heading is now an h2 (approved change, same words and size). A `?document=` link opens the page at Browse at least | always |
+| Each document's details: reference, name, status, preview and download, findings, kind and date forms, name and kind suggestions, re-checks | Browse (the plan put the forms at Everything; kept at Browse so a picked document is never missing its preview and download) | per document, as before |
+| Add Documents (upload form, storage meter) | Everything; Upload Document and links to `#add-document` or `#document-upload` raise the level first | always (form only with core processing on) |
+
+Decision D5: the limits line above the file picker now ends "PDF files can be added only while our virus scan is switched on." whenever PDF files are refused, built from the same switch the server uses; a picked PDF gets the same reason and what to do instead. The size it prints was already the server's real limit (the smaller of the account quota and the 4 MB one request can carry).
+
+Approved changes: the h1 and the Selected Document heading level. Nothing removed. Not built: a Glance list of the documents that need review (Glance shows the counts; a tile opens the list).
 
 ## Screens 02 to 15: the level plan (from the approved canvas)
 

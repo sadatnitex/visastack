@@ -1,9 +1,11 @@
 'use client';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { isPhoneNow, raiseToShow } from '../lib/ccd/reveal';
 import { formatTimestampDate } from '../lib/format-date';
 import { agree, plural } from '../lib/plural';
+import { atLevel } from './depth';
 import { EmptyState, StatusBadge } from './ui';
 
 export interface WalletBrowserDocument {
@@ -51,6 +53,14 @@ export function DocumentWalletBrowser({
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const [filter, setFilter] = useState<Filter>('all');
+  // On a page with the depth switch, the list sits at Browse; a tile filters it, so a tile tapped
+  // at Glance also opens the list instead of filtering something out of sight.
+  const listArea = useRef<HTMLDivElement>(null);
+  const showList = () => {
+    const area = listArea.current;
+    const scope = area?.closest<HTMLElement>('[data-depth-scope]');
+    if (area && scope) raiseToShow(area, scope, isPhoneNow());
+  };
   const [page, setPage] = useState(0);
   const categories = [
     ...new Set(
@@ -89,6 +99,7 @@ export function DocumentWalletBrowser({
             onClick={() => {
               setFilter(key);
               setPage(0);
+              showList();
             }}
           >
             <span>{label}</span>
@@ -96,7 +107,7 @@ export function DocumentWalletBrowser({
           </button>
         ))}
       </div>
-      <div className="document-wallet-layout">
+      <div className="document-wallet-layout" ref={listArea} {...atLevel('browse')}>
         <section className="card document-wallet-list" aria-label="Document metadata list">
           <div className="wallet-filter-controls">
             <label>
@@ -244,7 +255,7 @@ export function DocumentWalletBrowser({
           className="card wallet-selected-document"
           aria-label="Selected document details"
         >
-          <h3>Selected Document</h3>
+          <h2 className="wallet-selected-title">Selected Document</h2>
           {selected ? (
             <>
               {!matches.some((doc) => doc.id === selected.id) ? (

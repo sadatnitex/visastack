@@ -301,7 +301,7 @@ export function VisaPhotoSizes({ documentId, returnTo, actingFor }: VisaPhotoSiz
 
       {ready ? (
         <>
-          <h4 className="visa-photo-subtitle">Photo Checks</h4>
+          <h3 className="visa-photo-subtitle">Photo Checks</h3>
           {ready.findings.length === 0 ? (
             <p className="visa-photo-note">No problems found by these basic checks.</p>
           ) : (

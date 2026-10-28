@@ -33,6 +33,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AutoRefresh } from '../../../../../components/auto-refresh';
+import { DepthScope, atLevel } from '../../../../../components/depth';
+import { DepthSwitch } from '../../../../../components/depth-switch';
 import { DocumentWalletBrowser } from '../../../../../components/document-wallet-browser';
 import { ReferenceCode } from '../../../../../components/reference-code';
 import { PageHeader } from '../../../../../components/ui';
@@ -47,6 +49,9 @@ import {
   getPlatformCapabilities,
   resolvePlatformCapabilities,
 } from '../../../../../lib/capabilities';
+import { depthCopy } from '../../../../../lib/ccd/depth-copy';
+import { depthWord } from '../../../../../lib/ccd/depth-words';
+import { readDepth } from '../../../../../lib/ccd/depth.server';
 import { confirmedValues, findingViewModel } from '../../../../../lib/document-findings';
 import { readingOffer, readingStatusCopy } from '../../../../../lib/document-reading';
 import { formatTimestampDate } from '../../../../../lib/format-date';
@@ -294,7 +299,7 @@ export default async function ApplicantDocumentsPage({
   if (data.recordsUnavailable)
     return (
       <>
-        <PageHeader as="h2" title="Documents" description="Your private evidence wallet" />
+        <PageHeader eyebrow="Record" title="Documents" description="Your private evidence wallet" />
         <p role="alert" className="notice notice-warn">
           We could not load your document records or lifecycle status. Refresh to try again.
           Unavailable records are not reported as an empty wallet.
@@ -324,11 +329,21 @@ export default async function ApplicantDocumentsPage({
       })
     : null;
 
+  // A link that opens one document (?document=) must land on it: the list and the selected
+  // document sit at Browse, so such a visit starts at Browse at least, without saving that.
+  const savedDepth = await readDepth('record');
+  const depth =
+    initialSelection && (savedDepth === 'auto' || savedDepth === 'glance') ? 'browse' : savedDepth;
+  const depthWords = depthCopy({
+    glance: depthWord('depth.documents.glance'),
+    browse: depthWord('depth.documents.browse'),
+    everything: depthWord('depth.documents.everything'),
+  });
+
   return (
     <>
       <PageHeader
-        as="h2"
-        eyebrow="Your Private Wallet"
+        eyebrow="Record"
         title="Documents"
         description="Keep reusable evidence together. Processing, review and expiry are separate signals."
         actions={
@@ -342,485 +357,502 @@ export default async function ApplicantDocumentsPage({
           </>
         }
       />
-      {downloadError ? (
-        <p role="alert" className="card-body">
-          We could not download this document. Try again after confirming your account. Documents
-          still being checked are unavailable for download.
-        </p>
-      ) : null}
-      <AutoRefresh active={anyProcessing || readingInProgress} />
-      {anyProcessing ? (
-        <p className="muted">
-          Some documents are still being checked, which can take a few minutes. This page updates by
-          itself, so there is no need to upload them again.
-        </p>
-      ) : null}
-      {readingError ? (
-        <p className="notice notice-warn" role="alert">
-          {readingError}
-        </p>
-      ) : null}
-      {readingQueued === 'true' ? (
-        <output className="notice" aria-live="polite">
-          Another reading is queued. Keep this page open or return later. Confirm any suggested
-          information against the original.
-        </output>
-      ) : null}
-      {previewError ? (
-        <p className="notice notice-warn u-mb-150" role="alert">
-          Couldn't open that preview - the document may no longer be available. Please try again.
-        </p>
-      ) : null}
+      <DepthScope family="record" depth={depth}>
+        <DepthSwitch family="record" initial={depth} copy={depthWords} />
+        {downloadError ? (
+          <p role="alert" className="card-body">
+            We could not download this document. Try again after confirming your account. Documents
+            still being checked are unavailable for download.
+          </p>
+        ) : null}
+        <AutoRefresh active={anyProcessing || readingInProgress} />
+        {anyProcessing ? (
+          <p className="muted">
+            Some documents are still being checked, which can take a few minutes. This page updates
+            by itself, so there is no need to upload them again.
+          </p>
+        ) : null}
+        {readingError ? (
+          <p className="notice notice-warn" role="alert">
+            {readingError}
+          </p>
+        ) : null}
+        {readingQueued === 'true' ? (
+          <output className="notice" aria-live="polite">
+            Another reading is queued. Keep this page open or return later. Confirm any suggested
+            information against the original.
+          </output>
+        ) : null}
+        {previewError ? (
+          <p className="notice notice-warn u-mb-150" role="alert">
+            Couldn't open that preview - the document may no longer be available. Please try again.
+          </p>
+        ) : null}
 
-      {dateError ? (
-        <p className="notice notice-warn u-mb-150" role="alert">
-          Couldn't save that date - enter a valid date that isn't in the future.
-        </p>
-      ) : null}
+        {dateError ? (
+          <p className="notice notice-warn u-mb-150" role="alert">
+            Couldn't save that date - enter a valid date that isn't in the future.
+          </p>
+        ) : null}
 
-      {typeError ? (
-        <p className="notice notice-warn u-mb-150" role="alert">
-          Couldn't save that kind of document - pick one from the list, or choose Other Document.
-        </p>
-      ) : null}
+        {typeError ? (
+          <p className="notice notice-warn u-mb-150" role="alert">
+            Couldn't save that kind of document - pick one from the list, or choose Other Document.
+          </p>
+        ) : null}
 
-      {offer ? <ReadingOfferCard offer={offer} /> : null}
+        {offer ? <ReadingOfferCard offer={offer} /> : null}
 
-      <DocumentWalletBrowser
-        key={initialSelection ?? id}
-        applicantId={id}
-        {...(initialSelection ? { initialSelection } : {})}
-        documents={data.documents.map((doc) => {
-          const badge = safetyBadge(doc.safetyStatus ?? 'PENDING', t);
-          const processingKey = doc.processingStatus
-            ? PROCESSING_STATE_KEYS[doc.processingStatus]
-            : undefined;
-          const previewable =
-            doc.safetyStatus === 'CLEAN' &&
-            doc.processingStatus !== null &&
-            isServableProcessingState(doc.processingStatus);
-          const lifecycle = data.wallet.get(doc.id)?.status;
-          // A waiting AI kind for the file as it is now (an older file's suggestion no longer applies).
-          const waitingKind = data.pendingClassificationProposals.find(
-            (p) => p.documentVersionId === doc.latestVersionId,
-          );
-          // What we think this document is and what to call it: nothing is saved until the
-          // person accepts (owner request 2026-10-25).
-          const suggestion = documentSuggestionView(
-            doc,
-            waitingKind,
-            data.displayName,
-            data.protection,
-          );
-          const needsReview =
-            (doc.docType === 'PASSPORT' && lifecycle === 'UNKNOWN') ||
-            doc.safetyStatus === 'QUARANTINED' ||
-            doc.processingStatus === 'AWAITING_REVIEW' ||
-            doc.classification?.reviewRequired === true ||
-            doc.pendingNameVersion !== null ||
-            suggestion !== null ||
-            ['QUARANTINED', 'REJECTED', 'FAILED', 'NEEDS_ATTENTION'].includes(
-              doc.processingStatus ?? '',
-            ) ||
-            data.pendingProposals.some(
-              ({ proposal }) => proposal.documentVersionId === doc.latestVersionId,
-            );
-          const category = documentCategory(doc.docType);
-          const suggested = doc.docType ? undefined : waitingKind;
-          // Read Again needs the switch for what it would do: text, or a scan first and then text.
-          const canReadAgain =
-            data.coreGranted &&
-            ((data.detailsAvailable && data.aiGranted) || (data.ocrConfigured && data.ocrGranted));
-          return {
-            id: doc.id,
-            name: doc.approvedName ?? doc.originalName,
-            // An "Other" kind shows the name the person gave it, when there is one.
-            kind: doc.docType
-              ? doc.subject && isOtherDocumentType(doc.docType)
-                ? doc.subject
-                : documentTypeLabel(doc.docType)
-              : null,
-            suggestedKind: suggested ? documentTypeLabel(suggested.suggestedType) : null,
-            category: category ? categoryLabel(category) : null,
-            version: doc.latestVersionNumber ?? null,
-            updatedAt: doc.updatedAt ?? null,
-            ready:
+        <DocumentWalletBrowser
+          key={initialSelection ?? id}
+          applicantId={id}
+          {...(initialSelection ? { initialSelection } : {})}
+          documents={data.documents.map((doc) => {
+            const badge = safetyBadge(doc.safetyStatus ?? 'PENDING', t);
+            const processingKey = doc.processingStatus
+              ? PROCESSING_STATE_KEYS[doc.processingStatus]
+              : undefined;
+            const previewable =
               doc.safetyStatus === 'CLEAN' &&
-              doc.processingStatus === 'APPROVED' &&
-              !needsReview &&
-              (lifecycle === 'CURRENT' || lifecycle === 'EXPIRING' || lifecycle === 'UNKNOWN'),
-            needsReview,
-            expiring: lifecycle === 'EXPIRING',
-            safetyLabel: badge.label,
-            processingLabel: processingKey ? t(processingKey) : 'Not yet checked',
-            previewAllowed: previewable,
-            details: (
-              <div
-                key={doc.id}
-                className="wallet-document-actions"
-                style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}
-              >
-                <ReferenceCode code={data.referenceCodes.get(doc.id)} label="Document Reference" />
-                <div className="row">
-                  <span className="row-key" style={{ wordBreak: 'break-word' }}>
-                    {doc.approvedName ?? doc.originalName}
-                  </span>
-                  <span className="row-end">
-                    <span className={`badge ${badge.tone}`}>{badge.label}</span>
+              doc.processingStatus !== null &&
+              isServableProcessingState(doc.processingStatus);
+            const lifecycle = data.wallet.get(doc.id)?.status;
+            // A waiting AI kind for the file as it is now (an older file's suggestion no longer applies).
+            const waitingKind = data.pendingClassificationProposals.find(
+              (p) => p.documentVersionId === doc.latestVersionId,
+            );
+            // What we think this document is and what to call it: nothing is saved until the
+            // person accepts (owner request 2026-10-25).
+            const suggestion = documentSuggestionView(
+              doc,
+              waitingKind,
+              data.displayName,
+              data.protection,
+            );
+            const needsReview =
+              (doc.docType === 'PASSPORT' && lifecycle === 'UNKNOWN') ||
+              doc.safetyStatus === 'QUARANTINED' ||
+              doc.processingStatus === 'AWAITING_REVIEW' ||
+              doc.classification?.reviewRequired === true ||
+              doc.pendingNameVersion !== null ||
+              suggestion !== null ||
+              ['QUARANTINED', 'REJECTED', 'FAILED', 'NEEDS_ATTENTION'].includes(
+                doc.processingStatus ?? '',
+              ) ||
+              data.pendingProposals.some(
+                ({ proposal }) => proposal.documentVersionId === doc.latestVersionId,
+              );
+            const category = documentCategory(doc.docType);
+            const suggested = doc.docType ? undefined : waitingKind;
+            // Read Again needs the switch for what it would do: text, or a scan first and then text.
+            const canReadAgain =
+              data.coreGranted &&
+              ((data.detailsAvailable && data.aiGranted) ||
+                (data.ocrConfigured && data.ocrGranted));
+            return {
+              id: doc.id,
+              name: doc.approvedName ?? doc.originalName,
+              // An "Other" kind shows the name the person gave it, when there is one.
+              kind: doc.docType
+                ? doc.subject && isOtherDocumentType(doc.docType)
+                  ? doc.subject
+                  : documentTypeLabel(doc.docType)
+                : null,
+              suggestedKind: suggested ? documentTypeLabel(suggested.suggestedType) : null,
+              category: category ? categoryLabel(category) : null,
+              version: doc.latestVersionNumber ?? null,
+              updatedAt: doc.updatedAt ?? null,
+              ready:
+                doc.safetyStatus === 'CLEAN' &&
+                doc.processingStatus === 'APPROVED' &&
+                !needsReview &&
+                (lifecycle === 'CURRENT' || lifecycle === 'EXPIRING' || lifecycle === 'UNKNOWN'),
+              needsReview,
+              expiring: lifecycle === 'EXPIRING',
+              safetyLabel: badge.label,
+              processingLabel: processingKey ? t(processingKey) : 'Not yet checked',
+              previewAllowed: previewable,
+              details: (
+                <div key={doc.id} {...atLevel('browse')}>
+                  <div
+                    className="wallet-document-actions"
+                    style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}
+                  >
+                    <ReferenceCode
+                      code={data.referenceCodes.get(doc.id)}
+                      label="Document Reference"
+                    />
+                    <div className="row">
+                      <span className="row-key" style={{ wordBreak: 'break-word' }}>
+                        {doc.approvedName ?? doc.originalName}
+                      </span>
+                      <span className="row-end">
+                        <span className={`badge ${badge.tone}`}>{badge.label}</span>
+                        {(() => {
+                          const lifecycle = data.wallet.get(doc.id);
+                          if (!lifecycle) return null;
+                          const lifecycleBadge = LIFECYCLE_BADGES[lifecycle.status];
+                          return (
+                            <span className={`badge ${lifecycleBadge.tone}`}>
+                              {lifecycleBadge.label}
+                            </span>
+                          );
+                        })()}
+                        {processingKey ? (
+                          <span
+                            className={`badge ${processingTone(doc.processingStatus)}`}
+                            aria-live="polite"
+                          >
+                            {t(processingKey)}
+                          </span>
+                        ) : null}
+                        {previewable ? (
+                          <form action={previewDocumentAction}>
+                            <input type="hidden" name="applicantId" value={id} />
+                            <input type="hidden" name="documentId" value={doc.id} />
+                            <button
+                              type="submit"
+                              className="btn btn-secondary"
+                              style={{ padding: '0.3rem 0.9rem', fontSize: 'var(--text-small)' }}
+                            >
+                              Preview
+                            </button>
+                          </form>
+                        ) : null}
+                        {previewable &&
+                        getPlatformCapabilities().originalDownload === 'available' ? (
+                          <form action={downloadOriginalAction}>
+                            <input type="hidden" name="applicantId" value={id} />
+                            <input type="hidden" name="documentId" value={doc.id} />
+                            <button type="submit" className="btn btn-secondary">
+                              Download Original
+                            </button>
+                          </form>
+                        ) : null}
+                      </span>
+                    </div>
+                    {doc.source === CONVERTED_FROM_HEIC_SOURCE ? (
+                      <p className="muted u-fs-075-m0">
+                        Saved as a JPG copy of the iPhone photo (HEIC) that was uploaded, so it
+                        opens anywhere. The HEIC file itself was not kept.
+                      </p>
+                    ) : null}
+                    {previewable && isPassportPhotoType(doc.docType) ? (
+                      <VisaPhotoSizes
+                        documentId={doc.id}
+                        returnTo={`/app/applicant/${id}/documents?document=${doc.id}`}
+                      />
+                    ) : null}
                     {(() => {
-                      const lifecycle = data.wallet.get(doc.id);
-                      if (!lifecycle) return null;
-                      const lifecycleBadge = LIFECYCLE_BADGES[lifecycle.status];
+                      const state = doc.latestVersionId
+                        ? data.reading?.states.get(doc.latestVersionId)
+                        : undefined;
+                      const copy = state
+                        ? readingStatusCopy(state, {
+                            ...(doc.processingStatus && PROBLEM_NEXT_STEP[doc.processingStatus]
+                              ? { problemNextStep: PROBLEM_NEXT_STEP[doc.processingStatus] }
+                              : {}),
+                            canReadAgain,
+                          })
+                        : null;
+                      return state && copy ? (
+                        <ReadingStatus copy={copy} stage={state.stage} applicantId={id} />
+                      ) : null;
+                    })()}
+                    {(doc.classification?.reviewRequired === true ||
+                      !doc.classification ||
+                      (doc.docType === 'PASSPORT' && !doc.expiresAt)) &&
+                    doc.safetyStatus === 'CLEAN' &&
+                    doc.latestVersionId &&
+                    ['AWAITING_REVIEW', 'APPROVED'].includes(doc.processingStatus ?? '') ? (
+                      <form action={requestDocumentReadingAction}>
+                        <input type="hidden" name="applicantId" value={id} />
+                        <input type="hidden" name="documentId" value={doc.id} />
+                        <input type="hidden" name="versionId" value={doc.latestVersionId} />
+                        <button className="btn btn-secondary" type="submit">
+                          Check the File Again
+                        </button>
+                      </form>
+                    ) : null}
+                    {/* A file with no reading state (the reading service was refused) keeps the plain advice. */}
+                    {doc.processingStatus &&
+                    PROBLEM_NEXT_STEP[doc.processingStatus] &&
+                    !(doc.latestVersionId && data.reading?.states.has(doc.latestVersionId)) ? (
+                      <p className="muted u-fs-075-m0">{PROBLEM_NEXT_STEP[doc.processingStatus]}</p>
+                    ) : null}
+                    {(() => {
+                      const wallet = data.wallet.get(doc.id);
+                      if (
+                        !wallet ||
+                        (wallet.usedInMissions.length === 0 && wallet.accessibleTo.length === 0)
+                      ) {
+                        return null;
+                      }
                       return (
-                        <span className={`badge ${lifecycleBadge.tone}`}>
-                          {lifecycleBadge.label}
-                        </span>
+                        <p className="muted u-fs-075-m0">
+                          {wallet.usedInMissions.length > 0
+                            ? `Used in ${wallet.usedInMissions.map((m) => m.missionTitle).join(', ')}`
+                            : null}
+                          {wallet.usedInMissions.length > 0 && wallet.accessibleTo.length > 0
+                            ? ' · '
+                            : null}
+                          {wallet.accessibleTo.length > 0
+                            ? `Shared with ${wallet.accessibleTo.map((a) => a.label).join(', ')}`
+                            : null}
+                        </p>
                       );
                     })()}
-                    {processingKey ? (
-                      <span
-                        className={`badge ${processingTone(doc.processingStatus)}`}
-                        aria-live="polite"
-                      >
-                        {t(processingKey)}
-                      </span>
-                    ) : null}
-                    {previewable ? (
-                      <form action={previewDocumentAction}>
-                        <input type="hidden" name="applicantId" value={id} />
-                        <input type="hidden" name="documentId" value={doc.id} />
-                        <button
-                          type="submit"
-                          className="btn btn-secondary"
-                          style={{ padding: '0.3rem 0.9rem', fontSize: 'var(--text-small)' }}
-                        >
-                          Preview
-                        </button>
-                      </form>
-                    ) : null}
-                    {previewable && getPlatformCapabilities().originalDownload === 'available' ? (
-                      <form action={downloadOriginalAction}>
-                        <input type="hidden" name="applicantId" value={id} />
-                        <input type="hidden" name="documentId" value={doc.id} />
+                    <form action={setDocumentDateAction} className="field-stack">
+                      <input type="hidden" name="applicantId" value={id} />
+                      <input type="hidden" name="documentId" value={doc.id} />
+                      <label className="field-label" htmlFor={`date-${doc.id}`}>
+                        Document Date
+                      </label>
+                      <div className="field-inline">
+                        <input
+                          id={`date-${doc.id}`}
+                          name="documentDate"
+                          type="date"
+                          defaultValue={doc.documentDate ?? ''}
+                          max={new Date().toISOString().slice(0, 10)}
+                          className="input"
+                          aria-describedby={`date-hint-${doc.id}`}
+                        />
                         <button type="submit" className="btn btn-secondary">
-                          Download Original
+                          Save
                         </button>
-                      </form>
-                    ) : null}
-                  </span>
-                </div>
-                {doc.source === CONVERTED_FROM_HEIC_SOURCE ? (
-                  <p className="muted u-fs-075-m0">
-                    Saved as a JPG copy of the iPhone photo (HEIC) that was uploaded, so it opens
-                    anywhere. The HEIC file itself was not kept.
-                  </p>
-                ) : null}
-                {previewable && isPassportPhotoType(doc.docType) ? (
-                  <VisaPhotoSizes
-                    documentId={doc.id}
-                    returnTo={`/app/applicant/${id}/documents?document=${doc.id}`}
-                  />
-                ) : null}
-                {(() => {
-                  const state = doc.latestVersionId
-                    ? data.reading?.states.get(doc.latestVersionId)
-                    : undefined;
-                  const copy = state
-                    ? readingStatusCopy(state, {
-                        ...(doc.processingStatus && PROBLEM_NEXT_STEP[doc.processingStatus]
-                          ? { problemNextStep: PROBLEM_NEXT_STEP[doc.processingStatus] }
-                          : {}),
-                        canReadAgain,
-                      })
-                    : null;
-                  return state && copy ? (
-                    <ReadingStatus copy={copy} stage={state.stage} applicantId={id} />
-                  ) : null;
-                })()}
-                {(doc.classification?.reviewRequired === true ||
-                  !doc.classification ||
-                  (doc.docType === 'PASSPORT' && !doc.expiresAt)) &&
-                doc.safetyStatus === 'CLEAN' &&
-                doc.latestVersionId &&
-                ['AWAITING_REVIEW', 'APPROVED'].includes(doc.processingStatus ?? '') ? (
-                  <form action={requestDocumentReadingAction}>
-                    <input type="hidden" name="applicantId" value={id} />
-                    <input type="hidden" name="documentId" value={doc.id} />
-                    <input type="hidden" name="versionId" value={doc.latestVersionId} />
-                    <button className="btn btn-secondary" type="submit">
-                      Check the File Again
-                    </button>
-                  </form>
-                ) : null}
-                {/* A file with no reading state (the reading service was refused) keeps the plain advice. */}
-                {doc.processingStatus &&
-                PROBLEM_NEXT_STEP[doc.processingStatus] &&
-                !(doc.latestVersionId && data.reading?.states.has(doc.latestVersionId)) ? (
-                  <p className="muted u-fs-075-m0">{PROBLEM_NEXT_STEP[doc.processingStatus]}</p>
-                ) : null}
-                {(() => {
-                  const wallet = data.wallet.get(doc.id);
-                  if (
-                    !wallet ||
-                    (wallet.usedInMissions.length === 0 && wallet.accessibleTo.length === 0)
-                  ) {
-                    return null;
-                  }
-                  return (
-                    <p className="muted u-fs-075-m0">
-                      {wallet.usedInMissions.length > 0
-                        ? `Used in ${wallet.usedInMissions.map((m) => m.missionTitle).join(', ')}`
-                        : null}
-                      {wallet.usedInMissions.length > 0 && wallet.accessibleTo.length > 0
-                        ? ' · '
-                        : null}
-                      {wallet.accessibleTo.length > 0
-                        ? `Shared with ${wallet.accessibleTo.map((a) => a.label).join(', ')}`
-                        : null}
-                    </p>
-                  );
-                })()}
-                <form action={setDocumentDateAction} className="field-stack">
-                  <input type="hidden" name="applicantId" value={id} />
-                  <input type="hidden" name="documentId" value={doc.id} />
-                  <label className="field-label" htmlFor={`date-${doc.id}`}>
-                    Document Date
-                  </label>
-                  <div className="field-inline">
-                    <input
-                      id={`date-${doc.id}`}
-                      name="documentDate"
-                      type="date"
-                      defaultValue={doc.documentDate ?? ''}
-                      max={new Date().toISOString().slice(0, 10)}
-                      className="input"
-                      aria-describedby={`date-hint-${doc.id}`}
-                    />
-                    <button type="submit" className="btn btn-secondary">
-                      Save
-                    </button>
-                  </div>
-                  <span className="field-hint" id={`date-hint-${doc.id}`}>
-                    Used to judge freshness for routes that require recently-dated evidence.
-                  </span>
-                </form>
-                <DocumentRenameForm
-                  applicantId={id}
-                  documentId={doc.id}
-                  name={doc.approvedName ?? doc.originalName}
-                />
-                <DocumentTypeForm
-                  applicantId={id}
-                  documentId={doc.id}
-                  docType={doc.docType}
-                  subject={doc.subject}
-                  groups={documentGroups}
-                />
-                {(() => {
-                  const confirmations = data.issuerVerifications.get(doc.id) ?? [];
-                  if (confirmations.length === 0) return null;
-                  return (
-                    <details className="u-fs-075">
-                      <summary className="muted" style={{ cursor: 'pointer' }}>
-                        {confirmations.length} issuer confirmation
-                        {confirmations.length === 1 ? '' : 's'}
-                      </summary>
-                      <div
-                        style={{
-                          marginTop: '0.35rem',
-                          paddingLeft: '0.75rem',
-                          borderLeft: '2px solid var(--hairline-soft)',
-                        }}
-                      >
-                        {confirmations.map((c) => {
-                          const verification = classifyExpiry(c.validUntil, new Date());
-                          return (
-                            <p key={c.id} className="muted" style={{ margin: '0 0 0.3rem' }}>
-                              {verification.urgency === 'expired' ? '(expired) ' : ''}
-                              {verification.urgency === 'reminder'
-                                ? `(expires in ${verification.daysRemaining} day(s)) `
-                                : ''}
-                              {c.issuerIdentity}: "{c.exactClaim}", response: {c.response}, valid
-                              until {formatTimestampDate(c.validUntil)}
-                            </p>
-                          );
-                        })}
                       </div>
-                    </details>
-                  );
-                })()}
-                {suggestion ? (
-                  <DocumentSuggestionCard
-                    applicantId={id}
-                    suggestion={suggestion}
-                    groups={documentGroups}
-                    protectedKinds={protectedKinds}
-                  />
-                ) : doc.classification?.reviewRequired ? (
-                  <p className="muted u-fs-075">
-                    We could not tell what kind of document this is. Choose the kind above.
-                  </p>
-                ) : null}
-                {(() => {
-                  const versionId = doc.latestVersionId;
-                  if (!versionId) return null;
-                  const proposalsForDoc = data.pendingProposals.filter(
-                    (p) => p.proposal.documentVersionId === versionId,
-                  );
-                  const stage = data.reading?.states.get(versionId)?.stage;
-                  // Read Again is the retry: offered once the first reading is over, never while it runs.
-                  const showReadAgain =
-                    canReadAgain &&
-                    doc.classification &&
-                    (stage === 'found' || stage === 'could_not_read' || stage === 'done');
-                  return (
-                    <>
-                      {showReadAgain ? (
-                        <ReadAgainButton applicantId={id} documentVersionId={versionId} />
-                      ) : null}
-                      {/* Suggestions are shown whatever the AI switches say: the passport's
+                      <span className="field-hint" id={`date-hint-${doc.id}`}>
+                        Used to judge freshness for routes that require recently-dated evidence.
+                      </span>
+                    </form>
+                    <DocumentRenameForm
+                      applicantId={id}
+                      documentId={doc.id}
+                      name={doc.approvedName ?? doc.originalName}
+                    />
+                    <DocumentTypeForm
+                      applicantId={id}
+                      documentId={doc.id}
+                      docType={doc.docType}
+                      subject={doc.subject}
+                      groups={documentGroups}
+                    />
+                    {(() => {
+                      const confirmations = data.issuerVerifications.get(doc.id) ?? [];
+                      if (confirmations.length === 0) return null;
+                      return (
+                        <details className="u-fs-075">
+                          <summary className="muted" style={{ cursor: 'pointer' }}>
+                            {confirmations.length} issuer confirmation
+                            {confirmations.length === 1 ? '' : 's'}
+                          </summary>
+                          <div
+                            style={{
+                              marginTop: '0.35rem',
+                              paddingLeft: '0.75rem',
+                              borderLeft: '2px solid var(--hairline-soft)',
+                            }}
+                          >
+                            {confirmations.map((c) => {
+                              const verification = classifyExpiry(c.validUntil, new Date());
+                              return (
+                                <p key={c.id} className="muted" style={{ margin: '0 0 0.3rem' }}>
+                                  {verification.urgency === 'expired' ? '(expired) ' : ''}
+                                  {verification.urgency === 'reminder'
+                                    ? `(expires in ${verification.daysRemaining} day(s)) `
+                                    : ''}
+                                  {c.issuerIdentity}: "{c.exactClaim}", response: {c.response},
+                                  valid until {formatTimestampDate(c.validUntil)}
+                                </p>
+                              );
+                            })}
+                          </div>
+                        </details>
+                      );
+                    })()}
+                    {suggestion ? (
+                      <DocumentSuggestionCard
+                        applicantId={id}
+                        suggestion={suggestion}
+                        groups={documentGroups}
+                        protectedKinds={protectedKinds}
+                      />
+                    ) : doc.classification?.reviewRequired ? (
+                      <p className="muted u-fs-075">
+                        We could not tell what kind of document this is. Choose the kind above.
+                      </p>
+                    ) : null}
+                    {(() => {
+                      const versionId = doc.latestVersionId;
+                      if (!versionId) return null;
+                      const proposalsForDoc = data.pendingProposals.filter(
+                        (p) => p.proposal.documentVersionId === versionId,
+                      );
+                      const stage = data.reading?.states.get(versionId)?.stage;
+                      // Read Again is the retry: offered once the first reading is over, never while it runs.
+                      const showReadAgain =
+                        canReadAgain &&
+                        doc.classification &&
+                        (stage === 'found' || stage === 'could_not_read' || stage === 'done');
+                      return (
+                        <>
+                          {showReadAgain ? (
+                            <ReadAgainButton applicantId={id} documentVersionId={versionId} />
+                          ) : null}
+                          {/* Suggestions are shown whatever the AI switches say: the passport's
                           machine-readable lines need no AI. Accepting still needs core processing
                           consent (finding #23). */}
-                      <DocumentFindings
-                        applicantId={id}
-                        canApprove={data.coreGranted}
-                        proposals={proposalsForDoc.map((reading) =>
-                          findingViewModel(
-                            reading,
-                            data.confirmed,
-                            data.reading?.sourceOfRun.get(reading.proposal.aiExtractionRunId),
-                          ),
-                        )}
-                      />
-                    </>
-                  );
-                })()}
-                {(() => {
-                  // Part 8 AI-01 item 2: shown only on a genuine deterministic
-                  // gap (no classification yet reached, or one reached but not
-                  // confident) -- never offered once a confident deterministic
-                  // (or already-approved AI) classification already exists.
-                  if (!data.classificationConfigured || !data.aiGranted || !doc.classification) {
-                    return null;
-                  }
-                  if (
-                    doc.classification.classifiedType !== null &&
-                    !doc.classification.reviewRequired
-                  ) {
-                    return null;
-                  }
-                  const versionId = doc.latestVersionId;
-                  if (!versionId) return null;
-                  // A waiting AI kind is shown in the card above, decided with its name.
-                  if (waitingKind || !data.coreGranted || doc.docType) return null;
-                  return <RunClassificationButton applicantId={id} documentVersionId={versionId} />;
-                })()}
-                {(() => {
-                  if (!data.ocrConfigured || !data.ocrGranted || !doc.classification) return null;
-                  const latestRun = data.ocrRuns.get(doc.id);
-                  return latestRun ? (
-                    <OcrResultView
-                      text={latestRun.extractedText ?? ''}
-                      reviewIssues={latestRun.reviewIssues ?? []}
-                      usedFallback={latestRun.triggeredByRunId !== null}
-                    />
-                  ) : null;
-                })()}
-                {(() => {
-                  // Part 8 AI-01 item 4: same AI_EXTRACTION consent gate as
-                  // extraction/classification above -- the check sends the
-                  // document's own text plus the applicant's already-
-                  // confirmed TRUSTED profile facts, never a second document.
-                  if (!data.inconsistencyConfigured || !data.aiGranted || !doc.classification) {
-                    return null;
-                  }
-                  const versionId = doc.latestVersionId;
-                  if (!versionId) return null;
-                  const flagsForDoc = data.pendingInconsistencyFlags.filter(
-                    (f) => f.documentVersionId === versionId,
-                  );
-                  return (
-                    <>
-                      {data.coreGranted ? (
-                        <RunInconsistencyCheckButton
-                          applicantId={id}
-                          documentVersionId={versionId}
+                          <DocumentFindings
+                            applicantId={id}
+                            canApprove={data.coreGranted}
+                            proposals={proposalsForDoc.map((reading) =>
+                              findingViewModel(
+                                reading,
+                                data.confirmed,
+                                data.reading?.sourceOfRun.get(reading.proposal.aiExtractionRunId),
+                              ),
+                            )}
+                          />
+                        </>
+                      );
+                    })()}
+                    {(() => {
+                      // Part 8 AI-01 item 2: shown only on a genuine deterministic
+                      // gap (no classification yet reached, or one reached but not
+                      // confident) -- never offered once a confident deterministic
+                      // (or already-approved AI) classification already exists.
+                      if (
+                        !data.classificationConfigured ||
+                        !data.aiGranted ||
+                        !doc.classification
+                      ) {
+                        return null;
+                      }
+                      if (
+                        doc.classification.classifiedType !== null &&
+                        !doc.classification.reviewRequired
+                      ) {
+                        return null;
+                      }
+                      const versionId = doc.latestVersionId;
+                      if (!versionId) return null;
+                      // A waiting AI kind is shown in the card above, decided with its name.
+                      if (waitingKind || !data.coreGranted || doc.docType) return null;
+                      return (
+                        <RunClassificationButton applicantId={id} documentVersionId={versionId} />
+                      );
+                    })()}
+                    {(() => {
+                      if (!data.ocrConfigured || !data.ocrGranted || !doc.classification)
+                        return null;
+                      const latestRun = data.ocrRuns.get(doc.id);
+                      return latestRun ? (
+                        <OcrResultView
+                          text={latestRun.extractedText ?? ''}
+                          reviewIssues={latestRun.reviewIssues ?? []}
+                          usedFallback={latestRun.triggeredByRunId !== null}
                         />
-                      ) : null}
-                      {flagsForDoc.map((flag) => (
-                        <InconsistencyFlagReview
-                          key={flag.id}
-                          applicantId={id}
-                          flag={{
-                            id: flag.id,
-                            description: flag.description,
-                            confidence: flag.confidence,
-                            rationale: flag.rationale,
-                          }}
-                        />
-                      ))}
-                    </>
-                  );
-                })()}
-              </div>
-            ),
-          };
-        })}
-      />
-      <details
-        className="wallet-upload-disclosure"
-        id="add-document"
-        open={initialKind ? true : undefined}
-      >
-        <summary className="btn btn-secondary">Upload Document</summary>
-        <div id="document-upload">
-          {/*
-           * Only upload and new processing/extraction are gated on core
-           * processing consent - existing documents must remain viewable
-           * regardless (docs/audits/post-programme-defect-register.md finding
-           * #23): "view existing data" and "permit new processing" are
-           * deliberately distinct here.
-           */}
-          {!data.coreGranted ? (
-            <article className="card u-mb-150">
-              <p className="card-body">
-                Turn on <strong>Let VisaStack Process My Details</strong> on{' '}
-                <Link href="/app">Home</Link> to upload new documents or run processing. Your
-                existing documents remain visible above.
-              </p>
-            </article>
-          ) : (
-            <>
-              <article className="card u-mb-150">
-                <p className="card-kicker">Upload</p>
-                <h2 className="card-title">Add Documents</h2>
-                <p className="card-body u-mb-125">
-                  Add several at once. Documents are stored privately and pass a structural safety
-                  scan before they can be previewed.
-                </p>
-                <div className="u-mb-125">
-                  <UsageMeter
-                    label="Evidence Storage"
-                    usedBytes={data.evidenceBytes}
-                    limitBytes={data.quota.maxApplicantEvidenceBytes}
-                  />
+                      ) : null;
+                    })()}
+                    {(() => {
+                      // Part 8 AI-01 item 4: same AI_EXTRACTION consent gate as
+                      // extraction/classification above -- the check sends the
+                      // document's own text plus the applicant's already-
+                      // confirmed TRUSTED profile facts, never a second document.
+                      if (!data.inconsistencyConfigured || !data.aiGranted || !doc.classification) {
+                        return null;
+                      }
+                      const versionId = doc.latestVersionId;
+                      if (!versionId) return null;
+                      const flagsForDoc = data.pendingInconsistencyFlags.filter(
+                        (f) => f.documentVersionId === versionId,
+                      );
+                      return (
+                        <>
+                          {data.coreGranted ? (
+                            <RunInconsistencyCheckButton
+                              applicantId={id}
+                              documentVersionId={versionId}
+                            />
+                          ) : null}
+                          {flagsForDoc.map((flag) => (
+                            <InconsistencyFlagReview
+                              key={flag.id}
+                              applicantId={id}
+                              flag={{
+                                id: flag.id,
+                                description: flag.description,
+                                confidence: flag.confidence,
+                                rationale: flag.rationale,
+                              }}
+                            />
+                          ))}
+                        </>
+                      );
+                    })()}
+                  </div>
                 </div>
-                <DocumentUploader
-                  key={initialKind}
-                  applicantId={id}
-                  limitBytes={uploadLimitBytes(data.quota)}
-                  limitLabel={mbLabel(uploadLimitBytes(data.quota))}
-                  pdfAccepted={pdfUploadsAccepted()}
-                  virusScanning={data.virusScanning}
-                  kindGroups={documentGroups}
-                  initialKind={initialKind}
-                  originalKinds={ORIGINAL_KINDS}
-                />
+              ),
+            };
+          })}
+        />
+        <details
+          className="wallet-upload-disclosure"
+          id="add-document"
+          {...atLevel('everything')}
+          open={initialKind ? true : undefined}
+        >
+          <summary className="btn btn-secondary">Upload Document</summary>
+          <div id="document-upload">
+            {/*
+             * Only upload and new processing/extraction are gated on core
+             * processing consent - existing documents must remain viewable
+             * regardless (docs/audits/post-programme-defect-register.md finding
+             * #23): "view existing data" and "permit new processing" are
+             * deliberately distinct here.
+             */}
+            {!data.coreGranted ? (
+              <article className="card u-mb-150">
+                <p className="card-body">
+                  Turn on <strong>Let VisaStack Process My Details</strong> on{' '}
+                  <Link href="/app">Home</Link> to upload new documents or run processing. Your
+                  existing documents remain visible above.
+                </p>
               </article>
-            </>
-          )}
-        </div>
-      </details>
+            ) : (
+              <>
+                <article className="card u-mb-150">
+                  <p className="card-kicker">Upload</p>
+                  <h2 className="card-title">Add Documents</h2>
+                  <p className="card-body u-mb-125">
+                    Add several at once. Documents are stored privately and pass a structural safety
+                    scan before they can be previewed.
+                  </p>
+                  <div className="u-mb-125">
+                    <UsageMeter
+                      label="Evidence Storage"
+                      usedBytes={data.evidenceBytes}
+                      limitBytes={data.quota.maxApplicantEvidenceBytes}
+                    />
+                  </div>
+                  <DocumentUploader
+                    key={initialKind}
+                    applicantId={id}
+                    limitBytes={uploadLimitBytes(data.quota)}
+                    limitLabel={mbLabel(uploadLimitBytes(data.quota))}
+                    pdfAccepted={pdfUploadsAccepted()}
+                    virusScanning={data.virusScanning}
+                    kindGroups={documentGroups}
+                    initialKind={initialKind}
+                    originalKinds={ORIGINAL_KINDS}
+                  />
+                </article>
+              </>
+            )}
+          </div>
+        </details>
+      </DepthScope>
     </>
   );
 }

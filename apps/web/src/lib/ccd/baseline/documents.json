@@ -1,0 +1,619 @@
+{
+  "empty wallet": [
+    {
+      "kind": "heading",
+      "name": "Documents",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Keep reusable evidence together. Processing, review and expiry are separate signals."
+    },
+    {
+      "kind": "link",
+      "name": "See Document Insights",
+      "detail": "/app/applicant/a1/insights"
+    },
+    {
+      "kind": "link",
+      "name": "Upload Document",
+      "detail": "#document-upload"
+    },
+    {
+      "kind": "button",
+      "name": "All Documents0"
+    },
+    {
+      "kind": "button",
+      "name": "Ready to Use0"
+    },
+    {
+      "kind": "button",
+      "name": "Needs Review0"
+    },
+    {
+      "kind": "button",
+      "name": "Expiring Soon0"
+    },
+    {
+      "kind": "field",
+      "name": "CategoryAll Categories",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Search Documents",
+      "detail": "search"
+    },
+    {
+      "kind": "text",
+      "name": "No Documents Yet"
+    },
+    {
+      "kind": "text",
+      "name": "This is your document vault: passports, bank statements, photos and the other papers you use again and again. Add your first one with the form on this page."
+    },
+    {
+      "kind": "text",
+      "name": "You add each paper once, and it can fill a checklist item on any visa case."
+    },
+    {
+      "kind": "link",
+      "name": "Add a Document",
+      "detail": "#add-document"
+    },
+    {
+      "kind": "heading",
+      "name": "Selected Document",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Choose a Document"
+    },
+    {
+      "kind": "text",
+      "name": "Select an available row to review its metadata and authorized actions."
+    },
+    {
+      "kind": "button",
+      "name": "Upload Document"
+    },
+    {
+      "kind": "text",
+      "name": "Upload"
+    },
+    {
+      "kind": "heading",
+      "name": "Add Documents",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Add several at once. Documents are stored privately and pass a structural safety scan before they can be previewed."
+    }
+  ],
+  "core processing off with a document": [
+    {
+      "kind": "heading",
+      "name": "Documents",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Keep reusable evidence together. Processing, review and expiry are separate signals."
+    },
+    {
+      "kind": "link",
+      "name": "See Document Insights",
+      "detail": "/app/applicant/a1/insights"
+    },
+    {
+      "kind": "link",
+      "name": "Upload Document",
+      "detail": "#document-upload"
+    },
+    {
+      "kind": "button",
+      "name": "All Documents1"
+    },
+    {
+      "kind": "button",
+      "name": "Ready to Use0"
+    },
+    {
+      "kind": "button",
+      "name": "Needs Review0"
+    },
+    {
+      "kind": "button",
+      "name": "Expiring Soon0"
+    },
+    {
+      "kind": "field",
+      "name": "CategoryAll CategoriesUniversal",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Search Documents",
+      "detail": "search"
+    },
+    {
+      "kind": "button",
+      "name": "passport.pdfPassport · Universal · Version 1Reviewed and ApprovedNo Problems FoundUpdated 20 Oct 2026"
+    },
+    {
+      "kind": "link",
+      "name": "View Selected Details →",
+      "detail": "#wallet-selected-document"
+    },
+    {
+      "kind": "heading",
+      "name": "Selected Document",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Open the secure preview below. Permission and current safety are checked again before bytes are served."
+    },
+    {
+      "kind": "text",
+      "name": "File format is checked when the file is opened. A verified format is not recorded in this metadata view."
+    },
+    {
+      "kind": "button",
+      "name": "Copy Reference DOC-7K2M"
+    },
+    {
+      "kind": "field",
+      "name": "applicantId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "documentId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "button",
+      "name": "Preview"
+    },
+    {
+      "kind": "field",
+      "name": "applicantId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "documentId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "versionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "button",
+      "name": "Check the File Again"
+    },
+    {
+      "kind": "field",
+      "name": "applicantId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "documentId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Document Date",
+      "detail": "date"
+    },
+    {
+      "kind": "button",
+      "name": "Save"
+    },
+    {
+      "kind": "field",
+      "name": "applicantId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "documentId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Kind of Document",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Name for an Other Type",
+      "detail": "text"
+    },
+    {
+      "kind": "button",
+      "name": "Save"
+    },
+    {
+      "kind": "link",
+      "name": "Review Sharing Permissions",
+      "detail": "/app/applicant/a1/sharing"
+    },
+    {
+      "kind": "text",
+      "name": "Sharing requires consent, an exact reviewed scope and recipient acceptance. AI suggestions never update your profile until you approve them."
+    },
+    {
+      "kind": "button",
+      "name": "Upload Document"
+    },
+    {
+      "kind": "link",
+      "name": "Home",
+      "detail": "/app"
+    }
+  ],
+  "several documents, one selected": [
+    {
+      "kind": "heading",
+      "name": "Documents",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Keep reusable evidence together. Processing, review and expiry are separate signals."
+    },
+    {
+      "kind": "link",
+      "name": "See Document Insights",
+      "detail": "/app/applicant/a1/insights"
+    },
+    {
+      "kind": "link",
+      "name": "Upload Document",
+      "detail": "#document-upload"
+    },
+    {
+      "kind": "text",
+      "name": "Some documents are still being checked, which can take a few minutes. This page updates by itself, so there is no need to upload them again."
+    },
+    {
+      "kind": "button",
+      "name": "All Documents4"
+    },
+    {
+      "kind": "button",
+      "name": "Ready to Use1"
+    },
+    {
+      "kind": "button",
+      "name": "Needs Review2"
+    },
+    {
+      "kind": "button",
+      "name": "Expiring Soon1"
+    },
+    {
+      "kind": "field",
+      "name": "CategoryAll CategoriesUniversalNot Set Yet",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Search Documents",
+      "detail": "search"
+    },
+    {
+      "kind": "button",
+      "name": "Show Them"
+    },
+    {
+      "kind": "button",
+      "name": "passport.pdfPassport · Universal · Version 1Reviewed and ApprovedNo Problems FoundUpdated 20 Oct 2026"
+    },
+    {
+      "kind": "link",
+      "name": "View Selected Details →",
+      "detail": "#wallet-selected-document"
+    },
+    {
+      "kind": "button",
+      "name": "statement.pdfKind not set · Version 1Needs ReviewNo Problems FoundUpdated 20 Oct 2026"
+    },
+    {
+      "kind": "button",
+      "name": "broken.pdfKind not set · Version 1FailedNo Problems FoundUpdated 20 Oct 2026"
+    },
+    {
+      "kind": "button",
+      "name": "scanning.pdfKind not set · Version 1Checking the FileNo Problems FoundUpdated 20 Oct 2026"
+    },
+    {
+      "kind": "heading",
+      "name": "Selected Document",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Open the secure preview below. Permission and current safety are checked again before bytes are served."
+    },
+    {
+      "kind": "text",
+      "name": "File format is checked when the file is opened. A verified format is not recorded in this metadata view."
+    },
+    {
+      "kind": "button",
+      "name": "Copy Reference DOC-7K2M"
+    },
+    {
+      "kind": "field",
+      "name": "applicantId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "documentId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "button",
+      "name": "Preview"
+    },
+    {
+      "kind": "field",
+      "name": "applicantId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "documentId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "versionId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "button",
+      "name": "Check the File Again"
+    },
+    {
+      "kind": "field",
+      "name": "applicantId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "documentId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Document Date",
+      "detail": "date"
+    },
+    {
+      "kind": "button",
+      "name": "Save"
+    },
+    {
+      "kind": "field",
+      "name": "applicantId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "documentId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Kind of Document",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Name for an Other Type",
+      "detail": "text"
+    },
+    {
+      "kind": "button",
+      "name": "Save"
+    },
+    {
+      "kind": "link",
+      "name": "Review Sharing Permissions",
+      "detail": "/app/applicant/a1/sharing"
+    },
+    {
+      "kind": "text",
+      "name": "Sharing requires consent, an exact reviewed scope and recipient acceptance. AI suggestions never update your profile until you approve them."
+    },
+    {
+      "kind": "button",
+      "name": "Upload Document"
+    },
+    {
+      "kind": "text",
+      "name": "Upload"
+    },
+    {
+      "kind": "heading",
+      "name": "Add Documents",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Add several at once. Documents are stored privately and pass a structural safety scan before they can be previewed."
+    }
+  ],
+  "a failed file selected": [
+    {
+      "kind": "heading",
+      "name": "Documents",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Keep reusable evidence together. Processing, review and expiry are separate signals."
+    },
+    {
+      "kind": "link",
+      "name": "See Document Insights",
+      "detail": "/app/applicant/a1/insights"
+    },
+    {
+      "kind": "link",
+      "name": "Upload Document",
+      "detail": "#document-upload"
+    },
+    {
+      "kind": "button",
+      "name": "All Documents1"
+    },
+    {
+      "kind": "button",
+      "name": "Ready to Use0"
+    },
+    {
+      "kind": "button",
+      "name": "Needs Review1"
+    },
+    {
+      "kind": "button",
+      "name": "Expiring Soon0"
+    },
+    {
+      "kind": "field",
+      "name": "CategoryAll CategoriesNot Set Yet",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Search Documents",
+      "detail": "search"
+    },
+    {
+      "kind": "button",
+      "name": "Show It"
+    },
+    {
+      "kind": "button",
+      "name": "broken.pdfKind not set · Version 1FailedNo Problems FoundUpdated 20 Oct 2026"
+    },
+    {
+      "kind": "link",
+      "name": "View Selected Details →",
+      "detail": "#wallet-selected-document"
+    },
+    {
+      "kind": "heading",
+      "name": "Selected Document",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Preview is blocked while this file is unsafe, still processing or otherwise unavailable."
+    },
+    {
+      "kind": "text",
+      "name": "File format is checked when the file is opened. A verified format is not recorded in this metadata view."
+    },
+    {
+      "kind": "text",
+      "name": "We could not finish checking this file. Try uploading it again. If it keeps failing, contact support."
+    },
+    {
+      "kind": "field",
+      "name": "applicantId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "documentId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Document Date",
+      "detail": "date"
+    },
+    {
+      "kind": "button",
+      "name": "Save"
+    },
+    {
+      "kind": "field",
+      "name": "applicantId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "documentId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "field",
+      "name": "Kind of Document",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Name for an Other Type",
+      "detail": "text"
+    },
+    {
+      "kind": "button",
+      "name": "Save"
+    },
+    {
+      "kind": "link",
+      "name": "Review Sharing Permissions",
+      "detail": "/app/applicant/a1/sharing"
+    },
+    {
+      "kind": "text",
+      "name": "Sharing requires consent, an exact reviewed scope and recipient acceptance. AI suggestions never update your profile until you approve them."
+    },
+    {
+      "kind": "button",
+      "name": "Upload Document"
+    },
+    {
+      "kind": "text",
+      "name": "Upload"
+    },
+    {
+      "kind": "heading",
+      "name": "Add Documents",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Add several at once. Documents are stored privately and pass a structural safety scan before they can be previewed."
+    }
+  ],
+  "records could not be loaded": [
+    {
+      "kind": "heading",
+      "name": "Documents",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Your private evidence wallet"
+    },
+    {
+      "kind": "text",
+      "name": "We could not load your document records or lifecycle status. Refresh to try again. Unavailable records are not reported as an empty wallet."
+    }
+  ]
+}

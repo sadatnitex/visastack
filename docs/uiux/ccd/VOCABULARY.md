@@ -6,7 +6,7 @@ Approved by the owner on 2026-10-28 (decision D3). Applies to user-facing words:
 |---|---|---|---|
 | Account home | Home, heading "Welcome back, {first name}" (no name: "Welcome back") | "Welcome Back" alone, "Overview" for travellers | **Heading done (CCD-2 slice 2a).** The menu and eyebrow still say "Account Overview" because each traveller's tab is also "Home"; owner to decide (see known issues 28 Oct) |
 | One traveller's home | eyebrow "Home", heading = the traveller's full name | "Welcome, {name}", "Your Space", "Traveller Overview" | **Done (CCD-2 slice 2b)**; the browser tab title is now "Home" |
-| Record sub-pages | All Records, My Profile, Documents, Dates & Expiry, History; eyebrow "Record" | "Your Canonical Record", "Your Private Wallet", "Expiry Centre", "Expiry & Freshness", "Expiry" | Planned CCD-3 |
+| Record sub-pages | All Records, My Profile, Documents, Dates & Expiry, History; eyebrow "Record" | "Your Canonical Record", "Your Private Wallet", "Expiry Centre", "Expiry & Freshness", "Expiry" | Documents done (CCD-3 slice 3a); the other record pages follow |
 | Cases list | Cases; eyebrow = traveller name; section "All Cases" | "Visa Cases", "Your Cases", "Active & Past" | Planned CCD-4 |
 | Start a case | Start a Case | "New Visa Case", "Start a Visa Case" | Traveller page done (CCD-2 slice 2b); the Cases screen follows in CCD-4 |
 | Alerts | Notifications | "Alerts", "Updates on Your Cases" | Planned CCD-5 |
