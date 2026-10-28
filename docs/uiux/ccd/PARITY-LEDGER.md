@@ -12,7 +12,7 @@ Levels: **Glance** (the one thing that matters now), **Browse** (the normal work
 |---|---|---|---|---|
 | 01 | Sign In | `/auth/sign-in` | none | Not converted: no switch, content unchanged (by design) |
 | 02 | Home | `/app` | CCD-2 (slice 2a) | **Built and tested** (not seen live) |
-| 03 | Traveller home | `/app/applicant/{id}` | CCD-2 | Planned |
+| 03 | Traveller home | `/app/applicant/{id}` | CCD-2 (slice 2b) | **Built and tested** (not seen live) |
 | 04 | My Profile | `/profile` | CCD-3 | Planned |
 | 05 | Documents | `/documents` | CCD-3 | Planned |
 | 06 | Dates & Expiry | `/expiry` | CCD-3 | Planned |
@@ -67,6 +67,28 @@ Baseline: `apps/web/src/lib/ccd/baseline/home.json`, six states (core processing
 Approved change: the heading only. Nothing removed.
 
 Not built yet on Home: the "Every Page" list (new content, planned for CCD-7); a shorter Next Step at Browse and a slim bar at Everything (the full card shows at every level for now); the navigation and page-title name "Account Overview" becomes "Home" together with the traveller page in slice 2b, so the two never disagree.
+
+## 03. Traveller home (`/app/applicant/{id}`)
+
+Baseline: `apps/web/src/lib/ccd/baseline/traveller.json`, five states (empty account; core processing off; a request, suggested details and a flagged document; an active case with a checklist, a second case and a grant; some records could not be loaded). Test: `apps/web/src/lib/ccd/parity-traveller.test.tsx`.
+
+| What it is | Level it lives at now | Condition (unchanged) |
+|---|---|---|
+| Page heading | **{Traveller's full name}** as the one page heading, eyebrow "Home" (approved change; was "Welcome, {name}" under "Your Space", and not the page heading) | always |
+| Start a Case button in the header | Glance; now a secondary button named "Start a Case" (approved change; was the primary "New Visa Case") | always |
+| Next Step card | Glance. Now taken from the same ranking as Account Home, with Home's wording (approved change). Flagged documents and the profile steps still follow when the ranking has nothing | always |
+| Your case line (title and stage) | Glance only (new line) | only with an active case |
+| Three count cards | Browse | always |
+| Continue Where You Left Off, the case card, other cases | Browse; "Continue Case" is secondary so the Next Step holds the one primary | always |
+| Needs Your Attention rows (requests, suggestions, documents to review) | Browse; says "Nothing needs a decision right now." when empty | rows only when something is waiting |
+| Deadline Clock | Browse | always |
+| Upcoming, Recent Activity, Profile & Sharing | Everything | always |
+
+Approved changes on this screen: the heading, the Start a Case button, and the wording of the request next step (decision D1). Nothing removed.
+
+Calm all-clear: when nothing is waiting and the profile is complete, the Next Step reads "Nothing Needs You Right Now" with "Continue Case" (or "Start a Case") as the primary action.
+
+Not built yet: the "Every Page for this traveller" list (new content, CCD-7).
 
 ## Screens 02 to 15: the level plan (from the approved canvas)
 

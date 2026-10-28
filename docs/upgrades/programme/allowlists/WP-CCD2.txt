@@ -1,4 +1,4 @@
-# CCD-2 Home (slice 2a). Traveller home and the single ranking follow as slice 2b.
+# CCD-2 Home (slice 2a) and the traveller page with the single ranking (slice 2b).
 docs/uiux/ccd/**
 docs/adr/0023-calm-core-with-depths.md
 docs/upgrades/programme/**
@@ -7,6 +7,10 @@ docs/uiux/EXPERIENCE-UPGRADE-HANDOFF.md
 apps/web/src/app/globals.css
 apps/web/src/app/app/(home)/page.tsx
 apps/web/src/app/app/page.test.tsx
+apps/web/src/app/app/attention-display.ts
+apps/web/src/app/app/applicant/[id]/page.tsx
+apps/web/src/lib/traveller-composition.test.tsx
+apps/web/src/lib/traveller-all-clear.test.tsx
 apps/web/src/components/depth*.tsx
 apps/web/src/lib/ccd/**
 scripts/ui-ratchet.baseline.json

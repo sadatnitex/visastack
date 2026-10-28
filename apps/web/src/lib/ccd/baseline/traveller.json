@@ -1,0 +1,835 @@
+{
+  "empty account": [
+    {
+      "kind": "heading",
+      "name": "Welcome, Karim Hossain",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Your next steps, documents and cases in one place."
+    },
+    {
+      "kind": "link",
+      "name": "New Visa Case",
+      "detail": "/app/applicant/person/missions"
+    },
+    {
+      "kind": "link",
+      "name": "Active Visa Cases0Closed and cancelled cases are excluded.",
+      "detail": "/app/applicant/person/missions"
+    },
+    {
+      "kind": "link",
+      "name": "Documents in Your Wallet0Open documents to review processing and safety.",
+      "detail": "/app/applicant/person/documents"
+    },
+    {
+      "kind": "link",
+      "name": "Items Needing Attention0Requests, suggested details and flagged documents.",
+      "detail": "/app/applicant/person/evidence"
+    },
+    {
+      "kind": "heading",
+      "name": "Continue Where You Left Off",
+      "detail": "3"
+    },
+    {
+      "kind": "link",
+      "name": "All Cases →",
+      "detail": "/app/applicant/person/missions"
+    },
+    {
+      "kind": "text",
+      "name": "No Active Case Yet"
+    },
+    {
+      "kind": "text",
+      "name": "A case is where one visa application comes together. Start one for the route you are planning, and your saved documents are checked against its checklist."
+    },
+    {
+      "kind": "text",
+      "name": "Then you can see which checklist items are ready and which are still missing."
+    },
+    {
+      "kind": "link",
+      "name": "Start a Visa Case",
+      "detail": "/app/applicant/person/missions"
+    },
+    {
+      "kind": "heading",
+      "name": "Needs Your Attention",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Next Step"
+    },
+    {
+      "kind": "heading",
+      "name": "Add Your Essentials",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "0 of 12 essentials added: the details most visa forms ask for first. This is completeness, not verification."
+    },
+    {
+      "kind": "link",
+      "name": "Open Profile",
+      "detail": "/app/applicant/person/profile"
+    },
+    {
+      "kind": "text",
+      "name": "Dates That Matter"
+    },
+    {
+      "kind": "heading",
+      "name": "Deadline Clock",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "No Dates Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Add a passport and its expiry date appears here, so you hear about it before it matters."
+    },
+    {
+      "kind": "link",
+      "name": "Add a Document",
+      "detail": "/app/applicant/person/documents"
+    },
+    {
+      "kind": "heading",
+      "name": "Upcoming",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "No Upcoming Case Dates"
+    },
+    {
+      "kind": "text",
+      "name": "Set a target deadline or travel date in a case. Appointments remain in the individual case calendar."
+    },
+    {
+      "kind": "link",
+      "name": "Document Expiry Centre →",
+      "detail": "/app/applicant/person/expiry"
+    },
+    {
+      "kind": "heading",
+      "name": "Recent Activity",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "No Recorded Activity Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Profile changes, uploads and case updates will appear here. This is a recent-record summary, not a complete audit log."
+    },
+    {
+      "kind": "link",
+      "name": "Profile History →",
+      "detail": "/app/applicant/person/history"
+    },
+    {
+      "kind": "heading",
+      "name": "Profile & Sharing",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Completeness does not verify identity."
+    },
+    {
+      "kind": "link",
+      "name": "Continue Profile →",
+      "detail": "/app/applicant/person/profile"
+    },
+    {
+      "kind": "text",
+      "name": "Active sharing grants: 0"
+    },
+    {
+      "kind": "link",
+      "name": "Manage Sharing →",
+      "detail": "/app/applicant/person/sharing"
+    }
+  ],
+  "core processing off": [
+    {
+      "kind": "heading",
+      "name": "Welcome, Karim Hossain",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Your next steps, documents and cases in one place."
+    },
+    {
+      "kind": "link",
+      "name": "New Visa Case",
+      "detail": "/app/applicant/person/missions"
+    },
+    {
+      "kind": "link",
+      "name": "Active Visa Cases0Closed and cancelled cases are excluded.",
+      "detail": "/app/applicant/person/missions"
+    },
+    {
+      "kind": "link",
+      "name": "Documents in Your Wallet0Open documents to review processing and safety.",
+      "detail": "/app/applicant/person/documents"
+    },
+    {
+      "kind": "link",
+      "name": "Items Needing Attention0Requests, suggested details and flagged documents.",
+      "detail": "/app/applicant/person/evidence"
+    },
+    {
+      "kind": "heading",
+      "name": "Continue Where You Left Off",
+      "detail": "3"
+    },
+    {
+      "kind": "link",
+      "name": "All Cases →",
+      "detail": "/app/applicant/person/missions"
+    },
+    {
+      "kind": "text",
+      "name": "No Active Case Yet"
+    },
+    {
+      "kind": "text",
+      "name": "A case is where one visa application comes together. Start one for the route you are planning, and your saved documents are checked against its checklist."
+    },
+    {
+      "kind": "text",
+      "name": "Then you can see which checklist items are ready and which are still missing."
+    },
+    {
+      "kind": "link",
+      "name": "Start a Visa Case",
+      "detail": "/app/applicant/person/missions"
+    },
+    {
+      "kind": "heading",
+      "name": "Needs Your Attention",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Next Step"
+    },
+    {
+      "kind": "heading",
+      "name": "Allow Core Processing",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Choose whether your profile and documents may be saved. You can withdraw this permission."
+    },
+    {
+      "kind": "link",
+      "name": "Review Permissions",
+      "detail": "/app#permissions"
+    },
+    {
+      "kind": "text",
+      "name": "Dates That Matter"
+    },
+    {
+      "kind": "heading",
+      "name": "Deadline Clock",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "No Dates Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Add a passport and its expiry date appears here, so you hear about it before it matters."
+    },
+    {
+      "kind": "link",
+      "name": "Add a Document",
+      "detail": "/app/applicant/person/documents"
+    },
+    {
+      "kind": "heading",
+      "name": "Upcoming",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "No Upcoming Case Dates"
+    },
+    {
+      "kind": "text",
+      "name": "Set a target deadline or travel date in a case. Appointments remain in the individual case calendar."
+    },
+    {
+      "kind": "link",
+      "name": "Document Expiry Centre →",
+      "detail": "/app/applicant/person/expiry"
+    },
+    {
+      "kind": "heading",
+      "name": "Recent Activity",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "No Recorded Activity Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Profile changes, uploads and case updates will appear here. This is a recent-record summary, not a complete audit log."
+    },
+    {
+      "kind": "link",
+      "name": "Profile History →",
+      "detail": "/app/applicant/person/history"
+    },
+    {
+      "kind": "heading",
+      "name": "Profile & Sharing",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Completeness does not verify identity."
+    },
+    {
+      "kind": "link",
+      "name": "Continue Profile →",
+      "detail": "/app/applicant/person/profile"
+    },
+    {
+      "kind": "text",
+      "name": "Active sharing grants: 0"
+    },
+    {
+      "kind": "link",
+      "name": "Manage Sharing →",
+      "detail": "/app/applicant/person/sharing"
+    }
+  ],
+  "a request, suggested details and a flagged document": [
+    {
+      "kind": "heading",
+      "name": "Welcome, Karim Hossain",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "4 items need a decision or a closer look."
+    },
+    {
+      "kind": "link",
+      "name": "New Visa Case",
+      "detail": "/app/applicant/person/missions"
+    },
+    {
+      "kind": "link",
+      "name": "Active Visa Cases0Closed and cancelled cases are excluded.",
+      "detail": "/app/applicant/person/missions"
+    },
+    {
+      "kind": "link",
+      "name": "Documents in Your Wallet1Open documents to review processing and safety.",
+      "detail": "/app/applicant/person/documents"
+    },
+    {
+      "kind": "link",
+      "name": "Items Needing Attention4Requests, suggested details and flagged documents.",
+      "detail": "/app/applicant/person/evidence"
+    },
+    {
+      "kind": "heading",
+      "name": "Continue Where You Left Off",
+      "detail": "3"
+    },
+    {
+      "kind": "link",
+      "name": "All Cases →",
+      "detail": "/app/applicant/person/missions"
+    },
+    {
+      "kind": "text",
+      "name": "No Active Case Yet"
+    },
+    {
+      "kind": "text",
+      "name": "A case is where one visa application comes together. Start one for the route you are planning, and your saved documents are checked against its checklist."
+    },
+    {
+      "kind": "text",
+      "name": "Then you can see which checklist items are ready and which are still missing."
+    },
+    {
+      "kind": "link",
+      "name": "Start a Visa Case",
+      "detail": "/app/applicant/person/missions"
+    },
+    {
+      "kind": "heading",
+      "name": "Needs Your Attention",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Next Step"
+    },
+    {
+      "kind": "heading",
+      "name": "Reply to an Evidence Request",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "An agency is waiting for evidence before it can continue."
+    },
+    {
+      "kind": "link",
+      "name": "Open Requests",
+      "detail": "/app/applicant/person/evidence"
+    },
+    {
+      "kind": "link",
+      "name": "Evidence Requests Waiting for a Reply1",
+      "detail": "/app/applicant/person/evidence"
+    },
+    {
+      "kind": "link",
+      "name": "Suggested Details Awaiting Approval2",
+      "detail": "/app/applicant/person/documents"
+    },
+    {
+      "kind": "link",
+      "name": "Documents Needing Review1",
+      "detail": "/app/applicant/person/documents"
+    },
+    {
+      "kind": "text",
+      "name": "Dates That Matter"
+    },
+    {
+      "kind": "heading",
+      "name": "Deadline Clock",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "No Dates Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Add a passport and its expiry date appears here, so you hear about it before it matters."
+    },
+    {
+      "kind": "link",
+      "name": "Add a Document",
+      "detail": "/app/applicant/person/documents"
+    },
+    {
+      "kind": "heading",
+      "name": "Upcoming",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "No Upcoming Case Dates"
+    },
+    {
+      "kind": "text",
+      "name": "Set a target deadline or travel date in a case. Appointments remain in the individual case calendar."
+    },
+    {
+      "kind": "link",
+      "name": "Document Expiry Centre →",
+      "detail": "/app/applicant/person/expiry"
+    },
+    {
+      "kind": "heading",
+      "name": "Recent Activity",
+      "detail": "3"
+    },
+    {
+      "kind": "link",
+      "name": "Document Uploadedpassport.pdf",
+      "detail": "/app/applicant/person/documents#document-d1"
+    },
+    {
+      "kind": "link",
+      "name": "Profile History →",
+      "detail": "/app/applicant/person/history"
+    },
+    {
+      "kind": "heading",
+      "name": "Profile & Sharing",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Completeness does not verify identity."
+    },
+    {
+      "kind": "link",
+      "name": "Continue Profile →",
+      "detail": "/app/applicant/person/profile"
+    },
+    {
+      "kind": "text",
+      "name": "Active sharing grants: 0"
+    },
+    {
+      "kind": "link",
+      "name": "Manage Sharing →",
+      "detail": "/app/applicant/person/sharing"
+    }
+  ],
+  "an active case with a checklist, a second case and a grant": [
+    {
+      "kind": "heading",
+      "name": "Welcome, Karim Hossain",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Your next steps, documents and cases in one place."
+    },
+    {
+      "kind": "link",
+      "name": "New Visa Case",
+      "detail": "/app/applicant/person/missions"
+    },
+    {
+      "kind": "link",
+      "name": "Active Visa Cases2Closed and cancelled cases are excluded.",
+      "detail": "/app/applicant/person/missions"
+    },
+    {
+      "kind": "link",
+      "name": "Documents in Your Wallet0Open documents to review processing and safety.",
+      "detail": "/app/applicant/person/documents"
+    },
+    {
+      "kind": "link",
+      "name": "Items Needing Attention0Requests, suggested details and flagged documents.",
+      "detail": "/app/applicant/person/evidence"
+    },
+    {
+      "kind": "heading",
+      "name": "Continue Where You Left Off",
+      "detail": "3"
+    },
+    {
+      "kind": "link",
+      "name": "All Cases →",
+      "detail": "/app/applicant/person/missions"
+    },
+    {
+      "kind": "heading",
+      "name": "Japan Tourist Visa",
+      "detail": "4"
+    },
+    {
+      "kind": "text",
+      "name": "Japan · Tourist"
+    },
+    {
+      "kind": "text",
+      "name": "Requirement completeness is not an approval prediction."
+    },
+    {
+      "kind": "link",
+      "name": "Continue Case →",
+      "detail": "/app/mission/case-1"
+    },
+    {
+      "kind": "link",
+      "name": "Korea VisitIn Progress",
+      "detail": "/app/mission/case-2"
+    },
+    {
+      "kind": "heading",
+      "name": "Needs Your Attention",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Next Step"
+    },
+    {
+      "kind": "heading",
+      "name": "Add Your Essentials",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "0 of 12 essentials added: the details most visa forms ask for first. This is completeness, not verification."
+    },
+    {
+      "kind": "link",
+      "name": "Open Profile",
+      "detail": "/app/applicant/person/profile"
+    },
+    {
+      "kind": "text",
+      "name": "Dates That Matter"
+    },
+    {
+      "kind": "heading",
+      "name": "Deadline Clock",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "No Dates Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Add a passport and its expiry date appears here, so you hear about it before it matters."
+    },
+    {
+      "kind": "link",
+      "name": "Add a Document",
+      "detail": "/app/applicant/person/documents"
+    },
+    {
+      "kind": "heading",
+      "name": "Upcoming",
+      "detail": "3"
+    },
+    {
+      "kind": "link",
+      "name": "Japan Tourist Visa: target deadline",
+      "detail": "/app/mission/case-1"
+    },
+    {
+      "kind": "link",
+      "name": "Korea Visit: target deadline",
+      "detail": "/app/mission/case-2"
+    },
+    {
+      "kind": "link",
+      "name": "Japan Tourist Visa: travel starts",
+      "detail": "/app/mission/case-1"
+    },
+    {
+      "kind": "link",
+      "name": "Korea Visit: travel starts",
+      "detail": "/app/mission/case-2"
+    },
+    {
+      "kind": "link",
+      "name": "Document Expiry Centre →",
+      "detail": "/app/applicant/person/expiry"
+    },
+    {
+      "kind": "heading",
+      "name": "Recent Activity",
+      "detail": "3"
+    },
+    {
+      "kind": "link",
+      "name": "Case UpdatedJapan Tourist Visa",
+      "detail": "/app/mission/case-1"
+    },
+    {
+      "kind": "link",
+      "name": "Case UpdatedKorea Visit",
+      "detail": "/app/mission/case-2"
+    },
+    {
+      "kind": "link",
+      "name": "Profile History →",
+      "detail": "/app/applicant/person/history"
+    },
+    {
+      "kind": "heading",
+      "name": "Profile & Sharing",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Completeness does not verify identity."
+    },
+    {
+      "kind": "link",
+      "name": "Continue Profile →",
+      "detail": "/app/applicant/person/profile"
+    },
+    {
+      "kind": "text",
+      "name": "Active sharing grants: 1"
+    },
+    {
+      "kind": "link",
+      "name": "Manage Sharing →",
+      "detail": "/app/applicant/person/sharing"
+    }
+  ],
+  "some records could not be loaded": [
+    {
+      "kind": "heading",
+      "name": "Welcome, Karim Hossain",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Some records could not be loaded. Try refreshing before relying on these totals."
+    },
+    {
+      "kind": "link",
+      "name": "New Visa Case",
+      "detail": "/app/applicant/person/missions"
+    },
+    {
+      "kind": "link",
+      "name": "Active Visa CasesUnavailableClosed and cancelled cases are excluded.",
+      "detail": "/app/applicant/person/missions"
+    },
+    {
+      "kind": "link",
+      "name": "Documents in Your WalletUnavailableOpen documents to review processing and safety.",
+      "detail": "/app/applicant/person/documents"
+    },
+    {
+      "kind": "link",
+      "name": "Items Needing AttentionUnavailableRequests, suggested details and flagged documents.",
+      "detail": "/app/applicant/person/evidence"
+    },
+    {
+      "kind": "heading",
+      "name": "Continue Where You Left Off",
+      "detail": "3"
+    },
+    {
+      "kind": "link",
+      "name": "All Cases →",
+      "detail": "/app/applicant/person/missions"
+    },
+    {
+      "kind": "text",
+      "name": "Cases Are Unavailable"
+    },
+    {
+      "kind": "text",
+      "name": "Refresh to try again."
+    },
+    {
+      "kind": "heading",
+      "name": "Needs Your Attention",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Next Step"
+    },
+    {
+      "kind": "heading",
+      "name": "Add Your Essentials",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "0 of 12 essentials added: the details most visa forms ask for first. This is completeness, not verification."
+    },
+    {
+      "kind": "link",
+      "name": "Open Profile",
+      "detail": "/app/applicant/person/profile"
+    },
+    {
+      "kind": "text",
+      "name": "Dates That Matter"
+    },
+    {
+      "kind": "heading",
+      "name": "Deadline Clock",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "No Dates Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Add a passport and its expiry date appears here, so you hear about it before it matters."
+    },
+    {
+      "kind": "link",
+      "name": "Add a Document",
+      "detail": "/app/applicant/person/documents"
+    },
+    {
+      "kind": "heading",
+      "name": "Upcoming",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Dates Are Unavailable"
+    },
+    {
+      "kind": "text",
+      "name": "Set a target deadline or travel date in a case. Appointments remain in the individual case calendar."
+    },
+    {
+      "kind": "link",
+      "name": "Document Expiry Centre →",
+      "detail": "/app/applicant/person/expiry"
+    },
+    {
+      "kind": "heading",
+      "name": "Recent Activity",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "No Recorded Activity Yet"
+    },
+    {
+      "kind": "text",
+      "name": "Profile changes, uploads and case updates will appear here. This is a recent-record summary, not a complete audit log."
+    },
+    {
+      "kind": "link",
+      "name": "Profile History →",
+      "detail": "/app/applicant/person/history"
+    },
+    {
+      "kind": "heading",
+      "name": "Profile & Sharing",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Completeness does not verify identity."
+    },
+    {
+      "kind": "link",
+      "name": "Continue Profile →",
+      "detail": "/app/applicant/person/profile"
+    },
+    {
+      "kind": "text",
+      "name": "Active sharing grants: Unavailable"
+    },
+    {
+      "kind": "link",
+      "name": "Manage Sharing →",
+      "detail": "/app/applicant/person/sharing"
+    }
+  ]
+}

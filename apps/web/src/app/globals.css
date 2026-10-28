@@ -10112,3 +10112,8 @@ summary.visa-photo-title {
     display: block;
   }
 }
+
+/* WP-CCD2 traveller page: at an explicit Glance the working area has nothing in its second column. */
+.depth-scope:not(:has(.depth-nojs))[data-depth="glance"] .traveller-working-area {
+  grid-template-columns: minmax(0, 1fr);
+}
