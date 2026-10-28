@@ -270,6 +270,6 @@ describe('the document insights page', () => {
     ]) {
       expect(text).toContain(empty);
     }
-    expect(html).toContain('href="/app/applicant/a1/missions"');
+    expect(html).toContain('href="/app/applicant/a1/missions#start-case"');
   });
 });

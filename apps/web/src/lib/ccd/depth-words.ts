@@ -28,6 +28,13 @@ export const DEPTH_WORDS = {
     'Glance: who this is, how complete the profile is, and that you decide what becomes a fact.',
   'depth.profile.browse': 'Browse: the details, section by section, to read and edit.',
   'depth.profile.everything': 'Everything: profile health and the latest changes.',
+  'depth.cases.glance': 'Glance: the case you are on, and a way to start another.',
+  'depth.cases.browse': 'Browse: every case, with its progress and stage.',
+  'depth.cases.everything': 'Everything: the Start a Case form, briefs and case history.',
+  'depth.case.glance': 'Glance: the next step, the reminder and your progress.',
+  'depth.case.browse': 'Browse: the stages, the checklist, case details and the requirement pack.',
+  'depth.case.everything':
+    'Everything: evidence, tasks, appointments, letters, notes, snapshots and outcome.',
   'depth.account.glance': 'Glance: who you are signed in as.',
   'depth.account.browse': 'Browse: {parts}.',
   'depth.account.everything': 'Everything: {parts}.',

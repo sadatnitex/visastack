@@ -17,8 +17,8 @@ Levels: **Glance** (the one thing that matters now), **Browse** (the normal work
 | 05 | Documents | `/documents` | CCD-3 (slice 3a) | **Built and tested** (not seen live) |
 | 06 | Dates & Expiry | `/expiry` | CCD-3 (slice 3b) | **Built and tested** (not seen live) |
 | 07 | Notifications | `/app/notifications` | CCD-5 | Planned |
-| 08 | Cases | `/missions` | CCD-4 | Planned |
-| 09 | Case | `/app/mission/{id}` | CCD-4 | Planned |
+| 08 | Cases | `/missions` | CCD-4 | **Built and tested** (not seen live) |
+| 09 | Case | `/app/mission/{id}` | CCD-4 | **Built and tested** (not seen live) |
 | 10 | Evidence Requests | `/evidence` | CCD-5 | Planned |
 | 11 | Sharing | `/sharing` | CCD-5 | Planned |
 | 12 | Privacy & Consent | `/app/privacy` | CCD-5 | Planned |
@@ -143,6 +143,39 @@ Each Record page remembers its own level (families documents, profile and expiry
 ## All Records and History (naming and heading only)
 
 Not converted to levels. All Records: "All Records" is the one h1 with eyebrow "Record"; its group titles are now h2 (same size). History: "History" (was "Fact History") is the one h1 with eyebrow "Record" (was "Provenance").
+
+## 08. Cases (`/app/applicant/{id}/missions`)
+
+Baseline: `baseline/cases.json`, four states (no cases; core processing off; active, no-checklist and closed cases; cases could not be read). Test: `parity-cases.test.tsx`.
+
+| What it is | Level it lives at now | Condition (unchanged) |
+|---|---|---|
+| Page heading "Cases", eyebrow the traveller's name (was "Visa Cases" under "Cases") | Glance; the one h1 (approved change) | always |
+| Start a Case (header, secondary, goes to the form) | Glance (new) | always |
+| Your case line (title and stage), "No active case yet.", or "Your cases could not be loaded." when the read failed | Glance only (new) | always |
+| All Cases list (was "Active & Past" under "Your Cases") with rings and stages, or No Cases Yet | Browse (approved rename; the "Your Cases" label is removed as it repeated the page name) | always |
+| Start a Case form, with Add More Details open | Browse while there is no case, Everything after; every Start a Case link in the app now carries `#start-case`, which raises the level first | form with core processing on |
+| Prepare a Brief, Case History (were header buttons) | Everything | always |
+
+## 09. Case (`/app/mission/{id}`)
+
+Baseline: `baseline/case.json`, four states (a new case with no checklist; a busy case with a checklist and open tasks; a changed case; a closed case). Stubbed panels are counted too, so a missing panel fails the test. Test: `parity-case.test.tsx`.
+
+| What it is | Level it lives at now | Condition (unchanged) |
+|---|---|---|
+| Header: case title (h1), stage, reference, confirmation badge, Add Evidence, Start a New Case from This One, snapshot, More | Glance | always |
+| Welcome note, changed-case alert, Next Step | Glance | as before |
+| "Preparing a file is not the same as submitting it. VisaStack does not submit applications or predict decisions." | Every level (tested) | always |
+| Manual assessment notice | Glance | manual cases |
+| Section links | Every level; each opens the level of its section | always |
+| Stage tracker, attention chips | Browse | always |
+| Evidence Progress summary, overall badge and sentence, the "completeness only" line | Glance; Evidence Progress is now an h2 at the same size (approved change) | with a checklist |
+| Evidence Checklist (Needs You, Needs a Check, Done) | Browse; `#readiness` now points at it | with a checklist |
+| Case Details, Requirement Pack (`#pack`), Advance the Case | Browse (Advance was planned for Everything; kept at Browse so the next stage is never hidden by default) | always |
+| Tasks, Appointments and Letters (`#work`), Contributors and Notes (`#notes`) | Browse (planned for Everything; kept at Browse because notifications, tasks and request replies send people to the case for them) | always |
+| Select or Update Evidence (`#evidence`), Submission and Outcome (`#outcome`), Problems and Feedback, Snapshots (`#snapshots`), Itinerary Reference | Everything; every listed anchor raises the level first; the changed-case alert links to Snapshots | always |
+
+One primary button: the Next Step (or the changed-case alert) holds it; the welcome note and the checklist picker turn secondary when either is there. The cancel question in More is now an h2.
 
 ## Screens 02 to 15: the level plan (from the approved canvas)
 

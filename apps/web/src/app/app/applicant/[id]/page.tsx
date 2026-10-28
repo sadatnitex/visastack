@@ -19,6 +19,7 @@ import { DeadlineClock } from '../../../../components/deadline-clock';
 import { DepthScope, atLevel } from '../../../../components/depth';
 import { DepthSwitch } from '../../../../components/depth-switch';
 import { EmptyState, NextStepCard, PageHeader, StatusBadge } from '../../../../components/ui';
+import { openCasesNewestFirst } from '../../../../lib/case-stages';
 import { depthCopyFor } from '../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../lib/ccd/depth.server';
 import { formatTimestampDate } from '../../../../lib/format-date';
@@ -33,7 +34,6 @@ import { CLOCK_HOME_LIMIT, deadlineLines, loadDeadlineEntries } from '../../dead
 
 export const metadata: Metadata = { title: 'Traveller Home' };
 export const dynamic = 'force-dynamic';
-const TERMINAL_MISSION_STATES = new Set(['CLOSED', 'CANCELLED']);
 
 export default async function ApplicantOverviewPage({
   params,
@@ -70,11 +70,7 @@ export default async function ApplicantOverviewPage({
         listAccessForApplicant(db, accountId, id),
         getProfileSectionState(db, id),
       ]);
-    const active = missions.ok
-      ? missions.value
-          .filter((m) => !TERMINAL_MISSION_STATES.has(m.state))
-          .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
-      : [];
+    const active = missions.ok ? openCasesNewestFirst(missions.value) : [];
     const featured = active[0];
 
     const readiness = featured?.packVersionId ? await computeReadiness(db, featured.id) : null;
@@ -176,7 +172,7 @@ export default async function ApplicantOverviewPage({
                       // Nothing needs the person: a calm all-clear that picks the case back up.
                       href: data.featured
                         ? `/app/mission/${data.featured.id}`
-                        : `/app/applicant/${id}/missions`,
+                        : `/app/applicant/${id}/missions#start-case`,
                       title: 'Nothing Needs You Right Now',
                       why: data.featured
                         ? `You are up to date. Pick up ${data.featured.title} where you left off.`
@@ -252,7 +248,7 @@ export default async function ApplicantOverviewPage({
               : 'Your next steps, documents and cases in one place.'
         }
         actions={
-          <Link className="btn btn-secondary" href={`/app/applicant/${id}/missions`}>
+          <Link className="btn btn-secondary" href={`/app/applicant/${id}/missions#start-case`}>
             Start a Case
           </Link>
         }
@@ -341,7 +337,10 @@ export default async function ApplicantOverviewPage({
                     icon="briefcase"
                     title="No Active Case Yet"
                     why="Then you can see which checklist items are ready and which are still missing."
-                    action={{ href: `/app/applicant/${id}/missions`, label: 'Start a Visa Case' }}
+                    action={{
+                      href: `/app/applicant/${id}/missions#start-case`,
+                      label: 'Start a Visa Case',
+                    }}
                   >
                     A case is where one visa application comes together. Start one for the route you
                     are planning, and your saved documents are checked against its checklist.

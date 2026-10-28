@@ -15,10 +15,13 @@ export function CaseWelcome({
   title,
   body,
   action,
+  primary = true,
 }: {
   readonly title: string;
   readonly body: readonly string[];
   readonly action: { readonly href: string; readonly label: string };
+  /** False when the next step or the changed-case alert holds the page's one primary button. */
+  readonly primary?: boolean;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
   const [shown, setShown] = useState(true);
@@ -49,7 +52,7 @@ export function CaseWelcome({
         </p>
       ))}
       <div className="case-welcome-actions">
-        <a className="btn btn-primary" href={action.href}>
+        <a className={primary ? 'btn btn-primary' : 'btn btn-secondary'} href={action.href}>
           {action.label}
         </a>
         <button

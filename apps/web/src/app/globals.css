@@ -10132,3 +10132,13 @@ summary.visa-photo-title {
 .depth-scope:not(:has(.depth-nojs))[data-depth="glance"] .profile-working-area {
   grid-template-columns: minmax(0, 1fr);
 }
+
+/* WP-CCD4 case: Evidence Progress is an h2 under the case title, at the margin and size it had as
+   an h3; at an explicit Glance the side column is empty, so the working area is one column. */
+.case-preparation-counts h2 {
+  margin: 0;
+  font-size: 1.17em;
+}
+.depth-scope:not(:has(.depth-nojs))[data-depth="glance"] .case-working-area {
+  grid-template-columns: minmax(0, 1fr);
+}

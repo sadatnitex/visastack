@@ -14,9 +14,12 @@ export interface PackOption {
 export function AttachPackForm({
   missionId,
   options,
+  primary = true,
 }: {
   readonly missionId: string;
   readonly options: readonly PackOption[];
+  /** False when another action on the page is the one primary button (the next step). */
+  readonly primary?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(attachPackAction, INITIAL);
 
@@ -48,7 +51,7 @@ export function AttachPackForm({
           pending={pending}
           idle="Attach Pack"
           busy="Attaching…"
-          className="btn btn-primary"
+          className={primary ? 'btn btn-primary' : 'btn btn-secondary'}
         />
         <FormMessage result={state} />
       </div>

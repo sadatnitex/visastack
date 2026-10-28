@@ -1,0 +1,240 @@
+{
+  "no cases yet": [
+    {
+      "kind": "heading",
+      "name": "Visa Cases",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "A case assembles this applicant's evidence against a published requirement pack."
+    },
+    {
+      "kind": "link",
+      "name": "Prepare a Brief",
+      "detail": "/app/applicant/person/outputs"
+    },
+    {
+      "kind": "link",
+      "name": "Case History",
+      "detail": "/app/applicant/person/memory"
+    },
+    {
+      "kind": "text",
+      "name": "Your Cases"
+    },
+    {
+      "kind": "heading",
+      "name": "Active & Past",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "No Cases Yet"
+    },
+    {
+      "kind": "text",
+      "name": "A case checks this person's documents against the checklist of one visa route. Start one with the form on this page."
+    },
+    {
+      "kind": "text",
+      "name": "Once a checklist is attached, you see how many items are ready and what is still missing."
+    },
+    {
+      "kind": "link",
+      "name": "Start a Case",
+      "detail": "#start-case"
+    },
+    {
+      "kind": "text",
+      "name": "New"
+    },
+    {
+      "kind": "heading",
+      "name": "Start a Case",
+      "detail": "2"
+    },
+    {
+      "kind": "component",
+      "name": "CreateMissionForm"
+    }
+  ],
+  "core processing off": [
+    {
+      "kind": "heading",
+      "name": "Visa Cases",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "A case assembles this applicant's evidence against a published requirement pack."
+    },
+    {
+      "kind": "link",
+      "name": "Prepare a Brief",
+      "detail": "/app/applicant/person/outputs"
+    },
+    {
+      "kind": "link",
+      "name": "Case History",
+      "detail": "/app/applicant/person/memory"
+    },
+    {
+      "kind": "text",
+      "name": "Your Cases"
+    },
+    {
+      "kind": "heading",
+      "name": "Active & Past",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "No Cases Yet"
+    },
+    {
+      "kind": "text",
+      "name": "A case checks this person's documents against the checklist of one visa route. Start one with the form on this page."
+    },
+    {
+      "kind": "text",
+      "name": "Once a checklist is attached, you see how many items are ready and what is still missing."
+    },
+    {
+      "kind": "link",
+      "name": "Start a Case",
+      "detail": "#start-case"
+    },
+    {
+      "kind": "text",
+      "name": "New"
+    },
+    {
+      "kind": "heading",
+      "name": "Start a Case",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Turn on Let VisaStack Process My Details on Home to create cases."
+    }
+  ],
+  "an active case with a checklist, one without, and a closed one": [
+    {
+      "kind": "heading",
+      "name": "Visa Cases",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "A case assembles this applicant's evidence against a published requirement pack."
+    },
+    {
+      "kind": "link",
+      "name": "Prepare a Brief",
+      "detail": "/app/applicant/person/outputs"
+    },
+    {
+      "kind": "link",
+      "name": "Case History",
+      "detail": "/app/applicant/person/memory"
+    },
+    {
+      "kind": "text",
+      "name": "Your Cases"
+    },
+    {
+      "kind": "heading",
+      "name": "Active & Past",
+      "detail": "2"
+    },
+    {
+      "kind": "link",
+      "name": "Synthetic japan6 of 8 items readyIn Progress→",
+      "detail": "/app/mission/japan"
+    },
+    {
+      "kind": "link",
+      "name": "Synthetic koreaPick a checklist to see what is readyDraft→",
+      "detail": "/app/mission/korea"
+    },
+    {
+      "kind": "link",
+      "name": "Synthetic oldPick a checklist to see what is readyClosed→",
+      "detail": "/app/mission/old"
+    },
+    {
+      "kind": "text",
+      "name": "New"
+    },
+    {
+      "kind": "heading",
+      "name": "Start a Case",
+      "detail": "2"
+    },
+    {
+      "kind": "component",
+      "name": "CreateMissionForm"
+    }
+  ],
+  "cases could not be read": [
+    {
+      "kind": "heading",
+      "name": "Visa Cases",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "A case assembles this applicant's evidence against a published requirement pack."
+    },
+    {
+      "kind": "link",
+      "name": "Prepare a Brief",
+      "detail": "/app/applicant/person/outputs"
+    },
+    {
+      "kind": "link",
+      "name": "Case History",
+      "detail": "/app/applicant/person/memory"
+    },
+    {
+      "kind": "text",
+      "name": "Your Cases"
+    },
+    {
+      "kind": "heading",
+      "name": "Active & Past",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "No Cases Yet"
+    },
+    {
+      "kind": "text",
+      "name": "A case checks this person's documents against the checklist of one visa route. Start one with the form on this page."
+    },
+    {
+      "kind": "text",
+      "name": "Once a checklist is attached, you see how many items are ready and what is still missing."
+    },
+    {
+      "kind": "link",
+      "name": "Start a Case",
+      "detail": "#start-case"
+    },
+    {
+      "kind": "text",
+      "name": "New"
+    },
+    {
+      "kind": "heading",
+      "name": "Start a Case",
+      "detail": "2"
+    },
+    {
+      "kind": "component",
+      "name": "CreateMissionForm"
+    }
+  ]
+}

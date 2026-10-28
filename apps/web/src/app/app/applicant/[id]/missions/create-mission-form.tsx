@@ -30,10 +30,13 @@ export function CreateMissionForm({
   applicantId,
   countries,
   purposes,
+  openDetails = false,
 }: {
   readonly applicantId: string;
   readonly countries: readonly CaseCountryOption[];
   readonly purposes: readonly CasePurposeGroup[];
+  /** Start with the optional details open (the Everything level of the Cases page shows all of it). */
+  readonly openDetails?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(createMissionAction, INITIAL);
   const formRef = useRef<HTMLFormElement>(null);
@@ -164,7 +167,7 @@ export function CreateMissionForm({
       <Disclosure
         title="Add More Details (Optional)"
         hint="Family trip label, embassy, dates and deadline"
-        {...(detailsHaveProblem ? { open: true } : {})}
+        {...(detailsHaveProblem || openDetails ? { open: true } : {})}
       >
         {field('itineraryRef', 'Family Trip Label (Optional)', (id, control) => (
           <input

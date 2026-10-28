@@ -1,9 +1,22 @@
-# CCD-4 seed: finalise with the owner before editing other files.
+# CCD-4 Cases and Case.
 docs/uiux/ccd/**
+docs/adr/0023-calm-core-with-depths.md
 docs/upgrades/programme/**
 docs/commercial-v1/known-issues.md
 docs/uiux/EXPERIENCE-UPGRADE-HANDOFF.md
 apps/web/src/app/globals.css
+apps/web/src/app/app/applicant/[id]/missions/**
+apps/web/src/app/app/mission/[id]/**
+apps/web/src/components/case-preparation-summary.tsx
 apps/web/src/components/depth*.tsx
 apps/web/src/lib/ccd/**
+apps/web/e2e/authenticated-workspace.spec.ts
 scripts/ui-ratchet.baseline.json
+# Start a Case links carry #start-case; the request reply link goes to #notes; shared open-case rule
+apps/web/src/app/app/(home)/page.tsx
+apps/web/src/app/app/applicant/[id]/page.tsx
+apps/web/src/app/app/applicant/[id]/insights/page.tsx
+apps/web/src/app/app/applicant/[id]/evidence/page.tsx
+apps/web/src/lib/case-stages.ts
+apps/web/src/app/app/applicant/[id]/evidence/page.test.tsx
+apps/web/src/app/app/applicant/[id]/insights/page.test.tsx

@@ -430,7 +430,7 @@ export default async function AppPage({
       hint: 'Check your documents against one visa route.',
       done: data.perApplicant.some((row) => row.activeMissions > 0),
       href: firstApplicant
-        ? `/app/applicant/${firstApplicant.applicant.id}/missions`
+        ? `/app/applicant/${firstApplicant.applicant.id}/missions#start-case`
         : '/app/applicants',
     },
   ];
@@ -786,7 +786,7 @@ export default async function AppPage({
                 </p>
                 <Link
                   className="btn btn-secondary do-next-link"
-                  href={`/app/applicant/${firstApplicant.applicant.id}/missions`}
+                  href={`/app/applicant/${firstApplicant.applicant.id}/missions#start-case`}
                 >
                   Start a Case
                 </Link>

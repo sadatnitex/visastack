@@ -87,9 +87,9 @@ export function CaseMoreMenu({
               aria-labelledby={questionId}
               aria-describedby={consequencesId}
             >
-              <h3 className="case-cancel-question" id={questionId} ref={question} tabIndex={-1}>
+              <h2 className="case-cancel-question" id={questionId} ref={question} tabIndex={-1}>
                 Cancel this case?
-              </h3>
+              </h2>
               <ul className="case-cancel-consequences" id={consequencesId}>
                 <li>The case stops for good. It cannot be reopened or moved to another stage.</li>
                 <li>

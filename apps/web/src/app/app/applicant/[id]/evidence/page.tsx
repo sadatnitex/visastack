@@ -280,7 +280,7 @@ export default async function EvidencePage({
                       </ul>
                       {req.missionId ? (
                         <Link
-                          href={`/app/mission/${req.missionId}`}
+                          href={`/app/mission/${req.missionId}#notes`}
                           className="request-questions-link"
                         >
                           Read Replies in the Case Notes
