@@ -454,9 +454,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <ol className="land-steps">
             {STEPS.map((step, index) => (
               <li className="land-step" key={step.title}>
-                <span className="land-step-num" aria-hidden="true">
-                  {index + 1}
-                </span>
                 <span className="land-step-icon">
                   <Icon name={step.icon} size={22} />
                 </span>

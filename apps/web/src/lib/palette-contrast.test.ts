@@ -35,6 +35,8 @@ describe('the Harbor palette keeps text readable (WCAG AA)', () => {
     ['accent', 'bg-elevated'],
     ['accent', 'brand-bg'],
     ['selected-text', 'brand-bg'],
+    ['selected-text', 'brand-tint-3'],
+    ['text-tertiary', 'brand-tint-3'],
     ['accent', 'brand-tint-1'],
     ['accent', 'brand-tint-2'],
     ['accent', 'brand-tint-4'],
@@ -65,5 +67,20 @@ describe('the Harbor palette keeps text readable (WCAG AA)', () => {
   it('never puts the action blue on the dark chapter, where it fails', () => {
     expect(contrast(token('accent'), token('chapter-bg'))).toBeLessThan(3);
     expect(css).not.toMatch(/\.auth-introduction[^{]*\{[^}]*color: var\(--accent\)/);
+  });
+});
+
+describe('surfaces stay separable (WP-C2)', () => {
+  it.each([
+    ['sidebar-bg', 'workspace-bg', 1.15, 'the sidebar must read as its own zone beside the page'],
+    ['bg-elevated', 'sidebar-bg', 1.2, 'a white pill or card must stand out on the sidebar'],
+    ['edge-card', 'workspace-bg', 1.25, 'a card edge must show on the page'],
+    ['edge-card', 'bg-elevated', 1.3, 'a card edge must show on white'],
+    ['edge-control', 'bg-elevated', 3, 'a control or floating layer edge must meet 3:1 on white'],
+    ['edge-control', 'workspace-bg', 3, 'a control or floating layer edge must meet 3:1 on the page'],
+    ['text-secondary', 'text-tertiary', 1.3, 'body and meta text must look like two tiers'],
+    ['text', 'text-secondary', 1.5, 'headings and body text must look like two tiers'],
+  ])('%s against %s', (a, b, minimum, words) => {
+    expect(contrast(token(a), token(b)), words).toBeGreaterThanOrEqual(minimum);
   });
 });

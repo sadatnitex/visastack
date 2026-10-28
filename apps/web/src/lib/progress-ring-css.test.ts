@@ -86,7 +86,7 @@ describe('every class the ring uses is defined', () => {
   it('colours the ring so it reads against the page: the fill, the full state and the empty track', () => {
     expect(rule('.progress-ring-fill')).toMatch(/stroke: var\(--accent\)/);
     expect(rule('.progress-ring-full .progress-ring-fill')).toMatch(/stroke: var\(--success\)/);
-    expect(rule('.progress-ring-track')).toMatch(/stroke: var\(--hairline\)/);
+    expect(rule('.progress-ring-track')).toMatch(/stroke: var\(--edge-control\)/);
   });
 });
 

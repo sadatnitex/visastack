@@ -6206,3 +6206,11 @@ Owner approved 2026-10-25. Two fixes where the product said something that was n
 - Parity: five states captured from main with the heading; approved changes are the h1 and the invite button name. Guard seen failing (every Do Next item at Glance).
 - Review (high) fixes: no page has two h1s (Countries and Case Activity keep their own; Case Activity's header became that h1); unfinished setup stays in view at every level; the pipeline joins a requested list at Glance; the search sentence sits with the search form; the switch's Glance sentence names a requested list; plural words from the shared helper; the page name lookup reads only its own names.
 - Not verified live: the signed-in agency pages at phone and desktop widths.
+
+### 2026-10-29, WP-C2: surfaces and edges that separate (owner contrast map)
+- The signed-in app passed text contrast but read as one pale sheet. Sidebar, card edges, control edges, the current-page marker, the depth switch's pressed level, the progress ring track and the two lower text tiers now separate by tone and edges only; status words are darker. No shadow, gradient, layout, copy or behaviour change. Values and the contrast budget: docs/uiux/CONTRAST-AND-SURFACES.md; token record: docs/upgrades/programme/colour-map.md (WP-C2).
+- Landing "How it works": the ghost step numerals (1.05:1) are removed; the "Step N" line keeps the order.
+- Guards: palette-contrast.test.ts "surfaces stay separable" and the new surface-css.test.ts; each new guard was seen failing with the stylesheet broken (literal colour on cards, wrong button edge, wrong bar colour, a shadow or the wrong edge on the pressed level, faded placeholder, the numeral back, the old ring track).
+- Screens: 17 pairs at 1440x900 and 390x844 from the test pages with the real stylesheet; every pair keeps its exact page size, colour and edge differences only. The phone bottom bar shows no pill or bar; the collapsed rail's bar clears the icon.
+- Not verified: the live signed-in pages after merge (needs a signed-in run), hover, pressed and disabled states, the platform admin console.
+- Branch: the owner's prompt named claude/prog-c2-surface-contrast; the work is there so the session branch stays free for CCD. Merge waits for the owner's word.
