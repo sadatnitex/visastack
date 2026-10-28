@@ -1,0 +1,227 @@
+{
+  "plain account": [
+    {
+      "kind": "heading",
+      "name": "traveller@example.com",
+      "detail": "1"
+    },
+    {
+      "kind": "text",
+      "name": "Data Rights"
+    },
+    {
+      "kind": "heading",
+      "name": "Privacy",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Export your data, review consent history, or delete your account."
+    },
+    {
+      "kind": "link",
+      "name": "Open Privacy",
+      "detail": "/app/privacy"
+    },
+    {
+      "kind": "text",
+      "name": "Session"
+    },
+    {
+      "kind": "heading",
+      "name": "Signed In",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Sign out of this device."
+    },
+    {
+      "kind": "button",
+      "name": "Sign Out"
+    }
+  ],
+  "everything switched on": [
+    {
+      "kind": "heading",
+      "name": "traveller@example.com",
+      "detail": "1"
+    },
+    {
+      "kind": "text",
+      "name": "Profile Photo"
+    },
+    {
+      "kind": "heading",
+      "name": "Your Photo",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Shown beside your name in your workspace. Only you can see it, and it is never used as a visa photo or shared."
+    },
+    {
+      "kind": "text",
+      "name": "Add yourself as a traveller first to add your photo."
+    },
+    {
+      "kind": "link",
+      "name": "Add Yourself",
+      "detail": "/app/applicants"
+    },
+    {
+      "kind": "text",
+      "name": "Preferences"
+    },
+    {
+      "kind": "heading",
+      "name": "Language",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Applies immediately across the whole product."
+    },
+    {
+      "kind": "field",
+      "name": "locale",
+      "detail": "hidden"
+    },
+    {
+      "kind": "button",
+      "name": "Switch to বাংলা"
+    },
+    {
+      "kind": "text",
+      "name": "Data Rights"
+    },
+    {
+      "kind": "heading",
+      "name": "Privacy",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Export your data, review consent history, or delete your account."
+    },
+    {
+      "kind": "link",
+      "name": "Open Privacy",
+      "detail": "/app/privacy"
+    },
+    {
+      "kind": "text",
+      "name": "Optional"
+    },
+    {
+      "kind": "heading",
+      "name": "WhatsApp",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Ask about your cases from WhatsApp. You can disconnect it any time."
+    },
+    {
+      "kind": "link",
+      "name": "Open WhatsApp Settings",
+      "detail": "/app/account/whatsapp"
+    },
+    {
+      "kind": "text",
+      "name": "Roles"
+    },
+    {
+      "kind": "heading",
+      "name": "Other Areas You Can Access",
+      "detail": "2"
+    },
+    {
+      "kind": "link",
+      "name": "Agency Desk→",
+      "detail": "/app/agency"
+    },
+    {
+      "kind": "link",
+      "name": "Platform Administration→",
+      "detail": "/app/admin"
+    },
+    {
+      "kind": "text",
+      "name": "Session"
+    },
+    {
+      "kind": "heading",
+      "name": "Signed In",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Sign out of this device."
+    },
+    {
+      "kind": "button",
+      "name": "Sign Out"
+    }
+  ],
+  "whatsapp connected, no longer configured": [
+    {
+      "kind": "heading",
+      "name": "traveller@example.com",
+      "detail": "1"
+    },
+    {
+      "kind": "text",
+      "name": "Data Rights"
+    },
+    {
+      "kind": "heading",
+      "name": "Privacy",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Export your data, review consent history, or delete your account."
+    },
+    {
+      "kind": "link",
+      "name": "Open Privacy",
+      "detail": "/app/privacy"
+    },
+    {
+      "kind": "text",
+      "name": "Optional"
+    },
+    {
+      "kind": "heading",
+      "name": "WhatsApp",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Ask about your cases from WhatsApp. You can disconnect it any time."
+    },
+    {
+      "kind": "link",
+      "name": "Open WhatsApp Settings",
+      "detail": "/app/account/whatsapp"
+    },
+    {
+      "kind": "text",
+      "name": "Session"
+    },
+    {
+      "kind": "heading",
+      "name": "Signed In",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Sign out of this device."
+    },
+    {
+      "kind": "button",
+      "name": "Sign Out"
+    }
+  ]
+}

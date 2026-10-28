@@ -341,9 +341,16 @@ describe('the AI context address: protocol', () => {
     expect(response.headers.get('content-type')).toContain('application/json');
     expect(response.headers.get('mcp-session-id')).toBeNull();
     const body = (await response.json()) as {
-      result: { serverInfo: { name: string }; capabilities: { tools?: object } };
+      result: {
+        serverInfo: { name: string; icons?: { src: string; mimeType: string }[] };
+        capabilities: { tools?: object };
+      };
     };
     expect(body.result.serverInfo.name).toBe('visastack');
+    expect(body.result.serverInfo.icons?.map((icon) => icon.src)).toEqual([
+      'https://vs.example.test/icon.svg',
+      'https://vs.example.test/icons/icon-512.png',
+    ]);
     expect(body.result.capabilities.tools).toBeDefined();
   });
 

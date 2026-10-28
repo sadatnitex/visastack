@@ -1,0 +1,9 @@
+# CCD-6 seed: finalise with the owner before editing other files.
+docs/uiux/ccd/**
+docs/upgrades/programme/**
+docs/commercial-v1/known-issues.md
+docs/uiux/EXPERIENCE-UPGRADE-HANDOFF.md
+apps/web/src/app/globals.css
+apps/web/src/components/depth*.tsx
+apps/web/src/lib/ccd/**
+scripts/ui-ratchet.baseline.json

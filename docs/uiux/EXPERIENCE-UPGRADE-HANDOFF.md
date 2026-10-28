@@ -197,3 +197,8 @@ Left open at the end of the day: the decisions in section 7, the Neon branch lim
 - Small text sizes now snap to three sizes (caption, small, body). Script used: a one-off rewrite of font-size values in globals.css and inline fontSize on pages; not kept in the repo. Guard: apps/web/src/lib/type-scale.test.ts.
 - Expect slightly taller phone pages. If a narrow badge or table column wraps on a real device, adjust that spot rather than reintroducing an in-between size.
 - Next held items: WhatsApp "show your agent" link (owner said go, needs a preview first), invitation sender name (kept hidden), adviser wording review, staging sign-in and upload test (cannot be run from this session).
+
+### Session log addendum: Calm Core With Depths, CCD-0 and CCD-1 (2026-10-28)
+- Read ADR 0023 and `docs/uiux/ccd/PARITY-LEDGER.md` first. The switch, scope and level attribute are in `components/depth*.tsx`; the cookie, reveal and inventory helpers are in `lib/ccd`. To convert a screen: capture its baseline from main with `CCD_CAPTURE=1 vitest run src/lib/ccd/parity.test.tsx` BEFORE editing it, then wrap it in `DepthScope`, put `DepthSwitch` under the page header, mark blocks with `atLevel(...)`, and add its states to `SCREENS` in `parity.test.tsx`. Never recapture a baseline to make a failing comparison pass.
+- Level wrappers must be plain blocks, or use the `depth-item` class (display: contents) around a component, so the no-script fallback keeps the layout.
+- Add the screen's path to the heading check in `a11y-signed-in.test.tsx`.

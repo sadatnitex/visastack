@@ -9998,3 +9998,103 @@ summary.visa-photo-title {
     margin-inline-start: calc(18px + var(--space-3));
   }
 }
+
+/* WP-CCD1 depth switch: Glance, Browse, Everything on every signed-in screen (ADR 0023).
+   Blocks carry data-level; the scope's data-depth decides which are shown. "auto" is Glance on
+   phones and Browse on wider screens. Hidden by display only, so nothing leaves the page. Flat:
+   one-pixel borders, existing tokens, no shadow. */
+.depth-switch {
+  margin-bottom: var(--space-5);
+}
+.depth-segs {
+  display: inline-flex;
+  min-width: 0;
+  margin: 0;
+  max-width: 100%;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  background: var(--bg-subtle);
+}
+.depth-seg {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 var(--space-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-small);
+  font-weight: 600;
+  cursor: pointer;
+}
+.depth-seg:hover {
+  color: var(--text);
+}
+.depth-note {
+  display: none;
+  margin: var(--space-3) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.depth-email {
+  overflow-wrap: anywhere;
+}
+/* A wrapper that only carries a level: its child stays the grid item. */
+.depth-item {
+  display: contents;
+}
+
+/* Which blocks each level shows. Level rules stack: Browse shows Glance and Browse blocks, Everything shows all.
+   A scope that holds .depth-nojs (it exists only when scripts are off) shows every block and no switch. */
+.depth-scope:not(:has(.depth-nojs))[data-depth="glance"] [data-level="browse"],
+.depth-scope:not(:has(.depth-nojs))[data-depth="glance"] [data-level="everything"],
+.depth-scope:not(:has(.depth-nojs))[data-depth="browse"] [data-level="everything"],
+.depth-scope:not(:has(.depth-nojs))[data-depth="auto"] [data-level="everything"] {
+  display: none;
+}
+@media (max-width: 760px) {
+  .depth-scope:not(:has(.depth-nojs))[data-depth="auto"] [data-level="browse"] {
+    display: none;
+  }
+}
+.depth-scope:has(.depth-nojs) .depth-switch {
+  display: none;
+}
+
+/* The pressed segment and the one sentence under the switch follow the level in CSS, so they
+   are right on first paint with no script. */
+.depth-scope[data-depth="glance"] .depth-seg[data-for="glance"],
+.depth-scope[data-depth="browse"] .depth-seg[data-for="browse"],
+.depth-scope[data-depth="everything"] .depth-seg[data-for="everything"],
+.depth-scope[data-depth="auto"] .depth-seg[data-for="browse"] {
+  background: var(--bg-elevated);
+  color: var(--text);
+  border-color: var(--hairline);
+}
+.depth-scope[data-depth="glance"] .depth-note[data-for="glance"],
+.depth-scope[data-depth="browse"] .depth-note[data-for="browse"],
+.depth-scope[data-depth="everything"] .depth-note[data-for="everything"],
+.depth-scope[data-depth="auto"] .depth-note[data-for="browse"] {
+  display: block;
+}
+@media (max-width: 760px) {
+  .depth-scope[data-depth="auto"] .depth-seg[data-for="browse"] {
+    background: transparent;
+    color: var(--text-secondary);
+    border-color: transparent;
+  }
+  .depth-scope[data-depth="auto"] .depth-seg[data-for="glance"] {
+    background: var(--bg-elevated);
+    color: var(--text);
+    border-color: var(--hairline);
+  }
+  .depth-scope[data-depth="auto"] .depth-note[data-for="browse"] {
+    display: none;
+  }
+  .depth-scope[data-depth="auto"] .depth-note[data-for="glance"] {
+    display: block;
+  }
+}

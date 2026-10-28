@@ -181,6 +181,18 @@ function limited(message: string, config: RateLimitConfig, now: Date): Response 
   });
 }
 
+/**
+ * The product's own logo, at this deployment's address, so an AI app that shows a picture for
+ * the connection uses VisaStack's and not whatever sits on the parent domain.
+ */
+export function connectorIcons() {
+  const base = aiIssuer();
+  return [
+    { src: `${base}/icon.svg`, mimeType: 'image/svg+xml', sizes: ['any'] },
+    { src: `${base}/icons/icon-512.png`, mimeType: 'image/png', sizes: ['512x512'] },
+  ];
+}
+
 /** One MCP server per request, with the five tools bound to this request's token. */
 function buildServer(
   db: Db,
@@ -193,7 +205,7 @@ function buildServer(
   },
 ): McpServer {
   const server = new McpServer(
-    { name: 'visastack', title: 'VisaStack', version: '1.0.0' },
+    { name: 'visastack', title: 'VisaStack', version: '1.0.0', icons: connectorIcons() },
     {
       instructions:
         'VisaStack holds one person’s own visa record. Every tool only reads what that person chose to share; nothing can be changed. Start with prepare_context.',

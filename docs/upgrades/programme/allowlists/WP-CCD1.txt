@@ -1,0 +1,18 @@
+# CCD-1 foundation, proven on the Account screen. Includes CCD-0 documents (same pull request).
+docs/adr/0023-calm-core-with-depths.md
+docs/uiux/ccd/**
+docs/upgrades/programme/**
+docs/commercial-v1/known-issues.md
+docs/uiux/EXPERIENCE-UPGRADE-HANDOFF.md
+apps/web/src/app/globals.css
+apps/web/src/app/app/account/page.tsx
+apps/web/src/components/depth.tsx
+apps/web/src/components/depth-switch.tsx
+apps/web/src/components/depth-switch.test.tsx
+apps/web/src/lib/ccd/**
+apps/web/src/lib/a11y-signed-in.test.tsx
+# AI connector logo (owner request, same session)
+apps/web/src/lib/mcp-endpoint.ts
+apps/web/src/lib/mcp-endpoint.test.ts
+# ui-ratchet baseline: lower only, never raise
+scripts/ui-ratchet.baseline.json
