@@ -10142,3 +10142,14 @@ summary.visa-photo-title {
 .depth-scope:not(:has(.depth-nojs))[data-depth="glance"] .case-working-area {
   grid-template-columns: minmax(0, 1fr);
 }
+
+/* WP-CCD5 sharing: when the level hides the Grant Access column, the access column takes the
+   whole width instead of leaving an empty half. */
+.depth-scope:not(:has(.depth-nojs))[data-depth="glance"]
+  .sharing-workspace:has(> .sharing-composer-card[data-level]),
+.depth-scope:not(:has(.depth-nojs))[data-depth="browse"]
+  .sharing-workspace:has(> .sharing-composer-card[data-level="everything"]),
+.depth-scope:not(:has(.depth-nojs))[data-depth="auto"]
+  .sharing-workspace:has(> .sharing-composer-card[data-level="everything"]) {
+  grid-template-columns: minmax(0, 1fr);
+}

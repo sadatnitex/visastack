@@ -10,6 +10,8 @@ export type DepthCopyScreen =
   | 'expiry'
   | 'cases'
   | 'case'
+  | 'evidence'
+  | 'sharing'
   | 'notifications'
   | 'privacy';
 

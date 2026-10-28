@@ -24,6 +24,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
 vi.mock('../../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) => fn({ db: {}, accountId: 'owner' }),
 }));
+vi.mock('../../../../../lib/ccd/depth.server', () => ({ readDepth: async () => 'auto' }));
 vi.mock('./submit-response-form', () => ({ SubmitResponseForm: stub('SubmitResponseForm') }));
 vi.mock('./ask-about-item-form', () => ({ AskAboutItemForm: stub('AskAboutItemForm') }));
 

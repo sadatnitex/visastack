@@ -6161,3 +6161,10 @@ Owner approved 2026-10-25. Two fixes where the product said something that was n
 - Parity: three notification states and two privacy states captured from main before the edit; approved changes are names only.
 - The menu entry still reads "Alerts" where the shell names this page; the menu naming pass is CCD-7.
 - Not verified live: these signed-in pages at phone and desktop widths.
+
+### 2026-10-28, CCD-5 slice 5b: Evidence Requests and Sharing
+- Evidence Requests: what is waiting, with its reply form, why it is needed and any reason it was sent back, at Glance; dates, checklist notes, references, guidance, questions and requests already answered at Browse; asking the agency at Everything. Named "Evidence Requests" (D3), the page's one h1. A failed read now says so at every level instead of showing the "no requests" empty state.
+- Sharing: who can reach the record now (live or paused), with Pause, Resume and Revoke and the revoke warning, at Glance; what each person can see, access waiting to be accepted or ended, and the Access Log at Browse; invitations and the Grant Access form at Everything. The form opens at Browse while nobody has access and at Glance when the person came from Share on a document. AI connections stay at Glance. Named "Sharing" (D3), the page's one h1.
+- Parity: five evidence states and three sharing states captured from main before the edit; approved changes are the two page headings and the evidence failure state.
+- Guards seen failing: a pending grant shown at Glance, a waiting request hidden at Glance.
+- Not verified live: these signed-in pages at phone and desktop widths.
