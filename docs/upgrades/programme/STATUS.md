@@ -2,19 +2,17 @@
 
 Keep this file between 250 and 400 words. Memory between sessions; evidence lives in `COVERAGE-LEDGER.csv`. Overwritten each time; history stays in git.
 
-- Last updated: 28 October 2026: Calm Core With Depths (CCD) CCD-0 and CCD-1 built on a draft pull request; Small Commercial V1 packages S1 to S10 and S26 are merged and live
-- Current main: `0f22d2c0` plus the PWA and WhatsApp channel work from another session (#288, `dca3e974`)
-- Packages merged this run: S2 #283, S3 #284, S4 #285, S26 #286, S10 #287, S5 and S6 #289, S8 and S9 #290, S7 #291. S1 was #281
-- Migrations applied on Neon: 0092 staff codes, 0093 key wrapping, 0094 payment ledger, 0095 WhatsApp channel. Next free number: 0096 (reserved for S11 online payments)
-- In progress (saved in worktrees, resumed): S11 online payments (SSLCOMMERZ, off until the owner has an account), and the collapsible desktop sidebar with a fitting account menu
-- Next in order: S12 agency invoices and receipts, then S13 to S16 AI connector core, S17 and S18 recurring billing and refunds, S20 to S22 connector extensions, S23 redaction, S27 readiness reconciliation, S24 acceptance (never merged without the owner's word). S19 and S25 wait for the owner
-- Owner steps still open: O16 AWS account for the key service; turn on staff codes (`STAFF_SECOND_FACTOR=required`) when staff have enrolled
-- Known weakness: the live pixel-identity browser test (`ux-public` "authoritative appearance") failed on two deploys and passed on its re-run; being hardened
-- Defaults to confirm: documents with no chosen kind are read by AI only on request; one bank transfer entered twice under different keys counts twice
-- Not verified live: signed-in look of the new screens at phone and desktop widths; scanning shows unconfigured until the next scheduled scan records its proof; any real AWS, payment or AI provider call
-- CCD (28 Oct): switch, memory, link reveal and nothing-lost test built; Account screen done; screens 02 to 15 are CCD-2 to CCD-7. Needs the owner's merge word. Ranking rules R1 and R2 need new reads
+- Last updated: 28 October 2026: WP-C2 surface and contrast layer merged with the owner's word (#332); Calm Core With Depths (CCD) CCD-0 to CCD-6 and the CCD-7 naming pass merged and live
+- Current main before this merge: `134c16e1` (CCD-7a naming pass, #334)
+- Merged this run: CCD-5 Notifications and Privacy (#325), Evidence Requests and Sharing (#326), the Next Step banner in the brand ink (#327, #328), time zone pickers and filterable logs (#329), designed emails (#330), CCD-6a Agency Overview (#331), CCD-6b Agency Cases (#333), CCD-7a one name per thing (#334), WP-C2 contrast (#332)
+- WP-C2: sidebar and page, card edges, control edges and the text tiers now separate by tone and edges only; status words and two text tiers are darker than Harbor on purpose (`colour-map.md`, section WP-C2)
+- Migrations applied on Neon: up to 0095. Next free number: 0096 (reserved for S11 online payments)
+- Next in order: CCD-7b (the experience behaviours, copy, accessibility and design passes, phone, tablet and laptop checks); then S11, S12 and the rest of the S-list. WP-C2 hands its layout findings (empty sections, one primary button per region, a quieter Turn Off, visible disclosure markers) to the Record and Cases depth work
+- Owner steps still open: O16 AWS account for the key service; turn on staff codes when staff have enrolled; keep click and open tracking off for the sending domain in the email service (invitation links carry one-time codes)
+- Known weakness: the live pixel-identity browser test has failed once and passed on its re-run on two deploys; being hardened
+- Not verified live: signed-in look of the CCD screens and of WP-C2 at phone and desktop widths (needs a signed-in run); the platform admin console; hover, pressed and disabled states; any real AWS, payment or AI provider call
 - Blockers: none
-- Next action: merge the sidebar and account-menu PR, then S11 on 0096, then S12
+- Next action: CCD-7b; owner calls from WP-C2 review listed in docs/uiux/CONTRAST-AND-SURFACES.md
 
 ## How to update
 

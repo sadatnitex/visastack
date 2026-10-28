@@ -355,3 +355,28 @@ D4 request-count fix with shared constants, Agency Overview, Agency Cases, agenc
 
 The experience behaviours across all screens, copy, accessibility and design passes, checks at 390, 768 and 1280 wide. **Allowlist seed:** `allowlists/WP-CCD7.txt`.
 
+
+---
+
+## WP-C2 Surface and contrast layer for the signed-in app
+
+**Class** P. **Branch** the session's designated branch (the prompt named `claude/prog-c2-surface-contrast`; the session may push only to its designated branch). **Depends on** C1 merged. **Owner gates** C2-D1 to C2-D4 answered in the owner's prompt of 29 Oct 2026; the merge needs the owner's explicit word.
+
+**Goal.** The signed-in app stops reading as one pale sheet. Page, sidebar, cards, edges and the text tiers become separable through tone and edges only, with no shadow, gradient, translucency, layout, copy or behaviour change. Measured values and the contrast budget: `docs/uiux/CONTRAST-AND-SURFACES.md`. Token record: `colour-map.md`, section "WP-C2".
+
+**Steps**
+
+1. Commit the approved allowlist `allowlists/WP-C2.txt`.
+2. In the first `:root` block change `--sidebar-bg`, `--text-secondary`, `--text-tertiary`, `--success`, `--warning`, `--danger`, and add `--edge-card` and `--edge-control`.
+3. Edit the final effective declaration in place for `.card`, `.workspace-toolbar`, `.workspace-selector`, `.record-search`, `.btn-secondary`, `.account-menu-panel`, `.account-menu-row[aria-current="page"]`, the current sidebar item (white pill plus a 3px brand bar, none in the phone bottom bar), both pressed depth switch rules and `.progress-ring-track`; add one `::placeholder` rule.
+4. Delete the landing ghost numerals (`.land-step-num`) and the rule that only lifted content above them.
+5. Tests: new pairs and a "surfaces stay separable" describe in `palette-contrast.test.ts`; new `surface-css.test.ts`; the one ring assertion updated. Prove each new guard fails by breaking the code.
+6. Screenshots before and after at 1440x900 and 390x844; colour and edge differences only.
+
+**Allowlist:** `allowlists/WP-C2.txt`.
+
+**Forbidden:** layout, spacing, radii, type, fonts, 44px targets, routes, actions, permissions, consent, data, copy, the landing stylesheet, agency preset swatches, chart tokens `--seg-0` to `--seg-5`, `docs/design/harbor-v2`. Hierarchy changes seen in the scan are handed to CCD-3 and CCD-4.
+
+**Acceptance:** every target in the contrast table met and held by tests; flat-design guard and ratchet pass; screenshot pairs show colour and edge changes only; `.app-main` stays `rgb(247, 249, 254)`, the sidebar 256px, the header 83px at 1600px; the three required checks green on the head; owner merge word.
+
+**Rollback:** revert the PR.

@@ -67,3 +67,46 @@ Agency preset swatches (`.brand-swatch`, `branding-form.tsx`, its default) are a
 ## Removed
 
 28 old landing classes that no longer render after WP-L1 (425 lines), removed with a brace-aware prune that keeps live selectors in shared lists.
+
+## WP-C2 surfaces and contrast (29 Oct 2026)
+
+Owner-requested package after a measured scan of the live signed-in site (28 and 29 Oct 2026). No text failed contrast; the problem was that every surface and line sat within 1.3:1 of the next, so the app read as one pale sheet. Values below are WCAG 2.x ratios computed from the tokens.
+
+### Root tokens changed
+
+| Token | Before | After | Why |
+| --- | --- | --- | --- |
+| `--sidebar-bg` | `#edf1f5` | `#e3e9f3` | Sidebar against the page went from 1.08 to 1.16, so the two read as separate areas |
+| `--text-secondary` | `#516174` | `#3b4b63` | Body text steps 1.76 below headings instead of 1.4 |
+| `--text-tertiary` | `#596879` | `#4e6079` | Steps 1.38 below body text (was 1.1); 5.26 on the sidebar, 6.42 on white |
+| `--success` | `#176e52` | `#0f5a41` | Status words 8.21 on white, 7.27 on their own tint |
+| `--warning` | `#92512f` | `#7a3f1f` | 8.21 on white, 7.23 on its tint |
+| `--danger` | `#a32935` | `#8f1f2b` | 8.75 on white, 7.54 on its tint. `--danger-strong #a32935` and the `.btn-danger:hover` literal `#8d2836` stay (palette tests pin them) |
+
+### New tokens
+
+| Token | Value | How derived |
+| --- | --- | --- |
+| `--edge-card` | `#d3dce9` | Between `--hairline-soft` and `--hairline` on the Harbor stroke ramp, chosen so a card edge reaches 1.31 on the page and 1.38 on white |
+| `--edge-control` | `#7f8faa` | Darkest step on the same blue-grey axis that keeps controls quiet while meeting 3:1 for non-text edges: 3.28 on white, 3.11 on the page |
+
+### Harbor deviations (recorded on purpose)
+
+`--text-secondary` (Harbor `fg.body`), `--text-tertiary` (darker than Harbor `state.neutral.fg`), `--success`, `--warning`, `--danger` (Harbor `state.*.fg`) and `--sidebar-bg` (Harbor `state.neutral.bg`) are darker than the frozen reference. Reason: measured tiers 1.1 apart cannot be told apart, and status words were the weakest ink on the screen. Precedent: `--text-tertiary` in WP-C1. `docs/design/harbor-v2` is unchanged.
+
+### Rules changed
+
+| Rule | Before | After |
+| --- | --- | --- |
+| `.card` border colour | `--hairline-soft` | `--edge-card` |
+| `.workspace-toolbar` bottom line | `--hairline-soft` | `--hairline` (white, 83px high, unchanged) |
+| `.workspace-selector` border | `--hairline-soft` | `--edge-card` |
+| `.record-search` border | `--hairline-soft` | `--edge-card` |
+| `::placeholder` | browser default | `--text-tertiary`, opacity 1 (5.26 on the search field, was 4.06) |
+| `.btn-secondary` border | `--hairline` | `--edge-control` |
+| `.account-menu-panel` border | `--hairline` | `--edge-control` |
+| `.account-menu-row[aria-current="page"]` fill | `--brand-bg` | `--brand-tint-3` |
+| `.app-shell-links a[aria-current="page"]` | `--brand-bg` fill, `--hairline` edge | white pill, `--edge-card` edge, 3px `--brand` bar (hidden in the phone bottom bar; the system highlight colour in Windows high contrast mode) |
+| Pressed depth switch segment, wide and phone | `--hairline` edge | `--brand` edge |
+| `.progress-ring-track` | `--hairline` | `--edge-control` (3.28 on white) |
+| `.land-step-num`, `.land-step > *:not(.land-step-num)` | ghost numerals at 1.05 | removed; the "Step N" kicker carries the order |

@@ -1,0 +1,13 @@
+# APPROVED by the owner on 29 Oct 2026 (prompt for WP-C2)
+apps/web/src/app/globals.css
+apps/web/src/app/page.tsx
+apps/web/src/app/page.test.tsx
+apps/web/src/app/public-pages.test.tsx
+apps/web/src/lib/palette-contrast.test.ts
+apps/web/src/lib/a11y-guards.test.ts
+apps/web/src/lib/progress-ring-css.test.ts
+apps/web/src/lib/surface-css.test.ts
+docs/uiux/CONTRAST-AND-SURFACES.md
+docs/upgrades/programme/**
+docs/commercial-v1/known-issues.md
+scripts/ui-ratchet.baseline.json

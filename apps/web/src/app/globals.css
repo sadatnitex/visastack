@@ -12,9 +12,10 @@
   --bg-elevated: #ffffff;
   --bg-subtle: #edf1f5;
   --text: #13243d;
-  --text-secondary: #516174;
-  /* Harbor state.neutral.fg: fg.muted (#647386) measured 4.26:1 on the neutral ground #edf1f5. */
-  --text-tertiary: #596879;
+  --text-secondary: #3b4b63;
+  /* WP-C2: darker than Harbor state.neutral.fg so the three text tiers step apart (1.76 then
+     1.38); 5.26:1 on --sidebar-bg. */
+  --text-tertiary: #4e6079;
   --accent: #1d4c98;
   --accent-hover: #143b7a;
   /* Solid primary fills retain accessible white text. */
@@ -24,11 +25,11 @@
   --selected-text: #1d4c98;
   --hairline: #cad4e2;
   --hairline-soft: #e4e9f1;
-  --success: #176e52;
+  --success: #0f5a41;
   --success-bg: #e8f4ee;
-  --warning: #92512f;
+  --warning: #7a3f1f;
   --warning-bg: #fbeee7;
-  --danger: #a32935;
+  --danger: #8f1f2b;
   /* Danger fills retain accessible white text. */
   --danger-strong: #a32935;
   --danger-bg: #fbeaec;
@@ -75,7 +76,11 @@
   --text-title: 1.5rem;
   --text-display: 1.9rem;
   --workspace-bg: #f7f9fe;
-  --sidebar-bg: #edf1f5;
+  --sidebar-bg: #e3e9f3;
+  /* WP-C2 edges by role: cards and panels (1.31 on the page, 1.38 on white); controls and
+     floating layers (at least 3:1 on white and on the page). */
+  --edge-card: #d3dce9;
+  --edge-control: #7f8faa;
   /* HARBOR-COLOR derived tints: brand-primary #1d4c98 mixed into white (WP-C1). */
   --brand-tint-1: #f4f6fa;
   --brand-tint-2: #edf1f7;
@@ -333,7 +338,7 @@ main {
 .btn-secondary {
   background: var(--bg-elevated);
   color: var(--text);
-  border-color: var(--hairline);
+  border-color: var(--edge-control);
 }
 .btn-secondary:hover {
   background: var(--bg-subtle);
@@ -458,7 +463,7 @@ main {
   border: 1px solid var(--hairline);
   border-radius: var(--radius);
   padding: 1.35rem 1.4rem;
-  border-color: var(--hairline-soft);
+  border-color: var(--edge-card);
 }
 .card-title {
   font-size: 1.08rem;
@@ -635,6 +640,11 @@ main {
 }
 .input[aria-invalid="true"]:focus-visible {
   outline-color: var(--danger);
+}
+/* WP-C2: one placeholder colour everywhere, readable on white and on the search field. */
+::placeholder {
+  color: var(--text-tertiary);
+  opacity: 1;
 }
 
 /* Master Profile field editor */
@@ -823,8 +833,27 @@ main {
 .app-shell-links a[aria-current="page"] {
   color: var(--selected-text);
   font-weight: 650;
-  background: var(--brand-bg);
-  border: 1px solid var(--hairline);
+  background: var(--bg-elevated);
+  border: 1px solid var(--edge-card);
+  position: relative;
+}
+/* WP-C2: the current page is a white pill with a brand bar, two cues besides the colour. */
+.app-shell-links a[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--brand);
+}
+/* Windows high contrast drops backgrounds: draw the bar in the system highlight colour. */
+@media (forced-colors: active) {
+  .app-shell-links a[aria-current="page"]::before {
+    forced-color-adjust: none;
+    background: Highlight;
+  }
 }
 .app-shell-links a[aria-current="page"] .icon {
   color: var(--brand);
@@ -1133,6 +1162,9 @@ main {
   .app-bar a[aria-current="page"] {
     background: none;
     color: var(--brand);
+  }
+  .app-bar a[aria-current="page"]::before {
+    content: none;
   }
   .app-more-toggle {
     display: flex;
@@ -2151,20 +2183,6 @@ a.checklist-item:hover .checklist-label {
   border-radius: 20px;
   overflow: hidden;
 }
-.land-step-num {
-  position: absolute;
-  top: -0.6rem;
-  right: 0.9rem;
-  font-size: 6.5rem;
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: -0.06em;
-  color: var(--bg-subtle);
-  user-select: none;
-}
-.land-step > *:not(.land-step-num) {
-  position: relative;
-}
 .land-step-icon,
 .land-tile-icon {
   display: inline-grid;
@@ -2455,7 +2473,7 @@ a.checklist-item:hover .checklist-label {
   gap: 16px;
   padding: 0 44px;
   background: #ffffff;
-  border-bottom: 1px solid var(--hairline-soft);
+  border-bottom: 1px solid var(--hairline);
   min-height: 83px;
 }
 .workspace-context {
@@ -2820,7 +2838,7 @@ body:has(.auth-shell) > .footer {
 /* Context identity and disclosure controls share the existing flat workspace geometry. */
 .workspace-selector {
   position: relative;
-  border: 1px solid var(--hairline-soft);
+  border: 1px solid var(--edge-card);
   border-radius: 14px;
   background: #ffffff;
 }
@@ -3464,7 +3482,7 @@ body:has(.auth-shell) > .footer {
   width: min(400px, 40%);
   min-height: 44px;
   padding: 0 14px;
-  border: 1px solid var(--hairline-soft);
+  border: 1px solid var(--edge-card);
   border-radius: 12px;
   background: var(--sidebar-bg);
 }
@@ -6964,7 +6982,7 @@ body:has(.auth-shell) > .footer {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: var(--space-2);
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--edge-control);
   border-radius: var(--radius);
   background: var(--bg-elevated);
   color: var(--text);
@@ -7136,7 +7154,7 @@ body:has(.auth-shell) > .footer {
   color: var(--text-secondary);
 }
 .account-menu-row[aria-current="page"] {
-  background: var(--brand-bg);
+  background: var(--brand-tint-3);
   color: var(--selected-text);
   font-weight: 650;
 }
@@ -8002,7 +8020,7 @@ summary.visa-photo-title {
   height: auto;
 }
 .progress-ring-track {
-  stroke: var(--hairline);
+  stroke: var(--edge-control);
   stroke-width: 9;
 }
 .progress-ring-fill {
@@ -10076,7 +10094,7 @@ summary.visa-photo-title {
 .depth-scope[data-depth="auto"] .depth-seg[data-for="browse"] {
   background: var(--bg-elevated);
   color: var(--text);
-  border-color: var(--hairline);
+  border-color: var(--brand);
 }
 .depth-scope[data-depth="glance"] .depth-note[data-for="glance"],
 .depth-scope[data-depth="browse"] .depth-note[data-for="browse"],
@@ -10093,7 +10111,7 @@ summary.visa-photo-title {
   .depth-scope[data-depth="auto"] .depth-seg[data-for="glance"] {
     background: var(--bg-elevated);
     color: var(--text);
-    border-color: var(--hairline);
+    border-color: var(--brand);
   }
   .depth-scope[data-depth="auto"] .depth-note[data-for="browse"] {
     display: none;
