@@ -4,6 +4,7 @@ import { err, ok } from '@visastack/core';
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 import { orgCaseRecordVisibleSql, withCaseExclusions } from './access/grant-scope';
 import { type Db, first, schema } from './db';
+import { notificationEmail, renderEmail } from './email-design';
 import { type ServiceError, serviceError } from './errors';
 import { type SealedInvitationLink, revealInvitationLink } from './invitation-email';
 import { listMembershipsForAccount } from './organizations';
@@ -524,10 +525,20 @@ async function dispatchOne(
         encryption,
       );
     }
+    const email = renderEmail(
+      notificationEmail({
+        eventType: notification.eventType,
+        subject: payload.subject,
+        summary: payload.summary,
+        url: `${baseUrl}${path}`,
+      }),
+      { baseUrl, recipient: recipient.email },
+    );
     const sent = await emailPort.send({
       to: recipient.email,
       subject: payload.subject,
-      body: `${payload.summary}\n\n${baseUrl}${path}`,
+      body: email.text,
+      html: email.html,
       idempotencyKey: `notification-${notification.id}`,
     });
     const updated = await db

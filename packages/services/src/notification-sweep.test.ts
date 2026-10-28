@@ -137,6 +137,10 @@ describe('sweepTaskDeadlineReminders', () => {
     expect(rows).toHaveLength(2); // in-app + email
     expect(rows[0]?.recipientAccountId).toBe(account.id);
     expect(rows.every((r) => r.idempotencyKey.endsWith(':due_7d'))).toBe(true);
+    // The due day on the task's own calendar, and never the task's own words.
+    const payload = rows[0]?.payload as { summary: string };
+    expect(payload.summary).toBe('A task on "M" is due on 22 Jun 2026.');
+    expect(payload.summary).not.toContain('Submit form');
   });
 
   it('is idempotent across repeated runs on the same day -- never floods', async () => {

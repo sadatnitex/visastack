@@ -45,7 +45,10 @@ export interface IdentityPort {
 export interface SendEmailInput {
   readonly to: string;
   readonly subject: string;
+  /** The plain-text version; always sent, and the whole email where HTML is not shown. */
   readonly body: string;
+  /** The designed version of the same words (see email-design.ts), when there is one. */
+  readonly html?: string;
   /** Opaque stable outbox key, reused across retries; never an email address. */
   readonly idempotencyKey?: string;
 }

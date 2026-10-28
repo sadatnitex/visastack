@@ -96,6 +96,20 @@ export interface SweepResult {
   readonly enqueued: number;
 }
 
+/** A due date as people read it ("29 Oct 2026"), on the calendar of the task's own time zone. */
+function dueDay(date: Date, timezone: string): string {
+  try {
+    return date.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      timeZone: timezone,
+    });
+  } catch {
+    return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+}
+
 /**
  * Walks every OPEN/IN_PROGRESS task with a due date and enqueues a reminder
  * for whichever threshold today crosses, in the task's own `dueTimezone`
@@ -133,9 +147,10 @@ export async function sweepTaskDeadlineReminders(
 
   let enqueued = 0;
   for (const row of rows) {
-    if (!row.dueDate) continue;
+    const dueDate = row.dueDate;
+    if (!dueDate) continue;
     const timezone = row.dueTimezone ?? row.applicantTimezone;
-    const threshold = computeTaskDeadlineThreshold(row.dueDate, timezone, now);
+    const threshold = computeTaskDeadlineThreshold(dueDate, timezone, now);
     if (!threshold) continue;
 
     await db.transaction(async (tx) => {
@@ -148,7 +163,10 @@ export async function sweepTaskDeadlineReminders(
         missionId: row.missionId,
         payload: {
           subject: threshold.startsWith('overdue') ? 'Overdue task on your case' : 'Task due soon',
-          summary: `A task on "${row.missionTitle}" needs your attention.`,
+          // The date only, never the task's own words (they can be private).
+          summary: threshold.startsWith('overdue')
+            ? `A task on "${row.missionTitle}" was due on ${dueDay(dueDate, timezone)}.`
+            : `A task on "${row.missionTitle}" is due on ${dueDay(dueDate, timezone)}.`,
           deepLinkPath: `/app/mission/${row.missionId}`,
         },
       });
