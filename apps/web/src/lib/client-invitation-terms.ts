@@ -31,6 +31,11 @@ export interface ClientInvitationTerms {
   readonly agencyCan: readonly string[];
   /** One sentence on what it could not do, or null when the grant leaves nothing out of that list. */
   readonly agencyCannot: string | null;
+  /**
+   * The same withheld access, one item each, for a page that lists it ("Download your original
+   * files"). Built in the same pass as `agencyCannot`, so the list and the sentence never disagree.
+   */
+  readonly withheld: readonly string[];
 }
 
 /** Terms for exactly this grant, or null when any action in it has no plain sentence yet. */
@@ -43,14 +48,15 @@ export function clientInvitationTerms(
     if (sentence === undefined) return null;
     agencyCan.push(sentence);
   }
-  const withheld = WITHHELD.filter((item) => !actions.includes(item.action)).map(
+  const phrases = WITHHELD.filter((item) => !actions.includes(item.action)).map(
     (item) => item.phrase,
   );
   const agencyCannot =
-    withheld.length === 0
+    phrases.length === 0
       ? null
-      : `They could not ${joinWithOr(withheld)}. That would need a separate choice from you.`;
-  return { agencyCan, agencyCannot };
+      : `They could not ${joinWithOr(phrases)}. That would need a separate choice from you.`;
+  const withheld = phrases.map((phrase) => phrase.charAt(0).toUpperCase() + phrase.slice(1));
+  return { agencyCan, agencyCannot, withheld };
 }
 
 function joinWithOr(items: readonly string[]): string {
@@ -61,18 +67,24 @@ function joinWithOr(items: readonly string[]): string {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * When the invitation ends, in words that hold for a reader in any time zone: the time left, rounded
- * down (so it never promises more than there is), then the calendar day it falls on. The day is the
- * one in UTC; the time left is what decides.
+ * When the invitation ends, as a short badge for the top of the public page, in words that hold for
+ * a reader in any time zone: the calendar day it falls on (the one in UTC), then the time left,
+ * rounded down so it never promises more than there is ("Expires 3 Nov 2026, 6 Days Left"). The
+ * time left is what decides.
  */
-export function describeInvitationExpiry(expiresAt: Date, now: Date): string {
+export function invitationExpiryBadge(expiresAt: Date, now: Date): string {
   const day = expiresAt.toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
     timeZone: 'UTC',
   });
-  const days = Math.floor((expiresAt.getTime() - now.getTime()) / DAY_MS);
-  const left = days >= 2 ? `in ${days} days` : days === 1 ? 'in 1 day' : 'in less than a day';
-  return `${left}, on ${day}`;
+  const daysLeft = Math.floor((expiresAt.getTime() - now.getTime()) / DAY_MS);
+  const left =
+    daysLeft >= 2
+      ? `${daysLeft} Days Left`
+      : daysLeft === 1
+        ? '1 Day Left'
+        : 'Less Than a Day Left';
+  return `Expires ${day}, ${left}`;
 }
