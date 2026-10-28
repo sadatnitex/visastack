@@ -10,7 +10,9 @@ import { isMissingRelationError } from './missing-relation';
  *
  * Totals only, across the whole platform: how many connections are live, how many were turned
  * off, and how many context calls were answered or refused in the last seven days (from the
- * `AI_CONTEXT_SERVED` and `AI_CONTEXT_DENIED` audit records). Nothing about any one person, app,
+ * `AI_CONTEXT_SERVED` and `AI_CONTEXT_DENIED` audit records). An answer the route withheld as too
+ * large has both records (the gate released it, the route did not send it); it counts as refused
+ * only, so the two numbers add up to the calls the apps actually made. Nothing about any one person, app,
  * record or case is returned, so the card cannot show per-person data even by mistake.
  *
  * Security admins only (`AI_SETTINGS_MANAGE`, the AI Settings page's own action), with a fresh,
@@ -55,25 +57,30 @@ export async function getAiConnectionCounts(
         })
         .from(connections),
       db
-        .select({ eventType: audit.eventType, total: sql<string>`count(*)` })
+        .select({
+          served: sql<string>`count(*) filter (where ${audit.eventType} = 'AI_CONTEXT_SERVED')`,
+          denied: sql<string>`count(*) filter (where ${audit.eventType} = 'AI_CONTEXT_DENIED')`,
+          withheld: sql<string>`count(*) filter (where ${audit.eventType} = 'AI_CONTEXT_DENIED' and ${audit.metadata}->>'withheld' = 'true')`,
+        })
         .from(audit)
         .where(
           and(
             inArray(audit.eventType, ['AI_CONTEXT_SERVED', 'AI_CONTEXT_DENIED']),
             gte(audit.occurredAt, since),
           ),
-        )
-        .groupBy(audit.eventType),
+        ),
     ]);
     const row = first(totals);
-    const callsOf = (eventType: string) =>
-      Number(calls.find((call) => call.eventType === eventType)?.total ?? 0);
+    const call = first(calls);
+    const withheld = Number(call?.withheld ?? 0);
     return ok({
       available: true,
       active: Number(row?.active ?? 0),
       turnedOff: Number(row?.turnedOff ?? 0),
-      served: callsOf('AI_CONTEXT_SERVED'),
-      denied: callsOf('AI_CONTEXT_DENIED'),
+      // A withheld answer was recorded as served by the gate and then as refused by the route;
+      // the app never received it, so it counts as refused only.
+      served: Math.max(0, Number(call?.served ?? 0) - withheld),
+      denied: Number(call?.denied ?? 0),
       since,
     });
   } catch (error) {

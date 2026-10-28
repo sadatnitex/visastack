@@ -20,7 +20,7 @@ import { verifyStepUp } from './access/step-up-proof';
 import { auditAiAnswerWithheld } from './access/with-ai-connection';
 import { provisionAccount } from './accounts';
 import { getAiConnectionCounts } from './ai-connection-counts';
-import type { AiConnectionChoices } from './ai-connection-scopes';
+import { AI_TOOL_NAMES, type AiConnectionChoices } from './ai-connection-scopes';
 import { AI_TOOLS, runAiTool } from './ai-tools';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
@@ -312,6 +312,12 @@ describe('S16: no value, task text, document text, token or code in AI audit or 
         connectionId: connection.connectionId,
         tool: 'prepare_context',
       });
+      // Withheld again, but the tool name is the app's own text: an unknown name of 60 KB that
+      // holds the passport number (the route takes it from the request unchecked).
+      await auditAiAnswerWithheld(db, {
+        connectionId: connection.connectionId,
+        tool: `${'x'.repeat(30_000)}${PASSPORT_NUMBER}${'y'.repeat(30_000)}`,
+      });
       // Failed part-way (a database fault).
       await db.execute(sql`alter table missions rename to missions_away`);
       const failed = await call(connection.token, 'list_cases');
@@ -384,6 +390,12 @@ describe('S16: no value, task text, document text, token or code in AI audit or 
       expect(stored, 'stored audit or product event').not.toContain(sentinel);
       expect(logged, 'console output').not.toContain(sentinel);
     }
+    // A tool is only ever one of the five names, or `unknown`.
+    for (const row of audit) {
+      const toolName = (row.metadata as { tool?: unknown }).tool;
+      if (toolName !== undefined) expect([...AI_TOOL_NAMES, 'unknown']).toContain(toolName);
+    }
+    expect(audit.some((row) => (row.metadata as { tool?: unknown }).tool === 'unknown')).toBe(true);
     // Partial matches too: the last digits a masked number shows, a slice of each text.
     for (const fragment of ['7731905', 'cousin Rafiq', '88213-KESTREL']) {
       expect(stored).not.toContain(fragment);
@@ -414,7 +426,7 @@ describe('S16: no value, task text, document text, token or code in AI audit or 
         'documentTexts',
         'depth',
       ],
-      AI_CONTEXT_DENIED: ['clientHost', 'tool', 'caseMode', 'reason'],
+      AI_CONTEXT_DENIED: ['clientHost', 'tool', 'caseMode', 'reason', 'withheld'],
     };
     for (const row of await aiAuditRows()) {
       const keysAllowed = allowedKeys[row.eventType];
@@ -477,8 +489,10 @@ describe('S16: AI product events on each path', () => {
       ['AI_CONTEXT_REQUESTED', 'GET_DOCUMENT_TEXT', true],
       ['AI_CONTEXT_REQUESTED', 'PREPARE_CONTEXT', true],
     ]);
-    const requested = events.find((e) => e.dimension === 'PREPARE_CONTEXT');
-    expect(requested?.metricValue).toBeGreaterThan(0);
+    // Context events carry no number: they mark a day of use, not a call.
+    for (const event of events.filter((e) => e.eventType.startsWith('AI_CONTEXT_'))) {
+      expect(event.metricValue).toBeNull();
+    }
     const revoked = events.find((e) => e.eventType === 'AI_CONNECTOR_REVOKED');
     expect(revoked?.metricValue).toBeGreaterThanOrEqual(0);
     // Once-only events store a hash, never the connection id itself.
@@ -498,6 +512,59 @@ describe('S16: AI product events on each path', () => {
     expect(afterOff.length).toBe(before + 1);
     expect((await call(connection.token, 'prepare_context')).kind).toBe('unauthorized');
     expect((await aiProductEvents()).length).toBe(afterOff.length);
+  });
+});
+
+describe('S16: AI product events are bounded by connections and days, not calls', () => {
+  it('records each context label once per connection per UTC day, and again the next day', async () => {
+    const { ownerId, applicantId } = await seed();
+    const connection = await connect(ownerId, applicantId);
+    for (let i = 0; i < 3; i += 1) {
+      await call(connection.token, 'prepare_context');
+      await call(connection.token, 'get_profile_section', { section: 'money' });
+    }
+    const contextEvents = async () =>
+      (await aiProductEvents()).filter((e) => e.eventType.startsWith('AI_CONTEXT_'));
+    expect((await contextEvents()).map((e) => e.dimension).sort()).toEqual([
+      'LAYER_NOT_GRANTED',
+      'PREPARE_CONTEXT',
+    ]);
+    // Every call is still in the audit trail.
+    expect((await aiAuditRows()).filter((r) => r.eventType.startsWith('AI_CONTEXT_'))).toHaveLength(
+      6,
+    );
+
+    // The next day: a fresh access token (the old one has run out), and the day counts again.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(Date.now() + 24 * 60 * 60 * 1000));
+    const refreshed = await refreshAiTokens(db, {
+      refreshToken: connection.refresh,
+      clientId: CLIENT.clientId,
+      resource: RESOURCE,
+    });
+    if (!isOk(refreshed)) throw new Error(refreshed.error.description);
+    await call(refreshed.value.access_token, 'prepare_context');
+    vi.useRealTimers();
+    expect((await contextEvents()).map((e) => e.dimension).sort()).toEqual([
+      'LAYER_NOT_GRANTED',
+      'PREPARE_CONTEXT',
+      'PREPARE_CONTEXT',
+    ]);
+  });
+
+  it('records the connection only when the app finishes connecting, never at consent alone', async () => {
+    const { ownerId, applicantId } = await seed();
+    const pending = await createAiConnection(await ownerProof(ownerId, applicantId), {
+      client: CLIENT,
+      choices: { ...CHOICES, revealIdentifiers: false },
+      codeChallenge: createHash('sha256').update('x'.repeat(43)).digest('base64url'),
+      redirectUri: REDIRECT,
+      resource: RESOURCE,
+    });
+    expect(isOk(pending)).toBe(true);
+    expect(await aiProductEvents()).toEqual([]);
+    await connect(ownerId, applicantId);
+    expect((await aiProductEvents()).map((e) => e.eventType)).toEqual(['AI_CONNECTOR_CONNECTED']);
   });
 });
 
@@ -597,6 +664,13 @@ describe('S16: staff count of AI app connections', () => {
     expect(counts).toMatchObject({
       ok: true,
       value: { available: true, active: 1, turnedOff: 1, served: 2, denied: 1 },
+    });
+    // An answer the route then withheld as too large counts as refused only, not as both.
+    await call(live.token, 'list_documents');
+    await auditAiAnswerWithheld(db, { connectionId: live.connectionId, tool: 'list_documents' });
+    expect(await getAiConnectionCounts(db, staff)).toMatchObject({
+      ok: true,
+      value: { served: 2, denied: 2 },
     });
     // Eight days on, the calls fall out of the window; the connections are still counted.
     const later = await getAiConnectionCounts(

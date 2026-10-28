@@ -1,3 +1,4 @@
+import { AI_CONNECTION_COUNT_WINDOW_MS } from '@visastack/services';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { textOf } from '../../../../lib/next-mocks.test-support';
@@ -31,12 +32,25 @@ describe('AI App Connections card (S16)', () => {
   });
 
   it('says "not available yet" before the connection tables exist, never a raw error', () => {
-    for (const counts of [{ available: false as const }, null]) {
-      const text = textOf(renderToStaticMarkup(<AiConnectionsCard counts={counts} enabled />));
-      expect(text).toContain('Not available yet.');
-      expect(text).not.toContain('Active Connections');
-      expect(text).not.toMatch(/relation|undefined|null|NaN/);
-    }
+    const text = textOf(
+      renderToStaticMarkup(<AiConnectionsCard counts={{ available: false }} enabled />),
+    );
+    expect(text).toContain('Not available yet.');
+    expect(text).not.toContain('Active Connections');
+    expect(text).not.toMatch(/relation|undefined|null|NaN/);
+  });
+
+  it('says the counts could not be read when the read failed, which is not "not yet"', () => {
+    const text = textOf(renderToStaticMarkup(<AiConnectionsCard counts="unreadable" enabled />));
+    expect(text).toContain('The counts could not be read right now.');
+    expect(text).not.toContain('Not available yet.');
+    expect(text).not.toContain('Active Connections');
+  });
+
+  it('names the window the service counts over', () => {
+    const days = AI_CONNECTION_COUNT_WINDOW_MS / (24 * 60 * 60 * 1000);
+    const text = textOf(renderToStaticMarkup(<AiConnectionsCard counts={COUNTS} enabled />));
+    expect(text).toContain(`Requests Answered in the Last ${days} Days`);
   });
 
   it('never shows engineering words', () => {

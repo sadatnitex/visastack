@@ -333,15 +333,6 @@ export async function createAiConnection(
         duration: choices.duration,
       },
     });
-    // S16 telemetry, best effort (a savepoint that never throws): the case mode and how many
-    // sections were granted, nothing else.
-    await recordProductEvent(tx, {
-      eventType: 'AI_CONNECTOR_CONNECTED',
-      accountId: ownerAccountId,
-      dimension: choices.caseMode,
-      metricValue: AI_CONNECTION_LAYERS.filter((layer) => choices.layers.includes(layer)).length,
-      onceFor: connection.id,
-    });
     return ok({ connectionId: connection.id, code });
   });
 }
@@ -421,6 +412,17 @@ export async function exchangeAiAuthorizationCode(
           .update(schema.aiConnections)
           .set({ activatedAt: now })
           .where(eq(schema.aiConnections.id, connection.id));
+        // S16 telemetry: the app finished connecting (a consent it never finishes reads nothing
+        // and records nothing). Best effort, a savepoint that never throws; once per connection.
+        // Only the case mode and how many sections were granted.
+        await recordProductEvent(tx, {
+          eventType: 'AI_CONNECTOR_CONNECTED',
+          accountId: connection.accountId,
+          dimension: connection.caseMode,
+          metricValue: AI_CONNECTION_LAYERS.filter((layer) => connection.scopes.includes(layer))
+            .length,
+          onceFor: connection.id,
+        });
       }
       return ok(tokens);
     }),

@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 import type { AiCallRecord, AiContextGateway } from '../access/with-ai-connection';
+import type { AiKnownToolName } from '../ai-connection-scopes';
 
 /**
  * How every AI tool answers (ADR 0021 sections 6 and 7): plain refusals as tool results, never an
@@ -170,7 +171,8 @@ export function answer(
 
 /** One read-only tool: what the app is told about it, and what it does with the gateway. */
 export interface AiToolDefinition<Input extends z.ZodObject = z.ZodObject> {
-  readonly name: string;
+  /** One of `AI_TOOL_NAMES`: the only names audit records and telemetry may hold. */
+  readonly name: AiKnownToolName;
   readonly title: string;
   /** Plain words: what it gives back and when to use it. */
   readonly description: string;

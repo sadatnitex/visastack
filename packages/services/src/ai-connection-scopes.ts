@@ -68,7 +68,44 @@ export function aiConnectionExpiry(duration: AiConnectionDuration, now: Date): D
   return duration === 'until_off' ? null : new Date(now.getTime() + DURATION_MS[duration]);
 }
 
-export type AiCaseMode = 'NONE' | 'ONE' | 'ALL_CURRENT';
+/** Which cases a connection covers. */
+export const AI_CASE_MODES = ['NONE', 'ONE', 'ALL_CURRENT'] as const;
+export type AiCaseMode = (typeof AI_CASE_MODES)[number];
+
+/**
+ * The five read-only tools' names (ADR 0021 section 6). The tool list in `ai-tools/` is typed
+ * against this, and its test pins the two equal. Audit records and telemetry name a tool only
+ * from this list, never from what an app sent.
+ */
+export const AI_TOOL_NAMES = [
+  'prepare_context',
+  'list_cases',
+  'get_profile_section',
+  'list_documents',
+  'get_document_text',
+] as const;
+export type AiKnownToolName = (typeof AI_TOOL_NAMES)[number];
+
+/** A tool name as audit records and telemetry may hold it: a known name, or `unknown`. */
+export function aiAuditToolName(tool: string): AiKnownToolName | 'unknown' {
+  return AI_TOOL_NAMES.find((name) => name === tool) ?? 'unknown';
+}
+
+/** Why an AI call was refused, as recorded in the audit (never shown as an id or value). */
+export const AI_DENIAL_REASONS = [
+  'layer_not_granted',
+  'cases_not_granted',
+  'case_not_shared',
+  'case_unavailable',
+  'document_list_not_granted',
+  'document_text_not_granted',
+  'document_not_shared',
+  'document_protected',
+  'no_text',
+  'too_large',
+  'failed',
+] as const;
+export type AiDenialReason = (typeof AI_DENIAL_REASONS)[number];
 
 /** Everything the person chose on the consent screen. */
 export interface AiConnectionChoices {

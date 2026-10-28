@@ -2,6 +2,15 @@ import { createHash } from 'node:crypto';
 import { MISSION_STATES } from '@visastack/core';
 import { DESTINATIONS } from '@visastack/core/destinations';
 import { and, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm';
+import {
+  AI_CASE_MODES,
+  AI_DENIAL_REASONS,
+  AI_TOOL_NAMES,
+  type AiCaseMode,
+  type AiDenialReason,
+  type AiKnownToolName,
+  aiAuditToolName,
+} from './ai-connection-scopes';
 import { type Db, schema } from './db';
 import { redactErrorMessage } from './error-report';
 
@@ -73,7 +82,8 @@ export const PRODUCT_EVENT_TYPES = [
   'CLIENT_INVITE_SENT',
   'CLIENT_INVITE_ACCEPTED',
   // S16 (ADR 0021 section 7): the AI connector. Labels and numbers only: never a value, task
-  // text, document text, token or code.
+  // text, document text, token or code. Connected and revoked: once per connection. Requested
+  // and denied: once per connection, per UTC day and per label (see `aiContextDayKey`).
   'AI_CONNECTOR_CONNECTED',
   'AI_CONTEXT_REQUESTED',
   'AI_CONTEXT_DENIED',
@@ -84,32 +94,40 @@ export type ProductEventType = (typeof PRODUCT_EVENT_TYPES)[number];
 
 const AI_TASK_KINDS = ['EXTRACTION', 'CLASSIFICATION', 'INCONSISTENCY'] as const;
 
-/** `AI_CONNECTOR_CONNECTED`'s label: which cases the person shared (the connection's case mode). */
-export const AI_CONNECTOR_CASE_LABELS = ['NONE', 'ONE', 'ALL_CURRENT'] as const;
+/** A closed vocabulary in upper case, keeping each value's literal type. */
+function upperLabels<T extends string>(values: readonly T[]): readonly Uppercase<T>[] {
+  return values.map((value) => value.toUpperCase() as Uppercase<T>);
+}
 
-/** `AI_CONTEXT_REQUESTED`'s label: the tool the app called, one of the five ADR 0021 names. */
-export const AI_CONTEXT_TOOL_LABELS = [
-  'PREPARE_CONTEXT',
-  'LIST_CASES',
-  'GET_PROFILE_SECTION',
-  'LIST_DOCUMENTS',
-  'GET_DOCUMENT_TEXT',
-] as const;
+// The AI connector's labels (S16) are derived from the vocabularies the connector itself uses, so
+// a new case mode, tool or denial reason is a label here too and is never silently dropped.
 
-/** `AI_CONTEXT_DENIED`'s label: the denial reason code, as the audit records it. */
-export const AI_CONTEXT_DENIAL_LABELS = [
-  'LAYER_NOT_GRANTED',
-  'CASES_NOT_GRANTED',
-  'CASE_NOT_SHARED',
-  'CASE_UNAVAILABLE',
-  'DOCUMENT_LIST_NOT_GRANTED',
-  'DOCUMENT_TEXT_NOT_GRANTED',
-  'DOCUMENT_NOT_SHARED',
-  'DOCUMENT_PROTECTED',
-  'NO_TEXT',
-  'TOO_LARGE',
-  'FAILED',
-] as const;
+/** `AI_CONNECTOR_CONNECTED`: which cases the person shared (the connection's case mode). */
+export const AI_CONNECTOR_CASE_LABELS: readonly AiCaseMode[] = AI_CASE_MODES;
+/** `AI_CONTEXT_REQUESTED`: the tool the app called. */
+export const AI_CONTEXT_TOOL_LABELS = upperLabels(AI_TOOL_NAMES);
+/** `AI_CONTEXT_DENIED`: the denial reason code, as the audit records it. */
+export const AI_CONTEXT_DENIAL_LABELS = upperLabels(AI_DENIAL_REASONS);
+
+/** The label for a tool, or none for a name outside the five. */
+export function aiContextToolLabel(tool: string): Uppercase<AiKnownToolName> | undefined {
+  const known = aiAuditToolName(tool);
+  return known === 'unknown' ? undefined : (known.toUpperCase() as Uppercase<AiKnownToolName>);
+}
+
+/** The label for a denial reason. */
+export function aiContextDenialLabel(reason: AiDenialReason): Uppercase<AiDenialReason> {
+  return reason.toUpperCase() as Uppercase<AiDenialReason>;
+}
+
+/**
+ * The UTC day an AI context event is counted for. Context events are recorded once per
+ * connection, per day and per label (not per call), so the event log grows with connections and
+ * days, never with call volume; call counts come from the audit records instead.
+ */
+export function aiContextDayKey(connectionId: string, label: string, now: Date): string {
+  return `${connectionId}:${now.toISOString().slice(0, 10)}:${label}`;
+}
 
 /**
  * The label an event type may carry. An array is a closed list; a pattern is for
@@ -159,7 +177,6 @@ const METRIC_EVENTS: ReadonlySet<ProductEventType> = new Set([
   'CASE_PREPARED_AGAIN', // records carried into the new case
   'CLIENT_INVITE_ACCEPTED', // seconds from the invitation being sent
   'AI_CONNECTOR_CONNECTED', // profile sections the person granted
-  'AI_CONTEXT_REQUESTED', // profile sections the answer returned
   'AI_CONNECTOR_REVOKED', // seconds from the connection being created
 ]);
 

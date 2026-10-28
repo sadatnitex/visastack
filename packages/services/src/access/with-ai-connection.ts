@@ -6,14 +6,17 @@ import {
   AI_CONNECTION_LAYERS,
   type AiCaseMode,
   type AiConnectionLayer,
+  type AiDenialReason,
+  aiAuditToolName,
   selectionFromStoredChoices,
 } from '../ai-connection-scopes';
 import { appendAuditEvent } from '../audit';
 import { type Db, first, schema } from '../db';
 import type { KeyManagementPort } from '../ports';
 import {
-  type AI_CONTEXT_DENIAL_LABELS,
-  AI_CONTEXT_TOOL_LABELS,
+  aiContextDayKey,
+  aiContextDenialLabel,
+  aiContextToolLabel,
   recordProductEvent,
 } from '../product-events';
 import {
@@ -54,10 +57,11 @@ import { stepUpFromAiConnection } from './step-up-proof';
  * denial reason. Never a value, document text or token. A call that fails part-way is still
  * recorded, as denied with the reason `failed`.
  *
- * Telemetry (S16): beside each audit record, one product event, `AI_CONTEXT_REQUESTED` (label:
- * the tool; number: sections returned) or `AI_CONTEXT_DENIED` (label: the denial reason). It is
- * best effort: `recordProductEvent` writes in a savepoint and never throws, so a failed event
- * never changes the answer or the audit record.
+ * Telemetry (S16): beside the audit records, `AI_CONTEXT_REQUESTED` (label: the tool) and
+ * `AI_CONTEXT_DENIED` (label: the denial reason), each once per connection, per UTC day and per
+ * label, so analytics grow with connections, not with calls (call counts come from the audit). It
+ * is best effort: `recordProductEvent` writes in a savepoint and never throws, so a failed event
+ * never changes the answer or the audit record. A tool is named only from the five known names.
  */
 
 export const AI_CONNECTION_PURPOSE = 'ai_connection';
@@ -117,18 +121,7 @@ export type AiComposeFailure =
   | 'failed';
 
 /** Why a call was refused, as recorded in the audit (never shown as an id or value). */
-export type AiDenialReason =
-  | 'layer_not_granted'
-  | 'cases_not_granted'
-  | 'case_not_shared'
-  | 'case_unavailable'
-  | 'document_list_not_granted'
-  | 'document_text_not_granted'
-  | 'document_not_shared'
-  | 'document_protected'
-  | 'no_text'
-  | 'too_large'
-  | 'failed';
+export type { AiDenialReason } from '../ai-connection-scopes';
 
 export interface AiContextGateway {
   readonly scope: AiGrantedScope;
@@ -299,44 +292,43 @@ function auditBase(target: AuditTarget) {
   };
 }
 
-/** The product-event label for each denial reason: the same code, upper case. */
-const DENIAL_LABEL: Readonly<Record<AiDenialReason, (typeof AI_CONTEXT_DENIAL_LABELS)[number]>> = {
-  layer_not_granted: 'LAYER_NOT_GRANTED',
-  cases_not_granted: 'CASES_NOT_GRANTED',
-  case_not_shared: 'CASE_NOT_SHARED',
-  case_unavailable: 'CASE_UNAVAILABLE',
-  document_list_not_granted: 'DOCUMENT_LIST_NOT_GRANTED',
-  document_text_not_granted: 'DOCUMENT_TEXT_NOT_GRANTED',
-  document_not_shared: 'DOCUMENT_NOT_SHARED',
-  document_protected: 'DOCUMENT_PROTECTED',
-  no_text: 'NO_TEXT',
-  too_large: 'TOO_LARGE',
-  failed: 'FAILED',
-};
-
-/** The product-event label for a tool: one of the five known names, or none at all. */
-function toolLabel(tool: string): (typeof AI_CONTEXT_TOOL_LABELS)[number] | undefined {
-  const upper = tool.toUpperCase();
-  return AI_CONTEXT_TOOL_LABELS.find((label) => label === upper);
+interface DeniedOptions {
+  /** The route withheld an answer the gate had already recorded as served. */
+  readonly withheld?: boolean;
+  readonly now?: Date;
 }
 
+/**
+ * One refusal: the product event first (a savepoint that never throws), then the audit record,
+ * so the audit chain's lock is held only for the audit insert. The tool is named only from the
+ * five known names (`unknown` otherwise): an app's own text never reaches either record.
+ */
 async function auditDenied(
   tx: Db,
   target: AuditTarget,
   tool: string,
   reason: AiDenialReason,
+  options: DeniedOptions = {},
 ): Promise<void> {
+  const label = aiContextDenialLabel(reason);
+  await recordProductEvent(tx, {
+    eventType: 'AI_CONTEXT_DENIED',
+    accountId: target.accountId,
+    dimension: label,
+    onceFor: aiContextDayKey(target.connectionId, label, options.now ?? new Date()),
+  });
   await appendAuditEvent(tx, {
     ...auditBase(target),
     eventType: 'AI_CONTEXT_DENIED',
     result: 'DENIED',
     reason,
-    metadata: { clientHost: target.clientHost, tool, caseMode: target.caseMode, reason },
-  });
-  await recordProductEvent(tx, {
-    eventType: 'AI_CONTEXT_DENIED',
-    accountId: target.accountId,
-    dimension: DENIAL_LABEL[reason],
+    metadata: {
+      clientHost: target.clientHost,
+      tool: aiAuditToolName(tool),
+      caseMode: target.caseMode,
+      reason,
+      ...(options.withheld ? { withheld: true } : {}),
+    },
   });
 }
 
@@ -350,8 +342,11 @@ async function auditFailedCall(db: Db, target: AuditTarget, tool: string): Promi
 }
 
 /**
- * Records that the route withheld a tool's answer because it was too large to send (after the
- * call itself was recorded). Best effort, never throws.
+ * Records that the route withheld a tool's answer because it was too large to send. The gate has
+ * already recorded that call as served (it did compose and release that answer), so this denial
+ * is marked `withheld`: counts of answered calls subtract these, and the trail still says both
+ * what the gate released and that the app never received it. `tool` comes from the app's request:
+ * it is recorded only if it is one of the five known names. Best effort, never throws.
  */
 export async function auditAiAnswerWithheld(
   db: Db,
@@ -367,7 +362,9 @@ export async function auditAiAnswerWithheld(
           .limit(1),
       );
       if (!row) return;
-      await auditDenied(tx, { ...row, connectionId: row.id }, input.tool, 'too_large');
+      await auditDenied(tx, { ...row, connectionId: row.id }, input.tool, 'too_large', {
+        withheld: true,
+      });
     });
   } catch {
     // Recording is best effort here; the app already gets a plain refusal.
@@ -480,15 +477,29 @@ export async function withAiConnection<T>(
       const record: AiCallRecord =
         denial !== null ? { kind: 'denied', reason: denial } : describe(value);
       if (record.kind === 'denied') {
-        await auditDenied(tx, connection, request.tool, record.reason);
+        await auditDenied(tx, connection, request.tool, record.reason, {
+          now: request.now ?? new Date(),
+        });
       } else {
+        // Product event first (a savepoint that never throws), then the audit record.
+        const label = aiContextToolLabel(request.tool);
+        await recordProductEvent(tx, {
+          eventType: 'AI_CONTEXT_REQUESTED',
+          accountId: connection.accountId,
+          ...(label ? { dimension: label } : {}),
+          onceFor: aiContextDayKey(
+            connection.connectionId,
+            label ?? 'UNKNOWN',
+            request.now ?? new Date(),
+          ),
+        });
         await appendAuditEvent(tx, {
           ...auditBase(connection),
           eventType: 'AI_CONTEXT_SERVED',
           result: 'ALLOWED',
           metadata: {
             clientHost: connection.clientHost,
-            tool: request.tool,
+            tool: aiAuditToolName(request.tool),
             layers: [...record.layers].sort(),
             caseMode: connection.caseMode,
             cases: record.cases,
@@ -497,13 +508,6 @@ export async function withAiConnection<T>(
             documentTexts: record.documentTexts,
             depth: depth ?? scope.depth,
           },
-        });
-        const label = toolLabel(request.tool);
-        await recordProductEvent(tx, {
-          eventType: 'AI_CONTEXT_REQUESTED',
-          accountId: connection.accountId,
-          ...(label ? { dimension: label } : {}),
-          metricValue: new Set(record.layers).size,
         });
       }
       return ok(value);

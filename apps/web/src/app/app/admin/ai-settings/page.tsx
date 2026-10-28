@@ -10,14 +10,14 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader } from '../../../../components/ui';
-import { bootstrapAdminEmails, hasPlatformPermission, staffPrincipal } from '../../../../lib/admin';
+import { bootstrapAdminEmails, staffPrincipal } from '../../../../lib/admin';
 import { unitsToUsd } from '../../../../lib/ai';
 import { aiConnectorEnabled } from '../../../../lib/ai-connector';
 import { currentAiDataMode } from '../../../../lib/ai-data-rule';
 import { formatTimestamp } from '../../../../lib/format-date';
 import { reportServerError } from '../../../../lib/server-error';
 import { withSession } from '../../../../lib/session';
-import { AiConnectionsCard } from './ai-connections-card';
+import { AiConnectionsCard, type AiConnectionsCardProps } from './ai-connections-card';
 import { DataTermsPanel, TermsRows } from './data-terms';
 import {
   ActivateConfigButton,
@@ -53,45 +53,50 @@ const STATUS_BADGE: Record<AiProviderConfig['status'], { label: string; tone: st
 
 export default async function AiSettingsPage() {
   const data = await withSession(async ({ db, accountId, email }) => {
-    if (!(await hasPlatformPermission(db, { accountId, email }, 'AI_SETTINGS_MANAGE'))) {
-      return { authorized: false as const };
-    }
-    const historyResult = await listAiProviderConfigHistory(db, {
-      accountId,
-      email,
-      bootstrapEmails: bootstrapAdminEmails(),
-    });
-    const history = historyResult.ok ? historyResult.value : [];
+    // One staff scope is both the access check and the proof the count service asks for.
+    const actor = { accountId, email, bootstrapEmails: bootstrapAdminEmails() };
+    const staff = await staffPrincipal(db, actor, 'AI_SETTINGS_MANAGE');
+    if (!staff.ok) return { authorized: false as const };
+    const historyAndTerms = async () => {
+      const historyResult = await listAiProviderConfigHistory(db, actor);
+      const history = historyResult.ok ? historyResult.value : [];
+      const terms = await loadAiProviderDataTerms(
+        db,
+        history.map((config) => config.id),
+      );
+      return { history, terms };
+    };
+    // The count card must never take the provider settings down with it: a failed read is
+    // logged and the card says the counts cannot be read right now.
+    const connectionCounts = async (): Promise<AiConnectionsCardProps['counts']> => {
+      try {
+        const counts = await getAiConnectionCounts(db, staff.value);
+        return counts.ok ? counts.value : 'unreadable';
+      } catch (error) {
+        reportServerError('aiConnectionCounts', error);
+        return 'unreadable';
+      }
+    };
+    const [{ history, terms }, hasAny, setting, counts] = await Promise.all([
+      historyAndTerms(),
+      hasAnyAiProviderConfig(db),
+      loadAiDataRuleSetting(db),
+      connectionCounts(),
+    ]);
     const active = history.find((config) => config.status === 'ACTIVE');
     const fallback = active?.fallbackEnabled
       ? history.find((config) => config.id === active.fallbackProviderConfigId)
       : undefined;
-    const staff = await staffPrincipal(
-      db,
-      { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
-      'AI_SETTINGS_MANAGE',
-    );
-    // The count card must never take the provider settings down with it: a failed read is
-    // logged and the card says the counts are not available.
-    const connectionCounts = staff.ok
-      ? await getAiConnectionCounts(db, staff.value).catch((error: unknown) => {
-          reportServerError('aiConnectionCounts', error);
-          return null;
-        })
-      : null;
     return {
-      connectionCounts: connectionCounts?.ok ? connectionCounts.value : null,
+      connectionCounts: counts,
       active,
       fallback,
       authorized: true as const,
       history,
-      hasAny: await hasAnyAiProviderConfig(db),
+      hasAny,
       hasActive: active !== undefined,
-      terms: await loadAiProviderDataTerms(
-        db,
-        history.map((config) => config.id),
-      ),
-      setting: await loadAiDataRuleSetting(db),
+      terms,
+      setting,
       mode: currentAiDataMode(),
     };
   });

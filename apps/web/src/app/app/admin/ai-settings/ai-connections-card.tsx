@@ -1,24 +1,32 @@
-import type { AiConnectionCounts } from '@visastack/services';
+import { AI_CONNECTION_COUNT_WINDOW_MS, type AiConnectionCounts } from '@visastack/services';
 
 export interface AiConnectionsCardProps {
-  /** `null` when the counts could not be read for this person (no staff scope). */
-  readonly counts: AiConnectionCounts | null;
+  /**
+   * The counts; `{ available: false }` before the connection tables exist; `unreadable` when the
+   * read failed or was refused this time.
+   */
+  readonly counts: AiConnectionCounts | 'unreadable';
   /** Whether AI apps can connect on this site at all (the AI_CONNECTOR_ENABLED switch). */
   readonly enabled: boolean;
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** The window the call counts cover, as the service defines it. */
+const WINDOW_DAYS = Math.round(AI_CONNECTION_COUNT_WINDOW_MS / DAY_MS);
+
 /**
  * The staff count of AI app connections (S16): totals for the whole platform, never anything
- * about one person, app or case. Zero is shown as zero; counts that cannot be read yet say so.
+ * about one person, app or case. Zero is shown as zero; counts that cannot be read say why.
  */
 export function AiConnectionsCard({ counts, enabled }: AiConnectionsCardProps) {
   const rows =
-    counts?.available === true
+    counts !== 'unreadable' && counts.available
       ? [
           { key: 'Active Connections', value: counts.active },
           { key: 'Connections Turned Off', value: counts.turnedOff },
-          { key: 'Requests Answered in the Last 7 Days', value: counts.served },
-          { key: 'Requests Refused in the Last 7 Days', value: counts.denied },
+          { key: `Requests Answered in the Last ${WINDOW_DAYS} Days`, value: counts.served },
+          { key: `Requests Refused in the Last ${WINDOW_DAYS} Days`, value: counts.denied },
         ]
       : null;
   return (
@@ -41,6 +49,10 @@ export function AiConnectionsCard({ counts, enabled }: AiConnectionsCardProps) {
             </div>
           ))}
         </div>
+      ) : counts === 'unreadable' ? (
+        <p className="muted">
+          The counts could not be read right now. Reload the page to try again.
+        </p>
       ) : (
         <p className="muted">
           Not available yet. The counts appear once AI app connections are set up on this site.

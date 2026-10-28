@@ -307,6 +307,14 @@ export async function turnOffAiConnection(
         .update(schema.aiConnections)
         .set({ revokedAt: now, revokedReason: AI_CONNECTION_REVOKED_REASON })
         .where(eq(schema.aiConnections.id, connection.id));
+      // S16 telemetry, best effort (a savepoint that never throws): how long the connection lived.
+      // Written before the audit record, so the audit lock is held only for the audit insert.
+      await recordProductEvent(tx, {
+        eventType: 'AI_CONNECTOR_REVOKED',
+        accountId: owner.accountId,
+        metricValue: elapsedSeconds(connection.createdAt, now),
+        onceFor: connection.id,
+      });
       await appendAuditEvent(tx, {
         eventType: 'AI_CONNECTION_REVOKED',
         actorAccountId: owner.accountId,
@@ -319,13 +327,6 @@ export async function turnOffAiConnection(
           ? { missionId: connection.missionId }
           : {}),
         metadata: { reason: 'owner_turned_off' },
-      });
-      // S16 telemetry, best effort (a savepoint that never throws): how long the connection lived.
-      await recordProductEvent(tx, {
-        eventType: 'AI_CONNECTOR_REVOKED',
-        accountId: owner.accountId,
-        metricValue: elapsedSeconds(connection.createdAt, now),
-        onceFor: connection.id,
       });
       return ok({ alreadyOff: false });
     });
