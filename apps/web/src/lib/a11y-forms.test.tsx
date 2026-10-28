@@ -122,6 +122,7 @@ const { RequireDifferentReviewerToggle } = await import(
 const { CreateOrgForm } = await import('../app/app/agency/create-org-form');
 const aiReview = await import('../app/app/applicant/[id]/ai-review');
 const { DocumentUploader } = await import('../app/app/applicant/[id]/document-uploader');
+const { DocumentRenameForm } = await import('../app/app/applicant/[id]/document-rename-form');
 const { SubmitResponseForm } = await import(
   '../app/app/applicant/[id]/evidence/submit-response-form'
 );
@@ -241,9 +242,25 @@ const PEOPLE: readonly Case[] = [
 
 const DOCS: readonly Case[] = [
   {
-    name: 'upload a document',
-    element: () => <DocumentUploader applicantId="a1" limitLabel="5 MB" />,
-    fields: ['file'],
+    name: 'upload documents',
+    element: () => (
+      <DocumentUploader
+        applicantId="a1"
+        limitBytes={4 * 1024 * 1024}
+        limitLabel="4 MB"
+        kindGroups={fixtureDocumentGroups}
+        initialKind="OTHER"
+      />
+    ),
+  },
+  {
+    ...row('rename a document', () => {
+      const documentId = rowId();
+      return (
+        <DocumentRenameForm applicantId="a1" documentId={documentId} name="Passport, Nazmus" />
+      );
+    }),
+    fields: ['name'],
   },
   row('review a suggested file name', () => (
     <NameReview

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blobResponseHeaders } from './headers';
+import { asciiFileName, blobResponseHeaders } from './headers';
 
 /**
  * Pure header-construction tests (master directive §7 "PR 3") — no storage,
@@ -74,5 +74,45 @@ describe('blobResponseHeaders — the security-relevant response headers for ser
       filename: undefined,
     });
     expect(headers['Content-Disposition']).toBe('inline');
+  });
+
+  it('serves names outside plain ASCII: a plain filename for old clients, the full name in filename*', () => {
+    const names = [
+      // "Passport, " then L with stroke and "ukasz"
+      `Passport, ${String.fromCodePoint(0x141)}ukasz.pdf`,
+      // A Bangla name: "Passport, Nazmus" written in Bangla letters
+      `${String.fromCodePoint(0x9aa, 0x9be, 0x9b8, 0x9aa, 0x9cb, 0x9b0, 0x9cd, 0x99f)}, ${String.fromCodePoint(0x9a8, 0x9be, 0x99c, 0x9ae, 0x9c1, 0x9b8)}.pdf`,
+      // A curly apostrophe
+      `Nazmus${String.fromCodePoint(0x2019)}s Bank Letter.pdf`,
+    ];
+    for (const name of names) {
+      const headers = blobResponseHeaders({
+        contentType: 'application/pdf',
+        dispositionKind: 'attachment',
+        filename: name,
+      });
+      // The real failure: a header value above U+00FF makes the response itself throw.
+      expect(() => new Response('bytes', { headers })).not.toThrow();
+      const value = headers['Content-Disposition'] ?? '';
+      expect(/^[\x20-\x7e]*$/.test(value)).toBe(true);
+      const encoded = value.match(/filename\*=UTF-8''(.+)$/)?.[1] ?? '';
+      expect(decodeURIComponent(encoded)).toBe(name);
+      expect(encoded).not.toMatch(/['()*!]/);
+    }
+    expect(asciiFileName(names[0] ?? '')).toBe('Passport, Lukasz.pdf');
+    expect(asciiFileName(names[1] ?? '')).toBe('_, _.pdf');
+    expect(asciiFileName(names[2] ?? '')).toBe("Nazmus's Bank Letter.pdf");
+    expect(
+      asciiFileName(`Caf${String.fromCodePoint(0xe9)} Stra${String.fromCodePoint(0xdf)}e`),
+    ).toBe('Cafe Strasse');
+  });
+
+  it('falls back to "document" when nothing of the name is left in plain letters but marks', () => {
+    const headers = blobResponseHeaders({
+      contentType: 'image/png',
+      dispositionKind: 'inline',
+      filename: String.fromCodePoint(0x301, 0x301),
+    });
+    expect(headers['Content-Disposition']).toContain('filename="document"');
   });
 });

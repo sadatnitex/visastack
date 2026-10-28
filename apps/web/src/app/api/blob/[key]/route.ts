@@ -8,6 +8,7 @@ import {
 import { createPreviewRenderer } from '../../../../lib/providers';
 import { reportRenderFailure } from '../../../../lib/server-error';
 import { createStorage } from '../../../../lib/storage';
+import { withFileExtension } from '../../../../lib/upload-rules';
 import { blobResponseHeaders } from './headers';
 import { previewFilename } from './preview-filename';
 
@@ -128,7 +129,11 @@ export async function GET(
       headers: blobResponseHeaders({
         contentType: object.contentType,
         dispositionKind,
-        filename: fields.filename,
+        // A title such as "Passport, Nazmus" has no extension; the saved file gets the stored one.
+        filename:
+          fields.filename === undefined
+            ? undefined
+            : withFileExtension(fields.filename, object.contentType),
       }),
     });
   }

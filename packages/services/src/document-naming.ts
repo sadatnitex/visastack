@@ -1,8 +1,10 @@
 import { type Result, err, ok } from '@visastack/core';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
+import { AuthorizedApplicant } from './access';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { cleanDocumentName } from './naming';
 
 /**
  * Automatic filename proposal workflow (master directive §11/§21E).
@@ -21,33 +23,50 @@ export interface ProposeDocumentNameInput {
   readonly reason?: string;
 }
 
-/** Record a new (system-generated) naming proposal for a document. */
+/**
+ * The next free name version number for a document. Call it with the document row locked
+ * (`select ... for update` in the same transaction), as every writer of a document's names does.
+ * documents.ts keeps the same private helper: exporting one shared copy would make it an ungated
+ * export reading an applicant-owned table, which the access ratchet (access/enforcement.test.ts)
+ * refuses and whose baseline may only shrink.
+ */
+async function nextNameVersionNumber(tx: Db, documentId: string): Promise<number> {
+  const top = first(
+    await tx
+      .select({ versionNumber: schema.documentNameVersions.versionNumber })
+      .from(schema.documentNameVersions)
+      .where(eq(schema.documentNameVersions.documentId, documentId))
+      .orderBy(desc(schema.documentNameVersions.versionNumber))
+      .limit(1),
+  );
+  return (top?.versionNumber ?? 0) + 1;
+}
+
+/**
+ * Record a new (system-generated) naming proposal for a document. The document row is locked for
+ * the rest of the transaction before the next version number is worked out, the same lock every
+ * other writer of a document's names takes (`renameDocument`, `setDocumentType`), so two writers
+ * can never pick the same number.
+ */
 export async function proposeDocumentName(
   db: Db,
   input: ProposeDocumentNameInput,
 ): Promise<Result<DocumentNameVersion, ServiceError>> {
-  const document = first(
-    await db
-      .select()
-      .from(schema.documents)
-      .where(eq(schema.documents.id, input.documentId))
-      .limit(1),
-  );
-  if (!document) return err(serviceError('not_found', 'document not found'));
   if (input.proposedName.trim().length === 0) {
     return err(serviceError('invalid', 'a proposed name is required'));
   }
 
   return db.transaction(async (tx) => {
-    const top = first(
+    const document = first(
       await tx
-        .select({ versionNumber: schema.documentNameVersions.versionNumber })
-        .from(schema.documentNameVersions)
-        .where(eq(schema.documentNameVersions.documentId, input.documentId))
-        .orderBy(desc(schema.documentNameVersions.versionNumber))
-        .limit(1),
+        .select()
+        .from(schema.documents)
+        .where(eq(schema.documents.id, input.documentId))
+        .limit(1)
+        .for('update'),
     );
-    const nextNumber = (top?.versionNumber ?? 0) + 1;
+    if (!document) return err(serviceError('not_found', 'document not found'));
+    const nextNumber = await nextNameVersionNumber(tx, input.documentId);
 
     const version = required(
       first(
@@ -71,7 +90,9 @@ export async function proposeDocumentName(
       applicantId: document.applicantId,
       resourceType: 'document',
       resourceId: document.id,
-      metadata: { versionNumber: nextNumber, proposedName: input.proposedName },
+      // Counts only: the audit trail is never edited or removed, so a name (which can hold a
+      // person's name) is kept only in the name history, which erasing their data removes.
+      metadata: { versionNumber: nextNumber, nameLength: input.proposedName.length },
     });
 
     return ok(version);
@@ -168,7 +189,12 @@ export async function decideDocumentName(
       applicantId: document.applicantId,
       resourceType: 'document',
       resourceId: document.id,
-      metadata: { decision: input.decision, finalName: updated.finalName },
+      metadata: {
+        decision: input.decision,
+        versionNumber: updated.versionNumber,
+        nameLength: updated.finalName === null ? null : updated.finalName.length,
+        edited: input.decision === 'ACCEPTED_EDITED',
+      },
     });
 
     return ok(updated);
@@ -200,4 +226,87 @@ export async function listNameVersions(
     .from(schema.documentNameVersions)
     .where(eq(schema.documentNameVersions.documentId, documentId))
     .orderBy(desc(schema.documentNameVersions.versionNumber));
+}
+
+/** Recorded on the name version a person writes with `renameDocument`. */
+export const OWNER_RENAME_REASON = 'renamed by the owner';
+
+/**
+ * Give a document a name of the person's own. The owner only, through the access gate, with the
+ * proof made for this document. The name is cleaned the way every name a person types is
+ * (`cleanDocumentName`) and saved as a name version written and decided in one step, so nothing
+ * is left waiting. A name suggested by a reading and still waiting stays waiting; the person can
+ * still accept or skip it.
+ *
+ * The name itself is kept only in the document and its name history, which erasing the person's
+ * data removes. The audit trail, which is never edited or removed, records that the person renamed
+ * the document and how long the name is, never the name.
+ */
+export async function renameDocument(
+  proof: AuthorizedApplicant<'MANAGE'>,
+  input: { readonly name: string },
+): Promise<Result<DocumentNameVersion, ServiceError>> {
+  if (
+    !AuthorizedApplicant.isGenuine(proof, 'MANAGE') ||
+    proof.actor.kind !== 'applicant_owner' ||
+    proof.resource.kind !== 'document'
+  ) {
+    return err(serviceError('forbidden', 'only the owner can rename this document'));
+  }
+  const name = cleanDocumentName(input.name);
+  if (name.length === 0) return err(serviceError('invalid', 'enter a name for this document'));
+  const documentId = proof.resource.document.id;
+  const actorAccountId = proof.applicant.ownerAccountId;
+
+  return proof.tx.transaction(async (tx) => {
+    const document = first(
+      await tx
+        .select({ id: schema.documents.id, applicantId: schema.documents.applicantId })
+        .from(schema.documents)
+        .where(
+          and(
+            eq(schema.documents.id, documentId),
+            eq(schema.documents.applicantId, proof.applicant.id),
+          ),
+        )
+        .limit(1)
+        .for('update'),
+    );
+    if (!document) return err(serviceError('not_found', 'document not found'));
+    const versionNumber = await nextNameVersionNumber(tx, documentId);
+    const decidedAt = new Date();
+    const version = required(
+      first(
+        await tx
+          .insert(schema.documentNameVersions)
+          .values({
+            documentId,
+            versionNumber,
+            proposedName: name,
+            finalName: name,
+            decision: 'ACCEPTED_UNCHANGED',
+            decidedByAccountId: actorAccountId,
+            decidedAt,
+            reason: OWNER_RENAME_REASON,
+          })
+          .returning(),
+      ),
+      'document name version',
+    );
+    await tx
+      .update(schema.documents)
+      .set({ approvedName: name, updatedAt: decidedAt })
+      .where(eq(schema.documents.id, documentId));
+    await appendAuditEvent(tx, {
+      eventType: 'DOCUMENT_RENAMED',
+      actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      applicantId: document.applicantId,
+      resourceType: 'document',
+      resourceId: documentId,
+      metadata: { versionNumber, nameLength: name.length, automatic: false },
+    });
+    return ok(version);
+  });
 }

@@ -1,3 +1,4 @@
+import { isOtherDocumentType } from '@visastack/core';
 import { resolveDocumentType } from '@visastack/core/catalogue';
 import {
   getApplicant,
@@ -82,8 +83,7 @@ export default async function ApplicantRecordPage({
   const documents: RecordDocumentInput[] = documentsLoaded
     ? walletRows.map(({ document, status, usedInMissions, accessibleTo }) => {
         const summary = summaries.get(document.id);
-        const isOther =
-          document.docType === 'OTHER' || (document.docType ?? '').startsWith('OTHER_');
+        const isOther = isOtherDocumentType(document.docType);
         const replacedName = document.supersededByDocumentId
           ? names.get(document.supersededByDocumentId)
           : undefined;

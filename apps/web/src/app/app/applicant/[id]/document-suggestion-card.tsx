@@ -1,5 +1,6 @@
 'use client';
 
+import { isOtherDocumentType } from '@visastack/core';
 import { useActionState, useId, useRef, useState } from 'react';
 import {
   FormMessage,
@@ -17,11 +18,6 @@ const INITIAL: ActionState = { ok: true, message: '' };
 /** "a Bank Statement", "an Employment Certificate". */
 function withArticle(label: string): string {
   return `${/^[aeiou]/i.test(label) ? 'an' : 'a'} ${label}`;
-}
-
-/** An "Other" kind can carry a short name for what the document is (the same rule the kind setting uses). */
-function isOtherKind(key: string): boolean {
-  return key === 'OTHER' || key.startsWith('OTHER_');
 }
 
 /**
@@ -140,7 +136,7 @@ export function DocumentSuggestionCard({
                   ))}
                 </select>
               </div>
-              {isOtherKind(kind) ? (
+              {isOtherDocumentType(kind) ? (
                 <div className="finding-value">
                   <label className="field-label" htmlFor={subjectId}>
                     What Is It?

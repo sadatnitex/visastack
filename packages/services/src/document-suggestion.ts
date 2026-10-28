@@ -11,7 +11,11 @@ import { type Db, first, required, schema } from './db';
 import { decideDocumentName, proposeDocumentName } from './document-naming';
 import { prepareDocumentKind, setDocumentType } from './documents';
 import { type ServiceError, serviceError } from './errors';
+import { cleanDocumentName } from './naming';
 import { recordProductEvent } from './product-events';
+
+// The name rules live with the other naming rules; kept exported here for existing callers.
+export { MAX_DOCUMENT_NAME_LENGTH, cleanDocumentName } from './naming';
 
 /**
  * One decision on what a document is and what it is called (owner request 2026-10-25: "save
@@ -28,9 +32,6 @@ import { recordProductEvent } from './product-events';
 
 /** File states past the safety scan and the content checks: the only ones a suggestion is decided for. */
 const DECIDABLE_PROCESSING_STATES: ReadonlySet<string> = new Set(['AWAITING_REVIEW', 'APPROVED']);
-
-/** The longest name a person can give a document. */
-export const MAX_DOCUMENT_NAME_LENGTH = 200;
 
 export type DocumentSuggestionInput =
   | {
@@ -87,29 +88,6 @@ class Refusal extends Error {
 
 function refuse(code: ServiceError['code'], message: string): never {
   throw new Refusal(serviceError(code, message));
-}
-
-/**
- * Control characters (C0, DEL and C1) and the bidirectional overrides and isolates that can make
- * a name read differently from what it is ("txt.exe" shown as "exe.txt").
- */
-// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are removed on purpose.
-const UNSAFE_NAME_CHARACTERS = /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g;
-
-/**
- * A name as a person typed it, made safe to show and to use as a download name: no control or
- * text-direction characters, no path separators, single spaces, at most
- * `MAX_DOCUMENT_NAME_LENGTH` characters.
- */
-export function cleanDocumentName(raw: string): string {
-  return raw
-    .normalize('NFC')
-    .replace(UNSAFE_NAME_CHARACTERS, '')
-    .replace(/[/\\:*?"<>|]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, MAX_DOCUMENT_NAME_LENGTH)
-    .trim();
 }
 
 /**
@@ -251,6 +229,8 @@ export async function decideDocumentSuggestion(
           documentId,
           docType: kind.docType,
           subject: kind.subject,
+          // The name is decided just below, so no automatic title is written in between.
+          keepName: true,
         });
         if (!typed.ok) throw new Refusal(typed.error);
       }

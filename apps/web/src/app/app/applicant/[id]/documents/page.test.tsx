@@ -61,6 +61,7 @@ vi.mock('../actions', () => ({
   setDocumentDateAction: async () => undefined,
   setDocumentTypeAction: async () => undefined,
 }));
+vi.mock('../document-rename-form', () => ({ DocumentRenameForm: stub('DocumentRenameForm') }));
 vi.mock('../ai-review', () => ({
   AiProposalReview: stub('AiProposalReview'),
   DocumentFindings: stub('DocumentFindings'),
@@ -184,11 +185,37 @@ describe('a file that could not be used', () => {
 describe('the upload form', () => {
   it('is told the limit the server really enforces, not a number written into the page', async () => {
     mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [] });
+    // A 5 MB quota is capped at what one request to the host can carry (4 MB).
     const [uploader] = stubProps<{ applicantId: string; limitLabel: string }>(
       await render(),
       'DocumentUploader',
     );
-    expect(uploader).toMatchObject({ applicantId: 'a1', limitLabel: '5 MB', virusScanning: false });
+    expect(uploader).toMatchObject({
+      applicantId: 'a1',
+      limitBytes: 4 * 1024 * 1024,
+      limitLabel: '4 MB',
+      pdfAccepted: false,
+      virusScanning: false,
+    });
+
+    // A tighter quota is the limit itself.
+    mocks.loadUploadQuotaConfig.mockReturnValue({
+      maxUploadBytes: 2 * 1024 * 1024,
+      maxApplicantEvidenceBytes: 50 * 1024 * 1024,
+    });
+    const [tight] = stubProps<{ limitLabel: string }>(await render(), 'DocumentUploader');
+    expect(tight).toMatchObject({ limitBytes: 2 * 1024 * 1024, limitLabel: '2 MB' });
+  });
+
+  it('offers PDF only when a real virus scanner admits it', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [] });
+    vi.stubEnv('MALWARE_SCANNER_PROVIDER', 'clamav');
+    try {
+      const [uploader] = stubProps<{ pdfAccepted: boolean }>(await render(), 'DocumentUploader');
+      expect(uploader?.pdfAccepted).toBe(true);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('offers every catalogue kind of document, so a file can be filed under its category on upload', async () => {
@@ -234,6 +261,38 @@ describe('saying what kind of document a file is', () => {
       }),
     );
     expect(textOf(html)).toContain("Couldn't save that kind of document");
+  });
+});
+
+describe('naming a document', () => {
+  it('lets the person rename each document, starting from the name it is listed under', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [{ ...doc('letter', 'APPROVED'), approvedName: 'Passport, Nazmus' }],
+    });
+    const [form] = stubProps<{ documentId: string; name: string }>(
+      await render('letter'),
+      'DocumentRenameForm',
+    );
+    expect(form).toMatchObject({
+      applicantId: 'a1',
+      documentId: 'letter',
+      name: 'Passport, Nazmus',
+    });
+  });
+
+  it('says when a stored file is a JPG copy of an iPhone photo, and only then', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [
+        { ...doc('photo', 'APPROVED'), source: 'UPLOAD_CONVERTED_FROM_HEIC' },
+        { ...doc('letter', 'APPROVED'), source: 'UPLOAD' },
+      ],
+    });
+    const converted = textOf(await render('photo'));
+    expect(converted).toContain('Saved as a JPG copy of the iPhone photo (HEIC)');
+    expect(converted).toContain('The HEIC file itself was not kept.');
+    expect(textOf(await render('letter'))).not.toContain('iPhone photo');
   });
 });
 

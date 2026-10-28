@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
 import { and, eq, gt, lt, sql } from 'drizzle-orm';
+import { AuthorizedApplicant } from './access';
 import { type Db, first, required, schema } from './db';
 import { checkStorageEntitlement } from './entitlement-enforcement';
 import { type ServiceError, serviceError } from './errors';
@@ -37,6 +38,14 @@ const RESERVATION_TTL_MS = 10 * 60 * 1000;
 
 export type UploadIntent = typeof schema.uploadIntents.$inferSelect;
 
+/**
+ * The one platform-wide lock every reservation change takes, held until its transaction ends, so
+ * quota checks and the reservation they allow happen as one step.
+ */
+async function lockUploadQuota(tx: Db): Promise<void> {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext('visastack:upload-quota'))`);
+}
+
 async function activeReservedBytesFor(
   db: Db,
   column: 'accountId' | 'applicantId',
@@ -66,6 +75,60 @@ async function activePlatformReservedBytes(db: Db): Promise<number> {
       ),
     );
   return Number(rows[0]?.total ?? 0);
+}
+
+/**
+ * Every quota tier (per-applicant, per-account, platform, then each organization's plan) checked
+ * against committed bytes plus every active reservation plus `addedBytes`. Runs inside the
+ * caller's transaction, which must already hold the platform-wide upload lock.
+ */
+async function checkQuotaTiers(
+  tx: Db,
+  input: { readonly accountId: string; readonly applicantId: string },
+  addedBytes: number,
+  config: UploadQuotaConfig,
+): Promise<Result<void, ServiceError>> {
+  const applicantReserved = await activeReservedBytesFor(tx, 'applicantId', input.applicantId);
+  const applicantCommitted = await getApplicantEvidenceBytes(tx, input.applicantId);
+  if (applicantCommitted + applicantReserved + addedBytes > config.maxApplicantEvidenceBytes) {
+    return err(
+      serviceError(
+        'invalid',
+        `this applicant has reached its ${mbLabel(config.maxApplicantEvidenceBytes)} evidence limit`,
+      ),
+    );
+  }
+
+  const accountReserved = await activeReservedBytesFor(tx, 'accountId', input.accountId);
+  const accountCommitted = await getAccountEvidenceBytes(tx, input.accountId);
+  if (accountCommitted + accountReserved + addedBytes > config.maxAccountEvidenceBytes) {
+    return err(
+      serviceError(
+        'invalid',
+        `this account has reached its ${mbLabel(config.maxAccountEvidenceBytes)} evidence limit`,
+      ),
+    );
+  }
+
+  const platformReserved = await activePlatformReservedBytes(tx);
+  const platformCommitted = await getPlatformEvidenceBytes(tx);
+  if (platformCommitted + platformReserved + addedBytes > config.platformHardStopBytes) {
+    return err(
+      serviceError(
+        'invalid',
+        'platform storage capacity reached; new uploads are temporarily paused',
+      ),
+    );
+  }
+
+  // COM-02: a fifth, org-scoped tier layered on top of the four
+  // infrastructure-level ones above -- a plan's storageBytesAllowed, for
+  // every organization with current grant access to this applicant.
+  // Reuses the caller's already-held platform-wide lock; no separate one
+  // needed.
+  const orgCheck = await checkStorageEntitlement(tx, input.applicantId, addedBytes);
+  if (!orgCheck.ok) return err(orgCheck.error);
+  return ok(undefined);
 }
 
 export interface ReserveUploadInput {
@@ -121,51 +184,10 @@ export async function reserveUpload(
     // reservation is correctly counted by a later call, and that an expired
     // one is correctly excluded — the properties that actually make the
     // reservation model sound.
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('visastack:upload-quota'))`);
+    await lockUploadQuota(tx);
 
-    const applicantReserved = await activeReservedBytesFor(tx, 'applicantId', input.applicantId);
-    const applicantCommitted = await getApplicantEvidenceBytes(tx, input.applicantId);
-    if (
-      applicantCommitted + applicantReserved + input.sizeBytes >
-      config.maxApplicantEvidenceBytes
-    ) {
-      return err(
-        serviceError(
-          'invalid',
-          `this applicant has reached its ${mbLabel(config.maxApplicantEvidenceBytes)} evidence limit`,
-        ),
-      );
-    }
-
-    const accountReserved = await activeReservedBytesFor(tx, 'accountId', input.accountId);
-    const accountCommitted = await getAccountEvidenceBytes(tx, input.accountId);
-    if (accountCommitted + accountReserved + input.sizeBytes > config.maxAccountEvidenceBytes) {
-      return err(
-        serviceError(
-          'invalid',
-          `this account has reached its ${mbLabel(config.maxAccountEvidenceBytes)} evidence limit`,
-        ),
-      );
-    }
-
-    const platformReserved = await activePlatformReservedBytes(tx);
-    const platformCommitted = await getPlatformEvidenceBytes(tx);
-    if (platformCommitted + platformReserved + input.sizeBytes > config.platformHardStopBytes) {
-      return err(
-        serviceError(
-          'invalid',
-          'platform storage capacity reached; new uploads are temporarily paused',
-        ),
-      );
-    }
-
-    // COM-02: a fifth, org-scoped tier layered on top of the four
-    // infrastructure-level ones above -- a plan's storageBytesAllowed, for
-    // every organization with current grant access to this applicant.
-    // Reuses this same already-held platform-wide lock; no separate one
-    // needed.
-    const orgCheck = await checkStorageEntitlement(tx, input.applicantId, input.sizeBytes);
-    if (!orgCheck.ok) return err(orgCheck.error);
+    const quota = await checkQuotaTiers(tx, input, input.sizeBytes, config);
+    if (!quota.ok) return err(quota.error);
 
     const intent = required(
       first(
@@ -183,6 +205,74 @@ export async function reserveUpload(
       'upload intent',
     );
     return ok(intent);
+  });
+}
+
+export interface GrowUploadReservationInput {
+  readonly intentId: string;
+  /** The size the reservation must now cover, in bytes. */
+  readonly sizeBytes: number;
+}
+
+/**
+ * Raise an upload's own reservation to cover a larger file than it was made for (UX-B: an iPhone
+ * photo converted to a JPEG can be larger than the photo that was sent). One step, under the same
+ * platform-wide lock and the same quota tiers as `reserveUpload`, counting only the extra bytes;
+ * the reservation is never released in between, and it is not a new reservation attempt, so the
+ * upload rate limit is not charged again. A reservation that already covers the size is returned
+ * as it is. Only a reservation for the proof's applicant that is still active can grow.
+ */
+export async function growUploadReservation(
+  proof: AuthorizedApplicant<'MANAGE'>,
+  input: GrowUploadReservationInput,
+  config: UploadQuotaConfig = loadUploadQuotaConfig(),
+): Promise<Result<UploadIntent, ServiceError>> {
+  if (!AuthorizedApplicant.isGenuine(proof, 'MANAGE')) {
+    return err(serviceError('forbidden', 'not authorized'));
+  }
+  if (!Number.isSafeInteger(input.sizeBytes) || input.sizeBytes < 1) {
+    return err(serviceError('invalid', 'the file size is not valid'));
+  }
+  if (input.sizeBytes > config.maxUploadBytes) {
+    return err(
+      serviceError('invalid', `file exceeds the ${mbLabel(config.maxUploadBytes)} upload limit`),
+    );
+  }
+  return proof.tx.transaction(async (tx) => {
+    await lockUploadQuota(tx);
+    const intent = first(
+      await tx
+        .select()
+        .from(schema.uploadIntents)
+        .where(
+          and(
+            eq(schema.uploadIntents.id, input.intentId),
+            eq(schema.uploadIntents.applicantId, proof.applicant.id),
+            eq(schema.uploadIntents.status, 'RESERVED'),
+            gt(schema.uploadIntents.expiresAt, sql`now()`),
+          ),
+        )
+        .limit(1)
+        .for('update'),
+    );
+    if (!intent) return err(serviceError('not_found', 'this upload is no longer in progress'));
+    const addedBytes = input.sizeBytes - intent.reservedBytes;
+    if (addedBytes <= 0) return ok(intent);
+
+    const quota = await checkQuotaTiers(tx, intent, addedBytes, config);
+    if (!quota.ok) return err(quota.error);
+
+    const grown = required(
+      first(
+        await tx
+          .update(schema.uploadIntents)
+          .set({ reservedBytes: input.sizeBytes, updatedAt: new Date() })
+          .where(eq(schema.uploadIntents.id, intent.id))
+          .returning(),
+      ),
+      'upload intent',
+    );
+    return ok(grown);
   });
 }
 
