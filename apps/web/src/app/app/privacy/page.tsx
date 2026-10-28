@@ -118,7 +118,7 @@ export default async function PrivacyPage() {
             <h2 className="card-title">Export Your Data</h2>
             <p className="card-body u-mb-125" {...atLevel('browse')}>
               Download a complete, structured snapshot of your account: identity, consents,
-              applicants, Master Profile facts with full history, document metadata, and your audit
+              travellers, Master Profile facts with full history, document metadata, and your audit
               trail.
             </p>
             <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>

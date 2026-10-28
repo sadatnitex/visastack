@@ -104,7 +104,7 @@ export async function requestEvidenceAction(
     return { ok: false, message: 'Enter a valid due date.' };
   }
 
-  if (applicantId.length === 0) return { ok: false, message: 'Enter the applicant ID.' };
+  if (applicantId.length === 0) return { ok: false, message: 'Enter the traveller ID.' };
   if (key.length === 0) {
     return {
       ok: false,

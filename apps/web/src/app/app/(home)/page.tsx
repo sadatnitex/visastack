@@ -812,8 +812,8 @@ export default async function AppPage({
           >
             <p className="card-body u-mb-100">
               {locale === 'en'
-                ? 'Each one is on or off, and you can change it at any time. Turning one off never requires turning another back on. "Let VisaStack Process My Details" is needed before any applicant or profile can be created; the others are optional.'
-                : 'Each purpose is granted and revoked independently, at any time. Turning one off never requires turning another back on. Core processing is required before any applicant or profile records can be created; the others are optional.'}
+                ? 'Each one is on or off, and you can change it at any time. Turning one off never requires turning another back on. "Let VisaStack Process My Details" is needed before any traveller or profile can be created; the others are optional.'
+                : 'Each purpose is granted and revoked independently, at any time. Turning one off never requires turning another back on. Core processing is required before any traveller or profile records can be created; the others are optional.'}
             </p>
             <div className="rows">
               {CONSENT_TYPES.map((type) => {

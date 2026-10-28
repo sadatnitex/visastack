@@ -100,7 +100,7 @@ export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProp
   if (holds.length > 0) {
     return (
       <div className="notice notice-warn">
-        <strong>Deletion is blocked.</strong> The following applicant record
+        <strong>Deletion is blocked.</strong> The following traveller record
         {holds.length > 1 ? 's have' : ' has'} an active legal hold and cannot be deleted until it
         is released:
         <ul style={{ margin: '0.6rem 0 0', paddingLeft: '1.2rem' }}>
@@ -138,7 +138,7 @@ export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProp
       <FormMessage result={cancelState} />
       <div className="notice u-mb-100">
         <strong>This deletes your entire account.</strong> There is no partial deletion - every
-        applicant you own goes with it.
+        traveller on your account goes with it.
         <ul style={{ margin: '0.6rem 0 0', paddingLeft: '1.2rem' }}>
           {scopeItems.map((item) => (
             <li key={item}>{item}</li>

@@ -637,7 +637,7 @@ test.describe('flat UI reference geometry and interaction', () => {
     await openUiFixture(page, 'overview');
     const more = page.getByRole('button', { name: 'More', exact: true });
     await more.click();
-    await expect(page.getByRole('link', { name: 'Privacy', exact: true })).toBeFocused();
+    await expect(page.getByRole('link', { name: 'Privacy & Consent', exact: true })).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(more).toBeFocused();
     await expect(more).toHaveAttribute('aria-expanded', 'false');

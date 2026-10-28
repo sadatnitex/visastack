@@ -69,7 +69,7 @@ export default async function AgencyClientsPage({
         <p className="card-kicker">Intake</p>
         <h2 className="card-title">Clients</h2>
         <p className="card-body u-mb-125">
-          Invite a traveller as a new client. They alone choose which of their own applicant
+          Invite a traveller as a new client. They alone choose which of their own traveller
           profiles the resulting case attaches to, and their acceptance is what actually grants this
           organization access, never the invitation itself.
         </p>
@@ -140,7 +140,7 @@ export default async function AgencyClientsPage({
         <p className="card-kicker">Collect</p>
         <h2 className="card-title">Request Evidence</h2>
         <p className="card-body u-mb-125">
-          Ask an applicant for a specific field or document. They decide whether to fulfil it.
+          Ask a traveller for a specific field or document. They decide whether to fulfil it.
         </p>
         <RequestEvidenceForm
           organizationId={orgId}

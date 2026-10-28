@@ -684,7 +684,7 @@ export default async function MissionPage({
             <ReferenceCode code={data.referenceCode} label="Case Reference" />
             {data.liveAcknowledgedAt ? (
               <StatusBadge tone="success">
-                Confirmed by the applicant on {formatTimestampDate(data.liveAcknowledgedAt)}
+                Confirmed by the traveller on {formatTimestampDate(data.liveAcknowledgedAt)}
               </StatusBadge>
             ) : (
               <StatusBadge tone="neutral">Traveller has not confirmed yet</StatusBadge>

@@ -40,3 +40,7 @@ apps/web/src/lib/navigation.test.ts
 apps/web/src/lib/navigation.ts
 apps/web/src/lib/page-titles.test.ts
 apps/web/src/lib/traveller-composition.test.tsx
+apps/web/e2e/authenticated-workspace.spec.ts
+apps/web/src/app/app/agency/[orgId]/clients/page.tsx
+apps/web/src/app/app/privacy/deletion-panel.tsx
+apps/web/src/app/app/privacy/page.tsx

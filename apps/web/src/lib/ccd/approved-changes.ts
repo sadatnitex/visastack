@@ -288,10 +288,6 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
 ];
 
 /**
- * Approved changes that apply to a kind of element rather than one element: a link that now
- * carries an anchor so it lands on what it names (ADR 0023, links never land hidden).
- */
-/**
  * D3 (CCD-7): a person with a record is a "traveller" in visible text, never an "applicant".
  * Routes, stored values and code names keep "applicant". Exact phrases, applied in order.
  */
@@ -314,12 +310,26 @@ const TRAVELLER_WORDS: readonly (readonly [string, string])[] = [
   ['Applicant-Wide (Default)', 'Whole Traveller Record (Default)'],
   ['Choose an applicant', 'Choose a traveller'],
   ['Declared by the applicant', 'Declared by the traveller'],
+  ['before any applicant or', 'before any traveller or'],
+  ['Ask an applicant', 'Ask a traveller'],
+  ['their own applicant profiles', 'their own traveller profiles'],
+  ['The following applicant record', 'The following traveller record'],
+  ['every applicant you own goes with it', 'every traveller on your account goes with it'],
+  ['applicants, Master Profile facts', 'travellers, Master Profile facts'],
+  ['Confirmed by the applicant on', 'Confirmed by the traveller on'],
+  ['applicant confirmation are checked', 'traveller confirmation are checked'],
+  ['adding applicant records', 'adding traveller records'],
+  ['Each applicant is re-checked', 'Each traveller is re-checked'],
 ];
 
 function travellerWords(name: string): string {
   return TRAVELLER_WORDS.reduce((text, [from, to]) => text.split(from).join(to), name);
 }
 
+/**
+ * Approved changes that apply to a kind of element rather than one element: a link that now
+ * carries an anchor so it lands on what it names (ADR 0023, links never land hidden).
+ */
 export interface ApprovedRule {
   readonly screens: readonly string[];
   readonly reason: string;
@@ -329,20 +339,15 @@ export interface ApprovedRule {
 
 export const APPROVED_RULES: readonly ApprovedRule[] = [
   {
+    // Only the screens whose wording changed in this pass.
     screens: [
-      'account',
       'agency-cases',
       'agency-home',
       'case',
       'cases',
-      'documents',
-      'evidence',
-      'expiry',
       'home',
-      'notifications',
       'privacy',
       'profile',
-      'sharing',
       'traveller',
     ],
     reason: 'D3 (CCD-7): "traveller", never "applicant", in visible text.',
