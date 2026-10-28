@@ -53,6 +53,15 @@ export function escapeHtml(value: string): string {
     .replaceAll("'", '&#39;');
 }
 
+/** The product's own origin, read with the URL parser (never by trimming text). */
+function productOrigin(baseUrl: string): string {
+  try {
+    return new URL(baseUrl).origin;
+  } catch {
+    return baseUrl;
+  }
+}
+
 /** Only a web address on this product's own origin may sit behind the button. */
 function safeUrl(url: string, baseUrl: string): string {
   try {
@@ -70,7 +79,10 @@ export function renderEmail(
   context: { readonly baseUrl: string; readonly recipient: string },
 ): RenderedEmail {
   const url = safeUrl(content.action.url, context.baseUrl);
-  const logo = `${context.baseUrl.replace(/\/+$/, '')}/icons/icon-192.png`;
+  const logo = safeUrl(
+    new URL('/icons/icon-192.png', productOrigin(context.baseUrl)).href,
+    context.baseUrl,
+  );
   const sentTo = `This email was sent to ${context.recipient}.`;
 
   const text = [

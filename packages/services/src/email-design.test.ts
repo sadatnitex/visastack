@@ -66,7 +66,7 @@ describe('every email', () => {
     expect(text).not.toContain('evil.example');
     const addresses = [...html.matchAll(/(?:href|src)="([^"]+)"/g)].map((match) => match[1]);
     expect(addresses.length).toBeGreaterThan(0);
-    for (const address of addresses) expect(address?.startsWith(BASE)).toBe(true);
+    for (const address of addresses) expect(new URL(address ?? '').origin).toBe(BASE);
     expect(() =>
       renderEmail(notificationEmail({ ...taskDue, url: 'javascript:alert(1)' }), context),
     ).not.toThrow();
