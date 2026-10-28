@@ -1717,6 +1717,10 @@ test.describe('public invitation page on a phone (UX-G)', () => {
         await expect(bar).toHaveAttribute('data-shown', 'true');
         await expect(bar).toBeVisible();
         await expect(bar.locator('.btn-primary')).toHaveText('Create an Account to Review');
+        // The bar slides in; measure it once it has come to rest at the bottom of the screen.
+        await expect
+          .poll(() => bar.evaluate((element) => Math.round(element.getBoundingClientRect().bottom)))
+          .toBe(844);
         const sizes = await bar.evaluate((element) => ({
           bar: element.getBoundingClientRect().height,
           room: Number.parseFloat(getComputedStyle(document.body).paddingBottom),
