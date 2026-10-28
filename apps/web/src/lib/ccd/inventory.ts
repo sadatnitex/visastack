@@ -35,7 +35,7 @@ export function inventory(html: string): InventoryEntry[] {
   const main = doc.querySelector('main') ?? doc.body;
   const entries: InventoryEntry[] = [];
   for (const el of main.querySelectorAll(
-    'h1,h2,h3,h4,h5,h6,a[href],button,input,select,textarea,p,li',
+    'h1,h2,h3,h4,h5,h6,a[href],button,summary,input,select,textarea,p,li',
   )) {
     const tag = el.tagName.toLowerCase();
     if (el.closest('noscript') || el.closest('.depth-switch')) continue;
@@ -47,7 +47,7 @@ export function inventory(html: string): InventoryEntry[] {
         name: clean(el.getAttribute('aria-label') ?? el.textContent),
         detail: el.getAttribute('href') ?? '',
       });
-    } else if (tag === 'button') {
+    } else if (tag === 'button' || tag === 'summary') {
       entries.push({
         kind: 'button',
         name: clean(el.getAttribute('aria-label') ?? el.textContent),

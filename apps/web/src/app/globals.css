@@ -10098,3 +10098,17 @@ summary.visa-photo-title {
     display: block;
   }
 }
+
+/* WP-CCD2 depth: a line that belongs to Glance only (for example "2 more things are waiting"),
+   hidden once the level is deeper. Shown on phones while the level is "auto". */
+.depth-scope[data-depth="browse"] [data-only="glance"],
+.depth-scope[data-depth="everything"] [data-only="glance"],
+.depth-scope[data-depth="auto"] [data-only="glance"],
+.depth-scope:has(.depth-nojs) [data-only="glance"] {
+  display: none;
+}
+@media (max-width: 760px) {
+  .depth-scope:not(:has(.depth-nojs))[data-depth="auto"] [data-only="glance"] {
+    display: block;
+  }
+}

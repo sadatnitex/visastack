@@ -11,7 +11,7 @@ Levels: **Glance** (the one thing that matters now), **Browse** (the normal work
 | # | Screen | Route | Package | State |
 |---|---|---|---|---|
 | 01 | Sign In | `/auth/sign-in` | none | Not converted: no switch, content unchanged (by design) |
-| 02 | Home | `/app` | CCD-2 | Planned |
+| 02 | Home | `/app` | CCD-2 (slice 2a) | **Built and tested** (not seen live) |
 | 03 | Traveller home | `/app/applicant/{id}` | CCD-2 | Planned |
 | 04 | My Profile | `/profile` | CCD-3 | Planned |
 | 05 | Documents | `/documents` | CCD-3 | Planned |
@@ -46,6 +46,27 @@ Baseline: `apps/web/src/lib/ccd/baseline/account.json` (three states: plain acco
 Approved changes on this screen: the heading and the email line (decision D3). Nothing removed.
 
 Not applicable on Account: Next Step bar (no next step exists here), phone search entry (not built, see below).
+
+## 02. Home (`/app`)
+
+Baseline: `apps/web/src/lib/ccd/baseline/home.json`, six states (core processing off; nothing started with an agency role; busy; all clear; a household of two; more people than Home reads). Test: `apps/web/src/lib/ccd/parity-home.test.tsx`. First-run screens are separate pages and are not part of this screen.
+
+| What it is | Level it lives at now | Condition (unchanged) |
+|---|---|---|
+| Page heading | **Welcome back, {first name}**, or "Welcome back" when there is no record of their own (approved change; was "Account Overview") | always |
+| "Signed in as {email}. What needs you across every traveller..." line | Glance (under the heading) | always |
+| Next Step card (one primary button) | Glance | always |
+| "{n} more things are waiting" with a link that opens them | Glance only (new line, hidden at deeper levels) | only when more is waiting |
+| Needs Attention list and its overflow notes | Browse | only with core processing on and more than the next step waiting |
+| Coming Up (dates) | Browse | only with core processing on and a traveller |
+| My Records, Add Dates to My Calendar | Browse | only with core processing on |
+| Active Requests and Work | Browse | only with core processing on and a traveller |
+| My Next Journey (setup checklist or Start a Case card) | Everything | only while setup is unfinished, or when a traveller exists |
+| Permissions You Control (six switches) | Everything; a link to `#permissions` raises the level first. While core processing is off it stays at every level, because it is then the required next step | always |
+
+Approved change: the heading only. Nothing removed.
+
+Not built yet on Home: the "Every Page" list (new content, planned for CCD-7); a shorter Next Step at Browse and a slim bar at Everything (the full card shows at every level for now); the navigation and page-title name "Account Overview" becomes "Home" together with the traveller page in slice 2b, so the two never disagree.
 
 ## Screens 02 to 15: the level plan (from the approved canvas)
 

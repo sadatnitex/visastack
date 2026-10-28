@@ -31,9 +31,8 @@ function readSaved(): Partial<Record<DepthFamily, DepthLevel>> {
   return parseDepthCookie(match?.slice(DEPTH_COOKIE.length + 1));
 }
 
-/** The address's anchor, or null when it is empty or not valid text (a stray percent sign). */
-function readHashId(): string | null {
-  const raw = window.location.hash.slice(1);
+/** An anchor's name, or null when it is empty or not valid text (a stray percent sign). */
+function decodeHash(raw: string): string | null {
   if (!raw) return null;
   try {
     return decodeURIComponent(raw);
@@ -41,6 +40,8 @@ function readHashId(): string | null {
     return null;
   }
 }
+
+const readHashId = () => decodeHash(window.location.hash.slice(1));
 
 function save(family: DepthFamily, level: DepthLevel): void {
   const value = serializeDepthCookie({ ...readSaved(), [family]: level });
@@ -96,8 +97,7 @@ export function DepthSwitch({
       announce(wanted);
     }
     let frame = 0;
-    const reveal = () => {
-      const id = readHashId();
+    const revealId = (id: string | null) => {
       const target = id ? document.getElementById(id) : null;
       if (!target) return;
       const raised = raiseToShow(target, scope, isPhone());
@@ -107,11 +107,20 @@ export function DepthSwitch({
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => focusTarget(target));
     };
+    const reveal = () => revealId(readHashId());
+    // A click on a link to the same anchor again does not change the address, so no hashchange
+    // fires; the click itself raises the level before the browser scrolls.
+    const onClick = (event: MouseEvent) => {
+      const link = (event.target as Element | null)?.closest?.('a[href^="#"]');
+      if (link) revealId(decodeHash(link.getAttribute('href')?.slice(1) ?? ''));
+    };
     reveal();
     window.addEventListener('hashchange', reveal);
+    document.addEventListener('click', onClick);
     return () => {
       cancelAnimationFrame(frame);
       window.removeEventListener('hashchange', reveal);
+      document.removeEventListener('click', onClick);
     };
   }, []);
 
