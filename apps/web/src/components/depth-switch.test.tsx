@@ -153,6 +153,23 @@ describe('links never land on hidden content', () => {
     expect(scope().getAttribute('data-depth')).toBe('everything');
   });
 
+  it('opens the target of a link to this page written as a full path', async () => {
+    act(() => root.render(page('glance')));
+    const link = document.createElement('a');
+    link.setAttribute('href', '/app/account#case-row');
+    link.addEventListener('click', (event) => event.preventDefault());
+    container.append(link);
+    act(() => link.click());
+    expect(scope().getAttribute('data-depth')).toBe('everything');
+    const away = document.createElement('a');
+    away.setAttribute('href', '/app/other#deep');
+    away.addEventListener('click', (event) => event.preventDefault());
+    container.append(away);
+    act(() => button('Glance').click());
+    act(() => away.click());
+    expect(scope().getAttribute('data-depth')).toBe('glance');
+  });
+
   it('follows a later change of the address bar', async () => {
     await act(async () => {
       root.render(page('glance'));

@@ -12,3 +12,12 @@ export { DepthScope } from './depth-scope';
 export function atLevel(level: DepthLevel): { readonly 'data-level': DepthLevel } {
   return { 'data-level': level };
 }
+
+/**
+ * The level a link to this block opens, when that is deeper than where the block shows: a case
+ * row visible at Glance whose links should open the whole case. Links only; a form sent inside
+ * the block keeps the level the person chose.
+ */
+export function revealAt(level: DepthLevel): { readonly 'data-reveal': DepthLevel } {
+  return { 'data-reveal': level };
+}

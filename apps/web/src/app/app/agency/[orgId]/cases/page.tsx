@@ -84,27 +84,25 @@ export default async function AgencyCasesPage({
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {data.cases.map((mission) => {
-              const triage = caseTriageView(
-                summarizeCaseTriage({
-                  missionId: mission.missionId,
-                  manualMode: mission.manualMode,
-                  readiness: mission.readiness,
-                  decisions: mission.decisions,
-                  // Belt and braces: only an administrator's requests ever reach the summary.
-                  requests: data.admin ? data.requests : [],
-                  documentStates: new Map(
-                    data.requests.flatMap((r) =>
-                      data.admin && r.respondingDocumentState !== undefined
-                        ? [[r.id, r.respondingDocumentState] as const]
-                        : [],
-                    ),
+              const summary = summarizeCaseTriage({
+                missionId: mission.missionId,
+                manualMode: mission.manualMode,
+                readiness: mission.readiness,
+                decisions: mission.decisions,
+                // Belt and braces: only an administrator's requests ever reach the summary.
+                requests: data.admin ? data.requests : [],
+                documentStates: new Map(
+                  data.requests.flatMap((r) =>
+                    data.admin && r.respondingDocumentState !== undefined
+                      ? [[r.id, r.respondingDocumentState] as const]
+                      : [],
                   ),
-                }),
-                {
-                  requirementLabels: new Map(mission.requirements.map((r) => [r.id, r.label])),
-                  requestsIncluded: data.admin,
-                },
-              );
+                ),
+              });
+              const triage = caseTriageView(summary, {
+                requirementLabels: new Map(mission.requirements.map((r) => [r.id, r.label])),
+                requestsIncluded: data.admin,
+              });
               return (
                 <MissionCollaboration
                   key={mission.missionId}
@@ -135,8 +133,12 @@ export default async function AgencyCasesPage({
                   triage={triage}
                   needsYou={caseNeedsYou({
                     viewerAccountId: data.viewerAccountId,
+                    admin: data.admin,
+                    state: mission.state,
+                    viewerAssigned: mission.viewerAssigned,
+                    assignmentCount: mission.assignments.length,
                     tasks: mission.tasks,
-                    triage,
+                    triage: summary,
                   })}
                 />
               );

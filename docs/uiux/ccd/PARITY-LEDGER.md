@@ -276,13 +276,13 @@ Every other agency page gets the same heading: the agency's name above and the p
 |---|---|---|
 | Heading (eyebrow the agency's name, h1 "Cases"), the Cases card and its intro, the empty state | Glance | always |
 | Each case row: title, traveller, case reference | Glance | always |
-| "Needs you: N tasks and N items to review." or "Nothing needs you on this case right now." | Glance only (new); counts open tasks assigned to this person and items waiting for the agency's review | a case is listed |
+| "Needs you: ..." or "Nothing needs you on this case right now." | Glance only (new): open tasks assigned to this person; sent items waiting for review (checklist items for people assigned to the case, request replies for administrators); for an administrator, a case nobody looks after. Nothing for a closed, cancelled or submitted case, as Agency Overview (tested) | a case is listed |
 | Where Things Stand | Browse | as before |
 | Assigned, with assign and unassign | Browse | as before |
 | Tasks, Appointments, Notes | Everything | as before |
 | Decisions, Issuer Confirmations (was "Issuer confirmations (EVI-05)", approved change) | Everything | the case has a checklist |
 
-A link to a case (`#mission-<id>`, from Agency Overview and Case Activity) opens Everything, so the whole case shows (`data-reveal`, links only; a form sent inside a case keeps the chosen level) (tested). Baseline captured from main at `5a8f4370`; four states (administrator and member, with and without cases).
+A link to a case (`#mission-<id>`, from Agency Overview, Case Activity and the header search) opens Everything, so the whole case shows (`data-reveal`, links only; a form sent inside a case keeps the chosen level) (tested). Baseline captured from main at `5a8f4370`; four states (administrator and member, with and without cases).
 
 ## Screens 02 to 15: the level plan (from the approved canvas)
 

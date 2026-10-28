@@ -42,6 +42,7 @@ const kase = (id: string, over: Record<string, unknown> = {}) => ({
   applicantName: `Traveller ${id}`,
   title: `Case ${id}`,
   referenceCode: `C-${id.toUpperCase()}7K2Q`,
+  state: 'DRAFT',
   manualMode: false,
   readiness: { ready: false, requiredCount: 2, satisfiedRequired: 1 },
   assignments: [],
@@ -216,7 +217,7 @@ describe('agency cases levels', () => {
     }
     const needs = rows.map((row) => row.querySelector('[data-only="glance"]')?.textContent);
     expect(needs[0]).toBe('Needs you: 1 task.');
-    expect(needs[1]).toBe('Needs you: 1 item to review.');
+    expect(needs[1]).toBe('Needs you: 1 item to review and someone to look after it.');
   });
 
   it('keeps where things stand and who is assigned at Browse', async () => {
@@ -248,9 +249,14 @@ describe('agency cases levels', () => {
     expect(text).not.toContain('EVI-05');
   });
 
-  it('says nothing needs this person when nothing does', async () => {
-    state.admin = false;
-    state.requests = [];
+  it("never builds a member's line from requests, which are administrator data", async () => {
+    state.admin = false; // busy() left the request on m2 in place
+    // Assigned, so a request reaching this member's summary would be counted.
+    state.cases = state.cases.map((c) =>
+      (c as { missionId: string }).missionId === 'm2'
+        ? { ...(c as object), viewerAssigned: true }
+        : c,
+    );
     const doc = await page();
     expect(doc.querySelector('#mission-m2 [data-only="glance"]')?.textContent).toBe(
       'Nothing needs you on this case right now.',

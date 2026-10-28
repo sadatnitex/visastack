@@ -180,11 +180,16 @@ export function DepthSwitch({
       frame = requestAnimationFrame(() => focusTarget(target));
     };
     const reveal = () => revealId(readHashId());
-    // A click on a link to the same anchor again does not change the address, so no hashchange
-    // fires; the click itself raises the level before the browser scrolls.
+    // A click on a link to the same anchor again does not change the address, and a link to this
+    // page written as a full path (search results) moves through the router, so no hashchange
+    // fires for either: the click itself raises the level before the browser scrolls.
     const onClick = (event: MouseEvent) => {
-      const link = (event.target as Element | null)?.closest?.('a[href^="#"]');
-      if (link) revealId(decodeHash(link.getAttribute('href')?.slice(1) ?? ''));
+      const link = (event.target as Element | null)?.closest?.('a[href*="#"]');
+      const href = link?.getAttribute('href');
+      if (!href) return;
+      const to = new URL(href, window.location.href);
+      if (to.origin !== window.location.origin || to.pathname !== window.location.pathname) return;
+      revealId(decodeHash(to.hash.slice(1)));
     };
     reveal();
     window.addEventListener('hashchange', reveal);

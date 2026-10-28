@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
-import { atLevel } from '../../../../components/depth';
+import { atLevel, revealAt } from '../../../../components/depth';
 import { FormMessage, NO_RESULT, SubmitButton } from '../../../../components/form-feedback';
 import { useLatestOf } from '../../../../components/latest-result';
 import { ReferenceCode } from '../../../../components/reference-code';
@@ -197,7 +197,7 @@ export function MissionCollaboration({
     // The row shows at Glance; a link to it (from Agency Overview) opens the whole case.
     <div
       id={`mission-${missionId}`}
-      data-reveal="everything"
+      {...revealAt('everything')}
       style={{
         padding: '0.85rem',
         border: '1px solid var(--hairline-soft)',
@@ -221,7 +221,7 @@ export function MissionCollaboration({
         </div>
       ) : null}
 
-      <div style={{ marginTop: '0.6rem' }} {...atLevel('browse')}>
+      <div id={`assigned-${missionId}`} style={{ marginTop: '0.6rem' }} {...atLevel('browse')}>
         <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
           Assigned
         </p>
@@ -282,7 +282,7 @@ export function MissionCollaboration({
         <FormMessage result={peopleStatus} />
       </div>
 
-      <div style={{ marginTop: '0.85rem' }} {...atLevel('everything')}>
+      <div id={`tasks-${missionId}`} style={{ marginTop: '0.85rem' }} {...atLevel('everything')}>
         <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
           Tasks
         </p>
@@ -418,7 +418,11 @@ export function MissionCollaboration({
         <FormMessage result={taskFrom === 'add' ? taskStatus : NO_RESULT} />
       </div>
 
-      <div style={{ marginTop: '0.85rem' }} {...atLevel('everything')}>
+      <div
+        id={`appointments-${missionId}`}
+        style={{ marginTop: '0.85rem' }}
+        {...atLevel('everything')}
+      >
         <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
           Appointments
         </p>
@@ -519,7 +523,7 @@ export function MissionCollaboration({
         <FormMessage result={appointmentFrom === 'add' ? appointmentStatus : NO_RESULT} />
       </div>
 
-      <div style={{ marginTop: '0.85rem' }} {...atLevel('everything')}>
+      <div id={`notes-${missionId}`} style={{ marginTop: '0.85rem' }} {...atLevel('everything')}>
         <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
           Notes
         </p>
@@ -588,7 +592,11 @@ export function MissionCollaboration({
       </div>
 
       {requirements.length > 0 ? (
-        <div style={{ marginTop: '0.85rem' }} {...atLevel('everything')}>
+        <div
+          id={`decisions-${missionId}`}
+          style={{ marginTop: '0.85rem' }}
+          {...atLevel('everything')}
+        >
           <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
             Decisions
           </p>
@@ -677,7 +685,11 @@ export function MissionCollaboration({
       ) : null}
 
       {requirements.length > 0 ? (
-        <div style={{ marginTop: '0.85rem' }} {...atLevel('everything')}>
+        <div
+          id={`issuer-confirmations-${missionId}`}
+          style={{ marginTop: '0.85rem' }}
+          {...atLevel('everything')}
+        >
           <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
             Issuer Confirmations
           </p>
