@@ -91,7 +91,12 @@ export default async function MissionsPage({
         <div className="grid">
           <article className="card" {...atLevel('browse')}>
             <h2 className="card-title">All Cases</h2>
-            {data.missions.length === 0 ? (
+            {!data.missionsRead ? (
+              // A failed read never claims there are no cases: that invites a duplicate case.
+              <p className="notice notice-warn u-mt-050">
+                Your cases could not be loaded. Refresh to try again.
+              </p>
+            ) : data.missions.length === 0 ? (
               <EmptyState
                 icon="briefcase"
                 title="No Cases Yet"
@@ -135,7 +140,7 @@ export default async function MissionsPage({
             className="card"
             id="start-case"
             // With no case yet, starting one is the main thing to do here, so the form is not tucked away.
-            {...atLevel(data.missions.length === 0 ? 'browse' : 'everything')}
+            {...atLevel(data.missionsRead && data.missions.length === 0 ? 'browse' : 'everything')}
           >
             <p className="card-kicker">New</p>
             <h2 className="card-title">Start a Case</h2>

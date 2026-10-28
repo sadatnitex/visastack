@@ -75,7 +75,8 @@ describe('page titles', () => {
     const titleOf = (file: string) =>
       staticTitle.exec(pages.find((p) => p.file === file)?.source ?? '')?.[1];
     expect(titleOf('app/applicants/page.tsx')).toBe('Applicants');
-    expect(titleOf('app/notifications/page.tsx')).toBe('Alerts');
+    // D3: the page is "Notifications"; the menu label follows in the CCD-7 naming pass.
+    expect(titleOf('app/notifications/page.tsx')).toBe('Notifications');
     expect(titleOf('app/shared/(list)/page.tsx')).toBe('Shared with Me');
     expect(titleOf('app/applicant/[id]/documents/page.tsx')).toBe('Documents');
     expect(titleOf('app/applicant/[id]/missions/page.tsx')).toBe('Cases');

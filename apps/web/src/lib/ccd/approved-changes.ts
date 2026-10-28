@@ -145,11 +145,62 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     to: null,
     reason: 'D3 retires "Your Cases"; the small label above the list repeated the page name.',
   },
+  ...[
+    { kind: 'text', name: 'No Cases Yet' },
+    {
+      kind: 'text',
+      name: "A case checks this person's documents against the checklist of one visa route. Start one with the form on this page.",
+    },
+    {
+      kind: 'text',
+      name: 'Once a checklist is attached, you see how many items are ready and what is still missing.',
+    },
+  ].map(
+    (entry): ApprovedChange => ({
+      screen: 'cases',
+      from: entry as InventoryEntry,
+      to: (state) => (state === 'cases could not be read' ? null : (entry as InventoryEntry)),
+      reason:
+        'When the list could not be read, the page says so instead of "No Cases Yet", which invited a duplicate case.',
+    }),
+  ),
   {
     screen: 'case',
     from: { kind: 'heading', name: 'Evidence Progress', detail: '3' },
     to: { kind: 'heading', name: 'Evidence Progress', detail: '2' },
     reason: 'D2: no skipped heading level under the case title; same words and size.',
+  },
+  {
+    screen: 'notifications',
+    from: { kind: 'heading', name: 'Updates on Your Cases', detail: '1' },
+    to: { kind: 'heading', name: 'Notifications', detail: '1' },
+    reason: 'D3: one name, "Notifications" (retiring "Alerts" and "Updates on Your Cases").',
+  },
+  {
+    screen: 'notifications',
+    from: { kind: 'text', name: 'No Alerts Yet' },
+    to: { kind: 'text', name: 'No Notifications Yet' },
+    reason: 'D3: "Alerts" is retired.',
+  },
+  {
+    screen: 'privacy',
+    from: { kind: 'heading', name: 'Your Data Rights', detail: '1' },
+    to: { kind: 'heading', name: 'Privacy & Consent', detail: '1' },
+    reason: 'D3: the page is "Privacy & Consent", as in the account menu.',
+  },
+  {
+    screen: 'privacy',
+    from: {
+      kind: 'link',
+      name: 'Download export (CSV/ZIP)',
+      detail: '/app/privacy/export?format=csv',
+    },
+    to: {
+      kind: 'link',
+      name: 'Download Export (CSV/ZIP)',
+      detail: '/app/privacy/export?format=csv',
+    },
+    reason: 'D3: the two downloads share one form of words.',
   },
 ];
 

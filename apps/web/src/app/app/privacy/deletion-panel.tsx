@@ -1,7 +1,8 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../components/form-feedback';
+import { currentLevel, isPhoneNow } from '../../../lib/ccd/reveal';
 import { type ActionState, cancelDeletionAction, requestDeletionAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -64,6 +65,17 @@ export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProp
   const [cancelState, cancelAction, cancelPending] = useActionState(cancelDeletionAction, INITIAL);
   const [confirming, setConfirming] = useState(false);
 
+  // Cancelling moves this card back to Everything on the page; keep it on screen so the person
+  // sees the cancel worked instead of the card vanishing under them.
+  useEffect(() => {
+    if (!cancelState.ok || !cancelState.message) return;
+    const card = document.getElementById('delete-account');
+    const scope = card?.closest<HTMLElement>('[data-depth-scope]');
+    if (scope && currentLevel(scope, isPhoneNow()) !== 'everything') {
+      scope.setAttribute('data-depth', 'everything');
+    }
+  }, [cancelState]);
+
   if (scheduledFor) {
     const when = formatDate(scheduledFor);
     return (
@@ -123,6 +135,7 @@ export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProp
 
   return (
     <div>
+      <FormMessage result={cancelState} />
       <div className="notice u-mb-100">
         <strong>This deletes your entire account.</strong> There is no partial deletion - every
         applicant you own goes with it.

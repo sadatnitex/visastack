@@ -16,12 +16,12 @@ Levels: **Glance** (the one thing that matters now), **Browse** (the normal work
 | 04 | My Profile | `/profile` | CCD-3 (slice 3b) | **Built and tested** (not seen live) |
 | 05 | Documents | `/documents` | CCD-3 (slice 3a) | **Built and tested** (not seen live) |
 | 06 | Dates & Expiry | `/expiry` | CCD-3 (slice 3b) | **Built and tested** (not seen live) |
-| 07 | Notifications | `/app/notifications` | CCD-5 | Planned |
+| 07 | Notifications | `/app/notifications` | CCD-5 (slice 5a) | **Built and tested** (not seen live) |
 | 08 | Cases | `/missions` | CCD-4 | **Built and tested** (not seen live) |
 | 09 | Case | `/app/mission/{id}` | CCD-4 | **Built and tested** (not seen live) |
 | 10 | Evidence Requests | `/evidence` | CCD-5 | Planned |
 | 11 | Sharing | `/sharing` | CCD-5 | Planned |
-| 12 | Privacy & Consent | `/app/privacy` | CCD-5 | Planned |
+| 12 | Privacy & Consent | `/app/privacy` | CCD-5 (slice 5a) | **Built and tested** (not seen live) |
 | 13 | Your Account | `/app/account` | CCD-1 | **Built and tested** (not seen live) |
 | 14 | Agency Overview | `/app/agency/{orgId}` | CCD-6 | Planned |
 | 15 | Agency Cases | `/cases` | CCD-6 | Planned |
@@ -176,6 +176,35 @@ Baseline: `baseline/case.json`, four states (a new case with no checklist; a bus
 | Select or Update Evidence (`#evidence`), Submission and Outcome (`#outcome`), Problems and Feedback, Snapshots (`#snapshots`), Itinerary Reference | Everything; every listed anchor raises the level first; the changed-case alert links to Snapshots | always |
 
 One primary button: the Next Step (or the changed-case alert) holds it; the welcome note and the checklist picker turn secondary when either is there. The cancel question in More is now an h2.
+
+## 07. Notifications (`/app/notifications`)
+
+Baseline: `baseline/notifications.json`, three states (nothing yet; two new and fourteen read; only read ones). Test: `parity-notifications.test.tsx`.
+
+| What it is | Level it lives at now | Condition (unchanged) |
+|---|---|---|
+| Page title "Notifications" (h1), eyebrow "Account" | Glance; was "Updates on Your Cases" with eyebrow "Alerts" (D3) | always |
+| Unread notifications with Open and Mark Read | Glance | unread |
+| "Nothing unread in your latest notifications." | Glance only | some notifications, none unread |
+| The ten most recent read notifications | Browse | read |
+| Older read notifications (the service keeps returning the latest 50) | Everything | read |
+| Empty state "No Notifications Yet" (was "No Alerts Yet") | Glance | none at all |
+| The list card when nothing is unread | Browse, so Glance never shows an empty card | some notifications, none unread |
+
+## 12. Privacy & Consent (`/app/privacy`)
+
+Baseline: `baseline/privacy.json`, two states (no consent changes yet; consent history and a deletion scheduled). Test: `parity-privacy.test.tsx`.
+
+| What it is | Level it lives at now | Condition (unchanged) |
+|---|---|---|
+| Page title "Privacy & Consent" (h1), eyebrow "Account", the description line | Glance; was "Your Data Rights" with eyebrow "Privacy" (D3) | always |
+| The three rights as rows (new links to `#export-data`, `#consent-history`, `#delete-account`; each opens its level) | Glance | always |
+| Export Your Data card with "Download Export (JSON)" and "Download Export (CSV/ZIP)" (was lower case) | Glance | always |
+| What an export holds (the card's sentence) | Browse | always |
+| Consent History | Browse | always |
+| Export with files (the large export panel) | Everything | always |
+| Delete Your Account | Everything; **Glance while a deletion is scheduled**, so cancelling it is never hidden (tested) | always |
+| New line linking to Permissions You Control on Home (`/app#permissions`) | Everything | always |
 
 ## Screens 02 to 15: the level plan (from the approved canvas)
 

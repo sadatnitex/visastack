@@ -34,7 +34,7 @@ export async function requestDeletionAction(
   const result = await withSession(async ({ db, accountId }) => {
     const stepUp = await tryEstablishStepUp(
       { accountId, action: 'ACCOUNT_DELETION_REQUEST', resourceId: accountId },
-      '/app/privacy',
+      '/app/privacy#delete-account',
     );
     if (stepUp.kind === 'not_configured') {
       return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
@@ -78,7 +78,7 @@ export async function requestLargeExportAction(
   const result = await withSession(async ({ db, accountId }) => {
     const stepUp = await tryEstablishStepUp(
       { accountId, action: 'ACCOUNT_EXPORT_LARGE', resourceId: accountId },
-      '/app/privacy',
+      '/app/privacy#large-export',
     );
     if (stepUp.kind === 'not_configured') {
       return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;

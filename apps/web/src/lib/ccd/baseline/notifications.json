@@ -1,0 +1,220 @@
+{
+  "nothing yet": [
+    {
+      "kind": "heading",
+      "name": "Updates on Your Cases",
+      "detail": "1"
+    },
+    {
+      "kind": "text",
+      "name": "No Alerts Yet"
+    },
+    {
+      "kind": "text",
+      "name": "This is where VisaStack tells you what needs you: a request from an agency, a document close to expiring, a case that moved. Nothing needs you right now."
+    },
+    {
+      "kind": "text",
+      "name": "You never have to open every case to find out what changed."
+    },
+    {
+      "kind": "link",
+      "name": "Go to Home",
+      "detail": "/app"
+    }
+  ],
+  "two new and fourteen read": [
+    {
+      "kind": "heading",
+      "name": "Updates on Your Cases",
+      "detail": "1"
+    },
+    {
+      "kind": "text",
+      "name": "What changed in n1."
+    },
+    {
+      "kind": "link",
+      "name": "Open",
+      "detail": "/app/applicant/a1/evidence#n1"
+    },
+    {
+      "kind": "field",
+      "name": "notificationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "button",
+      "name": "Mark Read"
+    },
+    {
+      "kind": "text",
+      "name": "What changed in n2."
+    },
+    {
+      "kind": "link",
+      "name": "Open",
+      "detail": "/app/applicant/a1/evidence#n2"
+    },
+    {
+      "kind": "field",
+      "name": "notificationId",
+      "detail": "hidden"
+    },
+    {
+      "kind": "button",
+      "name": "Mark Read"
+    },
+    {
+      "kind": "text",
+      "name": "What changed in r0."
+    },
+    {
+      "kind": "link",
+      "name": "Open",
+      "detail": "/app/applicant/a1/evidence#r0"
+    },
+    {
+      "kind": "text",
+      "name": "What changed in r1."
+    },
+    {
+      "kind": "link",
+      "name": "Open",
+      "detail": "/app/applicant/a1/evidence#r1"
+    },
+    {
+      "kind": "text",
+      "name": "What changed in r2."
+    },
+    {
+      "kind": "link",
+      "name": "Open",
+      "detail": "/app/applicant/a1/evidence#r2"
+    },
+    {
+      "kind": "text",
+      "name": "What changed in r3."
+    },
+    {
+      "kind": "link",
+      "name": "Open",
+      "detail": "/app/applicant/a1/evidence#r3"
+    },
+    {
+      "kind": "text",
+      "name": "What changed in r4."
+    },
+    {
+      "kind": "link",
+      "name": "Open",
+      "detail": "/app/applicant/a1/evidence#r4"
+    },
+    {
+      "kind": "text",
+      "name": "What changed in r5."
+    },
+    {
+      "kind": "link",
+      "name": "Open",
+      "detail": "/app/applicant/a1/evidence#r5"
+    },
+    {
+      "kind": "text",
+      "name": "What changed in r6."
+    },
+    {
+      "kind": "link",
+      "name": "Open",
+      "detail": "/app/applicant/a1/evidence#r6"
+    },
+    {
+      "kind": "text",
+      "name": "What changed in r7."
+    },
+    {
+      "kind": "link",
+      "name": "Open",
+      "detail": "/app/applicant/a1/evidence#r7"
+    },
+    {
+      "kind": "text",
+      "name": "What changed in r8."
+    },
+    {
+      "kind": "link",
+      "name": "Open",
+      "detail": "/app/applicant/a1/evidence#r8"
+    },
+    {
+      "kind": "text",
+      "name": "What changed in r9."
+    },
+    {
+      "kind": "link",
+      "name": "Open",
+      "detail": "/app/applicant/a1/evidence#r9"
+    },
+    {
+      "kind": "text",
+      "name": "What changed in r10."
+    },
+    {
+      "kind": "link",
+      "name": "Open",
+      "detail": "/app/applicant/a1/evidence#r10"
+    },
+    {
+      "kind": "text",
+      "name": "What changed in r11."
+    },
+    {
+      "kind": "link",
+      "name": "Open",
+      "detail": "/app/applicant/a1/evidence#r11"
+    },
+    {
+      "kind": "text",
+      "name": "What changed in r12."
+    },
+    {
+      "kind": "link",
+      "name": "Open",
+      "detail": "/app/applicant/a1/evidence#r12"
+    },
+    {
+      "kind": "text",
+      "name": "What changed in r13."
+    },
+    {
+      "kind": "link",
+      "name": "Open",
+      "detail": "/app/applicant/a1/evidence#r13"
+    }
+  ],
+  "only read ones": [
+    {
+      "kind": "heading",
+      "name": "Updates on Your Cases",
+      "detail": "1"
+    },
+    {
+      "kind": "text",
+      "name": "What changed in r1."
+    },
+    {
+      "kind": "link",
+      "name": "Open",
+      "detail": "/app/applicant/a1/evidence#r1"
+    },
+    {
+      "kind": "text",
+      "name": "What changed in r2."
+    },
+    {
+      "kind": "link",
+      "name": "Open",
+      "detail": "/app/applicant/a1/evidence#r2"
+    }
+  ]
+}

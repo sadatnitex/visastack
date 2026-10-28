@@ -9,12 +9,12 @@ Approved by the owner on 2026-10-28 (decision D3). Applies to user-facing words:
 | Record sub-pages | All Records, My Profile, Documents, Dates & Expiry, History; eyebrow "Record" | "Your Canonical Record", "Your Private Wallet", "Expiry Centre", "Expiry & Freshness", "Expiry" | **Done** (CCD-3): Documents, My Profile, Dates & Expiry, All Records, History; links that said Expiry Centre renamed |
 | Cases list | Cases; eyebrow = traveller name; section "All Cases" | "Visa Cases", "Your Cases", "Active & Past" | **Done on the Cases page (CCD-4)**; the menu label "Visa Cases" and the traveller page's "Active Visa Cases" and "Start a Visa Case" remain for the naming pass in CCD-7 |
 | Start a case | Start a Case | "New Visa Case", "Start a Visa Case" | Traveller page done (CCD-2 slice 2b); the Cases screen follows in CCD-4 |
-| Alerts | Notifications | "Alerts", "Updates on Your Cases" | Planned CCD-5 |
+| Alerts | Notifications | "Alerts", "Updates on Your Cases" | Done (CCD-5 slice 5a) |
 | Requests to the traveller | Evidence Requests | "Requests from Agencies" | Planned CCD-5 |
 | Sharing | Sharing | "Sharing & Access" | Planned CCD-5 |
-| Privacy page | Privacy & Consent | "Your Data Rights" | Planned CCD-5 |
+| Privacy page | Privacy & Consent | "Your Data Rights" | Done (CCD-5 slice 5a) |
 | Account page | Your Account, the email shown under the heading | email as the heading | **Done (CCD-1)** |
-| Downloads on Privacy | "Download Export (JSON)" and "Download Export (CSV/ZIP)" | the lower-case variant | Planned CCD-5 |
+| Downloads on Privacy | "Download Export (JSON)" and "Download Export (CSV/ZIP)" | the lower-case variant | Done (CCD-5 slice 5a) |
 | Agency invite | Invite a Client | "Invite Traveller" | Planned CCD-6 |
 | Agency pages | eyebrow = agency name, H1 = page name | agency name as H1 on every page | Planned CCD-6 |
 | Issuer checks | Issuer confirmations | "Issuer confirmations (EVI-05)" | Planned CCD-3 and CCD-6 |
