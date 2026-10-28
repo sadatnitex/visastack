@@ -1,7 +1,12 @@
 import { PERMISSION_ACTIONS, type PermissionAction } from '@visastack/core';
 import { DEFAULT_CLIENT_GRANT_ACTIONS } from '@visastack/services';
 import { describe, expect, it } from 'vitest';
-import { clientInvitationTerms, describeInvitationExpiry } from './client-invitation-terms';
+import {
+  clientInvitationTerms,
+  clientInvitationWithheld,
+  describeInvitationExpiry,
+  invitationExpiryBadge,
+} from './client-invitation-terms';
 
 const EM_DASH = String.fromCharCode(0x2014);
 
@@ -47,6 +52,23 @@ describe('the terms shown before sign-in come from the real grant', () => {
     expect(none?.agencyCannot).toContain('download your original files');
   });
 
+  it('lists the same withheld access one item each, so the list and the sentence never disagree', () => {
+    const items = clientInvitationWithheld(DEFAULT_CLIENT_GRANT_ACTIONS);
+    expect(items).toEqual([
+      'Download your original files',
+      'Export your profile',
+      'Share your records with anyone else',
+      'Approve changes to your profile for you',
+    ]);
+    for (const item of items) {
+      expect(terms?.agencyCannot).toContain(item.charAt(0).toLowerCase() + item.slice(1));
+    }
+    // Access the grant really gives is never listed as withheld.
+    expect(clientInvitationWithheld([...DEFAULT_CLIENT_GRANT_ACTIONS, 'SHARE'])).not.toContain(
+      'Share your records with anyone else',
+    );
+  });
+
   it('gives no terms at all for a grant with an action it has no sentence for, rather than leave it out', () => {
     for (const action of PERMISSION_ACTIONS) {
       const covered = clientInvitationTerms([action]) !== null;
@@ -72,6 +94,13 @@ describe('the expiry reads the same everywhere', () => {
     expect(at('2026-11-01T20:00:00.000Z')).toBe('in 1 day, on 3 Nov 2026');
     expect(at('2026-11-02T14:30:00.000Z')).toBe('in 1 day, on 3 Nov 2026');
     expect(at('2026-11-03T08:00:00.000Z')).toBe('in less than a day, on 3 Nov 2026');
+  });
+
+  it('gives the same day and time left as a short badge', () => {
+    const badge = (iso: string) => invitationExpiryBadge(ends, new Date(iso));
+    expect(badge('2026-10-27T14:31:00.000Z')).toBe('Expires 3 Nov 2026, 6 Days Left');
+    expect(badge('2026-11-02T14:30:00.000Z')).toBe('Expires 3 Nov 2026, 1 Day Left');
+    expect(badge('2026-11-03T08:00:00.000Z')).toBe('Expires 3 Nov 2026, Less Than a Day Left');
   });
 });
 

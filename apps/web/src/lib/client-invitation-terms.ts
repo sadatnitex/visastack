@@ -43,14 +43,26 @@ export function clientInvitationTerms(
     if (sentence === undefined) return null;
     agencyCan.push(sentence);
   }
-  const withheld = WITHHELD.filter((item) => !actions.includes(item.action)).map(
-    (item) => item.phrase,
-  );
+  const withheld = withheldPhrases(actions);
   const agencyCannot =
     withheld.length === 0
       ? null
       : `They could not ${joinWithOr(withheld)}. That would need a separate choice from you.`;
   return { agencyCan, agencyCannot };
+}
+
+/** The phrases for the access this grant really leaves out, in the fixed order of `WITHHELD`. */
+function withheldPhrases(actions: readonly PermissionAction[]): string[] {
+  return WITHHELD.filter((item) => !actions.includes(item.action)).map((item) => item.phrase);
+}
+
+/**
+ * The same withheld access as `agencyCannot`, one item each, for a page that lists it ("Download
+ * your original files"). Built from the same table and the same check, so the list and the sentence
+ * can never disagree.
+ */
+export function clientInvitationWithheld(actions: readonly PermissionAction[]): readonly string[] {
+  return withheldPhrases(actions).map((phrase) => phrase.charAt(0).toUpperCase() + phrase.slice(1));
 }
 
 function joinWithOr(items: readonly string[]): string {
@@ -66,13 +78,36 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * one in UTC; the time left is what decides.
  */
 export function describeInvitationExpiry(expiresAt: Date, now: Date): string {
+  const { day, daysLeft } = expiryParts(expiresAt, now);
+  const left =
+    daysLeft >= 2 ? `in ${daysLeft} days` : daysLeft === 1 ? 'in 1 day' : 'in less than a day';
+  return `${left}, on ${day}`;
+}
+
+/**
+ * The same expiry as a short badge for the top of the public page: the day, then the time left,
+ * rounded down the same way ("Expires 3 Nov 2026, 6 Days Left").
+ */
+export function invitationExpiryBadge(expiresAt: Date, now: Date): string {
+  const { day, daysLeft } = expiryParts(expiresAt, now);
+  const left =
+    daysLeft >= 2
+      ? `${daysLeft} Days Left`
+      : daysLeft === 1
+        ? '1 Day Left'
+        : 'Less Than a Day Left';
+  return `Expires ${day}, ${left}`;
+}
+
+function expiryParts(
+  expiresAt: Date,
+  now: Date,
+): { readonly day: string; readonly daysLeft: number } {
   const day = expiresAt.toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
     timeZone: 'UTC',
   });
-  const days = Math.floor((expiresAt.getTime() - now.getTime()) / DAY_MS);
-  const left = days >= 2 ? `in ${days} days` : days === 1 ? 'in 1 day' : 'in less than a day';
-  return `${left}, on ${day}`;
+  return { day, daysLeft: Math.floor((expiresAt.getTime() - now.getTime()) / DAY_MS) };
 }

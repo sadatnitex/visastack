@@ -7,6 +7,8 @@ vi.mock('@neondatabase/auth/next/server', () => ({ createNeonAuth: vi.fn() }));
 vi.mock('../lib/invitation-preview', () => ({
   loadClientInvitationPage: async () => ({ state: 'unavailable' }),
 }));
+// A signed-out visitor, without asking the sign-in service.
+vi.mock('../lib/signed-in', () => ({ isSignedIn: async () => false }));
 
 const SEARCH = (value: Record<string, string> = {}) => ({ searchParams: Promise.resolve(value) });
 const TOKEN = 'A'.repeat(43);
@@ -79,7 +81,7 @@ describe('public and entry pages today', () => {
     ] as const) {
       const html = renderToStaticMarkup(await Invitation(SEARCH({ kind, token: TOKEN })));
       const document = dom(html);
-      expect(document.body.textContent).toContain('Opening the link does not accept it');
+      expect(document.body.textContent).toContain('Opening this link accepts nothing');
       expect(html).toContain(encodeURIComponent(`${path}?token=${TOKEN}`));
       expect(document.querySelectorAll('h1')).toHaveLength(1);
     }
@@ -89,7 +91,7 @@ describe('public and entry pages today', () => {
     const { default: Invitation } = await import('./invitation/page');
     const document = dom(renderToStaticMarkup(await Invitation(SEARCH({ kind: 'team' }))));
     expect(document.querySelector('h1')?.textContent).toBe('Incomplete Invitation Link');
-    expect(document.body.textContent).not.toContain('Opening the link');
+    expect(document.body.textContent).not.toContain('Opening this link');
   });
 
   it('sign-up shows where you are, puts the own-risk notice before the fields, and leaves consent unticked', async () => {
@@ -125,15 +127,19 @@ describe('public and entry pages today', () => {
     );
   });
 
-  it('the invitation page leads with the fact that nothing is accepted and shows three steps', async () => {
+  it('the invitation page leads with the main action and the fact that nothing is accepted, then three steps', async () => {
     const { default: Invitation } = await import('./invitation/page');
     const document = dom(
       renderToStaticMarkup(await Invitation(SEARCH({ kind: 'client', token: TOKEN }))),
     );
     const text = document.body.textContent ?? '';
-    expect(text.indexOf('Opening the link does not accept it')).toBeLessThan(
-      text.indexOf('Create an account or sign in to review'),
-    );
-    expect(document.querySelectorAll('ol.auth-steps li')).toHaveLength(3);
+    const details = text.indexOf('What to Expect');
+    expect(details).toBeGreaterThan(0);
+    expect(text.indexOf('Create an Account to Review')).toBeLessThan(details);
+    expect(text.indexOf('Opening this link accepts nothing')).toBeLessThan(details);
+    expect(document.querySelectorAll('ol.invitation-steps li')).toHaveLength(3);
+    expect(
+      document.querySelector('ol.invitation-steps [aria-current="step"]')?.textContent,
+    ).toContain('Sign In');
   });
 });

@@ -3,10 +3,16 @@ import Link from 'next/link';
 import { clientInvitationTerms } from '../../lib/client-invitation-terms';
 import { loadClientInvitationPage } from '../../lib/invitation-preview';
 import { INVITATION_TOKEN_PATTERN } from '../../lib/invitation-token';
+import { isSignedIn } from '../../lib/signed-in';
 import {
   AgencyNotReviewed,
   ClientInvitationOffer,
   ClosedInvitation,
+  InvitationActions,
+  InvitationHelp,
+  InvitationMessage,
+  InvitationReassurance,
+  InvitationSteps,
 } from './client-invitation-offer';
 
 export const metadata: Metadata = {
@@ -15,6 +21,71 @@ export const metadata: Metadata = {
   referrer: 'no-referrer',
 };
 export const dynamic = 'force-dynamic';
+
+type InvitationKind = 'team' | 'client' | 'sharing';
+
+/** What each kind of invitation says in its hero and in its list of what to expect. */
+const HANDOFF: Readonly<
+  Record<
+    InvitationKind,
+    { readonly title: string; readonly promise: string; readonly expect: readonly string[] }
+  >
+> = {
+  team: {
+    title: 'Join an Agency Team',
+    promise: 'An agency invited you to join their team on VisaStack.',
+    expect: [
+      'Use the email address that received the invitation.',
+      'You will see the agency and your role before joining.',
+    ],
+  },
+  sharing: {
+    title: 'Review Shared Access',
+    promise: 'You were invited to access part of a VisaStack profile.',
+    expect: [
+      'Use the email address that received this invitation.',
+      'Review the purpose, permissions and expiry before accepting.',
+      'No access is active until you agree.',
+    ],
+  },
+  client: {
+    title: 'Work with an Agency',
+    promise: 'An agency wants to work on your visa case with you.',
+    expect: [
+      'Use the email address that received this invitation.',
+      'You will see the agency and the access they ask for.',
+      'You choose your own profile and confirm sharing before connecting.',
+    ],
+  },
+};
+
+function isInvitationKind(kind: string | undefined): kind is InvitationKind {
+  return kind === 'team' || kind === 'client' || kind === 'sharing';
+}
+
+/** The link to each kind's own review page, written out per kind so every address stays literal. */
+function reviewLink(kind: InvitationKind, token: string, className?: string) {
+  const label = 'Review Your Invitation';
+  if (kind === 'team') {
+    return (
+      <Link className={className} href={`/app/invitations/accept?token=${token}`}>
+        {label}
+      </Link>
+    );
+  }
+  if (kind === 'sharing') {
+    return (
+      <Link className={className} href={`/app/sharing-invitations/accept?token=${token}`}>
+        {label}
+      </Link>
+    );
+  }
+  return (
+    <Link className={className} href={`/app/client-invitations/accept?token=${token}`}>
+      {label}
+    </Link>
+  );
+}
 
 /**
  * A public account handoff. A team or sharing invitation shows only the generic handoff. A client
@@ -30,16 +101,17 @@ export default async function InvitationPage({
   readonly searchParams: Promise<{ readonly kind?: string; readonly token?: string }>;
 }) {
   const { kind, token } = await searchParams;
-  if (
-    !['team', 'client', 'sharing'].includes(kind ?? '') ||
-    !token ||
-    !INVITATION_TOKEN_PATTERN.test(token)
-  ) {
+  if (!isInvitationKind(kind) || !token || !INVITATION_TOKEN_PATTERN.test(token)) {
     return (
-      <section className="section container">
-        <h1 className="section-title">Incomplete Invitation Link</h1>
-        <p>Ask the person who invited you for a new link.</p>
-      </section>
+      <InvitationMessage
+        title="Incomplete Invitation Link"
+        sentence="Ask the person who invited you for a new link."
+        action={
+          <Link className="btn btn-secondary" href="/">
+            Go to the Home Page
+          </Link>
+        }
+      />
     );
   }
   const path =
@@ -63,68 +135,45 @@ export default async function InvitationPage({
             token={token}
             next={next}
             now={new Date()}
+            signedIn={await isSignedIn()}
           />
         );
       }
     }
   }
+  const signedIn = await isSignedIn();
+  const copy = HANDOFF[kind];
   return (
-    <section className="section container">
-      <span className="eyebrow">VisaStack Invitation</span>
-      <h1 className="section-title">
-        {kind === 'team'
-          ? 'Join an Agency Team'
-          : kind === 'sharing'
-            ? 'Review Shared Access'
-            : 'Work with an Agency'}
-      </h1>
-      <ol className="auth-steps" aria-label="What happens next">
-        <li aria-current="step">1 Create an account or sign in</li>
-        <li>2 Review</li>
-        <li>3 You decide</li>
-      </ol>
-      <article className="card">
-        <p className="card-body">
-          <strong>Opening the link does not accept it.</strong>
-        </p>
-        <p className="card-body">Create an account or sign in to review this invitation.</p>
-        <p className="card-body">
-          {kind === 'team'
-            ? 'Use the email address that received the invitation. You will see the agency and your role before joining.'
-            : kind === 'sharing'
-              ? 'Use the email address that received this invitation. Review the purpose, permissions and expiry before accepting. No access is active until you agree.'
-              : 'Use the email address that received this invitation. You will see the agency and requested access, choose your own profile and confirm sharing before connecting.'}
-        </p>
-        <div className="action-row">
-          <Link className="btn btn-primary" href={`/auth/sign-up?next=${next}`}>
-            Create an Account
-          </Link>
-          <Link className="btn btn-secondary" href={`/auth/sign-in?next=${next}`}>
-            Sign In
-          </Link>
-        </div>
-        <p className="card-body">
-          Already signed in?{' '}
-          {kind === 'team' ? (
-            <Link href={`/app/invitations/accept?token=${token}`}>Review Your Invitation</Link>
-          ) : kind === 'sharing' ? (
-            <Link href={`/app/sharing-invitations/accept?token=${token}`}>
-              Review Your Invitation
-            </Link>
-          ) : (
-            <Link href={`/app/client-invitations/accept?token=${token}`}>
-              Review Your Invitation
-            </Link>
-          )}
-        </p>
-        <p className="muted">
-          If you need to reset your password, return to this invitation link afterwards.
-        </p>
-        <p className="muted">
+    <section className="section container invitation-page">
+      <div className="invitation-hero">
+        <span className="eyebrow">VisaStack Invitation</span>
+        <h1 className="section-title invitation-title">{copy.title}</h1>
+        <p className="invitation-promise">{copy.promise}</p>
+        <InvitationActions
+          signedIn={signedIn}
+          next={next}
+          review={reviewLink(kind, token, 'btn btn-primary')}
+        />
+        <InvitationReassurance />
+      </div>
+      <InvitationSteps signedIn={signedIn} />
+      <div className="invitation-details">
+        <section className="invitation-control" aria-labelledby="invitation-expect-title">
+          <h2 className="card-title" id="invitation-expect-title">
+            What to Expect
+          </h2>
+          <ul className="invitation-list">
+            {copy.expect.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </section>
+        <InvitationHelp signedIn={signedIn} emailHint={null} review={reviewLink(kind, token)} />
+        <p className="invitation-legal">
           Invitations expire after 7 days. If this one has expired or was revoked, ask the sender
           for a new invitation.
         </p>
-      </article>
+      </div>
     </section>
   );
 }
