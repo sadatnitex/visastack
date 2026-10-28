@@ -20,7 +20,7 @@ import {
   type PrepareAgainItemView,
 } from './prepare-again-form';
 
-export const metadata: Metadata = { title: 'Prepare Again' };
+export const metadata: Metadata = { title: 'Start a New Case from This One' };
 
 export const dynamic = 'force-dynamic';
 
@@ -106,7 +106,7 @@ function checklistNote(plan: PrepareAgainPlan): string {
 }
 
 /**
- * Prepare Again (Programme X U02): start a new case from a previous one.
+ * Start a New Case from This One (Programme X U02, once called Prepare Again): a new case from a previous one.
  * Owner only; the plan is read through the access gate on the previous case.
  */
 export default async function PrepareAgainPage({
@@ -142,7 +142,7 @@ export default async function PrepareAgainPage({
       <PageHeader
         back={{ href: `/app/mission/${plan.source.id}`, label: plan.source.title }}
         eyebrow="Cases"
-        title="Prepare Again"
+        title="Start a New Case from This One"
         description="Start a new case from this one. Your current records are reused by reference. Nothing from the old case's work, notes, approvals, sign-off or sharing is copied."
         as="h2"
       />

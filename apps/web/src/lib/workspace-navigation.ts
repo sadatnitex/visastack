@@ -51,7 +51,15 @@ export function recordSections(applicantId: string): readonly NavLink[] {
   ];
 }
 
-/** Navigation describes only the current server-authorized context list; it grants no access. */
+/**
+ * Navigation describes only the current server-authorized context list; it grants no access.
+ *
+ * On a case page the traveller is only ever the one known to own that case: the one the case
+ * layout reported after its own owner check (`caseSubject`; the frame remembers each case's report
+ * for the visit, so going back to a case shows its traveller at once). Until a case has reported,
+ * or when it never does (a case that is not this account's), the sidebar shows a neutral case
+ * state with no traveller's links, never a guess (owner list item 2).
+ */
 export function workspaceNavigation(
   pathname: string,
   access: WorkspaceAccess,
@@ -151,13 +159,16 @@ export function workspaceNavigation(
         ? 'Personal Space'
         : person
           ? 'Managed Traveller'
-          : 'Choose a Traveller',
+          : // A case whose traveller is not known yet: a caption that names no owner.
+            casePath
+            ? 'Case Workspace'
+            : 'Choose a Traveller',
     // Four tabs (WP-V3 part 2): Home, Record, Cases, Sharing. Notifications and Countries follow,
     // so on a phone they sit under More. Profile, Documents, Dates & Expiry and History are
     // sections of Record: their pages keep their addresses and light up the Record tab.
     primary: base
       ? [
-          { href: base, label: 'Home', exact: true, alsoExactFor: ['/app'] },
+          { href: base, label: 'Home', exact: true },
           {
             href: `${base}/record`,
             label: 'Record',
@@ -169,19 +180,24 @@ export function workspaceNavigation(
           { href: '/app/countries', label: 'Countries' },
         ]
       : [
-          { href: '/app', label: 'Home', exact: true },
+          // The account-wide page is the Account Overview, not a second Home (owner list item 11).
+          { href: '/app', label: 'Account Overview', exact: true },
           {
             href: '/app/applicants',
-            label: access.travellers.length ? 'Choose a Traveller' : 'Add a Traveller',
+            label: casePath
+              ? 'All Travellers'
+              : access.travellers.length
+                ? 'Choose a Traveller'
+                : 'Add a Traveller',
           },
           { href: '/app/notifications', label: 'Notifications' },
           { href: '/app/countries', label: 'Countries' },
         ],
     tools: [
       { href: '/app/shared', label: 'Shared with Me' },
-      // The account page is also Home's page, so this opens its permissions section; only one
-      // link (Home) is ever current on /app.
-      { href: '/app#permissions', label: 'Account and Permissions' },
+      // The account-wide page has its own name, Account Overview, so it is never mistaken for a
+      // traveller's Home (owner list item 11). With no traveller it is already a tab.
+      ...(base ? [{ href: '/app', label: 'Account Overview', exact: true }] : []),
       ...(base ? [{ href: `${base}/evidence`, label: 'Evidence Requests' }] : []),
     ],
     settings,

@@ -56,7 +56,7 @@ import {
   SETUP_LATER_HREF,
 } from '../first-run';
 
-export const metadata: Metadata = { title: 'Overview' };
+export const metadata: Metadata = { title: 'Account Overview' };
 
 export const dynamic = 'force-dynamic';
 
@@ -566,12 +566,15 @@ export default async function AppPage({
   return (
     <section className="section container">
       <div className="u-mb-150">
-        <span className="eyebrow">Home</span>
+        {/* The account-wide page, kept distinct from each traveller's own overview (their Home):
+            this one gathers every traveller, agency work and the permissions on the account. */}
+        <span className="eyebrow">Your Account</span>
         <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-          Welcome Back
+          Account Overview
         </h1>
         <p className="muted" style={{ margin: '0.35rem 0 0', overflowWrap: 'anywhere' }}>
-          Signed in as {data.email}
+          Signed in as {data.email}. What needs you across every traveller on this account, with
+          your agency work and the permissions you control.
         </p>
       </div>
 

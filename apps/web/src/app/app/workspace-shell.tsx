@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   type ReactNode,
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useId,
@@ -231,7 +232,19 @@ export function WorkspaceShell({
   readonly children: ReactNode;
 }) {
   const pathname = usePathname();
-  const [subject, setSubject] = useState<Subject | null>(null);
+  // Every case this visit has reported (its route and, from the layout's owner check, its
+  // traveller), so going back to a case or one of its pages shows its traveller at once.
+  const [subjects, setSubjects] = useState<readonly Subject[]>([]);
+  const registerSubject = useCallback((next: Subject) => {
+    setSubjects((list) =>
+      list.some((item) => item.route === next.route && item.applicantId === next.applicantId)
+        ? list
+        : [next, ...list.filter((item) => item.route !== next.route)].slice(0, 20),
+    );
+  }, []);
+  const subject =
+    subjects.find((item) => pathname === item.route || pathname.startsWith(`${item.route}/`)) ??
+    null;
   const frame = useRef<HTMLDivElement>(null);
   const [collapsed, setCollapsed] = useState(sidebarState === 'collapsed');
   // The rail exists only from 1024px up; below that the saved choice changes nothing, so the lists
@@ -269,7 +282,7 @@ export function WorkspaceShell({
     saveSidebarState(collapsed ? 'expanded' : 'collapsed');
   };
   return (
-    <SubjectContext.Provider value={setSubject}>
+    <SubjectContext.Provider value={registerSubject}>
       <div
         ref={frame}
         className="app-frame"

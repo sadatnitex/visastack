@@ -220,6 +220,15 @@ export default async function OutputsPage({
                 >
                   <span className="output-template-name">{item.label}</span>
                   <span className="output-template-note">{item.description}</span>
+                  {/* Seen, not only coloured: the chosen card says so. Read aloud as the current page. */}
+                  {templateId === request.template ? (
+                    <span
+                      className="badge badge-neutral output-template-selected"
+                      aria-hidden="true"
+                    >
+                      Selected
+                    </span>
+                  ) : null}
                 </Link>
               </li>
             );

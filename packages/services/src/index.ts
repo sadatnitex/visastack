@@ -1702,6 +1702,17 @@ export {
 } from './ai-clients';
 export { isMissingRelationError } from './missing-relation';
 export {
+  type PackMatch,
+  type PackMatchTerms,
+  type TravellerCountries,
+  type TravellerCoverage,
+  type TravellerMatchTerms,
+  findMatchingPublicPack,
+  listFittingPublicPacks,
+  packMatchKey,
+  readTravellerCoverage,
+} from './pack-matching';
+export {
   type CalendarFeedHolder,
   isCalendarFeedSecretShape,
   requireCalendarFeedAccess,

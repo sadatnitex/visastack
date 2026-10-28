@@ -3,6 +3,7 @@
 import type { MissionState } from '@visastack/core';
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { CASE_STATE_LABELS } from '../../../../lib/case-stages';
 import {
   type ActionState,
   setItineraryRefAction,
@@ -193,24 +194,11 @@ export function SnapshotButton({
   );
 }
 
-const STATE_LABELS: Record<string, string> = {
-  DRAFT: 'Draft',
-  INTAKE: 'Intake',
-  IN_REVIEW: 'In Review',
-  AWAITING_APPLICANT: 'Awaiting Applicant',
-  SUBMISSION_READY: 'Submission Ready',
-  SUBMITTED: 'Submitted',
-  IN_PROGRESS: 'In Progress',
-  READY_FOR_REVIEW: 'Ready for Review',
-  UNDER_REVIEW: 'Under Review',
-  READY_TO_EXPORT: 'Ready to Export',
-  LOCKED: 'Locked',
-  CLOSED: 'Closed',
-  CANCELLED: 'Cancelled',
-};
-
-const DESTRUCTIVE: ReadonlySet<string> = new Set(['CANCELLED']);
-
+/**
+ * The stage buttons, one for each stage the page passes (`stageButtonStates`). Cancelling is not
+ * one of them: it is final, so it lives in the page's More menu behind a confirmation question
+ * (case-more-menu.tsx), never beside the stages.
+ */
 export function TransitionButtons({
   missionId,
   nextStates,
@@ -223,27 +211,14 @@ export function TransitionButtons({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
       <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
         {nextStates.map((to) => (
-          <form
-            action={formAction}
-            key={to}
-            onSubmit={(e) => {
-              if (
-                DESTRUCTIVE.has(to) &&
-                !window.confirm(
-                  `Move this case to ${STATE_LABELS[to] ?? to}? This can't be undone.`,
-                )
-              ) {
-                e.preventDefault();
-              }
-            }}
-          >
+          <form action={formAction} key={to}>
             <input type="hidden" name="missionId" value={missionId} />
             <input type="hidden" name="to" value={to} />
             <SubmitButton
               pending={pending}
-              idle={STATE_LABELS[to] ?? to}
-              busy={STATE_LABELS[to] ?? to}
-              className={`btn ${DESTRUCTIVE.has(to) ? 'btn-danger' : 'btn-secondary'}`}
+              idle={CASE_STATE_LABELS[to]}
+              busy={CASE_STATE_LABELS[to]}
+              className="btn btn-secondary"
             />
           </form>
         ))}

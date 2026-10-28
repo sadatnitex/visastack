@@ -31,6 +31,8 @@ const mocks = vi.hoisted(() => ({
   listSubmissionsForMission: vi.fn(),
   listTasks: vi.fn(),
   listChangesSinceConfirmed: vi.fn(),
+  listFittingPublicPacks: vi.fn(),
+  readTravellerCoverage: vi.fn(),
   requireAccess: vi.fn(),
 }));
 
@@ -45,6 +47,8 @@ vi.mock('../../../../lib/session', () => ({
 vi.mock('../../../../lib/ai', () => ({ isExplanationConfigured: async () => false }));
 vi.mock('../../../../lib/locale', () => ({ getLocale: async () => 'en' }));
 vi.mock('./attach-pack-form', () => ({ AttachPackForm: stub('AttachPackForm') }));
+vi.mock('./case-more-menu', () => ({ CaseMoreMenu: stub('CaseMoreMenu') }));
+vi.mock('./case-welcome', () => ({ CaseWelcome: stub('CaseWelcome') }));
 vi.mock('./collaboration-panels', () => ({
   AppointmentsPanel: stub('AppointmentsPanel'),
   EvidenceSelectionPanel: stub('EvidenceSelectionPanel'),
@@ -140,6 +144,8 @@ function setUp(
     mocks[name].mockResolvedValue(ok([]));
   }
   mocks.listPublishedPackVersions.mockResolvedValue([]);
+  mocks.listFittingPublicPacks.mockResolvedValue([]);
+  mocks.readTravellerCoverage.mockResolvedValue({ nationality: ['Bangladeshi'], residence: [] });
   mocks.listMissionsByItineraryRef.mockResolvedValue([]);
   mocks.listNotesForOwner.mockResolvedValue([]);
   mocks.listTasks.mockResolvedValue(
@@ -170,8 +176,13 @@ function setUp(
   );
 }
 
-const render = async () =>
-  renderServer(await MissionPage({ params: Promise.resolve({ id: 'synthetic-case' }) }));
+const render = async (query: { readonly welcome?: string } = {}) =>
+  renderServer(
+    await MissionPage({
+      params: Promise.resolve({ id: 'synthetic-case' }),
+      searchParams: Promise.resolve(query),
+    }),
+  );
 
 /** Index of each marker in the page, in document order. */
 function order(html: string, markers: readonly string[]): number[] {
@@ -458,7 +469,7 @@ describe('changed details inside the alert (WP-V3 part 3)', () => {
     expect(textOf(alertOf(await render()))).toContain('different choice of evidence');
   });
 
-  it('keeps the alert when the list cannot be read, pointing to Application Memory', async () => {
+  it('keeps the alert when the list cannot be read, pointing to Case History', async () => {
     setUp({ dirty: true, gateRefuses: true });
     const alert = alertOf(await render());
     expect(textOf(alert)).toContain('This case has changed since it was last acknowledged.');
@@ -466,7 +477,7 @@ describe('changed details inside the alert (WP-V3 part 3)', () => {
     expect(mocks.listChangesSinceConfirmed).not.toHaveBeenCalled();
   });
 
-  it('reads nothing extra for a case that has not changed, and links Application Memory from the snapshots', async () => {
+  it('reads nothing extra for a case that has not changed, and links Case History from the snapshots', async () => {
     setUp();
     const html = await render();
     expect(mocks.requireAccess).not.toHaveBeenCalled();
@@ -524,5 +535,199 @@ describe('self-reviewed note uses the shared case-scope rule (ADR 0017)', () => 
       caseExceptions: [{ missionId: 'another-case', missionTitle: 'Other', since: new Date() }],
     });
     expect(await withAccess([otherException])).not.toContain(SELF);
+  });
+});
+
+describe('owner list items 1, 3 and 10 on the case page', () => {
+  it('keeps Cancel away from the stage buttons and offers it from More only', async () => {
+    setUp();
+    const html = await render();
+    expect(stubProps(html, 'TransitionButtons')).toEqual([
+      { missionId: 'synthetic-case', nextStates: ['READY_FOR_REVIEW'] },
+    ]);
+    expect(stubProps(html, 'CaseMoreMenu')).toEqual([
+      { missionId: 'synthetic-case', applicantId: 'synthetic-family', canCancel: true },
+    ]);
+    // More sits with the header actions, above the stage tracker.
+    expect(html.indexOf('data-stub="CaseMoreMenu"')).toBeLessThan(
+      html.indexOf('aria-label="Actual case workflow state"'),
+    );
+  });
+
+  it('offers no cancel for a finished case', async () => {
+    setUp();
+    mocks.getMissionForOwner.mockResolvedValue(ok({ ...MISSION, state: 'CANCELLED' }));
+    const html = await render();
+    expect(stubProps(html, 'CaseMoreMenu')[0]).toMatchObject({ canCancel: false });
+    expect(textOf(html)).toContain('This case is in a terminal state.');
+    expect(html).not.toContain('data-stub="TransitionButtons"');
+  });
+
+  it('names the reuse and history links by what they give', async () => {
+    setUp();
+    const html = await render();
+    const text = textOf(html);
+    expect(text).toContain('Start a New Case from This One');
+    expect(text).toContain('Open Case History');
+    expect(text).not.toContain('Prepare Again');
+    expect(text).not.toContain('Application Memory');
+    expect(html).toContain(
+      'href="/app/applicant/synthetic-family/missions/prepare-again?from=synthetic-case"',
+    );
+  });
+
+  const justMade = () =>
+    mocks.getMissionForOwner.mockResolvedValue(ok({ ...MISSION, createdAt: new Date() }));
+
+  it('opens a new case with its welcome note under the header, and only then', async () => {
+    setUp();
+    justMade();
+    expect(await render()).not.toContain('data-stub="CaseWelcome"');
+    const html = await render({ welcome: '1' });
+    const [welcome] = stubProps<{ title: string; action: { href: string } }>(html, 'CaseWelcome');
+    expect(welcome?.title).toBe('Case Created');
+    // No checklist is linked and none is published in this setup: the note says so.
+    expect(welcome?.action.href).toBe('#evidence');
+    expect(html.indexOf('data-stub="CaseWelcome"')).toBeLessThan(
+      html.indexOf('aria-label="Actual case workflow state"'),
+    );
+  });
+
+  it('greets only a case made in the last hour, not an old case opened with the same address', async () => {
+    setUp();
+    mocks.getMissionForOwner.mockResolvedValue(
+      ok({ ...MISSION, createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000) }),
+    );
+    expect(await render({ welcome: '1' })).not.toContain('data-stub="CaseWelcome"');
+  });
+
+  it('names the linked checklist in the welcome note', async () => {
+    setUp({ requirements: ['CRITICAL_GAP'] });
+    mocks.getMissionForOwner.mockResolvedValue(
+      ok({ ...MISSION, packVersionId: 'pv-1', createdAt: new Date() }),
+    );
+    const [welcome] = stubProps<{ body: string[]; action: { href: string } }>(
+      await render({ welcome: '1' }),
+      'CaseWelcome',
+    );
+    expect(welcome?.body[0]).toContain('Checklist linked: Japan visitor.');
+    expect(welcome?.action.href).toBe('#readiness');
+  });
+
+  describe('the welcome note counts only checklists that fit this case', () => {
+    const otherRoutes = [
+      {
+        packVersionId: 'pv-uk',
+        packKey: 'uk',
+        packName: 'UK Visitor',
+        version: 1,
+        requirementCount: 3,
+      },
+      {
+        packVersionId: 'pv-ca',
+        packKey: 'ca',
+        packName: 'Canada Study',
+        version: 2,
+        requirementCount: 4,
+      },
+    ];
+    const japanTourism = () =>
+      mocks.getMissionForOwner.mockResolvedValue(
+        ok({ ...MISSION, purpose: 'Tourism', createdAt: new Date() }),
+      );
+
+    it('says there is no checklist for this route when only other routes are published', async () => {
+      setUp();
+      japanTourism();
+      mocks.listPublishedPackVersions.mockResolvedValue(otherRoutes);
+      const [welcome] = stubProps<{ body: string[]; action: { href: string } }>(
+        await render({ welcome: '1' }),
+        'CaseWelcome',
+      );
+      expect(welcome?.body[0]).toContain('There is no checklist for this route yet');
+      expect(welcome?.action.href).toBe('#evidence');
+      const [, terms] = mocks.listFittingPublicPacks.mock.calls[0] ?? [];
+      expect(terms.country).toEqual(expect.arrayContaining(['JP', 'Japan']));
+      expect(terms.purpose).toEqual(expect.arrayContaining(['tourism', 'Tourism']));
+      expect(terms.traveller.nationality.terms).toEqual(expect.arrayContaining(['BD']));
+    });
+
+    it('asks the person to pick when a checklist fits the route', async () => {
+      setUp();
+      japanTourism();
+      mocks.listPublishedPackVersions.mockResolvedValue(otherRoutes);
+      mocks.listFittingPublicPacks.mockResolvedValue([
+        { packVersionId: 'pv-jp', packName: 'Japan Visitor', version: 1, coversTraveller: true },
+      ]);
+      const [welcome] = stubProps<{ body: string[]; action: { href: string } }>(
+        await render({ welcome: '1' }),
+        'CaseWelcome',
+      );
+      expect(welcome?.action.href).toBe('#pack');
+      expect(welcome?.body.join(' ')).not.toContain('does not confirm');
+    });
+
+    it('says when an unconfirmed nationality kept the checklist from being linked', async () => {
+      setUp();
+      japanTourism();
+      mocks.readTravellerCoverage.mockResolvedValue({ nationality: [], residence: [] });
+      mocks.listFittingPublicPacks.mockResolvedValue([
+        { packVersionId: 'pv-jp', packName: 'Japan Visitor', version: 1, coversTraveller: false },
+      ]);
+      const [welcome] = stubProps<{ body: string[]; action: { href: string } }>(
+        await render({ welcome: '1' }),
+        'CaseWelcome',
+      );
+      expect(welcome?.body.join(' ')).toContain('the profile does not confirm them yet');
+      expect(welcome?.action.href).toBe('#pack');
+    });
+
+    it('promises nothing when the lookup fails, even with checklists published', async () => {
+      setUp();
+      japanTourism();
+      mocks.listPublishedPackVersions.mockResolvedValue(otherRoutes);
+      mocks.listFittingPublicPacks.mockRejectedValue(new Error('connection reset'));
+      const [welcome] = stubProps<{ body: string[]; action: { href: string } }>(
+        await render({ welcome: '1' }),
+        'CaseWelcome',
+      );
+      const text = welcome?.body.join(' ') ?? '';
+      expect(text).not.toMatch(/pick the checklist|no checklist for this route/i);
+      expect(welcome?.action.href).toBe('#evidence');
+    });
+
+    it('offers the picker to a case with no purpose when any checklist is published', async () => {
+      setUp();
+      mocks.getMissionForOwner.mockResolvedValue(ok({ ...MISSION, createdAt: new Date() }));
+      mocks.listPublishedPackVersions.mockResolvedValue(otherRoutes);
+      const [welcome] = stubProps<{ action: { href: string } }>(
+        await render({ welcome: '1' }),
+        'CaseWelcome',
+      );
+      expect(welcome?.action.href).toBe('#pack');
+      expect(mocks.listFittingPublicPacks).not.toHaveBeenCalled();
+    });
+
+    it('looks nothing up for a case opened without the welcome mark', async () => {
+      setUp();
+      japanTourism();
+      await render();
+      expect(mocks.listFittingPublicPacks).not.toHaveBeenCalled();
+      expect(mocks.readTravellerCoverage).not.toHaveBeenCalled();
+    });
+  });
+
+  it('lists only the stage buttons as next steps and points to More for cancelling', async () => {
+    setUp();
+    const html = await render();
+    const tracker = textOf(
+      html.slice(
+        html.indexOf('aria-label="Actual case workflow state"'),
+        html.indexOf('</section>', html.indexOf('aria-label="Actual case workflow state"')),
+      ),
+    );
+    expect(tracker).toContain('allows Ready for Review next;');
+    expect(tracker).not.toMatch(/Cancelled next|, Cancelled/);
+    expect(tracker).toContain('To stop the case, use More at the top of the page.');
   });
 });

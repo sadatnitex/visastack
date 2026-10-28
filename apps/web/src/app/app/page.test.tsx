@@ -191,7 +191,7 @@ describe('home (characterization before WP-V3)', () => {
     data.missions = 1;
     const html = await renderServer(Page({}));
     const text = textOf(html);
-    expect(text).toContain('Welcome Back');
+    expect(text).toContain('Account Overview');
     expect(text).toContain('Signed in as me@example.com');
     expect(text).toContain('Synthetic Self');
     expect(text).toContain('2 documents');
@@ -317,7 +317,7 @@ describe('task-first first run (WP-V3, D8)', () => {
   it('"Not Now" also skips the welcome redirect', async () => {
     data.consents = CORE;
     const text = textOf(await page({ setup: 'later', welcome: '1' }));
-    expect(text).toContain('Welcome Back');
+    expect(text).toContain('Account Overview');
     expect(text).not.toMatch(/Step \d of \d/);
   });
 
@@ -340,7 +340,7 @@ describe('task-first first run (WP-V3, D8)', () => {
       '/invitation?kind=client&token=abc',
     ]) {
       const text = textOf(await page({ next }));
-      expect(text).toContain('Welcome Back');
+      expect(text).toContain('Account Overview');
     }
   });
 
@@ -370,7 +370,7 @@ describe('task-first first run (WP-V3, D8)', () => {
     const text = textOf(await page());
     expect(text).not.toMatch(/Step \d of \d/);
     expect(text).not.toContain('What do you want to do?');
-    expect(text).toContain('Welcome Back');
+    expect(text).toContain('Account Overview');
   });
 
   it('never sends agency staff, platform staff or someone with shared access through first run', async () => {
@@ -395,7 +395,7 @@ describe('task-first first run (WP-V3, D8)', () => {
       data.consents = CORE;
       const text = textOf(await page());
       expect(text).not.toMatch(/Step \d of \d/);
-      expect(text).toContain('Welcome Back');
+      expect(text).toContain('Account Overview');
     }
   });
 
@@ -680,7 +680,7 @@ describe('Home composition (WP-V4, v1.2 B13 and U03)', () => {
     data.gateRefuses = true;
     const html = await page();
     const text = textOf(html);
-    expect(text).toContain('Welcome Back');
+    expect(text).toContain('Account Overview');
     expect(text).not.toContain('Book the Visa Appointment');
     expect(html).not.toContain('id="home-attention-heading"');
   });

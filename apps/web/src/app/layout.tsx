@@ -7,6 +7,7 @@ import { PilotBanner } from '../components/pilot-banner';
 import { PwaRuntime } from '../components/pwa/pwa-runtime';
 import { SiteNavigation } from '../components/site-navigation';
 import { getDeploymentMode } from '../lib/deployment-mode';
+import { LANGUAGE_CHOICE_ENABLED } from '../lib/language-choice';
 import { getLocale } from '../lib/locale';
 import { isPublicBetaOpen } from '../lib/public-beta';
 import { isServiceWorkerEnabled } from '../lib/pwa/service-worker';
@@ -83,13 +84,20 @@ export default async function RootLayout({ children }: { readonly children: Reac
               <Link href="/#how-it-works">How It Works</Link>
             </div>
             <div className="site-nav-actions">
-              <form action={setLocaleAction} aria-label="Language">
-                <input type="hidden" name="locale" value={locale === 'en' ? 'bn' : 'en'} />
-                {/* The label is written in the language it switches to, so say so (WCAG 3.1.2). */}
-                <button type="submit" className="lang-switch" lang={locale === 'en' ? 'bn' : 'en'}>
-                  {locale === 'en' ? 'বাংলা' : 'English'}
-                </button>
-              </form>
+              {/* Hidden until translation work starts (see LANGUAGE_CHOICE_ENABLED). */}
+              {LANGUAGE_CHOICE_ENABLED ? (
+                <form action={setLocaleAction} aria-label="Language">
+                  <input type="hidden" name="locale" value={locale === 'en' ? 'bn' : 'en'} />
+                  {/* The label is written in the language it switches to, so say so (WCAG 3.1.2). */}
+                  <button
+                    type="submit"
+                    className="lang-switch"
+                    lang={locale === 'en' ? 'bn' : 'en'}
+                  >
+                    {locale === 'en' ? 'বাংলা' : 'English'}
+                  </button>
+                </form>
+              ) : null}
               <a className="btn btn-secondary nav-cta" href="/app">
                 {signedIn ? 'Workspace' : 'Sign In'}
               </a>
