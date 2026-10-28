@@ -6206,3 +6206,9 @@ Owner approved 2026-10-25. Two fixes where the product said something that was n
 - Parity: five states captured from main with the heading; approved changes are the h1 and the invite button name. Guard seen failing (every Do Next item at Glance).
 - Review (high) fixes: no page has two h1s (Countries and Case Activity keep their own; Case Activity's header became that h1); unfinished setup stays in view at every level; the pipeline joins a requested list at Glance; the search sentence sits with the search form; the switch's Glance sentence names a requested list; plural words from the shared helper; the page name lookup reads only its own names.
 - Not verified live: the signed-in agency pages at phone and desktop widths.
+
+### 2026-10-28, CCD-6 slice 6b: Agency Cases on three levels
+- Agency Cases: every case row (title, traveller, reference) at Glance with a line saying what needs this person on that case (open tasks assigned to them and items waiting for the agency's review, counted on the server); Where Things Stand and Assigned at Browse; Tasks, Appointments, Notes, Decisions and Issuer Confirmations at Everything. "Issuer confirmations (EVI-05)" is now "Issuer Confirmations", the name the traveller's Dates & Expiry page already uses.
+- Links to a case from Agency Overview and Case Activity open Everything, so the whole case shows. The row asks for that only for links; a form sent inside a case keeps the level the person chose (both seen failing when broken).
+- Parity: four states captured from main at 5a8f4370; the approved change is the confirmations label. Level guards seen failing (Tasks ungated, the Needs you line shown at every level).
+- Not verified live: the signed-in agency pages at phone and desktop widths.

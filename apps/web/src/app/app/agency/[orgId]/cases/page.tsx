@@ -1,7 +1,13 @@
 import { summarizeCaseTriage } from '@visastack/services';
 import type { Metadata } from 'next';
+import { DepthScope } from '../../../../../components/depth';
+import { DepthSwitch } from '../../../../../components/depth-switch';
 import { EmptyState } from '../../../../../components/ui';
+import { depthCopy } from '../../../../../lib/ccd/depth-copy';
+import { depthWord } from '../../../../../lib/ccd/depth-words';
+import { readDepth } from '../../../../../lib/ccd/depth.server';
 import { withSession } from '../../../../../lib/session';
+import { caseNeedsYou } from '../case-needs';
 import { caseTriageView } from '../case-triage';
 import { loadCases, loadEvidenceRequests, loadMembers, loadOrgAccess } from '../console-data';
 import { MissionCollaboration } from '../mission-collaboration';
@@ -15,6 +21,10 @@ export const dynamic = 'force-dynamic';
  * case with its team, notes, tasks, appointments, requirements, reviewer
  * decisions and issuer confirmations (Commercial V1 Part 9 UX-01). Each workspace
  * has the anchor `#mission-<id>`, which the Dashboard links to.
+ *
+ * Levels (CCD-6, screen 15): every case row and what needs this person at Glance; where each
+ * case stands and who is assigned at Browse; the working sections at Everything. A link to a
+ * case opens the whole case.
  */
 export default async function AgencyCasesPage({
   params,
@@ -33,62 +43,48 @@ export default async function AgencyCasesPage({
       loadCases(db, accountId, orgId, members),
       loadEvidenceRequests(db, accountId, orgId, access, { withFileStates: true }),
     ]);
-    return { admin: access.admin, members, cases, requests };
+    return { admin: access.admin, members, cases, requests, viewerAccountId: accountId };
   });
   if (!data) return null;
 
+  const empty = data.cases.length === 0;
+  const depth = await readDepth('agency-cases');
+  const depthWords = depthCopy({
+    glance: depthWord(empty ? 'depth.agency-cases.glance.empty' : 'depth.agency-cases.glance'),
+    browse: depthWord(empty ? 'depth.agency-cases.browse.empty' : 'depth.agency-cases.browse'),
+    everything: depthWord(
+      empty ? 'depth.agency-cases.everything.empty' : 'depth.agency-cases.everything',
+    ),
+  });
+
   return (
-    <article className="card">
-      <p className="card-kicker">Collaborate</p>
-      <h2 className="card-title">Cases</h2>
-      <p className="card-body u-mb-125">
-        {data.admin
-          ? 'Assign a team member and leave case notes on any case this organization has a grant for.'
-          : "Leave case notes and record decisions on cases you're assigned to."}
-      </p>
-      {data.cases.length === 0 ? (
-        <EmptyState
-          title="No Cases Yet"
-          icon="briefcase"
-          why="Once a client accepts, their cases appear here with how many checklist items are ready."
-          {...(data.admin
-            ? { action: { href: `/app/agency/${orgId}/clients`, label: 'Invite a Client' } }
-            : {})}
-        >
+    <DepthScope family="agency-cases" depth={depth}>
+      <DepthSwitch family="agency-cases" initial={depth} copy={depthWords} />
+      <article className="card">
+        <p className="card-kicker">Collaborate</p>
+        <h2 className="card-title">Cases</h2>
+        <p className="card-body u-mb-125">
           {data.admin
-            ? 'No cases are reachable yet - an applicant must grant this organization access to a specific case.'
-            : "You aren't assigned to any cases yet - ask an admin to assign you to one."}
-        </EmptyState>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {data.cases.map((mission) => (
-            <MissionCollaboration
-              key={mission.missionId}
-              organizationId={orgId}
-              missionId={mission.missionId}
-              applicantId={mission.applicantId}
-              title={mission.title}
-              {...(mission.referenceCode ? { referenceCode: mission.referenceCode } : {})}
-              applicantName={mission.applicantName}
-              members={data.members.map((m) => ({ accountId: m.accountId, email: m.email }))}
-              assignments={mission.assignments}
-              notes={mission.notes}
-              // Only the fields the workspace shows: a task's own time zone is used on the
-              // server for due days and is not sent to the browser.
-              tasks={mission.tasks.map((task) => ({
-                id: task.id,
-                description: task.description,
-                status: task.status,
-                priority: task.priority,
-                assigneeAccountId: task.assigneeAccountId,
-                dueDate: task.dueDate,
-              }))}
-              appointments={mission.appointments}
-              requirements={mission.requirements}
-              decisions={mission.decisions}
-              issuerVerifications={mission.issuerVerifications}
-              viewerAssigned={mission.viewerAssigned}
-              triage={caseTriageView(
+            ? 'Assign a team member and leave case notes on any case this organization has a grant for.'
+            : "Leave case notes and record decisions on cases you're assigned to."}
+        </p>
+        {data.cases.length === 0 ? (
+          <EmptyState
+            title="No Cases Yet"
+            icon="briefcase"
+            why="Once a client accepts, their cases appear here with how many checklist items are ready."
+            {...(data.admin
+              ? { action: { href: `/app/agency/${orgId}/clients`, label: 'Invite a Client' } }
+              : {})}
+          >
+            {data.admin
+              ? 'No cases are reachable yet - an applicant must grant this organization access to a specific case.'
+              : "You aren't assigned to any cases yet - ask an admin to assign you to one."}
+          </EmptyState>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {data.cases.map((mission) => {
+              const triage = caseTriageView(
                 summarizeCaseTriage({
                   missionId: mission.missionId,
                   manualMode: mission.manualMode,
@@ -108,11 +104,46 @@ export default async function AgencyCasesPage({
                   requirementLabels: new Map(mission.requirements.map((r) => [r.id, r.label])),
                   requestsIncluded: data.admin,
                 },
-              )}
-            />
-          ))}
-        </div>
-      )}
-    </article>
+              );
+              return (
+                <MissionCollaboration
+                  key={mission.missionId}
+                  organizationId={orgId}
+                  missionId={mission.missionId}
+                  applicantId={mission.applicantId}
+                  title={mission.title}
+                  {...(mission.referenceCode ? { referenceCode: mission.referenceCode } : {})}
+                  applicantName={mission.applicantName}
+                  members={data.members.map((m) => ({ accountId: m.accountId, email: m.email }))}
+                  assignments={mission.assignments}
+                  notes={mission.notes}
+                  // Only the fields the workspace shows: a task's own time zone is used on the
+                  // server for due days and is not sent to the browser.
+                  tasks={mission.tasks.map((task) => ({
+                    id: task.id,
+                    description: task.description,
+                    status: task.status,
+                    priority: task.priority,
+                    assigneeAccountId: task.assigneeAccountId,
+                    dueDate: task.dueDate,
+                  }))}
+                  appointments={mission.appointments}
+                  requirements={mission.requirements}
+                  decisions={mission.decisions}
+                  issuerVerifications={mission.issuerVerifications}
+                  viewerAssigned={mission.viewerAssigned}
+                  triage={triage}
+                  needsYou={caseNeedsYou({
+                    viewerAccountId: data.viewerAccountId,
+                    tasks: mission.tasks,
+                    triage,
+                  })}
+                />
+              );
+            })}
+          </div>
+        )}
+      </article>
+    </DepthScope>
   );
 }

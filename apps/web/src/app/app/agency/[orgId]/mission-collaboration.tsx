@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { atLevel } from '../../../../components/depth';
 import { FormMessage, NO_RESULT, SubmitButton } from '../../../../components/form-feedback';
 import { useLatestOf } from '../../../../components/latest-result';
 import { ReferenceCode } from '../../../../components/reference-code';
@@ -114,6 +115,8 @@ interface MissionCollaborationProps {
   readonly viewerAssigned: boolean;
   /** Where the case stands in the E02 groups (WP-V4), already in words. */
   readonly triage?: CaseTriageView;
+  /** What on this case waits for the viewer, in words (CCD-6): shown only at Glance. */
+  readonly needsYou?: string;
 }
 
 export function MissionCollaboration({
@@ -133,6 +136,7 @@ export function MissionCollaboration({
   issuerVerifications,
   viewerAssigned,
   triage,
+  needsYou,
 }: MissionCollaborationProps) {
   const [noteState, noteAction, notePending] = useActionState(addNoteAction, INITIAL);
   const [assignState, assignAction, assignPending] = useActionState(assignMemberAction, INITIAL);
@@ -190,8 +194,10 @@ export function MissionCollaboration({
   );
 
   return (
+    // The row shows at Glance; a link to it (from Agency Overview) opens the whole case.
     <div
       id={`mission-${missionId}`}
+      data-reveal="everything"
       style={{
         padding: '0.85rem',
         border: '1px solid var(--hairline-soft)',
@@ -199,14 +205,23 @@ export function MissionCollaboration({
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
-        <span className="row-key">{title}</span>
+        <span className="row-key case-work-title">{title}</span>
         <span className="muted u-fs-085">{applicantName}</span>
       </div>
       <ReferenceCode code={referenceCode} label="Case Reference" />
+      {needsYou ? (
+        <p className="muted u-fs-085" data-only="glance">
+          {needsYou}
+        </p>
+      ) : null}
 
-      {triage ? <CaseTriageSummary view={triage} headingId={`triage-${missionId}`} /> : null}
+      {triage ? (
+        <div {...atLevel('browse')}>
+          <CaseTriageSummary view={triage} headingId={`triage-${missionId}`} />
+        </div>
+      ) : null}
 
-      <div style={{ marginTop: '0.6rem' }}>
+      <div style={{ marginTop: '0.6rem' }} {...atLevel('browse')}>
         <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
           Assigned
         </p>
@@ -267,7 +282,7 @@ export function MissionCollaboration({
         <FormMessage result={peopleStatus} />
       </div>
 
-      <div style={{ marginTop: '0.85rem' }}>
+      <div style={{ marginTop: '0.85rem' }} {...atLevel('everything')}>
         <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
           Tasks
         </p>
@@ -403,7 +418,7 @@ export function MissionCollaboration({
         <FormMessage result={taskFrom === 'add' ? taskStatus : NO_RESULT} />
       </div>
 
-      <div style={{ marginTop: '0.85rem' }}>
+      <div style={{ marginTop: '0.85rem' }} {...atLevel('everything')}>
         <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
           Appointments
         </p>
@@ -504,7 +519,7 @@ export function MissionCollaboration({
         <FormMessage result={appointmentFrom === 'add' ? appointmentStatus : NO_RESULT} />
       </div>
 
-      <div style={{ marginTop: '0.85rem' }}>
+      <div style={{ marginTop: '0.85rem' }} {...atLevel('everything')}>
         <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
           Notes
         </p>
@@ -573,7 +588,7 @@ export function MissionCollaboration({
       </div>
 
       {requirements.length > 0 ? (
-        <div style={{ marginTop: '0.85rem' }}>
+        <div style={{ marginTop: '0.85rem' }} {...atLevel('everything')}>
           <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
             Decisions
           </p>
@@ -662,9 +677,9 @@ export function MissionCollaboration({
       ) : null}
 
       {requirements.length > 0 ? (
-        <div style={{ marginTop: '0.85rem' }}>
+        <div style={{ marginTop: '0.85rem' }} {...atLevel('everything')}>
           <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
-            Issuer confirmations (EVI-05)
+            Issuer Confirmations
           </p>
           {issuerVerifications.length === 0 ? (
             <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>

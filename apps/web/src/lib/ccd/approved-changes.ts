@@ -202,6 +202,12 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     reason: 'D3: one name, "Invite a Client".',
   },
   {
+    screen: 'agency-cases',
+    from: { kind: 'text', name: 'Issuer confirmations (EVI-05)' },
+    to: { kind: 'text', name: 'Issuer Confirmations' },
+    reason: 'D3: plain names, no reference codes in visible text (VOCABULARY.md).',
+  },
+  {
     screen: 'sharing',
     from: { kind: 'heading', name: 'Sharing & Access', detail: '2' },
     to: { kind: 'heading', name: 'Sharing', detail: '1' },

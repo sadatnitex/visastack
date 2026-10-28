@@ -17,7 +17,7 @@ Approved by the owner on 2026-10-28 (decision D3). Applies to user-facing words:
 | Downloads on Privacy | "Download Export (JSON)" and "Download Export (CSV/ZIP)" | the lower-case variant | Done (CCD-5 slice 5a) |
 | Agency invite | Invite a Client | "Invite Traveller" | Done (CCD-6 slice 6a) |
 | Agency pages | eyebrow = agency name, H1 = page name | agency name as H1 on every page | Done (CCD-6 slice 6a) |
-| Issuer checks | Issuer confirmations | "Issuer confirmations (EVI-05)" | Planned CCD-3 and CCD-6 |
+| Issuer checks | Issuer Confirmations | "Issuer confirmations (EVI-05)" | Done (Dates & Expiry already used it; Agency Cases in CCD-6 slice 6b) |
 | Person with a record | traveller, in user-facing text | "applicant" in user-facing text | Planned with each screen; no contract exception found |
 
 Every rename is also an approved change in `apps/web/src/lib/ccd/approved-changes.ts`, so the parity test knows it is intended. Tests that assert an old name (`navigation.test.ts`, `labels.test.ts` and others) change only the expected word, never their strength.

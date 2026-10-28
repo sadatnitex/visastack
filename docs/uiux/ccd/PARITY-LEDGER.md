@@ -24,7 +24,7 @@ Levels: **Glance** (the one thing that matters now), **Browse** (the normal work
 | 12 | Privacy & Consent | `/app/privacy` | CCD-5 (slice 5a) | **Built and tested** (not seen live) |
 | 13 | Your Account | `/app/account` | CCD-1 | **Built and tested** (not seen live) |
 | 14 | Agency Overview | `/app/agency/{orgId}` | CCD-6 (slice 6a) | **Built and tested** (not seen live) |
-| 15 | Agency Cases | `/cases` | CCD-6 | Planned |
+| 15 | Agency Cases | `/cases` | CCD-6 (slice 6b) | **Built and tested** (not seen live) |
 
 Element-by-element rows for screens 02 to 15 are written by their own package from the baseline it captures from main just before it changes the screen, so the rows describe the screen as it really was that day.
 
@@ -269,6 +269,20 @@ Baseline: `baseline/agency-home.json`, five states (a new agency; a busy adminis
 | Finish Agency Setup | Every level (planned for Everything; it shows only while setup is unfinished, and then it is the next thing to do) (tested) | setup unfinished |
 
 Every other agency page gets the same heading: the agency's name above and the page's name as the one h1 (Cases, Clients, Team, Agency Settings, matching the menu). Plan & Usage, Countries and Case Activity keep their own h1 (Case Activity's header is now that h1) and the heading shows the agency's name as plain text (tested).
+
+## 15. Agency Cases (`/app/agency/{orgId}/cases`)
+
+| What it is | Level it lives at now | Condition (unchanged) |
+|---|---|---|
+| Heading (eyebrow the agency's name, h1 "Cases"), the Cases card and its intro, the empty state | Glance | always |
+| Each case row: title, traveller, case reference | Glance | always |
+| "Needs you: N tasks and N items to review." or "Nothing needs you on this case right now." | Glance only (new); counts open tasks assigned to this person and items waiting for the agency's review | a case is listed |
+| Where Things Stand | Browse | as before |
+| Assigned, with assign and unassign | Browse | as before |
+| Tasks, Appointments, Notes | Everything | as before |
+| Decisions, Issuer Confirmations (was "Issuer confirmations (EVI-05)", approved change) | Everything | the case has a checklist |
+
+A link to a case (`#mission-<id>`, from Agency Overview and Case Activity) opens Everything, so the whole case shows (`data-reveal`, links only; a form sent inside a case keeps the chosen level) (tested). Baseline captured from main at `5a8f4370`; four states (administrator and member, with and without cases).
 
 ## Screens 02 to 15: the level plan (from the approved canvas)
 

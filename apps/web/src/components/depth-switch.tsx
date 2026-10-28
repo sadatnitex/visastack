@@ -173,7 +173,7 @@ export function DepthSwitch({
     const revealId = (id: string | null) => {
       const target = id ? document.getElementById(id) : null;
       if (!target) return;
-      const raised = raiseToShow(target, scope, isPhone());
+      const raised = raiseToShow(target, scope, isPhone(), { asLinkTarget: true });
       if (!raised) return; // already on screen: the browser's own scroll to the anchor is enough
       show(raised);
       cancelAnimationFrame(frame);

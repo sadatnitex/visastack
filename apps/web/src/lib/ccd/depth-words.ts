@@ -59,6 +59,13 @@ export const DEPTH_WORDS = {
   'depth.agency-home.everything.admin':
     'Everything: search, case activity and attention details, with setup, clients joined and the reassignment queue when they apply.',
   'depth.agency-home.everything.member': 'Everything: search, case activity and attention details.',
+  'depth.agency-cases.glance': 'Glance: every case, with what needs you.',
+  'depth.agency-cases.browse': 'Browse: where each case stands and who is assigned.',
+  'depth.agency-cases.everything':
+    'Everything: tasks, appointments and notes, with decisions and issuer confirmations when a case has a checklist.',
+  'depth.agency-cases.glance.empty': 'Glance: your cases, once a client shares one.',
+  'depth.agency-cases.browse.empty': 'Browse: nothing more until a client shares a case.',
+  'depth.agency-cases.everything.empty': 'Everything: nothing more until a client shares a case.',
   'depth.notifications.glance': 'Glance: what is new.',
   'depth.notifications.browse': 'Browse: what is new and the recent ones you have read.',
   'depth.notifications.everything': 'Everything: the older ones you have read.',
