@@ -11,6 +11,7 @@ import { createApplicant } from '../applicants';
 import { setConsent } from '../consent';
 import type { Db } from '../db';
 import { createMission } from '../missions';
+import { issueStepUpAssurance } from '../step-up';
 import {
   AI_CODE_TTL_MS,
   createAiConnection,
@@ -22,6 +23,7 @@ import {
 } from './ai-connection';
 import { accountPrincipal } from './principal';
 import { requireAccess } from './require-access';
+import { verifyStepUp } from './step-up-proof';
 
 const RESOURCE = 'https://vs.example.test/mcp';
 const REDIRECT = 'https://claude.ai/api/mcp/auth_callback';
@@ -335,5 +337,43 @@ describe('AI connection tokens', () => {
       'layers',
       'revealIdentifiers',
     ]);
+  });
+
+  it('full document numbers need a fresh identity check for exporting this record', async () => {
+    const { ownerId, applicantId } = await person();
+    const { challenge } = pkce();
+    const base = {
+      client: CLIENT,
+      choices: { ...CHOICES, revealIdentifiers: true },
+      codeChallenge: challenge,
+      redirectUri: REDIRECT,
+      resource: RESOURCE,
+    };
+    const without = await createAiConnection(await proofFor(ownerId, applicantId), base);
+    expect(isErr(without) && without.error.error).toBe('access_denied');
+
+    const secret = 'synthetic-step-up-secret-for-tests-only-0123456789';
+    const proofOf = (action: 'EXPORT_PROFILE' | 'SHARE', resourceId: string) => {
+      const request = { accountId: ownerId, action, resourceId };
+      const proof = verifyStepUp(secret, issueStepUpAssurance(secret, request), request);
+      if (!proof) throw new Error('step-up');
+      return proof;
+    };
+    // A check for another action, or another record, does not count.
+    for (const stepUp of [
+      proofOf('SHARE', applicantId),
+      proofOf('EXPORT_PROFILE', '00000000-0000-4000-8000-000000000000'),
+    ]) {
+      const wrong = await createAiConnection(await proofFor(ownerId, applicantId), {
+        ...base,
+        stepUp,
+      });
+      expect(isErr(wrong)).toBe(true);
+    }
+    const withCheck = await createAiConnection(await proofFor(ownerId, applicantId), {
+      ...base,
+      stepUp: proofOf('EXPORT_PROFILE', applicantId),
+    });
+    expect(isOk(withCheck)).toBe(true);
   });
 });
