@@ -10153,3 +10153,120 @@ summary.visa-photo-title {
   .sharing-workspace:has(> .sharing-composer-card[data-level="everything"]) {
   grid-template-columns: minmax(0, 1fr);
 }
+
+/* WP-CCD7 next step: the dark Next Step banner of the approved mockups (Home, the traveller page
+   and the Case page), built from the existing chapter colours. Full at Glance (and without
+   scripts); the shorter form at Browse and Everything comes from the variables set on the scope
+   below, so both banners change in one place. The button stays the screen's one primary action,
+   shown light on the dark surface. */
+.next-step,
+.case-next-step {
+  padding: var(--ns-pad, 28px);
+  background: var(--chapter-bg);
+  color: var(--chapter-text);
+  /* Transparent edges keep an outline in high contrast mode, where backgrounds are dropped. */
+  border: 1px solid transparent;
+  border-left: 4px solid transparent;
+  border-radius: var(--radius-lg);
+}
+.next-step {
+  flex-direction: var(--ns-direction, column);
+  align-items: var(--ns-align, flex-start);
+  gap: 1.25rem;
+}
+/* An urgent or a settled next step keeps its coloured edge, as before, light on the dark surface. */
+.next-step-tone-warning {
+  border-left-color: var(--warning-bg);
+}
+.next-step-tone-ok {
+  border-left-color: var(--success-bg);
+}
+.next-step-text {
+  flex: var(--ns-text-flex, 0 1 auto);
+  max-width: 560px;
+}
+.next-step .card-kicker,
+.case-next-step .case-next-step-kicker {
+  font-size: var(--text-caption);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--chapter-text);
+}
+.next-step-title,
+.case-next-step .case-next-step-title {
+  margin: var(--ns-title-gap, 10px) 0 0;
+  font-size: var(--ns-title-size, var(--text-title));
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.18;
+  color: #ffffff;
+}
+.next-step-why,
+.case-next-step .case-next-step-body {
+  margin: 10px 0 0;
+  font-size: var(--text-small);
+  line-height: 1.5;
+  color: var(--chapter-text);
+}
+.case-next-step .case-next-step-body {
+  margin-bottom: 20px;
+}
+.next-step .btn-primary,
+.case-next-step .btn-primary {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: var(--text);
+}
+.next-step .btn-primary:hover,
+.case-next-step .btn-primary:hover {
+  background: var(--hairline);
+  border-color: var(--hairline);
+  color: var(--text);
+}
+.next-step :focus-visible,
+.case-next-step :focus-visible {
+  outline-color: #ffffff;
+}
+/* The shorter form: Browse and Everything, and "auto" on wider screens (Browse there). */
+.depth-scope:not(:has(.depth-nojs)):is([data-depth="browse"], [data-depth="everything"]) {
+  --ns-pad: 20px 24px;
+  --ns-direction: row;
+  --ns-align: center;
+  --ns-text-flex: 1 1 18rem;
+  --ns-title-gap: 8px;
+  --ns-title-size: var(--text-lead);
+}
+@media (min-width: 761px) {
+  .depth-scope:not(:has(.depth-nojs))[data-depth="auto"] {
+    --ns-pad: 20px 24px;
+    --ns-direction: row;
+    --ns-align: center;
+    --ns-text-flex: 1 1 18rem;
+    --ns-title-gap: 8px;
+    --ns-title-size: var(--text-lead);
+  }
+}
+@media (max-width: 760px) {
+  .next-step,
+  .case-next-step {
+    padding: var(--ns-pad-phone, 22px);
+  }
+}
+/* On paper the dark surface is dropped: print it as dark text inside a plain outline. */
+@media print {
+  .next-step,
+  .case-next-step {
+    background: #ffffff;
+    color: #000000;
+    border: 1px solid #000000;
+  }
+  .next-step .card-kicker,
+  .next-step-title,
+  .next-step-why,
+  .case-next-step .case-next-step-kicker,
+  .case-next-step .case-next-step-title,
+  .case-next-step .case-next-step-body {
+    color: #000000;
+  }
+}
