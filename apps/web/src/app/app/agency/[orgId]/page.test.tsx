@@ -356,11 +356,11 @@ describe('agency Dashboard: counts and Do Next agree (WP-V4 review)', () => {
     ]);
     const listed = textOf(await renderServer(Page(pageProps())));
     expect(listed).toContain('Waiting for Review');
-    expect(listed).not.toContain('Nothing is overdue, unassigned or waiting on an applicant');
+    expect(listed).not.toContain('Nothing is overdue, unassigned or waiting on a traveller');
     mocks.loadEvidenceRequests.mockResolvedValue([]);
     const empty = textOf(await renderServer(Page(pageProps())));
     expect(empty).toContain('Nothing needs you first right now.');
-    expect(empty).toContain('Nothing is overdue, unassigned or waiting on an applicant');
+    expect(empty).toContain('Nothing is overdue, unassigned or waiting on a traveller');
   });
 
   it('counts a sent-back request in the waiting number, the Waiting on Traveller view and Do Next alike', async () => {

@@ -7,3 +7,11 @@ apps/web/src/app/globals.css
 apps/web/src/components/depth*.tsx
 apps/web/src/lib/ccd/**
 scripts/ui-ratchet.baseline.json
+# D4 (built 28 Oct 2026, ahead of the rest of CCD-6)
+docs/adr/0023-calm-core-with-depths.md
+packages/services/src/evidence-request-groups.ts
+packages/services/src/evidence-request-groups.test.ts
+packages/services/src/attention.ts
+packages/services/src/index.ts
+apps/web/src/app/app/agency/[orgId]/**
+apps/web/src/app/app/applicant/[id]/evidence/due-label.ts

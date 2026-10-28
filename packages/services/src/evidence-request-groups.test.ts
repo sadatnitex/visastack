@@ -86,8 +86,8 @@ describe('which evidence requests are pending (owner decision D4)', () => {
   });
 
   it('is the same list the traveller side and the database queries already use', () => {
-    expect(ATTENTION_REQUEST_STATUSES).toBe(WAITING_ON_TRAVELLER_REQUEST_STATUSES);
-    expect(WITH_AGENCY_REQUEST_STATUSES).toBe(WAITING_ON_AGENCY_REQUEST_STATUSES);
+    expect([...ATTENTION_REQUEST_STATUSES]).toEqual([...WAITING_ON_TRAVELLER_REQUEST_STATUSES]);
+    expect([...WITH_AGENCY_REQUEST_STATUSES]).toEqual([...WAITING_ON_AGENCY_REQUEST_STATUSES]);
   });
 
   it('agrees with the triage groups: travellers owe Missing or Needs Correction, the agency owes Received', () => {

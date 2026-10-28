@@ -17,12 +17,7 @@
  * "Nobody assigned" as its owner.
  */
 
-import {
-  type TriageDocumentState,
-  evidenceRequestTriageGroup,
-  isWaitingOnAgency,
-  isWaitingOnTraveller,
-} from '@visastack/services';
+import { type TriageDocumentState, evidenceRequestTriageGroup } from '@visastack/services';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { documentTypeLabel, titleCase } from '../../../../lib/labels';
 import { fieldLabel } from '../../../../lib/master-profile';
@@ -198,8 +193,8 @@ export function buildDoNext(input: DoNextInput): DoNextItem[] {
 
       if (group === 'MISSING' || group === 'NEEDS_CORRECTION') {
         if (!request.dueDate || daysUntilDue(request.dueDate, now, timezone) >= 0) continue;
-        // Sent back for a fix is the second status in the shared "waiting on the traveller" group.
-        const sentBack = isWaitingOnTraveller(request.status) && group === 'NEEDS_CORRECTION';
+        // Sent back for a fix: the one traveller-side status that triage reads as Needs Correction.
+        const sentBack = request.status === 'NEEDS_REPLACEMENT';
         // Received, but the newest version of the file failed its checks or is gone.
         const unusable = !sentBack && group === 'NEEDS_CORRECTION';
         const due = formatDateOnly(request.dueDate);
@@ -237,7 +232,7 @@ export function buildDoNext(input: DoNextInput): DoNextItem[] {
             },
           },
         });
-      } else if (group === 'RECEIVED' && isWaitingOnAgency(request.status)) {
+      } else if (group === 'RECEIVED') {
         // Processing is left out: a file still being checked is not ready for review yet.
         const when = request.respondedAt ? ` ${formatTimestampDate(request.respondedAt)}` : '';
         ranked.push({

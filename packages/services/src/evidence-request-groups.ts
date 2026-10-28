@@ -11,6 +11,25 @@
  * the numbers cannot drift apart. Pure: no database read.
  */
 
+import type { schema } from './db';
+
+type RequestStatus = (typeof schema.evidenceRequestStatus.enumValues)[number];
+
+/**
+ * Every status, classified. Typed against the database list, so adding a status there stops the
+ * build until someone decides who it waits on (a new status can never silently count as closed).
+ */
+const WAITING_ON: Record<RequestStatus, 'traveller' | 'agency' | 'closed'> = {
+  OPEN: 'traveller',
+  NEEDS_REPLACEMENT: 'traveller',
+  RECEIVED: 'agency',
+  UNDER_REVIEW: 'agency',
+  ACCEPTED: 'closed',
+  CANCELLED: 'closed',
+  FULFILLED: 'closed',
+  DECLINED: 'closed',
+};
+
 /** Request statuses waiting on the traveller: a first request, and one sent back for a fix. */
 export const WAITING_ON_TRAVELLER_REQUEST_STATUSES = ['OPEN', 'NEEDS_REPLACEMENT'] as const;
 
@@ -23,17 +42,14 @@ export const PENDING_REQUEST_STATUSES = [
   ...WAITING_ON_AGENCY_REQUEST_STATUSES,
 ] as const;
 
-const WAITING_ON_TRAVELLER: ReadonlySet<string> = new Set(WAITING_ON_TRAVELLER_REQUEST_STATUSES);
-const WAITING_ON_AGENCY: ReadonlySet<string> = new Set(WAITING_ON_AGENCY_REQUEST_STATUSES);
-
 /** True when the request waits on the traveller (open, or sent back for a fix). */
 export function isWaitingOnTraveller(status: string): boolean {
-  return WAITING_ON_TRAVELLER.has(status);
+  return (WAITING_ON as Record<string, string>)[status] === 'traveller';
 }
 
 /** True when the request waits on the agency (received, or under review). */
 export function isWaitingOnAgency(status: string): boolean {
-  return WAITING_ON_AGENCY.has(status);
+  return (WAITING_ON as Record<string, string>)[status] === 'agency';
 }
 
 export interface PendingRequestCounts {

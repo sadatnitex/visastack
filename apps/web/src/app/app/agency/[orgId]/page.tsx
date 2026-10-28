@@ -293,7 +293,7 @@ export default async function AgencyDashboardPage({
           value={summary.pendingRequests.pending}
           note={
             data.admin
-              ? `${summary.pendingRequests.waitingOnTravellers} waiting on travellers, ${summary.pendingRequests.waitingOnAgency} waiting on you`
+              ? `${summary.pendingRequests.waitingOnTravellers} waiting on ${summary.pendingRequests.waitingOnTravellers === 1 ? 'a traveller' : 'travellers'}, ${summary.pendingRequests.waitingOnAgency} waiting on you`
               : undefined
           }
         />
@@ -689,7 +689,7 @@ export default async function AgencyDashboardPage({
           </div>
           {needsYou === 0 && doNext.length === 0 ? (
             <p className="stat-note">
-              Nothing is overdue, unassigned or waiting on an applicant right now.
+              Nothing is overdue, unassigned or waiting on a traveller right now.
             </p>
           ) : null}
         </section>
