@@ -45,7 +45,12 @@ import { withSession } from '../../../lib/session';
 import { attentionContext, attentionHeading, attentionWhen } from '../attention-display';
 import { ConsentButton } from '../consent-button';
 import { confirmFirstRunCountryAction } from '../country-actions';
-import { CLOCK_HOME_LIMIT, deadlineLines, readDeadlineEntries } from '../deadline-clock-data';
+import {
+  CLOCK_HOME_LIMIT,
+  deadlineLines,
+  readDeadlineEntries,
+  validUntilLine,
+} from '../deadline-clock-data';
 import {
   FirstRunConsent,
   FirstRunCountry,
@@ -477,7 +482,14 @@ export default async function AppPage({
             }
           : {
               title: 'You Are Up to Date',
-              why: 'Nothing is waiting for you. Open a traveller to add documents or start a case.',
+              // A calm all-clear with one real fact, never an invented task (CCD section 6).
+              why: [
+                'Nothing is waiting for you.',
+                validUntilLine(data.clock.entries, { showPerson: true }),
+                'Open a traveller to add documents or start a case.',
+              ]
+                .filter(Boolean)
+                .join(' '),
               href: '/app/applicants',
               action: 'View Travellers',
               tone: 'ok' as const,

@@ -214,6 +214,21 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     reason: 'D3: plain names, no reference codes in visible text (VOCABULARY.md).',
   },
   {
+    screen: 'case',
+    from: { kind: 'text', name: 'Fix 2 required items' },
+    to: { kind: 'text', name: 'Fix 2 required items for Japan visitor visa' },
+    reason: 'CCD section 6 (speak to the person): the Next Step names the case.',
+  },
+  {
+    screen: 'case',
+    from: { kind: 'text', name: 'Some required items are missing, out of date or do not match.' },
+    to: {
+      kind: 'text',
+      name: 'First to fix: Bank Statement. Some required items are missing, out of date or do not match.',
+    },
+    reason: 'CCD section 6 (anticipate): the Next Step names the first item to fix.',
+  },
+  {
     screen: 'sharing',
     from: { kind: 'heading', name: 'Sharing & Access', detail: '2' },
     to: { kind: 'heading', name: 'Sharing', detail: '1' },

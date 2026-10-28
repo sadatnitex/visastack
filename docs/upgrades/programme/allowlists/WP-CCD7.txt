@@ -44,3 +44,16 @@ apps/web/e2e/authenticated-workspace.spec.ts
 apps/web/src/app/app/agency/[orgId]/clients/page.tsx
 apps/web/src/app/app/privacy/deletion-panel.tsx
 apps/web/src/app/app/privacy/page.tsx
+# CCD-7 slice 7b, section 6 behaviours (anticipate, quiet closure, calm all-clear, reduced motion)
+apps/web/src/app/app/applicant/[id]/ai-review-messages.ts
+apps/web/src/app/app/applicant/[id]/evidence/submit-response-form.test.tsx
+apps/web/src/app/app/applicant/[id]/evidence/submit-response-form.tsx
+apps/web/src/app/app/applicant/[id]/proposal-decision-action.test.ts
+apps/web/src/app/app/applicant/[id]/sharing/actions.test.ts
+apps/web/src/app/app/applicant/[id]/sharing/actions.ts
+apps/web/src/app/app/applicant/[id]/sharing/page.test.tsx
+apps/web/src/app/app/applicant/[id]/sharing/page.tsx
+apps/web/src/app/app/deadline-clock-data.test.ts
+apps/web/src/app/app/deadline-clock-data.ts
+apps/web/src/lib/a11y-guards.test.ts
+apps/web/src/lib/success-lines.ts

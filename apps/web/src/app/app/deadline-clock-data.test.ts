@@ -14,9 +14,8 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   listDeadlineClock: gate.listDeadlineClock,
 }));
 
-const { deadlineLabel, deadlineLines, loadDeadlineEntries, readDeadlineEntries } = await import(
-  './deadline-clock-data'
-);
+const { deadlineLabel, deadlineLines, loadDeadlineEntries, readDeadlineEntries, validUntilLine } =
+  await import('./deadline-clock-data');
 
 const NOW = new Date('2026-10-26T12:00:00Z');
 
@@ -197,5 +196,34 @@ describe('deadlineLines', () => {
         'urgency',
       ].sort(),
     );
+  });
+});
+
+describe('the one real fact in an all-clear (CCD section 6)', () => {
+  it('names the soonest document still valid, with whose it is on Home', () => {
+    const entries = [
+      entry({ key: 'task:t1', kind: 'task_due', docType: null, label: 'Book photo' }),
+      entry({ key: 'document_expires:d1', date: '2027-01-14', daysUntil: 80 }),
+    ];
+    expect(validUntilLine(entries, { showPerson: true })).toBe(
+      `Synthetic Traveller's Passport is valid until ${formatDateOnly('2027-01-14')}.`,
+    );
+    expect(validUntilLine(entries, { showPerson: false })).toBe(
+      `Passport: valid until ${formatDateOnly('2027-01-14')}.`,
+    );
+  });
+
+  it('says nothing rather than a date it doubts, one already past, or one that is not a document', () => {
+    expect(
+      validUntilLine(
+        [
+          entry({ key: 'document_expires:d1', doubt: 'date_before_issue' }),
+          entry({ key: 'document_expires:d2', daysUntil: -3, urgency: 'overdue' }),
+          entry({ key: 'appointment:a1', kind: 'appointment', docType: null }),
+        ],
+        { showPerson: true },
+      ),
+    ).toBeNull();
+    expect(validUntilLine([], { showPerson: false })).toBeNull();
   });
 });

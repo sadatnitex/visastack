@@ -27,5 +27,14 @@ export function describeClearAcceptance({
         : `${leftForReview} need a closer look before you accept them.`,
     );
   }
+  // Quiet closure (CCD section 6): when all went in, say what it means next, in the same words as
+  // accepting one suggestion.
+  if (approved > 0 && alreadyDecided === 0 && leftForReview === 0) {
+    parts.push(
+      approved === 1
+        ? 'It can now fill checklist items that need it.'
+        : 'They can now fill checklist items that need them.',
+    );
+  }
   return parts.join(' ');
 }

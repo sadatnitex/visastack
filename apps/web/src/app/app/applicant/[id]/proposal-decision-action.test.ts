@@ -138,8 +138,12 @@ describe('accepting clear details at once', () => {
   });
 
   it('words every combination plainly', () => {
+    // When all went in, it says what that means next (CCD quiet closure).
     expect(describeClearAcceptance({ approved: 1, leftForReview: 0, alreadyDecided: 0 })).toBe(
-      'Saved 1 detail to your profile.',
+      'Saved 1 detail to your profile. It can now fill checklist items that need it.',
+    );
+    expect(describeClearAcceptance({ approved: 3, leftForReview: 0, alreadyDecided: 0 })).toBe(
+      'Saved 3 details to your profile. They can now fill checklist items that need them.',
     );
     expect(describeClearAcceptance({ approved: 0, leftForReview: 2, alreadyDecided: 3 })).toBe(
       'Nothing new was saved. 3 were already decided. 2 need a closer look before you accept them.',

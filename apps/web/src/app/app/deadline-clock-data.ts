@@ -116,3 +116,24 @@ export function deadlineLines(
     check: entry.doubt === null ? null : CHECK_THIS_DATE_WHY[entry.doubt],
   }));
 }
+
+/**
+ * One calm fact for an all-clear (CCD section 6): the soonest document date still ahead that the
+ * system is sure of: "Karim Hossain's Passport is valid until 14 Jan 2027." on Home, "Passport:
+ * valid until 14 Jan 2027." on a person's own page. Null when there
+ * is none among the dates read, so nothing is ever made up to fill the space.
+ */
+export function validUntilLine(
+  entries: readonly DeadlineEntry[],
+  options: { readonly showPerson: boolean },
+): string | null {
+  const entry = entries.find(
+    (e) => e.kind === 'document_expires' && e.doubt === null && e.daysUntil >= 0,
+  );
+  if (!entry) return null;
+  const what = deadlineLabel(entry);
+  const until = formatDateOnly(entry.date);
+  return options.showPerson
+    ? `${entry.applicantName}'s ${what} is valid until ${until}.`
+    : `${what}: valid until ${until}.`;
+}

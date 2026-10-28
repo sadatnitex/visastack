@@ -34,6 +34,10 @@ interface CandidateDocument {
  * request leaves the waiting list as soon as it is saved, so the form stays
  * mounted with `awaiting` false and keeps showing "Saved at" instead of
  * vanishing with the answer it confirms.
+ *
+ * Anticipate, never decide (CCD section 6): when exactly one finished item fits, it is chosen
+ * and the form says so; with more than one, nothing is chosen until the person picks. Nothing is
+ * ever sent without the button.
  */
 export function SubmitResponseForm({
   applicantId,
@@ -59,9 +63,12 @@ export function SubmitResponseForm({
 }) {
   const [state, formAction, pending] = useActionState(submitEvidenceResponseAction, INITIAL);
   const usableDocuments = candidateDocuments.filter((d) => d.usable);
-  const [selection, setSelection] = useState(
-    kind === 'FIELD' ? (candidateFacts[0]?.factId ?? '') : (usableDocuments[0]?.documentId ?? ''),
-  );
+  const choices =
+    kind === 'FIELD'
+      ? candidateFacts.map((f) => f.factId)
+      : usableDocuments.map((d) => d.documentId);
+  const onlyChoice = choices.length === 1 ? (choices[0] ?? '') : '';
+  const [selection, setSelection] = useState(onlyChoice);
   const result = saveResult(state, timeZone);
   // While the request waits on the person, a success can only be about an earlier round (the
   // agency sent it back after it was saved): "Saved at" is shown once the request has left the
@@ -137,6 +144,13 @@ export function SubmitResponseForm({
               </label>
             ))}
       </fieldset>
+      {choices.length === 1 ? (
+        <p className="muted u-fs-085">
+          This is the only one that fits, so it is already chosen. Check it, then send.
+        </p>
+      ) : choices.length > 1 ? (
+        <p className="muted u-fs-085">Choose which one to send.</p>
+      ) : null}
       <div className="request-response-actions">
         <SubmitButton
           pending={pending}

@@ -328,8 +328,11 @@ describe('case journey view (WP-X1)', () => {
     const list = html.indexOf('class="case-attention"');
     expect(card).toBeGreaterThan(-1);
     const cardText = textOf(html.slice(card, list));
-    expect(cardText).toContain('Fix 2 required items');
-    expect(cardText).toContain('Some required items are missing, out of date or do not match.');
+    // It speaks of this case by name and names the first item to fix (CCD section 6).
+    expect(cardText).toContain('Fix 2 required items for Japan visitor visa');
+    expect(cardText).toContain(
+      'First to fix: Bank Statement. Some required items are missing, out of date or do not match.',
+    );
     expect(cardText).not.toContain('open task');
     expect(html.slice(card, list)).toContain('href="#readiness"');
     // The attention list itself still lists both.

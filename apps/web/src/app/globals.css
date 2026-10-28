@@ -142,7 +142,10 @@ a:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * {
+  /* Pseudo-elements too: the disclosure arrow turns through ::after (CCD-7). */
+  *,
+  *::before,
+  *::after {
     animation: none !important;
     transition: none !important;
     scroll-behavior: auto !important;
