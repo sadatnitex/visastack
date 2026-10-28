@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { atLevel } from '../../../../components/depth';
+import { agree } from '../../../../lib/plural';
 import type { DoNextItem, DoNextTier } from './do-next';
 import { FollowUpCopy } from './follow-up-copy';
 
@@ -42,8 +44,13 @@ export function DoNextList({
         <p className="do-next-empty">Nothing needs you first right now.</p>
       ) : (
         <ol className="do-next-list">
-          {shown.map((item) => (
-            <li key={item.key} className={`do-next-item do-next-tier-${item.tier}`}>
+          {shown.map((item, index) => (
+            // The first item is the one thing to do now; the rest wait at Browse.
+            <li
+              key={item.key}
+              className={`do-next-item do-next-tier-${item.tier}`}
+              {...(index === 0 ? {} : atLevel('browse'))}
+            >
               <div className="do-next-item-head">
                 <span className="do-next-tier">{TIER_LABEL[item.tier]}</span>
                 <h3 className="do-next-title">{item.heading}</h3>
@@ -80,8 +87,14 @@ export function DoNextList({
           ))}
         </ol>
       )}
+      {items.length > 1 ? (
+        <p className="muted do-next-more" data-only="glance">
+          {items.length - 1} more {agree(items.length - 1, 'needs', 'need')} you. Choose Browse to
+          see {agree(items.length - 1, 'it', 'them')}.
+        </p>
+      ) : null}
       {items.length > shown.length ? (
-        <p className="muted do-next-more">
+        <p className="muted do-next-more" {...atLevel('browse')}>
           Showing {shown.length} of {items.length}. The rest are in the case list below.
         </p>
       ) : null}

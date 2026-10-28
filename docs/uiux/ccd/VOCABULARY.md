@@ -15,8 +15,8 @@ Approved by the owner on 2026-10-28 (decision D3). Applies to user-facing words:
 | Privacy page | Privacy & Consent | "Your Data Rights" | Done (CCD-5 slice 5a) |
 | Account page | Your Account, the email shown under the heading | email as the heading | **Done (CCD-1)** |
 | Downloads on Privacy | "Download Export (JSON)" and "Download Export (CSV/ZIP)" | the lower-case variant | Done (CCD-5 slice 5a) |
-| Agency invite | Invite a Client | "Invite Traveller" | Planned CCD-6 |
-| Agency pages | eyebrow = agency name, H1 = page name | agency name as H1 on every page | Planned CCD-6 |
+| Agency invite | Invite a Client | "Invite Traveller" | Done (CCD-6 slice 6a) |
+| Agency pages | eyebrow = agency name, H1 = page name | agency name as H1 on every page | Done (CCD-6 slice 6a) |
 | Issuer checks | Issuer confirmations | "Issuer confirmations (EVI-05)" | Planned CCD-3 and CCD-6 |
 | Person with a record | traveller, in user-facing text | "applicant" in user-facing text | Planned with each screen; no contract exception found |
 

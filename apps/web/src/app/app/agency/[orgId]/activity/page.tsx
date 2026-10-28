@@ -48,7 +48,6 @@ export default async function AgencyActivityPage({
   return (
     <>
       <PageHeader
-        as="h2"
         title="Case Activity"
         description="Recent notes on cases you can access. This is case activity, not a complete organization audit log."
       />

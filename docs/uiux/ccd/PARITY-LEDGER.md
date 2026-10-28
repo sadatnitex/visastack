@@ -23,7 +23,7 @@ Levels: **Glance** (the one thing that matters now), **Browse** (the normal work
 | 11 | Sharing | `/sharing` | CCD-5 (slice 5b) | **Built and tested** (not seen live) |
 | 12 | Privacy & Consent | `/app/privacy` | CCD-5 (slice 5a) | **Built and tested** (not seen live) |
 | 13 | Your Account | `/app/account` | CCD-1 | **Built and tested** (not seen live) |
-| 14 | Agency Overview | `/app/agency/{orgId}` | CCD-6 | Planned |
+| 14 | Agency Overview | `/app/agency/{orgId}` | CCD-6 (slice 6a) | **Built and tested** (not seen live) |
 | 15 | Agency Cases | `/cases` | CCD-6 | Planned |
 
 Element-by-element rows for screens 02 to 15 are written by their own package from the baseline it captures from main just before it changes the screen, so the rows describe the screen as it really was that day.
@@ -250,6 +250,25 @@ On every converted screen: after a form is sent, if the refreshed page moves the
 ## The Next Step banner (CCD-7, owner request 28 Oct 2026)
 
 The Next Step on Home, the traveller page and the Case page now uses the dark banner of the approved mockups: the brand ink of the page headings (the colour of "Welcome back"; owner, 28 Oct 2026, replacing the darker sign-in navy first used), white title, light reason text and a white button that is still the screen's one primary action. Full at Glance and without scripts; shorter at Browse and Everything (on Home and the traveller page the button moves to the end of the line). Style only: the same markup, names, links and levels, so no parity row changes. Not built: the mockup's single-line pill at Everything, because it drops the reason sentence and nothing may be lost at Everything; Everything uses the shorter banner instead. Text sizes come from the product's type scale (title at the title size, the lead size in the shorter form; the mockup's 11px and 13px become the caption and small sizes). An urgent or settled next step keeps its coloured left edge; on paper the banner prints as dark text in an outline; in high contrast mode it keeps a visible edge.
+
+## 14. Agency Overview (`/app/agency/{orgId}`)
+
+Baseline: `baseline/agency-home.json`, five states (a new agency; a busy administrator; a member; a quick view; a search with no match), rendered with the workspace heading because it holds the page's one h1. Test: `parity-agency-home.test.tsx`.
+
+| What it is | Level it lives at now | Condition (unchanged) |
+|---|---|---|
+| Heading: eyebrow the agency's name, h1 "Agency Overview" (was the agency's name as h1 under "Agency Workspace"), "Invite a Client" (was "Invite Traveller") | Glance (D3) | always |
+| Four metric tiles | Glance | always |
+| Do Next: heading, intro and the first item | Glance | always |
+| "N more need you. Choose Browse to see them." | Glance only (new) | more than one item |
+| Do Next items 2 to 8, "Showing N of M" | Browse | as before |
+| Case Pipeline, Cases and Attention (quick views, table, empty states) | Browse; both at Glance when a search, stage or quick view asked for the list (tested) | always |
+| Search form and its sentence ("Search covers only...", split from the list's intro, approved change) | Everything; at Glance with a search or quick view | always |
+| Evidence Requests, Your Team (administrator); Your Case Work (member); the member notice | Browse | as before |
+| Reassignment Queue, Case Activity, Clients Joined, Attention Details | Everything | as before |
+| Finish Agency Setup | Every level (planned for Everything; it shows only while setup is unfinished, and then it is the next thing to do) (tested) | setup unfinished |
+
+Every other agency page gets the same heading: the agency's name above and the page's name as the one h1 (Cases, Clients, Team, Agency Settings, matching the menu). Plan & Usage, Countries and Case Activity keep their own h1 (Case Activity's header is now that h1) and the heading shows the agency's name as plain text (tested).
 
 ## Screens 02 to 15: the level plan (from the approved canvas)
 

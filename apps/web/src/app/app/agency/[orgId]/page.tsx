@@ -3,7 +3,12 @@ import { isWaitingOnTraveller } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { CaseReadinessRing } from '../../../../components/case-readiness-ring';
+import { DepthScope, atLevel } from '../../../../components/depth';
+import { DepthSwitch } from '../../../../components/depth-switch';
 import { Checklist, EmptyState, StatusBadge } from '../../../../components/ui';
+import { depthCopy } from '../../../../lib/ccd/depth-copy';
+import { depthWord } from '../../../../lib/ccd/depth-words';
+import { readDepth } from '../../../../lib/ccd/depth.server';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { agree, plural } from '../../../../lib/plural';
@@ -270,8 +275,22 @@ export default async function AgencyDashboardPage({
     )
     .join(', ');
 
+  const depth = await readDepth('agency-home');
+  const depthWords = depthCopy({
+    glance: depthWord(filtered ? 'depth.agency-home.glance.filtered' : 'depth.agency-home.glance'),
+    browse: depthWord(
+      data.admin ? 'depth.agency-home.browse.admin' : 'depth.agency-home.browse.member',
+    ),
+    everything: depthWord(
+      data.admin ? 'depth.agency-home.everything.admin' : 'depth.agency-home.everything.member',
+    ),
+  });
+  // A search, a stage or a quick view is the list the person asked for: it shows at Glance.
+  const listLevel = filtered ? null : 'browse';
+
   return (
-    <>
+    <DepthScope family="agency-home" depth={depth}>
+      <DepthSwitch family="agency-home" initial={depth} copy={depthWords} />
       <section className="agency-reference-metrics" aria-label="Agency overview">
         <Stat
           label={data.admin ? 'Active Clients' : 'Clients you can work with'}
@@ -307,12 +326,17 @@ export default async function AgencyDashboardPage({
         )}
       </section>
       {data.clientsJoined ? (
-        <section className="agency-clients-joined" aria-label="Clients joined">
+        <section
+          className="agency-clients-joined"
+          aria-label="Clients joined"
+          {...atLevel('everything')}
+        >
           <Stat label="Clients Joined" value={data.clientsJoined.total} />
           <Stat label="Joined in the Last 30 Days" value={data.clientsJoined.last30Days} />
         </section>
       ) : null}
       {data.admin && setupSteps.some((step) => !step.done) ? (
+        // Shown only while setup is unfinished, and then it is the next thing to do: every level.
         <details className="agency-setup-disclosure">
           <summary>
             Finish agency setup: {setupSteps.filter((step) => step.done).length} of{' '}
@@ -323,7 +347,7 @@ export default async function AgencyDashboardPage({
       ) : null}
 
       {!data.admin ? (
-        <article className="card u-mb-150">
+        <article className="card u-mb-150" {...atLevel('browse')}>
           <p className="card-body">
             You're a member of this organization but not an administrator. Requesting evidence, bulk
             export, and member management are admin-only - you can still collaborate on cases you're
@@ -334,10 +358,14 @@ export default async function AgencyDashboardPage({
 
       <DoNextList items={doNext} admin={data.admin} filtered={filtered} />
 
-      <div className="agency-working-area">
+      <div className="agency-working-area" {...(listLevel ? atLevel(listLevel) : {})}>
         <div className="agency-case-column">
           {data.missions.length > 0 ? (
-            <section className="card pipeline-card" aria-labelledby="pipeline-heading">
+            <section
+              className="card pipeline-card"
+              aria-labelledby="pipeline-heading"
+              {...(listLevel ? atLevel(listLevel) : {})}
+            >
               <h2 className="card-title" id="pipeline-heading">
                 Case Pipeline
               </h2>
@@ -361,7 +389,11 @@ export default async function AgencyDashboardPage({
               </div>
             </section>
           ) : (
-            <section className="card pipeline-card" aria-labelledby="pipeline-heading">
+            <section
+              className="card pipeline-card"
+              aria-labelledby="pipeline-heading"
+              {...(listLevel ? atLevel(listLevel) : {})}
+            >
               <h2 className="card-title" id="pipeline-heading">
                 Case Pipeline
               </h2>
@@ -376,18 +408,21 @@ export default async function AgencyDashboardPage({
             <h2 className="card-title" id="inbox-heading">
               Cases and Attention
             </h2>
-            <p className="card-body u-mb-100">
-              Cases that need action come first. Search covers only the cases you are already
-              allowed to see, by traveller, case title, reference, destination or stage.
-            </p>
-            <CaseSearchForm
-              orgId={orgId}
-              members={data.members.map((m) => ({ accountId: m.accountId, email: m.email }))}
-              query={rawQuery}
-              stage={stageFilter}
-              destination={rawDestinationFilter}
-              assignee={assigneeFilter}
-            />
+            <p className="card-body u-mb-100">Cases that need action come first.</p>
+            <div className="depth-item" {...(filtered ? {} : atLevel('everything'))}>
+              <p className="card-body u-mb-100">
+                Search covers only the cases you are already allowed to see, by traveller, case
+                title, reference, destination or stage.
+              </p>
+              <CaseSearchForm
+                orgId={orgId}
+                members={data.members.map((m) => ({ accountId: m.accountId, email: m.email }))}
+                query={rawQuery}
+                stage={stageFilter}
+                destination={rawDestinationFilter}
+                assignee={assigneeFilter}
+              />
+            </div>
             {data.missions.length > 0 ? (
               <nav className="quick-views u-mt-100" aria-label="Quick views of the case list">
                 <Link
@@ -557,7 +592,7 @@ export default async function AgencyDashboardPage({
           </section>
 
           {data.admin && data.unassignedQueue.length > 0 ? (
-            <article className="card u-mb-150">
+            <article className="card u-mb-150" {...atLevel('everything')}>
               <p className="card-kicker">Needs Attention</p>
               <h2 className="card-title">Reassignment Queue</h2>
               <p className="card-body u-mb-125">
@@ -580,7 +615,11 @@ export default async function AgencyDashboardPage({
             </article>
           ) : null}
         </div>
-        <aside className="agency-context-rail" aria-label="Requests and team">
+        <aside
+          className="agency-context-rail"
+          aria-label="Requests and team"
+          {...atLevel('browse')}
+        >
           {data.admin ? (
             <>
               <article className="card">
@@ -650,7 +689,7 @@ export default async function AgencyDashboardPage({
               <Link href={`${base}/cases`}>Open Assigned Cases</Link>
             </article>
           )}
-          <article className="card">
+          <article className="card" {...atLevel('everything')}>
             <h2 className="card-title">Case Activity</h2>
             <p className="card-body">
               Recent notes from cases you can currently access. This is not the full organization
@@ -660,7 +699,7 @@ export default async function AgencyDashboardPage({
           </article>
         </aside>
       </div>
-      <details className="agency-attention-disclosure">
+      <details className="agency-attention-disclosure" {...atLevel('everything')}>
         <summary>
           Attention Details: {plural(needsYou, 'item')} {agree(needsYou, 'needs', 'need')} a
           response
@@ -694,6 +733,6 @@ export default async function AgencyDashboardPage({
           ) : null}
         </section>
       </details>
-    </>
+    </DepthScope>
   );
 }

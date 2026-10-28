@@ -1,0 +1,1466 @@
+{
+  "a new agency with nothing yet": [
+    {
+      "kind": "heading",
+      "name": "Atlas Visa",
+      "detail": "1"
+    },
+    {
+      "kind": "text",
+      "name": "Your clients, cases and team in one place."
+    },
+    {
+      "kind": "text",
+      "name": "Powered by VisaStack"
+    },
+    {
+      "kind": "link",
+      "name": "Invite Traveller",
+      "detail": "/app/agency/o1/clients"
+    },
+    {
+      "kind": "button",
+      "name": "Finish agency setup: 0 of 4 complete"
+    },
+    {
+      "kind": "text",
+      "name": "Get Started"
+    },
+    {
+      "kind": "heading",
+      "name": "Set Up Your Agency",
+      "detail": "2"
+    },
+    {
+      "kind": "link",
+      "name": "1Invite a ClientA traveller who agrees to work with you.",
+      "detail": "/app/agency/o1/clients"
+    },
+    {
+      "kind": "link",
+      "name": "2Open a CaseA case appears once a client shares one with you.",
+      "detail": "/app/agency/o1/cases"
+    },
+    {
+      "kind": "link",
+      "name": "3Ask for a DocumentYou will see here when it arrives and when it is overdue.",
+      "detail": "/app/agency/o1/clients"
+    },
+    {
+      "kind": "link",
+      "name": "4Add a ColleagueGive staff their own access to the cases you assign them.",
+      "detail": "/app/agency/o1/team"
+    },
+    {
+      "kind": "heading",
+      "name": "Do Next",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Past due items first, then items waiting for review, overdue tasks and cases with no owner."
+    },
+    {
+      "kind": "text",
+      "name": "Nothing needs you first right now."
+    },
+    {
+      "kind": "heading",
+      "name": "Case Pipeline",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "No Case Stages to Show"
+    },
+    {
+      "kind": "text",
+      "name": "Actual stage counts appear when a case is shared and visible to you."
+    },
+    {
+      "kind": "link",
+      "name": "Open Cases",
+      "detail": "/app/agency/o1/cases"
+    },
+    {
+      "kind": "heading",
+      "name": "Cases and Attention",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Cases that need action come first. Search covers only the cases you are already allowed to see, by traveller, case title, reference, destination or stage."
+    },
+    {
+      "kind": "field",
+      "name": "Search",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Stage",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Destination",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Assignee",
+      "detail": "select"
+    },
+    {
+      "kind": "button",
+      "name": "Search"
+    },
+    {
+      "kind": "text",
+      "name": "No Cases Yet"
+    },
+    {
+      "kind": "text",
+      "name": "No cases are reachable yet - an applicant must grant this organization access to a specific case."
+    },
+    {
+      "kind": "text",
+      "name": "Once a client accepts, their cases appear here with how many checklist items are ready."
+    },
+    {
+      "kind": "link",
+      "name": "Invite a Client",
+      "detail": "/app/agency/o1/clients"
+    },
+    {
+      "kind": "heading",
+      "name": "Evidence Requests",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Recent requests available to your administrator role."
+    },
+    {
+      "kind": "text",
+      "name": "No evidence requests yet."
+    },
+    {
+      "kind": "link",
+      "name": "Manage Requests",
+      "detail": "/app/agency/o1/clients#agency-evidence-requests"
+    },
+    {
+      "kind": "heading",
+      "name": "Your Team",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "1 active members. Inactive memberships remain available in team management."
+    },
+    {
+      "kind": "text",
+      "name": "me@example.comAdmin"
+    },
+    {
+      "kind": "link",
+      "name": "Manage Team",
+      "detail": "/app/agency/o1/team"
+    },
+    {
+      "kind": "heading",
+      "name": "Case Activity",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Recent notes from cases you can currently access. This is not the full organization audit log."
+    },
+    {
+      "kind": "link",
+      "name": "View Accessible Case Activity",
+      "detail": "/app/agency/o1/activity"
+    },
+    {
+      "kind": "button",
+      "name": "Attention Details: 0 items need a response"
+    },
+    {
+      "kind": "heading",
+      "name": "What Needs You First",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Nothing is overdue, unassigned or waiting on a traveller right now."
+    }
+  ],
+  "a busy administrator": [
+    {
+      "kind": "heading",
+      "name": "Atlas Visa",
+      "detail": "1"
+    },
+    {
+      "kind": "text",
+      "name": "Your clients, cases and team in one place."
+    },
+    {
+      "kind": "text",
+      "name": "Powered by VisaStack"
+    },
+    {
+      "kind": "link",
+      "name": "Invite Traveller",
+      "detail": "/app/agency/o1/clients"
+    },
+    {
+      "kind": "heading",
+      "name": "Do Next",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Past due items first, then items waiting for review, overdue tasks and cases with no owner."
+    },
+    {
+      "kind": "heading",
+      "name": "Requested Document",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Traveller · Not tied to one case"
+    },
+    {
+      "kind": "link",
+      "name": "Review Item",
+      "detail": "/app/agency/o1/clients#request-r2"
+    },
+    {
+      "kind": "heading",
+      "name": "Case m0",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Traveller m0"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case",
+      "detail": "/app/agency/o1/cases#mission-m0"
+    },
+    {
+      "kind": "heading",
+      "name": "Case m1",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Traveller m1"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case",
+      "detail": "/app/agency/o1/cases#mission-m1"
+    },
+    {
+      "kind": "heading",
+      "name": "Case m2",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Traveller m2"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case",
+      "detail": "/app/agency/o1/cases#mission-m2"
+    },
+    {
+      "kind": "heading",
+      "name": "Case m3",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Traveller m3"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case",
+      "detail": "/app/agency/o1/cases#mission-m3"
+    },
+    {
+      "kind": "heading",
+      "name": "Case m4",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Traveller m4"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case",
+      "detail": "/app/agency/o1/cases#mission-m4"
+    },
+    {
+      "kind": "heading",
+      "name": "Case m5",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Traveller m5"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case",
+      "detail": "/app/agency/o1/cases#mission-m5"
+    },
+    {
+      "kind": "heading",
+      "name": "Case m6",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Traveller m6"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case",
+      "detail": "/app/agency/o1/cases#mission-m6"
+    },
+    {
+      "kind": "text",
+      "name": "Showing 8 of 10. The rest are in the case list below."
+    },
+    {
+      "kind": "heading",
+      "name": "Case Pipeline",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "9 Draft, 0 Intake, 1 In Review, 0 Submission Ready"
+    },
+    {
+      "kind": "link",
+      "name": "Draft9",
+      "detail": "/app/agency/o1?stage=DRAFT"
+    },
+    {
+      "kind": "link",
+      "name": "Intake0",
+      "detail": "/app/agency/o1?stage=INTAKE"
+    },
+    {
+      "kind": "link",
+      "name": "In Review1",
+      "detail": "/app/agency/o1?stage=IN_REVIEW"
+    },
+    {
+      "kind": "link",
+      "name": "Submission Ready0",
+      "detail": "/app/agency/o1?stage=SUBMISSION_READY"
+    },
+    {
+      "kind": "heading",
+      "name": "Cases and Attention",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Cases that need action come first. Search covers only the cases you are already allowed to see, by traveller, case title, reference, destination or stage."
+    },
+    {
+      "kind": "field",
+      "name": "Search",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Stage",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Destination",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Assignee",
+      "detail": "select"
+    },
+    {
+      "kind": "button",
+      "name": "Search"
+    },
+    {
+      "kind": "link",
+      "name": "All 10",
+      "detail": "/app/agency/o1"
+    },
+    {
+      "kind": "link",
+      "name": "Mine 1",
+      "detail": "/app/agency/o1?quick=mine"
+    },
+    {
+      "kind": "link",
+      "name": "Overdue 9",
+      "detail": "/app/agency/o1?quick=overdue"
+    },
+    {
+      "kind": "link",
+      "name": "Waiting on Traveller 1",
+      "detail": "/app/agency/o1?quick=waiting"
+    },
+    {
+      "kind": "link",
+      "name": "Unassigned 9",
+      "detail": "/app/agency/o1?quick=unassigned"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m0 · Case m0",
+      "detail": "/app/agency/o1/cases#mission-m0"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m1 · Case m1",
+      "detail": "/app/agency/o1/cases#mission-m1"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m2 · Case m2",
+      "detail": "/app/agency/o1/cases#mission-m2"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m3 · Case m3",
+      "detail": "/app/agency/o1/cases#mission-m3"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m4 · Case m4",
+      "detail": "/app/agency/o1/cases#mission-m4"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m5 · Case m5",
+      "detail": "/app/agency/o1/cases#mission-m5"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m6 · Case m6",
+      "detail": "/app/agency/o1/cases#mission-m6"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m7 · Case m7",
+      "detail": "/app/agency/o1/cases#mission-m7"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m8 · Case m8",
+      "detail": "/app/agency/o1/cases#mission-m8"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m9 · Case m9",
+      "detail": "/app/agency/o1/cases#mission-m9"
+    },
+    {
+      "kind": "text",
+      "name": "Needs Attention"
+    },
+    {
+      "kind": "heading",
+      "name": "Reassignment Queue",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Active cases this organization can still act on but that currently have nobody assigned - most often because the only assigned member was removed. Open one to assign someone in the Cases section."
+    },
+    {
+      "kind": "link",
+      "name": "Case m0Traveller m0",
+      "detail": "/app/agency/o1/cases#mission-m0"
+    },
+    {
+      "kind": "heading",
+      "name": "Evidence Requests",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Recent requests available to your administrator role."
+    },
+    {
+      "kind": "link",
+      "name": "BANK_STATEMENTTraveller m0 · OpenDue 1 Jan 2030R-7K2Q9M",
+      "detail": "/app/agency/o1/clients#agency-evidence-requests"
+    },
+    {
+      "kind": "link",
+      "name": "passport_numberTraveller · Received",
+      "detail": "/app/agency/o1/clients#agency-evidence-requests"
+    },
+    {
+      "kind": "link",
+      "name": "Manage Requests",
+      "detail": "/app/agency/o1/clients#agency-evidence-requests"
+    },
+    {
+      "kind": "heading",
+      "name": "Your Team",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "2 active members. Inactive memberships remain available in team management."
+    },
+    {
+      "kind": "text",
+      "name": "me@example.comAdmin"
+    },
+    {
+      "kind": "text",
+      "name": "case@example.comCase Worker"
+    },
+    {
+      "kind": "link",
+      "name": "Manage Team",
+      "detail": "/app/agency/o1/team"
+    },
+    {
+      "kind": "heading",
+      "name": "Case Activity",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Recent notes from cases you can currently access. This is not the full organization audit log."
+    },
+    {
+      "kind": "link",
+      "name": "View Accessible Case Activity",
+      "detail": "/app/agency/o1/activity"
+    },
+    {
+      "kind": "button",
+      "name": "Attention Details: 19 items need a response"
+    },
+    {
+      "kind": "heading",
+      "name": "What Needs You First",
+      "detail": "2"
+    }
+  ],
+  "a member": [
+    {
+      "kind": "heading",
+      "name": "Atlas Visa",
+      "detail": "1"
+    },
+    {
+      "kind": "text",
+      "name": "Your clients, cases and team in one place."
+    },
+    {
+      "kind": "text",
+      "name": "Powered by VisaStack"
+    },
+    {
+      "kind": "text",
+      "name": "You're a member of this organization but not an administrator. Requesting evidence, bulk export, and member management are admin-only - you can still collaborate on cases you're assigned to in the Cases section."
+    },
+    {
+      "kind": "heading",
+      "name": "Do Next",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Overdue tasks on the cases assigned to you, most overdue first."
+    },
+    {
+      "kind": "heading",
+      "name": "Case m0",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Traveller m0"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case",
+      "detail": "/app/agency/o1/cases#mission-m0"
+    },
+    {
+      "kind": "heading",
+      "name": "Case m1",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Traveller m1"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case",
+      "detail": "/app/agency/o1/cases#mission-m1"
+    },
+    {
+      "kind": "heading",
+      "name": "Case m2",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Traveller m2"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case",
+      "detail": "/app/agency/o1/cases#mission-m2"
+    },
+    {
+      "kind": "heading",
+      "name": "Case m3",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Traveller m3"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case",
+      "detail": "/app/agency/o1/cases#mission-m3"
+    },
+    {
+      "kind": "heading",
+      "name": "Case m4",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Traveller m4"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case",
+      "detail": "/app/agency/o1/cases#mission-m4"
+    },
+    {
+      "kind": "heading",
+      "name": "Case m5",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Traveller m5"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case",
+      "detail": "/app/agency/o1/cases#mission-m5"
+    },
+    {
+      "kind": "heading",
+      "name": "Case m6",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Traveller m6"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case",
+      "detail": "/app/agency/o1/cases#mission-m6"
+    },
+    {
+      "kind": "heading",
+      "name": "Case m7",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Traveller m7"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case",
+      "detail": "/app/agency/o1/cases#mission-m7"
+    },
+    {
+      "kind": "text",
+      "name": "Showing 8 of 9. The rest are in the case list below."
+    },
+    {
+      "kind": "heading",
+      "name": "Case Pipeline",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "9 Draft, 0 Intake, 1 In Review, 0 Submission Ready"
+    },
+    {
+      "kind": "link",
+      "name": "Draft9",
+      "detail": "/app/agency/o1?stage=DRAFT"
+    },
+    {
+      "kind": "link",
+      "name": "Intake0",
+      "detail": "/app/agency/o1?stage=INTAKE"
+    },
+    {
+      "kind": "link",
+      "name": "In Review1",
+      "detail": "/app/agency/o1?stage=IN_REVIEW"
+    },
+    {
+      "kind": "link",
+      "name": "Submission Ready0",
+      "detail": "/app/agency/o1?stage=SUBMISSION_READY"
+    },
+    {
+      "kind": "heading",
+      "name": "Cases and Attention",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Cases that need action come first. Search covers only the cases you are already allowed to see, by traveller, case title, reference, destination or stage."
+    },
+    {
+      "kind": "field",
+      "name": "Search",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Stage",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Destination",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Assignee",
+      "detail": "select"
+    },
+    {
+      "kind": "button",
+      "name": "Search"
+    },
+    {
+      "kind": "link",
+      "name": "All 10",
+      "detail": "/app/agency/o1"
+    },
+    {
+      "kind": "link",
+      "name": "Mine 1",
+      "detail": "/app/agency/o1?quick=mine"
+    },
+    {
+      "kind": "link",
+      "name": "Overdue 9",
+      "detail": "/app/agency/o1?quick=overdue"
+    },
+    {
+      "kind": "link",
+      "name": "Waiting on Traveller 1",
+      "detail": "/app/agency/o1?quick=waiting"
+    },
+    {
+      "kind": "link",
+      "name": "Unassigned 9",
+      "detail": "/app/agency/o1?quick=unassigned"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m0 · Case m0",
+      "detail": "/app/agency/o1/cases#mission-m0"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m1 · Case m1",
+      "detail": "/app/agency/o1/cases#mission-m1"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m2 · Case m2",
+      "detail": "/app/agency/o1/cases#mission-m2"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m3 · Case m3",
+      "detail": "/app/agency/o1/cases#mission-m3"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m4 · Case m4",
+      "detail": "/app/agency/o1/cases#mission-m4"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m5 · Case m5",
+      "detail": "/app/agency/o1/cases#mission-m5"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m6 · Case m6",
+      "detail": "/app/agency/o1/cases#mission-m6"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m7 · Case m7",
+      "detail": "/app/agency/o1/cases#mission-m7"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m8 · Case m8",
+      "detail": "/app/agency/o1/cases#mission-m8"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m9 · Case m9",
+      "detail": "/app/agency/o1/cases#mission-m9"
+    },
+    {
+      "kind": "heading",
+      "name": "Your Case Work",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Requests and team management belong to agency administrators. Your assigned case tools remain available."
+    },
+    {
+      "kind": "link",
+      "name": "Open Assigned Cases",
+      "detail": "/app/agency/o1/cases"
+    },
+    {
+      "kind": "heading",
+      "name": "Case Activity",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Recent notes from cases you can currently access. This is not the full organization audit log."
+    },
+    {
+      "kind": "link",
+      "name": "View Accessible Case Activity",
+      "detail": "/app/agency/o1/activity"
+    },
+    {
+      "kind": "button",
+      "name": "Attention Details: 9 items need a response"
+    },
+    {
+      "kind": "heading",
+      "name": "What Needs You First",
+      "detail": "2"
+    }
+  ],
+  "a quick view": [
+    {
+      "kind": "heading",
+      "name": "Atlas Visa",
+      "detail": "1"
+    },
+    {
+      "kind": "text",
+      "name": "Your clients, cases and team in one place."
+    },
+    {
+      "kind": "text",
+      "name": "Powered by VisaStack"
+    },
+    {
+      "kind": "link",
+      "name": "Invite Traveller",
+      "detail": "/app/agency/o1/clients"
+    },
+    {
+      "kind": "heading",
+      "name": "Do Next",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "For the cases in your current view. Past due items first, then items waiting for review, overdue tasks and cases with no owner."
+    },
+    {
+      "kind": "heading",
+      "name": "Requested Document",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Traveller · Not tied to one case"
+    },
+    {
+      "kind": "link",
+      "name": "Review Item",
+      "detail": "/app/agency/o1/clients#request-r2"
+    },
+    {
+      "kind": "heading",
+      "name": "Case m0",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Traveller m0"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case",
+      "detail": "/app/agency/o1/cases#mission-m0"
+    },
+    {
+      "kind": "heading",
+      "name": "Case m1",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Traveller m1"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case",
+      "detail": "/app/agency/o1/cases#mission-m1"
+    },
+    {
+      "kind": "heading",
+      "name": "Case m2",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Traveller m2"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case",
+      "detail": "/app/agency/o1/cases#mission-m2"
+    },
+    {
+      "kind": "heading",
+      "name": "Case m3",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Traveller m3"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case",
+      "detail": "/app/agency/o1/cases#mission-m3"
+    },
+    {
+      "kind": "heading",
+      "name": "Case m4",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Traveller m4"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case",
+      "detail": "/app/agency/o1/cases#mission-m4"
+    },
+    {
+      "kind": "heading",
+      "name": "Case m5",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Traveller m5"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case",
+      "detail": "/app/agency/o1/cases#mission-m5"
+    },
+    {
+      "kind": "heading",
+      "name": "Case m6",
+      "detail": "3"
+    },
+    {
+      "kind": "text",
+      "name": "Traveller m6"
+    },
+    {
+      "kind": "link",
+      "name": "Open Case",
+      "detail": "/app/agency/o1/cases#mission-m6"
+    },
+    {
+      "kind": "text",
+      "name": "Showing 8 of 10. The rest are in the case list below."
+    },
+    {
+      "kind": "heading",
+      "name": "Case Pipeline",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "9 Draft, 0 Intake, 1 In Review, 0 Submission Ready"
+    },
+    {
+      "kind": "link",
+      "name": "Draft9",
+      "detail": "/app/agency/o1?stage=DRAFT"
+    },
+    {
+      "kind": "link",
+      "name": "Intake0",
+      "detail": "/app/agency/o1?stage=INTAKE"
+    },
+    {
+      "kind": "link",
+      "name": "In Review1",
+      "detail": "/app/agency/o1?stage=IN_REVIEW"
+    },
+    {
+      "kind": "link",
+      "name": "Submission Ready0",
+      "detail": "/app/agency/o1?stage=SUBMISSION_READY"
+    },
+    {
+      "kind": "heading",
+      "name": "Cases and Attention",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Cases that need action come first. Search covers only the cases you are already allowed to see, by traveller, case title, reference, destination or stage."
+    },
+    {
+      "kind": "field",
+      "name": "Search",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Stage",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Destination",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Assignee",
+      "detail": "select"
+    },
+    {
+      "kind": "button",
+      "name": "Search"
+    },
+    {
+      "kind": "link",
+      "name": "All 10",
+      "detail": "/app/agency/o1"
+    },
+    {
+      "kind": "link",
+      "name": "Mine 1",
+      "detail": "/app/agency/o1?quick=mine"
+    },
+    {
+      "kind": "link",
+      "name": "Overdue 9",
+      "detail": "/app/agency/o1?quick=overdue"
+    },
+    {
+      "kind": "link",
+      "name": "Waiting on Traveller 1",
+      "detail": "/app/agency/o1?quick=waiting"
+    },
+    {
+      "kind": "link",
+      "name": "Unassigned 9",
+      "detail": "/app/agency/o1?quick=unassigned"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m0 · Case m0",
+      "detail": "/app/agency/o1/cases#mission-m0"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m1 · Case m1",
+      "detail": "/app/agency/o1/cases#mission-m1"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m2 · Case m2",
+      "detail": "/app/agency/o1/cases#mission-m2"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m3 · Case m3",
+      "detail": "/app/agency/o1/cases#mission-m3"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m4 · Case m4",
+      "detail": "/app/agency/o1/cases#mission-m4"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m5 · Case m5",
+      "detail": "/app/agency/o1/cases#mission-m5"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m6 · Case m6",
+      "detail": "/app/agency/o1/cases#mission-m6"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m7 · Case m7",
+      "detail": "/app/agency/o1/cases#mission-m7"
+    },
+    {
+      "kind": "link",
+      "name": "Traveller m8 · Case m8",
+      "detail": "/app/agency/o1/cases#mission-m8"
+    },
+    {
+      "kind": "text",
+      "name": "Needs Attention"
+    },
+    {
+      "kind": "heading",
+      "name": "Reassignment Queue",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Active cases this organization can still act on but that currently have nobody assigned - most often because the only assigned member was removed. Open one to assign someone in the Cases section."
+    },
+    {
+      "kind": "link",
+      "name": "Case m0Traveller m0",
+      "detail": "/app/agency/o1/cases#mission-m0"
+    },
+    {
+      "kind": "heading",
+      "name": "Evidence Requests",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Recent requests available to your administrator role."
+    },
+    {
+      "kind": "link",
+      "name": "BANK_STATEMENTTraveller m0 · OpenDue 1 Jan 2030R-7K2Q9M",
+      "detail": "/app/agency/o1/clients#agency-evidence-requests"
+    },
+    {
+      "kind": "link",
+      "name": "passport_numberTraveller · Received",
+      "detail": "/app/agency/o1/clients#agency-evidence-requests"
+    },
+    {
+      "kind": "link",
+      "name": "Manage Requests",
+      "detail": "/app/agency/o1/clients#agency-evidence-requests"
+    },
+    {
+      "kind": "heading",
+      "name": "Your Team",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "2 active members. Inactive memberships remain available in team management."
+    },
+    {
+      "kind": "text",
+      "name": "me@example.comAdmin"
+    },
+    {
+      "kind": "text",
+      "name": "case@example.comCase Worker"
+    },
+    {
+      "kind": "link",
+      "name": "Manage Team",
+      "detail": "/app/agency/o1/team"
+    },
+    {
+      "kind": "heading",
+      "name": "Case Activity",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Recent notes from cases you can currently access. This is not the full organization audit log."
+    },
+    {
+      "kind": "link",
+      "name": "View Accessible Case Activity",
+      "detail": "/app/agency/o1/activity"
+    },
+    {
+      "kind": "button",
+      "name": "Attention Details: 19 items need a response"
+    },
+    {
+      "kind": "heading",
+      "name": "What Needs You First",
+      "detail": "2"
+    }
+  ],
+  "a search with no match": [
+    {
+      "kind": "heading",
+      "name": "Atlas Visa",
+      "detail": "1"
+    },
+    {
+      "kind": "text",
+      "name": "Your clients, cases and team in one place."
+    },
+    {
+      "kind": "text",
+      "name": "Powered by VisaStack"
+    },
+    {
+      "kind": "link",
+      "name": "Invite Traveller",
+      "detail": "/app/agency/o1/clients"
+    },
+    {
+      "kind": "heading",
+      "name": "Do Next",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "For the cases in your current view. Past due items first, then items waiting for review, overdue tasks and cases with no owner."
+    },
+    {
+      "kind": "text",
+      "name": "Nothing needs you first right now."
+    },
+    {
+      "kind": "heading",
+      "name": "Case Pipeline",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "9 Draft, 0 Intake, 1 In Review, 0 Submission Ready"
+    },
+    {
+      "kind": "link",
+      "name": "Draft9",
+      "detail": "/app/agency/o1?stage=DRAFT"
+    },
+    {
+      "kind": "link",
+      "name": "Intake0",
+      "detail": "/app/agency/o1?stage=INTAKE"
+    },
+    {
+      "kind": "link",
+      "name": "In Review1",
+      "detail": "/app/agency/o1?stage=IN_REVIEW"
+    },
+    {
+      "kind": "link",
+      "name": "Submission Ready0",
+      "detail": "/app/agency/o1?stage=SUBMISSION_READY"
+    },
+    {
+      "kind": "heading",
+      "name": "Cases and Attention",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Cases that need action come first. Search covers only the cases you are already allowed to see, by traveller, case title, reference, destination or stage."
+    },
+    {
+      "kind": "field",
+      "name": "Search",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Stage",
+      "detail": "select"
+    },
+    {
+      "kind": "field",
+      "name": "Destination",
+      "detail": "text"
+    },
+    {
+      "kind": "field",
+      "name": "Assignee",
+      "detail": "select"
+    },
+    {
+      "kind": "button",
+      "name": "Search"
+    },
+    {
+      "kind": "link",
+      "name": "Clear",
+      "detail": "/app/agency/o1"
+    },
+    {
+      "kind": "link",
+      "name": "All 0",
+      "detail": "/app/agency/o1?q=nothing+like+this"
+    },
+    {
+      "kind": "link",
+      "name": "Mine 0",
+      "detail": "/app/agency/o1?q=nothing+like+this&quick=mine"
+    },
+    {
+      "kind": "link",
+      "name": "Overdue 0",
+      "detail": "/app/agency/o1?q=nothing+like+this&quick=overdue"
+    },
+    {
+      "kind": "link",
+      "name": "Waiting on Traveller 0",
+      "detail": "/app/agency/o1?q=nothing+like+this&quick=waiting"
+    },
+    {
+      "kind": "link",
+      "name": "Unassigned 0",
+      "detail": "/app/agency/o1?q=nothing+like+this&quick=unassigned"
+    },
+    {
+      "kind": "text",
+      "name": "No cases match that search."
+    },
+    {
+      "kind": "text",
+      "name": "Needs Attention"
+    },
+    {
+      "kind": "heading",
+      "name": "Reassignment Queue",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Active cases this organization can still act on but that currently have nobody assigned - most often because the only assigned member was removed. Open one to assign someone in the Cases section."
+    },
+    {
+      "kind": "link",
+      "name": "Case m0Traveller m0",
+      "detail": "/app/agency/o1/cases#mission-m0"
+    },
+    {
+      "kind": "heading",
+      "name": "Evidence Requests",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Recent requests available to your administrator role."
+    },
+    {
+      "kind": "link",
+      "name": "BANK_STATEMENTTraveller m0 · OpenDue 1 Jan 2030R-7K2Q9M",
+      "detail": "/app/agency/o1/clients#agency-evidence-requests"
+    },
+    {
+      "kind": "link",
+      "name": "passport_numberTraveller · Received",
+      "detail": "/app/agency/o1/clients#agency-evidence-requests"
+    },
+    {
+      "kind": "link",
+      "name": "Manage Requests",
+      "detail": "/app/agency/o1/clients#agency-evidence-requests"
+    },
+    {
+      "kind": "heading",
+      "name": "Your Team",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "2 active members. Inactive memberships remain available in team management."
+    },
+    {
+      "kind": "text",
+      "name": "me@example.comAdmin"
+    },
+    {
+      "kind": "text",
+      "name": "case@example.comCase Worker"
+    },
+    {
+      "kind": "link",
+      "name": "Manage Team",
+      "detail": "/app/agency/o1/team"
+    },
+    {
+      "kind": "heading",
+      "name": "Case Activity",
+      "detail": "2"
+    },
+    {
+      "kind": "text",
+      "name": "Recent notes from cases you can currently access. This is not the full organization audit log."
+    },
+    {
+      "kind": "link",
+      "name": "View Accessible Case Activity",
+      "detail": "/app/agency/o1/activity"
+    },
+    {
+      "kind": "button",
+      "name": "Attention Details: 19 items need a response"
+    },
+    {
+      "kind": "heading",
+      "name": "What Needs You First",
+      "detail": "2"
+    }
+  ]
+}

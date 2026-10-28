@@ -49,6 +49,16 @@ export const DEPTH_WORDS = {
   'depth.sharing.browse.withForm': 'Browse: invitations, the access log and the form to share.',
   'depth.sharing.everything': 'Everything: the form to share with someone new.',
   'depth.sharing.everything.nothingMore': 'Everything: nothing more on this screen.',
+  'depth.agency-home.glance': 'Glance: your numbers and the first thing to do.',
+  'depth.agency-home.glance.filtered':
+    'Glance: your numbers, the first thing to do and the cases you asked for.',
+  'depth.agency-home.browse.admin':
+    'Browse: everything to do, the case pipeline, the case list, evidence requests and your team.',
+  'depth.agency-home.browse.member':
+    'Browse: everything to do, the case pipeline, the case list and your case work.',
+  'depth.agency-home.everything.admin':
+    'Everything: search, case activity and attention details, with setup, clients joined and the reassignment queue when they apply.',
+  'depth.agency-home.everything.member': 'Everything: search, case activity and attention details.',
   'depth.notifications.glance': 'Glance: what is new.',
   'depth.notifications.browse': 'Browse: what is new and the recent ones you have read.',
   'depth.notifications.everything': 'Everything: the older ones you have read.',
