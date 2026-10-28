@@ -14,6 +14,17 @@ const TOKEN = 'a'.repeat(43);
 const render = (searchParams: { kind?: string; token?: string }) =>
   renderServer(InvitationPage({ searchParams: Promise.resolve(searchParams) }));
 
+/** The "Not you?" line: a form, not a link, that names this kind and this link only. */
+function expectSwitch(document: Document, kind: string, token: string = TOKEN) {
+  const form = document.querySelector('form.invitation-switch');
+  expect(form?.textContent).toContain('Not you?');
+  expect(form?.querySelector('button[type="submit"]')?.textContent).toBe(
+    'Sign In with the Invited Email Address',
+  );
+  expect(form?.querySelector<HTMLInputElement>('input[name="kind"]')?.value).toBe(kind);
+  expect(form?.querySelector<HTMLInputElement>('input[name="token"]')?.value).toBe(token);
+}
+
 // Until a test says otherwise the lookup is not available, so the page is the plain handoff it was.
 beforeEach(() => {
   mocks.load.mockReset();
@@ -40,7 +51,9 @@ describe('the public invitation page (v1.2 B09: neutral, no bearer access)', () 
 
   it('asks a client to use the invited email and returns them to the invitation after sign-in', async () => {
     const html = await render({ kind: 'client', token: TOKEN });
-    expect(textOf(html)).toContain('Use the email address that received this invitation.');
+    expect(textOf(html)).toContain(
+      'Create an account or sign in with the email address that received this invitation.',
+    );
     const next = encodeURIComponent(`/app/client-invitations/accept?token=${TOKEN}`);
     expect(html).toContain(`href="/auth/sign-up?next=${next}"`);
     expect(html).toContain(`href="/auth/sign-in?next=${next}"`);
@@ -71,18 +84,15 @@ describe('the public invitation page (v1.2 B09: neutral, no bearer access)', () 
     const facts = {
       team: [
         'An agency invited you to join their team on VisaStack.',
-        'Use the email address that received the invitation.',
         'You will see the agency and your role before joining.',
       ],
       sharing: [
         'You were invited to access part of a VisaStack profile.',
-        'Use the email address that received this invitation.',
         'Review the purpose, permissions and expiry before accepting.',
         'No access is active until you agree.',
       ],
       client: [
         'An agency wants to work on your visa case with you.',
-        'Use the email address that received this invitation.',
         'You will see the agency and the access they ask for.',
         'You choose your own profile and confirm sharing before connecting.',
       ],
@@ -92,6 +102,7 @@ describe('the public invitation page (v1.2 B09: neutral, no bearer access)', () 
       for (const line of [
         ...lines,
         'Opening this link accepts nothing. You decide after you review.',
+        'Create an account or sign in with the email address that received this invitation.',
         'Already signed in? Review Your Invitation',
         'If you reset your password, open this invitation link again afterwards.',
         'Invitations expire after 7 days. If this one has expired or was revoked, ask the sender for a new invitation.',
@@ -129,6 +140,24 @@ describe('the public invitation page (v1.2 B09: neutral, no bearer access)', () 
     expect(details && create && create.compareDocumentPosition(details) & 4).toBeTruthy();
     // Without scripts only the hero buttons exist: the pinned copy is added in the browser.
     expect(document.querySelector('.invitation-sticky')).toBeNull();
+    // Nobody is signed in, so there is no account to switch from.
+    expect(document.querySelector('form.invitation-switch')).toBeNull();
+  });
+
+  it('reads the session while the link is being looked up, not after', async () => {
+    let finish: (value: unknown) => void = () => undefined;
+    mocks.load.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const pending = render({ kind: 'client', token: TOKEN });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mocks.load).toHaveBeenCalledTimes(1);
+    expect(mocks.signedIn).toHaveBeenCalledTimes(1);
+    finish({ state: 'unavailable' });
+    expect(textOf(await pending)).toContain('Work with an Agency');
   });
 
   it('sends a visitor who is already signed in straight to the review of their own kind', async () => {
@@ -148,6 +177,8 @@ describe('the public invitation page (v1.2 B09: neutral, no bearer access)', () 
       const current = document.querySelector('ol.invitation-steps [aria-current="step"]');
       expect(current?.textContent).toContain('Review');
       expect(document.querySelector('ol.invitation-steps li')?.textContent).toContain('(Done)');
+      // Signed in with another account? One quiet way to switch, back to this same invitation.
+      expectSwitch(document, kind);
     }
   });
 });
@@ -205,7 +236,7 @@ describe('the client invitation page before sign-in (growth loop 1, Option B)', 
       'You choose which of your profiles this applies to, or start a new one.',
       'Nothing is shared until you accept.',
       'You can stop sharing at any time.',
-      'Use the email address that received this invitation.',
+      'Create an account or sign in with the email address that received this invitation.',
       'Already signed in? Review Your Invitation',
       'If you reset your password, open this invitation link again afterwards.',
       'A complete checklist, or a file marked ready, is not an approval. Only the embassy or visa office decides.',
@@ -250,6 +281,10 @@ describe('the client invitation page before sign-in (growth loop 1, Option B)', 
     expect(primary?.textContent).toBe('Review Your Invitation');
     expect(primary?.getAttribute('href')).toBe(`/app/client-invitations/accept?token=${TOKEN2}`);
     expect(document.querySelector('a[href^="/auth/"]')).toBeNull();
+    expectSwitch(document, 'client', TOKEN2);
+    expect(document.body.textContent).toContain(
+      'Use the email address that received this invitation.',
+    );
   });
 
   it('shows the logo and accent of a reviewed agency, from this invitation only', async () => {

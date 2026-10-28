@@ -31,6 +31,11 @@ export interface ClientInvitationTerms {
   readonly agencyCan: readonly string[];
   /** One sentence on what it could not do, or null when the grant leaves nothing out of that list. */
   readonly agencyCannot: string | null;
+  /**
+   * The same withheld access, one item each, for a page that lists it ("Download your original
+   * files"). Built in the same pass as `agencyCannot`, so the list and the sentence never disagree.
+   */
+  readonly withheld: readonly string[];
 }
 
 /** Terms for exactly this grant, or null when any action in it has no plain sentence yet. */
@@ -43,26 +48,15 @@ export function clientInvitationTerms(
     if (sentence === undefined) return null;
     agencyCan.push(sentence);
   }
-  const withheld = withheldPhrases(actions);
+  const phrases = WITHHELD.filter((item) => !actions.includes(item.action)).map(
+    (item) => item.phrase,
+  );
   const agencyCannot =
-    withheld.length === 0
+    phrases.length === 0
       ? null
-      : `They could not ${joinWithOr(withheld)}. That would need a separate choice from you.`;
-  return { agencyCan, agencyCannot };
-}
-
-/** The phrases for the access this grant really leaves out, in the fixed order of `WITHHELD`. */
-function withheldPhrases(actions: readonly PermissionAction[]): string[] {
-  return WITHHELD.filter((item) => !actions.includes(item.action)).map((item) => item.phrase);
-}
-
-/**
- * The same withheld access as `agencyCannot`, one item each, for a page that lists it ("Download
- * your original files"). Built from the same table and the same check, so the list and the sentence
- * can never disagree.
- */
-export function clientInvitationWithheld(actions: readonly PermissionAction[]): readonly string[] {
-  return withheldPhrases(actions).map((phrase) => phrase.charAt(0).toUpperCase() + phrase.slice(1));
+      : `They could not ${joinWithOr(phrases)}. That would need a separate choice from you.`;
+  const withheld = phrases.map((phrase) => phrase.charAt(0).toUpperCase() + phrase.slice(1));
+  return { agencyCan, agencyCannot, withheld };
 }
 
 function joinWithOr(items: readonly string[]): string {
@@ -73,23 +67,19 @@ function joinWithOr(items: readonly string[]): string {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * When the invitation ends, in words that hold for a reader in any time zone: the time left, rounded
- * down (so it never promises more than there is), then the calendar day it falls on. The day is the
- * one in UTC; the time left is what decides.
- */
-export function describeInvitationExpiry(expiresAt: Date, now: Date): string {
-  const { day, daysLeft } = expiryParts(expiresAt, now);
-  const left =
-    daysLeft >= 2 ? `in ${daysLeft} days` : daysLeft === 1 ? 'in 1 day' : 'in less than a day';
-  return `${left}, on ${day}`;
-}
-
-/**
- * The same expiry as a short badge for the top of the public page: the day, then the time left,
- * rounded down the same way ("Expires 3 Nov 2026, 6 Days Left").
+ * When the invitation ends, as a short badge for the top of the public page, in words that hold for
+ * a reader in any time zone: the calendar day it falls on (the one in UTC), then the time left,
+ * rounded down so it never promises more than there is ("Expires 3 Nov 2026, 6 Days Left"). The
+ * time left is what decides.
  */
 export function invitationExpiryBadge(expiresAt: Date, now: Date): string {
-  const { day, daysLeft } = expiryParts(expiresAt, now);
+  const day = expiresAt.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+  const daysLeft = Math.floor((expiresAt.getTime() - now.getTime()) / DAY_MS);
   const left =
     daysLeft >= 2
       ? `${daysLeft} Days Left`
@@ -97,17 +87,4 @@ export function invitationExpiryBadge(expiresAt: Date, now: Date): string {
         ? '1 Day Left'
         : 'Less Than a Day Left';
   return `Expires ${day}, ${left}`;
-}
-
-function expiryParts(
-  expiresAt: Date,
-  now: Date,
-): { readonly day: string; readonly daysLeft: number } {
-  const day = expiresAt.toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
-  return { day, daysLeft: Math.floor((expiresAt.getTime() - now.getTime()) / DAY_MS) };
 }

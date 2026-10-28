@@ -4,6 +4,7 @@ import { clientInvitationTerms } from '../../lib/client-invitation-terms';
 import { loadClientInvitationPage } from '../../lib/invitation-preview';
 import { INVITATION_TOKEN_PATTERN } from '../../lib/invitation-token';
 import { isSignedIn } from '../../lib/signed-in';
+import { type InvitationKind, isInvitationKind } from './accept-paths';
 import {
   AgencyNotReviewed,
   ClientInvitationOffer,
@@ -22,8 +23,6 @@ export const metadata: Metadata = {
 };
 export const dynamic = 'force-dynamic';
 
-type InvitationKind = 'team' | 'client' | 'sharing';
-
 /** What each kind of invitation says in its hero and in its list of what to expect. */
 const HANDOFF: Readonly<
   Record<
@@ -34,16 +33,12 @@ const HANDOFF: Readonly<
   team: {
     title: 'Join an Agency Team',
     promise: 'An agency invited you to join their team on VisaStack.',
-    expect: [
-      'Use the email address that received the invitation.',
-      'You will see the agency and your role before joining.',
-    ],
+    expect: ['You will see the agency and your role before joining.'],
   },
   sharing: {
     title: 'Review Shared Access',
     promise: 'You were invited to access part of a VisaStack profile.',
     expect: [
-      'Use the email address that received this invitation.',
       'Review the purpose, permissions and expiry before accepting.',
       'No access is active until you agree.',
     ],
@@ -52,40 +47,11 @@ const HANDOFF: Readonly<
     title: 'Work with an Agency',
     promise: 'An agency wants to work on your visa case with you.',
     expect: [
-      'Use the email address that received this invitation.',
       'You will see the agency and the access they ask for.',
       'You choose your own profile and confirm sharing before connecting.',
     ],
   },
 };
-
-function isInvitationKind(kind: string | undefined): kind is InvitationKind {
-  return kind === 'team' || kind === 'client' || kind === 'sharing';
-}
-
-/** The link to each kind's own review page, written out per kind so every address stays literal. */
-function reviewLink(kind: InvitationKind, token: string, className?: string) {
-  const label = 'Review Your Invitation';
-  if (kind === 'team') {
-    return (
-      <Link className={className} href={`/app/invitations/accept?token=${token}`}>
-        {label}
-      </Link>
-    );
-  }
-  if (kind === 'sharing') {
-    return (
-      <Link className={className} href={`/app/sharing-invitations/accept?token=${token}`}>
-        {label}
-      </Link>
-    );
-  }
-  return (
-    <Link className={className} href={`/app/client-invitations/accept?token=${token}`}>
-      {label}
-    </Link>
-  );
-}
 
 /**
  * A public account handoff. A team or sharing invitation shows only the generic handoff. A client
@@ -114,34 +80,27 @@ export default async function InvitationPage({
       />
     );
   }
-  const path =
-    kind === 'team'
-      ? '/app/invitations/accept'
-      : kind === 'sharing'
-        ? '/app/sharing-invitations/accept'
-        : '/app/client-invitations/accept';
-  const next = encodeURIComponent(`${path}?token=${token}`);
-  if (kind === 'client') {
-    const page = await loadClientInvitationPage(token);
-    if (page.state === 'closed') return <ClosedInvitation />;
-    if (page.state === 'open') {
-      if (!page.view.verified) return <AgencyNotReviewed agencyName={page.view.agencyName} />;
-      const terms = clientInvitationTerms(page.view.grantActions);
-      if (terms) {
-        return (
-          <ClientInvitationOffer
-            view={page.view}
-            terms={terms}
-            token={token}
-            next={next}
-            now={new Date()}
-            signedIn={await isSignedIn()}
-          />
-        );
-      }
+  // The session is read alongside the lookup, and once per request (the layout asks too).
+  const [page, signedIn] = await Promise.all([
+    kind === 'client' ? loadClientInvitationPage(token) : null,
+    isSignedIn(),
+  ]);
+  if (page?.state === 'closed') return <ClosedInvitation />;
+  if (page?.state === 'open') {
+    if (!page.view.verified) return <AgencyNotReviewed agencyName={page.view.agencyName} />;
+    const terms = clientInvitationTerms(page.view.grantActions);
+    if (terms) {
+      return (
+        <ClientInvitationOffer
+          view={page.view}
+          terms={terms}
+          token={token}
+          now={new Date()}
+          signedIn={signedIn}
+        />
+      );
     }
   }
-  const signedIn = await isSignedIn();
   const copy = HANDOFF[kind];
   return (
     <section className="section container invitation-page">
@@ -149,11 +108,7 @@ export default async function InvitationPage({
         <span className="eyebrow">VisaStack Invitation</span>
         <h1 className="section-title invitation-title">{copy.title}</h1>
         <p className="invitation-promise">{copy.promise}</p>
-        <InvitationActions
-          signedIn={signedIn}
-          next={next}
-          review={reviewLink(kind, token, 'btn btn-primary')}
-        />
+        <InvitationActions kind={kind} token={token} signedIn={signedIn} />
         <InvitationReassurance />
       </div>
       <InvitationSteps signedIn={signedIn} />
@@ -168,7 +123,7 @@ export default async function InvitationPage({
             ))}
           </ul>
         </section>
-        <InvitationHelp signedIn={signedIn} emailHint={null} review={reviewLink(kind, token)} />
+        <InvitationHelp kind={kind} token={token} signedIn={signedIn} />
         <p className="invitation-legal">
           Invitations expire after 7 days. If this one has expired or was revoked, ask the sender
           for a new invitation.

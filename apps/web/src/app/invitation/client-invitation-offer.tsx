@@ -6,10 +6,11 @@ import { InvitingAgency } from '../../components/inviting-agency';
 import { StatusBadge } from '../../components/ui';
 import {
   type ClientInvitationTerms,
-  clientInvitationWithheld,
   invitationExpiryBadge,
 } from '../../lib/client-invitation-terms';
+import { type InvitationKind, invitationAcceptHref, invitationReturnPath } from './accept-paths';
 import { StickyInvitationActions } from './sticky-invitation-actions';
+import { SwitchInvitationAccount } from './switch-account';
 
 /**
  * The parts every open invitation page shares (UX-G): the hero with its main buttons, the three
@@ -41,34 +42,40 @@ export function InvitationSteps({ signedIn }: { readonly signedIn: boolean }) {
 }
 
 /**
- * The main buttons: create an account or sign in, or, for a visitor already signed in, straight to
- * the review. `next` is the already-encoded address to return to after signing in; `review` is the
- * link to this kind's own review page, styled as the main button.
+ * The main buttons, from the one table of accept pages: create an account or sign in (each returning
+ * to this kind's review page), or, for a visitor already signed in, straight to the review, with a
+ * quiet way to switch to the invited account.
  */
 export function InvitationActions({
+  kind,
+  token,
   signedIn,
-  next,
-  review,
 }: {
+  readonly kind: InvitationKind;
+  readonly token: string;
   readonly signedIn: boolean;
-  readonly next: string;
-  readonly review: ReactElement;
 }) {
+  const next = invitationReturnPath(kind, token);
   return (
-    <StickyInvitationActions>
-      {signedIn ? (
-        review
-      ) : (
-        <>
-          <Link className="btn btn-primary" href={`/auth/sign-up?next=${next}`}>
-            Create an Account to Review
+    <>
+      <StickyInvitationActions>
+        {signedIn ? (
+          <Link className="btn btn-primary" href={invitationAcceptHref(kind, token)}>
+            Review Your Invitation
           </Link>
-          <Link className="btn btn-secondary" href={`/auth/sign-in?next=${next}`}>
-            Sign In
-          </Link>
-        </>
-      )}
-    </StickyInvitationActions>
+        ) : (
+          <>
+            <Link className="btn btn-primary" href={`/auth/sign-up?next=${next}`}>
+              Create an Account to Review
+            </Link>
+            <Link className="btn btn-secondary" href={`/auth/sign-in?next=${next}`}>
+              Sign In
+            </Link>
+          </>
+        )}
+      </StickyInvitationActions>
+      {signedIn ? <SwitchInvitationAccount kind={kind} token={token} /> : null}
+    </>
   );
 }
 
@@ -86,15 +93,13 @@ export function InvitationReassurance() {
  * (in case the page could not tell), and what to do after a password reset.
  */
 export function InvitationHelp({
+  kind,
+  token,
   signedIn,
-  review,
-  emailHint,
 }: {
+  readonly kind: InvitationKind;
+  readonly token: string;
   readonly signedIn: boolean;
-  /** The link to this kind's own review page, as plain text. */
-  readonly review: ReactElement;
-  /** The email line, or null when the page already says it. */
-  readonly emailHint: string | null;
 }) {
   return (
     <section className="invitation-help" aria-labelledby="invitation-help-title">
@@ -102,8 +107,19 @@ export function InvitationHelp({
         Before You Start
       </h2>
       <ul className="invitation-list">
-        {emailHint ? <li>{emailHint}</li> : null}
-        {signedIn ? null : <li>Already signed in? {review}</li>}
+        {signedIn ? (
+          <li>Use the email address that received this invitation.</li>
+        ) : (
+          <>
+            <li>
+              Create an account or sign in with the email address that received this invitation.
+            </li>
+            <li>
+              Already signed in?{' '}
+              <Link href={invitationAcceptHref(kind, token)}>Review Your Invitation</Link>
+            </li>
+          </>
+        )}
         <li>If you reset your password, open this invitation link again afterwards.</li>
       </ul>
     </section>
@@ -140,15 +156,12 @@ export function ClientInvitationOffer({
   view,
   terms,
   token,
-  next,
   now,
   signedIn = false,
 }: {
   readonly view: PublicClientInvitationView;
   readonly terms: ClientInvitationTerms;
   readonly token: string;
-  /** The already-encoded address to return to after signing in. */
-  readonly next: string;
   readonly now: Date;
   /** Whether the visitor already has a session; a failed check counts as signed out. */
   readonly signedIn?: boolean;
@@ -157,7 +170,6 @@ export function ClientInvitationOffer({
     view.logoVersion === null
       ? null
       : `/api/branding/invitation-logo?token=${encodeURIComponent(token)}&v=${encodeURIComponent(view.logoVersion)}`;
-  const withheld = clientInvitationWithheld(view.grantActions);
   return (
     <section className="section container invitation-page invitation-offer">
       <div className="invitation-hero">
@@ -173,18 +185,7 @@ export function ClientInvitationOffer({
             </time>
           </StatusBadge>
         </p>
-        <InvitationActions
-          signedIn={signedIn}
-          next={next}
-          review={
-            <Link
-              className="btn btn-primary"
-              href={`/app/client-invitations/accept?token=${token}`}
-            >
-              Review Your Invitation
-            </Link>
-          }
-        />
+        <InvitationActions kind="client" token={token} signedIn={signedIn} />
         <InvitationReassurance />
       </div>
       <InvitationSteps signedIn={signedIn} />
@@ -201,12 +202,12 @@ export function ClientInvitationOffer({
             </h2>
             <MarkedList items={terms.agencyCan} mark="check" />
           </section>
-          {withheld.length > 0 ? (
+          {terms.withheld.length > 0 ? (
             <section className="invitation-term" aria-labelledby="invitation-cannot-title">
               <h2 className="card-title" id="invitation-cannot-title">
                 They Could Not
               </h2>
-              <MarkedList items={withheld} mark="close" />
+              <MarkedList items={terms.withheld} mark="close" />
               <p className="invitation-term-note">
                 Each of these would need a separate choice from you.
               </p>
@@ -225,15 +226,7 @@ export function ClientInvitationOffer({
           </ul>
         </section>
 
-        <InvitationHelp
-          signedIn={signedIn}
-          emailHint="Use the email address that received this invitation."
-          review={
-            <Link href={`/app/client-invitations/accept?token=${token}`}>
-              Review Your Invitation
-            </Link>
-          }
-        />
+        <InvitationHelp kind="client" token={token} signedIn={signedIn} />
 
         <p className="invitation-legal">
           A complete checklist, or a file marked ready, is not an approval. Only the embassy or visa

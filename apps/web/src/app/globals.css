@@ -8271,15 +8271,6 @@ summary.visa-photo-title {
   border-radius: 12px;
   padding: 16px;
 }
-.invitation-offer .invite-brand {
-  margin-top: 0.5rem;
-}
-.invitation-terms-list {
-  display: grid;
-  gap: 0.4rem;
-  margin: 0 0 1.25rem;
-  padding-left: 1.25rem;
-}
 @media (max-width: 480px) {
   .agency-clients-joined {
     grid-template-columns: minmax(0, 1fr);
@@ -9299,6 +9290,37 @@ summary.visa-photo-title {
   font-size: var(--text-body);
   text-align: center;
 }
+/* While the pinned copy is in use the top buttons are out of use too (they are also inert). */
+.invitation-actions[data-pinned="true"] {
+  visibility: hidden;
+}
+/* "Not you?" for a visitor already signed in: a quiet line with a link-styled button. */
+.invitation-switch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-2);
+  margin: 0;
+  color: var(--text-secondary);
+}
+.invitation-switch-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.invitation-switch-button[aria-disabled="true"] {
+  cursor: progress;
+}
 .invitation-reassure {
   margin: 0;
   font-size: var(--text-body);
@@ -9331,7 +9353,7 @@ summary.visa-photo-title {
 .invitation-steps li:not(:last-child)::after {
   content: "";
   flex: 1 1 auto;
-  min-width: var(--space-2);
+  min-width: 0;
   height: 1px;
   margin-inline: var(--space-2);
   background: var(--hairline);
@@ -9515,8 +9537,8 @@ summary.visa-photo-title {
     scroll-padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
   }
 }
-/* The narrowest phones (and 400% zoom): smaller step words keep the steps on one line. */
-@media (max-width: 359px) {
+/* Phones up to 400px (and high zoom): smaller step words keep the steps on one line at 320px. */
+@media (max-width: 400px) {
   .invitation-steps {
     font-size: var(--text-small);
   }

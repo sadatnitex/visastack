@@ -1669,17 +1669,11 @@ test.describe('public invitation page on a phone (UX-G)', () => {
         await page.goto(`/invitation?kind=${kind}&token=${TOKEN}`);
       });
 
-      test('the main action shows in the first screen, and the page never scrolls sideways', async ({
-        page,
-      }) => {
+      test('the main action shows in the first screen', async ({ page }) => {
         const primary = page.locator('.invitation-hero .invitation-actions .btn-primary');
         await expect(primary).toHaveText('Create an Account to Review');
         await expect(primary).toBeInViewport({ ratio: 1 });
         await expect(page.locator('.invitation-hero .invitation-reassure')).toBeInViewport();
-        const overflow = await page.evaluate(
-          () => document.documentElement.scrollWidth > window.innerWidth + 1,
-        );
-        expect(overflow).toBe(false);
       });
 
       test('has no critical or serious automated accessibility violations', async ({ page }) => {
@@ -1690,18 +1684,6 @@ test.describe('public invitation page on a phone (UX-G)', () => {
           (v) => v.impact === 'critical' || v.impact === 'serious',
         );
         expect(blocking, JSON.stringify(blocking, null, 2)).toEqual([]);
-      });
-
-      test('the three steps sit on one line, with the current one marked', async ({ page }) => {
-        const items = page.locator('ol.invitation-steps > li');
-        await expect(items).toHaveCount(3);
-        const tops = await items.evaluateAll((elements) =>
-          elements.map((element) => Math.round(element.getBoundingClientRect().top)),
-        );
-        expect(new Set(tops).size).toBe(1);
-        await expect(page.locator('ol.invitation-steps [aria-current="step"]')).toContainText(
-          'Sign In',
-        );
       });
 
       test('every button and link on the page is at least 44px tall, or sits inside a sentence', async ({
@@ -1748,5 +1730,31 @@ test.describe('public invitation page on a phone (UX-G)', () => {
         await expect(bar).toHaveAttribute('data-shown', 'false');
       });
     });
+
+    for (const width of [320, 360, 390]) {
+      test(`${kind} invitation at ${width}px keeps the steps on one line and never scrolls sideways`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto(`/invitation?kind=${kind}&token=${TOKEN}`);
+        const items = page.locator('ol.invitation-steps > li');
+        await expect(items).toHaveCount(3);
+        const layout = await page.evaluate(() => {
+          const steps = document.querySelector('ol.invitation-steps');
+          const boxes = [...(steps?.children ?? [])].map((item) => item.getBoundingClientRect());
+          return {
+            tops: boxes.map((box) => Math.round(box.top)),
+            clipped: steps ? steps.scrollWidth > steps.clientWidth + 1 : true,
+            overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
+          };
+        });
+        expect(new Set(layout.tops).size).toBe(1);
+        expect(layout.clipped).toBe(false);
+        expect(layout.overflow).toBe(false);
+        await expect(page.locator('ol.invitation-steps [aria-current="step"]')).toContainText(
+          'Sign In',
+        );
+      });
+    }
   }
 });
