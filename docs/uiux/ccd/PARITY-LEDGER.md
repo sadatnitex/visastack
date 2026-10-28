@@ -284,6 +284,17 @@ Every other agency page gets the same heading: the agency's name above and the p
 
 A link to a case (`#mission-<id>`, from Agency Overview, Case Activity and the header search) opens Everything, so the whole case shows (`data-reveal`, links only; a form sent inside a case keeps the chosen level) (tested). Baseline captured from main at `5a8f4370`; four states (administrator and member, with and without cases).
 
+## CCD-7 polish and heart pass (28 Oct 2026)
+
+| Part | Where | State |
+|---|---|---|
+| One name per thing (D3), finished | slice 7a, #334 | Merged and live |
+| The section 6 behaviours: anticipate, quiet closure, calm all-clear, reduced motion | slice 7b, #335 | Merged and live |
+| Already in place (audited): level change read out, 44 pixel targets on the switch and Next Step, specific lines after sent evidence, single suggestions and new shares | audit 28 Oct | Confirmed |
+| Phone, tablet and laptop widths | every page the tests render (824) loaded with the real stylesheet at 390, 768 and 1280 pixels | No page scrolls sideways at any width; the check was seen catching a deliberately wide page at all three widths |
+| Copy pass (design:ux-copy) and accessibility pass | the new lines of 7b; WP-C2 | Done; four lines reworded |
+| Not checked | the signed-in pages on the live site; hover, pressed and disabled states | Needs a signed-in run |
+
 ## Screens 02 to 15: the level plan (from the approved canvas)
 
 | # | Glance | Browse adds | Everything adds |

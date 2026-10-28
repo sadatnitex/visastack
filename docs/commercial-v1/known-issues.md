@@ -6240,3 +6240,8 @@ Owner approved 2026-10-25. Two fixes where the product said something that was n
 - Review (high) fixes: the Sharing line is read out once the page runs, then leaves the address, so a reload, Back or the next change never shows a stale one; a failed withdrawal now says so in fixed words; the reply form's hint follows what is chosen now; a long case title wraps; the emailed invitation keeps "Spam or Promotions"; the all-clear fact uses only a date more than a month away and names the person only when the account has several; one and several accepted details share their words. Security review: no findings.
 - Not changed: the staging-only spec apps/web/e2e/authenticated-workspace.spec.ts checks pause and revoke by the row's words, which the new lines also contain; it should wait for the reloaded status, at the next staging run.
 - Not verified live: the signed-in screens at phone, tablet and laptop widths.
+
+### 2026-10-28, CCD-7 closed: phone, tablet and laptop widths
+- Every page the web tests render (824 pages, signed-in shell, agency, public and auth screens) was loaded with the real stylesheet at 390, 768 and 1280 pixels wide. None scrolls sideways at any width. The check was proved by adding one 1500-pixel block to a copy of a page: it was caught at all three widths, and the unchanged page stayed clean.
+- With 7a and 7b live, Calm Core With Depths is complete: all fifteen screens have the switch, one name per thing is in place, and the section 6 behaviours are built.
+- Not verified: the signed-in pages on the live site (needs a signed-in run); hover, pressed and disabled states.
