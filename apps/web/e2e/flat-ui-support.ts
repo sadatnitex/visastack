@@ -46,7 +46,16 @@ function fixtureBundle(): Promise<string> {
 }
 export async function openUiFixture(
   page: Page,
-  mode: 'overview' | 'profile' | 'documents' | 'case' | 'sharing' | 'agency' | 'admin' | 'shell',
+  mode:
+    | 'overview'
+    | 'profile'
+    | 'documents'
+    | 'case'
+    | 'sharing'
+    | 'agency'
+    | 'admin'
+    | 'shell'
+    | 'staff',
   options: { readonly sidebar?: 'expanded' | 'collapsed' } = {},
 ): Promise<void> {
   await page.route('**/*', (route) =>

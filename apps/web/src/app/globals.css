@@ -4718,47 +4718,6 @@ body:has(.auth-shell) > .footer {
   cursor: pointer;
   font-weight: 650;
 }
-.signup-context {
-  border: 0;
-  padding: 0;
-  margin: 0;
-  min-width: 0;
-}
-.signup-context-options {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 5px;
-  padding: 5px;
-  background: var(--bg-subtle);
-  border: 1px solid var(--hairline);
-  border-radius: 14px;
-}
-.signup-context-options label {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  padding: 8px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  font-size: var(--text-caption);
-  font-weight: 650;
-  cursor: pointer;
-}
-.signup-context-options label[data-selected="true"] {
-  background: #fff;
-  border-color: var(--hairline);
-}
-.signup-context-options input {
-  width: 14px;
-  height: 14px;
-  accent-color: var(--accent);
-}
-.signup-context .card-body {
-  font-size: var(--text-caption);
-  margin-top: 12px;
-}
 .auth-beta-label {
   display: inline-flex;
   padding: 6px 10px;
@@ -4838,9 +4797,6 @@ body:has(.auth-shell) > .footer {
 }
 .auth-shell-signup .field-label {
   font-size: var(--text-caption);
-}
-.auth-shell-signup .signup-context .card-body {
-  margin-top: 8px;
 }
 .auth-shell-signup .signup-consent {
   min-height: 44px;
@@ -9248,6 +9204,225 @@ summary.visa-photo-title {
 @media (prefers-reduced-motion: reduce) {
   .upload-drop {
     transition: none;
+  }
+}
+
+/* WP-QAE accessibility floors (owner list items 13, 14, 17 and 18): touch targets, smallest text,
+   the version notice, and the staff mode banner. One block, shared rules only. */
+
+/* 14. A finger is about 9mm wide: on a touch screen every control that stands on its own is at
+   least 44px each way. The general floor sits inside :where(), so it weighs nothing: a component
+   that sizes itself on purpose (compact or shrinking controls) keeps its own rule, and gives a
+   compact touch target its 44px hit area with an overlay instead of growing the layout. Links
+   inside a line of text stay part of the sentence (WCAG 2.5.8 inline exception, and min sizes do
+   not apply to inline boxes). A precise pointer keeps the compact sizes the design pins, such as
+   the 34px account menu rows. */
+@media (pointer: coarse) {
+  :where(
+      a[href],
+      button,
+      summary,
+      select,
+      textarea,
+      [role="button"],
+      [role="tab"],
+      input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="range"], [type="file"])
+    ):where(:not(.sr-only, .skip-link)) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  /* A tick box or option is pressed through its whole label. */
+  :where(label:has(> input[type="checkbox"]), label:has(> input[type="radio"])) {
+    min-height: 44px;
+  }
+  /* The older toolbar's icon links are 40px wide on phones; on touch they take the full 44px. */
+  .workspace-shortcuts a {
+    min-width: 44px;
+  }
+  /* Compact controls keep their drawn size (the plan pill in the toolbar, the round brand colour
+     choices) and get a 44px hit area around it instead. */
+  .record-plan-badge,
+  .brand-swatch {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+  }
+  .record-plan-badge::before,
+  .brand-swatch::before {
+    content: "";
+    position: absolute;
+    inset: 50% auto auto 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* 14. No visible text below 12px. The browser's own sizes for <small>, <h5>, <h6>, <sub> and
+   <sup> are fractions of the text around them, so inside caption-sized text they would shrink to
+   7 to 10px. These keep the same fractions with a 12px floor. They weigh nothing (:where), so any
+   rule that sizes such text on purpose still wins, and all of those use the shared scale. */
+:where(small) {
+  font-size: max(12px, 0.833em);
+}
+:where(h5) {
+  font-size: max(12px, 0.83em);
+}
+:where(h6) {
+  font-size: max(12px, 0.67em);
+}
+:where(sub, sup) {
+  font-size: max(12px, 0.75em);
+}
+/* The trust page label was 10px to match the reference; it is now the 12px caption size, with the
+   same 12px line so nothing on the page moves. */
+.trust-hero .eyebrow {
+  font-size: var(--text-caption);
+  line-height: 1;
+}
+/* 14. Phones: reading text is 16px and fields are at least 16px, so a phone never zooms in when a
+   field is tapped. Only the shared base sizes are restated, at their own weight: component rules
+   (more specific, or listed here as deliberately small) and the !important size utilities still
+   win, so captions and notes stay on the 12px floor. Page descriptions already inherit 16px. */
+@media (max-width: 700px) {
+  .notice:where(:not(.wallet-ai-notice, .case-manual-notice, .home-attention-why)),
+  .app-main .card-body:where(:not(.admin-reference-rail .card-body)) {
+    font-size: var(--text-body);
+  }
+  /* max() never makes a larger field smaller. Bare select and textarea restate the shared
+     `font: inherit` at its own weight; the two search boxes are the only smaller fields. */
+  :where(input:not([type="checkbox"], [type="radio"], [type="range"])),
+  select,
+  textarea,
+  .record-search input,
+  .workspace-finder input {
+    font-size: max(16px, 1em);
+  }
+}
+
+/* 17. The version notice. The Hide button sits in the notice's own end padding, and that padding
+   is always the button's width plus a gap: both come from one variable, set once per pointer
+   type, and the last rule that sets the padding is this unconditional one, so no screen width or
+   pointer can make the button cover the words. After the first page the notice is a slim label
+   (the version name and the link), one line, with no button. */
+.pilot-banner {
+  --notice-hide: 2rem;
+  position: relative;
+  padding-inline-start: calc(var(--notice-hide) + var(--space-2));
+  padding-inline-end: calc(var(--notice-hide) + var(--space-2));
+}
+.pilot-banner-hide {
+  position: absolute;
+  inset-block: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--notice-hide);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.pilot-banner > .pilot-banner-hide {
+  margin: 0;
+}
+.pilot-banner-hide:hover {
+  background: var(--bg-subtle);
+}
+.pilot-banner-hide:focus-visible {
+  outline-offset: -3px;
+}
+.pilot-banner.pilot-banner-slim {
+  --notice-hide: 0px;
+}
+@media (max-width: 1023px) {
+  /* Phones and tablets read the notice from the start edge; only the end keeps the button room. */
+  .pilot-banner {
+    padding-inline-start: 0.75rem;
+  }
+}
+@media (pointer: coarse) {
+  .pilot-banner {
+    --notice-hide: 44px;
+    min-height: 44px;
+  }
+  .pilot-banner.pilot-banner-slim {
+    --notice-hide: 0px;
+  }
+  /* In the full notice the link reads as part of its sentence; the row is the 44px target height
+     and the Hide button takes the full row. In the slim label the link is the row's own 44px
+     target. */
+  .pilot-banner-link {
+    display: inline;
+  }
+  .pilot-banner-slim .pilot-banner-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0;
+  }
+}
+.pilot-banner-slim {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0 var(--space-3);
+}
+.pilot-banner-slim > * + * {
+  margin-inline-start: 0;
+}
+@media (max-width: 1023px) {
+  .pilot-banner-slim {
+    justify-content: flex-start;
+    padding-block: 0.3rem;
+  }
+}
+@media (pointer: coarse) {
+  .pilot-banner-slim {
+    padding-block: 0;
+  }
+}
+
+/* 18. Staff mode: a plain strip at the top of every platform page, in the notice colours. */
+.staff-mode-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--hairline);
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-size: var(--text-small);
+  line-height: 1.5;
+}
+.staff-mode-banner p {
+  flex: 1 1 18rem;
+  min-width: 0;
+  margin: 0;
+}
+.staff-mode-banner .icon {
+  flex: none;
+}
+.staff-mode-leave {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: inherit;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+@media (max-width: 700px) {
+  /* Reading text on a phone, like the rest of the page. */
+  .staff-mode-banner {
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--text-body);
   }
 }
 

@@ -30,7 +30,8 @@ type Mode =
   | 'sharing'
   | 'agency'
   | 'admin'
-  | 'shell';
+  | 'shell'
+  | 'staff';
 declare global {
   interface Window {
     __uiFixturePath?: string;
@@ -67,6 +68,7 @@ const titles: Record<Mode, string> = {
   agency: 'Synthetic agency workspace',
   admin: 'Platform operations',
   shell: 'Workspace shell',
+  staff: 'Platform Overview',
 };
 const paths: Record<Mode, string> = {
   overview: '/app',
@@ -77,6 +79,7 @@ const paths: Record<Mode, string> = {
   agency: '/app/agency/synthetic',
   admin: '/app/admin',
   shell: '/app',
+  staff: '/app/admin',
 };
 const preview = async (form: FormData) => {
   window.__uiFixtureActions?.push(String(form.get('documentId')));
@@ -214,13 +217,22 @@ function Records() {
   );
 }
 /** The real signed-in shell (sidebar, toolbar, account menu) with made-up people and no server. */
-function ShellFixture() {
+function ShellFixture({ staff = false }: { readonly staff?: boolean }) {
   return (
     <WorkspaceShell
       access={{
-        travellers: [{ id: 'synthetic', name: 'Synthetic Self', relationship: 'SELF' }],
+        travellers: [
+          { id: 'synthetic', name: 'Synthetic Self', relationship: 'SELF' },
+          // A second traveller on the staff screen, so a check can see that no name shows there.
+          ...(staff
+            ? [{ id: 'synthetic-child', name: 'Synthetic Child', relationship: 'CHILD' }]
+            : []),
+        ],
         agencies: [],
-        platform: null,
+        // Staff mode: the same shell on a platform page, for a made-up member of staff.
+        platform: staff
+          ? { owner: true, ai: true, complaints: true, audit: true, privacy: true }
+          : null,
       }}
       accountName="Synthetic Self"
       accountEmail="synthetic.self@example.test"
@@ -241,7 +253,7 @@ function ShellFixture() {
       <section className="section container" id="main">
         <PageHeader
           eyebrow="Synthetic test fixture"
-          title="Workspace shell"
+          title={staff ? titles.staff : titles.shell}
           description="Visual and interaction test only. No real records or authenticated session."
         />
         <article className="card">
@@ -256,7 +268,7 @@ function ShellFixture() {
   );
 }
 function Fixture({ mode }: { mode: Mode }) {
-  if (mode === 'shell') return <ShellFixture />;
+  if (mode === 'shell' || mode === 'staff') return <ShellFixture staff={mode === 'staff'} />;
   const tabs =
     mode === 'agency'
       ? agencyTabs('synthetic', { admin: true })
@@ -410,6 +422,6 @@ window.__mountUiFixture = (mode) => {
   main.replaceChildren();
   // A signed-in person never sees the pilot banner (the root layout shows it to visitors only), so
   // the shell fixture mirrors that and measures from the real top of the screen.
-  if (mode === 'shell') document.querySelector('.pilot-banner')?.remove();
+  if (mode === 'shell' || mode === 'staff') document.querySelector('.pilot-banner')?.remove();
   createRoot(main).render(<Fixture mode={mode} />);
 };
