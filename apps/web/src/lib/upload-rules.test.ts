@@ -17,7 +17,7 @@ describe('what may be uploaded', () => {
       'Up to 4 MB per file; PDF, JPG, PNG, HEIC, Word or text files.',
     );
     expect(uploadLimitsText('4 MB', false)).toBe(
-      'Up to 4 MB per file; JPG, PNG, HEIC, Word or text files.',
+      'Up to 4 MB per file; JPG, PNG, HEIC, Word or text files. PDF files can be added only while our virus scan is switched on.',
     );
     expect(acceptAttribute(true)).toContain('application/pdf');
     expect(acceptAttribute(false)).not.toContain('pdf');
@@ -57,7 +57,13 @@ describe('what may be uploaded', () => {
     expect(reason(file('ok.jpg', 4 * 1024 * 1024, 'image/jpeg'))).toBeNull();
     expect(
       reason(file('scan.pdf', 10, 'application/pdf'), { ...rules, pdfAccepted: false }),
-    ).toContain('PDF files cannot be added yet');
+    ).toContain(
+      'PDF files can be added only while our virus scan is switched on. Add a photo or scan of each page as a JPG or PNG instead.',
+    );
+    // The PDF reason belongs to PDF files only, not to a picture in another format.
+    expect(
+      reason(file('pic.gif', 10, 'image/gif'), { ...rules, pdfAccepted: false }),
+    ).not.toContain('virus scan');
   });
 });
 

@@ -1,9 +1,22 @@
-# CCD-3 seed: finalise with the owner before editing other files.
+# CCD-3 Record: Documents with D5 (slice 3a), then My Profile, Dates & Expiry, All Records, History.
 docs/uiux/ccd/**
+docs/adr/0023-calm-core-with-depths.md
 docs/upgrades/programme/**
 docs/commercial-v1/known-issues.md
 docs/uiux/EXPERIENCE-UPGRADE-HANDOFF.md
 apps/web/src/app/globals.css
+apps/web/src/app/app/applicant/[id]/documents/**
+apps/web/src/app/app/applicant/[id]/profile/**
+apps/web/src/app/app/applicant/[id]/expiry/**
+apps/web/src/app/app/applicant/[id]/record/**
+apps/web/src/app/app/applicant/[id]/history/**
 apps/web/src/components/depth*.tsx
+apps/web/src/components/depth*.test.tsx
+apps/web/src/components/document-wallet-browser*.tsx
+apps/web/src/lib/upload-rules.ts
+apps/web/src/lib/upload-rules.test.ts
 apps/web/src/lib/ccd/**
 scripts/ui-ratchet.baseline.json
+# Heading levels under the Documents page heading (one h1, no skipped levels)
+apps/web/src/app/app/applicant/[id]/reading-status.tsx
+apps/web/src/components/visa-photo-sizes.tsx

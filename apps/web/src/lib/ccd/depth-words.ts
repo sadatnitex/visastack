@@ -16,6 +16,10 @@ export const DEPTH_WORDS = {
   'depth.traveller.glance': 'Glance: the one thing that needs you now and the case you are on.',
   'depth.traveller.browse': 'Browse: your counts, your case, what needs a decision and your dates.',
   'depth.traveller.everything': 'Everything: upcoming dates, recent activity, profile and sharing.',
+  'depth.documents.glance': 'Glance: how many documents are ready and how many need a look.',
+  'depth.documents.browse':
+    'Browse: the full list, search, and the document you picked with its details.',
+  'depth.documents.everything': 'Everything: adding new documents.',
   'depth.account.glance': 'Glance: who you are signed in as.',
   'depth.account.browse': 'Browse: {parts}.',
   'depth.account.everything': 'Everything: {parts}.',

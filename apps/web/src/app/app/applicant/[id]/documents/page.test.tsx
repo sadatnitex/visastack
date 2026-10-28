@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   })),
   listPendingProposals: vi.fn(async (): Promise<unknown[]> => []),
   detailsAvailable: vi.fn(async () => 'unconfigured'),
+  depth: 'auto' as string,
   ocrConfigured: vi.fn(async () => false),
 }));
 
@@ -50,6 +51,7 @@ vi.mock('../../../../../lib/ai', () => ({
   resolveAiExtractionAvailability: mocks.detailsAvailable,
 }));
 vi.mock('../../../../../lib/locale', () => ({ getLocale: async () => 'en' }));
+vi.mock('../../../../../lib/ccd/depth.server', () => ({ readDepth: async () => mocks.depth }));
 vi.mock('../../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
     fn({ db: {}, accountId: 'acct-1', email: 'traveller@example.com' }),
@@ -640,5 +642,23 @@ describe('the one invitation to switch reading on, and Read Again', () => {
       fieldKey: 'family_name',
       source: 'machine_readable',
     });
+  });
+});
+
+describe('the documents page with the depth switch (CCD-3)', () => {
+  it('opens at Browse when a link picks one document, so it never lands hidden', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [doc('passport', 'APPROVED')],
+    });
+    for (const saved of ['auto', 'glance']) {
+      mocks.depth = saved;
+      expect(await render('passport'), saved).toContain('data-depth="browse"');
+    }
+    mocks.depth = 'everything';
+    expect(await render('passport')).toContain('data-depth="everything"');
+    mocks.depth = 'glance';
+    expect(await render()).toContain('data-depth="glance"');
+    mocks.depth = 'auto';
   });
 });

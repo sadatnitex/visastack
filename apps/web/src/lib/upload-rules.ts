@@ -63,8 +63,21 @@ export function acceptAttribute(pdfAccepted: boolean): string {
   return [...extensions, ...types].join(',');
 }
 
-/** The limits as people read them, shown before they choose a file. */
+/** Why PDF files are missing from the list while they cannot be added (decision D5). */
+export const PDF_NEEDS_SCAN_TEXT =
+  'PDF files can be added only while our virus scan is switched on.';
+
+/**
+ * The limits as people read them, shown before they choose a file: the per-file size the server
+ * enforces, the kinds it accepts and, while PDF files are refused, why (decision D5).
+ */
 export function uploadLimitsText(limitLabel: string, pdfAccepted: boolean): string {
+  const base = uploadKindsText(limitLabel, pdfAccepted);
+  return pdfAccepted ? base : `${base} ${PDF_NEEDS_SCAN_TEXT}`;
+}
+
+/** The size and the kinds alone. */
+function uploadKindsText(limitLabel: string, pdfAccepted: boolean): string {
   const kinds = pdfAccepted ? 'PDF, JPG, PNG, HEIC' : 'JPG, PNG, HEIC';
   return `Up to ${limitLabel} per file; ${kinds}, Word or text files.`;
 }
@@ -101,13 +114,14 @@ export function checkChosenFile(
   if (!known) {
     return {
       ok: false,
-      reason: `This kind of file cannot be added. ${uploadLimitsText(rules.limitLabel, rules.pdfAccepted)}`,
+      // The kinds and size only: the PDF reason belongs to PDF files, not to a picture in another format.
+      reason: `This kind of file cannot be added. ${uploadKindsText(rules.limitLabel, rules.pdfAccepted)}`,
     };
   }
   if (contentType === PDF_TYPE && !rules.pdfAccepted) {
     return {
       ok: false,
-      reason: 'PDF files cannot be added yet. Add a photo or scan of each page as a JPG or PNG.',
+      reason: `${PDF_NEEDS_SCAN_TEXT} Add a photo or scan of each page as a JPG or PNG instead.`,
     };
   }
   if (file.size > rules.limitBytes) {
