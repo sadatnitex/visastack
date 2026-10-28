@@ -6183,3 +6183,8 @@ Owner approved 2026-10-25. Two fixes where the product said something that was n
 - The traveller's Tasks form had a free-text time zone box and the agency's Tasks form had none. Both now use the same time zone list as Appointments (grouped by region, this device's zone chosen first, optional). The agency action now passes the chosen zone, which the service already stored and validated.
 - The zone is saved only together with a due date (the picker always fills one in); tested, and the guard seen failing.
 - No other free-text time zone field remains in the app (searched every form).
+
+### 2026-10-28, owner request: logs that keep their height and can be filtered
+- The Sharing Access Log and the platform Audit page grew the page with every new event. Both now show their entries in one box of fixed height that scrolls inside (keyboard focusable, named for screen readers), under a search and filters: What Happened, Who (when entries name someone), Allowed or Blocked, and a period (24 hours, 7 days, 30 days). "Showing N of M" and Clear Filters say what is filtered.
+- Each page now reads the newest 300 entries instead of 100 (Access Log) or 50 (Audit), filtered in the browser; nothing new is read or stored. One shared component (components/activity-log.tsx), tested.
+- Not changed: the agency Case Activity page (a short list of case notes, not an audit log).

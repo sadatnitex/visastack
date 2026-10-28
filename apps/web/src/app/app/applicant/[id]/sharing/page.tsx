@@ -16,13 +16,14 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { ActivityLog } from '../../../../../components/activity-log';
 import { DepthScope, atLevel } from '../../../../../components/depth';
 import { DepthSwitch } from '../../../../../components/depth-switch';
 import {
   SelectedScopeSummary,
   describeGrantScope,
 } from '../../../../../components/selected-scope-summary';
-import { EmptyState, PageHeader, StatusBadge } from '../../../../../components/ui';
+import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { aiConnectorEnabled } from '../../../../../lib/ai-connector';
 import { consentChoicesFromQuery, isAiChangeDuration } from '../../../../../lib/ai-consent-choices';
 import { depthCopy } from '../../../../../lib/ccd/depth-copy';
@@ -48,6 +49,9 @@ const sharingInvitationFlag = 'PERSONAL_SHARING_INVITATIONS_ENABLED';
 export const metadata: Metadata = { title: 'Sharing' };
 
 export const dynamic = 'force-dynamic';
+
+/** How many access log entries the page reads, newest first. */
+const ACCESS_LOG_LIMIT = 300;
 
 export default async function SharingPage({
   params,
@@ -105,7 +109,8 @@ export default async function SharingPage({
     const [access, documents, auditEvents, profileEntries, aiConnections] = await Promise.all([
       listAccessForApplicantDetailed(db, accountId, id),
       listDocumentsDetailed(db, accountId, id),
-      listAuditEventsForApplicant(db, accountId, id),
+      // A longer history than the old list showed: it now scrolls in its own box and filters.
+      listAuditEventsForApplicant(db, accountId, id, ACCESS_LOG_LIMIT),
       listApplicantProfile(db, id),
       readAiConnections(),
     ]);
@@ -490,29 +495,17 @@ export default async function SharingPage({
                   Every time your information is opened, shared or changed, it is recorded here.
                 </EmptyState>
               ) : (
-                <div className="rows u-mt-050">
-                  {data.auditEvents.map((e) => (
-                    <div className="row" key={e.seq}>
-                      <span className="row-key">
-                        {humanizeCode(e.eventType)}
-                        <span
-                          className="muted"
-                          style={{ fontSize: 'var(--text-small)', marginLeft: '0.5rem' }}
-                        >
-                          {e.actorEmail ?? 'System'}
-                        </span>
-                      </span>
-                      <span className="row-end">
-                        {e.result ? (
-                          <StatusBadge tone={e.result === 'ALLOWED' ? 'success' : 'danger'}>
-                            {e.result === 'ALLOWED' ? 'Allowed' : 'Blocked'}
-                          </StatusBadge>
-                        ) : null}
-                        <span className="muted u-fs-085">{formatTimestamp(e.occurredAt)}</span>
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                <ActivityLog
+                  label="Access Log Entries"
+                  entries={data.auditEvents.map((e) => ({
+                    id: String(e.seq),
+                    what: humanizeCode(e.eventType),
+                    who: e.actorEmail ?? 'System',
+                    result: e.result,
+                    at: e.occurredAt,
+                    when: formatTimestamp(e.occurredAt),
+                  }))}
+                />
               )}
             </article>
           </div>

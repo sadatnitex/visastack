@@ -54,7 +54,7 @@ describe('Platform > Audit', () => {
     expect(text).toContain('ACCESS_DENIED');
     expect(text).toContain('MISSION_CREATED');
     expect(html).toContain('badge-danger');
-    expect(mocks.listRecentAuditEvents).toHaveBeenCalledWith({}, STAFF, 50);
+    expect(mocks.listRecentAuditEvents).toHaveBeenCalledWith({}, STAFF, 300);
   });
 
   it('says there is nothing yet rather than an empty box', async () => {
