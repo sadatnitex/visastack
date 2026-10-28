@@ -270,11 +270,22 @@ export interface SelectedOutputOptions {
   /**
    * Narrow the document list, expiry dates and text to these document groups and kinds (a
    * document passes if its group or its kind is named). Like `fieldKeys`, it only takes away.
+   * `referenceCodes` (`D-XXXXXX`, as the output shows them) narrows further to those documents:
+   * given alone, only they pass; given with groups or kinds, a document must match both.
    */
   readonly documentScope?: {
     readonly groups?: readonly DocumentGroupKey[];
     readonly kinds?: readonly string[];
+    readonly referenceCodes?: readonly string[];
   };
+  /**
+   * Show only these layers' values in the profile. It only takes away, and only from what is
+   * shown: what the selection grants (document groups, legal history, health detail, national
+   * identifiers) is still decided by `selection.layers`. Used by the AI connector's focus.
+   */
+  readonly profileLayers?: readonly LayerKey[];
+  /** `false` leaves the identity basics out, unread, for an answer that does not show them. */
+  readonly basics?: boolean;
 }
 
 // --- Limits and fixed lists ------------------------------------------------
@@ -633,8 +644,15 @@ export async function buildSelectedOutput(
   const withCases = chosen.cases.kind !== 'none';
 
   // 2. The person's own facts, filtered by the rules before anything is decrypted.
-  const includeBasics = chosen.layers.includes('identity') || withCases;
-  const wantsFacts = chosen.layers.length > 0 || includeBasics;
+  const includeBasics =
+    options.basics !== false && (chosen.layers.includes('identity') || withCases);
+  const onlyLayers = options.profileLayers ? new Set<LayerKey>(options.profileLayers) : null;
+  // An empty field list or an empty layer list (with no basics) asks for no values at all: the
+  // facts are then not read, and the counts speak of documents alone.
+  const noValues =
+    options.fieldKeys?.length === 0 ||
+    (onlyLayers !== null && onlyLayers.size === 0 && !includeBasics);
+  const wantsFacts = !noValues && (chosen.layers.length > 0 || includeBasics);
   const factRows = wantsFacts ? await loadFactRows(db, applicant.id) : [];
   const recordNumbers = recordNumbering(factRows);
   const selectedRows: {
@@ -663,6 +681,10 @@ export async function buildSelectedOutput(
     });
     if (decision.outcome === 'omit') {
       omitted[decision.reason] += 1;
+      continue;
+    }
+    if (onlyLayers && !basic && policy && !onlyLayers.has(policy.layer)) {
+      omitted.not_needed += 1;
       continue;
     }
     if (decision.form === 'conflict') omitted.conflicted += 1;
@@ -758,6 +780,7 @@ export async function buildSelectedOutput(
     timezone: applicant.timezone,
     omitted,
     scope: options.documentScope ?? null,
+    maskText: () => identifierMasker(db, applicant.id, chosen, options.encryption),
   });
 
   // 5. Cases, with reference codes and what comes next from the existing attention projection.
@@ -1065,6 +1088,8 @@ async function loadDocumentParts(
     readonly timezone: string;
     readonly omitted: Record<OmissionReason, number>;
     readonly scope: SelectedOutputOptions['documentScope'] | null;
+    /** Builds the masker for the person's own identifiers in document text (null: cannot). */
+    readonly maskText: () => Promise<((text: string) => string) | null>;
   },
 ): Promise<DocumentParts> {
   const { selection, needs, withCases, now, omitted } = input;
@@ -1140,9 +1165,17 @@ async function loadDocumentParts(
     if (!version || !isListableVersion(version, erased.has(version.storageObjectId))) continue;
     const key = documentKey(document.docType);
     if (input.scope) {
-      const inGroup = input.scope.groups?.includes(documentGroupOf(document.docType)) ?? false;
-      const inKind = key !== null && (input.scope.kinds?.includes(key) ?? false);
-      if (!inGroup && !inKind) continue;
+      const { groups, kinds, referenceCodes } = input.scope;
+      // An empty scope still passes nothing, as before reference codes could narrow it.
+      if (groups !== undefined || kinds !== undefined || referenceCodes === undefined) {
+        const inGroup = groups?.includes(documentGroupOf(document.docType)) ?? false;
+        const inKind = key !== null && (kinds?.includes(key) ?? false);
+        if (!inGroup && !inKind) continue;
+      }
+      if (referenceCodes !== undefined) {
+        const code = codes.get(document.id);
+        if (code === undefined || !referenceCodes.includes(code)) continue;
+      }
     }
     const requiredKind = key !== null && needs.documentKeys.has(key);
     const requiredNow = key !== null && needs.documentKeys.get(key) === true;
@@ -1203,6 +1236,9 @@ async function loadDocumentParts(
     if (usable && selection.documentText.includes(groupKey)) {
       if (layerGranted) candidates.push({ document, versionId: version.id });
       else omitted.not_granted += 1;
+    } else if (wantsText && usable && input.scope?.referenceCodes !== undefined) {
+      // A document named by reference whose group's text is not shared: say so in the counts.
+      omitted.not_granted += 1;
     }
   }
 
@@ -1214,8 +1250,83 @@ async function loadDocumentParts(
   );
   expiry.sort((a, b) => a.daysLeft - b.daysLeft || compareText(a.kind, b.kind));
 
-  const documentText = wantsText ? await loadDocumentText(db, candidates, codes, omitted) : [];
+  const documentText = wantsText
+    ? await loadDocumentText(db, candidates, codes, omitted, input.maskText)
+    : [];
   return { documents, expiry, documentText };
+}
+
+/** Identifier values shorter than this are not looked for in text: too many false matches. */
+const MIN_MASKED_IN_TEXT = 4;
+/** Values at least this long also mask other text of the same shape (letters and digits). */
+const MIN_SHAPE_MATCH = 6;
+
+function escapeRegExp(character: string): string {
+  return character.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+}
+
+/** What may sit between an identifier's characters in text: spaces, hyphens, dots, slashes. */
+const SEPARATOR = '[\\s\\-./]';
+const SEPARATORS = /[^\p{L}\p{N}]+/gu;
+
+/**
+ * Masks the person's own identifiers inside text, to the same form as everywhere else (last three
+ * characters). Each stored value is compared by its letters and digits only, in any letter case,
+ * so "199026941234", "1990-2694-1234" and "1990 2694 1234" are the same number however either
+ * side writes it. A value of six or more letters and digits with a digit in it also masks any
+ * other text of the same shape (for example an older passport number), as a whole word.
+ */
+export function identifierTextMasker(values: readonly string[]): (text: string) => string {
+  const patterns: RegExp[] = [];
+  for (const value of new Set(values.map((v) => v.replace(SEPARATORS, '')))) {
+    const characters = Array.from(value);
+    if (characters.length < MIN_MASKED_IN_TEXT) continue;
+    patterns.push(new RegExp(characters.map(escapeRegExp).join(`${SEPARATOR}*`), 'giu'));
+    // Same-shape matching only for a value with digits in it: a word-like value would mask words.
+    if (characters.length >= MIN_SHAPE_MATCH && /\p{N}/u.test(value)) {
+      const shape = characters
+        .map((c) => (/\p{N}/u.test(c) ? '\\p{N}' : '\\p{L}'))
+        .join(`${SEPARATOR}?`);
+      patterns.push(new RegExp(`(?<![\\p{L}\\p{N}])${shape}(?![\\p{L}\\p{N}])`, 'gu'));
+    }
+  }
+  return (text) =>
+    patterns.reduce(
+      (current, pattern) =>
+        current.replace(pattern, (found) => maskIdentifier(found.replace(SEPARATORS, ''))),
+      text,
+    );
+}
+
+/**
+ * The masker for one record and selection: every stored identifier the selection would mask
+ * (identifiers without full numbers; national identifiers without full numbers and identity).
+ * `null` when one of them cannot be read, so the caller withholds the text.
+ */
+async function identifierMasker(
+  db: Db,
+  applicantId: string,
+  selection: Selection,
+  encryption: KeyManagementPort | undefined,
+): Promise<((text: string) => string) | null> {
+  const values: string[] = [];
+  for (const row of await loadFactRows(db, applicantId)) {
+    const policy = fieldPolicyOf(row.fieldKey);
+    if (!policy) continue;
+    const masked =
+      (policy.kind === 'identifier' && !selection.revealIdentifiers) ||
+      (policy.kind === 'national_identifier' &&
+        !(selection.revealIdentifiers && selection.layers.includes('identity')));
+    if (!masked) continue;
+    const plain = await readFactValue(db, applicantId, row, policy, encryption);
+    if (plain === null) {
+      // An empty stored value has nothing to mask; one that cannot be decrypted might.
+      if (row.protectedKeyVersion !== null) return null;
+      continue;
+    }
+    values.push(plain);
+  }
+  return identifierTextMasker(values);
 }
 
 async function loadDocumentText(
@@ -1226,6 +1337,7 @@ async function loadDocumentText(
   }[],
   codes: ReadonlyMap<string, string>,
   omitted: Record<OmissionReason, number>,
+  maskText: () => Promise<((text: string) => string) | null>,
 ): Promise<OutputDocumentText[]> {
   if (candidates.length === 0) return [];
   // The platform's protection switches decide which document types never give out their text.
@@ -1272,11 +1384,20 @@ async function loadDocumentText(
     }
   }
 
+  // The person's own identifiers are masked inside the text too, unless full numbers are shared.
+  // When a stored identifier cannot be read, no text is given at all (it could not be masked).
+  const mask = textOf.size > 0 ? await maskText() : null;
+  if (textOf.size > 0 && !mask) {
+    omitted.unreadable += textOf.size;
+    return [];
+  }
   const result: OutputDocumentText[] = [];
   let remaining = DOCUMENT_TEXT_LIMIT;
   for (const { document, versionId } of allowed) {
-    const text = textOf.get(versionId);
-    if (!text) continue;
+    const raw = textOf.get(versionId);
+    if (!raw || !mask) continue;
+    // Masked before it is cut, so a cut can never leave part of a number showing.
+    const text = mask(raw);
     if (remaining <= 0) {
       omitted.not_needed += 1;
       continue;
@@ -1502,6 +1623,14 @@ function compactValue(value: OutputValue): Record<string, unknown> {
  * string, produced by this very function, so what they read is what an app would get.
  */
 export function renderAiContext(output: SelectedOutput, options: AiContextOptions = {}): string {
+  return JSON.stringify(aiContextObject(output, options));
+}
+
+/** The AI context as an object (what `renderAiContext` writes), for callers that reshape it. */
+export function aiContextObject(
+  output: SelectedOutput,
+  options: AiContextOptions = {},
+): Record<string, unknown> {
   const question = options.question
     ? Array.from(options.question.trim()).slice(0, 600).join('')
     : '';
@@ -1564,5 +1693,5 @@ export function renderAiContext(output: SelectedOutput, options: AiContextOption
       : {}),
     omitted: output.omitted,
   };
-  return JSON.stringify(body);
+  return body;
 }

@@ -102,6 +102,15 @@ export const RATE_LIMITS = {
   // from a few shared cloud addresses for every person, so this only stops a flood; tokens are
   // 256-bit and single-use, so it is not what keeps them safe. A refusal is a "try again" (429).
   AI_TOKEN_IP: { limit: 20_000, windowMs: HOUR_MS },
+  // Requests from one AI app connection to the AI context address (S14, ADR 0021 section 7): 60 a
+  // minute and 2,000 a day, keyed by the connection. Every request counts, the protocol's own
+  // set-up messages included; a refusal is a "try again" (429).
+  AI_CONNECTION_MINUTE: { limit: 60, windowMs: 60 * 1000 },
+  AI_CONNECTION_DAY: { limit: 2_000, windowMs: 24 * HOUR_MS },
+  // Failed sign-ins at the AI context address, per network address, charged only when a token is
+  // refused. Claude and ChatGPT share a few cloud addresses, so this sits far above an expired
+  // token being retried, and far below guessing.
+  AI_MCP_AUTH_FAIL_IP: { limit: 300, windowMs: HOUR_MS },
   // Reporting a payment made another way (S12): a person fills this in a few times a day at most.
   MANUAL_CLAIM_SUBMIT: { limit: 10, windowMs: HOUR_MS },
   MANUAL_CLAIM_SUBMIT_ORG: { limit: 30, windowMs: HOUR_MS },
