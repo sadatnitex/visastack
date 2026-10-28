@@ -1,6 +1,7 @@
 import { createTranslator } from '@visastack/i18n';
 import {
   type ChangesSinceConfirmed,
+  type Db,
   type OverallReadinessState,
   type RequirementResultState,
   accountPrincipal,
@@ -50,13 +51,20 @@ import { ReferenceCode } from '../../../../components/reference-code';
 import { Disclosure, PageHeader, StatusBadge } from '../../../../components/ui';
 import { isExplanationConfigured } from '../../../../lib/ai';
 import { memoryHref } from '../../../../lib/application-memory-labels';
+import { checklistsToPick } from '../../../../lib/case-checklist-match';
+import { savedCaseMatchTerms } from '../../../../lib/case-choices';
+import { CASE_STATE_LABELS, caseStateLabel, stageButtonStates } from '../../../../lib/case-stages';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { getLocale } from '../../../../lib/locale';
 import { fieldLabel } from '../../../../lib/master-profile';
 import { REQUIREMENT_GROUPS } from '../../../../lib/requirement-groups';
+import { reportServerError } from '../../../../lib/server-error';
 import { withSession } from '../../../../lib/session';
 import { AttachPackForm, type PackOption } from './attach-pack-form';
+import { CaseMoreMenu } from './case-more-menu';
+import { CaseWelcome } from './case-welcome';
+import { type WelcomeChecklists, caseWelcomeCopy } from './case-welcome-copy';
 import { ChangesSinceConfirmedList } from './changes-since-confirmed';
 import {
   AppointmentsPanel,
@@ -80,22 +88,6 @@ import { SubmissionReportPanel } from './submission-report-panel';
 export const metadata: Metadata = { title: 'Case' };
 
 export const dynamic = 'force-dynamic';
-
-const STATE_LABELS: Record<string, string> = {
-  DRAFT: 'Draft',
-  INTAKE: 'Intake',
-  IN_REVIEW: 'In Review',
-  AWAITING_APPLICANT: 'Awaiting Applicant',
-  SUBMISSION_READY: 'Submission Ready',
-  SUBMITTED: 'Submitted',
-  IN_PROGRESS: 'In Progress',
-  READY_FOR_REVIEW: 'Ready for Review',
-  UNDER_REVIEW: 'Under Review',
-  READY_TO_EXPORT: 'Ready to Export',
-  LOCKED: 'Locked',
-  CLOSED: 'Closed',
-  CANCELLED: 'Cancelled',
-};
 
 // A snapshot taken once the mission has reached this stage of the reviewer
 // workflow is the application packet (Build Spec §4.5's "pack production"),
@@ -158,6 +150,47 @@ const REQUIREMENT_STATE_META: Record<
 
 type AttentionKind = 'changed' | 'missing' | 'unconfirmed' | 'tasks';
 
+/** How long after it is made a case still opens with its welcome note. */
+const WELCOME_WINDOW_MS = 60 * 60 * 1000;
+
+/** Whether a case was made recently enough to open with its welcome note. */
+function madeJustNow(createdAt: Date | string): boolean {
+  return Date.now() - new Date(createdAt).getTime() < WELCOME_WINDOW_MS;
+}
+
+/**
+ * For the welcome note of a case with no checklist: whether published checklists fit its country
+ * and purpose and may cover its traveller. A case that names no country or no purpose has no route
+ * to narrow by, so it is offered the picker when any checklist is published. A failed check is
+ * `unknown`, never a guess.
+ */
+async function welcomeChecklists(
+  db: Db,
+  accountId: string,
+  mission: {
+    readonly id: string;
+    readonly destination: string | null;
+    readonly purpose: string | null;
+  },
+  publishedCount: number,
+): Promise<WelcomeChecklists> {
+  const route = savedCaseMatchTerms(mission.destination, mission.purpose);
+  if (!route) {
+    return publishedCount > 0 ? { kind: 'pick', travellerUnconfirmed: false } : { kind: 'none' };
+  }
+  try {
+    const fitting = await checklistsToPick(db, { accountId, missionId: mission.id, ...route });
+    if (fitting.length === 0) return { kind: 'none' };
+    return {
+      kind: 'pick',
+      travellerUnconfirmed: fitting.some((checklist) => !checklist.coversTraveller),
+    };
+  } catch (error) {
+    reportServerError('MissionPage', error, { step: 'welcome checklists' });
+    return { kind: 'unknown' };
+  }
+}
+
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
 // WP-X1 next step card: wording for the first attention item. A changed case
@@ -200,10 +233,15 @@ interface RequirementDetailRow {
 
 export default async function MissionPage({
   params,
+  searchParams,
 }: {
   readonly params: Promise<{ id: string }>;
+  readonly searchParams?: Promise<{ readonly welcome?: string | string[] }>;
 }) {
   const { id } = await params;
+  const { welcome } = (await searchParams) ?? {};
+  // Start a Case and Start a New Case from This One both arrive with `welcome=1`.
+  const welcomeAsked = welcome === '1';
   const locale = await getLocale();
   const t = createTranslator(locale);
 
@@ -408,8 +446,19 @@ export default async function MissionPage({
     }
     // The case's visible code (ADR 0018); none while migration 0091 has not run.
     const referenceCode = await referenceCodeFor(db, 'C', mission.id);
+    // The welcome note greets a case that was just made; an old case opened with the same address
+    // shows none. `checklists` is null when the case already has one linked.
+    const welcomeNote =
+      welcomeAsked && madeJustNow(mission.createdAt)
+        ? {
+            checklists: mission.packVersionId
+              ? null
+              : await welcomeChecklists(db, accountId, mission, packs.length),
+          }
+        : null;
     return {
       referenceCode,
+      welcomeNote,
       mission,
       applicantName: applicant?.displayName ?? 'Applicant',
       applicantId: mission.applicantId,
@@ -541,6 +590,9 @@ export default async function MissionPage({
 
   const { mission } = data;
   const nextStates = legalTransitions(mission.state);
+  // Cancelling is final, so it is offered only from the More menu, behind a question.
+  const stageStates = stageButtonStates(nextStates);
+  const canCancel = nextStates.includes('CANCELLED');
 
   const openTasks = data.tasks.filter(
     (task) => task.status === 'OPEN' || task.status === 'IN_PROGRESS',
@@ -616,7 +668,7 @@ export default async function MissionPage({
           <>
             <span>
               {mission.destination ? `${mission.destination} · ` : ''}
-              {STATE_LABELS[mission.state] ?? mission.state}
+              {caseStateLabel(mission.state)}
             </span>
             <ReferenceCode code={data.referenceCode} label="Case Reference" />
             {data.liveAcknowledgedAt ? (
@@ -637,14 +689,35 @@ export default async function MissionPage({
               className="btn btn-secondary"
               href={`/app/applicant/${data.applicantId}/missions/prepare-again?from=${mission.id}`}
             >
-              Prepare Again
+              Start a New Case from This One
             </Link>
             <SnapshotButton missionId={mission.id} />
+            <CaseMoreMenu
+              missionId={mission.id}
+              applicantId={data.applicantId}
+              canCancel={canCancel}
+            />
           </>
         }
       />
 
-      <CaseStageTracker state={mission.state} labels={STATE_LABELS} nextStates={nextStates} />
+      {data.welcomeNote ? (
+        <CaseWelcome
+          {...caseWelcomeCopy({
+            packName: mission.packVersionId ? (data.packInfo?.name ?? null) : null,
+            // A linked checklist whose name could not be read promises nothing.
+            checklists: data.welcomeNote.checklists ?? { kind: 'unknown' },
+            firstGapHref: attention.find((item) => item.kind !== 'changed')?.href ?? null,
+          })}
+        />
+      ) : null}
+
+      <CaseStageTracker
+        state={mission.state}
+        labels={CASE_STATE_LABELS}
+        nextStates={stageStates}
+        cancelInMore={canCancel}
+      />
 
       {data.isDirty ? (
         <div className="case-alert">
@@ -1107,11 +1180,15 @@ export default async function MissionPage({
           <article className="card">
             <p className="card-kicker">Workflow</p>
             <h2 className="card-title">Advance the Case</h2>
-            {nextStates.length === 0 ? (
-              <p className="card-body">This case is in a terminal state.</p>
+            {stageStates.length === 0 ? (
+              <p className="card-body">
+                {nextStates.length === 0
+                  ? 'This case is in a terminal state.'
+                  : 'There is no further stage from here. To stop the case, use More at the top of the page.'}
+              </p>
             ) : (
               <div className="u-mt-050">
-                <TransitionButtons missionId={mission.id} nextStates={nextStates} />
+                <TransitionButtons missionId={mission.id} nextStates={stageStates} />
               </div>
             )}
           </article>
@@ -1120,8 +1197,8 @@ export default async function MissionPage({
             <h2 className="card-title">Snapshots</h2>
             <p className="card-body case-memory-link">
               Each snapshot keeps exactly what it held.{' '}
-              <Link href={memoryHref(data.applicantId)}>Open Application Memory</Link> to see every
-              case for this person and compare what you confirmed with today.
+              <Link href={memoryHref(data.applicantId)}>Open Case History</Link> to see every case
+              for this person and compare what you confirmed with today.
             </p>
             {data.snapshots.length === 0 ? (
               <p className="card-body">

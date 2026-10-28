@@ -1,9 +1,16 @@
 'use client';
 
-import { useActionState } from 'react';
-import { FormMessage, SubmitButton } from '../../../../../../components/form-feedback';
+import { useActionState, useRef } from 'react';
+import {
+  FormMessage,
+  SubmitButton,
+  useFocusInvalidField,
+} from '../../../../../../components/form-feedback';
 import { StatusBadge, type Tone } from '../../../../../../components/ui';
+import { CASE_DATE_FIELDS } from '../../../../../../lib/form-dates';
+import { usePartTypedDateCheck } from '../../../../../../lib/use-part-typed-date-check';
 import type { ActionState } from '../actions';
+import type { CaseFormField } from '../case-form-fields';
 import { prepareCaseAgainAction } from './actions';
 
 /** One record the person may tick (or only see), already in plain words. */
@@ -42,7 +49,7 @@ export interface SharingQuestionView {
 const INITIAL: ActionState = { ok: true, message: '' };
 
 /**
- * Prepare Again (Programme X U02): the new case's details, the three groups
+ * Start a New Case from This One (Programme X U02): the new case's details, the three groups
  * of records with tick boxes for what to carry, and one tick box per person
  * or agency with all-cases access. Nothing is ticked for them by default:
  * leaving someone unticked means they do not see the new case.
@@ -65,14 +72,52 @@ export function PrepareAgainForm({
   readonly sharingQuestions: readonly SharingQuestionView[];
 }) {
   const [state, formAction, pending] = useActionState(prepareCaseAgainAction, INITIAL);
+  const formRef = useRef<HTMLFormElement>(null);
+  useFocusInvalidField(formRef, state);
+  // A part-typed date sends nothing, so the page stops the form and says so beside the box.
+  const dateCheck = usePartTypedDateCheck(CASE_DATE_FIELDS);
+  const errors: Readonly<Partial<Record<CaseFormField, string>>> = {
+    ...(state.fieldErrors ?? {}),
+    ...dateCheck.errors,
+  };
+  const values = state.values ?? {};
+
+  /** The attributes and message that tie one box to its own problem, as on Start a Case. */
+  const problem = (name: CaseFormField, describedBy?: string) => {
+    const error = errors[name];
+    const errorId = `prepare-again-${name}-error`;
+    const ids = [describedBy ?? null, error ? errorId : null].filter(Boolean).join(' ');
+    return {
+      control: {
+        ...(error ? { 'aria-invalid': true as const } : {}),
+        ...(ids ? { 'aria-describedby': ids } : {}),
+      },
+      message: error ? (
+        <p id={errorId} className="field-msg field-msg-err case-field-error">
+          {error}
+        </p>
+      ) : null,
+    };
+  };
+  const title = problem('title');
+  const start = problem('travelStartDate', 'prepare-again-dates');
+  const end = problem('travelEndDate', 'prepare-again-dates');
+  const deadline = problem('targetDeadline');
 
   return (
-    <form action={formAction} className="field-list">
+    <form
+      ref={formRef}
+      action={formAction}
+      onSubmit={dateCheck.onSubmit}
+      className="field-list"
+      noValidate
+    >
       <input type="hidden" name="applicantId" value={applicantId} />
       <input type="hidden" name="from" value={fromMissionId} />
       <input type="hidden" name="expectedPackVersionId" value={expectedPackVersionId} />
 
-      <section className="card" aria-labelledby="prepare-again-details">
+      {/* Drawn afresh after each refused attempt, so each box shows what was sent. */}
+      <section key={state.attempt ?? 0} className="card" aria-labelledby="prepare-again-details">
         <h2 className="card-title" id="prepare-again-details">
           New Case Details
         </h2>
@@ -86,8 +131,10 @@ export function PrepareAgainForm({
             type="text"
             required
             className="input"
-            defaultValue={defaultTitle}
+            defaultValue={values.title ?? defaultTitle}
+            {...title.control}
           />
+          {title.message}
         </div>
         <div className="field-row">
           <span className="field-label" id="prepare-again-dates">
@@ -99,22 +146,34 @@ export function PrepareAgainForm({
               type="date"
               className="input"
               aria-label="Travel Start Date"
-              aria-describedby="prepare-again-dates"
+              defaultValue={values.travelStartDate ?? ''}
+              {...start.control}
             />
             <input
               name="travelEndDate"
               type="date"
               className="input"
               aria-label="Travel End Date"
-              aria-describedby="prepare-again-dates"
+              defaultValue={values.travelEndDate ?? ''}
+              {...end.control}
             />
           </div>
+          {start.message}
+          {end.message}
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="prepare-again-deadline">
             Target Deadline (Optional)
           </label>
-          <input id="prepare-again-deadline" name="targetDeadline" type="date" className="input" />
+          <input
+            id="prepare-again-deadline"
+            name="targetDeadline"
+            type="date"
+            className="input"
+            defaultValue={values.targetDeadline ?? ''}
+            {...deadline.control}
+          />
+          {deadline.message}
         </div>
         <p className="muted u-m-0">{checklistNote}</p>
       </section>

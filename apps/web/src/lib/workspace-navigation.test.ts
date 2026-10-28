@@ -136,6 +136,42 @@ describe('current contextual navigation contract', () => {
       'Visa Case',
     );
   });
+  it('never guesses the traveller on a case page before the case reports its own (owner item 2)', () => {
+    // No report yet (still loading, or a case that is not this account's): a neutral case state,
+    // with no traveller's links and no request to choose one.
+    const loading = workspaceNavigation(`/app/mission/${m1}`, access, null);
+    expect(loading.name).toBe('Visa Case');
+    expect(loading.caption).toBe('Case Workspace');
+    const labels = loading.primary.map((link) => link.label);
+    expect(labels).not.toContain('Choose a Traveller');
+    expect(labels).toContain('All Travellers');
+    expect(loading.primary.some((link) => link.href.startsWith('/app/applicant/'))).toBe(false);
+    // Even with a single traveller nothing is assumed: the case may not be theirs.
+    const family = access.travellers[1];
+    if (!family) throw new Error('fixture');
+    const single: WorkspaceAccess = { ...access, travellers: [family] };
+    expect(workspaceNavigation(`/app/mission/${m1}`, single).name).toBe('Visa Case');
+    // Another case's report never stands in for this one.
+    const otherCase = workspaceNavigation(`/app/mission/${m1}`, access, {
+      route: '/app/mission/another-case',
+      applicantId: p2,
+    });
+    expect(otherCase.name).toBe('Visa Case');
+  });
+  it("shows the case's own traveller as soon as the case reports it, on every page of the case", () => {
+    const subject = { route: `/app/mission/${m1}`, applicantId: p1 };
+    expect(workspaceNavigation(`/app/mission/${m1}`, access, subject).name).toBe('Synthetic Self');
+    const sub = workspaceNavigation(`/app/mission/${m1}/snapshots/s1`, access, subject);
+    expect(sub.name).toBe('Synthetic Self');
+    expect(sub.primary.map((link) => link.href)).toContain(`/app/applicant/${p1}/missions`);
+  });
+  it('never shows a reported traveller outside the owner-authorized list', () => {
+    const nav = workspaceNavigation(`/app/mission/${m1}`, access, {
+      route: `/app/mission/${m1}`,
+      applicantId: 'unknown',
+    });
+    expect(nav.name).toBe('Visa Case');
+  });
   it('does not accept a subject outside the existing owner-authorized context list', () => {
     const nav = workspaceNavigation(`/app/mission/${m1}`, access, {
       route: `/app/mission/${m1}`,

@@ -1,4 +1,5 @@
 import batch001 from './batch-001.json';
+import countryCodes from './country-codes.json';
 import type { Destination, DestinationBatch, DestinationRoute, DestinationSource } from './types';
 
 export type {
@@ -91,4 +92,20 @@ export function lastCheckedOn(country: string): string | null {
     for (const req of route.requirements) add(req.source);
   }
   return dates.length === 0 ? null : dates.reduce((a, b) => (a > b ? a : b));
+}
+
+/**
+ * Every ISO 3166-1 country's two-letter and three-letter code (`country-codes.json`, copied from a
+ * published table; its source is in the file). A passport prints the three-letter code.
+ */
+export const COUNTRY_CODES: readonly (readonly [alpha2: string, alpha3: string])[] = (
+  countryCodes as unknown as { readonly codes: readonly (readonly [string, string])[] }
+).codes;
+
+let byAlpha3: ReadonlyMap<string, string> | undefined;
+
+/** The two-letter code for a three-letter country code (`BGD` gives `BD`), or undefined. */
+export function alpha2ForAlpha3(alpha3: string): string | undefined {
+  byAlpha3 ??= new Map(COUNTRY_CODES.map(([alpha2, code]) => [code, alpha2]));
+  return byAlpha3.get(alpha3.trim().toUpperCase());
 }

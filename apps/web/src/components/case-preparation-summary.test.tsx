@@ -76,4 +76,24 @@ describe('case progress represents preparation and actual workflow state', () =>
     expect(html).toContain('not a completed-stage history');
     expect(html).not.toContain('<button');
   });
+
+  it('lists only the stage buttons as next steps and points to More for cancelling', () => {
+    const html = renderToStaticMarkup(
+      <CaseStageTracker
+        state="UNDER_REVIEW"
+        labels={{ READY_TO_EXPORT: 'Ready to Export', CANCELLED: 'Cancelled' }}
+        nextStates={['READY_TO_EXPORT']}
+        cancelInMore
+      />,
+    );
+    const line = html.slice(html.indexOf('<p class="muted">'));
+    expect(line).toContain('allows Ready to Export next;');
+    expect(line).not.toContain('Cancelled');
+    expect(html).toContain('To stop the case, use More at the top of the page.');
+    const last = renderToStaticMarkup(
+      <CaseStageTracker state="SUBMITTED" labels={{}} nextStates={[]} cancelInMore />,
+    );
+    expect(last).toContain('There is no further stage from here.');
+    expect(last).not.toContain('terminal state');
+  });
 });

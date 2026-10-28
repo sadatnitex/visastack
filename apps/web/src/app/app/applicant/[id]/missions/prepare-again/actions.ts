@@ -3,9 +3,10 @@
 import { accountPrincipal, prepareCaseAgain, requireAccess } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { readCaseDates } from '../../../../../../lib/form-dates';
 import { withSession } from '../../../../../../lib/session';
 import type { ActionState } from '../actions';
-import { parseOptionalDate } from '../form-dates';
+import { CASE_FORM_FIELDS, type CaseFormField, TITLE_MAX } from '../case-form-fields';
 
 /** `<requirement>|f|<fact>` or `<requirement>|d|<document>`; anything else is dropped and the service refuses what does not match its own list. */
 function parseCarry(values: readonly FormDataEntryValue[]) {
@@ -21,17 +22,42 @@ function parseCarry(values: readonly FormDataEntryValue[]) {
 
 /** Start a new case from a previous one (Programme X U02), then open it. */
 export async function prepareCaseAgainAction(
-  _prev: ActionState,
+  prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   const applicantId = String(formData.get('applicantId') ?? '');
   const from = String(formData.get('from') ?? '');
   const title = String(formData.get('title') ?? '').trim();
-  if (title.length === 0) return { ok: false, message: 'Give the case a title.' };
   const expected = String(formData.get('expectedPackVersionId') ?? '');
-  const travelStartDate = parseOptionalDate(formData.get('travelStartDate'));
-  const travelEndDate = parseOptionalDate(formData.get('travelEndDate'));
-  const targetDeadline = parseOptionalDate(formData.get('targetDeadline'));
+  // The same checks and words as Start a Case, each problem beside its field, focus on the first:
+  // an impossible date is refused, never dropped.
+  const { dates, errors: dateErrors } = readCaseDates((name) => formData.get(name));
+  const errors: Partial<Record<CaseFormField, string>> = { ...dateErrors };
+  if (title.length === 0) errors.title = 'Give the case a name, for example the visa and the year.';
+  else if (title.length > TITLE_MAX) {
+    errors.title = `Keep the name to ${TITLE_MAX} characters or fewer.`;
+  }
+  const invalid = CASE_FORM_FIELDS.filter((name) => errors[name] !== undefined);
+  const [first] = invalid;
+  if (first) {
+    return {
+      ok: false,
+      message:
+        invalid.length === 1
+          ? 'Check the field marked above.'
+          : `Check the ${invalid.length} fields marked above.`,
+      field: first,
+      fieldErrors: errors,
+      values: {
+        title,
+        travelStartDate: String(formData.get('travelStartDate') ?? ''),
+        travelEndDate: String(formData.get('travelEndDate') ?? ''),
+        targetDeadline: String(formData.get('targetDeadline') ?? ''),
+      },
+      attempt: (prev.attempt ?? 0) + 1,
+    };
+  }
+  const { travelStartDate, travelEndDate, targetDeadline } = dates;
 
   const outcome = await withSession(async ({ db, accountId }) => {
     const access = await requireAccess(
@@ -64,7 +90,7 @@ export async function prepareCaseAgainAction(
 
   if (outcome.id) {
     revalidatePath(`/app/applicant/${applicantId}/missions`);
-    redirect(`/app/mission/${outcome.id}`);
+    redirect(`/app/mission/${outcome.id}?welcome=1`);
   }
   // A refusal usually means the list changed (a newer checklist, a record
   // that went out of date, a share that ended): redraw it so a retry works.

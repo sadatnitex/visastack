@@ -51,7 +51,15 @@ export function recordSections(applicantId: string): readonly NavLink[] {
   ];
 }
 
-/** Navigation describes only the current server-authorized context list; it grants no access. */
+/**
+ * Navigation describes only the current server-authorized context list; it grants no access.
+ *
+ * On a case page the traveller is only ever the one known to own that case: the one the case
+ * layout reported after its own owner check (`caseSubject`; the frame remembers each case's report
+ * for the visit, so going back to a case shows its traveller at once). Until a case has reported,
+ * or when it never does (a case that is not this account's), the sidebar shows a neutral case
+ * state with no traveller's links, never a guess (owner list item 2).
+ */
 export function workspaceNavigation(
   pathname: string,
   access: WorkspaceAccess,
@@ -151,7 +159,10 @@ export function workspaceNavigation(
         ? 'Personal Space'
         : person
           ? 'Managed Traveller'
-          : 'Choose a Traveller',
+          : // A case whose traveller is not known yet: a caption that names no owner.
+            casePath
+            ? 'Case Workspace'
+            : 'Choose a Traveller',
     // Four tabs (WP-V3 part 2): Home, Record, Cases, Sharing. Notifications and Countries follow,
     // so on a phone they sit under More. Profile, Documents, Dates & Expiry and History are
     // sections of Record: their pages keep their addresses and light up the Record tab.
@@ -173,7 +184,11 @@ export function workspaceNavigation(
           { href: '/app', label: 'Account Overview', exact: true },
           {
             href: '/app/applicants',
-            label: access.travellers.length ? 'Choose a Traveller' : 'Add a Traveller',
+            label: casePath
+              ? 'All Travellers'
+              : access.travellers.length
+                ? 'Choose a Traveller'
+                : 'Add a Traveller',
           },
           { href: '/app/notifications', label: 'Notifications' },
           { href: '/app/countries', label: 'Countries' },
