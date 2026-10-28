@@ -1,8 +1,15 @@
-import { DOCUMENT_GROUP_KEYS } from '@visastack/core/catalogue';
+import { DOCUMENT_GROUP_KEYS, type DocumentGroupKey } from '@visastack/core/catalogue';
 import { z } from 'zod';
+import type { AiConnectionLayer } from '../access/with-ai-connection';
 import { caseFailure } from './failures';
 import { type AiToolDefinition, MESSAGES, READ_ONLY_ANNOTATIONS, answer, refusal } from './result';
 import { documentListOutputSchema } from './schemas';
+
+/** Groups listed only with the record section that carries the same subject. */
+const GROUP_NEEDS_LAYER: Partial<Record<DocumentGroupKey, AiConnectionLayer>> = {
+  medical: 'health',
+  legal_clearances: 'declarations',
+};
 
 const inputSchema = z.object({
   group: z
@@ -24,20 +31,24 @@ export const listDocuments: AiToolDefinition<typeof inputSchema> = {
       gateway.denied('document_list_not_granted');
       return refusal(MESSAGES.notShared);
     }
+    // Medical papers and police or court papers are listed only with the section they belong
+    // to, decided from what was shared alone, so the answer is the same whatever the record holds.
+    const gating = input.group ? GROUP_NEEDS_LAYER[input.group] : undefined;
+    if (gating && !gateway.scope.layers.includes(gating)) {
+      gateway.denied('document_not_shared');
+      return refusal(MESSAGES.notShared);
+    }
     const built = await gateway.compose({
+      // No case data and no values in this answer: the counts then speak of documents alone.
+      cases: 'none',
+      basics: false,
+      fieldKeys: [],
       documentList: true,
       documentText: false,
-      // No profile values: the counts of what was left out then speak of documents alone.
-      fieldKeys: [],
       ...(input.group ? { documentScope: { groups: [input.group] } } : {}),
     });
     if (!built.ok) return caseFailure(gateway, built.error);
     const output = built.value;
-    // A group outside what was shared is a refusal, not an empty list.
-    if (input.group && output.documents.length === 0 && output.omitted.not_granted > 0) {
-      gateway.denied('document_not_shared');
-      return refusal(MESSAGES.notShared);
-    }
     const summary =
       output.documents.length === 0
         ? 'No shared documents.'

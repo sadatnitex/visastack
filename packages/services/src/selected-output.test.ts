@@ -32,6 +32,7 @@ import {
   type Selection,
   buildSelectedOutput,
   decideField,
+  identifierTextMasker,
   listSelectableCases,
   maskIdentifier,
   normaliseSelection,
@@ -1506,5 +1507,20 @@ describe('selected output: narrowing to named documents (S14)', () => {
     expect(both.documents).toEqual([]);
     const empty = await build(ownerId, applicantId, { documentList: true }, { documentScope: {} });
     expect(empty.documents).toEqual([]);
+  });
+});
+
+describe('selected output: identifiers inside document text (S14 second review)', () => {
+  it('masks stored values exactly, in any case and spacing, and same-shape numbers', () => {
+    const mask = identifierTextMasker(['BX7319046', 'AB-12/34', 'Jahan Khan', '12']);
+    expect(mask('Passport No BX7319046, bx 7319 046; also CD9876543.')).toBe(
+      'Passport No ***046, ***046; also ***543.',
+    );
+    // A value with other characters is found exactly (escaped), with no shape matching.
+    expect(mask('Ref AB-12/34 and AB-99/99')).toBe('Ref ***/34 and AB-99/99');
+    // A value without digits never masks other words of its shape; a short value is ignored.
+    expect(mask('Jahan Khan met Karim Ahmed; 12 days')).toBe('***han met Karim Ahmed; 12 days');
+    // Part of a longer number of the same shape is left alone (whole words only).
+    expect(mask('Account 12345678901')).toBe('Account 12345678901');
   });
 });

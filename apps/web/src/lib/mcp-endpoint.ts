@@ -5,16 +5,25 @@ import {
   AI_CONNECTION_DEFAULT_LAYERS,
   AI_RESPONSE_LIMIT_BYTES,
   AI_TOOLS,
+  AI_TOOL_MESSAGES,
+  type AiAdmission,
   type AiToolDefinition,
+  type AiToolResult,
   type Db,
   type KeyManagementPort,
   RATE_LIMITS,
+  type RateLimitConfig,
+  aiToolRefusal,
+  auditAiAnswerWithheld,
   authenticateAiRequest,
-  checkRateLimits,
+  checkRateLimit,
+  isWellFormedAiAccessToken,
   oauthScopeNames,
   runAiTool,
 } from '@visastack/services';
-import { aiConnectorEnabled, aiIssuer, aiResource, notFound } from './ai-connector';
+import { aiConnectorEnabled, aiIssuer, aiResource, noStoreJson, notFound } from './ai-connector';
+import { clientAddressFrom, hashedSubject } from './client-address';
+import { checkPilotAccess } from './pilot-access';
 import { createKeyManagementPort } from './providers';
 import { withPublicDb } from './public-db';
 import { reportServerError } from './server-error';
@@ -26,7 +35,9 @@ import { reportServerError } from './server-error';
  * - off unless `AI_CONNECTOR_ENABLED=true` ("not found");
  * - POST only (GET and DELETE answer 405: there are no sessions and no server-sent streams);
  * - a bearer token on every request, or 401 with the RFC 9728 pointer to the sign-in metadata;
- * - at most 64 KB in (413) and 60 requests a minute and 2,000 a day per connection (429);
+ *   a token that is not even shaped like one is refused before any database work;
+ * - at most 64 KB in (413), read before the database is opened; 60 requests a minute and 2,000 a
+ *   day per connection, and 300 failed sign-ins an hour per network address (429);
  * - JSON answers, each tool answer within 50 KB, and a backstop on the whole response.
  *
  * Every rule about what may be read lives in the services (`withAiConnection` and `ai-tools`);
@@ -39,6 +50,8 @@ export interface McpEndpointDeps {
   readonly resource: () => string;
   readonly issuer: () => string;
   readonly encryption: () => KeyManagementPort | undefined;
+  readonly admission: AiAdmission;
+  readonly now: () => Date;
 }
 
 const defaults: McpEndpointDeps = {
@@ -47,6 +60,10 @@ const defaults: McpEndpointDeps = {
   resource: aiResource,
   issuer: aiIssuer,
   encryption: createKeyManagementPort,
+  // The same pilot-access rule a signed-in page applies (withSession).
+  admission: async (db, account) =>
+    (await checkPilotAccess(db, { email: account.email, workosUserId: null })).allowed,
+  now: () => new Date(),
 };
 
 /** The most a request body may carry. Tool inputs are a few short fields. */
@@ -60,8 +77,6 @@ const CHALLENGE_SCOPE = [
   'offline_access',
 ].join(' ');
 
-const NO_STORE = { 'cache-control': 'no-store' } as const;
-
 function jsonRpcError(
   status: number,
   code: number,
@@ -69,10 +84,7 @@ function jsonRpcError(
   id: string | number | null = null,
   headers: Record<string, string> = {},
 ): Response {
-  return Response.json(
-    { jsonrpc: '2.0', error: { code, message }, id },
-    { status, headers: { ...NO_STORE, ...headers } },
-  );
+  return noStoreJson({ jsonrpc: '2.0', error: { code, message }, id }, status, headers);
 }
 
 /**
@@ -138,8 +150,35 @@ function tooLarge(): Response {
 
 function requestId(body: unknown): string | number | null {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) return null;
-  const id = (body as { id?: unknown }).id;
+  const id = Reflect.get(body, 'id');
   return typeof id === 'string' || typeof id === 'number' ? id : null;
+}
+
+/** The tool a `tools/call` message names, or null for any other message. */
+function calledTool(body: unknown): string | null {
+  if (typeof body !== 'object' || body === null) return null;
+  if (Reflect.get(body, 'method') !== 'tools/call') return null;
+  const params = Reflect.get(body, 'params');
+  const name = typeof params === 'object' && params !== null ? Reflect.get(params, 'name') : null;
+  return typeof name === 'string' ? name : null;
+}
+
+/** Seconds until the window a fixed-window counter is in ends (the daily one ends at UTC midnight). */
+export function secondsUntilWindowEnds(config: RateLimitConfig, now: Date): number {
+  const end = (Math.floor(now.getTime() / config.windowMs) + 1) * config.windowMs;
+  return Math.max(1, Math.ceil((end - now.getTime()) / 1000));
+}
+
+const LIMIT_WORDS = {
+  minute: 'Too many requests in one minute from this app. Try again in a minute.',
+  day: 'This app has reached its limit of requests for today. Try again tomorrow.',
+  signIn: 'Too many failed sign-ins from this network. Try again later.',
+} as const;
+
+function limited(message: string, config: RateLimitConfig, now: Date): Response {
+  return jsonRpcError(429, -32000, message, null, {
+    'retry-after': String(secondsUntilWindowEnds(config, now)),
+  });
 }
 
 /** One MCP server per request, with the five tools bound to this request's token. */
@@ -149,6 +188,7 @@ function buildServer(
     readonly token: string;
     readonly resource: string;
     readonly encryption: KeyManagementPort | undefined;
+    readonly admission: AiAdmission;
     readonly onUnauthorized: () => void;
   },
 ): McpServer {
@@ -170,13 +210,25 @@ function buildServer(
         annotations: tool.annotations,
       },
       async (input: unknown) => {
-        const outcome = await runAiTool(db, tool, input as never, {
-          token: context.token,
-          resource: context.resource,
-          ...(context.encryption ? { encryption: context.encryption } : {}),
-        });
-        if (outcome.kind === 'unauthorized') context.onUnauthorized();
-        return { ...outcome.result, content: [...outcome.result.content] };
+        let result: AiToolResult;
+        try {
+          const outcome = await runAiTool(db, tool, input as never, {
+            token: context.token,
+            resource: context.resource,
+            admission: context.admission,
+            ...(context.encryption ? { encryption: context.encryption } : {}),
+          });
+          if (outcome.kind === 'unauthorized') context.onUnauthorized();
+          if (outcome.kind === 'failed') {
+            reportServerError('aiContextTool', outcome.error, { tool: tool.name });
+          }
+          result = outcome.result;
+        } catch (error) {
+          // The SDK would send an error's own text to the app; it never reaches it from here.
+          reportServerError('aiContextTool', error, { tool: tool.name });
+          result = aiToolRefusal(AI_TOOL_MESSAGES.failed);
+        }
+        return { ...result, content: [...result.content] };
       },
     );
   }
@@ -193,43 +245,62 @@ export async function handleMcpPost(
   const authorization = request.headers.get('authorization')?.trim() ?? '';
   if (authorization === '') return mcpChallenge(issuer);
   const token = bearerToken(authorization);
-  if (!token) return mcpChallenge(issuer, INVALID_TOKEN);
+  // Not shaped like one of our tokens: refused without touching the database.
+  if (!token || !isWellFormedAiAccessToken(token)) return mcpChallenge(issuer, INVALID_TOKEN);
+
+  // The body is read, bounded, before any database work.
   const declared = Number(request.headers.get('content-length') ?? '0');
   if (Number.isFinite(declared) && declared > MCP_MAX_REQUEST_BYTES) return tooLarge();
-  const resource = deps.resource();
+  const raw = await readLimited(request, MCP_MAX_REQUEST_BYTES);
+  if (raw === null) return tooLarge();
+  let body: unknown;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    return jsonRpcError(400, -32700, 'The request is not valid JSON.');
+  }
+  // One message per request, so the per-connection limit counts every tool call.
+  if (Array.isArray(body)) return jsonRpcError(400, -32600, 'Send one message at a time.');
 
+  const resource = deps.resource();
   try {
     return await deps.withDb(async (db) => {
-      const caller = await authenticateAiRequest(db, { token, resource });
-      if (!caller) return mcpChallenge(issuer, INVALID_TOKEN);
-
-      const limit = await checkRateLimits(db, [
-        {
-          input: { subjectId: caller.connectionId, action: 'ai.mcp_minute', label: 'ai' },
-          config: RATE_LIMITS.AI_CONNECTION_MINUTE,
-        },
-        {
-          input: { subjectId: caller.connectionId, action: 'ai.mcp_day', label: 'ai' },
-          config: RATE_LIMITS.AI_CONNECTION_DAY,
-        },
-      ]);
-      if (!limit.allowed) {
-        return jsonRpcError(429, -32000, 'Too many requests. Try again in a minute.', null, {
-          'retry-after': '60',
-        });
+      const now = deps.now();
+      const caller = await authenticateAiRequest(db, {
+        token,
+        resource,
+        admission: deps.admission,
+      });
+      if (!caller) {
+        // Charged only on failure: a network address guessing tokens is slowed down.
+        const failures = await checkRateLimit(
+          db,
+          {
+            subjectId: hashedSubject('net', clientAddressFrom(request.headers)),
+            action: 'ai.mcp_auth_fail_ip',
+            label: 'ai',
+          },
+          RATE_LIMITS.AI_MCP_AUTH_FAIL_IP,
+          now,
+        );
+        if (!failures.allowed) {
+          return limited(LIMIT_WORDS.signIn, RATE_LIMITS.AI_MCP_AUTH_FAIL_IP, now);
+        }
+        return mcpChallenge(issuer, INVALID_TOKEN);
       }
 
-      const raw = await readLimited(request, MCP_MAX_REQUEST_BYTES);
-      if (raw === null) return tooLarge();
-      let body: unknown;
-      try {
-        body = JSON.parse(raw);
-      } catch {
-        return jsonRpcError(400, -32700, 'The request is not valid JSON.');
-      }
-      // One message per request, so the per-connection limit counts every tool call.
-      if (Array.isArray(body)) {
-        return jsonRpcError(400, -32600, 'Send one message at a time.');
+      // The minute first: a burst never spends the day's allowance.
+      for (const [window, config, action] of [
+        ['minute', RATE_LIMITS.AI_CONNECTION_MINUTE, 'ai.mcp_minute'],
+        ['day', RATE_LIMITS.AI_CONNECTION_DAY, 'ai.mcp_day'],
+      ] as const) {
+        const decision = await checkRateLimit(
+          db,
+          { subjectId: caller.connectionId, action, label: 'ai' },
+          config,
+          now,
+        );
+        if (!decision.allowed) return limited(LIMIT_WORDS[window], config, now);
       }
 
       let unauthorized = false;
@@ -237,6 +308,7 @@ export async function handleMcpPost(
         token,
         resource,
         encryption: deps.encryption(),
+        admission: deps.admission,
         onUnauthorized: () => {
           unauthorized = true;
         },
@@ -250,6 +322,8 @@ export async function handleMcpPost(
         if (unauthorized) return mcpChallenge(issuer, INVALID_TOKEN);
         const text = await response.text();
         if (Buffer.byteLength(text, 'utf8') > MCP_MAX_RESPONSE_BYTES) {
+          const tool = calledTool(body);
+          if (tool) await auditAiAnswerWithheld(db, { connectionId: caller.connectionId, tool });
           return jsonRpcError(
             200,
             -32603,

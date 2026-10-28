@@ -21,6 +21,8 @@ export const listCases: AiToolDefinition<typeof inputSchema> = {
     // Cases only: no record sections, no documents, the shallowest depth.
     const built = await gateway.compose({
       layers: [],
+      basics: false,
+      fieldKeys: [],
       documentList: false,
       documentText: false,
       depth: 'brief',

@@ -1492,6 +1492,7 @@ export {
   listSelectableCases,
   maskIdentifier,
   normaliseSelection,
+  aiContextObject,
   renderAiContext,
   type AiContextOptions,
   type CaseSelection,
@@ -1704,15 +1705,21 @@ export { isMissingRelationError } from './missing-relation';
 // S14: the AI connector's gate and its five read-only tools (ADR 0021 sections 3, 6 and 7).
 export {
   AI_CONNECTION_PURPOSE,
+  type AiAdmission,
   type AiCaller,
+  type AiCallRecord,
   type AiContextGateway,
   type AiGrantedScope,
+  auditAiAnswerWithheld,
   authenticateAiRequest,
+  isWellFormedAiAccessToken,
   withAiConnection,
 } from './access/with-ai-connection';
 export {
   AI_RESPONSE_LIMIT_BYTES,
+  AI_TOOL_MESSAGES,
   AI_TOOLS,
+  aiToolRefusal,
   type AiToolDefinition,
   type AiToolName,
   type AiToolOutcome,

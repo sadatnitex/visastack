@@ -35,6 +35,7 @@ export const getDocumentText: AiToolDefinition<typeof inputSchema> = {
     const reference = formatReferenceCode('D', parsed.code);
     const built = await gateway.compose({
       cases: 'none',
+      basics: false,
       documentList: false,
       documentText: true,
       // No profile values: the counts of what was left out then speak of this document alone.
@@ -49,6 +50,7 @@ export const getDocumentText: AiToolDefinition<typeof inputSchema> = {
         gateway.denied('document_protected');
         return refusal(MESSAGES.documentProtected);
       }
+      // Named, but in a group whose text is not shared, or simply no text (or no such document).
       gateway.denied(output.omitted.not_granted > 0 ? 'document_not_shared' : 'no_text');
       return refusal(MESSAGES.noText);
     }

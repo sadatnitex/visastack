@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import type { AiContextGateway } from '../access/with-ai-connection';
+import type { AiCallRecord, AiContextGateway } from '../access/with-ai-connection';
 
 /**
  * How every AI tool answers (ADR 0021 sections 6 and 7): plain refusals as tool results, never an
@@ -179,4 +179,43 @@ export interface AiToolDefinition<Input extends z.ZodObject = z.ZodObject> {
   readonly annotations: typeof READ_ONLY_ANNOTATIONS;
   /** Gets the gateway and nothing else: no database, no proof, no other record. */
   run(gateway: AiContextGateway, input: z.infer<Input>): Promise<AiToolResult>;
+}
+
+function listLength(holder: unknown, key: string): number {
+  if (typeof holder !== 'object' || holder === null) return 0;
+  const list = Reflect.get(holder, key);
+  return Array.isArray(list) ? list.length : 0;
+}
+
+/**
+ * What an answer actually gave back, for the audit: section names and counts, read from the
+ * answer as sent (after the size limit), never a value. A refusal the tool did not record itself
+ * is either "too large" or a failure.
+ */
+export function describeResult(result: AiToolResult): AiCallRecord {
+  if (result.isError) {
+    const text = result.content[0]?.text;
+    return { kind: 'denied', reason: text === MESSAGES.tooLarge ? 'too_large' : 'failed' };
+  }
+  const body = result.structuredContent ?? {};
+  const profile = Reflect.get(body, 'profile');
+  const profileLists =
+    typeof profile === 'object' && profile !== null ? Object.values(profile) : [];
+  const section = Reflect.get(body, 'section');
+  const layers = [
+    ...(typeof profile === 'object' && profile !== null ? Object.keys(profile) : []),
+    ...(typeof section === 'string' ? [section] : []),
+  ];
+  const text = Reflect.get(body, 'text');
+  return {
+    kind: 'served',
+    layers,
+    cases: listLength(body, 'cases'),
+    values:
+      listLength(Reflect.get(body, 'person'), 'basics') +
+      profileLists.reduce<number>((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0) +
+      listLength(body, 'values'),
+    documents: listLength(body, 'documents'),
+    documentTexts: listLength(body, 'documentText') + (typeof text === 'string' ? 1 : 0),
+  };
 }

@@ -2,8 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   authenticate: vi.fn(),
-  limits: vi.fn(),
+  limit: vi.fn(),
   run: vi.fn(),
+  withheld: vi.fn(),
+  report: vi.fn(),
+  withDb: vi.fn(),
 }));
 vi.mock('server-only', () => ({}));
 vi.mock('@visastack/services', async (importActual) => {
@@ -11,29 +14,43 @@ vi.mock('@visastack/services', async (importActual) => {
   return {
     ...actual,
     authenticateAiRequest: mocks.authenticate,
-    checkRateLimits: mocks.limits,
+    checkRateLimit: mocks.limit,
     runAiTool: mocks.run,
+    auditAiAnswerWithheld: mocks.withheld,
   };
 });
 vi.mock('./public-db', () => ({ withPublicDb: vi.fn() }));
 vi.mock('./providers', () => ({ createKeyManagementPort: () => undefined }));
-vi.mock('./server-error', () => ({ reportServerError: vi.fn() }));
+vi.mock('./server-error', () => ({ reportServerError: mocks.report }));
+vi.mock('./pilot-access', () => ({ checkPilotAccess: vi.fn() }));
 vi.mock('./base-url', () => ({ resolveBaseUrl: () => 'https://vs.example.test' }));
 
-const { MCP_MAX_REQUEST_BYTES, bearerToken, handleMcpPost, mcpMethodNotAllowed } = await import(
-  './mcp-endpoint'
-);
+const {
+  MCP_MAX_REQUEST_BYTES,
+  bearerToken,
+  handleMcpPost,
+  mcpMethodNotAllowed,
+  secondsUntilWindowEnds,
+} = await import('./mcp-endpoint');
 const { RATE_LIMITS } = await import('@visastack/services');
 
 const ISSUER = 'https://vs.example.test';
 const RESOURCE = `${ISSUER}/mcp`;
 const TOKEN = `vsa_${'a'.repeat(43)}`;
+// 2026-10-28 23:59:30 UTC: 30 seconds to the end of the minute and of the UTC day.
+const NOW = new Date('2026-10-28T23:59:30.000Z');
+const ADMISSION = async () => true;
 const deps = (enabled = true) => ({
   enabled: () => enabled,
-  withDb: <T>(work: (db: never) => Promise<T>) => work({} as never),
+  withDb: <T>(work: (db: never) => Promise<T>) => {
+    mocks.withDb();
+    return work({} as never);
+  },
   resource: () => RESOURCE,
   issuer: () => ISSUER,
   encryption: () => undefined,
+  admission: ADMISSION,
+  now: () => NOW,
 });
 
 function post(body: unknown, headers: Record<string, string> = {}) {
@@ -70,7 +87,7 @@ const callTool = (name: string, args: Record<string, unknown> = {}) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.authenticate.mockResolvedValue({ connectionId: 'conn-1', clientHost: 'claude.ai' });
-  mocks.limits.mockResolvedValue({ allowed: true });
+  mocks.limit.mockResolvedValue({ allowed: true });
   mocks.run.mockResolvedValue({
     kind: 'answered',
     result: {
@@ -115,7 +132,14 @@ describe('the AI context address: sign-in challenge', () => {
     expect(challenge).toMatch(
       /^Bearer error="invalid_token", error_description="[^"]+", resource_metadata="https:\/\/vs\.example\.test\/\.well-known\/oauth-protected-resource", scope="[^"]+"$/,
     );
-    expect(mocks.authenticate).toHaveBeenCalledWith({}, { token: TOKEN, resource: RESOURCE });
+    expect(mocks.authenticate).toHaveBeenCalledWith(
+      {},
+      {
+        token: TOKEN,
+        resource: RESOURCE,
+        admission: ADMISSION,
+      },
+    );
   });
 
   it('treats a header that is not a bearer token as a dead token', async () => {
@@ -150,33 +174,133 @@ describe('the AI context address: limits', () => {
     expect(streamed.status).toBe(413);
   });
 
-  it('limits each connection to 60 a minute and 2,000 a day (429)', async () => {
-    mocks.limits.mockResolvedValue({ allowed: false, reason: 'too many' });
-    const response = await handleMcpPost(post(INITIALIZE), deps());
-    expect(response.status).toBe(429);
-    expect(response.headers.get('retry-after')).toBe('60');
-    const [, checks] = mocks.limits.mock.calls[0] ?? [];
-    expect(checks).toEqual([
-      {
-        input: { subjectId: 'conn-1', action: 'ai.mcp_minute', label: 'ai' },
-        config: RATE_LIMITS.AI_CONNECTION_MINUTE,
-      },
-      {
-        input: { subjectId: 'conn-1', action: 'ai.mcp_day', label: 'ai' },
-        config: RATE_LIMITS.AI_CONNECTION_DAY,
-      },
+  it('limits each connection per minute, then per day, saying which and when to retry', async () => {
+    mocks.limit.mockResolvedValueOnce({ allowed: false, reason: 'too many' });
+    const minute = await handleMcpPost(post(INITIALIZE), deps());
+    expect(minute.status).toBe(429);
+    expect(minute.headers.get('retry-after')).toBe('30');
+    expect(((await minute.json()) as { error: { message: string } }).error.message).toMatch(
+      /in one minute/,
+    );
+    expect(mocks.limit).toHaveBeenCalledTimes(1);
+    expect(mocks.limit.mock.calls[0]?.slice(1)).toEqual([
+      { subjectId: 'conn-1', action: 'ai.mcp_minute', label: 'ai' },
+      RATE_LIMITS.AI_CONNECTION_MINUTE,
+      NOW,
+    ]);
+
+    mocks.limit.mockReset();
+    mocks.limit
+      .mockResolvedValueOnce({ allowed: true })
+      .mockResolvedValueOnce({ allowed: false, reason: 'too many' });
+    const day = await handleMcpPost(post(INITIALIZE), deps());
+    expect(day.status).toBe(429);
+    // Seconds until the next UTC day.
+    expect(day.headers.get('retry-after')).toBe('30');
+    expect(((await day.json()) as { error: { message: string } }).error.message).toMatch(/today/);
+    expect(mocks.limit.mock.calls[1]?.slice(1, 3)).toEqual([
+      { subjectId: 'conn-1', action: 'ai.mcp_day', label: 'ai' },
+      RATE_LIMITS.AI_CONNECTION_DAY,
     ]);
     expect(RATE_LIMITS.AI_CONNECTION_MINUTE).toEqual({ limit: 60, windowMs: 60_000 });
     expect(RATE_LIMITS.AI_CONNECTION_DAY).toEqual({ limit: 2_000, windowMs: 86_400_000 });
     expect(mocks.run).not.toHaveBeenCalled();
   });
 
+  it('works out Retry-After to the end of the window', () => {
+    const at = new Date('2026-10-28T10:00:00.000Z');
+    expect(secondsUntilWindowEnds(RATE_LIMITS.AI_CONNECTION_DAY, at)).toBe(14 * 3600);
+    expect(secondsUntilWindowEnds(RATE_LIMITS.AI_CONNECTION_MINUTE, at)).toBe(60);
+  });
+
   it('fails closed when the limiter itself fails', async () => {
-    mocks.limits.mockRejectedValue(new Error('database down'));
+    mocks.limit.mockRejectedValue(new Error('database down'));
     const response = await handleMcpPost(post(callTool('list_cases')), deps());
     expect(response.status).toBe(503);
     expect(mocks.run).not.toHaveBeenCalled();
     expect(await response.text()).not.toContain('database down');
+  });
+
+  it('refuses a token not shaped like one before opening the database', async () => {
+    for (const bad of [`vsr_${'a'.repeat(43)}`, `vsa_${'a'.repeat(42)}`, 'abc']) {
+      const response = await handleMcpPost(
+        post(INITIALIZE, { authorization: `Bearer ${bad}` }),
+        deps(),
+      );
+      expect(response.status).toBe(401);
+      expect(response.headers.get('www-authenticate')).toContain('error="invalid_token"');
+    }
+    expect(mocks.withDb).not.toHaveBeenCalled();
+  });
+
+  it('reads the bounded body before opening the database', async () => {
+    const huge = { ...INITIALIZE, params: { ...INITIALIZE.params, pad: 'x'.repeat(70_000) } };
+    expect((await handleMcpPost(post(huge), deps())).status).toBe(413);
+    expect((await handleMcpPost(post('{bad'), deps())).status).toBe(400);
+    expect(mocks.withDb).not.toHaveBeenCalled();
+  });
+
+  it('charges failed sign-ins to the network address, and slows a flood (429)', async () => {
+    mocks.authenticate.mockResolvedValue(null);
+    const first = await handleMcpPost(
+      post(INITIALIZE, { 'x-forwarded-for': '203.0.113.9' }),
+      deps(),
+    );
+    expect(first.status).toBe(401);
+    expect(mocks.limit).toHaveBeenCalledTimes(1);
+    const [, input, config] = mocks.limit.mock.calls[0] ?? [];
+    expect(input).toMatchObject({ action: 'ai.mcp_auth_fail_ip', label: 'ai' });
+    expect((input as { subjectId: string }).subjectId).not.toContain('203.0.113.9');
+    expect(config).toEqual({ limit: 300, windowMs: 3_600_000 });
+    mocks.limit.mockResolvedValue({ allowed: false, reason: 'too many' });
+    const flooded = await handleMcpPost(post(INITIALIZE), deps());
+    expect(flooded.status).toBe(429);
+    expect(Number(flooded.headers.get('retry-after'))).toBeGreaterThan(0);
+  });
+
+  it('never charges the sign-in bucket for a good token', async () => {
+    await handleMcpPost(post(INITIALIZE), deps());
+    expect(mocks.limit.mock.calls.map((c) => (c[1] as { action: string }).action)).toEqual([
+      'ai.mcp_minute',
+      'ai.mcp_day',
+    ]);
+  });
+
+  it('sends errors with the same no-store headers as the sign-in endpoints', () => {
+    const response = mcpMethodNotAllowed({ enabled: () => true });
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('pragma')).toBe('no-cache');
+  });
+
+  it('answers a failed tool plainly: no SQL, no ids, logged on the server only', async () => {
+    const secret = 'select * from missions where id = 0b0f6a52-6f0c-4c43-9d1d-2f4a7d2f9c11';
+    mocks.run.mockResolvedValueOnce({
+      kind: 'failed',
+      error: new Error(secret),
+      result: {
+        content: [
+          {
+            type: 'text',
+            text: 'VisaStack could not prepare this right now. Try again in a moment.',
+          },
+        ],
+        isError: true,
+      },
+    });
+    const failed = await handleMcpPost(post(callTool('list_cases')), deps());
+    const failedText = await failed.text();
+    mocks.run.mockRejectedValueOnce(new Error(secret));
+    const thrown = await handleMcpPost(post(callTool('list_cases')), deps());
+    const thrownText = await thrown.text();
+    for (const text of [failedText, thrownText]) {
+      expect(text).toContain('could not prepare this');
+      expect(text).not.toMatch(/select|[0-9a-f]{8}-[0-9a-f]{4}-/i);
+    }
+    expect(mocks.report).toHaveBeenCalledTimes(2);
+    for (const [, , context] of mocks.report.mock.calls) {
+      expect(JSON.stringify(context)).not.toContain(TOKEN);
+      expect(context).toEqual({ tool: 'list_cases' });
+    }
   });
 
   it('replaces an oversized answer with a plain error instead of cutting it', async () => {
@@ -191,6 +315,8 @@ describe('the AI context address: limits', () => {
     const body = (await response.json()) as { id: number; error: { message: string } };
     expect(body.id).toBe(3);
     expect(body.error.message).toMatch(/too large/);
+    // Recorded as withheld for that connection and tool.
+    expect(mocks.withheld).toHaveBeenCalledWith({}, { connectionId: 'conn-1', tool: 'list_cases' });
   });
 
   it('refuses a batch, so the limit counts every tool call', async () => {
@@ -263,7 +389,7 @@ describe('the AI context address: protocol', () => {
     expect(body.result.structuredContent).toEqual({ cases: [], casesNotShown: 0 });
     const [, definition, , request] = mocks.run.mock.calls[0] ?? [];
     expect((definition as { name: string }).name).toBe('list_cases');
-    expect(request).toMatchObject({ token: TOKEN, resource: RESOURCE });
+    expect(request).toMatchObject({ token: TOKEN, resource: RESOURCE, admission: ADMISSION });
   });
 
   it('refuses tool input outside the schema without running the tool', async () => {

@@ -4,7 +4,7 @@ import {
   type AiContextGateway,
   type AiDenialReason,
   type AiNarrowing,
-  renderAiContext,
+  aiContextObject,
 } from '../access/with-ai-connection';
 import { caseFailure } from './failures';
 import { type AiToolDefinition, MESSAGES, READ_ONLY_ANNOTATIONS, answer, refusal } from './result';
@@ -42,7 +42,9 @@ const inputSchema = z.object({
     .array(z.enum(CONTEXT_FOCUSES))
     .max(CONTEXT_FOCUSES.length)
     .optional()
-    .describe('What to concentrate on. Leave out for everything that is shared.'),
+    .describe(
+      'What to concentrate on. Leave out, or send an empty list, for everything that is shared.',
+    ),
   depth: z
     .enum(['brief', 'standard', 'full'])
     .optional()
@@ -92,7 +94,8 @@ export const prepareContext: AiToolDefinition<typeof inputSchema> = {
   outputSchema: contextOutputSchema,
   annotations: READ_ONLY_ANNOTATIONS,
   async run(gateway, input) {
-    const focus = input.focus ? [...new Set(input.focus)] : null;
+    // An empty list means the same as no focus: everything that is shared.
+    const focus = input.focus && input.focus.length > 0 ? [...new Set(input.focus)] : null;
     const notShared = focus ? focus.filter((f) => !focusShared(f, gateway)) : [];
     if (focus && notShared.length === focus.length) {
       gateway.denied(denialFor(notShared[0] as Focus));
@@ -113,9 +116,7 @@ export const prepareContext: AiToolDefinition<typeof inputSchema> = {
     const built = await gateway.compose(narrowing);
     if (!built.ok) return caseFailure(gateway, built.error);
 
-    const { documents, expiry, ...rest } = JSON.parse(
-      renderAiContext(built.value),
-    ) as RenderedContext;
+    const { documents, expiry, ...rest } = aiContextObject(built.value) as RenderedContext;
     const context: RenderedContext = {
       ...rest,
       ...(wantsDocuments && documents !== undefined ? { documents } : {}),

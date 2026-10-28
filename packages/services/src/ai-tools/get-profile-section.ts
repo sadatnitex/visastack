@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AI_CONNECTION_LAYERS, layerLabel, renderAiContext } from '../access/with-ai-connection';
+import { AI_CONNECTION_LAYERS, aiContextObject, layerLabel } from '../access/with-ai-connection';
 import { caseFailure } from './failures';
 import { type AiToolDefinition, MESSAGES, READ_ONLY_ANNOTATIONS, answer, refusal } from './result';
 import { profileSectionOutputSchema } from './schemas';
@@ -27,17 +27,25 @@ export const getProfileSection: AiToolDefinition<typeof inputSchema> = {
       return refusal(MESSAGES.notShared);
     }
     const built = await gateway.compose({
+      // No case data in this answer: no case, no list, no text, only this section.
+      cases: 'none',
       layers: [section],
+      basics: section === 'identity',
       documentList: false,
       documentText: false,
     });
     if (!built.ok) return caseFailure(gateway, built.error);
     // The same compact form as the full context, so both read alike.
-    const context = JSON.parse(renderAiContext(built.value)) as {
+    const context = aiContextObject(built.value) as {
+      readonly person: { readonly basics?: readonly unknown[] };
       readonly profile?: Readonly<Record<string, readonly unknown[]>>;
       readonly omitted: Readonly<Record<string, number>>;
     };
-    const values = [...(context.profile?.[section] ?? [])];
+    // Personal details start with the basics (names, nationality, date of birth).
+    const values = [
+      ...(section === 'identity' ? (context.person.basics ?? []) : []),
+      ...(context.profile?.[section] ?? []),
+    ];
     const label = layerLabel(section);
     const summary =
       values.length === 0

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AI_RESPONSE_LIMIT_BYTES, MESSAGES, answer, refusal } from './result';
+import { AI_RESPONSE_LIMIT_BYTES, MESSAGES, answer, describeResult, refusal } from './result';
 import { contextOutputSchema } from './schemas';
 
 const size = (value: unknown) => Buffer.byteLength(JSON.stringify(value), 'utf8');
@@ -71,5 +71,22 @@ describe('AI tool answers', () => {
   it('says so when even the shortest answer cannot fit', () => {
     const result = answer('x', { guidance: ['y'.repeat(60_000)] }, 1_000);
     expect(result).toEqual(refusal(MESSAGES.tooLarge));
+  });
+
+  it('describes answers for the audit from what was sent', () => {
+    expect(describeResult(refusal(MESSAGES.tooLarge))).toEqual({
+      kind: 'denied',
+      reason: 'too_large',
+    });
+    expect(describeResult(refusal(MESSAGES.failed))).toEqual({ kind: 'denied', reason: 'failed' });
+    const shortened = answer('Many documents.', bigContext(2_000));
+    expect(describeResult(shortened)).toMatchObject({
+      kind: 'served',
+      documents: (shortened.structuredContent as { documents: unknown[] }).documents.length,
+    });
+    expect(describeResult(answer('x', { section: 'money', values: [1, 2] }))).toMatchObject({
+      layers: ['money'],
+      values: 2,
+    });
   });
 });

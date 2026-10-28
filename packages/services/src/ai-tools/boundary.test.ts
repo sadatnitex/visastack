@@ -23,33 +23,34 @@ import { describe, expect, it } from 'vitest';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const srcDir = path.resolve(here, '..');
 
-const VALUE_SOURCES = new Set([
-  'zod',
-  '@visastack/core',
-  '@visastack/core/catalogue',
-  '../access/with-ai-connection',
-]);
+const PACKAGE_SOURCES = new Set(['zod', '@visastack/core', '@visastack/core/catalogue']);
+const GATE = path.join(srcDir, 'access', 'with-ai-connection');
 
 function isTest(file: string): boolean {
   return /\.test\.ts$/.test(file) || /\.test-support\.ts$/.test(file);
 }
 
+/** Every non-test file under ai-tools/, in subfolders too. */
 function toolModules(): string[] {
-  return readdirSync(here)
-    .filter((f) => f.endsWith('.ts') && !isTest(f))
-    .map((f) => path.join(here, f));
+  return walk(here);
 }
 
 /** The value-carrying imports and re-exports of one file, and any dynamic loading. */
 function boundaryViolations(fileName: string, text: string): string[] {
   const sf = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true);
   const problems: string[] = [];
-  const allowed = (specifier: string) =>
-    VALUE_SOURCES.has(specifier) || (specifier.startsWith('./') && !specifier.includes('..'));
+  // Relative specifiers are resolved from the file itself, so a helper in a subfolder is judged
+  // by where its import really lands: inside ai-tools/, or the gate.
+  const allowed = (specifier: string) => {
+    if (PACKAGE_SOURCES.has(specifier)) return true;
+    if (!specifier.startsWith('.')) return false;
+    const target = path.resolve(path.dirname(fileName), specifier).replace(/\.ts$/, '');
+    return target === GATE || target.startsWith(`${here}${path.sep}`);
+  };
 
   const check = (specifier: string, typeOnly: boolean, what: string) => {
     if (typeOnly || allowed(specifier)) return;
-    problems.push(`${path.basename(fileName)}: ${what} from '${specifier}'`);
+    problems.push(`${path.relative(here, fileName)}: ${what} from '${specifier}'`);
   };
 
   for (const statement of sf.statements) {
@@ -107,7 +108,7 @@ function walk(dir: string, out: string[] = []): string[] {
 
 describe('AI tools reach data only through withAiConnection', () => {
   it('finds the five tools and the runner', () => {
-    const names = toolModules().map((f) => path.basename(f));
+    const names = toolModules().map((f) => path.relative(here, f));
     for (const expected of [
       'prepare-context.ts',
       'list-cases.ts',
@@ -139,11 +140,12 @@ describe('AI tools reach data only through withAiConnection', () => {
       "import '../db';",
       "export { schema } from '../db';",
       "import { x } from './../db';",
+      "import { renderAiContext } from '../access/with-ai-connection-copy';",
       "const m = await import('../db');",
       "const m = require('../db');",
     ];
     for (const source of cases) {
-      expect(boundaryViolations('probe.ts', source), source).not.toEqual([]);
+      expect(boundaryViolations(path.join(here, 'probe.ts'), source), source).not.toEqual([]);
     }
     for (const source of [
       "import type { Db } from '../db';",
@@ -152,7 +154,7 @@ describe('AI tools reach data only through withAiConnection', () => {
       "import { z } from 'zod';",
       "import { refusal } from './result';",
     ]) {
-      expect(boundaryViolations('probe.ts', source), source).toEqual([]);
+      expect(boundaryViolations(path.join(here, 'probe.ts'), source), source).toEqual([]);
     }
   });
 

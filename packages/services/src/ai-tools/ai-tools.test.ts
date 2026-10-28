@@ -3,7 +3,7 @@ import { isOk } from '@visastack/core';
 import { fieldPolicyOf } from '@visastack/core/catalogue';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
-import { eq, like } from 'drizzle-orm';
+import { eq, like, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
@@ -13,6 +13,7 @@ import {
 } from '../access/ai-connection';
 import { accountPrincipal } from '../access/principal';
 import { requireAccess } from '../access/require-access';
+import { verifyStepUp } from '../access/step-up-proof';
 import { type AiContextGateway, withAiConnection } from '../access/with-ai-connection';
 import { provisionAccount } from '../accounts';
 import type { AiConnectionChoices } from '../ai-connection-scopes';
@@ -28,11 +29,13 @@ import {
   createPack,
   publishPackVersion,
 } from '../packs';
+import { checkPilotAccess } from '../pilot-access';
 import type { KeyManagementPort } from '../ports';
 import { editFact, registerFieldDefinition } from '../profile';
 import { requiresProtection, resetProtectedFieldKeyCacheForTests } from '../protected-fields';
 import { referenceCodesFor } from '../reference-codes';
 import { assignReferenceCode } from '../reference-codes';
+import { issueStepUpAssurance } from '../step-up';
 import { AI_TOOLS, type AiToolResult, runAiTool } from './index';
 import { AI_RESPONSE_LIMIT_BYTES, MESSAGES } from './result';
 
@@ -48,6 +51,9 @@ const TASK_NOTE = 'Task note: remind her about the secret bank code';
 const PASSPORT_TEXT = `Passport scan text ${PASSPORT_NUMBER}`;
 const VISA_TEXT = 'Visa vignette text: multiple entry, valid two years';
 const RESOURCE = 'https://vs.example.test/mcp';
+const STEP_UP_SECRET = 'test-step-up-secret';
+/** Admitted, as in a development or public-beta deployment; the refusal has its own test. */
+const ADMIT = async () => true;
 const REDIRECT = 'https://claude.ai/api/mcp/auth_callback';
 const CLIENT = {
   clientId: 'https://claude.ai/oauth/claude-code-client-metadata',
@@ -283,6 +289,19 @@ async function connect(
     { purpose: 'ai_connection' },
   );
   if (!isOk(proof)) throw new Error('proof');
+  // Full numbers need the identity check the consent screen asks for (S13).
+  const stepUpRequest = {
+    accountId: ownerId,
+    action: 'EXPORT_PROFILE' as const,
+    resourceId: applicantId,
+  };
+  const stepUp = choices.revealIdentifiers
+    ? verifyStepUp(
+        STEP_UP_SECRET,
+        issueStepUpAssurance(STEP_UP_SECRET, stepUpRequest),
+        stepUpRequest,
+      )
+    : undefined;
   const verifier = randomBytes(32).toString('base64url');
   const challenge = createHash('sha256').update(verifier, 'ascii').digest('base64url');
   const created = await createAiConnection(proof.value, {
@@ -291,6 +310,7 @@ async function connect(
     codeChallenge: challenge,
     redirectUri: REDIRECT,
     resource: RESOURCE,
+    ...(stepUp ? { stepUp } : {}),
   });
   if (!isOk(created)) throw new Error(created.error.description);
   const tokens = await exchangeAiAuthorizationCode(db, {
@@ -312,6 +332,7 @@ async function call(token: string, name: string, input: Record<string, unknown> 
   return runAiTool(db, tool(name), input as never, {
     token,
     resource: RESOURCE,
+    admission: ADMIT,
     encryption: keys,
   });
 }
@@ -684,6 +705,7 @@ describe('AI tools: the gate on every call', () => {
     const outcomeWrongResource = await runAiTool(db, tool('list_documents'), {} as never, {
       token,
       resource: 'https://evil.example/mcp',
+      admission: ADMIT,
     });
     expect(outcomeWrongResource.kind).toBe('unauthorized');
     await db
@@ -699,11 +721,12 @@ describe('AI tools: the gate on every call', () => {
     let kept: AiContextGateway | null = null;
     const outcome = await withAiConnection(
       db,
-      { token, resource: RESOURCE, tool: 'probe', encryption: keys },
+      { token, resource: RESOURCE, tool: 'probe', admission: ADMIT, encryption: keys },
       async (gateway) => {
         kept = gateway;
         return (await gateway.compose()).ok;
       },
+      () => ({ kind: 'served', layers: [], cases: 0, values: 0, documents: 0, documentTexts: 0 }),
     );
     expect(outcome).toMatchObject({ ok: true, value: true });
     const later = await (kept as AiContextGateway | null)?.compose();
@@ -754,5 +777,260 @@ describe('AI tools: the gate on every call', () => {
     for (const secret of [token, PASSPORT_NUMBER, VISA_TEXT, 'Nusrat', '2031-01-01', INCOME]) {
       expect(stored).not.toContain(secret);
     }
+  });
+});
+
+const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+
+describe('AI tools: second review', () => {
+  it('answers a database failure plainly, with no SQL or id, and still audits it', async () => {
+    const { ownerId, applicantId } = await seed();
+    const { token, connectionId } = await connect(ownerId, applicantId, {
+      ...CASE_A_ONLY,
+      caseMode: 'ALL_CURRENT',
+    });
+    await db.execute(sql`alter table missions rename to missions_away`);
+    const outcome = await call(token, 'list_cases');
+    await db.execute(sql`alter table missions_away rename to missions`);
+    expect(outcome.kind).toBe('failed');
+    const sent = wire(outcome.result);
+    expect(outcome.result.content[0]?.text).toBe(MESSAGES.failed);
+    expect(sent).not.toMatch(UUID);
+    expect(sent.toLowerCase()).not.toMatch(/select|relation|missions/);
+    const events = await aiAudit();
+    expect(events.map((e) => [e.eventType, e.reason, e.resourceId])).toEqual([
+      ['AI_CONTEXT_DENIED', 'failed', connectionId],
+    ]);
+  });
+
+  it('refuses medical and police papers without their section, whatever the record holds', async () => {
+    const { ownerId, applicantId } = await person();
+    const { token } = await connect(ownerId, applicantId, { ...CASE_A_ONLY, caseMode: 'NONE' });
+    const before = [
+      await refused(token, 'list_documents', { group: 'medical' }),
+      await refused(token, 'list_documents', { group: 'legal_clearances' }),
+    ];
+    await document(applicantId, 'APPROVED_MEDICAL_CENTRE_RESULT');
+    await document(applicantId, 'POLICE_CLEARANCE');
+    const after = [
+      await refused(token, 'list_documents', { group: 'medical' }),
+      await refused(token, 'list_documents', { group: 'legal_clearances' }),
+    ];
+    expect(before).toEqual([MESSAGES.notShared, MESSAGES.notShared]);
+    expect(after).toEqual(before);
+    const granted = await connect(ownerId, applicantId, {
+      ...CASE_A_ONLY,
+      layers: ['identity', 'health', 'declarations'],
+      caseMode: 'NONE',
+    });
+    for (const group of ['medical', 'legal_clearances']) {
+      const list = await served(granted.token, 'list_documents', { group });
+      expect((list.structuredContent as { documents: unknown[] }).documents).toHaveLength(1);
+    }
+  });
+
+  it('masks the person’s own identifiers inside document text unless full numbers are shared', async () => {
+    const { ownerId, applicantId } = await person();
+    await fact(ownerId, applicantId, 'passport_number', PASSPORT_NUMBER);
+    await fact(ownerId, applicantId, 'nid_number', NID_NUMBER);
+    const receipt = await document(
+      applicantId,
+      'APPLICATION_RECEIPT',
+      `Passport No BX7319046. Typed again: bx 731 9046. Old passport AB1234567. NID ${NID_NUMBER}. Ref 12345.`,
+    );
+    const masked = await connect(ownerId, applicantId, {
+      ...CASE_A_ONLY,
+      caseMode: 'NONE',
+      documentText: true,
+    });
+    const read = await served(masked.token, 'get_document_text', { document_reference: receipt });
+    const text = (read.structuredContent as { text: string }).text;
+    expect(text).toBe(
+      'Passport No ***046. Typed again: ***046. Old passport ***567. NID ***789. Ref 12345.',
+    );
+    const context = await served(masked.token, 'prepare_context', { focus: ['documents'] });
+    expect(wire(context)).not.toContain(PASSPORT_NUMBER);
+    expect(wire(context)).toContain('Passport No ***046');
+
+    const revealed = await connect(ownerId, applicantId, {
+      ...CASE_A_ONLY,
+      caseMode: 'NONE',
+      documentText: true,
+      revealIdentifiers: true,
+    });
+    const full = await served(revealed.token, 'get_document_text', { document_reference: receipt });
+    expect((full.structuredContent as { text: string }).text).toContain('Passport No BX7319046');
+  });
+
+  it('keeps what is granted when a focus narrows the sections shown', async () => {
+    const { ownerId, applicantId } = await person();
+    const police = await document(applicantId, 'POLICE_CLEARANCE');
+    const medical = await document(applicantId, 'APPROVED_MEDICAL_CENTRE_RESULT');
+    const visa = await document(applicantId, 'VISA');
+    const { token } = await connect(ownerId, applicantId, {
+      ...CASE_A_ONLY,
+      layers: ['identity', 'travel_documents', 'health', 'declarations'],
+      caseMode: 'NONE',
+    });
+    const focused = await served(token, 'prepare_context', { focus: ['documents'] });
+    const listed = (focused.structuredContent as { documents: { referenceCode: string }[] })
+      .documents;
+    expect(listed.map((d) => d.referenceCode).sort()).toEqual([police, medical, visa].sort());
+  });
+
+  it('starts Personal Details with the basics', async () => {
+    const { ownerId, applicantId } = await seed();
+    const { token } = await connect(ownerId, applicantId, { ...CASE_A_ONLY, caseMode: 'NONE' });
+    const identity = await served(token, 'get_profile_section', { section: 'identity' });
+    const fields = (identity.structuredContent as { values: { field: string }[] }).values.map(
+      (v) => v.field,
+    );
+    expect(fields.slice(0, 4)).toEqual([
+      'given_name',
+      'family_name',
+      'nationality',
+      'date_of_birth',
+    ]);
+    expect(fields).toContain('nid_number');
+  });
+
+  it('treats an empty focus as no focus', async () => {
+    const { ownerId, applicantId } = await seed();
+    const { token } = await connect(ownerId, applicantId, { ...CASE_A_ONLY, caseMode: 'NONE' });
+    const empty = await served(token, 'prepare_context', { focus: [] });
+    const none = await served(token, 'prepare_context');
+    const strip = (r: AiToolResult) => {
+      const { snapshotTakenAt: _taken, ...rest } = r.structuredContent as Record<string, unknown>;
+      return rest;
+    };
+    expect(strip(empty)).toEqual(strip(none));
+    expect(
+      (empty.structuredContent as { documents?: unknown[] }).documents?.length,
+    ).toBeGreaterThan(0);
+  });
+
+  it('audits what each answer actually returned, and no case for all current cases', async () => {
+    const { ownerId, applicantId, visa } = await seed();
+    const { token } = await connect(ownerId, applicantId, {
+      ...CASE_A_ONLY,
+      caseMode: 'ALL_CURRENT',
+      documentText: true,
+    });
+    const list = await served(token, 'list_documents');
+    const context = await served(token, 'prepare_context', { focus: ['overview'] });
+    await served(token, 'get_document_text', { document_reference: visa });
+    const events = await aiAudit();
+    const [listed, prepared, text] = events.map((e) => e.metadata as Record<string, unknown>);
+    expect(listed).toMatchObject({
+      tool: 'list_documents',
+      documents: (list.structuredContent as { documents: unknown[] }).documents.length,
+      values: 0,
+      cases: 0,
+    });
+    const body = context.structuredContent as {
+      person: { basics?: unknown[] };
+      profile?: Record<string, unknown[]>;
+      cases?: unknown[];
+    };
+    expect(prepared).toMatchObject({
+      tool: 'prepare_context',
+      values:
+        (body.person.basics?.length ?? 0) +
+        Object.values(body.profile ?? {}).reduce((n, l) => n + l.length, 0),
+      cases: body.cases?.length ?? 0,
+      caseMode: 'ALL_CURRENT',
+    });
+    expect((prepared as { layers?: string[] } | undefined)?.layers).toEqual(
+      Object.keys(body.profile ?? {}).sort(),
+    );
+    expect(text).toMatchObject({ tool: 'get_document_text', documentTexts: 1 });
+    for (const event of events) expect(event.missionId).toBeNull();
+  });
+
+  it('audits text from a group that is not shared as not shared', async () => {
+    const { ownerId, applicantId } = await person();
+    const job = await document(applicantId, 'EMPLOYMENT_CERTIFICATE', 'Employed since 2019');
+    const { token } = await connect(ownerId, applicantId, {
+      ...CASE_A_ONLY,
+      caseMode: 'NONE',
+      documentText: true,
+    });
+    expect(await refused(token, 'get_document_text', { document_reference: job })).toBe(
+      MESSAGES.noText,
+    );
+    const [event] = await aiAudit();
+    expect(event).toMatchObject({ eventType: 'AI_CONTEXT_DENIED', reason: 'document_not_shared' });
+  });
+
+  it('refuses an account the pilot no longer admits, and records activity once a day', async () => {
+    const { ownerId, applicantId } = await seed();
+    const { token } = await connect(ownerId, applicantId, { ...CASE_A_ONLY, caseMode: 'NONE' });
+    const refusedCall = await runAiTool(db, tool('list_documents'), {} as never, {
+      token,
+      resource: RESOURCE,
+      admission: async () => false,
+    });
+    expect(refusedCall.kind).toBe('unauthorized');
+    // The shared pilot rule itself admits an account that already exists, even with no bypass.
+    const pilotRule = async (tx: Db, account: { email: string }) =>
+      (await checkPilotAccess(tx, { email: account.email, allowlistEmails: [], bypass: false }))
+        .allowed;
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    await db
+      .update(schema.accounts)
+      .set({ lastActiveAt: twoDaysAgo })
+      .where(eq(schema.accounts.id, ownerId));
+    const admitted = await runAiTool(db, tool('list_documents'), {} as never, {
+      token,
+      resource: RESOURCE,
+      admission: pilotRule,
+    });
+    expect(admitted.kind).toBe('answered');
+    const read = async () =>
+      (
+        await db
+          .select({ at: schema.accounts.lastActiveAt })
+          .from(schema.accounts)
+          .where(eq(schema.accounts.id, ownerId))
+      )[0]?.at.getTime() ?? 0;
+    const touched = await read();
+    expect(touched).toBeGreaterThan(twoDaysAgo.getTime());
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    await db
+      .update(schema.accounts)
+      .set({ lastActiveAt: twoHoursAgo })
+      .where(eq(schema.accounts.id, ownerId));
+    await call(token, 'list_documents');
+    expect(await read()).toBe(twoHoursAgo.getTime());
+  });
+
+  it('reads no profile values for document-only answers and no basics where none are shown', async () => {
+    const { ownerId, applicantId } = await seed();
+    const { token } = await connect(ownerId, applicantId, {
+      ...CASE_A_ONLY,
+      caseMode: 'ALL_CURRENT',
+    });
+    const list = await served(token, 'list_documents');
+    expect(
+      (list.structuredContent as { omitted: { not_needed?: number } }).omitted.not_needed ?? 0,
+    ).toBe(0);
+    let unwraps = 0;
+    const counting: KeyManagementPort = {
+      ...keys,
+      async unwrapDataKey(...args: Parameters<KeyManagementPort['unwrapDataKey']>) {
+        unwraps += 1;
+        return keys.unwrapDataKey(...args);
+      },
+    };
+    for (const name of ['list_cases', 'list_documents']) {
+      const outcome = await runAiTool(db, tool(name), {} as never, {
+        token,
+        resource: RESOURCE,
+        admission: ADMIT,
+        encryption: counting,
+      });
+      expect(outcome.kind).toBe('answered');
+    }
+    expect(unwraps).toBe(0);
   });
 });
