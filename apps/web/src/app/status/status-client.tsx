@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { VersionNoticeCopy } from '../../components/version-notice';
 import { type ProbeResult, StatusView } from './status-view';
 
@@ -45,6 +45,17 @@ export function StatusClient({
     const id = setInterval(() => void refresh(), 15000);
     return () => clearInterval(id);
   }, [refresh]);
+
+  // A link to a place on this page (the footer's "About This Version") lands before the feature
+  // list arrives; the list then pushes that place down, off a phone screen. Once the first answer
+  // is on the page, bring the linked place back into view, once.
+  const settled = useRef(false);
+  useEffect(() => {
+    if (ready === null || settled.current) return;
+    settled.current = true;
+    const target = decodeURIComponent(window.location.hash.slice(1));
+    if (target) document.getElementById(target)?.scrollIntoView({ block: 'start' });
+  }, [ready]);
 
   return (
     <StatusView

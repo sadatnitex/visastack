@@ -50,6 +50,8 @@ export interface PlatformCapabilities {
   readonly packGeneration: CapabilityState;
   readonly publicSignup: CapabilityState;
   readonly payments: CapabilityState;
+  /** AI apps reading a person's chosen context (ADR 0021): `disabled` unless switched on. */
+  readonly aiConnector: CapabilityState;
   readonly realApplicantData: CapabilityState;
   readonly commercialClaims: CapabilityState;
 }
@@ -73,6 +75,7 @@ export const PLATFORM_CAPABILITY_KEYS: readonly (keyof PlatformCapabilities)[] =
   'packGeneration',
   'publicSignup',
   'payments',
+  'aiConnector',
   'realApplicantData',
   'commercialClaims',
 ];

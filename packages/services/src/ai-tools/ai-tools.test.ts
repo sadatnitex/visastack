@@ -16,7 +16,7 @@ import { requireAccess } from '../access/require-access';
 import { verifyStepUp } from '../access/step-up-proof';
 import { type AiContextGateway, withAiConnection } from '../access/with-ai-connection';
 import { provisionAccount } from '../accounts';
-import type { AiConnectionChoices } from '../ai-connection-scopes';
+import { AI_TOOL_NAMES, type AiConnectionChoices } from '../ai-connection-scopes';
 import { createApplicant } from '../applicants';
 import { setConsent } from '../consent';
 import type { Db } from '../db';
@@ -374,6 +374,8 @@ describe('AI tools: declared shape', () => {
       'list_documents',
       'get_document_text',
     ]);
+    // The names audit records and telemetry may hold are exactly these (S16).
+    expect(AI_TOOLS.map((t) => t.name)).toEqual([...AI_TOOL_NAMES]);
     for (const t of AI_TOOLS) {
       expect(t.annotations).toEqual({
         readOnlyHint: true,

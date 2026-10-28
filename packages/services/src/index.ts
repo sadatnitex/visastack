@@ -1781,3 +1781,9 @@ export {
   listAiConnections,
   turnOffAiConnection,
 } from './access/ai-connection-manage';
+// S16: the staff count of AI app connections and context calls (ADR 0021 section 7).
+export {
+  AI_CONNECTION_COUNT_WINDOW_MS,
+  type AiConnectionCounts,
+  getAiConnectionCounts,
+} from './ai-connection-counts';

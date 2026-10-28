@@ -68,6 +68,10 @@ const SCORECARD_LABELS: Record<ProductEventType, string> = {
   COUNTRY_CHECKLIST_STARTED: 'Country Checklists Started',
   CLIENT_INVITE_SENT: 'Client Invitations Sent',
   CLIENT_INVITE_ACCEPTED: 'Client Invitations Accepted',
+  AI_CONNECTOR_CONNECTED: 'AI Apps Connected',
+  AI_CONTEXT_REQUESTED: 'AI Connection Days with Answers',
+  AI_CONTEXT_DENIED: 'AI Connection Days with Refusals',
+  AI_CONNECTOR_REVOKED: 'AI Connections Turned Off',
 };
 
 const SIGNAL_STATUS_LABEL: Record<OperationalSignal['status'], string> = {
