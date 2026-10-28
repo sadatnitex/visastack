@@ -105,34 +105,54 @@ describe('no visible text below 12px (owner list item 14)', () => {
     expect(tooSmall('.a { font-size: 10px; }\n.a { font-size: var(--text-caption); }')).toEqual([]);
   });
 
-  it('keeps a <small> inside caption-sized text at 12px or more', () => {
-    expect(qaeBlock()).toMatch(/\nsmall \{\s*font-size: max\(12px, 0\.833em\);/);
+  it('keeps <small>, <h5> and <h6> inside caption-sized text at 12px or more', () => {
+    expect(qaeBlock()).toMatch(/\n:where\(small\) \{\s*font-size: max\(12px, 0\.833em\);/);
+    expect(qaeBlock()).toMatch(/\n:where\(h5\) \{\s*font-size: max\(12px, 0\.83em\);/);
+    expect(qaeBlock()).toMatch(/\n:where\(h6\) \{\s*font-size: max\(12px, 0\.67em\);/);
   });
 
-  it('makes reading text and every field 16px on a phone', () => {
+  it('makes reading text 16px and fields at least 16px on a phone, without capping or forcing', () => {
     const phone = qaeBlock().match(/@media \(max-width: 700px\) \{([\s\S]*?)\n\}/)?.[1] ?? '';
-    expect(phone).toContain(
-      ':is(main, .app-main, .auth-form-panel) :is(.card-body, .notice, .page-description)',
-    );
-    expect(phone).toMatch(/select, textarea\) \{\s*font-size: var\(--text-body\) !important;/);
+    // Only the shared base sizes are restated; the small notes and utilities keep their sizes.
+    expect(phone).toContain('.notice:where(:not(');
+    expect(phone).toContain('.app-main .card-body:where(:not(');
+    for (const deliberatelySmall of ['signup-consent', 'signup-notice-note', 'u-fs-']) {
+      expect(phone).not.toContain(deliberatelySmall);
+    }
+    // Fields: at least 16px, never smaller than they were, and never forced.
+    expect(phone).toMatch(/textarea,[\s\S]*?\{\s*font-size: max\(16px, 1em\);/);
+    expect(phone).not.toContain('!important');
+    expect(phone).not.toMatch(/:is\(main/);
   });
 });
 
 describe('44px targets on a touch screen, set once for every control (owner list item 14)', () => {
-  it('gives every control that stands on its own a 44px minimum when the pointer is coarse', () => {
-    const touch = qaeBlock().match(/@media \(pointer: coarse\) \{([\s\S]*?)\n\}/)?.[1] ?? '';
+  const touch = () => qaeBlock().match(/@media \(pointer: coarse\) \{([\s\S]*?)\n\}/)?.[1] ?? '';
+
+  it('gives every control that stands on its own a weightless 44px floor when the pointer is coarse', () => {
+    const floor = touch().match(/:where\(([\s\S]*?)\{\s*min-width: 44px;\s*min-height: 44px;\s*\}/);
+    expect(floor).not.toBeNull();
     for (const control of ['a[href]', 'button', 'summary', 'select', '[role="button"]']) {
-      expect(touch).toContain(control);
+      expect(floor?.[1]).toContain(control);
     }
-    expect(touch).toMatch(/min-width: 44px !important;\s*min-height: 44px !important;/);
     // Hidden helpers are left alone, so an invisible file picker never grows over the page.
-    expect(touch).toContain(':not(.sr-only):not(.skip-link):not([aria-hidden="true"])');
+    expect(floor?.[1]).toContain(':where(:not(.sr-only, .skip-link))');
+    // Weightless and never forced, so compact components keep their own sizes.
+    expect(qaeBlock().replace(/\/\*[\s\S]*?\*\//g, '')).not.toContain('!important');
+  });
+
+  it('gives the compact controls a 44px hit area without growing them', () => {
+    const block = touch();
+    for (const compact of ['.record-plan-badge::before', '.brand-swatch::before']) {
+      expect(block).toContain(compact);
+    }
+    expect(block).toMatch(/width: max\(100%, 44px\);\s*height: max\(100%, 44px\);/);
   });
 
   it('never applies the touch floor to a precise pointer, so the 34px account menu rows stay', () => {
     const block = qaeBlock();
     expect(block).not.toMatch(/pointer: fine/);
-    const outsideTouch = block.replace(/@media \(pointer: coarse\) \{[\s\S]*?\n\}/, '');
-    expect(outsideTouch).not.toMatch(/min-height: 44px !important/);
+    const outsideTouch = block.replace(/@media \(pointer: coarse\) \{[\s\S]*?\n\}/g, '');
+    expect(outsideTouch).not.toMatch(/min-width: 44px;\s*min-height: 44px;/);
   });
 });

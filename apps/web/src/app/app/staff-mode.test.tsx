@@ -179,3 +179,77 @@ describe('every icon-only control in the signed-in frame has a name (owner list 
     });
   }
 });
+
+describe('staff mode changes only platform pages', () => {
+  const PHOTO = '/api/photos/applicant/self?v=1';
+  function mountWith(pathname: string, access: WorkspaceAccess) {
+    route.pathname = pathname;
+    act(() =>
+      root.render(
+        <WorkspaceShell access={access} accountName="Synthetic Self" signOut={<span />}>
+          <p>Page</p>
+        </WorkspaceShell>,
+      ),
+    );
+  }
+  const sidebarSelector = () =>
+    container.querySelector<HTMLElement>('.app-shell-nav > .workspace-selector');
+
+  it('keeps the traveller sidebar as before: their photo, their name and every traveller listed', () => {
+    const access: WorkspaceAccess = {
+      ...STAFF,
+      travellers: [
+        { id: SELF, name: 'Synthetic Self', relationship: 'SELF', photo: PHOTO },
+        { id: CHILD, name: 'Synthetic Child', relationship: 'CHILD' },
+      ],
+    };
+    mountWith(`/app/applicant/${SELF}`, access);
+    const selector = sidebarSelector();
+    expect(selector?.querySelector('img')?.getAttribute('src')).toBe(PHOTO);
+    expect(selector?.querySelector('summary b')?.textContent).toBe('Synthetic Self');
+    expect(
+      [...(selector?.querySelectorAll('nav a') ?? [])].map((link) => link.getAttribute('href')),
+    ).toEqual([
+      `/app/applicant/${SELF}`,
+      `/app/applicant/${CHILD}`,
+      '/app/agency/agency-1',
+      '/app/admin',
+    ]);
+  });
+
+  it('keeps the agency sidebar as before: the agency name, initials and every place listed', () => {
+    mountWith('/app/agency/agency-1', STAFF);
+    const selector = sidebarSelector();
+    expect(selector?.querySelector('summary b')?.textContent).toBe('Synthetic Agency');
+    expect(selector?.querySelector('img')).toBeNull();
+    expect(selector?.querySelector(`nav a[href="/app/applicant/${CHILD}"]`)?.textContent).toBe(
+      'Synthetic Child',
+    );
+  });
+});
+
+describe('the search shortcut (Ctrl or Cmd and K)', () => {
+  const press = (key: { ctrlKey?: boolean; metaKey?: boolean }) => {
+    const event = new KeyboardEvent('keydown', { key: 'k', cancelable: true, ...key });
+    act(() => {
+      document.dispatchEvent(event);
+    });
+    return event;
+  };
+  const searchOpen = () =>
+    container.querySelector('header.record-toolbar')?.getAttribute('data-search-open');
+
+  it('is left to the browser on staff pages, which have no traveller search', () => {
+    mount('/app/admin');
+    for (const key of [{ ctrlKey: true }, { metaKey: true }]) {
+      expect(press(key).defaultPrevented).toBe(false);
+      expect(searchOpen()).toBe('false');
+    }
+  });
+
+  it('still opens the search on traveller pages', () => {
+    mount(`/app/applicant/${SELF}`);
+    expect(press({ ctrlKey: true }).defaultPrevented).toBe(true);
+    expect(searchOpen()).toBe('true');
+  });
+});

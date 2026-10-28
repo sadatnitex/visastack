@@ -56,6 +56,7 @@ function WorkspaceSelector({
   popover = false,
   kind = 'personal',
   photo,
+  staff = kind === 'platform',
 }: {
   readonly access: WorkspaceAccess;
   readonly name: string;
@@ -65,6 +66,8 @@ function WorkspaceSelector({
   readonly popover?: boolean;
   readonly kind?: WorkspaceKind;
   readonly photo?: string | undefined;
+  /** A platform page: the list offers the Account Overview instead of traveller names. */
+  readonly staff?: boolean;
 }) {
   const id = useId();
   const pathname = usePathname();
@@ -143,7 +146,7 @@ function WorkspaceSelector({
         <p>Personal space</p>
         {/* Staff mode keeps traveller names off platform screens (owner list item 18): one way
             back to the account's own overview, where the travellers are listed. */}
-        {kind === 'platform' ? (
+        {staff ? (
           <Link href="/app">Account Overview</Link>
         ) : (
           access.travellers.map((person) => (
@@ -327,7 +330,7 @@ export function WorkspaceShell({
               access={access}
               name={nav.name}
               caption={nav.caption}
-              kind={nav.kind}
+              staff={nav.kind === 'platform'}
               photo={nav.photo}
               popover={railShown}
             />

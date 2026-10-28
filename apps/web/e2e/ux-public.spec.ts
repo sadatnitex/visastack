@@ -870,9 +870,8 @@ test.describe('authoritative appearance on public routes', () => {
     await expect(page.locator('.trust-hero .eyebrow')).toHaveCSS('line-height', '12px');
     const trustTitle = await page.locator('#trust-story-title').boundingBox();
     // The notice shows in full on a visitor's first page only (owner list item 17), so on this
-    // second page it may already have folded away; the title sits under it either way.
-    const notice = page.locator('.pilot-banner');
-    const banner = (await notice.count()) ? await notice.boundingBox() : null;
+    // second page it may already be the slim label; the title sits under it either way.
+    const banner = await page.locator('.pilot-banner').boundingBox();
     expect(trustTitle?.x).toBe(116);
     expect(trustTitle?.y).toBeCloseTo(206 + (banner?.height ?? 0), 0);
     await page.goto('/auth/sign-up');
@@ -1669,11 +1668,19 @@ test.describe('country checklist on the landing page (Growth G2)', () => {
  * by the UI fixture (no session, no server) or a real public page, measured in a real browser.
  */
 
-/** Every interactive target that stands on its own and is smaller than 44px either way. */
+/**
+ * Every interactive target that stands on its own and cannot be pressed across 44px each way. A
+ * control drawn smaller (a compact badge) passes only when a 44px square around its centre still
+ * lands on it everywhere, which is what its hit-area overlay is for.
+ */
 async function smallTargets(page: Page): Promise<string[]> {
   return page.evaluate(() => {
     const name = (element: Element) =>
       `${element.tagName.toLowerCase()}.${(element.getAttribute('class') ?? '').trim().split(/\s+/).join('.')} "${(element.getAttribute('aria-label') ?? element.textContent ?? '').trim().slice(0, 40)}"`;
+    const covers = (target: Element, x: number, y: number) => {
+      const hit = document.elementFromPoint(x, y);
+      return hit !== null && (hit === target || target.contains(hit));
+    };
     const misses: string[] = [];
     const controls = document.querySelectorAll<HTMLElement>(
       'a[href], button, summary, select, textarea, [role="button"], [role="tab"], input:not([type="hidden"])',
@@ -1684,19 +1691,29 @@ async function smallTargets(page: Page): Promise<string[]> {
       if (!control.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue;
       // A link inside a line of text is part of the sentence (WCAG 2.5.8 inline exception).
       if (getComputedStyle(control).display === 'inline') continue;
-      let box = control.getBoundingClientRect();
       // A tick box or option is pressed through its label, so the label is its target.
+      let target: Element = control;
       if (
         control instanceof HTMLInputElement &&
-        (control.type === 'checkbox' || control.type === 'radio')
-      ) {
-        const label = control.labels?.[0];
-        if (label) box = label.getBoundingClientRect();
-      }
+        (control.type === 'checkbox' || control.type === 'radio') &&
+        control.labels?.[0]
+      )
+        target = control.labels[0];
+      let box = target.getBoundingClientRect();
       if (box.width < 1 || box.height < 1) continue;
-      if (box.width < 43.5 || box.height < 43.5)
+      if (box.width >= 43.5 && box.height >= 43.5) continue;
+      target.scrollIntoView({ block: 'center', inline: 'center' });
+      box = target.getBoundingClientRect();
+      const x = box.left + box.width / 2;
+      const y = box.top + box.height / 2;
+      const offsets = [-21, 0, 21];
+      const pressable = offsets.every((dx) =>
+        offsets.every((dy) => (dx === 0 && dy === 0) || covers(target, x + dx, y + dy)),
+      );
+      if (!pressable)
         misses.push(`${name(control)} ${Math.round(box.width)}x${Math.round(box.height)}`);
     }
+    window.scrollTo(0, 0);
     return misses;
   });
 }
@@ -1724,14 +1741,19 @@ async function smallText(page: Page): Promise<string[]> {
   });
 }
 
-/** Reading text on a phone that is smaller than 16px. */
+/**
+ * Reading text on a phone that is smaller than 16px: notices and card body text that no component
+ * rule, size utility or inline size makes smaller on purpose (the same exceptions as the style
+ * sheet), and the staff banner.
+ */
 async function smallReadingText(page: Page): Promise<string[]> {
   return page.evaluate(() =>
     [
       ...document.querySelectorAll<HTMLElement>(
-        ':is(main, .app-main, .auth-form-panel) :is(.card-body, .notice, .page-description), .staff-mode-banner',
+        '.notice:not(.wallet-ai-notice, .case-manual-notice, .home-attention-why), .app-main .card-body:not(.admin-reference-rail .card-body), .staff-mode-banner',
       ),
     ]
+      .filter((element) => !/\bu-fs-/.test(element.className) && !element.style.fontSize)
       .filter((element) => element.checkVisibility({ checkVisibilityCSS: true }))
       .filter((element) => Number.parseFloat(getComputedStyle(element).fontSize) < 15.95)
       .map(
@@ -1817,7 +1839,7 @@ test.describe('touch screens get 44px targets and readable text (owner list item
       expect(await smallTargets(page)).toEqual([]);
       expect(await smallText(page)).toEqual([]);
       expect(await smallReadingText(page)).toEqual([]);
-      // A phone never zooms in on a field: every field is 16px.
+      // A phone never zooms in on a field: every field is at least 16px.
       const fields = await page
         .locator('main input:visible, main select:visible, main textarea:visible')
         .evaluateAll((elements) =>
@@ -1828,10 +1850,25 @@ test.describe('touch screens get 44px targets and readable text (owner list item
             .map((element) => getComputedStyle(element).fontSize),
         );
       expect(fields.length).toBeGreaterThan(0);
-      expect(new Set(fields)).toEqual(new Set(['16px']));
+      expect(fields.filter((size) => Number.parseFloat(size) < 15.95)).toEqual([]);
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
       ).toBeLessThanOrEqual(1);
+    });
+  }
+});
+
+test.describe('a touch laptop keeps compact controls pressable across 44px (owner list item 14)', () => {
+  test.use({ bypassCSP: true, hasTouch: true, viewport: { width: 1280, height: 800 } });
+  for (const mode of ['shell', 'staff'] as const) {
+    test(`${mode}: every control, the compact plan pill included, can be pressed across 44px`, async ({
+      page,
+    }) => {
+      test.setTimeout(60_000);
+      await openUiFixture(page, mode);
+      expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
+      expect(await smallTargets(page)).toEqual([]);
+      expect(await smallText(page)).toEqual([]);
     });
   }
 });
@@ -1866,22 +1903,55 @@ test.describe('the notice about this version shows once per visitor (owner list 
       .toBe('seen');
   }
 
-  test('shows in full on the first page, then folds away, and stays one footer link away', async ({
+  /** The slim label: the version name and the link on one line, with no Hide button. */
+  async function expectSlimLabel(page: Page) {
+    const label = page.getByRole('region', { name: 'About this version' });
+    await expect(label).toBeVisible();
+    await expect(label).toHaveClass(/\bpilot-banner-slim\b/);
+    await expect(label.locator('.pilot-banner-label')).toHaveText(
+      /^VisaStack (Public Beta|Private Pilot|Test Build)$/,
+    );
+    await expect(label.getByRole('link', { name: 'What Works Today', exact: true })).toBeVisible();
+    await expect(label.locator('.pilot-banner-detail, .pilot-banner-short, button')).toHaveCount(0);
+    // One line: the name and the link sit side by side.
+    const nameBox = await label.locator('.pilot-banner-label').boundingBox();
+    const linkBox = await label.getByRole('link', { name: 'What Works Today' }).boundingBox();
+    expect(
+      Math.abs(
+        (nameBox?.y ?? 0) +
+          (nameBox?.height ?? 0) / 2 -
+          ((linkBox?.y ?? 0) + (linkBox?.height ?? 0) / 2),
+      ),
+    ).toBeLessThan(4);
+    return label;
+  }
+
+  test('shows in full on the first page, then as a one-line label, with the full words a footer link away', async ({
     page,
   }) => {
     test.setTimeout(60_000);
-    await page.setViewportSize({ width: 390, height: 844 });
+    await page.setViewportSize({ width: 360, height: 640 });
     await page.goto('/terms');
     const notice = page.getByRole('region', { name: 'About this version' });
     await expect(notice).toBeVisible();
+    await expect(
+      notice.getByRole('button', { name: 'Hide This Notice', exact: true }),
+    ).toBeVisible();
     await noticeRemembered(page);
+    // Moving on within the visit folds it to the label, and back on the first page it stays folded.
+    const footer = page.getByRole('contentinfo');
+    await footer.getByRole('link', { name: 'Privacy', exact: true }).click();
+    await expect(page).toHaveURL(/\/privacy$/);
+    await expectSlimLabel(page);
+    await footer.getByRole('link', { name: 'Terms', exact: true }).click();
+    await expect(page).toHaveURL(/\/terms$/);
+    await expectSlimLabel(page);
+    // A fresh page load arrives with the label straight from the server.
     await page.goto('/privacy');
     await expect(page.locator('h1')).toBeVisible();
-    await expect(page.locator('.pilot-banner')).toHaveCount(0);
-    await page
-      .getByRole('contentinfo')
-      .getByRole('link', { name: 'About This Version', exact: true })
-      .click();
+    const label = await expectSlimLabel(page);
+    expect((await label.boundingBox())?.height ?? 999).toBeLessThanOrEqual(44);
+    await footer.getByRole('link', { name: 'About This Version', exact: true }).click();
     await expect(page).toHaveURL(/\/status#about-this-version$/);
     await expect(page.locator('#about-this-version')).toContainText(
       /VisaStack (Public Beta|Private Pilot|Test Build)\./,
@@ -1889,7 +1959,7 @@ test.describe('the notice about this version shows once per visitor (owner list 
     await expect(page.locator('#about-this-version')).toBeInViewport();
   });
 
-  test('Hide This Notice puts it away at once, keeps the keyboard on the page, and is remembered', async ({
+  test('Hide This Notice folds it to the label at once, keeps the keyboard in it, and is remembered', async ({
     page,
   }) => {
     test.setTimeout(60_000);
@@ -1900,13 +1970,35 @@ test.describe('the notice about this version shows once per visitor (owner list 
     // The cookie is written by the running page, so the button below is working by now.
     await noticeRemembered(page);
     await page.getByRole('button', { name: 'Hide This Notice', exact: true }).click();
-    await expect(page.locator('.pilot-banner')).toHaveCount(0);
-    await expect
-      .poll(() => page.evaluate(() => document.activeElement?.tagName ?? 'BODY'))
-      .not.toBe('BODY');
+    await expectSlimLabel(page);
+    await expect(notice.getByRole('link', { name: 'What Works Today' })).toBeFocused();
     await page.reload();
     await expect(page.locator('h1')).toBeVisible();
-    await expect(page.locator('.pilot-banner')).toHaveCount(0);
+    await expectSlimLabel(page);
+  });
+});
+
+test.describe('the slim label is one 44px row on a touch screen (owner list item 17)', () => {
+  test.use({ hasTouch: true, viewport: { width: 360, height: 640 } });
+  test('the version name and a 44px link on one row', async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.goto('/terms');
+    await expect
+      .poll(
+        async () =>
+          (await page.context().cookies()).find((cookie) => cookie.name === 'visastack_notice')
+            ?.value,
+        { timeout: 20_000 },
+      )
+      .toBe('seen');
+    await page.goto('/privacy');
+    const label = page.getByRole('region', { name: 'About this version' });
+    await expect(label).toHaveClass(/\bpilot-banner-slim\b/);
+    const box = await label.boundingBox();
+    expect(box?.height).toBeGreaterThanOrEqual(44);
+    expect(box?.height).toBeLessThan(50);
+    const link = await label.getByRole('link', { name: 'What Works Today' }).boundingBox();
+    expect(link?.height).toBeGreaterThanOrEqual(43.5);
   });
 });
 

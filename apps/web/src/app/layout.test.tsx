@@ -31,7 +31,7 @@ describe('public beta notice audience', () => {
   });
 });
 describe('the notice is shown in full once per visitor (owner list item 17)', () => {
-  it('folds away once this device has seen it, and stays one footer link away', async () => {
+  it('folds to the slim label once this device has seen it, and keeps the footer link', async () => {
     state.signedIn = false;
     state.noticeSeen = false;
     let html = await renderServer(RootLayout({ children: <p>First page</p> }));
@@ -39,7 +39,9 @@ describe('the notice is shown in full once per visitor (owner list item 17)', ()
     expect(html).toContain('href="/status#about-this-version"');
     state.noticeSeen = true;
     html = await renderServer(RootLayout({ children: <p>Next page</p> }));
-    expect(html).not.toContain('pilot-banner');
+    // Every page still says which version this is, as a slim label with the link.
+    expect(html).toContain('class="pilot-banner pilot-banner-slim"');
+    expect(textOf(html)).toContain('VisaStack Public Beta');
     expect(textOf(html)).not.toContain('Free to use at your own risk.');
     expect(html).toContain('href="/status#about-this-version"');
     expect(textOf(html)).toContain('About This Version');

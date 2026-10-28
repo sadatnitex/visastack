@@ -62,8 +62,9 @@ export default async function RootLayout({ children }: { readonly children: Reac
   const locale = await getLocale();
   const deploymentMode = getDeploymentMode();
   const serviceWorker = isServiceWorkerEnabled((name) => process.env[name]);
-  // A visitor sees the notice about this version in full once; after that it stays one link away
-  // (footer, What Works Today). A signed-in person never sees it, so their cookie is not read.
+  // A visitor sees the notice about this version in full once; after that every page keeps a
+  // slim label with the link, and the full words stay under About This Version (footer). A
+  // signed-in person never sees the notice, so their cookie is not read.
   const noticeSeen = signedIn || (await hasSeenVersionNotice());
   const hasNotice = versionNoticeCopy(deploymentMode) !== null;
 

@@ -35,6 +35,33 @@ function spreads(attributes: ts.JsxAttributes): boolean {
   return attributes.properties.some(ts.isJsxSpreadAttribute);
 }
 
+function attribute(attributes: ts.JsxAttributes, sf: ts.SourceFile, name: string) {
+  return attributes.properties.find(
+    (item): item is ts.JsxAttribute => ts.isJsxAttribute(item) && item.name.getText(sf) === name,
+  );
+}
+
+/** The literal text of an attribute (`x="a"` or `x={'a'}`), or undefined when it is computed. */
+function literal(item: ts.JsxAttribute): string | undefined {
+  const value = item.initializer;
+  if (!value) return 'true';
+  if (ts.isStringLiteral(value)) return value.text;
+  if (ts.isJsxExpression(value) && value.expression) {
+    const expression = value.expression;
+    if (ts.isStringLiteral(expression) || ts.isNoSubstitutionTemplateLiteral(expression))
+      return expression.text;
+    if (expression.kind === ts.SyntaxKind.TrueKeyword) return 'true';
+    if (expression.kind === ts.SyntaxKind.FalseKeyword) return 'false';
+  }
+  return undefined;
+}
+
+/** Hidden from screen readers: `aria-hidden` set to anything but a literal false. */
+function hiddenFromReaders(attributes: ts.JsxAttributes, sf: ts.SourceFile): boolean {
+  const hidden = attribute(attributes, sf, 'aria-hidden');
+  return hidden !== undefined && literal(hidden) !== 'false';
+}
+
 /** Whether these children put any words in the control. */
 function saysSomething(children: ts.NodeArray<ts.JsxChild>, sf: ts.SourceFile): boolean {
   for (const child of children) {
@@ -43,13 +70,17 @@ function saysSomething(children: ts.NodeArray<ts.JsxChild>, sf: ts.SourceFile): 
     } else if (ts.isJsxExpression(child)) {
       if (child.expression) return true;
     } else if (ts.isJsxSelfClosingElement(child)) {
+      if (hiddenFromReaders(child.attributes, sf)) continue;
       const tag = child.tagName.getText(sf);
-      const names = attributeNames(child.attributes, sf);
-      if (tag === 'img' ? names.includes('alt') : !DRAWINGS.has(tag)) return true;
+      if (tag === 'img') {
+        // An image names the control only through words in its alt; alt="" marks it decorative.
+        const alt = attribute(child.attributes, sf, 'alt');
+        if (alt && literal(alt)?.trim() !== '') return true;
+      } else if (!DRAWINGS.has(tag)) return true;
     } else if (ts.isJsxElement(child)) {
       const open = child.openingElement;
       if (open.tagName.getText(sf) === 'svg') continue;
-      if (attributeNames(open.attributes, sf).includes('aria-hidden')) continue;
+      if (hiddenFromReaders(open.attributes, sf)) continue;
       if (saysSomething(child.children, sf)) return true;
     } else if (ts.isJsxFragment(child)) {
       if (saysSomething(child.children, sf)) return true;
@@ -129,11 +160,27 @@ describe('icon-only links and buttons have a name (owner list item 13)', () => {
         ].join('\n'),
       ),
     ).toEqual([]);
-    // Words hidden from screen readers are no name.
+    // Words hidden from screen readers are no name, nor is a decorative image (empty alt), nor a
+    // component marked aria-hidden; a literal aria-hidden false hides nothing.
     expect(
       unnamedIconControls(
-        '<button><span aria-hidden="true">x</span><Icon name="close" /></button>;',
+        [
+          '<button><span aria-hidden="true">x</span><Icon name="close" /></button>;',
+          '<a href="/"><img alt="" src="/h.png" /></a>;',
+          '<a href="/"><img alt={\'\'} src="/h.png" /></a>;',
+          '<button><Badge aria-hidden="true" /></button>;',
+          '<button><Badge aria-hidden /></button>;',
+          '<button><Badge aria-hidden="false" /></button>;',
+          '<a href="/"><img src="/h.png" /></a>;',
+        ].join('\n'),
       ),
-    ).toEqual(['component.tsx:1 <button>']);
+    ).toEqual([
+      'component.tsx:1 <button>',
+      'component.tsx:2 <a>',
+      'component.tsx:3 <a>',
+      'component.tsx:4 <button>',
+      'component.tsx:5 <button>',
+      'component.tsx:7 <a>',
+    ]);
   });
 });

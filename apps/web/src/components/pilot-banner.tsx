@@ -12,8 +12,14 @@ import { type VersionNoticeCopy as BannerCopy, VersionNotice } from './version-n
  *
  * Rendered globally from the root layout, not a per-section opt-in. `mode` is
  * computed server-side (`getDeploymentMode()`); the client never decides what this
- * says. Since owner list item 17 it shows in full on a visitor's first page only (`seen` comes
- * from a small cookie, `lib/version-notice.ts`), and the same words stay on What Works Today.
+ * says.
+ *
+ * Owner list item 17 (the beta banner once), together with the rule above that every page says
+ * this is a test version: the full notice shows once per visitor, on the first page they open.
+ * After that (`seen` comes from a small cookie, `lib/version-notice.ts`), and after Hide This
+ * Notice, every page keeps a slim one-line label: the version name from the same copy below and
+ * the What Works Today link, which also carries the full words under About This Version. Nothing
+ * removes the label.
  */
 
 /**
@@ -58,10 +64,10 @@ export function PilotBanner({
 }: {
   readonly mode: DeploymentMode;
   readonly registrationOpen?: boolean;
-  /** This device has already seen the notice (or hid it), so it stays folded away. */
+  /** This device has already seen the notice (or hid it), so only the slim label shows. */
   readonly seen?: boolean;
 }) {
   const copy = versionNoticeCopy(mode, registrationOpen);
-  if (!copy || seen) return null;
-  return <VersionNotice copy={copy} />;
+  if (!copy) return null;
+  return <VersionNotice copy={copy} folded={seen} />;
 }

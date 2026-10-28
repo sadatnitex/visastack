@@ -36,31 +36,52 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 const mount = () => act(() => root.render(<VersionNotice copy={COPY} />));
-const notice = () => container.querySelector('section.pilot-banner');
+const notice = () => container.querySelector<HTMLElement>('section.pilot-banner');
+/** The slim label: the version name and the link, nothing else. */
+function expectSlim() {
+  const slim = notice();
+  expect(slim?.classList.contains('pilot-banner-slim')).toBe(true);
+  expect(slim?.getAttribute('aria-label')).toBe('About this version');
+  expect(slim?.querySelector('.pilot-banner-label')?.textContent).toBe('VisaStack Public Beta');
+  expect(slim?.querySelector('a')?.getAttribute('href')).toBe('/status');
+  expect(slim?.querySelector('a')?.textContent).toBe('What Works Today');
+  expect(slim?.querySelector('.pilot-banner-detail, .pilot-banner-short, button')).toBeNull();
+  expect(slim?.textContent).not.toContain('at your own risk');
+}
 
-describe('the notice about this version folds away after the first page', () => {
+describe('the notice about this version shows in full once, then as a slim label', () => {
   it('shows in full on the first page and remembers that it has been seen', () => {
     mount();
-    expect(notice()?.textContent).toContain('VisaStack Public Beta');
+    expect(notice()?.classList.contains('pilot-banner-slim')).toBe(false);
+    expect(notice()?.textContent).toContain('Free, at your own risk.');
     expect(written).toEqual(['visastack_notice=seen; path=/; max-age=15724800; SameSite=Lax']);
   });
 
-  it('folds away when the visitor moves to another page in the same visit', () => {
+  it('folds to the slim label on the next page, and stays folded back on the first page', () => {
     mount();
     route.pathname = '/trust';
     mount();
-    expect(notice()).toBeNull();
+    expectSlim();
+    route.pathname = '/';
+    mount();
+    expectSlim();
   });
 
-  it('Hide This Notice puts it away at once, and remembers that too', () => {
+  it('Hide This Notice folds it at once to the label, never removes it, and remembers', () => {
     mount();
     const hide = container.querySelector<HTMLButtonElement>('button.pilot-banner-hide');
     expect(hide?.getAttribute('type')).toBe('button');
     expect(hide?.getAttribute('aria-label')).toBe('Hide This Notice');
     written = [];
     act(() => hide?.click());
-    expect(notice()).toBeNull();
+    expectSlim();
     expect(written).toEqual(['visastack_notice=seen; path=/; max-age=15724800; SameSite=Lax']);
+  });
+
+  it('starts as the slim label when this device has seen it, without writing again', () => {
+    act(() => root.render(<VersionNotice copy={COPY} folded />));
+    expectSlim();
+    expect(written).toEqual([]);
   });
 
   it('still shows, and nothing breaks, when the cookie store is blocked', () => {
@@ -73,16 +94,29 @@ describe('the notice about this version folds away after the first page', () => 
 });
 
 describe('the banner the root layout renders', () => {
-  it('renders nothing once this device has seen it', () => {
-    expect(
+  it('is the slim label once this device has seen it, in every mode that has a notice', () => {
+    for (const html of [
       renderToStaticMarkup(<PilotBanner mode="controlled_pilot" registrationOpen seen />),
-    ).toBe('');
-    expect(renderToStaticMarkup(<PilotBanner mode="development" seen />)).toBe('');
+      renderToStaticMarkup(<PilotBanner mode="controlled_pilot" seen />),
+      renderToStaticMarkup(<PilotBanner mode="development" seen />),
+    ]) {
+      expect(html).toContain(
+        '<section class="pilot-banner pilot-banner-slim" aria-label="About this version">',
+      );
+      expect(html).toContain('href="/status"');
+      expect(html).not.toContain('pilot-banner-hide');
+    }
+    expect(renderToStaticMarkup(<PilotBanner mode="development" seen />)).toContain(
+      'VisaStack Test Build',
+    );
+    expect(renderToStaticMarkup(<PilotBanner mode="commercial" seen />)).toBe('');
   });
 
   it('names its icon-only Hide button and passes the automated accessibility rules', async () => {
-    const html = renderToStaticMarkup(<PilotBanner mode="controlled_pilot" registrationOpen />);
-    expect(html).toContain('aria-label="Hide This Notice"');
-    expect(await axeViolations(html)).toEqual([]);
+    const full = renderToStaticMarkup(<PilotBanner mode="controlled_pilot" registrationOpen />);
+    expect(full).toContain('aria-label="Hide This Notice"');
+    expect(await axeViolations(full)).toEqual([]);
+    const slim = renderToStaticMarkup(<PilotBanner mode="controlled_pilot" seen />);
+    expect(await axeViolations(slim)).toEqual([]);
   });
 });

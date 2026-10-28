@@ -72,6 +72,8 @@ export function WorkspaceRecordToolbar({
     setMobileSearch(false);
   }, [pathname]);
   useEffect(() => {
+    // Staff pages have no traveller search, so the shortcut is left to the browser.
+    if (staff) return;
     const shortcut = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
@@ -81,7 +83,7 @@ export function WorkspaceRecordToolbar({
     };
     document.addEventListener('keydown', shortcut);
     return () => document.removeEventListener('keydown', shortcut);
-  }, []);
+  }, [staff]);
   useEffect(() => {
     const selected = JSON.parse(scopeKey) as WorkspaceSearchScope | null;
     const value = query.trim();
