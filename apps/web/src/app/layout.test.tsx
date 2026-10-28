@@ -1,9 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderServer, textOf } from '../lib/next-mocks.test-support';
-const state = vi.hoisted(() => ({ signedIn: false }));
+const state = vi.hoisted(() => ({ signedIn: false, languageChoice: false }));
 vi.mock('next/font/local', () => ({ default: () => ({ variable: 'synthetic-font' }) }));
 vi.mock('../lib/signed-in', () => ({ isSignedIn: async () => state.signedIn }));
 vi.mock('../lib/locale', () => ({ getLocale: async () => 'en' }));
+vi.mock('../lib/language-choice', () => ({
+  get LANGUAGE_CHOICE_ENABLED() {
+    return state.languageChoice;
+  },
+}));
 vi.mock('../lib/deployment-mode', () => ({ getDeploymentMode: () => 'controlled_pilot' }));
 vi.mock('../lib/public-beta', () => ({ isPublicBetaOpen: () => true }));
 vi.mock('./actions', () => ({ setLocaleAction: async () => undefined }));
@@ -20,5 +25,22 @@ describe('public beta notice audience', () => {
     const html = await renderServer(RootLayout({ children: <p>Signed-in page</p> }));
     expect(html).not.toContain('pilot-banner');
     expect(textOf(html)).not.toContain('Free to use at your own risk.');
+  });
+});
+describe('the language switch', () => {
+  const BANGLA = 'বাংলা';
+  it('is hidden while translation has not started (owner decision: Bangla is deferred)', async () => {
+    state.languageChoice = false;
+    const html = await renderServer(RootLayout({ children: <p>Page</p> }));
+    expect(html).not.toContain('lang-switch');
+    expect(html).not.toContain(BANGLA);
+    expect(html).not.toContain('aria-label="Language"');
+  });
+  it('comes back as it was when the one setting is turned on', async () => {
+    state.languageChoice = true;
+    const html = await renderServer(RootLayout({ children: <p>Page</p> }));
+    expect(html).toContain('class="lang-switch"');
+    expect(html).toContain(`lang="bn">${BANGLA}</button>`);
+    state.languageChoice = false;
   });
 });

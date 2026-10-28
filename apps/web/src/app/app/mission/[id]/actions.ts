@@ -31,6 +31,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { resolveAiExplainer } from '../../../../lib/ai';
 import { resolveBaseUrl } from '../../../../lib/base-url';
+import { caseStateLabel } from '../../../../lib/case-stages';
 import { createKeyManagementPort } from '../../../../lib/providers';
 import { sendEmailNow } from '../../../../lib/send-now';
 import { withSession } from '../../../../lib/session';
@@ -42,22 +43,6 @@ export interface ActionState {
   readonly ok: boolean;
   readonly message: string;
 }
-
-const STATE_LABELS: Record<string, string> = {
-  DRAFT: 'Draft',
-  INTAKE: 'Intake',
-  IN_REVIEW: 'In Review',
-  AWAITING_APPLICANT: 'Awaiting Applicant',
-  SUBMISSION_READY: 'Submission Ready',
-  SUBMITTED: 'Submitted',
-  IN_PROGRESS: 'In Progress',
-  READY_FOR_REVIEW: 'Ready for Review',
-  UNDER_REVIEW: 'Under Review',
-  READY_TO_EXPORT: 'Ready to Export',
-  LOCKED: 'Locked',
-  CLOSED: 'Closed',
-  CANCELLED: 'Cancelled',
-};
 
 /** Attach a PUBLISHED pack version to the mission. */
 export async function attachPackAction(
@@ -85,7 +70,11 @@ export async function attachPackAction(
   return result;
 }
 
-/** Move the mission through the reviewer workflow (legal transitions only). */
+/**
+ * Move the mission through the reviewer workflow (legal transitions only). Cancelling is final,
+ * so it is refused unless the request carries the answer to the page's own confirmation question
+ * (the More menu's Yes, Cancel This Case); a stray or replayed stage button cannot cancel a case.
+ */
 export async function transitionMissionAction(
   _prev: ActionState,
   formData: FormData,
@@ -93,6 +82,9 @@ export async function transitionMissionAction(
   const missionId = String(formData.get('missionId') ?? '');
   const to = String(formData.get('to') ?? '') as MissionState;
   if (missionId.length === 0 || to.length === 0) return { ok: false, message: 'Missing case.' };
+  if (to === 'CANCELLED' && formData.get('confirmCancel') !== 'yes') {
+    return { ok: false, message: 'Confirm that you want to cancel this case, then try again.' };
+  }
   const result = await withSession(async ({ db, accountId }) => {
     const transitioned = await transitionMission(db, { actorAccountId: accountId, missionId, to });
     if (!transitioned.ok) {
@@ -100,7 +92,8 @@ export async function transitionMissionAction(
     }
     return {
       ok: true,
-      message: `Case moved to ${STATE_LABELS[to] ?? to}.`,
+      message:
+        to === 'CANCELLED' ? 'This case is cancelled.' : `Case moved to ${caseStateLabel(to)}.`,
     } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);

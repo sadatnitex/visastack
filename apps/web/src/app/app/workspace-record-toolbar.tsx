@@ -10,6 +10,7 @@ import { usePathname } from 'next/navigation';
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { BrandMark } from '../../components/brand-mark';
 import { Icon } from '../../components/icons';
+import { ShortcutHint } from '../../components/shortcut-hint';
 import type { WorkspaceAccess, WorkspaceNavigation } from '../../lib/workspace-navigation';
 import { AccountMenu } from './account-menu';
 
@@ -199,7 +200,7 @@ export function WorkspaceRecordToolbar({
           aria-describedby={resultsId}
           onChange={(event) => setQuery(event.target.value)}
         />
-        <kbd>⌘ K</kbd>
+        <ShortcutHint keyName="K" />
         <div id={resultsId} className="record-search-results" hidden={!query.trim()}>
           {result.status === 'loading' ? <output aria-live="polite">Searching...</output> : null}
           {result.status === 'error' ? (

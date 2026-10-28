@@ -128,7 +128,7 @@ function ChangesView({
   return (
     <>
       <PageHeader
-        back={{ href: memoryHref(applicantId), label: 'Application Memory' }}
+        back={{ href: memoryHref(applicantId), label: 'Case History' }}
         eyebrow="Then and Now"
         title={`Since Snapshot ${snapshot.version}`}
         description={`${snapshot.missionTitle}: what differs today from snapshot ${snapshot.version}, taken on ${formatTimestampDate(snapshot.takenAt)}. Names only; open a detail to compare it.`}

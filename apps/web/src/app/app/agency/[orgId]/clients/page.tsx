@@ -125,6 +125,7 @@ export default async function AgencyClientsPage({
         )}
         <div id="invite-client">
           <ClientInvitationForm
+            pendingInvitationIds={data.clientInvitations.map((invitation) => invitation.id)}
             organizationId={orgId}
             members={data.members.map((m) => ({
               accountId: m.accountId,

@@ -93,7 +93,9 @@ describe('agency Team', () => {
     expect(stubProps(html, 'InvitationRevokeButton')).toEqual([
       { organizationId: 'o1', invitationId: 'inv1' },
     ]);
-    expect(stubProps(html, 'AddMemberForm')).toEqual([{ organizationId: 'o1' }]);
+    expect(stubProps(html, 'AddMemberForm')).toEqual([
+      { organizationId: 'o1', pendingInvitationIds: ['inv1'] },
+    ]);
   });
 
   it('tells a member who is not an administrator, and reads no roster for them', async () => {

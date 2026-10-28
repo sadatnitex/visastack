@@ -1,17 +1,20 @@
 'use client';
 
 import { useActionState } from 'react';
-import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { SubmitButton } from '../../../../components/form-feedback';
 import { type ActionState, inviteClientAction } from './actions';
-import { InvitationLink } from './invitation-link';
+import { InvitationOutcome } from './invitation-outcome';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
 export function ClientInvitationForm({
   organizationId,
   members,
+  pendingInvitationIds,
 }: {
   readonly organizationId: string;
+  /** Invitations still waiting, as the page last read them. */
+  readonly pendingInvitationIds: readonly string[];
   readonly members: readonly {
     readonly accountId: string;
     readonly email: string;
@@ -92,8 +95,7 @@ export function ClientInvitationForm({
           busy="Creating…"
           className="btn btn-secondary"
         />
-        <FormMessage result={state} />
-        {state.ok && state.invitationUrl ? <InvitationLink url={state.invitationUrl} /> : null}
+        <InvitationOutcome state={state} pendingInvitationIds={pendingInvitationIds} />
       </div>
     </form>
   );

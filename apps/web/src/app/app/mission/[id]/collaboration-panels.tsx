@@ -1,7 +1,8 @@
 'use client';
 
 import { useActionState } from 'react';
-import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { FormMessage, NO_RESULT, SubmitButton } from '../../../../components/form-feedback';
+import { useLatestOf } from '../../../../components/latest-result';
 import { TimeZoneSelect } from '../../../../components/time-zone-select';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
@@ -44,6 +45,10 @@ export function TasksPanel({
 }) {
   const [createState, createAction, createPending] = useActionState(createTaskAction, INITIAL);
   const [decideState, decideAction, decidePending] = useActionState(decideTaskAction, INITIAL);
+  // One status line for the whole task area: the latest answer replaces the one before, and it
+  // sits by the button that was pressed (below the list for Start/Done/Cancel, below the form
+  // for Add). Both places stay in the page, empty when unused, so screen readers announce it.
+  const [status, statusFrom] = useLatestOf({ add: createState, list: decideState });
   const openOrInProgress = tasks.filter((t) => t.status === 'OPEN' || t.status === 'IN_PROGRESS');
   const decided = tasks.filter((t) => t.status === 'DONE' || t.status === 'CANCELLED');
 
@@ -122,8 +127,7 @@ export function TasksPanel({
           ))}
         </div>
       )}
-      <FormMessage result={decideState} />
-
+      <FormMessage result={statusFrom === 'list' ? status : NO_RESULT} />
       {decided.length > 0 ? (
         <details className="u-mb-100">
           <summary className="muted" style={{ fontSize: 'var(--text-small)', cursor: 'pointer' }}>
@@ -185,7 +189,7 @@ export function TasksPanel({
           className="btn btn-secondary"
         />
       </form>
-      <FormMessage result={createState} />
+      <FormMessage result={statusFrom === 'add' ? status : NO_RESULT} />
     </article>
   );
 }
@@ -216,6 +220,8 @@ export function AppointmentsPanel({
     decideAppointmentAction,
     INITIAL,
   );
+  // One status line for the whole appointments area, placed as for tasks.
+  const [status, statusFrom] = useLatestOf({ add: createState, list: decideState });
   const upcoming = appointments.filter((a) => a.status === 'OPEN' || a.status === 'IN_PROGRESS');
   const past = appointments.filter((a) => a.status === 'DONE' || a.status === 'CANCELLED');
 
@@ -279,8 +285,7 @@ export function AppointmentsPanel({
           ))}
         </div>
       )}
-      <FormMessage result={decideState} />
-
+      <FormMessage result={statusFrom === 'list' ? status : NO_RESULT} />
       {past.length > 0 ? (
         <details className="u-mb-100">
           <summary className="muted" style={{ fontSize: 'var(--text-small)', cursor: 'pointer' }}>
@@ -337,7 +342,7 @@ export function AppointmentsPanel({
           className="btn btn-secondary"
         />
       </form>
-      <FormMessage result={createState} />
+      <FormMessage result={statusFrom === 'add' ? status : NO_RESULT} />
     </article>
   );
 }
@@ -446,6 +451,8 @@ export function EvidenceSelectionPanel({
     unselectEvidenceAction,
     INITIAL,
   );
+  // One line for the panel: selecting and removing answer in the same place.
+  const [evidenceStatus] = useLatestOf({ select: selectState, unselect: unselectState });
   const multiCandidate = candidates.filter(
     (c) => c.factCandidates.length + c.documentCandidates.length > 1,
   );
@@ -582,8 +589,7 @@ export function EvidenceSelectionPanel({
           </div>
         ))}
       </div>
-      <FormMessage result={selectState} />
-      <FormMessage result={unselectState} />
+      <FormMessage result={evidenceStatus} />
     </article>
   );
 }
