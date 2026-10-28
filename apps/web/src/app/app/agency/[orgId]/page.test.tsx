@@ -15,6 +15,7 @@ vi.mock('../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
     fn({ db: {}, accountId: 'acct-1', email: 'member@example.com' }),
 }));
+vi.mock('../../../../lib/ccd/depth.server', () => ({ readDepth: async () => 'auto' }));
 vi.mock('./console-data', () => mocks);
 
 const { default: Page } = await import('./page');

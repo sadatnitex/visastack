@@ -180,6 +180,18 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     }),
   ),
   {
+    screen: 'agency-home',
+    from: { kind: 'heading', name: 'Atlas Visa', detail: '1' },
+    to: { kind: 'heading', name: 'Agency Overview', detail: '1' },
+    reason: "D3: on agency pages the agency's name is the eyebrow and the page's name the one h1.",
+  },
+  {
+    screen: 'agency-home',
+    from: { kind: 'link', name: 'Invite Traveller', detail: '/app/agency/o1/clients' },
+    to: { kind: 'link', name: 'Invite a Client', detail: '/app/agency/o1/clients' },
+    reason: 'D3: one name, "Invite a Client".',
+  },
+  {
     screen: 'sharing',
     from: { kind: 'heading', name: 'Sharing & Access', detail: '2' },
     to: { kind: 'heading', name: 'Sharing', detail: '1' },

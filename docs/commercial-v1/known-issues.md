@@ -6199,3 +6199,9 @@ Owner approved 2026-10-25. Two fixes where the product said something that was n
 
 ### 2026-10-28, a test that failed when a slow run crossed the hour
 - The evidence request limit test failed once in a slow local run (the service tests took 22 minutes instead of 2, with a leftover process loading the machine). Root cause: the limit counts in fixed clock-hour windows, and the test's 51 requests straddled 18:00, so the count started again in the new window. Reproduced by placing half the requests either side of the hour. The limit itself is correct (fixed windows by design); the test now holds the clock still in the middle of the next hour.
+
+### 2026-10-28, CCD-6 slice 6a: Agency Overview on three levels, and the agency heading
+- Agency Overview: the four numbers and the first Do Next item at Glance, with "N more need you"; the rest of Do Next, the pipeline, the case list, Evidence Requests and Your Team at Browse; search, the reassignment queue, case activity, setup, clients joined and attention details at Everything. A search, stage or quick view shows its list at Glance.
+- Every agency page: the agency's name as the eyebrow and the page's name as the one h1 (D3); "Invite a Client". Plan & Usage keeps its own h1.
+- Parity: five states captured from main with the heading; approved changes are the h1 and the invite button name. Guard seen failing (every Do Next item at Glance).
+- Not verified live: the signed-in agency pages at phone and desktop widths.

@@ -10337,3 +10337,9 @@ summary.visa-photo-title {
     max-height: 22rem;
   }
 }
+
+/* WP-CCD6 agency overview: at an explicit Glance the working area is one column (a list asked
+   for by a search or a quick view shows there without the hidden rail beside it). */
+.depth-scope:not(:has(.depth-nojs))[data-depth="glance"] .agency-working-area {
+  grid-template-columns: minmax(0, 1fr);
+}

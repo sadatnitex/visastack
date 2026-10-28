@@ -46,8 +46,9 @@ describe('agency console layout', () => {
     const text = textOf(html);
     expect(text).toContain('Dhaka Visa Desk');
     expect(text).toContain('Active');
-    expect(text).toContain('Agency Workspace');
-    expect(tabLabels(html)).toEqual(['Invite Traveller']);
+    // D3: the agency's name is the eyebrow and the page's name the one h1.
+    expect(html).toMatch(/<h1 class="page-title">Agency Overview<\/h1>/);
+    expect(tabLabels(html)).toEqual(['Invite a Client']);
     expect(html).toContain('href="/app/agency/o1/clients"');
     expect(html).not.toContain('subnav');
     expect(html).toContain('id="page"');
@@ -67,6 +68,20 @@ describe('agency console layout', () => {
     const html = await renderServer(Layout({ children: null, params }));
     expect(html).not.toContain('subnav');
     expect(html).not.toContain('aria-current="page"');
+  });
+
+  it("names each page in its one h1, under the agency's name, and leaves a page's own h1 alone", async () => {
+    navigationState.pathname = '/app/agency/o1/cases';
+    let html = await renderServer(Layout({ children: null, params }));
+    expect(html).toMatch(
+      /<span class="eyebrow">Dhaka Visa Desk<\/span><h1 class="page-title">Cases<\/h1>/,
+    );
+    expect(html.match(/<h1/g)).toHaveLength(1);
+    // Plan & Usage renders its own h1, so the heading names the agency as plain text there.
+    navigationState.pathname = '/app/agency/o1/plan';
+    html = await renderServer(Layout({ children: null, params }));
+    expect(html).not.toContain('<h1');
+    expect(textOf(html)).toContain('Dhaka Visa Desk');
   });
 
   it('tells someone with no role so, and renders neither the bar nor the page', async () => {
