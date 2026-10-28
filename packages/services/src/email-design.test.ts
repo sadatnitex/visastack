@@ -35,8 +35,12 @@ describe('every email', () => {
   });
 
   it('words an overdue task differently from one coming up', () => {
-    const overdue = notificationEmail({ ...taskDue, subject: 'Overdue task on your case' });
-    expect(overdue.heading).toBe('A task on your case is past its date');
+    expect(notificationEmail({ ...taskDue, timing: 'overdue' }).heading).toBe(
+      'A task on your case is past its date',
+    );
+    expect(notificationEmail({ ...taskDue, timing: 'today' }).heading).toBe(
+      'A task on your case is due today',
+    );
   });
 
   it('never lets typed text become markup', () => {
@@ -85,7 +89,10 @@ describe('every email', () => {
 
 describe('the words of every email', () => {
   const LONG_DASH = String.fromCharCode(0x2014);
-  const entries = Object.entries(NOTIFICATION_EMAIL_COPY);
+  const entries = Object.entries(NOTIFICATION_EMAIL_COPY) as [
+    string,
+    (typeof NOTIFICATION_EMAIL_COPY)[keyof typeof NOTIFICATION_EMAIL_COPY],
+  ][];
 
   it('covers every kind of notification the product sends by email', () => {
     expect(Object.keys(NOTIFICATION_EMAIL_COPY).sort()).toEqual(
@@ -122,7 +129,7 @@ describe('the words of every email', () => {
         copy.action,
         copy.why ?? '',
         copy.after ?? '',
-        typeof copy.heading === 'string' ? copy.heading : copy.heading('x'),
+        typeof copy.heading === 'string' ? copy.heading : copy.heading(taskDue),
       ];
       for (const text of words) expect(text, event).not.toContain(LONG_DASH);
       for (const word of copy.action.split(' ')) {

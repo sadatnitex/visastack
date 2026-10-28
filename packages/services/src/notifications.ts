@@ -80,6 +80,8 @@ export interface NotificationPayload {
   readonly summary: string;
   readonly deepLinkPath: string;
   readonly sealedInvitationLink?: SealedInvitationLink;
+  /** Task reminders only: whether the due day is ahead, today or past, for the email's heading. */
+  readonly timing?: 'upcoming' | 'today' | 'overdue';
 }
 
 /** Deterministic composition of "event; recipient; channel; threshold where applicable" plus the driving resource, so two different resources of the same event/recipient/channel never collide. */
@@ -531,6 +533,7 @@ async function dispatchOne(
         subject: payload.subject,
         summary: payload.summary,
         url: `${baseUrl}${path}`,
+        ...(payload.timing ? { timing: payload.timing } : {}),
       }),
       { baseUrl, recipient: recipient.email },
     );
@@ -539,7 +542,9 @@ async function dispatchOne(
       subject: payload.subject,
       body: email.text,
       html: email.html,
-      idempotencyKey: `notification-${notification.id}`,
+      // A new key for the designed email: a retry of an attempt made before it carries a different
+      // body, which the provider would refuse under the old key.
+      idempotencyKey: `notification-${notification.id}-designed`,
     });
     const updated = await db
       .update(schema.notifications)

@@ -5,9 +5,12 @@
  *
  * Every piece of text is escaped before it goes into the HTML, so a name, a case title or a reason
  * typed by a person can never become markup. Each email also carries the same words as plain text.
- * No tracking: no pixels, no link wrapping, no remote fonts. The only image is the VisaStack mark,
- * served from the product's own address, and the email reads the same with images off.
+ * No tracking pixel, no link wrapping, no remote fonts. The one image is the VisaStack mark from
+ * the product's own address, the same file for everyone (no identifier in it); the email reads the
+ * same with images off.
  */
+
+import type { NotificationEventType } from './notifications';
 
 /** The brand's own colours (the product's tokens), written out because email cannot read CSS variables. */
 const INK = '#13243d';
@@ -67,7 +70,7 @@ export function renderEmail(
   context: { readonly baseUrl: string; readonly recipient: string },
 ): RenderedEmail {
   const url = safeUrl(content.action.url, context.baseUrl);
-  const logo = `${context.baseUrl.replace(/\/+$/, '')}/icons/icon-512.png`;
+  const logo = `${context.baseUrl.replace(/\/+$/, '')}/icons/icon-192.png`;
   const sentTo = `This email was sent to ${context.recipient}.`;
 
   const text = [
@@ -79,7 +82,8 @@ export function renderEmail(
     `${content.action.label}: ${url}`,
     ...(content.after ? ['', content.after] : []),
     '',
-    '--',
+    // "-- " is the standard signature line, so replies leave the footer out.
+    '-- ',
     'VisaStack',
     FOOTER,
     sentTo,
@@ -140,11 +144,13 @@ export interface NotificationEmailInput {
   readonly subject: string;
   readonly summary: string;
   readonly url: string;
+  /** Task reminders: whether the due day is ahead, today or past. */
+  readonly timing?: 'upcoming' | 'today' | 'overdue';
 }
 
 interface Copy {
   readonly eyebrow: string;
-  readonly heading: string | ((subject: string) => string);
+  readonly heading: string | ((input: NotificationEmailInput) => string);
   readonly why?: string;
   readonly action: string;
   readonly after?: string;
@@ -152,14 +158,26 @@ interface Copy {
 
 /**
  * The words around each kind of notification. The specific fact (`summary`) comes from the event
- * itself; these say what it means and what to do. Honest: no promise of an outcome, no urgency the
- * event does not carry. A notification without its own entry still gets the full design.
+ * itself; these say what it means and what to do. Honest: no promise of an outcome, no urgency or
+ * count the event does not carry. Keyed by every kind of email the product sends, so a new kind
+ * without its own words does not compile; anything else still gets the full design.
  */
-export const NOTIFICATION_EMAIL_COPY: Readonly<Record<string, Copy>> = {
+type EmailEventType =
+  | NotificationEventType
+  | 'INACTIVE_ACCOUNT_NOTICE'
+  | 'LEGAL_HOLD_REVIEW_REMINDER'
+  | 'TEAM_MEMBER_ADDED'
+  | 'WHATSAPP_CONNECTED'
+  | 'TEAM_INVITATION_CREATED'
+  | 'CLIENT_INVITATION_CREATED'
+  | 'SHARING_INVITATION_CREATED'
+  | 'CONTRIBUTOR_REQUEST_CREATED';
+
+export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
   EVIDENCE_REQUEST_CREATED: {
     eyebrow: 'Your Case',
-    heading: 'Your agency asked for one more thing',
-    why: 'You can reply with a document you already keep in VisaStack, in a single step. You choose exactly what to send.',
+    heading: 'Your agency needs something from you',
+    why: 'You can reply with documents you already keep in VisaStack. You choose exactly what to send.',
     action: 'See the Request',
     after: 'Nothing is shared until you send it.',
   },
@@ -190,10 +208,12 @@ export const NOTIFICATION_EMAIL_COPY: Readonly<Record<string, Copy>> = {
   },
   TASK_DEADLINE: {
     eyebrow: 'Your Case',
-    heading: (subject) =>
-      subject.toLowerCase().includes('overdue')
-        ? 'A task on your case is past its date'
-        : 'A task on your case is coming up',
+    heading: ({ timing }) =>
+      timing === 'today'
+        ? 'A task on your case is due today'
+        : timing === 'overdue'
+          ? 'A task on your case is past its date'
+          : 'A task on your case is coming up',
     why: 'Keeping each step on time keeps the whole case moving. It takes a minute to check.',
     action: 'Open Your Case',
     after: 'Already done? Mark it done on your case and these reminders stop.',
@@ -282,10 +302,12 @@ export const NOTIFICATION_EMAIL_COPY: Readonly<Record<string, Copy>> = {
 };
 
 export function notificationEmail(input: NotificationEmailInput): EmailContent {
-  const copy = NOTIFICATION_EMAIL_COPY[input.eventType];
+  const copy = (NOTIFICATION_EMAIL_COPY as Readonly<Record<string, Copy | undefined>>)[
+    input.eventType
+  ];
   const heading = copy
     ? typeof copy.heading === 'function'
-      ? copy.heading(input.subject)
+      ? copy.heading(input)
       : copy.heading
     : input.subject;
   return {

@@ -798,7 +798,6 @@ export {
 export {
   NOTIFICATION_EMAIL_COPY,
   type EmailContent,
-  escapeHtml,
   notificationEmail,
   renderEmail,
 } from './email-design';

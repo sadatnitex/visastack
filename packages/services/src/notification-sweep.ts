@@ -6,6 +6,7 @@ import {
   incrementMaterialRevision,
   missionsSelectingDocument,
 } from './material-revision';
+import { titleDate } from './naming';
 import { enqueueNotificationBothChannels } from './notifications';
 import { recordProductEvent } from './product-events';
 
@@ -96,18 +97,16 @@ export interface SweepResult {
   readonly enqueued: number;
 }
 
-/** A due date as people read it ("29 Oct 2026"), on the calendar of the task's own time zone. */
-function dueDay(date: Date, timezone: string): string {
-  try {
-    return date.toLocaleDateString('en-GB', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      timeZone: timezone,
-    });
-  } catch {
-    return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-  }
+const TASK_SUBJECT = {
+  upcoming: 'Task due soon',
+  today: 'Task due today',
+  overdue: 'Overdue task on your case',
+} as const;
+
+function taskSummary(caseTitle: string, day: string, timing: keyof typeof TASK_SUBJECT): string {
+  if (timing === 'today') return `A task on "${caseTitle}" is due today, ${day}.`;
+  if (timing === 'overdue') return `A task on "${caseTitle}" was due on ${day}.`;
+  return `A task on "${caseTitle}" is due on ${day}.`;
 }
 
 /**
@@ -152,6 +151,8 @@ export async function sweepTaskDeadlineReminders(
     const timezone = row.dueTimezone ?? row.applicantTimezone;
     const threshold = computeTaskDeadlineThreshold(dueDate, timezone, now);
     if (!threshold) continue;
+    const daysLeft = localDateDiffInDays(now, dueDate, timezone);
+    const timing = daysLeft > 0 ? 'upcoming' : daysLeft === 0 ? 'today' : 'overdue';
 
     await db.transaction(async (tx) => {
       await enqueueNotificationBothChannels(tx, {
@@ -162,11 +163,10 @@ export async function sweepTaskDeadlineReminders(
         applicantId: row.applicantId,
         missionId: row.missionId,
         payload: {
-          subject: threshold.startsWith('overdue') ? 'Overdue task on your case' : 'Task due soon',
+          subject: TASK_SUBJECT[timing],
           // The date only, never the task's own words (they can be private).
-          summary: threshold.startsWith('overdue')
-            ? `A task on "${row.missionTitle}" was due on ${dueDay(dueDate, timezone)}.`
-            : `A task on "${row.missionTitle}" is due on ${dueDay(dueDate, timezone)}.`,
+          summary: taskSummary(row.missionTitle, titleDate(dueDate, timezone), timing),
+          timing,
           deepLinkPath: `/app/mission/${row.missionId}`,
         },
       });
