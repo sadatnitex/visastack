@@ -73,10 +73,13 @@ const invitationOffer = (): ReactElement => (
       expiresAt: new Date('2026-11-03T14:30:00.000Z'),
     }}
     terms={
-      clientInvitationTerms(DEFAULT_CLIENT_GRANT_ACTIONS) ?? { agencyCan: [], agencyCannot: null }
+      clientInvitationTerms(DEFAULT_CLIENT_GRANT_ACTIONS) ?? {
+        agencyCan: [],
+        agencyCannot: null,
+        withheld: [],
+      }
     }
     token={INVITATION_TOKEN}
-    next={encodeURIComponent(`/app/client-invitations/accept?token=${INVITATION_TOKEN}`)}
     now={new Date('2026-10-28T10:00:00.000Z')}
   />
 );

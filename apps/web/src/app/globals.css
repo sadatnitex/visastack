@@ -8227,15 +8227,6 @@ summary.visa-photo-title {
   border-radius: 12px;
   padding: 16px;
 }
-.invitation-offer .invite-brand {
-  margin-top: 0.5rem;
-}
-.invitation-terms-list {
-  display: grid;
-  gap: 0.4rem;
-  margin: 0 0 1.25rem;
-  padding-left: 1.25rem;
-}
 @media (max-width: 480px) {
   .agency-clients-joined {
     grid-template-columns: minmax(0, 1fr);
@@ -9423,5 +9414,323 @@ summary.visa-photo-title {
   .staff-mode-banner {
     padding: var(--space-3) var(--space-4);
     font-size: var(--text-body);
+  }
+}
+
+/* WP-UXG invitation page (UX-G): the public page a traveller opens from an invitation. A hero with
+   the agency, a one-line promise, the expiry and the main buttons at the top of the first phone
+   screen; three steps on one line; what the agency could and could not do as two short lists; the
+   help lines and the not-an-approval note at the end. On phones a copy of the main buttons is pinned
+   to the bottom once the top ones scroll away. Flat, existing tokens only. */
+.invitation-page {
+  max-width: 48rem;
+  padding-block: var(--space-6) var(--space-7);
+}
+.invitation-hero {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+}
+.invitation-hero > *,
+.invitation-message > * {
+  margin: 0;
+}
+.invitation-offer .invite-brand {
+  margin: 0 0 var(--space-1);
+  width: 100%;
+}
+.invitation-title {
+  margin: 0;
+}
+.invitation-promise {
+  margin: 0;
+  font-size: var(--text-lead);
+  line-height: 1.45;
+  color: var(--text);
+  max-width: 40ch;
+}
+.invitation-expiry {
+  margin: 0;
+}
+.invitation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-2);
+}
+.invitation-actions .btn,
+.invitation-sticky .btn {
+  min-height: 48px;
+  padding-inline: 1.4rem;
+  font-size: var(--text-body);
+  text-align: center;
+}
+/* While the pinned copy is in use the top buttons are out of use too (they are also inert). */
+.invitation-actions[data-pinned="true"] {
+  visibility: hidden;
+}
+/* "Not you?" for a visitor already signed in: a quiet line with a link-styled button. */
+.invitation-switch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-2);
+  margin: 0;
+  color: var(--text-secondary);
+}
+.invitation-switch-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.invitation-switch-button[aria-disabled="true"] {
+  cursor: progress;
+}
+.invitation-reassure {
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: 1.5;
+  color: var(--text-secondary);
+  max-width: 46ch;
+}
+
+/* The three steps: one line at any phone width, the current one in the accent colour and bold. */
+.invitation-steps {
+  display: flex;
+  align-items: center;
+  list-style: none;
+  margin: var(--space-5) 0 0;
+  padding: var(--space-3) 0;
+  border-block: 1px solid var(--hairline-soft);
+  font-size: var(--text-body);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+.invitation-steps li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+}
+.invitation-steps li:not(:last-child) {
+  flex: 1 1 auto;
+}
+.invitation-steps li:not(:last-child)::after {
+  content: "";
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 1px;
+  margin-inline: var(--space-2);
+  background: var(--hairline);
+}
+.invitation-step-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 1px solid var(--hairline);
+  border-radius: 50%;
+  font-size: var(--text-caption);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.invitation-steps [aria-current="step"] {
+  color: var(--selected-text);
+  font-weight: 700;
+}
+.invitation-steps [aria-current="step"] .invitation-step-mark {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.invitation-steps [data-done="true"] {
+  color: var(--text-secondary);
+}
+.invitation-steps [data-done="true"] .invitation-step-mark {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+/* The details under the steps: every block keeps clear space above its heading. */
+.invitation-details {
+  display: grid;
+  gap: var(--space-6);
+  margin-top: var(--space-6);
+}
+.invitation-details > * {
+  margin: 0;
+}
+.invitation-details .card-title {
+  margin: 0 0 var(--space-3);
+}
+.invitation-intro {
+  margin: 0;
+  color: var(--text-secondary);
+}
+.invitation-terms {
+  display: grid;
+  gap: var(--space-4);
+}
+@media (min-width: 641px) {
+  .invitation-terms {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.invitation-term {
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+.invitation-marked {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.invitation-marked li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-2);
+  line-height: 1.45;
+}
+.invitation-marked .icon {
+  margin-top: 0.15rem;
+}
+.invitation-marked-check .icon {
+  color: var(--success);
+}
+.invitation-marked-close .icon {
+  color: var(--text-tertiary);
+}
+.invitation-term-note {
+  margin: var(--space-3) 0 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--hairline-soft);
+  color: var(--text-secondary);
+}
+.invitation-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: 1.25rem;
+  line-height: 1.5;
+}
+.invitation-help .invitation-list {
+  color: var(--text-secondary);
+}
+/* A link inside a sentence is underlined, so it never depends on colour alone. */
+.invitation-help a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.invitation-legal {
+  margin: 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--hairline-soft);
+  font-size: var(--text-body);
+  color: var(--text-tertiary);
+}
+
+/* A link that cannot go further: the same hero rhythm, with one action. */
+.invitation-message {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+}
+.invitation-message .eyebrow {
+  margin: 0;
+}
+
+/* The pinned copy of the main buttons: phones only, shown once the top buttons have left view. */
+.invitation-sticky {
+  display: none;
+}
+@media (max-width: 640px) {
+  .invitation-page {
+    padding-block: var(--space-5) var(--space-6);
+  }
+  .invitation-actions {
+    display: grid;
+    width: 100%;
+  }
+  .invitation-actions .btn {
+    width: 100%;
+  }
+  .invitation-term {
+    padding: var(--space-4);
+  }
+  .invitation-sticky {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 40;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--hairline);
+    background: var(--bg-elevated);
+    transform: translateY(100%);
+    visibility: hidden;
+    /* Visibility flips at the end of the slide out, and at the start of the slide in. */
+    transition: transform var(--motion-state) var(--motion-ease), visibility var(--motion-state)
+      step-end;
+  }
+  .invitation-sticky > .btn:only-child {
+    grid-column: 1 / -1;
+  }
+  .invitation-sticky .btn {
+    min-width: 0;
+    padding-inline: 1rem;
+  }
+  .invitation-sticky[data-shown="true"] {
+    transform: none;
+    visibility: visible;
+    transition: transform var(--motion-state) var(--motion-ease), visibility var(--motion-state)
+      step-start;
+  }
+  /* Room at the end of the page so the pinned buttons never cover the last lines, and keyboard
+     focus is never scrolled in behind them. */
+  body:has(.invitation-sticky) {
+    padding-bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+  }
+  html:has(.invitation-sticky) {
+    scroll-padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+/* Phones up to 400px (and high zoom): smaller step words keep the steps on one line at 320px. */
+@media (max-width: 400px) {
+  .invitation-steps {
+    font-size: var(--text-small);
+  }
+  .invitation-steps li {
+    gap: var(--space-1);
+  }
+  .invitation-steps li:not(:last-child)::after {
+    margin-inline: var(--space-1);
+  }
+  .invitation-step-mark {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+}
+@media (max-width: 640px) and (prefers-reduced-motion: reduce) {
+  .invitation-sticky,
+  .invitation-sticky[data-shown="true"] {
+    transition: none;
   }
 }
