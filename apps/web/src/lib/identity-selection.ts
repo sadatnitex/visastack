@@ -4,7 +4,8 @@
  */
 
 /** Neon Auth owns these pages; everything else stays public or is handled by its own rules. */
-const NEON_PROTECTED = /^\/(app|pilot-access-denied)(\/|$)/;
+// The AI app consent screen needs a signed-in person too; sign-in returns them to it.
+const NEON_PROTECTED = /^\/(app|pilot-access-denied|oauth\/authorize)(\/|$)/;
 
 /**
  * Whether the Neon sign-in check must run for this path. The landing page, status page, trust

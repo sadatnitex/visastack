@@ -1,5 +1,5 @@
 {
-  "id": "70005ce6-d91d-4ff1-a854-db6f6700447c",
+  "id": "ce039f8e-4d99-447e-9f64-c06da0efb15c",
   "prevId": "b715d16e-4236-4df6-ba95-0c10764c864c",
   "version": "7",
   "dialect": "postgresql",
@@ -752,6 +752,350 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.ai_connection_tokens": {
+      "name": "ai_connection_tokens",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "connection_id": {
+          "name": "connection_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "ai_token_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "family_id": {
+          "name": "family_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code_challenge": {
+          "name": "code_challenge",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "redirect_uri": {
+          "name": "redirect_uri",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resource": {
+          "name": "resource",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "consumed_at": {
+          "name": "consumed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "ai_connection_tokens_connection_idx": {
+          "name": "ai_connection_tokens_connection_idx",
+          "columns": [
+            {
+              "expression": "connection_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "ai_connection_tokens_family_idx": {
+          "name": "ai_connection_tokens_family_idx",
+          "columns": [
+            {
+              "expression": "family_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "ai_connection_tokens_connection_id_ai_connections_id_fk": {
+          "name": "ai_connection_tokens_connection_id_ai_connections_id_fk",
+          "tableFrom": "ai_connection_tokens",
+          "tableTo": "ai_connections",
+          "columnsFrom": ["connection_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "ai_connection_tokens_token_hash_unique": {
+          "name": "ai_connection_tokens_token_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": ["token_hash"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "ai_connection_tokens_code_binding": {
+          "name": "ai_connection_tokens_code_binding",
+          "value": "\"ai_connection_tokens\".\"kind\" <> 'CODE' or (\"ai_connection_tokens\".\"code_challenge\" is not null and \"ai_connection_tokens\".\"redirect_uri\" is not null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.ai_connections": {
+      "name": "ai_connections",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "applicant_id": {
+          "name": "applicant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "client_name": {
+          "name": "client_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "client_host": {
+          "name": "client_host",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scopes": {
+          "name": "scopes",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "case_mode": {
+          "name": "case_mode",
+          "type": "ai_connection_case_mode",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mission_id": {
+          "name": "mission_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reveal_identifiers": {
+          "name": "reveal_identifiers",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "depth": {
+          "name": "depth",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'standard'"
+        },
+        "activated_at": {
+          "name": "activated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revoked_reason": {
+          "name": "revoked_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_used_at": {
+          "name": "last_used_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "ai_connections_account_idx": {
+          "name": "ai_connections_account_idx",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "ai_connections_applicant_idx": {
+          "name": "ai_connections_applicant_idx",
+          "columns": [
+            {
+              "expression": "applicant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "ai_connections_mission_idx": {
+          "name": "ai_connections_mission_idx",
+          "columns": [
+            {
+              "expression": "mission_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "ai_connections_account_id_accounts_id_fk": {
+          "name": "ai_connections_account_id_accounts_id_fk",
+          "tableFrom": "ai_connections",
+          "tableTo": "accounts",
+          "columnsFrom": ["account_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "ai_connections_applicant_id_applicants_id_fk": {
+          "name": "ai_connections_applicant_id_applicants_id_fk",
+          "tableFrom": "ai_connections",
+          "tableTo": "applicants",
+          "columnsFrom": ["applicant_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "ai_connections_mission_id_missions_id_fk": {
+          "name": "ai_connections_mission_id_missions_id_fk",
+          "tableFrom": "ai_connections",
+          "tableTo": "missions",
+          "columnsFrom": ["mission_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "ai_connections_case_mode_mission": {
+          "name": "ai_connections_case_mode_mission",
+          "value": "\"ai_connections\".\"case_mode\" = 'ONE' or \"ai_connections\".\"mission_id\" is null"
+        },
+        "ai_connections_depth": {
+          "name": "ai_connections_depth",
+          "value": "\"ai_connections\".\"depth\" in ('brief', 'standard', 'full')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.ai_data_rule_settings": {
@@ -2528,109 +2872,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.calendar_feeds": {
-      "name": "calendar_feeds",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "applicant_id": {
-          "name": "applicant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "owner_account_id": {
-          "name": "owner_account_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "secret_hash": {
-          "name": "secret_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "link_made_at": {
-          "name": "link_made_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "calendar_feeds_owner_idx": {
-          "name": "calendar_feeds_owner_idx",
-          "columns": [
-            {
-              "expression": "owner_account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "calendar_feeds_applicant_id_applicants_id_fk": {
-          "name": "calendar_feeds_applicant_id_applicants_id_fk",
-          "tableFrom": "calendar_feeds",
-          "tableTo": "applicants",
-          "columnsFrom": ["applicant_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "calendar_feeds_owner_account_id_accounts_id_fk": {
-          "name": "calendar_feeds_owner_account_id_accounts_id_fk",
-          "tableFrom": "calendar_feeds",
-          "tableTo": "accounts",
-          "columnsFrom": ["owner_account_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "calendar_feeds_applicant_unique": {
-          "name": "calendar_feeds_applicant_unique",
-          "nullsNotDistinct": false,
-          "columns": ["applicant_id"]
-        },
-        "calendar_feeds_secret_hash_unique": {
-          "name": "calendar_feeds_secret_hash_unique",
-          "nullsNotDistinct": false,
-          "columns": ["secret_hash"]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "calendar_feeds_secret_hash_shape": {
-          "name": "calendar_feeds_secret_hash_shape",
-          "value": "\"calendar_feeds\".\"secret_hash\" ~ '^[0-9a-f]{64}$'"
-        }
-      },
       "isRLSEnabled": false
     },
     "public.case_complaint_events": {
@@ -9538,6 +9779,63 @@
       },
       "isRLSEnabled": false
     },
+    "public.oauth_clients": {
+      "name": "oauth_clients",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "client_name": {
+          "name": "client_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "redirect_uris": {
+          "name": "redirect_uris",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "last_used_at": {
+          "name": "last_used_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "oauth_clients_client_id_unique": {
+          "name": "oauth_clients_client_id_unique",
+          "nullsNotDistinct": false,
+          "columns": ["client_id"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.ocr_runs": {
       "name": "ocr_runs",
       "schema": "",
@@ -13395,6 +13693,11 @@
       "schema": "public",
       "values": ["ACKNOWLEDGED", "REJECTED", "CORRECTION_REQUESTED"]
     },
+    "public.ai_connection_case_mode": {
+      "name": "ai_connection_case_mode",
+      "schema": "public",
+      "values": ["NONE", "ONE", "ALL_CURRENT"]
+    },
     "public.ai_extraction_run_status": {
       "name": "ai_extraction_run_status",
       "schema": "public",
@@ -13404,6 +13707,11 @@
       "name": "ai_provider_config_status",
       "schema": "public",
       "values": ["DRAFT", "ACTIVE", "SUPERSEDED", "DISABLED"]
+    },
+    "public.ai_token_kind": {
+      "name": "ai_token_kind",
+      "schema": "public",
+      "values": ["CODE", "ACCESS", "REFRESH"]
     },
     "public.applicant_relationship": {
       "name": "applicant_relationship",

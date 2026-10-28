@@ -10,7 +10,7 @@ const MIGRATION_TIMEOUT_MS = 120_000;
 const HASH_A = 'a'.repeat(64);
 const HASH_B = 'b'.repeat(64);
 
-describe('migration 0098: private calendar subscription links', () => {
+describe('migration 0101: private calendar subscription links', () => {
   it(
     'creates the table, is safe to run again, and holds one hashed link per traveller',
     async () => {
@@ -18,7 +18,7 @@ describe('migration 0098: private calendar subscription links', () => {
       await migrate(drizzle(client), { migrationsFolder });
 
       // Production applies each statement on its own; running the whole file again must not fail.
-      const sql = readFileSync(join(migrationsFolder, '0098_calendar_feeds.sql'), 'utf8');
+      const sql = readFileSync(join(migrationsFolder, '0101_calendar_feeds.sql'), 'utf8');
       for (const statement of sql.split('--> statement-breakpoint')) await client.exec(statement);
 
       const account = (

@@ -95,6 +95,13 @@ export const RATE_LIMITS = {
   PAYMENT_REJECT_AUDIT: { limit: 30, windowMs: HOUR_MS },
   PAYMENT_START: { limit: 20, windowMs: HOUR_MS },
   PAYMENT_START_ORG: { limit: 60, windowMs: HOUR_MS },
+  // An AI app registering itself to connect (S13, open to the internet, ADR 0021): per network
+  // address. A real app registers once per person setting it up, so 10 an hour is far above use.
+  AI_CLIENT_REGISTER_IP: { limit: 10, windowMs: HOUR_MS },
+  // AI app sign-in token and revocation requests, per network address. Claude and ChatGPT call
+  // from a few shared cloud addresses for every person, so this only stops a flood; tokens are
+  // 256-bit and single-use, so it is not what keeps them safe. A refusal is a "try again" (429).
+  AI_TOKEN_IP: { limit: 20_000, windowMs: HOUR_MS },
   // Reporting a payment made another way (S12): a person fills this in a few times a day at most.
   MANUAL_CLAIM_SUBMIT: { limit: 10, windowMs: HOUR_MS },
   MANUAL_CLAIM_SUBMIT_ORG: { limit: 30, windowMs: HOUR_MS },
