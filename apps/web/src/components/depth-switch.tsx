@@ -187,7 +187,12 @@ export function DepthSwitch({
       const link = (event.target as Element | null)?.closest?.('a[href*="#"]');
       const href = link?.getAttribute('href');
       if (!href) return;
-      const to = new URL(href, window.location.href);
+      let to: URL;
+      try {
+        to = new URL(href, window.location.href);
+      } catch {
+        return; // an address the browser cannot read either: leave it to the browser
+      }
       if (to.origin !== window.location.origin || to.pathname !== window.location.pathname) return;
       revealId(decodeHash(to.hash.slice(1)));
     };

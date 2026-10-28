@@ -168,6 +168,12 @@ describe('links never land on hidden content', () => {
     act(() => button('Glance').click());
     act(() => away.click());
     expect(scope().getAttribute('data-depth')).toBe('glance');
+    const broken = document.createElement('a');
+    broken.setAttribute('href', 'http://[bad#deep');
+    broken.addEventListener('click', (event) => event.preventDefault());
+    container.append(broken);
+    expect(() => act(() => broken.click())).not.toThrow();
+    expect(scope().getAttribute('data-depth')).toBe('glance');
   });
 
   it('follows a later change of the address bar', async () => {
