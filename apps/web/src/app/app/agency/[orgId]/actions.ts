@@ -178,8 +178,8 @@ type EvidenceOutcome = (typeof EVIDENCE_OUTCOMES)[number];
 const EVIDENCE_OUTCOME_MESSAGES: Record<EvidenceOutcome, string> = {
   ACCEPTED: 'Accepted.',
   NEEDS_REPLACEMENT: 'Replacement requested.',
-  CONTRADICTION: 'Flagged as contradicting the applicant profile.',
-  CORRECTION_PROPOSED: 'Correction suggested to the applicant.',
+  CONTRADICTION: "Flagged as contradicting the traveller's profile.",
+  CORRECTION_PROPOSED: 'Correction suggested to the traveller.',
 };
 
 /** Org member decides on what was submitted (Commercial V1 Part 4 §13): accept, ask for a replacement, flag a contradiction, or suggest a correction. */
@@ -204,7 +204,7 @@ export async function decideEvidenceResponseAction(
     };
   }
   if (outcome !== 'ACCEPTED' && reason.length === 0) {
-    return { ok: false, message: 'Explain the reason for the applicant to see.' };
+    return { ok: false, message: 'Explain the reason for the traveller to see.' };
   }
 
   const result = await withSession(async ({ db, accountId }) => {

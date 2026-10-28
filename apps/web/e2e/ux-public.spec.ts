@@ -1167,11 +1167,11 @@ test.describe('authoritative appearance of actual workspace components', () => {
     await page.keyboard.press('Control+k');
     const finder = page.getByRole('searchbox', { name: 'Find a Page' });
     await expect(finder).toBeFocused();
-    await finder.fill('applicants');
+    await finder.fill('travellers');
     await expect(
       page
         .getByRole('navigation', { name: 'Matching pages' })
-        .getByRole('link', { name: 'Applicants' }),
+        .getByRole('link', { name: 'All Travellers' }),
     ).toHaveAttribute('href', '/app/applicants');
     await finder.fill('administration');
     await expect(page.getByText('No pages match. Try another name.')).toBeVisible();

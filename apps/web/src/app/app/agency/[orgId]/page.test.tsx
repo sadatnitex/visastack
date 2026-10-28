@@ -251,7 +251,7 @@ describe('agency Dashboard', () => {
     mocks.loadApplicants.mockResolvedValue([{ id: 'ap1' }, { id: 'ap2' }]);
     mocks.loadCases.mockResolvedValue({ admin: true, cases: [] });
     expect(textOf(await renderServer(Page(pageProps())))).toContain(
-      'No cases are reachable yet - an applicant must grant this organization access',
+      'No cases are reachable yet - a traveller must grant this organization access',
     );
     mocks.loadOrgAccess.mockResolvedValue({ org: { id: 'o1' }, admin: false, member: true });
     mocks.loadCases.mockResolvedValue({ admin: false, cases: [] });

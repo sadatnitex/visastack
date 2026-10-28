@@ -278,7 +278,7 @@ export default async function ApplicantProfilePage({
               <h2>Profile Health</h2>
               <article className="card rows">
                 <div className="row">
-                  <span>Confirmed by applicant</span>
+                  <span>Confirmed by the traveller</span>
                   <strong>{confirmed}</strong>
                 </div>
                 <div className="row">

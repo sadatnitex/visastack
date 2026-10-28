@@ -270,7 +270,7 @@ export default async function ApplicantOverviewPage({
         ) : null}
         <div className="traveller-metrics" {...atLevel('browse')}>
           <Link className="card traveller-metric" href={`/app/applicant/${id}/missions`}>
-            <span>Active Visa Cases</span>
+            <span>Active Cases</span>
             <strong>{data.missions.ok ? data.active.length : 'Unavailable'}</strong>
             <span className="muted">Closed and cancelled cases are excluded.</span>
           </Link>
@@ -339,7 +339,7 @@ export default async function ApplicantOverviewPage({
                     why="Then you can see which checklist items are ready and which are still missing."
                     action={{
                       href: `/app/applicant/${id}/missions#start-case`,
-                      label: 'Start a Visa Case',
+                      label: 'Start a Case',
                     }}
                   >
                     A case is where one visa application comes together. Start one for the route you

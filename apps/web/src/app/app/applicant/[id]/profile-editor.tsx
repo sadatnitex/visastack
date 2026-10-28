@@ -111,7 +111,7 @@ function AssuranceDetail({ assurance }: { readonly assurance: FieldAssurance }) 
         }}
       >
         <p className="muted u-fs-075-m0">
-          {assurance.applicantDeclared ? '✓ Declared by the applicant.' : '✗ Not yet declared.'}
+          {assurance.applicantDeclared ? '✓ Declared by the traveller.' : '✗ Not yet declared.'}
         </p>
         <p className="muted u-fs-075-m0">
           {assurance.documentSupplied

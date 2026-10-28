@@ -10,8 +10,8 @@ describe('traveller navigation names (directive Part 9 section 1)', () => {
     'Documents',
     'Cases',
     'Sharing',
-    'Alerts',
-    'Privacy',
+    'Notifications',
+    'Privacy & Consent',
   ];
 
   it('offers every destination the directive names for a traveller', () => {
@@ -22,7 +22,8 @@ describe('traveller navigation names (directive Part 9 section 1)', () => {
   it('uses the product words, not the old internal ones', () => {
     const offered = [...labels(PRIMARY_NAV), ...labels(applicantTabs('a1'))];
     expect(offered).not.toContain('Home');
-    expect(offered).not.toContain('Notifications');
+    // One name per thing (CCD D3): "Notifications", never "Alerts".
+    expect(offered).not.toContain('Alerts');
     expect(offered).not.toContain('Missions');
   });
 
@@ -30,19 +31,19 @@ describe('traveller navigation names (directive Part 9 section 1)', () => {
     expect(PRIMARY_NAV.find((l) => l.label === 'Countries')?.href).toBe('/app/countries');
     // The phone bar holds the first four links; the sheet behind "More" opens on the fifth.
     expect(labels(PRIMARY_NAV).slice(0, 5)).toEqual([
-      'Overview',
-      'Applicants',
+      'Account Overview',
+      'All Travellers',
       'Shared with Me',
-      'Alerts',
-      'Privacy',
+      'Notifications',
+      'Privacy & Consent',
     ]);
   });
 
   it('keeps the existing route segments so bookmarks still work', () => {
     const tabs = applicantTabs('abc');
     expect(tabs.find((t) => t.label === 'Cases')?.href).toBe('/app/applicant/abc/missions');
-    expect(PRIMARY_NAV.find((l) => l.label === 'Alerts')?.href).toBe('/app/notifications');
-    expect(PRIMARY_NAV.find((l) => l.label === 'Overview')?.href).toBe('/app');
+    expect(PRIMARY_NAV.find((l) => l.label === 'Notifications')?.href).toBe('/app/notifications');
+    expect(PRIMARY_NAV.find((l) => l.label === 'Account Overview')?.href).toBe('/app');
   });
 
   it('never repeats a destination or a label inside one bar', () => {

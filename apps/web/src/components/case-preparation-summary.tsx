@@ -115,7 +115,7 @@ export function CasePreparationSummary({
           ))}
         </dl>
         <p className="case-confirmation-state">
-          <strong>Applicant confirmation: </strong>
+          <strong>Traveller confirmation: </strong>
           {acknowledged ? 'Current snapshot confirmed' : 'Awaiting confirmation'}
         </p>
         <p className="muted">

@@ -53,6 +53,12 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
   },
   {
     screen: 'traveller',
+    from: { kind: 'link', name: 'Start a Visa Case', detail: '/app/applicant/person/missions' },
+    to: { kind: 'link', name: 'Start a Case', detail: '/app/applicant/person/missions' },
+    reason: 'D3 (CCD-7): one name for starting a case, in the empty state too.',
+  },
+  {
+    screen: 'traveller',
     from: { kind: 'heading', name: 'Reply to an Evidence Request', detail: '2' },
     to: { kind: 'heading', name: 'Bank Statement', detail: '2' },
     reason: "D1: the next step comes from the same ranking as Home, with Home's wording.",
@@ -285,6 +291,35 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
  * Approved changes that apply to a kind of element rather than one element: a link that now
  * carries an anchor so it lands on what it names (ADR 0023, links never land hidden).
  */
+/**
+ * D3 (CCD-7): a person with a record is a "traveller" in visible text, never an "applicant".
+ * Routes, stored values and code names keep "applicant". Exact phrases, applied in order.
+ */
+const TRAVELLER_WORDS: readonly (readonly [string, string])[] = [
+  ['Add an Applicant', 'Add a Traveller'],
+  ['Add Applicant', 'Add Traveller'],
+  ['No Applicants Yet', 'No Travellers Yet'],
+  ['See All Applicants', 'See All Travellers'],
+  ['View Applicants', 'View Travellers'],
+  ['All Applicants', 'All Travellers'],
+  ['An applicant is one person', 'A traveller is one person'],
+  ['Open an applicant', 'Open a traveller'],
+  ['create applicant or profile records', 'create traveller or profile records'],
+  ['Awaiting Applicant', 'Awaiting Traveller'],
+  ['Applicant has not confirmed yet', 'Traveller has not confirmed yet'],
+  ['Applicant confirmation', 'Traveller confirmation'],
+  ['Confirmed by applicant', 'Confirmed by the traveller'],
+  ["this applicant's", "this traveller's"],
+  ['an applicant must grant', 'a traveller must grant'],
+  ['Applicant-Wide (Default)', 'Whole Traveller Record (Default)'],
+  ['Choose an applicant', 'Choose a traveller'],
+  ['Declared by the applicant', 'Declared by the traveller'],
+];
+
+function travellerWords(name: string): string {
+  return TRAVELLER_WORDS.reduce((text, [from, to]) => text.split(from).join(to), name);
+}
+
 export interface ApprovedRule {
   readonly screens: readonly string[];
   readonly reason: string;
@@ -293,6 +328,37 @@ export interface ApprovedRule {
 }
 
 export const APPROVED_RULES: readonly ApprovedRule[] = [
+  {
+    screens: [
+      'account',
+      'agency-cases',
+      'agency-home',
+      'case',
+      'cases',
+      'documents',
+      'evidence',
+      'expiry',
+      'home',
+      'notifications',
+      'privacy',
+      'profile',
+      'sharing',
+      'traveller',
+    ],
+    reason: 'D3 (CCD-7): "traveller", never "applicant", in visible text.',
+    alternatives: (entry) => {
+      const name = travellerWords(entry.name);
+      return name === entry.name ? [] : [{ ...entry, name }];
+    },
+  },
+  {
+    screens: ['traveller'],
+    reason: 'D3 (CCD-7): "Cases", never "Visa Cases"; the count tile reads "Active Cases".',
+    alternatives: (entry) =>
+      entry.kind === 'link' && entry.name.startsWith('Active Visa Cases')
+        ? [{ ...entry, name: entry.name.replace('Active Visa Cases', 'Active Cases') }]
+        : [],
+  },
   {
     screens: ['home', 'traveller'],
     reason:

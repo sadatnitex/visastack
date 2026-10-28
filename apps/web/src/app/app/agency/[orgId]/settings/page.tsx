@@ -83,7 +83,7 @@ export default async function AgencySettingsPage({
         <p className="card-kicker">Export</p>
         <h2 className="card-title">Bulk Export</h2>
         <p className="card-body u-mb-125">
-          Download the profiles of every applicant who granted this organization an accepted export
+          Download the profiles of every traveller who granted this organization an accepted export
           grant. Each applicant is re-checked by the policy engine at export time.
         </p>
         {capabilities.bulkExport === 'available' ? (

@@ -229,7 +229,7 @@ function ApplicantForm({ selfAdded }: { readonly selfAdded: boolean }) {
       ) : null}
       <SubmitButton
         pending={pending}
-        idle="Add Applicant"
+        idle="Add Traveller"
         busy="Adding…"
         className="btn btn-primary"
       />

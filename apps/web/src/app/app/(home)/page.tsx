@@ -410,7 +410,7 @@ export default async function AppPage({
     },
     {
       key: 'applicant',
-      label: 'Add an Applicant',
+      label: 'Add a Traveller',
       hint: 'Start with yourself, or someone you manage records for.',
       done: data.applicants.length > 0,
       href: '/app/applicants',
@@ -446,7 +446,7 @@ export default async function AppPage({
   const nextStep = !coreGranted
     ? {
         title: 'Turn On Core Processing to Begin',
-        why: 'VisaStack cannot create applicant or profile records until you allow this. You can turn it off again at any time.',
+        why: 'VisaStack cannot create traveller or profile records until you allow this. You can turn it off again at any time.',
         href: '#permissions',
         action: 'Choose Permissions',
         tone: 'warning' as const,
@@ -464,7 +464,7 @@ export default async function AppPage({
             title: firstTodo.label,
             why: firstTodo.hint,
             href: firstTodo.href,
-            action: firstTodo.key === 'applicant' ? 'Add an Applicant' : 'Continue',
+            action: firstTodo.key === 'applicant' ? 'Add a Traveller' : 'Continue',
           }
         : peopleLeftOut
           ? {
@@ -472,14 +472,14 @@ export default async function AppPage({
               title: 'Up to Date for the People Shown',
               why: `Nothing is waiting for the first ${data.perApplicant.length} of ${data.applicants.length} people. Open the full list to check the others.`,
               href: '/app/applicants',
-              action: 'See All Applicants',
+              action: 'See All Travellers',
               tone: 'ok' as const,
             }
           : {
               title: 'You Are Up to Date',
-              why: 'Nothing is waiting for you. Open an applicant to add documents or start a case.',
+              why: 'Nothing is waiting for you. Open a traveller to add documents or start a case.',
               href: '/app/applicants',
-              action: 'View Applicants',
+              action: 'View Travellers',
               tone: 'ok' as const,
             };
 
@@ -586,13 +586,13 @@ export default async function AppPage({
             {rest.length > restShown.length ? (
               <p className="muted do-next-more">
                 Showing {restShown.length} of {rest.length}. The rest are on each person&apos;s
-                pages. <Link href="/app/applicants">See All Applicants</Link>
+                pages. <Link href="/app/applicants">See All Travellers</Link>
               </p>
             ) : null}
             {peopleLeftOut ? (
               <p className="muted do-next-more">
                 This list covers the first {data.perApplicant.length} of {data.applicants.length}{' '}
-                people. <Link href="/app/applicants">See All Applicants</Link>
+                people. <Link href="/app/applicants">See All Travellers</Link>
               </p>
             ) : null}
           </section>
@@ -638,11 +638,11 @@ export default async function AppPage({
             {data.perApplicant.length === 0 ? (
               <EmptyState
                 icon="users"
-                title="No Applicants Yet"
+                title="No Travellers Yet"
                 why="Add each person once, and every visa case reuses the same details."
-                action={{ href: '/app/applicants', label: 'Add an Applicant' }}
+                action={{ href: '/app/applicants', label: 'Add a Traveller' }}
               >
-                An applicant is one person whose passport details and documents you keep here and
+                A traveller is one person whose passport details and documents you keep here and
                 reuse for each visa application.
               </EmptyState>
             ) : (
@@ -678,7 +678,7 @@ export default async function AppPage({
             {data.applicants.length > data.perApplicant.length ? (
               <p className="muted do-next-more">
                 Home shows the first {data.perApplicant.length} of {data.applicants.length} people.{' '}
-                <Link href="/app/applicants">See All Applicants</Link>
+                <Link href="/app/applicants">See All Travellers</Link>
               </p>
             ) : null}
           </section>

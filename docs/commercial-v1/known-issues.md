@@ -6213,3 +6213,9 @@ Owner approved 2026-10-25. Two fixes where the product said something that was n
 - Parity: four states captured from main at 5a8f4370; the approved change is the confirmations label. Level guards seen failing (Tasks ungated, the Needs you line shown at every level).
 - Not verified live: the signed-in agency pages at phone and desktop widths.
 - Review (high) fixes: the line no longer counts reviews an unassigned administrator cannot record, ignores closed cases and names an unowned case; a member's line is proven never to use requests (seen failing when requests reached members); each working section has its own anchor, so a sent form keeps its section in view.
+
+### 2026-10-28, CCD-7 slice 7a: one name per thing, finished
+- "Traveller" replaces "applicant" in visible text across Home, All Travellers, the traveller pages, the case page and the agency pages (for example "Add a Traveller", "No Travellers Yet", "See All Travellers", "Awaiting Traveller", "Traveller has not confirmed yet"). Routes, stored values and code names keep "applicant"; staff screens are unchanged. The landing page's pilot notice keeps "applicant" (public copy, owned by the landing package).
+- The page finder (Ctrl+K) now uses the menu's names: Account Overview, All Travellers, Notifications, Privacy & Consent, Your Account. The traveller page tile reads "Active Cases" and its empty state "Start a Case"; no screen says "Visa Cases" any more. The tab title of the people page is "All Travellers".
+- Parity: one approved rule lists every exact phrase that changed (approved-changes.ts, TRAVELLER_WORDS); anything else missing still fails.
+- Not changed: apps/web/e2e/authenticated-workspace.spec.ts (staging only, skipped by design) clicks a link named "Applicants" that the signed-in shell no longer shows; it needs a staging run to update truthfully.
