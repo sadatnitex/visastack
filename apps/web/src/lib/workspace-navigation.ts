@@ -67,7 +67,7 @@ export function workspaceNavigation(
 ): WorkspaceNavigation {
   const segments = pathname.split('/').filter(Boolean);
   if (segments[1] === 'admin') {
-    if (!access.platform) return unavailable('Platform access unavailable');
+    if (!access.platform) return unavailable('Platform Access Unavailable');
     return {
       kind: 'platform',
       name: 'VisaStack',

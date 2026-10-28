@@ -5,7 +5,6 @@ import { isPublicBetaOpen } from '../../../lib/public-beta';
 import { createSignupForm } from '../../../lib/signup-form';
 import { signUpAction } from '../actions';
 import { AuthShell, ErrorLine, TextField } from '../auth-ui';
-import { SignupContext } from './signup-context';
 
 export const metadata: Metadata = { title: 'Create an Account' };
 export const dynamic = 'force-dynamic';
@@ -40,7 +39,12 @@ export default async function SignUpPage({
         </>
       }
     >
-      <p className="card-body signup-introduction">One profile you can use again and again.</p>
+      {/* Phone-first (owner list item 17): only what creating the account needs. The traveller or
+          agency choice that used to sit here was guidance only (the server never read it), so it is
+          gone; one account serves both, and agencies start from the account menu after sign-in. */}
+      <p className="card-body signup-introduction">
+        One profile you can use again and again. Agencies use the same account.
+      </p>
       {!isPublicBetaOpen() ? (
         <p className="card-body signup-invite-note">Access is by invitation.</p>
       ) : null}
@@ -70,8 +74,13 @@ export default async function SignUpPage({
             <label htmlFor="signup-website">Leave This Field Empty</label>
             <input id="signup-website" name="website" autoComplete="off" tabIndex={-1} />
           </div>
-          <SignupContext />
-          <TextField id="name" name="name" label="Your Name" autoComplete="name" maxLength={120} />
+          <TextField
+            id="name"
+            name="name"
+            label="Your Name (Optional)"
+            autoComplete="name"
+            maxLength={120}
+          />
           <TextField
             id="email"
             name="email"

@@ -47,10 +47,12 @@ export function WorkspaceRecordToolbar({
   const inputId = useId();
   const resultsId = useId();
   const searchId = useId();
+  // Staff mode (owner list item 18): platform pages carry no traveller search and no personal plan.
+  const staff = navigation.kind === 'platform';
   const scope: WorkspaceSearchScope | null =
     navigation.kind === 'agency'
       ? { kind: 'agency', organizationId: pathname.split('/')[3] ?? '' }
-      : navigation.kind === 'unavailable'
+      : navigation.kind === 'unavailable' || staff
         ? null
         : navigation.kind === 'personal' &&
             navigation.primary[0]?.href.startsWith('/app/applicant/')
@@ -70,6 +72,8 @@ export function WorkspaceRecordToolbar({
     setMobileSearch(false);
   }, [pathname]);
   useEffect(() => {
+    // Staff pages have no traveller search, so the shortcut is left to the browser.
+    if (staff) return;
     const shortcut = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
@@ -79,7 +83,7 @@ export function WorkspaceRecordToolbar({
     };
     document.addEventListener('keydown', shortcut);
     return () => document.removeEventListener('keydown', shortcut);
-  }, []);
+  }, [staff]);
   useEffect(() => {
     const selected = JSON.parse(scopeKey) as WorkspaceSearchScope | null;
     const value = query.trim();
@@ -136,108 +140,110 @@ export function WorkspaceRecordToolbar({
         <span className="record-brand-label">VisaStack</span>
       </Link>
       {contextChip}
-      <button
-        type="button"
-        ref={toggle}
-        className="record-search-toggle"
-        aria-label="Search accessible records"
-        aria-expanded={mobileSearch}
-        aria-controls={searchId}
-        onClick={() => {
-          const open = !mobileSearch;
-          setMobileSearch(open);
-          if (open) requestAnimationFrame(() => input.current?.focus());
-        }}
-      >
-        <Icon name="search" size={20} />
-      </button>
-      <search
-        id={searchId}
-        className="record-search"
-        aria-label="Accessible record search"
-        ref={search}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') {
-            event.preventDefault();
-            event.stopPropagation();
-            closeSearch();
-          }
-          if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
-          const links = Array.from(search.current?.querySelectorAll<HTMLAnchorElement>('a') ?? []);
-          if (!links.length) return;
-          const current = links.findIndex((item) => item === document.activeElement);
-          event.preventDefault();
-          if (event.key === 'ArrowUp' && current <= 0) input.current?.focus();
-          else
-            links[
-              Math.min(
-                links.length - 1,
-                Math.max(0, current + (event.key === 'ArrowDown' ? 1 : -1)),
-              )
-            ]?.focus();
-        }}
-      >
-        <Icon name="search" size={19} />
-        <label className="sr-only" htmlFor={inputId}>
-          Search Accessible Profiles, Cases and Document Names
-        </label>
-        <input
-          id={inputId}
-          ref={input}
-          type="search"
-          placeholder={
-            !scope
-              ? 'Choose an Available Workspace'
-              : selectedOrg
-                ? 'Search accessible cases and clients...'
-                : navigation.kind === 'platform'
-                  ? 'Search your own records...'
-                  : 'Search profiles, cases, documents...'
-          }
-          value={query}
-          maxLength={80}
-          readOnly={!scope}
-          aria-describedby={resultsId}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-        <ShortcutHint keyName="K" />
-        <div id={resultsId} className="record-search-results" hidden={!query.trim()}>
-          {result.status === 'loading' ? <output aria-live="polite">Searching...</output> : null}
-          {result.status === 'error' ? (
-            <p role="alert">
-              Search is unavailable. Try again, or sign in again if your session ended.
-            </p>
-          ) : null}
-          {result.status === 'idle' ? <p>Type at least two characters.</p> : null}
-          {result.status === 'ready' && !result.rows.length ? (
-            <output aria-live="polite">
-              {result.notice ?? 'No accessible records match this search.'}
-            </output>
-          ) : null}
-          {result.status === 'ready' && result.rows.length ? (
-            <nav aria-label="Search results">
-              <ul>
-                {result.rows.map((item) => (
-                  <li key={`${item.category}:${item.id}`}>
-                    <Link href={item.href} onClick={() => setQuery('')}>
-                      <small>{item.category}</small>
-                      <span>{item.label}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-          ) : null}
-        </div>
-      </search>
+      {staff ? null : (
+        <>
+          <button
+            type="button"
+            ref={toggle}
+            className="record-search-toggle"
+            aria-label="Search accessible records"
+            aria-expanded={mobileSearch}
+            aria-controls={searchId}
+            onClick={() => {
+              const open = !mobileSearch;
+              setMobileSearch(open);
+              if (open) requestAnimationFrame(() => input.current?.focus());
+            }}
+          >
+            <Icon name="search" size={20} />
+          </button>
+          <search
+            id={searchId}
+            className="record-search"
+            aria-label="Accessible record search"
+            ref={search}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                closeSearch();
+              }
+              if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+              const links = Array.from(
+                search.current?.querySelectorAll<HTMLAnchorElement>('a') ?? [],
+              );
+              if (!links.length) return;
+              const current = links.findIndex((item) => item === document.activeElement);
+              event.preventDefault();
+              if (event.key === 'ArrowUp' && current <= 0) input.current?.focus();
+              else
+                links[
+                  Math.min(
+                    links.length - 1,
+                    Math.max(0, current + (event.key === 'ArrowDown' ? 1 : -1)),
+                  )
+                ]?.focus();
+            }}
+          >
+            <Icon name="search" size={19} />
+            <label className="sr-only" htmlFor={inputId}>
+              Search Accessible Profiles, Cases and Document Names
+            </label>
+            <input
+              id={inputId}
+              ref={input}
+              type="search"
+              placeholder={
+                !scope
+                  ? 'Choose an Available Workspace'
+                  : selectedOrg
+                    ? 'Search accessible cases and clients...'
+                    : 'Search profiles, cases, documents...'
+              }
+              value={query}
+              maxLength={80}
+              readOnly={!scope}
+              aria-describedby={resultsId}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+            <ShortcutHint keyName="K" />
+            <div id={resultsId} className="record-search-results" hidden={!query.trim()}>
+              {result.status === 'loading' ? (
+                <output aria-live="polite">Searching...</output>
+              ) : null}
+              {result.status === 'error' ? (
+                <p role="alert">
+                  Search is unavailable. Try again, or sign in again if your session ended.
+                </p>
+              ) : null}
+              {result.status === 'idle' ? <p>Type at least two characters.</p> : null}
+              {result.status === 'ready' && !result.rows.length ? (
+                <output aria-live="polite">
+                  {result.notice ?? 'No accessible records match this search.'}
+                </output>
+              ) : null}
+              {result.status === 'ready' && result.rows.length ? (
+                <nav aria-label="Search results">
+                  <ul>
+                    {result.rows.map((item) => (
+                      <li key={`${item.category}:${item.id}`}>
+                        <Link href={item.href} onClick={() => setQuery('')}>
+                          <small>{item.category}</small>
+                          <span>{item.label}</span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </nav>
+              ) : null}
+            </div>
+          </search>
+        </>
+      )}
       <span className="record-toolbar-spacer" />
-      {planLabel ? (
+      {staff ? null : (
         <Link className="record-plan-badge" href={planHref}>
-          {planLabel}
-        </Link>
-      ) : (
-        <Link className="record-plan-badge" href={planHref}>
-          Plan Information
+          {planLabel || 'Plan Information'}
         </Link>
       )}
       <nav className="record-toolbar-shortcuts" aria-label="Help and notifications">
@@ -259,7 +265,11 @@ export function WorkspaceRecordToolbar({
       <AccountMenu
         name={accountName}
         email={accountEmail}
-        plan={state?.personalPlan ? { name: state.personalPlan.name, href: '/app/account' } : null}
+        plan={
+          state?.personalPlan && !staff
+            ? { name: state.personalPlan.name, href: '/app/account' }
+            : null
+        }
         signOut={signOut}
       />
     </header>

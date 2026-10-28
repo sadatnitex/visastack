@@ -119,3 +119,22 @@ describe('the status page', () => {
     expect(waiting).not.toContain('not available right now');
   });
 });
+
+describe('the notice about this version stays reachable here (owner list item 17)', () => {
+  it('shows the full notice under its own heading, at the place the footer links to', () => {
+    const html = render({
+      versionNotice: {
+        label: 'VisaStack Public Beta',
+        detail: 'Free to use at your own risk.',
+        short: 'Free, at your own risk.',
+      },
+    });
+    expect(html).toContain('id="about-this-version"');
+    expect(textOf(html)).toContain('About This Version');
+    expect(textOf(html)).toContain('VisaStack Public Beta. Free to use at your own risk.');
+  });
+
+  it('shows no such section when there is no notice (commercial mode)', () => {
+    expect(render()).not.toContain('about-this-version');
+  });
+});
