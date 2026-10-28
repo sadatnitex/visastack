@@ -6172,5 +6172,6 @@ Owner approved 2026-10-25. Two fixes where the product said something that was n
 
 ### 2026-10-28, CCD-7 first part: the dark Next Step banner
 - Owner asked why the black banner of the mockups was missing: it had not been built. The Next Step on Home, the traveller page and the Case page now uses the dark chapter colour already in the product (the sign-in page panel), full at Glance and shorter at Browse and Everything, with a white focus ring on the dark surface. Style only; no markup, link or level change.
-- Checked: rendered at Glance, Browse, Everything and phone width in a browser from the real stylesheet; flat-design, UI ratchet, type scale and text floor guards pass.
+- Checked: rendered at Glance, Browse, auto on desktop and phone, print and high contrast in a browser from the real stylesheet; contrast 10.9:1 for the reason text, 17.4:1 for the title, 15.6:1 for the button; flat-design, UI ratchet, type scale and text floor guards pass.
+- Review (high) fixes: the urgent and settled coloured edge is kept; print and high contrast keep the banner readable and outlined; the button hover is visible; title sizes come from the type scale; one set of rules for both banners through variables on the scope.
 - Not built: the single-line pill at Everything (it would hide the reason sentence). Not verified live: the signed-in pages themselves.

@@ -10156,37 +10156,49 @@ summary.visa-photo-title {
 
 /* WP-CCD7 next step: the dark Next Step banner of the approved mockups (Home, the traveller page
    and the Case page), built from the existing chapter colours. Full at Glance (and without
-   scripts), shorter at Browse and Everything. The button stays the screen's one primary action,
+   scripts); the shorter form at Browse and Everything comes from the variables set on the scope
+   below, so both banners change in one place. The button stays the screen's one primary action,
    shown light on the dark surface. */
 .next-step,
 .case-next-step {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 1.25rem;
-  padding: 28px;
+  padding: var(--ns-pad, 28px);
   background: var(--chapter-bg);
   color: var(--chapter-text);
-  border: 0;
+  /* Transparent edges keep an outline in high contrast mode, where backgrounds are dropped. */
+  border: 1px solid transparent;
+  border-left: 4px solid transparent;
   border-radius: var(--radius-lg);
 }
+.next-step {
+  flex-direction: var(--ns-direction, column);
+  align-items: var(--ns-align, flex-start);
+  gap: 1.25rem;
+}
+/* An urgent or a settled next step keeps its coloured edge, as before, light on the dark surface. */
+.next-step-tone-warning {
+  border-left-color: var(--warning-bg);
+}
+.next-step-tone-ok {
+  border-left-color: var(--success-bg);
+}
 .next-step-text {
-  flex: 0 1 auto;
+  flex: var(--ns-text-flex, 0 1 auto);
   max-width: 560px;
 }
 .next-step .card-kicker,
-.case-next-step-kicker {
+.case-next-step .case-next-step-kicker {
   font-size: var(--text-caption);
-  font-weight: 760;
+  font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--chapter-text);
 }
 .next-step-title,
 .case-next-step .case-next-step-title {
-  margin: 10px 0 0;
-  font-size: 21px;
-  font-weight: 760;
-  letter-spacing: -0.04em;
+  margin: var(--ns-title-gap, 10px) 0 0;
+  font-size: var(--ns-title-size, var(--text-title));
+  font-weight: 700;
+  letter-spacing: -0.03em;
   line-height: 1.18;
   color: #ffffff;
 }
@@ -10208,65 +10220,53 @@ summary.visa-photo-title {
 }
 .next-step .btn-primary:hover,
 .case-next-step .btn-primary:hover {
-  background: var(--brand-tint-2);
-  border-color: var(--brand-tint-2);
+  background: var(--hairline);
+  border-color: var(--hairline);
   color: var(--text);
 }
 .next-step :focus-visible,
 .case-next-step :focus-visible {
   outline-color: #ffffff;
 }
-.depth-scope:not(:has(.depth-nojs))[data-depth="browse"] .next-step,
-.depth-scope:not(:has(.depth-nojs))[data-depth="everything"] .next-step {
-  flex-direction: row;
-  align-items: center;
-  padding: 20px 24px;
-}
-.depth-scope:not(:has(.depth-nojs))[data-depth="browse"] .case-next-step,
-.depth-scope:not(:has(.depth-nojs))[data-depth="everything"] .case-next-step {
-  padding: 20px 24px;
-}
-.depth-scope:not(:has(.depth-nojs))[data-depth="browse"]
-  :is(.next-step-title, .case-next-step .case-next-step-title),
-.depth-scope:not(:has(.depth-nojs))[data-depth="everything"]
-  :is(.next-step-title, .case-next-step .case-next-step-title) {
-  margin-top: 8px;
-  font-size: 20px;
-}
-.depth-scope:not(:has(.depth-nojs))[data-depth="browse"] :is(.next-step-why, .case-next-step-body),
-.depth-scope:not(:has(.depth-nojs))[data-depth="everything"]
-  :is(.next-step-why, .case-next-step-body) {
-  font-size: var(--text-small);
-}
-/* In the one-line layouts the words take the room and the button sits at the end. */
-.depth-scope:not(:has(.depth-nojs))[data-depth="browse"] .next-step-text,
-.depth-scope:not(:has(.depth-nojs))[data-depth="everything"] .next-step-text {
-  flex: 1 1 18rem;
+/* The shorter form: Browse and Everything, and "auto" on wider screens (Browse there). */
+.depth-scope:not(:has(.depth-nojs)):is([data-depth="browse"], [data-depth="everything"]) {
+  --ns-pad: 20px 24px;
+  --ns-direction: row;
+  --ns-align: center;
+  --ns-text-flex: 1 1 18rem;
+  --ns-title-gap: 8px;
+  --ns-title-size: var(--text-lead);
 }
 @media (min-width: 761px) {
-  .depth-scope:not(:has(.depth-nojs))[data-depth="auto"] .next-step-text {
-    flex: 1 1 18rem;
-  }
-  .depth-scope:not(:has(.depth-nojs))[data-depth="auto"] .next-step {
-    flex-direction: row;
-    align-items: center;
-    padding: 20px 24px;
-  }
-  .depth-scope:not(:has(.depth-nojs))[data-depth="auto"] .case-next-step {
-    padding: 20px 24px;
-  }
-  .depth-scope:not(:has(.depth-nojs))[data-depth="auto"]
-    :is(.next-step-title, .case-next-step .case-next-step-title) {
-    margin-top: 8px;
-    font-size: 20px;
-  }
-  .depth-scope:not(:has(.depth-nojs))[data-depth="auto"] :is(.next-step-why, .case-next-step-body) {
-    font-size: var(--text-small);
+  .depth-scope:not(:has(.depth-nojs))[data-depth="auto"] {
+    --ns-pad: 20px 24px;
+    --ns-direction: row;
+    --ns-align: center;
+    --ns-text-flex: 1 1 18rem;
+    --ns-title-gap: 8px;
+    --ns-title-size: var(--text-lead);
   }
 }
 @media (max-width: 760px) {
   .next-step,
   .case-next-step {
-    padding: 22px;
+    padding: var(--ns-pad-phone, 22px);
+  }
+}
+/* On paper the dark surface is dropped: print it as dark text inside a plain outline. */
+@media print {
+  .next-step,
+  .case-next-step {
+    background: #ffffff;
+    color: #000000;
+    border: 1px solid #000000;
+  }
+  .next-step .card-kicker,
+  .next-step-title,
+  .next-step-why,
+  .case-next-step .case-next-step-kicker,
+  .case-next-step .case-next-step-title,
+  .case-next-step .case-next-step-body {
+    color: #000000;
   }
 }
