@@ -4476,3 +4476,102 @@ export const paymentReceipts = pgTable(
     check('payment_receipts_amount_positive', sql`${table.amountMinorUnits} > 0`),
   ],
 );
+
+// --- AI connections (ADR 0021, S13) ----------------------------------------
+// A person lets their own AI app (ChatGPT, Claude) read chosen parts of one record. This is the
+// owner's own delegated, narrowed authority, never a sharing grant. Tokens are stored only as
+// SHA-256 hashes, so a database read leaks no usable token.
+
+/** Which cases a connection covers: none, one chosen case, or every current one. */
+export const aiConnectionCaseMode = pgEnum('ai_connection_case_mode', [
+  'NONE',
+  'ONE',
+  'ALL_CURRENT',
+]);
+
+/** A single-use authorization code, a short access token, or a rotating refresh token. */
+export const aiTokenKind = pgEnum('ai_token_kind', ['CODE', 'ACCESS', 'REFRESH']);
+
+/** AI apps registered through Dynamic Client Registration (public clients only). */
+export const oauthClients = pgTable('oauth_clients', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientId: text('client_id').notNull().unique(),
+  clientName: text('client_name').notNull(),
+  redirectUris: text('redirect_uris').array().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+});
+
+export const aiConnections = pgTable(
+  'ai_connections',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    clientId: text('client_id').notNull(),
+    clientName: text('client_name').notNull(),
+    clientHost: text('client_host').notNull(),
+    // The stored choices are the authority; token scopes are informative only. Layer keys,
+    // `document_list`, and `document_text` (the document groups follow from the chosen layers:
+    // AI_DOCUMENT_TEXT_GROUPS in packages/services/src/ai-connection-scopes.ts).
+    scopes: text('scopes').array().notNull().default(sql`'{}'::text[]`),
+    caseMode: aiConnectionCaseMode('case_mode').notNull(),
+    missionId: uuid('mission_id').references(() => missions.id, { onDelete: 'set null' }),
+    revealIdentifiers: boolean('reveal_identifiers').notNull().default(false),
+    depth: text('depth').notNull().default('standard'),
+    // Set when the app first exchanges its code; a consent never completed stays inactive.
+    activatedAt: timestamp('activated_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    // Null means "until I turn it off".
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    revokedReason: text('revoked_reason'),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('ai_connections_account_idx').on(table.accountId),
+    index('ai_connections_applicant_idx').on(table.applicantId),
+    index('ai_connections_mission_idx').on(table.missionId),
+    // A chosen case only with "one case"; if that case is later deleted the link clears and the
+    // connection covers no case.
+    check(
+      'ai_connections_case_mode_mission',
+      sql`${table.caseMode} = 'ONE' or ${table.missionId} is null`,
+    ),
+    check('ai_connections_depth', sql`${table.depth} in ('brief', 'standard', 'full')`),
+  ],
+);
+
+export const aiConnectionTokens = pgTable(
+  'ai_connection_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    connectionId: uuid('connection_id')
+      .notNull()
+      .references(() => aiConnections.id, { onDelete: 'cascade' }),
+    kind: aiTokenKind('kind').notNull(),
+    tokenHash: text('token_hash').notNull().unique(),
+    // One family per sign-in: reusing a rotated refresh token revokes the whole family.
+    familyId: uuid('family_id').notNull(),
+    // Bound to the authorization request (codes only).
+    codeChallenge: text('code_challenge'),
+    redirectUri: text('redirect_uri'),
+    resource: text('resource').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('ai_connection_tokens_connection_idx').on(table.connectionId),
+    index('ai_connection_tokens_family_idx').on(table.familyId),
+    check(
+      'ai_connection_tokens_code_binding',
+      sql`${table.kind} <> 'CODE' or (${table.codeChallenge} is not null and ${table.redirectUri} is not null)`,
+    ),
+  ],
+);

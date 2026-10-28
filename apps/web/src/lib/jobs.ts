@@ -25,6 +25,8 @@ import {
   type SystemScope,
   applyEmailDeliveryEvent,
   checkRateLimit,
+  deleteExpiredAiTokens,
+  deleteStaleAiClients,
   executeAccountDeletion,
   executeScheduledDowngrade,
   listDueDeletions,
@@ -762,7 +764,12 @@ export async function triggerRateLimitPrune(): Promise<{ readonly pruned: number
   });
   try {
     const handle = db as unknown as Parameters<typeof pruneExpiredRateLimitBuckets>[0];
-    return { pruned: await pruneExpiredRateLimitBuckets(handle) };
+    const pruned = await pruneExpiredRateLimitBuckets(handle);
+    // The same daily tidy-up removes expired AI app sign-in tokens and app registrations unused
+    // for 30 days (ADR 0021); both are no-ops until their tables exist.
+    await deleteExpiredAiTokens(handle);
+    await deleteStaleAiClients(handle);
+    return { pruned };
   } catch (error) {
     reportServerError('triggerRateLimitPrune', error, { step: 'prune failed' });
     return { pruned: 0 };

@@ -64,7 +64,7 @@ export default async function ApplicantsPage() {
           <p className="card-kicker">New</p>
           <h2 className="card-title">Add an Applicant</h2>
           {data.coreGranted ? (
-            <AddApplicantForm />
+            <AddApplicantForm selfAdded={data.applicants.some((a) => a.relationship === 'SELF')} />
           ) : (
             <p className="card-body">
               Turn on <strong>Let VisaStack Process My Details</strong> on{' '}
