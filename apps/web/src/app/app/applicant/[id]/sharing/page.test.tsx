@@ -436,7 +436,7 @@ describe('after a change to access, the reloaded page says what changed (CCD qui
     ['invitation-withdrawn', 'Invitation withdrawn. Its link no longer works.'],
     [
       'invitation-not-withdrawn',
-      'The invitation could not be withdrawn. It may have been accepted already, so check who has access below.',
+      'The invitation could not be withdrawn. They may have taken it up already, so check who has access below.',
     ],
   ])('%s', async (done, line) => {
     const html = await renderDone(done);

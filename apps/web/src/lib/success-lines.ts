@@ -110,7 +110,7 @@ export const ACCESS_PAUSED_LINE = 'Access paused. They cannot see anything until
 export const ACCESS_RESUMED_LINE = 'Access resumed. They can see what you shared again.';
 export const INVITATION_WITHDRAWN_LINE = 'Invitation withdrawn. Its link no longer works.';
 export const INVITATION_NOT_WITHDRAWN_LINE =
-  'The invitation could not be withdrawn. It may have been accepted already, so check who has access below.';
+  'The invitation could not be withdrawn. They may have taken it up already, so check who has access below.';
 
 /**
  * The finished change named by the Sharing page address (`?done=`), which survives the reload

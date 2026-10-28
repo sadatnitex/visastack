@@ -57,3 +57,5 @@ apps/web/src/app/app/deadline-clock-data.test.ts
 apps/web/src/app/app/deadline-clock-data.ts
 apps/web/src/lib/a11y-guards.test.ts
 apps/web/src/lib/success-lines.ts
+apps/web/src/app/app/applicant/[id]/sharing/done-notice.tsx
+apps/web/src/app/app/applicant/[id]/sharing/done-notice.test.tsx
