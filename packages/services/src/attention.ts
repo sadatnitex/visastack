@@ -5,6 +5,10 @@ import { AuthorizedApplicant } from './access/require-access';
 import { appendAuditEvent } from './audit';
 import { schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import {
+  WAITING_ON_AGENCY_REQUEST_STATUSES,
+  WAITING_ON_TRAVELLER_REQUEST_STATUSES,
+} from './evidence-request-groups';
 import { DEFAULT_EXPIRY_REMINDER_THRESHOLD_DAYS, getReminderThresholds } from './expiry';
 import { toLocalDateParts } from './notification-sweep';
 import { referenceCodesFor } from './reference-codes';
@@ -37,9 +41,9 @@ import { referenceCodesFor } from './reference-codes';
 export const FINISHED_CASE_STATES: ReadonlySet<string> = new Set(['CLOSED', 'CANCELLED']);
 
 /** Request statuses still waiting on the traveller (ADR 0015 section 5: open or sent back). */
-export const ATTENTION_REQUEST_STATUSES = ['OPEN', 'NEEDS_REPLACEMENT'] as const;
+export const ATTENTION_REQUEST_STATUSES = WAITING_ON_TRAVELLER_REQUEST_STATUSES;
 /** Request statuses where the traveller has answered and the agency has the next move. */
-export const WITH_AGENCY_REQUEST_STATUSES = ['RECEIVED', 'UNDER_REVIEW'] as const;
+export const WITH_AGENCY_REQUEST_STATUSES = WAITING_ON_AGENCY_REQUEST_STATUSES;
 const WAITING_ON_YOU: ReadonlySet<string> = new Set(ATTENTION_REQUEST_STATUSES);
 const WITH_AGENCY: ReadonlySet<string> = new Set(WITH_AGENCY_REQUEST_STATUSES);
 /** Task statuses the reminder sweep treats as live (`sweepTaskDeadlineReminders`). */

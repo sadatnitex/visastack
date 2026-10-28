@@ -91,7 +91,7 @@ describe('agency Dashboard', () => {
     expect(text).toMatch(/Cases you can see 2/);
     expect(text).toMatch(/Cases with Nobody Assigned 1/);
     // WP-V4 review: an open request and one sent back for a fix both wait on the applicant.
-    expect(text).toMatch(/Evidence Requests Waiting on the Applicant 2/);
+    expect(text).toMatch(/Evidence Requests Waiting on the Traveller 2/);
     expect(text).toMatch(/Overdue Tasks 1/);
   });
 
@@ -154,7 +154,7 @@ describe('agency Dashboard', () => {
     expect(text).toContain("You're a member of this organization but not an administrator");
     expect(text).toMatch(/Cases you can see 1/);
     expect(text).not.toContain('Cases with Nobody Assigned');
-    expect(text).not.toContain('Evidence Requests Waiting on the Applicant');
+    expect(text).not.toContain('Evidence Requests Waiting on the Traveller');
     expect(text).toMatch(/Overdue Tasks 0/);
     expect(text).not.toContain('Reassignment Queue');
   });
@@ -379,9 +379,54 @@ describe('agency Dashboard: counts and Do Next agree (WP-V4 review)', () => {
       },
     ]);
     const text = textOf(await renderServer(Page(pageProps())));
-    expect(text).toMatch(/Evidence Requests Waiting on the Applicant 1/);
+    expect(text).toMatch(/Evidence Requests Waiting on the Traveller 1/);
     expect(text).toContain('Waiting on Traveller 1');
     expect(text).toMatch(/Sent back for a fix and was due/);
+  });
+});
+
+describe('agency Dashboard: one definition of pending requests (owner decision D4)', () => {
+  const row = (status: string, applicantId: string, missionId: string) => ({
+    id: `r-${status}`,
+    applicantId,
+    missionId,
+    kind: 'DOCUMENT',
+    docType: 'PASSPORT',
+    status,
+    createdAt: new Date('2026-10-01T00:00:00.000Z'),
+  });
+
+  it('counts a request in every one of the eight statuses: pending is travellers plus you, and the other numbers agree', async () => {
+    mocks.loadUnassignedQueue.mockResolvedValue([]);
+    mocks.loadEvidenceRequests.mockResolvedValue([
+      // Rahim's case holds only requests the agency has to act on, or that are closed.
+      row('RECEIVED', 'ap1', 'm1'),
+      row('UNDER_REVIEW', 'ap1', 'm1'),
+      row('ACCEPTED', 'ap1', 'm1'),
+      row('CANCELLED', 'ap1', 'm1'),
+      row('FULFILLED', 'ap1', 'm1'),
+      row('DECLINED', 'ap1', 'm1'),
+      // Nusrat's case holds the two a traveller still owes.
+      row('OPEN', 'ap2', 'm2'),
+      row('NEEDS_REPLACEMENT', 'ap2', 'm2'),
+    ]);
+    const text = textOf(await renderServer(Page(pageProps())));
+    expect(text).toMatch(/Pending Requests 4/);
+    expect(text).toContain('2 waiting on travellers, 2 waiting on you');
+    // The Attention tile and the quick view use the traveller part only.
+    expect(text).toMatch(/Evidence Requests Waiting on the Traveller 2/);
+    expect(text).toContain('Waiting on Traveller 1');
+  });
+
+  it('shows no second line to a member who is not an administrator', async () => {
+    mocks.loadOrgAccess.mockResolvedValue({ org: { id: 'o1' }, admin: false, member: true });
+    mocks.loadMembers.mockResolvedValue([]);
+    mocks.loadEvidenceRequests.mockResolvedValue([]);
+    mocks.loadCases.mockResolvedValue({ admin: false, cases: [inGoodShape] });
+    mocks.loadUnassignedQueue.mockResolvedValue([]);
+    const text = textOf(await renderServer(Page(pageProps())));
+    expect(text).toMatch(/Pending Requests 0/);
+    expect(text).not.toContain('waiting on travellers');
   });
 });
 

@@ -1,4 +1,8 @@
-import { daysUntilDueDay } from '@visastack/services';
+import {
+  type PendingRequestCounts,
+  countPendingRequests,
+  daysUntilDueDay,
+} from '@visastack/services';
 
 /**
  * Pure helpers shared by the agency console's pages (Dashboard, Clients, Cases,
@@ -106,15 +110,6 @@ export function overdueTasks<T extends DueTask>(
   );
 }
 
-/**
- * Request statuses that wait on the traveller: a first request, and one sent back for a fix.
- * The Dashboard count, the Waiting on Traveller view and Do Next all use this one rule.
- */
-export const WAITING_ON_TRAVELLER_STATUSES: ReadonlySet<string> = new Set([
-  'OPEN',
-  'NEEDS_REPLACEMENT',
-]);
-
 /** How many of a case's tasks are still live and past their due date. */
 export function countOverdueTasks(
   tasks: readonly DueTask[],
@@ -131,6 +126,11 @@ export interface AttentionSummary {
   readonly needAssignment: number | null;
   /** Evidence requests still waiting on the applicant (open or sent back for a fix). Administrators only (the list is administrator data). */
   readonly openRequests: number | null;
+  /**
+   * Every request not yet closed, split by who has the next move. Its traveller part is
+   * `openRequests`; the groups come from one definition in the services package (owner decision D4).
+   */
+  readonly pendingRequests: PendingRequestCounts;
   /** Live (open or started) tasks past their due date across the visible cases. */
   readonly overdueTasks: number;
 }
@@ -153,14 +153,15 @@ export function summarizeAttention(input: {
   readonly now?: Date;
 }): AttentionSummary {
   const now = input.now ?? new Date();
+  // Requests are administrator data: anyone else is told zero, never a count.
+  const pendingRequests = countPendingRequests(input.admin ? input.requests : []);
   return {
     cases: input.cases.length,
     needAssignment: input.admin
       ? input.cases.filter((c) => c.assignments.length === 0).length
       : null,
-    openRequests: input.admin
-      ? input.requests.filter((r) => WAITING_ON_TRAVELLER_STATUSES.has(r.status)).length
-      : null,
+    openRequests: input.admin ? pendingRequests.waitingOnTravellers : null,
+    pendingRequests,
     overdueTasks: input.cases.reduce(
       (sum, c) => sum + countOverdueTasks(c.tasks, now, c.applicantTimezone),
       0,
