@@ -80,6 +80,7 @@ describe('summarizeAttention', () => {
       cases: 3,
       needAssignment: 1,
       openRequests: 2,
+      pendingRequests: { pending: 3, waitingOnTravellers: 2, waitingOnAgency: 1 },
       overdueTasks: 3,
     });
   });
@@ -89,6 +90,7 @@ describe('summarizeAttention', () => {
       cases: 3,
       needAssignment: null,
       openRequests: null,
+      pendingRequests: { pending: 0, waitingOnTravellers: 0, waitingOnAgency: 0 },
       overdueTasks: 3,
     });
   });
@@ -98,6 +100,7 @@ describe('summarizeAttention', () => {
       cases: 0,
       needAssignment: 0,
       openRequests: 0,
+      pendingRequests: { pending: 0, waitingOnTravellers: 0, waitingOnAgency: 0 },
       overdueTasks: 0,
     });
   });
@@ -169,6 +172,35 @@ describe('dashboard counts agree with Do Next (WP-V4 review)', () => {
         now: NOW,
       }).openRequests,
     ).toBe(2);
+  });
+
+  it('counts pending requests as every request not yet closed, split by who has the next move', () => {
+    const statuses = [
+      'OPEN',
+      'RECEIVED',
+      'UNDER_REVIEW',
+      'ACCEPTED',
+      'NEEDS_REPLACEMENT',
+      'CANCELLED',
+      'FULFILLED',
+      'DECLINED',
+    ];
+    const summary = summarizeAttention({
+      admin: true,
+      cases: [],
+      requests: statuses.map((status) => ({ status })),
+      now: NOW,
+    });
+    expect(summary.pendingRequests).toEqual({
+      pending: 4,
+      waitingOnTravellers: 2,
+      waitingOnAgency: 2,
+    });
+    // The tile total is the two parts added together, and the traveller part is the Attention number.
+    expect(summary.pendingRequests.pending).toBe(
+      summary.pendingRequests.waitingOnTravellers + summary.pendingRequests.waitingOnAgency,
+    );
+    expect(summary.openRequests).toBe(summary.pendingRequests.waitingOnTravellers);
   });
 
   it('treats a due date as a calendar day: a task due today is not past due until the day ends', () => {

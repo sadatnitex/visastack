@@ -310,6 +310,35 @@ describe('Do next uses the answered file and the calendar-day rule (WP-V4 review
     expect(item.action.message.text).toContain('needs a new version');
   });
 
+  it('puts one request in every real status where the shared groups say: traveller group in row 1, agency group in row 2, closed ones nowhere (owner decision D4)', () => {
+    const statuses: DoNextRequest['status'][] = [
+      'OPEN',
+      'RECEIVED',
+      'UNDER_REVIEW',
+      'ACCEPTED',
+      'NEEDS_REPLACEMENT',
+      'CANCELLED',
+      'FULFILLED',
+      'DECLINED',
+    ];
+    const items = buildDoNext(
+      input({
+        cases: [caseRow({ missionId: 'm1' })],
+        requests: statuses.map((status) =>
+          requestRow({ id: `r-${status}`, status, dueDate: day(-3) }),
+        ),
+      }),
+    );
+    const keysIn = (tier: number) =>
+      items
+        .filter((item) => item.tier === tier)
+        .map((item) => item.key)
+        .sort();
+    expect(keysIn(1)).toEqual(['request:r-NEEDS_REPLACEMENT', 'request:r-OPEN']);
+    expect(keysIn(2)).toEqual(['request:r-RECEIVED', 'request:r-UNDER_REVIEW']);
+    expect(items).toHaveLength(4);
+  });
+
   it('does not list a task due today as overdue, and lists it the day after', () => {
     const dueToday = [caseRow({ missionId: 'm1', tasks: [{ status: 'OPEN', dueDate: day(0) }] })];
     expect(buildDoNext(input({ cases: dueToday }))).toEqual([]);

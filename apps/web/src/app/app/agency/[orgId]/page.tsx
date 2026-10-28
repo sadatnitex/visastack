@@ -1,4 +1,5 @@
 import { CANONICAL_CASE_STATES, LEGACY_ONLY_MISSION_STATES } from '@visastack/core';
+import { isWaitingOnTraveller } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { CaseReadinessRing } from '../../../../components/case-readiness-ring';
@@ -17,12 +18,7 @@ import {
   loadOrgAccess,
   loadUnassignedQueue,
 } from './console-data';
-import {
-  WAITING_ON_TRAVELLER_STATUSES,
-  countOverdueTasks,
-  nextApproachingDate,
-  summarizeAttention,
-} from './console-format';
+import { countOverdueTasks, nextApproachingDate, summarizeAttention } from './console-format';
 import { buildDoNext } from './do-next';
 import { DoNextList } from './do-next-list';
 
@@ -30,16 +26,20 @@ function Stat({
   label,
   value,
   tone,
+  note,
 }: {
   readonly label: string;
   readonly value: number;
   readonly tone?: 'warning' | 'danger';
+  /** A second line under the number. */
+  readonly note?: string | undefined;
 }) {
   const state = value > 0 && tone ? ` stat-${tone}` : '';
   return (
     <div className={`stat${state}`}>
       <span className="stat-label">{label}</span>
       <span className="stat-value">{value}</span>
+      {note ? <span className="stat-note">{note}</span> : null}
     </div>
   );
 }
@@ -180,8 +180,7 @@ export default async function AgencyDashboardPage({
         openRequests: forCase.filter((r) => r.status === 'OPEN').length,
         // "Review issues": evidence a reviewer already looked at and sent back for replacement.
         reviewIssues: forCase.filter((r) => r.status === 'NEEDS_REPLACEMENT').length,
-        waitingOnTraveller: forCase.filter((r) => WAITING_ON_TRAVELLER_STATUSES.has(r.status))
-          .length,
+        waitingOnTraveller: forCase.filter((r) => isWaitingOnTraveller(r.status)).length,
         overdueTasks: countOverdueTasks(mission.tasks, undefined, mission.applicantTimezone),
         approaching: nextApproachingDate(mission.targetDeadline, mission.travelStartDate),
         assignedToMe: mission.assignments.some((a) => a.memberAccountId === data.viewerAccountId),
@@ -291,10 +290,11 @@ export default async function AgencyDashboardPage({
         />
         <Stat
           label="Pending Requests"
-          value={
-            data.requests.filter((request) =>
-              ['OPEN', 'SUBMITTED', 'NEEDS_REPLACEMENT'].includes(request.status),
-            ).length
+          value={summary.pendingRequests.pending}
+          note={
+            data.admin
+              ? `${summary.pendingRequests.waitingOnTravellers} waiting on ${summary.pendingRequests.waitingOnTravellers === 1 ? 'a traveller' : 'travellers'}, ${summary.pendingRequests.waitingOnAgency} waiting on you`
+              : undefined
           }
         />
         {data.admin ? (
@@ -680,7 +680,7 @@ export default async function AgencyDashboardPage({
             ) : null}
             {summary.openRequests !== null ? (
               <Stat
-                label="Evidence Requests Waiting on the Applicant"
+                label="Evidence Requests Waiting on the Traveller"
                 value={summary.openRequests}
                 tone="warning"
               />
@@ -689,7 +689,7 @@ export default async function AgencyDashboardPage({
           </div>
           {needsYou === 0 && doNext.length === 0 ? (
             <p className="stat-note">
-              Nothing is overdue, unassigned or waiting on an applicant right now.
+              Nothing is overdue, unassigned or waiting on a traveller right now.
             </p>
           ) : null}
         </section>

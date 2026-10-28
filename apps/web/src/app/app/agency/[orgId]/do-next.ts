@@ -193,6 +193,7 @@ export function buildDoNext(input: DoNextInput): DoNextItem[] {
 
       if (group === 'MISSING' || group === 'NEEDS_CORRECTION') {
         if (!request.dueDate || daysUntilDue(request.dueDate, now, timezone) >= 0) continue;
+        // Sent back for a fix: the one traveller-side status that triage reads as Needs Correction.
         const sentBack = request.status === 'NEEDS_REPLACEMENT';
         // Received, but the newest version of the file failed its checks or is gone.
         const unusable = !sentBack && group === 'NEEDS_CORRECTION';

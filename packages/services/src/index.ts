@@ -436,6 +436,16 @@ export {
 } from './agency';
 
 export {
+  type PendingRequestCounts,
+  PENDING_REQUEST_STATUSES,
+  WAITING_ON_AGENCY_REQUEST_STATUSES,
+  WAITING_ON_TRAVELLER_REQUEST_STATUSES,
+  countPendingRequests,
+  isWaitingOnAgency,
+  isWaitingOnTraveller,
+} from './evidence-request-groups';
+
+export {
   type Membership,
   type OrgMembershipView,
   type Organization,

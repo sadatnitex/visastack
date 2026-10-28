@@ -1,9 +1,11 @@
-import { daysUntilDueDay } from '@visastack/services';
+import { WAITING_ON_TRAVELLER_REQUEST_STATUSES, daysUntilDueDay } from '@visastack/services';
 import type { Tone } from '../../../../../components/ui';
 import { plural } from '../../../../../lib/plural';
 
 /** Statuses still waiting on the traveller: a first request, and one sent back for a fix. */
-export const AWAITING_SUBMISSION: ReadonlySet<string> = new Set(['OPEN', 'NEEDS_REPLACEMENT']);
+export const AWAITING_SUBMISSION: ReadonlySet<string> = new Set(
+  WAITING_ON_TRAVELLER_REQUEST_STATUSES,
+);
 
 /**
  * The deadline as a status: overdue is serious, due within a week is a warning, later is calm.
