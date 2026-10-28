@@ -343,6 +343,8 @@ describe('product event categories (OPS-04)', () => {
       'country_start',
       // Growth loop 1 (agency invites its clients).
       'agency_invites',
+      // S16 (ADR 0021 section 7): the AI connector.
+      'ai_connector',
     ]);
     for (const category of PRODUCT_EVENT_CATEGORIES) {
       expect(category.eventTypes.length, category.key).toBeGreaterThan(0);

@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 import { type Result, err, ok } from '@visastack/core';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import {
+  AI_CONNECTION_LAYERS,
   type AiConnectionChoices,
   aiConnectionExpiry,
   oauthScopeNames,
@@ -10,6 +11,7 @@ import {
 import { appendAuditEvent } from '../audit';
 import { type Db, first, required, schema } from '../db';
 import { isMissingRelationError } from '../missing-relation';
+import { recordProductEvent } from '../product-events';
 import { AuthorizedApplicant } from './require-access';
 import { StepUpProof } from './step-up-proof';
 
@@ -410,6 +412,17 @@ export async function exchangeAiAuthorizationCode(
           .update(schema.aiConnections)
           .set({ activatedAt: now })
           .where(eq(schema.aiConnections.id, connection.id));
+        // S16 telemetry: the app finished connecting (a consent it never finishes reads nothing
+        // and records nothing). Best effort, a savepoint that never throws; once per connection.
+        // Only the case mode and how many sections were granted.
+        await recordProductEvent(tx, {
+          eventType: 'AI_CONNECTOR_CONNECTED',
+          accountId: connection.accountId,
+          dimension: connection.caseMode,
+          metricValue: AI_CONNECTION_LAYERS.filter((layer) => connection.scopes.includes(layer))
+            .length,
+          onceFor: connection.id,
+        });
       }
       return ok(tokens);
     }),

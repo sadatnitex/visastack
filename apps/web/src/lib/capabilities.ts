@@ -6,6 +6,7 @@ import {
 } from '@visastack/core';
 import { type Db, loadScannerEvidence } from '@visastack/services';
 import { isEnvAiExtractionConfigured, resolveAiExtractionAvailability } from './ai';
+import { aiConnectorEnabled } from './ai-connector';
 import {
   commercialConfigurationReady,
   operationalConfigurationReady,
@@ -127,6 +128,10 @@ export function getPlatformCapabilities(): PlatformCapabilities {
     // Available only when a payment provider is chosen AND fully configured (ADR 0020); the
     // default, with nothing set, stays unconfigured.
     payments: isPaymentProviderConfigured() ? 'available' : 'unconfigured',
+    // The AI connector (ADR 0021 section 7): off unless AI_CONNECTOR_ENABLED is exactly "true",
+    // the same switch every connector address reads. Turning it on for real people is an owner
+    // decision tied to the real-data gate.
+    aiConnector: aiConnectorEnabled() ? 'available' : 'disabled',
     realApplicantData: !isDev && operationalConfigurationReady() ? 'available' : 'disabled',
     commercialClaims: isCommercial && commercialConfigurationReady() ? 'available' : 'disabled',
   };
