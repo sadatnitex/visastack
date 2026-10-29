@@ -38,6 +38,14 @@ describe('Platform > Settings', () => {
     expect(textOf(html)).not.toContain('No Configuration Permission');
   });
 
+  it('shows Billing Rules to the platform owner only', async () => {
+    expect(await renderServer(Page())).not.toContain('/app/admin/billing');
+    mocks.isPlatformOwnerAccount.mockResolvedValue(true);
+    const html = await renderServer(Page());
+    expect(textOf(html)).toContain('Billing Rules');
+    expect(html).toContain('href="/app/admin/billing"');
+  });
+
   it('hides it from an administrator without that permission', async () => {
     const html = await renderServer(Page());
     expect(html).not.toContain('/app/admin/document-protection');

@@ -649,6 +649,11 @@ describe('overdue handling and reactivation', () => {
       const off = await runBillingCycle(db, scope());
       expect(off).toMatchObject({ overdueHandlingEnabled: false, movedToSuspended: 0 });
       expect(await status(w)).toBe('ACTIVE');
+      // Day counts saved but the switch left off: still nothing.
+      await setRules(db, { ...POLICY, overdueHandlingEnabled: false });
+      const saved = await runBillingCycle(db, scope());
+      expect(saved).toMatchObject({ overdueHandlingEnabled: false, movedToSuspended: 0 });
+      expect(await status(w)).toBe('ACTIVE');
       expect(await historyOf(w)).toHaveLength(1);
 
       await setRules(db, { ...POLICY, overdueHandlingEnabled: true });
