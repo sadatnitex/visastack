@@ -16,6 +16,7 @@ import {
   check,
   customType,
   date,
+  doublePrecision,
   foreignKey,
   index,
   integer,
@@ -118,6 +119,9 @@ export const erasureJobReason = pgEnum('erasure_job_reason', [
   // WP-PH1: a profile photo that was replaced or removed. Its row is already
   // gone; the worker deletes and verifies the bytes like any other job.
   'PROFILE_PHOTO_REMOVAL',
+  // S23: a prepared safe copy page whose boxes changed or were removed (or whose document went).
+  // Its row is already gone or cleared; the worker deletes and verifies the bytes.
+  'SAFE_COPY_REMOVAL',
 ]);
 export const erasureJobStatus = pgEnum('erasure_job_status', [
   'PENDING',
@@ -4600,5 +4604,77 @@ export const calendarFeeds = pgTable(
   (table) => [
     index('calendar_feeds_owner_idx').on(table.ownerAccountId),
     check('calendar_feeds_secret_hash_shape', sql`${table.secretHash} ~ '^[0-9a-f]{64}$'`),
+  ],
+);
+
+// Safe copies (ADR 0022, S23). The black boxes the record owner drew, or accepted from a
+// suggestion, on one page of one document version: one row per page. A version counts as
+// prepared only when its rows cover every page; a page with an empty list is the owner's explicit
+// "nothing to hide" for that page. Boxes are fractions of the page (0 to 1), checked by the
+// service. Rows go with the version (a new version starts with none: masks are never copied,
+// because the layout may differ) and with the owner's account.
+//
+// Every save writes a new `maskRevision` on all rows of the version. Each page is then drawn once,
+// with its boxes painted black, and stored as a private derived object (`renderedStorageObjectId`
+// with its type, size and page size in points); a safe copy is served only when every page has a
+// stored drawing for the current revision (ADR 0022 amendment, deviation 7). A drawn page records
+// its type, size and page size with the file; a page whose file link is empty is not drawn (the
+// link empties itself when the file's registration is erased).
+export interface RedactionMaskBox {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
+export const redactionMasks = pgTable(
+  'redaction_masks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    page: integer('page').notNull(),
+    boxes: jsonb('boxes').$type<readonly RedactionMaskBox[]>().notNull().default(sql`'[]'::jsonb`),
+    source: text('source').notNull(),
+    createdByAccountId: uuid('created_by_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    maskRevision: uuid('mask_revision').notNull(),
+    renderedStorageObjectId: uuid('rendered_storage_object_id').references(
+      () => storageObjects.id,
+      { onDelete: 'set null' },
+    ),
+    renderedContentType: text('rendered_content_type'),
+    renderedByteSize: integer('rendered_byte_size'),
+    renderedWidthPt: doublePrecision('rendered_width_pt'),
+    renderedHeightPt: doublePrecision('rendered_height_pt'),
+    renderedAt: timestamp('rendered_at', { withTimezone: true }),
+    /**
+     * A drawing registered for this page and not finished yet: named here in the same transaction
+     * that registers it, before any byte is written, so every registered drawing is always found
+     * from this table (removal, a new save, a new version, account deletion, the next preparing
+     * step) and erased, even when the request stopped part way.
+     */
+    pendingStorageObjectId: uuid('pending_storage_object_id').references(() => storageObjects.id, {
+      onDelete: 'set null',
+    }),
+    ...timestamps,
+  },
+  (table) => [
+    unique('redaction_masks_version_page_unique').on(table.documentVersionId, table.page),
+    index('redaction_masks_created_by_idx').on(table.createdByAccountId),
+    index('redaction_masks_rendered_object_idx').on(table.renderedStorageObjectId),
+    index('redaction_masks_pending_object_idx').on(table.pendingStorageObjectId),
+    check(
+      'redaction_masks_rendered_together',
+      sql`${table.renderedStorageObjectId} is null or (${table.renderedContentType} in ('image/jpeg', 'image/png') and ${table.renderedByteSize} > 0 and ${table.renderedWidthPt} > 0 and ${table.renderedHeightPt} > 0 and ${table.renderedAt} is not null)`,
+    ),
+    check('redaction_masks_page_range', sql`${table.page} between 1 and 20`),
+    check('redaction_masks_source_known', sql`${table.source} in ('OWNER', 'SUGGESTED_ACCEPTED')`),
+    check(
+      'redaction_masks_boxes_shape',
+      sql`case when jsonb_typeof(${table.boxes}) = 'array' then jsonb_array_length(${table.boxes}) <= 200 else false end`,
+    ),
   ],
 );

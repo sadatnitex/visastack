@@ -89,6 +89,12 @@ export async function GET(
   if (!verifyBlobToken(secret, fields)) {
     return new Response('forbidden', { status: 403 });
   }
+  // A download of the rendition is never a safe copy: it masks nothing. Safe copies are made only
+  // by /api/documents/safe-copy from the owner's saved boxes (S23, ADR 0022 amendment). Previews
+  // and original downloads are unchanged.
+  if (fields.variant !== 'original' && fields.disposition === 'download') {
+    return new Response('forbidden', { status: 403 });
+  }
 
   // Second token, verified independently of the blob token above (EVI-06/
   // SEC-05, see this file's module doc comment). A request missing it, or

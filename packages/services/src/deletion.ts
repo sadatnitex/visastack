@@ -4,10 +4,11 @@ import { appendAuditEvent } from './audit';
 import { getConsents } from './consent';
 import { type Db, first, isUniqueViolation, required, schema } from './db';
 import type { StorageObject } from './documents';
-import { enqueueErasureJob } from './erasure';
+import { enqueueErasureJob, safeCopyDrawingIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { listActiveLegalHoldsForAccount } from './legal-hold';
 import { readUnlessPhotoTableMissing } from './profile-photos';
+import { redactionMasksTablePresent } from './redaction-table';
 
 /**
  * Account deletion workflow (Build Spec §13; PRD §2 — erasure).
@@ -456,6 +457,30 @@ export async function executeAccountDeletion(
           .where(inArray(schema.applicantPhotos.applicantId, applicantIds)),
       );
       storageObjects = [...storageObjects, ...photoObjects.map((row) => row.object)];
+      // Stored safe copy page drawings (S23) are stored objects too, finished or still being
+      // stored. Their mask rows cascade with the documents below; their files are queued here.
+      // None before migration 0102.
+      if (documentIds.length > 0 && (await redactionMasksTablePresent(tx))) {
+        const masks = await tx
+          .select({
+            renderedStorageObjectId: schema.redactionMasks.renderedStorageObjectId,
+            pendingStorageObjectId: schema.redactionMasks.pendingStorageObjectId,
+          })
+          .from(schema.redactionMasks)
+          .innerJoin(
+            schema.documentVersions,
+            eq(schema.documentVersions.id, schema.redactionMasks.documentVersionId),
+          )
+          .where(inArray(schema.documentVersions.documentId, documentIds));
+        const drawingIds = safeCopyDrawingIds(masks);
+        if (drawingIds.length > 0) {
+          const drawings = await tx
+            .select()
+            .from(schema.storageObjects)
+            .where(inArray(schema.storageObjects.id, drawingIds));
+          storageObjects = [...storageObjects, ...drawings];
+        }
+      }
       // Deleting applicants cascades to missions, grants, documents, versions,
       // facts. `storageObjects` is left untouched here — the `restrict` FK on
       // documentVersions.storageObjectId is already satisfied once those

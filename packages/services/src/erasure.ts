@@ -1,8 +1,22 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm';
+import {
+  type SQLWrapper,
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
+import { redactionMasksTablePresent } from './redaction-table';
 import { documentBlockedByLegalHold, hasActiveLegalHold } from './retention';
 import type { BlobStore } from './storage';
 
@@ -134,6 +148,19 @@ export async function enqueueErasureJob(
   db: Db,
   input: EnqueueErasureJobInput,
 ): Promise<ErasureJob> {
+  // Safe copy boxes (ADR 0022, S23) and their stored page drawings go with the bytes they were
+  // drawn from, in this same transaction: once a file is being erased nothing can be made from
+  // it, and nothing about it is kept. Each drawing (finished, or one still being stored) is queued
+  // for verified erasure like any other stored file. Asked with a presence check first, so a
+  // database before migration 0102 is unaffected. A drawing's own erasure finds no versions of
+  // its own here.
+  if (input.reason !== 'SAFE_COPY_REMOVAL' && (await redactionMasksTablePresent(db))) {
+    const versions = db
+      .select({ id: schema.documentVersions.id })
+      .from(schema.documentVersions)
+      .where(eq(schema.documentVersions.storageObjectId, input.storageObjectId));
+    await removeSafeCopyMasks(db, versions, input.applicantId);
+  }
   const existing = first(
     await db
       .select()
@@ -802,6 +829,66 @@ export async function hasActiveOrVerifiedErasureJob(
       .limit(1),
   );
   return row !== undefined;
+}
+
+/** A stored safe copy page drawing (ADR 0022, S23), with what erasure needs to find and check it. */
+export interface SafeCopyDrawing {
+  readonly storageObjectId: string;
+  readonly bucket: 'QUARANTINE' | 'CLEAN';
+  readonly objectKey: string;
+  readonly contentHash: string | null;
+}
+
+/** Every drawing a mask row names: its finished drawing, and one still being stored. */
+export function safeCopyDrawingIds(
+  rows: readonly {
+    readonly renderedStorageObjectId: string | null;
+    readonly pendingStorageObjectId: string | null;
+  }[],
+): string[] {
+  const ids = new Set<string>();
+  for (const row of rows) {
+    if (row.renderedStorageObjectId) ids.add(row.renderedStorageObjectId);
+    if (row.pendingStorageObjectId) ids.add(row.pendingStorageObjectId);
+  }
+  return [...ids];
+}
+
+/**
+ * Removes the safe copy boxes of the versions stored on one file and queues every drawing they
+ * name (finished, or still being stored) for verified erasure, in the caller's transaction. The
+ * caller checks first that migration 0102 has run. Module-local because of the access ratchet:
+ * redaction.ts and documents.ts keep their own small copies inside their gated or listed
+ * functions.
+ */
+async function removeSafeCopyMasks(
+  db: Db,
+  versionIds: SQLWrapper,
+  applicantId: string | undefined,
+): Promise<void> {
+  const removed = await db
+    .delete(schema.redactionMasks)
+    .where(inArray(schema.redactionMasks.documentVersionId, versionIds))
+    .returning({
+      renderedStorageObjectId: schema.redactionMasks.renderedStorageObjectId,
+      pendingStorageObjectId: schema.redactionMasks.pendingStorageObjectId,
+    });
+  const drawingIds = safeCopyDrawingIds(removed);
+  if (drawingIds.length === 0) return;
+  const drawings = await db
+    .select()
+    .from(schema.storageObjects)
+    .where(inArray(schema.storageObjects.id, drawingIds));
+  for (const drawing of drawings) {
+    await enqueueErasureJob(db, {
+      reason: 'SAFE_COPY_REMOVAL',
+      bucket: drawing.bucket,
+      objectKey: drawing.objectKey,
+      expectedHash: drawing.contentHash,
+      storageObjectId: drawing.id,
+      ...(applicantId ? { applicantId } : {}),
+    });
+  }
 }
 
 /**

@@ -19,5 +19,12 @@ Approved by the owner on 2026-10-28 (decision D3). Applies to user-facing words:
 | Agency pages | eyebrow = agency name, H1 = page name | agency name as H1 on every page | Done (CCD-6 slice 6a) |
 | Issuer checks | Issuer Confirmations | "Issuer confirmations (EVI-05)" | Done (Dates & Expiry already used it; Agency Cases in CCD-6 slice 6b) |
 | Person with a record | traveller, in user-facing text | "applicant" in user-facing text | Done in the signed-in product and agency pages (CCD-7 slice 7a); staff screens and the landing pilot notice unchanged; routes and code names keep "applicant" |
+| A masked copy of a document (ADR 0022) | Safe Copy; permission "Download Safe Copies" | "Redacted Copy", "Blacked-Out Copy" (the status page name is now "Downloading Safe Copies") | **Done (S23, 29 Oct 2026)** |
+| Owner action that opens the box editor | Prepare Safe Copy (Change Safe Copy once one is saved) | "Redact", "Edit Masks" | **Done (S23)** |
+| Getting the masked copy | Download Safe Copy | "Download Redacted" | **Done (S23)**: Documents and the shared record |
+| Not yet masked | Not Prepared Yet, as the state "Safe Copy: Not Prepared Yet" | "Unavailable", "Pending" | **Done (S23)** |
+| The explicit choice to mask nothing | Nothing to Hide on This Document | "No Redaction", "Skip" | **Done (S23)** |
+| A saved copy still being drawn | Preparing, as the state "Safe Copy: Preparing"; the action to carry on is Continue Preparing | "Processing", "Rendering" | **Done (S23 review fixes)** |
+| A file a safe copy cannot be made from | Safe Copy Not Available for This File (owner screen: "Safe Copy: Not Available") | "Unsupported", "Error" | **Done (S23 review fixes)**: shared record |
 
 Every rename is also an approved change in `apps/web/src/lib/ccd/approved-changes.ts`, so the parity test knows it is intended. Tests that assert an old name (`navigation.test.ts`, `labels.test.ts` and others) change only the expected word, never their strength.

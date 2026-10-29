@@ -5,16 +5,16 @@ import {
   type ActingFor,
   type AuthorizedApplicant,
   type Db,
-  EACH_GRANT,
   type PhotoSizingDeps,
-  type RequireAccessOptions,
   type ServiceError,
   accountPrincipal,
   requireAccess,
 } from '@visastack/services';
+import { authorizeDocument, gateOptions, jsonResponse } from './document-gate';
 import { safeReturnPath } from './neon-recency';
-import { establishStepUpProof } from './step-up';
 import { createStorage } from './storage';
+
+export { NO_STORE_HEADERS, isSameOrigin, jsonResponse } from './document-gate';
 
 /**
  * Shared request handling for the two visa photo routes (api/documents/photo-check and
@@ -24,26 +24,12 @@ import { createStorage } from './storage';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-export const NO_STORE_HEADERS: Readonly<Record<string, string>> = Object.freeze({
-  'Cache-Control': 'private, no-store',
-  'X-Content-Type-Options': 'nosniff',
-});
-
-export function jsonResponse(body: Record<string, unknown>, status: number): Response {
-  return Response.json(body, { status, headers: { ...NO_STORE_HEADERS } });
-}
-
 export interface PhotoRequest {
   readonly documentId: string;
   readonly actingFor: ActingFor | undefined;
   readonly returnTo: string;
   readonly specId: string | undefined;
   readonly crop: CropInput | undefined;
-}
-
-/** A cross-site page must never be able to spend someone's session on this. */
-export function isSameOrigin(request: Request): boolean {
-  return request.headers.get('origin') === new URL(request.url).origin;
 }
 
 /** A real request body is a few hundred bytes; anything far larger is refused unread. */
@@ -108,10 +94,6 @@ export type PhotoAuthorization =
 
 const ACTION = 'DOWNLOAD_REDACTED' as const;
 
-function gateOptions(actingFor: ActingFor | undefined): RequireAccessOptions {
-  return { purpose: EACH_GRANT, ...(actingFor !== undefined ? { actingFor } : {}) };
-}
-
 /**
  * Whether this viewer may use Visa Photo Sizes on this document: the very question both routes ask
  * (safe copies, every grant judged against its own purpose, through the chosen relationship). A
@@ -144,38 +126,10 @@ export async function authorizePhoto(
   accountId: string,
   input: PhotoRequest,
 ): Promise<PhotoAuthorization> {
-  const action = ACTION;
-  const principal = accountPrincipal(accountId);
-  const ref = { documentId: input.documentId };
-  const options = gateOptions(input.actingFor);
-  let result = await requireAccess(db, principal, action, ref, options);
-  if (!result.ok && result.error.code === 'step_up_required') {
-    const stepUp = await establishStepUpProof(
-      { accountId, action, resourceId: input.documentId },
-      input.returnTo,
-    );
-    if (stepUp.kind === 'reauth_required') {
-      return {
-        kind: 'response',
-        response: jsonResponse(
-          {
-            message: 'Confirm it is you to use this photo.',
-            reauthUrl: stepUp.reauthUrl,
-          },
-          401,
-        ),
-      };
-    }
-    if (stepUp.kind === 'not_configured') {
-      return {
-        kind: 'response',
-        response: jsonResponse({ message: 'This is not available here yet.' }, 503),
-      };
-    }
-    result = await requireAccess(db, principal, action, ref, { ...options, stepUp: stepUp.proof });
-  }
-  if (!result.ok) return { kind: 'response', response: errorResponse(result.error) };
-  return { kind: 'ok', access: result.value };
+  return authorizeDocument(db, accountId, ACTION, input, {
+    reauth: 'Confirm it is you to use this photo.',
+    refused: errorResponse,
+  });
 }
 
 /** Plain words for every refusal; the reason itself stays in the audit trail. */

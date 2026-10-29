@@ -52,6 +52,22 @@ export {
   type SharpPhotoReencoderOptions,
 } from './photo-reencoder';
 export { BuiltinPreviewRenderer } from './preview-renderer';
+export {
+  BuiltinSafeCopyRenderer,
+  MASK_PAD_PX,
+  MAX_PAGE_HEIGHT_PX,
+  MAX_PAGE_PIXELS,
+  PAGE_WIDTH_PX,
+  type SafeCopyRendererOptions,
+  createSafeCopyRenderer,
+} from './safe-copy-renderer';
+export {
+  type JpegInfo,
+  type PdfImagePage,
+  stripJpegMetadata,
+  stripPngMetadata,
+  writeImagePdf,
+} from './image-pdf-writer';
 
 export {
   PHOTO_SIZER_FORMATS,

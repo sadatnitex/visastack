@@ -524,6 +524,8 @@ Plus the WhatsApp prepared message: a generic message plus a secure workspace or
 
 **Migration:** yes.
 
+**Built (29 Oct 2026, branch `s23-wip`, not merged):** migration 0102 `redaction_masks` (journal idx 100) waits for the owner's word (O8); until it runs every safe copy reads Not Prepared Yet. Deviations from ADR 0022 are recorded in its 29 Oct amendment (suggestions from the PDF's own text and the passport band, a new gated route, every page for PDF and images only, AI connector part for S20, latest version only, owner-only page images).
+
 ### S25. Bangla (only on the owner's word)
 
 **Objective:** English and Bangla through `packages/i18n`, after S24 and only when the owner says the rest of the product is done (standing rule). Do not start it otherwise.

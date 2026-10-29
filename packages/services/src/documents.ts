@@ -23,13 +23,14 @@ import {
   appendDocumentAccessToken,
   signDocumentAccessToken,
 } from './document-access-token';
-import { hasActiveOrVerifiedErasureJob } from './erasure';
+import { enqueueErasureJob, hasActiveOrVerifiedErasureJob, safeCopyDrawingIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { isValidDocumentDateString } from './expiry';
 import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
 import { AUTOMATIC_TITLE_REASON, buildDocumentTitle } from './naming';
 import { listMembershipsForAccount } from './organizations';
 import { recordProductEvent } from './product-events';
+import { redactionMasksTablePresent } from './redaction-table';
 import { assignReferenceCode } from './reference-codes';
 import { loadGrantsForPolicy } from './sharing';
 import type { AccessRef, AccessVariant, StorageBucket, StoragePort } from './storage';
@@ -369,6 +370,47 @@ export async function addDocumentVersion(
       ),
       'document version',
     );
+
+    // Safe copies (ADR 0022, S23): only the latest version can ever have one, and boxes never
+    // carry over to a new version. The older versions' boxes and every stored page drawing they
+    // name go now, in this transaction, the drawings queued for verified erasure. None before
+    // migration 0102.
+    if (await redactionMasksTablePresent(tx)) {
+      const older = tx
+        .select({ id: schema.documentVersions.id })
+        .from(schema.documentVersions)
+        .where(
+          and(
+            eq(schema.documentVersions.documentId, input.documentId),
+            ne(schema.documentVersions.id, version.id),
+          ),
+        );
+      const removed = await tx
+        .delete(schema.redactionMasks)
+        .where(inArray(schema.redactionMasks.documentVersionId, older))
+        .returning({
+          renderedStorageObjectId: schema.redactionMasks.renderedStorageObjectId,
+          pendingStorageObjectId: schema.redactionMasks.pendingStorageObjectId,
+        });
+      const drawingIds = safeCopyDrawingIds(removed);
+      const drawings =
+        drawingIds.length > 0
+          ? await tx
+              .select()
+              .from(schema.storageObjects)
+              .where(inArray(schema.storageObjects.id, drawingIds))
+          : [];
+      for (const drawing of drawings) {
+        await enqueueErasureJob(tx, {
+          reason: 'SAFE_COPY_REMOVAL',
+          bucket: drawing.bucket,
+          objectKey: drawing.objectKey,
+          expectedHash: drawing.contentHash,
+          storageObjectId: drawing.id,
+          applicantId: document.applicantId,
+        });
+      }
+    }
 
     // TRU-03 (Part 7 §4): "selected document version" is material even when
     // the selection itself doesn't change -- see material-revision.ts's own
@@ -1504,13 +1546,22 @@ export interface DownloadDocumentInput extends DocumentAccessInput {
   readonly variant?: AccessVariant;
 }
 
-/** Permission-checked download; original bytes require step-up (Build Spec §14). */
+/**
+ * Permission-checked download; original bytes require step-up (Build Spec §14).
+ *
+ * A `redacted` download is refused here (S23, ADR 0022 amendment): a safe copy is made only by
+ * `produceSafeCopy` (redaction.ts), from the owner's saved boxes, through the access gate. This
+ * older path minted a link to an unmasked rendition, so it no longer issues one at all.
+ */
 export async function downloadDocument(
   db: Db,
   storage: StoragePort,
   input: DownloadDocumentInput,
 ): Promise<Result<AccessRef, ServiceError>> {
   const variant: AccessVariant = input.variant ?? 'redacted';
+  if (variant === 'redacted') {
+    return err(serviceError('invalid', 'safe copies are made only through the safe copy route'));
+  }
   const action: PermissionAction =
     variant === 'original' ? 'DOWNLOAD_ORIGINAL' : 'DOWNLOAD_REDACTED';
   return accessDocument(db, storage, action, variant, 'download', input);

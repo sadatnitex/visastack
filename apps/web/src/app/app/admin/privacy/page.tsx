@@ -25,6 +25,7 @@ const ERASURE_REASON_LABELS = {
   ACCOUNT_DELETION: 'Account Deletion',
   RETENTION_PURGE: 'Retention Purge',
   PROFILE_PHOTO_REMOVAL: 'Photo Removal',
+  SAFE_COPY_REMOVAL: 'Safe Copy Removal',
 } as const satisfies Record<ErasureJobReason, string>;
 
 export const metadata: Metadata = { title: 'Platform Privacy' };

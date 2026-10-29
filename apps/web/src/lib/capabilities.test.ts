@@ -221,7 +221,16 @@ it('enables owner original downloads only with storage and both server signing k
   expect(getPlatformCapabilities().originalDownload).toBe('unconfigured');
   setEnv('STEP_UP_SIGNING_SECRET', 'test-only');
   expect(getPlatformCapabilities().originalDownload).toBe('available');
-  expect(getPlatformCapabilities().redactedDownload).toBe('disabled');
   unsetEnv('BLOB_READ_WRITE_TOKEN');
   expect(getPlatformCapabilities().originalDownload).toBe('unconfigured');
+});
+
+it('offers safe copies (redacted downloads) wherever stored files are, and nowhere else', async () => {
+  const { getPlatformCapabilities } = await import('./capabilities');
+  setEnv('DEPLOYMENT_MODE', 'controlled_pilot');
+  unsetEnv('BLOB_READ_WRITE_TOKEN');
+  expect(getPlatformCapabilities().redactedDownload).toBe('unconfigured');
+  setEnv('BLOB_READ_WRITE_TOKEN', 'test-only');
+  expect(getPlatformCapabilities().redactedDownload).toBe('available');
+  unsetEnv('BLOB_READ_WRITE_TOKEN');
 });

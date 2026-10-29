@@ -120,6 +120,15 @@ export const RATE_LIMITS = {
   // from one address is never slowed, while trying made-up links in bulk is.
   CALENDAR_FEED_READ: { limit: 60, windowMs: HOUR_MS },
   CALENDAR_FEED_MISS_IP: { limit: 120, windowMs: HOUR_MS },
+  // Safe copies (ADR 0022, S23), per account. A download only puts stored pages together, but it
+  // still reads up to 20 files, so it is bounded below ordinary downloads. The owner's editor draws one page at a time and
+  // reads the file's own text for suggestions: one bucket for both, far above a person preparing a
+  // few documents. Saving reads the page count again, so it has its own bucket.
+  SAFE_COPY: { limit: 30, windowMs: HOUR_MS },
+  REDACTION_PAGE: { limit: 300, windowMs: HOUR_MS },
+  REDACTION_SAVE: { limit: 60, windowMs: HOUR_MS },
+  // Each saved set of boxes is drawn once, one call per page (up to 20); a few saves an hour.
+  SAFE_COPY_PREPARE: { limit: 300, windowMs: HOUR_MS },
 } as const satisfies Record<string, RateLimitConfig>;
 
 export type RateLimitDecision =

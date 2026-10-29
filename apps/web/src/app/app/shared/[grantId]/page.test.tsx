@@ -4,6 +4,8 @@ import { renderServer, stub, stubProps } from '../../../../lib/next-mocks.test-s
 const mocks = vi.hoisted(() => ({
   getRecipientWorkspace: vi.fn(),
   mayUseVisaPhotoSizes: vi.fn(),
+  safeCopyOffers: vi.fn(),
+  safeCopiesOn: true,
 }));
 
 vi.mock('@visastack/services', async (importOriginal) => ({
@@ -19,6 +21,13 @@ vi.mock('../../../../lib/session', () => ({
 }));
 vi.mock('../../../../components/visa-photo-sizes', () => ({
   VisaPhotoSizes: stub('VisaPhotoSizes'),
+}));
+vi.mock('../../../../lib/safe-copy', () => ({
+  safeCopyOffers: mocks.safeCopyOffers,
+  safeCopiesAvailable: () => mocks.safeCopiesOn,
+}));
+vi.mock('../../../../components/safe-copy-download', () => ({
+  SafeCopyDownload: stub('SafeCopyDownload'),
 }));
 
 const { default: SharedWorkspacePage } = await import('./page');
@@ -54,6 +63,10 @@ const render = async () =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.safeCopiesOn = true;
+  mocks.safeCopyOffers.mockImplementation(
+    async (_db, _account, ids: string[]) => new Map(ids.map((id) => [id, 'none'])),
+  );
 });
 
 describe('Visa Photo Sizes on a shared record', () => {
@@ -99,5 +112,64 @@ describe('Visa Photo Sizes on a shared record', () => {
       { actorAccountId: 'agent-1', grantId: 'grant-1' },
     );
     expect(mocks.mayUseVisaPhotoSizes).not.toHaveBeenCalled();
+  });
+});
+
+describe('Safe copies on a shared record (S23)', () => {
+  const offering = (offers: Record<string, string>) =>
+    mocks.safeCopyOffers.mockImplementation(
+      async (_db, _account, ids: string[]) => new Map(ids.map((id) => [id, offers[id] ?? 'none'])),
+    );
+
+  it('offers Download Safe Copy only where the gate allows it, and says when one is not prepared', async () => {
+    mocks.getRecipientWorkspace.mockResolvedValue(
+      workspace(['VIEW_METADATA', 'DOWNLOAD_REDACTED']),
+    );
+    mocks.mayUseVisaPhotoSizes.mockResolvedValue(false);
+    offering({ 'photo-1': 'none', 'card-1': 'not_prepared', 'cert-1': 'ready' });
+    const html = await render();
+    expect(stubProps(html, 'SafeCopyDownload')).toEqual([
+      { documentId: 'cert-1', returnTo: '/app/shared/grant-1', actingFor: ORG },
+    ]);
+    expect(html.match(/Safe Copy: Not Prepared Yet/g)).toHaveLength(1);
+    // Asked once, for every document, through the grant's relationship.
+    expect(mocks.safeCopyOffers).toHaveBeenCalledTimes(1);
+    expect(mocks.safeCopyOffers.mock.calls[0]?.slice(1)).toEqual([
+      'agent-1',
+      ['photo-1', 'card-1', 'cert-1'],
+      { organizationId: ORG },
+    ]);
+    expect(html).toContain('A safe copy is a picture of each page');
+  });
+
+  it('shows the button behind an identity check only for a ready copy, and names files it cannot cover', async () => {
+    mocks.getRecipientWorkspace.mockResolvedValue(workspace(['DOWNLOAD_REDACTED'], null));
+    mocks.mayUseVisaPhotoSizes.mockResolvedValue(false);
+    offering({ 'photo-1': 'confirm', 'card-1': 'not_available', 'cert-1': 'not_prepared' });
+    const html = await render();
+    const buttons = stubProps<{ documentId: string; actingFor: string }>(html, 'SafeCopyDownload');
+    expect(buttons.map((b) => b.documentId)).toEqual(['photo-1']);
+    expect(buttons[0]?.actingFor).toBe('individual');
+    expect(html).toContain('Safe Copy Not Available for This File');
+    expect(mocks.safeCopyOffers.mock.calls[0]?.[3]).toBe('individual');
+  });
+
+  it('shows nothing about safe copies to a viewer who may not download them', async () => {
+    mocks.getRecipientWorkspace.mockResolvedValue(workspace(['VIEW_METADATA', 'PREVIEW']));
+    mocks.mayUseVisaPhotoSizes.mockResolvedValue(false);
+    const html = await render();
+    expect(stubProps(html, 'SafeCopyDownload')).toEqual([]);
+    expect(html).not.toContain('Safe Copy');
+    expect(html).not.toContain('safe copy is a picture');
+  });
+
+  it('says plainly when safe copies are off here, and asks nothing', async () => {
+    mocks.safeCopiesOn = false;
+    mocks.getRecipientWorkspace.mockResolvedValue(workspace(['DOWNLOAD_REDACTED']));
+    mocks.mayUseVisaPhotoSizes.mockResolvedValue(false);
+    const html = await render();
+    expect(html).toContain('Safe copies are not available here yet.');
+    expect(mocks.safeCopyOffers).not.toHaveBeenCalled();
+    expect(stubProps(html, 'SafeCopyDownload')).toEqual([]);
   });
 });

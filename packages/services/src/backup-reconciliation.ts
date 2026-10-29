@@ -7,8 +7,10 @@ import { purgeMissionUnconditionally } from './case-retention';
 import { getConsents } from './consent';
 import { type Db, first, schema } from './db';
 import { executeAccountDeletion } from './deletion';
+import { enqueueErasureJob, safeCopyDrawingIds } from './erasure';
 import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
 import { isMissingRelationError } from './missing-relation';
+import { redactionMasksTablePresent } from './redaction-table';
 
 /**
  * Backup resurrection reconciliation (master directive Part 7 §15). See
@@ -92,6 +94,8 @@ const RECONCILED_EVENT_TYPES = [
   'GRANT_CASE_EXCLUSION_REMOVED',
   'AI_CONNECTION_REVOKED',
   'AI_CONNECTION_CHANGED',
+  'DOCUMENT_REDACTION_SAVED',
+  'DOCUMENT_REDACTION_CLEARED',
 ] as const;
 
 type ReconciledEventType = (typeof RECONCILED_EVENT_TYPES)[number];
@@ -115,6 +119,8 @@ export interface ReconciliationCounts {
   readonly aiConnectionsRevoked: number;
   /** AI connections whose access the owner narrowed after the restore point, narrowed again. */
   readonly aiConnectionsNarrowed: number;
+  /** Document versions whose safe copy boxes were set back to the pre-incident branch's (S23). */
+  readonly redactionMasksReconciled: number;
 }
 
 export interface ReconciliationError {
@@ -409,6 +415,149 @@ async function forceAiConnectionNarrowed(
     if (isMissingRelationError(error)) return false;
     throw error;
   }
+}
+
+const UUID_TEXT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+type RedactionMaskRow = typeof schema.redactionMasks.$inferSelect;
+
+/**
+ * Whether the restored rows already match the pre-incident rows: the same pages, boxes, source,
+ * author and revision, and the same drawings (finished, or still being stored). A drawing the
+ * pre-incident branch has and the restored row lacks counts as matching only once it is
+ * registered on the restored branch with an erasure job (`queuedOnRestored`), which is what an
+ * earlier run of this rule leaves behind; otherwise that file would be left in storage with
+ * nothing on the restored branch pointing at it. A restored drawing that differs never matches.
+ */
+function sameMasks(
+  restored: readonly RedactionMaskRow[],
+  source: readonly RedactionMaskRow[],
+  queuedOnRestored: ReadonlySet<string>,
+): boolean {
+  if (restored.length !== source.length) return false;
+  const key = (row: RedactionMaskRow) =>
+    JSON.stringify([row.page, row.source, row.createdByAccountId, row.boxes, row.maskRevision]);
+  const byPage = new Map(source.map((row) => [row.page, row]));
+  const sameDrawing = (mine: string | null, theirs: string | null) =>
+    mine === theirs || (mine === null && theirs !== null && queuedOnRestored.has(theirs));
+  return restored.every((row) => {
+    const match = byPage.get(row.page);
+    if (!match || key(match) !== key(row)) return false;
+    return (
+      sameDrawing(row.renderedStorageObjectId, match.renderedStorageObjectId) &&
+      sameDrawing(row.pendingStorageObjectId, match.pendingStorageObjectId)
+    );
+  });
+}
+
+/**
+ * `DOCUMENT_REDACTION_SAVED` / `DOCUMENT_REDACTION_CLEARED` (safe copies, S23). The owner changed
+ * which parts of one document version are hidden after the restore point. The pre-incident
+ * branch's current boxes for that version are the ground truth (as for erasure), so the restored
+ * branch is set to exactly them. Fail closed: the restored rows are removed first, in their own
+ * transaction, and only then are the pre-incident rows copied in; if the copy fails (say the
+ * version or the owner's account is not on the restored branch), the version is left with no
+ * boxes, which means "Not Prepared Yet", never an older set of boxes that hides less. A restored
+ * branch from before migration 0102 has no boxes to correct: no-op.
+ */
+async function forceRedactionMasks(
+  oldDb: Db,
+  newDb: Db,
+  metadata: AuditEventRow['metadata'],
+): Promise<boolean> {
+  const versionId =
+    metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+      ? (metadata as { readonly documentVersionId?: unknown }).documentVersionId
+      : undefined;
+  if (typeof versionId !== 'string' || !UUID_TEXT.test(versionId)) return false;
+  if (!(await redactionMasksTablePresent(newDb))) return false;
+  const source = (await redactionMasksTablePresent(oldDb))
+    ? await oldDb
+        .select()
+        .from(schema.redactionMasks)
+        .where(eq(schema.redactionMasks.documentVersionId, versionId))
+    : [];
+  const restored = await newDb
+    .select()
+    .from(schema.redactionMasks)
+    .where(eq(schema.redactionMasks.documentVersionId, versionId));
+  const restoredDrawings = safeCopyDrawingIds(restored);
+  const sourceDrawings = safeCopyDrawingIds(source);
+  const queuedOnRestored = new Set(
+    sourceDrawings.length > 0
+      ? (
+          await newDb
+            .select({ id: schema.erasureJobs.storageObjectId })
+            .from(schema.erasureJobs)
+            .where(inArray(schema.erasureJobs.storageObjectId, sourceDrawings))
+        ).map((row) => row.id)
+      : [],
+  );
+  if (sameMasks(restored, source, queuedOnRestored)) return false;
+  // Every stored page drawing involved, on either branch (finished, or still being stored), is
+  // erased on the restored branch: the restored rows' own, and the pre-incident branch's
+  // (registered here first, since the restored branch never knew them, so their files are not
+  // left behind unreferenced).
+  const sourceObjects =
+    sourceDrawings.length > 0
+      ? await oldDb
+          .select()
+          .from(schema.storageObjects)
+          .where(inArray(schema.storageObjects.id, sourceDrawings))
+      : [];
+  const removed = await newDb.transaction(async (tx) => {
+    const deleted = await tx
+      .delete(schema.redactionMasks)
+      .where(eq(schema.redactionMasks.documentVersionId, versionId))
+      .returning({ id: schema.redactionMasks.id });
+    for (const object of sourceObjects) {
+      await tx.insert(schema.storageObjects).values(object).onConflictDoNothing();
+    }
+    const ids = [...new Set([...restoredDrawings, ...sourceObjects.map((object) => object.id)])];
+    const drawings =
+      ids.length > 0
+        ? await tx
+            .select()
+            .from(schema.storageObjects)
+            .where(inArray(schema.storageObjects.id, ids))
+        : [];
+    for (const drawing of drawings) {
+      await enqueueErasureJob(tx, {
+        reason: 'SAFE_COPY_REMOVAL',
+        bucket: drawing.bucket,
+        objectKey: drawing.objectKey,
+        expectedHash: drawing.contentHash,
+        storageObjectId: drawing.id,
+      });
+    }
+    return deleted;
+  });
+  if (source.length === 0) return removed.length > 0;
+  const version = first(
+    await newDb
+      .select({ id: schema.documentVersions.id })
+      .from(schema.documentVersions)
+      .where(eq(schema.documentVersions.id, versionId))
+      .limit(1),
+  );
+  if (!version) return removed.length > 0;
+  // The boxes come back without their drawings: the copy is "preparing" until the owner's editor
+  // draws it again, so nothing drawn under either branch is ever served.
+  await newDb.transaction(async (tx) => {
+    await tx.insert(schema.redactionMasks).values(
+      source.map((row) => ({
+        ...row,
+        renderedStorageObjectId: null,
+        renderedContentType: null,
+        renderedByteSize: null,
+        renderedWidthPt: null,
+        renderedHeightPt: null,
+        renderedAt: null,
+        pendingStorageObjectId: null,
+      })),
+    );
+  });
+  return true;
 }
 
 /**
@@ -718,7 +867,11 @@ async function forceErasureVerified(
   metadata: unknown,
 ): Promise<boolean> {
   const reason = (metadata as { reason?: string } | null)?.reason;
-  if (reason === 'ACCOUNT_DELETION' || reason === 'PROFILE_PHOTO_REMOVAL') {
+  if (
+    reason === 'ACCOUNT_DELETION' ||
+    reason === 'PROFILE_PHOTO_REMOVAL' ||
+    reason === 'SAFE_COPY_REMOVAL'
+  ) {
     const deleted = await newDb
       .delete(schema.storageObjects)
       .where(eq(schema.storageObjects.id, resourceId))
@@ -801,6 +954,8 @@ const EVENT_META: Readonly<
   },
   AI_CONNECTION_REVOKED: { counter: 'aiConnectionsRevoked', resourceType: 'ai_connection' },
   AI_CONNECTION_CHANGED: { counter: 'aiConnectionsNarrowed', resourceType: 'ai_connection' },
+  DOCUMENT_REDACTION_SAVED: { counter: 'redactionMasksReconciled', resourceType: 'document' },
+  DOCUMENT_REDACTION_CLEARED: { counter: 'redactionMasksReconciled', resourceType: 'document' },
 };
 
 async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<boolean> {
@@ -837,6 +992,9 @@ async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<b
       return forceAiConnectionRevoked(newDb, resourceId, event.occurredAt);
     case 'AI_CONNECTION_CHANGED':
       return forceAiConnectionNarrowed(oldDb, newDb, resourceId);
+    case 'DOCUMENT_REDACTION_SAVED':
+    case 'DOCUMENT_REDACTION_CLEARED':
+      return forceRedactionMasks(oldDb, newDb, event.metadata);
     default:
       return false;
   }
@@ -874,6 +1032,7 @@ export async function reconcileRestoredBranch(
     caseExceptionsRemoved: 0,
     aiConnectionsRevoked: 0,
     aiConnectionsNarrowed: 0,
+    redactionMasksReconciled: 0,
   };
   const errors: ReconciliationError[] = [];
   const mutableCounts = counts as {
