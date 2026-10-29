@@ -9,6 +9,7 @@ import { type Db, first, schema } from './db';
 import { executeAccountDeletion } from './deletion';
 import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
 import { isMissingRelationError } from './missing-relation';
+import { redactionMasksTablePresent } from './redaction-table';
 
 /**
  * Backup resurrection reconciliation (master directive Part 7 §15). See
@@ -92,6 +93,8 @@ const RECONCILED_EVENT_TYPES = [
   'GRANT_CASE_EXCLUSION_REMOVED',
   'AI_CONNECTION_REVOKED',
   'AI_CONNECTION_CHANGED',
+  'DOCUMENT_REDACTION_SAVED',
+  'DOCUMENT_REDACTION_CLEARED',
 ] as const;
 
 type ReconciledEventType = (typeof RECONCILED_EVENT_TYPES)[number];
@@ -115,6 +118,8 @@ export interface ReconciliationCounts {
   readonly aiConnectionsRevoked: number;
   /** AI connections whose access the owner narrowed after the restore point, narrowed again. */
   readonly aiConnectionsNarrowed: number;
+  /** Document versions whose safe copy boxes were set back to the pre-incident branch's (S23). */
+  readonly redactionMasksReconciled: number;
 }
 
 export interface ReconciliationError {
@@ -409,6 +414,71 @@ async function forceAiConnectionNarrowed(
     if (isMissingRelationError(error)) return false;
     throw error;
   }
+}
+
+const UUID_TEXT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+type RedactionMaskRow = typeof schema.redactionMasks.$inferSelect;
+
+/** Whether two sets of one version's mask rows hold the same pages, boxes, source and author. */
+function sameMasks(a: readonly RedactionMaskRow[], b: readonly RedactionMaskRow[]): boolean {
+  if (a.length !== b.length) return false;
+  const key = (row: RedactionMaskRow) =>
+    JSON.stringify([row.page, row.source, row.createdByAccountId, row.boxes]);
+  const left = a.map(key).sort();
+  const right = b.map(key).sort();
+  return left.every((value, index) => value === right[index]);
+}
+
+/**
+ * `DOCUMENT_REDACTION_SAVED` / `DOCUMENT_REDACTION_CLEARED` (safe copies, S23). The owner changed
+ * which parts of one document version are hidden after the restore point. The pre-incident
+ * branch's current boxes for that version are the ground truth (as for erasure), so the restored
+ * branch is set to exactly them. Fail closed: the restored rows are removed first, in their own
+ * transaction, and only then are the pre-incident rows copied in; if the copy fails (say the
+ * version or the owner's account is not on the restored branch), the version is left with no
+ * boxes, which means "Not Prepared Yet", never an older set of boxes that hides less. A restored
+ * branch from before migration 0102 has no boxes to correct: no-op.
+ */
+async function forceRedactionMasks(
+  oldDb: Db,
+  newDb: Db,
+  metadata: AuditEventRow['metadata'],
+): Promise<boolean> {
+  const versionId =
+    metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+      ? (metadata as { readonly documentVersionId?: unknown }).documentVersionId
+      : undefined;
+  if (typeof versionId !== 'string' || !UUID_TEXT.test(versionId)) return false;
+  if (!(await redactionMasksTablePresent(newDb))) return false;
+  const source = (await redactionMasksTablePresent(oldDb))
+    ? await oldDb
+        .select()
+        .from(schema.redactionMasks)
+        .where(eq(schema.redactionMasks.documentVersionId, versionId))
+    : [];
+  const restored = await newDb
+    .select()
+    .from(schema.redactionMasks)
+    .where(eq(schema.redactionMasks.documentVersionId, versionId));
+  if (sameMasks(restored, source)) return false;
+  const removed = await newDb
+    .delete(schema.redactionMasks)
+    .where(eq(schema.redactionMasks.documentVersionId, versionId))
+    .returning({ id: schema.redactionMasks.id });
+  if (source.length === 0) return removed.length > 0;
+  const version = first(
+    await newDb
+      .select({ id: schema.documentVersions.id })
+      .from(schema.documentVersions)
+      .where(eq(schema.documentVersions.id, versionId))
+      .limit(1),
+  );
+  if (!version) return removed.length > 0;
+  await newDb.transaction(async (tx) => {
+    await tx.insert(schema.redactionMasks).values(source);
+  });
+  return true;
 }
 
 /**
@@ -801,6 +871,8 @@ const EVENT_META: Readonly<
   },
   AI_CONNECTION_REVOKED: { counter: 'aiConnectionsRevoked', resourceType: 'ai_connection' },
   AI_CONNECTION_CHANGED: { counter: 'aiConnectionsNarrowed', resourceType: 'ai_connection' },
+  DOCUMENT_REDACTION_SAVED: { counter: 'redactionMasksReconciled', resourceType: 'document' },
+  DOCUMENT_REDACTION_CLEARED: { counter: 'redactionMasksReconciled', resourceType: 'document' },
 };
 
 async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<boolean> {
@@ -837,6 +909,9 @@ async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<b
       return forceAiConnectionRevoked(newDb, resourceId, event.occurredAt);
     case 'AI_CONNECTION_CHANGED':
       return forceAiConnectionNarrowed(oldDb, newDb, resourceId);
+    case 'DOCUMENT_REDACTION_SAVED':
+    case 'DOCUMENT_REDACTION_CLEARED':
+      return forceRedactionMasks(oldDb, newDb, event.metadata);
     default:
       return false;
   }
@@ -874,6 +949,7 @@ export async function reconcileRestoredBranch(
     caseExceptionsRemoved: 0,
     aiConnectionsRevoked: 0,
     aiConnectionsNarrowed: 0,
+    redactionMasksReconciled: 0,
   };
   const errors: ReconciliationError[] = [];
   const mutableCounts = counts as {

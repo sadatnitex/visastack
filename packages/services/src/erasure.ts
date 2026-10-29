@@ -3,6 +3,7 @@ import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, lte, or, sql } from
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
+import { redactionMasksTablePresent } from './redaction-table';
 import { documentBlockedByLegalHold, hasActiveLegalHold } from './retention';
 import type { BlobStore } from './storage';
 
@@ -134,6 +135,22 @@ export async function enqueueErasureJob(
   db: Db,
   input: EnqueueErasureJobInput,
 ): Promise<ErasureJob> {
+  // Safe copy boxes (ADR 0022, S23) go with the bytes they were drawn on, in this same
+  // transaction: once a file is being erased nothing can be made from it, and nothing about it is
+  // kept. Asked with a presence check first, so a database before migration 0102 is unaffected.
+  if (await redactionMasksTablePresent(db)) {
+    await db
+      .delete(schema.redactionMasks)
+      .where(
+        inArray(
+          schema.redactionMasks.documentVersionId,
+          db
+            .select({ id: schema.documentVersions.id })
+            .from(schema.documentVersions)
+            .where(eq(schema.documentVersions.storageObjectId, input.storageObjectId)),
+        ),
+      );
+  }
   const existing = first(
     await db
       .select()

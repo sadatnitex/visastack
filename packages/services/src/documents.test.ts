@@ -519,7 +519,7 @@ describe('document vault - permission-aware access', () => {
     storage = new FakeStorage();
   });
 
-  it('lets the owner preview and download the redacted rendition', async () => {
+  it('lets the owner preview the rendition, and refuses a redacted download outside the safe copy route', async () => {
     const { account, document } = await seedOwnerWithDocument(db, 'a1@example.com');
 
     const preview = await previewDocument(db, storage, {
@@ -538,15 +538,17 @@ describe('document vault - permission-aware access', () => {
       accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
       variant: 'redacted',
     });
-    expect(isOk(download)).toBe(true);
-    if (isOk(download)) expect(download.value.variant).toBe('redacted');
+    // S23: a safe copy is made only from the owner's saved boxes (produceSafeCopy); this path
+    // would have linked to an unmasked rendition, so it issues nothing and mints no link.
+    expect(isErr(download)).toBe(true);
+    if (isErr(download)) expect(download.error.code).toBe('invalid');
 
-    // The audit trail recorded two ALLOWED accesses.
+    // The audit trail recorded the one ALLOWED preview, and nothing for the refused download.
     const events = await db
       .select()
       .from(schema.auditEvents)
       .where(eq(schema.auditEvents.eventType, 'DOCUMENT_ACCESS'));
-    expect(events).toHaveLength(2);
+    expect(events).toHaveLength(1);
     expect(events.every((e) => e.result === 'ALLOWED')).toBe(true);
     // Owner id is not an account id — recorded by role.
     expect(events[0]?.actorRole).toBe('applicant_owner');
@@ -882,12 +884,11 @@ describe('document vault - permission-aware access', () => {
       .set({ status: 'CLAIMED', claimedAt: new Date(), leaseOwner: 'test-worker' })
       .where(eq(schema.erasureJobs.id, job.id));
 
-    const download = await downloadDocument(db, storage, {
+    const download = await previewDocument(db, storage, {
       actor,
       documentId: document.id,
       purpose: 'self_review',
       accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
-      variant: 'redacted',
     });
     expect(isErr(download)).toBe(true);
     if (isErr(download)) expect(download.error.code).toBe('forbidden');
@@ -984,12 +985,11 @@ describe('document vault - permission-aware access', () => {
       })
       .where(eq(schema.erasureJobs.id, job.id));
 
-    const download = await downloadDocument(db, storage, {
+    const download = await previewDocument(db, storage, {
       actor,
       documentId: document.id,
       purpose: 'self_review',
       accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
-      variant: 'redacted',
     });
     expect(isErr(download)).toBe(true);
     if (isErr(download)) expect(download.error.code).toBe('forbidden');

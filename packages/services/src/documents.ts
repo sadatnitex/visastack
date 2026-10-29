@@ -1504,13 +1504,22 @@ export interface DownloadDocumentInput extends DocumentAccessInput {
   readonly variant?: AccessVariant;
 }
 
-/** Permission-checked download; original bytes require step-up (Build Spec §14). */
+/**
+ * Permission-checked download; original bytes require step-up (Build Spec §14).
+ *
+ * A `redacted` download is refused here (S23, ADR 0022 amendment): a safe copy is made only by
+ * `produceSafeCopy` (redaction.ts), from the owner's saved boxes, through the access gate. This
+ * older path minted a link to an unmasked rendition, so it no longer issues one at all.
+ */
 export async function downloadDocument(
   db: Db,
   storage: StoragePort,
   input: DownloadDocumentInput,
 ): Promise<Result<AccessRef, ServiceError>> {
   const variant: AccessVariant = input.variant ?? 'redacted';
+  if (variant === 'redacted') {
+    return err(serviceError('invalid', 'safe copies are made only through the safe copy route'));
+  }
   const action: PermissionAction =
     variant === 'original' ? 'DOWNLOAD_ORIGINAL' : 'DOWNLOAD_REDACTED';
   return accessDocument(db, storage, action, variant, 'download', input);

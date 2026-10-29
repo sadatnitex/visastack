@@ -4602,3 +4602,43 @@ export const calendarFeeds = pgTable(
     check('calendar_feeds_secret_hash_shape', sql`${table.secretHash} ~ '^[0-9a-f]{64}$'`),
   ],
 );
+
+// Safe copies (ADR 0022, S23). The black boxes the record owner drew, or accepted from a
+// suggestion, on one page of one document version: one row per page. A version counts as
+// prepared only when its rows cover every page; a page with an empty list is the owner's explicit
+// "nothing to hide" for that page. Boxes are fractions of the page (0 to 1), checked by the
+// service. Rows go with the version (a new version starts with none: masks are never copied,
+// because the layout may differ) and with the owner's account.
+export interface RedactionMaskBox {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
+export const redactionMasks = pgTable(
+  'redaction_masks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    page: integer('page').notNull(),
+    boxes: jsonb('boxes').$type<readonly RedactionMaskBox[]>().notNull().default(sql`'[]'::jsonb`),
+    source: text('source').notNull(),
+    createdByAccountId: uuid('created_by_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    ...timestamps,
+  },
+  (table) => [
+    unique('redaction_masks_version_page_unique').on(table.documentVersionId, table.page),
+    index('redaction_masks_created_by_idx').on(table.createdByAccountId),
+    check('redaction_masks_page_range', sql`${table.page} between 1 and 20`),
+    check('redaction_masks_source_known', sql`${table.source} in ('OWNER', 'SUGGESTED_ACCEPTED')`),
+    check(
+      'redaction_masks_boxes_shape',
+      sql`case when jsonb_typeof(${table.boxes}) = 'array' then jsonb_array_length(${table.boxes}) <= 200 else false end`,
+    ),
+  ],
+);
