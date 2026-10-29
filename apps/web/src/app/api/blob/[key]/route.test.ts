@@ -60,4 +60,17 @@ describe('signed blob route and safe copies (S23)', () => {
     expect(response.headers.get('content-type')).toBe('image/png');
     expect(render).toHaveBeenCalledTimes(1);
   });
+
+  it('answers a failed rendition with a plain line, never the renderer detail (server paths, versions)', async () => {
+    render.mockResolvedValueOnce({
+      rendered: false,
+      detail: "image preview render failed: Cannot find module '@napi-rs/canvas' at /var/task/x.js",
+    });
+    const response = await get('redacted', 'inline');
+    expect(response.status).toBe(501);
+    const body = await response.text();
+    expect(body).toBe('This file cannot be previewed here.');
+    expect(body).not.toContain('napi-rs');
+    expect(body).not.toContain('/var/task');
+  });
 });

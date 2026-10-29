@@ -66,14 +66,13 @@ import { discardStorageObject, registerStorageObject } from './storage-objects';
  */
 
 /**
- * When the renderer cannot count or draw a file, its reason and technical detail go to the server
- * log, so a failure seen by a person can be traced. The detail is the renderer's own text (library
- * error messages and fixed strings), cut to printable characters and 200 of them; it never holds
- * document content, and the audit record keeps only the reason code.
+ * When the renderer cannot count or draw a file, the step and the reason code go to the server log,
+ * so a failure a person sees can be traced and counted. Like every render-failure line, it never
+ * carries the renderer's own detail text, a file name or an identifier: the thing being drawn is a
+ * person's document.
  */
-function reportRenderFailure(step: string, failure: { reason: string; detail?: string }): void {
-  const detail = (failure.detail ?? '').replace(/[^\x20-\x7e]/g, ' ').slice(0, 200);
-  console.warn(`[safe-copy] ${step} failed: ${failure.reason}${detail ? ` (${detail})` : ''}`);
+function reportRenderFailure(step: string, failure: { reason: string }): void {
+  console.warn(`[safe-copy] ${step} failed: ${failure.reason}`);
 }
 
 export const SAFE_COPY_TOO_LARGE_MESSAGE = 'This document is too large for a safe copy';

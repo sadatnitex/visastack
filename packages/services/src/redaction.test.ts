@@ -1053,7 +1053,7 @@ describe('safe copies (S23, ADR 0022)', () => {
       expect(await stateOf()).toBe('TOO_LARGE');
     });
 
-    it('writes why a page could not be drawn to the server log, and keeps the audit to a code', async () => {
+    it('logs which step failed and its reason code, never the renderer detail, and keeps the audit to a code', async () => {
       const warnings: string[] = [];
       const original = console.warn;
       console.warn = (...args: unknown[]) => {
@@ -1070,7 +1070,8 @@ describe('safe copies (S23, ADR 0022)', () => {
         console.warn = original;
       }
       expect(warnings).toHaveLength(1);
-      expect(warnings[0]).toMatch(/^\[safe-copy\] [a-z ]+ failed: unreadable \(test failure\)$/);
+      expect(warnings[0]).toMatch(/^\[safe-copy\] [a-z ]+ failed: unreadable$/);
+      expect(warnings[0]).not.toContain('test failure');
       const [denied] = (await audits('DOCUMENT_ACCESS')).filter((e) => e.result === 'DENIED');
       expect(denied?.reason).toBe('render_unreadable');
       expect(JSON.stringify(denied?.metadata)).not.toContain('test failure');
