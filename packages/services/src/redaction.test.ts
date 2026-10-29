@@ -388,6 +388,9 @@ describe('safe copies (S23, ADR 0022)', () => {
       // Not served while preparing.
       const early = await produceSafeCopy(await gate(ownerId, 'DOWNLOAD_REDACTED'), deps);
       expect(isErr(early) && early.error.refusal).toBe('not_prepared');
+      expect(deps.calls).not.toContain('assembleSafeCopy');
+      const [preparing] = (await audits('DOCUMENT_ACCESS')).filter((a) => a.result === 'DENIED');
+      expect(preparing?.reason).toBe('still_preparing');
 
       const first = await prepareSafeCopyPage(await gate(ownerId, 'MANAGE'), deps, {
         versionId,

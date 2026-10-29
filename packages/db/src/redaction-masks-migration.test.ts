@@ -83,7 +83,7 @@ describe('migration 0102: safe copy masks', () => {
       expect(cleared.rows[0]?.id).toBeNull();
       // The new erasure reason exists.
       const reasons = await client.query<{ v: string }>(
-        `select unnest(enum_range(null::erasure_job_reason))::text as v`,
+        'select unnest(enum_range(null::erasure_job_reason))::text as v',
       );
       expect(reasons.rows.map((r) => r.v)).toContain('SAFE_COPY_REMOVAL');
 

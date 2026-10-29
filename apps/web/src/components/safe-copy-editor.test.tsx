@@ -30,7 +30,10 @@ let failingPages: Set<number>;
 
 function respond(editor: Record<string, unknown> = {}) {
   return async (path: string, init: { body: string }) => {
-    const body = JSON.parse(init.body) as { readonly page?: unknown } & Record<string, unknown>;
+    const body = JSON.parse(init.body) as {
+      readonly page?: unknown;
+      readonly clear?: unknown;
+    } & Record<string, unknown>;
     calls.push({ path, body });
     if (path === '/api/documents/redaction-editor') {
       return json({

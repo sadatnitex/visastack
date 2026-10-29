@@ -24,5 +24,7 @@ Approved by the owner on 2026-10-28 (decision D3). Applies to user-facing words:
 | Getting the masked copy | Download Safe Copy | "Download Redacted" | **Done (S23)**: Documents and the shared record |
 | Not yet masked | Not Prepared Yet, as the state "Safe Copy: Not Prepared Yet" | "Unavailable", "Pending" | **Done (S23)** |
 | The explicit choice to mask nothing | Nothing to Hide on This Document | "No Redaction", "Skip" | **Done (S23)** |
+| A saved copy still being drawn | Preparing, as the state "Safe Copy: Preparing"; the action to carry on is Continue Preparing | "Processing", "Rendering" | **Done (S23 review fixes)** |
+| A file a safe copy cannot be made from | Safe Copy Not Available for This File (owner screen: "Safe Copy: Not Available") | "Unsupported", "Error" | **Done (S23 review fixes)**: shared record |
 
 Every rename is also an approved change in `apps/web/src/lib/ccd/approved-changes.ts`, so the parity test knows it is intended. Tests that assert an old name (`navigation.test.ts`, `labels.test.ts` and others) change only the expected word, never their strength.

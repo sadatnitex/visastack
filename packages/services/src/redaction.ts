@@ -440,17 +440,20 @@ async function statesForVersions(
   return states;
 }
 
-const VERSION_FIELDS = {
-  id: schema.documentVersions.id,
-  documentId: schema.documentVersions.documentId,
-  versionNumber: schema.documentVersions.versionNumber,
-  storageObjectId: schema.documentVersions.storageObjectId,
-  safetyStatus: schema.documentVersions.safetyStatus,
-  processingStatus: schema.documentVersions.processingStatus,
-  pages: schema.documentVersions.pages,
-  sizeBytes: schema.documentVersions.sizeBytes,
-  originalName: schema.documents.originalName,
-};
+/** Read inside functions only: the schema is never touched while the module loads. */
+function versionFields() {
+  return {
+    id: schema.documentVersions.id,
+    documentId: schema.documentVersions.documentId,
+    versionNumber: schema.documentVersions.versionNumber,
+    storageObjectId: schema.documentVersions.storageObjectId,
+    safetyStatus: schema.documentVersions.safetyStatus,
+    processingStatus: schema.documentVersions.processingStatus,
+    pages: schema.documentVersions.pages,
+    sizeBytes: schema.documentVersions.sizeBytes,
+    originalName: schema.documents.originalName,
+  };
+}
 
 /**
  * Where each listed version's safe copy stands, for versions of the proof's traveller (and of its
@@ -471,7 +474,7 @@ export async function listRedactionStates(
   const ids = [...new Set(versionIds)].slice(0, MAX_LISTED_VERSIONS);
   if (ids.length === 0) return ok(new Map());
   const versions = await proof.tx
-    .select(VERSION_FIELDS)
+    .select(versionFields())
     .from(schema.documentVersions)
     .innerJoin(schema.documents, eq(schema.documents.id, schema.documentVersions.documentId))
     .where(
@@ -514,7 +517,7 @@ export async function listSafeCopyStatesForDocuments(
   const states = new Map<string, SafeCopyState>();
   if (!db || documents.size === 0) return states;
   const rows = await db
-    .select(VERSION_FIELDS)
+    .select(versionFields())
     .from(schema.documentVersions)
     .innerJoin(schema.documents, eq(schema.documents.id, schema.documentVersions.documentId))
     .where(inArray(schema.documentVersions.documentId, [...documents.keys()]))
