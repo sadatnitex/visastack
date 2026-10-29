@@ -79,3 +79,23 @@ This section supersedes the rows above where they differ. Earlier rows stay as t
 
 Evidence for each merge: [known issues](../commercial-v1/known-issues.md) and [the session handoff](../upgrades/programme/SESSION-HANDOFF-2026-10-25-evening.md).
 
+
+
+## Update, 2026-10-29
+
+This section supersedes the rows and sections above where they differ. Earlier sections stay as the record of their checkpoints. Package status lives in [the Small Commercial handoff, section M](../roadmap/SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md); interface status in [Programme X STATUS](../upgrades/programme/STATUS.md); setup facts in [current operations](../operations/current-platform.md).
+
+**Live (merged and deployed from main):**
+
+- **AI apps (Small Commercial S13 to S16):** a person can connect their own AI app (Claude or ChatGPT) to VisaStack through a sign-in and consent screen (#305). The app can only read what the person chose, through five read-only tools: list cases, prepare context, a profile section, list documents, a document's text (#310). The Sharing page lists each connection and lets the person see, narrow or turn it off; one set of choices is shared with the consent screen, and a backup restore re-applies turn-offs (#315). Every AI read is audited without personal content, and staff see connection and call counts on AI Settings (#317). The owner switched the connector on in production on 28 Oct; the sign-in discovery address answers and readiness reports the connector available. Not verified: a real Claude or ChatGPT connection end to end.
+- **Payments (S10 to S12):** the payment ledger (#287), the online payment flow (#292, built and switched off) and agency invoices with "I Paid Another Way" claims and numbered receipts (#299) are deployed. Readiness reports payments unconfigured because no payment provider account is set up. Not verified: the signed-in agency invoice screens on the live site.
+- **Interface:** the owner's 19-item interface and quality list (A1 to A12, B13 to B19) through #304, #306 to #309 and #311; the invitation page redesign (#314); a visual alignment pass (#316); Calm Core With Depths (Glance, Browse and Everything) on the signed-in screens, CCD-0 to CCD-7, with the contrast layer WP-C2, one design for every email and the time zone picker (#318 to #336). Details: STATUS.
+- **Calendar:** a private live calendar link (#309; migration 0101 run with the owner's word).
+- **Readiness and backup (S27, #337):** the AI gate no longer depends on one provider; the scanner gate accepts the private scan runner only with proof from the last 72 hours; agency logos and photo proofs of payment are re-encoded on the server; the encrypted database backup runs daily, with a daily freshness check. Automatic pruning of old backups is built and only reports until the owner turns it on.
+- **Database:** the repository holds migrations up to 0101 (100 in all; the numbers 0098 and 0099 are unused). 0100 (AI connections) and 0101 (calendar links) were each run right after their merge with the owner's word. Readiness reported ready on 29 Oct after #337, and it reports not ready while any shipped migration is pending (unless that check itself could not run).
+
+**Switched off or not configured (production readiness, 29 Oct, after #337):** deployment mode controlled_pilot; malware scanning unconfigured; redacted download disabled; payments unconfigured; real applicant data disabled; commercial claims disabled. Also off until the owner acts: staff authenticator codes (`STAFF_SECOND_FACTOR`), the AWS key service (O16), backup pruning (`BACKUP_PRUNE`), the AI training guard (owner decision).
+
+**In progress, not live:** S23 real redaction (ADR 0022): safe copies of PDFs and images with masks the owner places, suggested from the PDF's text positions and a passport's machine-readable band. It is not merged, and its migration 0102 needs the owner's word after the merge. Until it lands, readiness keeps redacted download disabled.
+
+**Open:** malware scanning switch-on; staff two-step sign-in acceptance; independent document and key recovery; a real AI app connection test; a named payment provider; the penetration test deferral record (H01); real applicant data and the final release (S24 with WP-V6, owner's explicit word); Bangla (deferred). Pending owner steps: [owner actions](../roadmap/OWNER-ACTIONS-SMALL-COMMERCIAL-V1.md). Evidence for each merge: [known issues](../commercial-v1/known-issues.md).

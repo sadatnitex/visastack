@@ -1,6 +1,6 @@
 # VisaStack: start here (every session)
 
-Read this once at the start of a session, then only what your task needs. `CLAUDE.md` (loaded automatically) holds the standing rules; this page is the full picture behind them, for any task, inside or outside Programme X. Last updated 26 October 2026. When something here is out of date, fix this page in the same PR.
+Read this once at the start of a session, then only what your task needs. `CLAUDE.md` (loaded automatically) holds the standing rules; this page is the full picture behind them, for any task, inside or outside Programme X. Last updated 29 October 2026. When something here is out of date, fix this page in the same PR.
 
 ## 1. What VisaStack is
 
@@ -14,16 +14,19 @@ Production: https://vs.obsidianglobal.studio (fallback https://visastack-five.ve
 |---|---|
 | Current product state, what is live and what is open | `docs/public-beta/CURRENT-STATE.md` (newest dated section wins) |
 | Setup facts, environment, providers | `docs/operations/current-platform.md` |
-| Programme X (interface and v1.2 functional upgrade) | `docs/upgrades/programme/STATUS.md`, then `PROGRAMME.md`, `WORK-PACKAGES.md` (your package only), `allowlists/<package>.txt`, `COVERAGE-LEDGER.csv` |
+| Small Commercial V1 plan and package status (S1 to S27) | `docs/roadmap/SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md` (section M is the status table); deferred security and compliance controls: `docs/roadmap/DEFERRED-COMMERCIAL-HARDENING.md` |
+| Owner actions (pending and done, with where the owner does each) | `docs/roadmap/OWNER-ACTIONS-SMALL-COMMERCIAL-V1.md` |
+| Programme X and Calm Core With Depths (CCD) status | `docs/upgrades/programme/STATUS.md`, then `PROGRAMME.md`, `WORK-PACKAGES.md` (your package only), `allowlists/<package>.txt`, `COVERAGE-LEDGER.csv` |
 | Latest session handoff (open branches, decisions, pitfalls) | newest `docs/upgrades/programme/SESSION-HANDOFF-*.md` |
 | Functional spec v1.2 | `docs/upgrades/upgrade.v1.2.execution.md` (grep the U/E/B/T/R id) |
-| Decisions and their reasons | `docs/adr/` (0015 agency Do Next ranking, 0016 Needs Attention and calendar, 0017 per-case sharing exceptions, 0018 visible reference codes) |
+| Decisions and their reasons | `docs/adr/` (0015 agency Do Next ranking, 0016 Needs Attention and calendar, 0017 per-case sharing exceptions, 0018 visible reference codes, 0019 automatic document reading, 0020 invoice payments (SSLCOMMERZ plus verified manual payments), 0021 AI Context Gateway (AI app sign-in and the read-only connector), 0022 real redaction (safe copies with masks), 0023 Calm Core With Depths (Glance, Browse, Everything)) |
+| Interface style every new build follows and extends | ADR 0023; `docs/uiux/ccd/VOCABULARY.md` (one name per thing); `docs/uiux/ccd/PARITY-LEDGER.md` (nothing lost, held by `apps/web/src/lib/ccd/parity-*.test.tsx`); `docs/uiux/CONTRAST-AND-SURFACES.md` (surfaces and contrast, WP-C2) |
 | Permission rules | `docs/architecture/permission-model.md`; code in `packages/policy` and `packages/services/src/access/` |
 | Evidence log (append-only, thousands of lines) | `docs/commercial-v1/known-issues.md`: grep, never read whole |
 | Requirement status | `docs/commercial-v1/requirements-ledger.md`: grep the row id |
 | Visual reference | `docs/design/harbor-v2/` (immutable), `docs/uiux/PDF-TO-FUNCTION-MAPPING.md` |
 | Legal drafts for the owner | `docs/legal/` (reviews, not advice; no compliance claims) |
-| Runbooks | `docs/operations/runbooks/`, `docs/operations/backup-resurrection-reconciliation.md` |
+| Runbooks | `docs/operations/runbooks/`, `docs/operations/backup-resurrection-reconciliation.md`, `docs/operations/r2-encrypted-backups.md` (daily backup, freshness check, pruning) |
 | Agent scripts | `scripts/agent/` (full check, CI and deploy waits, merge helpers) |
 
 Code: `apps/web` (Next.js 15.5, React 19), `packages/services` (all business logic, transactional, audited), `packages/policy` (default-deny rules), `packages/db` (drizzle schema and migrations), `packages/core` (pure shared logic, for example `@visastack/core/calendar`), `packages/adapters` (storage, scanning, AI providers, image processing). Tests use PGlite through `createMigratedPglite()`.
@@ -44,7 +47,7 @@ Code: `apps/web` (Next.js 15.5, React 19), `packages/services` (all business log
 1. Preflight: `git fetch origin`, check main's head, open PRs and main's CI.
 2. One git worktree per branch (under the session scratchpad), `pnpm install --frozen-lockfile` in it.
 3. Plan large or risky work first (a Plan helper), confirm the approach with the owner in at most 3 bullets, flag anything hard to reverse, then build.
-4. Targeted tests while building (`nice -n 15`); review; fix; then ONE full check: `PORT=3101 bash scripts/agent/full-check.sh <worktree> <logdir>` in the background, reading only `<logdir>/summary.txt`.
+4. Targeted tests while building (`nice -n 15`); review; fix; then ONE full check: `PORT=3101 bash scripts/agent/full-check.sh <worktree> <logdir>` (resume a failed run with `FROM=<step>`, for example `FROM=build`). Start it with the tool's background mode, never with a trailing `&` inside a foreground command (the job then loses its completion notice). Read only `<logdir>/summary.txt`. The script is guarded: it finds whatever listens on the port through `/proc/net/tcp` and stops only an earlier Next server (anything else aborts the run), runs the browser steps only against a server that serves the build id it just made, and marks the run STALE when the commit or working tree changed during the run. A STALE or FAILED line means the run cannot be trusted.
 5. Push, open a draft PR with the template headings (Summary; PRD / Spec traceability; Type of change; Checklist; Notes for reviewers), unsubscribe from its activity, wait with `bash scripts/agent/wait-ci.sh <full sha>`.
 6. All three required checks green on the exact head and mergeable: mark ready, squash merge with the expected head SHA.
 7. After merge: `bash scripts/agent/wait-deploy.sh <full merge sha>`; readiness through the Vercel connector (`web_fetch_vercel_url` on `/api/health/ready`; direct `curl` to production is blocked by the session proxy).
@@ -56,13 +59,15 @@ Code: `apps/web` (Next.js 15.5, React 19), `packages/services` (all business log
 
 ## 5. Token discipline (owner rule, 26 October 2026)
 
-- At most 2 helpers at a time (3 only when one is a short read-only check), never two on the same files or question.
-- Give each helper a complete brief up front (write long ones to a scratchpad file); batch review findings into one round; close a helper after its round instead of resuming it again and again (a resumed helper reloads its whole history).
-- Make small fixes yourself. Run the full check once, after fixes. Read files narrowly (grep, line ranges). Never fetch whole web pages, full CI logs or whole large files.
-- Start a fresh session at each natural break (one package per session); keep the handoff and STATUS current so nothing depends on chat history.
+The rule itself is in `CLAUDE.md` (sections 5 and 7). Two practical notes: write a long helper brief to a scratchpad file and pass its path; a resumed helper reloads its whole history, so close a helper after its round instead of resuming it again and again.
 
 ## 6. Owner decisions in force (newest first)
 
+- 29 Oct: every new build follows and extends the latest interface style (ADR 0023 Calm Core With Depths, `docs/uiux/CONTRAST-AND-SURFACES.md`, `docs/uiux/ccd/VOCABULARY.md`, the parity guard) and never damages existing UX.
+- 29 Oct: documentation is kept so any agent can take over with an accurate, non-redundant picture: one fact in one place (the owner doc in section 2), pointers elsewhere, and every PR updates the status pages it affects.
+- 28 Oct: the AI connector is switched on in production by the owner (`AI_CONNECTOR_ENABLED=true`); still a controlled pilot with made-up data only.
+- 28 Oct: Calm Core With Depths approved (ADR 0023, decisions D1 to D5).
+- 28 Oct: pause rule: when the owner says "pause", finish the package in hand and start nothing new until the owner says "go".
 - 26 Oct: helpers at most 2 to 3, no overlapping work. Auto-merge and deploy each WP-V4 PR when it is correctly ready (independent review approved, full check green, CI green on the exact head); the final release candidate (WP-V6) still needs the owner's explicit word.
 - 26 Oct: visible **reference codes**: type letter plus 6 characters (5 random + 1 check, Crockford-style alphabet without I, L, O, U), e.g. `C-7K2Q9M` for a case, `D-` document, `R-` agency request, `P-` person; stored once in one registry table, unique, never reused; internal ids and calendar UIDs unchanged; migration 0091 pre-approved to run right after its merge.
 - 26 Oct: time zones always in their latest official name.
@@ -78,9 +83,13 @@ Code: `apps/web` (Next.js 15.5, React 19), `packages/services` (all business log
 
 ## 7. Open work, in order
 
-Since 26 Oct 2026 the order is the package list in `docs/roadmap/SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md` section M (S1 Prepare Again first). The paragraph below is the earlier Programme X view, kept for history.
+Two workstreams run side by side:
 
-See `docs/upgrades/programme/STATUS.md` and the newest `SESSION-HANDOFF-*.md` for the live line. At this writing: per-case sharing exceptions (#278, migration 0090) and visible reference codes (#279, migration 0091) are live; next are Prepare Again (it uses `listCaseSharingQuestions` and `applyCaseSharingAnswers` in the case-creating transaction), request screens and colour polish (closing WP-V4), then WP-V5 (shareable outputs) and WP-V6 (final acceptance and release, owner's explicit word). Alongside, never ahead: engineering roadmap step 4 (move about 313 older service functions behind the access gate, shadow mode first) and step 5 (signed step-up proof).
+- **Small Commercial V1** (status: `docs/roadmap/SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md` section M). In progress: **S23 real redaction** (ADR 0022), not merged and not live; it adds migration 0102, which runs only on the owner's word after its merge. Then, in order: S17 recurring invoices, reminders, overdue and reactivation; S18 refunds, credits and accounting export; S20 AI connector original files (needs S23's safe copies); S21 AI suggestion tools; S22 agency AI connectors; S24 commercial acceptance (prepared only, never merged without the owner's explicit word). S19 only if the owner names a second payment provider. S25 Bangla last, only on the owner's word.
+- **Programme X and Calm Core With Depths** (another session): `docs/upgrades/programme/STATUS.md`.
+- Alongside, never ahead: engineering roadmap steps 4 and 5 (register H20 and H21 in `docs/roadmap/DEFERRED-COMMERCIAL-HARDENING.md`).
+
+Owner actions that switch built features on: `docs/roadmap/OWNER-ACTIONS-SMALL-COMMERCIAL-V1.md`. Open branches and how to resume: the newest `docs/upgrades/programme/SESSION-HANDOFF-*.md`. Earlier views of this section are in git history.
 
 ## 8. Pitfalls learned
 
@@ -96,3 +105,8 @@ See `docs/upgrades/programme/STATUS.md` and the newest `SESSION-HANDOFF-*.md` fo
 - Random codes can spell ordinary words: a lookup needs a clear signal (type letter plus separator, or a typed digit) and the normal search still runs.
 - Killing background jobs: by process id only, never `pkill -f` with a pattern that matches your own command.
 - A session can hit a usage limit mid-task: commit work in progress and push the branch (no PR) so nothing is lost.
+- Merging main into a branch: append-only files take main's version plus the branch's own tail. When a force-push to the designated branch is refused, record its old history with `git merge -s ours` instead of rewriting it.
+- After moving routes between route groups, `rm -rf apps/web/.next` before typecheck (stale generated route types fail it).
+- GitHub can re-subscribe a session to a PR's activity after the PR is created: unsubscribe again when that notice arrives.
+- A page that loads data after a link to one of its sections (`#name`) must scroll to that section again once the data arrives (the status page fix in #317).
+- Run the local full check only through the guarded `scripts/agent/full-check.sh`, start it with the tool's background mode (a trailing `&` inside a foreground command loses the completion notice) and trust only its summary lines (section 4).

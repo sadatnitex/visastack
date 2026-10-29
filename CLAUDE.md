@@ -77,5 +77,10 @@ Then read docs/SESSION-START.md once: the full picture (where things are, standa
 - New interface names must pass apps/web/src/lib/title-case.test.ts and vocabulary.test.ts ("case", never "mission", in visible text). Stored answer values (for example "Before tax") are not labels: never retitle them.
 - db-migrate.yml runs only from main: code must tolerate a new table being missing, and the approved migration runs right after the merge.
 - MCP servers sometimes disconnect: reload tools with ToolSearch. Local-only branches vanish when the container ends: push or tell the owner. The stop hook needs a clean tree: commit before ending a turn.
+- Full local check: only scripts/agent/full-check.sh (guarded: port owner from /proc/net/tcp, build id verified, STALE if the code changed, FROM=<step> resumes), started with the tool's background mode, never a trailing & inside a foreground command; read only its summary.
+- After moving routes between route groups, rm -rf apps/web/.next before typecheck (stale generated types).
+- Merging main into a branch: append-only files take main's version plus the branch's own tail; when force-push to the designated branch is refused, record its history with git merge -s ours.
+- GitHub can re-subscribe PR activity after a PR is created: unsubscribe again when the notice arrives.
+- A page that loads data after a #section link must scroll to that section again once the data arrives.
 
 Owner reporting instruction (2026-10-10): after each deployment, show the public beta action list with done, in-progress and remaining work. Explain what each deployment means for whom: what changed, what users will see, who is affected, and live verification versus unverified acceptance. Never describe a partial package as complete.
