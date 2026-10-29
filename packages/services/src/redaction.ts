@@ -65,6 +65,17 @@ import { discardStorageObject, registerStorageObject } from './storage-objects';
  *   not ready yet.
  */
 
+/**
+ * When the renderer cannot count or draw a file, its reason and technical detail go to the server
+ * log, so a failure seen by a person can be traced. The detail is the renderer's own text (library
+ * error messages and fixed strings), cut to printable characters and 200 of them; it never holds
+ * document content, and the audit record keeps only the reason code.
+ */
+function reportRenderFailure(step: string, failure: { reason: string; detail?: string }): void {
+  const detail = (failure.detail ?? '').replace(/[^\x20-\x7e]/g, ' ').slice(0, 200);
+  console.warn(`[safe-copy] ${step} failed: ${failure.reason}${detail ? ` (${detail})` : ''}`);
+}
+
 export const SAFE_COPY_TOO_LARGE_MESSAGE = 'This document is too large for a safe copy';
 
 /** The safe copy is held to this many bytes so it stays inside the hosting response limit. */
@@ -657,6 +668,7 @@ async function loadForOwner(
   if (!loaded.ok) return loaded;
   const counted = await deps.renderer.pageCount(loaded.value.source, budget());
   if (!counted.ok) {
+    reportRenderFailure('counting pages', counted);
     return ownerRefusal(
       proof,
       document,
@@ -734,6 +746,7 @@ export async function renderRedactionPage(
   if (input.page > pageCount) return err(serviceError('invalid', 'choose a page of this document'));
   const rendered = await deps.renderer.renderPage(source, input.page, budget());
   if (!rendered.ok) {
+    reportRenderFailure('drawing an editor page', rendered);
     await audit(proof, document, {
       allowed: false,
       reason: `render_${rendered.reason}`,
@@ -1426,6 +1439,7 @@ export async function prepareSafeCopyPage(
     { ...budget(), maxBytes: pageByteLimit(pageCount), expectedPageCount: pageCount },
   );
   if (!drawn.ok) {
+    reportRenderFailure('preparing a masked page', drawn);
     await audit(proof, document, {
       allowed: false,
       reason: `render_${drawn.reason}`,

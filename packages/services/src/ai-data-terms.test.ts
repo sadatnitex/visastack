@@ -351,6 +351,9 @@ describe('the "Only Use AI Providers That Do Not Train on Inputs" setting', () =
 
   it('treats an unreadable setting as off, so a passing database error never stops AI for everyone', async () => {
     const failing = {
+      select: () => {
+        throw new Error('connection reset');
+      },
       transaction: async () => {
         throw new Error('connection reset');
       },
@@ -358,6 +361,29 @@ describe('the "Only Use AI Providers That Do Not Train on Inputs" setting', () =
     expect(await loadAiDataRuleSetting(failing)).toMatchObject({
       requireNoTraining: false,
       source: 'read_failed',
+    });
+  });
+
+  it('reads the saved setting over a client without transactions (the readiness probe uses one)', async () => {
+    const admin = await seedSecurityAdmin(db);
+    await setAiDataRuleSetting(db, await scope(db, admin), {
+      stepUpSatisfied: true,
+      requireNoTraining: true,
+    });
+    // The stateless HTTP client refuses transactions outright; reads must not need one.
+    const httpLike = new Proxy(db, {
+      get(target, property, receiver) {
+        if (property === 'transaction') {
+          return async () => {
+            throw new Error('No transactions support in neon-http driver');
+          };
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    expect(await loadAiDataRuleSetting(httpLike)).toMatchObject({
+      requireNoTraining: true,
+      source: 'saved',
     });
   });
 });
