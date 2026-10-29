@@ -4,6 +4,17 @@ const redirect = vi.fn((to: string) => {
   throw new Error(`REDIRECT:${to}`);
 });
 vi.mock('next/navigation', () => ({ redirect: (to: string) => redirect(to) }));
+vi.mock('server-only', () => ({}));
+/** The browser's cookie jar, as the confirmation page would see it. */
+const jar = new Map<string, { value: string; options: unknown }>();
+vi.mock('next/headers', () => ({
+  cookies: async () => ({
+    get: (name: string) => (jar.has(name) ? { name, value: jar.get(name)?.value } : undefined),
+    set: (name: string, value: string, options: unknown) => {
+      jar.set(name, { value, options });
+    },
+  }),
+}));
 
 const signInEmail = vi.fn();
 const signUpEmail = vi.fn();
@@ -60,6 +71,8 @@ beforeEach(() => {
   consumeSignupForm.mockResolvedValue(true);
   signupAccountExists.mockResolvedValue(false);
   vi.stubEnv('IDENTITY_PROVIDER', 'neon_auth');
+  vi.stubEnv('NEON_AUTH_COOKIE_SECRET', 'z'.repeat(64));
+  jar.clear();
 });
 
 describe('signInAction', () => {
@@ -441,5 +454,64 @@ describe('invitation account handoff', () => {
     expect(signUpEmail).toHaveBeenCalledWith(
       expect.objectContaining({ callbackURL: 'https://app.example.test/auth/sign-in?n=confirmed' }),
     );
+  });
+});
+
+describe('the confirmation page remembers the address (no typing it twice)', () => {
+  const COOKIE = 'vs_pending_confirmation';
+
+  it('remembers the address after a successful sign-up, signed, server-only and for /auth only', async () => {
+    signUpEmail.mockResolvedValue({ error: null });
+    const { signUpAction } = await import('./actions');
+    const to = await destination(() =>
+      signUpAction(
+        form({
+          email: 'new@traveller.test',
+          password: 'longenough',
+          acceptNotices: 'yes',
+          signupForm: 'signed',
+        }),
+      ),
+    );
+    expect(to).toBe('/auth/verify-email?s=1');
+    const saved = jar.get(COOKIE);
+    expect(saved?.options).toMatchObject({ httpOnly: true, secure: true, path: '/auth' });
+    const { decodePendingConfirmation } = await import('../../lib/pending-confirmation');
+    expect(decodePendingConfirmation(saved?.value)).toBe('new@traveller.test');
+  });
+
+  it('sends the link again to the remembered address with one tap, nothing typed', async () => {
+    const { encodePendingConfirmation } = await import('../../lib/pending-confirmation');
+    jar.set(COOKIE, { value: encodePendingConfirmation('new@traveller.test') ?? '', options: {} });
+    sendVerificationEmail.mockResolvedValue({ error: null });
+    const { resendConfirmationAction } = await import('./actions');
+    expect(await destination(() => resendConfirmationAction(form({ saved: '1' })))).toBe(
+      '/auth/verify-email?s=1',
+    );
+    expect(sendVerificationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ email: 'new@traveller.test' }),
+    );
+  });
+
+  it('a typed address always wins over the remembered one', async () => {
+    const { encodePendingConfirmation } = await import('../../lib/pending-confirmation');
+    jar.set(COOKIE, { value: encodePendingConfirmation('old@traveller.test') ?? '', options: {} });
+    sendVerificationEmail.mockResolvedValue({ error: null });
+    const { resendConfirmationAction } = await import('./actions');
+    await destination(() =>
+      resendConfirmationAction(form({ saved: '1', email: 'typed@traveller.test' })),
+    );
+    expect(sendVerificationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ email: 'typed@traveller.test' }),
+    );
+  });
+
+  it('a forged or missing remembered address sends nothing and asks for the address', async () => {
+    jar.set(COOKIE, { value: 'forged.value', options: {} });
+    const { resendConfirmationAction } = await import('./actions');
+    expect(await destination(() => resendConfirmationAction(form({ saved: '1' })))).toBe(
+      '/auth/verify-email?e=invalid',
+    );
+    expect(sendVerificationEmail).not.toHaveBeenCalled();
   });
 });

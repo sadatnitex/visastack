@@ -47,8 +47,20 @@ export interface StoredBytes {
   readonly bytes: Uint8Array;
 }
 
+/**
+ * The object keys every storage adapter accepts: opaque, 1 to 128 letters, digits, `-` or `_`.
+ * No `/`, no dots, nothing that reads as a path (the R2 and Vercel Blob adapters refuse anything
+ * else). New kinds of stored objects mark themselves with a prefix ending in `-`, never `/`.
+ */
+export const OPAQUE_OBJECT_KEY = /^[A-Za-z0-9_-]{1,128}$/;
+
+export function isOpaqueObjectKey(key: string): boolean {
+  return OPAQUE_OBJECT_KEY.test(key);
+}
+
 export interface PutObjectInput extends StoredBytes {
   readonly bucket: StorageBucket;
+  /** An opaque key: see `OPAQUE_OBJECT_KEY`. */
   readonly objectKey: string;
 }
 

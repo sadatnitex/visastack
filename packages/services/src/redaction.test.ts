@@ -45,7 +45,7 @@ import {
   suggestRedactions,
 } from './redaction';
 import { issueStepUpAssurance } from './step-up';
-import type { StorageBucket, StoredBytes } from './storage';
+import { type StorageBucket, type StoredBytes, isOpaqueObjectKey } from './storage';
 
 const STEP_UP_SECRET = 'redaction-step-up-secret';
 /** A distinctive coordinate: it must never reach the audit trail. */
@@ -131,6 +131,8 @@ function fakeDeps(options: FakeOptions = {}): RedactionDeps & {
         };
       },
       async putObject(input) {
+        // The real adapters refuse anything but an opaque key; so does this one.
+        if (!isOpaqueObjectKey(input.objectKey)) throw new Error('invalid opaque object key');
         drawings.set(input.objectKey, { contentType: input.contentType, bytes: input.bytes });
       },
       async deleteObject(_bucket: StorageBucket, objectKey: string) {

@@ -10576,3 +10576,20 @@ summary.safe-copy-title {
   margin-top: 8px;
   accent-color: var(--accent);
 }
+
+/* WP-AUTH-VERIFY: "Use a Different Email" on Confirm Your Email Address. It reads as a link (the
+   same colour as links) and is a full 44px target; the address field only appears when opened. */
+.verify-other-address {
+  margin-top: var(--space-3);
+}
+.verify-other-address > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 600;
+}
+.verify-other-address[open] > summary {
+  margin-bottom: var(--space-2);
+}
