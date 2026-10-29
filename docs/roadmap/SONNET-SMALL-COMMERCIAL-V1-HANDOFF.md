@@ -762,22 +762,28 @@ Generate a migration only after the previous migration is on main.
 | 8 | **S8. Selected-output engine: DONE.** Merged as #290 (`6d315980`) | none | none | done |
 | 9 | **S9. WP-V5 outputs: DONE.** Merged with S8 in #290; output label wording still an owner gate | none | label wording | done |
 | 10 | **S10. Cash ledger and recording function: DONE.** Merged as #287 (`637aff3f`); migration 0094 applied | yes | O8 | done |
-| 11 | S11. SSLCOMMERZ online flow | yes, with S10 if adjacent | O6, O8 | owner word |
-| 12 | S12. Agency invoices, manual claims and receipts | yes (receipts) | O8 | owner word |
-| 13 | S13. Authorization server for AI apps (CIMD and DCR) | yes | O8 | owner word |
-| 14 | S14. MCP route and read tools | none | none | owner word |
-| 15 | S15. AI Connections screens | none | none | owner word |
-| 16 | S16. AI audit and telemetry | none | none | owner word |
+| 11 | **S11. SSLCOMMERZ online flow: DONE in code.** Merged as #292 (`2b2edda0`); migration 0096 applied (verified 29 Oct 2026 on Neon: drizzle.__drizzle_migrations holds 100 rows, equal to the 100 journal entries, newest = 0101); stays off until the owner completes O6 | yes | O6, O8 | done |
+| 12 | **S12. Agency invoices, manual claims and receipts: DONE.** Merged as #299 (`9b32e978`); migration 0097 applied (verified 29 Oct 2026 on Neon: drizzle.__drizzle_migrations holds 100 rows, equal to the 100 journal entries, newest = 0101) | yes (receipts) | O8 | done |
+| 13 | **S13. Authorization server for AI apps (CIMD and DCR): DONE.** Merged as #305 (`883df41e`); migration 0100 applied; connector switched on by the owner on 28 Oct (`AI_CONNECTOR_ENABLED=true`) | yes | O8 | done |
+| 14 | **S14. MCP route and read tools: DONE.** Merged as #310 (`e2d7f5bc`); `/mcp` with the five read-only tools | none | none | done |
+| 15 | **S15. AI Connections screens: DONE.** Merged as #315 (`a513518e`) | none | none | done |
+| 16 | **S16. AI audit and telemetry: DONE.** Merged as #317 (`59537908`); one recorded deviation, see the note below the table | none | none | done |
 | 17 | S17. Recurring invoices, reminders, overdue handling, reactivation | yes | O8, O13 | owner word |
 | 18 | S18. Refunds, credits and accounting export | maybe | O8 | owner word |
 | 19 | S19. Second payment provider | yes | O8, O14 | owner word |
 | 20 | S20. AI connector: original files | yes | O8 | owner word |
 | 21 | S21. AI connector: suggestion tools | none | none | owner word |
 | 22 | S22. Agency AI connectors | yes (enum value plus columns) | O8, O10 | owner word |
-| 23 | S23. Real redaction (ADR 0022) | yes | O8 | owner word |
-| 23a | S27. Commercial-readiness reconciliation and daily backup | none | none | owner word |
+| 23 | **S23. Real redaction (ADR 0022): IN PROGRESS** (29 Oct, taken ahead of S17 to S22; not merged, not live); migration 0102 runs only on the owner's word after the merge | yes | O8 | owner word |
+| 23a | **S27. Commercial-readiness reconciliation and daily backup: DONE.** Merged as #337 (`47f18e57`); no migration; pruning waits for `BACKUP_PRUNE=on`, the penetration test deferral for O17 | none | none | done |
 | 24 | S24. Commercial acceptance and release reconciliation (WP-V6) | none | O3, O5, O7, O9 to O12, O16, O17 | owner word (never automatic) |
 | 25 | S25. Bangla | none expected | O15 | owner word |
+
+Note, 29 Oct 2026:
+
+- Current order: S23 (in progress), then S17, S18, S20, S21, S22, then S24 (prepared only, never merged without the owner's explicit word). S19 only if the owner names a second payment provider (O14). S25 Bangla last, on the owner's word (O15).
+- S16 deviation from ADR 0021 section 7, recorded for the owner: the product events `AI_CONTEXT_REQUESTED` and `AI_CONTEXT_DENIED` are written once per connection, per UTC day and per label, not once per call, so analytics do not grow with AI traffic. Per-call counts come from the audit records (`AI_CONTEXT_SERVED`, `AI_CONTEXT_DENIED`), which the staff card shows. Detail: known-issues, S16 entry.
+- Not a package row: QA-F (#309) added migration 0101 (live calendar links), run with the owner's word.
 
 Order rationale:
 
