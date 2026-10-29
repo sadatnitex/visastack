@@ -6,9 +6,9 @@ Contract: ADR 0020, Phase 2 and the S17 amendment (29 Oct 2026). Code: `packages
 
 Every day, VisaStack:
 
-1. **Makes invoices.** Each agency on a paid plan gets one invoice at the start of each billing period (the plan's period length, counted from when the agency's plan started). The invoice is due a set number of days after the period starts (7 unless changed). The agency's owners and admins get a notice in the app and by email with a "Pay Invoice" link to their Invoices page. The notice names the invoice and its due day, never the amount.
-2. **Sends reminders** to the same people: 3 days before the due date, on the due date, and 3 and 7 days after. Each is sent once. If a day is missed, only the reminder for where things stand now is sent. Paying or voiding the invoice cancels any reminder still waiting.
-3. **Changes billing status, only if switched on.** With "Automatic Grace and Suspended" on, an agency whose oldest unpaid invoice is past its due date by the Grace day count moves to Grace, and by the Suspended day count to Suspended (straight to Suspended if it is already that late).
+1. **Makes invoices.** Each agency on a paid plan gets one invoice at the start of each billing period (the plan's period length, counted from when the agency's plan started). The invoice is due a set number of days (7 unless changed) after the period starts, or after the day it is made if that is later (a missed run, or an agency back to Active after paying), so no invoice is ever born overdue. The agency's owners and admins get a notice in the app and by email with a "Pay Invoice" link to their Invoices page. The notice names the invoice and its due day, never the amount.
+2. **Sends reminders** to the same people: 3 days before the due date, on the due date, and 3 and 7 days after. Each is sent once. If a day is missed, only the reminder for where things stand now is sent ("due today" is said only on the due day; after it, "was due on"). Paying or voiding the invoice cancels any reminder still waiting. An agency with no active owner or admin gets nothing, is counted in `withoutContacts` and logged once per run (`billing_cycle_no_contact`).
+3. **Changes billing status, only if switched on.** An invoice is overdue from the Bangladesh day after its due day. With "Automatic Grace and Suspended" on, an agency whose oldest overdue invoice is past its due day by the Grace day count moves to Grace, and by the Suspended day count to Suspended (straight to Suspended if it is already that late). Grace at 0 moves an agency the day after its due day.
 4. **Ends a status it set.** When an agency that VisaStack moved to Grace or Suspended owes nothing overdue any more, it returns to Active: at once when the last overdue invoice is paid in full (in the same database transaction as the payment), or at the next daily run if an invoice was voided. This happens even with automatic handling switched off.
 
 A status a person set is never changed automatically: not lifted when paid, and a Grace a person set is never moved on to Suspended. If a person sets an agency back to Active while an invoice is still overdue, that invoice no longer counts; only invoices that fall due after the person's change do.
@@ -25,10 +25,12 @@ A status a person set is never changed automatically: not lifted when paid, and 
 
 - Route: `GET /api/jobs/process-billing-cycle`, daily at 06:15 UTC (12:15 in Bangladesh), `apps/web/vercel.json`. Signed with the cron secret; refuses without it (503) or with a wrong one (403).
 - It sends the notices it queued straight after the run.
-- One run starts at most 200 pieces of work and stops starting new ones after 40 seconds; the next run carries on. Each agency is handled in its own transaction, so one failure is counted, rolled back and tried again the next day.
-- It returns counts only: `available`, `overdueHandlingEnabled`, `invoicesCreated`, `remindersQueued`, `movedToGrace`, `movedToSuspended`, `returnedToActive`, `failed`, `stoppedEarly`. A 503 means it could not start, migration 0103 has not run, or every piece of work failed.
+- Order: status changes first (returns to Active before anything else, then moves to Grace or Suspended), then invoices, then reminders. Each of the three steps starts at most 200 pieces of work of its own, so invoices and reminders never crowd out a return to Active; the run stops starting new work after 40 seconds and the next run carries on. Each agency is handled in its own transaction, so one failure is rolled back and tried again the next day.
+- Each failure is logged once as a `server_error` line with `where: billingCycle`, the `step` (`return`, `status`, `invoice` or `reminder`), the `organizationId`, the `invoiceId` when there is one, and the error name and database code with its message cleaned by the shared server-error report (no amounts or personal data).
+- It returns counts only: `available`, `overdueHandlingEnabled`, `invoicesCreated`, `remindersQueued` (only reminders actually written), `movedToGrace`, `movedToSuspended`, `returnedToActive`, `withoutContacts`, `failed`, `stoppedEarly`. A 503 means it could not start, migration 0103 has not run, or every piece of work failed.
 - Days are calendar days in Bangladesh time, from one reading of the database clock.
-- Running it again, or twice at once, never makes a second invoice for the same period: the run skips a period that overlaps any invoice for the same agency and plan (void or not), and the database refuses a second live invoice for the same agency, plan and period start.
+- Running it again, or twice at once, never makes a second invoice for the same period: the run skips a period that overlaps any invoice for the same agency and plan (void or not), and the database refuses a second live invoice for the same agency, plan and period start. An admin invoice whose period overlaps a live one for the same plan is refused by the same overlap rule.
+- Due dates are stored as UTC midnight of their Bangladesh day, so the email and every page show the same day.
 - It never bills the past: nothing that started before the migration ran (`billing_settings.invoicing_starts_at`), and after a gap only the period running now. Each agency's first automatic invoice is therefore for its first period that starts after the migration.
 - Not billed: trial, suspended or closed billing accounts, agencies without a billing account, suspended or closed organizations, plans priced at zero or without a price.
 
@@ -61,19 +63,20 @@ If it returns rows, void the duplicate (one with nothing collected) from the age
 
 1. Decide on traveller uploads while an agency is suspended (see the table above). Today they are blocked; S17 keeps that.
 2. On Billing Rules, enter the Grace and Suspend day counts and save with the switch still Off. The page then says how many agencies switching on would move today. Old unpaid invoices made by hand count too: void any that should not.
-3. Choose On and save. The page asks you to tick a box after showing the same numbers for the day counts you entered, then asks for a fresh sign-in check.
+3. Choose On and save. The page answers with how many agencies exactly those day counts move today and a box next to it; tick it and save again (a fresh sign-in check follows). Changing the day counts while it is on asks for the same confirmation; changing only the due days does not. If you change the numbers after the preview, a fresh preview is shown instead of saving.
 4. The next daily run applies it. The admin organization page shows each automatic change as "VisaStack (automatic)" with a reason starting "system:".
 
 To switch it off, choose Off and save. Statuses already set stay until the agency pays in full or a person changes them.
 
 ## When something looks wrong
 
+- **A staff member lost Owner or Admin:** their billing notices disappear from their in-app list, and queued emails to them are not sent.
 - **An agency was moved and should not have been:** set its status by hand on the admin organization page (that is a person's decision and the run will not undo it for invoices already overdue), and void or correct the invoice.
 - **No invoices appear:** check the agency has a billing account that is Active or in Grace, a current plan with a price above zero, and a period that started after the migration ran.
-- **`failed` above zero:** the server log line `triggerBillingCycle` says which step; the work is retried the next day.
+- **`failed` above zero:** each failure has its own `billingCycle` log line with the step, organization and invoice; the work is retried the next day. A run with failures also logs one `triggerBillingCycle` line with the count.
 
 ## Not yet verified
 
 - Not run against production: migration 0103 has not been applied, and no real agency is on a priced plan.
-- Concurrency was tested on the in-memory database (two runs at once), not on the production database.
+- Concurrency was tested on the in-memory database (two runs at once, two changes by hand at once), not on the production database. The single lock order is checked by a source-order guard test, because the in-memory database runs one transaction at a time and cannot show a deadlock.
 - The cron count is now 21; it is assumed to fit the hosting plan, not checked.
