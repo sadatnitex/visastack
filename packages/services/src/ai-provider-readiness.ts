@@ -11,12 +11,14 @@ import { isMissingRelationError } from './missing-relation';
  *   decides whether AI runs (the fresh-install path in apps/web/src/lib/ai.ts).
  * - `none_active`: configurations exist but none is ACTIVE, so AI dispatch is off
  *   (the kill switch, `isAiDispatchAllowed`).
- * - `active`: the one ACTIVE configuration, and, when its fallback is switched on, the
- *   fallback configuration documents can also be sent to (`resolveFallbackExtractor` and
- *   `resolveOcrAdapter`). For each: whether its key is usable (stored and not revoked) and
- *   whether its provider data terms have been recorded (`ai_provider_config_terms`, the
- *   same "recorded" meaning as `loadAiProviderDataTerms`). `fallback` is null when the
- *   fallback is off and `missing` when it is on but names no configuration that exists.
+ * - `active`: the one ACTIVE configuration: whether its key is usable (stored and not revoked)
+ *   and whether its provider data terms have been recorded (`ai_provider_config_terms`, the same
+ *   "recorded" meaning as `loadAiProviderDataTerms`). `fallback` matches what the web gateway's
+ *   `resolveFallbackExtractor` would really send documents to: it is set only when the fallback
+ *   is switched on AND its target would be used (it exists, is a different provider the app can
+ *   call, has an approved data policy and a usable key), and then says whether that target's
+ *   terms are recorded. A fallback the gateway would treat as absent is null: nothing is sent
+ *   there, so it cannot fail the gate.
  * - `unreadable`: a table is missing or the read failed; the gate is then not satisfied.
  *
  * Never carries a key, a fingerprint, a provider name, a model or an id: only these flags.
@@ -32,7 +34,7 @@ export type AiProviderReadinessState =
   | {
       readonly kind: 'active';
       readonly primary: AiConfigReadiness;
-      readonly fallback: AiConfigReadiness | 'missing' | null;
+      readonly fallback: { readonly termsRecorded: boolean } | null;
     }
   | { readonly kind: 'unreadable' };
 
@@ -43,13 +45,21 @@ export type AiProviderReadinessState =
  * uses the stateless database client, which cannot open one; call it outside a transaction.
  * Never throws. Only the missing-table case is quiet.
  */
-export async function loadAiProviderReadiness(db: Db): Promise<AiProviderReadinessState> {
+export async function loadAiProviderReadiness(
+  db: Db,
+  options: {
+    /** Providers the web gateway can call (`IMPLEMENTED_PROVIDERS` in apps/web/src/lib/ai.ts). */
+    readonly implementedProviders: ReadonlySet<string>;
+  },
+): Promise<AiProviderReadinessState> {
   try {
     const configs = schema.aiProviderConfigs;
     const anyConfig = first(await db.select({ id: configs.id }).from(configs).limit(1));
     if (!anyConfig) return { kind: 'no_configuration' };
     const columns = {
       id: configs.id,
+      provider: configs.provider,
+      dataPolicyApproved: configs.dataPolicyApproved,
       keyUsable: sql<boolean>`(${configs.keyRevokedAt} is null and octet_length(${configs.apiKeyCiphertext}) > 0)`,
       fallbackEnabled: configs.fallbackEnabled,
       fallbackId: configs.fallbackProviderConfigId,
@@ -58,11 +68,27 @@ export async function loadAiProviderReadiness(db: Db): Promise<AiProviderReadine
       await db.select(columns).from(configs).where(eq(configs.status, 'ACTIVE')).limit(1),
     );
     if (!active) return { kind: 'none_active' };
-    const fallbackId = active.fallbackEnabled ? active.fallbackId : null;
+    const target =
+      active.fallbackEnabled && active.fallbackId
+        ? first(
+            await db
+              .select(columns)
+              .from(configs)
+              .where(eq(configs.id, active.fallbackId))
+              .limit(1),
+          )
+        : undefined;
+    // The same eligibility `resolveFallbackExtractor` checks before it would dispatch. Its last
+    // check, the optional "do not train on inputs" rule, is not applied here: a usable fallback
+    // without recorded terms fails the gate whether or not that rule is on.
     const fallback =
-      fallbackId === null
-        ? undefined
-        : first(await db.select(columns).from(configs).where(eq(configs.id, fallbackId)).limit(1));
+      target &&
+      target.provider !== active.provider &&
+      target.dataPolicyApproved &&
+      target.keyUsable === true &&
+      options.implementedProviders.has(target.provider)
+        ? target
+        : undefined;
     const ids = fallback ? [active.id, fallback.id] : [active.id];
     const withTerms = new Set(
       (
@@ -72,14 +98,10 @@ export async function loadAiProviderReadiness(db: Db): Promise<AiProviderReadine
           .where(inArray(schema.aiProviderConfigTerms.configId, ids))
       ).map((row) => row.configId),
     );
-    const readinessOf = (row: { id: string; keyUsable: boolean }): AiConfigReadiness => ({
-      hasKey: row.keyUsable === true,
-      termsRecorded: withTerms.has(row.id),
-    });
     return {
       kind: 'active',
-      primary: readinessOf(active),
-      fallback: fallbackId === null ? null : fallback ? readinessOf(fallback) : 'missing',
+      primary: { hasKey: active.keyUsable === true, termsRecorded: withTerms.has(active.id) },
+      fallback: fallback ? { termsRecorded: withTerms.has(fallback.id) } : null,
     };
   } catch (error) {
     if (!isMissingRelationError(error)) {

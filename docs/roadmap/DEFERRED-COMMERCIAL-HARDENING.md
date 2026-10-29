@@ -36,8 +36,8 @@ Execution plan: [SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md](SONNET-SMALL-COMMERCIAL-
 | M19 | Honest commercial-readiness checks | The AI gate only knows the old OpenAI path; the scanner gate ignores `github_clamav`; the penetration-test gate cannot record the owner's deferral | S27 plus owner action O17 |
 
 Update 2026-10-29 (S27):
-- M05: the encrypted database backup runs daily (05:17 UTC) with a daily 36-hour freshness check; automatic pruning (35 days plus 12 weekly copies, never the newest 7) is built but off until the owner sets `BACKUP_PRUNE=on`. One verified document restore from the mirror (S24) and owner action O3 remain.
-- M19: the readiness checks now match this plan: provider-neutral AI gate (with the fallback provider), scanner gate accepting `github_clamav` with fresh proof on production (logos and photo proofs re-encoded on the server), and the owner deferral for the penetration test under H01 only. Owner action O17 (setting the deferral) remains.
+- M05: the encrypted database backup runs daily (05:17 UTC) with a daily freshness check at 11:07 UTC and a 24-hour window; automatic pruning (35 days plus up to 12 calendar-week copies, never the newest 7) is built but off until the owner sets `BACKUP_PRUNE=on`. One verified document restore from the mirror (S24) and owner action O3 remain.
+- M19: the readiness checks now match this plan: provider-neutral AI gate (including a fallback provider the app would really use), scanner gate accepting `github_clamav` with fresh proof on production (logos and photo proofs re-encoded on the server), and the owner deferral for the penetration test under H01 only. Owner action O17 (setting the deferral) remains.
 
 ## Part 2. Deferred security and compliance hardening
 

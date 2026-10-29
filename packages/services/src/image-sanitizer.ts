@@ -24,14 +24,32 @@ export interface SanitizedImage {
 export interface ImageSanitizerPort {
   readonly name: string;
   readonly version: string;
-  /** Throws for anything that is not a readable JPEG or PNG within the pixel ceiling. */
+  /**
+   * Throws for anything that is not a readable JPEG or PNG within the pixel ceiling. When the
+   * cleaned copy cannot be made to fit `maxOutputBytes` (palette PNG for a paletted source, then
+   * PNG, then high-quality JPEG when there is no transparency), it throws an error whose `code`
+   * is `IMAGE_TOO_LARGE_CODE`, so the caller can say so plainly.
+   */
   sanitize(input: {
     readonly bytes: Uint8Array;
     /** Refused before decoding when the image is larger than this many pixels. */
     readonly maxInputPixels: number;
     /** The longest side of the output; smaller images are never enlarged. */
     readonly maxDimension: number;
+    /** The largest cleaned copy that may be stored. */
+    readonly maxOutputBytes: number;
   }): Promise<SanitizedImage>;
+}
+
+export const IMAGE_TOO_LARGE_CODE = 'image_too_large';
+
+/** True for the sanitizer's "too large after cleaning" refusal. */
+export function isImageTooLargeError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { code?: unknown }).code === IMAGE_TOO_LARGE_CODE
+  );
 }
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];

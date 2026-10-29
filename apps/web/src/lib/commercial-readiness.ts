@@ -263,13 +263,15 @@ function check(problems: readonly string[]): GateCheck {
 
 /**
  * Provider-neutral AI gate (S27). Satisfied when AI dispatch is off, or when the ACTIVE
- * database configuration has a usable key and recorded provider data terms, and so does its
- * fallback when the fallback is switched on (documents can be sent there too). "Off" means
- * what `ai.ts` decides before every call: with configurations saved, no ACTIVE one (the kill
- * switch); on a fresh install, the environment not turning AI on. The old environment-only
- * OpenAI path, when it would run, does not satisfy the gate: it has no recorded data terms,
- * so commercial mode needs a database configuration instead. Unknown or unreadable settings
- * (a missing table included) fail closed.
+ * database configuration has a usable key and recorded provider data terms, and, when its
+ * fallback would really be used (switched on, and the gateway's `resolveFallbackExtractor` would
+ * send documents there: it exists, is another callable provider, has an approved data policy and
+ * a usable key), that fallback's terms are recorded too. A fallback the gateway would treat as
+ * absent receives nothing, so it does not fail the gate. "Off" means what `ai.ts` decides before
+ * every call: with configurations saved, no ACTIVE one (the kill switch); on a fresh install, the
+ * environment not turning AI on. The old environment-only OpenAI path, when it would run, does
+ * not satisfy the gate: it has no recorded data terms, so commercial mode needs a database
+ * configuration instead. Unknown or unreadable settings (a missing table included) fail closed.
  */
 function productionAiProviderCheck(state: AiProviderReadiness): GateCheck {
   switch (state.kind) {
@@ -287,13 +289,8 @@ function productionAiProviderCheck(state: AiProviderReadiness): GateCheck {
       if (!state.primary.termsRecorded) {
         problems.push('The active AI provider has no recorded data terms.');
       }
-      if (state.fallback === 'missing') {
-        problems.push('The fallback AI provider is switched on but no longer exists.');
-      } else if (state.fallback) {
-        if (!state.fallback.hasKey) problems.push('The fallback AI provider has no usable key.');
-        if (!state.fallback.termsRecorded) {
-          problems.push('The fallback AI provider has no recorded data terms.');
-        }
+      if (state.fallback && !state.fallback.termsRecorded) {
+        problems.push('The fallback AI provider has no recorded data terms.');
       }
       return check(problems);
     }

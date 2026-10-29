@@ -3,7 +3,8 @@ name: Encrypted Neon backup to R2
 on:
   schedule:
     # Daily at 05:17 UTC (S27), off the busy top of the hour: up to a day of independent-copy
-    # data loss, plus schedule delay. The Vercel freshness check runs daily at 07:00 UTC, after it.
+    # data loss, plus schedule delay. The Vercel freshness check runs daily at 11:07 UTC, after it,
+    # with a 24-hour window, so one failed capture is caught the same day.
     - cron: '17 5 * * *'
   workflow_dispatch:
 

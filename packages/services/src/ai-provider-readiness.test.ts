@@ -13,6 +13,7 @@ import type { Db } from './db';
  */
 
 let db: Db;
+const IMPLEMENTED = { implementedProviders: new Set(['openai', 'anthropic', 'gemini']) };
 
 beforeEach(async () => {
   const client = await createMigratedPglite();
@@ -21,19 +22,24 @@ beforeEach(async () => {
 
 async function seedConfig(
   status: 'DRAFT' | 'ACTIVE',
-  options: { revoked?: boolean; fallbackTo?: string } = {},
+  options: {
+    revoked?: boolean;
+    fallbackTo?: string;
+    provider?: string;
+    dataPolicyApproved?: boolean;
+  } = {},
 ): Promise<string> {
   const [row] = await db
     .insert(schema.aiProviderConfigs)
     .values({
       status,
-      provider: 'gemini',
-      model: 'gemini-test',
+      provider: options.provider ?? 'gemini',
+      model: 'test-model',
       apiKeyCiphertext: new Uint8Array([1, 2, 3, 4]),
       apiKeyNonce: new Uint8Array(12),
       apiKeyVersion: 'v1',
       apiKeyFingerprint: '...1234',
-      dataPolicyApproved: true,
+      dataPolicyApproved: options.dataPolicyApproved ?? true,
       budgetLimitUnits: 1000,
       ...(status === 'ACTIVE' ? { activatedAt: new Date() } : {}),
       ...(options.revoked ? { keyRevokedAt: new Date() } : {}),
@@ -58,18 +64,18 @@ async function recordTerms(configId: string): Promise<void> {
 
 describe('loadAiProviderReadiness', () => {
   it('reports a fresh install, where the environment decides, when nothing was ever saved', async () => {
-    expect(await loadAiProviderReadiness(db)).toEqual({ kind: 'no_configuration' });
+    expect(await loadAiProviderReadiness(db, IMPLEMENTED)).toEqual({ kind: 'no_configuration' });
   });
 
   it('reports dispatch off when configurations exist but none is active', async () => {
     const draft = await seedConfig('DRAFT');
     await recordTerms(draft);
-    expect(await loadAiProviderReadiness(db)).toEqual({ kind: 'none_active' });
+    expect(await loadAiProviderReadiness(db, IMPLEMENTED)).toEqual({ kind: 'none_active' });
   });
 
   it('reports an active configuration with a key and recorded terms', async () => {
     await recordTerms(await seedConfig('ACTIVE'));
-    expect(await loadAiProviderReadiness(db)).toEqual({
+    expect(await loadAiProviderReadiness(db, IMPLEMENTED)).toEqual({
       kind: 'active',
       primary: { hasKey: true, termsRecorded: true },
       fallback: null,
@@ -80,68 +86,90 @@ describe('loadAiProviderReadiness', () => {
     const active = await seedConfig('ACTIVE');
     // Terms recorded for another configuration do not count for the active one.
     await recordTerms(await seedConfig('DRAFT'));
-    expect(await loadAiProviderReadiness(db)).toEqual({
+    expect(await loadAiProviderReadiness(db, IMPLEMENTED)).toEqual({
       kind: 'active',
       primary: { hasKey: true, termsRecorded: false },
       fallback: null,
     });
     await recordTerms(active);
-    expect(await loadAiProviderReadiness(db)).toMatchObject({
+    expect(await loadAiProviderReadiness(db, IMPLEMENTED)).toMatchObject({
       primary: { termsRecorded: true },
     });
   });
 
   it('reports terms without a usable key once the key is revoked', async () => {
     await recordTerms(await seedConfig('ACTIVE', { revoked: true }));
-    expect(await loadAiProviderReadiness(db)).toEqual({
+    expect(await loadAiProviderReadiness(db, IMPLEMENTED)).toEqual({
       kind: 'active',
       primary: { hasKey: false, termsRecorded: true },
       fallback: null,
     });
   });
 
-  it('reports the fallback configuration documents can also be sent to, when it is on', async () => {
-    const fallback = await seedConfig('DRAFT');
+  it('reports the fallback documents would really be sent to, and whether its terms are recorded', async () => {
+    const fallback = await seedConfig('DRAFT', { provider: 'openai' });
     await recordTerms(await seedConfig('ACTIVE', { fallbackTo: fallback }));
-    expect(await loadAiProviderReadiness(db)).toEqual({
+    expect(await loadAiProviderReadiness(db, IMPLEMENTED)).toEqual({
       kind: 'active',
       primary: { hasKey: true, termsRecorded: true },
-      fallback: { hasKey: true, termsRecorded: false },
+      fallback: { termsRecorded: false },
     });
     await recordTerms(fallback);
-    expect(await loadAiProviderReadiness(db)).toMatchObject({
-      fallback: { hasKey: true, termsRecorded: true },
-    });
-    await db
-      .update(schema.aiProviderConfigs)
-      .set({ keyRevokedAt: new Date() })
-      .where(eq(schema.aiProviderConfigs.id, fallback));
-    expect(await loadAiProviderReadiness(db)).toMatchObject({
-      fallback: { hasKey: false, termsRecorded: true },
+    expect(await loadAiProviderReadiness(db, IMPLEMENTED)).toMatchObject({
+      fallback: { termsRecorded: true },
     });
   });
 
-  it('ignores a fallback that is switched off, and reports a fallback that names nothing as missing', async () => {
-    const fallback = await seedConfig('DRAFT');
-    const active = await seedConfig('ACTIVE', { fallbackTo: fallback });
+  it('treats a fallback the gateway would not use as absent: switched off, missing, no usable key, same provider, unapproved data policy or a provider the app cannot call', async () => {
+    const setFallback = async (active: string, values: Record<string, unknown>) =>
+      db
+        .update(schema.aiProviderConfigs)
+        .set(values)
+        .where(eq(schema.aiProviderConfigs.id, active));
+    const usable = await seedConfig('DRAFT', { provider: 'openai' });
+    const active = await seedConfig('ACTIVE', { fallbackTo: usable });
     await recordTerms(active);
-    await db
-      .update(schema.aiProviderConfigs)
-      .set({ fallbackEnabled: false })
-      .where(eq(schema.aiProviderConfigs.id, active));
-    expect(await loadAiProviderReadiness(db)).toMatchObject({ fallback: null });
-    await db
-      .update(schema.aiProviderConfigs)
-      .set({ fallbackEnabled: true, fallbackProviderConfigId: crypto.randomUUID() })
-      .where(eq(schema.aiProviderConfigs.id, active));
-    expect(await loadAiProviderReadiness(db)).toMatchObject({ fallback: 'missing' });
+    const cases: Array<() => Promise<unknown>> = [
+      () => setFallback(active, { fallbackEnabled: false }),
+      () => setFallback(active, { fallbackProviderConfigId: crypto.randomUUID() }),
+      async () =>
+        setFallback(active, {
+          fallbackProviderConfigId: await seedConfig('DRAFT', {
+            provider: 'openai',
+            revoked: true,
+          }),
+        }),
+      async () =>
+        setFallback(active, {
+          fallbackProviderConfigId: await seedConfig('DRAFT', { provider: 'gemini' }),
+        }),
+      async () =>
+        setFallback(active, {
+          fallbackProviderConfigId: await seedConfig('DRAFT', {
+            provider: 'openai',
+            dataPolicyApproved: false,
+          }),
+        }),
+      async () =>
+        setFallback(active, {
+          fallbackProviderConfigId: await seedConfig('DRAFT', { provider: 'mistral' }),
+        }),
+    ];
+    for (const change of cases) {
+      await setFallback(active, { fallbackEnabled: true, fallbackProviderConfigId: usable });
+      expect(await loadAiProviderReadiness(db, IMPLEMENTED)).toMatchObject({
+        fallback: { termsRecorded: false },
+      });
+      await change();
+      expect(await loadAiProviderReadiness(db, IMPLEMENTED)).toMatchObject({ fallback: null });
+    }
   });
 
   it('reads as unreadable, quietly, while the terms table is missing', async () => {
     await seedConfig('ACTIVE');
     await db.execute(sql`drop table ai_provider_config_terms`);
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    expect(await loadAiProviderReadiness(db)).toEqual({ kind: 'unreadable' });
+    expect(await loadAiProviderReadiness(db, IMPLEMENTED)).toEqual({ kind: 'unreadable' });
     expect(error).not.toHaveBeenCalled();
     error.mockRestore();
   });
@@ -149,7 +177,7 @@ describe('loadAiProviderReadiness', () => {
   it('reads as unreadable, quietly, while the configuration table is missing', async () => {
     await db.execute(sql`drop table ai_provider_configs cascade`);
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    expect(await loadAiProviderReadiness(db)).toEqual({ kind: 'unreadable' });
+    expect(await loadAiProviderReadiness(db, IMPLEMENTED)).toEqual({ kind: 'unreadable' });
     expect(error).not.toHaveBeenCalled();
     error.mockRestore();
   });
@@ -161,14 +189,14 @@ describe('loadAiProviderReadiness', () => {
       },
     } as unknown as Db;
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    expect(await loadAiProviderReadiness(broken)).toEqual({ kind: 'unreadable' });
+    expect(await loadAiProviderReadiness(broken, IMPLEMENTED)).toEqual({ kind: 'unreadable' });
     expect(error).toHaveBeenCalledTimes(1);
     error.mockRestore();
   });
 
   it('never returns key material, a provider name or a model', async () => {
     await recordTerms(await seedConfig('ACTIVE'));
-    const text = JSON.stringify(await loadAiProviderReadiness(db));
+    const text = JSON.stringify(await loadAiProviderReadiness(db, IMPLEMENTED));
     expect(text).not.toContain('gemini');
     expect(text).not.toContain('1234');
     const [config] = await db

@@ -10,7 +10,8 @@ import {
   parseBackupManifest,
   planBackupPrune,
 } from './backup-retention';
-import { R2_DOCUMENT_BUCKET, readR2Region, validateR2Endpoint } from './r2-storage';
+import { createR2BackupClient } from './r2-backup-client';
+import { R2_DOCUMENT_BUCKET } from './r2-storage';
 
 /**
  * The prune and storage report step of `.github/workflows/database-backup.yml` (S27). It lists
@@ -49,12 +50,12 @@ export async function runBackupPrune(input: {
   for (const object of objects) {
     if (!object.key.endsWith('.manifest.json')) continue;
     const text = await input.store.readText(object.key);
-    manifests.set(object.key, text === null ? null : parseBackupManifest(text));
+    manifests.set(object.key, text === null ? null : parseBackupManifest(text, input.now));
   }
   const latestText = objects.some((object) => object.key === LATEST_MANIFEST_KEY)
     ? await input.store.readText(LATEST_MANIFEST_KEY)
     : null;
-  const latest = latestText === null ? null : parseBackupManifest(latestText);
+  const latest = latestText === null ? null : parseBackupManifest(latestText, input.now);
   const plan = planBackupPrune({
     objects,
     manifests,
@@ -101,20 +102,27 @@ function required(name: string): string {
   return value;
 }
 
+/**
+ * The next page token, or undefined on the last page. A page that says more follow but gives no
+ * token would leave a partial listing, which must never be planned against: it throws.
+ */
+export function nextListingToken(page: {
+  readonly IsTruncated?: boolean | undefined;
+  readonly NextContinuationToken?: string | undefined;
+}): string | undefined {
+  if (!page.IsTruncated) return undefined;
+  if (!page.NextContinuationToken) throw new Error('incomplete backup listing');
+  return page.NextContinuationToken;
+}
+
 async function r2Store(): Promise<BackupStore & { close(): void }> {
-  const { DeleteObjectsCommand, GetObjectCommand, ListObjectsV2Command, S3Client } = await import(
+  const { DeleteObjectsCommand, GetObjectCommand, ListObjectsV2Command } = await import(
     '@aws-sdk/client-s3'
   );
-  const client = new S3Client({
-    region: readR2Region(),
-    forcePathStyle: true,
-    endpoint: validateR2Endpoint(required('R2_ENDPOINT_URL')),
-    credentials: {
-      accessKeyId: required('R2_ACCESS_KEY_ID'),
-      secretAccessKey: required('R2_SECRET_ACCESS_KEY'),
-    },
-    requestChecksumCalculation: 'WHEN_REQUIRED',
-    responseChecksumValidation: 'WHEN_REQUIRED',
+  const client = await createR2BackupClient({
+    endpoint: required('R2_ENDPOINT_URL'),
+    accessKeyId: required('R2_ACCESS_KEY_ID'),
+    secretAccessKey: required('R2_SECRET_ACCESS_KEY'),
   });
   return {
     async list(prefix) {
@@ -134,7 +142,7 @@ async function r2Store(): Promise<BackupStore & { close(): void }> {
           }
           objects.push({ key: item.Key, size: item.Size, lastModified: item.LastModified });
         }
-        token = page.IsTruncated ? page.NextContinuationToken : undefined;
+        token = nextListingToken(page);
       } while (token);
       return objects;
     },

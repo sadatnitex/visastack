@@ -8,6 +8,7 @@ import {
   type ImageSanitizerPort,
   type SanitizedImage,
   isAcceptableSanitizedImage,
+  isImageTooLargeError,
 } from './image-sanitizer';
 import type { MalwareScannerPort } from './intake';
 import { isOrgAdmin } from './organizations';
@@ -223,6 +224,11 @@ export interface UploadOrganizationLogoInput {
 /** The longest side a stored logo may have, and the pixel ceiling an upload is refused above. */
 export const LOGO_MAX_DIMENSION = 1024;
 export const LOGO_MAX_INPUT_PIXELS = 40_000_000;
+/**
+ * The largest cleaned logo that may be stored. Separate from the upload limit people see
+ * (`MAX_LOGO_BYTES`): a cleaned copy can be larger than a well-compressed upload.
+ */
+export const LOGO_MAX_OUTPUT_BYTES = 4 * 1024 * 1024;
 
 /** What a logo upload must pass: the configured safety scanner, then server-side re-encoding. */
 export interface LogoUploadChecks {
@@ -293,13 +299,21 @@ export async function uploadOrganizationLogo(
         bytes: verification.bytes,
         maxInputPixels: LOGO_MAX_INPUT_PIXELS,
         maxDimension: LOGO_MAX_DIMENSION,
+        maxOutputBytes: LOGO_MAX_OUTPUT_BYTES,
       });
-    } catch {
-      return err(serviceError('invalid', 'this image could not be read -- try a PNG or JPEG'));
+    } catch (error) {
+      return err(
+        serviceError(
+          'invalid',
+          isImageTooLargeError(error)
+            ? 'this image is too large after cleaning -- try a smaller or simpler image'
+            : 'this image could not be read -- try a PNG or JPEG',
+        ),
+      );
     }
     if (
       !isAcceptableSanitizedImage(clean, {
-        maxBytes: MAX_LOGO_BYTES,
+        maxBytes: LOGO_MAX_OUTPUT_BYTES,
         maxDimension: LOGO_MAX_DIMENSION,
       })
     ) {

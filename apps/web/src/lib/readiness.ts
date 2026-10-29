@@ -58,6 +58,23 @@ export interface ReadinessReport {
   readonly commercial: ReturnType<typeof evaluateCommercialReadiness> | undefined;
 }
 
+/**
+ * One stateless HTTP database client per connection string, reused by every evaluation: it holds
+ * no connection or session, and reusing it lets overlapping evaluations share one read of the
+ * readiness facts (readiness-signals.ts keys that sharing by handle).
+ */
+let cachedClient: {
+  readonly connectionString: string;
+  readonly client: ReturnType<typeof createNeonDb>;
+} | null = null;
+
+function readinessClient(connectionString: string): ReturnType<typeof createNeonDb> {
+  if (cachedClient?.connectionString !== connectionString) {
+    cachedClient = { connectionString, client: createNeonDb(connectionString) };
+  }
+  return cachedClient.client;
+}
+
 export async function evaluateReadiness(): Promise<ReadinessReport> {
   const deploymentMode = getDeploymentMode();
   // The key service check runs alongside the database and storage probes, not after them.
@@ -81,7 +98,7 @@ export async function evaluateReadiness(): Promise<ReadinessReport> {
   const connectionString = resolveDatabaseUrl(process.env);
   if (connectionString) {
     try {
-      const client = createNeonDb(connectionString);
+      const client = readinessClient(connectionString);
       await checkConnection(client);
       db = { connected: true, schemaApplied: await isSchemaApplied(client) };
       if (db.schemaApplied) {

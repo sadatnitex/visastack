@@ -6,12 +6,15 @@
  * Policy, for archives with a verified manifest (the immutable `<archive>.manifest.json` written
  * once by `backup-neon.ts`, naming this archive and its exact size):
  * - keep every archive completed in the last 35 days;
- * - keep the newest archive of each of the 12 weeks before that;
+ * - keep the newest archive in each of the 12 calendar weeks up to the 35-day line (the week
+ *   holding the line and the 11 before it; fixed weeks counted from the Unix epoch, so a daily
+ *   prune does not move them), so the oldest such copy is at most about 119 days old;
  * - keep the newest 7 verified archives whatever their age;
  * - keep the archive `database/latest.json` points at, verified or not;
  * - everything else may go, together with its manifest.
  * Archives without a verified manifest (a failed or interrupted run) are orphans: always reported,
- * and removable only once older than 2 days. Nothing is removed at all when there is no verified
+ * and removable only once older than 2 days, together with any manifest file they have. A
+ * manifest whose archive no longer exists is removable once older than 2 days. Nothing is removed at all when there is no verified
  * archive, or when the newest one is older than 2 days, because then captures may be failing and
  * the old copies may be the only good ones. Anything else under the prefix is never touched.
  */
@@ -24,6 +27,8 @@ export const KEEP_NEWEST_VERIFIED = 7;
 export const ORPHAN_MIN_AGE_MS = 2 * 24 * 60 * 60 * 1000;
 export const STALE_CAPTURE_MS = 2 * 24 * 60 * 60 * 1000;
 export const STORAGE_WARNING_BYTES = 8 * 1000 ** 3;
+/** A manifest may claim a completion time this far ahead of the clock (clock skew), no more. */
+export const MANIFEST_CLOCK_SKEW_MS = 10 * 60 * 1000;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * DAY_MS;
@@ -65,12 +70,17 @@ export interface BackupPrunePlan {
   readonly paused: string | null;
 }
 
+const MANIFEST_SUFFIX = '.manifest.json';
+
 export function manifestKeyFor(archiveKey: string): string {
-  return `${archiveKey}.manifest.json`;
+  return `${archiveKey}${MANIFEST_SUFFIX}`;
 }
 
-/** The manifest fields the plan trusts, or null for anything malformed. */
-export function parseBackupManifest(text: string): BackupManifest | null {
+/**
+ * The one manifest parser (also used by the freshness check, `backup-status.ts`): the fields the
+ * plan trusts, or null for anything malformed or completed in the future beyond clock skew.
+ */
+export function parseBackupManifest(text: string, now: Date): BackupManifest | null {
   try {
     const value = JSON.parse(text) as {
       version?: unknown;
@@ -91,7 +101,8 @@ export function parseBackupManifest(text: string): BackupManifest | null {
       typeof value.sha256 !== 'string' ||
       !/^[a-f0-9]{64}$/.test(value.sha256) ||
       !completedAt ||
-      Number.isNaN(completedAt.getTime())
+      Number.isNaN(completedAt.getTime()) ||
+      completedAt.getTime() > now.getTime() + MANIFEST_CLOCK_SKEW_MS
     ) {
       return null;
     }
@@ -125,18 +136,20 @@ export function planBackupPrune(input: BackupPruneInput): BackupPrunePlan {
   for (const archive of verified.slice(0, KEEP_NEWEST_VERIFIED)) {
     keep(archive.key, `one of the newest ${KEEP_NEWEST_VERIFIED} verified archives`);
   }
+  // Fixed calendar weeks counted from the epoch, so a daily prune does not move them: the week
+  // holding the 35-day line and the 11 before it.
+  const lineWeek = Math.floor((now - KEEP_ALL_DAYS * DAY_MS) / WEEK_MS);
   const weeklyTaken = new Set<number>();
   for (const archive of verified) {
-    const age = now - archive.completedAt;
-    if (age <= KEEP_ALL_DAYS * DAY_MS) {
+    if (now - archive.completedAt <= KEEP_ALL_DAYS * DAY_MS) {
       keep(archive.key, `completed in the last ${KEEP_ALL_DAYS} days`);
       continue;
     }
-    const week = Math.floor((age - KEEP_ALL_DAYS * DAY_MS) / WEEK_MS);
-    if (week < KEEP_WEEKLY_WEEKS && !weeklyTaken.has(week)) {
-      weeklyTaken.add(week);
-      keep(archive.key, 'newest archive of its week');
-    }
+    // Newest first, so the first archive met in a calendar week is that week's newest.
+    const week = Math.floor(archive.completedAt / WEEK_MS);
+    if (week <= lineWeek - KEEP_WEEKLY_WEEKS || weeklyTaken.has(week)) continue;
+    weeklyTaken.add(week);
+    keep(archive.key, 'newest archive of its calendar week');
   }
 
   const newest = verified[0];
@@ -148,6 +161,10 @@ export function planBackupPrune(input: BackupPruneInput): BackupPrunePlan {
         : null;
 
   const remove: { key: string; reason: string }[] = [];
+  const archiveKeys = new Set(archives.map((archive) => archive.key));
+  const manifestKeys = new Set(
+    input.objects.map((object) => object.key).filter((key) => key.endsWith(MANIFEST_SUFFIX)),
+  );
   const orphans = orphanArchives.map((archive) => {
     const removable =
       !keepReasons.has(archive.key) && now - archive.lastModified.getTime() > ORPHAN_MIN_AGE_MS;
@@ -160,9 +177,18 @@ export function planBackupPrune(input: BackupPruneInput): BackupPrunePlan {
       remove.push({ key: manifestKeyFor(archive.key), reason: 'manifest of a removed archive' });
     }
     for (const orphan of orphans) {
-      if (orphan.removable) {
-        remove.push({ key: orphan.key, reason: 'no verified manifest, older than 2 days' });
+      if (!orphan.removable) continue;
+      remove.push({ key: orphan.key, reason: 'no verified manifest, older than 2 days' });
+      if (manifestKeys.has(manifestKeyFor(orphan.key))) {
+        remove.push({ key: manifestKeyFor(orphan.key), reason: 'manifest of a removed archive' });
       }
+    }
+    for (const manifest of input.objects) {
+      if (!manifest.key.endsWith(MANIFEST_SUFFIX)) continue;
+      const archiveKey = manifest.key.slice(0, -MANIFEST_SUFFIX.length);
+      if (!ARCHIVE_KEY.test(archiveKey) || archiveKeys.has(archiveKey)) continue;
+      if (now - manifest.lastModified.getTime() <= ORPHAN_MIN_AGE_MS) continue;
+      remove.push({ key: manifest.key, reason: 'manifest whose archive no longer exists' });
     }
   }
   return {

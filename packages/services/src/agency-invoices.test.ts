@@ -13,7 +13,7 @@ import {
 } from './agency-invoices';
 import { createInvoice, recordInvoicePayment, voidInvoice } from './billing';
 import type { Db } from './db';
-import type { ImageSanitizerPort } from './image-sanitizer';
+import { IMAGE_TOO_LARGE_CODE, type ImageSanitizerPort } from './image-sanitizer';
 import type { MalwareScannerPort } from './intake';
 import { type ApplyInvoiceCollectionInput, applyInvoiceCollection } from './invoice-ledger';
 import {
@@ -1301,6 +1301,28 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
         );
         expect(isErr(result) && result.error.message).toMatch(/could not be read/);
       }
+      expect(storage.objects.size).toBe(0);
+    });
+
+    it('says plainly when a photo proof is too large after cleaning, and stores nothing', async () => {
+      const invoiceId = await openInvoice(org.organizationId, 'INV-F-TOOLARGE');
+      const tooLarge: ImageSanitizerPort = {
+        ...fakeImages,
+        async sanitize() {
+          throw Object.assign(new Error('too large'), { code: IMAGE_TOO_LARGE_CODE });
+        },
+      };
+      const result = await submitManualPaymentClaim(
+        db,
+        { storage, scanner: fakeScanner(storage), images: tooLarge },
+        claimInput(invoiceId, {
+          proofFile: {
+            contentType: 'image/png',
+            bytes: new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]),
+          },
+        }),
+      );
+      expect(isErr(result) && result.error.message).toMatch(/too large after cleaning/);
       expect(storage.objects.size).toBe(0);
     });
 

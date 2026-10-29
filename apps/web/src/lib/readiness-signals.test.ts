@@ -81,16 +81,39 @@ describe('readReadinessSignals', () => {
     expect(rememberedReadinessSignals(now)).toEqual(UNKNOWN_READINESS_SIGNALS);
   });
 
-  it('shares one read between overlapping evaluations', async () => {
-    const now = Date.UTC(2026, 9, 29, 12);
-    const [first, second] = await Promise.all([
-      readReadinessSignals(db, now),
-      readReadinessSignals(db, now),
-    ]);
+  it('shares one read between overlapping evaluations on the same handle, and only there', async () => {
+    const [first, second] = await Promise.all([readReadinessSignals(db), readReadinessSignals(db)]);
     expect(first).toBe(second);
     expect(mocks.loadAiProviderReadiness).toHaveBeenCalledTimes(1);
-    await readReadinessSignals(db, now);
-    expect(mocks.loadAiProviderReadiness).toHaveBeenCalledTimes(2);
+    // Another handle, or a caller's own clock, gets its own read with its own handle and time.
+    const other = {} as Parameters<typeof readReadinessSignals>[0];
+    const now = Date.UTC(2026, 9, 29, 12);
+    vi.stubEnv('MALWARE_SCANNER_PROVIDER', 'github_clamav');
+    await Promise.all([
+      readReadinessSignals(db),
+      readReadinessSignals(other),
+      readReadinessSignals(db, now),
+    ]);
+    expect(mocks.loadAiProviderReadiness).toHaveBeenCalledTimes(4);
+    expect(mocks.loadAiProviderReadiness.mock.calls.slice(1).map(([handle]) => handle)).toEqual([
+      db,
+      other,
+      db,
+    ]);
+    expect(mocks.loadScannerEvidence).toHaveBeenLastCalledWith(db, new Date(now));
+    // A finished read is not reused.
+    await readReadinessSignals(db);
+    expect(mocks.loadAiProviderReadiness).toHaveBeenCalledTimes(5);
+  });
+
+  it('passes the providers the app can call, so the fallback rule matches the gateway', async () => {
+    await readReadinessSignals(db, Date.UTC(2026, 9, 29, 12));
+    const [, options] = mocks.loadAiProviderReadiness.mock.calls[0] ?? [];
+    expect([...(options as { implementedProviders: Set<string> }).implementedProviders]).toEqual([
+      'openai',
+      'anthropic',
+      'gemini',
+    ]);
   });
 
   it('reads the AI settings, and the scan runner proof only for the private scan runner', async () => {

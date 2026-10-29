@@ -17,7 +17,7 @@ import {
   uploadOrganizationLogo,
 } from './branding';
 import type { Db } from './db';
-import type { ImageSanitizerPort } from './image-sanitizer';
+import { IMAGE_TOO_LARGE_CODE, type ImageSanitizerPort } from './image-sanitizer';
 import type { MalwareScannerPort } from './intake';
 import { addMembership, createOrganization, reviewOrganization } from './organizations';
 import type {
@@ -366,6 +366,29 @@ describe('uploadOrganizationLogo / removeOrganizationLogo (COM-04)', () => {
     // Only the stored logo is left: the temporary upload copy was removed.
     const keys = (await storage.listObjectKeys({ bucket: 'QUARANTINE' })).objectKeys;
     expect(keys).toEqual([result.value.logoObjectKey]);
+  });
+
+  it('says plainly when an image is too large after cleaning, and keeps nothing', async () => {
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'logo-too-large');
+    const tooLargeAfterCleaning: ImageSanitizerPort = {
+      ...reencodes,
+      async sanitize() {
+        throw Object.assign(new Error('too large'), { code: IMAGE_TOO_LARGE_CODE });
+      },
+    };
+    const result = await uploadOrganizationLogo(
+      db,
+      storage,
+      { scanner: cleanScannerPort, images: tooLargeAfterCleaning },
+      {
+        actorAccountId: ownerAccountId,
+        organizationId,
+        contentType: 'image/png',
+        bytes: PNG_MAGIC,
+      },
+    );
+    expect(isErr(result) && result.error.message).toMatch(/too large after cleaning/);
+    expect((await storage.listObjectKeys({ bucket: 'QUARANTINE' })).objectKeys).toEqual([]);
   });
 
   it('refuses an image that cannot be re-encoded, or whose re-encoded copy is not a real image, and keeps nothing', async () => {

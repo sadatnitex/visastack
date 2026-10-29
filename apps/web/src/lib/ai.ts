@@ -22,6 +22,7 @@ import {
   revealAiProviderApiKey,
 } from '@visastack/services';
 import { isAiDataUseAllowed } from './ai-data-rule';
+import { IMPLEMENTED_PROVIDERS } from './ai-providers';
 
 /** Variable-keyed env read (satisfies both TS index-signature and Biome rules). */
 function readEnv(name: string): string | undefined {
@@ -98,16 +99,7 @@ export interface ResolvedAiExtractor {
   readonly fallback?: { readonly ai: AiExtractionPort };
 }
 
-/**
- * Every provider this codebase can actually dispatch to via a DB config
- * (Part 8 §3: "ship production adapters for OpenAI API; Google Gemini API;
- * Anthropic Claude API" -- all three now implemented). Checked BEFORE
- * `revealAiProviderApiKey` runs (below), not after building the adapter --
- * an unimplemented provider must never pay for a real KMS decrypt of a key
- * it is never going to use. Keep this set and `buildAdapterForConfig`'s own
- * switch in sync when a new provider ships.
- */
-const IMPLEMENTED_PROVIDERS: ReadonlySet<string> = new Set(['openai', 'anthropic', 'gemini']);
+// `IMPLEMENTED_PROVIDERS` (./ai-providers.ts): keep it and `buildAdapterForConfig`'s switch in sync.
 
 /**
  * Returns `AiExtractionPort & AiClassifyPort & AiExplainPort &
@@ -395,7 +387,7 @@ export async function resolveAiInconsistencyChecker(
 
 /**
  * Providers with a real OCR adapter (Part 8 §9), separate from
- * `IMPLEMENTED_PROVIDERS` above -- OCR reuses the same admin-configured AI
+ * `IMPLEMENTED_PROVIDERS` (./ai-providers.ts) -- OCR reuses the same admin-configured AI
  * Gateway provider/key (Part 8 Chunk 14's own architecture decision). All
  * three directive-named providers now have an `AiOcrPort` implementation,
  * matching `IMPLEMENTED_PROVIDERS`'s own now-complete set. Keep this set and

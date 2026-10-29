@@ -5,6 +5,7 @@ import {
   loadAiProviderReadiness,
   loadScannerEvidence,
 } from '@visastack/services';
+import { IMPLEMENTED_PROVIDERS } from './ai-providers';
 import { readEnv } from './env';
 
 /**
@@ -40,13 +41,16 @@ export const UNKNOWN_READINESS_SIGNALS: ReadinessSignals = {
 let remembered: { readonly at: number; readonly signals: ReadinessSignals } | null = null;
 /** Bumped by every forget, so a read that started before it can never be remembered after it. */
 let generation = 0;
-/** Overlapping evaluations share one read (a busy status page polls readiness often). */
-let inFlight: { readonly generation: number; readonly read: Promise<ReadinessSignals> } | null =
-  null;
+/**
+ * Overlapping evaluations against the same database handle share one read (a busy status page
+ * polls readiness often; readiness.ts reuses one handle per connection string). A caller that
+ * passes its own clock, or another handle, gets its own read.
+ */
+let inFlight: { readonly db: Db; readonly read: Promise<ReadinessSignals> } | null = null;
 
 async function readBoth(db: Db, now: number): Promise<ReadinessSignals> {
   const [aiProvider, scannerEvidence] = await Promise.all([
-    loadAiProviderReadiness(db),
+    loadAiProviderReadiness(db, { implementedProviders: IMPLEMENTED_PROVIDERS }),
     readEnv('MALWARE_SCANNER_PROVIDER') === 'github_clamav'
       ? loadScannerEvidence(db, new Date(now))
       : Promise.resolve(null),
@@ -59,25 +63,24 @@ async function readBoth(db: Db, now: number): Promise<ReadinessSignals> {
  * database the answer is unknown and the remembered one is dropped too. Never throws: both
  * readers already turn a failed or missing read into the not-satisfied answer.
  */
-export function readReadinessSignals(
-  db: Db | undefined,
-  now: number = Date.now(),
-): Promise<ReadinessSignals> {
+export function readReadinessSignals(db: Db | undefined, now?: number): Promise<ReadinessSignals> {
   if (!db) {
     forgetReadinessSignals();
     return Promise.resolve(UNKNOWN_READINESS_SIGNALS);
   }
-  if (inFlight && inFlight.generation === generation) return inFlight.read;
+  const shareable = now === undefined;
+  if (shareable && inFlight?.db === db) return inFlight.read;
+  const at = now ?? Date.now();
   const startedIn = generation;
-  const read = readBoth(db, now)
+  const read = readBoth(db, at)
     .then((signals) => {
-      if (startedIn === generation) remembered = { at: now, signals };
+      if (startedIn === generation) remembered = { at, signals };
       return signals;
     })
     .finally(() => {
       if (inFlight?.read === read) inFlight = null;
     });
-  inFlight = { generation: startedIn, read };
+  if (shareable) inFlight = { db, read };
   return read;
 }
 

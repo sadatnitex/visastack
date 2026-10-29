@@ -5,7 +5,11 @@ import { appendAuditEvent } from './audit';
 import { invoiceLedgerReader } from './billing';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
-import { type ImageSanitizerPort, isAcceptableSanitizedImage } from './image-sanitizer';
+import {
+  type ImageSanitizerPort,
+  isAcceptableSanitizedImage,
+  isImageTooLargeError,
+} from './image-sanitizer';
 import type { MalwareScannerPort } from './intake';
 import {
   type CollectionRefusal,
@@ -98,6 +102,8 @@ export interface ProofFilePorts {
 /** The longest side a stored proof photo may have (a bank slip stays readable) and the pixel ceiling. */
 export const PROOF_IMAGE_MAX_DIMENSION = 4096;
 export const PROOF_IMAGE_MAX_INPUT_PIXELS = 40_000_000;
+/** The largest cleaned proof photo that may be stored; the upload limit people see stays 4 MB. */
+export const PROOF_IMAGE_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 
 export interface ProofFileInput {
   readonly contentType: string;
@@ -188,13 +194,21 @@ async function scanAndStoreProof(
           bytes: stored.bytes,
           maxInputPixels: PROOF_IMAGE_MAX_INPUT_PIXELS,
           maxDimension: PROOF_IMAGE_MAX_DIMENSION,
+          maxOutputBytes: PROOF_IMAGE_MAX_OUTPUT_BYTES,
         });
-      } catch {
-        return unreadable;
+      } catch (error) {
+        return isImageTooLargeError(error)
+          ? err(
+              serviceError(
+                'invalid',
+                'This image is too large after cleaning. Try a smaller photo or screenshot.',
+              ),
+            )
+          : unreadable;
       }
       if (
         !isAcceptableSanitizedImage(image, {
-          maxBytes: PROOF_FILE_MAX_BYTES,
+          maxBytes: PROOF_IMAGE_MAX_OUTPUT_BYTES,
           maxDimension: PROOF_IMAGE_MAX_DIMENSION,
         })
       ) {

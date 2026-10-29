@@ -373,32 +373,27 @@ describe('evaluateCommercialReadiness', () => {
       );
     });
 
-    it('needs the switched-on fallback to have a usable key and recorded terms too, and names the fallback', async () => {
-      expect(await ai({ kind: 'active', primary: ok, fallback: ok })).toBe(true);
-      const cases = [
-        [
-          { hasKey: true, termsRecorded: false },
-          'The fallback AI provider has no recorded data terms.',
-        ],
-        [{ hasKey: false, termsRecorded: true }, 'The fallback AI provider has no usable key.'],
-        ['missing', 'The fallback AI provider is switched on but no longer exists.'],
-      ] as const;
-      for (const [fallback, detail] of cases) {
-        const gate = await gateOf('productionAiProvider', {
-          aiProvider: { kind: 'active', primary: ok, fallback },
-        });
-        expect(gate?.satisfied).toBe(false);
-        expect(gate?.detail).toBe(detail);
-      }
+    it('needs recorded terms for a fallback documents would really be sent to, and names the fallback', async () => {
+      // `fallback: null` covers a fallback the gateway would not use (switched off, missing, no
+      // usable key, same provider, unapproved data policy): nothing is sent there.
+      expect(await ai({ kind: 'active', primary: ok, fallback: null })).toBe(true);
+      expect(await ai({ kind: 'active', primary: ok, fallback: { termsRecorded: true } })).toBe(
+        true,
+      );
+      const gate = await gateOf('productionAiProvider', {
+        aiProvider: { kind: 'active', primary: ok, fallback: { termsRecorded: false } },
+      });
+      expect(gate?.satisfied).toBe(false);
+      expect(gate?.detail).toBe('The fallback AI provider has no recorded data terms.');
       const both = await gateOf('productionAiProvider', {
         aiProvider: {
           kind: 'active',
-          primary: { hasKey: true, termsRecorded: false },
-          fallback: { hasKey: false, termsRecorded: false },
+          primary: { hasKey: false, termsRecorded: false },
+          fallback: { termsRecorded: false },
         },
       });
       expect(both?.detail).toBe(
-        'The active AI provider has no recorded data terms. The fallback AI provider has no usable key. The fallback AI provider has no recorded data terms.',
+        'The active AI provider has no usable key. The active AI provider has no recorded data terms. The fallback AI provider has no recorded data terms.',
       );
     });
 
