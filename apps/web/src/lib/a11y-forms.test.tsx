@@ -58,6 +58,7 @@ const standIn = vi.hoisted(
 vi.mock('../app/app/actions', standIn);
 vi.mock('../app/app/admin/actions', standIn);
 vi.mock('../app/app/admin/ai-settings/actions', standIn);
+vi.mock('../app/app/admin/billing/actions', standIn);
 vi.mock('../app/app/admin/document-protection/actions', standIn);
 vi.mock('../app/app/admin/sign-in-recovery/actions', standIn);
 vi.mock('../app/app/admin/email/actions', standIn);
@@ -91,6 +92,7 @@ const adminButtons = await import('../app/app/admin/action-buttons');
 const adminForms = await import('../app/app/admin/admin-forms');
 const aiSettings = await import('../app/app/admin/ai-settings/forms');
 const protectionForms = await import('../app/app/admin/document-protection/forms');
+const billingRulesForms = await import('../app/app/admin/billing/forms');
 const aiConsentForms = await import('../app/oauth/authorize/consent-form');
 const signInRecoveryForms = await import('../app/app/admin/sign-in-recovery/forms');
 const emailDeliveryForms = await import('../app/app/admin/email/forms');
@@ -1484,6 +1486,29 @@ const ADMIN: readonly Case[] = [
       />
     )),
     fields: ['reason'],
+  },
+  {
+    name: 'save the billing rules (off)',
+    element: () => (
+      <billingRulesForms.BillingRulesForm
+        dueDays={7}
+        overdueHandlingEnabled={false}
+        graceAfterDays={null}
+        suspendAfterDays={null}
+      />
+    ),
+    fields: ['dueDays', 'graceAfterDays', 'suspendAfterDays'],
+  },
+  {
+    name: 'save the billing rules (on)',
+    element: () => (
+      <billingRulesForms.BillingRulesForm
+        dueDays={10}
+        overdueHandlingEnabled
+        graceAfterDays={7}
+        suspendAfterDays={30}
+      />
+    ),
   },
   row('document protection switch (off, changed by an admin)', () => (
     <protectionForms.ProtectionSwitch

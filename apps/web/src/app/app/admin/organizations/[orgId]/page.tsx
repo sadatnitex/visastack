@@ -353,7 +353,9 @@ export default async function AdminOrganizationPage({
                       {h.fromStatus ?? 'opened'} → {h.toStatus}
                     </span>
                     <span className="muted u-fs-085">
-                      {formatTimestampDate(h.createdAt)} · {h.reason}
+                      {formatTimestampDate(h.createdAt)} ·{' '}
+                      {h.actorAccountId === null ? 'VisaStack (automatic)' : 'By a person'} ·{' '}
+                      {h.reason}
                     </span>
                   </div>
                 ))}
