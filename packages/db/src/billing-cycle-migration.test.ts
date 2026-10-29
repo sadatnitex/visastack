@@ -83,6 +83,9 @@ describe('migration 0103: recurring invoices and overdue handling', () => {
       await expect(set('grace_after_days = 7, suspend_after_days = 7')).rejects.toThrow();
       await expect(set('grace_after_days = 7, suspend_after_days = 366')).rejects.toThrow();
       await expect(set('grace_after_days = -1, suspend_after_days = 30')).rejects.toThrow();
+      // Overdue starts the day after the due day, so Grace starts at 1 at the earliest.
+      await expect(set('grace_after_days = 0, suspend_after_days = 30')).rejects.toThrow();
+      await set('grace_after_days = 1, suspend_after_days = 2');
       await set('grace_after_days = 7, suspend_after_days = 30, overdue_handling_enabled = true');
 
       // A history row by a person names them; one by the system has no person, cause NONPAYMENT

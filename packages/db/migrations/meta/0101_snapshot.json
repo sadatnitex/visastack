@@ -2868,7 +2868,7 @@
         },
         "billing_settings_policy_order": {
           "name": "billing_settings_policy_order",
-          "value": "\"billing_settings\".\"grace_after_days\" is null or \"billing_settings\".\"suspend_after_days\" is null or (\"billing_settings\".\"grace_after_days\" between 0 and 365 and \"billing_settings\".\"suspend_after_days\" > \"billing_settings\".\"grace_after_days\" and \"billing_settings\".\"suspend_after_days\" <= 365)"
+          "value": "\"billing_settings\".\"grace_after_days\" is null or \"billing_settings\".\"suspend_after_days\" is null or (\"billing_settings\".\"grace_after_days\" between 1 and 365 and \"billing_settings\".\"suspend_after_days\" > \"billing_settings\".\"grace_after_days\" and \"billing_settings\".\"suspend_after_days\" <= 365)"
         }
       },
       "isRLSEnabled": false

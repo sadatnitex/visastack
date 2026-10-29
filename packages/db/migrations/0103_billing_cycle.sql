@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS "billing_settings" (
 	CONSTRAINT "billing_settings_singleton" CHECK ("billing_settings"."id"),
 	CONSTRAINT "billing_settings_due_days_range" CHECK ("billing_settings"."due_days" between 1 and 60),
 	CONSTRAINT "billing_settings_policy_complete" CHECK (not "billing_settings"."overdue_handling_enabled" or ("billing_settings"."grace_after_days" is not null and "billing_settings"."suspend_after_days" is not null)),
-	CONSTRAINT "billing_settings_policy_order" CHECK ("billing_settings"."grace_after_days" is null or "billing_settings"."suspend_after_days" is null or ("billing_settings"."grace_after_days" between 0 and 365 and "billing_settings"."suspend_after_days" > "billing_settings"."grace_after_days" and "billing_settings"."suspend_after_days" <= 365))
+	CONSTRAINT "billing_settings_policy_order" CHECK ("billing_settings"."grace_after_days" is null or "billing_settings"."suspend_after_days" is null or ("billing_settings"."grace_after_days" between 1 and 365 and "billing_settings"."suspend_after_days" > "billing_settings"."grace_after_days" and "billing_settings"."suspend_after_days" <= 365))
 );
 --> statement-breakpoint
 DO $fk$ BEGIN

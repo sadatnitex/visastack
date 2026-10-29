@@ -2,6 +2,7 @@ import { type SQL, and, asc, eq, inArray, lt, sql } from 'drizzle-orm';
 import {
   type BillingStatus,
   type BillingStatusCause,
+  type NewestBillingStatusChange,
   newestBillingStatusChange,
 } from './billing-history';
 import { type Db, first, schema } from './db';
@@ -13,9 +14,11 @@ import { localDateDiffInDays, toLocalDateParts } from './notification-sweep';
  * "overdue" means, the one overlap rule for invoice periods, and the locked read of a billing
  * account. Reads only; the writes live with the recording function (`invoice-ledger.ts`).
  *
- * Lock order, everywhere a billing status can change: the invoice row (payments only), then the
- * billing account row (`lockBillingAccount`), then the audit chain (the first `appendAuditEvent`).
- * Nothing that holds the audit chain ever waits for a billing account row.
+ * Lock order, everywhere a billing status can change or an invoice is created: the invoice row
+ * (payments only), then the billing account row (`lockBillingAccount`), then the audit chain (the
+ * first `appendAuditEvent`). Nothing that holds the audit chain ever waits for a billing account
+ * row. Invoice creation (by hand or by the run) is serialised per agency on the billing account
+ * row, and a payment always takes it before deciding anything from the account's status.
  */
 
 /** The calendar billing days are counted in. */
@@ -30,6 +33,11 @@ export const DAY_MS = 24 * 60 * 60 * 1000;
  */
 export function daysPastDue(dueDate: Date, now: Date): number {
   return localDateDiffInDays(dueDate, now, BILLING_TIME_ZONE);
+}
+
+/** A number of days with its unit: "1 day", "14 days". */
+export function dayCount(days: number): string {
+  return days === 1 ? '1 day' : `${days} days`;
 }
 
 /** Overdue means from the Bangladesh day after the due date: the due day itself is not overdue. */
@@ -111,21 +119,6 @@ export async function lockBillingAccount(
   );
 }
 
-/** The account's status without a lock: the payment path locks only an account it may change. */
-export async function billingAccountStatus(
-  db: Db,
-  organizationId: string,
-): Promise<BillingStatus | undefined> {
-  const row = first(
-    await db
-      .select({ status: schema.billingAccounts.status })
-      .from(schema.billingAccounts)
-      .where(eq(schema.billingAccounts.organizationId, organizationId))
-      .limit(1),
-  );
-  return row?.status;
-}
-
 /** Unpaid invoices of these organizations that are overdue at `now`. */
 export async function overdueInvoices(
   db: Db,
@@ -155,16 +148,14 @@ export async function overdueInvoices(
 }
 
 /**
- * The billing account's standing at `now`, read inside the caller's transaction after its lock.
- * Only once migration 0103 is confirmed (the cause column is read directly).
+ * The one shape of a standing, from the account, its newest history row and its overdue invoices
+ * (as `overdueInvoices` returns them). Used by the locked read below and the run's batch read.
  */
-export async function readBillingStanding(
-  tx: Db,
+export function toBillingStanding(
   account: BillingAccountRow,
-  now: Date,
-): Promise<BillingStanding> {
-  const newest = await newestBillingStatusChange(tx, account.id);
-  const overdue = await overdueInvoices(tx, [account.organizationId], now);
+  newest: NewestBillingStatusChange | undefined,
+  overdue: readonly OverdueInvoice[],
+): BillingStanding {
   return {
     status: account.status,
     cause: newest?.cause ?? 'MANUAL',
@@ -175,6 +166,22 @@ export async function readBillingStanding(
       dueDate,
     })),
   };
+}
+
+/**
+ * The billing account's standing at `now`, read inside the caller's transaction after its lock.
+ * Only once migration 0103 is confirmed (the cause column is read directly).
+ */
+export async function readBillingStanding(
+  tx: Db,
+  account: BillingAccountRow,
+  now: Date,
+): Promise<BillingStanding> {
+  return toBillingStanding(
+    account,
+    await newestBillingStatusChange(tx, account.id),
+    await overdueInvoices(tx, [account.organizationId], now),
+  );
 }
 
 /** The agency's owners and admins: who billing notices go to (checked again when sending). */

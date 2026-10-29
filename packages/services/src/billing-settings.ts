@@ -127,11 +127,12 @@ export function billingRulesProblem(input: BillingRulesInput): string | null {
     return 'Enter both day counts before turning automatic Grace and Suspended on.';
   }
   if (grace !== null && suspend !== null) {
-    if (!wholeIn(grace, 0, BILLING_POLICY_DAYS_MAX - 1)) {
-      return `Grace must start a whole number of days from 0 to ${BILLING_POLICY_DAYS_MAX - 1} after the due date.`;
+    // Overdue starts the Bangladesh day after the due day, so 1 is the earliest Grace can begin.
+    if (!wholeIn(grace, 1, BILLING_POLICY_DAYS_MAX - 1)) {
+      return `Grace must start a whole number of days from 1 to ${BILLING_POLICY_DAYS_MAX - 1} after the due date (1 means the day after the due date).`;
     }
-    if (!wholeIn(suspend, 1, BILLING_POLICY_DAYS_MAX)) {
-      return `Suspended must start a whole number of days from 1 to ${BILLING_POLICY_DAYS_MAX} after the due date.`;
+    if (!wholeIn(suspend, 2, BILLING_POLICY_DAYS_MAX)) {
+      return `Suspended must start a whole number of days from 2 to ${BILLING_POLICY_DAYS_MAX} after the due date.`;
     }
     if (suspend <= grace) return 'Suspended must start later than Grace.';
   }

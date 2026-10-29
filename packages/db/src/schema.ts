@@ -3845,7 +3845,7 @@ export const billingSettings = pgTable(
     ),
     check(
       'billing_settings_policy_order',
-      sql`${table.graceAfterDays} is null or ${table.suspendAfterDays} is null or (${table.graceAfterDays} between 0 and 365 and ${table.suspendAfterDays} > ${table.graceAfterDays} and ${table.suspendAfterDays} <= 365)`,
+      sql`${table.graceAfterDays} is null or ${table.suspendAfterDays} is null or (${table.graceAfterDays} between 1 and 365 and ${table.suspendAfterDays} > ${table.graceAfterDays} and ${table.suspendAfterDays} <= 365)`,
     ),
   ],
 );

@@ -22,6 +22,10 @@ import { notFound } from 'next/navigation';
 import { PageHeader } from '../../../../../components/ui';
 import { bootstrapAdminEmails, isPlatformOwnerAccount } from '../../../../../lib/admin';
 import {
+  billingHistoryMove,
+  billingHistoryReason,
+} from '../../../../../lib/billing-history-labels';
+import {
   formatDateOnly,
   formatTimestamp,
   formatTimestampDate,
@@ -349,13 +353,11 @@ export default async function AdminOrganizationPage({
               <div className="rows u-mb-125">
                 {data.billingHistory.map((h) => (
                   <div className="row" key={h.id}>
-                    <span className="row-key">
-                      {h.fromStatus ?? 'opened'} → {h.toStatus}
-                    </span>
+                    <span className="row-key">{billingHistoryMove(h.fromStatus, h.toStatus)}</span>
                     <span className="muted u-fs-085">
                       {formatTimestampDate(h.createdAt)} ·{' '}
                       {h.actorAccountId === null ? 'VisaStack (automatic)' : 'By a person'} ·{' '}
-                      {h.reason}
+                      {billingHistoryReason(h.reason)}
                     </span>
                   </div>
                 ))}

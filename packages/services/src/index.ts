@@ -1868,9 +1868,11 @@ export {
 } from './redaction';
 
 // S17: recurring period invoices, reminders, overdue handling and the billing rules.
+export { dayCount } from './billing-standing';
 export {
   BILLING_TIME_ZONE,
   type BillingCycleSummary,
+  type OverduePolicy,
   type OverduePreview,
   previewOverdueHandling,
   runBillingCycle,

@@ -8,7 +8,7 @@ Every day, VisaStack:
 
 1. **Makes invoices.** Each agency on a paid plan gets one invoice at the start of each billing period (the plan's period length, counted from when the agency's plan started). The invoice is due a set number of days (7 unless changed) after the period starts, or after the day it is made if that is later (a missed run, or an agency back to Active after paying), so no invoice is ever born overdue. The agency's owners and admins get a notice in the app and by email with a "Pay Invoice" link to their Invoices page. The notice names the invoice and its due day, never the amount.
 2. **Sends reminders** to the same people: 3 days before the due date, on the due date, and 3 and 7 days after. Each is sent once. If a day is missed, only the reminder for where things stand now is sent ("due today" is said only on the due day; after it, "was due on"). Paying or voiding the invoice cancels any reminder still waiting. An agency with no active owner or admin gets nothing, is counted in `withoutContacts` and logged once per run (`billing_cycle_no_contact`).
-3. **Changes billing status, only if switched on.** An invoice is overdue from the Bangladesh day after its due day. With "Automatic Grace and Suspended" on, an agency whose oldest overdue invoice is past its due day by the Grace day count moves to Grace, and by the Suspended day count to Suspended (straight to Suspended if it is already that late). Grace at 0 moves an agency the day after its due day.
+3. **Changes billing status, only if switched on.** An invoice is overdue from the Bangladesh day after its due day. With "Automatic Grace and Suspended" on, an agency whose oldest overdue invoice is past its due day by the Grace day count moves to Grace, and by the Suspended day count to Suspended (straight to Suspended if it is already that late). Grace at 1, the smallest allowed, moves an agency the day after its due day.
 4. **Ends a status it set.** When an agency that VisaStack moved to Grace or Suspended owes nothing overdue any more, it returns to Active: at once when the last overdue invoice is paid in full (in the same database transaction as the payment), or at the next daily run if an invoice was voided. This happens even with automatic handling switched off.
 
 A status a person set is never changed automatically: not lifted when paid, and a Grace a person set is never moved on to Suspended. If a person sets an agency back to Active while an invoice is still overdue, that invoice no longer counts; only invoices that fall due after the person's change do.
@@ -42,8 +42,8 @@ A status a person set is never changed automatically: not lifted when paid, and 
 |---|---|---|
 | Payment Due After (Days) | 7 | 1 to 60 |
 | Automatic Grace and Suspended | Off | Off or On (On needs both day counts) |
-| Move to Grace (Days After the Due Date) | not set | 0 to 364 |
-| Suspend (Days After the Due Date) | not set | later than Grace, up to 365 |
+| Move to Grace (Days After the Due Date) | not set | 1 to 364 (1 means the day after the due date) |
+| Suspend (Days After the Due Date) | not set | later than Grace (2 or more), up to 365 |
 
 ## Before running migration 0103 in production
 

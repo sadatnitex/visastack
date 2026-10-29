@@ -26,8 +26,8 @@ Approved by the owner on 2026-10-28 (decision D3). Applies to user-facing words:
 | The explicit choice to mask nothing | Nothing to Hide on This Document | "No Redaction", "Skip" | **Done (S23)** |
 | A saved copy still being drawn | Preparing, as the state "Safe Copy: Preparing"; the action to carry on is Continue Preparing | "Processing", "Rendering" | **Done (S23 review fixes)** |
 | A file a safe copy cannot be made from | Safe Copy Not Available for This File (owner screen: "Safe Copy: Not Available") | "Unsupported", "Error" | **Done (S23 review fixes)**: shared record |
-| The platform's billing rules page (ADR 0020 Phase 2) | Billing Rules; buttons "Save Billing Rules" and "Manage Billing Rules" | "Billing Settings", "Overdue Policy", "Dunning" | **New (S17, 29 Oct 2026)** |
-| An agency's billing status after a missed payment, before suspension | Grace | "Grace Period" as a status name, "Warning", "Past Due" | **New (S17)**; the existing status label |
+| The platform's billing rules page (ADR 0020 Phase 2) | Billing Rules; buttons "Save Billing Rules" and "Manage Billing Rules"; the switch "Move Unpaid Agencies to Grace and Suspended Automatically" | "Billing Settings", "Overdue Policy", "Dunning" | **New (S17, 29 Oct 2026)** |
+| An agency's billing status after a missed payment, before suspension | Grace Period as the status label (the existing one); "Grace" in sentences and day-count fields | "Warning", "Past Due" | **New (S17)** |
 | An agency's billing status that pauses adding cases, team members and files | Suspended | "Blocked", "Locked", "Disabled" | **New (S17)**; the existing status label |
 | An unpaid invoice past its due date | Overdue (in sentences: "past its due date") | "Late", "Delinquent", "Arrears" | **New (S17)** |
 | The action in invoice emails and reminders | Pay Invoice (status notices: Open Invoices) | "Pay Now", "Settle", "Make Payment" | **New (S17)** |

@@ -7,7 +7,7 @@ import {
   insertBillingStatusHistory,
   readBillingStatusHistory,
 } from './billing-history';
-import { invoicePeriodOverlaps, timestampSql } from './billing-standing';
+import { invoicePeriodOverlaps, lockBillingAccount, timestampSql } from './billing-standing';
 import { type Db, first, isUniqueViolation, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import {
@@ -438,27 +438,6 @@ export async function createInvoice(
   if (existingRef) {
     return err(serviceError('invalid', 'an invoice with this reference already exists'));
   }
-  // One live invoice per organization, plan and period (S17): a hand-made invoice whose period
-  // overlaps a live one for the same plan is refused, by the same overlap rule the daily billing
-  // run uses (`invoicePeriodOverlaps`), so a date typed as midnight cannot bill again a period the
-  // run billed at another time of day. The database's unique index on the period start is the
-  // second layer.
-  const samePeriod = first(
-    await db
-      .select({ id: schema.invoices.id })
-      .from(schema.invoices)
-      .where(
-        and(
-          eq(schema.invoices.organizationId, input.organizationId),
-          eq(schema.invoices.planId, input.planId),
-          ne(schema.invoices.status, 'VOID'),
-          invoicePeriodOverlaps(timestampSql(input.periodStart), timestampSql(input.periodEnd)),
-        ),
-      )
-      .limit(1),
-  );
-  if (samePeriod) return err(serviceError('invalid', SAME_PERIOD_MESSAGE));
-
   try {
     return await insertInvoice(db, input, invoiceRef, currency);
   } catch (error) {
@@ -478,6 +457,30 @@ async function insertInvoice(
   currency: string,
 ): Promise<Result<Invoice, ServiceError>> {
   return db.transaction(async (tx) => {
+    // One live invoice per organization, plan and period (S17): a hand-made invoice whose period
+    // overlaps a live one for the same plan is refused, by the same overlap rule the daily billing
+    // run uses (`invoicePeriodOverlaps`), so a date typed as midnight cannot bill again a period
+    // the run billed at another time of day. Invoice creation is serialised per agency on its
+    // billing account row (the run's invoice step takes the same lock), and the check runs under
+    // that lock, so an admin save and the run cannot both pass it. An organization without a
+    // billing account is never billed by the run; the database's unique index on the period
+    // start is the second layer. Lock order: billing account, then the audit chain.
+    await lockBillingAccount(tx, input.organizationId);
+    const samePeriod = first(
+      await tx
+        .select({ id: schema.invoices.id })
+        .from(schema.invoices)
+        .where(
+          and(
+            eq(schema.invoices.organizationId, input.organizationId),
+            eq(schema.invoices.planId, input.planId),
+            ne(schema.invoices.status, 'VOID'),
+            invoicePeriodOverlaps(timestampSql(input.periodStart), timestampSql(input.periodEnd)),
+          ),
+        )
+        .limit(1),
+    );
+    if (samePeriod) return err(serviceError('invalid', SAME_PERIOD_MESSAGE));
     const invoice = required(
       first(
         await tx

@@ -1,5 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
+import { type SQL, and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { type StaffScope, type SystemScope, staffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { billingStatusCausePresent } from './billing-history';
@@ -14,6 +14,7 @@ import {
   type BillingAccountRow,
   type BillingStanding,
   DAY_MS,
+  type OverdueInvoice,
   billingContacts,
   billingDay,
   databaseNow,
@@ -24,6 +25,8 @@ import {
   lockBillingAccount,
   overdueInvoices,
   readBillingStanding,
+  timestampSql,
+  toBillingStanding,
 } from './billing-standing';
 import { type Db, first, schema } from './db';
 import { serverErrorEvent } from './error-report';
@@ -44,30 +47,33 @@ export {
  * The daily billing run (S17, ADR 0020 Phase 2): `process-billing-cycle`. Each step is safe to
  * run any number of times and after any gap, in this order:
  *
- * 1. Status. An agency that VisaStack moved to Grace or Suspended and that now owes nothing
- *    overdue returns to Active, always, even with automatic handling off. Then, only when the
- *    owner has switched automatic Grace and Suspended on, an agency whose oldest overdue invoice
- *    is `graceAfterDays` days past its due day moves to Grace, and `suspendAfterDays` to
- *    Suspended. A status a person set is never changed: the run acts only on Active (for invoices
- *    that were not yet overdue when the person last changed it) or on a Grace VisaStack set.
+ * 1. Returns to Active. An agency that VisaStack moved to Grace or Suspended and that now owes
+ *    nothing overdue returns to Active, always, even with automatic handling off.
  * 2. Invoices. For each agency whose plan has a price above zero, whose organization is active and
  *    whose billing account is Active or in Grace, the invoice for the plan period running now is
  *    created once. Periods are whole multiples of the plan's period length from the
  *    subscription's start. Only the period running now is billed, never one that started before
- *    the billing rules existed. Billing a period twice is impossible: a period overlapping any
- *    invoice for the same plan (void or not) is skipped, and the database refuses a second live
- *    invoice for the same organization, plan and period start. The due day is counted from the
- *    later of the period start and the moment the invoice is made, so an invoice made late (after
- *    a missed run, or once an agency is back to Active) is never born overdue.
- * 3. Reminders, to the agency's owners and admins: 3 days before the due day, on it, and 3 and 7
+ *    the billing rules existed. Billing a period twice is impossible: creation is serialised per
+ *    agency on its billing account row, a period overlapping any invoice for the same plan (void
+ *    or not) is skipped under that lock, and the database refuses a second live invoice for the
+ *    same organization, plan and period start. The due day is counted from the later of the
+ *    period start and the moment the invoice is made, so an invoice is never born overdue.
+ * 3. Moves, only when the owner has switched automatic Grace and Suspended on: an agency whose
+ *    oldest overdue invoice is `graceAfterDays` days past its due day moves to Grace, and
+ *    `suspendAfterDays` to Suspended. A status a person set is never changed: the run acts only on
+ *    Active (for invoices that were not yet overdue when the person last changed it) or on a
+ *    Grace VisaStack set. Invoices come first, so an agency moved in this run still gets the
+ *    invoice for a period that began today.
+ * 4. Reminders, to the agency's owners and admins: 3 days before the due day, on it, and 3 and 7
  *    days after. Each stage is sent once (the notification key includes it) and only while it is
- *    the latest stage reached.
+ *    the latest stage reached. Agencies with no active owner or admin are left out (and logged
+ *    once per run), so they never use up the reminder work limit.
  *
  * Days are Bangladesh calendar days (`BILLING_TIME_ZONE`); overdue means from the day after the
  * due day (`isOverdue`). One reading of the database clock. Each agency is handled in its own
  * transaction: one failure is logged, counted and rolled back, and the run goes on. Each step has
- * its own work limit, so invoices or reminders never crowd out status changes, and the run stops
- * starting new work after `deadlineMs`; the next run carries on.
+ * its own work limit, so no step crowds out another, and the run stops starting new work after
+ * `deadlineMs`; the next run carries on.
  *
  * Before migration 0103 the run reports `available: false` and changes nothing.
  */
@@ -129,7 +135,8 @@ export function automaticStatusChange(
   now: Date,
 ): AutomaticStatusChange | null {
   const setByVisaStack = standing.cause === 'NONPAYMENT';
-  const overdue = standing.overdue.filter((invoice) => isOverdue(invoice.dueDate, now));
+  // `standing.overdue` holds only invoices overdue at `now` (`overdueInvoices`).
+  const overdue = standing.overdue;
   if (overdue.length === 0) {
     if (setByVisaStack && (standing.status === 'GRACE' || standing.status === 'SUSPENDED')) {
       return {
@@ -351,7 +358,7 @@ async function createCycleInvoice(
   candidate: InvoiceCandidate,
   dueDays: number,
   now: Date,
-): Promise<{ readonly created: boolean; readonly contacts: number }> {
+): Promise<{ readonly created: boolean; readonly contacts: number | null }> {
   const periodStart = new Date(Number(candidate.period_start_ms));
   const periodEnd = new Date(periodStart.getTime() + candidate.period_days * DAY_MS);
   const dueDate = cycleDueDate(periodStart, now, dueDays);
@@ -359,6 +366,27 @@ async function createCycleInvoice(
   const base = cycleInvoiceRef(candidate.organization_id, periodStart);
   const i = schema.invoices;
   return db.transaction(async (tx) => {
+    // Invoice creation is serialised per agency on its billing account row (the same lock an admin
+    // invoice takes, and the first lock in the order billing account, then audit chain): the
+    // overlap check and the insert below cannot interleave with another invoice for this agency.
+    const account = await lockBillingAccount(tx, candidate.organization_id);
+    if (!account || (account.status !== 'ACTIVE' && account.status !== 'GRACE')) {
+      return { created: false, contacts: null };
+    }
+    const overlapping = first(
+      await tx
+        .select({ id: i.id })
+        .from(i)
+        .where(
+          and(
+            eq(i.organizationId, candidate.organization_id),
+            eq(i.planId, candidate.plan_id),
+            invoicePeriodOverlaps(timestampSql(periodStart), timestampSql(periodEnd)),
+          ),
+        )
+        .limit(1),
+    );
+    if (overlapping) return { created: false, contacts: null };
     // The same reference can already exist (two plans starting the same day): add -2, -3 and on.
     const taken = new Set(
       (
@@ -404,7 +432,7 @@ async function createCycleInvoice(
             )
             .limit(1),
         );
-        if (billed) return { created: false, contacts: 1 };
+        if (billed) return { created: false, contacts: null };
         taken.add(invoiceRef);
         continue;
       }
@@ -478,6 +506,12 @@ export function reminderWords(daysUntilDue: number, ref: string, dueDay: string)
   };
 }
 
+/** Whether the organization has an active owner or admin, the people billing notices go to. */
+function hasBillingContactSql(organizationId: SQL): SQL {
+  const m = schema.memberships;
+  return sql`exists (select 1 from ${m} where ${m.organizationId} = ${organizationId} and ${m.active} = true and ${m.role} in ('OWNER', 'ADMIN'))`;
+}
+
 async function queueReminders(
   db: Db,
   now: Date,
@@ -501,9 +535,25 @@ async function queueReminders(
         gte(i.dueDate, new Date(now.getTime() - 15 * DAY_MS)),
         lte(i.dueDate, new Date(now.getTime() + 5 * DAY_MS)),
         eq(o.status, 'ACTIVE'),
+        hasBillingContactSql(sql`${i.organizationId}`),
       ),
     )
     .orderBy(asc(i.dueDate), asc(i.id));
+  // Agencies left out because nobody can be told: one cheap read, logged once each per run.
+  const unreachable = await db
+    .selectDistinct({ organizationId: i.organizationId })
+    .from(i)
+    .innerJoin(o, eq(o.id, i.organizationId))
+    .where(
+      and(
+        inArray(i.status, ['OPEN', 'PARTIALLY_PAID']),
+        gte(i.dueDate, new Date(now.getTime() - 15 * DAY_MS)),
+        lte(i.dueDate, new Date(now.getTime() + 5 * DAY_MS)),
+        eq(o.status, 'ACTIVE'),
+        sql`not ${hasBillingContactSql(sql`${i.organizationId}`)}`,
+      ),
+    );
+  for (const row of unreachable) noContact.note(row.organizationId);
   const due = open.flatMap((invoice) => {
     const daysUntilDue = -daysPastDue(invoice.dueDate, now);
     const stage = reminderStage(daysUntilDue);
@@ -605,28 +655,24 @@ async function standings(
     )
     .orderBy(h.billingAccountId, desc(h.createdAt));
   const newestByAccount = new Map(newest.map((row) => [row.billingAccountId, row]));
-  const overdueByOrg = new Map<string, BillingStanding['overdue'][number][]>();
+  const overdueByOrg = new Map<string, OverdueInvoice[]>();
   for (const row of await overdueInvoices(
     db,
     accounts.map((account) => account.organizationId),
     now,
   )) {
     const list = overdueByOrg.get(row.organizationId) ?? [];
-    list.push({ invoiceId: row.invoiceId, invoiceRef: row.invoiceRef, dueDate: row.dueDate });
+    list.push(row);
     overdueByOrg.set(row.organizationId, list);
   }
-  return accounts.map((account) => {
-    const last = newestByAccount.get(account.id);
-    return {
+  return accounts.map((account) => ({
+    account,
+    standing: toBillingStanding(
       account,
-      standing: {
-        status: account.status,
-        cause: last?.cause ?? 'MANUAL',
-        changedAt: last?.createdAt ?? null,
-        overdue: overdueByOrg.get(account.organizationId) ?? [],
-      },
-    };
-  });
+      newestByAccount.get(account.id),
+      overdueByOrg.get(account.organizationId) ?? [],
+    ),
+  }));
 }
 
 export interface OverduePreview {
@@ -698,52 +744,67 @@ export async function runBillingCycle(
   const noContact = noContactLogger();
   let failed = 0;
 
-  // 1. Status: returns to Active first, then moves; their own budget, ahead of everything else.
-  const statusBudget = makeBudget(limit, deadline);
-  const changes = (await standings(db, now))
-    .map(({ account, standing }) => ({
-      account,
-      change: automaticStatusChange(standing, policy, now),
-    }))
-    .filter((entry) => entry.change !== null)
-    .sort(
-      (a, b) => Number(b.change?.toStatus === 'ACTIVE') - Number(a.change?.toStatus === 'ACTIVE'),
-    );
   let movedToGrace = 0;
   let movedToSuspended = 0;
   let returnedToActive = 0;
-  for (const { account, change: planned } of changes) {
-    if (!statusBudget.take()) break;
-    try {
-      const made = await db.transaction(async (tx) => {
-        // Lock order: the billing account row, then (inside the change) the audit chain.
-        const locked = await lockBillingAccount(tx, account.organizationId);
-        if (!locked) return null;
-        // Judged again under the lock: a person may have changed it, or a payment arrived.
-        const change = automaticStatusChange(
-          await readBillingStanding(tx, locked, now),
-          policy,
-          now,
-        );
-        if (change === null) return null;
-        const result = await applyOverdueStatusChange(tx, scope, locked, change, now.toISOString());
-        if (result.contacts === 0) noContact.note(locked.organizationId);
-        return change.toStatus;
-      });
-      if (made === 'GRACE') movedToGrace++;
-      else if (made === 'SUSPENDED') movedToSuspended++;
-      else if (made === 'ACTIVE') returnedToActive++;
-    } catch (error) {
-      failed++;
-      logFailure(planned?.toStatus === 'ACTIVE' ? 'return' : 'status', error, {
-        organizationId: account.organizationId,
-        ...(planned?.invoice ? { invoiceId: planned.invoice.invoiceId } : {}),
-      });
+  /**
+   * One status step: every account whose change is of this kind (a return to Active, or a move to
+   * Grace or Suspended), each judged again under its billing account lock (the first lock in the
+   * order billing account, then audit chain) and written in its own transaction.
+   */
+  const statusStep = async (kind: 'return' | 'move', budget: Budget) => {
+    const isKind = (change: AutomaticStatusChange | null) =>
+      change !== null && (change.toStatus === 'ACTIVE') === (kind === 'return');
+    const planned = (await standings(db, now))
+      .map(({ account, standing }) => ({
+        account,
+        change: automaticStatusChange(standing, policy, now),
+      }))
+      .filter((entry) => isKind(entry.change));
+    for (const { account, change: first } of planned) {
+      if (!budget.take()) break;
+      try {
+        const made = await db.transaction(async (tx) => {
+          const locked = await lockBillingAccount(tx, account.organizationId);
+          if (!locked) return null;
+          // Judged again under the lock: a person may have changed it, or a payment arrived.
+          const change = automaticStatusChange(
+            await readBillingStanding(tx, locked, now),
+            policy,
+            now,
+          );
+          if (change === null || !isKind(change)) return null;
+          const result = await applyOverdueStatusChange(
+            tx,
+            scope,
+            locked,
+            change,
+            now.toISOString(),
+          );
+          if (result.contacts === 0) noContact.note(locked.organizationId);
+          return change.toStatus;
+        });
+        if (made === 'GRACE') movedToGrace++;
+        else if (made === 'SUSPENDED') movedToSuspended++;
+        else if (made === 'ACTIVE') returnedToActive++;
+      } catch (error) {
+        failed++;
+        logFailure(kind === 'return' ? 'return' : 'status', error, {
+          organizationId: account.organizationId,
+          ...(first?.invoice ? { invoiceId: first.invoice.invoiceId } : {}),
+        });
+      }
     }
-  }
+  };
 
-  // 2. One invoice per agency for the period running now. One more than the budget is read, so a
-  // run that cannot finish says so.
+  // 1. Returns to Active, ahead of everything else, with their own budget.
+  const returnBudget = makeBudget(limit, deadline);
+  await statusStep('return', returnBudget);
+
+  // 2. One invoice per agency for the period running now, before any move, so an agency moved to
+  // Suspended in this run still gets the invoice for a period that began today (a new invoice is
+  // never overdue, so the moves below are unaffected). One more than the budget is read, so a run
+  // that cannot finish says so.
   const invoiceBudget = makeBudget(limit, deadline);
   let invoicesCreated = 0;
   for (const candidate of await invoiceCandidates(db, now, limit + 1)) {
@@ -751,14 +812,18 @@ export async function runBillingCycle(
     try {
       const made = await createCycleInvoice(db, candidate, settings.dueDays, now);
       if (made.created) invoicesCreated++;
-      if (made.contacts === 0) noContact.note(candidate.organization_id);
+      if (made.created && made.contacts === 0) noContact.note(candidate.organization_id);
     } catch (error) {
       failed++;
       logFailure('invoice', error, { organizationId: candidate.organization_id });
     }
   }
 
-  // 3. Reminders for the stage each unpaid invoice has reached.
+  // 3. Moves to Grace or Suspended, only when switched on, with their own budget.
+  const moveBudget = makeBudget(limit, deadline);
+  await statusStep('move', moveBudget);
+
+  // 4. Reminders for the stage each unpaid invoice has reached.
   const reminderBudget = makeBudget(limit, deadline);
   const reminders = await queueReminders(db, now, reminderBudget, noContact);
   failed += reminders.failed;
@@ -773,6 +838,10 @@ export async function runBillingCycle(
     returnedToActive,
     withoutContacts: noContact.size(),
     failed,
-    stoppedEarly: statusBudget.stopped() || invoiceBudget.stopped() || reminderBudget.stopped(),
+    stoppedEarly:
+      returnBudget.stopped() ||
+      invoiceBudget.stopped() ||
+      moveBudget.stopped() ||
+      reminderBudget.stopped(),
   };
 }

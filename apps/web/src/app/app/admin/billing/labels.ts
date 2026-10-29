@@ -1,4 +1,5 @@
-import type { OverduePreview } from '@visastack/services';
+import { type OverduePolicy, type OverduePreview, dayCount } from '@visastack/services';
+import type { FormResult } from '../../../../components/form-feedback';
 
 /** "1 agency", "2 agencies". */
 export function agencies(count: number): string {
@@ -13,6 +14,23 @@ export function previewSentence(preview: OverduePreview): string {
   return `Turning this on today moves ${agencies(preview.toGrace)} to Grace and ${agencies(
     preview.toSuspended,
   )} to Suspended.`;
+}
+
+/** The day counts a preview was worked out for, with their units. */
+export function previewDays(preview: OverduePolicy): string {
+  return `Grace from ${dayCount(preview.graceAfterDays)} after the due date, Suspended from ${dayCount(
+    preview.suspendAfterDays,
+  )}.`;
+}
+
+/** The confirmation, with the counts in the label itself. */
+export function confirmLabel(preview: OverduePreview): string {
+  return `I understand this moves ${agencies(preview.toGrace)} to Grace and ${preview.toSuspended} to Suspended today`;
+}
+
+/** A rule's day count after the due date, or that it is not set. */
+export function daysAfterDue(value: number | null): string {
+  return value === null ? 'Not set' : `${dayCount(value)} after the due date`;
 }
 
 export const PAID_IN_FULL =
@@ -33,19 +51,11 @@ export interface BillingRulesValues {
 }
 
 /** A preview the server worked out for exactly these day counts. */
-export interface BillingRulesPreview {
-  readonly graceAfterDays: number;
-  readonly suspendAfterDays: number;
-  readonly toGrace: number;
-  readonly toSuspended: number;
-}
+export type BillingRulesPreview = OverduePolicy & OverduePreview;
 
 /** What saving the billing rules answers. */
-export interface BillingRulesState {
-  readonly ok: boolean;
-  readonly message: string;
-  readonly field?: string;
+export interface BillingRulesState extends FormResult {
   readonly values?: BillingRulesValues;
-  /** Present when the save needs this preview confirmed first. */
+  /** Present when the save needs this preview confirmed first. Not a failure in itself. */
   readonly preview?: BillingRulesPreview;
 }

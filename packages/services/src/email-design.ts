@@ -277,7 +277,8 @@ export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
           : 'An invoice is due soon',
     why: 'Open your invoices to see it and the ways to pay.',
     action: 'Pay Invoice',
-    after: 'Already paid? Thank you. A payment made another way shows here once it is confirmed.',
+    after:
+      'Already paid? Thank you. A payment made another way shows in your invoices once we confirm it.',
   },
   BILLING_STATUS_CHANGED: {
     eyebrow: 'Your Agency',

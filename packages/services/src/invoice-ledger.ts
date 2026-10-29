@@ -10,9 +10,9 @@ import {
 import {
   type AutomaticStatusChange,
   type BillingAccountRow,
-  billingAccountStatus,
   billingContacts,
   databaseNow,
+  dayCount,
   invoicesPath,
   lockBillingAccount,
   readBillingStanding,
@@ -348,9 +348,9 @@ export async function applyInvoiceCollection(
   );
 
   // Lock order (billing-standing.ts): the invoice (locked above), then the billing account, then
-  // the audit chain. An account this payment may return to Active is locked here, before the
-  // first audit append below; an Active account is never locked. Callers must not append audit
-  // events in this transaction before calling this function (none does).
+  // the audit chain. The billing account is locked here, always, before the first audit append
+  // below. Callers must not append audit events in this transaction before calling this function
+  // (none does).
   const restorable = await lockRestorableAccount(tx, invoice.organizationId);
 
   let payment: InvoicePayment | null = null;
@@ -491,9 +491,9 @@ const STATUS_NOTICE: Readonly<
   Partial<Record<BillingStatus, (ref: string, days: number | null) => string>>
 > = {
   GRACE: (ref, days) =>
-    `Invoice ${ref} is ${days ?? 0} days past its due date. Everything still works for now. Paying it keeps your agency from being suspended.`,
+    `Invoice ${ref} is ${dayCount(days ?? 1)} past its due date. Everything still works for now. Paying it keeps your agency from being suspended.`,
   SUSPENDED: (ref, days) =>
-    `Invoice ${ref} is ${days ?? 0} days past its due date. Adding cases, team members and files is paused until it is paid. Nothing is deleted or hidden.`,
+    `Invoice ${ref} is ${dayCount(days ?? 1)} past its due date. Adding cases, team members and files is paused until it is paid. Nothing is deleted or hidden.`,
   ACTIVE: () => 'No invoice is overdue now, so your agency is back to Active.',
 };
 
@@ -591,20 +591,20 @@ export async function applyOverdueStatusChange(
 }
 
 /**
- * Before a new recording writes anything: the billing account, locked, when this payment may end
- * a Grace or Suspended status (only those, and only after migration 0103); otherwise null and
- * nothing is locked.
+ * Before a new recording writes anything: the agency's billing account, always locked (one row
+ * per agency, so the cost is small), then its status read under that lock. Returns the locked
+ * account when this payment may end a Grace or Suspended status (only those, and only after
+ * migration 0103), otherwise null. Deciding on the locked status means a payment that races the
+ * daily run's move to Grace or Suspended waits for it and sees it, so a fully paid agency is
+ * never left in Grace or Suspended.
  */
 async function lockRestorableAccount(
   tx: Db,
   organizationId: string,
 ): Promise<BillingAccountRow | null> {
-  const status = await billingAccountStatus(tx, organizationId);
-  if (status !== 'GRACE' && status !== 'SUSPENDED') return null;
-  if (!(await billingStatusCausePresent(tx))) return null;
   const locked = await lockBillingAccount(tx, organizationId);
-  // Judged again under the lock: a person may have changed it a moment ago.
   if (!locked || (locked.status !== 'GRACE' && locked.status !== 'SUSPENDED')) return null;
+  if (!(await billingStatusCausePresent(tx))) return null;
   return locked;
 }
 

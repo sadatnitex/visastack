@@ -783,7 +783,8 @@ Generate a migration only after the previous migration is on main.
 
 Note, 29 Oct 2026:
 
-- Current order: S17 (in progress; S23 is done), then S18, S20, S21, S22, then S24 (prepared only, never merged without the owner's explicit word). S19 only if the owner names a second payment provider (O14). S25 Bangla last, on the owner's word (O15).
+- Current order: S23 (in progress), then S17, S18, S20, S21, S22, then S24 (prepared only, never merged without the owner's explicit word). S19 only if the owner names a second payment provider (O14). S25 Bangla last, on the owner's word (O15).
+- Update, 29 Oct afternoon: the current order is now S17 (in progress; S23 is done), then S18, S20, S21, S22, then S24 (prepared only, never merged without the owner's explicit word). S19 only if the owner names a second payment provider (O14). S25 Bangla last, on the owner's word (O15).
 - S16 deviation from ADR 0021 section 7, recorded for the owner: the product events `AI_CONTEXT_REQUESTED` and `AI_CONTEXT_DENIED` are written once per connection, per UTC day and per label, not once per call, so analytics do not grow with AI traffic. Per-call counts come from the audit records (`AI_CONTEXT_SERVED`, `AI_CONTEXT_DENIED`), which the staff card shows. Detail: known-issues, S16 entry.
 - Not a package row: QA-F (#309) added migration 0101 (live calendar links), run with the owner's word.
 

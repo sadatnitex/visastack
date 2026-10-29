@@ -1192,10 +1192,12 @@ describe('round 2: due days, overdue days, overlaps, budgets and notices', () =>
       await runBillingCycle(db, scope(), { now: new Date(started.getTime() + 1000) });
       const [first] = await invoicesOf(w);
       if (!first) throw new Error('first invoice');
-      await setRules(db, { ...POLICY, overdueHandlingEnabled: true });
-      await runBillingCycle(db, scope());
+      // Suspended on the last day of the first period (22 days overdue, Suspended at 20).
+      await setRules(db, { graceAfterDays: 7, suspendAfterDays: 20, overdueHandlingEnabled: true });
+      await runBillingCycle(db, scope(), { now: new Date(started.getTime() + 29 * DAY) });
       expect(await status(w)).toBe('SUSPENDED');
       // Suspended agencies are not billed, so the second period (begun 20 days ago) waits.
+      await runBillingCycle(db, scope());
       expect(await invoicesOf(w)).toHaveLength(1);
       await pay(w, first.id, 500_000);
       expect(await status(w)).toBe('ACTIVE');
@@ -1269,14 +1271,14 @@ describe('round 2: due days, overdue days, overlaps, budgets and notices', () =>
   );
 
   it(
-    'counts overdue from the Bangladesh day after the due day, also with Grace at 0, and for reactivation',
+    'counts overdue from the Bangladesh day after the due day, also with Grace at 1, and for reactivation',
     async () => {
-      await setRules(db, { graceAfterDays: 0, suspendAfterDays: 30, overdueHandlingEnabled: true });
+      await setRules(db, { graceAfterDays: 1, suspendAfterDays: 30, overdueHandlingEnabled: true });
       const today = billingDay(new Date());
       const dueToday = await adminInvoice(w, 'INV-DUE-TODAY', today);
       await runBillingCycle(db, scope());
       expect(await status(w)).toBe('ACTIVE');
-      // The next Bangladesh day it is overdue, and Grace at 0 moves it.
+      // The next Bangladesh day it is overdue, and Grace at 1 moves it.
       const tomorrow = new Date(today.getTime() + DAY + 6 * 60 * 60 * 1000);
       await runBillingCycle(db, scope(), { now: tomorrow });
       expect(await status(w)).toBe('GRACE');
@@ -1476,16 +1478,97 @@ describe('round 2: due days, overdue days, overlaps, budgets and notices', () =>
     expect(manual.indexOf(".for('update')")).toBeGreaterThan(-1);
     expect(manual.indexOf(".for('update')")).toBeLessThan(manual.indexOf('appendAuditEvent('));
     // The run: the account is locked before the change (which appends audit) is written.
-    const run = body('billing-cycle.ts', '// 1. Status', '// 2. One invoice');
+    const run = body('billing-cycle.ts', 'const statusStep = async', '// 1. Returns to Active');
     expect(run.indexOf('lockBillingAccount(tx')).toBeGreaterThan(-1);
     expect(run.indexOf('lockBillingAccount(tx')).toBeLessThan(
       run.indexOf('applyOverdueStatusChange('),
     );
+    // A payment decides from the status it read under the lock, never from an unlocked read.
+    const restorable = body(
+      'invoice-ledger.ts',
+      'async function lockRestorableAccount',
+      'async function restoreBillingAfterPayment',
+    );
+    expect(restorable.indexOf('lockBillingAccount(tx')).toBeGreaterThan(-1);
+    expect(restorable.indexOf('lockBillingAccount(tx')).toBeLessThan(
+      restorable.indexOf('locked.status'),
+    );
+    expect(readFileSync(join(here, 'invoice-ledger.ts'), 'utf8')).not.toContain(
+      'billingAccountStatus',
+    );
+    // Invoice creation, by hand and by the run, is serialised per agency: the account is locked
+    // before the overlap check and the insert, inside the same transaction.
+    const byHand = body('billing.ts', 'async function insertInvoice', 'export interface');
+    const byRun = body(
+      'billing-cycle.ts',
+      'async function createCycleInvoice',
+      'interface ReminderWords',
+    );
+    for (const [name, text] of [
+      ['createInvoice', byHand],
+      ['createCycleInvoice', byRun],
+    ] as const) {
+      const lock = text.indexOf('lockBillingAccount(tx');
+      expect(lock, name).toBeGreaterThan(text.indexOf('db.transaction('));
+      expect(lock, name).toBeLessThan(text.indexOf('invoicePeriodOverlaps('));
+      expect(lock, name).toBeLessThan(text.indexOf('.insert('));
+      expect(lock, name).toBeLessThan(text.indexOf('appendAuditEvent('));
+    }
     // Nothing else locks a billing account.
     const lockers = readdirSync(here)
       .filter((f) => f.endsWith('.ts') && !f.includes('.test'))
       .filter((f) => readFileSync(join(here, f), 'utf8').includes('lockBillingAccount('))
       .sort();
-    expect(lockers).toEqual(['billing-cycle.ts', 'billing-standing.ts', 'invoice-ledger.ts']);
+    expect(lockers).toEqual([
+      'billing-cycle.ts',
+      'billing-standing.ts',
+      'billing.ts',
+      'invoice-ledger.ts',
+    ]);
   });
+
+  it(
+    'leaves agencies nobody can be told about out of the reminders, so they never use up the work limit',
+    async () => {
+      const warn = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      // Two agencies without an active owner or admin, with invoices due first...
+      for (const tag of ['silent-a', 'silent-b']) {
+        const silent = await world(db, tag, w);
+        await adminInvoice(silent, `INV-${tag}`, new Date(Date.now() + DAY));
+        await db
+          .update(schema.memberships)
+          .set({ active: false })
+          .where(eq(schema.memberships.organizationId, silent.organizationId));
+      }
+      // ...and one that can be told, due later.
+      const reachable = await adminInvoice(w, 'INV-REACHABLE', new Date(Date.now() + 2 * DAY));
+      const run = await runBillingCycle(db, scope(), { limit: 1 });
+      expect(run).toMatchObject({ remindersQueued: 1, withoutContacts: 2 });
+      const sent = (await notices(db, 'INVOICE_REMINDER')).map((n) => n.resourceId);
+      expect(new Set(sent)).toEqual(new Set([reachable.id]));
+      expect(
+        warn.mock.calls.filter((c) => String(c[0]).includes('no_billing_contact')),
+      ).toHaveLength(2);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'still makes the invoice for a period that began today for an agency it suspends in the same run',
+    async () => {
+      // Long overdue, so this run suspends the agency; its new period begins today.
+      await adminInvoice(w, 'INV-LONG-OVERDUE', new Date(Date.now() - 40 * DAY));
+      await setRules(db, { ...POLICY, overdueHandlingEnabled: true });
+      const started = new Date(Date.now() - 60 * 60 * 1000);
+      await subscribe(w, started);
+      const run = await runBillingCycle(db, scope());
+      expect(run).toMatchObject({ invoicesCreated: 1, movedToSuspended: 1 });
+      expect(await status(w)).toBe('SUSPENDED');
+      const fresh = (await invoicesOf(w)).find(
+        (i) => i.periodStart.getTime() === started.getTime(),
+      );
+      expect(fresh?.status).toBe('OPEN');
+    },
+    TEST_TIMEOUT_MS,
+  );
 });

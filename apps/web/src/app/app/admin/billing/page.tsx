@@ -1,6 +1,7 @@
 import {
   type BillingSettings,
   type OverduePreview,
+  dayCount,
   getBillingSettings,
   previewOverdueHandling,
 } from '@visastack/services';
@@ -15,6 +16,7 @@ import {
   PAID_IN_FULL,
   TRAVELLER_UPLOADS_NOTE,
   WHAT_SUSPENDED_DOES,
+  daysAfterDue,
   previewSentence,
 } from './labels';
 
@@ -25,19 +27,14 @@ export const dynamic = 'force-dynamic';
 const UNAVAILABLE =
   'Billing rules are not available yet. Until they are, VisaStack creates no invoices on its own and never changes a billing status by itself.';
 
-function daysText(value: number | null): string {
-  if (value === null) return 'Not set';
-  return value === 1 ? '1 day after the due date' : `${value} days after the due date`;
-}
-
 function Rules({ settings }: { readonly settings: BillingSettings }) {
   return (
     <div className="rows">
       <div className="row">
         <span className="row-key">Payment Due After</span>
         <span>
-          {settings.dueDays === 1 ? '1 day' : `${settings.dueDays} days`} from the start of each
-          billing period
+          {dayCount(settings.dueDays)} from the start of each billing period (or from the day the
+          invoice is made, if later)
         </span>
       </div>
       <div className="row">
@@ -48,11 +45,11 @@ function Rules({ settings }: { readonly settings: BillingSettings }) {
       </div>
       <div className="row">
         <span className="row-key">Grace</span>
-        <span>{daysText(settings.graceAfterDays)}</span>
+        <span>{daysAfterDue(settings.graceAfterDays)}</span>
       </div>
       <div className="row">
         <span className="row-key">Suspended</span>
-        <span>{daysText(settings.suspendAfterDays)}</span>
+        <span>{daysAfterDue(settings.suspendAfterDays)}</span>
       </div>
       {settings.invoicingStartsAt ? (
         <div className="row">
