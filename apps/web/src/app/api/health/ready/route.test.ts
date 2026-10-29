@@ -303,6 +303,33 @@ describe('GET /api/health/ready — honest health (200 vs 503)', () => {
       expect(text).not.toContain('realMalwareScanner');
       expect(text).not.toContain('externalPenetrationTest');
     });
+
+    it('keeps secret values out of the internal report and the public body, and shows the owner deferral only internally (S27)', async () => {
+      const MARK = 'S27SECRETMARK';
+      const seeded = {
+        DEPLOYMENT_MODE: 'commercial',
+        VERCEL_ENV: 'production',
+        RESEND_API_KEY: `re_${MARK}`,
+        STEP_UP_SIGNING_SECRET: `${MARK}-step-up`,
+        BLOB_READ_WRITE_TOKEN: `vercel_blob_rw_${MARK}`,
+        OPENAI_API_KEY: `sk-${MARK}`,
+        GITHUB_INTAKE_DISPATCH_TOKEN: `ghp_${MARK}`,
+        COMMERCIAL_READINESS_DEFER_EXTERNAL_PENETRATION_TEST: 'H01',
+        COMMERCIAL_READINESS_DEFER_BACKUP_RESTORE_VERIFICATION: `sk-${MARK}-pasted`,
+      };
+      for (const [name, value] of Object.entries(seeded)) vi.stubEnv(name, value);
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      mockDb({});
+      const { evaluateReadiness } = await import('../../../../lib/readiness');
+      const report = JSON.stringify(await evaluateReadiness());
+      expect(report).not.toContain(MARK);
+      expect(report).toContain('Deferred by Owner (H01)');
+      expect(report).toContain('Deferral Not Accepted');
+      const { GET } = await import('./route');
+      const body = await (await GET()).text();
+      expect(body).not.toContain(MARK);
+      expect(body).not.toContain('Deferred by Owner');
+    });
   });
 });
 

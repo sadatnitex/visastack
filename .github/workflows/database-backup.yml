@@ -2,7 +2,10 @@ name: Encrypted Neon backup to R2
 
 on:
   schedule:
-    - cron: '0 6 * * 0'
+    # Daily at 05:17 UTC (S27), off the busy top of the hour: up to a day of independent-copy
+    # data loss, plus schedule delay. The Vercel freshness check runs daily at 11:07 UTC, after it,
+    # with a 24-hour window, so one failed capture is caught the same day.
+    - cron: '17 5 * * *'
   workflow_dispatch:
 
 permissions:
@@ -42,3 +45,13 @@ jobs:
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: pnpm --filter @visastack/adapters exec tsx src/backup-neon.ts
+      # Runs only after a successful capture. Report only unless the repository variable
+      # BACKUP_PRUNE is exactly "on" (owner decision, S27); see docs/operations/r2-encrypted-backups.md.
+      - name: Report backup storage and apply the retention rules
+        env:
+          BACKUP_PRUNE: ${{ vars.BACKUP_PRUNE }}
+          R2_REGION: ${{ secrets.R2_REGION }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: pnpm --filter @visastack/adapters exec tsx src/backup-prune.ts

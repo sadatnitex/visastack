@@ -90,3 +90,7 @@ Update 2026-10-26:
 - AI: provider switching lives in `/app/admin/ai-settings`. Record each provider's data terms there before or when switching; see [the switching runbook](runbooks/switch-ai-provider.md). The training guard is off by owner decision.
 - Renovate is installed by the owner but has not yet opened its Dependency Dashboard; check that the app's installation includes this repository.
 
+
+Update 2026-10-29 (S27):
+- Backup: the encrypted database backup now runs daily at 05:17 UTC instead of weekly, so the independent copy is at most about a day old, and the freshness check runs daily at 11:07 UTC with a 24-hour window, so one failed capture is caught the same day. Automatic pruning (35 days plus 12 weekly copies, never the newest 7) is built but off until the owner sets the repository variable `BACKUP_PRUNE=on`; until then nothing is deleted. Details: [r2-encrypted-backups.md](r2-encrypted-backups.md) ("Daily SQL capture and retention"). The 15-minute recovery point target is still not met.
+- Commercial readiness: the AI gate is now provider-neutral (`productionAiProvider`), the scanner gate accepts the private scan runner with fresh proof on the production site (logos and photo proofs of payment are now re-encoded on the server, so only image data is stored), and the external penetration test may be deferred by the owner under H01 only. Details and the attestation evidence list: [pilot-to-commercial-activation.md](pilot-to-commercial-activation.md) ("Readiness reconciliation").

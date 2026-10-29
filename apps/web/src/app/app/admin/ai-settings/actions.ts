@@ -24,6 +24,7 @@ import { bootstrapAdminEmails, hasPlatformPermission, staffPrincipal } from '../
 import { resolveTestAdapter, usdToUnits } from '../../../../lib/ai';
 import { clearAiCapabilityCache } from '../../../../lib/capabilities';
 import { createKeyManagementPort } from '../../../../lib/providers';
+import { forgetReadinessSignals } from '../../../../lib/readiness-signals';
 import { withSession } from '../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../lib/step-up';
 
@@ -50,9 +51,14 @@ const AI_SETTINGS_PATH = '/app/admin/ai-settings';
 // no-target-id, platform-wide mutation.
 const PLATFORM_WIDE_RESOURCE_ID = 'platform-wide';
 
-/** After a settings change: refresh this page and drop this server's cached AI capability answer (other servers catch up within a minute). */
+/**
+ * After a settings change: refresh this page and drop this server's cached AI capability answer
+ * (other servers catch up within a minute) and its remembered readiness facts, so the AI provider
+ * gate fails closed here until readiness is read again.
+ */
 function settingsChanged(): void {
   clearAiCapabilityCache();
+  forgetReadinessSignals();
   revalidatePath(AI_SETTINGS_PATH);
 }
 

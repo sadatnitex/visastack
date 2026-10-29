@@ -17,6 +17,7 @@ import { NEON_AUTH_ENV_VARS, isPresent, isSignInConfigured, readEnv } from './en
 import { runKmsSelfTest } from './kms-self-test';
 import { SHIPPED_MIGRATIONS } from './migration-journal';
 import { validateProviderEnv } from './providers';
+import { type ReadinessSignals, readReadinessSignals } from './readiness-signals';
 
 /**
  * Everything the platform knows about whether it can serve: configuration, the
@@ -57,6 +58,23 @@ export interface ReadinessReport {
   readonly commercial: ReturnType<typeof evaluateCommercialReadiness> | undefined;
 }
 
+/**
+ * One stateless HTTP database client per connection string, reused by every evaluation: it holds
+ * no connection or session, and reusing it lets overlapping evaluations share one read of the
+ * readiness facts (readiness-signals.ts keys that sharing by handle).
+ */
+let cachedClient: {
+  readonly connectionString: string;
+  readonly client: ReturnType<typeof createNeonDb>;
+} | null = null;
+
+function readinessClient(connectionString: string): ReturnType<typeof createNeonDb> {
+  if (cachedClient?.connectionString !== connectionString) {
+    cachedClient = { connectionString, client: createNeonDb(connectionString) };
+  }
+  return cachedClient.client;
+}
+
 export async function evaluateReadiness(): Promise<ReadinessReport> {
   const deploymentMode = getDeploymentMode();
   // The key service check runs alongside the database and storage probes, not after them.
@@ -75,14 +93,19 @@ export async function evaluateReadiness(): Promise<ReadinessReport> {
   // The connected, migrated database, handed to the live capability lookups
   // (AI settings live there); left unset whenever the database is not usable.
   let liveDb: Db | undefined;
+  let signalsRead: Promise<ReadinessSignals> | undefined;
 
   const connectionString = resolveDatabaseUrl(process.env);
   if (connectionString) {
     try {
-      const client = createNeonDb(connectionString);
+      const client = readinessClient(connectionString);
       await checkConnection(client);
       db = { connected: true, schemaApplied: await isSchemaApplied(client) };
-      if (db.schemaApplied) liveDb = client as unknown as Db;
+      if (db.schemaApplied) {
+        liveDb = client as unknown as Db;
+        // The AI provider settings and the scan runner's proof, read alongside the checks below.
+        signalsRead = readReadinessSignals(liveDb);
+      }
       try {
         migrations = {
           checked: true,
@@ -130,16 +153,23 @@ export async function evaluateReadiness(): Promise<ReadinessReport> {
     isSignInConfigured() &&
     providers.valid;
 
-  // The synchronous gates read the answer, so it must have arrived before they run.
-  await keyServiceCheck;
+  // The synchronous gates read both answers, so they must have arrived before the gates run.
+  // The database facts go to both guards directly and are also remembered for the synchronous
+  // capability checks (readiness-signals.ts); with no usable database they are unknown.
+  const [, signals] = await Promise.all([
+    keyServiceCheck,
+    signalsRead ?? readReadinessSignals(undefined),
+  ]);
   const commercial =
     deploymentMode === 'commercial'
-      ? evaluateCommercialReadiness({ databaseReady: db.connected && db.schemaApplied })
+      ? evaluateCommercialReadiness({ databaseReady: db.connected && db.schemaApplied, signals })
       : undefined;
 
-  const operational = evaluateOperationalReadiness({ databaseReady: coreReady });
+  const operational = evaluateOperationalReadiness({ databaseReady: coreReady, signals });
   const platform = {
-    ...(await resolvePlatformCapabilities(liveDb)),
+    ...(await resolvePlatformCapabilities(liveDb, {
+      scannerEvidenceFresh: signals.scannerEvidenceFresh,
+    })),
     ...(!operational.ready ? { realApplicantData: 'disabled' as const } : {}),
   };
 

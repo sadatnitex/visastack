@@ -19,7 +19,7 @@ import {
 import { drizzle } from 'drizzle-orm/pglite';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
-import { SharpPhotoReencoder } from './photo-reencoder';
+import { SharpImageSanitizer, SharpPhotoReencoder } from './photo-reencoder';
 import { BasicSafetyScanner } from './scanner';
 
 const SIZE = 512;
@@ -157,6 +157,185 @@ describe('SharpPhotoReencoder', () => {
     await expect(
       reencoder.reencode({ bytes: large, size: SIZE, maxInputPixels: 10_000 }),
     ).rejects.toThrow();
+  });
+});
+
+describe('SharpImageSanitizer (logos and photo proofs of payment, S27)', () => {
+  const sanitizer = new SharpImageSanitizer();
+  const OUT = 8 * 1024 * 1024;
+  const PAYLOAD = [...Buffer.from('<script>alert(1)</script>MZ-hidden-second-file')];
+
+  it('keeps nothing from the upload but the pixels: no location data, no bytes hidden after the image', async () => {
+    const withGps = await photoWithGps(900, 600);
+    const input = new Uint8Array([...withGps, ...PAYLOAD]);
+    expect(contains(input, LATITUDE_BYTES)).toBe(true);
+    expect(contains(input, PAYLOAD)).toBe(true);
+    const output = await sanitizer.sanitize({
+      bytes: input,
+      maxInputPixels: PIXELS,
+      maxDimension: 4096,
+      maxOutputBytes: OUT,
+    });
+    expect(output.contentType).toBe('image/jpeg');
+    expect([output.width, output.height]).toEqual([900, 600]);
+    expect(contains(output.bytes, LATITUDE_BYTES)).toBe(false);
+    expect(contains(output.bytes, EXIF_HEADER)).toBe(false);
+    expect(contains(output.bytes, PAYLOAD)).toBe(false);
+    const meta = await sharp(output.bytes).metadata();
+    expect(meta.format).toBe('jpeg');
+    expect(meta.exif).toBeUndefined();
+  });
+
+  it('keeps a PNG as a PNG with its transparency, scaled down to fit and never enlarged', async () => {
+    const png = await sharp({
+      create: {
+        width: 3000,
+        height: 1000,
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      },
+    })
+      .png()
+      .toBuffer();
+    const big = await sanitizer.sanitize({
+      bytes: new Uint8Array([...png, ...PAYLOAD]),
+      maxInputPixels: PIXELS,
+      maxDimension: 1024,
+      maxOutputBytes: OUT,
+    });
+    expect(big.contentType).toBe('image/png');
+    expect([big.width, big.height]).toEqual([1024, 341]);
+    expect(contains(big.bytes, PAYLOAD)).toBe(false);
+    expect((await sharp(big.bytes).metadata()).hasAlpha).toBe(true);
+    const small = await sanitizer.sanitize({
+      bytes: new Uint8Array(
+        await sharp({ create: { width: 40, height: 20, channels: 3, background: '#123456' } })
+          .png()
+          .toBuffer(),
+      ),
+      maxInputPixels: PIXELS,
+      maxDimension: 1024,
+      maxOutputBytes: OUT,
+    });
+    expect([small.width, small.height]).toEqual([40, 20]);
+  });
+
+  it('refuses other formats, bytes that are not an image, and images above the pixel limit', async () => {
+    const gif = new Uint8Array(
+      await sharp({ create: { width: 10, height: 10, channels: 3, background: '#fff' } })
+        .gif()
+        .toBuffer(),
+    );
+    const junk = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+    for (const bytes of [gif, junk]) {
+      await expect(
+        sanitizer.sanitize({
+          bytes,
+          maxInputPixels: PIXELS,
+          maxDimension: 1024,
+          maxOutputBytes: OUT,
+        }),
+      ).rejects.toThrow();
+    }
+    await expect(
+      sanitizer.sanitize({
+        bytes: await photoWithGps(200, 200),
+        maxInputPixels: 10_000,
+        maxDimension: 1024,
+        maxOutputBytes: OUT,
+      }),
+    ).rejects.toThrow();
+  });
+  it('keeps a large palette PNG as a palette PNG, so a valid upload is not refused for growing when cleaned', async () => {
+    // A noisy 700 x 700 image reduced to 256 colours: compact as a palette PNG, far larger as a
+    // full-colour PNG.
+    const palette = new Uint8Array(
+      await sharp({
+        create: {
+          width: 700,
+          height: 700,
+          channels: 3,
+          background: '#808080',
+          noise: { type: 'gaussian', mean: 128, sigma: 60 },
+        },
+      })
+        .png({ palette: true, colours: 256, effort: 1, dither: 0 })
+        .toBuffer(),
+    );
+    expect((await sharp(palette).metadata()).isPalette).toBe(true);
+    const fullColour = await sharp(palette).png().toBuffer();
+    expect(fullColour.byteLength).toBeGreaterThan(palette.byteLength * 1.5);
+    const cap = Math.ceil(palette.byteLength * 1.2);
+    const out = await sanitizer.sanitize({
+      bytes: palette,
+      maxInputPixels: PIXELS,
+      maxDimension: 4096,
+      maxOutputBytes: cap,
+    });
+    expect(out.contentType).toBe('image/png');
+    expect(out.bytes.byteLength).toBeLessThanOrEqual(cap);
+    expect((await sharp(out.bytes).metadata()).isPalette).toBe(true);
+    expect([out.width, out.height]).toEqual([700, 700]);
+  }, 30_000);
+
+  it('falls back to a high-quality JPEG for an opaque image whose PNG is too large, and refuses a transparent one plainly', async () => {
+    const noisy = (channels: 3 | 4) =>
+      sharp({
+        create: {
+          width: 800,
+          height: 800,
+          channels,
+          background: channels === 4 ? { r: 1, g: 2, b: 3, alpha: 0.5 } : '#808080',
+          noise: { type: 'gaussian', mean: 128, sigma: 60 },
+        },
+      })
+        .png()
+        .toBuffer();
+    const opaque = new Uint8Array(await noisy(3));
+    const cap = Math.floor(opaque.byteLength / 2);
+    const out = await sanitizer.sanitize({
+      bytes: opaque,
+      maxInputPixels: PIXELS,
+      maxDimension: 4096,
+      maxOutputBytes: cap,
+    });
+    expect(out.contentType).toBe('image/jpeg');
+    expect(out.bytes.byteLength).toBeLessThanOrEqual(cap);
+    const transparent = new Uint8Array(await noisy(4));
+    await expect(
+      sanitizer.sanitize({
+        bytes: transparent,
+        maxInputPixels: PIXELS,
+        maxDimension: 4096,
+        maxOutputBytes: 1000,
+      }),
+    ).rejects.toMatchObject({ code: 'image_too_large' });
+    await expect(
+      sanitizer.sanitize({
+        bytes: await photoWithGps(900, 600),
+        maxInputPixels: PIXELS,
+        maxDimension: 4096,
+        maxOutputBytes: 100,
+      }),
+    ).rejects.toMatchObject({ code: 'image_too_large' });
+  });
+
+  it('refuses an image that takes longer than its time limit', async () => {
+    const large = new Uint8Array(
+      await sharp({
+        create: { width: 6000, height: 4000, channels: 3, background: { r: 9, g: 9, b: 9 } },
+      })
+        .jpeg()
+        .toBuffer(),
+    );
+    await expect(
+      new SharpImageSanitizer({ timeoutMs: 1 }).sanitize({
+        bytes: large,
+        maxInputPixels: PIXELS,
+        maxDimension: 4096,
+        maxOutputBytes: OUT,
+      }),
+    ).rejects.toThrow('took too long');
   });
 });
 

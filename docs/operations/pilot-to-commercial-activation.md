@@ -126,3 +126,32 @@ perform.
 Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance. Production uses private R2 storage; database-only encrypted archive recovery is verified, while complete document/key/lifecycle recovery remains open.
 
 Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.
+
+## Readiness reconciliation (2026-10-29, S27)
+
+This section supersedes the gate rows above where they differ. The live gate list is `apps/web/src/lib/commercial-readiness.ts`.
+
+- **AI provider gate.** `productionOpenAiProject` is replaced by `productionAiProvider` ("production AI provider with recorded data terms where AI is on"). It is satisfied when AI dispatch is off (AI settings saved but none active, or, on a fresh install, the environment not turning AI on), or when the active AI configuration in AI Settings has a usable key (stored and not revoked) and recorded provider data terms; when its fallback would really be used (switched on, and the target exists, is another provider the app can call, has an approved data policy and a usable key), the fallback's data terms must be recorded too, because documents can be sent there. A fallback the app would not use receives nothing and does not fail the gate. The admin page names what is missing. The old environment-only OpenAI path no longer satisfies it, with or without `OPENAI_PROJECT_ID`: it has no recorded data terms. Unreadable settings, including a missing table, fail closed.
+- **Scanner gate.** `realMalwareScanner` also accepts `MALWARE_SCANNER_PROVIDER=github_clamav`, only on the production deployment (`VERCEL_ENV=production`, the only place intake dispatches to the runner), with `GITHUB_INTAKE_DISPATCH_TOKEN` set, and while the scan runner's own verification record is under 72 hours old (the S4 proof, `packages/services/src/scanner-evidence.ts`). With that provider, the small uploads checked on the spot (agency logos, photo proofs of payment, profile photos) are checked structurally and then re-encoded on the server, so only image data is stored; a PDF proof of payment is refused and the person is asked for a photo.
+- **How the database facts are read.** Readiness reads both facts once per evaluation (`/api/health/ready` and the admin page), alongside its other checks, sharing one read between overlapping evaluations, and remembers them for five minutes for the app's synchronous checks. A server that has not evaluated readiness recently, or has just had an AI settings change, treats both as not met.
+- **Owner deferral.** `COMMERCIAL_READINESS_DEFER_<GATE>=<register id>` counts only for a gate on the code allowlist, which holds `externalPenetrationTest` with register id `H01` and nothing else. The variable is `COMMERCIAL_READINESS_DEFER_EXTERNAL_PENETRATION_TEST=H01` (owner action O17, recorded in `docs/roadmap/DEFERRED-COMMERCIAL-HARDENING.md` row H01). The value must be exactly `H01`. A deferred gate counts as passing and shows "Deferred by Owner (H01)" on the admin page and in the internal readiness report. Any other value, or the variable on any other gate, is ignored and shown as "Deferral Not Accepted". No safety gate (key management, scanner, storage, sign-in, step-up, email, tenant isolation, permission matrix, backup or any other) can be deferred.
+
+### Attestation evidence
+
+The complete list of `COMMERCIAL_READINESS_ATTEST_*` values the owner may set (owner action O11), each with the document that holds, or must hold, its evidence. The only accepted value is `true`. Set one only once that evidence exists. The S24 acceptance report reads this list; the code copy is `COMMERCIAL_READINESS_ATTESTATIONS` in `apps/web/src/lib/commercial-readiness.ts`, and a test keeps the two equal.
+
+| Variable | Gate | Evidence |
+| --- | --- | --- |
+| `COMMERCIAL_READINESS_ATTEST_NEON_AUTH_PRODUCTION` | signInProduction | `docs/operations/current-platform.md` |
+| `COMMERCIAL_READINESS_ATTEST_EXTERNAL_DELETION_VERIFIED` | externalObjectDeletionVerification | `docs/security/erasure-and-retention-boundary.md` |
+| `COMMERCIAL_READINESS_ATTEST_TENANT_ISOLATION_SUITE` | tenantIsolationSuite | `docs/security/tenant-isolation-matrix.md` |
+| `COMMERCIAL_READINESS_ATTEST_PERMISSION_MATRIX` | permissionMatrix | `docs/security/tenant-isolation-matrix.md` |
+| `COMMERCIAL_READINESS_ATTEST_PRIVACY_CONSENT_CONFIG` | privacyConsentConfiguration | `docs/commercial-v1/privacy-data-map.md` |
+| `COMMERCIAL_READINESS_ATTEST_BACKUP_RESTORE_VERIFIED` | backupRestoreVerification | `docs/operations/database-restore-drill.md` |
+| `COMMERCIAL_READINESS_ATTEST_PRODUCTION_E2E` | authenticatedProductionE2e | `docs/commercial-v1/part-10-journeys.md` |
+| `COMMERCIAL_READINESS_ATTEST_INCIDENT_OWNER` | incidentOwner | `docs/operations/incidents/README.md` |
+| `COMMERCIAL_READINESS_ATTEST_TERMS_AND_PRIVACY_NOTICE` | termsAndPrivacyNotice | `docs/legal/2026-10-26-small-commercial-v1-changes-for-counsel.md` |
+| `COMMERCIAL_READINESS_ATTEST_NO_CRITICAL_HIGH_FINDINGS` | noCriticalHighFindings | `docs/commercial-v1/part-10-security-scans.md` |
+| `COMMERCIAL_READINESS_ATTEST_EXTERNAL_PENTEST` | externalPenetrationTest | `docs/security/external-penetration-test.md` |
+
+`COMMERCIAL_READINESS_ATTEST_EXTERNAL_PENTEST` is for a completed external test only, recorded in `docs/security/external-penetration-test.md` (the H01 evidence location). Until one happens, the owner's route is the H01 deferral above, not this attestation. No attestation exists for the live gates (hosting, storage, scanner, email, key management, step-up, AI provider, database): they are checked from configuration and cannot be claimed.

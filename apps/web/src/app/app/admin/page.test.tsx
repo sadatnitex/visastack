@@ -18,7 +18,6 @@ const mocks = vi.hoisted(() => ({
   totalAiCostUnits: vi.fn(),
   resolveAiLimits: vi.fn(),
   evaluateReadiness: vi.fn(),
-  evaluateCommercialReadiness: vi.fn(),
   getDeploymentMode: vi.fn(),
 }));
 
@@ -49,9 +48,6 @@ vi.mock('../../../lib/ai', async (importOriginal) => ({
   resolveAiLimits: (...args: unknown[]) => mocks.resolveAiLimits(...args),
 }));
 vi.mock('../../../lib/readiness', () => ({ evaluateReadiness: mocks.evaluateReadiness }));
-vi.mock('../../../lib/commercial-readiness', () => ({
-  evaluateCommercialReadiness: mocks.evaluateCommercialReadiness,
-}));
 vi.mock('../../../lib/deployment-mode', () => ({ getDeploymentMode: mocks.getDeploymentMode }));
 vi.mock('./action-buttons', async () => {
   const { stub } = await import('../../../lib/next-mocks.test-support');
@@ -135,10 +131,6 @@ beforeEach(() => {
   mocks.totalAiCostUnits.mockResolvedValue(0);
   mocks.resolveAiLimits.mockResolvedValue({ budgetLimitUnits: 1_000_000 });
   mocks.evaluateReadiness.mockResolvedValue(readiness);
-  mocks.evaluateCommercialReadiness.mockReturnValue({
-    ready: false,
-    gates: [{ key: 'pentest', label: 'Penetration test', satisfied: false }],
-  });
 });
 
 describe('Platform > Operations', () => {
@@ -224,16 +216,67 @@ describe('Platform > Operations', () => {
     expect(text).toContain('Commercial Readiness');
     expect(text).toContain('controlled_pilot');
     expect(text).toContain('this guard does not apply yet');
-    expect(mocks.evaluateCommercialReadiness).not.toHaveBeenCalled();
+    expect(text).not.toContain('gates satisfied');
   });
 
-  it('shows the commercial gate breakdown in commercial mode', async () => {
+  it('shows the commercial gate breakdown from the readiness report in commercial mode', async () => {
     mocks.getDeploymentMode.mockReturnValue('commercial');
+    mocks.evaluateReadiness.mockResolvedValue({
+      ...readiness,
+      commercial: {
+        ready: false,
+        gates: [{ key: 'pentest', label: 'Penetration test', satisfied: false }],
+      },
+    });
     const text = textOf(await renderServer(Page()));
     expect(text).toContain('0 of 1 gates satisfied');
     expect(text).toContain('Penetration test');
     expect(text).toContain('unmet');
   });
+
+  it('says commercial readiness could not be evaluated when the readiness report failed', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mocks.getDeploymentMode.mockReturnValue('commercial');
+    mocks.evaluateReadiness.mockRejectedValue(new Error('probe failed'));
+    const text = textOf(await renderServer(Page()));
+    expect(text).toContain('Commercial readiness could not be evaluated');
+    expect(text).not.toContain('this guard does not apply yet');
+  });
+
+  it('shows the owner deferral and a refused deferral from the real guard, and never a configured value (S27)', async () => {
+    const MARK = 'S27SECRETMARK';
+    try {
+      for (const name of [
+        'RESEND_API_KEY',
+        'STEP_UP_SIGNING_SECRET',
+        'BLOB_READ_WRITE_TOKEN',
+        'OPENAI_API_KEY',
+      ]) {
+        vi.stubEnv(name, `${MARK}-${name}`);
+      }
+      vi.stubEnv('COMMERCIAL_READINESS_DEFER_EXTERNAL_PENETRATION_TEST', 'H01');
+      vi.stubEnv('COMMERCIAL_READINESS_DEFER_REAL_KEY_MANAGEMENT', 'H01');
+      vi.stubEnv('COMMERCIAL_READINESS_DEFER_STEP_UP', `${MARK}-pasted`);
+      const { evaluateCommercialReadiness } = await vi.importActual<
+        typeof import('../../../lib/commercial-readiness')
+      >('../../../lib/commercial-readiness');
+      const commercial = evaluateCommercialReadiness({
+        databaseReady: true,
+        signals: { aiProvider: { kind: 'none_active' }, scannerEvidenceFresh: false },
+      });
+      mocks.getDeploymentMode.mockReturnValue('commercial');
+      mocks.evaluateReadiness.mockResolvedValue({ ...readiness, commercial });
+      const html = await renderServer(Page());
+      const text = textOf(html);
+      expect(text).toContain('Deferred by Owner (H01)');
+      expect(text).toContain('1 of them deferred by the owner');
+      expect(text).toContain('real key management (KMS) (Deferral Not Accepted)');
+      expect(text).toContain('step-up (Deferral Not Accepted)');
+      expect(html).not.toContain(MARK);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  }, 15_000);
 
   it('refuses anyone who is not a platform administrator, without reading a figure', async () => {
     mocks.isPlatformAdmin.mockResolvedValue(false);

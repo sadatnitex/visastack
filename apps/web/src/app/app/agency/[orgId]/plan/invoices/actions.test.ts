@@ -31,6 +31,7 @@ vi.mock('../../../../../../lib/base-url', () => ({
 vi.mock('../../../../../../lib/providers', () => ({
   createPaymentPort: mocks.createPaymentPort,
   createMalwareScanner: () => ({ scanner: true }),
+  createImageSanitizer: () => ({ images: true }),
 }));
 vi.mock('../../../../../../lib/session', () => ({
   withSession: async (fn: (ctx: { db: object; accountId: string }) => unknown) =>
@@ -248,7 +249,11 @@ describe('reporting a payment made another way', () => {
     });
     await run({ proof: file });
     const [, ports, input] = mocks.submitManualPaymentClaim.mock.calls[0] ?? [];
-    expect(ports).toEqual({ storage: { storage: true }, scanner: { scanner: true } });
+    expect(ports).toEqual({
+      storage: { storage: true },
+      scanner: { scanner: true },
+      images: { images: true },
+    });
     expect(input.proofFile.contentType).toBe('application/pdf');
     expect(Array.from(input.proofFile.bytes)).toEqual([0x25, 0x50, 0x44, 0x46, 0x2d]);
   });

@@ -99,38 +99,38 @@ afterEach(() => {
   }
 });
 
-describe('createAiExtractor', () => {
+describe('isEnvAiExtractionConfigured (the fresh-install environment switch)', () => {
   // The first dynamic import in this file pays a one-time module-transform
   // cost that's fast in isolation (~1s) but can approach the 5s default
   // under full monorepo test-suite contention (7 packages' vitest processes
   // running concurrently) — a generous explicit timeout avoids a spurious CI
   // failure that has nothing to do with this test's own correctness (same
   // rationale as apps/web/src/lib/step-up.test.ts's first test).
-  it('is undefined when AI_ENABLED is not set', async () => {
+  it('is off when AI_ENABLED is not set', async () => {
     setEnv('OPENAI_API_KEY', 'sk-test');
-    const { createAiExtractor } = await import('./ai');
-    expect(createAiExtractor()).toBeUndefined();
+    const { isEnvAiExtractionConfigured } = await import('./ai');
+    expect(isEnvAiExtractionConfigured()).toBe(false);
   }, 15_000);
 
-  it('is undefined when AI_ENABLED is true but no API key is configured', async () => {
+  it('is off when AI_ENABLED is true but no API key is configured', async () => {
     setEnv('AI_ENABLED', 'true');
-    const { createAiExtractor } = await import('./ai');
-    expect(createAiExtractor()).toBeUndefined();
+    const { isEnvAiExtractionConfigured } = await import('./ai');
+    expect(isEnvAiExtractionConfigured()).toBe(false);
   });
 
-  it('is undefined for an unsupported AI_PROVIDER — a stray API key never silently activates the wrong adapter', async () => {
+  it('is off for an unsupported AI_PROVIDER: a stray API key never silently activates the wrong adapter', async () => {
     setEnv('AI_ENABLED', 'true');
     setEnv('AI_PROVIDER', 'anthropic');
     setEnv('OPENAI_API_KEY', 'sk-test');
-    const { createAiExtractor } = await import('./ai');
-    expect(createAiExtractor()).toBeUndefined();
+    const { isEnvAiExtractionConfigured } = await import('./ai');
+    expect(isEnvAiExtractionConfigured()).toBe(false);
   });
 
-  it('is defined once AI_ENABLED and an API key are both present', async () => {
+  it('is on once AI_ENABLED and an API key are both present', async () => {
     setEnv('AI_ENABLED', 'true');
     setEnv('OPENAI_API_KEY', 'sk-test');
-    const { createAiExtractor } = await import('./ai');
-    expect(createAiExtractor()).toBeDefined();
+    const { isEnvAiExtractionConfigured } = await import('./ai');
+    expect(isEnvAiExtractionConfigured()).toBe(true);
   });
 });
 
@@ -299,7 +299,7 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
     getAiProviderConfigForFallback.mockReset();
   });
 
-  it('falls back to createAiExtractor (env-based) when no admin has ever configured AI settings', async () => {
+  it('falls back to the environment-only adapter when no admin has ever configured AI settings', async () => {
     hasAnyAiProviderConfig.mockResolvedValue(false);
     setEnv('AI_ENABLED', 'true');
     setEnv('OPENAI_API_KEY', 'sk-env-test');

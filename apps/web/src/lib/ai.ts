@@ -22,6 +22,7 @@ import {
   revealAiProviderApiKey,
 } from '@visastack/services';
 import { isAiDataUseAllowed } from './ai-data-rule';
+import { IMPLEMENTED_PROVIDERS } from './ai-providers';
 
 /** Variable-keyed env read (satisfies both TS index-signature and Biome rules). */
 function readEnv(name: string): string | undefined {
@@ -40,28 +41,17 @@ function readPositiveIntEnv(name: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 }
 
-/**
- * The AI Gateway is an OPTIONAL pilot feature (master directive §5: "OpenAI
- * API pilot project"), unlike storage which every upload depends on — so
- * there is no fail-closed production requirement here, just "on" or "off".
- * Requires BOTH the explicit `AI_ENABLED` master switch AND a configured API
- * key — a stray `OPENAI_API_KEY` alone (e.g. left over in an environment)
- * never silently turns the feature on. Returns undefined when unavailable;
- * callers must treat that as "AI extraction unavailable" and hide the
- * feature, never crash.
- */
-export function createAiExtractor(): AiExtractionPort | undefined {
-  const options = envAiExtractorOptions();
-  return options ? new OpenAiExtractionAdapter(options) : undefined;
-}
-
 type EnvAiExtractorOptions = ConstructorParameters<typeof OpenAiExtractionAdapter>[0];
 
 /**
- * The environment-variable half of `createAiExtractor`, without building the
- * adapter: the settings it would use, or undefined when the environment does
- * not turn AI on. Kept separate so `selectAiExtractionSource` can answer "is
- * AI usable" through the very same rules without constructing a client.
+ * The fresh-install, environment-only AI settings (before anyone has used the
+ * admin AI settings): the OpenAI adapter options `resolveAiExtractor` builds
+ * from, or undefined when the environment does not turn AI on. AI is an
+ * optional pilot feature, so there is no fail-closed requirement, only "on"
+ * or "off". It needs BOTH the explicit `AI_ENABLED` master switch AND an API
+ * key: a stray `OPENAI_API_KEY` alone (left over in an environment) never
+ * turns AI on. `selectAiExtractionSource` uses the very same rules to answer
+ * "is AI usable" without constructing a client.
  */
 function envAiExtractorOptions(): EnvAiExtractorOptions | undefined {
   if (readEnv('AI_ENABLED') !== 'true') return undefined;
@@ -109,16 +99,7 @@ export interface ResolvedAiExtractor {
   readonly fallback?: { readonly ai: AiExtractionPort };
 }
 
-/**
- * Every provider this codebase can actually dispatch to via a DB config
- * (Part 8 §3: "ship production adapters for OpenAI API; Google Gemini API;
- * Anthropic Claude API" -- all three now implemented). Checked BEFORE
- * `revealAiProviderApiKey` runs (below), not after building the adapter --
- * an unimplemented provider must never pay for a real KMS decrypt of a key
- * it is never going to use. Keep this set and `buildAdapterForConfig`'s own
- * switch in sync when a new provider ships.
- */
-const IMPLEMENTED_PROVIDERS: ReadonlySet<string> = new Set(['openai', 'anthropic', 'gemini']);
+// `IMPLEMENTED_PROVIDERS` (./ai-providers.ts): keep it and `buildAdapterForConfig`'s switch in sync.
 
 /**
  * Returns `AiExtractionPort & AiClassifyPort & AiExplainPort &
@@ -166,7 +147,7 @@ function buildAdapterForConfig(
  * disagree about which world we're in).
  *
  * On a fresh install where `ai_provider_configs` is still empty, this is
- * `createAiExtractor()` unchanged plus the six env-var limit functions below
+ * the environment-only OpenAI adapter (`envAiExtractorOptions`) plus the six env-var limit functions below
  * -- today's 100% env-var behavior, completely unaffected (and still
  * OpenAI-only: the env-var fallback path predates the DB config system and
  * was never extended to other providers, since it exists only to cover a
@@ -332,7 +313,7 @@ export interface ResolvedAiClassifier {
  * implemented provider's adapter class satisfies both ports already.
  *
  * Deliberately no env-var-only fallback path (unlike `resolveAiExtractor`'s
- * own `createAiExtractor()` branch): classification is a Commercial-V1-native
+ * own environment-only branch): classification is a Commercial-V1-native
  * capability introduced well after the DB-config system already existed, so
  * there is no legacy env-var-configurable predecessor to preserve behavior
  * for. An install with no `ai_provider_configs` row at all simply has no AI
@@ -406,7 +387,7 @@ export async function resolveAiInconsistencyChecker(
 
 /**
  * Providers with a real OCR adapter (Part 8 §9), separate from
- * `IMPLEMENTED_PROVIDERS` above -- OCR reuses the same admin-configured AI
+ * `IMPLEMENTED_PROVIDERS` (./ai-providers.ts) -- OCR reuses the same admin-configured AI
  * Gateway provider/key (Part 8 Chunk 14's own architecture decision). All
  * three directive-named providers now have an `AiOcrPort` implementation,
  * matching `IMPLEMENTED_PROVIDERS`'s own now-complete set. Keep this set and

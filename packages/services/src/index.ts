@@ -1803,3 +1803,24 @@ export {
   type AiConnectionCounts,
   getAiConnectionCounts,
 } from './ai-connection-counts';
+// S27: the database half of the commercial readiness AI provider gate (M19).
+export {
+  type AiProviderReadinessState,
+  loadAiProviderReadiness,
+} from './ai-provider-readiness';
+// S27: server-side re-encoding for logos and photo proofs of payment, so only image data is kept.
+export {
+  IMAGE_TOO_LARGE_CODE,
+  type ImageSanitizerPort,
+  SANITIZED_IMAGE_TYPES,
+  type SanitizedImage,
+  type SanitizedImageType,
+  isAcceptableSanitizedImage,
+  isImageTooLargeError,
+} from './image-sanitizer';
+export {
+  LOGO_MAX_DIMENSION,
+  LOGO_MAX_INPUT_PIXELS,
+  LOGO_MAX_OUTPUT_BYTES,
+  type LogoUploadChecks,
+} from './branding';

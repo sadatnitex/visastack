@@ -61,8 +61,8 @@ afterEach(() => {
 });
 
 describe('validateProviderEnv', () => {
-  // The first dynamic import in this file pulls in ./providers' re-exported
-  // createAiExtractor (./ai -> @visastack/adapters' OpenAI SDK transform),
+  // The first dynamic import in this file pulls in ./providers ->
+  // @visastack/adapters (including the OpenAI SDK transform),
   // fast in isolation but able to approach the 5s default under full
   // monorepo test-suite contention — same documented cause as ai.test.ts's,
   // step-up.test.ts's, and commercial-readiness.test.ts's own first tests.

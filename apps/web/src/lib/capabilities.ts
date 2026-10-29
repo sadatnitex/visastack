@@ -12,7 +12,7 @@ import {
   operationalConfigurationReady,
 } from './commercial-readiness';
 import { getDeploymentMode } from './deployment-mode';
-import { isPresent, isSignInConfigured, readEnv } from './env';
+import { isClamAvConfigured, isPresent, isSignInConfigured, readEnv } from './env';
 import { runKmsSelfTest } from './kms-self-test';
 import { createKeyManagementPort, isPaymentProviderConfigured } from './providers';
 import { isPublicBetaOpen } from './public-beta';
@@ -75,12 +75,11 @@ export function getPlatformCapabilities(): PlatformCapabilities {
   // it, so anything that reports AI to a person reads
   // `resolvePlatformCapabilities` instead (see below).
   const aiConfigured = isEnvAiExtractionConfigured();
-  // Same condition commercial-readiness.ts's `realMalwareScanner` gate and
-  // providers.ts's `createMalwareScanner` both check, so all three can never
-  // disagree about whether a real scanner is actually configured.
-  const clamAvConfigured =
-    readEnv('MALWARE_SCANNER_PROVIDER') === 'clamav' &&
-    (isPresent('CLAMAV_SOCKET_PATH') || (isPresent('CLAMAV_HOST') && isPresent('CLAMAV_PORT')));
+  // The one shared ClamAV check (env.ts `isClamAvConfigured`), also used by
+  // providers.ts's `createMalwareScanner` and the readiness gate. The private
+  // scan runner (`github_clamav`) needs its recent proof from the database:
+  // `resolveMalwareScanning` below adds it.
+  const clamAvConfigured = isClamAvConfigured();
 
   return {
     authentication: isSignInConfigured() ? 'available' : 'unconfigured',
@@ -182,15 +181,18 @@ export async function resolveAiExtractionCapability(
  * `getPlatformCapabilities` with the parts that depend on live,
  * database-managed settings filled in. Use this wherever capability state is
  * shown to a person (the readiness probe behind the public status page, the
- * admin overview); the synchronous registry stays I/O-free for gates.
+ * admin overview); the synchronous registry stays I/O-free for gates. A
+ * caller that has just read the scan runner's proof (readiness.ts) passes it
+ * in, so the database is not asked twice.
  */
 export async function resolvePlatformCapabilities(
   db: Db | undefined,
+  known: { readonly scannerEvidenceFresh?: boolean } = {},
 ): Promise<PlatformCapabilities> {
   const base = getPlatformCapabilities();
   const [aiExtraction, malwareScanning] = await Promise.all([
     resolveAiExtractionCapability(db),
-    resolveMalwareScanning(db, base.malwareScanning),
+    resolveMalwareScanning(db, base.malwareScanning, known.scannerEvidenceFresh),
     // The key service answer feeds the synchronous gates read inside `getPlatformCapabilities`.
     readEnv('KMS_PROVIDER') === 'aws_kms' ? runKmsSelfTest() : Promise.resolve(false),
   ]);
@@ -205,9 +207,12 @@ export async function resolvePlatformCapabilities(
 async function resolveMalwareScanning(
   db: Db | undefined,
   fromEnvironment: PlatformCapabilities['malwareScanning'],
+  knownFresh: boolean | undefined,
 ): Promise<PlatformCapabilities['malwareScanning']> {
   if (fromEnvironment === 'available') return fromEnvironment;
-  if (readEnv('MALWARE_SCANNER_PROVIDER') !== 'github_clamav' || !db) return fromEnvironment;
+  if (readEnv('MALWARE_SCANNER_PROVIDER') !== 'github_clamav') return fromEnvironment;
+  if (knownFresh !== undefined) return knownFresh ? 'available' : fromEnvironment;
+  if (!db) return fromEnvironment;
   return (await loadScannerEvidence(db)) ? 'available' : fromEnvironment;
 }
 

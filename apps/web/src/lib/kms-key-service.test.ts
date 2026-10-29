@@ -128,10 +128,12 @@ describe('the key service self-test and the readiness gate', () => {
     const passed = { value: false };
     vi.doMock('./kms-self-test', () => ({ kmsSelfTestPassed: () => passed.value }));
     const { evaluateCommercialReadiness } = await import('./commercial-readiness');
+    const { UNKNOWN_READINESS_SIGNALS } = await import('./readiness-signals');
     const gate = () =>
-      evaluateCommercialReadiness({ databaseReady: true }).gates.find(
-        (g) => g.key === 'realKeyManagement',
-      )?.satisfied;
+      evaluateCommercialReadiness({
+        databaseReady: true,
+        signals: UNKNOWN_READINESS_SIGNALS,
+      }).gates.find((g) => g.key === 'realKeyManagement')?.satisfied;
     expect(gate()).toBe(false);
     passed.value = true;
     expect(gate()).toBe(true);

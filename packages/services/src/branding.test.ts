@@ -17,6 +17,7 @@ import {
   uploadOrganizationLogo,
 } from './branding';
 import type { Db } from './db';
+import { IMAGE_TOO_LARGE_CODE, type ImageSanitizerPort } from './image-sanitizer';
 import type { MalwareScannerPort } from './intake';
 import { addMembership, createOrganization, reviewOrganization } from './organizations';
 import type {
@@ -78,14 +79,14 @@ class FakeBlobStore implements BlobStore {
   }
 }
 
-const cleanScanner: MalwareScannerPort = {
+const cleanScannerPort: MalwareScannerPort = {
   name: 'test-scanner',
   version: '0.0.0',
   async scan() {
     return { safe: true };
   },
 };
-const infectedScanner: MalwareScannerPort = {
+const infectedScannerPort: MalwareScannerPort = {
   name: 'test-scanner',
   version: '0.0.0',
   async scan() {
@@ -95,6 +96,31 @@ const infectedScanner: MalwareScannerPort = {
 
 const PNG_MAGIC = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
 const JPEG_MAGIC = new Uint8Array([0xff, 0xd8, 0xff, 1, 2, 3]);
+/** The re-encoded copy a fake sanitizer writes: the real type's signature, then fresh pixels. */
+const CLEAN_PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 9, 9]);
+const CLEAN_JPEG = new Uint8Array([0xff, 0xd8, 0xff, 9, 9]);
+
+const reencodes: ImageSanitizerPort = {
+  name: 'test-sanitizer',
+  version: '0.0.0',
+  async sanitize({ bytes }) {
+    const png = bytes[0] === 0x89;
+    return {
+      bytes: png ? CLEAN_PNG : CLEAN_JPEG,
+      contentType: png ? 'image/png' : 'image/jpeg',
+      width: 64,
+      height: 32,
+    };
+  },
+};
+const unreadable: ImageSanitizerPort = {
+  ...reencodes,
+  async sanitize() {
+    throw new Error('not an image');
+  },
+};
+const cleanChecks = { scanner: cleanScannerPort, images: reencodes };
+const infectedChecks = { scanner: infectedScannerPort, images: reencodes };
 
 describe('WCAG contrast math (COM-04)', () => {
   it('computes known reference values', () => {
@@ -240,7 +266,7 @@ describe('uploadOrganizationLogo / removeOrganizationLogo (COM-04)', () => {
     const { organizationId } = await seedOrganization(db, 'logo-auth');
     const stranger = await provisionAccount(db, { email: 'stranger-logo@example.com' });
     if (!isOk(stranger)) throw new Error('provision');
-    const result = await uploadOrganizationLogo(db, storage, cleanScanner, {
+    const result = await uploadOrganizationLogo(db, storage, cleanChecks, {
       actorAccountId: stranger.value.id,
       organizationId,
       contentType: 'image/png',
@@ -252,7 +278,7 @@ describe('uploadOrganizationLogo / removeOrganizationLogo (COM-04)', () => {
 
   it('refuses a disallowed content type and an oversized image', async () => {
     const { organizationId, ownerAccountId } = await seedOrganization(db, 'logo-valid');
-    const badType = await uploadOrganizationLogo(db, storage, cleanScanner, {
+    const badType = await uploadOrganizationLogo(db, storage, cleanChecks, {
       actorAccountId: ownerAccountId,
       organizationId,
       contentType: 'image/svg+xml',
@@ -261,7 +287,7 @@ describe('uploadOrganizationLogo / removeOrganizationLogo (COM-04)', () => {
     expect(isErr(badType)).toBe(true);
     if (isErr(badType)) expect(badType.error.code).toBe('invalid');
 
-    const tooBig = await uploadOrganizationLogo(db, storage, cleanScanner, {
+    const tooBig = await uploadOrganizationLogo(db, storage, cleanChecks, {
       actorAccountId: ownerAccountId,
       organizationId,
       contentType: 'image/png',
@@ -273,7 +299,7 @@ describe('uploadOrganizationLogo / removeOrganizationLogo (COM-04)', () => {
 
   it('refuses an unsafe image and never attaches it to the organization', async () => {
     const { organizationId, ownerAccountId } = await seedOrganization(db, 'logo-unsafe');
-    const result = await uploadOrganizationLogo(db, storage, infectedScanner, {
+    const result = await uploadOrganizationLogo(db, storage, infectedChecks, {
       actorAccountId: ownerAccountId,
       organizationId,
       contentType: 'image/png',
@@ -291,7 +317,7 @@ describe('uploadOrganizationLogo / removeOrganizationLogo (COM-04)', () => {
 
   it('uploads a safe logo, audited, and replacing it deletes the previous blob', async () => {
     const { organizationId, ownerAccountId } = await seedOrganization(db, 'logo-upload');
-    const first = await uploadOrganizationLogo(db, storage, cleanScanner, {
+    const first = await uploadOrganizationLogo(db, storage, cleanChecks, {
       actorAccountId: ownerAccountId,
       organizationId,
       contentType: 'image/png',
@@ -304,7 +330,7 @@ describe('uploadOrganizationLogo / removeOrganizationLogo (COM-04)', () => {
     if (!firstKey) return;
     expect(storage.has(firstKey)).toBe(true);
 
-    const second = await uploadOrganizationLogo(db, storage, cleanScanner, {
+    const second = await uploadOrganizationLogo(db, storage, cleanChecks, {
       actorAccountId: ownerAccountId,
       organizationId,
       contentType: 'image/jpeg',
@@ -323,6 +349,85 @@ describe('uploadOrganizationLogo / removeOrganizationLogo (COM-04)', () => {
     expect(events).toHaveLength(2);
   });
 
+  it('keeps only the server re-encoded copy, under its real type, and never the uploaded bytes (S27)', async () => {
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'logo-reencoded');
+    // Declared PNG, really a JPEG: the stored type follows the decoded image.
+    const result = await uploadOrganizationLogo(db, storage, cleanChecks, {
+      actorAccountId: ownerAccountId,
+      organizationId,
+      contentType: 'image/png',
+      bytes: JPEG_MAGIC,
+    });
+    if (!isOk(result)) throw new Error('upload');
+    expect(result.value.logoContentType).toBe('image/jpeg');
+    const logo = await readOrganizationLogo(db, storage, organizationId);
+    expect(logo?.bytes).toEqual(CLEAN_JPEG);
+    expect(logo?.contentType).toBe('image/jpeg');
+    // Only the stored logo is left: the temporary upload copy was removed.
+    const keys = (await storage.listObjectKeys({ bucket: 'QUARANTINE' })).objectKeys;
+    expect(keys).toEqual([result.value.logoObjectKey]);
+  });
+
+  it('says plainly when an image is too large after cleaning, and keeps nothing', async () => {
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'logo-too-large');
+    const tooLargeAfterCleaning: ImageSanitizerPort = {
+      ...reencodes,
+      async sanitize() {
+        throw Object.assign(new Error('too large'), { code: IMAGE_TOO_LARGE_CODE });
+      },
+    };
+    const result = await uploadOrganizationLogo(
+      db,
+      storage,
+      { scanner: cleanScannerPort, images: tooLargeAfterCleaning },
+      {
+        actorAccountId: ownerAccountId,
+        organizationId,
+        contentType: 'image/png',
+        bytes: PNG_MAGIC,
+      },
+    );
+    expect(isErr(result) && result.error.message).toMatch(/too large after cleaning/);
+    expect((await storage.listObjectKeys({ bucket: 'QUARANTINE' })).objectKeys).toEqual([]);
+  });
+
+  it('refuses an image that cannot be re-encoded, or whose re-encoded copy is not a real image, and keeps nothing', async () => {
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'logo-unreadable');
+    const notAnImage: ImageSanitizerPort = {
+      ...reencodes,
+      async sanitize() {
+        return { bytes: new Uint8Array([1, 2, 3]), contentType: 'image/png', width: 1, height: 1 };
+      },
+    };
+    const tooLarge: ImageSanitizerPort = {
+      ...reencodes,
+      async sanitize() {
+        return { bytes: CLEAN_PNG, contentType: 'image/png', width: 5000, height: 10 };
+      },
+    };
+    for (const images of [unreadable, notAnImage, tooLarge]) {
+      const result = await uploadOrganizationLogo(
+        db,
+        storage,
+        { scanner: cleanScannerPort, images },
+        {
+          actorAccountId: ownerAccountId,
+          organizationId,
+          contentType: 'image/png',
+          bytes: PNG_MAGIC,
+        },
+      );
+      expect(isErr(result)).toBe(true);
+      if (isErr(result)) expect(result.error.code).toBe('invalid');
+    }
+    expect((await storage.listObjectKeys({ bucket: 'QUARANTINE' })).objectKeys).toEqual([]);
+    const rows = await db
+      .select()
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, organizationId));
+    expect(rows[0]?.logoObjectKey).toBeNull();
+  });
+
   it('removeOrganizationLogo deletes the blob and clears the fields, idempotent when none is set', async () => {
     const { organizationId, ownerAccountId } = await seedOrganization(db, 'logo-remove');
     const noop = await removeOrganizationLogo(db, storage, {
@@ -331,7 +436,7 @@ describe('uploadOrganizationLogo / removeOrganizationLogo (COM-04)', () => {
     });
     expect(isOk(noop)).toBe(true);
 
-    const uploaded = await uploadOrganizationLogo(db, storage, cleanScanner, {
+    const uploaded = await uploadOrganizationLogo(db, storage, cleanChecks, {
       actorAccountId: ownerAccountId,
       organizationId,
       contentType: 'image/png',
@@ -391,7 +496,7 @@ describe('getOrganizationBrandingForDisplay -- and tenant isolation (COM-04, A28
       organizationId,
       accentColor: '#0000ff',
     });
-    await uploadOrganizationLogo(db, storage, cleanScanner, {
+    await uploadOrganizationLogo(db, storage, cleanChecks, {
       actorAccountId: ownerAccountId,
       organizationId,
       contentType: 'image/png',
@@ -403,7 +508,7 @@ describe('getOrganizationBrandingForDisplay -- and tenant isolation (COM-04, A28
       new RegExp(`^/api/branding/logo/${organizationId}\\?v=[A-Za-z0-9]{1,12}$`),
     );
     const first = branding?.logoUrl;
-    await uploadOrganizationLogo(db, storage, cleanScanner, {
+    await uploadOrganizationLogo(db, storage, cleanChecks, {
       actorAccountId: ownerAccountId,
       organizationId,
       contentType: 'image/png',
@@ -422,7 +527,7 @@ describe('getOrganizationBrandingForDisplay -- and tenant isolation (COM-04, A28
       name: 'Agency A',
       accentColor: '#0000ff',
     });
-    await uploadOrganizationLogo(db, storage, cleanScanner, {
+    await uploadOrganizationLogo(db, storage, cleanChecks, {
       actorAccountId: orgA.ownerAccountId,
       organizationId: orgA.organizationId,
       contentType: 'image/png',
@@ -457,7 +562,7 @@ describe('readOrganizationLogo -- the bytes behind the logo route', () => {
   it('returns the stored image and its type, and nothing for an organization without a logo', async () => {
     const { organizationId, ownerAccountId } = await seedOrganization(db, 'read-logo');
     expect(await readOrganizationLogo(db, storage, organizationId)).toBeUndefined();
-    await uploadOrganizationLogo(db, storage, cleanScanner, {
+    await uploadOrganizationLogo(db, storage, cleanChecks, {
       actorAccountId: ownerAccountId,
       organizationId,
       contentType: 'image/png',
@@ -465,13 +570,14 @@ describe('readOrganizationLogo -- the bytes behind the logo route', () => {
     });
     const logo = await readOrganizationLogo(db, storage, organizationId);
     expect(logo?.contentType).toBe('image/png');
-    expect(logo?.bytes.byteLength).toBe(PNG_MAGIC.byteLength);
+    // The stored image is the server re-encoded copy, not the uploaded bytes.
+    expect(logo?.bytes).toEqual(CLEAN_PNG);
   });
 
   it("never returns another organization's logo, an unknown organization, or a removed logo", async () => {
     const a = await seedOrganization(db, 'read-a');
     const b = await seedOrganization(db, 'read-b');
-    await uploadOrganizationLogo(db, storage, cleanScanner, {
+    await uploadOrganizationLogo(db, storage, cleanChecks, {
       actorAccountId: a.ownerAccountId,
       organizationId: a.organizationId,
       contentType: 'image/png',
