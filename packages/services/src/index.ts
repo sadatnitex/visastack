@@ -1803,3 +1803,8 @@ export {
   type AiConnectionCounts,
   getAiConnectionCounts,
 } from './ai-connection-counts';
+// S27: the database half of the commercial readiness AI provider gate (M19).
+export {
+  type AiProviderReadinessState,
+  loadAiProviderReadiness,
+} from './ai-provider-readiness';

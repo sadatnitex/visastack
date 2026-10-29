@@ -17,7 +17,7 @@ import { PageHeader } from '../../../components/ui';
 import { bootstrapAdminEmails, isPlatformAdmin } from '../../../lib/admin';
 import { aiWarningLimitUnits, defaultAiLimits, resolveAiLimits, unitsToUsd } from '../../../lib/ai';
 import { formatDuration, formatMinorUnits, humanizeLabel } from '../../../lib/analytics-format';
-import { evaluateCommercialReadiness } from '../../../lib/commercial-readiness';
+import { gateStatusLabel } from '../../../lib/commercial-readiness';
 import { getDeploymentMode } from '../../../lib/deployment-mode';
 import { SHIPPED_MIGRATIONS } from '../../../lib/migration-journal';
 import { type ProviderStatus, describeProviderOperations } from '../../../lib/provider-operations';
@@ -167,13 +167,10 @@ export default async function AdminOperationsPage() {
     // incident owner, etc.) must never be public: /api/health/ready now
     // reports only the aggregate `ready` boolean on a real deployment. This
     // authenticated, platform-admin-only page is where the full breakdown
-    // lives instead. `databaseReady: true` is sound here, not assumed: every
-    // query above already succeeded against this same `db` handle by the
-    // time this line runs, in this same request.
-    const commercial =
-      deploymentMode === 'commercial'
-        ? evaluateCommercialReadiness({ databaseReady: true })
-        : undefined;
+    // lives instead. It is the same evaluation as the internal readiness
+    // report above (S27): one read of the database-backed gates (AI provider
+    // settings, scan runner proof), so the page and the report cannot differ.
+    const commercial = deploymentMode === 'commercial' ? readiness?.commercial : undefined;
     return {
       admin: true as const,
       overview,
@@ -823,7 +820,11 @@ export default async function AdminOperationsPage() {
                 <strong>not</strong> public. An unauthenticated caller (including the public{' '}
                 <code>/status</code> page) only ever sees the aggregate ready/not-ready boolean.
               </p>
-              {!data.commercial ? (
+              {data.deploymentMode === 'commercial' && !data.commercial ? (
+                <p className="card-body">
+                  Commercial readiness could not be evaluated; see the notice above.
+                </p>
+              ) : !data.commercial ? (
                 <p className="card-body" style={{ marginBottom: 0 }}>
                   Deployment mode is <strong>{data.deploymentMode}</strong>, not{' '}
                   <code>commercial</code> - this guard does not apply yet.
@@ -834,6 +835,12 @@ export default async function AdminOperationsPage() {
                     <span className="muted u-fs-085">
                       {data.commercial.gates.filter((g) => g.satisfied).length} of{' '}
                       {data.commercial.gates.length} gates satisfied
+                      {(() => {
+                        const deferred = data.commercial.gates.filter(
+                          (g) => g.deferral?.status === 'deferred',
+                        ).length;
+                        return deferred > 0 ? `, ${deferred} of them deferred by the owner` : '';
+                      })()}
                     </span>
                     <span
                       className={
@@ -846,11 +853,22 @@ export default async function AdminOperationsPage() {
                   <div className="rows">
                     {data.commercial.gates.map((gate) => (
                       <div className="row" key={gate.key}>
-                        <span className="row-key">{gate.label}</span>
+                        <span className="row-key">
+                          {gate.label}
+                          {gate.deferral?.status === 'not_deferred' ? (
+                            <span className="muted u-fs-085"> ({gate.deferral.label})</span>
+                          ) : null}
+                        </span>
                         <span
-                          className={gate.satisfied ? 'badge badge-success' : 'badge badge-danger'}
+                          className={
+                            gate.deferral?.status === 'deferred'
+                              ? 'badge badge-warning'
+                              : gate.satisfied
+                                ? 'badge badge-success'
+                                : 'badge badge-danger'
+                          }
                         >
-                          {gate.satisfied ? 'satisfied' : 'unmet'}
+                          {gateStatusLabel(gate)}
                         </span>
                       </div>
                     ))}

@@ -17,6 +17,7 @@ import { NEON_AUTH_ENV_VARS, isPresent, isSignInConfigured, readEnv } from './en
 import { runKmsSelfTest } from './kms-self-test';
 import { SHIPPED_MIGRATIONS } from './migration-journal';
 import { validateProviderEnv } from './providers';
+import { readReadinessSignals } from './readiness-signals';
 
 /**
  * Everything the platform knows about whether it can serve: configuration, the
@@ -132,12 +133,15 @@ export async function evaluateReadiness(): Promise<ReadinessReport> {
 
   // The synchronous gates read the answer, so it must have arrived before they run.
   await keyServiceCheck;
+  // The AI provider settings and the scan runner's proof, read once here and handed to both
+  // guards; also remembered for the synchronous capability checks (readiness-signals.ts).
+  const signals = await readReadinessSignals(liveDb);
   const commercial =
     deploymentMode === 'commercial'
-      ? evaluateCommercialReadiness({ databaseReady: db.connected && db.schemaApplied })
+      ? evaluateCommercialReadiness({ databaseReady: db.connected && db.schemaApplied, signals })
       : undefined;
 
-  const operational = evaluateOperationalReadiness({ databaseReady: coreReady });
+  const operational = evaluateOperationalReadiness({ databaseReady: coreReady, signals });
   const platform = {
     ...(await resolvePlatformCapabilities(liveDb)),
     ...(!operational.ready ? { realApplicantData: 'disabled' as const } : {}),

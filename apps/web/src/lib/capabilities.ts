@@ -77,7 +77,10 @@ export function getPlatformCapabilities(): PlatformCapabilities {
   const aiConfigured = isEnvAiExtractionConfigured();
   // Same condition commercial-readiness.ts's `realMalwareScanner` gate and
   // providers.ts's `createMalwareScanner` both check, so all three can never
-  // disagree about whether a real scanner is actually configured.
+  // disagree about whether a real scanner is actually configured. The private
+  // scan runner (`github_clamav`) needs its recent proof from the database:
+  // `resolveMalwareScanning` below adds it here, and the readiness gate reads
+  // the same `loadScannerEvidence` proof (S27).
   const clamAvConfigured =
     readEnv('MALWARE_SCANNER_PROVIDER') === 'clamav' &&
     (isPresent('CLAMAV_SOCKET_PATH') || (isPresent('CLAMAV_HOST') && isPresent('CLAMAV_PORT')));

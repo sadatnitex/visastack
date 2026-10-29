@@ -2,7 +2,8 @@ name: Encrypted Neon backup to R2
 
 on:
   schedule:
-    - cron: '0 6 * * 0'
+    # Daily at 06:00 UTC (S27): up to a day of independent-copy data loss, plus schedule delay.
+    - cron: '0 6 * * *'
   workflow_dispatch:
 
 permissions:
