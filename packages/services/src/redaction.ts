@@ -65,6 +65,16 @@ import { discardStorageObject, registerStorageObject } from './storage-objects';
  *   not ready yet.
  */
 
+/**
+ * When the renderer cannot count or draw a file, the step and the reason code go to the server log,
+ * so a failure a person sees can be traced and counted. Like every render-failure line, it never
+ * carries the renderer's own detail text, a file name or an identifier: the thing being drawn is a
+ * person's document.
+ */
+function reportRenderFailure(step: string, failure: { reason: string }): void {
+  console.warn(`[safe-copy] ${step} failed: ${failure.reason}`);
+}
+
 export const SAFE_COPY_TOO_LARGE_MESSAGE = 'This document is too large for a safe copy';
 
 /** The safe copy is held to this many bytes so it stays inside the hosting response limit. */
@@ -657,6 +667,7 @@ async function loadForOwner(
   if (!loaded.ok) return loaded;
   const counted = await deps.renderer.pageCount(loaded.value.source, budget());
   if (!counted.ok) {
+    reportRenderFailure('counting pages', counted);
     return ownerRefusal(
       proof,
       document,
@@ -734,6 +745,7 @@ export async function renderRedactionPage(
   if (input.page > pageCount) return err(serviceError('invalid', 'choose a page of this document'));
   const rendered = await deps.renderer.renderPage(source, input.page, budget());
   if (!rendered.ok) {
+    reportRenderFailure('drawing an editor page', rendered);
     await audit(proof, document, {
       allowed: false,
       reason: `render_${rendered.reason}`,
@@ -1426,6 +1438,7 @@ export async function prepareSafeCopyPage(
     { ...budget(), maxBytes: pageByteLimit(pageCount), expectedPageCount: pageCount },
   );
   if (!drawn.ok) {
+    reportRenderFailure('preparing a masked page', drawn);
     await audit(proof, document, {
       allowed: false,
       reason: `render_${drawn.reason}`,

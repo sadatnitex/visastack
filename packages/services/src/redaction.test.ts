@@ -1053,6 +1053,30 @@ describe('safe copies (S23, ADR 0022)', () => {
       expect(await stateOf()).toBe('TOO_LARGE');
     });
 
+    it('logs which step failed and its reason code, never the renderer detail, and keeps the audit to a code', async () => {
+      const warnings: string[] = [];
+      const original = console.warn;
+      console.warn = (...args: unknown[]) => {
+        warnings.push(args.map(String).join(' '));
+      };
+      try {
+        const page = await renderRedactionPage(
+          await gate(ownerId, 'PREVIEW'),
+          fakeDeps({ fail: 'unreadable' }),
+          { versionId, page: 1 },
+        );
+        expect(isErr(page)).toBe(true);
+      } finally {
+        console.warn = original;
+      }
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toMatch(/^\[safe-copy\] [a-z ]+ failed: unreadable$/);
+      expect(warnings[0]).not.toContain('test failure');
+      const [denied] = (await audits('DOCUMENT_ACCESS')).filter((e) => e.result === 'DENIED');
+      expect(denied?.reason).toBe('render_unreadable');
+      expect(JSON.stringify(denied?.metadata)).not.toContain('test failure');
+    });
+
     it('rate-limits safe copies and page views per person, in separate buckets', async () => {
       await ready();
       const fill = async (action: string, limit: number) => {

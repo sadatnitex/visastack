@@ -1,5 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
-import { desc, eq, inArray } from 'drizzle-orm';
+import { desc, eq, inArray, sql } from 'drizzle-orm';
 import { type StaffScope, staffScopeProblem as sharedStaffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
@@ -392,21 +392,33 @@ export interface AiDataRuleSetting {
 
 /**
  * The setting in force. No permission check (the gateway reads it for an
- * already authorized request). Runs in its own savepoint. A missing table
- * reads as off, the owner's chosen default, so a deploy before the migration
- * behaves exactly as before; any other failure also reads as off, and is
- * reported.
+ * already authorized request). A missing table reads as off, the owner's
+ * chosen default, so a deploy before the migration behaves exactly as before;
+ * any other failure also reads as off, and is reported. The table's presence
+ * is checked first with `to_regclass`, which never raises, so a surrounding
+ * transaction is never aborted; no savepoint is needed, which keeps this
+ * readable over the stateless HTTP client too (the readiness probe), where
+ * transactions are not available.
  */
 export async function loadAiDataRuleSetting(db: Db): Promise<AiDataRuleSetting> {
   try {
+    const probe = await db
+      .select({ present: sql<boolean>`to_regclass('ai_data_rule_settings'::text) is not null` })
+      .from(sql`(select 1) as probe`);
+    if (probe[0]?.present !== true) {
+      return {
+        requireNoTraining: false,
+        changedAt: null,
+        changedByAccountId: null,
+        source: 'default',
+      };
+    }
     const row = first(
-      await db.transaction(async (inner) =>
-        inner
-          .select()
-          .from(schema.aiDataRuleSettings)
-          .orderBy(desc(schema.aiDataRuleSettings.createdAt), desc(schema.aiDataRuleSettings.id))
-          .limit(1),
-      ),
+      await db
+        .select()
+        .from(schema.aiDataRuleSettings)
+        .orderBy(desc(schema.aiDataRuleSettings.createdAt), desc(schema.aiDataRuleSettings.id))
+        .limit(1),
     );
     if (!row) {
       return {

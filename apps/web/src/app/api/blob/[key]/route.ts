@@ -148,7 +148,12 @@ export async function GET(
   const rendered = await renderer.render({ bytes: object.bytes, contentType: object.contentType });
   if (!rendered.rendered) {
     reportRenderFailure(object.contentType);
-    return new Response(`redacted rendition not available: ${rendered.detail}`, { status: 501 });
+    // The renderer's own detail text can name server files and library versions: it stays out of
+    // the response (the failure is logged above by content type only).
+    return new Response('This file cannot be previewed here.', {
+      status: 501,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
+    });
   }
 
   return new Response(freshArrayBuffer(rendered.bytes), {

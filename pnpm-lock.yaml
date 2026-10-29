@@ -38,6 +38,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: 1.32.1
         version: 1.32.1(zod@4.6.7)
+      '@napi-rs/canvas':
+        specifier: ^1.0.9
+        version: 1.0.9
       '@neondatabase/auth':
         specifier: 0.5.0-beta
         version: 0.5.0-beta(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@electric-sql/pglite@0.2.17)(@neondatabase/serverless@0.10.4)(@types/pg@8.11.6)(kysely@0.29.6))(next@15.5.28(@playwright/test@1.61.1)(@types/node@22.20.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vitest@4.1.11(@types/node@22.20.1)(jsdom@25.0.1)(vite@6.4.4(@types/node@22.20.1)(tsx@4.23.1)))
@@ -62,6 +65,9 @@ importers:
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
+      libheif-js:
+        specifier: 1.23.5
+        version: 1.23.5
       next:
         specifier: ^15.5.28
         version: 15.5.28(@playwright/test@1.61.1)(@types/node@22.20.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
