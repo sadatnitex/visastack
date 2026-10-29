@@ -102,6 +102,10 @@ describe('email delivery wording', () => {
     expect(emailKindLabel('MISSION_STATUS_CHANGED')).toBe('Case Update');
     expect(emailKindLabel('SOMETHING_NEW')).toBe('Other Email');
     expect(emailKindLabel('toString')).toBe('Other Email');
+    // S17 billing notices have their own names.
+    expect(emailKindLabel('INVOICE_ISSUED')).toBe('New Invoice');
+    expect(emailKindLabel('INVOICE_REMINDER')).toBe('Invoice Reminder');
+    expect(emailKindLabel('BILLING_STATUS_CHANGED')).toBe('Billing Status Change');
     for (const label of Object.values(EMAIL_KIND_LABELS)) {
       expect(label).not.toMatch(/mission/i);
     }

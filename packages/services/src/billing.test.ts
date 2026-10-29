@@ -425,11 +425,15 @@ describe('invoices -- issue, collect, void (COM-03)', () => {
     planId = plan.id;
   });
 
+  // Each call gives its own 30-day period (since S17, invoices for the same plan whose periods
+  // overlap are refused); due dates stay where they were.
+  let periodSeq = 0;
   function periodDates(): { periodStart: Date; periodEnd: Date; dueDate: Date } {
     const now = new Date();
+    const start = new Date(now.getTime() + periodSeq++ * 31 * 24 * 60 * 60 * 1000);
     return {
-      periodStart: now,
-      periodEnd: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+      periodStart: start,
+      periodEnd: new Date(start.getTime() + 30 * 24 * 60 * 60 * 1000),
       dueDate: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000),
     };
   }
@@ -888,13 +892,28 @@ describe('invoices -- issue, collect, void (COM-03)', () => {
       dueDate,
     });
     if (!isOk(first)) throw new Error('invoice');
-    const second = await createInvoice(db, {
+    // S17: a second live invoice for the same plan and period start is refused, so the second
+    // invoice is for the next period.
+    const samePeriod = await createInvoice(db, {
       actor: owner.actor,
       stepUpSatisfied: true,
       organizationId,
       planId,
       periodStart,
       periodEnd,
+      invoiceRef: 'INV-LIST-SAME',
+      invoicedAmountMinorUnits: 2000,
+      currency: 'USD',
+      dueDate,
+    });
+    expect(isErr(samePeriod) && samePeriod.error.code).toBe('invalid');
+    const second = await createInvoice(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      planId,
+      periodStart: periodEnd,
+      periodEnd: new Date(periodEnd.getTime() + 30 * 24 * 60 * 60 * 1000),
       invoiceRef: 'INV-LIST-2',
       invoicedAmountMinorUnits: 2000,
       currency: 'USD',
@@ -1045,5 +1064,118 @@ describe('invoices -- issue, collect, void (COM-03)', () => {
       expect(refused.map((r) => isErr(r))).toEqual([true, true, true]);
       expect(await cashEvents()).toEqual([]);
     });
+  });
+});
+
+// Pinned before S17 (recurring invoices and overdue handling) so that work cannot change what a
+// person's own billing decisions do: a status a person set keeps naming that person, and paying
+// never moves a status a person set.
+describe('pinned before S17: a status a person set', () => {
+  let db: Db;
+  let owner: Awaited<ReturnType<typeof seedPlatformOwner>>;
+  beforeEach(async () => {
+    db = await freshDb();
+    owner = await seedPlatformOwner(db, 'pinned');
+  });
+
+  it('records the person and their reason on every history row, newest first', async () => {
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'pinned-history');
+    await openBillingAccount(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      initialStatus: 'ACTIVE',
+      reason: 'terms agreed',
+    });
+    const moved = await transitionBillingStatus(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      toStatus: 'GRACE',
+      reason: 'late payment agreed by phone',
+    });
+    expect(isOk(moved)).toBe(true);
+    const history = await listBillingStatusHistory(db, {
+      actorAccountId: ownerAccountId,
+      organizationId,
+    });
+    if (!isOk(history)) throw new Error('history');
+    expect(
+      history.value.map((h) => ({
+        fromStatus: h.fromStatus,
+        toStatus: h.toStatus,
+        actorAccountId: h.actorAccountId,
+        reason: h.reason,
+      })),
+    ).toEqual([
+      {
+        fromStatus: 'ACTIVE',
+        toStatus: 'GRACE',
+        actorAccountId: owner.accountId,
+        reason: 'late payment agreed by phone',
+      },
+      {
+        fromStatus: null,
+        toStatus: 'ACTIVE',
+        actorAccountId: owner.accountId,
+        reason: 'terms agreed',
+      },
+    ]);
+  });
+
+  it('keeps a Grace or Suspended status a person set when every invoice is paid in full', async () => {
+    const { organizationId } = await seedOrganization(db, 'pinned-paid');
+    const plan = await getPlanByKey(db, 'agency_starter');
+    if (!plan) throw new Error('seed plan');
+    await openBillingAccount(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      initialStatus: 'ACTIVE',
+      reason: 'terms agreed',
+    });
+    for (const toStatus of ['GRACE', 'SUSPENDED'] as const) {
+      const moved = await transitionBillingStatus(db, {
+        actor: owner.actor,
+        stepUpSatisfied: true,
+        organizationId,
+        toStatus,
+        reason: `set by hand to ${toStatus}`,
+      });
+      expect(isOk(moved)).toBe(true);
+      // A different period for each, since S17 refuses overlapping invoices for one plan.
+      const start = new Date(Date.now() - (toStatus === 'GRACE' ? 40 : 80) * 24 * 60 * 60 * 1000);
+      const invoice = await createInvoice(db, {
+        actor: owner.actor,
+        stepUpSatisfied: true,
+        organizationId,
+        planId: plan.id,
+        periodStart: start,
+        periodEnd: new Date(start.getTime() + 30 * 24 * 60 * 60 * 1000),
+        invoiceRef: `INV-PINNED-${toStatus}`,
+        invoicedAmountMinorUnits: 5000,
+        currency: 'BDT',
+        dueDate: new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000),
+      });
+      if (!isOk(invoice)) throw new Error('invoice');
+      const paid = await recordInvoicePayment(db, {
+        actor: owner.actor,
+        stepUpSatisfied: true,
+        invoiceId: invoice.value.id,
+        amountMinorUnits: 5000,
+        collectedDate: new Date(),
+        paymentReference: `bank-${toStatus}`,
+        reason: 'paid in full',
+      });
+      if (!isOk(paid)) throw new Error('payment');
+      expect(paid.value.status).toBe('PAID');
+      const account = await getBillingAccountForOrganization(db, {
+        actorAccountId: owner.accountId,
+        organizationId,
+        actorEmail: 'owner-pinned@platform.example.com',
+      });
+      if (!isOk(account)) throw new Error('account');
+      expect(account.value?.status).toBe(toStatus);
+    }
   });
 });

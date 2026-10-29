@@ -1,5 +1,6 @@
-import { and, count, eq, isNull } from 'drizzle-orm';
+import { and, count, eq, isNull, sql } from 'drizzle-orm';
 import { type Db, schema } from './db';
+import { billingNoticeStillAllowedSql } from './notifications';
 import { TRAVELLER_FREE_PLAN_KEY, getPlanByKey } from './plans';
 
 export interface WorkspaceToolbarState {
@@ -26,6 +27,11 @@ export async function loadWorkspaceToolbarState(
           eq(schema.notifications.recipientAccountId, actorAccountId),
           eq(schema.notifications.channel, 'IN_APP'),
           eq(schema.notifications.status, 'SENT'),
+          billingNoticeStillAllowedSql({
+            eventType: sql`${schema.notifications.eventType}`,
+            recipientAccountId: sql`${schema.notifications.recipientAccountId}`,
+            organizationId: sql`${schema.notifications.organizationId}`,
+          }),
         ),
       ),
     getPlanByKey(db, TRAVELLER_FREE_PLAN_KEY),

@@ -93,6 +93,9 @@ describe('online invoice payments (S11)', () => {
     port = new FakePaymentPort();
   });
 
+  // Each invoice a test opens gets its own 30-day period (since S17, invoices for the same plan
+  // whose periods overlap are refused); due dates stay where they were.
+  let periodSeq = 0;
   async function openInvoice(ref: string, amount = 125000, currency = 'BDT') {
     const now = new Date();
     const invoice = await createInvoice(db, {
@@ -100,8 +103,8 @@ describe('online invoice payments (S11)', () => {
       stepUpSatisfied: true,
       organizationId: org.organizationId,
       planId,
-      periodStart: now,
-      periodEnd: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+      periodStart: new Date(now.getTime() + periodSeq * 31 * 24 * 60 * 60 * 1000),
+      periodEnd: new Date(now.getTime() + (periodSeq++ * 31 + 30) * 24 * 60 * 60 * 1000),
       invoiceRef: ref,
       invoicedAmountMinorUnits: amount,
       currency,

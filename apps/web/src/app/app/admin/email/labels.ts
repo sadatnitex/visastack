@@ -25,6 +25,9 @@ export const EMAIL_KIND_LABELS: Readonly<Record<string, string>> = {
   LEGAL_HOLD_REVIEW_REMINDER: 'Legal Hold Reminder',
   WHATSAPP_CONNECTED: 'WhatsApp Connected',
   CONTRIBUTOR_REQUEST_CREATED: 'Document Request to Someone Else',
+  INVOICE_ISSUED: 'New Invoice',
+  INVOICE_REMINDER: 'Invoice Reminder',
+  BILLING_STATUS_CHANGED: 'Billing Status Change',
 };
 
 export const OTHER_EMAIL_KIND = 'Other Email';

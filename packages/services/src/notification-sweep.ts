@@ -57,7 +57,7 @@ export function toLocalDateParts(
  * subtraction -- never from the raw millisecond gap between the instants
  * themselves, which is what would make a 23- or 25-hour DST day miscount.
  */
-function localDateDiffInDays(from: Date, to: Date, timezone: string): number {
+export function localDateDiffInDays(from: Date, to: Date, timezone: string): number {
   const a = toLocalDateParts(from, timezone);
   const b = toLocalDateParts(to, timezone);
   const aUtc = Date.UTC(a.year, a.month - 1, a.day);

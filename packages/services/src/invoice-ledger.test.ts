@@ -128,6 +128,9 @@ describe('cash ledger and the one recording function (S10)', () => {
     planId = plan.id;
   });
 
+  // Each invoice a test opens gets its own 30-day period (since S17, invoices for the same plan
+  // whose periods overlap are refused); due dates stay where they were.
+  let periodSeq = 0;
   async function openInvoice(
     invoiceRef: string,
     amount = 10000,
@@ -140,8 +143,8 @@ describe('cash ledger and the one recording function (S10)', () => {
       stepUpSatisfied: true,
       organizationId,
       planId,
-      periodStart: now,
-      periodEnd: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+      periodStart: new Date(now.getTime() + periodSeq * 31 * 24 * 60 * 60 * 1000),
+      periodEnd: new Date(now.getTime() + (periodSeq++ * 31 + 30) * 24 * 60 * 60 * 1000),
       invoiceRef,
       invoicedAmountMinorUnits: amount,
       currency,

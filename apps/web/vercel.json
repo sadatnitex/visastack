@@ -82,6 +82,10 @@
     {
       "path": "/api/jobs/process-whatsapp-inbox",
       "schedule": "40 5 * * *"
+    },
+    {
+      "path": "/api/jobs/process-billing-cycle",
+      "schedule": "15 6 * * *"
     }
   ],
   "git": {

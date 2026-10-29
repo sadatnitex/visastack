@@ -1,7 +1,20 @@
 import { randomUUID } from 'node:crypto';
 import type { Result } from '@visastack/core';
 import { err, ok } from '@visastack/core';
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
+import {
+  type SQL,
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { orgCaseRecordVisibleSql, withCaseExclusions } from './access/grant-scope';
 import { type Db, first, schema } from './db';
 import { notificationEmail, renderEmail } from './email-design';
@@ -65,7 +78,37 @@ export type NotificationEventType =
   | 'VERIFICATION_EXPIRY'
   | 'DOWNGRADE_SCHEDULED'
   | 'DOWNGRADE_EXECUTED'
-  | 'CASE_RETENTION_NOTICE';
+  | 'CASE_RETENTION_NOTICE'
+  | 'INVOICE_ISSUED'
+  | 'INVOICE_REMINDER'
+  | 'BILLING_STATUS_CHANGED';
+
+/**
+ * Billing notices (S17): an agency's invoices, reminders and billing status are for its owners
+ * and admins only, checked again when each notice is sent, so a member whose role changed in the
+ * meantime does not receive one.
+ */
+const BILLING_NOTICE_LIST = ['INVOICE_ISSUED', 'INVOICE_REMINDER', 'BILLING_STATUS_CHANGED'];
+const BILLING_NOTICE_TYPES: ReadonlySet<string> = new Set(BILLING_NOTICE_LIST);
+
+/**
+ * The same rule at read time, for notices already delivered in the app: a billing notice stays in
+ * a person's list (and unread count) only while they are still an active owner or admin of that
+ * active organization. Every other notice is untouched. Takes the notification's columns from
+ * the caller, whose own query decides which rows are read.
+ */
+export function billingNoticeStillAllowedSql(row: {
+  readonly eventType: SQL;
+  readonly recipientAccountId: SQL;
+  readonly organizationId: SQL;
+}): SQL {
+  const m = schema.memberships;
+  const o = schema.organizations;
+  return sql`(${row.eventType} not in (${sql.join(
+    BILLING_NOTICE_LIST.map((type) => sql`${type}`),
+    sql`, `,
+  )}) or exists (select 1 from ${m} join ${o} on ${o.id} = ${m.organizationId} where ${m.accountId} = ${row.recipientAccountId} and ${m.organizationId} = ${row.organizationId} and ${m.active} = true and ${m.role} in ('OWNER', 'ADMIN') and ${o.status} = 'ACTIVE'))`;
+}
 
 /**
  * "Email content: neutral; minimal; authenticated deep link." / "Never
@@ -80,7 +123,7 @@ export interface NotificationPayload {
   readonly summary: string;
   readonly deepLinkPath: string;
   readonly sealedInvitationLink?: SealedInvitationLink;
-  /** Task reminders only: whether the due day is ahead, today or past, for the email's heading. */
+  /** Task and invoice reminders only: whether the due day is ahead, today or past, for the email's heading. */
   readonly timing?: 'upcoming' | 'today' | 'overdue';
 }
 
@@ -123,12 +166,15 @@ export interface EnqueueNotificationInput {
  * resource, threshold) tuple is silently skipped via `ON CONFLICT DO
  * NOTHING`, never double-enqueued.
  */
-export async function enqueueNotification(tx: Db, input: EnqueueNotificationInput): Promise<void> {
+export async function enqueueNotification(
+  tx: Db,
+  input: EnqueueNotificationInput,
+): Promise<boolean> {
   if (!input.recipientAccountId && !input.recipientEmail) {
     throw new Error('enqueueNotification requires a recipientAccountId or recipientEmail');
   }
   const idempotencyKey = buildNotificationIdempotencyKey(input);
-  await tx
+  const inserted = await tx
     .insert(schema.notifications)
     .values({
       eventType: input.eventType,
@@ -142,16 +188,22 @@ export async function enqueueNotification(tx: Db, input: EnqueueNotificationInpu
       resourceId: input.resourceId,
       payload: input.payload,
     })
-    .onConflictDoNothing({ target: schema.notifications.idempotencyKey });
+    .onConflictDoNothing({ target: schema.notifications.idempotencyKey })
+    .returning({ id: schema.notifications.id });
+  return inserted.length > 0;
 }
 
-/** "Implement in-app + email for: ..." - every event this chunk wires enqueues both channels, never just one. */
+/**
+ * "Implement in-app + email for: ..." - every event this chunk wires enqueues both channels,
+ * never just one. Returns how many rows were written (0 to 2; an already queued one is skipped).
+ */
 export async function enqueueNotificationBothChannels(
   tx: Db,
   input: Omit<EnqueueNotificationInput, 'channel'>,
-): Promise<void> {
-  await enqueueNotification(tx, { ...input, channel: 'IN_APP' });
-  await enqueueNotification(tx, { ...input, channel: 'EMAIL' });
+): Promise<number> {
+  const inApp = await enqueueNotification(tx, { ...input, channel: 'IN_APP' });
+  const email = await enqueueNotification(tx, { ...input, channel: 'EMAIL' });
+  return (inApp ? 1 : 0) + (email ? 1 : 0);
 }
 
 /**
@@ -389,6 +441,13 @@ async function checkRecipient(
         m.organization.status === 'ACTIVE',
     );
     if (!member) return { authorized: false, email: null };
+    if (
+      BILLING_NOTICE_TYPES.has(notification.eventType) &&
+      member.role !== 'OWNER' &&
+      member.role !== 'ADMIN'
+    ) {
+      return { authorized: false, email: null };
+    }
     if (notification.applicantId) {
       const now = new Date();
       const applicantId = notification.applicantId;
@@ -715,6 +774,11 @@ export async function listNotificationsForAccount(
           eq(n.recipientAccountId, accountId),
           eq(n.channel, 'IN_APP'),
           or(eq(n.status, 'SENT'), eq(n.status, 'READ')),
+          billingNoticeStillAllowedSql({
+            eventType: sql`${n.eventType}`,
+            recipientAccountId: sql`${n.recipientAccountId}`,
+            organizationId: sql`${n.organizationId}`,
+          }),
           or(
             isNull(n.missionId),
             isNull(n.organizationId),

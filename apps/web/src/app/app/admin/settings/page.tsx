@@ -41,6 +41,16 @@ export default async function PlatformSettingsPage() {
             </p>
           </article>
         ) : null}
+        {access.owner ? (
+          <article className="card">
+            <h2 className="card-title">Billing Rules</h2>
+            <p className="card-body">
+              Choose when invoices are due and whether an unpaid invoice moves an agency to Grace
+              and then Suspended.
+            </p>
+            <Link href="/app/admin/billing">Manage Billing Rules</Link>
+          </article>
+        ) : null}
         {access.ai ? (
           <article className="card">
             <h2 className="card-title">AI Configuration</h2>

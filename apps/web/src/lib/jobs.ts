@@ -9,6 +9,7 @@ import {
   type AccountExportExpirySweepResult,
   type AccountExportWorkerResult,
   type AiReadingWorkerResult,
+  type BillingCycleSummary,
   type CaseRetentionNoticeSweepResult,
   type CaseRetentionPurgeSweepResult,
   type DataKeyRewrapSummary,
@@ -36,6 +37,7 @@ import {
   rewrapDataKeys,
   runAccountExportWorker,
   runAiReadingWorker,
+  runBillingCycle,
   runErasureWorker,
   runIntakeWorker,
   runNotificationWorker,
@@ -831,6 +833,39 @@ export async function triggerPaymentReconciliation(
     reportServerError('triggerPaymentReconciliation', withoutPaymentSecrets(error), {
       step: 'reconciliation failed',
     });
+    return { error: 'failed' };
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * The daily billing run (S17, ADR 0020 Phase 2): creates each agency's invoice for the plan period
+ * running now, queues invoice reminders, and, only when the owner has switched it on in Billing
+ * Rules, moves agencies with an unpaid invoice to Grace and then Suspended. On its own short-lived
+ * pooled connection, like the workers above. Counts only.
+ */
+export async function triggerBillingCycle(
+  scope: SystemScope<'process-billing-cycle'>,
+): Promise<BillingCycleSummary | { readonly error: string }> {
+  const connectionString = resolveDatabaseUrl(process.env);
+  if (!connectionString) return { error: 'not_configured' };
+  const { db, pool } = createPooledDb(connectionString);
+  pool.on('error', (error) => {
+    reportServerError('triggerBillingCycle', error, { step: 'idle pool connection error' });
+  });
+  try {
+    const handle = db as unknown as Parameters<typeof runBillingCycle>[0];
+    const summary = await runBillingCycle(handle, scope);
+    if (summary.failed > 0) {
+      reportServerError('triggerBillingCycle', new Error('billing run had failures'), {
+        step: 'billing run',
+        failed: String(summary.failed),
+      });
+    }
+    return summary;
+  } catch (error) {
+    reportServerError('triggerBillingCycle', error, { step: 'billing run failed' });
     return { error: 'failed' };
   } finally {
     await pool.end();

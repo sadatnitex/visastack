@@ -1,7 +1,26 @@
-import { type Result, err, ok } from '@visastack/core';
+import { type Result, dayCount, err, ok } from '@visastack/core';
 import { and, eq, sql } from 'drizzle-orm';
+import type { SystemScope } from './access/principal';
 import { appendAuditEvent } from './audit';
+import {
+  type BillingStatus,
+  billingStatusCausePresent,
+  insertBillingStatusHistory,
+} from './billing-history';
+import {
+  type AutomaticStatusChange,
+  type BillingAccountRow,
+  billingContacts,
+  databaseNow,
+  invoicesPath,
+  lockBillingAccount,
+  readBillingStanding,
+} from './billing-standing';
 import { type Db, first, required, schema } from './db';
+import {
+  cancelQueuedNotificationsForResource,
+  enqueueNotificationBothChannels,
+} from './notifications';
 import { recordProductEvent } from './product-events';
 import { type PaymentReceipt, issueReceiptForPayment } from './receipts';
 
@@ -157,6 +176,12 @@ export interface InvoiceCollectionOutcome {
   readonly alreadyRecorded: boolean;
   /** The numbered receipt for the ledger row. Null while the ledger or the receipt tables do not exist yet. */
   readonly receipt: PaymentReceipt | null;
+  /**
+   * True when this recording left the agency with nothing overdue and so ended a Grace or
+   * Suspended status that VisaStack had set (S17), in this same transaction. Never true for a
+   * status a person set, for a replay, or before migration 0103.
+   */
+  readonly reactivated: boolean;
 }
 
 /**
@@ -300,6 +325,7 @@ export async function applyInvoiceCollection(
         payment: existing,
         alreadyRecorded: true,
         receipt: issued?.receipt ?? null,
+        reactivated: false,
       });
     }
   }
@@ -319,6 +345,12 @@ export async function applyInvoiceCollection(
     invoice.invoicedAmountMinorUnits,
     newCollected,
   );
+
+  // Lock order (billing-standing.ts): the invoice (locked above), then the billing account, then
+  // the audit chain. The billing account is locked here, always, before the first audit append
+  // below. Callers must not append audit events in this transaction before calling this function
+  // (none does).
+  const restorable = await lockRestorableAccount(tx, invoice.organizationId);
 
   let payment: InvoicePayment | null = null;
   if (ledgerPresent) {
@@ -395,11 +427,23 @@ export async function applyInvoiceCollection(
   const issued = payment
     ? await issueReceiptForPayment(tx, { payment, organizationId: invoice.organizationId })
     : null;
+  // S17: a paid invoice's queued reminders never go out, and paying everything that was overdue
+  // ends a Grace or Suspended status VisaStack set, in this same transaction (so a rollback undoes
+  // both).
+  if (newStatus === 'PAID') await cancelQueuedNotificationsForResource(tx, invoice.id);
+  const reactivated = restorable
+    ? await restoreBillingAfterPayment(
+        tx,
+        restorable,
+        payment?.id ?? `${invoice.id}:${newCollected}`,
+      )
+    : false;
   return ok({
     invoice: updated,
     payment,
     alreadyRecorded: false,
     receipt: issued?.receipt ?? null,
+    reactivated,
   });
 }
 
@@ -436,4 +480,152 @@ async function findExisting(
     );
   }
   return undefined;
+}
+
+// --- Billing status changes VisaStack makes (S17) -------------------------------------------
+// The one implementation, here beside the recording function so that only it (privately) and the
+// daily run (through `applyOverdueStatusChange`, which needs the run's own scope) can make one.
+
+const STATUS_NOTICE: Readonly<
+  Partial<Record<BillingStatus, (ref: string, days: number | null) => string>>
+> = {
+  GRACE: (ref, days) =>
+    `Invoice ${ref} is ${dayCount(days ?? 1)} past its due date. Everything still works for now. Paying it keeps your agency from being suspended.`,
+  SUSPENDED: (ref, days) =>
+    `Invoice ${ref} is ${dayCount(days ?? 1)} past its due date. Adding cases, team members and files is paused until it is paid. Nothing is deleted or hidden.`,
+  ACTIVE: () => 'No invoice is overdue now, so your agency is back to Active.',
+};
+
+const STATUS_SUBJECT: Readonly<Partial<Record<BillingStatus, string>>> = {
+  GRACE: 'Your agency is in Grace',
+  SUSPENDED: 'Your agency is suspended',
+  ACTIVE: 'Your agency is active again',
+};
+
+export interface SystemStatusChangeResult {
+  /** Notice rows written (in the app and by email, for each owner and admin). */
+  readonly noticesWritten: number;
+  /** How many owners and admins the agency has; 0 means nobody could be told. */
+  readonly contacts: number;
+}
+
+/**
+ * Writes one status change VisaStack made: the account's new status, a history row with no
+ * person (cause NONPAYMENT, reason starting "system:"), an audit record (method SYSTEM) and a
+ * notice to the agency's owners and admins, all in the caller's transaction. The caller holds the
+ * billing account's row lock (taken before any audit append) and has checked the change is
+ * still right. `noticeKey` tells one change from another for the notice.
+ */
+async function writeSystemStatusChange(
+  tx: Db,
+  account: BillingAccountRow,
+  change: AutomaticStatusChange,
+  noticeKey: string,
+): Promise<SystemStatusChangeResult> {
+  await tx
+    .update(schema.billingAccounts)
+    .set({ status: change.toStatus, updatedAt: new Date() })
+    .where(eq(schema.billingAccounts.id, account.id));
+  await insertBillingStatusHistory(tx, {
+    billingAccountId: account.id,
+    fromStatus: account.status,
+    toStatus: change.toStatus,
+    actorAccountId: null,
+    reason: change.reason,
+    cause: 'NONPAYMENT',
+  });
+  await appendAuditEvent(tx, {
+    eventType: 'BILLING_STATUS_CHANGED',
+    actorAccountId: null,
+    action: 'MANAGE',
+    method: 'SYSTEM',
+    result: 'ALLOWED',
+    resourceType: 'billing_account',
+    resourceId: account.id,
+    reason: change.reason,
+    metadata: {
+      organizationId: account.organizationId,
+      fromStatus: account.status,
+      toStatus: change.toStatus,
+      cause: 'NONPAYMENT',
+      invoiceId: change.invoice?.invoiceId ?? null,
+    },
+  });
+  const summary = STATUS_NOTICE[change.toStatus]?.(
+    change.invoice?.invoiceRef ?? '',
+    change.daysOverdue,
+  );
+  const subject = STATUS_SUBJECT[change.toStatus];
+  const contacts = await billingContacts(tx, account.organizationId);
+  let noticesWritten = 0;
+  if (summary && subject) {
+    for (const recipientAccountId of contacts) {
+      noticesWritten += await enqueueNotificationBothChannels(tx, {
+        eventType: 'BILLING_STATUS_CHANGED',
+        resourceId: account.id,
+        recipientAccountId,
+        organizationId: account.organizationId,
+        threshold: `${change.toStatus}:${noticeKey}`,
+        payload: { subject, summary, deepLinkPath: invoicesPath(account.organizationId) },
+      });
+    }
+  }
+  return { noticesWritten, contacts: contacts.length };
+}
+
+/**
+ * The daily billing run's status change (Grace, Suspended, or back to Active), made under its own
+ * job scope. The caller locked the billing account first (`lockBillingAccount`) and judged the
+ * change again under that lock.
+ */
+export async function applyOverdueStatusChange(
+  tx: Db,
+  scope: SystemScope<'process-billing-cycle'>,
+  account: BillingAccountRow,
+  change: AutomaticStatusChange,
+  noticeKey: string,
+): Promise<SystemStatusChangeResult> {
+  if (scope.job !== 'process-billing-cycle') throw new Error('wrong job scope');
+  return writeSystemStatusChange(tx, account, change, noticeKey);
+}
+
+/**
+ * Before a new recording writes anything: the agency's billing account, always locked (one row
+ * per agency, so the cost is small), then its status read under that lock. Returns the locked
+ * account when this payment may end a Grace or Suspended status (only those, and only after
+ * migration 0103), otherwise null. Deciding on the locked status means a payment that races the
+ * daily run's move to Grace or Suspended waits for it and sees it, so a fully paid agency is
+ * never left in Grace or Suspended.
+ */
+async function lockRestorableAccount(
+  tx: Db,
+  organizationId: string,
+): Promise<BillingAccountRow | null> {
+  const locked = await lockBillingAccount(tx, organizationId);
+  if (!locked || (locked.status !== 'GRACE' && locked.status !== 'SUSPENDED')) return null;
+  if (!(await billingStatusCausePresent(tx))) return null;
+  return locked;
+}
+
+/**
+ * After a new payment was recorded, in the same transaction: when the agency now owes nothing
+ * overdue and its Grace or Suspended status was set by VisaStack, it returns to Active
+ * ("system: paid"). A status a person set is never changed, and a partial payment that leaves
+ * anything overdue changes nothing. Module-private on purpose: only the one recording function
+ * can end a suspension when money arrives.
+ */
+async function restoreBillingAfterPayment(
+  tx: Db,
+  account: BillingAccountRow,
+  paymentKey: string,
+): Promise<boolean> {
+  const standing = await readBillingStanding(tx, account, await databaseNow(tx));
+  if (standing.cause !== 'NONPAYMENT' || standing.overdue.length > 0) return false;
+  await writeSystemStatusChange(
+    tx,
+    account,
+    { toStatus: 'ACTIVE', reason: 'system: paid', invoice: null, daysOverdue: null },
+    paymentKey,
+  );
+  return true;
 }
