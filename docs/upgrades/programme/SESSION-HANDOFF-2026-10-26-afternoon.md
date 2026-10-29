@@ -1,5 +1,7 @@
 # Session handoff, 26 October 2026 (afternoon)
 
+Superseded by SESSION-HANDOFF-2026-10-29.md; kept for history.
+
 Supersedes `SESSION-HANDOFF-2026-10-26.md` for current state (that file stays as history). Read `docs/SESSION-START.md` first, then this. Check every head SHA before acting.
 
 ## 1. Merged and live this session
