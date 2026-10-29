@@ -35,6 +35,7 @@ export const SYSTEM_JOBS = [
   'process-account-export-expiry',
   'process-account-exports',
   'process-ai-reading',
+  'process-billing-cycle',
   'process-case-retention-notices',
   'process-case-retention-purge',
   'process-database-backup',

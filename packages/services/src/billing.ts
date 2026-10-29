@@ -19,6 +19,7 @@ import {
   isValidMinorUnitAmount,
   ledgerTotal,
 } from './invoice-ledger';
+import { cancelQueuedNotificationsForResource } from './notifications';
 import { isOrgAdmin } from './organizations';
 import { type PlatformAuthInput, isPlatformOwner } from './platform-roles';
 
@@ -640,6 +641,8 @@ export async function voidInvoice(
       ),
       'invoice',
     );
+    // Reminders still waiting to be sent about this invoice never go out.
+    await cancelQueuedNotificationsForResource(tx, invoice.id);
     await appendAuditEvent(tx, {
       eventType: 'INVOICE_VOIDED',
       actorAccountId: input.actor.accountId,

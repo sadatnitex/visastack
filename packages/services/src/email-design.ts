@@ -153,7 +153,7 @@ export interface NotificationEmailInput {
   readonly subject: string;
   readonly summary: string;
   readonly url: string;
-  /** Task reminders: whether the due day is ahead, today or past. */
+  /** Task and invoice reminders: whether the due day is ahead, today or past. */
   readonly timing?: 'upcoming' | 'today' | 'overdue';
 }
 
@@ -260,6 +260,29 @@ export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
     eyebrow: 'Your Agency',
     heading: 'Your plan has changed',
     action: 'See Your Plan',
+  },
+  INVOICE_ISSUED: {
+    eyebrow: 'Your Agency',
+    heading: 'A new invoice is ready',
+    why: 'Open your invoices to see it and the ways to pay.',
+    action: 'Pay Invoice',
+  },
+  INVOICE_REMINDER: {
+    eyebrow: 'Your Agency',
+    heading: ({ timing }) =>
+      timing === 'today'
+        ? 'An invoice is due today'
+        : timing === 'overdue'
+          ? 'An invoice is past its due date'
+          : 'An invoice is due soon',
+    why: 'Open your invoices to see it and the ways to pay.',
+    action: 'Pay Invoice',
+    after: 'Already paid? Thank you. A payment made another way shows here once it is confirmed.',
+  },
+  BILLING_STATUS_CHANGED: {
+    eyebrow: 'Your Agency',
+    heading: 'Your billing status has changed',
+    action: 'Open Invoices',
   },
   LEGAL_HOLD_REVIEW_REMINDER: {
     eyebrow: 'Platform',

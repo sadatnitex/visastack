@@ -1,7 +1,20 @@
 import { type Result, err, ok } from '@visastack/core';
 import { and, eq, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
+import {
+  billingContacts,
+  lockBillingAccount,
+  readBillingStanding,
+  recordSystemStatusChange,
+  systemStatusAudit,
+  systemStatusNotice,
+} from './billing-cycle';
+import { billingStatusCausePresent } from './billing-history';
 import { type Db, first, required, schema } from './db';
+import {
+  cancelQueuedNotificationsForResource,
+  enqueueNotificationBothChannels,
+} from './notifications';
 import { recordProductEvent } from './product-events';
 import { type PaymentReceipt, issueReceiptForPayment } from './receipts';
 
@@ -157,6 +170,12 @@ export interface InvoiceCollectionOutcome {
   readonly alreadyRecorded: boolean;
   /** The numbered receipt for the ledger row. Null while the ledger or the receipt tables do not exist yet. */
   readonly receipt: PaymentReceipt | null;
+  /**
+   * True when this recording left the agency with nothing overdue and so ended a Grace or
+   * Suspended status that VisaStack had set (S17), in this same transaction. Never true for a
+   * status a person set, for a replay, or before migration 0103.
+   */
+  readonly reactivated: boolean;
 }
 
 /**
@@ -300,6 +319,7 @@ export async function applyInvoiceCollection(
         payment: existing,
         alreadyRecorded: true,
         receipt: issued?.receipt ?? null,
+        reactivated: false,
       });
     }
   }
@@ -395,11 +415,22 @@ export async function applyInvoiceCollection(
   const issued = payment
     ? await issueReceiptForPayment(tx, { payment, organizationId: invoice.organizationId })
     : null;
+  // S17: a paid invoice's queued reminders never go out, and paying everything that was overdue
+  // ends a Grace or Suspended status VisaStack set, in this same transaction (so a rollback undoes
+  // both). The invoice is locked first and the billing account second, the one order every path
+  // uses.
+  if (newStatus === 'PAID') await cancelQueuedNotificationsForResource(tx, invoice.id);
+  const reactivated = await restoreBillingAfterPayment(
+    tx,
+    invoice.organizationId,
+    payment?.id ?? `${invoice.id}:${newCollected}`,
+  );
   return ok({
     invoice: updated,
     payment,
     alreadyRecorded: false,
     receipt: issued?.receipt ?? null,
+    reactivated,
   });
 }
 
@@ -436,4 +467,40 @@ async function findExisting(
     );
   }
   return undefined;
+}
+
+/**
+ * After a new payment was recorded, in the same transaction: when the agency now owes nothing
+ * overdue and its Grace or Suspended status was set by VisaStack, it returns to Active
+ * ("system: paid"), with a history row, an audit record and a notice to its owners and admins.
+ * A status a person set is never changed, a partial payment that leaves anything overdue changes
+ * nothing, and before migration 0103 nothing happens. The invoice row is already locked; the
+ * billing account is locked here, always in that order (the daily run never locks invoices).
+ * Module-private on purpose: only the one recording function can end a suspension.
+ */
+async function restoreBillingAfterPayment(
+  tx: Db,
+  organizationId: string,
+  paymentKey: string,
+): Promise<boolean> {
+  if (!(await billingStatusCausePresent(tx))) return false;
+  const account = await lockBillingAccount(tx, organizationId);
+  if (!account || (account.status !== 'GRACE' && account.status !== 'SUSPENDED')) return false;
+  const standing = await readBillingStanding(tx, account, null);
+  if (standing.cause !== 'NONPAYMENT' || standing.overdue.length > 0) return false;
+  const change = {
+    toStatus: 'ACTIVE' as const,
+    reason: 'system: paid',
+    invoice: null,
+    daysOverdue: null,
+  };
+  await recordSystemStatusChange(tx, account, change);
+  await appendAuditEvent(tx, systemStatusAudit(account, change));
+  const notice = systemStatusNotice(account, change, paymentKey);
+  if (notice) {
+    for (const recipientAccountId of await billingContacts(tx, organizationId)) {
+      await enqueueNotificationBothChannels(tx, { ...notice, recipientAccountId });
+    }
+  }
+  return true;
 }

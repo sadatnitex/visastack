@@ -98,6 +98,7 @@ describe('the words of every email', () => {
     expect(Object.keys(NOTIFICATION_EMAIL_COPY).sort()).toEqual(
       [
         'APPOINTMENT_SCHEDULED',
+        'BILLING_STATUS_CHANGED',
         'CASE_RETENTION_NOTICE',
         'CLIENT_INVITATION_CREATED',
         'CONTRIBUTOR_REQUEST_CREATED',
@@ -108,6 +109,8 @@ describe('the words of every email', () => {
         'EVIDENCE_REQUEST_CREATED',
         'EVIDENCE_REVIEW_ACCEPTED',
         'INACTIVE_ACCOUNT_NOTICE',
+        'INVOICE_ISSUED',
+        'INVOICE_REMINDER',
         'LEGAL_HOLD_REVIEW_REMINDER',
         'MISSION_STATUS_CHANGED',
         'PLATFORM_ROLE_GRANTED',

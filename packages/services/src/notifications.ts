@@ -65,7 +65,21 @@ export type NotificationEventType =
   | 'VERIFICATION_EXPIRY'
   | 'DOWNGRADE_SCHEDULED'
   | 'DOWNGRADE_EXECUTED'
-  | 'CASE_RETENTION_NOTICE';
+  | 'CASE_RETENTION_NOTICE'
+  | 'INVOICE_ISSUED'
+  | 'INVOICE_REMINDER'
+  | 'BILLING_STATUS_CHANGED';
+
+/**
+ * Billing notices (S17): an agency's invoices, reminders and billing status are for its owners
+ * and admins only, checked again when each notice is sent, so a member whose role changed in the
+ * meantime does not receive one.
+ */
+const BILLING_NOTICE_TYPES: ReadonlySet<string> = new Set([
+  'INVOICE_ISSUED',
+  'INVOICE_REMINDER',
+  'BILLING_STATUS_CHANGED',
+]);
 
 /**
  * "Email content: neutral; minimal; authenticated deep link." / "Never
@@ -80,7 +94,7 @@ export interface NotificationPayload {
   readonly summary: string;
   readonly deepLinkPath: string;
   readonly sealedInvitationLink?: SealedInvitationLink;
-  /** Task reminders only: whether the due day is ahead, today or past, for the email's heading. */
+  /** Task and invoice reminders only: whether the due day is ahead, today or past, for the email's heading. */
   readonly timing?: 'upcoming' | 'today' | 'overdue';
 }
 
@@ -389,6 +403,13 @@ async function checkRecipient(
         m.organization.status === 'ACTIVE',
     );
     if (!member) return { authorized: false, email: null };
+    if (
+      BILLING_NOTICE_TYPES.has(notification.eventType) &&
+      member.role !== 'OWNER' &&
+      member.role !== 'ADMIN'
+    ) {
+      return { authorized: false, email: null };
+    }
     if (notification.applicantId) {
       const now = new Date();
       const applicantId = notification.applicantId;
