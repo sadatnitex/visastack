@@ -762,8 +762,8 @@ Generate a migration only after the previous migration is on main.
 | 8 | **S8. Selected-output engine: DONE.** Merged as #290 (`6d315980`) | none | none | done |
 | 9 | **S9. WP-V5 outputs: DONE.** Merged with S8 in #290; output label wording still an owner gate | none | label wording | done |
 | 10 | **S10. Cash ledger and recording function: DONE.** Merged as #287 (`637aff3f`); migration 0094 applied | yes | O8 | done |
-| 11 | **S11. SSLCOMMERZ online flow: DONE in code.** Merged as #292 (`2b2edda0`); migration 0096 (no migration pending at the 29 Oct readiness check; the run itself not verified here); stays off until the owner completes O6 | yes | O6, O8 | done |
-| 12 | **S12. Agency invoices, manual claims and receipts: DONE.** Merged as #299 (`9b32e978`); migration 0097 (no migration pending at the 29 Oct readiness check; the run itself not verified here) | yes (receipts) | O8 | done |
+| 11 | **S11. SSLCOMMERZ online flow: DONE in code.** Merged as #292 (`2b2edda0`); migration 0096 applied (verified 29 Oct 2026 on Neon: drizzle.__drizzle_migrations holds 100 rows, equal to the 100 journal entries, newest = 0101); stays off until the owner completes O6 | yes | O6, O8 | done |
+| 12 | **S12. Agency invoices, manual claims and receipts: DONE.** Merged as #299 (`9b32e978`); migration 0097 applied (verified 29 Oct 2026 on Neon: drizzle.__drizzle_migrations holds 100 rows, equal to the 100 journal entries, newest = 0101) | yes (receipts) | O8 | done |
 | 13 | **S13. Authorization server for AI apps (CIMD and DCR): DONE.** Merged as #305 (`883df41e`); migration 0100 applied; connector switched on by the owner on 28 Oct (`AI_CONNECTOR_ENABLED=true`) | yes | O8 | done |
 | 14 | **S14. MCP route and read tools: DONE.** Merged as #310 (`e2d7f5bc`); `/mcp` with the five read-only tools | none | none | done |
 | 15 | **S15. AI Connections screens: DONE.** Merged as #315 (`a513518e`) | none | none | done |

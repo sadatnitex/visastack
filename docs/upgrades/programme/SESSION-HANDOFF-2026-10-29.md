@@ -34,7 +34,7 @@ What is live by area: `docs/public-beta/CURRENT-STATE.md`, section "Update, 2026
 
 - A CI-only pixel comparison (documents and profile appearance at 1600px, about 48 px) failed once after UX-B; not reproducible locally. Not explained.
 - "account menu opens above a trigger that sits low" failed once on a GitHub runner during the #317 run and passed on retry; not caused by S16. Not explained.
-- Not verified: a real Claude or ChatGPT connection to `https://vs.obsidianglobal.studio/mcp`; the first daily backup capture, freshness check and prune report after #337; the runs of migrations 0096 and 0097 (readiness showed none pending).
+- Not verified: a real Claude or ChatGPT connection to `https://vs.obsidianglobal.studio/mcp`; the first daily backup capture, freshness check and prune report after #337. (All 100 migrations through 0101 are applied in production: verified 29 Oct 2026 on Neon: drizzle.__drizzle_migrations holds 100 rows, equal to the 100 journal entries, newest = 0101.)
 
 ## 6. Pitfalls
 

@@ -23,7 +23,7 @@ Also still open as written below: O1 (private repository), O3 (paid Vercel and N
 
 **Done:**
 
-- O8 database changes: S3 (0092), S26 (0093) and S10 (0094) are recorded as applied in the handoff's section M; S13 (0100, AI connections) and the live calendar link (0101) were each run with your word. S11 (0096) and S12 (0097): no migration was pending at the 29 Oct readiness check; the runs themselves are not verified in this list.
+- O8 database changes: S3 (0092), S26 (0093) and S10 (0094) are recorded as applied in the handoff's section M; S13 (0100, AI connections) and the live calendar link (0101) were each run with your word. S11 (0096) and S12 (0097) are applied too (verified 29 Oct 2026 on Neon: drizzle.__drizzle_migrations holds 100 rows, equal to the 100 journal entries, newest = 0101). Nothing is pending.
 - O9 step 3: you switched the AI connector on in production on 28 Oct (`AI_CONNECTOR_ENABLED=true`), ahead of S24, for the pilot with made-up data. It is checked live: the sign-in discovery address answers and readiness says the connector is available.
 - `SUPPORT_EMAIL` set in Vercel Production (its value is not written here).
 
