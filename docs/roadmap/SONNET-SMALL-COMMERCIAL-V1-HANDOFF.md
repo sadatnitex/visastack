@@ -770,20 +770,20 @@ Generate a migration only after the previous migration is on main.
 | 14 | **S14. MCP route and read tools: DONE.** Merged as #310 (`e2d7f5bc`); `/mcp` with the five read-only tools | none | none | done |
 | 15 | **S15. AI Connections screens: DONE.** Merged as #315 (`a513518e`) | none | none | done |
 | 16 | **S16. AI audit and telemetry: DONE.** Merged as #317 (`59537908`); one recorded deviation, see the note below the table | none | none | done |
-| 17 | S17. Recurring invoices, reminders, overdue handling, reactivation | yes | O8, O13 | owner word |
+| 17 | **S17. Recurring invoices, reminders, overdue handling, reactivation: IN PROGRESS** (29 Oct; built locally, not merged, not live); migration 0103 runs only on the owner's word after the merge, after the duplicate check in `docs/operations/billing-cycle.md`; automatic Grace and Suspended stays off until O13 | yes | O8, O13 | owner word |
 | 18 | S18. Refunds, credits and accounting export | maybe | O8 | owner word |
 | 19 | S19. Second payment provider | yes | O8, O14 | owner word |
 | 20 | S20. AI connector: original files | yes | O8 | owner word |
 | 21 | S21. AI connector: suggestion tools | none | none | owner word |
 | 22 | S22. Agency AI connectors | yes (enum value plus columns) | O8, O10 | owner word |
-| 23 | **S23. Real redaction (ADR 0022): IN PROGRESS** (29 Oct, taken ahead of S17 to S22; not merged, not live); migration 0102 runs only on the owner's word after the merge | yes | O8 | owner word |
+| 23 | **S23. Real redaction (ADR 0022): DONE.** Merged as #339 (`07d65797`); migration 0102 applied 29 Oct; live fixes #340 (`db5a52c4`, image library declared in the web app) and #341 (`424e525d`, opaque storage keys; confirmation page remembers the address) | yes | O8 | done |
 | 23a | **S27. Commercial-readiness reconciliation and daily backup: DONE.** Merged as #337 (`47f18e57`); no migration; pruning waits for `BACKUP_PRUNE=on`, the penetration test deferral for O17 | none | none | done |
 | 24 | S24. Commercial acceptance and release reconciliation (WP-V6) | none | O3, O5, O7, O9 to O12, O16, O17 | owner word (never automatic) |
 | 25 | S25. Bangla | none expected | O15 | owner word |
 
 Note, 29 Oct 2026:
 
-- Current order: S23 (in progress), then S17, S18, S20, S21, S22, then S24 (prepared only, never merged without the owner's explicit word). S19 only if the owner names a second payment provider (O14). S25 Bangla last, on the owner's word (O15).
+- Current order: S17 (in progress; S23 is done), then S18, S20, S21, S22, then S24 (prepared only, never merged without the owner's explicit word). S19 only if the owner names a second payment provider (O14). S25 Bangla last, on the owner's word (O15).
 - S16 deviation from ADR 0021 section 7, recorded for the owner: the product events `AI_CONTEXT_REQUESTED` and `AI_CONTEXT_DENIED` are written once per connection, per UTC day and per label, not once per call, so analytics do not grow with AI traffic. Per-call counts come from the audit records (`AI_CONTEXT_SERVED`, `AI_CONTEXT_DENIED`), which the staff card shows. Detail: known-issues, S16 entry.
 - Not a package row: QA-F (#309) added migration 0101 (live calendar links), run with the owner's word.
 

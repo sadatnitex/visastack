@@ -13,7 +13,8 @@ Plan: [SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md](SONNET-SMALL-COMMERCIAL-V1-HANDOFF
 | Action | What it unlocks | Where you do it |
 |---|---|---|
 | Turn on backup pruning after a few good daily backups: `BACKUP_PRUNE` = `on` | Old encrypted backups are deleted by the retention rules (last 35 days, one per week for 12 weeks, never the newest 7), so the free 10 GB of storage is not used up. Until then nothing is deleted | GitHub: the repository, then Settings, then Secrets and variables, then Actions, then the Variables tab: new repository variable (not a secret, not Vercel) |
-| Approve the S23 database change once S23 merges | Safe copies of documents with masks (redacted download). Until it runs, the feature says "not available yet" | Chat: reply "migrate S23" (migration 0102) |
+| Approve the S17 database change once S17 merges | Recurring invoices, reminders and the Billing Rules page. Until it runs, no invoice is made automatically, Billing Rules says "not available yet", and every billing action works as today. Before it runs, the check in [billing-cycle.md](../operations/billing-cycle.md) must find no duplicate invoices | Chat: reply "migrate S17" (migration 0103) |
+| Set the overdue policy and decide on traveller uploads (O13) | Automatic Grace and Suspended for unpaid invoices. Until then it stays off: reminders still go out, and only an admin changes a billing status | `/app/admin/billing` (Billing Rules), after migration 0103, or reply with your numbers |
 | Optional: record the penetration test deferral (O17) | The external penetration test gate shows "Deferred by Owner (H01)" and counts as passing. It matters only when you switch real data on (O11) | Vercel: the project, then Settings, then Environment Variables, Production: `COMMERCIAL_READINESS_DEFER_EXTERNAL_PENETRATION_TEST` = `H01`, then a redeploy |
 | Try the AI connector with a made-up traveller | Proof that a real Claude or ChatGPT connection works end to end (not verified yet) | In your AI app: add a connector with the address `https://vs.obsidianglobal.studio/mcp` (Claude: a custom connector; ChatGPT: developer mode), sign in as a test traveller and choose what it may read. Turn it off afterwards on the Sharing page |
 | Name a payment provider | S19 (second provider) and the provider-facing parts of S17 and S18 can be tested. SSLCOMMERZ online payment also still needs O6 | Chat: reply with the provider (O14), and O6 for SSLCOMMERZ |
@@ -23,7 +24,7 @@ Also still open as written below: O1 (private repository), O3 (paid Vercel and N
 
 **Done:**
 
-- O8 database changes: S3 (0092), S26 (0093) and S10 (0094) are recorded as applied in the handoff's section M; S13 (0100, AI connections) and the live calendar link (0101) were each run with your word. S11 (0096) and S12 (0097) are applied too (verified 29 Oct 2026 on Neon: drizzle.__drizzle_migrations holds 100 rows, equal to the 100 journal entries, newest = 0101). Nothing is pending.
+- O8 database changes: S3 (0092), S26 (0093) and S10 (0094) are recorded as applied in the handoff's section M; S13 (0100, AI connections) and the live calendar link (0101) were each run with your word. S11 (0096) and S12 (0097) are applied too (verified 29 Oct 2026 on Neon: drizzle.__drizzle_migrations holds 100 rows, equal to the 100 journal entries, newest = 0101). S23 (0102, safe copy masks) was applied on 29 Oct with your word. Next: S17 (0103), once S17 merges.
 - O9 step 3: you switched the AI connector on in production on 28 Oct (`AI_CONNECTOR_ENABLED=true`), ahead of S24, for the pilot with made-up data. It is checked live: the sign-in discovery address answers and readiness says the connector is available.
 - `SUPPORT_EMAIL` set in Vercel Production (its value is not written here).
 
@@ -139,12 +140,12 @@ Also still open as written below: O1 (private repository), O3 (paid Vercel and N
   | S3 | Staff second factor |
   | S10 to S12 | Payment ledger, attempts, claims, receipts |
   | S13 | AI connections and sign-in tokens |
-  | S17 | Recurring invoices and billing settings |
+  | S17 | Recurring invoices and billing rules (migration 0103): one row of billing rules, a cause on each billing status change, one live invoice per agency, plan and period. Before running it, the duplicate check in [billing-cycle.md](../operations/billing-cycle.md) must return no rows |
   | S18 | Refund requests, if needed |
   | S19 | Saved payment methods |
   | S20 | Original-file choices |
   | S22 | Agency AI permission |
-  | S23 | Redaction masks (migration 0102) |
+  | S23 | Redaction masks (migration 0102). **Applied 29 Oct 2026** |
   | S26 | Key-service re-wrap tracking, if needed |
 
 - **Until then:** the merged feature shows "not available yet" instead of breaking.
@@ -194,9 +195,13 @@ Also still open as written below: O1 (private repository), O3 (paid Vercel and N
   - payment due 7 days after the invoice;
   - Grace 7 days after the due date;
   - Suspended 30 days after the due date.
-- **You:** reply with your numbers, or "use the defaults".
+- **Prepared (S17, 29 Oct 2026):** the Billing Rules page (`/app/admin/billing`, platform owner only, with a fresh sign-in check) holds these numbers and the On/Off switch. Before it switches on, it says how many agencies it would move that day, so old unpaid invoices are seen first. How it works: [billing-cycle.md](../operations/billing-cycle.md).
+- **You:**
+  1. Set your numbers on the Billing Rules page, or reply with them, or "use the defaults".
+  2. **Decide on traveller uploads first.** Today, while an agency is Suspended, a traveller who shares records with that agency also cannot add new files (their existing files stay visible and nothing is deleted). S17 keeps this unchanged. Reply "keep traveller uploads blocked" or "let travellers upload while an agency is suspended" (the second is a small follow-up change).
+  3. Switch "Automatic Grace and Suspended" on.
 - **Until then:**
-  - S17 sends reminders.
+  - S17 sends invoices and reminders.
   - Automatic Grace and Suspended stay **off**; billing status changes only by an admin, as today.
 
 ## O14. Second payment provider and the entity that holds it

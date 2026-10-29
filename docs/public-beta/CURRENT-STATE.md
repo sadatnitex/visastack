@@ -99,3 +99,8 @@ This section supersedes the rows and sections above where they differ. Earlier s
 **In progress, not live:** S23 real redaction (ADR 0022): safe copies of PDFs and images with masks the owner places, suggested from the PDF's text positions and a passport's machine-readable band. It is not merged, and its migration 0102 needs the owner's word after the merge. Until it lands, readiness keeps redacted download disabled.
 
 **Open:** malware scanning switch-on; staff two-step sign-in acceptance; independent document and key recovery; a real AI app connection test; a named payment provider; the penetration test deferral record (H01); real applicant data and the final release (S24 with WP-V6, owner's explicit word); Bangla (deferred). Pending owner steps: [owner actions](../roadmap/OWNER-ACTIONS-SMALL-COMMERCIAL-V1.md). Evidence for each merge: [known issues](../commercial-v1/known-issues.md).
+
+**Afternoon update, 29 Oct 2026** (supersedes the "In progress" line above):
+
+- **Live:** S23 real redaction is merged (#339, `07d65797`) and its migration 0102 was applied on 29 Oct with the owner's word. Two live fixes followed: #340 (`db5a52c4`) declares the image libraries in the web app, which made document previews and safe copies work in production again, and #341 (`424e525d`) gives safe copy files opaque storage keys and makes the sign-up confirmation page remember the address that was entered. Safe copies can be prepared and downloaded.
+- **In progress, not live:** S17 recurring invoices, reminders, overdue handling and reactivation (ADR 0020 Phase 2). It adds migration 0103, which runs only on the owner's word after the merge. Automatic Grace and Suspended stays off until the owner sets the policy (O13).

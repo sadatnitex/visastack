@@ -6,7 +6,7 @@
 -- existing is changed: every history row already written names a person, so it gets cause
 -- MANUAL, which is exactly what it was.
 -- Until this runs, the daily billing run reports "not available" and creates nothing, the Billing
--- Rules page shows the standard rules read-only, and every status change and payment works as
+-- Rules page says the rules are not available yet, and every status change and payment works as
 -- before.
 -- Before running in production, this must return no rows (two live invoices for the same
 -- organization, plan and period start would stop the unique index below from being created):
