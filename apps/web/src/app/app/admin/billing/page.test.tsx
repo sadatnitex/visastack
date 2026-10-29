@@ -42,8 +42,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   navigationState.pathname = '/app/admin/billing';
   mocks.staffPrincipal.mockResolvedValue({ ok: true, value: { kind: 'staff' } });
-  mocks.getBillingSettings.mockResolvedValue(settings);
-  mocks.previewOverdueHandling.mockResolvedValue({ toGrace: 1, toSuspended: 0 });
+  mocks.getBillingSettings.mockResolvedValue({ ok: true, value: settings });
+  mocks.previewOverdueHandling.mockResolvedValue({
+    ok: true,
+    value: { toGrace: 1, toSuspended: 0 },
+  });
 });
 
 describe('Platform > Billing Rules', () => {
@@ -61,6 +64,9 @@ describe('Platform > Billing Rules', () => {
     );
     expect(text).toContain('a traveller who shares records with it also cannot add new files');
     expect(mocks.staffPrincipal.mock.calls[0]?.[2]).toBe('BILLING_SETTINGS_MANAGE');
+    // Both reads take the owner's scope.
+    expect(mocks.getBillingSettings.mock.calls[0]?.[1]).toEqual({ kind: 'staff' });
+    expect(mocks.previewOverdueHandling.mock.calls[0]?.[1]).toEqual({ kind: 'staff' });
   });
 
   it('is restricted to the platform owner', async () => {
@@ -71,7 +77,10 @@ describe('Platform > Billing Rules', () => {
   });
 
   it('says plainly that nothing runs before the rules are available', async () => {
-    mocks.getBillingSettings.mockResolvedValue({ ...settings, available: false });
+    mocks.getBillingSettings.mockResolvedValue({
+      ok: true,
+      value: { ...settings, available: false },
+    });
     const text = textOf(await renderServer(Page()));
     expect(text).toContain('VisaStack creates no invoices on its own');
     expect(text).not.toContain('Change the Rules');

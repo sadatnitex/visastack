@@ -15,7 +15,7 @@ import type { FormResult } from '../../../../components/form-feedback';
 import { bootstrapAdminEmails, staffPrincipal } from '../../../../lib/admin';
 import { withSession } from '../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../lib/step-up';
-import { previewSentence } from './labels';
+import { type BillingRulesState, type BillingRulesValues, previewSentence } from './labels';
 
 const BILLING_RULES_PATH = '/app/admin/billing';
 
@@ -30,11 +30,11 @@ const NOT_READY: FormResult = {
 };
 
 /** A whole number of days typed in a box, null when left empty, undefined when not a number. */
-function days(formData: FormData, name: string): number | null | undefined {
-  const raw = String(formData.get(name) ?? '').trim();
-  if (raw.length === 0) return null;
-  if (!/^\d{1,4}$/.test(raw)) return undefined;
-  return Number(raw);
+function days(raw: string): number | null | undefined {
+  const text = raw.trim();
+  if (text.length === 0) return null;
+  if (!/^\d{1,4}$/.test(text)) return undefined;
+  return Number(text);
 }
 
 /** Which box a rule problem is about, so the form can point at it. */
@@ -44,36 +44,57 @@ function problemField(message: string): string {
   return 'graceAfterDays';
 }
 
+function typedValues(formData: FormData): BillingRulesValues {
+  const text = (name: string) => String(formData.get(name) ?? '').trim();
+  return {
+    dueDays: text('dueDays'),
+    overdueHandling: formData.get('overdueHandling') === 'on' ? 'on' : 'off',
+    graceAfterDays: text('graceAfterDays'),
+    suspendAfterDays: text('suspendAfterDays'),
+  };
+}
+
 /**
- * Saves the billing rules. Platform owner only, with a fresh sign-in check. Turning automatic
- * Grace and Suspended on first shows how many agencies it would move today and needs the box
- * ticked to confirm, so old unpaid invoices are seen before anything moves.
+ * Saves the billing rules. Platform owner only, with a fresh sign-in check. Whenever a save turns
+ * automatic Grace and Suspended on, or changes its day counts while it is on, the server first
+ * answers with a preview of exactly those day counts (how many agencies it moves today); the
+ * save goes through only when the same day counts come back with the box ticked. Every reply
+ * carries the values as typed, so nothing typed is lost.
  */
 export async function saveBillingRulesAction(
-  _prev: FormResult,
+  _prev: BillingRulesState,
   formData: FormData,
-): Promise<FormResult> {
-  const dueDays = days(formData, 'dueDays');
-  const graceAfterDays = days(formData, 'graceAfterDays');
-  const suspendAfterDays = days(formData, 'suspendAfterDays');
-  const overdueHandlingEnabled = formData.get('overdueHandling') === 'on';
+): Promise<BillingRulesState> {
+  const values = typedValues(formData);
+  const reply = (
+    result: FormResult,
+    extra: Partial<BillingRulesState> = {},
+  ): BillingRulesState => ({
+    ...result,
+    values,
+    ...extra,
+  });
+  const dueDays = days(values.dueDays);
+  const graceAfterDays = days(values.graceAfterDays);
+  const suspendAfterDays = days(values.suspendAfterDays);
+  const overdueHandlingEnabled = values.overdueHandling === 'on';
   if (dueDays === null || dueDays === undefined) {
-    return {
+    return reply({
       ok: false,
       message: `Enter how many days after a period starts its invoice is due, up to ${BILLING_DUE_DAYS_MAX}.`,
       field: 'dueDays',
-    };
+    });
   }
   if (graceAfterDays === undefined || suspendAfterDays === undefined) {
-    return {
+    return reply({
       ok: false,
       message: `Enter the days as whole numbers, up to ${BILLING_POLICY_DAYS_MAX}.`,
       field: graceAfterDays === undefined ? 'graceAfterDays' : 'suspendAfterDays',
-    };
+    });
   }
   const rules = { dueDays, overdueHandlingEnabled, graceAfterDays, suspendAfterDays };
   const problem = billingRulesProblem(rules);
-  if (problem) return { ok: false, message: problem, field: problemField(problem) };
+  if (problem) return reply({ ok: false, message: problem, field: problemField(problem) });
 
   return withSession(async ({ db, accountId, email }) => {
     const staff = await staffPrincipal(
@@ -81,21 +102,37 @@ export async function saveBillingRulesAction(
       { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
       'BILLING_SETTINGS_MANAGE',
     );
-    if (!staff.ok) return DENIED;
-    const current = await getBillingSettings(db);
-    if (!current.available) return NOT_READY;
-    const switchingOn = overdueHandlingEnabled && !current.overdueHandlingEnabled;
-    if (switchingOn && formData.get('confirmed') !== 'yes') {
-      // Both day counts are present here: the rules check above requires them when switching on.
-      const preview = await previewOverdueHandling(db, {
-        graceAfterDays: graceAfterDays ?? 0,
-        suspendAfterDays: suspendAfterDays ?? 0,
-      });
-      return {
-        ok: false,
-        message: `${previewSentence(preview)} Tick the box to confirm, then save again.`,
-        field: 'confirmed',
-      };
+    if (!staff.ok) return reply(DENIED);
+    const current = await getBillingSettings(db, staff.value);
+    if (!current.ok) return reply(DENIED);
+    if (!current.value.available) return reply(NOT_READY);
+    const needsPreview =
+      overdueHandlingEnabled &&
+      graceAfterDays !== null &&
+      suspendAfterDays !== null &&
+      (!current.value.overdueHandlingEnabled ||
+        current.value.graceAfterDays !== graceAfterDays ||
+        current.value.suspendAfterDays !== suspendAfterDays);
+    if (needsPreview) {
+      const confirmed =
+        formData.get('confirmed') === 'yes' &&
+        days(String(formData.get('previewGraceAfterDays') ?? '')) === graceAfterDays &&
+        days(String(formData.get('previewSuspendAfterDays') ?? '')) === suspendAfterDays;
+      if (!confirmed) {
+        const preview = await previewOverdueHandling(db, staff.value, {
+          graceAfterDays,
+          suspendAfterDays,
+        });
+        if (!preview.ok) return reply(DENIED);
+        return reply(
+          {
+            ok: false,
+            message: `${previewSentence(preview.value)} Tick the box to confirm, then save again.`,
+            field: 'confirmed',
+          },
+          { preview: { graceAfterDays, suspendAfterDays, ...preview.value } },
+        );
+      }
     }
 
     let result = await updateBillingSettings(db, staff.value, { ...rules, stepUpSatisfied: false });
@@ -105,32 +142,38 @@ export async function saveBillingRulesAction(
         BILLING_RULES_PATH,
       );
       if (stepUp.kind === 'not_configured') {
-        return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies FormResult;
+        return reply({ ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE });
       }
       if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
       result = await updateBillingSettings(db, staff.value, { ...rules, stepUpSatisfied: true });
     }
     if (!result.ok) {
-      if (result.error.code === 'forbidden') return DENIED;
-      if (result.error.message === BILLING_SETTINGS_UNAVAILABLE) return NOT_READY;
+      if (result.error.code === 'forbidden') return reply(DENIED);
+      if (result.error.message === BILLING_SETTINGS_UNAVAILABLE) return reply(NOT_READY);
       if (result.error.code === 'invalid') {
-        return {
+        return reply({
           ok: false,
           message: result.error.message,
           field: problemField(result.error.message),
-        };
+        });
       }
-      return { ok: false, message: 'The rules could not be saved. Reload the page and try again.' };
+      return reply({
+        ok: false,
+        message: 'The rules could not be saved. Reload the page and try again.',
+      });
     }
     if (!result.value.changed) {
-      return { ok: true, message: 'Nothing to change. These are already the billing rules.' };
+      return reply({
+        ok: true,
+        message: 'Nothing to change. These are already the billing rules.',
+      });
     }
     revalidatePath(BILLING_RULES_PATH);
-    return {
+    return reply({
       ok: true,
       message: overdueHandlingEnabled
         ? 'Saved. Automatic Grace and Suspended is on from the next daily run.'
         : 'Saved. Automatic Grace and Suspended is off.',
-    };
+    });
   });
 }

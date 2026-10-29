@@ -1,0 +1,208 @@
+import { type SQL, and, asc, eq, inArray, lt, sql } from 'drizzle-orm';
+import {
+  type BillingStatus,
+  type BillingStatusCause,
+  newestBillingStatusChange,
+} from './billing-history';
+import { type Db, first, schema } from './db';
+import { localDateDiffInDays, toLocalDateParts } from './notification-sweep';
+
+/**
+ * What the daily billing run, the payment path and the Billing Rules preview all need to judge
+ * one agency's billing standing the same way (S17, ADR 0020 Phase 2): the billing calendar, what
+ * "overdue" means, the one overlap rule for invoice periods, and the locked read of a billing
+ * account. Reads only; the writes live with the recording function (`invoice-ledger.ts`).
+ *
+ * Lock order, everywhere a billing status can change: the invoice row (payments only), then the
+ * billing account row (`lockBillingAccount`), then the audit chain (the first `appendAuditEvent`).
+ * Nothing that holds the audit chain ever waits for a billing account row.
+ */
+
+/** The calendar billing days are counted in. */
+export const BILLING_TIME_ZONE = 'Asia/Dhaka';
+
+export const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Whole Bangladesh calendar days from the due date to `now`: 0 on the due day, 1 the day after,
+ * negative before it. A due date stored as UTC midnight of a day (how every invoice's due date is
+ * stored) reads as that same day in Bangladesh.
+ */
+export function daysPastDue(dueDate: Date, now: Date): number {
+  return localDateDiffInDays(dueDate, now, BILLING_TIME_ZONE);
+}
+
+/** Overdue means from the Bangladesh day after the due date: the due day itself is not overdue. */
+export function isOverdue(dueDate: Date, now: Date): boolean {
+  return daysPastDue(dueDate, now) >= 1;
+}
+
+/**
+ * UTC midnight of the Bangladesh calendar day of `at`, plus `days` days: how a due date is
+ * stored, the same shape as one typed into the admin form, so every page and notice shows the
+ * same day.
+ */
+export function billingDay(at: Date, days = 0): Date {
+  const { year, month, day } = toLocalDateParts(at, BILLING_TIME_ZONE);
+  return new Date(Date.UTC(year, month - 1, day + days));
+}
+
+/**
+ * The one overlap rule for invoice periods, used by the daily run (to skip a period already
+ * billed) and by an admin creating an invoice (to refuse billing a period twice): an invoice
+ * whose period starts before `end` and ends after `start`. Periods that only touch do not overlap.
+ */
+export function invoicePeriodOverlaps(start: SQL, end: SQL): SQL {
+  const i = schema.invoices;
+  return sql`(${i.periodStart} < ${end} and ${i.periodEnd} > ${start})`;
+}
+
+/** A moment as a typed SQL value, for `invoicePeriodOverlaps`. */
+export function timestampSql(at: Date): SQL {
+  return sql`${at.toISOString()}::timestamptz`;
+}
+
+export interface BillingAccountRow {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly status: BillingStatus;
+}
+
+export interface OverdueInvoice {
+  readonly invoiceId: string;
+  readonly invoiceRef: string;
+  readonly dueDate: Date;
+}
+
+export interface BillingStanding {
+  readonly status: BillingStatus;
+  /** What set the current status: the cause on the newest history row. */
+  readonly cause: BillingStatusCause;
+  /** When the current status was set (the newest history row), or null without history. */
+  readonly changedAt: Date | null;
+  /** Unpaid invoices that are overdue (`isOverdue`) at the moment judged. */
+  readonly overdue: readonly OverdueInvoice[];
+}
+
+export interface AutomaticStatusChange {
+  readonly toStatus: BillingStatus;
+  readonly reason: string;
+  /** The invoice that caused it, for a move to Grace or Suspended. */
+  readonly invoice: OverdueInvoice | null;
+  readonly daysOverdue: number | null;
+}
+
+/** The organization's billing account, locked for the rest of the caller's transaction. */
+export async function lockBillingAccount(
+  tx: Db,
+  organizationId: string,
+): Promise<BillingAccountRow | undefined> {
+  return first(
+    await tx
+      .select({
+        id: schema.billingAccounts.id,
+        organizationId: schema.billingAccounts.organizationId,
+        status: schema.billingAccounts.status,
+      })
+      .from(schema.billingAccounts)
+      .where(eq(schema.billingAccounts.organizationId, organizationId))
+      .limit(1)
+      .for('update'),
+  );
+}
+
+/** The account's status without a lock: the payment path locks only an account it may change. */
+export async function billingAccountStatus(
+  db: Db,
+  organizationId: string,
+): Promise<BillingStatus | undefined> {
+  const row = first(
+    await db
+      .select({ status: schema.billingAccounts.status })
+      .from(schema.billingAccounts)
+      .where(eq(schema.billingAccounts.organizationId, organizationId))
+      .limit(1),
+  );
+  return row?.status;
+}
+
+/** Unpaid invoices of these organizations that are overdue at `now`. */
+export async function overdueInvoices(
+  db: Db,
+  organizationIds: readonly string[],
+  now: Date,
+): Promise<Array<OverdueInvoice & { readonly organizationId: string }>> {
+  if (organizationIds.length === 0) return [];
+  const i = schema.invoices;
+  // Every overdue invoice is due before `now` (its due day has ended); the exact day rule is
+  // applied below.
+  const rows = await db
+    .select({
+      organizationId: i.organizationId,
+      invoiceId: i.id,
+      invoiceRef: i.invoiceRef,
+      dueDate: i.dueDate,
+    })
+    .from(i)
+    .where(
+      and(
+        inArray(i.organizationId, [...organizationIds]),
+        inArray(i.status, ['OPEN', 'PARTIALLY_PAID']),
+        lt(i.dueDate, now),
+      ),
+    );
+  return rows.filter((row) => isOverdue(row.dueDate, now));
+}
+
+/**
+ * The billing account's standing at `now`, read inside the caller's transaction after its lock.
+ * Only once migration 0103 is confirmed (the cause column is read directly).
+ */
+export async function readBillingStanding(
+  tx: Db,
+  account: BillingAccountRow,
+  now: Date,
+): Promise<BillingStanding> {
+  const newest = await newestBillingStatusChange(tx, account.id);
+  const overdue = await overdueInvoices(tx, [account.organizationId], now);
+  return {
+    status: account.status,
+    cause: newest?.cause ?? 'MANUAL',
+    changedAt: newest?.createdAt ?? null,
+    overdue: overdue.map(({ invoiceId, invoiceRef, dueDate }) => ({
+      invoiceId,
+      invoiceRef,
+      dueDate,
+    })),
+  };
+}
+
+/** The agency's owners and admins: who billing notices go to (checked again when sending). */
+export async function billingContacts(tx: Db, organizationId: string): Promise<string[]> {
+  const rows = await tx
+    .select({ accountId: schema.memberships.accountId })
+    .from(schema.memberships)
+    .where(
+      and(
+        eq(schema.memberships.organizationId, organizationId),
+        inArray(schema.memberships.role, ['OWNER', 'ADMIN']),
+        eq(schema.memberships.active, true),
+      ),
+    )
+    .orderBy(asc(schema.memberships.accountId));
+  return rows.map((row) => row.accountId);
+}
+
+/** One reading of the database clock. */
+export async function databaseNow(db: Db): Promise<Date> {
+  const rows = await db
+    .select({ now: sql<string>`(extract(epoch from now()) * 1000)::bigint::text` })
+    .from(sql`(select 1) as probe`);
+  const ms = Number(rows[0]?.now);
+  return Number.isFinite(ms) ? new Date(ms) : new Date();
+}
+
+/** Where billing notices lead: the agency's Invoices page. */
+export function invoicesPath(organizationId: string): string {
+  return `/app/agency/${organizationId}/plan/invoices`;
+}

@@ -425,11 +425,15 @@ describe('invoices -- issue, collect, void (COM-03)', () => {
     planId = plan.id;
   });
 
+  // Each call gives its own 30-day period (since S17, invoices for the same plan whose periods
+  // overlap are refused); due dates stay where they were.
+  let periodSeq = 0;
   function periodDates(): { periodStart: Date; periodEnd: Date; dueDate: Date } {
     const now = new Date();
+    const start = new Date(now.getTime() + periodSeq++ * 31 * 24 * 60 * 60 * 1000);
     return {
-      periodStart: now,
-      periodEnd: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+      periodStart: start,
+      periodEnd: new Date(start.getTime() + 30 * 24 * 60 * 60 * 1000),
       dueDate: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000),
     };
   }
@@ -1139,7 +1143,8 @@ describe('pinned before S17: a status a person set', () => {
         reason: `set by hand to ${toStatus}`,
       });
       expect(isOk(moved)).toBe(true);
-      const start = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
+      // A different period for each, since S17 refuses overlapping invoices for one plan.
+      const start = new Date(Date.now() - (toStatus === 'GRACE' ? 40 : 80) * 24 * 60 * 60 * 1000);
       const invoice = await createInvoice(db, {
         actor: owner.actor,
         stepUpSatisfied: true,

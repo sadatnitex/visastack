@@ -18,14 +18,24 @@ export type BillingStatus = (typeof schema.billingStatus.enumValues)[number];
 export type BillingStatusCause = (typeof schema.billingStatusCause.enumValues)[number];
 export type BillingStatusHistoryEntry = typeof schema.billingStatusHistory.$inferSelect;
 
+/**
+ * Handles already seen with the cause column. Only a "yes" is kept: migrations are additive, so a
+ * column once present stays present, while a "no" must be asked again (the migration may run at
+ * any moment). Keyed by the database or transaction handle, so one transaction asks once.
+ */
+const causeColumnSeen = new WeakMap<object, true>();
+
 /** Whether migration 0103 has added the cause column. Never raises. */
 export async function billingStatusCausePresent(db: Db): Promise<boolean> {
+  if (causeColumnSeen.has(db)) return true;
   const rows = await db
     .select({
       present: sql<boolean>`exists (select 1 from information_schema.columns where table_schema = current_schema() and table_name = 'billing_status_history' and column_name = 'cause')`,
     })
     .from(sql`(select 1) as probe`);
-  return rows[0]?.present === true;
+  const present = rows[0]?.present === true;
+  if (present) causeColumnSeen.set(db, true);
+  return present;
 }
 
 export interface BillingStatusHistoryRow {
@@ -111,22 +121,28 @@ export async function readBillingStatusHistory(
   return rows.map(toEntry);
 }
 
+export interface NewestBillingStatusChange {
+  readonly cause: BillingStatusCause;
+  /** When it was written. */
+  readonly createdAt: Date;
+}
+
 /**
- * What set the account's current status: the cause on its newest history row. `MANUAL` when
- * there is no row or before migration 0103 (every row then was a person's).
+ * The newest history row of one billing account: what set its current status, and when. Only
+ * after migration 0103 is confirmed (`billingStatusCausePresent`): it reads the cause column
+ * directly. Undefined for an account without history.
  */
-export async function currentBillingStatusCause(
+export async function newestBillingStatusChange(
   db: Db,
   billingAccountId: string,
-): Promise<BillingStatusCause> {
+): Promise<NewestBillingStatusChange | undefined> {
   const h = schema.billingStatusHistory;
-  const newest = first(
+  return first(
     await db
-      .select(historySelection())
+      .select({ cause: h.cause, createdAt: h.createdAt })
       .from(h)
       .where(eq(h.billingAccountId, billingAccountId))
       .orderBy(desc(h.createdAt))
       .limit(1),
   );
-  return newest ? toEntry(newest).cause : 'MANUAL';
 }

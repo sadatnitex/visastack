@@ -73,7 +73,9 @@ export default async function BillingRulesPage() {
       'BILLING_SETTINGS_MANAGE',
     );
     if (!staff.ok) return { kind: 'restricted' as const };
-    const settings = await getBillingSettings(db);
+    const read = await getBillingSettings(db, staff.value);
+    if (!read.ok) return { kind: 'restricted' as const };
+    const settings = read.value;
     if (!settings.available) return { kind: 'unavailable' as const, settings };
     let preview: OverduePreview | null = null;
     if (
@@ -81,10 +83,11 @@ export default async function BillingRulesPage() {
       settings.graceAfterDays !== null &&
       settings.suspendAfterDays !== null
     ) {
-      preview = await previewOverdueHandling(db, {
+      const counted = await previewOverdueHandling(db, staff.value, {
         graceAfterDays: settings.graceAfterDays,
         suspendAfterDays: settings.suspendAfterDays,
       });
+      if (counted.ok) preview = counted.value;
     }
     return { kind: 'ready' as const, settings, preview };
   });

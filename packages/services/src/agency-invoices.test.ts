@@ -230,7 +230,7 @@ describe('numbered receipts (S12)', () => {
   });
 
   // Each invoice gets its own period start: since S17 two live invoices for the same plan and
-  // period start are refused, and these can be opened in the same instant.
+  // overlapping period are refused, so each one starts 31 days after the one before.
   let periods = 0;
   async function openInvoice(
     organizationId: string,
@@ -238,7 +238,7 @@ describe('numbered receipts (S12)', () => {
     amount = 100000,
     currency = 'BDT',
   ): Promise<string> {
-    const now = new Date(Date.now() + ++periods * 60_000);
+    const now = new Date(Date.now() + ++periods * 31 * DAY);
     const created = await createInvoice(db, {
       actor: platform.actor,
       stepUpSatisfied: true,
@@ -653,7 +653,7 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
   });
 
   // Each invoice gets its own period start: since S17 two live invoices for the same plan and
-  // period start are refused, and these can be opened in the same instant.
+  // overlapping period are refused, so each one starts 31 days after the one before.
   let periods = 0;
   async function openInvoice(
     organizationId: string,
@@ -661,7 +661,7 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
     amount = 100000,
     currency = 'BDT',
   ): Promise<string> {
-    const now = new Date(Date.now() + ++periods * 60_000);
+    const now = new Date(Date.now() + ++periods * 31 * DAY);
     const created = await createInvoice(db, {
       actor: platform.actor,
       stepUpSatisfied: true,

@@ -63,8 +63,11 @@ export async function billingSettingsPresent(db: Db): Promise<boolean> {
   return rows[0]?.present === true;
 }
 
-/** The current billing rules, or the standard ones marked not available before migration 0103. */
-export async function getBillingSettings(db: Db): Promise<BillingSettings> {
+/**
+ * The current billing rules, or the standard ones marked not available before migration 0103.
+ * For the daily run and this module; staff screens use `getBillingSettings`.
+ */
+export async function readBillingSettings(db: Db): Promise<BillingSettings> {
   if (!(await billingSettingsPresent(db))) return STANDARD;
   const row = first(
     await db
@@ -86,6 +89,16 @@ export async function getBillingSettings(db: Db): Promise<BillingSettings> {
     updatedByAccountId: row.updatedByAccountId,
     updatedAt: row.updatedAt,
   };
+}
+
+/** The billing rules, for the platform owner's Billing Rules page (a read: no fresh sign-in check). */
+export async function getBillingSettings(
+  db: Db,
+  staff: StaffScope<'BILLING_SETTINGS_MANAGE'>,
+): Promise<Result<BillingSettings, ServiceError>> {
+  const denied = staffScopeProblem(staff, 'BILLING_SETTINGS_MANAGE');
+  if (denied) return err(denied);
+  return ok(await readBillingSettings(db));
 }
 
 export interface BillingRulesInput {
@@ -172,7 +185,7 @@ export async function updateBillingSettings(
       before.overdueHandlingEnabled === input.overdueHandlingEnabled &&
       before.graceAfterDays === input.graceAfterDays &&
       before.suspendAfterDays === input.suspendAfterDays;
-    if (unchanged) return ok({ settings: await getBillingSettings(tx), changed: false });
+    if (unchanged) return ok({ settings: await readBillingSettings(tx), changed: false });
     const updated = required(
       first(
         await tx
@@ -206,6 +219,6 @@ export async function updateBillingSettings(
       resourceId: 'platform',
       metadata: { before: rules(before), after: rules(updated) },
     });
-    return ok({ settings: await getBillingSettings(tx), changed: true });
+    return ok({ settings: await readBillingSettings(tx), changed: true });
   });
 }

@@ -43,6 +43,7 @@ const OFF = {
   graceAfterDays: null,
   suspendAfterDays: null,
 };
+const ON = { ...OFF, overdueHandlingEnabled: true, graceAfterDays: 7, suspendAfterDays: 30 };
 const saved = { ok: true, value: { changed: true, settings: OFF } };
 const stepUpNeeded = { ok: false, error: { code: 'step_up_required', message: 'x' } };
 
@@ -55,11 +56,19 @@ function form(fields: Record<string, string>): FormData {
 }
 
 const turnOn = { overdueHandling: 'on', graceAfterDays: '7', suspendAfterDays: '30' };
+const previewed = (grace: string, suspend: string) => ({
+  confirmed: 'yes',
+  previewGraceAfterDays: grace,
+  previewSuspendAfterDays: suspend,
+});
 
 beforeEach(() => {
   mocks.staffPrincipal.mockResolvedValue({ ok: true, value: SCOPE });
-  mocks.getBillingSettings.mockResolvedValue(OFF);
-  mocks.previewOverdueHandling.mockResolvedValue({ toGrace: 2, toSuspended: 1 });
+  mocks.getBillingSettings.mockResolvedValue({ ok: true, value: OFF });
+  mocks.previewOverdueHandling.mockResolvedValue({
+    ok: true,
+    value: { toGrace: 2, toSuspended: 1 },
+  });
   mocks.updateBillingSettings.mockResolvedValue(saved);
   mocks.tryEstablishStepUp.mockResolvedValue({ kind: 'satisfied' });
 });
@@ -71,7 +80,7 @@ describe('saveBillingRulesAction', () => {
   it('refuses anyone but the platform owner', async () => {
     mocks.staffPrincipal.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
     const result = await saveBillingRulesAction(INITIAL, form({}));
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: false,
       message: 'Only the platform owner can change the billing rules.',
     });
@@ -79,14 +88,19 @@ describe('saveBillingRulesAction', () => {
     expect(mocks.updateBillingSettings).not.toHaveBeenCalled();
   });
 
-  it('points at the box with the problem before asking the server anything', async () => {
+  it('points at the box with the problem before asking the server anything, keeping what was typed', async () => {
     expect(await saveBillingRulesAction(INITIAL, form({ dueDays: '' }))).toMatchObject({
       ok: false,
       field: 'dueDays',
+      values: { dueDays: '', overdueHandling: 'off' },
     });
     expect(
       await saveBillingRulesAction(INITIAL, form({ ...turnOn, suspendAfterDays: '7' })),
-    ).toMatchObject({ ok: false, field: 'suspendAfterDays' });
+    ).toMatchObject({
+      ok: false,
+      field: 'suspendAfterDays',
+      values: { graceAfterDays: '7', suspendAfterDays: '7', overdueHandling: 'on' },
+    });
     expect(await saveBillingRulesAction(INITIAL, form({ overdueHandling: 'on' }))).toMatchObject({
       ok: false,
       field: 'graceAfterDays',
@@ -94,22 +108,28 @@ describe('saveBillingRulesAction', () => {
     expect(mocks.staffPrincipal).not.toHaveBeenCalled();
   });
 
-  it('shows how many agencies turning it on moves today, and saves only once confirmed', async () => {
+  it('answers turning it on with a preview of exactly those day counts, and saves only once that preview is confirmed', async () => {
     const first = await saveBillingRulesAction(INITIAL, form(turnOn));
     expect(first).toEqual({
       ok: false,
       message:
         'Turning this on today moves 2 agencies to Grace and 1 agency to Suspended. Tick the box to confirm, then save again.',
       field: 'confirmed',
+      values: { dueDays: '7', overdueHandling: 'on', graceAfterDays: '7', suspendAfterDays: '30' },
+      preview: { graceAfterDays: 7, suspendAfterDays: 30, toGrace: 2, toSuspended: 1 },
     });
-    expect(mocks.previewOverdueHandling.mock.calls[0]?.[1]).toEqual({
+    expect(mocks.previewOverdueHandling.mock.calls[0]?.[1]).toBe(SCOPE);
+    expect(mocks.previewOverdueHandling.mock.calls[0]?.[2]).toEqual({
       graceAfterDays: 7,
       suspendAfterDays: 30,
     });
     expect(mocks.updateBillingSettings).not.toHaveBeenCalled();
 
     mocks.updateBillingSettings.mockResolvedValueOnce(stepUpNeeded).mockResolvedValueOnce(saved);
-    const confirmed = await saveBillingRulesAction(INITIAL, form({ ...turnOn, confirmed: 'yes' }));
+    const confirmed = await saveBillingRulesAction(
+      INITIAL,
+      form({ ...turnOn, ...previewed('7', '30') }),
+    );
     expect(confirmed.ok).toBe(true);
     expect(mocks.tryEstablishStepUp.mock.calls[0]?.[0]).toEqual({
       accountId: 'synthetic-owner',
@@ -126,6 +146,49 @@ describe('saveBillingRulesAction', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/app/admin/billing');
   });
 
+  it('refuses a ticked box without a preview, or for other day counts than the ones previewed', async () => {
+    // Grace 0 and Suspend 1 typed and saved in one go, box ticked, never previewed.
+    const blind = await saveBillingRulesAction(
+      INITIAL,
+      form({ overdueHandling: 'on', graceAfterDays: '0', suspendAfterDays: '1', confirmed: 'yes' }),
+    );
+    expect(blind).toMatchObject({
+      ok: false,
+      field: 'confirmed',
+      preview: { graceAfterDays: 0, suspendAfterDays: 1 },
+    });
+    // Previewed 7 and 30, then changed to 3 and 30 before saving: a fresh preview, no save.
+    const changed = await saveBillingRulesAction(
+      INITIAL,
+      form({ ...turnOn, graceAfterDays: '3', ...previewed('7', '30') }),
+    );
+    expect(changed).toMatchObject({
+      ok: false,
+      field: 'confirmed',
+      preview: { graceAfterDays: 3, suspendAfterDays: 30 },
+    });
+    expect(mocks.updateBillingSettings).not.toHaveBeenCalled();
+  });
+
+  it('previews again when the day counts change while it is already on, but not for the due days alone', async () => {
+    mocks.getBillingSettings.mockResolvedValue({ ok: true, value: ON });
+    const moreStrict = await saveBillingRulesAction(
+      INITIAL,
+      form({ ...turnOn, suspendAfterDays: '14' }),
+    );
+    expect(moreStrict).toMatchObject({ field: 'confirmed', preview: { suspendAfterDays: 14 } });
+    expect(mocks.updateBillingSettings).not.toHaveBeenCalled();
+    const dueOnly = await saveBillingRulesAction(INITIAL, form({ ...turnOn, dueDays: '10' }));
+    expect(dueOnly.ok).toBe(true);
+    expect(mocks.previewOverdueHandling).toHaveBeenCalledTimes(1);
+    // Turning it off never needs a preview.
+    const off = await saveBillingRulesAction(
+      INITIAL,
+      form({ graceAfterDays: '7', suspendAfterDays: '30' }),
+    );
+    expect(off.ok).toBe(true);
+  });
+
   it('sends the owner to sign in again when the check needs it', async () => {
     mocks.updateBillingSettings.mockResolvedValue(stepUpNeeded);
     mocks.tryEstablishStepUp.mockResolvedValue({
@@ -138,8 +201,8 @@ describe('saveBillingRulesAction', () => {
   });
 
   it('says plainly when the rules are not available yet', async () => {
-    mocks.getBillingSettings.mockResolvedValue({ ...OFF, available: false });
-    expect(await saveBillingRulesAction(INITIAL, form({ dueDays: '10' }))).toEqual({
+    mocks.getBillingSettings.mockResolvedValue({ ok: true, value: { ...OFF, available: false } });
+    expect(await saveBillingRulesAction(INITIAL, form({ dueDays: '10' }))).toMatchObject({
       ok: false,
       message: 'Billing rules are not available yet. Nothing has changed.',
     });

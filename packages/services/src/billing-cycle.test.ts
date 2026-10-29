@@ -18,7 +18,7 @@ import { createMigratedPglite, migrationsFolder } from '@visastack/db/testing';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EACH_GRANT, accountPrincipal, requireAccess } from './access';
 import { staffPrincipal } from './access/principal';
 import { systemScopeForTest } from './access/system-scope.test-support';
@@ -38,6 +38,7 @@ import {
   cycleInvoiceRef,
   previewOverdueHandling,
   reminderStage,
+  reminderWords,
   runBillingCycle,
 } from './billing-cycle';
 import {
@@ -45,14 +46,17 @@ import {
   getBillingSettings,
   updateBillingSettings,
 } from './billing-settings';
+import { billingDay } from './billing-standing';
 import type { Db } from './db';
 import { listDocuments } from './documents';
 import { applyInvoiceCollection } from './invoice-ledger';
 import { listMissions } from './missions';
-import { runNotificationWorker } from './notifications';
+import { titleDate } from './naming';
+import { listNotificationsForAccount, runNotificationWorker } from './notifications';
 import { createOrganization, reviewOrganization } from './organizations';
 import { canPerformPlatformAction, grantPlatformRole } from './platform-roles';
 import type { EmailPort } from './ports';
+import { loadWorkspaceToolbarState } from './workspace-toolbar';
 
 const DAY = 24 * 60 * 60 * 1000;
 const TEST_TIMEOUT_MS = 120_000;
@@ -205,7 +209,10 @@ async function historyOf(w: World) {
   return found.value;
 }
 
-/** An invoice made by hand, due on `dueDate`. */
+/**
+ * An invoice made by hand, due on `dueDate`, for a one-day period a week earlier (so the
+ * invoices one test makes never overlap, which is refused).
+ */
 async function adminInvoice(w: World, ref: string, dueDate: Date, amount = 5000) {
   const periodStart = new Date(dueDate.getTime() - 7 * DAY);
   const made = await createInvoice(w.db, {
@@ -214,7 +221,7 @@ async function adminInvoice(w: World, ref: string, dueDate: Date, amount = 5000)
     organizationId: w.organizationId,
     planId: w.planId,
     periodStart,
-    periodEnd: new Date(periodStart.getTime() + 30 * DAY),
+    periodEnd: new Date(periodStart.getTime() + DAY),
     invoiceRef: ref,
     invoicedAmountMinorUnits: amount,
     currency: 'BDT',
@@ -250,6 +257,29 @@ async function setByHand(w: World, toStatus: 'ACTIVE' | 'GRACE' | 'SUSPENDED') {
 }
 
 const POLICY = { graceAfterDays: 7, suspendAfterDays: 30 };
+
+/** The platform owner's scope for the billing rules. */
+async function ownerScopeOf(w: World) {
+  const minted = await staffPrincipal(
+    w.db,
+    { accountId: w.owner.accountId, email: w.owner.email, bootstrapEmails: [] },
+    'BILLING_SETTINGS_MANAGE',
+  );
+  if (!isOk(minted)) throw new Error('scope');
+  return minted.value;
+}
+
+async function preview(w: World, now?: Date) {
+  const counted = await previewOverdueHandling(w.db, await ownerScopeOf(w), POLICY, now);
+  if (!isOk(counted)) throw new Error('preview');
+  return counted.value;
+}
+
+async function settingsOf(w: World) {
+  const read = await getBillingSettings(w.db, await ownerScopeOf(w));
+  if (!isOk(read)) throw new Error('settings');
+  return read.value;
+}
 
 describe('billing cycle rules (pure)', () => {
   it('reaches each reminder stage for its window only, and nothing after day 13', () => {
@@ -365,7 +395,10 @@ describe('recurring period invoices', () => {
       // Only the period running now: 90 days after the start, 30 days long, due 7 days in.
       expect(invoice.periodStart.getTime()).toBe(started.getTime() + 90 * DAY);
       expect(invoice.periodEnd.getTime()).toBe(started.getTime() + 120 * DAY);
-      expect(invoice.dueDate.getTime()).toBe(started.getTime() + 97 * DAY);
+      // Made five days into its period, so due 7 Bangladesh days after today (not after the
+      // period start), stored as UTC midnight of that day.
+      expect(invoice.dueDate.getTime()).toBe(billingDay(new Date(), 7).getTime());
+      expect(invoice.dueDate.getUTCHours()).toBe(0);
       expect(invoice).toMatchObject({
         invoicedAmountMinorUnits: 500_000,
         currency: 'BDT',
@@ -672,7 +705,7 @@ describe('overdue handling and reactivation', () => {
     async () => {
       const base = new Date();
       const invoice = await adminInvoice(w, 'INV-OWED', new Date(base.getTime() - 7 * DAY));
-      expect(await previewOverdueHandling(db, POLICY, base)).toEqual({
+      expect(await preview(w, base)).toEqual({
         toGrace: 1,
         toSuspended: 0,
       });
@@ -708,7 +741,7 @@ describe('overdue handling and reactivation', () => {
     'goes straight to Suspended when already past it when switched on',
     async () => {
       await adminInvoice(w, 'INV-OLD', new Date(Date.now() - 40 * DAY));
-      expect(await previewOverdueHandling(db, POLICY)).toEqual({ toGrace: 0, toSuspended: 1 });
+      expect(await preview(w)).toEqual({ toGrace: 0, toSuspended: 1 });
       await setRules(db, { ...POLICY, overdueHandlingEnabled: true });
       expect((await runBillingCycle(db, scope())).movedToSuspended).toBe(1);
       expect(await historyOf(w)).toHaveLength(2);
@@ -924,7 +957,7 @@ describe('billing rules', () => {
   }
 
   it('starts with the standard rules: due after 7 days, automatic handling off', async () => {
-    expect(await getBillingSettings(db)).toMatchObject({
+    expect(await settingsOf(w)).toMatchObject({
       available: true,
       dueDays: 7,
       overdueHandlingEnabled: false,
@@ -976,7 +1009,7 @@ describe('billing rules', () => {
     ).toBe(true);
     const saved = await updateBillingSettings(db, staff, { ...rules, stepUpSatisfied: true });
     expect(isOk(saved) && saved.value.changed).toBe(true);
-    expect(await getBillingSettings(db)).toMatchObject({
+    expect(await settingsOf(w)).toMatchObject({
       ...rules,
       updatedByAccountId: w.owner.accountId,
     });
@@ -1003,7 +1036,7 @@ describe('billing rules', () => {
     const started = new Date(Date.now() - DAY);
     await subscribe(w, started);
     await runBillingCycle(db, scope());
-    expect((await invoicesOf(w))[0]?.dueDate.getTime()).toBe(started.getTime() + 14 * DAY);
+    expect((await invoicesOf(w))[0]?.dueDate.getTime()).toBe(billingDay(new Date(), 14).getTime());
   });
 });
 
@@ -1058,8 +1091,8 @@ describe('before migration 0103', () => {
         available: false,
         invoicesCreated: 0,
       });
-      expect(await getBillingSettings(db)).toMatchObject({ available: false, dueDays: 7 });
-      expect(await previewOverdueHandling(db, POLICY)).toEqual({ toGrace: 0, toSuspended: 0 });
+      expect(await settingsOf(w)).toMatchObject({ available: false, dueDays: 7 });
+      expect(await preview(w)).toEqual({ toGrace: 0, toSuspended: 0 });
       const minted = await staffPrincipal(
         db,
         { accountId: w.owner.accountId, email: w.owner.email, bootstrapEmails: [] },
@@ -1114,7 +1147,7 @@ describe('who reads billing status', () => {
     return found;
   }
 
-  it('is only billing, entitlement enforcement and the billing run: no read of traveller records looks at it', () => {
+  it('is only billing, entitlement enforcement, the billing run and the recording function: no read of traveller records looks at it', () => {
     const readers = [...sourceFiles(here), ...sourceFiles(webSrc)]
       .filter((file) =>
         /billingAccounts|billing_accounts|isBillingSuspended/.test(readFileSync(file, 'utf8')),
@@ -1123,9 +1156,11 @@ describe('who reads billing status', () => {
       .sort();
     expect(readers).toEqual([
       'packages/services/src/billing-cycle.ts',
+      'packages/services/src/billing-standing.ts',
       'packages/services/src/billing.ts',
       'packages/services/src/entitlement-enforcement.ts',
       'packages/services/src/index.ts',
+      'packages/services/src/invoice-ledger.ts',
     ]);
     // Automatic reactivation lives only inside the one recording function's module.
     const restorers = sourceFiles(here)
@@ -1133,5 +1168,324 @@ describe('who reads billing status', () => {
       .filter((file) => readFileSync(file, 'utf8').includes('restoreBillingAfterPayment'))
       .map((file) => path.basename(file));
     expect(restorers).toEqual(['invoice-ledger.ts']);
+  });
+});
+
+describe('round 2: due days, overdue days, overlaps, budgets and notices', () => {
+  let db: Db;
+  let w: World;
+  beforeEach(async () => {
+    db = await freshDb();
+    w = await world(db, 'round2');
+    await setRules(db, { invoicingStartsAt: new Date(Date.now() - 400 * DAY) });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it(
+    'never makes an invoice that is born overdue: paid back to Active, the late invoice keeps it Active',
+    async () => {
+      const started = new Date(Date.now() - 50 * DAY);
+      await subscribe(w, started);
+      // The first period's invoice, made on time 50 days ago, is long overdue now.
+      await runBillingCycle(db, scope(), { now: new Date(started.getTime() + 1000) });
+      const [first] = await invoicesOf(w);
+      if (!first) throw new Error('first invoice');
+      await setRules(db, { ...POLICY, overdueHandlingEnabled: true });
+      await runBillingCycle(db, scope());
+      expect(await status(w)).toBe('SUSPENDED');
+      // Suspended agencies are not billed, so the second period (begun 20 days ago) waits.
+      expect(await invoicesOf(w)).toHaveLength(1);
+      await pay(w, first.id, 500_000);
+      expect(await status(w)).toBe('ACTIVE');
+
+      // The next run makes the second period's invoice late: due 7 days from today, not from
+      // the period start, so neither that run nor the one after moves the agency.
+      await runBillingCycle(db, scope());
+      const second = (await invoicesOf(w)).find((i) => i.id !== first.id);
+      if (!second) throw new Error('second invoice');
+      expect(second.periodStart.getTime()).toBe(started.getTime() + 30 * DAY);
+      expect(second.dueDate.getTime()).toBe(billingDay(new Date(), 7).getTime());
+      await runBillingCycle(db, scope());
+      expect(await status(w)).toBe('ACTIVE');
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it('shows the same due day in the notice as on the pages (stored as UTC midnight)', async () => {
+    await subscribe(w, new Date(Date.now() - DAY));
+    await runBillingCycle(db, scope());
+    const [invoice] = await invoicesOf(w);
+    if (!invoice) throw new Error('invoice');
+    expect(invoice.dueDate.toISOString()).toMatch(/T00:00:00\.000Z$/);
+    // Pages show due dates as UTC days; the notice names the Bangladesh day: the same day.
+    expect(titleDate(invoice.dueDate, 'UTC')).toBe(titleDate(invoice.dueDate, 'Asia/Dhaka'));
+    const notice = (await notices(db, 'INVOICE_ISSUED'))[0]?.payload as { summary: string };
+    expect(notice.summary).toContain(titleDate(invoice.dueDate, 'UTC'));
+  });
+
+  it(
+    'refuses a hand-made invoice whose midnight-to-midnight period overlaps one the run made at another time of day',
+    async () => {
+      const started = new Date(Date.now() - DAY);
+      started.setUTCHours(15, 42, 0, 0);
+      await subscribe(w, started);
+      await runBillingCycle(db, scope());
+      const [billed] = await invoicesOf(w);
+      if (!billed) throw new Error('run invoice');
+      // What the admin form sends: whole UTC days around the same period.
+      const day = (at: Date) =>
+        new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate()));
+      const overlapping = await createInvoice(db, {
+        actor: w.actor,
+        stepUpSatisfied: true,
+        organizationId: w.organizationId,
+        planId: w.planId,
+        periodStart: day(billed.periodStart),
+        periodEnd: day(billed.periodEnd),
+        invoiceRef: 'INV-ADMIN-OVERLAP',
+        invoicedAmountMinorUnits: 500_000,
+        currency: 'BDT',
+        dueDate: day(billed.dueDate),
+      });
+      expect(isErr(overlapping) && overlapping.error.code).toBe('invalid');
+      // The next period, starting the day the run's period ends, is fine.
+      const next = await createInvoice(db, {
+        actor: w.actor,
+        stepUpSatisfied: true,
+        organizationId: w.organizationId,
+        planId: w.planId,
+        periodStart: billed.periodEnd,
+        periodEnd: new Date(billed.periodEnd.getTime() + 30 * DAY),
+        invoiceRef: 'INV-ADMIN-NEXT',
+        invoicedAmountMinorUnits: 500_000,
+        currency: 'BDT',
+        dueDate: new Date(billed.periodEnd.getTime() + 7 * DAY),
+      });
+      expect(isOk(next)).toBe(true);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'counts overdue from the Bangladesh day after the due day, also with Grace at 0, and for reactivation',
+    async () => {
+      await setRules(db, { graceAfterDays: 0, suspendAfterDays: 30, overdueHandlingEnabled: true });
+      const today = billingDay(new Date());
+      const dueToday = await adminInvoice(w, 'INV-DUE-TODAY', today);
+      await runBillingCycle(db, scope());
+      expect(await status(w)).toBe('ACTIVE');
+      // The next Bangladesh day it is overdue, and Grace at 0 moves it.
+      const tomorrow = new Date(today.getTime() + DAY + 6 * 60 * 60 * 1000);
+      await runBillingCycle(db, scope(), { now: tomorrow });
+      expect(await status(w)).toBe('GRACE');
+      // Paying an invoice that is due today does not count as clearing an overdue one, and one
+      // that is due today does not stop a return to Active.
+      await pay(w, dueToday.id, 5000);
+      expect(await status(w)).toBe('ACTIVE');
+      await setByHand(w, 'GRACE');
+      await setByHand(w, 'ACTIVE');
+      const old = await adminInvoice(w, 'INV-OLD-R2', new Date(today.getTime() - 40 * DAY));
+      const dueTodayAgain = await createInvoice(db, {
+        actor: w.actor,
+        stepUpSatisfied: true,
+        organizationId: w.organizationId,
+        planId: w.planId,
+        periodStart: new Date(today.getTime() - 100 * DAY),
+        periodEnd: new Date(today.getTime() - 99 * DAY),
+        invoiceRef: 'INV-TODAY-R2',
+        invoicedAmountMinorUnits: 5000,
+        currency: 'BDT',
+        dueDate: today,
+      });
+      expect(isOk(dueTodayAgain)).toBe(true);
+      await db
+        .update(schema.billingStatusHistory)
+        .set({ createdAt: new Date(Date.now() - 300 * DAY) });
+      await runBillingCycle(db, scope());
+      expect(await status(w)).toBe('SUSPENDED');
+      await pay(w, old.id, 5000);
+      expect(await status(w)).toBe('ACTIVE');
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'returns agencies to Active first, with its own share of the work limit',
+    async () => {
+      // One agency VisaStack suspended whose invoice was then voided, and two agencies to bill.
+      const owed = await adminInvoice(w, 'INV-VOIDED-R2', new Date(Date.now() - 40 * DAY));
+      await setRules(db, { ...POLICY, overdueHandlingEnabled: true });
+      await runBillingCycle(db, scope());
+      expect(await status(w)).toBe('SUSPENDED');
+      await setRules(db, { overdueHandlingEnabled: false });
+      await voidInvoice(db, {
+        actor: w.actor,
+        stepUpSatisfied: true,
+        invoiceId: owed.id,
+        reason: 'issued in error',
+      });
+      for (const tag of ['bill-a', 'bill-b']) {
+        await subscribe(await world(db, tag, w), new Date(Date.now() - DAY));
+      }
+      const run = await runBillingCycle(db, scope(), { limit: 1 });
+      expect(run).toMatchObject({ returnedToActive: 1, invoicesCreated: 1, stoppedEarly: true });
+      expect(await status(w)).toBe('ACTIVE');
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it('changes a status by hand only from the status it really has, even two changes at once', async () => {
+    const results = await Promise.all(
+      (['CLOSED', 'GRACE'] as const).map((toStatus) =>
+        transitionBillingStatus(db, {
+          actor: w.actor,
+          stepUpSatisfied: true,
+          organizationId: w.organizationId,
+          toStatus,
+          reason: `at once to ${toStatus}`,
+        }),
+      ),
+    );
+    const history = [...(await historyOf(w))].reverse();
+    // Every row starts from the status the row before it left the account in.
+    for (let n = 1; n < history.length; n++) {
+      expect(history[n]?.fromStatus).toBe(history[n - 1]?.toStatus);
+    }
+    expect((await status(w)) === history.at(-1)?.toStatus).toBe(true);
+    expect(results.filter((r) => isOk(r)).length).toBe(history.length - 1);
+  });
+
+  it('says "due today" only on the due day and "was due on" after it', async () => {
+    expect(reminderWords(0, 'INV-1', '9 Nov 2026')).toMatchObject({
+      subject: 'Invoice due today',
+      timing: 'today',
+    });
+    expect(reminderWords(-1, 'INV-1', '9 Nov 2026')).toMatchObject({
+      subject: 'Invoice overdue',
+      summary: 'Invoice INV-1 was due on 9 Nov 2026 and is still unpaid.',
+      timing: 'overdue',
+    });
+    const due = billingDay(new Date(Date.now() + 20 * DAY));
+    const invoice = await adminInvoice(w, 'INV-DAY-AFTER', due);
+    await runBillingCycle(db, scope(), { now: new Date(due.getTime() + DAY + 3600_000) });
+    const sent = (await notices(db, 'INVOICE_REMINDER')).filter((n) => n.resourceId === invoice.id);
+    expect(sent.length).toBe(4);
+    for (const row of sent) {
+      expect(row.idempotencyKey.endsWith(':due_0')).toBe(true);
+      expect(row.payload).toMatchObject({ subject: 'Invoice overdue', timing: 'overdue' });
+    }
+  });
+
+  it('counts a reminder only when it was written, and names an agency nobody can be told about once', async () => {
+    const warn = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await db
+      .update(schema.memberships)
+      .set({ active: false })
+      .where(eq(schema.memberships.organizationId, w.organizationId));
+    await adminInvoice(w, 'INV-NOBODY', new Date(Date.now() + 2 * DAY));
+    await adminInvoice(w, 'INV-NOBODY-2', new Date(Date.now() + 2 * DAY + 2 * DAY));
+    const run = await runBillingCycle(db, scope());
+    expect(run).toMatchObject({ remindersQueued: 0, withoutContacts: 1 });
+    const lines = warn.mock.calls
+      .map((c) => String(c[0]))
+      .filter((l) => l.includes('no_billing_contact'));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain(w.organizationId);
+  });
+
+  it('logs each failure once with its step and the organization, and no amount', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await subscribe(w, new Date(Date.now() - DAY));
+    await db.execute(sql`drop table notifications cascade`);
+    const run = await runBillingCycle(db, scope());
+    expect(run).toMatchObject({ invoicesCreated: 0, failed: 1 });
+    const lines = logged.mock.calls.map((c) => String(c[0]));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('"step":"invoice"');
+    expect(lines[0]).toContain(w.organizationId);
+    expect(lines[0]).not.toMatch(/500000|5000\b/);
+    expect(await invoicesOf(w)).toHaveLength(0);
+  });
+
+  it(
+    'hides an in-app billing notice from someone who is no longer an owner or admin',
+    async () => {
+      await subscribe(w, new Date(Date.now() - DAY));
+      await runBillingCycle(db, scope());
+      const email: EmailPort = { send: async () => ({ providerMessageId: randomUUID() }) };
+      await runNotificationWorker(db, email, 'https://app.example.test');
+      const issued = async (accountId: string) =>
+        (await listNotificationsForAccount(db, accountId)).filter(
+          (n) => n.eventType === 'INVOICE_ISSUED',
+        );
+      expect(await issued(w.orgAdminId)).toHaveLength(1);
+      const unreadBefore = (await loadWorkspaceToolbarState(db, w.orgAdminId)).unread;
+      await db
+        .update(schema.memberships)
+        .set({ role: 'CASE_MANAGER' })
+        .where(eq(schema.memberships.accountId, w.orgAdminId));
+      expect(await issued(w.orgAdminId)).toHaveLength(0);
+      expect((await loadWorkspaceToolbarState(db, w.orgAdminId)).unread).toBe(unreadBefore - 1);
+      expect(await issued(w.orgOwnerId)).toHaveLength(1);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it('keeps the preview and the rules for the platform owner: a forged scope gets nothing', async () => {
+    const real = await ownerScopeOf(w);
+    const forged = { ...real } as typeof real;
+    expect(isErr(await previewOverdueHandling(db, forged, POLICY))).toBe(true);
+    expect(isErr(await getBillingSettings(db, forged))).toBe(true);
+    expect(isOk(await previewOverdueHandling(db, real, POLICY))).toBe(true);
+  });
+
+  it('takes locks in one order: invoice, then billing account, then the audit chain', () => {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const body = (file: string, start: string, end: string) => {
+      const text = readFileSync(join(here, file), 'utf8');
+      const from = text.indexOf(start);
+      const to = text.indexOf(end, from + start.length);
+      expect(from, `${file}: ${start}`).toBeGreaterThan(-1);
+      return text.slice(from, to === -1 ? undefined : to);
+    };
+    // The payment path: the account lock comes before the first write that appends audit.
+    const collection = body(
+      'invoice-ledger.ts',
+      'export async function applyInvoiceCollection',
+      'async function findExisting',
+    );
+    const replayEnd = collection.indexOf("if (invoice.status === 'VOID')");
+    const lockAt = collection.indexOf('lockRestorableAccount(tx');
+    expect(lockAt).toBeGreaterThan(replayEnd);
+    for (const write of [
+      'appendAuditEvent(',
+      'issueReceiptForPayment(tx, { payment,',
+      'recordProductEvent(',
+    ]) {
+      expect(collection.indexOf(write, replayEnd), write).toBeGreaterThan(lockAt);
+    }
+    expect(collection.indexOf(".for('update')")).toBeLessThan(lockAt);
+    // A change by hand: the account row is locked before its audit record.
+    const manual = body(
+      'billing.ts',
+      'export async function transitionBillingStatus',
+      'export async function',
+    );
+    expect(manual.indexOf(".for('update')")).toBeGreaterThan(-1);
+    expect(manual.indexOf(".for('update')")).toBeLessThan(manual.indexOf('appendAuditEvent('));
+    // The run: the account is locked before the change (which appends audit) is written.
+    const run = body('billing-cycle.ts', '// 1. Status', '// 2. One invoice');
+    expect(run.indexOf('lockBillingAccount(tx')).toBeGreaterThan(-1);
+    expect(run.indexOf('lockBillingAccount(tx')).toBeLessThan(
+      run.indexOf('applyOverdueStatusChange('),
+    );
+    // Nothing else locks a billing account.
+    const lockers = readdirSync(here)
+      .filter((f) => f.endsWith('.ts') && !f.includes('.test'))
+      .filter((f) => readFileSync(join(here, f), 'utf8').includes('lockBillingAccount('))
+      .sort();
+    expect(lockers).toEqual(['billing-cycle.ts', 'billing-standing.ts', 'invoice-ledger.ts']);
   });
 });

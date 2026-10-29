@@ -389,7 +389,7 @@ export default async function AdminOrganizationPage({
                   </span>
                 </div>
                 <span className="muted u-fs-085">
-                  {invoiceAmount(invoice)} · due {invoice.dueDate.toDateString()}
+                  {invoiceAmount(invoice)} · due {formatDateOnly(invoice.dueDate)}
                 </span>
                 {invoice.status === 'OPEN' || invoice.status === 'PARTIALLY_PAID' ? (
                   <div

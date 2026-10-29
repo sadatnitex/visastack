@@ -23,3 +23,29 @@ export const WHAT_SUSPENDED_DOES =
 
 export const TRAVELLER_UPLOADS_NOTE =
   'While an agency is Suspended, a traveller who shares records with it also cannot add new files. Decide whether that is right before turning this on.';
+
+/** The values as typed, sent back with every reply so the form never loses them. */
+export interface BillingRulesValues {
+  readonly dueDays: string;
+  readonly overdueHandling: 'on' | 'off';
+  readonly graceAfterDays: string;
+  readonly suspendAfterDays: string;
+}
+
+/** A preview the server worked out for exactly these day counts. */
+export interface BillingRulesPreview {
+  readonly graceAfterDays: number;
+  readonly suspendAfterDays: number;
+  readonly toGrace: number;
+  readonly toSuspended: number;
+}
+
+/** What saving the billing rules answers. */
+export interface BillingRulesState {
+  readonly ok: boolean;
+  readonly message: string;
+  readonly field?: string;
+  readonly values?: BillingRulesValues;
+  /** Present when the save needs this preview confirmed first. */
+  readonly preview?: BillingRulesPreview;
+}

@@ -7,6 +7,7 @@ import {
   insertBillingStatusHistory,
   readBillingStatusHistory,
 } from './billing-history';
+import { invoicePeriodOverlaps, timestampSql } from './billing-standing';
 import { type Db, first, isUniqueViolation, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import {
@@ -201,30 +202,33 @@ export async function transitionBillingStatus(
   const reason = input.reason.trim();
   if (reason.length === 0) return err(serviceError('invalid', 'a reason is required'));
 
-  const account = first(
-    await db
-      .select()
-      .from(schema.billingAccounts)
-      .where(eq(schema.billingAccounts.organizationId, input.organizationId))
-      .limit(1),
-  );
-  if (!account) {
-    return err(serviceError('not_found', 'this organization has no billing account yet'));
-  }
-  if (account.status === input.toStatus) {
-    return err(serviceError('invalid', `this billing account is already ${input.toStatus}`));
-  }
-  const legal = BILLING_TRANSITIONS[account.status];
-  if (!legal.includes(input.toStatus)) {
-    return err(
-      serviceError(
-        'invalid',
-        `cannot transition billing status from ${account.status} to ${input.toStatus}`,
-      ),
-    );
-  }
-
   return db.transaction(async (tx) => {
+    // Lock order (billing-standing.ts): the billing account row first, then the audit chain. The
+    // move is judged against the locked status, so two changes at once cannot both start from
+    // the same old status, and the history row names the status it really left.
+    const account = first(
+      await tx
+        .select()
+        .from(schema.billingAccounts)
+        .where(eq(schema.billingAccounts.organizationId, input.organizationId))
+        .limit(1)
+        .for('update'),
+    );
+    if (!account) {
+      return err(serviceError('not_found', 'this organization has no billing account yet'));
+    }
+    if (account.status === input.toStatus) {
+      return err(serviceError('invalid', `this billing account is already ${input.toStatus}`));
+    }
+    const legal = BILLING_TRANSITIONS[account.status];
+    if (!legal.includes(input.toStatus)) {
+      return err(
+        serviceError(
+          'invalid',
+          `cannot transition billing status from ${account.status} to ${input.toStatus}`,
+        ),
+      );
+    }
     const updated = required(
       first(
         await tx
@@ -434,8 +438,11 @@ export async function createInvoice(
   if (existingRef) {
     return err(serviceError('invalid', 'an invoice with this reference already exists'));
   }
-  // One live invoice per organization, plan and period start (S17, migration 0103): the daily
-  // billing run relies on it, so a hand-made invoice for a period it already billed is refused.
+  // One live invoice per organization, plan and period (S17): a hand-made invoice whose period
+  // overlaps a live one for the same plan is refused, by the same overlap rule the daily billing
+  // run uses (`invoicePeriodOverlaps`), so a date typed as midnight cannot bill again a period the
+  // run billed at another time of day. The database's unique index on the period start is the
+  // second layer.
   const samePeriod = first(
     await db
       .select({ id: schema.invoices.id })
@@ -444,8 +451,8 @@ export async function createInvoice(
         and(
           eq(schema.invoices.organizationId, input.organizationId),
           eq(schema.invoices.planId, input.planId),
-          eq(schema.invoices.periodStart, input.periodStart),
           ne(schema.invoices.status, 'VOID'),
+          invoicePeriodOverlaps(timestampSql(input.periodStart), timestampSql(input.periodEnd)),
         ),
       )
       .limit(1),
@@ -462,7 +469,7 @@ export async function createInvoice(
 }
 
 const SAME_PERIOD_MESSAGE =
-  'an invoice with this reference, or for this plan and period start, already exists';
+  'an invoice with this reference, or for this plan and an overlapping period, already exists';
 
 async function insertInvoice(
   db: Db,
