@@ -1047,3 +1047,115 @@ describe('invoices -- issue, collect, void (COM-03)', () => {
     });
   });
 });
+
+// Pinned before S17 (recurring invoices and overdue handling) so that work cannot change what a
+// person's own billing decisions do: a status a person set keeps naming that person, and paying
+// never moves a status a person set.
+describe('pinned before S17: a status a person set', () => {
+  let db: Db;
+  let owner: Awaited<ReturnType<typeof seedPlatformOwner>>;
+  beforeEach(async () => {
+    db = await freshDb();
+    owner = await seedPlatformOwner(db, 'pinned');
+  });
+
+  it('records the person and their reason on every history row, newest first', async () => {
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'pinned-history');
+    await openBillingAccount(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      initialStatus: 'ACTIVE',
+      reason: 'terms agreed',
+    });
+    const moved = await transitionBillingStatus(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      toStatus: 'GRACE',
+      reason: 'late payment agreed by phone',
+    });
+    expect(isOk(moved)).toBe(true);
+    const history = await listBillingStatusHistory(db, {
+      actorAccountId: ownerAccountId,
+      organizationId,
+    });
+    if (!isOk(history)) throw new Error('history');
+    expect(
+      history.value.map((h) => ({
+        fromStatus: h.fromStatus,
+        toStatus: h.toStatus,
+        actorAccountId: h.actorAccountId,
+        reason: h.reason,
+      })),
+    ).toEqual([
+      {
+        fromStatus: 'ACTIVE',
+        toStatus: 'GRACE',
+        actorAccountId: owner.accountId,
+        reason: 'late payment agreed by phone',
+      },
+      {
+        fromStatus: null,
+        toStatus: 'ACTIVE',
+        actorAccountId: owner.accountId,
+        reason: 'terms agreed',
+      },
+    ]);
+  });
+
+  it('keeps a Grace or Suspended status a person set when every invoice is paid in full', async () => {
+    const { organizationId } = await seedOrganization(db, 'pinned-paid');
+    const plan = await getPlanByKey(db, 'agency_starter');
+    if (!plan) throw new Error('seed plan');
+    await openBillingAccount(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      initialStatus: 'ACTIVE',
+      reason: 'terms agreed',
+    });
+    for (const toStatus of ['GRACE', 'SUSPENDED'] as const) {
+      const moved = await transitionBillingStatus(db, {
+        actor: owner.actor,
+        stepUpSatisfied: true,
+        organizationId,
+        toStatus,
+        reason: `set by hand to ${toStatus}`,
+      });
+      expect(isOk(moved)).toBe(true);
+      const start = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
+      const invoice = await createInvoice(db, {
+        actor: owner.actor,
+        stepUpSatisfied: true,
+        organizationId,
+        planId: plan.id,
+        periodStart: start,
+        periodEnd: new Date(start.getTime() + 30 * 24 * 60 * 60 * 1000),
+        invoiceRef: `INV-PINNED-${toStatus}`,
+        invoicedAmountMinorUnits: 5000,
+        currency: 'BDT',
+        dueDate: new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000),
+      });
+      if (!isOk(invoice)) throw new Error('invoice');
+      const paid = await recordInvoicePayment(db, {
+        actor: owner.actor,
+        stepUpSatisfied: true,
+        invoiceId: invoice.value.id,
+        amountMinorUnits: 5000,
+        collectedDate: new Date(),
+        paymentReference: `bank-${toStatus}`,
+        reason: 'paid in full',
+      });
+      if (!isOk(paid)) throw new Error('payment');
+      expect(paid.value.status).toBe('PAID');
+      const account = await getBillingAccountForOrganization(db, {
+        actorAccountId: owner.accountId,
+        organizationId,
+        actorEmail: `owner-pinned@platform.example.com`,
+      });
+      if (!isOk(account)) throw new Error('account');
+      expect(account.value?.status).toBe(toStatus);
+    }
+  });
+});
