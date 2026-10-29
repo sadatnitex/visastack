@@ -32,7 +32,7 @@ export async function registerStorageObject(
 /** Deletes bytes, then their registration only once the bytes are gone, so a failed delete stays findable. */
 export async function discardStorageObject(
   db: Db,
-  storage: BlobStore,
+  storage: Pick<BlobStore, 'deleteObject'>,
   bucket: StorageBucket,
   object: { readonly storageObjectId: string; readonly objectKey: string },
 ): Promise<void> {

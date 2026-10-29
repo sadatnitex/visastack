@@ -9,11 +9,15 @@ import { SAFE_COPY_STATE_LABELS, SafeCopyEditor, boxKeyAction } from './safe-cop
 
 const documentId = '00000000-0000-4000-8000-000000000001';
 const versionId = '00000000-0000-4000-8000-000000000101';
+const REVISION = '00000000-0000-4000-8000-0000000000ee';
 
 let root: Root;
 let container: HTMLDivElement;
 let fetchMock: ReturnType<typeof vi.fn>;
-let calls: { path: string; body: { readonly page?: unknown } & Record<string, unknown> }[];
+let calls: {
+  path: string;
+  body: { readonly page?: unknown; readonly maskRevision?: unknown } & Record<string, unknown>;
+}[];
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -22,9 +26,11 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+let failingPages: Set<number>;
+
 function respond(editor: Record<string, unknown> = {}) {
   return async (path: string, init: { body: string }) => {
-    const body = JSON.parse(init.body) as Record<string, unknown>;
+    const body = JSON.parse(init.body) as { readonly page?: unknown } & Record<string, unknown>;
     calls.push({ path, body });
     if (path === '/api/documents/redaction-editor') {
       return json({
@@ -37,8 +43,18 @@ function respond(editor: Record<string, unknown> = {}) {
       });
     }
     if (path === '/api/documents/redaction-page') {
+      if (failingPages.has(Number(body.page))) return json({ message: 'Try again soon.' }, 503);
       return new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), {
         headers: { 'content-type': 'image/jpeg' },
+      });
+    }
+    if (path === '/api/documents/safe-copy-prepare') {
+      const page = Number(body.page);
+      return json({
+        page,
+        pageCount: 2,
+        preparedPages: page,
+        state: page === 2 ? 'MASKED' : 'PREPARING',
       });
     }
     if (path === '/api/documents/redaction-suggestions') {
@@ -46,7 +62,11 @@ function respond(editor: Record<string, unknown> = {}) {
         suggestions: [{ page: 1, box: { x: 0.02, y: 0.78, w: 0.96, h: 0.2 }, reason: 'mrz' }],
       });
     }
-    if (path === '/api/documents/redaction-masks') return json({ state: 'MASKED' });
+    if (path === '/api/documents/redaction-masks') {
+      return body.clear
+        ? json({ state: 'NOT_PREPARED' })
+        : json({ state: 'PREPARING', pageCount: 2, boxCount: 1, maskRevision: REVISION });
+    }
     return json({ message: 'unexpected' }, 500);
   };
 }
@@ -59,13 +79,18 @@ async function settle() {
   }
 }
 
-async function mount(initialState: 'NOT_PREPARED' | 'MASKED' = 'NOT_PREPARED') {
+async function mount(
+  initialState: 'NOT_PREPARED' | 'PREPARING' | 'MASKED' = 'NOT_PREPARED',
+  available = true,
+) {
   await act(async () => {
     root.render(
       <SafeCopyEditor
         documentId={documentId}
+        versionId={versionId}
         returnTo="/app/applicant/a/documents"
         initialState={initialState}
+        available={available}
       />,
     );
   });
@@ -117,10 +142,15 @@ beforeEach(() => {
   calls = [];
   fetchMock = vi.fn(respond());
   vi.stubGlobal('fetch', fetchMock);
-  vi.stubGlobal(
-    'URL',
-    Object.assign(URL, { createObjectURL: () => 'blob:page', revokeObjectURL: () => undefined }),
-  );
+  failingPages = new Set();
+  window.sessionStorage.clear();
+  // Pages are decoded into bitmaps and painted on a canvas: no image address is ever made.
+  vi.stubGlobal('createImageBitmap', async () => ({
+    width: 10,
+    height: 14,
+    close: () => undefined,
+  }));
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
 });
 
 afterEach(() => {
@@ -194,7 +224,10 @@ describe('safe copy editor: keyboard', () => {
     await openEditor();
     await click('Next Page');
     expect(status()).toBe('Page 2 of 2.');
-    expect(container.querySelector('img')?.getAttribute('alt')).toBe('Page 2 of 2');
+    const canvas = container.querySelector('canvas');
+    expect(canvas?.getAttribute('role')).toBe('img');
+    expect(canvas?.getAttribute('aria-label')).toBe('Page 2 of 2');
+    expect(container.querySelector('img')).toBeNull();
     expect(
       calls.filter((c) => c.path === '/api/documents/redaction-page').map((c) => c.body.page),
     ).toEqual([1, 2]);
@@ -228,8 +261,17 @@ describe('safe copy editor: suggestions, review and saving', () => {
         { boxes: [], acceptedSuggestions: 0 },
       ],
     });
+    // Each page is then prepared once, in order, for the saved revision.
+    expect(
+      calls
+        .filter((c) => c.path === '/api/documents/safe-copy-prepare')
+        .map((c) => [c.body.page, c.body.maskRevision]),
+    ).toEqual([
+      [1, REVISION],
+      [2, REVISION],
+    ]);
     expect(status()).toBe(
-      'Safe copy saved. People you share safe copies with can now download it.',
+      'Safe copy ready. People you share safe copies with can now download it.',
     );
     expect(container.textContent).toContain(SAFE_COPY_STATE_LABELS.MASKED);
     expect(button('Download Safe Copy')).toBeTruthy();
@@ -269,5 +311,65 @@ describe('safe copy editor: suggestions, review and saving', () => {
     expect(container.querySelector('output.safe-copy-status')?.getAttribute('aria-live')).toBe(
       'polite',
     );
+  });
+
+  it('keeps unsaved boxes for this tab, so a fresh identity check never loses them', async () => {
+    await openEditor();
+    await click('Add Box');
+    await click('Move Right');
+    expect(window.sessionStorage.length).toBe(1);
+    const kept = window.sessionStorage.getItem(window.sessionStorage.key(0) ?? '') ?? '';
+    // Positions and page numbers only.
+    expect(JSON.parse(kept)).toEqual({
+      pageCount: 2,
+      pages: [[{ box: { x: 0.36, y: 0.47, w: 0.3, h: 0.06 } }], []],
+    });
+    act(() => root.unmount());
+    root = createRoot(container);
+    await openEditor();
+    expect(status()).toContain('Your unsaved boxes were restored.');
+    expect(listed()[0]).toContain('36% from the left');
+    await click('Cancel Editing');
+    expect(window.sessionStorage.length).toBe(0);
+  });
+
+  it('loads review pages one at a time, offers Try Again, and saves only once every page shows', async () => {
+    failingPages = new Set([2]);
+    await openEditor();
+    await click('Add Box');
+    await click('Review Pages');
+    const pageCalls = () =>
+      calls.filter((c) => c.path === '/api/documents/redaction-page').map((c) => c.body.page);
+    expect(pageCalls()).toEqual([1, 2]);
+    expect(button('Save Safe Copy').getAttribute('aria-disabled')).toBe('true');
+    expect(container.textContent).toContain(
+      'Every page must show before the safe copy can be saved.',
+    );
+    await click('Save Safe Copy');
+    expect(calls.some((c) => c.path === '/api/documents/redaction-masks')).toBe(false);
+    failingPages = new Set();
+    await click('Try Again');
+    expect(pageCalls()).toEqual([1, 2, 2]);
+    expect(button('Save Safe Copy').getAttribute('aria-disabled')).toBeNull();
+  });
+
+  it('carries on preparing a saved copy, and removes a copy without opening the editor', async () => {
+    fetchMock.mockImplementation(respond({ state: 'PREPARING', maskRevision: REVISION }));
+    await mount('PREPARING');
+    expect(container.textContent).toContain(SAFE_COPY_STATE_LABELS.PREPARING);
+    await click('Continue Preparing');
+    expect(calls.filter((c) => c.path === '/api/documents/safe-copy-prepare')).toHaveLength(2);
+    expect(status()).toContain('Safe copy ready.');
+    calls = [];
+    await click('Remove Safe Copy');
+    expect(calls.map((c) => c.path)).toEqual(['/api/documents/redaction-masks']);
+    expect(calls[0]?.body).toMatchObject({ versionId, clear: true });
+    expect(container.textContent).toContain(SAFE_COPY_STATE_LABELS.NOT_PREPARED);
+  });
+
+  it('says plainly when safe copies are off here, and offers nothing', async () => {
+    await mount('MASKED', false);
+    expect(container.textContent).toContain('Safe copies are not available here yet.');
+    expect(container.querySelectorAll('button')).toHaveLength(0);
   });
 });

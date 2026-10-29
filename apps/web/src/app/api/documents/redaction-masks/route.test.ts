@@ -8,6 +8,8 @@ const { session, requireAccess, save, clear, EACH } = vi.hoisted(() => ({
   save: vi.fn(),
   clear: vi.fn(),
 }));
+const capability = vi.hoisted(() => ({ redactedDownload: 'available' }));
+vi.mock('../../../../lib/capabilities', () => ({ getPlatformCapabilities: () => capability }));
 vi.mock('../../../../lib/session', () => ({ withSession: session }));
 vi.mock('../../../../lib/storage', () => ({ createStorage: () => ({}) }));
 vi.mock('../../../../lib/step-up', () => ({ establishStepUpProof: vi.fn() }));
@@ -39,12 +41,13 @@ function request(body: unknown) {
 }
 
 beforeEach(() => {
+  capability.redactedDownload = 'available';
   for (const mock of [session, requireAccess, save, clear]) mock.mockReset();
   session.mockImplementation((fn) => fn({ db: {}, accountId: 'acct' }));
   requireAccess.mockResolvedValue({ ok: true, value: { proof: true } });
   save.mockResolvedValue({
     ok: true,
-    value: { versionId, pageCount: 2, boxCount: 1, state: 'MASKED' },
+    value: { versionId, pageCount: 2, boxCount: 1, state: 'PREPARING', maskRevision: versionId },
   });
   clear.mockResolvedValue({ ok: true, value: { pagesCleared: 2 } });
 });
@@ -57,7 +60,12 @@ describe('safe copy boxes route', () => {
     ];
     const response = await POST(request({ documentId, versionId, pages, nothingToHide: false }));
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ state: 'MASKED', pageCount: 2, boxCount: 1 });
+    expect(await response.json()).toEqual({
+      state: 'PREPARING',
+      pageCount: 2,
+      boxCount: 1,
+      maskRevision: versionId,
+    });
     expect(requireAccess).toHaveBeenCalledWith(
       {},
       { kind: 'account', accountId: 'acct' },
@@ -75,7 +83,7 @@ describe('safe copy boxes route', () => {
   it('clears through the same proof', async () => {
     const response = await POST(request({ documentId, versionId, clear: true }));
     expect(await response.json()).toEqual({ state: 'NOT_PREPARED' });
-    expect(clear).toHaveBeenCalledWith({ proof: true }, { versionId });
+    expect(clear).toHaveBeenCalledWith({ proof: true }, { versionId }, expect.anything());
     expect(save).not.toHaveBeenCalled();
   });
 

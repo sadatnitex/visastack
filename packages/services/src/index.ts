@@ -1824,18 +1824,20 @@ export {
   LOGO_MAX_OUTPUT_BYTES,
   type LogoUploadChecks,
 } from './branding';
-// S23: safe copies (ADR 0022): the owner's boxes, the editor's reads and the masked copy.
+// S23: safe copies (ADR 0022): the owner's boxes, the editor's reads, preparing and the copy.
 export type {
   PositionedText,
   SafeCopyBox,
   SafeCopyBudget,
   SafeCopyFailure,
   SafeCopyFailureReason,
+  SafeCopyPageImage,
   SafeCopyRendererPort,
   SafeCopySource,
 } from './preview-rendering';
 export {
-  MASKS_MISMATCH_DETAIL,
+  MAX_SUGGESTIONS_PER_PAGE,
+  type PreparedSafeCopyPage,
   type ProducedSafeCopy,
   type RedactionDeps,
   type RedactionEditorView,
@@ -1852,9 +1854,13 @@ export {
   type SavedRedaction,
   clearRedactionMasks,
   getSafeCopyState,
+  isSafeCopyReady,
+  isValidIban,
   listRedactionStates,
-  masksMismatch,
+  listSafeCopyStatesForDocuments,
+  looksLikeAccountNumber,
   openRedactionEditor,
+  prepareSafeCopyPage,
   produceSafeCopy,
   renderRedactionPage,
   saveRedactionMasks,

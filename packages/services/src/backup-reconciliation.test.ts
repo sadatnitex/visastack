@@ -1663,19 +1663,65 @@ describe('reconcileRestoredBranch: safe copy boxes (S23)', () => {
       .orderBy(schema.redactionMasks.page);
   }
 
-  async function writeMasks(db: Db, versionId: string, ownerId: string, pages: unknown[][]) {
+  async function writeMasks(
+    db: Db,
+    versionId: string,
+    ownerId: string,
+    pages: unknown[][],
+    drawn = false,
+  ) {
     await db
       .delete(schema.redactionMasks)
       .where(eq(schema.redactionMasks.documentVersionId, versionId));
+    const maskRevision = crypto.randomUUID();
     for (const [index, boxes] of pages.entries()) {
+      const drawing = drawn
+        ? first(
+            await db
+              .insert(schema.storageObjects)
+              .values({
+                bucket: 'CLEAN',
+                objectKey: `safe-copy/${crypto.randomUUID()}`,
+                contentHash: 'drawn',
+              })
+              .returning(),
+          )
+        : undefined;
       await db.insert(schema.redactionMasks).values({
         documentVersionId: versionId,
         page: index + 1,
         boxes: boxes as never,
         source: 'OWNER',
         createdByAccountId: ownerId,
+        maskRevision,
+        ...(drawing
+          ? {
+              renderedStorageObjectId: drawing.id,
+              renderedContentType: 'image/jpeg',
+              renderedByteSize: 10,
+              renderedWidthPt: 612,
+              renderedHeightPt: 792,
+              renderedAt: AFTER,
+            }
+          : {}),
       });
     }
+  }
+
+  async function drawnOnNew(versionId: string) {
+    return (
+      await newDb
+        .select({ id: schema.redactionMasks.renderedStorageObjectId })
+        .from(schema.redactionMasks)
+        .where(eq(schema.redactionMasks.documentVersionId, versionId))
+    ).filter((row) => row.id !== null);
+  }
+
+  async function safeCopyErasuresOnNew() {
+    return newDb
+      .select()
+      .from(schema.erasureJobs)
+      .where(eq(schema.erasureJobs.reason, 'SAFE_COPY_REMOVAL'));
   }
 
   async function event(
@@ -1733,6 +1779,29 @@ describe('reconcileRestoredBranch: safe copy boxes (S23)', () => {
     expect(report.errors).toHaveLength(1);
     expect(report.errors[0]?.eventType).toBe('DOCUMENT_REDACTION_SAVED');
     expect(await masks(newDb, versionId)).toEqual([]);
+  });
+
+  it('never keeps a drawing from either branch: boxes come back to be drawn again, files erased', async () => {
+    const { owner, documentId, versionId } = await sharedVersion('recon-drawn@example.com');
+    // The restored branch had an older, drawn copy; afterwards the owner saved and drew new boxes.
+    await writeMasks(newDb, versionId, owner.id, [[], []], true);
+    await writeMasks(oldDb, versionId, owner.id, [BOXES, []], true);
+    const restoredDrawings = (await drawnOnNew(versionId)).map((row) => row.id);
+    await event('DOCUMENT_REDACTION_SAVED', documentId, versionId);
+    const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(report.errors).toEqual([]);
+    expect(await masks(newDb, versionId)).toEqual([
+      { page: 1, boxes: BOXES },
+      { page: 2, boxes: [] },
+    ]);
+    // Nothing drawn is kept: the copy is preparing again, never serving either branch's pages.
+    expect(await drawnOnNew(versionId)).toEqual([]);
+    // Both branches' drawings are queued for verified erasure on the restored branch.
+    const jobs = (await safeCopyErasuresOnNew()).map((job) => job.storageObjectId);
+    expect(jobs).toHaveLength(4);
+    for (const id of restoredDrawings) expect(jobs).toContain(id);
+    const again = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(again.counts.redactionMasksReconciled).toBe(0);
   });
 
   it('is a clean no-op when the restored branch predates the safe copy table', async () => {

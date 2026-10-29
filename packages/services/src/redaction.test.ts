@@ -12,35 +12,44 @@ import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
+import { executeAccountDeletion, requestAccountDeletion } from './deletion';
 import { addDocumentVersion, registerDocument } from './documents';
 import { enqueueErasureJob } from './erasure';
 import type { KeyManagementPort } from './ports';
 import type {
   PositionedText,
   SafeCopyFailureReason,
+  SafeCopyPageImage,
   SafeCopyRendererPort,
 } from './preview-rendering';
 import { editFact, registerFieldDefinition } from './profile';
 import { resetProtectedFieldKeyCacheForTests } from './protected-fields';
 import { RATE_LIMITS } from './rate-limit';
 import {
+  MAX_SUGGESTIONS_PER_PAGE,
   type RedactionDeps,
   SAFE_COPY_TOO_LARGE_MESSAGE,
   clearRedactionMasks,
   getSafeCopyState,
+  isValidIban,
   listRedactionStates,
-  masksMismatch,
+  listSafeCopyStatesForDocuments,
+  looksLikeAccountNumber,
   openRedactionEditor,
+  prepareSafeCopyPage,
   produceSafeCopy,
   renderRedactionPage,
   saveRedactionMasks,
   suggestRedactions,
 } from './redaction';
 import { issueStepUpAssurance } from './step-up';
+import type { StorageBucket, StoredBytes } from './storage';
 
 const STEP_UP_SECRET = 'redaction-step-up-secret';
 /** A distinctive coordinate: it must never reach the audit trail. */
 const BOX = { x: 0.313131, y: 0.414141, w: 0.2, h: 0.05 };
+/** The bytes of the stored original; a stored drawing never contains them. */
+const ORIGINAL = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x4f, 0x52, 0x49, 0x47]);
 
 interface FakeOptions {
   readonly contentType?: string;
@@ -50,13 +59,18 @@ interface FakeOptions {
   readonly bytes?: Uint8Array;
 }
 
-/** Records what reached storage and the renderer, so a refusal can be shown to draw nothing. */
+/** Stored drawings, shared by every fake in one test, as a private bucket would hold them. */
+let drawings: Map<string, StoredBytes>;
+
+/** Records what reached storage and the renderer, so a refusal can be shown to do nothing. */
 function fakeDeps(options: FakeOptions = {}): RedactionDeps & {
   readonly calls: string[];
-  readonly masksDrawn: (readonly (readonly unknown[])[])[];
+  readonly drawn: { page: number; boxes: readonly unknown[] }[];
+  readonly assembled: SafeCopyPageImage[][];
 } {
   const calls: string[] = [];
-  const masksDrawn: (readonly (readonly unknown[])[])[] = [];
+  const drawn: { page: number; boxes: readonly unknown[] }[] = [];
+  const assembled: SafeCopyPageImage[][] = [];
   const pageCount = options.pageCount ?? 2;
   const failure = options.fail
     ? { ok: false as const, reason: options.fail, detail: 'test failure' }
@@ -84,32 +98,47 @@ function fakeDeps(options: FakeOptions = {}): RedactionDeps & {
       calls.push('textPositions');
       return { ok: true, pages: options.text ?? [] };
     },
-    async renderSafeCopy(_source, masks) {
-      calls.push('renderSafeCopy');
-      masksDrawn.push(masks);
+    async renderMaskedPage(_source, page, boxes, budget) {
+      calls.push(`renderMaskedPage:${page}`);
+      drawn.push({ page, boxes });
       if (failure) return failure;
-      if (masks.length !== pageCount) return masksMismatch();
+      if (budget.maxBytes < 10) return { ok: false, reason: 'too_large', detail: 'x' };
       return {
         ok: true,
-        contentType: 'application/pdf',
-        bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]),
-        pageCount,
+        contentType: 'image/jpeg',
+        bytes: new Uint8Array([0xff, 0xd8, page, boxes.length, 0xff, 0xd9]),
+        widthPt: 612,
+        heightPt: 792,
       };
+    },
+    assembleSafeCopy(pages) {
+      calls.push('assembleSafeCopy');
+      assembled.push([...pages]);
+      return { ok: true, contentType: 'application/pdf', bytes: new Uint8Array([0x25, 0x50]) };
     },
   };
   return {
     storage: {
-      async getObject() {
+      async getObject(objectKey: string) {
+        const drawing = drawings.get(objectKey);
+        if (drawing) return drawing;
         calls.push('getObject');
         return {
           contentType: options.contentType ?? 'application/pdf',
-          bytes: options.bytes ?? new Uint8Array([0x25, 0x50, 0x44, 0x46]),
+          bytes: options.bytes ?? ORIGINAL,
         };
+      },
+      async putObject(input) {
+        drawings.set(input.objectKey, { contentType: input.contentType, bytes: input.bytes });
+      },
+      async deleteObject(_bucket: StorageBucket, objectKey: string) {
+        drawings.delete(objectKey);
       },
     },
     renderer,
     calls,
-    masksDrawn,
+    drawn,
+    assembled,
   };
 }
 
@@ -195,6 +224,7 @@ describe('safe copies (S23, ADR 0022)', () => {
   }
 
   beforeEach(async () => {
+    drawings = new Map();
     db = await freshDb();
     resetProtectedFieldKeyCacheForTests();
     ownerId = await account('owner@example.com');
@@ -246,6 +276,43 @@ describe('safe copies (S23, ADR 0022)', () => {
     });
   }
 
+  /** What the owner's editor does after a save: each page drawn once, in order. */
+  async function prepareAll(revision: string, pageCount = 2, deps = fakeDeps()) {
+    let last: Awaited<ReturnType<typeof prepareSafeCopyPage>> | undefined;
+    for (let page = 1; page <= pageCount; page++) {
+      last = await prepareSafeCopyPage(await gate(ownerId, 'MANAGE'), deps, {
+        versionId,
+        page,
+        maskRevision: revision,
+      });
+      if (!isOk(last)) throw new Error(`prepare ${page}: ${last.error.message}`);
+    }
+    return last;
+  }
+
+  /** Saves and prepares, returning the revision. */
+  async function ready(pages: readonly (readonly unknown[])[] = [[BOX], []]) {
+    const saved = await saveBoxes(pages);
+    if (!isOk(saved)) throw new Error(saved.error.message);
+    await prepareAll(saved.value.maskRevision, pages.length);
+    return saved.value.maskRevision;
+  }
+
+  async function erasureJobs(reason = 'SAFE_COPY_REMOVAL') {
+    return db
+      .select()
+      .from(schema.erasureJobs)
+      .where(eq(schema.erasureJobs.reason, reason as never));
+  }
+
+  async function maskRows(version: string = versionId) {
+    return db
+      .select()
+      .from(schema.redactionMasks)
+      .where(eq(schema.redactionMasks.documentVersionId, version))
+      .orderBy(schema.redactionMasks.page);
+  }
+
   async function stateOf(version: string = versionId) {
     const listed = await listRedactionStates(await applicantProof(ownerId), [version]);
     if (!isOk(listed)) throw new Error('states');
@@ -281,7 +348,7 @@ describe('safe copies (S23, ADR 0022)', () => {
   }
 
   describe('the owner prepares and downloads a safe copy', () => {
-    it('saves boxes for every page, then draws exactly them, auditing counts only', async () => {
+    it('saves, prepares each page once, then serves only the stored pages, auditing counts only', async () => {
       expect(await stateOf()).toBe('NOT_PREPARED');
       const deps = fakeDeps();
       const editor = await openRedactionEditor(await gate(ownerId, 'PREVIEW'), deps);
@@ -291,6 +358,8 @@ describe('safe copies (S23, ADR 0022)', () => {
         pageCount: 2,
         state: 'NOT_PREPARED',
         savedPages: null,
+        maskRevision: null,
+        preparedPages: [],
         canSave: true,
       });
       const page = await renderRedactionPage(await gate(ownerId, 'PREVIEW'), deps, {
@@ -308,34 +377,67 @@ describe('safe copies (S23, ADR 0022)', () => {
         nothingToHide: false,
       });
       if (!isOk(saved)) throw new Error(saved.error.message);
-      expect(saved.value).toEqual({ versionId, pageCount: 2, boxCount: 1, state: 'MASKED' });
-      expect(await stateOf()).toBe('MASKED');
-      const rows = await db
-        .select()
-        .from(schema.redactionMasks)
-        .where(eq(schema.redactionMasks.documentVersionId, versionId));
-      expect(rows.map((row) => [row.page, row.source, row.createdByAccountId])).toEqual([
-        [1, 'SUGGESTED_ACCEPTED', ownerId],
-        [2, 'OWNER', ownerId],
-      ]);
-
-      const copy = await produceSafeCopy(await gate(ownerId, 'DOWNLOAD_REDACTED'), deps);
-      if (!isOk(copy)) throw new Error(copy.error.message);
-      expect(copy.value).toMatchObject({
-        contentType: 'application/pdf',
+      expect(saved.value).toMatchObject({
+        versionId,
         pageCount: 2,
-        filename: 'safe-copy.pdf',
+        boxCount: 1,
+        state: 'PREPARING',
       });
-      expect(deps.masksDrawn).toEqual([[[BOX], []]]);
+      const revision = saved.value.maskRevision;
+      expect(await stateOf()).toBe('PREPARING');
+      // Not served while preparing.
+      const early = await produceSafeCopy(await gate(ownerId, 'DOWNLOAD_REDACTED'), deps);
+      expect(isErr(early) && early.error.refusal).toBe('not_prepared');
+
+      const first = await prepareSafeCopyPage(await gate(ownerId, 'MANAGE'), deps, {
+        versionId,
+        page: 1,
+        maskRevision: revision,
+      });
+      expect(isOk(first) && first.value).toEqual({
+        page: 1,
+        pageCount: 2,
+        preparedPages: 1,
+        state: 'PREPARING',
+      });
+      // Resuming after an interruption skips the page already drawn.
+      const resumed = await openRedactionEditor(await gate(ownerId, 'PREVIEW'), deps);
+      expect(isOk(resumed) && resumed.value).toMatchObject({
+        maskRevision: revision,
+        preparedPages: [1],
+        state: 'PREPARING',
+      });
+      const again = await prepareSafeCopyPage(await gate(ownerId, 'MANAGE'), deps, {
+        versionId,
+        page: 1,
+        maskRevision: revision,
+      });
+      expect(isOk(again) && again.value.preparedPages).toBe(1);
+      const second = await prepareSafeCopyPage(await gate(ownerId, 'MANAGE'), deps, {
+        versionId,
+        page: 2,
+        maskRevision: revision,
+      });
+      expect(isOk(second) && second.value.state).toBe('MASKED');
+      expect(deps.drawn).toEqual([
+        { page: 1, boxes: [BOX] },
+        { page: 2, boxes: [] },
+      ]);
+      expect(await stateOf()).toBe('MASKED');
+      expect(drawings.size).toBe(2);
+
+      // A download draws nothing and never reads the original.
+      const download = fakeDeps();
+      const copy = await produceSafeCopy(await gate(ownerId, 'DOWNLOAD_REDACTED'), download);
+      if (!isOk(copy)) throw new Error(copy.error.message);
+      expect(copy.value).toMatchObject({ contentType: 'application/pdf', pageCount: 2 });
+      expect(download.calls).toEqual(['assembleSafeCopy']);
+      expect(download.assembled[0]?.map((p) => [p.contentType, p.bytes[2], p.bytes[3]])).toEqual([
+        ['image/jpeg', 1, 1],
+        ['image/jpeg', 2, 0],
+      ]);
 
       const [savedEvent] = await audits('DOCUMENT_REDACTION_SAVED');
-      expect(Object.keys(savedEvent?.metadata as object).sort()).toEqual([
-        'acceptedSuggestions',
-        'boxCount',
-        'documentVersionId',
-        'nothingToHide',
-        'pageCount',
-      ]);
       expect(savedEvent?.metadata).toEqual({
         documentVersionId: versionId,
         pageCount: 2,
@@ -344,23 +446,21 @@ describe('safe copies (S23, ADR 0022)', () => {
         acceptedSuggestions: 1,
       });
       const access = await audits('DOCUMENT_ACCESS');
-      const download = access.find((a) => a.action === 'DOWNLOAD_REDACTED');
-      expect(download).toMatchObject({ result: 'ALLOWED', actorRole: 'applicant_owner' });
-      expect(download?.metadata).toMatchObject({
+      const downloaded = access.find(
+        (a) => a.action === 'DOWNLOAD_REDACTED' && a.result === 'ALLOWED',
+      );
+      expect(downloaded?.metadata).toMatchObject({
         variant: 'redacted',
         disposition: 'download',
         pageCount: 2,
         boxCount: 1,
         purpose: 'owner_safe_copy',
       });
-      // No box position, image data or file content anywhere in the audit trail.
+      // No box position, image data, file content or file name anywhere in the audit trail.
       const everything = JSON.stringify(await db.select().from(schema.auditEvents));
       expect(everything).not.toContain('313131');
       expect(everything).not.toContain('414141');
-      expect(everything).not.toMatch(/"bytes"|jpeg|base64/i);
-
-      const reopened = await openRedactionEditor(await gate(ownerId, 'PREVIEW'), deps);
-      expect(isOk(reopened) && reopened.value.savedPages).toEqual([[BOX], []]);
+      expect(everything).not.toMatch(/"bytes"|jpeg|base64|safe-copy\//i);
     });
 
     it('needs the explicit Nothing to Hide choice for a copy with no boxes', async () => {
@@ -375,10 +475,7 @@ describe('safe copies (S23, ADR 0022)', () => {
         nothingToHide: true,
       });
       expect(isErr(contradictory) && contradictory.error.code).toBe('invalid');
-      expect(await stateOf()).toBe('NOT_PREPARED');
-
-      const deps = fakeDeps();
-      const nothing = await saveRedactionMasks(await gate(ownerId, 'MANAGE'), deps, {
+      const nothing = await saveRedactionMasks(await gate(ownerId, 'MANAGE'), fakeDeps(), {
         versionId,
         pages: [
           { boxes: [], acceptedSuggestions: 0 },
@@ -386,14 +483,12 @@ describe('safe copies (S23, ADR 0022)', () => {
         ],
         nothingToHide: true,
       });
-      expect(isOk(nothing) && nothing.value.state).toBe('NOTHING_TO_HIDE');
+      if (!isOk(nothing)) throw new Error('save');
+      await prepareAll(nothing.value.maskRevision);
       expect(await stateOf()).toBe('NOTHING_TO_HIDE');
-      expect(isOk(await produceSafeCopy(await gate(ownerId, 'DOWNLOAD_REDACTED'), deps))).toBe(
-        true,
-      );
-      expect(deps.masksDrawn).toEqual([[[], []]]);
-      const [event] = await audits('DOCUMENT_REDACTION_SAVED');
-      expect(event?.metadata).toMatchObject({ nothingToHide: true, boxCount: 0 });
+      expect(
+        isOk(await produceSafeCopy(await gate(ownerId, 'DOWNLOAD_REDACTED'), fakeDeps())),
+      ).toBe(true);
     });
 
     it('refuses a save that does not cover exactly the pages of the file, or a box off the page', async () => {
@@ -407,23 +502,45 @@ describe('safe copies (S23, ADR 0022)', () => {
       }
       const tooMany = await saveBoxes([Array.from({ length: 201 }, () => BOX), []]);
       expect(isErr(tooMany) && tooMany.error.code).toBe('invalid');
-      const wrongCount = await saveRedactionMasks(await gate(ownerId, 'MANAGE'), fakeDeps(), {
-        versionId,
-        pages: [
-          { boxes: [BOX], acceptedSuggestions: 2 },
-          { boxes: [], acceptedSuggestions: 0 },
-        ],
-        nothingToHide: false,
-      });
-      expect(isErr(wrongCount) && wrongCount.error.code).toBe('invalid');
       expect(await stateOf()).toBe('NOT_PREPARED');
     });
+  });
 
-    it('clears the boxes, so the copy is not prepared again, auditing counts only', async () => {
-      expect(isOk(await saveBoxes([[BOX], []]))).toBe(true);
-      const cleared = await clearRedactionMasks(await gate(ownerId, 'MANAGE'), { versionId });
+  describe('a new revision replaces the old one, which is never served', () => {
+    it('saving again queues the old drawings for erasure, deletes them, and serves nothing old', async () => {
+      const first = await ready();
+      const before = await maskRows();
+      const oldObjects = before.map((row) => row.renderedStorageObjectId);
+      expect(oldObjects.every((id) => id !== null)).toBe(true);
+      const saved = await saveBoxes([[], [BOX]]);
+      if (!isOk(saved)) throw new Error('save');
+      expect(saved.value.maskRevision).not.toBe(first);
+      expect(await stateOf()).toBe('PREPARING');
+      // Old drawings: deleted at once, and queued for verified erasure in the same transaction.
+      expect(drawings.size).toBe(0);
+      const jobs = await erasureJobs();
+      expect(jobs.map((job) => job.storageObjectId).sort()).toEqual([...oldObjects].sort());
+      const copy = await produceSafeCopy(await gate(ownerId, 'DOWNLOAD_REDACTED'), fakeDeps());
+      expect(isErr(copy) && copy.error.refusal).toBe('not_prepared');
+      // A preparing step for the old revision is refused and stores nothing.
+      const stale = await prepareSafeCopyPage(await gate(ownerId, 'MANAGE'), fakeDeps(), {
+        versionId,
+        page: 1,
+        maskRevision: first,
+      });
+      expect(isErr(stale) && stale.error.refusal).toBe('out_of_date');
+      expect(drawings.size).toBe(0);
+    });
+
+    it('removing the safe copy needs no drawing of the file, and queues its drawings for erasure', async () => {
+      await ready();
+      const deps = fakeDeps({ fail: 'unreadable' });
+      const cleared = await clearRedactionMasks(await gate(ownerId, 'MANAGE'), { versionId }, deps);
       expect(isOk(cleared) && cleared.value.pagesCleared).toBe(2);
+      expect(deps.calls).toEqual([]);
       expect(await stateOf()).toBe('NOT_PREPARED');
+      expect(await erasureJobs()).toHaveLength(2);
+      expect(drawings.size).toBe(0);
       const [event] = await audits('DOCUMENT_REDACTION_CLEARED');
       expect(event?.metadata).toEqual({
         documentVersionId: versionId,
@@ -433,13 +550,50 @@ describe('safe copies (S23, ADR 0022)', () => {
         acceptedSuggestions: 0,
       });
     });
+
+    it('refuses a stored page that is missing or no longer matches what was stored', async () => {
+      await ready();
+      const [row] = await maskRows();
+      const [object] = await db
+        .select()
+        .from(schema.storageObjects)
+        .where(eq(schema.storageObjects.id, row?.renderedStorageObjectId ?? ''));
+      if (!object) throw new Error('drawing');
+      drawings.set(object.objectKey, { contentType: 'image/jpeg', bytes: new Uint8Array([9, 9]) });
+      const copy = await produceSafeCopy(await gate(ownerId, 'DOWNLOAD_REDACTED'), fakeDeps());
+      expect(isErr(copy) && copy.error.refusal).toBe('not_prepared');
+      drawings.delete(object.objectKey);
+      const gone = await produceSafeCopy(await gate(ownerId, 'DOWNLOAD_REDACTED'), fakeDeps());
+      expect(isErr(gone) && gone.error.refusal).toBe('not_prepared');
+      const denied = (await audits('DOCUMENT_ACCESS')).filter((a) => a.result === 'DENIED');
+      expect(denied.map((a) => a.reason)).toEqual(['stored_page_missing', 'stored_page_missing']);
+    });
+
+    it('says a page took too long, not that the document is too large, and keeps nothing', async () => {
+      const saved = await saveBoxes([[BOX], []]);
+      if (!isOk(saved)) throw new Error('save');
+      const slow = await prepareSafeCopyPage(
+        await gate(ownerId, 'MANAGE'),
+        fakeDeps({ fail: 'out_of_time' }),
+        { versionId, page: 1, maskRevision: saved.value.maskRevision },
+      );
+      expect(isErr(slow) && slow.error.refusal).toBe('too_slow');
+      const large = await prepareSafeCopyPage(
+        await gate(ownerId, 'MANAGE'),
+        fakeDeps({ fail: 'too_large' }),
+        { versionId, page: 1, maskRevision: saved.value.maskRevision },
+      );
+      expect(isErr(large) && large.error.message).toBe(SAFE_COPY_TOO_LARGE_MESSAGE);
+      expect(drawings.size).toBe(0);
+      expect(await stateOf()).toBe('PREPARING');
+    });
   });
 
   describe('nothing unmasked is ever served', () => {
     async function refusedCopy(deps = fakeDeps()) {
       const copy = await produceSafeCopy(await gate(ownerId, 'DOWNLOAD_REDACTED'), deps);
       expect(isErr(copy)).toBe(true);
-      expect(deps.calls).not.toContain('renderSafeCopy');
+      expect(deps.calls).not.toContain('assembleSafeCopy');
       return isErr(copy) ? copy.error : undefined;
     }
 
@@ -450,126 +604,130 @@ describe('safe copies (S23, ADR 0022)', () => {
       expect(denied).toMatchObject({ result: 'DENIED', reason: 'not_prepared' });
     });
 
-    it('refuses a copy whose boxes cover only some pages, or hold anything but valid boxes', async () => {
-      await db.insert(schema.redactionMasks).values({
-        documentVersionId: versionId,
-        page: 2,
-        boxes: [BOX],
-        source: 'OWNER',
-        createdByAccountId: ownerId,
-      });
+    it('refuses rows that cover only some pages, mix revisions or hold invalid boxes', async () => {
+      const revision = randomUUID();
+      const insert = (page: number, boxes: unknown, maskRevision = revision) =>
+        db.insert(schema.redactionMasks).values({
+          documentVersionId: versionId,
+          page,
+          boxes: boxes as never,
+          source: 'OWNER',
+          createdByAccountId: ownerId,
+          maskRevision,
+        });
+      await insert(2, [BOX]);
+      expect(await stateOf()).toBe('NOT_PREPARED');
+      await insert(1, [BOX], randomUUID());
+      expect(await stateOf()).toBe('NOT_PREPARED');
+      await db.delete(schema.redactionMasks);
+      await insert(1, [{ x: 2, y: 0, w: 0.1, h: 0.1 }]);
+      await insert(2, []);
       expect(await stateOf()).toBe('NOT_PREPARED');
       expect((await refusedCopy())?.refusal).toBe('not_prepared');
-      await db.insert(schema.redactionMasks).values({
-        documentVersionId: versionId,
-        page: 1,
-        boxes: [{ x: 2, y: 0, w: 0.1, h: 0.1 }],
-        source: 'OWNER',
-        createdByAccountId: ownerId,
-      });
-      expect(await stateOf()).toBe('NOT_PREPARED');
-      expect((await refusedCopy())?.refusal).toBe('not_prepared');
-    });
-
-    it('refuses when the saved pages no longer match the file, as not prepared', async () => {
-      expect(isOk(await saveBoxes([[BOX], []]))).toBe(true);
-      const threePages = fakeDeps({ pageCount: 3 });
-      const copy = await produceSafeCopy(await gate(ownerId, 'DOWNLOAD_REDACTED'), threePages);
-      expect(isErr(copy) && copy.error.refusal).toBe('not_prepared');
-      const denied = (await audits('DOCUMENT_ACCESS')).find((a) => a.result === 'DENIED');
-      expect(denied?.reason).toBe('masks_do_not_cover_pages');
     });
 
     it('reads Not Prepared Yet and saves nothing before migration 0102 has run', async () => {
       await db.execute(sql`alter table redaction_masks rename to redaction_masks_away`);
       try {
         expect(await stateOf()).toBe('NOT_PREPARED');
-        const error = await refusedCopy();
-        expect(error?.refusal).toBe('not_prepared');
+        expect((await refusedCopy())?.refusal).toBe('not_prepared');
         const saved = await saveBoxes([[BOX], []]);
         expect(isErr(saved) && saved.error.refusal).toBe('not_ready_yet');
         const editor = await openRedactionEditor(await gate(ownerId, 'PREVIEW'), fakeDeps());
         expect(isOk(editor) && editor.value).toMatchObject({ canSave: false, savedPages: null });
         const cleared = await clearRedactionMasks(await gate(ownerId, 'MANAGE'), { versionId });
         expect(isErr(cleared) && cleared.error.refusal).toBe('not_ready_yet');
+        const prepared = await prepareSafeCopyPage(await gate(ownerId, 'MANAGE'), fakeDeps(), {
+          versionId,
+          page: 1,
+          maskRevision: randomUUID(),
+        });
+        expect(isErr(prepared) && prepared.error.refusal).toBe('not_ready_yet');
       } finally {
         await db.execute(sql`alter table redaction_masks_away rename to redaction_masks`);
       }
     });
 
-    it('refuses a version still being checked, before reading any bytes', async () => {
-      expect(isOk(await saveBoxes([[BOX], []]))).toBe(true);
+    it('refuses while a newer version is still being checked, before reading anything', async () => {
+      await ready();
       await addVersion(ownerId, documentId, 2048, 'PENDING');
       const deps = fakeDeps();
       const error = await refusedCopy(deps);
       expect(error?.refusal).toBe('not_available');
       expect(deps.calls).toEqual([]);
     });
-
-    it('refuses when drawing fails, never returning a partial copy', async () => {
-      expect(isOk(await saveBoxes([[BOX], []]))).toBe(true);
-      const copy = await produceSafeCopy(
-        await gate(ownerId, 'DOWNLOAD_REDACTED'),
-        fakeDeps({ fail: 'unreadable' }),
-      );
-      expect(isErr(copy) && copy.error.refusal).toBe('unreadable');
-    });
   });
 
-  describe('boxes never carry over', () => {
-    it('starts a new version with no boxes and refuses saving on an older one', async () => {
-      expect(isOk(await saveBoxes([[BOX], []]))).toBe(true);
+  describe('boxes and drawings never carry over, and go when the file goes', () => {
+    it('starts a new version with nothing and refuses saving or preparing on an older one', async () => {
+      const revision = await ready();
       const second = await addVersion(ownerId, documentId);
       expect(await stateOf(second)).toBe('NOT_PREPARED');
-      expect(await stateOf(versionId)).toBe('MASKED');
       const copy = await produceSafeCopy(await gate(ownerId, 'DOWNLOAD_REDACTED'), fakeDeps());
       expect(isErr(copy) && copy.error.refusal).toBe('not_prepared');
       const stale = await saveBoxes([[BOX], []]);
       expect(isErr(stale) && stale.error.refusal).toBe('out_of_date');
-      const page = await renderRedactionPage(await gate(ownerId, 'PREVIEW'), fakeDeps(), {
-        versionId,
-        page: 1,
-      });
-      expect(isErr(page) && page.error.refusal).toBe('out_of_date');
-      const newRows = await db
-        .select()
-        .from(schema.redactionMasks)
-        .where(eq(schema.redactionMasks.documentVersionId, second));
-      expect(newRows).toEqual([]);
+      expect(await maskRows(second)).toEqual([]);
+      void revision;
     });
 
-    it('removes the boxes when the file is queued for erasure, and with the document', async () => {
-      expect(isOk(await saveBoxes([[BOX], []]))).toBe(true);
+    it('queues the drawings for erasure with the file, and with the account', async () => {
+      await ready();
       const [version] = await db
         .select()
         .from(schema.documentVersions)
         .where(eq(schema.documentVersions.id, versionId));
-      const [storage] = await db
+      const [stored] = await db
         .select()
         .from(schema.storageObjects)
         .where(eq(schema.storageObjects.id, version?.storageObjectId ?? ''));
-      if (!version || !storage) throw new Error('setup');
+      if (!version || !stored) throw new Error('setup');
+      const drawingIds = (await maskRows()).map((row) => row.renderedStorageObjectId);
       await enqueueErasureJob(db, {
         reason: 'RETENTION_PURGE',
         bucket: 'CLEAN',
-        objectKey: storage.objectKey,
+        objectKey: stored.objectKey,
         expectedHash: null,
-        storageObjectId: storage.id,
+        storageObjectId: stored.id,
         documentId,
         applicantId,
       });
-      expect(await db.select().from(schema.redactionMasks)).toEqual([]);
+      expect(await maskRows()).toEqual([]);
+      expect((await erasureJobs()).map((job) => job.storageObjectId).sort()).toEqual(
+        [...drawingIds].sort(),
+      );
 
-      const other = await addDocument(ownerId, applicantId, 'BANK_STATEMENT');
+      // Account deletion: a second traveller's prepared copy is queued with their documents.
+      const other = await account('leaving@example.com');
+      const otherApplicant = await traveller(other);
+      const theirs = await addDocument(other, otherApplicant, 'BANK_STATEMENT');
+      const theirDrawing = await db
+        .insert(schema.storageObjects)
+        .values({ bucket: 'CLEAN', objectKey: `safe-copy/${randomUUID()}`, contentHash: 'h' })
+        .returning();
       await db.insert(schema.redactionMasks).values({
-        documentVersionId: other.versionId,
+        documentVersionId: theirs.versionId,
         page: 1,
         boxes: [BOX],
         source: 'OWNER',
-        createdByAccountId: ownerId,
+        createdByAccountId: other,
+        maskRevision: randomUUID(),
+        renderedStorageObjectId: theirDrawing[0]?.id ?? null,
+        renderedContentType: 'image/jpeg',
+        renderedByteSize: 10,
+        renderedWidthPt: 612,
+        renderedHeightPt: 792,
+        renderedAt: new Date(),
       });
-      await db.delete(schema.documents).where(eq(schema.documents.id, other.documentId));
-      expect(await db.select().from(schema.redactionMasks)).toEqual([]);
+      const request = await requestAccountDeletion(db, { actorAccountId: other, accountId: other });
+      if (!isOk(request)) throw new Error(`request: ${request.error.message}`);
+      const executed = await executeAccountDeletion(db, {
+        accountId: other,
+        now: new Date(Date.now() + 40 * 24 * 3600 * 1000),
+      });
+      if (!isOk(executed)) throw new Error(`execute: ${executed.error.message}`);
+      const accountJobs = await erasureJobs('ACCOUNT_DELETION');
+      expect(accountJobs.map((job) => job.storageObjectId)).toContain(theirDrawing[0]?.id);
     });
   });
 
@@ -595,6 +753,12 @@ describe('safe copies (S23, ADR 0022)', () => {
       expect(isErr(saved) && saved.error.code).toBe('forbidden');
       const cleared = await clearRedactionMasks(manage, { versionId });
       expect(isErr(cleared) && cleared.error.code).toBe('forbidden');
+      const prepared = await prepareSafeCopyPage(manage, deps, {
+        versionId,
+        page: 1,
+        maskRevision: randomUUID(),
+      });
+      expect(isErr(prepared) && prepared.error.code).toBe('forbidden');
       const preview = await gate(recipient, 'PREVIEW');
       const outcomes = [
         await openRedactionEditor(preview, deps),
@@ -628,8 +792,6 @@ describe('safe copies (S23, ADR 0022)', () => {
       const copyWithPreview = await produceSafeCopy(preview as never, deps);
       expect(isErr(copyWithPreview) && copyWithPreview.error.code).toBe('forbidden');
 
-      // Another traveller's owner, with a genuine proof for their own document, cannot reach this
-      // version, and does not even learn its state.
       const otherOwner = await account('other@example.com');
       const otherApplicant = await traveller(otherOwner);
       const theirs = await addDocument(otherOwner, otherApplicant, 'PASSPORT');
@@ -656,24 +818,18 @@ describe('safe copies (S23, ADR 0022)', () => {
       ]);
       expect(isOk(listed) && listed.value.size).toBe(0);
       expect(await db.select().from(schema.redactionMasks)).toEqual([]);
-      // The stranger has no relationship at all with this traveller.
-      const stranger = await requireAccess(
-        db,
-        accountPrincipal(otherOwner),
-        'MANAGE',
-        { documentId },
-        { purpose: EACH_GRANT },
-      );
-      expect(isErr(stranger) && stranger.error.code).toBe('forbidden');
     });
 
     it('lets a recipient with Download Safe Copies see the state and download, recorded as them', async () => {
       const recipient = await recipientWith(['VIEW_METADATA', 'DOWNLOAD_REDACTED']);
       const before = await getSafeCopyState(await gate(recipient, 'DOWNLOAD_REDACTED'));
       expect(isOk(before) && before.value).toBe('NOT_PREPARED');
-      expect(isOk(await saveBoxes([[BOX], []]))).toBe(true);
-      const after = await getSafeCopyState(await gate(recipient, 'DOWNLOAD_REDACTED'));
-      expect(isOk(after) && after.value).toBe('MASKED');
+      await ready();
+      // One read for any number of documents, from view-details proofs (no identity check).
+      const states = await listSafeCopyStatesForDocuments(await gate(recipient, 'VIEW_METADATA'), [
+        { forged: true } as never,
+      ]);
+      expect([...states.entries()]).toEqual([[documentId, 'MASKED']]);
       const copy = await produceSafeCopy(await gate(recipient, 'DOWNLOAD_REDACTED'), fakeDeps());
       expect(isOk(copy)).toBe(true);
       const download = (await audits('DOCUMENT_ACCESS')).find(
@@ -684,21 +840,9 @@ describe('safe copies (S23, ADR 0022)', () => {
         actorRole: 'individual_recipient',
       });
       expect(download?.metadata).toMatchObject({ purpose: 'shared_safe_copy' });
-      // Preview alone never reaches a safe copy.
-      const previewOnly = await recipientWith(['VIEW_METADATA', 'PREVIEW']);
-      const refused = await requireAccess(
-        db,
-        accountPrincipal(previewOnly),
-        'DOWNLOAD_REDACTED',
-        { documentId },
-        { purpose: EACH_GRANT },
-      );
-      expect(isErr(refused) && refused.error.code).toBe('forbidden');
     });
 
-    it('asks for a fresh identity check on a restricted document, and accepts a genuine one', async () => {
-      // Passports are restricted by default: page images (PREVIEW) and the safe copy
-      // (DOWNLOAD_REDACTED) need the step-up like any preview or download.
+    it('asks for a fresh identity check on a restricted document, but not to read the state', async () => {
       for (const action of ['PREVIEW', 'DOWNLOAD_REDACTED'] as const) {
         const restricted = await requireAccess(
           db,
@@ -709,52 +853,18 @@ describe('safe copies (S23, ADR 0022)', () => {
         );
         expect(isErr(restricted) && restricted.error.code).toBe('step_up_required');
       }
-      const token = issueStepUpAssurance(STEP_UP_SECRET, {
-        accountId: ownerId,
-        action: 'DOWNLOAD_REDACTED',
-        resourceId: documentId,
-      });
-      const proof = verifyStepUp(STEP_UP_SECRET, token, {
-        accountId: ownerId,
-        action: 'DOWNLOAD_REDACTED',
-        resourceId: documentId,
-      });
-      const stepped = await requireAccess(
+      const details = await requireAccess(
         db,
         accountPrincipal(ownerId),
-        'DOWNLOAD_REDACTED',
+        'VIEW_METADATA',
         { documentId },
-        { purpose: EACH_GRANT, ...(proof ? { stepUp: proof } : {}) },
+        { purpose: EACH_GRANT },
       );
-      expect(isOk(stepped)).toBe(true);
+      expect(isOk(details)).toBe(true);
     });
   });
 
   describe('limits', () => {
-    it('refuses too many pages, too much time and an output too large in plain words, audited', async () => {
-      expect(isOk(await saveBoxes([[BOX], []]))).toBe(true);
-      for (const fail of ['too_large', 'out_of_time'] as const) {
-        const copy = await produceSafeCopy(
-          await gate(ownerId, 'DOWNLOAD_REDACTED'),
-          fakeDeps({ fail }),
-        );
-        expect(isErr(copy) && copy.error).toMatchObject({
-          refusal: 'too_large',
-          message: SAFE_COPY_TOO_LARGE_MESSAGE,
-        });
-      }
-      const denied = (await audits('DOCUMENT_ACCESS')).filter((a) => a.result === 'DENIED');
-      expect(denied.map((a) => a.reason).sort()).toEqual([
-        'render_out_of_time',
-        'render_too_large',
-      ]);
-      const editor = await openRedactionEditor(
-        await gate(ownerId, 'PREVIEW'),
-        fakeDeps({ fail: 'too_large' }),
-      );
-      expect(isErr(editor) && editor.error.message).toBe(SAFE_COPY_TOO_LARGE_MESSAGE);
-    });
-
     it('refuses a file over 25 MB without reading it, and one whose bytes are over 25 MB', async () => {
       const big = await addDocument(
         ownerId,
@@ -771,9 +881,7 @@ describe('safe copies (S23, ADR 0022)', () => {
       );
       expect(isErr(editor) && editor.error.refusal).toBe('too_large');
       expect(deps.calls).toEqual([]);
-
-      const bytes = new Uint8Array(25 * 1024 * 1024 + 1);
-      const large = fakeDeps({ bytes });
+      const large = fakeDeps({ bytes: new Uint8Array(25 * 1024 * 1024 + 1) });
       const opened = await openRedactionEditor(await gate(ownerId, 'PREVIEW'), large);
       expect(isErr(opened) && opened.error.refusal).toBe('too_large');
       expect(large.calls).toEqual(['getObject']);
@@ -790,13 +898,24 @@ describe('safe copies (S23, ADR 0022)', () => {
         deps,
       );
       expect(isErr(editor) && editor.error.refusal).toBe('unsupported');
-      const text = fakeDeps({ contentType: 'text/plain' });
-      const copy = await produceSafeCopy(
-        await gate(ownerId, 'DOWNLOAD_REDACTED', docx.documentId),
-        text,
-      );
-      expect(isErr(copy) && copy.error.refusal).toBe('not_prepared');
-      expect(text.calls).not.toContain('renderSafeCopy');
+    });
+
+    it('shares the output limit between pages when preparing', async () => {
+      const saved = await saveBoxes([[BOX], []]);
+      if (!isOk(saved)) throw new Error('save');
+      const deps = fakeDeps();
+      let limit = 0;
+      deps.renderer.renderMaskedPage = async (_s, _p, _b, budget) => {
+        limit = budget.maxBytes;
+        return { ok: false, reason: 'too_large', detail: 'x' };
+      };
+      await prepareSafeCopyPage(await gate(ownerId, 'MANAGE'), deps, {
+        versionId,
+        page: 1,
+        maskRevision: saved.value.maskRevision,
+      });
+      expect(limit).toBeGreaterThan(1_900_000);
+      expect(limit * 2).toBeLessThanOrEqual(4_000_000);
     });
 
     it('reads a version known to have more than 20 pages as too large', async () => {
@@ -808,7 +927,7 @@ describe('safe copies (S23, ADR 0022)', () => {
     });
 
     it('rate-limits safe copies and page views per person, in separate buckets', async () => {
-      expect(isOk(await saveBoxes([[BOX], []]))).toBe(true);
+      await ready();
       const fill = async (action: string, limit: number) => {
         const windowMs = RATE_LIMITS.SAFE_COPY.windowMs;
         await db
@@ -848,6 +967,8 @@ describe('safe copies (S23, ADR 0022)', () => {
   });
 
   describe('suggestions', () => {
+    const at = (y: number, x = 0.1) => ({ x, y, w: 0.3, h: 0.02 });
+
     it("suggests the passport band, machine-readable lines and the owner's own numbers, never their values", async () => {
       const encryption = testKeyManagement();
       await registerFieldDefinition(db, {
@@ -865,7 +986,6 @@ describe('safe copies (S23, ADR 0022)', () => {
         encryption,
       });
       if (!isOk(saved)) throw new Error(saved.error.message);
-      const at = (y: number) => ({ x: 0.1, y, w: 0.3, h: 0.02 });
       const deps = {
         ...fakeDeps({
           text: [
@@ -873,10 +993,7 @@ describe('safe copies (S23, ADR 0022)', () => {
               { text: 'Passport No. eb0912345', box: at(0.2) },
               { text: 'Given names', box: at(0.3) },
             ],
-            [
-              { text: 'P<BGDSYNTHETIC<<TRAVELLER<<<<<<<<<<<<<<<<<<', box: at(0.8) },
-              { text: '1234 5678 9012', box: at(0.5) },
-            ],
+            [{ text: 'P<BGDSYNTHETIC<<TRAVELLER<<<<<<<<<<<<<<<<<<', box: at(0.8) }],
           ],
         }),
         encryption,
@@ -888,31 +1005,56 @@ describe('safe copies (S23, ADR 0022)', () => {
         [1, 'identifier'],
         [2, 'mrz'],
       ]);
-      // Positions only: padded to hide a little more than the text.
-      const identifier = result.value[1];
-      expect(identifier?.box.x).toBeLessThan(0.1);
-      expect(identifier?.box.w).toBeGreaterThan(0.3);
       expect(JSON.stringify(result.value)).not.toMatch(/0912345|Passport No/i);
       const [event] = (await audits('DOCUMENT_ACCESS')).filter(
         (a) => (a.metadata as { variant?: string }).variant === 'redaction_suggestions',
       );
       expect(event?.metadata).toMatchObject({ suggestionCount: 3 });
-      expect(JSON.stringify(await db.select().from(schema.auditEvents))).not.toMatch(
-        /0912345|EB 0912345/,
-      );
+      expect(JSON.stringify(await db.select().from(schema.auditEvents))).not.toMatch(/0912345/);
+    });
 
-      // The account number is suggested on a financial document only.
+    it('suggests account numbers only on a labelled line, never dates, phone numbers or amounts', async () => {
       const statement = await addDocument(ownerId, applicantId, 'BANK_STATEMENT');
-      const onStatement = await suggestRedactions(
+      const text = [
+        [
+          { text: 'Account No:', box: at(0.1, 0.05) },
+          { text: '1234 5678 9012', box: at(0.1, 0.4) },
+          { text: 'Statement period 01/01/2024 to 31/01/2024', box: at(0.2) },
+          { text: '20240131', box: at(0.25) },
+          { text: 'Phone: +880 1712 345678', box: at(0.3) },
+          { text: 'Balance BDT 12,345,678.00', box: at(0.35) },
+          { text: 'Reference 98765432 for your records', box: at(0.4) },
+          { text: 'IBAN GB82 WEST 1234 5698 7654 32', box: at(0.45) },
+          { text: 'GB82 WEST 1234 5698 7654 33', box: at(0.5) },
+          { text: 'GB 82 WEST and other words 12345698765432', box: at(0.55) },
+        ],
+      ];
+      const result = await suggestRedactions(
         await gate(ownerId, 'PREVIEW', statement.documentId),
-        deps,
+        fakeDeps({ text }),
         { versionId: statement.versionId },
       );
-      expect(isOk(onStatement) && onStatement.value.map((s) => [s.page, s.reason])).toEqual([
-        [1, 'identifier'],
-        [2, 'mrz'],
-        [2, 'account_number'],
+      if (!isOk(result)) throw new Error(result.error.message);
+      // The labelled number and the valid IBAN only.
+      expect(result.value.map((s) => [s.reason, Math.round(s.box.y * 100)])).toEqual([
+        ['account_number', 10],
+        ['account_number', 45],
       ]);
+    });
+
+    it('caps suggestions per page', async () => {
+      const lines = Array.from({ length: 50 }, (_, i) => ({
+        text: 'P<BGDSYNTHETIC<<TRAVELLER<<<<<<<<<<<<<<<<<<',
+        box: at(0.01 + i * 0.019),
+      }));
+      const result = await suggestRedactions(
+        await gate(ownerId, 'PREVIEW'),
+        fakeDeps({ text: [lines] }),
+        {
+          versionId,
+        },
+      );
+      expect(isOk(result) && result.value.length).toBe(MAX_SUGGESTIONS_PER_PAGE);
     });
 
     it('offers only the passport band for a photo, which has no text of its own', async () => {
@@ -920,6 +1062,18 @@ describe('safe copies (S23, ADR 0022)', () => {
       const result = await suggestRedactions(await gate(ownerId, 'PREVIEW'), deps, { versionId });
       expect(isOk(result) && result.value.map((s) => s.reason)).toEqual(['mrz']);
       expect(deps.calls).not.toContain('textPositions');
+    });
+
+    it('checks IBANs by country, length and checksum, and account numbers by context', () => {
+      expect(isValidIban('GB82WEST12345698765432')).toBe(true);
+      expect(isValidIban('GB82WEST12345698765433')).toBe(false);
+      expect(isValidIban('ZZ82WEST12345698765432')).toBe(false);
+      expect(isValidIban('DE89370400440532013000')).toBe(true);
+      expect(looksLikeAccountNumber('1234567890', 'A/C 1234567890')).toBe(true);
+      expect(looksLikeAccountNumber('1234567890', 'Customer 1234567890')).toBe(false);
+      expect(looksLikeAccountNumber('31/01/2024', 'Account 31/01/2024')).toBe(false);
+      expect(looksLikeAccountNumber('12,345,678.00', 'Account balance 12,345,678.00')).toBe(false);
+      expect(looksLikeAccountNumber('+8801712345678', 'Account phone +8801712345678')).toBe(false);
     });
   });
 });

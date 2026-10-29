@@ -51,12 +51,13 @@ export interface SafeCopySource {
 }
 
 /**
- * Limits for one call. `deadline` is a time (milliseconds since the epoch, on the renderer's own
- * clock) after which the renderer gives up between pages. `maxPages` refuses a longer document
- * before anything is drawn.
+ * Limits for one call. `timeLimitMs` is how long the call may draw, counted from when its drawing
+ * actually starts (a call waiting behind another in the same process has not started yet); the
+ * renderer gives up between steps once it runs out. `maxPages` refuses a longer document before
+ * anything is drawn.
  */
 export interface SafeCopyBudget {
-  readonly deadline: number;
+  readonly timeLimitMs: number;
   readonly maxPages: number;
 }
 
@@ -111,22 +112,40 @@ export interface SafeCopyRendererPort {
     { readonly ok: true; readonly pages: readonly (readonly PositionedText[])[] } | SafeCopyFailure
   >;
   /**
-   * The safe copy: every page drawn as pixels, each page's boxes painted solid black, put together
-   * as a new image-only PDF (or one PNG for an image). `masks` has one list per page and must
-   * cover exactly the file's pages, or nothing is made. The output carries no text, metadata,
-   * attachments, annotations, forms or scripts, and is at most `maxOutputBytes`.
+   * One page of the safe copy: the page drawn as pixels with its boxes painted solid black
+   * before encoding, as a JPEG with no metadata (PDF pages) or one PNG with only image chunks (a
+   * photo), no larger than `maxBytes`. Stored by the service as a private derived file when the
+   * owner prepares the copy; nothing of the original's text, metadata, attachments, forms or
+   * scripts survives.
    */
-  renderSafeCopy(
+  renderMaskedPage(
     source: SafeCopySource,
-    masks: readonly (readonly SafeCopyBox[])[],
-    budget: SafeCopyBudget & { readonly maxOutputBytes: number },
-  ): Promise<
+    page: number,
+    boxes: readonly SafeCopyBox[],
+    budget: SafeCopyBudget & { readonly maxBytes: number },
+  ): Promise<({ readonly ok: true } & SafeCopyPageImage) | SafeCopyFailure>;
+  /**
+   * The safe copy from stored page drawings, without drawing anything: an image-only PDF of the
+   * JPEG pages (no text, metadata, attachments, annotations, forms or scripts), or the single PNG.
+   * Refuses mixed or malformed pages, and an output larger than `maxOutputBytes`.
+   */
+  assembleSafeCopy(
+    pages: readonly SafeCopyPageImage[],
+    maxOutputBytes: number,
+  ):
     | {
         readonly ok: true;
         readonly contentType: 'application/pdf' | 'image/png';
         readonly bytes: Uint8Array;
-        readonly pageCount: number;
       }
-    | SafeCopyFailure
-  >;
+    | SafeCopyFailure;
+}
+
+/** One page of a safe copy as drawn and stored: its image and the page size it is printed at. */
+export interface SafeCopyPageImage {
+  readonly contentType: 'image/jpeg' | 'image/png';
+  readonly bytes: Uint8Array;
+  /** Page size in points (1/72 inch); for a photo, its pixel size. */
+  readonly widthPt: number;
+  readonly heightPt: number;
 }

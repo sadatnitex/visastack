@@ -451,6 +451,20 @@ describe('safe copies (S23)', () => {
     expect(mocks.listRedactionStates).toHaveBeenCalledWith({ proof: 'owner' }, ['passport-v1']);
   });
 
+  it('says when a saved copy is still being prepared', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [doc('statement', 'APPROVED')],
+    });
+    mocks.listRedactionStates.mockResolvedValueOnce({
+      ok: true,
+      value: new Map([['statement-v1', 'PREPARING']]),
+    });
+    const text = textOf(await render('statement'));
+    expect(text).toContain('Safe Copy: Preparing');
+    expect(text).toContain('Continue Preparing');
+  });
+
   it('reads Not Prepared Yet when nothing is saved or the states cannot be read', async () => {
     mocks.listDocumentsDetailed.mockResolvedValue({
       ok: true,

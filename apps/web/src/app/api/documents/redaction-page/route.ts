@@ -5,6 +5,7 @@ import {
   jsonResponse,
   readSafeCopyRequest,
   redactionDeps,
+  safeCopiesOffResponse,
   safeCopyErrorResponse,
 } from '../../../../lib/safe-copy';
 import { withSession } from '../../../../lib/session';
@@ -22,6 +23,8 @@ export const maxDuration = 30;
  */
 export async function POST(request: Request): Promise<Response> {
   if (!isSameOrigin(request)) return jsonResponse({ message: 'Not authorized.' }, 403);
+  const off = safeCopiesOffResponse();
+  if (off) return off;
   const input = await readSafeCopyRequest(request);
   if (!input?.versionId || input.page === undefined) {
     return jsonResponse({ message: 'Choose a page first.' }, 400);

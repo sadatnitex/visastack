@@ -7,6 +7,8 @@ const { session, requireAccess, render, EACH } = vi.hoisted(() => ({
   requireAccess: vi.fn(),
   render: vi.fn(),
 }));
+const capability = vi.hoisted(() => ({ redactedDownload: 'available' }));
+vi.mock('../../../../lib/capabilities', () => ({ getPlatformCapabilities: () => capability }));
 vi.mock('../../../../lib/session', () => ({ withSession: session }));
 vi.mock('../../../../lib/storage', () => ({ createStorage: () => ({}) }));
 vi.mock('../../../../lib/step-up', () => ({ establishStepUpProof: vi.fn() }));
@@ -37,6 +39,7 @@ function request(body: unknown) {
 }
 
 beforeEach(() => {
+  capability.redactedDownload = 'available';
   for (const mock of [session, requireAccess, render]) mock.mockReset();
   session.mockImplementation((fn) => fn({ db: {}, accountId: 'acct' }));
   requireAccess.mockResolvedValue({ ok: true, value: { proof: true } });

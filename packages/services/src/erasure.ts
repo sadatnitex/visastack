@@ -135,21 +135,37 @@ export async function enqueueErasureJob(
   db: Db,
   input: EnqueueErasureJobInput,
 ): Promise<ErasureJob> {
-  // Safe copy boxes (ADR 0022, S23) go with the bytes they were drawn on, in this same
-  // transaction: once a file is being erased nothing can be made from it, and nothing about it is
-  // kept. Asked with a presence check first, so a database before migration 0102 is unaffected.
-  if (await redactionMasksTablePresent(db)) {
-    await db
+  // Safe copy boxes (ADR 0022, S23) and their stored page drawings go with the bytes they were
+  // drawn from, in this same transaction: once a file is being erased nothing can be made from
+  // it, and nothing about it is kept. Each drawing is queued for verified erasure like any other
+  // stored file. Asked with a presence check first, so a database before migration 0102 is
+  // unaffected. A drawing's own erasure finds no versions of its own here.
+  if (input.reason !== 'SAFE_COPY_REMOVAL' && (await redactionMasksTablePresent(db))) {
+    const versions = db
+      .select({ id: schema.documentVersions.id })
+      .from(schema.documentVersions)
+      .where(eq(schema.documentVersions.storageObjectId, input.storageObjectId));
+    const removed = await db
       .delete(schema.redactionMasks)
-      .where(
-        inArray(
-          schema.redactionMasks.documentVersionId,
-          db
-            .select({ id: schema.documentVersions.id })
-            .from(schema.documentVersions)
-            .where(eq(schema.documentVersions.storageObjectId, input.storageObjectId)),
-        ),
-      );
+      .where(inArray(schema.redactionMasks.documentVersionId, versions))
+      .returning({ storageObjectId: schema.redactionMasks.renderedStorageObjectId });
+    const drawingIds = removed.flatMap((row) => (row.storageObjectId ? [row.storageObjectId] : []));
+    if (drawingIds.length > 0) {
+      const drawings = await db
+        .select()
+        .from(schema.storageObjects)
+        .where(inArray(schema.storageObjects.id, drawingIds));
+      for (const drawing of drawings) {
+        await enqueueErasureJob(db, {
+          reason: 'SAFE_COPY_REMOVAL',
+          bucket: drawing.bucket,
+          objectKey: drawing.objectKey,
+          expectedHash: drawing.contentHash,
+          storageObjectId: drawing.id,
+          ...(input.applicantId ? { applicantId: input.applicantId } : {}),
+        });
+      }
+    }
   }
   const existing = first(
     await db

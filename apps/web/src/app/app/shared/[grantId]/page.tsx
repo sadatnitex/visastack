@@ -9,7 +9,7 @@ import { formatTimestampDate } from '../../../../lib/format-date';
 import { documentTypeLabel } from '../../../../lib/labels';
 import { fieldLabel } from '../../../../lib/master-profile';
 import { mayUseVisaPhotoSizes } from '../../../../lib/photo-sizes';
-import { safeCopyOffer } from '../../../../lib/safe-copy';
+import { safeCopiesAvailable, safeCopyOffers } from '../../../../lib/safe-copy';
 import { withSession } from '../../../../lib/session';
 
 export const metadata: Metadata = { title: 'Shared Record' };
@@ -33,21 +33,27 @@ export default async function SharedWorkspacePage({
     const actingFor = organizationId ? { organizationId } : ('individual' as const);
     const photoIds: string[] = [];
     // Safe copies (S23): what each document offers this viewer, asked of the gate exactly as the
-    // safe copy route asks, so the button and the server always agree.
-    const safeCopies = new Map<string, Awaited<ReturnType<typeof safeCopyOffer>>>();
-    for (const doc of result.value.documents) {
-      safeCopies.set(doc.id, await safeCopyOffer(db, accountId, doc.id, actingFor));
-    }
+    // safe copy route asks, so the button and the server always agree. Every check at once and
+    // every state in one read; nothing at all while safe copies are off here.
+    const safeCopiesOn = safeCopiesAvailable();
+    const safeCopies = safeCopiesOn
+      ? await safeCopyOffers(
+          db,
+          accountId,
+          result.value.documents.map((doc) => doc.id),
+          actingFor,
+        )
+      : new Map<string, never>();
     for (const doc of result.value.documents) {
       if (!isPassportPhotoType(doc.docType)) continue;
       const allowed = await mayUseVisaPhotoSizes(db, accountId, doc.id, actingFor);
       if (allowed) photoIds.push(doc.id);
     }
-    return { workspace: result.value, photoIds, safeCopies };
+    return { workspace: result.value, photoIds, safeCopies, safeCopiesOn };
   });
 
   if (!loaded) notFound();
-  const { workspace, photoIds, safeCopies } = loaded;
+  const { workspace, photoIds, safeCopies, safeCopiesOn } = loaded;
 
   return (
     <section className="section container">
@@ -127,6 +133,11 @@ export default async function SharedWorkspacePage({
                         {offer === 'not_prepared' ? (
                           <span className="badge badge-neutral">Safe Copy: Not Prepared Yet</span>
                         ) : null}
+                        {offer === 'not_available' ? (
+                          <span className="badge badge-neutral">
+                            Safe Copy Not Available for This File
+                          </span>
+                        ) : null}
                       </span>
                       {offer === 'ready' || offer === 'confirm' ? (
                         <SafeCopyDownload
@@ -152,6 +163,9 @@ export default async function SharedWorkspacePage({
                 grant covers. A passport photo shared with safe copies can be sized for a visa
                 application above.
               </p>
+              {!safeCopiesOn && workspace.grant.actions.includes('DOWNLOAD_REDACTED') ? (
+                <p className="muted u-fs-085">Safe copies are not available here yet.</p>
+              ) : null}
               {[...safeCopies.values()].some((offer) => offer !== 'none') ? (
                 <p className="muted u-fs-085">
                   A safe copy is a picture of each page with the parts the traveller chose covered

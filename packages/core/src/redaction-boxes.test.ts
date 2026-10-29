@@ -80,4 +80,25 @@ describe('safe copy boxes', () => {
       '10% from the left, 25% from the top, 30% wide and 5% tall',
     );
   });
+
+  it('clamps every box drawn to the far edge into one the server accepts (review cases)', () => {
+    let bad = 0;
+    for (const size of [320, 343, 360, 375, 390, 414, 428, 453, 480, 566, 600, 638, 640, 905]) {
+      for (let n = 0; n < 2 * (size - 10); n++) {
+        const start = n / 2 / size;
+        const across = clampRedactionBox({ x: start, y: 0.1, w: 1 - start, h: 0.05 });
+        const down = clampRedactionBox({ x: 0.1, y: start, w: 0.2, h: 1 - start });
+        if (!parseRedactionBox(across) || !parseRedactionBox(down)) bad++;
+      }
+    }
+    expect(bad).toBe(0);
+    // One of the reviewer's failing examples: 320 px wide, drawn from pixel 7 to the edge.
+    const box = clampRedactionBox({ x: 7 / 320, y: 0.1, w: 1 - 7 / 320, h: 0.05 });
+    expect(parseRedactionBox(box)).toEqual(box);
+    expect(box.x + box.w).toBeLessThanOrEqual(1 + 1e-9);
+    // Moves and size changes at the edge stay acceptable too.
+    expect(parseRedactionBox(moveRedactionBox(box, 0.5, 0))).toBeDefined();
+    expect(parseRedactionBox(resizeRedactionBox(box, 0.5, 0))).toBeDefined();
+    expect(clampRedactionBox({ x: Number.NaN, y: 0, w: 0.1, h: 0.1 }).x).toBe(0);
+  });
 });

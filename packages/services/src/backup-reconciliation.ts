@@ -7,6 +7,7 @@ import { purgeMissionUnconditionally } from './case-retention';
 import { getConsents } from './consent';
 import { type Db, first, schema } from './db';
 import { executeAccountDeletion } from './deletion';
+import { enqueueErasureJob } from './erasure';
 import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
 import { isMissingRelationError } from './missing-relation';
 import { redactionMasksTablePresent } from './redaction-table';
@@ -420,14 +421,27 @@ const UUID_TEXT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
 
 type RedactionMaskRow = typeof schema.redactionMasks.$inferSelect;
 
-/** Whether two sets of one version's mask rows hold the same pages, boxes, source and author. */
-function sameMasks(a: readonly RedactionMaskRow[], b: readonly RedactionMaskRow[]): boolean {
-  if (a.length !== b.length) return false;
+/**
+ * Whether the restored rows already match the pre-incident rows: the same pages, boxes, source,
+ * author and revision, with each restored drawing either absent (to be drawn again) or the same
+ * one. A restored drawing that differs never counts as matching.
+ */
+function sameMasks(
+  restored: readonly RedactionMaskRow[],
+  source: readonly RedactionMaskRow[],
+): boolean {
+  if (restored.length !== source.length) return false;
   const key = (row: RedactionMaskRow) =>
-    JSON.stringify([row.page, row.source, row.createdByAccountId, row.boxes]);
-  const left = a.map(key).sort();
-  const right = b.map(key).sort();
-  return left.every((value, index) => value === right[index]);
+    JSON.stringify([row.page, row.source, row.createdByAccountId, row.boxes, row.maskRevision]);
+  const byPage = new Map(source.map((row) => [row.page, row]));
+  return restored.every((row) => {
+    const match = byPage.get(row.page);
+    if (!match || key(match) !== key(row)) return false;
+    return (
+      row.renderedStorageObjectId === null ||
+      row.renderedStorageObjectId === match.renderedStorageObjectId
+    );
+  });
 }
 
 /**
@@ -462,10 +476,49 @@ async function forceRedactionMasks(
     .from(schema.redactionMasks)
     .where(eq(schema.redactionMasks.documentVersionId, versionId));
   if (sameMasks(restored, source)) return false;
-  const removed = await newDb
-    .delete(schema.redactionMasks)
-    .where(eq(schema.redactionMasks.documentVersionId, versionId))
-    .returning({ id: schema.redactionMasks.id });
+  // Every stored page drawing involved, on either branch, is erased on the restored branch: the
+  // restored rows' own, and the pre-incident branch's (registered here first, since the restored
+  // branch never knew them, so their files are not left behind unreferenced).
+  const restoredDrawings = restored.flatMap((row) =>
+    row.renderedStorageObjectId ? [row.renderedStorageObjectId] : [],
+  );
+  const sourceDrawings = source.flatMap((row) =>
+    row.renderedStorageObjectId ? [row.renderedStorageObjectId] : [],
+  );
+  const sourceObjects =
+    sourceDrawings.length > 0
+      ? await oldDb
+          .select()
+          .from(schema.storageObjects)
+          .where(inArray(schema.storageObjects.id, sourceDrawings))
+      : [];
+  const removed = await newDb.transaction(async (tx) => {
+    const deleted = await tx
+      .delete(schema.redactionMasks)
+      .where(eq(schema.redactionMasks.documentVersionId, versionId))
+      .returning({ id: schema.redactionMasks.id });
+    for (const object of sourceObjects) {
+      await tx.insert(schema.storageObjects).values(object).onConflictDoNothing();
+    }
+    const ids = [...new Set([...restoredDrawings, ...sourceObjects.map((object) => object.id)])];
+    const drawings =
+      ids.length > 0
+        ? await tx
+            .select()
+            .from(schema.storageObjects)
+            .where(inArray(schema.storageObjects.id, ids))
+        : [];
+    for (const drawing of drawings) {
+      await enqueueErasureJob(tx, {
+        reason: 'SAFE_COPY_REMOVAL',
+        bucket: drawing.bucket,
+        objectKey: drawing.objectKey,
+        expectedHash: drawing.contentHash,
+        storageObjectId: drawing.id,
+      });
+    }
+    return deleted;
+  });
   if (source.length === 0) return removed.length > 0;
   const version = first(
     await newDb
@@ -475,8 +528,20 @@ async function forceRedactionMasks(
       .limit(1),
   );
   if (!version) return removed.length > 0;
+  // The boxes come back without their drawings: the copy is "preparing" until the owner's editor
+  // draws it again, so nothing drawn under either branch is ever served.
   await newDb.transaction(async (tx) => {
-    await tx.insert(schema.redactionMasks).values(source);
+    await tx.insert(schema.redactionMasks).values(
+      source.map((row) => ({
+        ...row,
+        renderedStorageObjectId: null,
+        renderedContentType: null,
+        renderedByteSize: null,
+        renderedWidthPt: null,
+        renderedHeightPt: null,
+        renderedAt: null,
+      })),
+    );
   });
   return true;
 }
@@ -788,7 +853,11 @@ async function forceErasureVerified(
   metadata: unknown,
 ): Promise<boolean> {
   const reason = (metadata as { reason?: string } | null)?.reason;
-  if (reason === 'ACCOUNT_DELETION' || reason === 'PROFILE_PHOTO_REMOVAL') {
+  if (
+    reason === 'ACCOUNT_DELETION' ||
+    reason === 'PROFILE_PHOTO_REMOVAL' ||
+    reason === 'SAFE_COPY_REMOVAL'
+  ) {
     const deleted = await newDb
       .delete(schema.storageObjects)
       .where(eq(schema.storageObjects.id, resourceId))

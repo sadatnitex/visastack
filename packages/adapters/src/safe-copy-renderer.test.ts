@@ -1,15 +1,40 @@
 import { randomBytes } from 'node:crypto';
 import { createCanvas, loadImage } from '@napi-rs/canvas';
-import { MASKS_MISMATCH_DETAIL } from '@visastack/services';
+import type { SafeCopyBox, SafeCopySource } from '@visastack/services';
 import { getDocumentProxy } from 'unpdf';
 import { describe, expect, it } from 'vitest';
 import { stripJpegMetadata, stripPngMetadata, writeImagePdf } from './image-pdf-writer';
-import { BuiltinSafeCopyRenderer, MASK_PAD_PX, PAGE_WIDTH_PX } from './safe-copy-renderer';
-import { loadedPdf, passwordPdf } from './test-pdf.test-support';
+import {
+  BuiltinSafeCopyRenderer,
+  MASK_PAD_PX,
+  MAX_PAGE_HEIGHT_PX,
+  PAGE_WIDTH_PX,
+} from './safe-copy-renderer';
+import { assemblePdf, loadedPdf, passwordPdf } from './test-pdf.test-support';
 
 const TIMEOUT_MS = 60_000;
 const PDF = 'application/pdf';
-const BUDGET = { deadline: Number.POSITIVE_INFINITY, maxPages: 20, maxOutputBytes: 4_000_000 };
+const BUDGET = { timeLimitMs: 60_000, maxPages: 20, maxBytes: 4_000_000 };
+const MAX_OUTPUT = 4_000_000;
+
+/**
+ * What preparing and then downloading a safe copy does: every page drawn once with its boxes
+ * (as the owner's prepare step stores them), then put together without drawing anything.
+ */
+async function prepareAndAssemble(
+  renderer: BuiltinSafeCopyRenderer,
+  source: SafeCopySource,
+  masks: readonly (readonly SafeCopyBox[])[],
+  maxOutput = MAX_OUTPUT,
+) {
+  const pages = [];
+  for (const [index, boxes] of masks.entries()) {
+    const page = await renderer.renderMaskedPage(source, index + 1, boxes, BUDGET);
+    if (!page.ok) return page;
+    pages.push(page);
+  }
+  return renderer.assembleSafeCopy(pages, maxOutput);
+}
 const BOX = { x: 0.1, y: 0.3, w: 0.3, h: 0.1 };
 
 function marker(): string {
@@ -116,11 +141,10 @@ describe('safe copy renderer: what the copy carries', () => {
       await input.loadingTask.destroy();
 
       const renderer = new BuiltinSafeCopyRenderer();
-      const made = await renderer.renderSafeCopy(source, [[BOX], []], BUDGET);
+      const made = await prepareAndAssemble(renderer, source, [[BOX], []]);
       expect(made.ok).toBe(true);
       if (!made.ok) return;
       expect(made.contentType).toBe('application/pdf');
-      expect(made.pageCount).toBe(2);
 
       // Nothing of the marker survives anywhere in the bytes.
       expect(latin1(made.bytes)).not.toContain(mark);
@@ -177,7 +201,7 @@ describe('safe copy renderer: what the copy carries', () => {
     async () => {
       const renderer = new BuiltinSafeCopyRenderer();
       const source = { bytes: loadedPdf({ marker: marker(), pages: 2 }), contentType: PDF };
-      const made = await renderer.renderSafeCopy(source, [[BOX], []], BUDGET);
+      const made = await prepareAndAssemble(renderer, source, [[BOX], []]);
       expect(made.ok).toBe(true);
       if (!made.ok) return;
       const [first, second] = jpegStreams(made.bytes);
@@ -205,11 +229,9 @@ describe('safe copy renderer: what the copy carries', () => {
       context.fillRect(0, 0, 400, 300);
       const png = new Uint8Array(canvas.toBuffer('image/png'));
       const renderer = new BuiltinSafeCopyRenderer();
-      const made = await renderer.renderSafeCopy(
-        { bytes: png, contentType: 'image/png' },
-        [[BOX]],
-        BUDGET,
-      );
+      const made = await prepareAndAssemble(renderer, { bytes: png, contentType: 'image/png' }, [
+        [BOX],
+      ]);
       expect(made.ok).toBe(true);
       if (!made.ok) return;
       expect(made.contentType).toBe('image/png');
@@ -247,8 +269,7 @@ describe('safe copy renderer: limits and refusals', () => {
         ok: false,
         reason: 'too_large',
       });
-      const masks = Array.from({ length: 20 }, () => []);
-      expect(await renderer.renderSafeCopy(source, masks, BUDGET)).toMatchObject({
+      expect(await renderer.renderMaskedPage(source, 1, [], BUDGET)).toMatchObject({
         ok: false,
         reason: 'too_large',
       });
@@ -259,25 +280,33 @@ describe('safe copy renderer: limits and refusals', () => {
   );
 
   it(
-    'makes nothing when the boxes do not cover exactly the pages of the file',
+    'puts stored pages together only when they are well formed, never mixing kinds',
     async () => {
       const renderer = new BuiltinSafeCopyRenderer();
-      const source = { bytes: loadedPdf({ marker: marker(), pages: 2 }), contentType: PDF };
-      for (const masks of [[[]], [[], [], []]]) {
-        expect(await renderer.renderSafeCopy(source, masks, BUDGET)).toEqual({
-          ok: false,
-          reason: 'unreadable',
-          detail: MASKS_MISMATCH_DETAIL,
-        });
-      }
+      const source = { bytes: loadedPdf({ marker: marker(), pages: 1 }), contentType: PDF };
+      const page = await renderer.renderMaskedPage(source, 1, [BOX], BUDGET);
+      if (!page.ok) throw new Error('page expected');
+      const png = { ...page, contentType: 'image/png' as const };
+      expect(renderer.assembleSafeCopy([], MAX_OUTPUT)).toMatchObject({ ok: false });
+      expect(renderer.assembleSafeCopy([page, png], MAX_OUTPUT)).toMatchObject({ ok: false });
+      const broken = { ...page, bytes: new Uint8Array([1, 2, 3]) };
+      expect(renderer.assembleSafeCopy([broken], MAX_OUTPUT)).toMatchObject({
+        ok: false,
+        reason: 'unreadable',
+      });
+      expect(renderer.assembleSafeCopy([page], 100)).toMatchObject({
+        ok: false,
+        reason: 'too_large',
+      });
+      expect(renderer.assembleSafeCopy([page, page], MAX_OUTPUT)).toMatchObject({ ok: true });
     },
     TIMEOUT_MS,
   );
 
   it(
-    'stops when the time allowed runs out, between pages',
+    'stops when the time allowed runs out, counting from when the drawing starts',
     async () => {
-      // Each look at the clock moves it on 4 seconds; 30 seconds run out part way through.
+      // Each look at the clock moves it on 4 seconds; 6 seconds run out part way through.
       let now = 0;
       const renderer = new BuiltinSafeCopyRenderer({
         now: () => {
@@ -286,14 +315,14 @@ describe('safe copy renderer: limits and refusals', () => {
         },
       });
       const source = { bytes: loadedPdf({ marker: marker(), pages: 6 }), contentType: PDF };
-      const made = await renderer.renderSafeCopy(
-        source,
-        Array.from({ length: 6 }, () => []),
-        { ...BUDGET, deadline: 30_000 },
-      );
+      const made = await renderer.renderMaskedPage(source, 6, [], {
+        ...BUDGET,
+        timeLimitMs: 6_000,
+      });
       expect(made).toMatchObject({ ok: false, reason: 'out_of_time' });
-      const late = new BuiltinSafeCopyRenderer({ now: () => 50_000 });
-      expect(await late.pageCount(source, { ...BUDGET, deadline: 30_000 })).toMatchObject({
+      // No time at all: refused before anything is drawn.
+      const none = new BuiltinSafeCopyRenderer();
+      expect(await none.pageCount(source, { ...BUDGET, timeLimitMs: 0 })).toMatchObject({
         ok: false,
         reason: 'out_of_time',
       });
@@ -307,7 +336,7 @@ describe('safe copy renderer: limits and refusals', () => {
       const renderer = new BuiltinSafeCopyRenderer();
       const source = { bytes: loadedPdf({ marker: marker(), pages: 1 }), contentType: PDF };
       expect(
-        await renderer.renderSafeCopy(source, [[]], { ...BUDGET, maxOutputBytes: 500 }),
+        await renderer.renderMaskedPage(source, 1, [], { ...BUDGET, maxBytes: 500 }),
       ).toMatchObject({ ok: false, reason: 'too_large' });
     },
     TIMEOUT_MS,
@@ -337,12 +366,57 @@ describe('safe copy renderer: limits and refusals', () => {
       ];
       for (const { reason, ...source } of cases) {
         expect(await renderer.pageCount(source, BUDGET)).toMatchObject({ ok: false, reason });
-        expect(await renderer.renderSafeCopy(source, [[]], BUDGET)).toMatchObject({
+        expect(await renderer.renderMaskedPage(source, 1, [], BUDGET)).toMatchObject({
           ok: false,
           reason,
         });
         expect(await renderer.renderPage(source, 1, BUDGET)).toMatchObject({ ok: false, reason });
       }
+    },
+    TIMEOUT_MS,
+  );
+});
+
+describe('safe copy renderer: page size caps', () => {
+  const blankPdf = (w: number, h: number) =>
+    assemblePdf([
+      '<< /Type /Catalog /Pages 2 0 R >>',
+      '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${w} ${h}] >>`,
+    ]);
+
+  it(
+    'draws a very tall page smaller, never taller than four page widths',
+    async () => {
+      const renderer = new BuiltinSafeCopyRenderer();
+      for (const [w, h] of [
+        [612, 7920],
+        [10, 14400],
+      ] as const) {
+        const page = await renderer.renderPage(
+          { bytes: blankPdf(w, h), contentType: PDF },
+          1,
+          BUDGET,
+        );
+        expect(page.ok).toBe(true);
+        if (!page.ok) return;
+        expect(page.height).toBeLessThanOrEqual(MAX_PAGE_HEIGHT_PX);
+        expect(page.width * page.height).toBeLessThanOrEqual(PAGE_WIDTH_PX * MAX_PAGE_HEIGHT_PX);
+      }
+    },
+    TIMEOUT_MS,
+  );
+
+  it(
+    'refuses a page that would be under one pixel, before drawing it',
+    async () => {
+      const renderer = new BuiltinSafeCopyRenderer();
+      const page = await renderer.renderPage(
+        { bytes: blankPdf(14400, 1), contentType: PDF },
+        1,
+        BUDGET,
+      );
+      expect(page).toMatchObject({ ok: false, reason: 'too_large' });
     },
     TIMEOUT_MS,
   );

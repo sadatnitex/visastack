@@ -349,6 +349,7 @@ export default async function ApplicantDocumentsPage({
   const depth =
     initialSelection && (savedDepth === 'auto' || savedDepth === 'glance') ? 'browse' : savedDepth;
   const depthWords = depthCopyFor('documents');
+  const safeCopiesOn = getPlatformCapabilities().redactedDownload === 'available';
 
   return (
     <>
@@ -521,7 +522,7 @@ export default async function ApplicantDocumentsPage({
                             {t(processingKey)}
                           </span>
                         ) : null}
-                        {previewable ? (
+                        {previewable && safeCopiesOn ? (
                           <span
                             className={`badge ${safeCopyReady ? 'badge-success' : 'badge-neutral'}`}
                           >
@@ -569,6 +570,8 @@ export default async function ApplicantDocumentsPage({
                       <SafeCopyEditor
                         key={`${doc.id}-${doc.latestVersionId ?? ''}`}
                         documentId={doc.id}
+                        versionId={doc.latestVersionId}
+                        available={safeCopiesOn}
                         returnTo={`/app/applicant/${id}/documents?document=${doc.id}#safe-copy-${doc.id}`}
                         initialState={safeCopyState}
                       />

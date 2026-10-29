@@ -2,13 +2,17 @@ import 'server-only';
 import { createSafeCopyRenderer } from '@visastack/adapters';
 import {
   type ActingFor,
+  type AuthorizedApplicant,
   type Db,
   type RedactionDeps,
   type SafeCopyError,
+  type SafeCopyState,
   accountPrincipal,
-  getSafeCopyState,
+  isSafeCopyReady,
+  listSafeCopyStatesForDocuments,
   requireAccess,
 } from '@visastack/services';
+import { getPlatformCapabilities } from './capabilities';
 import {
   type DocumentAuthorization,
   type GatedAction,
@@ -50,6 +54,8 @@ export interface SafeCopyRequest {
     | undefined;
   readonly nothingToHide: boolean;
   readonly clear: boolean;
+  /** The revision of saved boxes a preparing step names. */
+  readonly maskRevision: string | undefined;
 }
 
 function readPages(value: unknown): SafeCopyRequest['pages'] | null {
@@ -101,6 +107,7 @@ export async function readSafeCopyRequest(
     readonly pages?: unknown;
     readonly nothingToHide?: unknown;
     readonly clear?: unknown;
+    readonly maskRevision?: unknown;
   };
   const documentId = typeof fields.documentId === 'string' ? fields.documentId : '';
   if (!UUID.test(documentId)) return undefined;
@@ -127,6 +134,13 @@ export async function readSafeCopyRequest(
     return undefined;
   }
   if (fields.clear !== undefined && typeof fields.clear !== 'boolean') return undefined;
+  let maskRevision: string | undefined;
+  if (fields.maskRevision !== undefined) {
+    if (typeof fields.maskRevision !== 'string' || !UUID.test(fields.maskRevision)) {
+      return undefined;
+    }
+    maskRevision = fields.maskRevision;
+  }
   return {
     documentId,
     actingFor,
@@ -136,6 +150,7 @@ export async function readSafeCopyRequest(
     pages,
     nothingToHide: fields.nothingToHide === true,
     clear: fields.clear === true,
+    maskRevision,
   };
 }
 
@@ -151,6 +166,8 @@ export function safeCopyErrorResponse(error: SafeCopyError): Response {
       return jsonResponse({ message: 'This safe copy is not prepared yet.' }, 409);
     case 'too_large':
       return jsonResponse({ message: 'This document is too large for a safe copy.' }, 413);
+    case 'too_slow':
+      return jsonResponse({ message: 'This page took too long to prepare. Try again.' }, 503);
     case 'unsupported':
       return jsonResponse(
         { message: 'Safe copies can be made from PDF files and photos only.' },
@@ -164,7 +181,7 @@ export function safeCopyErrorResponse(error: SafeCopyError): Response {
       return jsonResponse(
         {
           message:
-            'A newer version of this document was added. Open it again to prepare the new version.',
+            'This document or its boxes changed since this page was opened. Open the safe copy again.',
         },
         409,
       );
@@ -198,33 +215,91 @@ export function authorizeSafeCopy<A extends GatedAction>(
   });
 }
 
+/** Said wherever safe copies cannot be used on this deployment. */
+export const SAFE_COPIES_OFF_MESSAGE = 'Safe copies are not available here yet.';
+
+/** Whether safe copies are on here: the capability registry's `redactedDownload`. */
+export function safeCopiesAvailable(): boolean {
+  return getPlatformCapabilities().redactedDownload === 'available';
+}
+
+/** The plain refusal every safe copy route gives while safe copies are off here. */
+export function safeCopiesOffResponse(): Response | undefined {
+  return safeCopiesAvailable()
+    ? undefined
+    : jsonResponse({ message: SAFE_COPIES_OFF_MESSAGE }, 503);
+}
+
 /**
- * What a viewer is offered for one document's safe copy, asked of the gate exactly as the safe copy
- * route asks (DOWNLOAD_REDACTED, every grant judged against its own purpose, through the chosen
- * relationship), so a page never shows a button the route would refuse:
- * - `ready`: the owner prepared it; Download Safe Copy.
- * - `not_prepared`: allowed, but the owner has not prepared it yet.
- * - `confirm`: a restricted document; the button asks for a fresh identity check first, and the
- *   route then says whether it is prepared.
+ * What a viewer is offered for a document's safe copy:
+ * - `ready`: prepared, and the viewer may download it now; Download Safe Copy.
+ * - `confirm`: prepared (or not known without it), and the viewer may download it after a fresh
+ *   identity check (a restricted document); the button asks for it.
+ * - `not_prepared`: the viewer may download safe copies of it, but none is ready yet (also while
+ *   it is being prepared). No identity check is asked for.
+ * - `not_available`: a file a safe copy cannot be made from (documents, text, too large).
  * - `none`: this viewer may not download safe copies of it.
  */
-export async function safeCopyOffer(
+export type SafeCopyOffer = 'ready' | 'confirm' | 'not_prepared' | 'not_available' | 'none';
+
+function offerFor(
+  state: SafeCopyState | undefined,
+  download: 'allowed' | 'step_up' | 'refused',
+): SafeCopyOffer {
+  if (download === 'refused') return 'none';
+  if (state === 'UNSUPPORTED' || state === 'TOO_LARGE') return 'not_available';
+  if (state === undefined) return download === 'step_up' ? 'confirm' : 'not_prepared';
+  if (!isSafeCopyReady(state)) return 'not_prepared';
+  return download === 'allowed' ? 'ready' : 'confirm';
+}
+
+type StateProof = AuthorizedApplicant<'VIEW_METADATA'> | AuthorizedApplicant<'DOWNLOAD_REDACTED'>;
+
+/**
+ * The offer for each document, asked of the gate exactly as the safe copy route asks (DOWNLOAD
+ * REDACTED, every grant judged against its own purpose, through the chosen relationship). The
+ * state is read first from a view-details proof, which needs no fresh identity check, so a
+ * restricted document asks for one only when its copy is ready. Every check runs at once, and
+ * every state is read in one go.
+ */
+export async function safeCopyOffers(
   db: Db,
   accountId: string,
-  documentId: string,
+  documentIds: readonly string[],
   actingFor: ActingFor | undefined,
-): Promise<'ready' | 'not_prepared' | 'confirm' | 'none'> {
-  const result = await requireAccess(
-    db,
-    accountPrincipal(accountId),
-    'DOWNLOAD_REDACTED',
-    { documentId },
-    gateOptions(actingFor),
+): Promise<ReadonlyMap<string, SafeCopyOffer>> {
+  const principal = accountPrincipal(accountId);
+  const options = gateOptions(actingFor);
+  const checks = await Promise.all(
+    documentIds.map(async (documentId) => {
+      const [details, download] = await Promise.all([
+        requireAccess(db, principal, 'VIEW_METADATA', { documentId }, options),
+        requireAccess(db, principal, 'DOWNLOAD_REDACTED', { documentId }, options),
+      ]);
+      const proof: StateProof | undefined = details.ok
+        ? details.value
+        : download.ok
+          ? download.value
+          : undefined;
+      const access: 'allowed' | 'step_up' | 'refused' = download.ok
+        ? 'allowed'
+        : download.error.code === 'step_up_required'
+          ? 'step_up'
+          : 'refused';
+      return { documentId, proof, access };
+    }),
   );
-  if (!result.ok) return result.error.code === 'step_up_required' ? 'confirm' : 'none';
-  const state = await getSafeCopyState(result.value);
-  if (!state.ok) return 'none';
-  return state.value === 'MASKED' || state.value === 'NOTHING_TO_HIDE' ? 'ready' : 'not_prepared';
+  const proofs = checks.flatMap((check) =>
+    check.access !== 'refused' && check.proof ? [check.proof] : [],
+  );
+  const [first, ...rest] = proofs;
+  const states = first ? await listSafeCopyStatesForDocuments(first, rest) : new Map();
+  return new Map(
+    checks.map((check) => [
+      check.documentId,
+      offerFor(check.proof ? states.get(check.documentId) : undefined, check.access),
+    ]),
+  );
 }
 
 export function redactionDeps(db: Db): RedactionDeps {

@@ -31,6 +31,7 @@ import { SafeCopyDownload, readMessage } from './safe-copy-download';
 
 export type SafeCopyStateName =
   | 'NOT_PREPARED'
+  | 'PREPARING'
   | 'MASKED'
   | 'NOTHING_TO_HIDE'
   | 'UNSUPPORTED'
@@ -38,6 +39,7 @@ export type SafeCopyStateName =
 
 export const SAFE_COPY_STATE_LABELS: Readonly<Record<SafeCopyStateName, string>> = {
   NOT_PREPARED: 'Safe Copy: Not Prepared Yet',
+  PREPARING: 'Safe Copy: Preparing',
   MASKED: 'Safe Copy: Ready',
   NOTHING_TO_HIDE: 'Safe Copy: Ready, Nothing Hidden',
   UNSUPPORTED: 'Safe Copy: Not Available',
@@ -97,8 +99,13 @@ export function describeEditorBox(item: EditorBox, index: number, page: number):
     : `${where} Suggested for ${why}, not accepted yet.`;
 }
 
+/**
+ * A page as the browser holds it: decoded straight from the fetched bytes into an image bitmap and
+ * painted on a canvas, so no image address is ever made (the page's content rules allow images
+ * from this site only, and a canvas needs no image address at all).
+ */
 interface PageImage {
-  readonly url: string;
+  readonly bitmap: ImageBitmap;
 }
 
 type ImageState = PageImage | 'loading' | 'error';
@@ -109,7 +116,100 @@ interface EditorInfo {
   readonly canSave: boolean;
 }
 
-type Step = 'closed' | 'loading' | 'edit' | 'review' | 'saved';
+type Step = 'closed' | 'loading' | 'edit' | 'review' | 'preparing' | 'saved';
+
+/** The draft kept for this browser tab while a fresh identity check is done: positions only. */
+interface Draft {
+  readonly pageCount: number;
+  readonly pages: readonly (readonly {
+    readonly box: RedactionBox;
+    readonly suggestion?: { readonly reason: SuggestionReason; readonly accepted: boolean };
+  }[])[];
+}
+
+function draftKey(documentId: string, versionId: string): string {
+  return `safe-copy-draft:${documentId}:${versionId}`;
+}
+
+/** Reads a draft for this version, or nothing; storage that cannot be used reads as nothing. */
+export function readDraft(
+  documentId: string,
+  versionId: string,
+  pageCount: number,
+): EditorBox[][] | undefined {
+  try {
+    const text = window.sessionStorage.getItem(draftKey(documentId, versionId));
+    if (!text) return undefined;
+    const draft = JSON.parse(text) as Draft;
+    if (draft.pageCount !== pageCount || !Array.isArray(draft.pages)) return undefined;
+    if (draft.pages.length !== pageCount) return undefined;
+    return draft.pages.map((page) =>
+      (Array.isArray(page) ? page : []).slice(0, REDACTION_LIMITS.maxBoxesPerPage).map((item) => ({
+        id: boxId(),
+        box: clampRedactionBox(item.box),
+        ...(item.suggestion &&
+        (item.suggestion.reason === 'mrz' ||
+          item.suggestion.reason === 'identifier' ||
+          item.suggestion.reason === 'account_number')
+          ? {
+              suggestion: {
+                reason: item.suggestion.reason,
+                accepted: item.suggestion.accepted === true,
+              },
+            }
+          : {}),
+      })),
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+function writeDraft(documentId: string, versionId: string, pages: readonly EditorBox[][]): void {
+  try {
+    const draft: Draft = {
+      pageCount: pages.length,
+      pages: pages.map((boxes) =>
+        boxes.map((item) => ({
+          box: item.box,
+          ...(item.suggestion ? { suggestion: item.suggestion } : {}),
+        })),
+      ),
+    };
+    window.sessionStorage.setItem(draftKey(documentId, versionId), JSON.stringify(draft));
+  } catch {
+    // A draft is a convenience: without storage, the boxes simply are not kept.
+  }
+}
+
+function removeDraft(documentId: string, versionId: string): void {
+  try {
+    window.sessionStorage.removeItem(draftKey(documentId, versionId));
+  } catch {
+    // Nothing to remove when storage cannot be used.
+  }
+}
+
+/** Paints one page bitmap on a canvas, named for people who cannot see it. */
+function PageCanvas({ bitmap, label }: { readonly bitmap: ImageBitmap; readonly label: string }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    const context = canvas?.getContext('2d');
+    if (!canvas || !context) return;
+    context.drawImage(bitmap, 0, 0);
+  }, [bitmap]);
+  return (
+    <canvas
+      ref={ref}
+      className="safe-copy-page-image"
+      width={bitmap.width}
+      height={bitmap.height}
+      role="img"
+      aria-label={label}
+    />
+  );
+}
 
 let nextBoxId = 0;
 function boxId(): string {
@@ -128,11 +228,21 @@ function fromSaved(saved: unknown): EditorBox[][] | undefined {
 
 export interface SafeCopyEditorProps {
   readonly documentId: string;
+  /** The document's latest version, for removing a safe copy without opening the editor. */
+  readonly versionId: string | null;
   readonly returnTo: string;
   readonly initialState: SafeCopyStateName;
+  /** False while safe copies are off on this deployment: the section says so and offers nothing. */
+  readonly available: boolean;
 }
 
-export function SafeCopyEditor({ documentId, returnTo, initialState }: SafeCopyEditorProps) {
+export function SafeCopyEditor({
+  documentId,
+  versionId: latestVersionId,
+  returnTo,
+  initialState,
+  available,
+}: SafeCopyEditorProps) {
   const id = useId();
   const sectionId = `safe-copy-${documentId}`;
   const detailsRef = useRef<HTMLDetailsElement>(null);
@@ -145,14 +255,19 @@ export function SafeCopyEditor({ documentId, returnTo, initialState }: SafeCopyE
   const [pages, setPages] = useState<EditorBox[][]>([]);
   const [current, setCurrent] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
-  const [images, setImages] = useState<Record<number, ImageState>>({});
+  const [images, setImagesState] = useState<Record<number, ImageState>>({});
+  const imagesRef = useRef<Record<number, ImageState>>({});
+  const setImages = (change: (all: Record<number, ImageState>) => Record<number, ImageState>) => {
+    imagesRef.current = change(imagesRef.current);
+    setImagesState(imagesRef.current);
+  };
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [nothingToHide, setNothingToHide] = useState(false);
   const [drawing, setDrawing] = useState(false);
   const [draft, setDraft] = useState<RedactionBox | null>(null);
   const [status, setStatus] = useState('');
   const [problem, setProblem] = useState<{ message: string; reauthUrl?: string } | null>(null);
   const [busy, setBusy] = useState<'suggest' | 'save' | 'clear' | null>(null);
-  const urls = useRef<string[]>([]);
   const drag = useRef<
     | { kind: 'move'; boxId: string; startX: number; startY: number; origin: RedactionBox }
     | { kind: 'draw'; startX: number; startY: number }
@@ -164,7 +279,9 @@ export function SafeCopyEditor({ documentId, returnTo, initialState }: SafeCopyE
     mounted.current = true;
     return () => {
       mounted.current = false;
-      for (const url of urls.current) URL.revokeObjectURL(url);
+      for (const image of Object.values(imagesRef.current)) {
+        if (typeof image === 'object') image.bitmap.close();
+      }
     };
   }, []);
 
@@ -193,6 +310,13 @@ export function SafeCopyEditor({ documentId, returnTo, initialState }: SafeCopyE
     element?.focus();
   });
 
+  // Keep the boxes for this tab while editing, so a fresh identity check (which reloads the page)
+  // never loses them. Positions and page numbers only; removed on save, removal or cancel.
+  useEffect(() => {
+    if (!info || (step !== 'edit' && step !== 'review')) return;
+    writeDraft(documentId, info.versionId, pages);
+  }, [documentId, info, pages, step]);
+
   const request = (path: string, extra: Record<string, unknown>) =>
     fetch(path, {
       method: 'POST',
@@ -205,8 +329,11 @@ export function SafeCopyEditor({ documentId, returnTo, initialState }: SafeCopyE
     if (mounted.current) setProblem(read);
   };
 
-  const loadPage = async (index: number, versionId: string) => {
-    if (images[index] && images[index] !== 'error') return;
+  /** Loads one page if it is not loaded or loading yet; true once it is shown. */
+  const loadPage = async (index: number, versionId: string): Promise<boolean> => {
+    const known = imagesRef.current[index];
+    if (known === 'loading') return false;
+    if (known && known !== 'error') return true;
     setImages((all) => ({ ...all, [index]: 'loading' }));
     try {
       const response = await request('/api/documents/redaction-page', {
@@ -216,21 +343,27 @@ export function SafeCopyEditor({ documentId, returnTo, initialState }: SafeCopyE
       if (!response.ok || response.headers.get('content-type') !== 'image/jpeg') {
         await fail(response);
         if (mounted.current) setImages((all) => ({ ...all, [index]: 'error' }));
-        return;
+        return false;
       }
-      const url = URL.createObjectURL(await response.blob());
-      urls.current.push(url);
-      if (mounted.current) setImages((all) => ({ ...all, [index]: { url } }));
+      if (typeof createImageBitmap !== 'function') throw new Error('no image decoding');
+      const bitmap = await createImageBitmap(await response.blob());
+      if (!mounted.current) {
+        bitmap.close();
+        return false;
+      }
+      setImages((all) => ({ ...all, [index]: { bitmap } }));
+      return true;
     } catch {
       if (mounted.current) {
         setImages((all) => ({ ...all, [index]: 'error' }));
         setProblem({ message: 'This page could not be shown. Try again.' });
       }
+      return false;
     }
   };
 
-  const start = async () => {
-    if (step === 'loading') return;
+  const start = async (resume = false) => {
+    if (step === 'loading' || step === 'preparing') return;
     setProblem(null);
     setStep('loading');
     try {
@@ -246,21 +379,40 @@ export function SafeCopyEditor({ documentId, returnTo, initialState }: SafeCopyE
         canSave: boolean;
         savedPages: unknown;
         state: SafeCopyStateName;
+        maskRevision: string | null;
       };
       if (!mounted.current) return;
+      const opened = {
+        versionId: body.versionId,
+        pageCount: body.pageCount,
+        canSave: body.canSave,
+      };
+      setInfo(opened);
+      // A saved copy still being prepared carries on preparing, without editing again.
+      if (resume && body.state === 'PREPARING' && body.maskRevision) {
+        void prepare(opened, body.maskRevision);
+        return;
+      }
       const saved = fromSaved(body.savedPages);
-      setInfo({ versionId: body.versionId, pageCount: body.pageCount, canSave: body.canSave });
+      const kept = readDraft(documentId, body.versionId, body.pageCount);
       setPages(
-        saved && saved.length === body.pageCount
-          ? saved
-          : Array.from({ length: body.pageCount }, () => []),
+        kept ??
+          (saved && saved.length === body.pageCount
+            ? saved
+            : Array.from({ length: body.pageCount }, () => [])),
       );
-      setNothingToHide(body.state === 'NOTHING_TO_HIDE');
+      setNothingToHide(!kept && body.state === 'NOTHING_TO_HIDE');
       setCurrent(0);
       setSelected(null);
       setStep('edit');
       setStatus(
-        `Page 1 of ${body.pageCount}. ${body.canSave ? '' : 'Safe copies are not ready yet, so nothing can be saved.'}`.trim(),
+        [
+          `Page 1 of ${body.pageCount}.`,
+          kept ? 'Your unsaved boxes were restored.' : '',
+          body.canSave ? '' : 'Safe copies are not ready yet, so nothing can be saved.',
+        ]
+          .filter(Boolean)
+          .join(' '),
       );
       void loadPage(0, body.versionId);
     } catch {
@@ -500,13 +652,87 @@ export function SafeCopyEditor({ documentId, returnTo, initialState }: SafeCopyE
     setNothingToHide(choseNothing);
     setStep('review');
     setStatus(`Review: ${info.pageCount} ${info.pageCount === 1 ? 'page' : 'pages'} to check.`);
-    for (let index = 0; index < info.pageCount; index++) void loadPage(index, info.versionId);
+    void loadReviewPages(info);
   };
+
+  /** Review pages load one at a time, never all at once; a page that fails offers Try Again. */
+  const loadReviewPages = async (opened: EditorInfo) => {
+    for (let index = 0; index < opened.pageCount; index++) {
+      if (!mounted.current) return;
+      await loadPage(index, opened.versionId);
+    }
+  };
+
+  /**
+   * Prepares every page, one after another, for the saved revision. Pages already prepared are
+   * skipped by the server, so this resumes after an interruption.
+   */
+  const prepare = async (opened: EditorInfo, revision: string) => {
+    setStep('preparing');
+    setProblem(null);
+    setProgress({ done: 0, total: opened.pageCount });
+    for (let page = 1; page <= opened.pageCount; page++) {
+      if (!mounted.current) return;
+      setStatus(`Preparing page ${page} of ${opened.pageCount}.`);
+      let response: Response;
+      try {
+        response = await request('/api/documents/safe-copy-prepare', {
+          versionId: opened.versionId,
+          page,
+          maskRevision: revision,
+        });
+      } catch {
+        if (mounted.current) {
+          setProblem({ message: 'Preparing stopped. Choose Continue Preparing to carry on.' });
+          setState('PREPARING');
+          setStep('closed');
+        }
+        return;
+      }
+      if (!response.ok) {
+        await fail(response);
+        if (mounted.current) {
+          setState('PREPARING');
+          setStep('closed');
+        }
+        return;
+      }
+      const body = (await response.json()) as {
+        preparedPages: number;
+        pageCount: number;
+        state: SafeCopyStateName;
+      };
+      if (!mounted.current) return;
+      setProgress({ done: body.preparedPages, total: body.pageCount });
+      if (body.state === 'MASKED' || body.state === 'NOTHING_TO_HIDE') {
+        setState(body.state);
+        setStep('saved');
+        setProgress(null);
+        setStatus('Safe copy ready. People you share safe copies with can now download it.');
+        return;
+      }
+    }
+    if (mounted.current) {
+      setState('PREPARING');
+      setStep('closed');
+      setProblem({ message: 'Some pages are not prepared yet. Choose Continue Preparing.' });
+    }
+  };
+
+  const allReviewPagesShown =
+    info !== null &&
+    Array.from({ length: info.pageCount }, (_, index) => images[index]).every(
+      (image) => image !== undefined && image !== 'loading' && image !== 'error',
+    );
 
   const save = async () => {
     if (!info || busy) return;
     if (!info.canSave) {
       setStatus('Safe copies are not ready yet, so nothing can be saved.');
+      return;
+    }
+    if (!allReviewPagesShown) {
+      setStatus('Every page must show before the safe copy can be saved.');
       return;
     }
     setBusy('save');
@@ -524,11 +750,12 @@ export function SafeCopyEditor({ documentId, returnTo, initialState }: SafeCopyE
         await fail(response);
         return;
       }
-      const body = (await response.json()) as { state: SafeCopyStateName };
+      const body = (await response.json()) as { maskRevision: string };
       if (!mounted.current) return;
-      setState(body.state);
-      setStep('saved');
-      setStatus('Safe copy saved. People you share safe copies with can now download it.');
+      removeDraft(documentId, info.versionId);
+      setState('PREPARING');
+      setBusy(null);
+      await prepare(info, body.maskRevision);
     } catch {
       if (mounted.current) setProblem({ message: 'The safe copy was not saved. Try again.' });
     } finally {
@@ -541,19 +768,16 @@ export function SafeCopyEditor({ documentId, returnTo, initialState }: SafeCopyE
     setBusy('clear');
     setProblem(null);
     try {
-      // The editor reads the latest version first, so a clear always names the version shown.
-      const opened = await request('/api/documents/redaction-editor', {});
-      if (!opened.ok) {
-        await fail(opened);
-        return;
-      }
-      const { versionId } = (await opened.json()) as { versionId: string };
+      // The latest version as the page knows it: removing needs no drawing of the file at all.
+      const versionId = info?.versionId ?? latestVersionId;
+      if (!versionId) return;
       const response = await request('/api/documents/redaction-masks', { versionId, clear: true });
       if (!response.ok) {
         await fail(response);
         return;
       }
       if (!mounted.current) return;
+      removeDraft(documentId, versionId);
       setState('NOT_PREPARED');
       setStep('closed');
       setInfo(null);
@@ -576,12 +800,7 @@ export function SafeCopyEditor({ documentId, returnTo, initialState }: SafeCopyE
     return (
       <div className="safe-copy-page">
         {shown && shown !== 'loading' && shown !== 'error' ? (
-          <img
-            className="safe-copy-page-image"
-            src={shown.url}
-            alt={`Page ${index + 1} of ${pageCount}`}
-            draggable={false}
-          />
+          <PageCanvas bitmap={shown.bitmap} label={`Page ${index + 1} of ${pageCount}`} />
         ) : (
           <div className="safe-copy-page-placeholder">
             {shown === 'error' ? 'This page could not be shown.' : 'Loading the page...'}
@@ -661,7 +880,10 @@ export function SafeCopyEditor({ documentId, returnTo, initialState }: SafeCopyE
         A safe copy is a new picture of each page with the parts you choose covered in black. It is
         what people you share safe copies with can download, never the original.
       </p>
-      {unavailable ? (
+      {!available ? (
+        <p className="safe-copy-note">Safe copies are not available here yet.</p>
+      ) : null}
+      {available && unavailable ? (
         <p className="safe-copy-note">
           {state === 'TOO_LARGE'
             ? 'This document is too large for a safe copy. Safe copies take up to 20 pages and 25 MB.'
@@ -683,17 +905,29 @@ export function SafeCopyEditor({ documentId, returnTo, initialState }: SafeCopyE
         {status}
       </output>
 
-      {!unavailable && (step === 'closed' || step === 'loading' || step === 'saved') ? (
+      {available &&
+      !unavailable &&
+      (step === 'closed' || step === 'loading' || step === 'saved') ? (
         <div className="safe-copy-actions">
+          {state === 'PREPARING' ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => void start(true)}
+              aria-disabled={step === 'loading' ? true : undefined}
+            >
+              Continue Preparing
+            </button>
+          ) : null}
           <button
             type="button"
-            className={ready ? 'btn btn-secondary' : 'btn btn-primary'}
-            onClick={start}
+            className={ready || state === 'PREPARING' ? 'btn btn-secondary' : 'btn btn-primary'}
+            onClick={() => void start()}
             aria-disabled={step === 'loading' ? true : undefined}
           >
-            {ready ? 'Change Safe Copy' : 'Prepare Safe Copy'}
+            {ready || state === 'PREPARING' ? 'Change Safe Copy' : 'Prepare Safe Copy'}
           </button>
-          {ready ? (
+          {(ready || state === 'PREPARING') && latestVersionId ? (
             <button
               type="button"
               className="btn btn-secondary"
@@ -710,7 +944,19 @@ export function SafeCopyEditor({ documentId, returnTo, initialState }: SafeCopyE
           Opening the document...
         </output>
       ) : null}
-      {ready && step !== 'edit' && step !== 'review' ? (
+      {step === 'preparing' && progress ? (
+        <div className="safe-copy-editor">
+          <h3 className="safe-copy-subtitle">Preparing the Safe Copy</h3>
+          <p className="safe-copy-note">
+            Each page is drawn once with its black boxes. Keep this page open; if it closes, choose
+            Continue Preparing to carry on where it stopped.
+          </p>
+          <progress className="safe-copy-progress" max={progress.total} value={progress.done}>
+            {progress.done} of {progress.total}
+          </progress>
+        </div>
+      ) : null}
+      {available && ready && step !== 'edit' && step !== 'review' && step !== 'preparing' ? (
         <SafeCopyDownload documentId={documentId} returnTo={returnTo} />
       ) : null}
 
@@ -893,6 +1139,18 @@ export function SafeCopyEditor({ documentId, returnTo, initialState }: SafeCopyE
             <button type="button" className="btn btn-secondary" onClick={() => review(true)}>
               Nothing to Hide on This Document
             </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                removeDraft(documentId, info.versionId);
+                setStep('closed');
+                setSelected(null);
+                setStatus('Editing cancelled. Nothing was saved.');
+              }}
+            >
+              Cancel Editing
+            </button>
           </div>
         </div>
       ) : null}
@@ -921,6 +1179,16 @@ export function SafeCopyEditor({ documentId, returnTo, initialState }: SafeCopyE
                     .
                   </figcaption>
                 </figure>
+                {images[index] === 'error' ? (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => void loadPage(index, info.versionId)}
+                    aria-label={`Try again to show page ${index + 1}`}
+                  >
+                    Try Again
+                  </button>
+                ) : null}
               </li>
             ))}
           </ol>
@@ -929,7 +1197,10 @@ export function SafeCopyEditor({ documentId, returnTo, initialState }: SafeCopyE
               type="button"
               className="btn btn-primary"
               onClick={save}
-              aria-disabled={busy === 'save' || !info.canSave ? true : undefined}
+              aria-disabled={
+                busy === 'save' || !info.canSave || !allReviewPagesShown ? true : undefined
+              }
+              aria-describedby={allReviewPagesShown ? undefined : `${id}-review-wait`}
             >
               Save Safe Copy
             </button>
@@ -944,6 +1215,11 @@ export function SafeCopyEditor({ documentId, returnTo, initialState }: SafeCopyE
               Back to Editing
             </button>
           </div>
+          {!allReviewPagesShown ? (
+            <p className="safe-copy-note" id={`${id}-review-wait`}>
+              Every page must show before the safe copy can be saved.
+            </p>
+          ) : null}
           {!info.canSave ? (
             <p className="safe-copy-note">
               Safe copies are not ready yet, so nothing can be saved.

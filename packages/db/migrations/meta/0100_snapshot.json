@@ -1,5 +1,5 @@
 {
-  "id": "418ab188-a479-4220-a209-908241e3d39b",
+  "id": "14d89420-03bd-442f-9eae-11d0ee447cbd",
   "prevId": "82bce275-6266-4980-bebe-bad3ce6a2b80",
   "version": "7",
   "dialect": "postgresql",
@@ -12458,6 +12458,48 @@
           "primaryKey": false,
           "notNull": true
         },
+        "mask_revision": {
+          "name": "mask_revision",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rendered_storage_object_id": {
+          "name": "rendered_storage_object_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rendered_content_type": {
+          "name": "rendered_content_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rendered_byte_size": {
+          "name": "rendered_byte_size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rendered_width_pt": {
+          "name": "rendered_width_pt",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rendered_height_pt": {
+          "name": "rendered_height_pt",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rendered_at": {
+          "name": "rendered_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -12488,6 +12530,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "redaction_masks_rendered_object_idx": {
+          "name": "redaction_masks_rendered_object_idx",
+          "columns": [
+            {
+              "expression": "rendered_storage_object_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -12508,6 +12565,15 @@
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "redaction_masks_rendered_storage_object_id_storage_objects_id_fk": {
+          "name": "redaction_masks_rendered_storage_object_id_storage_objects_id_fk",
+          "tableFrom": "redaction_masks",
+          "tableTo": "storage_objects",
+          "columnsFrom": ["rendered_storage_object_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -12520,6 +12586,10 @@
       },
       "policies": {},
       "checkConstraints": {
+        "redaction_masks_rendered_together": {
+          "name": "redaction_masks_rendered_together",
+          "value": "\"redaction_masks\".\"rendered_storage_object_id\" is null or (\"redaction_masks\".\"rendered_content_type\" in ('image/jpeg', 'image/png') and \"redaction_masks\".\"rendered_byte_size\" > 0 and \"redaction_masks\".\"rendered_width_pt\" > 0 and \"redaction_masks\".\"rendered_height_pt\" > 0 and \"redaction_masks\".\"rendered_at\" is not null)"
+        },
         "redaction_masks_page_range": {
           "name": "redaction_masks_page_range",
           "value": "\"redaction_masks\".\"page\" between 1 and 20"
@@ -14026,7 +14096,12 @@
     "public.erasure_job_reason": {
       "name": "erasure_job_reason",
       "schema": "public",
-      "values": ["ACCOUNT_DELETION", "RETENTION_PURGE", "PROFILE_PHOTO_REMOVAL"]
+      "values": [
+        "ACCOUNT_DELETION",
+        "RETENTION_PURGE",
+        "PROFILE_PHOTO_REMOVAL",
+        "SAFE_COPY_REMOVAL"
+      ]
     },
     "public.erasure_job_status": {
       "name": "erasure_job_status",

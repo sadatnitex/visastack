@@ -71,14 +71,25 @@ export function parseRedactionBox(input: unknown): RedactionBox | undefined {
   return kept;
 }
 
-/** A box kept inside the page with sides no smaller than `minSide`: for the editor's moves. */
+/** The largest stored value not above `value`, so a far edge never rounds past the page. */
+function roundDown(value: number): number {
+  // The small nudge absorbs floating point noise such as (1 - 0.3) * 1e6 = 699999.9999999.
+  return Math.floor(value * PRECISION + 1e-6) / PRECISION;
+}
+
+/**
+ * A box kept inside the page with sides no smaller than `minSide`, for the editor's moves and
+ * drawing. Sizes are rounded first and the corner is then kept within what is left, rounded
+ * down, so the result is always one `parseRedactionBox` accepts.
+ */
 export function clampRedactionBox(box: RedactionBox): RedactionBox {
   const min = REDACTION_LIMITS.minSide;
-  const w = Math.min(1, Math.max(min, box.w));
-  const h = Math.min(1, Math.max(min, box.h));
-  const x = Math.min(1 - w, Math.max(0, box.x));
-  const y = Math.min(1 - h, Math.max(0, box.y));
-  return { x: round(x), y: round(y), w: round(w), h: round(h) };
+  const finite = (value: number, fallback: number) => (Number.isFinite(value) ? value : fallback);
+  const w = round(Math.min(1, Math.max(min, finite(box.w, min))));
+  const h = round(Math.min(1, Math.max(min, finite(box.h, min))));
+  const x = Math.min(roundDown(1 - w), Math.max(0, round(finite(box.x, 0))));
+  const y = Math.min(roundDown(1 - h), Math.max(0, round(finite(box.y, 0))));
+  return { x, y, w, h };
 }
 
 /** The box moved by a step, staying on the page. */

@@ -8,6 +8,8 @@ const { session, requireAccess, produce, stepUp, EACH } = vi.hoisted(() => ({
   produce: vi.fn(),
   stepUp: vi.fn(),
 }));
+const capability = vi.hoisted(() => ({ redactedDownload: 'available' }));
+vi.mock('../../../../lib/capabilities', () => ({ getPlatformCapabilities: () => capability }));
 vi.mock('../../../../lib/session', () => ({ withSession: session }));
 vi.mock('../../../../lib/storage', () => ({ createStorage: () => ({ getObject: vi.fn() }) }));
 vi.mock('../../../../lib/step-up', () => ({ establishStepUpProof: stepUp }));
@@ -40,6 +42,7 @@ function request(body: unknown, origin = 'https://app.example') {
 const valid = { documentId, returnTo: '/app/shared/grant-1' };
 
 beforeEach(() => {
+  capability.redactedDownload = 'available';
   session.mockReset();
   requireAccess.mockReset();
   produce.mockReset();
@@ -147,5 +150,25 @@ describe('safe copy download route', () => {
     expect((await POST(request({ ...valid, actingFor: 'someone' }))).status).toBe(400);
     expect((await POST(request({ ...valid, padding: 'x'.repeat(5000) }))).status).toBe(400);
     expect(session).not.toHaveBeenCalled();
+  });
+
+  it('refuses plainly, before any session work, while safe copies are off here', async () => {
+    capability.redactedDownload = 'unconfigured';
+    const response = await POST(request(valid));
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ message: 'Safe copies are not available here yet.' });
+    expect(session).not.toHaveBeenCalled();
+  });
+
+  it('says a page took too long in its own words', async () => {
+    produce.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'upstream_error', message: 'x', refusal: 'too_slow' },
+    });
+    const response = await POST(request(valid));
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      message: 'This page took too long to prepare. Try again.',
+    });
   });
 });

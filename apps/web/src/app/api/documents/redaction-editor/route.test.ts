@@ -9,6 +9,8 @@ const { session, requireAccess, open, suggestions, EACH } = vi.hoisted(() => ({
   open: vi.fn(),
   suggestions: vi.fn(),
 }));
+const capability = vi.hoisted(() => ({ redactedDownload: 'available' }));
+vi.mock('../../../../lib/capabilities', () => ({ getPlatformCapabilities: () => capability }));
 vi.mock('../../../../lib/session', () => ({ withSession: session }));
 vi.mock('../../../../lib/storage', () => ({ createStorage: () => ({}) }));
 vi.mock('../../../../lib/step-up', () => ({ establishStepUpProof: vi.fn() }));
@@ -39,6 +41,7 @@ function request(path: string, body: unknown) {
 }
 
 beforeEach(() => {
+  capability.redactedDownload = 'available';
   for (const mock of [session, requireAccess, open, suggestions]) mock.mockReset();
   session.mockImplementation((fn) => fn({ db: {}, accountId: 'acct' }));
   requireAccess.mockResolvedValue({ ok: true, value: { proof: true } });
@@ -54,6 +57,8 @@ describe('safe copy editor routes', () => {
         pageCount: 2,
         state: 'NOT_PREPARED',
         savedPages: null,
+        maskRevision: null,
+        preparedPages: [],
         canSave: true,
       },
     });
@@ -63,6 +68,8 @@ describe('safe copy editor routes', () => {
       pageCount: 2,
       state: 'NOT_PREPARED',
       savedPages: null,
+      maskRevision: null,
+      preparedPages: [],
       canSave: true,
     });
     expect(requireAccess.mock.calls[0]?.[2]).toBe('PREVIEW');

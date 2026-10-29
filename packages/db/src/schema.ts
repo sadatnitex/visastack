@@ -16,6 +16,7 @@ import {
   check,
   customType,
   date,
+  doublePrecision,
   foreignKey,
   index,
   integer,
@@ -118,6 +119,9 @@ export const erasureJobReason = pgEnum('erasure_job_reason', [
   // WP-PH1: a profile photo that was replaced or removed. Its row is already
   // gone; the worker deletes and verifies the bytes like any other job.
   'PROFILE_PHOTO_REMOVAL',
+  // S23: a prepared safe copy page whose boxes changed or were removed (or whose document went).
+  // Its row is already gone or cleared; the worker deletes and verifies the bytes.
+  'SAFE_COPY_REMOVAL',
 ]);
 export const erasureJobStatus = pgEnum('erasure_job_status', [
   'PENDING',
@@ -4609,6 +4613,13 @@ export const calendarFeeds = pgTable(
 // "nothing to hide" for that page. Boxes are fractions of the page (0 to 1), checked by the
 // service. Rows go with the version (a new version starts with none: masks are never copied,
 // because the layout may differ) and with the owner's account.
+//
+// Every save writes a new `maskRevision` on all rows of the version. Each page is then drawn once,
+// with its boxes painted black, and stored as a private derived object (`renderedStorageObjectId`
+// with its type, size and page size in points); a safe copy is served only when every page has a
+// stored drawing for the current revision (ADR 0022 amendment, deviation 7). A drawn page records
+// its type, size and page size with the file; a page whose file link is empty is not drawn (the
+// link empties itself when the file's registration is erased).
 export interface RedactionMaskBox {
   readonly x: number;
   readonly y: number;
@@ -4629,11 +4640,26 @@ export const redactionMasks = pgTable(
     createdByAccountId: uuid('created_by_account_id')
       .notNull()
       .references(() => accounts.id, { onDelete: 'cascade' }),
+    maskRevision: uuid('mask_revision').notNull(),
+    renderedStorageObjectId: uuid('rendered_storage_object_id').references(
+      () => storageObjects.id,
+      { onDelete: 'set null' },
+    ),
+    renderedContentType: text('rendered_content_type'),
+    renderedByteSize: integer('rendered_byte_size'),
+    renderedWidthPt: doublePrecision('rendered_width_pt'),
+    renderedHeightPt: doublePrecision('rendered_height_pt'),
+    renderedAt: timestamp('rendered_at', { withTimezone: true }),
     ...timestamps,
   },
   (table) => [
     unique('redaction_masks_version_page_unique').on(table.documentVersionId, table.page),
     index('redaction_masks_created_by_idx').on(table.createdByAccountId),
+    index('redaction_masks_rendered_object_idx').on(table.renderedStorageObjectId),
+    check(
+      'redaction_masks_rendered_together',
+      sql`${table.renderedStorageObjectId} is null or (${table.renderedContentType} in ('image/jpeg', 'image/png') and ${table.renderedByteSize} > 0 and ${table.renderedWidthPt} > 0 and ${table.renderedHeightPt} > 0 and ${table.renderedAt} is not null)`,
+    ),
     check('redaction_masks_page_range', sql`${table.page} between 1 and 20`),
     check('redaction_masks_source_known', sql`${table.source} in ('OWNER', 'SUGGESTED_ACCEPTED')`),
     check(

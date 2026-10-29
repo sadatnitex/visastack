@@ -8,6 +8,7 @@ import { enqueueErasureJob } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { listActiveLegalHoldsForAccount } from './legal-hold';
 import { readUnlessPhotoTableMissing } from './profile-photos';
+import { redactionMasksTablePresent } from './redaction-table';
 
 /**
  * Account deletion workflow (Build Spec §13; PRD §2 — erasure).
@@ -456,6 +457,23 @@ export async function executeAccountDeletion(
           .where(inArray(schema.applicantPhotos.applicantId, applicantIds)),
       );
       storageObjects = [...storageObjects, ...photoObjects.map((row) => row.object)];
+      // Stored safe copy page drawings (S23) are stored objects too. Their mask rows cascade with
+      // the documents below; their files are queued here. None before migration 0102.
+      if (documentIds.length > 0 && (await redactionMasksTablePresent(tx))) {
+        const drawings = await tx
+          .select({ object: schema.storageObjects })
+          .from(schema.redactionMasks)
+          .innerJoin(
+            schema.storageObjects,
+            eq(schema.storageObjects.id, schema.redactionMasks.renderedStorageObjectId),
+          )
+          .innerJoin(
+            schema.documentVersions,
+            eq(schema.documentVersions.id, schema.redactionMasks.documentVersionId),
+          )
+          .where(inArray(schema.documentVersions.documentId, documentIds));
+        storageObjects = [...storageObjects, ...drawings.map((row) => row.object)];
+      }
       // Deleting applicants cascades to missions, grants, documents, versions,
       // facts. `storageObjects` is left untouched here — the `restrict` FK on
       // documentVersions.storageObjectId is already satisfied once those

@@ -8,12 +8,14 @@ import {
   getPhotoSpec,
   photoFindings,
 } from '@visastack/core/photo-specs';
-import { desc, eq } from 'drizzle-orm';
-import { AuthorizedApplicant, EACH_GRANT } from './access/require-access';
-import { appendAuditEvent } from './audit';
+import { eq } from 'drizzle-orm';
+import { AuthorizedApplicant } from './access/require-access';
 import { type Db, first, schema } from './db';
-import { isDocumentVersionUsable } from './documents';
-import { hasActiveOrVerifiedErasureJob } from './erasure';
+import {
+  documentAuditActor,
+  latestUsableVersion,
+  writeDocumentAccessAudit,
+} from './document-access';
 import { type ServiceError, serviceError } from './errors';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
 import type { BlobStore } from './storage';
@@ -102,50 +104,7 @@ const BUCKETS = {
   size: { action: 'photo_size', label: 'photo size', config: RATE_LIMITS.PHOTO_SIZE },
 } as const;
 
-function auditActor(access: AuthorizedApplicant<PhotoAction>): {
-  readonly actorAccountId: string | null;
-  readonly actorRole: string;
-  readonly subjectAccountId: string;
-} {
-  const actor = access.actor;
-  switch (actor.kind) {
-    case 'applicant_owner':
-      return {
-        actorAccountId: null,
-        actorRole: 'applicant_owner',
-        subjectAccountId: access.applicant.ownerAccountId,
-      };
-    case 'organization_member':
-      return {
-        actorAccountId: actor.accountId,
-        actorRole: `org:${actor.membership.role}`,
-        subjectAccountId: actor.accountId,
-      };
-    case 'individual_recipient':
-      return {
-        actorAccountId: actor.accountId,
-        actorRole: 'individual_recipient',
-        subjectAccountId: actor.accountId,
-      };
-    case 'support_admin':
-      return {
-        actorAccountId: actor.accountId,
-        actorRole: 'support_admin',
-        subjectAccountId: actor.accountId,
-      };
-    case 'contributor':
-      return {
-        actorAccountId: actor.accountId,
-        actorRole: 'contributor',
-        subjectAccountId: actor.accountId,
-      };
-  }
-}
-
-function purposeText(access: AuthorizedApplicant<PhotoAction>): string {
-  if (access.actor.kind === 'applicant_owner') return 'owner_photo_sizes';
-  return access.purpose === EACH_GRANT ? 'shared_photo_sizes' : access.purpose;
-}
+const PURPOSES = Object.freeze({ owner: 'owner_photo_sizes', shared: 'shared_photo_sizes' });
 
 /** One DOCUMENT_ACCESS event: what was asked for and the outcome, never image data. */
 async function writePhotoAudit(
@@ -158,22 +117,7 @@ async function writePhotoAudit(
     readonly metadata: Readonly<Record<string, unknown>>;
   },
 ): Promise<void> {
-  const who = auditActor(access);
-  await access.tx.transaction(async (tx) => {
-    await appendAuditEvent(tx, {
-      eventType: 'DOCUMENT_ACCESS',
-      actorAccountId: who.actorAccountId,
-      actorRole: who.actorRole,
-      action: 'DOWNLOAD_REDACTED',
-      result: event.allowed ? 'ALLOWED' : 'DENIED',
-      method: 'API',
-      applicantId: event.applicantId,
-      resourceType: 'document',
-      resourceId: event.documentId,
-      reason: event.reason,
-      metadata: { ...event.metadata, purpose: purposeText(access) },
-    });
-  });
+  await writeDocumentAccessAudit(access, { ...event, purposes: PURPOSES });
 }
 
 interface LoadedPhoto {
@@ -204,7 +148,7 @@ async function loadPhoto(
     );
   }
   const db: Db = access.tx;
-  const who = auditActor(access);
+  const who = documentAuditActor(access);
 
   const { action: bucketAction, label, config } = BUCKETS[bucket];
   const limit = await checkRateLimit(
@@ -223,29 +167,12 @@ async function loadPhoto(
       metadata,
     });
 
-  const version = first(
-    await db
-      .select()
-      .from(schema.documentVersions)
-      .where(eq(schema.documentVersions.documentId, document.id))
-      .orderBy(desc(schema.documentVersions.versionNumber))
-      .limit(1),
-  );
-  const erased = version ? await hasActiveOrVerifiedErasureJob(db, version.storageObjectId) : false;
-  const servable =
-    version !== undefined &&
-    isDocumentVersionUsable({
-      safetyStatus: version.safetyStatus,
-      processingStatus: version.processingStatus,
-      erased,
-    });
-  if (!version || !servable) {
-    await audit(
-      false,
-      !version ? 'no_stored_version' : erased ? 'bytes_already_erased' : 'not_yet_safe_to_serve',
-    );
+  const latest = await latestUsableVersion(access);
+  if (latest.kind !== 'usable') {
+    await audit(false, latest.reason);
     return err(serviceError('forbidden', 'this photo is not available yet'));
   }
+  const version = latest.version;
   const storageObject = first(
     await db
       .select()

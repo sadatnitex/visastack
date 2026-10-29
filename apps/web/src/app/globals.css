@@ -10548,3 +10548,11 @@ summary.safe-copy-title {
 .safe-copy-figure {
   margin: 12px 0 0;
 }
+.safe-copy-progress {
+  display: block;
+  width: 100%;
+  max-width: 640px;
+  height: 12px;
+  margin-top: 8px;
+  accent-color: var(--accent);
+}
