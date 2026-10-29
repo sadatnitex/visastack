@@ -1,5 +1,11 @@
 import { R2_DOCUMENT_BUCKET, readR2Region, validateR2Endpoint } from './r2-storage';
 
+/**
+ * How old the newest completed capture may be. Captures run daily (S27), so 36 hours allows one
+ * late run (schedule delay, a slow dump) but not a missed day.
+ */
+export const BACKUP_FRESHNESS_MAX_AGE_MS = 36 * 60 * 60 * 1000;
+
 /** A completed encrypted dump is evidence of capture, never of restore. */
 export async function hasRecentDatabaseBackup(input: {
   endpoint: string;
@@ -56,7 +62,7 @@ export async function hasRecentDatabaseBackup(input: {
       manifest.size > 0 &&
       Number.isFinite(completed) &&
       completed <= now &&
-      now - completed < 7 * 24 * 60 * 60 * 1000;
+      now - completed < BACKUP_FRESHNESS_MAX_AGE_MS;
     if (!valid) return false;
     const backup = await client.send(
       new HeadObjectCommand({

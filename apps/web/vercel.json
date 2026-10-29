@@ -77,7 +77,7 @@
     },
     {
       "path": "/api/jobs/process-database-backup",
-      "schedule": "0 7 * * 0"
+      "schedule": "0 7 * * *"
     },
     {
       "path": "/api/jobs/process-whatsapp-inbox",

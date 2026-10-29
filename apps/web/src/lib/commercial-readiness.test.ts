@@ -139,7 +139,7 @@ afterEach(() => {
 async function gateOf(
   key: string,
   signals: Partial<ReadinessSignals> = {},
-): Promise<{ satisfied: boolean; deferral?: unknown } | undefined> {
+): Promise<{ satisfied: boolean; detail?: string; deferral?: unknown } | undefined> {
   const { evaluateCommercialReadiness } = await import('./commercial-readiness');
   return evaluateCommercialReadiness(input(true, signals)).gates.find((g) => g.key === key);
 }
@@ -217,30 +217,55 @@ describe('evaluateCommercialReadiness', () => {
   });
 
   describe('realMalwareScanner with the private scan runner (github_clamav, shared with S4)', () => {
-    it('is satisfied with the dispatch token and the runner proof still fresh', async () => {
+    function runner(): void {
       setEnv('MALWARE_SCANNER_PROVIDER', 'github_clamav');
+      setEnv('VERCEL_ENV', 'production');
       setEnv('GITHUB_INTAKE_DISPATCH_TOKEN', 'x');
-      expect((await gateOf('realMalwareScanner', { scannerEvidenceFresh: true }))?.satisfied).toBe(
-        true,
-      );
+    }
+
+    it('is satisfied on production with the dispatch token and the runner proof still fresh', async () => {
+      runner();
+      expect(await gateOf('realMalwareScanner', { scannerEvidenceFresh: true })).toEqual({
+        key: 'realMalwareScanner',
+        label: 'real malware scanner',
+        satisfied: true,
+      });
     });
 
-    it('is not satisfied without a recent verification record', async () => {
-      setEnv('MALWARE_SCANNER_PROVIDER', 'github_clamav');
-      setEnv('GITHUB_INTAKE_DISPATCH_TOKEN', 'x');
-      expect((await gateOf('realMalwareScanner', { scannerEvidenceFresh: false }))?.satisfied).toBe(
-        false,
-      );
+    it('is not satisfied without a recent verification record, and says so', async () => {
+      runner();
+      expect(await gateOf('realMalwareScanner', { scannerEvidenceFresh: false })).toEqual({
+        key: 'realMalwareScanner',
+        label: 'real malware scanner',
+        satisfied: false,
+        detail: 'The private virus scanner has not proved it works in the last 72 hours.',
+      });
     });
 
     it('is not satisfied by fresh proof without the dispatch token the scanner needs to start', async () => {
-      setEnv('MALWARE_SCANNER_PROVIDER', 'github_clamav');
+      runner();
+      unsetEnv('GITHUB_INTAKE_DISPATCH_TOKEN');
+      const gate = await gateOf('realMalwareScanner', { scannerEvidenceFresh: true });
+      expect(gate?.satisfied).toBe(false);
+      expect(gate?.detail).toMatch(/start token is not set/);
+    });
+
+    it('is not satisfied outside the production deployment, where intake never dispatches to the runner', async () => {
+      runner();
+      for (const where of ['preview', 'development']) {
+        setEnv('VERCEL_ENV', where);
+        const gate = await gateOf('realMalwareScanner', { scannerEvidenceFresh: true });
+        expect(gate?.satisfied).toBe(false);
+        expect(gate?.detail).toMatch(/only runs for the production site/);
+      }
+      unsetEnv('VERCEL_ENV');
       expect((await gateOf('realMalwareScanner', { scannerEvidenceFresh: true }))?.satisfied).toBe(
         false,
       );
     });
 
     it('ignores the runner proof when the scanner chosen is the built-in structural one', async () => {
+      setEnv('VERCEL_ENV', 'production');
       setEnv('GITHUB_INTAKE_DISPATCH_TOKEN', 'x');
       expect((await gateOf('realMalwareScanner', { scannerEvidenceFresh: true }))?.satisfied).toBe(
         false,
@@ -310,20 +335,71 @@ describe('evaluateCommercialReadiness', () => {
       expect(await ai({ kind: 'no_configuration' })).toBe(false);
       setEnv('OPENAI_PROJECT_ID', 'proj_123');
       expect(await ai({ kind: 'no_configuration' })).toBe(false);
+      expect(
+        (await gateOf('productionAiProvider', { aiProvider: { kind: 'no_configuration' } }))
+          ?.detail,
+      ).toMatch(/old environment settings/);
     });
+
+    const ok = { hasKey: true, termsRecorded: true };
 
     it('is satisfied by an active configuration with a key and recorded data terms, whatever the environment says', async () => {
       setEnv('AI_ENABLED', 'true');
       setEnv('OPENAI_API_KEY', 'sk-test');
-      expect(await ai({ kind: 'active', hasKey: true, termsRecorded: true })).toBe(true);
+      expect(await ai({ kind: 'active', primary: ok, fallback: null })).toBe(true);
     });
 
-    it('is not satisfied by an active configuration with a key but no recorded terms', async () => {
-      expect(await ai({ kind: 'active', hasKey: true, termsRecorded: false })).toBe(false);
+    it('is not satisfied by an active configuration with a key but no recorded terms, and names it', async () => {
+      const state = {
+        kind: 'active',
+        primary: { hasKey: true, termsRecorded: false },
+        fallback: null,
+      } as const;
+      expect(await ai(state)).toBe(false);
+      expect((await gateOf('productionAiProvider', { aiProvider: state }))?.detail).toBe(
+        'The active AI provider has no recorded data terms.',
+      );
     });
 
     it('is not satisfied by an active configuration with recorded terms but no usable key', async () => {
-      expect(await ai({ kind: 'active', hasKey: false, termsRecorded: true })).toBe(false);
+      const state = {
+        kind: 'active',
+        primary: { hasKey: false, termsRecorded: true },
+        fallback: null,
+      } as const;
+      expect(await ai(state)).toBe(false);
+      expect((await gateOf('productionAiProvider', { aiProvider: state }))?.detail).toBe(
+        'The active AI provider has no usable key.',
+      );
+    });
+
+    it('needs the switched-on fallback to have a usable key and recorded terms too, and names the fallback', async () => {
+      expect(await ai({ kind: 'active', primary: ok, fallback: ok })).toBe(true);
+      const cases = [
+        [
+          { hasKey: true, termsRecorded: false },
+          'The fallback AI provider has no recorded data terms.',
+        ],
+        [{ hasKey: false, termsRecorded: true }, 'The fallback AI provider has no usable key.'],
+        ['missing', 'The fallback AI provider is switched on but no longer exists.'],
+      ] as const;
+      for (const [fallback, detail] of cases) {
+        const gate = await gateOf('productionAiProvider', {
+          aiProvider: { kind: 'active', primary: ok, fallback },
+        });
+        expect(gate?.satisfied).toBe(false);
+        expect(gate?.detail).toBe(detail);
+      }
+      const both = await gateOf('productionAiProvider', {
+        aiProvider: {
+          kind: 'active',
+          primary: { hasKey: true, termsRecorded: false },
+          fallback: { hasKey: false, termsRecorded: false },
+        },
+      });
+      expect(both?.detail).toBe(
+        'The active AI provider has no recorded data terms. The fallback AI provider has no usable key. The fallback AI provider has no recorded data terms.',
+      );
     });
 
     it('fails closed when the settings could not be read (a missing table) or were never read', async () => {
@@ -378,7 +454,7 @@ describe('owner deferrals', () => {
     satisfyEveryGate();
     unsetEnv('COMMERCIAL_READINESS_ATTEST_EXTERNAL_PENTEST');
     setEnv('COMMERCIAL_READINESS_DEFER_EXTERNAL_PENETRATION_TEST', 'H01');
-    const { evaluateCommercialReadiness, gateStatusLabel } = await import('./commercial-readiness');
+    const { evaluateCommercialReadiness, gateStatus } = await import('./commercial-readiness');
     const result = evaluateCommercialReadiness(input(true));
     const gate = result.gates.find((g) => g.key === 'externalPenetrationTest');
     expect(gate).toEqual({
@@ -387,7 +463,7 @@ describe('owner deferrals', () => {
       satisfied: true,
       deferral: { status: 'deferred', registerId: 'H01', label: 'Deferred by Owner (H01)' },
     });
-    expect(gate && gateStatusLabel(gate)).toBe('Deferred by Owner (H01)');
+    expect(gate && gateStatus(gate)).toEqual({ label: 'Deferred by Owner (H01)', tone: 'warning' });
     // The only gate still failing is the one no deferral can touch.
     expect(result.gates.filter((g) => !g.satisfied).map((g) => g.key)).toEqual([
       'realKeyManagement',
@@ -411,6 +487,18 @@ describe('owner deferrals', () => {
       });
     },
   );
+
+  it('gives every gate one status word and colour', async () => {
+    const { gateStatus } = await import('./commercial-readiness');
+    expect(gateStatus({ key: 'a', label: 'a', satisfied: true })).toEqual({
+      label: 'satisfied',
+      tone: 'success',
+    });
+    expect(gateStatus({ key: 'a', label: 'a', satisfied: false })).toEqual({
+      label: 'unmet',
+      tone: 'danger',
+    });
+  });
 
   it('needs no deferral once the penetration test is genuinely attested', async () => {
     setEnv('COMMERCIAL_READINESS_ATTEST_EXTERNAL_PENTEST', 'true');
@@ -462,9 +550,9 @@ describe('attestations the owner may set', () => {
     const listed = COMMERCIAL_READINESS_ATTESTATIONS.map((a) => a.env);
     expect(listed).toEqual(ATTEST_FLAGS.map((flag) => `COMMERCIAL_READINESS_ATTEST_${flag}`));
     expect(new Set(listed).size).toBe(listed.length);
-    const source = readFileSync(join(process.cwd(), 'src/lib/commercial-readiness.ts'), 'utf8');
-    const named = new Set(source.match(/COMMERCIAL_READINESS_ATTEST_[A-Z0-9_]+/g));
-    expect([...named].sort()).toEqual([...listed].sort());
+    expect(new Set(COMMERCIAL_READINESS_ATTESTATIONS.map((a) => a.gateKey)).size).toBe(
+      listed.length,
+    );
 
     setEnv('NEON_AUTH_BASE_URL', 'https://auth.example.test/db');
     setEnv('NEON_AUTH_COOKIE_SECRET', 'x'.repeat(40));
@@ -579,7 +667,11 @@ describe('the synchronous configuration checks', () => {
     expect(commercialConfigurationReady()).toBe(true);
     expect(operationalConfigurationReady()).toBe(true);
     remembered.value = {
-      aiProvider: { kind: 'active', hasKey: true, termsRecorded: false },
+      aiProvider: {
+        kind: 'active',
+        primary: { hasKey: true, termsRecorded: false },
+        fallback: null,
+      },
       scannerEvidenceFresh: false,
     };
     expect(commercialConfigurationReady()).toBe(false);

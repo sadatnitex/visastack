@@ -6,8 +6,9 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-/** Weekly verification, one hour after the runner schedule. Dispatch only
- * when no fresh backup exists. An accepted dispatch is never completion. */
+/** Daily verification at 07:00 UTC, after the 05:17 UTC capture (S27): a capture under 36 hours
+ * old counts as fresh. Dispatch only when no fresh backup exists. An accepted dispatch is never
+ * completion. */
 export async function GET(request: Request): Promise<Response> {
   const denied = rejectUnauthorizedCron(request);
   if (denied) return denied;

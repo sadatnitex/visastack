@@ -38,7 +38,11 @@ import {
 import { parseFieldKeyInput } from '../../../../lib/catalogue-input';
 import { humanizeCode } from '../../../../lib/format-code';
 import { triggerNotificationWorker } from '../../../../lib/jobs';
-import { createKeyManagementPort, createMalwareScanner } from '../../../../lib/providers';
+import {
+  createImageSanitizer,
+  createKeyManagementPort,
+  createMalwareScanner,
+} from '../../../../lib/providers';
 import { sendEmailNow } from '../../../../lib/send-now';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
@@ -841,7 +845,7 @@ export async function updateBrandingAction(
   return result;
 }
 
-/** Org admin uploads (or replaces) the agency logo (Commercial V1 COM-04). Scanned synchronously; an unsafe or invalid image is never attached. */
+/** Org admin uploads (or replaces) the agency logo (Commercial V1 COM-04). Scanned synchronously and re-encoded server side; an unsafe or invalid image is never attached. */
 export async function uploadLogoAction(
   _prev: ActionState,
   formData: FormData,
@@ -854,8 +858,8 @@ export async function uploadLogoAction(
   const result = await withSession(async ({ db, accountId }) => {
     const bytes = new Uint8Array(await file.arrayBuffer());
     const storage = createStorage(db);
-    const scanner = createMalwareScanner(storage);
-    const uploaded = await uploadOrganizationLogo(db, storage, scanner, {
+    const checks = { scanner: createMalwareScanner(storage), images: createImageSanitizer() };
+    const uploaded = await uploadOrganizationLogo(db, storage, checks, {
       actorAccountId: accountId,
       organizationId,
       contentType: file.type,

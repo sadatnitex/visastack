@@ -46,7 +46,11 @@ export {
   type DeterministicTextExtractorOptions,
 } from './text-extraction';
 
-export { SharpPhotoReencoder, type SharpPhotoReencoderOptions } from './photo-reencoder';
+export {
+  SharpImageSanitizer,
+  SharpPhotoReencoder,
+  type SharpPhotoReencoderOptions,
+} from './photo-reencoder';
 export { BuiltinPreviewRenderer } from './preview-renderer';
 
 export {
@@ -122,7 +126,7 @@ export {
 
 export { JszipBundler } from './zip-bundler';
 
-export { hasRecentDatabaseBackup } from './backup-status';
+export { BACKUP_FRESHNESS_MAX_AGE_MS, hasRecentDatabaseBackup } from './backup-status';
 
 export { WhatsAppCloudPort, type WhatsAppCloudPortOptions, toGraphMessage } from './whatsapp-cloud';
 

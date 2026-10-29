@@ -38,26 +38,47 @@ export const UNKNOWN_READINESS_SIGNALS: ReadinessSignals = {
 };
 
 let remembered: { readonly at: number; readonly signals: ReadinessSignals } | null = null;
+/** Bumped by every forget, so a read that started before it can never be remembered after it. */
+let generation = 0;
+/** Overlapping evaluations share one read (a busy status page polls readiness often). */
+let inFlight: { readonly generation: number; readonly read: Promise<ReadinessSignals> } | null =
+  null;
 
-/**
- * Read both facts from a connected, migrated database and remember them. With no usable
- * database the answer is unknown and nothing is remembered. Never throws: both readers
- * already turn a failed or missing read into the not-satisfied answer.
- */
-export async function readReadinessSignals(
-  db: Db | undefined,
-  now: number = Date.now(),
-): Promise<ReadinessSignals> {
-  if (!db) return UNKNOWN_READINESS_SIGNALS;
+async function readBoth(db: Db, now: number): Promise<ReadinessSignals> {
   const [aiProvider, scannerEvidence] = await Promise.all([
     loadAiProviderReadiness(db),
     readEnv('MALWARE_SCANNER_PROVIDER') === 'github_clamav'
       ? loadScannerEvidence(db, new Date(now))
       : Promise.resolve(null),
   ]);
-  const signals: ReadinessSignals = { aiProvider, scannerEvidenceFresh: scannerEvidence !== null };
-  remembered = { at: now, signals };
-  return signals;
+  return { aiProvider, scannerEvidenceFresh: scannerEvidence !== null };
+}
+
+/**
+ * Read both facts from a connected, migrated database and remember them. With no usable
+ * database the answer is unknown and the remembered one is dropped too. Never throws: both
+ * readers already turn a failed or missing read into the not-satisfied answer.
+ */
+export function readReadinessSignals(
+  db: Db | undefined,
+  now: number = Date.now(),
+): Promise<ReadinessSignals> {
+  if (!db) {
+    forgetReadinessSignals();
+    return Promise.resolve(UNKNOWN_READINESS_SIGNALS);
+  }
+  if (inFlight && inFlight.generation === generation) return inFlight.read;
+  const startedIn = generation;
+  const read = readBoth(db, now)
+    .then((signals) => {
+      if (startedIn === generation) remembered = { at: now, signals };
+      return signals;
+    })
+    .finally(() => {
+      if (inFlight?.read === read) inFlight = null;
+    });
+  inFlight = { generation: startedIn, read };
+  return read;
 }
 
 /** The latest read while it is trusted, otherwise unknown. */
@@ -68,7 +89,12 @@ export function rememberedReadinessSignals(now: number = Date.now()): ReadinessS
   return UNKNOWN_READINESS_SIGNALS;
 }
 
-/** Drop the remembered answer (tests, and this server right after an AI settings change). */
+/**
+ * Drop the remembered answer and disown any read still running (tests, a read with no usable
+ * database, and this server right after an AI settings change).
+ */
 export function forgetReadinessSignals(): void {
+  generation += 1;
   remembered = null;
+  inFlight = null;
 }

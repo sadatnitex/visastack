@@ -21,7 +21,7 @@ beforeEach(async () => {
 
 async function seedConfig(
   status: 'DRAFT' | 'ACTIVE',
-  options: { revoked?: boolean } = {},
+  options: { revoked?: boolean; fallbackTo?: string } = {},
 ): Promise<string> {
   const [row] = await db
     .insert(schema.aiProviderConfigs)
@@ -37,6 +37,9 @@ async function seedConfig(
       budgetLimitUnits: 1000,
       ...(status === 'ACTIVE' ? { activatedAt: new Date() } : {}),
       ...(options.revoked ? { keyRevokedAt: new Date() } : {}),
+      ...(options.fallbackTo
+        ? { fallbackEnabled: true, fallbackProviderConfigId: options.fallbackTo }
+        : {}),
     })
     .returning({ id: schema.aiProviderConfigs.id });
   if (!row) throw new Error('seed config');
@@ -68,8 +71,8 @@ describe('loadAiProviderReadiness', () => {
     await recordTerms(await seedConfig('ACTIVE'));
     expect(await loadAiProviderReadiness(db)).toEqual({
       kind: 'active',
-      hasKey: true,
-      termsRecorded: true,
+      primary: { hasKey: true, termsRecorded: true },
+      fallback: null,
     });
   });
 
@@ -79,20 +82,59 @@ describe('loadAiProviderReadiness', () => {
     await recordTerms(await seedConfig('DRAFT'));
     expect(await loadAiProviderReadiness(db)).toEqual({
       kind: 'active',
-      hasKey: true,
-      termsRecorded: false,
+      primary: { hasKey: true, termsRecorded: false },
+      fallback: null,
     });
     await recordTerms(active);
-    expect(await loadAiProviderReadiness(db)).toMatchObject({ termsRecorded: true });
+    expect(await loadAiProviderReadiness(db)).toMatchObject({
+      primary: { termsRecorded: true },
+    });
   });
 
   it('reports terms without a usable key once the key is revoked', async () => {
     await recordTerms(await seedConfig('ACTIVE', { revoked: true }));
     expect(await loadAiProviderReadiness(db)).toEqual({
       kind: 'active',
-      hasKey: false,
-      termsRecorded: true,
+      primary: { hasKey: false, termsRecorded: true },
+      fallback: null,
     });
+  });
+
+  it('reports the fallback configuration documents can also be sent to, when it is on', async () => {
+    const fallback = await seedConfig('DRAFT');
+    await recordTerms(await seedConfig('ACTIVE', { fallbackTo: fallback }));
+    expect(await loadAiProviderReadiness(db)).toEqual({
+      kind: 'active',
+      primary: { hasKey: true, termsRecorded: true },
+      fallback: { hasKey: true, termsRecorded: false },
+    });
+    await recordTerms(fallback);
+    expect(await loadAiProviderReadiness(db)).toMatchObject({
+      fallback: { hasKey: true, termsRecorded: true },
+    });
+    await db
+      .update(schema.aiProviderConfigs)
+      .set({ keyRevokedAt: new Date() })
+      .where(eq(schema.aiProviderConfigs.id, fallback));
+    expect(await loadAiProviderReadiness(db)).toMatchObject({
+      fallback: { hasKey: false, termsRecorded: true },
+    });
+  });
+
+  it('ignores a fallback that is switched off, and reports a fallback that names nothing as missing', async () => {
+    const fallback = await seedConfig('DRAFT');
+    const active = await seedConfig('ACTIVE', { fallbackTo: fallback });
+    await recordTerms(active);
+    await db
+      .update(schema.aiProviderConfigs)
+      .set({ fallbackEnabled: false })
+      .where(eq(schema.aiProviderConfigs.id, active));
+    expect(await loadAiProviderReadiness(db)).toMatchObject({ fallback: null });
+    await db
+      .update(schema.aiProviderConfigs)
+      .set({ fallbackEnabled: true, fallbackProviderConfigId: crypto.randomUUID() })
+      .where(eq(schema.aiProviderConfigs.id, active));
+    expect(await loadAiProviderReadiness(db)).toMatchObject({ fallback: 'missing' });
   });
 
   it('reads as unreadable, quietly, while the terms table is missing', async () => {

@@ -32,8 +32,8 @@ beforeEach(() => {
   vi.stubEnv('MALWARE_SCANNER_PROVIDER', undefined);
   mocks.loadAiProviderReadiness.mockResolvedValue({
     kind: 'active',
-    hasKey: true,
-    termsRecorded: true,
+    primary: { hasKey: true, termsRecorded: true },
+    fallback: null,
   });
   mocks.loadScannerEvidence.mockResolvedValue({ verifiedAt: new Date(), engine: 'ClamAV 1.4' });
 });
@@ -43,16 +43,64 @@ afterEach(() => {
 });
 
 describe('readReadinessSignals', () => {
-  it('is unknown, reads nothing and remembers nothing without a usable database', async () => {
-    expect(await readReadinessSignals(undefined)).toEqual(UNKNOWN_READINESS_SIGNALS);
+  it('is unknown, reads nothing and drops the remembered answer without a usable database', async () => {
+    const now = Date.UTC(2026, 9, 29, 12);
+    await readReadinessSignals(db, now);
+    expect(rememberedReadinessSignals(now).aiProvider.kind).toBe('active');
+    mocks.loadAiProviderReadiness.mockClear();
+    expect(await readReadinessSignals(undefined, now)).toEqual(UNKNOWN_READINESS_SIGNALS);
     expect(mocks.loadAiProviderReadiness).not.toHaveBeenCalled();
-    expect(rememberedReadinessSignals()).toEqual(UNKNOWN_READINESS_SIGNALS);
+    expect(rememberedReadinessSignals(now)).toEqual(UNKNOWN_READINESS_SIGNALS);
+  });
+
+  it('never remembers a read that was still running when the answer was forgotten', async () => {
+    const now = Date.UTC(2026, 9, 29, 12);
+    let finish: (value: unknown) => void = () => undefined;
+    mocks.loadAiProviderReadiness.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const slow = readReadinessSignals(db, now);
+    // An AI settings change lands while the old read is still out.
+    forgetReadinessSignals();
+    finish({ kind: 'active', primary: { hasKey: true, termsRecorded: true }, fallback: null });
+    expect((await slow).aiProvider.kind).toBe('active');
+    expect(rememberedReadinessSignals(now)).toEqual(UNKNOWN_READINESS_SIGNALS);
+    // The same goes for a read with no usable database arriving in between.
+    let finishAgain: (value: unknown) => void = () => undefined;
+    mocks.loadAiProviderReadiness.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishAgain = resolve;
+      }),
+    );
+    const again = readReadinessSignals(db, now);
+    await readReadinessSignals(undefined, now);
+    finishAgain({ kind: 'none_active' });
+    await again;
+    expect(rememberedReadinessSignals(now)).toEqual(UNKNOWN_READINESS_SIGNALS);
+  });
+
+  it('shares one read between overlapping evaluations', async () => {
+    const now = Date.UTC(2026, 9, 29, 12);
+    const [first, second] = await Promise.all([
+      readReadinessSignals(db, now),
+      readReadinessSignals(db, now),
+    ]);
+    expect(first).toBe(second);
+    expect(mocks.loadAiProviderReadiness).toHaveBeenCalledTimes(1);
+    await readReadinessSignals(db, now);
+    expect(mocks.loadAiProviderReadiness).toHaveBeenCalledTimes(2);
   });
 
   it('reads the AI settings, and the scan runner proof only for the private scan runner', async () => {
     const now = Date.UTC(2026, 9, 29, 12);
     expect(await readReadinessSignals(db, now)).toEqual({
-      aiProvider: { kind: 'active', hasKey: true, termsRecorded: true },
+      aiProvider: {
+        kind: 'active',
+        primary: { hasKey: true, termsRecorded: true },
+        fallback: null,
+      },
       scannerEvidenceFresh: false,
     });
     expect(mocks.loadScannerEvidence).not.toHaveBeenCalled();

@@ -1,6 +1,6 @@
 import { Readable } from 'node:stream';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { hasRecentDatabaseBackup } from './backup-status';
+import { BACKUP_FRESHNESS_MAX_AGE_MS, hasRecentDatabaseBackup } from './backup-status';
 
 const { send, destroy } = vi.hoisted(() => ({ send: vi.fn(), destroy: vi.fn() }));
 vi.mock('@aws-sdk/client-s3', async (load) => ({
@@ -51,6 +51,18 @@ describe('backup completion status', () => {
     }
     send.mockResolvedValueOnce(body()).mockResolvedValueOnce({ ContentLength: 1 });
     expect(await hasRecentDatabaseBackup(input)).toBe(false);
+  });
+  it('accepts a capture up to 36 hours old and refuses an older one, now that captures run daily', async () => {
+    expect(BACKUP_FRESHNESS_MAX_AGE_MS).toBe(36 * 60 * 60 * 1000);
+    const at = (hoursAgo: number) => new Date(input.now - hoursAgo * 60 * 60 * 1000).toISOString();
+    send.mockResolvedValueOnce(body({ completedAt: at(35.9) })).mockResolvedValueOnce({
+      ContentLength: 200,
+    });
+    expect(await hasRecentDatabaseBackup(input)).toBe(true);
+    for (const hoursAgo of [36, 48, 6 * 24]) {
+      send.mockResolvedValueOnce(body({ completedAt: at(hoursAgo) }));
+      expect(await hasRecentDatabaseBackup(input)).toBe(false);
+    }
   });
   it('distinguishes missing backup from provider access failure', async () => {
     send.mockRejectedValueOnce({ $metadata: { httpStatusCode: 404 } });

@@ -4,6 +4,11 @@ import { eq } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import {
+  type ImageSanitizerPort,
+  type SanitizedImage,
+  isAcceptableSanitizedImage,
+} from './image-sanitizer';
 import type { MalwareScannerPort } from './intake';
 import { isOrgAdmin } from './organizations';
 import type { BlobStore } from './storage';
@@ -215,17 +220,29 @@ export interface UploadOrganizationLogoInput {
   readonly bytes: Uint8Array;
 }
 
+/** The longest side a stored logo may have, and the pixel ceiling an upload is refused above. */
+export const LOGO_MAX_DIMENSION = 1024;
+export const LOGO_MAX_INPUT_PIXELS = 40_000_000;
+
+/** What a logo upload must pass: the configured safety scanner, then server-side re-encoding. */
+export interface LogoUploadChecks {
+  readonly scanner: MalwareScannerPort;
+  readonly images: ImageSanitizerPort;
+}
+
 /**
  * Upload (or replace) an organization's logo. Validates content type and
- * size, writes the bytes, verifies the write by reading it back (same
- * discipline the applicant upload path uses), scans it synchronously, and
- * only then attaches it to the organization -- an unsafe or oversized image
- * never touches the organization row at all.
+ * size, writes the bytes to a temporary quarantine key, verifies the write by
+ * reading it back (same discipline the applicant upload path uses), scans it
+ * synchronously, re-encodes it server side so only image data is kept (S27),
+ * stores and verifies the re-encoded copy, and only then attaches it to the
+ * organization -- an unsafe, unreadable or oversized image never touches the
+ * organization row at all, and the uploaded bytes themselves are never kept.
  */
 export async function uploadOrganizationLogo(
   db: Db,
   storage: BlobStore,
-  scanner: MalwareScannerPort,
+  checks: LogoUploadChecks,
   input: UploadOrganizationLogoInput,
 ): Promise<Result<OrganizationBrandingRow, ServiceError>> {
   if (!(await isOrgAdmin(db, input.actorAccountId, input.organizationId))) {
@@ -253,23 +270,56 @@ export async function uploadOrganizationLogo(
   );
   if (!organization) return err(serviceError('not_found', 'organization not found'));
 
+  const uploadKey = `logo-upload-${randomUUID()}`;
   const objectKey = randomUUID();
-  await storage.putObject({
-    bucket: 'QUARANTINE',
-    objectKey,
-    contentType: input.contentType,
-    bytes: input.bytes,
-  });
-  const verification = await storage.getObject(objectKey);
-  if (!verification || verification.bytes.byteLength !== input.bytes.byteLength) {
-    await storage.deleteObject('QUARANTINE', objectKey).catch(() => undefined);
-    return err(serviceError('invalid', 'upload failed verification -- please try again'));
+  let clean: SanitizedImage;
+  try {
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: uploadKey,
+      contentType: input.contentType,
+      bytes: input.bytes,
+    });
+    const verification = await storage.getObject(uploadKey);
+    if (!verification || verification.bytes.byteLength !== input.bytes.byteLength) {
+      return err(serviceError('invalid', 'upload failed verification -- please try again'));
+    }
+    const scanResult = await checks.scanner.scan({ bucket: 'QUARANTINE', objectKey: uploadKey });
+    if (!scanResult.safe) {
+      return err(serviceError('invalid', 'this image failed the required safety scan'));
+    }
+    try {
+      clean = await checks.images.sanitize({
+        bytes: verification.bytes,
+        maxInputPixels: LOGO_MAX_INPUT_PIXELS,
+        maxDimension: LOGO_MAX_DIMENSION,
+      });
+    } catch {
+      return err(serviceError('invalid', 'this image could not be read -- try a PNG or JPEG'));
+    }
+    if (
+      !isAcceptableSanitizedImage(clean, {
+        maxBytes: MAX_LOGO_BYTES,
+        maxDimension: LOGO_MAX_DIMENSION,
+      })
+    ) {
+      return err(serviceError('invalid', 'this image could not be read -- try a PNG or JPEG'));
+    }
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey,
+      contentType: clean.contentType,
+      bytes: clean.bytes,
+    });
+    const stored = await storage.getObject(objectKey);
+    if (!stored || stored.bytes.byteLength !== clean.bytes.byteLength) {
+      await storage.deleteObject('QUARANTINE', objectKey).catch(() => undefined);
+      return err(serviceError('invalid', 'upload failed verification -- please try again'));
+    }
+  } finally {
+    await storage.deleteObject('QUARANTINE', uploadKey).catch(() => undefined);
   }
-  const scanResult = await scanner.scan({ bucket: 'QUARANTINE', objectKey });
-  if (!scanResult.safe) {
-    await storage.deleteObject('QUARANTINE', objectKey).catch(() => undefined);
-    return err(serviceError('invalid', 'this image failed the required safety scan'));
-  }
+  const contentType = clean.contentType;
 
   const updated = required(
     first(
@@ -278,7 +328,7 @@ export async function uploadOrganizationLogo(
           .update(schema.organizations)
           .set({
             logoObjectKey: objectKey,
-            logoContentType: input.contentType,
+            logoContentType: contentType,
             updatedAt: new Date(),
           })
           .where(eq(schema.organizations.id, input.organizationId))
@@ -290,7 +340,7 @@ export async function uploadOrganizationLogo(
           result: 'ALLOWED',
           resourceType: 'organization',
           resourceId: input.organizationId,
-          metadata: { contentType: input.contentType, sizeBytes: input.bytes.byteLength },
+          metadata: { contentType, sizeBytes: clean.bytes.byteLength },
         });
         return row;
       }),

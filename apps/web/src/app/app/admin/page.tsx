@@ -17,7 +17,7 @@ import { PageHeader } from '../../../components/ui';
 import { bootstrapAdminEmails, isPlatformAdmin } from '../../../lib/admin';
 import { aiWarningLimitUnits, defaultAiLimits, resolveAiLimits, unitsToUsd } from '../../../lib/ai';
 import { formatDuration, formatMinorUnits, humanizeLabel } from '../../../lib/analytics-format';
-import { gateStatusLabel } from '../../../lib/commercial-readiness';
+import { gateStatus } from '../../../lib/commercial-readiness';
 import { getDeploymentMode } from '../../../lib/deployment-mode';
 import { SHIPPED_MIGRATIONS } from '../../../lib/migration-journal';
 import { type ProviderStatus, describeProviderOperations } from '../../../lib/provider-operations';
@@ -171,6 +171,12 @@ export default async function AdminOperationsPage() {
     // report above (S27): one read of the database-backed gates (AI provider
     // settings, scan runner proof), so the page and the report cannot differ.
     const commercial = deploymentMode === 'commercial' ? readiness?.commercial : undefined;
+    const commercialCounts = commercial
+      ? {
+          satisfied: commercial.gates.filter((gate) => gate.satisfied).length,
+          deferred: commercial.gates.filter((gate) => gate.deferral?.status === 'deferred').length,
+        }
+      : undefined;
     return {
       admin: true as const,
       overview,
@@ -182,6 +188,7 @@ export default async function AdminOperationsPage() {
       aiLimits,
       deploymentMode,
       commercial,
+      commercialCounts,
       quota: loadUploadQuotaConfig(),
       signals,
       readiness,
@@ -833,14 +840,11 @@ export default async function AdminOperationsPage() {
                 <>
                   <div className="toolbar u-mb-100">
                     <span className="muted u-fs-085">
-                      {data.commercial.gates.filter((g) => g.satisfied).length} of{' '}
-                      {data.commercial.gates.length} gates satisfied
-                      {(() => {
-                        const deferred = data.commercial.gates.filter(
-                          (g) => g.deferral?.status === 'deferred',
-                        ).length;
-                        return deferred > 0 ? `, ${deferred} of them deferred by the owner` : '';
-                      })()}
+                      {data.commercialCounts?.satisfied ?? 0} of {data.commercial.gates.length}{' '}
+                      gates satisfied
+                      {data.commercialCounts && data.commercialCounts.deferred > 0
+                        ? `, ${data.commercialCounts.deferred} of them deferred by the owner`
+                        : ''}
                     </span>
                     <span
                       className={
@@ -851,27 +855,23 @@ export default async function AdminOperationsPage() {
                     </span>
                   </div>
                   <div className="rows">
-                    {data.commercial.gates.map((gate) => (
-                      <div className="row" key={gate.key}>
-                        <span className="row-key">
-                          {gate.label}
-                          {gate.deferral?.status === 'not_deferred' ? (
-                            <span className="muted u-fs-085"> ({gate.deferral.label})</span>
-                          ) : null}
-                        </span>
-                        <span
-                          className={
-                            gate.deferral?.status === 'deferred'
-                              ? 'badge badge-warning'
-                              : gate.satisfied
-                                ? 'badge badge-success'
-                                : 'badge badge-danger'
-                          }
-                        >
-                          {gateStatusLabel(gate)}
-                        </span>
-                      </div>
-                    ))}
+                    {data.commercial.gates.map((gate) => {
+                      const status = gateStatus(gate);
+                      return (
+                        <div className="row" key={gate.key}>
+                          <span className="row-key">
+                            {gate.label}
+                            {gate.deferral?.status === 'not_deferred' ? (
+                              <span className="muted u-fs-085"> ({gate.deferral.label})</span>
+                            ) : null}
+                            {gate.detail ? (
+                              <span className="muted u-fs-085"> {gate.detail}</span>
+                            ) : null}
+                          </span>
+                          <span className={`badge badge-${status.tone}`}>{status.label}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </>
               )}

@@ -26,7 +26,7 @@ import { protectValue, revealValue } from './protected-fields';
  * second encryption scheme invented for this table.
  *
  * Deliberately NOT in this chunk: wiring `apps/web/src/lib/ai.ts`'s
- * `createAiExtractor`/`runExtraction`'s kill-switch recheck to actually
+ * `runExtraction`'s kill-switch recheck to actually
  * consult `getActiveAiProviderConfig` at runtime (a separate, focused change
  * to the live extraction path); the admin UI; the synthetic connection test
  * and task-evaluation runner Part 8 §5 also names. Nothing here is called by

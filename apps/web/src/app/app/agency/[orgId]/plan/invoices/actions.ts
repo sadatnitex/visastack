@@ -14,7 +14,11 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { resolveBaseUrl } from '../../../../../../lib/base-url';
 import { paymentUrlFor } from '../../../../../../lib/payment-urls';
-import { createMalwareScanner, createPaymentPort } from '../../../../../../lib/providers';
+import {
+  createImageSanitizer,
+  createMalwareScanner,
+  createPaymentPort,
+} from '../../../../../../lib/providers';
 import { reportServerError } from '../../../../../../lib/server-error';
 import { withSession } from '../../../../../../lib/session';
 import { createStorage } from '../../../../../../lib/storage';
@@ -154,11 +158,11 @@ function paidOnFrom(value: string): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-/** Storage and the safety scanner, only built when a file is attached. Null when they are not set up here. */
+/** Storage, the safety scanner and the image re-encoder, only built when a file is attached. Null when they are not set up here. */
 function proofPorts(db: Db): ProofFilePorts | null {
   try {
     const storage = createStorage(db);
-    return { storage, scanner: createMalwareScanner(storage) };
+    return { storage, scanner: createMalwareScanner(storage), images: createImageSanitizer() };
   } catch (error) {
     reportServerError('agencyInvoices', error, { step: 'setting up proof file storage' });
     return null;

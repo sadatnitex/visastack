@@ -35,6 +35,10 @@ Execution plan: [SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md](SONNET-SMALL-COMMERCIAL-
 | M18 | Real key management for protected fields in commercial mode | Built in S26: AWS KMS adapter behind the key port, data key re-wrap job, self-tested readiness gate (off until the owner completes O16) | S26 plus owner action O16 |
 | M19 | Honest commercial-readiness checks | The AI gate only knows the old OpenAI path; the scanner gate ignores `github_clamav`; the penetration-test gate cannot record the owner's deferral | S27 plus owner action O17 |
 
+Update 2026-10-29 (S27):
+- M05: the encrypted database backup runs daily (05:17 UTC) with a daily 36-hour freshness check; automatic pruning (35 days plus 12 weekly copies, never the newest 7) is built but off until the owner sets `BACKUP_PRUNE=on`. One verified document restore from the mirror (S24) and owner action O3 remain.
+- M19: the readiness checks now match this plan: provider-neutral AI gate (with the fallback provider), scanner gate accepting `github_clamav` with fresh proof on production (logos and photo proofs re-encoded on the server), and the owner deferral for the penetration test under H01 only. Owner action O17 (setting the deferral) remains.
+
 ## Part 2. Deferred security and compliance hardening
 
 Owner, 26 Oct 2026: payments, the AI connector and product features are built now; only security and compliance items are deferred. Items that were here and are now built are listed in part 4.

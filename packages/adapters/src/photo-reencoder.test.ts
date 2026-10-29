@@ -19,7 +19,7 @@ import {
 import { drizzle } from 'drizzle-orm/pglite';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
-import { SharpPhotoReencoder } from './photo-reencoder';
+import { SharpImageSanitizer, SharpPhotoReencoder } from './photo-reencoder';
 import { BasicSafetyScanner } from './scanner';
 
 const SIZE = 512;
@@ -156,6 +156,84 @@ describe('SharpPhotoReencoder', () => {
     const large = await photoWithGps(200, 200);
     await expect(
       reencoder.reencode({ bytes: large, size: SIZE, maxInputPixels: 10_000 }),
+    ).rejects.toThrow();
+  });
+});
+
+describe('SharpImageSanitizer (logos and photo proofs of payment, S27)', () => {
+  const sanitizer = new SharpImageSanitizer();
+  const PAYLOAD = [...Buffer.from('<script>alert(1)</script>MZ-hidden-second-file')];
+
+  it('keeps nothing from the upload but the pixels: no location data, no bytes hidden after the image', async () => {
+    const withGps = await photoWithGps(900, 600);
+    const input = new Uint8Array([...withGps, ...PAYLOAD]);
+    expect(contains(input, LATITUDE_BYTES)).toBe(true);
+    expect(contains(input, PAYLOAD)).toBe(true);
+    const output = await sanitizer.sanitize({
+      bytes: input,
+      maxInputPixels: PIXELS,
+      maxDimension: 4096,
+    });
+    expect(output.contentType).toBe('image/jpeg');
+    expect([output.width, output.height]).toEqual([900, 600]);
+    expect(contains(output.bytes, LATITUDE_BYTES)).toBe(false);
+    expect(contains(output.bytes, EXIF_HEADER)).toBe(false);
+    expect(contains(output.bytes, PAYLOAD)).toBe(false);
+    const meta = await sharp(output.bytes).metadata();
+    expect(meta.format).toBe('jpeg');
+    expect(meta.exif).toBeUndefined();
+  });
+
+  it('keeps a PNG as a PNG with its transparency, scaled down to fit and never enlarged', async () => {
+    const png = await sharp({
+      create: {
+        width: 3000,
+        height: 1000,
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      },
+    })
+      .png()
+      .toBuffer();
+    const big = await sanitizer.sanitize({
+      bytes: new Uint8Array([...png, ...PAYLOAD]),
+      maxInputPixels: PIXELS,
+      maxDimension: 1024,
+    });
+    expect(big.contentType).toBe('image/png');
+    expect([big.width, big.height]).toEqual([1024, 341]);
+    expect(contains(big.bytes, PAYLOAD)).toBe(false);
+    expect((await sharp(big.bytes).metadata()).hasAlpha).toBe(true);
+    const small = await sanitizer.sanitize({
+      bytes: new Uint8Array(
+        await sharp({ create: { width: 40, height: 20, channels: 3, background: '#123456' } })
+          .png()
+          .toBuffer(),
+      ),
+      maxInputPixels: PIXELS,
+      maxDimension: 1024,
+    });
+    expect([small.width, small.height]).toEqual([40, 20]);
+  });
+
+  it('refuses other formats, bytes that are not an image, and images above the pixel limit', async () => {
+    const gif = new Uint8Array(
+      await sharp({ create: { width: 10, height: 10, channels: 3, background: '#fff' } })
+        .gif()
+        .toBuffer(),
+    );
+    const junk = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+    for (const bytes of [gif, junk]) {
+      await expect(
+        sanitizer.sanitize({ bytes, maxInputPixels: PIXELS, maxDimension: 1024 }),
+      ).rejects.toThrow();
+    }
+    await expect(
+      sanitizer.sanitize({
+        bytes: await photoWithGps(200, 200),
+        maxInputPixels: 10_000,
+        maxDimension: 1024,
+      }),
     ).rejects.toThrow();
   });
 });

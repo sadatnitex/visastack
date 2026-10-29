@@ -5,6 +5,7 @@ import { appendAuditEvent } from './audit';
 import { invoiceLedgerReader } from './billing';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { type ImageSanitizerPort, isAcceptableSanitizedImage } from './image-sanitizer';
 import type { MalwareScannerPort } from './intake';
 import {
   type CollectionRefusal,
@@ -40,7 +41,8 @@ import {
  * The optional proof of payment (a bank slip, a screenshot) is an agency billing file: stored
  * only after the safety scanner the platform has configured passed it (the structural check
  * for photos, ClamAV when it is switched on; a PDF can only be cleared by ClamAV, so without it
- * the person is asked for a photo instead), in its own table and its own object-key prefix,
+ * the person is asked for a photo instead). A photo is then re-encoded server side (S27), so
+ * only image data is ever kept. It lives in its own table and its own object-key prefix,
  * readable only by the agency's owners and admins and by platform staff. It is never attached to
  * a traveller record, never part of a share, pack or export.
  *
@@ -89,7 +91,13 @@ export async function manualClaimsPresent(db: Db): Promise<boolean> {
 export interface ProofFilePorts {
   readonly storage: BlobStore;
   readonly scanner: MalwareScannerPort;
+  /** Re-encodes a JPEG or PNG proof so only image data is stored (S27). */
+  readonly images: ImageSanitizerPort;
 }
+
+/** The longest side a stored proof photo may have (a bank slip stays readable) and the pixel ceiling. */
+export const PROOF_IMAGE_MAX_DIMENSION = 4096;
+export const PROOF_IMAGE_MAX_INPUT_PIXELS = 40_000_000;
 
 export interface ProofFileInput {
   readonly contentType: string;
@@ -130,9 +138,10 @@ interface StoredProof {
 }
 
 /**
- * Quarantine, read back, scan, then write the scanned bytes to the clean bucket under a billing
- * key and read them back again. Nothing is attached to a claim until every step passed. The
- * quarantined copy is always deleted. The bytes are kept exactly as uploaded.
+ * Quarantine, read back, scan, then write to the clean bucket under a billing key and read back
+ * again. Nothing is attached to a claim until every step passed. The quarantined copy is always
+ * deleted. A photo is stored as its server re-encoded copy, never as uploaded; a PDF (only ever
+ * cleared by the real ClamAV engine) is kept exactly as uploaded.
  */
 async function scanAndStoreProof(
   db: Db,
@@ -165,26 +174,55 @@ async function scanAndStoreProof(
         ),
       );
     }
+    let keep: { readonly bytes: Uint8Array; readonly contentType: string } = {
+      bytes: stored.bytes,
+      contentType: file.contentType,
+    };
+    if (file.contentType !== 'application/pdf') {
+      const unreadable = err(
+        serviceError('invalid', 'This image could not be read. Try a JPEG or PNG file.'),
+      );
+      let image: Awaited<ReturnType<ImageSanitizerPort['sanitize']>>;
+      try {
+        image = await ports.images.sanitize({
+          bytes: stored.bytes,
+          maxInputPixels: PROOF_IMAGE_MAX_INPUT_PIXELS,
+          maxDimension: PROOF_IMAGE_MAX_DIMENSION,
+        });
+      } catch {
+        return unreadable;
+      }
+      if (
+        !isAcceptableSanitizedImage(image, {
+          maxBytes: PROOF_FILE_MAX_BYTES,
+          maxDimension: PROOF_IMAGE_MAX_DIMENSION,
+        })
+      ) {
+        return unreadable;
+      }
+      keep = { bytes: image.bytes, contentType: image.contentType };
+    }
+    const keptSha256 = sha256Hex(keep.bytes);
     const cleanKey = `${PROOF_KEY_PREFIX}${randomUUID()}`;
-    const cleanId = await registerObject(db, 'CLEAN', cleanKey, stored.bytes, sha256);
+    const cleanId = await registerObject(db, 'CLEAN', cleanKey, keep.bytes, keptSha256);
     clean = { storageObjectId: cleanId, objectKey: cleanKey };
     await ports.storage.putObject({
       bucket: 'CLEAN',
       objectKey: cleanKey,
-      contentType: file.contentType,
-      bytes: stored.bytes,
+      contentType: keep.contentType,
+      bytes: keep.bytes,
     });
     const copy = await ports.storage.getObject(cleanKey);
-    if (!copy || sha256Hex(copy.bytes) !== sha256) {
+    if (!copy || sha256Hex(copy.bytes) !== keptSha256) {
       await discardObject(db, ports.storage, 'CLEAN', clean);
       return err(serviceError('invalid', 'The file did not save correctly. Please try again.'));
     }
     return ok({
       storageObjectId: cleanId,
       objectKey: cleanKey,
-      sha256,
-      sizeBytes: file.bytes.byteLength,
-      contentType: file.contentType,
+      sha256: keptSha256,
+      sizeBytes: keep.bytes.byteLength,
+      contentType: keep.contentType,
     });
   } catch (error) {
     if (clean) await discardObject(db, ports.storage, 'CLEAN', clean);

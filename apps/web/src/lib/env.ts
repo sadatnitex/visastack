@@ -23,3 +23,16 @@ export function isSignInConfigured(): boolean {
   const secret = readEnv('NEON_AUTH_COOKIE_SECRET') ?? '';
   return baseUrl.startsWith('https://') && secret.length >= 32;
 }
+
+/**
+ * `MALWARE_SCANNER_PROVIDER=clamav` with a connection to the engine: a socket path, or both a
+ * host and a port. The one check the scanner factory (providers.ts `createMalwareScanner`), the
+ * capability registry (capabilities.ts) and the readiness gate (commercial-readiness.ts) share,
+ * so the three can never disagree about whether the in-process ClamAV engine is configured.
+ */
+export function isClamAvConfigured(): boolean {
+  return (
+    readEnv('MALWARE_SCANNER_PROVIDER') === 'clamav' &&
+    (isPresent('CLAMAV_SOCKET_PATH') || (isPresent('CLAMAV_HOST') && isPresent('CLAMAV_PORT')))
+  );
+}

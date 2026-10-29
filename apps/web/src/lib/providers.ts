@@ -11,6 +11,7 @@ import {
   NullEmailPort,
   NullPaymentPort,
   ResendEmailPort,
+  SharpImageSanitizer,
   SslcommerzPaymentPort,
 } from '@visastack/adapters';
 import {
@@ -19,6 +20,7 @@ import {
   type DocumentConverterPort,
   type EmailPort,
   type IdentityPort,
+  type ImageSanitizerPort,
   type KeyManagementPort,
   type MalwareScannerPort,
   type ObservabilityPort,
@@ -26,6 +28,7 @@ import {
   type PreviewRendererPort,
   loadUploadQuotaConfig,
 } from '@visastack/services';
+import { isClamAvConfigured } from './env';
 import { NeonIdentityPort } from './identity-provider';
 
 /**
@@ -35,11 +38,12 @@ import { NeonIdentityPort } from './identity-provider';
  * configuration act, not a business-logic edit — this module is what makes an
  * operator's env var either take effect or fail loudly, never silently no-op.
  *
- * Two ports (`StoragePort`, `AiExtractionPort`) already have a real,
- * independently-tested factory that reads and validates its own `*_PROVIDER`
- * var in place (`./storage`'s `createStorage`, `./ai`'s `createAiExtractor`)
- * — re-exported here rather than duplicated, so there is exactly one place
- * each actually constructs its adapter.
+ * `StoragePort` already has a real, independently-tested factory that reads
+ * and validates its own `*_PROVIDER` var in place (`./storage`'s
+ * `createStorage`), re-exported here rather than duplicated, so there is
+ * exactly one place it constructs its adapter. AI adapters are built by
+ * `./ai`'s `resolveAiExtractor` and its siblings from the database-managed
+ * AI settings (or, on a fresh install, the environment).
  *
  * `DATABASE_PROVIDER` and `JOB_PROVIDER` are validated here but have no
  * `create*` function: there is no `DatabasePort`/dedicated construction step
@@ -133,28 +137,32 @@ export function createIdentityPort(): IdentityPort {
 /**
  * The structural-only safety scanner (ADR-0011) by default, or a real
  * ClamAV engine (SEC-05/EVI-02) when `MALWARE_SCANNER_PROVIDER=clamav` is
- * explicitly set. `commercial-readiness.ts`'s `realMalwareScanner` gate
- * checks the same env var this function reads, so the two can never
- * disagree about whether a real scanner is actually configured.
+ * explicitly set with its connection (`isClamAvConfigured`, the same check
+ * the readiness gate and the capability registry use).
+ *
+ * With `github_clamav`, documents are scanned by the private scan runner,
+ * not by this port: intake dispatches to it. The few small uploads that are
+ * checked here synchronously (agency logos, photo proofs of payment, profile
+ * photos) get the structural checker, so each is also re-encoded server side
+ * (`createImageSanitizer` below, and the profile photo re-encoder) and only
+ * image data is ever stored; a PDF proof is refused by the structural checker.
  */
 export function createMalwareScanner(blobStore: BlobStore): MalwareScannerPort {
   checkKnownProvider('MALWARE_SCANNER_PROVIDER');
   if (readEnv('MALWARE_SCANNER_PROVIDER') === 'github_clamav') {
     if (!readEnv('GITHUB_INTAKE_DISPATCH_TOKEN'))
       throw new Error('github_clamav requires GITHUB_INTAKE_DISPATCH_TOKEN');
-    // Existing synchronous branding checks remain structural. Document intake
-    // dispatches instead of using this checker; the runner constructs ClamAvScanner.
     return new BasicSafetyScanner({ blobStore });
   }
   if (readEnv('MALWARE_SCANNER_PROVIDER') === 'clamav') {
-    const socketPath = readEnv('CLAMAV_SOCKET_PATH');
-    const host = readEnv('CLAMAV_HOST');
-    const portRaw = readEnv('CLAMAV_PORT');
-    if (!socketPath && !(host && portRaw)) {
+    if (!isClamAvConfigured()) {
       throw new Error(
         'MALWARE_SCANNER_PROVIDER=clamav requires CLAMAV_SOCKET_PATH, or both CLAMAV_HOST and CLAMAV_PORT',
       );
     }
+    const socketPath = readEnv('CLAMAV_SOCKET_PATH');
+    const host = readEnv('CLAMAV_HOST');
+    const portRaw = readEnv('CLAMAV_PORT');
     const maxAgeHoursRaw = readEnv('CLAMAV_MAX_SIGNATURE_AGE_HOURS');
     const engineVersion = readEnv('CLAMAV_ENGINE_VERSION');
     const databaseDirectory = readEnv('CLAMAV_DATABASE_DIRECTORY');
@@ -169,6 +177,14 @@ export function createMalwareScanner(blobStore: BlobStore): MalwareScannerPort {
     });
   }
   return new BasicSafetyScanner({ blobStore });
+}
+
+/**
+ * Server-side re-encoding for agency logos and photo proofs of payment (S27): a brand-new JPEG or
+ * PNG written from the decoded pixels, so nothing from the upload but image data is stored.
+ */
+export function createImageSanitizer(): ImageSanitizerPort {
+  return new SharpImageSanitizer();
 }
 
 /** The deterministic, bounded document-to-text converter — the only `DocumentConverterPort` implementation today. */
@@ -306,9 +322,8 @@ export function createPaymentPort(): PaymentPort {
  * fake-KMS port on a real commercial deployment.
  *
  * Unlike this file's other `create*Port()` functions, this one returns
- * `undefined` rather than always constructing a port, matching
- * `createAiExtractor`'s (./ai.ts) shape rather than e.g.
- * `createEmailPort`'s: most profile fields are STANDARD sensitivity and
+ * `undefined` rather than always constructing a port, unlike e.g.
+ * `createEmailPort`: most profile fields are STANDARD sensitivity and
  * must keep saving even where no master key has been configured yet.
  * `editFact` (packages/services/src/profile.ts) is the one place that
  * actually decides a port is required, failing loudly
@@ -355,4 +370,3 @@ function createAwsKmsPort(): KeyManagementPort | undefined {
 }
 
 export { createStorage } from './storage';
-export { createAiExtractor } from './ai';
