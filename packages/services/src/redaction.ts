@@ -84,7 +84,8 @@ export const SAFE_COPY_MAX_OUTPUT_BYTES = 4_000_000;
 const PDF_STRUCTURE_BYTES = 64 * 1024;
 
 /** Stored drawings are private derived files under this prefix in the private bucket. */
-const DERIVED_KEY_PREFIX = 'safe-copy/';
+// Storage keys are opaque (`OPAQUE_OBJECT_KEY` in storage.ts): a prefix ending in `-`, never `/`.
+const DERIVED_KEY_PREFIX = 'safe-copy-';
 
 /**
  * Where a document's safe copy stands. `NOT_PREPARED`: the owner has not marked every page yet.

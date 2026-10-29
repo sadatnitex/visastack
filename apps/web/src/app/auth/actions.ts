@@ -27,6 +27,39 @@ function validEmail(email: string): boolean {
   return email.length <= 254 && EMAIL.test(email);
 }
 
+/**
+ * Remember the address waiting for confirmation in this browser for a short while (signed,
+ * httpOnly, `/auth` only), so the confirmation page can say where the link went and send it again
+ * with one tap. Best effort: it never stops the redirect the person is waiting for.
+ */
+async function rememberPendingConfirmation(email: string): Promise<void> {
+  try {
+    const pending = await import('../../lib/pending-confirmation');
+    const value = pending.encodePendingConfirmation(email);
+    if (!value) return;
+    const { cookies } = await import('next/headers');
+    (await cookies()).set(
+      pending.PENDING_CONFIRMATION_COOKIE,
+      value,
+      pending.pendingConfirmationCookieOptions(resolveBaseUrl().startsWith('https://')),
+    );
+  } catch {
+    // The page then simply asks for the address, as before.
+  }
+}
+
+/** The address remembered by `rememberPendingConfirmation`, if it is still valid. */
+async function rememberedPendingConfirmation(): Promise<string | null> {
+  try {
+    const pending = await import('../../lib/pending-confirmation');
+    const { cookies } = await import('next/headers');
+    const value = (await cookies()).get(pending.PENDING_CONFIRMATION_COOKIE)?.value;
+    return pending.decodePendingConfirmation(value);
+  } catch {
+    return null;
+  }
+}
+
 function validPassword(password: string): boolean {
   return password.length >= 8 && password.length <= 128;
 }
@@ -60,6 +93,7 @@ export async function signInAction(formData: FormData): Promise<void> {
   const { error } = await getNeonAuth().signIn.email({ email, password });
   if (error) {
     if (isUnconfirmed(error)) {
+      await rememberPendingConfirmation(email);
       if (next === '/app') redirect('/auth/verify-email');
       redirect(`/auth/verify-email?next=${encodeURIComponent(next)}`);
     }
@@ -112,13 +146,19 @@ export async function signUpAction(formData: FormData): Promise<void> {
     }
     redirect(`/auth/sign-up?e=failed${target}`);
   }
+  await rememberPendingConfirmation(email);
   redirect(`/auth/verify-email?s=1${target}`);
 }
 
 /** Send the confirmation email again. Same answer for every address. */
 export async function resendConfirmationAction(formData: FormData): Promise<void> {
   const target = signInTarget(safeReturnPath(field(formData, 'next')));
-  const email = field(formData, 'email').trim();
+  // "Send the Link Again" on the page that already knows the address sends `saved`; a typed
+  // address (the "Use a Different Email" form) always wins.
+  const typed = field(formData, 'email').trim();
+  const email =
+    typed ||
+    (field(formData, 'saved') === '1' ? ((await rememberedPendingConfirmation()) ?? '') : '');
   if (!validEmail(email)) redirect(`/auth/verify-email?e=invalid${target}`);
   const allowed = await withinAuthLimits({
     email,
@@ -143,6 +183,7 @@ export async function resendConfirmationAction(formData: FormData): Promise<void
   }
   if (throttled) redirect(`/auth/verify-email?e=slow${target}`);
   if (unavailable) redirect(`/auth/verify-email?e=unavailable${target}`);
+  await rememberPendingConfirmation(email);
   redirect(`/auth/verify-email?s=1${target}`);
 }
 

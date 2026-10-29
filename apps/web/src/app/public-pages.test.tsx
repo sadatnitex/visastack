@@ -9,6 +9,15 @@ vi.mock('../lib/invitation-preview', () => ({
 }));
 // A signed-out visitor, without asking the sign-in service.
 vi.mock('../lib/signed-in', () => ({ isSignedIn: async () => false }));
+vi.mock('server-only', () => ({}));
+/** The request's cookies: empty unless a test puts a remembered address in. */
+const requestCookies = new Map<string, string>();
+vi.mock('next/headers', () => ({
+  cookies: async () => ({
+    get: (name: string) =>
+      requestCookies.has(name) ? { name, value: requestCookies.get(name) } : undefined,
+  }),
+}));
 
 const SEARCH = (value: Record<string, string> = {}) => ({ searchParams: Promise.resolve(value) });
 const TOKEN = 'A'.repeat(43);
@@ -19,7 +28,10 @@ beforeEach(() => {
   vi.stubEnv('NEON_AUTH_COOKIE_SECRET', 'test-only-cookie-key-with-at-least-thirty-two-characters');
   vi.stubEnv('PUBLIC_BETA_OPEN', 'false');
 });
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+  vi.unstubAllEnvs();
+  requestCookies.clear();
+});
 
 const dom = (html: string) => new JSDOM(html).window.document;
 
@@ -63,6 +75,29 @@ describe('public and entry pages today', () => {
     expect(document.querySelector('input[name="email"]')).not.toBeNull();
     expect(document.body.textContent).toContain('Send the Link Again');
     expect(document.querySelector('a[href^="/auth/sign-in"]')).not.toBeNull();
+  });
+
+  it('after sign-up, the confirm-email page says where the link went and resends it without asking for the address', async () => {
+    const { encodePendingConfirmation, PENDING_CONFIRMATION_COOKIE } = await import(
+      '../lib/pending-confirmation'
+    );
+    requestCookies.set(
+      PENDING_CONFIRMATION_COOKIE,
+      encodePendingConfirmation('sadat@nitex.com') ?? '',
+    );
+    const { default: Verify } = await import('./auth/verify-email/page');
+    const document = dom(renderToStaticMarkup(await Verify(SEARCH({ s: '1' }))));
+    const text = document.body.textContent ?? '';
+    expect(text).toContain('We sent a confirmation link to s\u2022\u2022\u2022@nitex.com');
+    expect(text).not.toContain('sadat@nitex.com');
+    // One tap: the main form carries the remembered address, not a field to fill in.
+    const forms = [...document.querySelectorAll('form')];
+    expect(forms[0]?.querySelector('input[name="saved"]')?.getAttribute('value')).toBe('1');
+    expect(forms[0]?.querySelector('input[name="email"]')).toBeNull();
+    // Another address stays possible, tucked behind "Use a Different Email".
+    const other = document.querySelector('details.verify-other-address');
+    expect(other?.querySelector('summary')?.textContent).toBe('Use a Different Email');
+    expect(other?.querySelector('input[name="email"]')).not.toBeNull();
   });
 
   it('forgot-password asks only for an email address', async () => {
