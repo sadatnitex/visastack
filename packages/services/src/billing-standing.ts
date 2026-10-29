@@ -35,11 +35,6 @@ export function daysPastDue(dueDate: Date, now: Date): number {
   return localDateDiffInDays(dueDate, now, BILLING_TIME_ZONE);
 }
 
-/** A number of days with its unit: "1 day", "14 days". */
-export function dayCount(days: number): string {
-  return days === 1 ? '1 day' : `${days} days`;
-}
-
 /** Overdue means from the Bangladesh day after the due date: the due day itself is not overdue. */
 export function isOverdue(dueDate: Date, now: Date): boolean {
   return daysPastDue(dueDate, now) >= 1;

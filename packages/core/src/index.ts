@@ -17,3 +17,4 @@ export * from './domain';
 export * from './deployment-mode';
 export * from './reference-code';
 export * from './match-key';
+export * from './day-count';

@@ -1,4 +1,4 @@
-import { dayCount } from '@visastack/services';
+import { dayCount } from '@visastack/core';
 import { billingStatusLabel } from './labels';
 
 /**

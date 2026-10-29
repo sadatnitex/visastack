@@ -1,4 +1,5 @@
-import { type OverduePolicy, type OverduePreview, dayCount } from '@visastack/services';
+import { dayCount } from '@visastack/core';
+import type { OverduePolicy, OverduePreview } from '@visastack/services';
 import type { FormResult } from '../../../../components/form-feedback';
 
 /** "1 agency", "2 agencies". */
