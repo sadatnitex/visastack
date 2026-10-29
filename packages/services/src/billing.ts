@@ -1,8 +1,13 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, ne } from 'drizzle-orm';
 import { isActiveMember } from './agency';
 import { appendAuditEvent } from './audit';
-import { type Db, first, required, schema } from './db';
+import {
+  type BillingStatusHistoryEntry,
+  insertBillingStatusHistory,
+  readBillingStatusHistory,
+} from './billing-history';
+import { type Db, first, isUniqueViolation, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import {
   type CollectionRefusal,
@@ -74,7 +79,7 @@ import { type PlatformAuthInput, isPlatformOwner } from './platform-roles';
 
 export type BillingStatus = (typeof schema.billingStatus.enumValues)[number];
 export type BillingAccount = typeof schema.billingAccounts.$inferSelect;
-export type BillingStatusHistoryEntry = typeof schema.billingStatusHistory.$inferSelect;
+export type { BillingStatusHistoryEntry } from './billing-history';
 export type InvoiceStatus = (typeof schema.invoiceStatus.enumValues)[number];
 export type Invoice = typeof schema.invoices.$inferSelect;
 
@@ -148,12 +153,13 @@ export async function openBillingAccount(
       ),
       'billing account',
     );
-    await tx.insert(schema.billingStatusHistory).values({
+    await insertBillingStatusHistory(tx, {
       billingAccountId: account.id,
       fromStatus: null,
       toStatus: initialStatus,
       actorAccountId: input.actor.accountId,
       reason,
+      cause: 'MANUAL',
     });
     await appendAuditEvent(tx, {
       eventType: 'BILLING_ACCOUNT_OPENED',
@@ -228,12 +234,13 @@ export async function transitionBillingStatus(
       ),
       'billing account',
     );
-    await tx.insert(schema.billingStatusHistory).values({
+    await insertBillingStatusHistory(tx, {
       billingAccountId: account.id,
       fromStatus: account.status,
       toStatus: input.toStatus,
       actorAccountId: input.actor.accountId,
       reason,
+      cause: 'MANUAL',
     });
     await appendAuditEvent(tx, {
       eventType: 'BILLING_STATUS_CHANGED',
@@ -340,11 +347,7 @@ export async function listBillingStatusHistory(
       .limit(1),
   );
   if (!account) return ok([]);
-  const rows = await db
-    .select()
-    .from(schema.billingStatusHistory)
-    .where(eq(schema.billingStatusHistory.billingAccountId, account.id));
-  return ok([...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
+  return ok(await readBillingStatusHistory(db, account.id));
 }
 
 /** True if this organization's billing account currently reads SUSPENDED. An organization with no billing account at all is never suspended -- absence of billing tracking is not itself a billing problem. */
@@ -430,7 +433,42 @@ export async function createInvoice(
   if (existingRef) {
     return err(serviceError('invalid', 'an invoice with this reference already exists'));
   }
+  // One live invoice per organization, plan and period start (S17, migration 0103): the daily
+  // billing run relies on it, so a hand-made invoice for a period it already billed is refused.
+  const samePeriod = first(
+    await db
+      .select({ id: schema.invoices.id })
+      .from(schema.invoices)
+      .where(
+        and(
+          eq(schema.invoices.organizationId, input.organizationId),
+          eq(schema.invoices.planId, input.planId),
+          eq(schema.invoices.periodStart, input.periodStart),
+          ne(schema.invoices.status, 'VOID'),
+        ),
+      )
+      .limit(1),
+  );
+  if (samePeriod) return err(serviceError('invalid', SAME_PERIOD_MESSAGE));
 
+  try {
+    return await insertInvoice(db, input, invoiceRef, currency);
+  } catch (error) {
+    // Another invoice with this reference or for this period was saved an instant ago.
+    if (isUniqueViolation(error)) return err(serviceError('invalid', SAME_PERIOD_MESSAGE));
+    throw error;
+  }
+}
+
+const SAME_PERIOD_MESSAGE =
+  'an invoice with this reference, or for this plan and period start, already exists';
+
+async function insertInvoice(
+  db: Db,
+  input: CreateInvoiceInput,
+  invoiceRef: string,
+  currency: string,
+): Promise<Result<Invoice, ServiceError>> {
   return db.transaction(async (tx) => {
     const invoice = required(
       first(

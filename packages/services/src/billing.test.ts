@@ -888,13 +888,28 @@ describe('invoices -- issue, collect, void (COM-03)', () => {
       dueDate,
     });
     if (!isOk(first)) throw new Error('invoice');
-    const second = await createInvoice(db, {
+    // S17: a second live invoice for the same plan and period start is refused, so the second
+    // invoice is for the next period.
+    const samePeriod = await createInvoice(db, {
       actor: owner.actor,
       stepUpSatisfied: true,
       organizationId,
       planId,
       periodStart,
       periodEnd,
+      invoiceRef: 'INV-LIST-SAME',
+      invoicedAmountMinorUnits: 2000,
+      currency: 'USD',
+      dueDate,
+    });
+    expect(isErr(samePeriod) && samePeriod.error.code).toBe('invalid');
+    const second = await createInvoice(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      planId,
+      periodStart: periodEnd,
+      periodEnd: new Date(periodEnd.getTime() + 30 * 24 * 60 * 60 * 1000),
       invoiceRef: 'INV-LIST-2',
       invoicedAmountMinorUnits: 2000,
       currency: 'USD',

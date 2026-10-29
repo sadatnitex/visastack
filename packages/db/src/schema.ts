@@ -3781,6 +3781,15 @@ export const billingAccounts = pgTable(
 // is what's authoritative for "what state is this org in right now," never
 // re-derived from this table, but every transition that ever produced it is
 // preserved here for review.
+//
+// S17 (ADR 0020 Phase 2, migration 0103): the daily billing run may move a status itself when an
+// invoice stays unpaid (only once the owner switches that on in `billingSettings`), and paying
+// in full moves it back. Such a row has no person (`actorAccountId` null), cause `NONPAYMENT` and
+// a reason starting "system:"; a row a person wrote names them and has cause `MANUAL`. The check
+// keeps the two from ever being mixed up. The cause of the CURRENT status is the cause on the
+// newest row, so a status a person set is never lifted automatically.
+export const billingStatusCause = pgEnum('billing_status_cause', ['MANUAL', 'NONPAYMENT']);
+
 export const billingStatusHistory = pgTable(
   'billing_status_history',
   {
@@ -3790,13 +3799,55 @@ export const billingStatusHistory = pgTable(
       .references(() => billingAccounts.id, { onDelete: 'cascade' }),
     fromStatus: billingStatus('from_status'),
     toStatus: billingStatus('to_status').notNull(),
-    actorAccountId: uuid('actor_account_id')
-      .notNull()
-      .references(() => accounts.id),
+    actorAccountId: uuid('actor_account_id').references(() => accounts.id),
     reason: text('reason').notNull(),
+    cause: billingStatusCause('cause').notNull().default('MANUAL'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index('billing_status_history_account_idx').on(table.billingAccountId)],
+  (table) => [
+    index('billing_status_history_account_idx').on(table.billingAccountId),
+    index('billing_status_history_latest_idx').on(table.billingAccountId, table.createdAt.desc()),
+    check(
+      'billing_status_history_system_actor',
+      sql`((${table.actorAccountId} is null) = (${table.cause} = 'NONPAYMENT')) and (${table.actorAccountId} is not null or ${table.reason} like 'system:%')`,
+    ),
+  ],
+);
+
+// The platform's billing rules (S17, owner gate O13): exactly one row, set by the platform owner
+// with a fresh sign-in check. `dueDays` is how long after a period starts its invoice is due.
+// Automatic Grace and Suspended stay off until the owner switches them on, and then need both day
+// counts, counted from the due date, Suspended later than Grace. Nothing that started before
+// `invoicingStartsAt` is ever billed by the daily run, so switching recurring invoices on never
+// bills past periods.
+export const billingSettings = pgTable(
+  'billing_settings',
+  {
+    id: boolean('id').primaryKey().default(true),
+    dueDays: integer('due_days').notNull().default(7),
+    overdueHandlingEnabled: boolean('overdue_handling_enabled').notNull().default(false),
+    graceAfterDays: integer('grace_after_days'),
+    suspendAfterDays: integer('suspend_after_days'),
+    invoicingStartsAt: timestamp('invoicing_starts_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedByAccountId: uuid('updated_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('billing_settings_singleton', sql`${table.id}`),
+    check('billing_settings_due_days_range', sql`${table.dueDays} between 1 and 60`),
+    check(
+      'billing_settings_policy_complete',
+      sql`not ${table.overdueHandlingEnabled} or (${table.graceAfterDays} is not null and ${table.suspendAfterDays} is not null)`,
+    ),
+    check(
+      'billing_settings_policy_order',
+      sql`${table.graceAfterDays} is null or ${table.suspendAfterDays} is null or (${table.graceAfterDays} between 0 and 365 and ${table.suspendAfterDays} > ${table.graceAfterDays} and ${table.suspendAfterDays} <= 365)`,
+    ),
+  ],
 );
 
 export const invoiceStatus = pgEnum('invoice_status', ['OPEN', 'PARTIALLY_PAID', 'PAID', 'VOID']);
@@ -3837,6 +3888,16 @@ export const invoices = pgTable(
   (table) => [
     index('invoices_organization_idx').on(table.organizationId),
     unique('invoices_ref_unique').on(table.invoiceRef),
+    // S17: one live invoice per organization, plan and period start, so the daily billing run can
+    // never bill the same period twice, even when two runs overlap. A void invoice does not count,
+    // so a period issued in error can be issued again.
+    uniqueIndex('invoices_org_plan_period_unique')
+      .on(table.organizationId, table.planId, table.periodStart)
+      .where(sql`${table.status} <> 'VOID'`),
+    // S17: reminders and overdue checks look only at invoices still owed, by due date.
+    index('invoices_open_due_idx')
+      .on(table.dueDate)
+      .where(sql`${table.status} in ('OPEN', 'PARTIALLY_PAID')`),
     check('invoices_period_order', sql`${table.periodEnd} > ${table.periodStart}`),
     check(
       'invoices_collected_not_over_invoiced',
