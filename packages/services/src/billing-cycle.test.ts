@@ -1493,6 +1493,9 @@ describe('round 2: due days, overdue days, overlaps, budgets and notices', () =>
     expect(restorable.indexOf('lockBillingAccount(tx')).toBeLessThan(
       restorable.indexOf('locked.status'),
     );
+    // Nothing is read before that lock: the lock is the function's first database call.
+    const beforeLock = restorable.slice(0, restorable.indexOf('lockBillingAccount(tx'));
+    expect(beforeLock.slice(beforeLock.indexOf('{') + 1).trim()).toBe('const locked = await');
     expect(readFileSync(join(here, 'invoice-ledger.ts'), 'utf8')).not.toContain(
       'billingAccountStatus',
     );
