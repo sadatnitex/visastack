@@ -331,6 +331,24 @@ describe('safe copy renderer: limits and refusals', () => {
   );
 
   it(
+    'refuses a page when the file does not have the page count the boxes were saved for',
+    async () => {
+      const renderer = new BuiltinSafeCopyRenderer();
+      const source = { bytes: loadedPdf({ marker: marker(), pages: 2 }), contentType: PDF };
+      expect(
+        await renderer.renderMaskedPage(source, 1, [], { ...BUDGET, expectedPageCount: 3 }),
+      ).toMatchObject({ ok: false, reason: 'unreadable' });
+      expect(
+        await renderer.renderMaskedPage(source, 3, [], { ...BUDGET, expectedPageCount: 2 }),
+      ).toMatchObject({ ok: false, reason: 'unreadable' });
+      expect(
+        await renderer.renderMaskedPage(source, 2, [], { ...BUDGET, expectedPageCount: 2 }),
+      ).toMatchObject({ ok: true, contentType: 'image/jpeg' });
+    },
+    TIMEOUT_MS,
+  );
+
+  it(
     'refuses an output that cannot be kept inside the size limit',
     async () => {
       const renderer = new BuiltinSafeCopyRenderer();

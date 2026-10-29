@@ -27,6 +27,8 @@ function json(body: unknown, status = 200): Response {
 }
 
 let failingPages: Set<number>;
+/** Page bitmaps decoded and closed so far, to show none are kept longer than needed. */
+let bitmaps: { made: number; closed: number };
 
 function respond(editor: Record<string, unknown> = {}) {
   return async (path: string, init: { body: string }) => {
@@ -148,11 +150,19 @@ beforeEach(() => {
   failingPages = new Set();
   window.sessionStorage.clear();
   // Pages are decoded into bitmaps and painted on a canvas: no image address is ever made.
-  vi.stubGlobal('createImageBitmap', async () => ({
-    width: 10,
-    height: 14,
-    close: () => undefined,
-  }));
+  bitmaps = { made: 0, closed: 0 };
+  vi.stubGlobal('createImageBitmap', async () => {
+    bitmaps.made += 1;
+    let open = true;
+    return {
+      width: 10,
+      height: 14,
+      close: () => {
+        if (open) bitmaps.closed += 1;
+        open = false;
+      },
+    };
+  });
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
 });
 
@@ -183,9 +193,11 @@ describe('safe copy editor: keyboard', () => {
     // Focus moves to the new box, which is a labelled, focusable control.
     expect(document.activeElement).toBe(box);
     expect(box.getAttribute('tabindex')).toBe('0');
-    expect(box.getAttribute('aria-label')).toContain(
-      'Box 1 on page 1: 35% from the left, 47% from the top, 30% wide and 6% tall.',
-    );
+    // A short name; the keyboard hint is one visible paragraph the box points to.
+    expect(box.getAttribute('aria-label')).toBe('Box 1 on page 1, centre');
+    const hint = document.getElementById(box.getAttribute('aria-describedby') ?? '');
+    expect(hint?.textContent).toContain('arrow keys move it');
+    expect(hint?.textContent).toContain('Escape');
     expect(status()).toContain('Box 1 added');
     expect(listed()).toEqual([
       'Box 1 on page 1: 35% from the left, 47% from the top, 30% wide and 6% tall.',
@@ -226,7 +238,7 @@ describe('safe copy editor: keyboard', () => {
   it('keeps every page and the pager in reach, and names pages', async () => {
     await openEditor();
     await click('Next Page');
-    expect(status()).toBe('Page 2 of 2.');
+    expect(status()).toBe('Showing page 2 of 2.');
     const canvas = container.querySelector('canvas');
     expect(canvas?.getAttribute('role')).toBe('img');
     expect(canvas?.getAttribute('aria-label')).toBe('Page 2 of 2');
@@ -346,8 +358,10 @@ describe('safe copy editor: suggestions, review and saving', () => {
     expect(pageCalls()).toEqual([1, 2]);
     expect(button('Save Safe Copy').getAttribute('aria-disabled')).toBe('true');
     expect(container.textContent).toContain(
-      'Every page must show before the safe copy can be saved.',
+      'Every page must show before the safe copy can be saved: 1 of 2 shown so far.',
     );
+    // The failed page is announced politely, with the button that shows it again.
+    expect(status()).toBe('Page 2 could not be shown. Choose Try Again.');
     await click('Save Safe Copy');
     expect(calls.some((c) => c.path === '/api/documents/redaction-masks')).toBe(false);
     failingPages = new Set();
@@ -374,5 +388,181 @@ describe('safe copy editor: suggestions, review and saving', () => {
     await mount('MASKED', false);
     expect(container.textContent).toContain('Safe copies are not available here yet.');
     expect(container.querySelectorAll('button')).toHaveLength(0);
+  });
+});
+
+describe('safe copy editor: focus, pages held and stopping safely', () => {
+  function pageCalls() {
+    return calls.filter((c) => c.path === '/api/documents/redaction-page');
+  }
+
+  it('moves focus to each step and back to the main action, never to the page body', async () => {
+    await openEditor();
+    expect(document.activeElement?.textContent).toBe('Mark What to Hide');
+    await click('Add Box');
+    await click('Review Pages');
+    expect(document.activeElement?.textContent).toBe('Check Every Page');
+    await click('Back to Editing');
+    expect(document.activeElement?.textContent).toBe('Mark What to Hide');
+    await click('Cancel Editing');
+    expect(document.activeElement).toBe(button('Prepare Safe Copy'));
+    await click('Prepare Safe Copy');
+    await click('Add Box');
+    await click('Review Pages');
+    await click('Save Safe Copy');
+    // Ready: focus is on the state line, which now reads ready.
+    expect(document.activeElement?.textContent).toBe(SAFE_COPY_STATE_LABELS.MASKED);
+    await click('Remove Safe Copy');
+    expect(document.activeElement).toBe(button('Prepare Safe Copy'));
+  });
+
+  it('lets go of every page when the editor closes, and never shows another version its pages', async () => {
+    await openEditor();
+    await click('Next Page');
+    expect(bitmaps.made).toBe(2);
+    await click('Cancel Editing');
+    expect(bitmaps.closed).toBe(2);
+    // A new version was added meanwhile: its pages are fetched afresh, never the old ones reused.
+    const newer = '00000000-0000-4000-8000-000000000202';
+    fetchMock.mockImplementation(respond({ versionId: newer }));
+    await click('Prepare Safe Copy');
+    const fetched = pageCalls();
+    expect(fetched.at(-1)?.body).toMatchObject({ versionId: newer, page: 1 });
+    expect(bitmaps.made).toBe(3);
+  });
+
+  it('holds only a few pages decoded at once, and lets them go after saving', async () => {
+    fetchMock.mockImplementation(respond({ pageCount: 6 }));
+    await openEditor();
+    for (let page = 2; page <= 6; page++) await click('Next Page');
+    expect(bitmaps.made).toBe(6);
+    expect(bitmaps.made - bitmaps.closed).toBeLessThanOrEqual(3);
+    // Going back to a page let go fetches it again.
+    await click('Previous Page');
+    await click('Previous Page');
+    await click('Previous Page');
+    expect(pageCalls().length).toBeGreaterThan(6);
+    expect(bitmaps.made - bitmaps.closed).toBeLessThanOrEqual(3);
+  });
+
+  it('draws review pages as they scroll into view and lets off-screen ones go', async () => {
+    const observed: Element[] = [];
+    let report: ((entries: { target: Element; isIntersecting: boolean }[]) => void) | undefined;
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(callback: (entries: { target: Element; isIntersecting: boolean }[]) => void) {
+          report = callback;
+        }
+        observe(element: Element) {
+          observed.push(element);
+        }
+        disconnect() {}
+      },
+    );
+    fetchMock.mockImplementation(respond({ pageCount: 5 }));
+    await openEditor();
+    await click('Add Box');
+    const before = pageCalls().length;
+    await click('Review Pages');
+    // Nothing is fetched until a page is on screen.
+    expect(pageCalls().length).toBe(before);
+    expect(observed).toHaveLength(5);
+    const show = async (index: number, isIntersecting: boolean) => {
+      await act(async () => {
+        report?.([{ target: observed[index] as Element, isIntersecting }]);
+      });
+      await settle();
+    };
+    for (let index = 0; index < 5; index++) {
+      await show(index, true);
+      if (index > 0) await show(index - 1, false);
+      expect(bitmaps.made - bitmaps.closed).toBeLessThanOrEqual(3);
+    }
+    // Every page was shown once, so the copy can be saved; the pages are let go after preparing.
+    expect(button('Save Safe Copy').getAttribute('aria-disabled')).toBeNull();
+    await click('Save Safe Copy');
+    expect(status()).toContain('Safe copy ready.');
+    expect(bitmaps.made - bitmaps.closed).toBe(0);
+  });
+
+  it('says the boxes are saved and offers Continue Preparing when an answer cannot be read', async () => {
+    fetchMock.mockImplementation(async (path: string, init: { body: string }) => {
+      if (path === '/api/documents/safe-copy-prepare') {
+        calls.push({ path, body: JSON.parse(init.body) });
+        return new Response('not json', { status: 200 });
+      }
+      return respond()(path, init);
+    });
+    await openEditor();
+    await click('Add Box');
+    await click('Review Pages');
+    await click('Save Safe Copy');
+    const alert = container.querySelector('[role="alert"]')?.textContent ?? '';
+    expect(alert).toContain('Your boxes are saved. Preparing stopped at page 1 of 2.');
+    expect(alert).not.toContain('not saved');
+    expect(container.textContent).toContain(SAFE_COPY_STATE_LABELS.PREPARING);
+    expect(document.activeElement).toBe(button('Continue Preparing'));
+    // Carrying on from there works once answers come back.
+    fetchMock.mockImplementation(respond({ state: 'PREPARING', maskRevision: REVISION }));
+    await click('Continue Preparing');
+    expect(status()).toContain('Safe copy ready.');
+  });
+
+  it('selects a box from the list for touch, and Escape lets it go or stops a box being drawn', async () => {
+    await openEditor();
+    await click('Add Box');
+    await click('Add Box');
+    const select = [...container.querySelectorAll('button')].find(
+      (b) => b.getAttribute('aria-label') === 'Select box 1',
+    );
+    if (!select) throw new Error('select button');
+    await act(async () => select.click());
+    await settle();
+    // Focus moves to the Selected Box controls, which name box 1.
+    const adjust = container.querySelector('fieldset.safe-copy-adjust');
+    expect(document.activeElement).toBe(adjust);
+    expect(adjust?.textContent).toContain('Box 1 on page 1');
+    await key(adjust as Element, 'Escape');
+    expect(container.querySelector('fieldset.safe-copy-adjust')).toBeNull();
+    expect(status()).toBe('No box selected.');
+
+    // A box being drawn with a pointer is stopped by Escape and nothing is added.
+    await click('Draw Boxes');
+    const overlay = container.querySelector('svg.safe-copy-overlay') as SVGSVGElement;
+    vi.spyOn(overlay, 'getBoundingClientRect').mockReturnValue({
+      left: 0,
+      top: 0,
+      width: 100,
+      height: 100,
+      right: 100,
+      bottom: 100,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const pointer = (type: string, x: number, y: number) =>
+      act(async () => {
+        const event = new MouseEvent(type, { bubbles: true, clientX: x, clientY: y });
+        Object.assign(event, { pointerId: 1 });
+        overlay.dispatchEvent(event);
+      });
+    await pointer('pointerdown', 10, 10);
+    await pointer('pointermove', 40, 30);
+    expect(container.querySelector('rect.safe-copy-draft')).not.toBeNull();
+    await key(button('Draw Boxes'), 'Escape');
+    expect(container.querySelector('rect.safe-copy-draft')).toBeNull();
+    await pointer('pointerup', 40, 30);
+    expect(boxes()).toHaveLength(2);
+    expect(status()).toBe('Drawing that box was stopped. Nothing was added.');
+  });
+
+  it('announces a page that could not be shown, with the button that shows it again', async () => {
+    failingPages = new Set([1]);
+    await openEditor();
+    expect(status()).toBe('Page 1 could not be shown. Choose Show the Page Again.');
+    failingPages = new Set();
+    await click('Show the Page Again');
+    expect(container.querySelector('canvas')).not.toBeNull();
   });
 });

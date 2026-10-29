@@ -19,9 +19,16 @@ import { SafeCopyDownload, readMessage } from './safe-copy-download';
  * - One page at a time, drawn fresh by the server. Black boxes sit over the page; each box is a
  *   focusable control and is also listed as text with its page and position.
  * - Keyboard: Tab reaches each box; arrow keys move it; Shift with an arrow key changes its size;
- *   Delete or Backspace removes it; Add Box puts a new box in the middle of the page and focuses
- *   it. The same moves are buttons for touch and switch users. Draw Boxes lets a mouse, pen or
- *   finger drag out a new box (off by default, so a finger still scrolls the page).
+ *   Delete or Backspace removes it; Escape stops a box being drawn and lets go of the selected
+ *   box; Add Box puts a new box in the middle of the page and focuses it. The same moves are
+ *   buttons for touch and switch users, and every box in the list has its own Select button, so a
+ *   small box never has to be tapped. Draw Boxes lets a mouse, pen or finger drag out a new box
+ *   (off by default, so a finger still scrolls the page).
+ * - Focus follows each step: its heading on opening, review, going back and preparing; the main
+ *   action again when the editor closes.
+ * - Pages are held decoded only while they are needed: at most a few at once, released when the
+ *   editor closes, after saving, and when another version is opened. Review draws each page as it
+ *   scrolls into view.
  * - Suggestions (passport lines, the owner's own numbers, account numbers) arrive marked as
  *   suggestions; each must be accepted or removed before review.
  * - Review shows every page with its black boxes before anything is saved: "Check every page.
@@ -90,6 +97,25 @@ export function boxKeyAction(key: string, shiftKey: boolean): BoxKeyAction {
   return { kind: 'none' };
 }
 
+/** Roughly where a box sits, in words: "top left", "centre", "bottom right". */
+export function roughPlace(box: RedactionBox): string {
+  const middleX = box.x + box.w / 2;
+  const middleY = box.y + box.h / 2;
+  const across = middleX < 1 / 3 ? 'left' : middleX < 2 / 3 ? 'centre' : 'right';
+  const down = middleY < 1 / 3 ? 'top' : middleY < 2 / 3 ? 'middle' : 'bottom';
+  if (down === 'middle' && across === 'centre') return 'centre';
+  return `${down} ${across}`;
+}
+
+/** The short name of a box control; the keyboard hint is a separate, visible paragraph. */
+export function boxLabel(item: EditorBox, index: number, page: number): string {
+  const name = `Box ${index + 1} on page ${page}, ${roughPlace(item.box)}`;
+  if (!item.suggestion) return name;
+  return item.suggestion.accepted
+    ? `${name}, suggested, accepted`
+    : `${name}, suggested, not accepted yet`;
+}
+
 export function describeEditorBox(item: EditorBox, index: number, page: number): string {
   const where = `Box ${index + 1} on page ${page}: ${describeRedactionBox(item.box)}.`;
   if (!item.suggestion) return where;
@@ -109,6 +135,9 @@ interface PageImage {
 }
 
 type ImageState = PageImage | 'loading' | 'error';
+
+/** Decoded pages held at once. A decoded A4 page is several megabytes; older ones are let go. */
+export const MAX_DECODED_PAGES = 3;
 
 interface EditorInfo {
   readonly versionId: string;
@@ -245,21 +274,83 @@ export function SafeCopyEditor({
 }: SafeCopyEditorProps) {
   const id = useId();
   const sectionId = `safe-copy-${documentId}`;
+  const hintId = `${id}-hint`;
   const detailsRef = useRef<HTMLDetailsElement>(null);
   const overlayRef = useRef<SVGSVGElement>(null);
   const addRef = useRef<HTMLButtonElement>(null);
+  const startRef = useRef<HTMLButtonElement>(null);
+  const continueRef = useRef<HTMLButtonElement>(null);
+  const stateRef = useRef<HTMLParagraphElement>(null);
+  const editHeadingRef = useRef<HTMLHeadingElement>(null);
+  const reviewHeadingRef = useRef<HTMLHeadingElement>(null);
+  const preparingHeadingRef = useRef<HTMLHeadingElement>(null);
+  const adjustRef = useRef<HTMLFieldSetElement>(null);
   const mounted = useRef(true);
   const [state, setState] = useState<SafeCopyStateName>(initialState);
-  const [step, setStep] = useState<Step>('closed');
+  const [step, setStepState] = useState<Step>('closed');
+  const stepRef = useRef<Step>('closed');
+  const setStep = (next: Step) => {
+    stepRef.current = next;
+    setStepState(next);
+  };
   const [info, setInfo] = useState<EditorInfo | null>(null);
   const [pages, setPages] = useState<EditorBox[][]>([]);
   const [current, setCurrent] = useState(0);
+  const currentRef = useRef(0);
   const [selected, setSelected] = useState<string | null>(null);
+  /** The box that has keyboard focus, which always shows its ring, selected or not. */
+  const [focusedBox, setFocusedBox] = useState<string | null>(null);
+
+  // Decoded pages, for one version at a time. `generation` changes whenever they are all let go,
+  // so a page still arriving for an earlier opening is closed instead of kept.
   const [images, setImagesState] = useState<Record<number, ImageState>>({});
   const imagesRef = useRef<Record<number, ImageState>>({});
+  const imagesVersion = useRef<string | null>(null);
+  const generation = useRef(0);
+  /** Decoded pages, least recently shown first. */
+  const recent = useRef<number[]>([]);
+  /** Review pages on screen now, which are never let go while they show. */
+  const onScreen = useRef<Set<number>>(new Set());
+  /** Pages shown at least once in this review, so saving can ask that every page was seen. */
+  const [seen, setSeen] = useState<ReadonlySet<number>>(new Set());
   const setImages = (change: (all: Record<number, ImageState>) => Record<number, ImageState>) => {
     imagesRef.current = change(imagesRef.current);
     setImagesState(imagesRef.current);
+  };
+  /** Closes every decoded page and forgets them all. */
+  const releaseImages = () => {
+    generation.current += 1;
+    for (const image of Object.values(imagesRef.current)) {
+      if (typeof image === 'object') image.bitmap.close();
+    }
+    imagesRef.current = {};
+    imagesVersion.current = null;
+    recent.current = [];
+    if (mounted.current) setImagesState({});
+  };
+  /** Lets go of the least recently shown pages past the limit, never the ones showing now. */
+  const trimImages = () => {
+    const keep = new Set<number>(onScreen.current);
+    if (stepRef.current === 'edit') keep.add(currentRef.current);
+    let decoded = recent.current.length;
+    const release: number[] = [];
+    for (const index of recent.current) {
+      if (decoded <= MAX_DECODED_PAGES) break;
+      if (keep.has(index)) continue;
+      release.push(index);
+      decoded -= 1;
+    }
+    if (release.length === 0) return;
+    recent.current = recent.current.filter((index) => !release.includes(index));
+    setImages((all) => {
+      const next = { ...all };
+      for (const index of release) {
+        const image = next[index];
+        if (typeof image === 'object') image.bitmap.close();
+        delete next[index];
+      }
+      return next;
+    });
   };
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [nothingToHide, setNothingToHide] = useState(false);
@@ -279,9 +370,11 @@ export function SafeCopyEditor({
     mounted.current = true;
     return () => {
       mounted.current = false;
+      generation.current += 1;
       for (const image of Object.values(imagesRef.current)) {
         if (typeof image === 'object') image.bitmap.close();
       }
+      imagesRef.current = {};
     };
   }, []);
 
@@ -297,13 +390,38 @@ export function SafeCopyEditor({
     return () => window.removeEventListener('hashchange', openFromHash);
   }, [sectionId]);
 
-  // After a box is added or removed, focus lands on the box asked for (or Add Box).
+  // Focus follows the step, so it is never left on a button that has gone: each step's heading,
+  // the state line once the copy is ready, and the main action again when the editor closes.
+  const shownStep = useRef<Step>('closed');
+  useEffect(() => {
+    const previous = shownStep.current;
+    if (previous === step) return;
+    shownStep.current = step;
+    if (step === 'edit') editHeadingRef.current?.focus();
+    else if (step === 'review') reviewHeadingRef.current?.focus();
+    else if (step === 'preparing') preparingHeadingRef.current?.focus();
+    else if (step === 'saved') stateRef.current?.focus();
+    else if (step === 'closed' && previous !== 'closed') {
+      (continueRef.current ?? startRef.current ?? stateRef.current)?.focus();
+    }
+  }, [step]);
+
+  // After a box is added or removed, focus lands on the box asked for (or Add Box, or the
+  // Selected Box controls).
   useEffect(() => {
     const target = focusAfter.current;
     if (target === null) return;
     focusAfter.current = null;
     if (target === 'add') {
       addRef.current?.focus();
+      return;
+    }
+    if (target === 'adjust') {
+      adjustRef.current?.focus();
+      return;
+    }
+    if (target === 'start') {
+      (startRef.current ?? stateRef.current)?.focus();
       return;
     }
     const element = overlayRef.current?.querySelector<SVGRectElement>(`[data-box="${target}"]`);
@@ -317,6 +435,41 @@ export function SafeCopyEditor({
     writeDraft(documentId, info.versionId, pages);
   }, [documentId, info, pages, step]);
 
+  // Review pages draw as they scroll into view, and are let go once off screen and past the
+  // limit, so a long document never holds every page decoded at once.
+  const reviewListRef = useRef<HTMLOListElement>(null);
+  const pageWork = useRef<{
+    load: (index: number, versionId: string) => Promise<boolean>;
+    trim: () => void;
+  } | null>(null);
+  const reviewVersion = step === 'review' ? (info?.versionId ?? null) : null;
+  useEffect(() => {
+    const list = reviewListRef.current;
+    if (!reviewVersion || !list || typeof IntersectionObserver !== 'function') return;
+    const shown = onScreen.current;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const index = Number(entry.target.getAttribute('data-review-page'));
+          if (!Number.isSafeInteger(index)) continue;
+          if (entry.isIntersecting) {
+            shown.add(index);
+            void pageWork.current?.load(index, reviewVersion);
+          } else {
+            shown.delete(index);
+            pageWork.current?.trim();
+          }
+        }
+      },
+      { rootMargin: '200px 0px' },
+    );
+    for (const item of list.querySelectorAll('[data-review-page]')) observer.observe(item);
+    return () => {
+      observer.disconnect();
+      shown.clear();
+    };
+  }, [reviewVersion]);
+
   const request = (path: string, extra: Record<string, unknown>) =>
     fetch(path, {
       method: 'POST',
@@ -329,11 +482,27 @@ export function SafeCopyEditor({
     if (mounted.current) setProblem(read);
   };
 
+  /** Says, politely, that a page did not show and which button shows it again. */
+  const pageFailed = (index: number) => {
+    const again = stepRef.current === 'review' ? 'Try Again' : 'Show the Page Again';
+    setStatus(`Page ${index + 1} could not be shown. Choose ${again}.`);
+  };
+
   /** Loads one page if it is not loaded or loading yet; true once it is shown. */
   const loadPage = async (index: number, versionId: string): Promise<boolean> => {
+    if (imagesVersion.current !== versionId) {
+      releaseImages();
+      imagesVersion.current = versionId;
+    }
     const known = imagesRef.current[index];
     if (known === 'loading') return false;
-    if (known && known !== 'error') return true;
+    if (known && known !== 'error') {
+      recent.current = [...recent.current.filter((i) => i !== index), index];
+      setSeen((all) => (all.has(index) ? all : new Set([...all, index])));
+      return true;
+    }
+    const opening = generation.current;
+    const stillWanted = () => mounted.current && opening === generation.current;
     setImages((all) => ({ ...all, [index]: 'loading' }));
     try {
       const response = await request('/api/documents/redaction-page', {
@@ -342,29 +511,41 @@ export function SafeCopyEditor({
       });
       if (!response.ok || response.headers.get('content-type') !== 'image/jpeg') {
         await fail(response);
-        if (mounted.current) setImages((all) => ({ ...all, [index]: 'error' }));
+        if (stillWanted()) {
+          setImages((all) => ({ ...all, [index]: 'error' }));
+          pageFailed(index);
+        }
         return false;
       }
       if (typeof createImageBitmap !== 'function') throw new Error('no image decoding');
       const bitmap = await createImageBitmap(await response.blob());
-      if (!mounted.current) {
+      if (!stillWanted()) {
         bitmap.close();
         return false;
       }
       setImages((all) => ({ ...all, [index]: { bitmap } }));
+      recent.current = [...recent.current.filter((i) => i !== index), index];
+      setSeen((all) => (all.has(index) ? all : new Set([...all, index])));
+      trimImages();
       return true;
     } catch {
-      if (mounted.current) {
+      if (stillWanted()) {
         setImages((all) => ({ ...all, [index]: 'error' }));
         setProblem({ message: 'This page could not be shown. Try again.' });
+        pageFailed(index);
       }
       return false;
     }
   };
 
+  pageWork.current = { load: loadPage, trim: trimImages };
+
   const start = async (resume = false) => {
     if (step === 'loading' || step === 'preparing') return;
     setProblem(null);
+    // Whatever was shown before (another version, or this one before a change) is let go.
+    releaseImages();
+    setSeen(new Set());
     setStep('loading');
     try {
       const response = await request('/api/documents/redaction-editor', {});
@@ -390,7 +571,7 @@ export function SafeCopyEditor({
       setInfo(opened);
       // A saved copy still being prepared carries on preparing, without editing again.
       if (resume && body.state === 'PREPARING' && body.maskRevision) {
-        void prepare(opened, body.maskRevision);
+        await prepare(opened, body.maskRevision);
         return;
       }
       const saved = fromSaved(body.savedPages);
@@ -403,11 +584,12 @@ export function SafeCopyEditor({
       );
       setNothingToHide(!kept && body.state === 'NOTHING_TO_HIDE');
       setCurrent(0);
+      currentRef.current = 0;
       setSelected(null);
       setStep('edit');
       setStatus(
         [
-          `Page 1 of ${body.pageCount}.`,
+          `Showing page 1 of ${body.pageCount}.`,
           kept ? 'Your unsaved boxes were restored.' : '',
           body.canSave ? '' : 'Safe copies are not ready yet, so nothing can be saved.',
         ]
@@ -423,11 +605,23 @@ export function SafeCopyEditor({
     }
   };
 
+  /** Closes the editor without saving, letting go of every page shown. */
+  const closeEditor = (message: string) => {
+    if (info) removeDraft(documentId, info.versionId);
+    drag.current = null;
+    setDraft(null);
+    setStep('closed');
+    setSelected(null);
+    releaseImages();
+    setStatus(message);
+  };
+
   const goTo = (index: number) => {
     if (!info || index < 0 || index >= info.pageCount) return;
     setCurrent(index);
+    currentRef.current = index;
     setSelected(null);
-    setStatus(`Page ${index + 1} of ${info.pageCount}.`);
+    setStatus(`Showing page ${index + 1} of ${info.pageCount}.`);
     void loadPage(index, info.versionId);
   };
 
@@ -583,6 +777,57 @@ export function SafeCopyEditor({
     if (made && made.w >= 0.01 && made.h >= 0.005) addBox(made);
   };
 
+  /**
+   * Escape: stops a box being drawn (or puts back a box being dragged), and otherwise lets go of
+   * the selected box. Listened for on the whole window while editing, since a pointer drag keeps
+   * focus where it was.
+   */
+  const onEscape = () => {
+    const active = drag.current;
+    if (active) {
+      drag.current = null;
+      if (active.kind === 'draw') {
+        setDraft(null);
+        setStatus('Drawing that box was stopped. Nothing was added.');
+      } else {
+        updatePage(current, (boxes) =>
+          boxes.map((b) => (b.id === active.boxId ? { ...b, box: active.origin } : b)),
+        );
+        setStatus('The box was put back where it was.');
+      }
+      return true;
+    }
+    if (selected !== null) {
+      setSelected(null);
+      setStatus('No box selected.');
+      return true;
+    }
+    return false;
+  };
+  const escapeWork = useRef(onEscape);
+  escapeWork.current = onEscape;
+  const editing = step === 'edit';
+  useEffect(() => {
+    if (!editing) return;
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      const inside = detailsRef.current?.contains(document.activeElement) ?? false;
+      if (!inside && !drag.current) return;
+      if (escapeWork.current()) event.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [editing]);
+
+  /** Selects a box from the list and moves focus to its controls, for touch and switch users. */
+  const selectBox = (boxIdValue: string, index: number) => {
+    const item = pageBoxes[index];
+    if (!item) return;
+    setSelected(boxIdValue);
+    focusAfter.current = 'adjust';
+    setStatus(`Box ${index + 1} selected: ${describeRedactionBox(item.box)}.`);
+  };
+
   const suggest = async () => {
     if (!info || busy) return;
     setBusy('suggest');
@@ -649,59 +894,80 @@ export function SafeCopyEditor({
       });
       return;
     }
+    drag.current = null;
+    setDraft(null);
     setNothingToHide(choseNothing);
+    setSeen(new Set());
     setStep('review');
     setStatus(`Review: ${info.pageCount} ${info.pageCount === 1 ? 'page' : 'pages'} to check.`);
-    void loadReviewPages(info);
+    if (typeof IntersectionObserver !== 'function') void loadReviewPages(info);
   };
 
-  /** Review pages load one at a time, never all at once; a page that fails offers Try Again. */
+  /**
+   * Without a way to know which pages are on screen, review pages load one at a time, in order,
+   * never all at once, and only the last few stay decoded.
+   */
   const loadReviewPages = async (opened: EditorInfo) => {
     for (let index = 0; index < opened.pageCount; index++) {
-      if (!mounted.current) return;
+      if (!mounted.current || stepRef.current !== 'review') return;
       await loadPage(index, opened.versionId);
     }
   };
 
   /**
    * Prepares every page, one after another, for the saved revision. Pages already prepared are
-   * skipped by the server, so this resumes after an interruption.
+   * skipped by the server, so this resumes after an interruption. Never throws: however it stops,
+   * the boxes stay saved and Continue Preparing carries on.
    */
   const prepare = async (opened: EditorInfo, revision: string) => {
     setStep('preparing');
     setProblem(null);
     setProgress({ done: 0, total: opened.pageCount });
+    // The editor's own pages are not needed while preparing.
+    releaseImages();
+    const stopped = (page: number, why?: { message: string; reauthUrl?: string }) => {
+      if (!mounted.current) return;
+      setState('PREPARING');
+      setProgress(null);
+      setStep('closed');
+      setProblem({
+        message: [
+          `Your boxes are saved. Preparing stopped at page ${page} of ${opened.pageCount}.`,
+          why?.message ?? '',
+          'Choose Continue Preparing to carry on.',
+        ]
+          .filter(Boolean)
+          .join(' '),
+        ...(why?.reauthUrl ? { reauthUrl: why.reauthUrl } : {}),
+      });
+      setStatus(`Preparing stopped at page ${page} of ${opened.pageCount}.`);
+    };
     for (let page = 1; page <= opened.pageCount; page++) {
       if (!mounted.current) return;
       setStatus(`Preparing page ${page} of ${opened.pageCount}.`);
-      let response: Response;
+      let body: { preparedPages: number; pageCount: number; state: SafeCopyStateName };
       try {
-        response = await request('/api/documents/safe-copy-prepare', {
+        const response = await request('/api/documents/safe-copy-prepare', {
           versionId: opened.versionId,
           page,
           maskRevision: revision,
         });
+        if (!response.ok) {
+          stopped(page, await readMessage(response));
+          return;
+        }
+        body = (await response.json()) as typeof body;
+        if (
+          typeof body?.preparedPages !== 'number' ||
+          typeof body.pageCount !== 'number' ||
+          typeof body.state !== 'string'
+        ) {
+          throw new Error('unexpected answer');
+        }
       } catch {
-        if (mounted.current) {
-          setProblem({ message: 'Preparing stopped. Choose Continue Preparing to carry on.' });
-          setState('PREPARING');
-          setStep('closed');
-        }
+        stopped(page);
         return;
       }
-      if (!response.ok) {
-        await fail(response);
-        if (mounted.current) {
-          setState('PREPARING');
-          setStep('closed');
-        }
-        return;
-      }
-      const body = (await response.json()) as {
-        preparedPages: number;
-        pageCount: number;
-        state: SafeCopyStateName;
-      };
       if (!mounted.current) return;
       setProgress({ done: body.preparedPages, total: body.pageCount });
       if (body.state === 'MASKED' || body.state === 'NOTHING_TO_HIDE') {
@@ -714,16 +980,18 @@ export function SafeCopyEditor({
     }
     if (mounted.current) {
       setState('PREPARING');
+      setProgress(null);
       setStep('closed');
-      setProblem({ message: 'Some pages are not prepared yet. Choose Continue Preparing.' });
+      setProblem({
+        message:
+          'Your boxes are saved. Some pages are not prepared yet. Choose Continue Preparing.',
+      });
     }
   };
 
   const allReviewPagesShown =
     info !== null &&
-    Array.from({ length: info.pageCount }, (_, index) => images[index]).every(
-      (image) => image !== undefined && image !== 'loading' && image !== 'error',
-    );
+    Array.from({ length: info.pageCount }, (_, index) => index).every((index) => seen.has(index));
 
   const save = async () => {
     if (!info || busy) return;
@@ -737,6 +1005,7 @@ export function SafeCopyEditor({
     }
     setBusy('save');
     setProblem(null);
+    let revision: string;
     try {
       const response = await request('/api/documents/redaction-masks', {
         versionId: info.versionId,
@@ -748,19 +1017,26 @@ export function SafeCopyEditor({
       });
       if (!response.ok) {
         await fail(response);
+        if (mounted.current) setBusy(null);
         return;
       }
-      const body = (await response.json()) as { maskRevision: string };
-      if (!mounted.current) return;
-      removeDraft(documentId, info.versionId);
-      setState('PREPARING');
-      setBusy(null);
-      await prepare(info, body.maskRevision);
+      const body = (await response.json()) as { maskRevision?: unknown };
+      if (typeof body?.maskRevision !== 'string') throw new Error('unexpected answer');
+      revision = body.maskRevision;
     } catch {
-      if (mounted.current) setProblem({ message: 'The safe copy was not saved. Try again.' });
-    } finally {
-      if (mounted.current) setBusy(null);
+      // Nothing is known to be saved: the boxes stay on screen to try again.
+      if (mounted.current) {
+        setProblem({ message: 'The safe copy was not saved. Try again.' });
+        setBusy(null);
+      }
+      return;
     }
+    if (!mounted.current) return;
+    // Saved: from here on the boxes are kept, and preparing reports for itself.
+    removeDraft(documentId, info.versionId);
+    setState('PREPARING');
+    setBusy(null);
+    await prepare(info, revision);
   };
 
   const clear = async () => {
@@ -781,7 +1057,10 @@ export function SafeCopyEditor({
       setState('NOT_PREPARED');
       setStep('closed');
       setInfo(null);
+      releaseImages();
       setStatus('Safe copy removed. Nothing is shared as a safe copy until you prepare it again.');
+      // The button pressed has gone; the main action takes focus.
+      focusAfter.current = 'start';
     } catch {
       if (mounted.current) setProblem({ message: 'The safe copy was not removed. Try again.' });
     } finally {
@@ -803,7 +1082,11 @@ export function SafeCopyEditor({
           <PageCanvas bitmap={shown.bitmap} label={`Page ${index + 1} of ${pageCount}`} />
         ) : (
           <div className="safe-copy-page-placeholder">
-            {shown === 'error' ? 'This page could not be shown.' : 'Loading the page...'}
+            {shown === 'error'
+              ? 'This page could not be shown.'
+              : shown === 'loading' || interactive
+                ? 'Loading the page...'
+                : 'This page shows when you scroll to it.'}
           </div>
         )}
         <svg
@@ -820,37 +1103,67 @@ export function SafeCopyEditor({
           <title>{`Boxes on page ${index + 1}`}</title>
           {boxes.map((item, boxIndex) => {
             const isSelected = interactive && item.id === selected;
+            const ringed = isSelected || (interactive && item.id === focusedBox);
             const pending = item.suggestion && !item.suggestion.accepted;
+            const x = item.box.x * UNITS;
+            const y = item.box.y * UNITS;
+            const width = item.box.w * UNITS;
+            const height = item.box.h * UNITS;
             return (
               <g key={item.id}>
-                {isSelected ? (
+                {ringed ? (
+                  <>
+                    <rect
+                      className="safe-copy-ring-halo"
+                      x={x - 6}
+                      y={y - 6}
+                      width={width + 12}
+                      height={height + 12}
+                      vectorEffect="non-scaling-stroke"
+                    />
+                    <rect
+                      className="safe-copy-ring"
+                      x={x - 6}
+                      y={y - 6}
+                      width={width + 12}
+                      height={height + 12}
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  </>
+                ) : null}
+                {pending ? (
                   <rect
-                    className="safe-copy-ring"
-                    x={item.box.x * UNITS - 6}
-                    y={item.box.y * UNITS - 6}
-                    width={item.box.w * UNITS + 12}
-                    height={item.box.h * UNITS + 12}
+                    className="safe-copy-box-halo"
+                    x={x}
+                    y={y}
+                    width={width}
+                    height={height}
                     vectorEffect="non-scaling-stroke"
                   />
                 ) : null}
                 <rect
                   data-box={item.id}
                   className={`safe-copy-box${pending ? ' safe-copy-box-suggested' : ''}`}
-                  x={item.box.x * UNITS}
-                  y={item.box.y * UNITS}
-                  width={item.box.w * UNITS}
-                  height={item.box.h * UNITS}
+                  x={x}
+                  y={y}
+                  width={width}
+                  height={height}
                   vectorEffect="non-scaling-stroke"
                   {...(interactive
                     ? {
                         role: 'button',
                         tabIndex: 0,
-                        'aria-label': `${describeEditorBox(item, boxIndex, index + 1)} Arrow keys move it, Shift with an arrow key changes its size, Delete removes it.`,
+                        'aria-label': boxLabel(item, boxIndex, index + 1),
+                        'aria-describedby': hintId,
                         'aria-pressed': isSelected,
                         onKeyDown: (event: KeyboardEvent<SVGRectElement>) => onBoxKey(event, item),
                         onPointerDown: (event: PointerEvent<SVGRectElement>) =>
                           onBoxPointerDown(event, item),
-                        onFocus: () => setSelected(item.id),
+                        onFocus: () => {
+                          setFocusedBox(item.id);
+                          setSelected(item.id);
+                        },
+                        onBlur: () => setFocusedBox((was) => (was === item.id ? null : was)),
                       }
                     : {})}
                 />
@@ -858,14 +1171,24 @@ export function SafeCopyEditor({
             );
           })}
           {interactive && draft ? (
-            <rect
-              className="safe-copy-draft"
-              x={draft.x * UNITS}
-              y={draft.y * UNITS}
-              width={draft.w * UNITS}
-              height={draft.h * UNITS}
-              vectorEffect="non-scaling-stroke"
-            />
+            <>
+              <rect
+                className="safe-copy-draft-halo"
+                x={draft.x * UNITS}
+                y={draft.y * UNITS}
+                width={draft.w * UNITS}
+                height={draft.h * UNITS}
+                vectorEffect="non-scaling-stroke"
+              />
+              <rect
+                className="safe-copy-draft"
+                x={draft.x * UNITS}
+                y={draft.y * UNITS}
+                width={draft.w * UNITS}
+                height={draft.h * UNITS}
+                vectorEffect="non-scaling-stroke"
+              />
+            </>
           ) : null}
         </svg>
       </div>
@@ -875,7 +1198,9 @@ export function SafeCopyEditor({
   return (
     <details className="safe-copy" id={sectionId} ref={detailsRef}>
       <summary className="safe-copy-title">Safe Copy</summary>
-      <p className="safe-copy-state">{SAFE_COPY_STATE_LABELS[state]}</p>
+      <p className="safe-copy-state" ref={stateRef} tabIndex={-1}>
+        {SAFE_COPY_STATE_LABELS[state]}
+      </p>
       <p className="safe-copy-note">
         A safe copy is a new picture of each page with the parts you choose covered in black. It is
         what people you share safe copies with can download, never the original.
@@ -913,6 +1238,7 @@ export function SafeCopyEditor({
             <button
               type="button"
               className="btn btn-primary"
+              ref={continueRef}
               onClick={() => void start(true)}
               aria-disabled={step === 'loading' ? true : undefined}
             >
@@ -922,6 +1248,7 @@ export function SafeCopyEditor({
           <button
             type="button"
             className={ready || state === 'PREPARING' ? 'btn btn-secondary' : 'btn btn-primary'}
+            ref={startRef}
             onClick={() => void start()}
             aria-disabled={step === 'loading' ? true : undefined}
           >
@@ -946,7 +1273,9 @@ export function SafeCopyEditor({
       ) : null}
       {step === 'preparing' && progress ? (
         <div className="safe-copy-editor">
-          <h3 className="safe-copy-subtitle">Preparing the Safe Copy</h3>
+          <h3 className="safe-copy-subtitle" ref={preparingHeadingRef} tabIndex={-1}>
+            Preparing the Safe Copy
+          </h3>
           <p className="safe-copy-note">
             Each page is drawn once with its black boxes. Keep this page open; if it closes, choose
             Continue Preparing to carry on where it stopped.
@@ -962,9 +1291,15 @@ export function SafeCopyEditor({
 
       {step === 'edit' && info ? (
         <div className="safe-copy-editor">
-          <h3 className="safe-copy-subtitle">Mark What to Hide</h3>
+          <h3 className="safe-copy-subtitle" ref={editHeadingRef} tabIndex={-1}>
+            Mark What to Hide
+          </h3>
           <p className="safe-copy-note">
             Check every page. Only the black boxes are hidden. Suggestions can miss things.
+          </p>
+          <p className="safe-copy-note" id={hintId}>
+            On a selected box, arrow keys move it, Shift with an arrow key changes its size, and
+            Delete removes it. Escape stops a box being drawn and lets go of the selected box.
           </p>
           <div className="safe-copy-actions">
             <button
@@ -1027,17 +1362,14 @@ export function SafeCopyEditor({
             <button
               type="button"
               className="btn btn-secondary"
-              onClick={() => {
-                setImages((all) => ({ ...all, [current]: 'error' }));
-                void loadPage(current, info.versionId);
-              }}
+              onClick={() => void loadPage(current, info.versionId)}
             >
               Show the Page Again
             </button>
           ) : null}
 
           {selectedBox ? (
-            <fieldset className="safe-copy-adjust">
+            <fieldset className="safe-copy-adjust" ref={adjustRef} tabIndex={-1}>
               <legend className="safe-copy-label">Selected Box</legend>
               <p className="safe-copy-note">
                 {describeEditorBox(selectedBox, selectedIndex, current + 1)}
@@ -1103,6 +1435,15 @@ export function SafeCopyEditor({
                 <li key={item.id}>
                   <span>{describeEditorBox(item, index, current + 1)}</span>
                   <span className="safe-copy-buttons">
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => selectBox(item.id, index)}
+                      aria-label={`Select box ${index + 1}`}
+                      aria-pressed={item.id === selected}
+                    >
+                      Select
+                    </button>
                     {item.suggestion && !item.suggestion.accepted ? (
                       <button
                         type="button"
@@ -1142,12 +1483,7 @@ export function SafeCopyEditor({
             <button
               type="button"
               className="btn btn-secondary"
-              onClick={() => {
-                removeDraft(documentId, info.versionId);
-                setStep('closed');
-                setSelected(null);
-                setStatus('Editing cancelled. Nothing was saved.');
-              }}
+              onClick={() => closeEditor('Editing cancelled. Nothing was saved.')}
             >
               Cancel Editing
             </button>
@@ -1157,7 +1493,9 @@ export function SafeCopyEditor({
 
       {step === 'review' && info ? (
         <div className="safe-copy-editor">
-          <h3 className="safe-copy-subtitle">Check Every Page</h3>
+          <h3 className="safe-copy-subtitle" ref={reviewHeadingRef} tabIndex={-1}>
+            Check Every Page
+          </h3>
           <p className="safe-copy-note">Check every page. Only the black boxes are hidden.</p>
           {nothingToHide ? (
             <p className="safe-copy-note">
@@ -1165,10 +1503,10 @@ export function SafeCopyEditor({
               hidden text or file details.
             </p>
           ) : null}
-          <ol className="safe-copy-review">
+          <ol className="safe-copy-review" ref={reviewListRef}>
             {pages.map((boxes, index) => (
               // biome-ignore lint/suspicious/noArrayIndexKey: pages are fixed for this version
-              <li key={index}>
+              <li key={index} data-review-page={index}>
                 <figure className="safe-copy-figure">
                   {pageView(index, false)}
                   <figcaption className="safe-copy-note">
@@ -1209,7 +1547,8 @@ export function SafeCopyEditor({
               className="btn btn-secondary"
               onClick={() => {
                 setStep('edit');
-                setStatus(`Back to editing, page ${current + 1} of ${pageCount}.`);
+                setStatus(`Back to editing. Showing page ${current + 1} of ${pageCount}.`);
+                void loadPage(current, info.versionId);
               }}
             >
               Back to Editing
@@ -1217,7 +1556,8 @@ export function SafeCopyEditor({
           </div>
           {!allReviewPagesShown ? (
             <p className="safe-copy-note" id={`${id}-review-wait`}>
-              Every page must show before the safe copy can be saved.
+              Every page must show before the safe copy can be saved: {seen.size} of {pageCount}{' '}
+              shown so far. Scroll through every page.
             </p>
           ) : null}
           {!info.canSave ? (

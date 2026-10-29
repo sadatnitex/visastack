@@ -19,7 +19,12 @@ import {
   writeDocumentAccessAudit,
 } from './document-access';
 import { isDocumentVersionUsable } from './documents';
-import { activeOrVerifiedErasureStorageObjectIds, enqueueErasureJob } from './erasure';
+import {
+  type SafeCopyDrawing,
+  activeOrVerifiedErasureStorageObjectIds,
+  enqueueErasureJob,
+  safeCopyDrawingIds,
+} from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import type { KeyManagementPort } from './ports';
 import type {
@@ -345,53 +350,52 @@ function refusalError(refusal: SafeCopyRefusal): SafeCopyError {
   }
 }
 
-interface DerivedObject {
-  readonly storageObjectId: string;
-  readonly bucket: 'QUARANTINE' | 'CLEAN';
-  readonly objectKey: string;
-  readonly contentHash: string | null;
-}
-
-/** The stored drawings of the given rows, with what erasure needs to find and check them. */
-async function derivedObjectsOf(db: Db, rows: readonly MaskRow[]): Promise<DerivedObject[]> {
-  const ids = rows.flatMap((row) =>
-    row.renderedStorageObjectId ? [row.renderedStorageObjectId] : [],
-  );
-  if (ids.length === 0) return [];
-  const objects = await db
+/**
+ * Queues verified erasure of the named drawings (finished, or still being stored), inside the
+ * caller's transaction, and returns them for `deleteDerivedNow`. Ids with no registration are
+ * skipped: nothing was ever written under them.
+ */
+async function queueDrawingErasure(
+  tx: Db,
+  storageObjectIds: readonly string[],
+  applicantId: string,
+): Promise<SafeCopyDrawing[]> {
+  if (storageObjectIds.length === 0) return [];
+  const drawings = await tx
     .select()
     .from(schema.storageObjects)
-    .where(inArray(schema.storageObjects.id, ids));
-  return objects.map((object) => ({
-    storageObjectId: object.id,
-    bucket: object.bucket,
-    objectKey: object.objectKey,
-    contentHash: object.contentHash,
-  }));
-}
-
-/** Queues verified erasure of old drawings, inside the caller's transaction. */
-async function queueDerivedRemoval(
-  tx: Db,
-  objects: readonly DerivedObject[],
-  applicantId: string,
-): Promise<void> {
-  for (const object of objects) {
+    .where(inArray(schema.storageObjects.id, [...storageObjectIds]));
+  for (const drawing of drawings) {
     await enqueueErasureJob(tx, {
       reason: 'SAFE_COPY_REMOVAL',
-      bucket: object.bucket,
-      objectKey: object.objectKey,
-      expectedHash: object.contentHash,
-      storageObjectId: object.storageObjectId,
+      bucket: drawing.bucket,
+      objectKey: drawing.objectKey,
+      expectedHash: drawing.contentHash,
+      storageObjectId: drawing.id,
       applicantId,
     });
   }
+  return drawings.map((drawing) => ({
+    storageObjectId: drawing.id,
+    bucket: drawing.bucket,
+    objectKey: drawing.objectKey,
+    contentHash: drawing.contentHash,
+  }));
+}
+
+/** Every drawing the given rows name, queued as `queueDrawingErasure` does. */
+async function queueDerivedRemoval(
+  tx: Db,
+  rows: readonly MaskRow[],
+  applicantId: string,
+): Promise<SafeCopyDrawing[]> {
+  return queueDrawingErasure(tx, safeCopyDrawingIds(rows), applicantId);
 }
 
 /** After commit: delete old drawings at once where possible; the queued erasure job verifies. */
 async function deleteDerivedNow(
   deps: Pick<RedactionDeps, 'storage'>,
-  objects: readonly DerivedObject[],
+  objects: readonly SafeCopyDrawing[],
 ): Promise<void> {
   for (const object of objects) {
     await deps.storage.deleteObject(object.bucket, object.objectKey).catch(() => undefined);
@@ -574,30 +578,23 @@ export interface RedactionEditorView {
   readonly canSave: boolean;
 }
 
-interface OwnerLoaded {
+interface OwnerSource {
   readonly document: DocumentRow;
   readonly version: VersionRow;
   readonly source: SafeCopySource;
+}
+
+interface OwnerLoaded extends OwnerSource {
   readonly pageCount: number;
 }
 
-/**
- * Shared checks for the editor's reads and the preparing step: a genuine owner proof, within the
- * given bucket, on the latest usable version (and the one the editor asked about, when it names
- * one), whose file is a PDF or image within the limits. Refusals after the gate are audited DENIED,
- * without image data.
- */
-async function loadForOwner(
+/** A refusal after the gate, audited DENIED without image data. */
+function ownerRefusal(
   proof: AuthorizedApplicant<'PREVIEW'> | AuthorizedApplicant<'MANAGE'>,
   document: DocumentRow,
-  deps: RedactionDeps,
-  bucket: 'REDACTION_PAGE' | 'SAFE_COPY_PREPARE',
   metadata: Readonly<Record<string, unknown>>,
-  expectedVersionId: string | undefined,
-): Promise<Result<OwnerLoaded, SafeCopyError>> {
-  const limited = await withinLimit(proof, bucket);
-  if (!limited.ok) return limited;
-  const refuse = async (reason: string, refusal: SafeCopyRefusal) => {
+) {
+  return async (reason: string, refusal: SafeCopyRefusal) => {
     await audit(proof, document, {
       allowed: false,
       reason,
@@ -606,6 +603,25 @@ async function loadForOwner(
     });
     return err(refusalError(refusal));
   };
+}
+
+/**
+ * Shared checks for the editor's reads and the preparing step: a genuine owner proof, within the
+ * given bucket, on the latest usable version (and the one the editor asked about, when it names
+ * one), whose file is a PDF or image within the size limit. Refusals after the gate are audited
+ * DENIED, without image data. The file is not parsed here.
+ */
+async function loadSourceForOwner(
+  proof: AuthorizedApplicant<'PREVIEW'> | AuthorizedApplicant<'MANAGE'>,
+  document: DocumentRow,
+  deps: RedactionDeps,
+  bucket: 'REDACTION_PAGE' | 'SAFE_COPY_PREPARE',
+  metadata: Readonly<Record<string, unknown>>,
+  expectedVersionId: string | undefined,
+): Promise<Result<OwnerSource, SafeCopyError>> {
+  const limited = await withinLimit(proof, bucket);
+  if (!limited.ok) return limited;
+  const refuse = ownerRefusal(proof, document, metadata);
   const latest = await latestUsableVersion(proof);
   if (latest.kind !== 'usable') return refuse(latest.reason, 'not_available');
   if (expectedVersionId !== undefined && expectedVersionId !== latest.version.id) {
@@ -618,14 +634,36 @@ async function loadForOwner(
       loaded.reason === 'stored_object_missing' ? 'not_available' : loaded.reason,
     );
   }
-  const counted = await deps.renderer.pageCount(loaded.source, budget());
-  if (!counted.ok) return refuse(`render_${counted.reason}`, failureRefusal(counted.reason));
-  return ok({
+  return ok({ document, version: latest.version, source: loaded.source });
+}
+
+/** `loadSourceForOwner`, then the file's page count (which parses it once). */
+async function loadForOwner(
+  proof: AuthorizedApplicant<'PREVIEW'> | AuthorizedApplicant<'MANAGE'>,
+  document: DocumentRow,
+  deps: RedactionDeps,
+  bucket: 'REDACTION_PAGE' | 'SAFE_COPY_PREPARE',
+  metadata: Readonly<Record<string, unknown>>,
+  expectedVersionId: string | undefined,
+): Promise<Result<OwnerLoaded, SafeCopyError>> {
+  const loaded = await loadSourceForOwner(
+    proof,
     document,
-    version: latest.version,
-    source: loaded.source,
-    pageCount: counted.pageCount,
-  });
+    deps,
+    bucket,
+    metadata,
+    expectedVersionId,
+  );
+  if (!loaded.ok) return loaded;
+  const counted = await deps.renderer.pageCount(loaded.value.source, budget());
+  if (!counted.ok) {
+    return ownerRefusal(
+      proof,
+      document,
+      metadata,
+    )(`render_${counted.reason}`, failureRefusal(counted.reason));
+  }
+  return ok({ ...loaded.value, pageCount: counted.pageCount });
 }
 
 /** What the owner's editor needs: the version, its pages and the boxes saved for it. */
@@ -837,16 +875,40 @@ export function isValidIban(candidate: string): boolean {
   return remainder === 1;
 }
 
-/**
- * IBANs written as one token or in groups of up to four separated by single spaces, the way they
- * are printed. Spaces between other words are never removed to make one up.
- */
-const IBAN_WRITTEN =
-  /\b[A-Z]{2}\d{2}(?:[A-Z0-9]{11,30}|(?: [A-Z0-9]{4}){2,7}(?: [A-Z0-9]{1,4})?)\b/g;
+/** Where an IBAN may start: a country code and two check digits, at the start of a word. */
+const IBAN_START = /(?<![A-Z0-9])[A-Z]{2}\d{2}/g;
+/** One printed group of an IBAN, read from the start of the remaining text. */
+const IBAN_GROUP = /^[A-Z0-9]{1,4}(?![A-Z0-9])/;
+/** An IBAN written as one word. */
+const IBAN_WORD = /^[A-Z0-9]+(?![A-Z0-9])/;
 
-function hasIban(text: string): boolean {
-  for (const match of text.toUpperCase().matchAll(IBAN_WRITTEN)) {
-    if (isValidIban(match[0].replace(/ /g, ''))) return true;
+/**
+ * Whether the text holds a valid IBAN, written as one word or in groups of up to four separated
+ * by single spaces, the way they are printed. Each start is read for exactly its country's
+ * length, so a short word after the number ("BE68 5390 0754 7034 EUR") is never taken in, and
+ * spaces between other words are never removed to make one up.
+ */
+export function hasIban(text: string): boolean {
+  const upper = text.toUpperCase();
+  for (const start of upper.matchAll(IBAN_START)) {
+    const length = IBAN_LENGTHS[start[0].slice(0, 2)];
+    if (!length) continue;
+    const rest = upper.slice(start.index);
+    const word = rest.match(IBAN_WORD)?.[0] ?? '';
+    if (word.length === length && isValidIban(word)) return true;
+    if (word.length !== 4) continue;
+    // Grouped: whole groups of four, then a last group of one to four, ending the IBAN exactly.
+    let compactText = '';
+    let offset = 0;
+    while (compactText.length < length) {
+      const group = rest.slice(offset).match(IBAN_GROUP)?.[0];
+      if (!group) break;
+      compactText += group;
+      offset += group.length;
+      if (group.length < 4 || compactText.length >= length || rest[offset] !== ' ') break;
+      offset += 1;
+    }
+    if (compactText.length === length && isValidIban(compactText)) return true;
   }
   return false;
 }
@@ -855,17 +917,38 @@ function hasIban(text: string): boolean {
 const ACCOUNT_LABEL = /\b(account(?:\s+(?:no|number|num))?|a\/c|acct|iban|card)\b/i;
 /** A run of 8 to 20 digits, possibly split by single spaces or hyphens. */
 const ACCOUNT_DIGITS = /(?<![\d.,])\d(?:[ -]?\d){7,19}(?![\d.,])/g;
-const DATE_LIKE = /\b\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}\b/;
+/** Is there a run of 8 or more digits at all: checked before anything else about a piece. */
+const ANY_ACCOUNT_DIGITS = /\d(?:[ -]?\d){7}/;
+/**
+ * Real date shapes only: day and month with a two- or four-digit year (31-01-2024, 1/2/24), or a
+ * four-digit year first (2024-01-31), one separator throughout. Day and month are checked too, so
+ * an account number grouped with hyphens ("1234-56-7890") is never read as a date.
+ */
+const DATE_SHAPE =
+  /(?<!\d)(?:(\d{1,2})([-/. ])(\d{1,2})\2(?:\d{4}|\d{2})|\d{4}([-/. ])(\d{1,2})\4(\d{1,2}))(?!\d)/g;
 const PHONE_LABEL = /\b(tel|phone|mobile|fax|cell)\b/i;
 const MONEY_LIKE = /([$£€৳₹]|\b(usd|eur|gbp|bdt|inr|tk|taka)\b|\d,\d{3}|\.\d{2}\b)/i;
+
+function isDayAndMonth(a: number, b: number): boolean {
+  return a >= 1 && b >= 1 && a <= 31 && b <= 31 && (a <= 12 || b <= 12);
+}
+
+/** Whether a run of digits holds a date. */
+export function looksLikeDate(text: string): boolean {
+  for (const match of text.matchAll(DATE_SHAPE)) {
+    const [first, second] = match[1] !== undefined ? [match[1], match[3]] : [match[5], match[6]];
+    if (isDayAndMonth(Number(first), Number(second))) return true;
+  }
+  return false;
+}
 
 /** An account or card number: digits on a labelled line, not a date, a phone number or an amount. */
 export function looksLikeAccountNumber(text: string, lineText: string): boolean {
   if (!ACCOUNT_LABEL.test(lineText) || PHONE_LABEL.test(lineText)) return false;
+  if (/^\+/.test(text.trim()) || MONEY_LIKE.test(text)) return false;
   for (const match of text.matchAll(ACCOUNT_DIGITS)) {
     const digits = match[0];
-    if (DATE_LIKE.test(digits) || /^\+/.test(text.trim())) continue;
-    if (MONEY_LIKE.test(text)) continue;
+    if (looksLikeDate(digits)) continue;
     if (digits.replace(/\D/g, '').length >= 8) return true;
   }
   return false;
@@ -928,19 +1011,44 @@ function matchesIdentifier(text: string, identifiers: readonly string[]): boolea
   );
 }
 
-/** The text of every piece on the same line as `item` (its vertical middle within half a line). */
-function lineOf(item: PositionedText, items: readonly PositionedText[]): string {
-  const middle = item.box.y + item.box.h / 2;
-  return items
-    .filter((other) => Math.abs(other.box.y + other.box.h / 2 - middle) <= item.box.h / 2)
-    .sort((a, b) => a.box.x - b.box.x)
-    .map((other) => other.text.slice(0, MAX_TEXT_ITEM_LENGTH))
-    .join(' ');
+/**
+ * The pieces of one page, ordered by their vertical middle once, so the line around any piece is
+ * found by a binary search instead of a pass over the whole page. A line is every piece whose
+ * middle is within half the piece's own height of its middle, read left to right.
+ */
+function lineFinder(items: readonly PositionedText[]): (item: PositionedText) => string {
+  const sorted = items
+    .map((piece) => ({ piece, middle: piece.box.y + piece.box.h / 2 }))
+    .sort((a, b) => a.middle - b.middle);
+  const firstAtOrAbove = (value: number): number => {
+    let low = 0;
+    let high = sorted.length;
+    while (low < high) {
+      const mid = (low + high) >> 1;
+      if ((sorted[mid]?.middle ?? 0) < value) low = mid + 1;
+      else high = mid;
+    }
+    return low;
+  };
+  return (item) => {
+    const middle = item.box.y + item.box.h / 2;
+    const reach = item.box.h / 2;
+    const line: PositionedText[] = [];
+    for (let index = firstAtOrAbove(middle - reach); index < sorted.length; index++) {
+      const entry = sorted[index];
+      if (!entry || entry.middle > middle + reach) break;
+      line.push(entry.piece);
+    }
+    return line
+      .sort((a, b) => a.box.x - b.box.x)
+      .map((other) => other.text.slice(0, MAX_TEXT_ITEM_LENGTH))
+      .join(' ');
+  };
 }
 
 function textReason(
   item: PositionedText,
-  items: readonly PositionedText[],
+  lineOf: () => (item: PositionedText) => string,
   identifiers: readonly string[],
   financial: boolean,
 ): RedactionSuggestionReason | undefined {
@@ -948,7 +1056,10 @@ function textReason(
   const tight = raw.toUpperCase().replace(/\s/g, '');
   if (MRZ_LINE.test(tight) && tight.includes('<<')) return 'mrz';
   if (matchesIdentifier(compact(raw), identifiers)) return 'identifier';
-  if (financial && (hasIban(raw) || looksLikeAccountNumber(raw, lineOf(item, items)))) {
+  if (!financial) return undefined;
+  if (hasIban(raw)) return 'account_number';
+  // The line is looked at only for a piece that holds a long run of digits at all.
+  if (ANY_ACCOUNT_DIGITS.test(raw) && looksLikeAccountNumber(raw, lineOf()(item))) {
     return 'account_number';
   }
   return undefined;
@@ -999,8 +1110,13 @@ export async function suggestRedactions(
       for (const [index, items] of text.pages.entries()) {
         const page = index + 1;
         if (page > pageCount) break;
+        let finder: ((item: PositionedText) => string) | undefined;
+        const lineOf = () => {
+          finder ??= lineFinder(items);
+          return finder;
+        };
         for (const item of items) {
-          const reason = textReason(item, items, identifiers, financial);
+          const reason = textReason(item, lineOf, identifiers, financial);
           if (!reason) continue;
           const box = parseRedactionBox(padRedactionBox(item.box, 0.006, 0.004));
           if (box) add(page, box, reason);
@@ -1114,7 +1230,7 @@ export async function saveRedactionMasks(
   const maskRevision = randomUUID();
   const now = new Date();
   const outcome = await db.transaction(
-    async (tx): Promise<{ kind: 'saved'; old: DerivedObject[] } | { kind: 'stale' }> => {
+    async (tx): Promise<{ kind: 'saved'; old: SafeCopyDrawing[] } | { kind: 'stale' }> => {
       // One save at a time per version, and only while it is still the latest one.
       await tx
         .select({ id: schema.documentVersions.id })
@@ -1134,8 +1250,7 @@ export async function saveRedactionMasks(
         .delete(schema.redactionMasks)
         .where(eq(schema.redactionMasks.documentVersionId, versionId))
         .returning();
-      const old = await derivedObjectsOf(tx, previous);
-      await queueDerivedRemoval(tx, old, document.applicantId);
+      const old = await queueDerivedRemoval(tx, previous, document.applicantId);
       await tx.insert(schema.redactionMasks).values(
         pages.map((boxes, index) => ({
           documentVersionId: versionId,
@@ -1207,8 +1322,7 @@ export async function clearRedactionMasks(
       .delete(schema.redactionMasks)
       .where(eq(schema.redactionMasks.documentVersionId, version.id))
       .returning();
-    const old = await derivedObjectsOf(tx, removed);
-    await queueDerivedRemoval(tx, old, document.applicantId);
+    const old = await queueDerivedRemoval(tx, removed, document.applicantId);
     await appendAuditEvent(tx, {
       eventType: 'DOCUMENT_REDACTION_CLEARED',
       actorAccountId: null,
@@ -1291,7 +1405,10 @@ export async function prepareSafeCopyPage(
   if (target.drawn) return progress();
 
   const metadata = { variant: 'safe_copy_prepare', disposition: 'store', page: input.page };
-  const loaded = await loadForOwner(
+  // The page count was fixed when the boxes were saved: the rows cover pages 1 to N of this
+  // version, checked against the file then. The file is parsed once here, to draw the page, and
+  // the renderer refuses when the file does not have exactly that many pages.
+  const loaded = await loadSourceForOwner(
     proof,
     document,
     deps,
@@ -1300,16 +1417,13 @@ export async function prepareSafeCopyPage(
     input.versionId,
   );
   if (!loaded.ok) return loaded;
-  if (loaded.value.pageCount !== marked.pages.length) return err(refusalError('out_of_date'));
+  const pageCount = marked.pages.length;
 
   const drawn = await deps.renderer.renderMaskedPage(
     loaded.value.source,
     input.page,
     target.boxes,
-    {
-      ...budget(),
-      maxBytes: pageByteLimit(marked.pages.length),
-    },
+    { ...budget(), maxBytes: pageByteLimit(pageCount), expectedPageCount: pageCount },
   );
   if (!drawn.ok) {
     await audit(proof, document, {
@@ -1321,9 +1435,44 @@ export async function prepareSafeCopyPage(
     return err(refusalError(failureRefusal(drawn.reason)));
   }
 
+  // The drawing is registered and named on its mask row in one transaction, before any byte is
+  // written. Every registered drawing is then always reachable from redaction_masks: if this
+  // request stops anywhere after this point, removal, a new save, a new version, account
+  // deletion and the next preparing step of this page all find it and queue it for erasure.
   const objectKey = `${DERIVED_KEY_PREFIX}${randomUUID()}`;
   const sha256 = sha256Hex(drawn.bytes);
-  const storageObjectId = await registerStorageObject(db, 'CLEAN', objectKey, drawn.bytes, sha256);
+  const reserved = await db.transaction(async (tx) => {
+    const row = first(
+      await tx
+        .select()
+        .from(schema.redactionMasks)
+        .where(eq(schema.redactionMasks.id, target.row.id))
+        .for('update'),
+    );
+    if (!row || row.maskRevision !== input.maskRevision || row.renderedStorageObjectId !== null) {
+      return undefined;
+    }
+    // A drawing an earlier step left unfinished on this page is never finished now: erased.
+    const abandoned = row.pendingStorageObjectId
+      ? await queueDrawingErasure(tx, [row.pendingStorageObjectId], document.applicantId)
+      : [];
+    const storageObjectId = await registerStorageObject(
+      tx,
+      'CLEAN',
+      objectKey,
+      drawn.bytes,
+      sha256,
+    );
+    await tx
+      .update(schema.redactionMasks)
+      .set({ pendingStorageObjectId: storageObjectId, updatedAt: new Date() })
+      .where(eq(schema.redactionMasks.id, row.id));
+    return { storageObjectId, abandoned };
+  });
+  // Newer boxes were saved, or another tab drew this page first: nothing is stored.
+  if (!reserved) return progress();
+  await deleteDerivedNow(deps, reserved.abandoned);
+  const { storageObjectId } = reserved;
   const object = { storageObjectId, objectKey };
   try {
     await deps.storage.putObject({
@@ -1338,6 +1487,8 @@ export async function prepareSafeCopyPage(
       return err(refusalError('unreadable'));
     }
   } catch (error) {
+    // Bytes first, then the registration (which also clears the row's pending link); when the
+    // bytes cannot be deleted, both stay and the drawing is erased from the row later.
     await discardStorageObject(db, deps.storage, 'CLEAN', object);
     throw error;
   }
@@ -1351,6 +1502,7 @@ export async function prepareSafeCopyPage(
       renderedWidthPt: drawn.widthPt,
       renderedHeightPt: drawn.heightPt,
       renderedAt: new Date(),
+      pendingStorageObjectId: null,
       updatedAt: new Date(),
     })
     .where(
@@ -1358,11 +1510,12 @@ export async function prepareSafeCopyPage(
         eq(schema.redactionMasks.id, target.row.id),
         eq(schema.redactionMasks.maskRevision, input.maskRevision),
         isNull(schema.redactionMasks.renderedStorageObjectId),
+        eq(schema.redactionMasks.pendingStorageObjectId, storageObjectId),
       ),
     )
     .returning({ id: schema.redactionMasks.id });
   if (recorded.length === 0) {
-    // Newer boxes were saved, or another tab drew this page first: this drawing is not kept.
+    // Newer boxes were saved, or another step took this page over: this drawing is not kept.
     await discardStorageObject(db, deps.storage, 'CLEAN', object);
     return progress();
   }
@@ -1376,6 +1529,28 @@ export async function prepareSafeCopyPage(
     });
   }
   return after;
+}
+
+/** How many stored page drawings a download reads from storage at once. */
+const DRAWING_FETCHES = 4;
+
+/** `work` over every item with at most `limit` running at once; results in the items' order. */
+async function mapLimited<T, R>(
+  items: readonly T[],
+  limit: number,
+  work: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const lane = async () => {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      results[index] = await work(items[index] as T);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, lane));
+  return results;
 }
 
 // --- The safe copy ----------------------------------------------------------------------------
@@ -1437,13 +1612,20 @@ export async function produceSafeCopy(
       await db.select().from(schema.storageObjects).where(inArray(schema.storageObjects.id, ids))
     ).map((object) => [object.id, object]),
   );
-  const images: SafeCopyPageImage[] = [];
-  for (const page of marked.pages) {
-    const row = page.row;
-    const object = row.renderedStorageObjectId
-      ? objects.get(row.renderedStorageObjectId)
+  // Up to DRAWING_FETCHES stored drawings are read at once, in page order.
+  const fetched = await mapLimited(marked.pages, DRAWING_FETCHES, async (page) => {
+    const object = page.row.renderedStorageObjectId
+      ? objects.get(page.row.renderedStorageObjectId)
       : undefined;
-    const stored = object ? await deps.storage.getObject(object.objectKey) : undefined;
+    return {
+      page,
+      object,
+      stored: object ? await deps.storage.getObject(object.objectKey) : undefined,
+    };
+  });
+  const images: SafeCopyPageImage[] = [];
+  for (const { page, object, stored } of fetched) {
+    const row = page.row;
     const type = row.renderedContentType;
     if (
       !object ||

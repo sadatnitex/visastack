@@ -10370,10 +10370,12 @@ summary.visa-photo-title {
 /* WP-S23 redaction editor: the Safe Copy section on a document (documents page pane) and the
  * Download Safe Copy control (documents page and the shared record). Flat surfaces from the shared
  * tokens, no shadows or gradients; every button at least 44px. The page image and its boxes scale
- * to the width available, down to 320px wide, with no sideways scroll. The only new colour is the
- * solid black of a box, which is what the safe copy paints; a suggested box that is not accepted
- * yet is drawn as a dashed outline instead, and the selected box has a ring, so neither state
- * depends on colour alone.
+ * to the width available, down to 320px wide, with no sideways scroll. The new colours are the
+ * solid black of a box, which is what the safe copy paints, and the outline colours below; a suggested box that is not accepted
+ * yet is drawn as a dashed outline instead, and the selected or focused box has a ring, so neither
+ * state depends on colour alone. Outlines and rings sit over page images, which are light paper in
+ * both themes, so they use fixed colours, not theme tokens: a dark line on a white halo, which
+ * keeps well over 3:1 against white paper (the dark line) and against a black box (the halo).
  * ---------------------------------------------------------------------------------------------- */
 .safe-copy {
   margin-top: 12px;
@@ -10492,29 +10494,47 @@ summary.safe-copy-title {
 }
 .safe-copy-box-suggested {
   fill: none;
-  stroke: var(--text);
-  stroke-width: 3px;
+  stroke: #111111;
+  stroke-width: 2px;
   stroke-dasharray: 6 4;
+}
+.safe-copy-box-halo,
+.safe-copy-draft-halo {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 5px;
+  pointer-events: none;
 }
 .safe-copy-box:focus {
   outline: none;
 }
-.safe-copy-box:focus-visible {
-  stroke: var(--accent);
-  stroke-width: 3px;
+.safe-copy-ring-halo {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 7px;
+  pointer-events: none;
 }
 .safe-copy-ring {
   fill: none;
-  stroke: var(--accent);
+  stroke: #0b3d91;
   stroke-width: 3px;
   pointer-events: none;
 }
 .safe-copy-draft {
   fill: none;
-  stroke: var(--accent);
+  stroke: #111111;
   stroke-width: 2px;
   stroke-dasharray: 4 3;
   pointer-events: none;
+}
+.safe-copy-adjust:focus {
+  outline: none;
+}
+.safe-copy-adjust:focus-visible,
+.safe-copy-state:focus-visible,
+.safe-copy-subtitle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .safe-copy-adjust {
   margin: 12px 0 0;

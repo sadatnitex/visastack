@@ -4650,12 +4650,22 @@ export const redactionMasks = pgTable(
     renderedWidthPt: doublePrecision('rendered_width_pt'),
     renderedHeightPt: doublePrecision('rendered_height_pt'),
     renderedAt: timestamp('rendered_at', { withTimezone: true }),
+    /**
+     * A drawing registered for this page and not finished yet: named here in the same transaction
+     * that registers it, before any byte is written, so every registered drawing is always found
+     * from this table (removal, a new save, a new version, account deletion, the next preparing
+     * step) and erased, even when the request stopped part way.
+     */
+    pendingStorageObjectId: uuid('pending_storage_object_id').references(() => storageObjects.id, {
+      onDelete: 'set null',
+    }),
     ...timestamps,
   },
   (table) => [
     unique('redaction_masks_version_page_unique').on(table.documentVersionId, table.page),
     index('redaction_masks_created_by_idx').on(table.createdByAccountId),
     index('redaction_masks_rendered_object_idx').on(table.renderedStorageObjectId),
+    index('redaction_masks_pending_object_idx').on(table.pendingStorageObjectId),
     check(
       'redaction_masks_rendered_together',
       sql`${table.renderedStorageObjectId} is null or (${table.renderedContentType} in ('image/jpeg', 'image/png') and ${table.renderedByteSize} > 0 and ${table.renderedWidthPt} > 0 and ${table.renderedHeightPt} > 0 and ${table.renderedAt} is not null)`,

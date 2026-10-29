@@ -12500,6 +12500,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "pending_storage_object_id": {
+          "name": "pending_storage_object_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -12545,6 +12551,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "redaction_masks_pending_object_idx": {
+          "name": "redaction_masks_pending_object_idx",
+          "columns": [
+            {
+              "expression": "pending_storage_object_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -12571,6 +12592,15 @@
           "tableFrom": "redaction_masks",
           "tableTo": "storage_objects",
           "columnsFrom": ["rendered_storage_object_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "redaction_masks_pending_storage_object_id_storage_objects_id_fk": {
+          "name": "redaction_masks_pending_storage_object_id_storage_objects_id_fk",
+          "tableFrom": "redaction_masks",
+          "tableTo": "storage_objects",
+          "columnsFrom": ["pending_storage_object_id"],
           "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"

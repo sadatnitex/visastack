@@ -31,10 +31,12 @@ import {
   SAFE_COPY_TOO_LARGE_MESSAGE,
   clearRedactionMasks,
   getSafeCopyState,
+  hasIban,
   isValidIban,
   listRedactionStates,
   listSafeCopyStatesForDocuments,
   looksLikeAccountNumber,
+  looksLikeDate,
   openRedactionEditor,
   prepareSafeCopyPage,
   produceSafeCopy,
@@ -664,8 +666,15 @@ describe('safe copies (S23, ADR 0022)', () => {
   describe('boxes and drawings never carry over, and go when the file goes', () => {
     it('starts a new version with nothing and refuses saving or preparing on an older one', async () => {
       const revision = await ready();
+      const oldDrawings = (await maskRows()).map((row) => row.renderedStorageObjectId);
       const second = await addVersion(ownerId, documentId);
       expect(await stateOf(second)).toBe('NOT_PREPARED');
+      // The older version's boxes go with the new version, and its drawings are queued for
+      // verified erasure in the same transaction: nothing of an old version is kept.
+      expect(await maskRows()).toEqual([]);
+      expect((await erasureJobs()).map((job) => job.storageObjectId).sort()).toEqual(
+        [...oldDrawings].sort(),
+      );
       const copy = await produceSafeCopy(await gate(ownerId, 'DOWNLOAD_REDACTED'), fakeDeps());
       expect(isErr(copy) && copy.error.refusal).toBe('not_prepared');
       const stale = await saveBoxes([[BOX], []]);
@@ -731,6 +740,121 @@ describe('safe copies (S23, ADR 0022)', () => {
       if (!isOk(executed)) throw new Error(`execute: ${executed.error.message}`);
       const accountJobs = await erasureJobs('ACCOUNT_DELETION');
       expect(accountJobs.map((job) => job.storageObjectId)).toContain(theirDrawing[0]?.id);
+    });
+  });
+
+  describe('a drawing is always found again, even when preparing stops part way', () => {
+    /** Storage that stores the bytes, then fails every later call, as if the process died. */
+    function dyingDeps() {
+      const deps = fakeDeps();
+      let dead = false;
+      return {
+        ...deps,
+        storage: {
+          async getObject(objectKey: string) {
+            if (dead) throw new Error('process stopped');
+            return deps.storage.getObject(objectKey);
+          },
+          async putObject(input: Parameters<RedactionDeps['storage']['putObject']>[0]) {
+            await deps.storage.putObject(input);
+            dead = true;
+            throw new Error('process stopped');
+          },
+          async deleteObject() {
+            throw new Error('process stopped');
+          },
+        },
+      };
+    }
+
+    /** Saves two pages and stops while storing page 1: its bytes and registration stay behind. */
+    async function stoppedPart(): Promise<{ revision: string; drawingId: string; key: string }> {
+      const saved = await saveBoxes([[BOX], []]);
+      if (!isOk(saved)) throw new Error('save');
+      await expect(
+        prepareSafeCopyPage(await gate(ownerId, 'MANAGE'), dyingDeps(), {
+          versionId,
+          page: 1,
+          maskRevision: saved.value.maskRevision,
+        }),
+      ).rejects.toThrow('process stopped');
+      const [row] = await maskRows();
+      const drawingId = row?.pendingStorageObjectId;
+      if (!drawingId) throw new Error('the drawing must be named on its row before its bytes');
+      expect(row?.renderedStorageObjectId).toBeNull();
+      const [object] = await db
+        .select()
+        .from(schema.storageObjects)
+        .where(eq(schema.storageObjects.id, drawingId));
+      if (!object) throw new Error('registered');
+      expect(drawings.has(object.objectKey)).toBe(true);
+      expect(await stateOf()).toBe('PREPARING');
+      return { revision: saved.value.maskRevision, drawingId, key: object.objectKey };
+    }
+
+    it('removal queues the unfinished drawing for erasure and deletes its bytes', async () => {
+      const { drawingId, key } = await stoppedPart();
+      const cleared = await clearRedactionMasks(
+        await gate(ownerId, 'MANAGE'),
+        { versionId },
+        fakeDeps(),
+      );
+      expect(isOk(cleared)).toBe(true);
+      expect((await erasureJobs()).map((job) => job.storageObjectId)).toEqual([drawingId]);
+      expect(drawings.has(key)).toBe(false);
+    });
+
+    it('saving again queues it', async () => {
+      const { drawingId } = await stoppedPart();
+      expect(isOk(await saveBoxes([[], [BOX]]))).toBe(true);
+      expect((await erasureJobs()).map((job) => job.storageObjectId)).toEqual([drawingId]);
+    });
+
+    it('the next preparing step of that page queues it and finishes the page', async () => {
+      const { revision, drawingId, key } = await stoppedPart();
+      const deps = fakeDeps();
+      await prepareAll(revision, 2, deps);
+      expect((await erasureJobs()).map((job) => job.storageObjectId)).toEqual([drawingId]);
+      expect(drawings.has(key)).toBe(false);
+      const rows = await maskRows();
+      expect(rows.every((row) => row.pendingStorageObjectId === null)).toBe(true);
+      expect(rows.every((row) => row.renderedStorageObjectId !== null)).toBe(true);
+      expect(await stateOf()).toBe('MASKED');
+      // Each page parsed once while preparing: the page count was fixed when the boxes were saved.
+      expect(deps.calls.filter((call) => call === 'pageCount')).toEqual([]);
+    });
+
+    it('a new version and account deletion queue it', async () => {
+      const { drawingId } = await stoppedPart();
+      await addVersion(ownerId, documentId);
+      expect((await erasureJobs()).map((job) => job.storageObjectId)).toEqual([drawingId]);
+
+      // Account deletion: an unfinished drawing of a leaving traveller is queued with the account.
+      const other = await account('leaving-unfinished@example.com');
+      const otherApplicant = await traveller(other);
+      const theirs = await addDocument(other, otherApplicant, 'BANK_STATEMENT');
+      const [theirDrawing] = await db
+        .insert(schema.storageObjects)
+        .values({ bucket: 'CLEAN', objectKey: `safe-copy/${randomUUID()}`, contentHash: 'h' })
+        .returning();
+      await db.insert(schema.redactionMasks).values({
+        documentVersionId: theirs.versionId,
+        page: 1,
+        boxes: [BOX],
+        source: 'OWNER',
+        createdByAccountId: other,
+        maskRevision: randomUUID(),
+        pendingStorageObjectId: theirDrawing?.id ?? null,
+      });
+      const request = await requestAccountDeletion(db, { actorAccountId: other, accountId: other });
+      if (!isOk(request)) throw new Error(`request: ${request.error.message}`);
+      const executed = await executeAccountDeletion(db, {
+        accountId: other,
+        now: new Date(Date.now() + 40 * 24 * 3600 * 1000),
+      });
+      if (!isOk(executed)) throw new Error(`execute: ${executed.error.message}`);
+      const accountJobs = await erasureJobs('ACCOUNT_DELETION');
+      expect(accountJobs.map((job) => job.storageObjectId)).toContain(theirDrawing?.id);
     });
   });
 
@@ -1030,6 +1154,9 @@ describe('safe copies (S23, ADR 0022)', () => {
           { text: 'IBAN GB82 WEST 1234 5698 7654 32', box: at(0.45) },
           { text: 'GB82 WEST 1234 5698 7654 33', box: at(0.5) },
           { text: 'GB 82 WEST and other words 12345698765432', box: at(0.55) },
+          { text: 'BE68 5390 0754 7034 EUR', box: at(0.6) },
+          { text: 'A/C 1234-56-7890', box: at(0.65) },
+          { text: 'Account opened 31-01-2024', box: at(0.7) },
         ],
       ];
       const result = await suggestRedactions(
@@ -1042,6 +1169,8 @@ describe('safe copies (S23, ADR 0022)', () => {
       expect(result.value.map((s) => [s.reason, Math.round(s.box.y * 100)])).toEqual([
         ['account_number', 10],
         ['account_number', 45],
+        ['account_number', 60],
+        ['account_number', 65],
       ]);
     });
 
@@ -1077,6 +1206,36 @@ describe('safe copies (S23, ADR 0022)', () => {
       expect(looksLikeAccountNumber('31/01/2024', 'Account 31/01/2024')).toBe(false);
       expect(looksLikeAccountNumber('12,345,678.00', 'Account balance 12,345,678.00')).toBe(false);
       expect(looksLikeAccountNumber('+8801712345678', 'Account phone +8801712345678')).toBe(false);
+    });
+
+    it('reads a printed IBAN to its exact length, and hyphen-grouped account numbers as numbers', () => {
+      // A short word after a grouped IBAN is never taken in.
+      expect(hasIban('BE68 5390 0754 7034 EUR')).toBe(true);
+      expect(hasIban('IBAN: BE68 5390 0754 7034')).toBe(true);
+      expect(hasIban('BE68539007547034')).toBe(true);
+      expect(hasIban('GB82 WEST 1234 5698 7654 32 GBP')).toBe(true);
+      expect(hasIban('GB82 WEST 1234 5698 7654 33 GBP')).toBe(false);
+      expect(hasIban('BE68 5390 0754 7035 EUR')).toBe(false);
+      expect(hasIban('GB 82 WEST and other words 12345698765432')).toBe(false);
+      // An account number grouped with hyphens on a labelled line.
+      expect(looksLikeAccountNumber('A/C 1234-56-7890', 'A/C 1234-56-7890')).toBe(true);
+      expect(looksLikeAccountNumber('1234-5678-9012', 'Account number 1234-5678-9012')).toBe(true);
+      // Real dates stay dates, in every usual shape.
+      expect(looksLikeDate('31-01-2024')).toBe(true);
+      expect(looksLikeDate('2024-01-31')).toBe(true);
+      expect(looksLikeDate('1/2/24')).toBe(true);
+      expect(looksLikeDate('1234-56-7890')).toBe(false);
+      expect(looksLikeDate('12-34-5678')).toBe(false);
+      expect(looksLikeAccountNumber('31-01-2024', 'Account opened 31-01-2024')).toBe(false);
+      expect(looksLikeAccountNumber('2024-01-31', 'Account opened 2024-01-31')).toBe(false);
+      expect(
+        looksLikeAccountNumber(
+          'Statement period 01-01-2024 to 31-01-2024',
+          'Account statement period 01-01-2024 to 31-01-2024',
+        ),
+      ).toBe(false);
+      expect(looksLikeAccountNumber('01712 345678', 'Account mobile 01712 345678')).toBe(false);
+      expect(looksLikeAccountNumber('12,345,678.00', 'Account balance 12,345,678.00')).toBe(false);
     });
   });
 });

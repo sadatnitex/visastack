@@ -7,7 +7,7 @@ import { purgeMissionUnconditionally } from './case-retention';
 import { getConsents } from './consent';
 import { type Db, first, schema } from './db';
 import { executeAccountDeletion } from './deletion';
-import { enqueueErasureJob } from './erasure';
+import { enqueueErasureJob, safeCopyDrawingIds } from './erasure';
 import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
 import { isMissingRelationError } from './missing-relation';
 import { redactionMasksTablePresent } from './redaction-table';
@@ -423,23 +423,29 @@ type RedactionMaskRow = typeof schema.redactionMasks.$inferSelect;
 
 /**
  * Whether the restored rows already match the pre-incident rows: the same pages, boxes, source,
- * author and revision, with each restored drawing either absent (to be drawn again) or the same
- * one. A restored drawing that differs never counts as matching.
+ * author and revision, and the same drawings (finished, or still being stored). A drawing the
+ * pre-incident branch has and the restored row lacks counts as matching only once it is
+ * registered on the restored branch with an erasure job (`queuedOnRestored`), which is what an
+ * earlier run of this rule leaves behind; otherwise that file would be left in storage with
+ * nothing on the restored branch pointing at it. A restored drawing that differs never matches.
  */
 function sameMasks(
   restored: readonly RedactionMaskRow[],
   source: readonly RedactionMaskRow[],
+  queuedOnRestored: ReadonlySet<string>,
 ): boolean {
   if (restored.length !== source.length) return false;
   const key = (row: RedactionMaskRow) =>
     JSON.stringify([row.page, row.source, row.createdByAccountId, row.boxes, row.maskRevision]);
   const byPage = new Map(source.map((row) => [row.page, row]));
+  const sameDrawing = (mine: string | null, theirs: string | null) =>
+    mine === theirs || (mine === null && theirs !== null && queuedOnRestored.has(theirs));
   return restored.every((row) => {
     const match = byPage.get(row.page);
     if (!match || key(match) !== key(row)) return false;
     return (
-      row.renderedStorageObjectId === null ||
-      row.renderedStorageObjectId === match.renderedStorageObjectId
+      sameDrawing(row.renderedStorageObjectId, match.renderedStorageObjectId) &&
+      sameDrawing(row.pendingStorageObjectId, match.pendingStorageObjectId)
     );
   });
 }
@@ -475,16 +481,23 @@ async function forceRedactionMasks(
     .select()
     .from(schema.redactionMasks)
     .where(eq(schema.redactionMasks.documentVersionId, versionId));
-  if (sameMasks(restored, source)) return false;
-  // Every stored page drawing involved, on either branch, is erased on the restored branch: the
-  // restored rows' own, and the pre-incident branch's (registered here first, since the restored
-  // branch never knew them, so their files are not left behind unreferenced).
-  const restoredDrawings = restored.flatMap((row) =>
-    row.renderedStorageObjectId ? [row.renderedStorageObjectId] : [],
+  const restoredDrawings = safeCopyDrawingIds(restored);
+  const sourceDrawings = safeCopyDrawingIds(source);
+  const queuedOnRestored = new Set(
+    sourceDrawings.length > 0
+      ? (
+          await newDb
+            .select({ id: schema.erasureJobs.storageObjectId })
+            .from(schema.erasureJobs)
+            .where(inArray(schema.erasureJobs.storageObjectId, sourceDrawings))
+        ).map((row) => row.id)
+      : [],
   );
-  const sourceDrawings = source.flatMap((row) =>
-    row.renderedStorageObjectId ? [row.renderedStorageObjectId] : [],
-  );
+  if (sameMasks(restored, source, queuedOnRestored)) return false;
+  // Every stored page drawing involved, on either branch (finished, or still being stored), is
+  // erased on the restored branch: the restored rows' own, and the pre-incident branch's
+  // (registered here first, since the restored branch never knew them, so their files are not
+  // left behind unreferenced).
   const sourceObjects =
     sourceDrawings.length > 0
       ? await oldDb
@@ -540,6 +553,7 @@ async function forceRedactionMasks(
         renderedWidthPt: null,
         renderedHeightPt: null,
         renderedAt: null,
+        pendingStorageObjectId: null,
       })),
     );
   });

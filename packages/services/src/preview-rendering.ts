@@ -116,13 +116,14 @@ export interface SafeCopyRendererPort {
    * before encoding, as a JPEG with no metadata (PDF pages) or one PNG with only image chunks (a
    * photo), no larger than `maxBytes`. Stored by the service as a private derived file when the
    * owner prepares the copy; nothing of the original's text, metadata, attachments, forms or
-   * scripts survives.
+   * scripts survives. With `expectedPageCount`, a file that does not have exactly that many pages
+   * is refused as unreadable, so the caller need not parse the file a second time to count them.
    */
   renderMaskedPage(
     source: SafeCopySource,
     page: number,
     boxes: readonly SafeCopyBox[],
-    budget: SafeCopyBudget & { readonly maxBytes: number },
+    budget: SafeCopyBudget & { readonly maxBytes: number; readonly expectedPageCount?: number },
   ): Promise<({ readonly ok: true } & SafeCopyPageImage) | SafeCopyFailure>;
   /**
    * The safe copy from stored page drawings, without drawing anything: an image-only PDF of the

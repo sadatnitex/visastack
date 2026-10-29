@@ -166,6 +166,7 @@ export class BuiltinSafeCopyRenderer implements SafeCopyRendererPort {
     budget: SafeCopyBudget,
     deadline: number,
     work: (pdf: PdfProxy) => Promise<T>,
+    expectedPageCount?: number,
   ): Promise<T> {
     const { getDocumentProxy } = await import('unpdf');
     let pdf: PdfProxy | undefined;
@@ -174,6 +175,9 @@ export class BuiltinSafeCopyRenderer implements SafeCopyRendererPort {
       if (pdf.numPages < 1) throw new Refused('unreadable', 'the PDF has no pages');
       if (pdf.numPages > budget.maxPages) {
         throw new Refused('too_large', `the PDF has more than ${budget.maxPages} pages`);
+      }
+      if (expectedPageCount !== undefined && pdf.numPages !== expectedPageCount) {
+        throw new Refused('unreadable', 'the PDF does not have the expected number of pages');
       }
       return await work(pdf);
     } finally {
@@ -381,14 +385,18 @@ export class BuiltinSafeCopyRenderer implements SafeCopyRendererPort {
     source: SafeCopySource,
     page: number,
     boxes: readonly SafeCopyBox[],
-    budget: SafeCopyBudget & { readonly maxBytes: number },
+    budget: SafeCopyBudget & { readonly maxBytes: number; readonly expectedPageCount?: number },
   ): ReturnType<SafeCopyRendererPort['renderMaskedPage']> {
     return this.run(budget, async (deadline) => {
       try {
         const canvasModule = await import('@napi-rs/canvas');
         if (source.contentType === 'application/pdf') {
-          const drawn = await this.withPdf(source, budget, deadline, (pdf) =>
-            this.drawPdfPage(canvasModule, pdf, page, deadline),
+          const drawn = await this.withPdf(
+            source,
+            budget,
+            deadline,
+            (pdf) => this.drawPdfPage(canvasModule, pdf, page, deadline),
+            budget.expectedPageCount,
           );
           paintMasks(drawn.canvas, boxes);
           for (const quality of SAFE_COPY_QUALITIES) {
@@ -412,7 +420,9 @@ export class BuiltinSafeCopyRenderer implements SafeCopyRendererPort {
           return failure('too_large', 'the page would be too large for a safe copy');
         }
         if (isImage(source.contentType)) {
-          if (page !== 1) return failure('unreadable', 'an image has one page');
+          if (page !== 1 || (budget.expectedPageCount ?? 1) !== 1) {
+            return failure('unreadable', 'an image has one page');
+          }
           for (const side of IMAGE_SIDES_PX) {
             this.checkTime(deadline);
             const canvas = await this.drawImage(canvasModule, source, side, deadline);

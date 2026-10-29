@@ -1804,6 +1804,71 @@ describe('reconcileRestoredBranch: safe copy boxes (S23)', () => {
     expect(again.counts.redactionMasksReconciled).toBe(0);
   });
 
+  it('queues a pre-incident drawing the restored rows lack, even when the boxes are the same', async () => {
+    const { owner, documentId, versionId } = await sharedVersion('recon-undrawn@example.com');
+    // Both branches hold the same boxes under the same revision; only the pre-incident branch
+    // drew the pages (one finished, one still being stored when the incident happened).
+    const maskRevision = crypto.randomUUID();
+    const drawingIds: string[] = [];
+    for (const page of [1, 2]) {
+      const drawing = first(
+        await oldDb
+          .insert(schema.storageObjects)
+          .values({
+            bucket: 'CLEAN',
+            objectKey: `safe-copy/${crypto.randomUUID()}`,
+            contentHash: 'drawn',
+          })
+          .returning(),
+      );
+      if (!drawing) throw new Error('drawing');
+      drawingIds.push(drawing.id);
+      const row = {
+        id: crypto.randomUUID(),
+        documentVersionId: versionId,
+        page,
+        boxes: (page === 1 ? BOXES : []) as never,
+        source: 'OWNER',
+        createdByAccountId: owner.id,
+        maskRevision,
+      };
+      await newDb.insert(schema.redactionMasks).values(row);
+      await oldDb.insert(schema.redactionMasks).values({
+        ...row,
+        ...(page === 1
+          ? {
+              renderedStorageObjectId: drawing.id,
+              renderedContentType: 'image/jpeg',
+              renderedByteSize: 10,
+              renderedWidthPt: 612,
+              renderedHeightPt: 792,
+              renderedAt: AFTER,
+            }
+          : { pendingStorageObjectId: drawing.id }),
+      });
+    }
+    await event('DOCUMENT_REDACTION_SAVED', documentId, versionId);
+    const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(report.errors).toEqual([]);
+    expect(report.counts.redactionMasksReconciled).toBe(1);
+    // The boxes stay; neither pre-incident drawing is ever served on the restored branch.
+    expect(await masks(newDb, versionId)).toEqual([
+      { page: 1, boxes: BOXES },
+      { page: 2, boxes: [] },
+    ]);
+    expect(await drawnOnNew(versionId)).toEqual([]);
+    // Both are registered on the restored branch and queued for verified erasure.
+    const registered = await newDb
+      .select({ id: schema.storageObjects.id })
+      .from(schema.storageObjects)
+      .where(inArray(schema.storageObjects.id, drawingIds));
+    expect(registered.map((row) => row.id).sort()).toEqual([...drawingIds].sort());
+    const jobs = (await safeCopyErasuresOnNew()).map((job) => job.storageObjectId);
+    expect(jobs.sort()).toEqual([...drawingIds].sort());
+    const again = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(again.counts.redactionMasksReconciled).toBe(0);
+  });
+
   it('is a clean no-op when the restored branch predates the safe copy table', async () => {
     const { owner, documentId, versionId } = await sharedVersion('recon-old@example.com');
     await writeMasks(oldDb, versionId, owner.id, [BOXES]);
