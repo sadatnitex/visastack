@@ -124,9 +124,16 @@ export type PlatformAction =
   | 'APPLICANT_DIRECTORY_VIEW'
   | 'AUDIT_TRAIL_VIEW'
   | 'SUPPORT_GRANT_APPROVE'
-  | 'ACCOUNT_SIGN_IN_RECOVERY';
+  | 'ACCOUNT_SIGN_IN_RECOVERY'
+  | 'BILLING_SETTINGS_MANAGE';
 
-const ACTION_ROLES: Readonly<Record<PlatformAction, Exclude<PlatformRole, 'PLATFORM_OWNER'>>> = {
+/**
+ * The one role, besides `PLATFORM_OWNER`, that may perform each action. `null` means the platform
+ * owner only: no concern-scoped role holds it.
+ */
+const ACTION_ROLES: Readonly<
+  Record<PlatformAction, Exclude<PlatformRole, 'PLATFORM_OWNER'> | null>
+> = {
   RETENTION_POLICY_SET: 'COMPLIANCE_ADMIN',
   LEGAL_HOLD_PLACE: 'COMPLIANCE_ADMIN',
   LEGAL_HOLD_RELEASE: 'COMPLIANCE_ADMIN',
@@ -161,6 +168,10 @@ const ACTION_ROLES: Readonly<Record<PlatformAction, Exclude<PlatformRole, 'PLATF
   // with it, matching this table's own zero-overlap discipline.
   COMPLAINT_MANAGE: 'QUALITY_ADMIN',
   FEEDBACK_VIEW: 'QUALITY_ADMIN',
+  // The billing rules (S17: when invoices fall due, and whether an unpaid one moves an agency to
+  // Grace and then Suspended) are a commercial decision for the platform owner alone, like every
+  // other billing change (billing.ts): no concern-scoped role holds it.
+  BILLING_SETTINGS_MANAGE: null,
 };
 
 /**
@@ -179,6 +190,7 @@ export async function canPerformPlatformAction(
 ): Promise<boolean> {
   if (await isPlatformOwner(db, input)) return true;
   const requiredRole = ACTION_ROLES[action];
+  if (requiredRole === null) return false;
   const active = first(
     await db
       .select({ n: count() })
