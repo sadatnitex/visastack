@@ -1167,7 +1167,7 @@ describe('pinned before S17: a status a person set', () => {
       const account = await getBillingAccountForOrganization(db, {
         actorAccountId: owner.accountId,
         organizationId,
-        actorEmail: `owner-pinned@platform.example.com`,
+        actorEmail: 'owner-pinned@platform.example.com',
       });
       if (!isOk(account)) throw new Error('account');
       expect(account.value?.status).toBe(toStatus);
