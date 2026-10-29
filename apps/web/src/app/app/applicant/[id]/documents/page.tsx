@@ -23,6 +23,7 @@ import {
   listPendingDocumentTypeProposals,
   listPendingInconsistencyFlags,
   listPendingProposals,
+  listRedactionStates,
   loadUploadQuotaConfig,
   mbLabel,
   readDocumentProtectionSettings,
@@ -37,6 +38,11 @@ import { DepthScope, atLevel } from '../../../../../components/depth';
 import { DepthSwitch } from '../../../../../components/depth-switch';
 import { DocumentWalletBrowser } from '../../../../../components/document-wallet-browser';
 import { ReferenceCode } from '../../../../../components/reference-code';
+import {
+  SAFE_COPY_STATE_LABELS,
+  SafeCopyEditor,
+  type SafeCopyStateName,
+} from '../../../../../components/safe-copy-editor';
 import { PageHeader } from '../../../../../components/ui';
 import { VisaPhotoSizes } from '../../../../../components/visa-photo-sizes';
 import {
@@ -253,6 +259,14 @@ export default async function ApplicantDocumentsPage({
           documentRows.flatMap((doc) => (doc.latestVersionId ? [doc.latestVersionId] : [])),
         )
       : undefined;
+    // Where each document's safe copy stands (S23, ADR 0022), through the same owner proof. If it
+    // cannot be read, every document reads Not Prepared Yet, which is what the server enforces too.
+    const safeCopies = readingAccess.ok
+      ? await listRedactionStates(
+          readingAccess.value,
+          documentRows.flatMap((doc) => (doc.latestVersionId ? [doc.latestVersionId] : [])),
+        )
+      : undefined;
     const detailsAvailable =
       (await resolveAiExtractionAvailability(db, encryption !== undefined)) === 'available';
     // The live protection rule, for the card's fresh sign-in warning. If it cannot be read, the
@@ -276,6 +290,7 @@ export default async function ApplicantDocumentsPage({
       aiGranted,
       detailsAvailable,
       reading: reading?.ok ? reading.value : undefined,
+      safeCopies: safeCopies?.ok ? safeCopies.value : new Map<string, SafeCopyStateName>(),
       ocrGranted,
       ocrConfigured,
       classificationConfigured,
@@ -412,6 +427,11 @@ export default async function ApplicantDocumentsPage({
               doc.processingStatus !== null &&
               isServableProcessingState(doc.processingStatus);
             const lifecycle = data.wallet.get(doc.id)?.status;
+            const safeCopyState: SafeCopyStateName =
+              (doc.latestVersionId ? data.safeCopies.get(doc.latestVersionId) : undefined) ??
+              'NOT_PREPARED';
+            const safeCopyLabel = SAFE_COPY_STATE_LABELS[safeCopyState];
+            const safeCopyReady = safeCopyState === 'MASKED' || safeCopyState === 'NOTHING_TO_HIDE';
             // A waiting AI kind for the file as it is now (an older file's suggestion no longer applies).
             const waitingKind = data.pendingClassificationProposals.find(
               (p) => p.documentVersionId === doc.latestVersionId,
@@ -502,6 +522,13 @@ export default async function ApplicantDocumentsPage({
                           </span>
                         ) : null}
                         {previewable ? (
+                          <span
+                            className={`badge ${safeCopyReady ? 'badge-success' : 'badge-neutral'}`}
+                          >
+                            {safeCopyLabel}
+                          </span>
+                        ) : null}
+                        {previewable ? (
                           <form action={previewDocumentAction}>
                             <input type="hidden" name="applicantId" value={id} />
                             <input type="hidden" name="documentId" value={doc.id} />
@@ -536,6 +563,14 @@ export default async function ApplicantDocumentsPage({
                       <VisaPhotoSizes
                         documentId={doc.id}
                         returnTo={`/app/applicant/${id}/documents?document=${doc.id}`}
+                      />
+                    ) : null}
+                    {previewable ? (
+                      <SafeCopyEditor
+                        key={`${doc.id}-${doc.latestVersionId ?? ''}`}
+                        documentId={doc.id}
+                        returnTo={`/app/applicant/${id}/documents?document=${doc.id}#safe-copy-${doc.id}`}
+                        initialState={safeCopyState}
                       />
                     ) : null}
                     {(() => {

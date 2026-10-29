@@ -19,7 +19,7 @@ export const CAPABILITY_NAMES: { readonly [K in keyof PlatformCapabilities]: str
   ownerPreview: 'Previewing Your Own Documents',
   thirdPartyPreview: 'Previewing Documents You Share with Others',
   originalDownload: 'Downloading Original Files',
-  redactedDownload: 'Downloading Blacked-Out Copies',
+  redactedDownload: 'Downloading Safe Copies',
   sharing: 'Sharing with Agencies',
   agencyCollaboration: 'Agency Workspaces',
   bulkExport: 'Exporting Records for Agencies',

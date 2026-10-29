@@ -359,7 +359,7 @@ describe('safe copies (stored as DOWNLOAD_REDACTED)', () => {
   });
 
   it('explains what a safe copy is in a note tied to the box', () => {
-    expect(note()?.textContent).toBe('Visa photo sizes now; redacted documents later');
+    expect(note()?.textContent).toBe('Visa photo sizes, and safe copies of documents you prepare');
   });
 
   it('keeps the note out of the accessible name, so it is read once, as the description', () => {

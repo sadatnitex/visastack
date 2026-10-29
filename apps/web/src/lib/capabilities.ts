@@ -103,13 +103,16 @@ export function getPlatformCapabilities(): PlatformCapabilities {
     ownerPreview: gapAware(blobConfigured ? 'available' : 'unconfigured', 'ownerPreview'),
     thirdPartyPreview: gapAware(blobConfigured ? 'available' : 'unconfigured', 'thirdPartyPreview'),
     // Originals use the owner action, fresh authentication, policy checks and
-    // revocable signed delivery. Redacted downloads remain disabled until actual
-    // protected-content redaction is implemented and verified.
+    // revocable signed delivery.
     originalDownload:
       blobConfigured && isPresent('BLOB_SIGNING_SECRET') && isPresent('STEP_UP_SIGNING_SECRET')
         ? gapAware('available', 'originalDownload')
         : 'unconfigured',
-    redactedDownload: 'disabled',
+    // Safe copies (S23, ADR 0022): the owner's black boxes painted onto a fresh picture of every
+    // page, served only once the owner has prepared every page (api/documents/safe-copy). Needs
+    // the stored files, like previews; a restricted document still asks for a fresh identity
+    // check at the gate, as every download does.
+    redactedDownload: blobConfigured ? gapAware('available', 'redactedDownload') : 'unconfigured',
     sharing: gapAware('available', 'sharing'),
     agencyCollaboration: gapAware('available', 'agencyCollaboration'),
     bulkExport: gapAware('available', 'bulkExport'),

@@ -2,12 +2,14 @@ import { getRecipientWorkspace, isPassportPhotoType } from '@visastack/services'
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { SafeCopyDownload } from '../../../../components/safe-copy-download';
 import { EmptyState, PageHeader } from '../../../../components/ui';
 import { VisaPhotoSizes } from '../../../../components/visa-photo-sizes';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { documentTypeLabel } from '../../../../lib/labels';
 import { fieldLabel } from '../../../../lib/master-profile';
 import { mayUseVisaPhotoSizes } from '../../../../lib/photo-sizes';
+import { safeCopyOffer } from '../../../../lib/safe-copy';
 import { withSession } from '../../../../lib/session';
 
 export const metadata: Metadata = { title: 'Shared Record' };
@@ -28,22 +30,24 @@ export default async function SharedWorkspacePage({
     // gate question the photo routes ask (across every grant they hold for it), never by this one
     // grant's list of actions, so the section and the server always agree.
     const organizationId = result.value.grant.recipientOrganizationId;
+    const actingFor = organizationId ? { organizationId } : ('individual' as const);
     const photoIds: string[] = [];
+    // Safe copies (S23): what each document offers this viewer, asked of the gate exactly as the
+    // safe copy route asks, so the button and the server always agree.
+    const safeCopies = new Map<string, Awaited<ReturnType<typeof safeCopyOffer>>>();
+    for (const doc of result.value.documents) {
+      safeCopies.set(doc.id, await safeCopyOffer(db, accountId, doc.id, actingFor));
+    }
     for (const doc of result.value.documents) {
       if (!isPassportPhotoType(doc.docType)) continue;
-      const allowed = await mayUseVisaPhotoSizes(
-        db,
-        accountId,
-        doc.id,
-        organizationId ? { organizationId } : 'individual',
-      );
+      const allowed = await mayUseVisaPhotoSizes(db, accountId, doc.id, actingFor);
       if (allowed) photoIds.push(doc.id);
     }
-    return { workspace: result.value, photoIds };
+    return { workspace: result.value, photoIds, safeCopies };
   });
 
   if (!loaded) notFound();
-  const { workspace, photoIds } = loaded;
+  const { workspace, photoIds, safeCopies } = loaded;
 
   return (
     <section className="section container">
@@ -109,14 +113,31 @@ export default async function SharedWorkspacePage({
           ) : (
             <>
               <div className="rows" style={{ marginTop: '0.5rem', marginBottom: '1rem' }}>
-                {workspace.documents.map((doc) => (
-                  <div className="row" key={doc.id}>
-                    <span className="row-key">{doc.displayName}</span>
-                    {doc.docType ? (
-                      <span className="badge badge-neutral">{documentTypeLabel(doc.docType)}</span>
-                    ) : null}
-                  </div>
-                ))}
+                {workspace.documents.map((doc) => {
+                  const offer = safeCopies.get(doc.id) ?? 'none';
+                  return (
+                    <div className="row" key={doc.id}>
+                      <span className="row-key">{doc.displayName}</span>
+                      <span className="row-end">
+                        {doc.docType ? (
+                          <span className="badge badge-neutral">
+                            {documentTypeLabel(doc.docType)}
+                          </span>
+                        ) : null}
+                        {offer === 'not_prepared' ? (
+                          <span className="badge badge-neutral">Safe Copy: Not Prepared Yet</span>
+                        ) : null}
+                      </span>
+                      {offer === 'ready' || offer === 'confirm' ? (
+                        <SafeCopyDownload
+                          documentId={doc.id}
+                          returnTo={`/app/shared/${grantId}`}
+                          actingFor={workspace.grant.recipientOrganizationId ?? 'individual'}
+                        />
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
               {photoIds.map((documentId) => (
                 <VisaPhotoSizes
@@ -131,6 +152,12 @@ export default async function SharedWorkspacePage({
                 grant covers. A passport photo shared with safe copies can be sized for a visa
                 application above.
               </p>
+              {[...safeCopies.values()].some((offer) => offer !== 'none') ? (
+                <p className="muted u-fs-085">
+                  A safe copy is a picture of each page with the parts the traveller chose covered
+                  in black. It is made fresh when you download it.
+                </p>
+              ) : null}
             </>
           )}
         </article>

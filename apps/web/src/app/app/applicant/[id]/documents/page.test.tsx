@@ -19,6 +19,12 @@ const mocks = vi.hoisted(() => ({
     value: { states: new Map(), sourceOfRun: new Map() },
   })),
   listPendingProposals: vi.fn(async (): Promise<unknown[]> => []),
+  listRedactionStates: vi.fn(
+    async (): Promise<{ ok: boolean; value?: Map<string, string> }> => ({
+      ok: true,
+      value: new Map(),
+    }),
+  ),
   detailsAvailable: vi.fn(async () => 'unconfigured'),
   depth: 'auto' as string,
   ocrConfigured: vi.fn(async () => false),
@@ -41,6 +47,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   listApplicantProfile: async () => [],
   requireAccess: mocks.requireAccess,
   listDocumentReadingStates: mocks.listDocumentReadingStates,
+  listRedactionStates: mocks.listRedactionStates,
 }));
 vi.mock('../../../../../lib/ai', () => ({
   isClassificationConfigured: async () => false,
@@ -425,6 +432,42 @@ describe('visa photo sizes on a passport photo', () => {
       value: [{ ...doc('passport', 'APPROVED'), docType: 'PASSPORT' }],
     });
     expect(textOf(await render('passport'))).not.toContain('Visa Photo Sizes');
+  });
+});
+
+describe('safe copies (S23)', () => {
+  it('shows each ready document its safe copy state and the Safe Copy section, from the owner proof', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [{ ...doc('passport', 'APPROVED'), docType: 'PASSPORT' }],
+    });
+    mocks.listRedactionStates.mockResolvedValueOnce({
+      ok: true,
+      value: new Map([['passport-v1', 'MASKED']]),
+    });
+    const html = await render('passport');
+    expect(textOf(html)).toContain('Safe Copy: Ready');
+    expect(html).toContain('id="safe-copy-passport"');
+    expect(mocks.listRedactionStates).toHaveBeenCalledWith({ proof: 'owner' }, ['passport-v1']);
+  });
+
+  it('reads Not Prepared Yet when nothing is saved or the states cannot be read', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [doc('statement', 'APPROVED')],
+    });
+    mocks.listRedactionStates.mockResolvedValueOnce({ ok: false });
+    expect(textOf(await render('statement'))).toContain('Safe Copy: Not Prepared Yet');
+  });
+
+  it('offers nothing for a file still being checked', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [doc('scanning', 'SCANNING')],
+    });
+    const html = await render('scanning');
+    expect(textOf(html)).not.toContain('Safe Copy');
+    expect(html).not.toContain('id="safe-copy-scanning"');
   });
 });
 

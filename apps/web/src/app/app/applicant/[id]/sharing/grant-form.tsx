@@ -37,7 +37,10 @@ const SHAREABLE_ACTIONS: ReadonlyArray<{
   [
     { value: 'VIEW_METADATA', defaultOn: true },
     { value: 'PREVIEW', defaultOn: true },
-    { value: 'DOWNLOAD_REDACTED', note: 'Visa photo sizes now; redacted documents later' },
+    {
+      value: 'DOWNLOAD_REDACTED',
+      note: 'Visa photo sizes, and safe copies of documents you prepare',
+    },
     { value: 'COMMENT' },
     { value: 'PROPOSE_EDIT' },
   ] as const

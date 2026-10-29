@@ -10366,3 +10366,185 @@ summary.visa-photo-title {
 .depth-scope:not(:has(.depth-nojs))[data-depth="glance"] .agency-working-area {
   grid-template-columns: minmax(0, 1fr);
 }
+
+/* WP-S23 redaction editor: the Safe Copy section on a document (documents page pane) and the
+ * Download Safe Copy control (documents page and the shared record). Flat surfaces from the shared
+ * tokens, no shadows or gradients; every button at least 44px. The page image and its boxes scale
+ * to the width available, down to 320px wide, with no sideways scroll. The only new colour is the
+ * solid black of a box, which is what the safe copy paints; a suggested box that is not accepted
+ * yet is drawn as a dashed outline instead, and the selected box has a ring, so neither state
+ * depends on colour alone.
+ * ---------------------------------------------------------------------------------------------- */
+.safe-copy {
+  margin-top: 12px;
+  padding: 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius);
+  min-width: 0;
+}
+summary.safe-copy-title {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  margin: 0;
+  cursor: pointer;
+  font-size: var(--text-body);
+  font-weight: 650;
+  color: var(--text);
+}
+.safe-copy-state {
+  margin: 4px 0;
+  font-size: var(--text-small);
+  font-weight: 650;
+  color: var(--text);
+}
+.safe-copy-subtitle {
+  margin: 16px 0 4px;
+  font-size: var(--text-small);
+  font-weight: 650;
+  color: var(--text-secondary);
+}
+.safe-copy-note,
+.safe-copy-status {
+  display: block;
+  margin: 4px 0;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.safe-copy-label {
+  font-size: var(--text-small);
+  font-weight: 650;
+  color: var(--text);
+}
+.safe-copy-actions,
+.safe-copy-buttons,
+.safe-copy-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.safe-copy-actions .btn,
+.safe-copy-buttons .btn,
+.safe-copy-pager .btn,
+.safe-copy-download .btn {
+  min-height: 44px;
+}
+.safe-copy-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.safe-copy-download {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin-top: 8px;
+}
+.safe-copy-editor {
+  min-width: 0;
+}
+.safe-copy-page {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  margin-top: 8px;
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  overflow: hidden;
+}
+.safe-copy-page-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+}
+.safe-copy-page-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  padding: 16px;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.safe-copy-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.safe-copy-overlay-drawing {
+  touch-action: none;
+  cursor: crosshair;
+}
+.safe-copy-box {
+  fill: #000000;
+  stroke: #000000;
+  stroke-width: 1px;
+  touch-action: none;
+  cursor: move;
+}
+.safe-copy-box-suggested {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 3px;
+  stroke-dasharray: 6 4;
+}
+.safe-copy-box:focus {
+  outline: none;
+}
+.safe-copy-box:focus-visible {
+  stroke: var(--accent);
+  stroke-width: 3px;
+}
+.safe-copy-ring {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3px;
+  pointer-events: none;
+}
+.safe-copy-draft {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2px;
+  stroke-dasharray: 4 3;
+  pointer-events: none;
+}
+.safe-copy-adjust {
+  margin: 12px 0 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.safe-copy-list,
+.safe-copy-review {
+  margin: 4px 0;
+  padding-left: 20px;
+  font-size: var(--text-small);
+  color: var(--text);
+}
+.safe-copy-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin: 4px 0;
+  overflow-wrap: anywhere;
+}
+.safe-copy-list li .safe-copy-buttons {
+  margin-top: 0;
+}
+.safe-copy-review {
+  list-style: none;
+  padding-left: 0;
+}
+.safe-copy-figure {
+  margin: 12px 0 0;
+}

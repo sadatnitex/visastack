@@ -4,6 +4,7 @@ import { renderServer, stub, stubProps } from '../../../../lib/next-mocks.test-s
 const mocks = vi.hoisted(() => ({
   getRecipientWorkspace: vi.fn(),
   mayUseVisaPhotoSizes: vi.fn(),
+  safeCopyOffer: vi.fn(),
 }));
 
 vi.mock('@visastack/services', async (importOriginal) => ({
@@ -19,6 +20,10 @@ vi.mock('../../../../lib/session', () => ({
 }));
 vi.mock('../../../../components/visa-photo-sizes', () => ({
   VisaPhotoSizes: stub('VisaPhotoSizes'),
+}));
+vi.mock('../../../../lib/safe-copy', () => ({ safeCopyOffer: mocks.safeCopyOffer }));
+vi.mock('../../../../components/safe-copy-download', () => ({
+  SafeCopyDownload: stub('SafeCopyDownload'),
 }));
 
 const { default: SharedWorkspacePage } = await import('./page');
@@ -54,6 +59,7 @@ const render = async () =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.safeCopyOffer.mockResolvedValue('none');
 });
 
 describe('Visa Photo Sizes on a shared record', () => {
@@ -99,5 +105,51 @@ describe('Visa Photo Sizes on a shared record', () => {
       { actorAccountId: 'agent-1', grantId: 'grant-1' },
     );
     expect(mocks.mayUseVisaPhotoSizes).not.toHaveBeenCalled();
+  });
+});
+
+describe('Safe copies on a shared record (S23)', () => {
+  it('offers Download Safe Copy only where the gate allows it, and says when one is not prepared', async () => {
+    mocks.getRecipientWorkspace.mockResolvedValue(
+      workspace(['VIEW_METADATA', 'DOWNLOAD_REDACTED']),
+    );
+    mocks.mayUseVisaPhotoSizes.mockResolvedValue(false);
+    const offers: Record<string, string> = {
+      'photo-1': 'none',
+      'card-1': 'not_prepared',
+      'cert-1': 'ready',
+    };
+    mocks.safeCopyOffer.mockImplementation(async (_db, _account, id: string) => offers[id]);
+    const html = await render();
+    expect(stubProps(html, 'SafeCopyDownload')).toEqual([
+      { documentId: 'cert-1', returnTo: '/app/shared/grant-1', actingFor: ORG },
+    ]);
+    expect(html.match(/Safe Copy: Not Prepared Yet/g)).toHaveLength(1);
+    // Asked of the gate for every document, through the grant's relationship.
+    expect(mocks.safeCopyOffer.mock.calls.map((call) => call[2])).toEqual([
+      'photo-1',
+      'card-1',
+      'cert-1',
+    ]);
+    expect(mocks.safeCopyOffer.mock.calls[0]?.[3]).toEqual({ organizationId: ORG });
+    expect(html).toContain('A safe copy is a picture of each page');
+  });
+
+  it('shows the button for a restricted document that needs a fresh identity check first', async () => {
+    mocks.getRecipientWorkspace.mockResolvedValue(workspace(['DOWNLOAD_REDACTED'], null));
+    mocks.mayUseVisaPhotoSizes.mockResolvedValue(false);
+    mocks.safeCopyOffer.mockResolvedValue('confirm');
+    const buttons = stubProps<{ actingFor: string }>(await render(), 'SafeCopyDownload');
+    expect(buttons).toHaveLength(3);
+    expect(buttons[0]?.actingFor).toBe('individual');
+  });
+
+  it('shows nothing about safe copies to a viewer who may not download them', async () => {
+    mocks.getRecipientWorkspace.mockResolvedValue(workspace(['VIEW_METADATA', 'PREVIEW']));
+    mocks.mayUseVisaPhotoSizes.mockResolvedValue(false);
+    const html = await render();
+    expect(stubProps(html, 'SafeCopyDownload')).toEqual([]);
+    expect(html).not.toContain('Safe Copy');
+    expect(html).not.toContain('safe copy is a picture');
   });
 });
