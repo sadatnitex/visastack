@@ -91,7 +91,7 @@ export default async function SharingPage({
     aiChangeId && one('choice_layers') !== undefined
       ? {
           connectionId: aiChangeId,
-          choices: consentChoicesFromQuery(one, { suggestFromLink: true }),
+          choices: consentChoicesFromQuery(one),
           duration: isAiChangeDuration(aiChangeDuration) ? aiChangeDuration : 'keep',
         }
       : undefined;

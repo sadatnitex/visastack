@@ -22,13 +22,9 @@ const render = (
 const box = (html: string) => html.match(/<input[^>]*name="suggest_changes"[^>]*>/g) ?? [];
 
 describe('Suggest Changes on the consent screen', () => {
-  it('a link can never pre-tick it', () => {
+  it('a link can never pre-tick it, on the consent screen or on Change Access', () => {
     const query = { choice_layers: 'identity', choice_suggest: '1' } as Record<string, string>;
     expect(consentChoicesFromQuery((name) => query[name]).suggestChanges).toBe(false);
-    // Only Change Access, returning from its own sign-in check, carries it back.
-    expect(
-      consentChoicesFromQuery((name) => query[name], { suggestFromLink: true }).suggestChanges,
-    ).toBe(true);
   });
 
   it('starts unticked even when asked to start ticked, with the feature on', () => {
@@ -53,6 +49,7 @@ describe('Suggest Changes on Change Access', () => {
       suggestMode: 'change',
       suggestionsAvailable: false,
       suggestChanges: true,
+      suggestStored: true,
     });
     expect(box(html)).toHaveLength(1);
     expect(box(html)[0]).toContain('checked=""');
@@ -60,8 +57,12 @@ describe('Suggest Changes on Change Access', () => {
     expect(html).toContain('Your choice is kept for when it is turned on again.');
   });
 
-  it('cannot be ticked on while off when it was not chosen before', () => {
-    const html = render({ suggestMode: 'change', suggestionsAvailable: false });
+  it('cannot be ticked on while off when it was not stored, whatever it was asked to start with', () => {
+    const html = render({
+      suggestMode: 'change',
+      suggestionsAvailable: false,
+      suggestChanges: true,
+    });
     expect(box(html)[0]).toContain('disabled=""');
     expect(box(html)[0]).not.toContain('checked');
   });

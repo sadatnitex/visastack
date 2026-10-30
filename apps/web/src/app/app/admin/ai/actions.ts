@@ -4,18 +4,46 @@ import {
   AI_FEATURES,
   AI_FEATURE_LIMIT_MAX,
   AI_FEATURE_LIMIT_MIN,
+  type AiFeatureKey,
   isAiFeatureKey,
 } from '@visastack/core/ai-features';
 import { AI_FEATURE_SETTINGS_UNAVAILABLE, updateAiFeatureSetting } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type { FormResult } from '../../../../components/form-feedback';
 import { bootstrapAdminEmails, staffPrincipal } from '../../../../lib/admin';
+import {
+  AI_FEATURE_RETRY_COOKIE,
+  AI_FEATURE_RETRY_PATH,
+  aiFeatureRetryCookieOptions,
+  encodeAiFeatureRetry,
+} from '../../../../lib/ai-feature-retry';
+import { resolveBaseUrl } from '../../../../lib/base-url';
 import { withSession } from '../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../lib/step-up';
 import type { AiFeatureFormState, AiFeatureValues } from './labels';
 
-const AI_FEATURES_PATH = '/app/admin/ai';
+const AI_FEATURES_PATH = AI_FEATURE_RETRY_PATH;
+
+/**
+ * Keeps what was typed across the fresh sign-in check, in a signed httpOnly cookie for this page
+ * only (never in the address). Best effort: without it the person simply types again.
+ */
+async function rememberTyped(accountId: string, feature: AiFeatureKey, values: AiFeatureValues) {
+  const value = encodeAiFeatureRetry({ feature, ...values }, accountId);
+  if (!value) return;
+  (await cookies()).set(
+    AI_FEATURE_RETRY_COOKIE,
+    value,
+    aiFeatureRetryCookieOptions(resolveBaseUrl().startsWith('https://')),
+  );
+}
+
+/** After a successful save there is nothing left to save again. */
+async function forgetTyped() {
+  (await cookies()).delete({ name: AI_FEATURE_RETRY_COOKIE, path: AI_FEATURE_RETRY_PATH });
+}
 
 const DENIED: FormResult = {
   ok: false,
@@ -73,20 +101,21 @@ export async function saveAiFeatureAction(
       stepUpSatisfied: false,
     });
     if (!result.ok && result.error.code === 'step_up_required') {
-      // The typed values come back with the person after the sign-in check, to save again.
-      const back = new URLSearchParams({
-        retry_feature: feature,
-        retry_on: values.enabled ? '1' : '0',
-        retry_limit: dailyLimit === null ? '' : String(dailyLimit),
-      });
       const stepUp = await tryEstablishStepUp(
         { accountId, action: 'AI_FEATURES_UPDATE', resourceId: feature },
-        `${AI_FEATURES_PATH}?${back.toString()}`,
+        AI_FEATURES_PATH,
       );
       if (stepUp.kind === 'not_configured') {
         return reply({ ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE });
       }
-      if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
+      if (stepUp.kind === 'reauth_required') {
+        // The typed values come back with the person after the sign-in check, to save again.
+        await rememberTyped(accountId, feature, {
+          enabled: values.enabled,
+          dailyLimit: dailyLimit === null ? '' : String(dailyLimit),
+        });
+        redirect(stepUp.reauthUrl);
+      }
       result = await updateAiFeatureSetting(db, staff.value, { ...input, stepUpSatisfied: true });
     }
     if (!result.ok) {
@@ -100,6 +129,7 @@ export async function saveAiFeatureAction(
         message: 'The change could not be saved. Reload the page and try again.',
       });
     }
+    await forgetTyped();
     if (!result.value.changed) {
       return reply({ ok: true, message: `Nothing to change. ${name} is already set this way.` });
     }

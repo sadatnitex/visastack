@@ -24,6 +24,8 @@ export interface ChangeAccessFormProps {
   readonly defaultDuration: string;
   /** Whether AI App Suggestions works right now (S21). */
   readonly suggestionsAvailable?: boolean;
+  /** Whether the connection has Suggest Changes stored (it can then always be unticked). */
+  readonly suggestStored?: boolean;
 }
 
 /**
@@ -39,6 +41,7 @@ export function ChangeAccessForm({
   durations,
   defaultDuration,
   suggestionsAvailable = false,
+  suggestStored = false,
 }: ChangeAccessFormProps) {
   const [state, formAction, pending] = useActionState<AiConnectionActionState, FormData>(
     changeAiAccessAction,
@@ -79,6 +82,7 @@ export function ChangeAccessForm({
         defaultDuration={state.choices?.duration ?? defaultDuration}
         suggestionsAvailable={suggestionsAvailable}
         suggestMode="change"
+        suggestStored={suggestStored}
         {...(isFailure(state) && state.field ? { invalid: { field: state.field, messageId } } : {})}
       />
       <p className="card-body">{aiChangeSentence(appName, suggestionsAvailable && suggest)}</p>

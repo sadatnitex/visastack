@@ -23,12 +23,23 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   listAiFeatureSettings: (...args: unknown[]) => mocks.listAiFeatureSettings(...args),
 }));
+/** The cookies this request carries. */
+const requestCookies = new Map<string, string>();
+vi.mock('next/headers', () => ({
+  cookies: async () => ({
+    get: (name: string) =>
+      requestCookies.has(name) ? { name, value: requestCookies.get(name) } : undefined,
+  }),
+}));
 vi.mock('./forms', async () => {
   const { stub } = await import('../../../../lib/next-mocks.test-support');
   return { AiFeatureForm: stub('AiFeatureForm') };
 });
 
 const { default: Page } = await import('./page');
+const { AI_FEATURE_RETRY_COOKIE, encodeAiFeatureRetry } = await import(
+  '../../../../lib/ai-feature-retry'
+);
 
 const feature = {
   feature: 'ai_app_suggestions',
@@ -43,6 +54,8 @@ const feature = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  requestCookies.clear();
+  vi.stubEnv('NEON_AUTH_COOKIE_SECRET', 'x'.repeat(64));
   navigationState.pathname = '/app/admin/ai';
   mocks.staffPrincipal.mockResolvedValue({ ok: true, value: { kind: 'staff' } });
   mocks.listAiFeatureSettings.mockResolvedValue({
@@ -53,7 +66,7 @@ beforeEach(() => {
 
 describe('Platform > AI Features', () => {
   it('lists each registered feature with its switch, its limit and what turning it off does', async () => {
-    const html = await renderServer(Page({}));
+    const html = await renderServer(Page());
     const text = textOf(html);
     expect(html.match(/<h1/g)).toHaveLength(1);
     expect(text).toContain('AI Features');
@@ -75,14 +88,14 @@ describe('Platform > AI Features', () => {
         features: [{ ...feature, enabled: true, adminDailyLimit: 5, updatedAt: new Date() }],
       },
     });
-    const text = textOf(await renderServer(Page({})));
+    const text = textOf(await renderServer(Page()));
     expect(text).toContain('5 a day (lowered from the plan’s 15)');
     expect(text).toContain('Last changed on');
   });
 
   it('is restricted to the platform owner', async () => {
     mocks.staffPrincipal.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
-    const text = textOf(await renderServer(Page({})));
+    const text = textOf(await renderServer(Page()));
     expect(mocks.listAiFeatureSettings).not.toHaveBeenCalled();
     expect(text).not.toContain('AI App Suggestions');
   });
@@ -92,16 +105,19 @@ describe('Platform > AI Features', () => {
       ok: true,
       value: { available: false, features: [feature] },
     });
-    const text = textOf(await renderServer(Page({})));
+    const text = textOf(await renderServer(Page()));
     expect(text).toContain('every AI feature listed here stays off');
     expect(text).not.toContain('Change AI App Suggestions');
   });
 });
 
-describe('after a fresh sign-in check', () => {
-  it('hands the typed values back to that feature’s form, unsaved', async () => {
-    const first = await renderServer(
-      Page({
+describe('after a fresh sign-in check (S21 round 3: never from the address)', () => {
+  const typed = { feature: 'ai_app_suggestions', enabled: true, dailyLimit: '10' } as const;
+
+  it('a crafted link fills nothing and shows no notice', async () => {
+    const page = Page as unknown as (props: unknown) => ReturnType<typeof Page>;
+    const html = await renderServer(
+      page({
         searchParams: Promise.resolve({
           retry_feature: 'ai_app_suggestions',
           retry_on: '1',
@@ -109,12 +125,24 @@ describe('after a fresh sign-in check', () => {
         }),
       }),
     );
-    expect(stubProps(first, 'AiFeatureForm')[0]).toMatchObject({
+    expect(stubProps(html, 'AiFeatureForm')[0]).not.toHaveProperty('retry');
+  });
+
+  it('a valid cookie signed for this account hands the typed values back, unsaved', async () => {
+    requestCookies.set(AI_FEATURE_RETRY_COOKIE, encodeAiFeatureRetry(typed, 'acct-1') ?? '');
+    expect(stubProps(await renderServer(Page()), 'AiFeatureForm')[0]).toMatchObject({
       retry: { enabled: true, dailyLimit: '10' },
     });
-    const other = await renderServer(
-      Page({ searchParams: Promise.resolve({ retry_feature: 'unknown' }) }),
-    );
-    expect(stubProps(other, 'AiFeatureForm')[0]).not.toHaveProperty('retry');
+  });
+
+  it('ignores a cookie for another account, a forged one or an expired one', async () => {
+    for (const value of [
+      encodeAiFeatureRetry(typed, 'someone-else') ?? '',
+      `${Buffer.from(JSON.stringify({ f: 'ai_app_suggestions', o: true, l: '10', a: 'acct-1', x: 9e9 })).toString('base64url')}.forged`,
+      encodeAiFeatureRetry(typed, 'acct-1', new Date('2020-01-01T00:00:00Z')) ?? '',
+    ]) {
+      requestCookies.set(AI_FEATURE_RETRY_COOKIE, value);
+      expect(stubProps(await renderServer(Page()), 'AiFeatureForm')[0]).not.toHaveProperty('retry');
+    }
   });
 });

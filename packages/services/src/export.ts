@@ -228,33 +228,40 @@ export async function exportAccount(
         .select()
         .from(schema.missions)
         .where(eq(schema.missions.applicantId, applicant.id));
-      const missions = await Promise.all(
-        missionRows.map(async (mission) => {
-          const tasks = await db
-            .select()
-            .from(schema.missionTasks)
-            .where(eq(schema.missionTasks.missionId, mission.id));
-          return {
-            mission,
-            snapshots: await db
+      // One query for every task across this person's cases, and one for which app added them.
+      const missionIds = missionRows.map((mission) => mission.id);
+      const taskRows =
+        missionIds.length > 0
+          ? await db
               .select()
-              .from(schema.missionSnapshots)
-              .where(eq(schema.missionSnapshots.missionId, mission.id)),
-            tasks,
-            aiTaskOrigins:
-              suggestionsReady && tasks.length > 0
-                ? await db
-                    .select()
-                    .from(schema.aiTaskOrigins)
-                    .where(
-                      inArray(
-                        schema.aiTaskOrigins.taskId,
-                        tasks.map((task) => task.id),
-                      ),
-                    )
-                : [],
-          };
-        }),
+              .from(schema.missionTasks)
+              .where(inArray(schema.missionTasks.missionId, missionIds))
+          : [];
+      const originRows =
+        suggestionsReady && taskRows.length > 0
+          ? await db
+              .select()
+              .from(schema.aiTaskOrigins)
+              .where(
+                inArray(
+                  schema.aiTaskOrigins.taskId,
+                  taskRows.map((task) => task.id),
+                ),
+              )
+          : [];
+      const missionOfTask = new Map(taskRows.map((task) => [task.id, task.missionId] as const));
+      const missions = await Promise.all(
+        missionRows.map(async (mission) => ({
+          mission,
+          snapshots: await db
+            .select()
+            .from(schema.missionSnapshots)
+            .where(eq(schema.missionSnapshots.missionId, mission.id)),
+          tasks: taskRows.filter((task) => task.missionId === mission.id),
+          aiTaskOrigins: originRows.filter(
+            (origin) => missionOfTask.get(origin.taskId) === mission.id,
+          ),
+        })),
       );
 
       const grantRows = await db

@@ -69,11 +69,7 @@ describe('choices kept through a fresh sign-in check', () => {
       duration: '1h',
     };
     const query = browser.consentChoicesToQuery(chosen);
-    // Change Access returning from its own sign-in check gets every choice back.
-    expect(
-      browser.consentChoicesFromQuery((name) => query[name], { suggestFromLink: true }),
-    ).toEqual(chosen);
-    // The consent screen gets every read choice back, but never a ticked Suggest Changes (S21).
+    // Every read choice comes back, but never a ticked Suggest Changes: a link cannot carry it (S21).
     expect(browser.consentChoicesFromQuery((name) => query[name])).toEqual({
       ...chosen,
       suggestChanges: false,

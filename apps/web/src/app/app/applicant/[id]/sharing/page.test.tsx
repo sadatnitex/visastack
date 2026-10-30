@@ -335,7 +335,11 @@ describe('AI Connections on the Sharing page', () => {
     connectorOn: boolean;
     notice?: string;
     cases: { id: string; title: string }[];
-    returning?: { connectionId: string; choices: { layers: string[] }; duration: string };
+    returning?: {
+      connectionId: string;
+      choices: { layers: string[]; suggestChanges: boolean };
+      duration: string;
+    };
   };
   const renderWith = (search: Record<string, string> = {}) =>
     renderServer(
@@ -408,13 +412,15 @@ describe('AI Connections on the Sharing page', () => {
           choice_layers: 'identity',
           choice_cases: 'm1',
           choice_duration: 'keep',
+          // A crafted link: Suggest Changes is never read from the address (S21 round 3).
+          choice_suggest: '1',
         }),
         'AiConnectionsSection',
       );
       expect(props?.cases).toEqual([{ id: 'm1', title: 'UK Visit' }]);
       expect(props?.returning).toMatchObject({
         connectionId: 'c1',
-        choices: { layers: ['identity'] },
+        choices: { layers: ['identity'], suggestChanges: false },
         duration: 'keep',
       });
     } finally {

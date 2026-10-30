@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import type { PGlite } from '@electric-sql/pglite';
 import { isOk } from '@visastack/core';
 import { AI_FEATURE_OFF_HINT } from '@visastack/core/ai-features';
 import { fieldPolicyOf } from '@visastack/core/catalogue';
@@ -1262,5 +1263,62 @@ describe('S21 review round 2', () => {
     // Token hashes are never part of it.
     expect(JSON.stringify(exported.value)).not.toContain('token_hash');
     expect(JSON.stringify(exported.value)).not.toContain('tokenHash');
+  });
+});
+
+describe('S21 review round 3', () => {
+  /** Runs `body` with every statement the code sends to the database written down. */
+  async function recording<T>(body: () => Promise<T>) {
+    const plain = db;
+    const statements: string[] = [];
+    const client = (plain as unknown as { $client: PGlite }).$client;
+    db = drizzle(client, {
+      schema,
+      logger: { logQuery: (query) => void statements.push(query) },
+    }) as unknown as Db;
+    try {
+      return { value: await body(), statements };
+    } finally {
+      db = plain;
+    }
+  }
+  const touches = (statements: readonly string[], table: string) =>
+    statements.filter((statement) => statement.includes(`"${table}"`));
+
+  it('an app at its daily limit does no expensive work: no document list, no case lookup', async () => {
+    const { ownerId, applicantId } = await person();
+    await register('phone');
+    const passport = await document(applicantId, 'PASSPORT');
+    const trip = await caseFor(ownerId, applicantId, 'London Trip');
+    const { token } = await connect(ownerId, applicantId, SUGGEST);
+    await exhaustRateLimit(db, ownerId, 'ai_write.account', RATE_LIMITS.AI_WRITE_ACCOUNT_DAY, now);
+    const suggestion = await recording(() =>
+      refused(token, 'suggest_profile_update', {
+        ...phoneSuggestion,
+        document_reference: passport.reference,
+      }),
+    );
+    expect(suggestion.value).toBe(MESSAGES.writeLimit);
+    expect(touches(suggestion.statements, 'documents')).toEqual([]);
+    expect(touches(suggestion.statements, 'document_versions')).toEqual([]);
+    const reminder = await recording(() =>
+      refused(token, 'add_reminder', {
+        case_reference: trip.reference,
+        title: 'Book it',
+        due_date: DUE,
+      }),
+    );
+    expect(reminder.value).toBe(MESSAGES.writeLimit);
+    expect(touches(reminder.statements, 'missions')).toEqual([]);
+    const draft = await recording(() =>
+      refused(token, 'save_draft', {
+        title: 'Letter',
+        body: 'Body',
+        case_reference: trip.reference,
+      }),
+    );
+    expect(draft.value).toBe(MESSAGES.writeLimit);
+    expect(touches(draft.statements, 'missions')).toEqual([]);
+    expect(await counts()).toMatchObject({ proposals: 0, drafts: 0, tasks: 0 });
   });
 });

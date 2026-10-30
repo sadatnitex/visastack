@@ -83,34 +83,40 @@ export async function registerFieldDefinitions(
 /**
  * Register (or return the existing) canonical field definition. This is the
  * registry the manual and AI paths both draw from; idempotent by key.
+ *
+ * Safe when two first saves of the same key race (S21 round 3): the insert
+ * does nothing on a key someone else registered in between, and the row that
+ * won is read back, so a caller (or the transaction it runs in) never fails on
+ * the unique key.
  */
 export async function registerFieldDefinition(
   db: Db,
   input: RegisterFieldInput,
 ): Promise<FieldDefinition> {
-  const existing = first(
-    await db
-      .select()
-      .from(schema.fieldDefinitions)
-      .where(eq(schema.fieldDefinitions.key, input.key))
-      .limit(1),
-  );
-  if (existing) return existing;
-  return required(
+  const byKey = async () =>
     first(
       await db
-        .insert(schema.fieldDefinitions)
-        .values({
-          key: input.key,
-          dataType: input.dataType,
-          sensitivity: input.sensitivity ?? 'STANDARD',
-          repeating: input.repeating ?? false,
-          packId: input.packId ?? null,
-        })
-        .returning(),
-    ),
-    'field definition',
+        .select()
+        .from(schema.fieldDefinitions)
+        .where(eq(schema.fieldDefinitions.key, input.key))
+        .limit(1),
+    );
+  const existing = await byKey();
+  if (existing) return existing;
+  const inserted = first(
+    await db
+      .insert(schema.fieldDefinitions)
+      .values({
+        key: input.key,
+        dataType: input.dataType,
+        sensitivity: input.sensitivity ?? 'STANDARD',
+        repeating: input.repeating ?? false,
+        packId: input.packId ?? null,
+      })
+      .onConflictDoNothing({ target: schema.fieldDefinitions.key })
+      .returning(),
   );
+  return inserted ?? required(await byKey(), 'field definition');
 }
 
 export interface EditFactInput {

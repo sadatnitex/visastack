@@ -1,11 +1,6 @@
 import { type Result, err, ok, parseReferenceCode } from '@visastack/core';
 import { isHiddenCodePoint } from '@visastack/core/ai-features';
-import {
-  CATALOGUE_FIELDS,
-  type FieldPolicy,
-  LEGACY_FIELD_SNAPSHOT,
-  fieldPolicyOf,
-} from '@visastack/core/catalogue';
+import { type FieldPolicy, fieldPolicyOf, fieldRegistryInput } from '@visastack/core/catalogue';
 import { and, desc, eq, gt, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access/require-access';
 import type { ProposalWithEvidence } from './ai';
@@ -21,7 +16,7 @@ import { FINISHED_CASE_STATES, latestTimeZoneName } from './attention';
 import { type AuditEventInput, appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
-import { type RegisterFieldInput, registerFieldDefinition } from './profile';
+import { registerFieldDefinition } from './profile';
 import { findReferenceEntity } from './reference-codes';
 
 /**
@@ -59,14 +54,17 @@ export const AI_SUGGESTION_LIMITS = Object.freeze({
   reminderYearsAhead: 5,
 });
 
+/** Database handles already seen with migration 0104 in place. Only a "yes" is kept: migrations are additive. */
+const READY = new WeakSet<object>();
+
 /**
  * Whether migration 0104 has run: a document became optional on a suggestion (its last
  * statements) and both new tables exist. Read from the catalogue, so it never fails a transaction
  * the way a query on a missing table would; every reader and writer asks it first.
+ *
+ * A "yes" is cached per database handle (the pool, or one transaction), so repeated asks within
+ * one request cost nothing. A "no" is never cached: once the migration runs, the next ask sees it.
  */
-/** Database handles already seen with migration 0104 in place. Only a "yes" is kept: migrations are additive. */
-const READY = new WeakSet<object>();
-
 export async function aiSuggestionsAvailable(db: Db): Promise<boolean> {
   if (READY.has(db)) return true;
   const rows = await db
@@ -157,23 +155,6 @@ export function cleanText(text: string): string {
   return visible(text.replace(/\r\n?/g, '\n'), true, '').trim();
 }
 
-/**
- * The registry entry a catalogue detail gets when it is first saved, the same one the profile
- * editor registers (live fields first, then the catalogue), or undefined for an unknown key.
- */
-function catalogueDefinition(key: string): RegisterFieldInput | undefined {
-  const live = LEGACY_FIELD_SNAPSHOT.find((field) => field.key === key);
-  const field = live ?? CATALOGUE_FIELDS.find((candidate) => candidate.key === key);
-  if (!field) return undefined;
-  return {
-    key: field.key,
-    dataType: field.type === 'date' ? 'date' : 'string',
-    sensitivity: field.sensitivity,
-    repeating: field.group !== undefined,
-    packId: field.pack,
-  };
-}
-
 // --- Writes, through the gate's proof ----------------------------------------
 
 export type AiWriteRefusal =
@@ -245,7 +226,9 @@ export async function recordProfileSuggestion(
   }
   // The live registry decides too: the approval writes through it. A catalogue detail nobody has
   // saved yet has no row: it is registered here exactly as saving it by hand would register it.
-  const catalogue = catalogueDefinition(input.fieldKey);
+  // One shape for every writer (@visastack/core/catalogue), so the definition never depends on
+  // whether an app or the person saved the detail first.
+  const catalogue = fieldRegistryInput(input.fieldKey);
   if (!catalogue) return { kind: 'refused', reason: 'field_not_shared' };
   const definition = await registerFieldDefinition(tx, catalogue);
   if (definition.sensitivity === 'RESTRICTED') {
@@ -341,6 +324,52 @@ export async function recordProfileSuggestion(
     'connector suggestion',
   );
   return { kind: 'created', value: { proposalId: proposal.id } };
+}
+
+/**
+ * Whether this connection may already have the same detail and value waiting, on the profile or
+ * on any document. Read only, and asked before the gate's cheap daily-limit check: a resend after
+ * a timeout must reach the full path, which answers it again uncounted. A "no" here means the
+ * exact suggestion cannot be waiting either, so refusing at the limit is right.
+ */
+export async function appSuggestionMayBeWaiting(
+  proof: AuthorizedApplicant<'VIEW_METADATA'>,
+  input: { readonly writer: AiWriter; readonly fieldKey: string; readonly value: string },
+): Promise<boolean> {
+  if (
+    !AuthorizedApplicant.isGenuine(proof, 'VIEW_METADATA') ||
+    proof.actor.kind !== 'applicant_owner' ||
+    proof.purpose !== 'ai_connection' ||
+    proof.resource.kind !== 'applicant'
+  ) {
+    throw new NotTheGate();
+  }
+  const value = cleanLine(input.value);
+  if (value.length === 0) return false;
+  const waiting = first(
+    await proof.tx
+      .select({ id: schema.fieldProposals.id })
+      .from(schema.fieldProposals)
+      .innerJoin(
+        schema.aiExtractionRuns,
+        eq(schema.aiExtractionRuns.id, schema.fieldProposals.aiExtractionRunId),
+      )
+      .where(
+        and(
+          eq(schema.fieldProposals.applicantId, proof.applicant.id),
+          eq(schema.fieldProposals.status, 'PENDING'),
+          eq(schema.fieldProposals.fieldKey, input.fieldKey),
+          eq(schema.fieldProposals.value, value),
+          eq(
+            schema.aiExtractionRuns.promptVersion,
+            connectionPromptVersion(input.writer.connectionId),
+          ),
+          eq(schema.aiExtractionRuns.modelVersion, connectorModelVersion(input.writer.clientHost)),
+        ),
+      )
+      .limit(1),
+  );
+  return waiting !== undefined;
 }
 
 export interface AiDraftInput {

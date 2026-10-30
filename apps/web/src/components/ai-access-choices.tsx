@@ -37,6 +37,8 @@ export interface AiAccessChoicesProps {
    * starts ticked and can always be unticked; while the feature is off it cannot be ticked on.
    */
   readonly suggestMode?: 'consent' | 'change';
+  /** Change Access: whether the connection has it stored. Only then may it stay on while off. */
+  readonly suggestStored?: boolean;
 }
 
 /**
@@ -53,9 +55,12 @@ export function AiAccessChoices({
   invalid,
   suggestionsAvailable = false,
   suggestMode = 'consent',
+  suggestStored = false,
 }: AiAccessChoicesProps) {
-  const suggestStartsTicked = suggestMode === 'change' && initial.suggestChanges;
-  const suggestEditable = suggestionsAvailable || suggestStartsTicked;
+  // Enabled while the feature works, or on Change Access when already stored (so it can be
+  // unticked). Never shown ticked unless the server would keep it ticked.
+  const suggestEditable = suggestionsAvailable || (suggestMode === 'change' && suggestStored);
+  const suggestStartsTicked = suggestMode === 'change' && initial.suggestChanges && suggestEditable;
   const id = useId();
   const problem = (field: string) =>
     invalid?.field === field
@@ -216,7 +221,7 @@ export function AiAccessChoices({
           </label>
           {suggestionsAvailable ? null : (
             <p className="muted u-fs-075 u-m-0" id={`${id}-ai-suggest-off`}>
-              {suggestStartsTicked
+              {suggestMode === 'change' && suggestStored
                 ? `${AI_FEATURE_OFF_HINT} ${AI_SUGGEST_KEPT_NOTE}`
                 : AI_FEATURE_OFF_HINT}
             </p>

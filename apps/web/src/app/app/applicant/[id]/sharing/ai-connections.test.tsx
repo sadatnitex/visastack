@@ -298,6 +298,27 @@ describe('Suggest Changes on AI Connections (S21)', () => {
     expect(textOf(html)).toContain('Suggested updates change nothing until you accept them');
   });
 
+  it('a crafted Change Access link with choice_suggest=1 never ticks it: it starts from the stored scope', () => {
+    const crafted = {
+      connectionId: connection().id,
+      choices: {
+        layers: ['identity'] as const,
+        cases: 'all' as const,
+        documentList: true,
+        documentText: false,
+        revealIdentifiers: false,
+        suggestChanges: true,
+      },
+      duration: 'keep' as const,
+    };
+    for (const suggestionsAvailable of [true, false]) {
+      const html = render({ suggestionsAvailable, returning: crafted });
+      const box = html.match(/<input[^>]*name="suggest_changes"[^>]*>/)?.[0] ?? '';
+      expect(box).not.toContain('checked');
+      expect(html).toContain('<details class="ai-connection-change" open="">');
+    }
+  });
+
   it('offers the choice when the feature is on', () => {
     const html = render({
       suggestionsAvailable: true,

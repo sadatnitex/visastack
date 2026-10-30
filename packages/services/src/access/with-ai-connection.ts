@@ -16,6 +16,7 @@ import {
   type AiWriteOutcome,
   type AiWriter,
   aiSuggestionsAvailable,
+  appSuggestionMayBeWaiting,
   decideSuggestionField,
   recordAiDraft,
   recordAiReminder,
@@ -31,7 +32,7 @@ import {
   aiContextToolLabel,
   recordProductEvent,
 } from '../product-events';
-import { RATE_LIMITS, checkRateLimits } from '../rate-limit';
+import { RATE_LIMITS, checkRateLimits, isRateLimitReached } from '../rate-limit';
 import {
   type CaseSelection,
   type SelectedOutput,
@@ -723,15 +724,10 @@ function suggestionWrites(context: WriteContext): AiSuggestionWrites {
   async function blocked(): Promise<AiWriteFailure | null> {
     if (!context.isOpen()) return 'failed';
     if (!scope.suggestChanges) return 'suggestions_not_granted';
-    // One storage check per call, handed to the feature state rather than made again.
+    // The storage check caches a "yes" per handle, so the feature state below does not probe again.
     if (!(await aiSuggestionsAvailable(tx))) return 'not_available';
     // The platform owner's switch for AI App Suggestions and the person's plan, on every call.
-    const feature = await getAiFeatureState(
-      tx,
-      'ai_app_suggestions',
-      { proof: context.proof },
-      { ready: true },
-    );
+    const feature = await getAiFeatureState(tx, 'ai_app_suggestions', { proof: context.proof });
     if (!feature.available) {
       return feature.reason === 'not_available_yet' ? 'not_available' : 'feature_off';
     }
@@ -739,10 +735,20 @@ function suggestionWrites(context: WriteContext): AiSuggestionWrites {
     if (!(await hasConsent(tx, connection.accountId, 'CORE_PROCESSING'))) {
       return 'consent_required';
     }
-    // The daily limits are checked when something is about to be saved (in `save`), after the
-    // same suggestion already waiting has been found, so a resend after a timeout is answered
-    // as before rather than refused at the limit.
     return null;
+  }
+
+  /**
+   * Read only and cheap: whether either daily limit is already reached. Each write asks it after
+   * looking for the same suggestion already waiting (a resend after a timeout is answered again,
+   * never refused here) and before any expensive work, such as listing documents or resolving a
+   * case. Nothing is counted here; the atomic charge is in `save`, just before the audit records.
+   */
+  async function atLimit(): Promise<boolean> {
+    for (const cap of caps) {
+      if (await isRateLimitReached(tx, cap.input, cap.config, now)) return true;
+    }
+    return false;
   }
 
   async function chosenCase(
@@ -826,6 +832,12 @@ function suggestionWrites(context: WriteContext): AiSuggestionWrites {
         revealIdentifiers: scope.revealIdentifiers,
       });
       if (!policy) return fail('field_not_shared');
+      const mayBeWaiting = await appSuggestionMayBeWaiting(context.proof, {
+        writer,
+        fieldKey: policy.key,
+        value: input.value,
+      });
+      if (!mayBeWaiting && (await atLimit())) return fail('write_limit');
       let documentReference: string | null = null;
       if (input.documentReference !== undefined) {
         if (!scope.documentList) return fail('document_list_not_granted');
@@ -866,6 +878,8 @@ function suggestionWrites(context: WriteContext): AiSuggestionWrites {
     async saveDraft(input: AiSaveDraftInput) {
       const stop = await blocked();
       if (stop) return fail(stop);
+      // Drafts are never deduplicated, so the limit is checked straight away.
+      if (await atLimit()) return fail('write_limit');
       let chosen: { readonly missionId: string; readonly reference: string } | null = null;
       if (input.caseReference !== undefined) {
         const found = await chosenCase(input.caseReference);
@@ -891,6 +905,8 @@ function suggestionWrites(context: WriteContext): AiSuggestionWrites {
     async addReminder(input: AiAddReminderInput) {
       const stop = await blocked();
       if (stop) return fail(stop);
+      // Reminders are never deduplicated, so the limit is checked before the case is resolved.
+      if (await atLimit()) return fail('write_limit');
       const found = await chosenCase(input.caseReference);
       if (!found.ok) return fail(found.error);
       const chosen = found.value;

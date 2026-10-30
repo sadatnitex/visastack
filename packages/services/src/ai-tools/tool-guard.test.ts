@@ -282,7 +282,10 @@ describe('one lock order for every AI write (S21 review item 5)', () => {
   });
 });
 
-/** Modules that use `mission_tasks`, and whether they serve an agency. A new one must be listed. */
+/**
+ * Modules under src/ (any folder) that use `mission_tasks`, and whether they serve an agency. A
+ * new one must be listed. Paths are relative to src/.
+ */
 const TASK_READERS: Readonly<Record<string, 'agency' | 'owner or system'>> = {
   'agency.ts': 'agency',
   'ai-suggestions.ts': 'owner or system',
@@ -290,55 +293,213 @@ const TASK_READERS: Readonly<Record<string, 'agency' | 'owner or system'>> = {
   'case-retention.ts': 'owner or system',
   'deadline-clock.ts': 'owner or system',
   'export.ts': 'owner or system',
+  // Names the account export's own tasks table (mission_tasks.csv); it reads nothing itself.
+  'export-csv.ts': 'owner or system',
   'missions.ts': 'owner or system',
   'notification-sweep.ts': 'owner or system',
 };
 
-/** The `.from(schema.missionTasks)` reads in a file that are not filtered by `agencyVisibleTasks`. */
-function unfilteredTaskReads(source: string): number {
-  const sf = ts.createSourceFile('agency.ts', source, ts.ScriptTarget.Latest, true);
-  let unfiltered = 0;
+const TASK_TABLE = 'missionTasks';
+const TASK_SQL_NAME = 'mission_tasks';
+const READ_METHODS = new Set(['from', 'innerJoin', 'leftJoin', 'rightJoin', 'fullJoin']);
+
+/** Every non-test .ts file under `dir`, in every subfolder, relative to src/. */
+function sourceFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) return sourceFiles(full);
+    if (!entry.name.endsWith('.ts') || /\.test(-support)?\.ts$|\.test-d\.ts$/.test(entry.name)) {
+      return [];
+    }
+    return [path.relative(srcDir, full).split(path.sep).join('/')];
+  });
+}
+
+function inTypePosition(node: ts.Node): boolean {
+  for (let current = node.parent; current; current = current.parent) {
+    if (ts.isTypeNode(current)) return true;
+    if (ts.isStatement(current) || ts.isSourceFile(current)) return false;
+  }
+  return false;
+}
+
+/**
+ * How a file reaches the tasks table, found by identifier rather than by one exact text: the
+ * table under any name (`schema.missionTasks`, `x['missionTasks']`, `db.query.missionTasks`, an
+ * import `{ missionTasks as t }`, a destructuring `const { missionTasks: t } = schema`, or
+ * `const t = schema.missionTasks`), and raw SQL naming `mission_tasks`. Type-only uses are not
+ * uses. `reads` are the uses that read rows: the table given to `.from(...)` or a join, the
+ * relational `db.query.missionTasks`, the table placed whole into a `sql` template, and raw SQL.
+ */
+function taskUses(fileName: string, source: string): { uses: number; reads: ts.Node[] } {
+  const sf = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true);
+  const aliases = new Set<string>();
+  // Pass 1: the local names the table goes by.
+  const collect = (node: ts.Node) => {
+    if (ts.isImportSpecifier(node) && (node.propertyName ?? node.name).text === TASK_TABLE) {
+      aliases.add(node.name.text);
+    }
+    if (
+      ts.isBindingElement(node) &&
+      ts.isIdentifier(node.name) &&
+      (node.propertyName && ts.isIdentifier(node.propertyName)
+        ? node.propertyName.text
+        : node.name.text) === TASK_TABLE
+    ) {
+      aliases.add(node.name.text);
+    }
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      isTableName(node.initializer)
+    ) {
+      aliases.add(node.name.text);
+    }
+    ts.forEachChild(node, collect);
+  };
+  const isTableName = (node: ts.Node): boolean =>
+    (ts.isPropertyAccessExpression(node) && node.name.text === TASK_TABLE) ||
+    (ts.isElementAccessExpression(node) &&
+      ts.isStringLiteralLike(node.argumentExpression) &&
+      node.argumentExpression.text === TASK_TABLE);
+  collect(sf);
+  const isTable = (node: ts.Node): boolean =>
+    isTableName(node) ||
+    (ts.isIdentifier(node) &&
+      aliases.has(node.text) &&
+      !(ts.isPropertyAccessExpression(node.parent) && node.parent.name === node) &&
+      !ts.isImportSpecifier(node.parent) &&
+      !ts.isBindingElement(node.parent) &&
+      !(ts.isVariableDeclaration(node.parent) && node.parent.name === node) &&
+      !(ts.isPropertyAssignment(node.parent) && node.parent.name === node));
+  let uses = 0;
+  const reads: ts.Node[] = [];
+  // Pass 2: every use, and which of them read rows.
   const visit = (node: ts.Node) => {
     if (
-      ts.isCallExpression(node) &&
-      ts.isPropertyAccessExpression(node.expression) &&
-      node.expression.name.text === 'from' &&
-      node.arguments[0]?.getText(sf) === 'schema.missionTasks'
+      (ts.isStringLiteralLike(node) ||
+        ts.isTemplateHead(node) ||
+        ts.isTemplateMiddle(node) ||
+        ts.isTemplateTail(node)) &&
+      node.text.includes(TASK_SQL_NAME)
     ) {
-      // The whole query chain this read belongs to.
-      let chain: ts.Node = node;
-      while (
-        ts.isPropertyAccessExpression(chain.parent) ||
-        (ts.isCallExpression(chain.parent) && chain.parent.expression === chain)
-      ) {
-        chain = chain.parent;
-      }
-      if (!chain.getText(sf).includes('agencyVisibleTasks(')) unfiltered += 1;
+      uses += 1;
+      reads.push(node);
+    } else if (isTable(node) && !inTypePosition(node)) {
+      uses += 1;
+      const parent = node.parent;
+      const relational =
+        ts.isPropertyAccessExpression(node) &&
+        ts.isPropertyAccessExpression(node.expression) &&
+        node.expression.name.text === 'query';
+      const fromOrJoin =
+        ts.isCallExpression(parent) &&
+        parent.arguments[0] === node &&
+        ts.isPropertyAccessExpression(parent.expression) &&
+        READ_METHODS.has(parent.expression.name.text);
+      const wholeInSql = ts.isTemplateSpan(parent) && parent.expression === node;
+      if (relational || fromOrJoin || wholeInSql) reads.push(node);
+      // A column of the table (`t.id`) is a use, not a read on its own; do not count its parts.
+      return;
     }
     ts.forEachChild(node, visit);
   };
   visit(sf);
-  return unfiltered;
+  return { uses, reads };
 }
 
-describe('agencies never read an AI reminder (S21 review cleanup)', () => {
-  it('every module that reads tasks is known, and every agency read goes through agencyVisibleTasks', () => {
-    const readers = readdirSync(srcDir)
-      .filter((file) => file.endsWith('.ts') && !/\.test(-support)?\.ts$/.test(file))
-      .filter((file) =>
-        /schema\.missionTasks\b/.test(readFileSync(path.join(srcDir, file), 'utf8')),
-      )
+/** Whether `node` calls `agencyVisibleTasks(...)` anywhere inside it. */
+function callsAgencyFilter(node: ts.Node): boolean {
+  let found = false;
+  const visit = (n: ts.Node) => {
+    if (
+      ts.isCallExpression(n) &&
+      ts.isIdentifier(n.expression) &&
+      n.expression.text === 'agencyVisibleTasks'
+    ) {
+      found = true;
+    }
+    if (!found) ts.forEachChild(n, visit);
+  };
+  visit(node);
+  return found;
+}
+
+/**
+ * The reads of tasks in an agency-facing file that are not filtered by `agencyVisibleTasks`: a
+ * read counts as filtered only when the whole statement it is part of calls the filter.
+ * `agencyVisibleTasks` itself is the filter and is not checked. Writes (insert, update) are not
+ * reads: in agency.ts each one follows a filtered read of the same task in the same transaction.
+ */
+function unfilteredTaskReads(source: string, fileName = 'agency.ts'): number {
+  return taskUses(fileName, source).reads.filter((read) => {
+    let statement: ts.Node = read;
+    while (statement.parent && !ts.isStatement(statement)) statement = statement.parent;
+    for (let current: ts.Node | undefined = read; current; current = current.parent) {
+      if (ts.isFunctionDeclaration(current) && current.name?.text === 'agencyVisibleTasks') {
+        return false;
+      }
+    }
+    return !callsAgencyFilter(statement);
+  }).length;
+}
+
+describe('agencies never read an AI reminder (S21 review cleanup, round 3)', () => {
+  it('every module under src/ that uses tasks is known, and every agency read goes through agencyVisibleTasks', () => {
+    const files = sourceFiles(srcDir);
+    expect(files.some((file) => file.includes('/'))).toBe(true);
+    const readers = files
+      .filter((file) => taskUses(file, readFileSync(path.join(srcDir, file), 'utf8')).uses > 0)
       .sort();
     expect(readers).toEqual(Object.keys(TASK_READERS).sort());
-    const agency = readFileSync(path.join(srcDir, 'agency.ts'), 'utf8');
-    expect(unfilteredTaskReads(agency)).toBe(0);
+    for (const [file, audience] of Object.entries(TASK_READERS)) {
+      if (audience !== 'agency') continue;
+      expect(unfilteredTaskReads(readFileSync(path.join(srcDir, file), 'utf8'), file), file).toBe(
+        0,
+      );
+    }
   });
 
-  it('the rule itself sees an unfiltered agency read', () => {
+  it.each([
+    [
+      'the schema object',
+      'async function f(db) { return db.select().from(schema.missionTasks).where(eq(a, b)); }',
+    ],
+    [
+      'a renamed import',
+      "import { missionTasks as t } from '@visastack/db/schema';\nasync function f(db) { return db.select().from(t); }",
+    ],
+    [
+      'a destructuring',
+      'const { missionTasks } = schema;\nasync function f(db) { return db.select().from(missionTasks); }',
+    ],
+    [
+      'a renamed destructuring',
+      'const { missionTasks: tasks } = s;\nasync function f(db) { return db.select().from(other).innerJoin(tasks, eq(a, b)); }',
+    ],
+    [
+      'a local name',
+      'const t = db2.missionTasks;\nasync function f(db) { return db.select().from(t); }',
+    ],
+    ['the relational query', 'async function f(db) { return db.query.missionTasks.findMany(); }'],
+    [
+      'an element access',
+      "async function f(db) { return db.select().from(schema['missionTasks']); }",
+    ],
+    ['raw SQL', 'async function f(db) { return db.execute(sql`select * from mission_tasks`); }'],
+  ])('the rule itself sees an unfiltered agency read through %s', (_, source) => {
+    expect(unfilteredTaskReads(source)).toBe(1);
+    expect(taskUses('x.ts', source).uses).toBeGreaterThan(0);
+  });
+
+  it('the rule accepts a filtered read and ignores types and columns alone', () => {
     expect(
       unfilteredTaskReads(
-        'async function f(db) { return db.select().from(schema.missionTasks).where(eq(a, b)); }',
+        'async function f(db) { return db.select().from(schema.missionTasks).where(and(eq(a, b), await agencyVisibleTasks(db))); }',
       ),
-    ).toBe(1);
+    ).toBe(0);
+    expect(taskUses('x.ts', 'type T = typeof schema.missionTasks.$inferSelect;').uses).toBe(0);
+    expect(unfilteredTaskReads('const x = eq(schema.missionTasks.id, y);')).toBe(0);
   });
 });

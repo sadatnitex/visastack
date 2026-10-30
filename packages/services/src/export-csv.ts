@@ -1,4 +1,4 @@
-import type { ReferenceKind } from '@visastack/core';
+import { type ReferenceKind, csvCell } from '@visastack/core';
 import type { AccountExport } from './export';
 
 /**
@@ -22,20 +22,19 @@ export interface ExportCsvTable {
 
 const CRLF = '\r\n';
 
+/**
+ * Every cell of the account export, headers included, goes through `csvCell` from
+ * @visastack/core: formula cells (`=`, `+`, `-`, `@`, tab, carriage return, also after leading
+ * spaces) are defused, so a draft title an AI app wrote cannot run in a spreadsheet (S21 round 3).
+ */
 function escapeCsvField(value: unknown): string {
   if (value === null || value === undefined) return '';
-  let text: string;
-  if (value instanceof Date) {
-    text = value.toISOString();
-  } else if (typeof value === 'object') {
-    text = JSON.stringify(value);
-  } else {
-    text = String(value);
+  if (typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean') {
+    return String(value);
   }
-  if (/[",\r\n]/.test(text)) {
-    return `"${text.replace(/"/g, '""')}"`;
-  }
-  return text;
+  if (value instanceof Date) return csvCell(value.toISOString());
+  if (typeof value === 'object') return csvCell(JSON.stringify(value));
+  return csvCell(String(value));
 }
 
 /**
@@ -47,7 +46,7 @@ function escapeCsvField(value: unknown): string {
 export function rowsToCsv(rows: readonly Record<string, unknown>[]): string {
   if (rows.length === 0) return '';
   const columns = Object.keys(rows[0] as Record<string, unknown>);
-  const lines = [columns.join(',')];
+  const lines = [columns.map((column) => csvCell(column)).join(',')];
   for (const row of rows) {
     lines.push(columns.map((column) => escapeCsvField(row[column])).join(','));
   }

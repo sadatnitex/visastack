@@ -23,11 +23,26 @@ vi.mock('../../../../lib/step-up', () => ({
   STEP_UP_NOT_CONFIGURED_MESSAGE: 'Step-up is not configured here.',
 }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
+/** The browser's cookie jar for this page. */
+const jar = new Map<string, { value: string; options: unknown }>();
+vi.mock('next/headers', () => ({
+  cookies: async () => ({
+    get: (name: string) => (jar.has(name) ? { name, value: jar.get(name)?.value } : undefined),
+    set: (name: string, value: string, options: unknown) => {
+      jar.set(name, { value, options });
+    },
+    delete: (options: { name: string; path?: string }) => {
+      expect(options.path).toBe('/app/admin/ai');
+      jar.delete(options.name);
+    },
+  }),
+}));
 vi.mock('next/navigation', () => ({
   redirect: (to: string) => {
     throw new Error(`NEXT_REDIRECT:${to}`);
   },
 }));
+import { AI_FEATURE_RETRY_COOKIE, decodeAiFeatureRetry } from '../../../../lib/ai-feature-retry';
 import { saveAiFeatureAction } from './actions';
 
 const SCOPE = { kind: 'staff', platformAction: 'AI_FEATURES_MANAGE' };
@@ -44,6 +59,8 @@ function form(fields: Record<string, string>): FormData {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  jar.clear();
+  vi.stubEnv('NEON_AUTH_COOKIE_SECRET', 'x'.repeat(64));
   mocks.staffPrincipal.mockResolvedValue({ ok: true, value: SCOPE });
   mocks.updateAiFeatureSetting.mockResolvedValue({ ok: true, value: { changed: true } });
   mocks.tryEstablishStepUp.mockResolvedValue({ kind: 'satisfied' });
@@ -64,11 +81,41 @@ describe('saving an AI feature', () => {
       action: 'AI_FEATURES_UPDATE',
       resourceId: 'ai_app_suggestions',
     });
-    // The typed values come back after the sign-in check.
-    expect(mocks.tryEstablishStepUp.mock.calls[0]?.[1]).toBe(
-      '/app/admin/ai?retry_feature=ai_app_suggestions&retry_on=1&retry_limit=10',
-    );
+    // The return address carries nothing typed (S21 round 3).
+    expect(mocks.tryEstablishStepUp.mock.calls[0]?.[1]).toBe('/app/admin/ai');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/app/admin/ai');
+  });
+
+  it('keeps what was typed across the sign-in check in a signed cookie, and a successful save clears it', async () => {
+    mocks.updateAiFeatureSetting.mockResolvedValueOnce(stepUpNeeded);
+    mocks.tryEstablishStepUp.mockResolvedValueOnce({
+      kind: 'reauth_required',
+      reauthUrl: '/auth/sign-in?step_up=1',
+    });
+    await expect(
+      saveAiFeatureAction(INITIAL, form({ enabled: 'on', dailyLimit: '10' })),
+    ).rejects.toThrow('NEXT_REDIRECT:/auth/sign-in?step_up=1');
+    const kept = jar.get(AI_FEATURE_RETRY_COOKIE);
+    expect(kept?.options).toMatchObject({ httpOnly: true, path: '/app/admin/ai', maxAge: 900 });
+    expect(decodeAiFeatureRetry(kept?.value, 'synthetic-owner')).toEqual({
+      feature: 'ai_app_suggestions',
+      enabled: true,
+      dailyLimit: '10',
+    });
+    // Back from the check, the owner saves again: the remembered values are gone.
+    const saved = await saveAiFeatureAction(INITIAL, form({ enabled: 'on', dailyLimit: '10' }));
+    expect(saved).toMatchObject({ ok: true });
+    expect(jar.has(AI_FEATURE_RETRY_COOKIE)).toBe(false);
+  });
+
+  it('keeps the remembered values when the save is refused', async () => {
+    jar.set(AI_FEATURE_RETRY_COOKIE, { value: 'kept', options: {} });
+    mocks.updateAiFeatureSetting.mockResolvedValue({
+      ok: false,
+      error: { code: 'internal', message: 'x' },
+    });
+    expect((await saveAiFeatureAction(INITIAL, form({ enabled: 'on' }))).ok).toBe(false);
+    expect(jar.has(AI_FEATURE_RETRY_COOKIE)).toBe(true);
   });
 
   it('says that turning it off keeps what people have', async () => {

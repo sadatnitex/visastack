@@ -1,8 +1,9 @@
-import { isAiFeatureKey } from '@visastack/core/ai-features';
 import { type AiFeatureSettingView, listAiFeatureSettings } from '@visastack/services';
 import type { Metadata } from 'next';
+import { cookies } from 'next/headers';
 import { PageHeader, StatusBadge } from '../../../../components/ui';
 import { bootstrapAdminEmails, staffPrincipal } from '../../../../lib/admin';
+import { AI_FEATURE_RETRY_COOKIE, decodeAiFeatureRetry } from '../../../../lib/ai-feature-retry';
 import { formatTimestamp } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
 import { AdminRestricted } from '../admin-restricted';
@@ -59,27 +60,13 @@ function Feature({
   );
 }
 
-/** The platform owner turns AI features on or off and sets how much each person may use them. */
-/** Values typed before a fresh sign-in check, read back from the return address. */
-function retryFrom(
-  search: Record<string, string | string[] | undefined>,
-): { readonly feature: string; readonly values: AiFeatureValues } | undefined {
-  const one = (name: string) => {
-    const value = search[name];
-    return typeof value === 'string' ? value : undefined;
-  };
-  const feature = one('retry_feature');
-  const limit = one('retry_limit') ?? '';
-  if (!feature || !isAiFeatureKey(feature) || !/^\d{0,4}$/.test(limit)) return undefined;
-  return { feature, values: { enabled: one('retry_on') === '1', dailyLimit: limit } };
-}
-
-export default async function AiFeaturesPage({
-  searchParams,
-}: {
-  readonly searchParams?: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const retry = retryFrom((await searchParams) ?? {});
+/**
+ * The platform owner turns AI features on or off and sets how much each person may use them.
+ * Values typed before a fresh sign-in check come back only from the signed cookie the save set for
+ * this account, never from the address.
+ */
+export default async function AiFeaturesPage() {
+  const remembered = (await cookies()).get(AI_FEATURE_RETRY_COOKIE)?.value;
   const data = await withSession(async ({ db, accountId, email }) => {
     const staff = await staffPrincipal(
       db,
@@ -90,7 +77,8 @@ export default async function AiFeaturesPage({
     const listed = await listAiFeatureSettings(db, staff.value);
     if (!listed.ok) return { kind: 'restricted' as const };
     if (!listed.value.available) return { kind: 'unavailable' as const };
-    return { kind: 'ready' as const, features: listed.value.features };
+    const retry = decodeAiFeatureRetry(remembered, accountId);
+    return { kind: 'ready' as const, features: listed.value.features, retry };
   });
 
   return (
@@ -115,7 +103,11 @@ export default async function AiFeaturesPage({
             <Feature
               key={feature.feature}
               feature={feature}
-              retry={retry?.feature === feature.feature ? retry.values : undefined}
+              retry={
+                data.retry?.feature === feature.feature
+                  ? { enabled: data.retry.enabled, dailyLimit: data.retry.dailyLimit }
+                  : undefined
+              }
             />
           ))}
         </>

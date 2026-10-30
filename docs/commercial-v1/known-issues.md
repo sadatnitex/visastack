@@ -6400,3 +6400,24 @@ Round 2, 30 Oct 2026 (max code review, security review and accessibility review 
   - (6) dropping the insights filter turned the insights test red;
   - (8) checking the limit before the waiting suggestion turned the resend test red.
 
+Round 3, 30 Oct 2026 (re-review of a9dddf8e..9a60875e, 10 items):
+
+1. **Security:** Change Access read Suggest Changes from the address after its sign-in check. Now it starts from the stored scope only, the address never carries it, and the box is enabled only when stored or when the feature works. Test: a crafted `choice_suggest=1` link ticks nothing (section and page level).
+2. Two concurrent first suggestions of a new detail could fail on the registry's unique key. `registerFieldDefinition` now inserts with "do nothing on conflict" and reads the winning row. Test: a row inserted between the check and the insert.
+3. The cheap read-only limit check is back, after the waiting-duplicate check and before listing documents or resolving a case. The atomic charge stays last. Test: an app at its cap sends no query to `documents`, `document_versions` or `missions`; the resend test stays green.
+4. **Security:** formula injection in the account CSV. New pure helper `csvCell` in `@visastack/core` for every cell, headers included. Test: a draft title `=HYPERLINK(...)` and other formula cells across every table. S18's ledger CSV should point at the same helper at merge.
+5. **Security:** AI Features retry values came from the address. Now a signed, httpOnly, account-bound, 15-minute cookie scoped to `/app/admin/ai` (key derived from `NEON_AUTH_COOKIE_SECRET` with a fixed label), cleared on a successful save. Tests: a crafted link shows nothing; a valid cookie restores; another account's, a forged or an expired cookie shows nothing; a save clears it.
+6. The agency task guard now scans every folder of `packages/services/src` and finds the table by identifier (import, rename, destructuring, local name, element access, relational query, raw SQL). `export-csv.ts` is listed: it names `mission_tasks.csv` and reads nothing.
+7. `getAiFeatureState` lost its `ready` option; the per-handle cache makes the second probe free.
+8. The `READY` cache sits above the documented `aiSuggestionsAvailable`, with the cache behaviour in the comment.
+9. The account export reads all of a person's tasks in one query and their origins in one more.
+10. One registry shape for every writer: `fieldRegistryInput` / `savableFieldDefinition` in `@visastack/core/catalogue`, used by services, `field-registry.ts`, `master-profile.ts` and the two profile save actions.
+
+- **Break-to-red proofs this round** (each restored from a cp backup):
+  - (1) reading the link's choice again turned the crafted-link test red;
+  - (2) dropping "do nothing on conflict" failed the race test with a duplicate-key error;
+  - (3) removing the cheap check turned the "no expensive work" test red;
+  - (4) the old quoting-only escape turned the `=HYPERLINK` test red;
+  - (5) dropping the account check and the clear on save turned three tests red;
+  - (6) an unfiltered read in `access/` turned the guard red, both unlisted and listed as agency-facing.
+

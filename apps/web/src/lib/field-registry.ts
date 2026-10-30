@@ -1,24 +1,16 @@
+import { fieldRegistryInput } from '@visastack/core/catalogue';
 import { supportedFieldKeys } from '@visastack/core/catalogue/documents';
 import { type Db, getDocumentTypeOfVersion, registerFieldDefinitions } from '@visastack/services';
-import { savableField } from './master-profile';
 
 /**
  * Server only. The registry shape of each named field, live or added by the catalogue. Live definitions
- * win: `savableField` reads the live list first, and a key is registered once, by whoever gets there first.
+ * win, and every writer uses the same shape (`fieldRegistryInput` in @visastack/core/catalogue), so a key
+ * registered once, by whoever gets there first, is the same entry either way.
  */
 export function fieldDefinitionInputs(keys: readonly string[]) {
   return [...new Set(keys)].flatMap((key) => {
-    const def = savableField(key);
-    if (!def) return [];
-    return [
-      {
-        key: def.key,
-        dataType: def.type === 'date' ? 'date' : 'string',
-        sensitivity: def.sensitivity,
-        repeating: def.repeating,
-        packId: def.packId,
-      },
-    ];
+    const input = fieldRegistryInput(key);
+    return input ? [input] : [];
   });
 }
 

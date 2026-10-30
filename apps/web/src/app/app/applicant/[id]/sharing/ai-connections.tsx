@@ -90,7 +90,9 @@ function ChangeAccess({
 }) {
   const options = caseOptionsFor(item, cases);
   const back = returning?.connectionId === item.id ? returning : undefined;
-  const chosen = back ? back.choices : storedChoices(item);
+  const stored = storedChoices(item);
+  // Suggest Changes always starts from what the connection has stored, never from a link.
+  const chosen = back ? { ...back.choices, suggestChanges: stored.suggestChanges } : stored;
   const valid =
     chosen.cases === 'all' ||
     chosen.cases === 'none' ||
@@ -106,6 +108,7 @@ function ChangeAccess({
         appName={item.clientName}
         cases={options}
         initial={{ ...chosen, cases: valid ? chosen.cases : storedCase(item) }}
+        suggestStored={stored.suggestChanges}
         durations={changeDurations(item)}
         defaultDuration={back ? back.duration : AI_KEEP_END}
         suggestionsAvailable={suggestionsAvailable}
