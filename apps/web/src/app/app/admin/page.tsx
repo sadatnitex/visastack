@@ -72,6 +72,7 @@ const SCORECARD_LABELS: Record<ProductEventType, string> = {
   AI_CONTEXT_REQUESTED: 'AI Connection Days with Answers',
   AI_CONTEXT_DENIED: 'AI Connection Days with Refusals',
   AI_CONNECTOR_REVOKED: 'AI Connections Turned Off',
+  AI_FILE_SERVED: 'AI Connection Days with Files Given',
 };
 
 const SIGNAL_STATUS_LABEL: Record<OperationalSignal['status'], string> = {

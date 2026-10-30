@@ -1,6 +1,7 @@
 import {
   accountPrincipal,
   getAiFeatureState,
+  listAiFileCandidates,
   listApplicants,
   listMissions,
   requireAccess,
@@ -8,7 +9,18 @@ import {
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { aiConnectorEnabled } from '../../../lib/ai-connector';
-import { consentChoicesFromQuery, settleConsentCases } from '../../../lib/ai-consent-choices';
+import {
+  type AiFileChoice,
+  type AiFilesView,
+  consentChoicesFromQuery,
+  settleConsentCases,
+} from '../../../lib/ai-consent-choices';
+import {
+  AI_FILE_PICKS_CONSENT,
+  consentRequestKey,
+  decodeAiFilePicks,
+  rememberedAiFilePicks,
+} from '../../../lib/ai-file-picks-retry';
 import {
   type AuthorizeParams,
   checkAuthorizeRequest,
@@ -84,6 +96,7 @@ export default async function AuthorizePage({
   // Set when the person starts from one of their cases: that case is the default choice.
   const caseKey = 'case';
   const caseParam = singleParam(search[caseKey]);
+  const remembered = await rememberedAiFilePicks();
   const view = await withSession(async ({ db, accountId }) => {
     const records = (await listApplicants(db, accountId)).map((row) => ({
       id: row.id,
@@ -113,7 +126,41 @@ export default async function AuthorizePage({
       access?.ok === true
         ? (await getAiFeatureState(db, 'ai_app_suggestions', { proof: access.value })).available
         : false;
-    return { records, chosen, cases, suggestionsAvailable };
+    // "Original Files" (S20): the record's documents that may be ticked, once the feature exists.
+    let files: AiFilesView | undefined;
+    let filesInitial: readonly AiFileChoice[] = [];
+    if (access?.ok === true && chosen && access.value.actor.kind === 'applicant_owner') {
+      const candidates = await listAiFileCandidates(access.value);
+      if (candidates.ok && candidates.value.available) {
+        const feature = await getAiFeatureState(db, 'ai_app_original_files', {
+          proof: access.value,
+        });
+        files = {
+          available: feature.available,
+          candidates: candidates.value.documents.map((document) => ({
+            documentId: document.documentId,
+            referenceCode: document.referenceCode,
+            kind: document.kind,
+            group: document.group,
+            safeCopyReady: document.safeCopyReady,
+          })),
+        };
+        // The person's own ticks, back from a fresh sign-in check (a signed cookie, never a link).
+        filesInitial =
+          decodeAiFilePicks(remembered, {
+            accountId,
+            applicantId: chosen.id,
+            target: AI_FILE_PICKS_CONSENT,
+            // Only for this exact request: another app's screen is never pre-ticked.
+            request: consentRequestKey({
+              clientId: request.client.clientId,
+              codeChallenge: request.codeChallenge,
+              state: request.state,
+            }),
+          }) ?? [];
+      }
+    }
+    return { records, chosen, cases, suggestionsAvailable, files, filesInitial };
   });
 
   const appName = request.client.clientName;
@@ -168,6 +215,8 @@ export default async function AuthorizePage({
             record={view.chosen}
             cases={view.cases}
             suggestionsAvailable={view.suggestionsAvailable}
+            {...(view.files ? { files: view.files } : {})}
+            filesInitial={view.filesInitial}
             initial={settleConsentCases(
               consentChoicesFromQuery((name) => singleParam(search[name])),
               view.cases.map((item) => item.id),

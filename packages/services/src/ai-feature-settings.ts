@@ -15,6 +15,7 @@ import {
 import { eq, sql } from 'drizzle-orm';
 import { type StaffScope, staffScopeProblem } from './access/principal';
 import { AuthorizedApplicant } from './access/require-access';
+import { aiFilesAvailable } from './ai-files-ready';
 import { aiSuggestionsAvailable } from './ai-suggestions';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
@@ -54,6 +55,7 @@ export type AiFeatureContext =
 /** Whether each feature's own storage exists (its migration has run). Never fails a transaction. */
 const FEATURE_READY: Readonly<Record<AiFeatureKey, (db: Db) => Promise<boolean>>> = {
   ai_app_suggestions: aiSuggestionsAvailable,
+  ai_app_original_files: aiFilesAvailable,
 };
 
 export interface AiPlanEntitlement {

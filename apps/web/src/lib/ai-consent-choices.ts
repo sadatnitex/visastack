@@ -21,6 +21,35 @@ export const AI_CONNECTION_WARNING_LAYERS: readonly AiConnectionLayer[] = [
 ];
 /** "Suggest Changes" as the stored connection holds it (S21). */
 export const AI_SUGGEST_CHANGES_SCOPE = 'suggest_changes';
+/** "Original Files" (S20): how a ticked document may be given, the default, and the most ticked. */
+export const AI_FILE_VARIANTS = ['SAFE_COPY', 'ORIGINAL'] as const;
+export type AiFileVariant = (typeof AI_FILE_VARIANTS)[number];
+export const AI_FILE_DEFAULT_VARIANT: AiFileVariant = 'SAFE_COPY';
+export const AI_FILE_CHOICES_MAX = 50;
+/** One ticked document under "Original Files". */
+export interface AiFileChoice {
+  readonly documentId: string;
+  readonly variant: AiFileVariant;
+}
+/** One document that may be ticked, as the screens show it (plain data, no ids beyond its own). */
+export interface AiFileCandidateView {
+  readonly documentId: string;
+  readonly referenceCode: string | null;
+  readonly kind: string;
+  readonly group: string;
+  readonly safeCopyReady: boolean;
+}
+/** What "Original Files" shows on a form: the choices, what is ticked, and whether the feature works. */
+export interface AiFilesView {
+  readonly candidates: readonly AiFileCandidateView[];
+  readonly available: boolean;
+}
+/** Form field names of "Original Files": one box per document, one pair of choices per document. */
+export const AI_FILE_FIELD = 'file';
+export const AI_FILE_PRESENT_FIELD = 'files_present';
+export function aiFileVariantField(documentId: string): string {
+  return `file_variant_${documentId}`;
+}
 export const AI_CONNECTION_DURATIONS = ['1h', '24h', '7d', '30d', 'until_off'] as const;
 export type AiConnectionDuration = (typeof AI_CONNECTION_DURATIONS)[number];
 export const AI_CONNECTION_DEFAULT_DURATION: AiConnectionDuration = '30d';
@@ -133,11 +162,37 @@ export interface ParsedAiAccessChoices<D extends string> {
   readonly revealIdentifiers: boolean;
   readonly suggestChanges: boolean;
   readonly duration: D;
+  /**
+   * "Original Files" (S20): the ticked documents. Absent when the form did not show the choices
+   * (nothing to tick, or not available yet), which keeps what is stored.
+   */
+  readonly files?: readonly AiFileChoice[];
 }
 
 export type AiAccessChoicesParse<D extends string> =
   | { readonly ok: true; readonly value: ParsedAiAccessChoices<D> }
-  | { readonly ok: false; readonly message: string; readonly field: 'cases' | 'duration' };
+  | {
+      readonly ok: false;
+      readonly message: string;
+      readonly field: 'cases' | 'duration' | 'document_list' | 'file';
+    };
+
+/**
+ * The ticked documents as a form sent them: each box's document id, with the choice of its pair
+ * (a Safe Copy unless the Original was chosen). `undefined` when the form showed no choices.
+ */
+export function parseAiFileChoices(formData: FormData): AiFileChoice[] | undefined {
+  if (formData.get(AI_FILE_PRESENT_FIELD) !== '1') return undefined;
+  const files: AiFileChoice[] = [];
+  for (const value of formData.getAll(AI_FILE_FIELD)) {
+    if (typeof value !== 'string' || !CASE_ID_RE.test(value)) continue;
+    const documentId = value.toLowerCase();
+    if (files.some((file) => file.documentId === documentId)) continue;
+    const variant = formData.get(aiFileVariantField(documentId));
+    files.push({ documentId, variant: variant === 'ORIGINAL' ? 'ORIGINAL' : 'SAFE_COPY' });
+  }
+  return files;
+}
 
 function formText(formData: FormData, name: string): string | undefined {
   const value = formData.get(name);
@@ -177,6 +232,23 @@ export function parseAiAccessChoices(
   if (!offered) {
     return { ok: false, message: 'Choose how long the app may read.', field: 'duration' };
   }
+  const files = parseAiFileChoices(formData);
+  const documentList = formData.get('document_list') === 'on';
+  if (files !== undefined && files.length > AI_FILE_CHOICES_MAX) {
+    return {
+      ok: false,
+      message: `Choose at most ${AI_FILE_CHOICES_MAX} files under Original Files.`,
+      field: 'file',
+    };
+  }
+  if (files !== undefined && files.length > 0 && !documentList) {
+    return {
+      ok: false,
+      message:
+        'Original Files need List of My Documents, so the app can find each file. Turn it on, or untick the files.',
+      field: 'document_list',
+    };
+  }
   return {
     ok: true,
     value: {
@@ -184,11 +256,41 @@ export function parseAiAccessChoices(
       cases,
       caseMode,
       ...(caseMode === 'ONE' ? { missionId: cases } : {}),
-      documentList: formData.get('document_list') === 'on',
+      documentList,
       documentText: formData.get('document_text') === 'on',
       revealIdentifiers: formData.get('reveal_identifiers') === 'on',
       suggestChanges: formData.get('suggest_changes') === 'on',
       duration,
+      ...(files !== undefined ? { files } : {}),
     },
+  };
+}
+
+/**
+ * What a form sent, made safe, for showing it again after a refusal (typed values are kept): the
+ * same reading as the query form, so nothing unknown is ever shown ticked. Suggest Changes is
+ * returned as sent; each screen still decides whether it may start ticked.
+ */
+export function keptAiChoices(formData: FormData): Omit<ConsentInitial, 'duration'> & {
+  readonly duration: string | undefined;
+  readonly files: AiFileChoice[] | undefined;
+} {
+  const kept = consentChoicesFromQuery((name) => {
+    if (name === 'choice_layers') return formData.getAll('layer').join(',');
+    if (name === 'choice_cases') return formText(formData, 'cases');
+    if (name === 'choice_list') return formData.get('document_list') === 'on' ? '1' : '0';
+    if (name === 'choice_text') return formData.get('document_text') === 'on' ? '1' : '0';
+    if (name === 'choice_reveal') return formData.get('reveal_identifiers') === 'on' ? '1' : '0';
+    return undefined;
+  });
+  return {
+    layers: kept.layers,
+    cases: kept.cases,
+    documentList: kept.documentList,
+    documentText: kept.documentText,
+    revealIdentifiers: kept.revealIdentifiers,
+    suggestChanges: formData.get('suggest_changes') === 'on',
+    duration: formText(formData, 'duration'),
+    files: parseAiFileChoices(formData)?.slice(0, AI_FILE_CHOICES_MAX),
   };
 }

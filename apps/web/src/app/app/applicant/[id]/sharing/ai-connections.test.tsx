@@ -332,3 +332,66 @@ describe('Suggest Changes on AI Connections (S21)', () => {
     expect(storedChoices(connection({ scopes: ['suggest_changes'] })).suggestChanges).toBe(true);
   });
 });
+
+describe('Original Files on the AI Connections section (S20)', () => {
+  const DOC = '55555555-5555-4555-8555-555555555555';
+  const files = (available: boolean) => ({
+    view: {
+      available,
+      candidates: [
+        {
+          documentId: DOC,
+          referenceCode: 'D-7K2Q9M',
+          kind: 'Visa',
+          group: 'Travel and Immigration',
+          safeCopyReady: true,
+        },
+      ],
+    },
+    byConnection: {
+      [connection().id]: [{ documentId: DOC, variant: 'ORIGINAL' as const }],
+    },
+  });
+
+  it('says how many files the app can receive, and offers them in Change Access as stored', async () => {
+    const html = render({
+      applicantId: APPLICANT,
+      connectorOn: true,
+      list: list({ active: [connection()] }),
+      files: files(true),
+    });
+    const text = textOf(html);
+    expect(text).toContain('Original Files');
+    expect(text).toContain('1 File (Original)');
+    expect(html).toContain('Visa (D-7K2Q9M)');
+    const box = html.match(/<input[^>]*name="file"[^>]*>/)?.[0] ?? '';
+    expect(box).toContain(`value="${DOC}"`);
+    expect(box).toContain('checked');
+    expect(await axeViolations(html)).toEqual([]);
+  });
+
+  it('says when the feature is off, and keeps what was ticked', () => {
+    const text = textOf(
+      render({
+        applicantId: APPLICANT,
+        connectorOn: true,
+        list: list({ active: [connection()] }),
+        files: files(false),
+      }),
+    );
+    expect(text).toContain('1 File (Original), but turned off right now');
+    expect(text).toContain('Files you ticked stay ticked, and you can untick them.');
+  });
+
+  it('shows nothing about files when the connection has none', () => {
+    const text = textOf(
+      render({
+        applicantId: APPLICANT,
+        connectorOn: true,
+        list: list({ active: [connection()] }),
+        files: { ...files(true), byConnection: {} },
+      }),
+    );
+    expect(text).not.toContain('File (');
+  });
+});

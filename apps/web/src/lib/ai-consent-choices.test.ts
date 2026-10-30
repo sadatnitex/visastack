@@ -2,6 +2,9 @@ import {
   AI_CONNECTION_DEFAULT_DURATION as SERVICE_DEFAULT_DURATION,
   AI_CONNECTION_DEFAULT_LAYERS as SERVICE_DEFAULT_LAYERS,
   AI_CONNECTION_DURATIONS as SERVICE_DURATIONS,
+  AI_FILE_CHOICES_MAX as SERVICE_FILE_CHOICES_MAX,
+  AI_FILE_DEFAULT_VARIANT as SERVICE_FILE_DEFAULT_VARIANT,
+  AI_FILE_VARIANTS as SERVICE_FILE_VARIANTS,
   AI_CONNECTION_LAYERS as SERVICE_LAYERS,
   AI_SUGGEST_CHANGES_SCOPE as SERVICE_SUGGEST_CHANGES_SCOPE,
   AI_CONNECTION_WARNING_LAYERS as SERVICE_WARNING_LAYERS,
@@ -191,5 +194,85 @@ describe('reading the submitted choices (one parser for consent and Change Acces
     expect(browser.parseAiAccessChoices(form({ duration: 'keep' }), { allowKeep: true }).ok).toBe(
       true,
     );
+  });
+});
+
+describe('Original Files choices (S20)', () => {
+  const A = '44444444-4444-4444-8444-444444444444';
+  const B = '55555555-5555-4555-8555-555555555555';
+  const form = (fields: Record<string, string | string[]>) => {
+    const data = new FormData();
+    for (const [name, value] of Object.entries(fields)) {
+      for (const item of Array.isArray(value) ? value : [value]) data.append(name, item);
+    }
+    return data;
+  };
+
+  it('uses the same ways, default and limit as the server', () => {
+    expect(browser.AI_FILE_VARIANTS).toEqual(SERVICE_FILE_VARIANTS);
+    expect(browser.AI_FILE_DEFAULT_VARIANT).toBe(SERVICE_FILE_DEFAULT_VARIANT);
+    expect(browser.AI_FILE_DEFAULT_VARIANT).toBe('SAFE_COPY');
+    expect(browser.AI_FILE_CHOICES_MAX).toBe(SERVICE_FILE_CHOICES_MAX);
+  });
+
+  it('reads a Safe Copy unless the Original was chosen, each document once, ids only', () => {
+    expect(
+      browser.parseAiFileChoices(
+        form({
+          files_present: '1',
+          file: [A, B, A.toUpperCase(), 'nope'],
+          [`file_variant_${B}`]: 'ORIGINAL',
+          [`file_variant_${A}`]: 'ANYTHING',
+        }),
+      ),
+    ).toEqual([
+      { documentId: A, variant: 'SAFE_COPY' },
+      { documentId: B, variant: 'ORIGINAL' },
+    ]);
+    // No choices shown: nothing read, so what is stored is kept.
+    expect(browser.parseAiFileChoices(form({ file: [A] }))).toBeUndefined();
+    expect(browser.parseAiFileChoices(form({ files_present: '1' }))).toEqual([]);
+  });
+
+  it('needs List of My Documents for any file, and refuses more than the limit', () => {
+    const base = { layer: 'identity', cases: 'all', duration: '30d', files_present: '1' };
+    expect(browser.parseAiAccessChoices(form({ ...base, file: [A] }))).toMatchObject({
+      ok: false,
+      field: 'document_list',
+    });
+    const many = Array.from(
+      { length: browser.AI_FILE_CHOICES_MAX + 1 },
+      (_, index) => `${String(index).padStart(8, '0')}-0000-4000-8000-000000000000`,
+    );
+    expect(
+      browser.parseAiAccessChoices(form({ ...base, document_list: 'on', file: many })),
+    ).toMatchObject({ ok: false, field: 'file' });
+    const parsed = browser.parseAiAccessChoices(form({ ...base, document_list: 'on', file: [A] }));
+    expect(parsed.ok && parsed.value.files).toEqual([{ documentId: A, variant: 'SAFE_COPY' }]);
+  });
+
+  it('keeps what was typed after a refusal, never more than the form could show', () => {
+    const kept = browser.keptAiChoices(
+      form({ layer: ['money', 'bogus'], cases: 'none', files_present: '1', file: [A] }),
+    );
+    expect(kept).toMatchObject({
+      layers: ['money'],
+      cases: 'none',
+      documentList: false,
+      files: [{ documentId: A, variant: 'SAFE_COPY' }],
+    });
+  });
+
+  it('without scripts: reads the Original of a ticked box, and ignores a choice for an unticked one', () => {
+    expect(
+      browser.parseAiFileChoices(
+        form({
+          files_present: '1',
+          file: [A],
+          [`file_variant_${A}`]: 'ORIGINAL',
+          [`file_variant_${B}`]: 'ORIGINAL',
+        }),
+      ),
+    ).toEqual([{ documentId: A, variant: 'ORIGINAL' }]);
   });
 });

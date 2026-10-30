@@ -1556,6 +1556,8 @@ describe('reconcileRestoredBranch: AI connections (S15)', () => {
     });
     // A branch from before 0100 also predates 0105 (S21), whose tables point at AI connections.
     await newDb.execute(sql`drop table ai_drafts`);
+    // And 0106 (S20), whose table points at AI connections and documents.
+    await newDb.execute(sql`drop table ai_connection_documents`);
     await newDb.execute(sql`drop table ai_task_origins`);
     await newDb.execute(sql`drop table ai_connection_tokens`);
     await newDb.execute(sql`drop table ai_connections`);

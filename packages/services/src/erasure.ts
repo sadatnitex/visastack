@@ -13,6 +13,7 @@ import {
   or,
   sql,
 } from 'drizzle-orm';
+import { AuthorizedApplicant } from './access/require-access';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
@@ -786,6 +787,44 @@ function erasureInProgressOrBytesGone() {
     inArray(schema.erasureJobs.status, ['CLAIMED', 'DELETED', 'VERIFIED']),
     isNotNull(schema.erasureJobs.deletionAttemptedAt),
   );
+}
+
+/**
+ * The documents among `documentIds`, on the proof's own record only, whose file is leaving (S20,
+ * AI connector original files): a version with an erasure job that is queued (`PENDING`), or in
+ * progress or done by the product's own rule (`erasureInProgressOrBytesGone`, the rule every
+ * read path uses). A FAILED or held job counts exactly as it does there. Owner or reader proof
+ * for the record; a document of another record is never named.
+ */
+export async function documentsLeavingByErasure(
+  proof: AuthorizedApplicant<'VIEW_METADATA'>,
+  documentIds: readonly string[],
+  /** Where to read, when not the proof's own transaction (a savepoint inside it). */
+  db: Db = proof.tx,
+): Promise<Set<string>> {
+  if (
+    !AuthorizedApplicant.isGenuine(proof, 'VIEW_METADATA') ||
+    proof.resource.kind !== 'applicant' ||
+    documentIds.length === 0
+  ) {
+    return new Set();
+  }
+  const rows = await db
+    .selectDistinct({ documentId: schema.documentVersions.documentId })
+    .from(schema.documentVersions)
+    .innerJoin(schema.documents, eq(schema.documents.id, schema.documentVersions.documentId))
+    .innerJoin(
+      schema.erasureJobs,
+      eq(schema.erasureJobs.storageObjectId, schema.documentVersions.storageObjectId),
+    )
+    .where(
+      and(
+        inArray(schema.documentVersions.documentId, [...documentIds]),
+        eq(schema.documents.applicantId, proof.applicant.id),
+        or(eq(schema.erasureJobs.status, 'PENDING'), erasureInProgressOrBytesGone()),
+      ),
+    );
+  return new Set(rows.map((row) => row.documentId));
 }
 
 /**

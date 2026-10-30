@@ -73,9 +73,9 @@ export const AI_CASE_MODES = ['NONE', 'ONE', 'ALL_CURRENT'] as const;
 export type AiCaseMode = (typeof AI_CASE_MODES)[number];
 
 /**
- * The five read-only tools' names (ADR 0021 section 6). The tool list in `ai-tools/` is typed
- * against this, and its test pins the two equal. Audit records and telemetry name a tool only
- * from this list, never from what an app sent.
+ * The read-only tools' names: the five of ADR 0021 section 6, then `get_document_file` (S20,
+ * "Original Files"). The tool list in `ai-tools/` is typed against this, and its test pins the two
+ * equal. Audit records and telemetry name a tool only from this list, never from what an app sent.
  */
 export const AI_READ_TOOL_NAMES = [
   'prepare_context',
@@ -83,7 +83,15 @@ export const AI_READ_TOOL_NAMES = [
   'get_profile_section',
   'list_documents',
   'get_document_text',
+  'get_document_file',
 ] as const;
+
+/**
+ * The read tool that gives a whole file (S20): only it gets the file gateway, and it works only
+ * for the documents the person ticked under "Original Files" for this connection.
+ */
+export const AI_FILE_TOOL_NAMES = ['get_document_file'] as const;
+export type AiFileToolName = (typeof AI_FILE_TOOL_NAMES)[number];
 
 /**
  * The three suggestion tools (S21, ADR 0021 extension): each one only leaves something for the
@@ -127,6 +135,15 @@ export const AI_DENIAL_REASONS = [
   'not_available',
   'invalid_input',
   'feature_off',
+  // The file tool (S20).
+  'files_not_granted',
+  'file_not_chosen',
+  'file_not_ready',
+  'safe_copy_not_ready',
+  'file_too_large',
+  'file_type_unsupported',
+  'file_limit',
+  'safe_copy_limit',
 ] as const;
 export type AiDenialReason = (typeof AI_DENIAL_REASONS)[number];
 
@@ -142,6 +159,31 @@ export interface AiConnectionChoices {
   readonly duration: AiConnectionDuration;
   /** "Suggest Changes" (S21): off unless the person turns it on. */
   readonly suggestChanges?: boolean;
+  /**
+   * "Original Files" (S20): the documents the person ticked, each as a Safe Copy (the default) or
+   * the Original. Absent or empty: no file. Stored only while List of My Documents is on.
+   */
+  readonly files?: readonly AiFileChoice[];
+}
+
+/** How a ticked document may be given to the app. */
+export const AI_FILE_VARIANTS = ['SAFE_COPY', 'ORIGINAL'] as const;
+export type AiFileVariant = (typeof AI_FILE_VARIANTS)[number];
+export const AI_FILE_DEFAULT_VARIANT: AiFileVariant = 'SAFE_COPY';
+
+/** One ticked document under "Original Files". */
+export interface AiFileChoice {
+  readonly documentId: string;
+  /** Absent means a Safe Copy. */
+  readonly variant?: AiFileVariant;
+}
+
+/** At most this many documents can be ticked for one connection. */
+export const AI_FILE_CHOICES_MAX = 50;
+
+/** Whether a stored or submitted variant is one of the two; anything else is not one. */
+export function isAiFileVariant(value: unknown): value is AiFileVariant {
+  return value === 'SAFE_COPY' || value === 'ORIGINAL';
 }
 
 const DOCUMENT_LIST_SCOPE = 'document_list';

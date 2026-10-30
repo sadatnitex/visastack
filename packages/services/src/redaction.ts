@@ -119,6 +119,8 @@ export type SafeCopyRefusal =
 
 export interface SafeCopyError extends ServiceError {
   readonly refusal?: SafeCopyRefusal;
+  /** The reason its DENIED access record holds (S20: written again when a savepoint is undone). */
+  readonly auditReason?: string;
 }
 
 export interface RedactionDeps {
@@ -1586,7 +1588,12 @@ export interface ProducedSafeCopy {
  */
 export async function produceSafeCopy(
   proof: AuthorizedApplicant<'DOWNLOAD_REDACTED'>,
-  deps: RedactionDeps,
+  deps: Pick<RedactionDeps, 'storage' | 'renderer'>,
+  /**
+   * When the copy is not a download (S20: given to an AI app): the purpose and the disposition the
+   * DOCUMENT_ACCESS events record.
+   */
+  options: { readonly purposes?: DocumentPurposes; readonly disposition?: 'ai_file' } = {},
 ): Promise<Result<ProducedSafeCopy, SafeCopyError>> {
   if (!AuthorizedApplicant.isGenuine(proof, 'DOWNLOAD_REDACTED')) {
     return err(serviceError('forbidden', 'access denied'));
@@ -1596,15 +1603,18 @@ export async function produceSafeCopy(
   if (document.applicantId !== proof.applicant.id) {
     return err(serviceError('forbidden', 'access denied'));
   }
-  const limited = await withinLimit(proof, 'SAFE_COPY');
-  if (!limited.ok) return limited;
-  const requested = { variant: 'redacted', disposition: 'download' };
+  const requested = { variant: 'redacted', disposition: options.disposition ?? 'download' };
   const refuse = async (
     reason: string,
     refusal: SafeCopyRefusal,
   ): Promise<Result<never, SafeCopyError>> => {
-    await audit(proof, document, { allowed: false, reason, metadata: requested });
-    return err(refusalError(refusal));
+    await audit(proof, document, {
+      allowed: false,
+      reason,
+      metadata: requested,
+      ...(options.purposes ? { purposes: options.purposes } : {}),
+    });
+    return err({ ...refusalError(refusal), auditReason: reason });
   };
 
   const db = proof.tx;
@@ -1617,6 +1627,9 @@ export async function produceSafeCopy(
   if (!marked || !isSafeCopyReady(state)) {
     return refuse(state === 'PREPARING' ? 'still_preparing' : 'not_prepared', 'not_prepared');
   }
+  // Counted only for a copy that is ready: a request for one that is not never uses the limit.
+  const limited = await withinLimit(proof, 'SAFE_COPY');
+  if (!limited.ok) return limited;
 
   const ids = marked.pages.flatMap((page) =>
     page.row.renderedStorageObjectId ? [page.row.renderedStorageObjectId] : [],
@@ -1670,6 +1683,7 @@ export async function produceSafeCopy(
       boxCount,
       outputType: made.contentType === 'application/pdf' ? 'pdf' : 'png',
     },
+    ...(options.purposes ? { purposes: options.purposes } : {}),
   });
   return ok({
     bytes: made.bytes,

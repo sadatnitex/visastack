@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useId, useRef, useState } from 'react';
+import { useActionState, useEffect, useId, useRef, useState } from 'react';
 import { AiAccessChoices } from '../../../components/ai-access-choices';
 import {
   FormMessage,
@@ -11,11 +11,13 @@ import {
 } from '../../../components/form-feedback';
 import {
   AI_CONNECTION_DURATIONS,
+  type AiFileChoice,
+  type AiFilesView,
   CONSENT_DEFAULTS,
   type ConsentInitial,
 } from '../../../lib/ai-consent-choices';
 import { AI_DURATION_LABELS, aiConsentSentence } from '../../../lib/ai-consent-labels';
-import { answerAiConsentAction } from './actions';
+import { type ConsentActionState, answerAiConsentAction } from './actions';
 
 export interface ConsentFormProps {
   /** The checked request, carried so the answer can be checked again on the server. */
@@ -33,6 +35,10 @@ export interface ConsentFormProps {
   readonly initial?: ConsentInitial;
   /** Whether AI App Suggestions works right now (S21). */
   readonly suggestionsAvailable?: boolean;
+  /** "Original Files" (S20): what may be ticked, or absent while it cannot be offered. */
+  readonly files?: AiFilesView;
+  /** The files the person ticked before a fresh sign-in check (from a signed cookie, never a link). */
+  readonly filesInitial?: readonly AiFileChoice[];
 }
 
 /**
@@ -46,10 +52,22 @@ export function ConsentForm({
   cases,
   initial = CONSENT_DEFAULTS,
   suggestionsAvailable = false,
+  files,
+  filesInitial = [],
 }: ConsentFormProps) {
-  const [state, formAction, pending] = useActionState(answerAiConsentAction, NO_RESULT);
+  const [state, formAction, pending] = useActionState<ConsentActionState, FormData>(
+    answerAiConsentAction,
+    NO_RESULT,
+  );
+  // React resets a form after its action; the person's own choices come back with the answer.
+  const shown = state.choices ?? initial;
+  const shownFiles = state.files ?? filesInitial;
   // The sentence under the choices says what the app will be able to do, as the box is ticked.
   const [suggest, setSuggest] = useState(initial.suggestChanges);
+  // After a refusal the box starts unticked again (it is never carried), and so does the sentence.
+  useEffect(() => {
+    if (state.choices) setSuggest(false);
+  }, [state]);
   const messageId = `${useId()}-ai-consent-message`;
   const formRef = useRef<HTMLFormElement>(null);
   useFocusInvalidField(formRef, state);
@@ -73,15 +91,19 @@ export function ConsentForm({
       <input type="hidden" name="record" value={record.id} />
 
       <AiAccessChoices
+        // A new key re-applies the starting values: what was submitted, after a refusal.
+        key={state.choices ? JSON.stringify([state.choices, state.files ?? null]) : 'start'}
         appName={appName}
         cases={cases}
-        initial={initial}
+        initial={shown}
         durations={AI_CONNECTION_DURATIONS.map((duration) => ({
           value: duration,
           label: AI_DURATION_LABELS[duration],
         }))}
-        defaultDuration={initial.duration}
+        defaultDuration={shown.duration}
         suggestionsAvailable={suggestionsAvailable}
+        {...(files ? { files } : {})}
+        filesInitial={shownFiles}
         {...(isFailure(state) && state.field ? { invalid: { field: state.field, messageId } } : {})}
       />
 
