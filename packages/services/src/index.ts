@@ -60,7 +60,13 @@ export {
   readDocumentProtectionSettings,
   setDocumentProtection,
 } from './document-protection';
-export { type ServiceError, type ServiceErrorCode, serviceError } from './errors';
+export {
+  type RefusalReason,
+  type ServiceError,
+  type ServiceErrorCode,
+  refusal,
+  serviceError,
+} from './errors';
 
 export {
   type AuditEventInput,
@@ -1945,3 +1951,22 @@ export {
   type RefundingPaymentPort,
   isRefundingPaymentPort,
 } from './ports';
+export {
+  type BillingDocument,
+  type BillingDocumentFact,
+  type BillingDocumentKind,
+  type BillingDocumentReader,
+  type BillingDocumentStamp,
+  type BillingDocumentTable,
+  type BillingDocumentTone,
+  type BillingDocumentTotal,
+  type InvoiceDocumentFacts,
+  type InvoiceDocumentPayment,
+  type ReceiptDocumentFacts,
+  billingDocumentFileName,
+  buildInvoiceDocument,
+  buildReceiptDocument,
+  getInvoiceDocument,
+  getReceiptDocument,
+  invoiceDocumentStamp,
+} from './billing-documents';
