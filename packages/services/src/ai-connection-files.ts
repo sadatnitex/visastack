@@ -102,8 +102,9 @@ interface EligibleDocument {
 
 /**
  * The record's documents an AI app could be given: current (not replaced), kept in the person's
- * own documents (not handed over for one case only), latest version safe to use, and not of a
- * type the document protection switches restrict right now. `only` narrows to those ids.
+ * own documents (not handed over for one case only), latest version safe to use or still being
+ * checked (never failed, rejected or erased), and not of a type the document protection switches
+ * restrict right now. `only` narrows to those ids.
  */
 async function eligibleDocuments(
   db: Db,
@@ -156,12 +157,16 @@ async function eligibleDocuments(
   const eligible: EligibleDocument[] = [];
   for (const row of open) {
     const version = latest.get(row.id);
+    if (!version || erased.has(version.storageObjectId)) continue;
+    // A new version still being checked keeps the document on the list, so saving Change Access
+    // in the meantime never unticks it; nothing is given until that version is clean.
+    const checking = version.safetyStatus === 'PENDING' || version.safetyStatus === 'SCANNING';
     if (
-      !version ||
+      !checking &&
       !isDocumentVersionUsable({
         safetyStatus: version.safetyStatus,
         processingStatus: version.processingStatus,
-        erased: erased.has(version.storageObjectId),
+        erased: false,
       })
     ) {
       continue;
@@ -192,18 +197,22 @@ export async function listAiFileCandidates(
     'D',
     eligible.map((row) => row.documentId),
   );
-  const documents = eligible.map((row): AiFileCandidate => {
+  const documents = eligible.flatMap((row): AiFileCandidate[] => {
     const known = row.docType ? resolveDocumentType(row.docType) : undefined;
     const groupKey: DocumentGroupKey = known?.group ?? 'other_documents';
     const state = states.ok ? states.value.get(row.versionId) : undefined;
-    return {
-      documentId: row.documentId,
-      referenceCode: codes.get(row.documentId) ?? null,
-      kind: known?.label ?? 'Other Document',
-      groupKey,
-      group: GROUP_LABELS.get(groupKey) ?? 'Other Documents',
-      safeCopyReady: state !== undefined && isSafeCopyReady(state),
-    };
+    // Word files and text, and files past the Safe Copy limits, can never be given (decision O4).
+    if (state === 'UNSUPPORTED' || state === 'TOO_LARGE') return [];
+    return [
+      {
+        documentId: row.documentId,
+        referenceCode: codes.get(row.documentId) ?? null,
+        kind: known?.label ?? 'Other Document',
+        groupKey,
+        group: GROUP_LABELS.get(groupKey) ?? 'Other Documents',
+        safeCopyReady: state !== undefined && isSafeCopyReady(state),
+      },
+    ];
   });
   documents.sort(
     (a, b) =>

@@ -162,12 +162,12 @@ async function document(
   ownerId: string,
   applicantId: string,
   docType: string,
-  options: VersionOptions = {},
+  options: VersionOptions & { readonly originalName?: string } = {},
 ) {
   const doc = await registerDocument(db, {
     actorAccountId: ownerId,
     applicantId,
-    originalName: 'private-name-of-file.pdf',
+    originalName: options.originalName ?? 'private-name-of-file.pdf',
     docType,
   });
   if (!isOk(doc)) throw new Error('document');
@@ -468,6 +468,8 @@ describe('get_document_file: only what the person ticked', () => {
     await prepareSafeCopy(other.ownerId, theirs.documentId, theirs.versionId);
     // The other person ticked their own document for their own app.
     await connect(other.ownerId, other.applicantId, [{ documentId: theirs.documentId }]);
+    // The same person's second app ticked a document this app did not: that stays its own.
+    await connect(ownerId, applicantId, [{ documentId: unticked.documentId }]);
     // A crafted choice naming someone else's document is dropped, never stored.
     const { token, connectionId } = await connect(ownerId, applicantId, [
       { documentId: chosen.documentId },
@@ -683,5 +685,36 @@ describe('get_document_file: the AI App Original Files switch and limit', () => 
     await given(token, visa.reference);
     expect(await refused(token, visa.reference)).toBe(MESSAGES.fileLimit);
     expect(await lastDenial()).toBe('file_limit');
+  });
+});
+
+describe('Original Files: what may be ticked', () => {
+  it('leaves out Word files, keeps a document whose new version is still being checked, and never unticks it', async () => {
+    const { ownerId, applicantId } = await person('candidates@example.com');
+    const visa = await document(ownerId, applicantId, 'VISA');
+    const letter = await document(ownerId, applicantId, 'VISA', { originalName: 'letter.docx' });
+    await prepareSafeCopy(ownerId, visa.documentId, visa.versionId);
+    const proof = () => gate(ownerId, 'VIEW_METADATA', { applicantId });
+    const listed = async () => {
+      const result = await listAiFileCandidates(await proof());
+      if (!result.ok) throw new Error('candidates');
+      return result.value.documents;
+    };
+    expect((await listed()).map((d) => [d.documentId, d.safeCopyReady])).toEqual([
+      [visa.documentId, true],
+    ]);
+    expect(letter.documentId).not.toBe(visa.documentId);
+    const { connectionId } = await connect(ownerId, applicantId, [{ documentId: visa.documentId }]);
+    await addVersion(ownerId, visa.documentId, { clean: false });
+    expect((await listed()).map((d) => [d.documentId, d.safeCopyReady])).toEqual([
+      [visa.documentId, false],
+    ]);
+    await changeAiConnection(await proof(), {
+      connectionId,
+      choices: { ...BASE, duration: 'keep', files: [{ documentId: visa.documentId }] },
+    });
+    expect((await listAiConnectionFiles(await proof(), [connectionId])).get(connectionId)).toEqual([
+      { documentId: visa.documentId, variant: 'SAFE_COPY' },
+    ]);
   });
 });

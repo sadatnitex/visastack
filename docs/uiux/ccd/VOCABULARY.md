@@ -51,3 +51,13 @@ Added 30 Oct 2026 (S21, AI app suggestion tools):
 | The label on a reminder an AI app added to a case | Added by {app name} | "AI Task", "Bot Reminder" | **New (S21)** |
 | The platform owner's page of AI switches | AI Features; one feature "AI App Suggestions"; fields On and Daily Limit per Person | "AI Toggles", "Feature Flags" | **New (S21)** |
 | A feature that is off, wherever it would have been | "This AI feature is turned off right now. Everything else works as usual." | "Disabled", "Unavailable" | **New (S21)** |
+
+Added 30 Oct 2026 (S20, AI app original files):
+
+| Thing | Canonical name | Retire | Status |
+|---|---|---|---|
+| The consent group that lets an AI app receive the files of ticked documents | Original Files; each row Share This File, with Safe Copy (the default) or Original | "Attachments", "File Access", "Raw Files" | **New (S20)** |
+| How a ticked file is given | Safe Copy (the masked copy, as on Documents); Original (the file as uploaded) | "Redacted", "Unredacted", "Full File" | **New (S20)** |
+| The platform owner's switch for it | AI App Original Files (on AI Features) | "File Sharing for AI", "Connector Files" | **New (S20)** |
+| How many files a connection has, on the Sharing page | Original Files: {n} Files ({m} Originals), or (Safe Copies) | "Attachments: n" | **New (S20)** |
+| The protected types, wherever files are offered | "Passports, identity, money and health documents are protected and never shared with AI apps." | "Restricted", "Blocked" | **New (S20)** |

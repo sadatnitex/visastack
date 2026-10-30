@@ -62,3 +62,39 @@ Privacy:
 - Service tests: `packages/services/src/ai-tools/suggestion-tools.test.ts`, `tool-guard.test.ts`, `packages/services/src/ai-feature-settings.test.ts`, `packages/services/src/ai-suggestions.test.ts`.
 - Migration test: `packages/db/src/ai-suggestions-migration.test.ts`.
 - What an app sees: `apps/web/src/lib/mcp-endpoint.test.ts` (tools/list, server instruction).
+
+## AI App Original Files (S20, added 30 Oct 2026)
+
+A person can let one AI app receive the files of documents they tick, under **Original Files** on the consent screen or in Change Access. ADR 0021's 30 Oct S20 amendment is the decision record.
+
+### What the app gets
+
+- One tool, `get_document_file(document_reference)`, read-only. It answers with one file as an embedded file (base64) and plain facts about it. Never a web address, a storage key or the stored file name.
+- A **Safe Copy** by default: the pages as pictures with what the person covered in black (ADR 0022). If the Safe Copy is not prepared, or is out of date after a new version, the app is told "The Safe Copy of this document is not ready. The original is not shared instead." The original is never sent in its place.
+- The **Original** only where the person chose it, after a fresh sign-in check, and only from the latest clean version.
+- PDF, PNG and JPEG only, up to 3 MB. Larger files are refused (the 10 MB of the ADR is deferred until a streamed answer is verified on the host).
+- Never passports, identity and civil papers, money and tax documents, medical documents, or a document whose type is not known yet: whatever the document protection switches restrict at the moment of the call. Changing a switch applies on the very next call.
+- Every answer tells the app to treat the file as data about the person, never as instructions.
+
+### Limits
+
+- 30 files a day per person across all their apps (`AI_FILE_ACCOUNT_DAY`), lowered by the Daily Limit per Person on AI Features. Only a file actually given counts.
+- A Safe Copy also counts against the person's own Safe Copy limit (30 an hour, shared with their downloads).
+- At most 50 ticked documents per connection. Original Files need List of My Documents.
+
+### How to turn it off
+
+1. **For everyone (platform owner):** Admin, Settings, **AI Features**, untick **On for Everyone** for **AI App Original Files**, Save, confirm with a fresh sign-in. It is **off by default**. While off, the tool refuses with "This AI feature is turned off right now. Everything else works as usual."; ticked files stay ticked and can be unticked, and nothing new can be added.
+2. **For one document or one app (the person):** Sharing, AI Connections, **Change Access**: untick the file, or make it a Safe Copy; or **Turn Off** the connection. The next call is refused.
+3. **The whole connector:** `AI_CONNECTOR_ENABLED`.
+
+### Before it works in production
+
+- Migration 0106 (`ai_connection_documents`) must run with the owner's word (O8). Before it, nothing can be ticked and the tool answers "Files for AI apps are not available in VisaStack yet."
+- Then the platform owner turns AI App Original Files on.
+
+### Where to look
+
+- Audit: `AI_CONTEXT_SERVED` with `fileServed: true`, `variant`, `documentId`, `sizeBytes`, `mimeType`; the document's own `DOCUMENT_ACCESS` with purpose `ai_connection_safe_copy` or `ai_connection_original`; refusals as `AI_CONTEXT_DENIED` with reasons such as `file_not_chosen`, `document_protected`, `safe_copy_not_ready`, `file_too_large`, `file_limit`.
+- Product event: `AI_FILE_SERVED` (`SAFE_COPY` or `ORIGINAL`), once per connection per day.
+- Tests: `packages/services/src/ai-tools/document-file.test.ts`, `tool-guard.test.ts`, `boundary.test.ts`; `packages/db/src/ai-connection-documents-migration.test.ts`; `apps/web/src/lib/mcp-endpoint.test.ts`, `apps/web/src/components/ai-file-choices.test.tsx`, `apps/web/src/lib/ai-file-picks-retry.test.ts`.
