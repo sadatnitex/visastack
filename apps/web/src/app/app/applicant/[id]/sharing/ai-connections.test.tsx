@@ -395,3 +395,43 @@ describe('Original Files on the AI Connections section (S20)', () => {
     expect(text).not.toContain('File (');
   });
 });
+
+describe('the AI Connections section while AI App Access is off (S28)', () => {
+  it('says so plainly and keeps every connection listed, with its controls', async () => {
+    const { AI_FEATURE_OFF_HINT, AI_FEATURE_LIMIT_HINT } = await import(
+      '@visastack/core/ai-features'
+    );
+    const html = render({
+      applicantId: APPLICANT,
+      connectorOn: true,
+      list: list({ active: [connection()] }),
+      accessOff: 'turned_off',
+    });
+    const text = textOf(html);
+    expect(text).toContain(AI_FEATURE_OFF_HINT);
+    expect(text).toContain('Claude');
+    expect(text).toContain('Turn Off');
+    expect(await axeViolations(html)).toEqual([]);
+    expect(
+      textOf(
+        render({
+          applicantId: APPLICANT,
+          connectorOn: true,
+          list: list({ active: [connection()] }),
+          accessOff: 'daily_limit',
+        }),
+      ),
+    ).toContain(AI_FEATURE_LIMIT_HINT);
+    // Nothing to say when no app is connected; with the feature on, the sentence is not added.
+    expect(
+      textOf(render({ applicantId: APPLICANT, connectorOn: true, list: list(), accessOff: null })),
+    ).not.toContain(AI_FEATURE_OFF_HINT);
+    const count = (markup: string) => textOf(markup).split(AI_FEATURE_OFF_HINT).length - 1;
+    const on = render({
+      applicantId: APPLICANT,
+      connectorOn: true,
+      list: list({ active: [connection()] }),
+    });
+    expect(count(html)).toBe(count(on) + 1);
+  });
+});

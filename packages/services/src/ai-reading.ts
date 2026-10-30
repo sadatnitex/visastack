@@ -8,6 +8,7 @@ import {
   runExtraction,
   runOcr,
 } from './ai';
+import { getAiFeatureState, isAiFeatureRefusal } from './ai-feature-settings';
 import { isAiDispatchAllowed } from './ai-provider-config';
 import { READER_VERSION, type ReadingStopReason } from './ai-reading-job';
 import { connectorRunsOnly } from './ai-run-kinds';
@@ -167,6 +168,11 @@ async function alreadyHasSuggestions(db: Db, documentVersionId: string): Promise
  * response is to try again later (a busy provider or a per-person rate limit).
  */
 async function reasonForRefusal(db: Db, error: ServiceError): Promise<ReadingStopReason | 'SKIP'> {
+  // The feature itself turned off or used up between the job's own check and the step (S28).
+  if (isAiFeatureRefusal(error)) {
+    if (error.reason === 'ai_platform_off') return 'SWITCHED_OFF';
+    return error.reason === 'ai_daily_limit' ? 'DAILY_LIMIT' : 'FEATURE_OFF';
+  }
   switch (error.code) {
     case 'consent_required':
       return 'NO_CONSENT';
@@ -246,6 +252,18 @@ export async function processAiReading(
       suggestions: progress.suggestions ?? 0,
     });
 
+  // The feature first (S28): the platform, the platform owner's switch, the owner's plan and
+  // today's limit, all for the owner of this file. Uploading still works; the file simply waits
+  // for the person, who can add the details themselves.
+  const feature = await getAiFeatureState(db, 'ai_automatic_reading', {
+    system: scope,
+    accountId: target.ownerAccountId,
+  });
+  if (!feature.available) {
+    if (feature.reason === 'platform_off') return stopped('SWITCHED_OFF');
+    return stopped(feature.reason === 'daily_limit' ? 'DAILY_LIMIT' : 'FEATURE_OFF');
+  }
+
   // Consent is the owner's, checked now.
   const mayReadScans = await hasConsent(db, target.ownerAccountId, 'AI_OCR');
   const mayReadDetails = await hasConsent(db, target.ownerAccountId, 'AI_EXTRACTION');
@@ -279,6 +297,7 @@ export async function processAiReading(
       documentVersionId: target.versionId,
       imageBytes: image.imageBytes,
       contentType: image.contentType,
+      feature: 'ai_automatic_reading',
       budgetLimitUnits: ocr.limits.budgetLimitUnits,
       perDocumentBudgetLimitUnits: ocr.limits.perDocumentBudgetLimitUnits,
       maxAttemptsPerDocument: ocr.limits.maxAttemptsPerDocument,
@@ -311,6 +330,9 @@ export async function processAiReading(
     applicantId: target.applicantId,
     documentVersionId: target.versionId,
     text: text.text,
+    feature: 'ai_automatic_reading',
+    // One file is one use: a scan read just now already counted it.
+    countedAlready: ranOcr,
     budgetLimitUnits: extraction.limits.budgetLimitUnits,
     perDocumentBudgetLimitUnits: extraction.limits.perDocumentBudgetLimitUnits,
     maxAttemptsPerDocument: extraction.limits.maxAttemptsPerDocument,

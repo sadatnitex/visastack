@@ -216,6 +216,7 @@ describe('AI Gateway — proposals never silently mutate', () => {
       documentVersionId: versionId,
       text: 'MRZ...',
       budgetLimitUnits: 100,
+      feature: 'ai_document_reading' as const,
     };
 
     // No type yet: every registered field is offered, as before.
@@ -236,6 +237,7 @@ describe('AI Gateway — proposals never silently mutate', () => {
   it('requires AI_EXTRACTION consent to run', async () => {
     const { account, applicantId, versionId } = await seedVersion(db, 'ai1@example.com');
     const denied = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -252,6 +254,7 @@ describe('AI Gateway — proposals never silently mutate', () => {
     await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
 
     const run = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -305,6 +308,7 @@ describe('AI Gateway — proposals never silently mutate', () => {
       sensitivity: 'RESTRICTED',
     });
     const run = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -351,6 +355,7 @@ describe('AI Gateway — proposals never silently mutate', () => {
     await grantAiConsent(db, account.id);
     await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
     const run = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -391,6 +396,7 @@ describe('AI Gateway — proposals never silently mutate', () => {
     await grantAiConsent(db, account.id);
     await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
     const run = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -412,6 +418,7 @@ describe('AI Gateway — proposals never silently mutate', () => {
     const { account, applicantId, versionId } = await seedVersion(db, 'ai3@example.com');
     await grantAiConsent(db, account.id);
     const run = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -433,6 +440,7 @@ describe('AI Gateway — proposals never silently mutate', () => {
     await grantAiConsent(db, account.id);
     await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
     const run = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -460,6 +468,7 @@ describe('AI Gateway — proposals never silently mutate', () => {
     } = await seedVersion(db, 'ai4@example.com');
     await grantAiConsent(db, a1.id);
     const first = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: a1.id,
       applicantId: ap1,
       documentVersionId: v1,
@@ -478,6 +487,7 @@ describe('AI Gateway — proposals never silently mutate', () => {
     } = await seedVersion(db, 'ai5@example.com');
     await grantAiConsent(db, a2.id);
     const second = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: a2.id,
       applicantId: ap2,
       documentVersionId: v2,
@@ -493,6 +503,7 @@ describe('AI Gateway — proposals never silently mutate', () => {
     await grantAiConsent(db, account.id);
     const failing = stubAi({ ok: false, code: 'upstream_error', message: 'timeout' });
     const result = await runExtraction(db, failing, {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -527,6 +538,7 @@ describe('AI Gateway — proposals never silently mutate', () => {
     if (!isOk(manual)) throw new Error('manual edit failed');
 
     const run = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -557,6 +569,7 @@ describe('AI Gateway — proposals never silently mutate', () => {
     await grantAiConsent(db, account.id);
     await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
     const run = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -589,6 +602,7 @@ describe('AI Gateway — proposals never silently mutate', () => {
     const { account, applicantId, versionId } = await seedVersion(db, 'ai-doc-budget@example.com');
     await grantAiConsent(db, account.id);
     const first = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -599,6 +613,7 @@ describe('AI Gateway — proposals never silently mutate', () => {
     expect(isOk(first)).toBe(true);
 
     const second = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -614,6 +629,7 @@ describe('AI Gateway — proposals never silently mutate', () => {
     const { account, applicantId, versionId } = await seedVersion(db, 'ai-attempts@example.com');
     await grantAiConsent(db, account.id);
     const first = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -630,6 +646,7 @@ describe('AI Gateway — proposals never silently mutate', () => {
     // make this a cache hit instead — a different, already-covered scenario
     // (see "does not let cache hits exhaust the per-document attempt limit").
     const second = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -667,6 +684,7 @@ describe('AI Gateway — proposals never silently mutate', () => {
     const { ai, callCount } = countingStubAi();
 
     const first = await runExtraction(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -685,6 +703,7 @@ describe('AI Gateway — proposals never silently mutate', () => {
     // they cost nothing and did no new AI work.
     for (let i = 0; i < 3; i++) {
       const repeat = await runExtraction(db, ai, {
+        feature: 'ai_document_reading',
         actorAccountId: account.id,
         applicantId,
         documentVersionId: versionId,
@@ -700,6 +719,7 @@ describe('AI Gateway — proposals never silently mutate', () => {
     // still correctly hits the SAME limit of 1: the fix excludes cache hits
     // specifically, not attempts in general.
     const genuinelyNewAtLimit = await runExtraction(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -724,6 +744,7 @@ describe('AI Gateway — proposals never silently mutate', () => {
     // cache MISS, after cache hits already exist in the table, exercises
     // the exclusion.
     const genuinelyNewUnderRaisedLimit = await runExtraction(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -753,6 +774,7 @@ describe('AI Gateway — proposals never silently mutate', () => {
     });
 
     const result = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -777,6 +799,7 @@ describe('AI Gateway — caching and schema version (master directive §7 "PR 9"
     const { ai, callCount } = countingStubAi();
 
     const first = await runExtraction(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -789,6 +812,7 @@ describe('AI Gateway — caching and schema version (master directive §7 "PR 9"
     expect(await totalAiCostUnits(db)).toBe(3);
 
     const second = await runExtraction(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -828,6 +852,7 @@ describe('AI Gateway — caching and schema version (master directive §7 "PR 9"
     const { ai, callCount } = countingStubAi();
 
     const first = await runExtraction(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -845,6 +870,7 @@ describe('AI Gateway — caching and schema version (master directive §7 "PR 9"
       .where(eq(schema.aiExtractionRuns.id, first.value.aiExtractionRunId));
 
     const second = await runExtraction(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -876,6 +902,7 @@ describe('AI Gateway — caching and schema version (master directive §7 "PR 9"
     const { ai, callCount } = countingStubAi();
 
     const first = await runExtraction(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -892,6 +919,7 @@ describe('AI Gateway — caching and schema version (master directive §7 "PR 9"
       .where(eq(schema.aiExtractionRuns.id, first.value.aiExtractionRunId));
 
     const second = await runExtraction(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -913,6 +941,7 @@ describe('AI Gateway — caching and schema version (master directive §7 "PR 9"
     const { ai, callCount } = countingStubAi();
 
     const first = await runExtraction(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -930,6 +959,7 @@ describe('AI Gateway — caching and schema version (master directive §7 "PR 9"
       .where(eq(schema.aiExtractionRuns.id, first.value.aiExtractionRunId));
 
     const second = await runExtraction(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -949,6 +979,7 @@ describe('AI Gateway — caching and schema version (master directive §7 "PR 9"
     const { ai, callCount } = countingStubAi();
 
     const first = await runExtraction(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -959,6 +990,7 @@ describe('AI Gateway — caching and schema version (master directive §7 "PR 9"
     expect(callCount()).toBe(1);
 
     const second = await runExtraction(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -986,6 +1018,7 @@ describe('AI Gateway — caching and schema version (master directive §7 "PR 9"
     );
     await grantAiConsent(db, account.id);
     const run = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1011,6 +1044,7 @@ describe('AI Gateway — caching and schema version (master directive §7 "PR 9"
     const { ai } = countingStubAi();
 
     const first = await runExtraction(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1025,6 +1059,7 @@ describe('AI Gateway — caching and schema version (master directive §7 "PR 9"
     // still refuses it. A deliberate, conservative ordering (see the comment
     // at the cache-lookup call site in ai.ts).
     const second = await runExtraction(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1058,6 +1093,7 @@ describe('AI Gateway -- concurrency gate and budget-race safety (Part 8 §11)', 
     await grantAiConsent(db, account.id);
 
     const result = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1083,6 +1119,7 @@ describe('AI Gateway -- concurrency gate and budget-race safety (Part 8 §11)', 
     await grantAiConsent(db, account.id);
 
     const result = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1109,6 +1146,7 @@ describe('AI Gateway -- concurrency gate and budget-race safety (Part 8 §11)', 
     await grantAiConsent(db, account.id);
 
     const result = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1140,6 +1178,7 @@ describe('AI Gateway -- concurrency gate and budget-race safety (Part 8 §11)', 
     // never invents a pricing estimate): one genuine paid run costing 3
     // units.
     const first = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1160,6 +1199,7 @@ describe('AI Gateway -- concurrency gate and budget-race safety (Part 8 §11)', 
     // for each of the two pushes the projected total to 3 + 2*3 = 9, over
     // the limit, so this is refused before it ever reaches the adapter.
     const third = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1189,6 +1229,7 @@ describe('AI Gateway -- evidence grounding (Part 8 AI-04)', () => {
     const sourceText = `Passport MRZ: ${MRZ_SNIPPET} end of document`;
 
     const run = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1231,6 +1272,7 @@ describe('AI Gateway -- evidence grounding (Part 8 AI-04)', () => {
       db,
       stubAi({ ok: true, result: { proposals: fabricated, usage } }),
       {
+        feature: 'ai_document_reading',
         actorAccountId: account.id,
         applicantId,
         documentVersionId: versionId,
@@ -1264,6 +1306,7 @@ describe('AI Gateway -- evidence grounding (Part 8 AI-04)', () => {
     const sourceText = `Passport MRZ: ${MRZ_SNIPPET}`;
 
     const first = await runExtraction(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1273,6 +1316,7 @@ describe('AI Gateway -- evidence grounding (Part 8 AI-04)', () => {
     if (!isOk(first)) throw new Error('first run failed');
 
     const second = await runExtraction(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1307,6 +1351,7 @@ describe('AI Gateway -- kill switch (Part 8 §5: "rechecked immediately before o
     const { ai, callCount } = countingStubAi();
 
     const result = await runExtraction(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1327,6 +1372,7 @@ describe('AI Gateway -- kill switch (Part 8 §5: "rechecked immediately before o
     const { ai, callCount } = countingStubAi();
 
     const result = await runExtraction(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1356,6 +1402,7 @@ describe('AI Gateway -- kill switch (Part 8 §5: "rechecked immediately before o
     );
     await grantAiConsent(db, account.id);
     const result = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1396,6 +1443,7 @@ describe('AI Gateway -- shared platform-wide budget with OCR (Part 8 Chunk 18/19
     );
     await grantAiConsent(db, account.id);
     await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1417,6 +1465,7 @@ describe('AI Gateway -- shared platform-wide budget with OCR (Part 8 Chunk 18/19
     const other = await seedVersion(db, 'shared-budget-other-doc@example.com');
     await grantAiConsent(db, account.id);
     await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1449,6 +1498,7 @@ describe('AI Gateway -- shared platform-wide budget with OCR (Part 8 Chunk 18/19
     // would exhaust an exact 100-unit budget before ever reaching the
     // adapter.
     const result = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1527,6 +1577,7 @@ describe('AI Gateway -- runOcr (Part 8 Chunk 20)', () => {
     const { account, applicantId, versionId } = await seedVersion(db, 'ocr-consent@example.com');
     await grantAiConsent(db, account.id); // AI_EXTRACTION only, deliberately not AI_OCR
     const denied = await runOcr(db, stubOcrAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1543,6 +1594,7 @@ describe('AI Gateway -- runOcr (Part 8 Chunk 20)', () => {
     await grantOcrConsent(db, account.id);
 
     const result = await runOcr(db, stubOcrAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1576,6 +1628,7 @@ describe('AI Gateway -- runOcr (Part 8 Chunk 20)', () => {
         result: { text: '', reviewIssues: ['low_quality', 'missing_text'], usage: ocrUsage },
       }),
       {
+        feature: 'ai_document_reading',
         actorAccountId: account.id,
         applicantId,
         documentVersionId: versionId,
@@ -1603,6 +1656,7 @@ describe('AI Gateway -- runOcr (Part 8 Chunk 20)', () => {
         latencyMs: 12,
       }),
       {
+        feature: 'ai_document_reading',
         actorAccountId: account.id,
         applicantId,
         documentVersionId: versionId,
@@ -1630,6 +1684,7 @@ describe('AI Gateway -- runOcr (Part 8 Chunk 20)', () => {
     const { ai, callCount } = countingStubOcrAi();
 
     const first = await runOcr(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1641,6 +1696,7 @@ describe('AI Gateway -- runOcr (Part 8 Chunk 20)', () => {
     expect(callCount()).toBe(1);
 
     const second = await runOcr(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1662,6 +1718,7 @@ describe('AI Gateway -- runOcr (Part 8 Chunk 20)', () => {
     const { ai, callCount } = countingStubOcrAi();
 
     await runOcr(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1670,6 +1727,7 @@ describe('AI Gateway -- runOcr (Part 8 Chunk 20)', () => {
       budgetLimitUnits: 100,
     });
     const second = await runOcr(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1689,6 +1747,7 @@ describe('AI Gateway -- runOcr (Part 8 Chunk 20)', () => {
 
     // Two genuinely different (never-cached) calls exhaust a limit of 2.
     await runOcr(db, stubOcrAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1698,6 +1757,7 @@ describe('AI Gateway -- runOcr (Part 8 Chunk 20)', () => {
       maxAttemptsPerDocument: 2,
     });
     await runOcr(db, stubOcrAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1707,6 +1767,7 @@ describe('AI Gateway -- runOcr (Part 8 Chunk 20)', () => {
       maxAttemptsPerDocument: 2,
     });
     const third = await runOcr(db, stubOcrAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1725,6 +1786,7 @@ describe('AI Gateway -- runOcr (Part 8 Chunk 20)', () => {
     const { ai, callCount } = countingStubOcrAi();
 
     const result = await runOcr(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1750,6 +1812,7 @@ describe('AI Gateway -- runOcr (Part 8 Chunk 20)', () => {
     const seeded = await seedVersion(db, 'ocr-budget-seed@example.com');
     await grantOcrConsent(db, seeded.account.id);
     const seedCall = await runOcr(db, stubOcrAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: seeded.account.id,
       applicantId: seeded.applicantId,
       documentVersionId: seeded.versionId,
@@ -1762,6 +1825,7 @@ describe('AI Gateway -- runOcr (Part 8 Chunk 20)', () => {
     const { account, applicantId, versionId } = await seedVersion(db, 'ocr-budget@example.com');
     await grantOcrConsent(db, account.id);
     const result = await runOcr(db, stubOcrAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -1781,6 +1845,7 @@ describe('AI Gateway -- runOcr (Part 8 Chunk 20)', () => {
     await grantOcrConsent(db, owner.account.id);
 
     const result = await runOcr(db, stubOcrAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: stranger.value.id,
       applicantId: owner.applicantId,
       documentVersionId: owner.versionId,
@@ -1803,6 +1868,7 @@ describe('AI Gateway -- runOcr (Part 8 Chunk 20)', () => {
         result: { text: 'passport MRZ line', reviewIssues: ['ambiguous_date'], usage: ocrUsage },
       }),
       {
+        feature: 'ai_document_reading',
         actorAccountId: account.id,
         applicantId,
         documentVersionId: versionId,
@@ -1881,6 +1947,7 @@ describe('AI Gateway -- cross-provider fallback (Part 8 §13, Chunk 25)', () => 
       db,
       stubAi({ ok: false, code: 'timeout', message: 'timed out' }),
       {
+        feature: 'ai_document_reading',
         actorAccountId: account.id,
         applicantId,
         documentVersionId: versionId,
@@ -1916,6 +1983,7 @@ describe('AI Gateway -- cross-provider fallback (Part 8 §13, Chunk 25)', () => 
       db,
       stubAi({ ok: false, code: 'rate_limited', message: 'too many requests' }),
       {
+        feature: 'ai_document_reading',
         actorAccountId: account.id,
         applicantId,
         documentVersionId: versionId,
@@ -1945,6 +2013,7 @@ describe('AI Gateway -- cross-provider fallback (Part 8 §13, Chunk 25)', () => 
       db,
       stubAi({ ok: false, code: 'refused', message: 'the model declined' }),
       {
+        feature: 'ai_document_reading',
         actorAccountId: account.id,
         applicantId,
         documentVersionId: versionId,
@@ -1979,6 +2048,7 @@ describe('AI Gateway -- cross-provider fallback (Part 8 §13, Chunk 25)', () => 
       const { ai: fallback, callCount } = countingStubAi();
 
       await runExtraction(db, stubAi({ ok: false, code, message }), {
+        feature: 'ai_document_reading',
         actorAccountId: account.id,
         applicantId,
         documentVersionId: versionId,
@@ -2001,6 +2071,7 @@ describe('AI Gateway -- cross-provider fallback (Part 8 §13, Chunk 25)', () => 
       db,
       stubAi({ ok: false, code: 'timeout', message: 'timed out' }),
       {
+        feature: 'ai_document_reading',
         actorAccountId: account.id,
         applicantId,
         documentVersionId: versionId,
@@ -2028,6 +2099,7 @@ describe('AI Gateway -- cross-provider fallback (Part 8 §13, Chunk 25)', () => 
       db,
       stubAi({ ok: false, code: 'timeout', message: 'timed out' }),
       {
+        feature: 'ai_document_reading',
         actorAccountId: account.id,
         applicantId,
         documentVersionId: versionId,
@@ -2056,6 +2128,7 @@ describe('AI Gateway -- cross-provider fallback (Part 8 §13, Chunk 25)', () => 
     await grantAiConsent(db, account.id);
     // Exhaust the (shared) attempt cap of 1 with a prior FAILED run first.
     await runExtraction(db, stubAi({ ok: false, code: 'auth_failed', message: 'bad key' }), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -2069,6 +2142,7 @@ describe('AI Gateway -- cross-provider fallback (Part 8 §13, Chunk 25)', () => 
       db,
       stubAi({ ok: false, code: 'timeout', message: 'timed out' }),
       {
+        feature: 'ai_document_reading',
         actorAccountId: account.id,
         applicantId,
         documentVersionId: versionId,
@@ -2095,6 +2169,7 @@ describe('AI Gateway -- cross-provider fallback (Part 8 §13, Chunk 25)', () => 
       db,
       stubOcrAi({ ok: false, code: 'timeout', message: 'timed out' }),
       {
+        feature: 'ai_document_reading',
         actorAccountId: account.id,
         applicantId,
         documentVersionId: versionId,
@@ -2131,6 +2206,7 @@ describe('AI Gateway -- cross-provider fallback (Part 8 §13, Chunk 25)', () => 
       db,
       stubOcrAi({ ok: false, code: 'refused', message: 'the model declined' }),
       {
+        feature: 'ai_document_reading',
         actorAccountId: account.id,
         applicantId,
         documentVersionId: versionId,
@@ -3281,6 +3357,7 @@ describe('AI Gateway -- one per-actor rate limit shared across all five tasks (P
       const { ai, callCount } = countingStubAi();
       await grantAiConsent(db, ctx.accountId);
       const result = await runExtraction(db, ai, {
+        feature: 'ai_document_reading',
         actorAccountId: ctx.accountId,
         applicantId: ctx.applicantId,
         documentVersionId: ctx.versionId,
@@ -3293,6 +3370,7 @@ describe('AI Gateway -- one per-actor rate limit shared across all five tasks (P
       const { ai, callCount } = countingStubOcrAi();
       await grantOcrConsent(db, ctx.accountId);
       const result = await runOcr(db, ai, {
+        feature: 'ai_document_reading',
         actorAccountId: ctx.accountId,
         applicantId: ctx.applicantId,
         documentVersionId: ctx.versionId,
@@ -3405,6 +3483,7 @@ describe('AI Gateway -- one per-actor rate limit shared across all five tasks (P
     await exhaustRateLimit(db, account.id, 'ai.run', RATE_LIMITS.AI_RUN);
 
     const denied = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -3455,6 +3534,7 @@ describe('AI Gateway -- one per-actor rate limit shared across all five tasks (P
       db,
       stubAi({ ok: false, code: 'timeout', message: 'timed out' }),
       {
+        feature: 'ai_document_reading',
         actorAccountId: account.id,
         applicantId,
         documentVersionId: versionId,
@@ -3497,6 +3577,7 @@ describe('OPS-04 (Commercial V1 Part 9): AI decision analytics', () => {
     await grantAiConsent(db, account.id);
     await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
     const run = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
       actorAccountId: account.id,
       applicantId,
       documentVersionId: versionId,
@@ -3695,6 +3776,7 @@ describe("AI Gateway -- reuse of an earlier reading stays inside one person's re
     for (const who of [one, two]) {
       await grantOcrConsent(db, who.account.id);
       const result = await runOcr(db, ai, {
+        feature: 'ai_document_reading',
         actorAccountId: who.account.id,
         applicantId: who.applicantId,
         documentVersionId: who.versionId,

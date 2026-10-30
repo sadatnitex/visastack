@@ -245,6 +245,7 @@ async function suggestions(ownerId: string, applicantId: string) {
   });
   if (!isOk(version)) throw new Error('version');
   const run = await runExtraction(db, reader, {
+    feature: 'ai_document_reading',
     actorAccountId: ownerId,
     applicantId,
     documentVersionId: version.value.version.id,

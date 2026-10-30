@@ -157,10 +157,24 @@ describe('cache keys keep each provider apart', () => {
     const gemini = extractor('gemini');
 
     expect(
-      isOk(await runExtraction(db, openai.ai, { ...base, text: 'MRZ', budgetLimitUnits: 1000 })),
+      isOk(
+        await runExtraction(db, openai.ai, {
+          feature: 'ai_document_reading',
+          ...base,
+          text: 'MRZ',
+          budgetLimitUnits: 1000,
+        }),
+      ),
     ).toBe(true);
     expect(
-      isOk(await runExtraction(db, gemini.ai, { ...base, text: 'MRZ', budgetLimitUnits: 1000 })),
+      isOk(
+        await runExtraction(db, gemini.ai, {
+          feature: 'ai_document_reading',
+          ...base,
+          text: 'MRZ',
+          budgetLimitUnits: 1000,
+        }),
+      ),
     ).toBe(true);
 
     // The second provider was really asked, not handed the first one's answer.
@@ -176,7 +190,12 @@ describe('cache keys keep each provider apart', () => {
     expect(runs.map((r) => r.provider)).toEqual(['openai', 'gemini']);
 
     // The same provider again is still served from its own cache.
-    await runExtraction(db, gemini.ai, { ...base, text: 'MRZ', budgetLimitUnits: 1000 });
+    await runExtraction(db, gemini.ai, {
+      feature: 'ai_document_reading',
+      ...base,
+      text: 'MRZ',
+      budgetLimitUnits: 1000,
+    });
     expect(gemini.calls()).toBe(1);
   });
 
@@ -189,6 +208,7 @@ describe('cache keys keep each provider apart', () => {
       imageBytes: new TextEncoder().encode('fake-page'),
       contentType: 'image/png' as const,
       budgetLimitUnits: 1000,
+      feature: 'ai_document_reading' as const,
     };
     const openai = ocrReader('openai');
     const anthropic = ocrReader('anthropic');
@@ -214,6 +234,7 @@ describe('a fallback to another provider stays inside the existing caps', () => 
     const primary = extractor('openai', { ok: false, code: 'timeout', message: 'timed out' });
     const fallback = extractor('anthropic');
     const result = await runExtraction(db, primary.ai, {
+      feature: 'ai_document_reading',
       actorAccountId: accountId,
       applicantId,
       documentVersionId: versionId,
@@ -240,6 +261,7 @@ describe('a fallback to another provider stays inside the existing caps', () => 
     const primary = extractor('openai', { ok: false, code: 'rate_limited', message: 'slow down' });
     const fallback = extractor('anthropic');
     const result = await runExtraction(db, primary.ai, {
+      feature: 'ai_document_reading',
       actorAccountId: accountId,
       applicantId,
       documentVersionId: versionId,

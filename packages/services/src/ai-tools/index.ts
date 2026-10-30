@@ -108,7 +108,18 @@ export async function runAiTool<Tool extends AnyAiToolDefinition>(
               (gateway) => tool.run(gateway, input as never),
               describeResult,
             );
-    if (!outcome.ok) return { kind: 'unauthorized', result: refusal(MESSAGES.ended) };
+    if (!outcome.ok) {
+      // AI App Access off or used up (S28): the connection is still good, so no new sign-in.
+      if (outcome.error.kind === 'feature_off') {
+        return {
+          kind: 'answered',
+          result: refusal(
+            outcome.error.reason === 'access_limit' ? MESSAGES.accessLimit : MESSAGES.accessOff,
+          ),
+        };
+      }
+      return { kind: 'unauthorized', result: refusal(MESSAGES.ended) };
+    }
     return { kind: 'answered', result: outcome.value };
   } catch (error) {
     return { kind: 'failed', result: refusal(MESSAGES.failed), error };

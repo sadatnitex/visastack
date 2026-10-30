@@ -125,6 +125,11 @@ export default async function SharingPage({
       const list = listed?.ok
         ? listed.value
         : { available: false, active: [], activeTotal: 0, recentlyEnded: [] };
+      // AI App Access (S28): while it is off, apps read nothing; the connections stay listed.
+      const access =
+        aiGate.ok && list.active.length > 0
+          ? await getAiFeatureState(db, 'ai_app_access', { proof: aiGate.value })
+          : null;
       // "Original Files" (S20): what may be ticked, and what each live connection has ticked.
       let files: AiConnectionFiles | undefined;
       if (aiGate.ok && list.active.length > 0) {
@@ -171,7 +176,7 @@ export default async function SharingPage({
               target: aiChangeId,
             })
           : null;
-      return { list, files, returningFiles };
+      return { list, files, returningFiles, access };
     };
     // What AI apps left for the person (S21): their drafts, and whether suggestions work now.
     // Drafts stay readable and removable whether or not the feature is on.
@@ -268,6 +273,7 @@ export default async function SharingPage({
 
     return {
       aiConnections: aiRead.list,
+      aiAccess: aiRead.access,
       aiFiles: aiRead.files,
       aiReturningFiles: aiRead.returningFiles,
       aiCases,
@@ -528,6 +534,9 @@ export default async function SharingPage({
               connectorOn={connectorOn}
               cases={data.aiCases}
               suggestionsAvailable={data.aiSuggestions.available}
+              {...(data.aiAccess && !data.aiAccess.available
+                ? { accessOff: data.aiAccess.reason }
+                : {})}
               {...(data.aiFiles ? { files: data.aiFiles } : {})}
               {...(aiNotice ? { notice: aiNotice } : {})}
               {...(aiReturning

@@ -17,6 +17,7 @@ import { verifyStepUp } from '../access/step-up-proof';
 import { type AiContextGateway, withAiConnection } from '../access/with-ai-connection';
 import { provisionAccount } from '../accounts';
 import { AI_TOOL_NAMES, type AiConnectionChoices } from '../ai-connection-scopes';
+import { updateAiFeatureSetting } from '../ai-feature-settings';
 import { createApplicant } from '../applicants';
 import { setConsent } from '../consent';
 import type { Db } from '../db';
@@ -30,6 +31,7 @@ import {
   publishPackVersion,
 } from '../packs';
 import { checkPilotAccess } from '../pilot-access';
+import { seedStaffAccount, staffScopeFor } from '../platform-roles.test-support';
 import type { KeyManagementPort } from '../ports';
 import { editFact, registerFieldDefinition } from '../profile';
 import { requiresProtection, resetProtectedFieldKeyCacheForTests } from '../protected-fields';
@@ -1047,5 +1049,67 @@ describe('AI tools: second review', () => {
       expect(outcome.kind).toBe('answered');
     }
     expect(unwraps).toBe(0);
+  });
+});
+
+describe('AI tools: AI App Access, the switch for every call (S28)', () => {
+  async function setAccess(enabled: boolean, dailyLimit: number | null) {
+    const staff = await staffScopeFor(
+      db,
+      await seedStaffAccount(
+        db,
+        'PLATFORM_OWNER',
+        `owner-${randomBytes(4).toString('hex')}@platform.example.com`,
+      ),
+      'AI_FEATURES_MANAGE',
+    );
+    const saved = await updateAiFeatureSetting(db, staff, {
+      feature: 'ai_app_access',
+      enabled,
+      dailyLimit,
+      stepUpSatisfied: true,
+    });
+    if (!isOk(saved)) throw new Error('setting');
+  }
+  async function accessCount(ownerId: string): Promise<number> {
+    const rows = await db
+      .select({ count: schema.rateLimitBuckets.count })
+      .from(schema.rateLimitBuckets)
+      .where(
+        sql`${schema.rateLimitBuckets.subjectId} = ${ownerId} and ${schema.rateLimitBuckets.action} = 'ai_feature.ai_app_access'`,
+      );
+    return rows.reduce((sum, row) => sum + row.count, 0);
+  }
+
+  it('counts answers given, gives refusals back, and refuses plainly when off or used up', async () => {
+    const { ownerId, applicantId, caseA } = await seed();
+    const { token } = await connect(ownerId, applicantId, {
+      ...CASE_A_ONLY,
+      missionId: caseA.missionId,
+    });
+    await served(token, 'list_documents');
+    expect(await accessCount(ownerId)).toBe(1);
+    // A refusal by the tool itself (a section not shared) is not counted.
+    await refused(token, 'get_profile_section', { section: 'finances' });
+    expect(await accessCount(ownerId)).toBe(1);
+
+    // Off: the app is told plainly, the connection is still good (no new sign-in), nothing counted.
+    await setAccess(false, null);
+    const off = await call(token, 'list_documents');
+    expect(off.kind).toBe('answered');
+    expect(off.result.isError).toBe(true);
+    expect(off.result.content[0]?.text).toBe(MESSAGES.accessOff);
+    expect(await accessCount(ownerId)).toBe(1);
+    const denied = (await aiAudit()).filter((row) => row.eventType === 'AI_CONTEXT_DENIED');
+    expect(denied.at(-1)?.reason).toBe('feature_off');
+
+    // On with a limit of two a day: the second answer is the last one today.
+    await setAccess(true, 2);
+    await served(token, 'list_documents');
+    const limited = await call(token, 'list_documents');
+    expect(limited.result.content[0]?.text).toBe(MESSAGES.accessLimit);
+    expect(await accessCount(ownerId)).toBe(2);
+    const last = (await aiAudit()).filter((row) => row.eventType === 'AI_CONTEXT_DENIED').at(-1);
+    expect(last?.reason).toBe('access_limit');
   });
 });

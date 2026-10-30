@@ -1,3 +1,4 @@
+import { aiFeatureOffHint } from '@visastack/core/ai-features';
 import {
   accountPrincipal,
   getAiFeatureState,
@@ -126,6 +127,13 @@ export default async function AuthorizePage({
       access?.ok === true
         ? (await getAiFeatureState(db, 'ai_app_suggestions', { proof: access.value })).available
         : false;
+    // AI App Access (S28): while it is off the app could connect but read nothing, so say so.
+    const accessFeature =
+      access?.ok === true
+        ? await getAiFeatureState(db, 'ai_app_access', { proof: access.value })
+        : null;
+    const accessOff =
+      accessFeature && !accessFeature.available ? aiFeatureOffHint(accessFeature.reason) : null;
     // "Original Files" (S20): the record's documents that may be ticked, once the feature exists.
     let files: AiFilesView | undefined;
     let filesInitial: readonly AiFileChoice[] = [];
@@ -160,7 +168,7 @@ export default async function AuthorizePage({
           }) ?? [];
       }
     }
-    return { records, chosen, cases, suggestionsAvailable, files, filesInitial };
+    return { records, chosen, cases, suggestionsAvailable, files, filesInitial, accessOff };
   });
 
   const appName = request.client.clientName;
@@ -203,6 +211,7 @@ export default async function AuthorizePage({
           <p className="card-body">
             Record: <strong>{view.chosen.name}</strong>
           </p>
+          {view.accessOff ? <p className="notice notice-warn">{view.accessOff}</p> : null}
           <ConsentForm
             request={{
               clientId: request.client.clientId,

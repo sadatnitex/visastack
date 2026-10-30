@@ -8,6 +8,7 @@ import {
   accountPrincipal,
   classifyExpiry,
   documentCategory,
+  getAiFeatureStates,
   getApplicant,
   getApplicantEvidenceBytes,
   getLatestOcrRun,
@@ -33,6 +34,7 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { AiFeatureOffNote } from '../../../../../components/ai-feature-off';
 import { AutoRefresh } from '../../../../../components/auto-refresh';
 import { DepthScope, atLevel } from '../../../../../components/depth';
 import { DepthSwitch } from '../../../../../components/depth-switch';
@@ -269,6 +271,15 @@ export default async function ApplicantDocumentsPage({
       : undefined;
     const detailsAvailable =
       (await resolveAiExtractionAvailability(db, encryption !== undefined)) === 'available';
+    // Each AI button's own switch (S28), through the same owner proof. If it cannot be read, the
+    // buttons stay as they were and the service still refuses a feature that is off.
+    const aiFeatures = readingAccess.ok
+      ? await getAiFeatureStates(
+          db,
+          ['ai_document_reading', 'ai_document_kind', 'ai_consistency_checks'] as const,
+          { proof: readingAccess.value },
+        )
+      : undefined;
     // The live protection rule, for the card's fresh sign-in warning. If it cannot be read, the
     // built-in rule applies, which protects every file whose kind is not known yet.
     const protection = await readDocumentProtectionSettings(db).catch(
@@ -289,6 +300,7 @@ export default async function ApplicantDocumentsPage({
       coreGranted,
       aiGranted,
       detailsAvailable,
+      aiFeatures,
       reading: reading?.ok ? reading.value : undefined,
       safeCopies: safeCopies?.ok ? safeCopies.value : new Map<string, SafeCopyStateName>(),
       ocrGranted,
@@ -461,10 +473,13 @@ export default async function ApplicantDocumentsPage({
             const category = documentCategory(doc.docType);
             const suggested = doc.docType ? undefined : waitingKind;
             // Read Again needs the switch for what it would do: text, or a scan first and then text.
-            const canReadAgain =
+            const readingOn = data.aiFeatures?.ai_document_reading.available !== false;
+            const couldReadAgain =
               data.coreGranted &&
               ((data.detailsAvailable && data.aiGranted) ||
                 (data.ocrConfigured && data.ocrGranted));
+            // Read with AI turned off (S28): the hint takes the button's place.
+            const canReadAgain = couldReadAgain && readingOn;
             return {
               id: doc.id,
               name: doc.approvedName ?? doc.originalName,
@@ -724,14 +739,18 @@ export default async function ApplicantDocumentsPage({
                       );
                       const stage = data.reading?.states.get(versionId)?.stage;
                       // Read Again is the retry: offered once the first reading is over, never while it runs.
-                      const showReadAgain =
-                        canReadAgain &&
+                      const readAgainStage =
+                        couldReadAgain &&
                         doc.classification &&
                         (stage === 'found' || stage === 'could_not_read' || stage === 'done');
                       return (
                         <>
-                          {showReadAgain ? (
+                          {readAgainStage && readingOn ? (
                             <ReadAgainButton applicantId={id} documentVersionId={versionId} />
+                          ) : readAgainStage ? (
+                            <AiFeatureOffNote
+                              reason={data.aiFeatures?.ai_document_reading.reason ?? null}
+                            />
                           ) : null}
                           {/* Suggestions are shown whatever the AI switches say: the passport's
                           machine-readable lines need no AI. Accepting still needs core processing
@@ -772,6 +791,10 @@ export default async function ApplicantDocumentsPage({
                       if (!versionId) return null;
                       // A waiting AI kind is shown in the card above, decided with its name.
                       if (waitingKind || !data.coreGranted || doc.docType) return null;
+                      const kindFeature = data.aiFeatures?.ai_document_kind;
+                      if (kindFeature && !kindFeature.available) {
+                        return <AiFeatureOffNote reason={kindFeature.reason} />;
+                      }
                       return (
                         <RunClassificationButton applicantId={id} documentVersionId={versionId} />
                       );
@@ -803,10 +826,15 @@ export default async function ApplicantDocumentsPage({
                       );
                       return (
                         <>
-                          {data.coreGranted ? (
+                          {data.coreGranted &&
+                          data.aiFeatures?.ai_consistency_checks.available !== false ? (
                             <RunInconsistencyCheckButton
                               applicantId={id}
                               documentVersionId={versionId}
+                            />
+                          ) : data.coreGranted ? (
+                            <AiFeatureOffNote
+                              reason={data.aiFeatures?.ai_consistency_checks.reason ?? null}
                             />
                           ) : null}
                           {flagsForDoc.map((flag) => (

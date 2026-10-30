@@ -191,7 +191,7 @@ const SCENARIOS: readonly Scenario[] = [
     params: (w) => ({ packId: w.ids.packId }),
   },
   { route: 'app/admin/privacy', persona: 'platformAdmin' },
-  { route: 'app/admin/ai-settings', persona: 'platformAdmin' },
+  { route: 'app/admin/ai', persona: 'platformAdmin' },
 ];
 
 /** Pages that need a one-off link or token to open; listed so nothing is missed silently. */

@@ -15,7 +15,12 @@ import {
   isAiFileVariant,
   selectionFromStoredChoices,
 } from '../ai-connection-scopes';
-import { getAiFeatureState } from '../ai-feature-settings';
+import {
+  chargeAiFeatureUse,
+  getAiFeatureState,
+  openAiFeatureGate,
+  refundAiFeatureUse,
+} from '../ai-feature-settings';
 import { aiFilesAvailable } from '../ai-files-ready';
 import {
   type AiWriteOutcome,
@@ -301,7 +306,14 @@ export type AiCallRecord =
     }
   | { readonly kind: 'denied'; readonly reason: AiDenialReason };
 
-export type AiGateRefusal = { readonly kind: 'unauthorized' };
+export type AiGateRefusal =
+  | { readonly kind: 'unauthorized' }
+  /**
+   * AI App Access is off for this person (the platform owner's switch or the plan), or today's
+   * limit of requests is used up (S28). The connection is still good: the app is told plainly and
+   * is not asked to sign in again.
+   */
+  | { readonly kind: 'feature_off'; readonly reason: 'feature_off' | 'access_limit' };
 
 /**
  * Whether the account may still use VisaStack: the deployment's pilot-access rule, handed in by
@@ -600,6 +612,24 @@ async function runGate<T>(
       if (!opened) return err({ kind: 'unauthorized' } as const);
       const { connection, proof } = opened;
       seen.target = connection;
+      const now = request.now ?? new Date();
+      // AI App Access (S28), on every call: the platform owner's switch, the person's plan and
+      // today's limit. Off, the app is told plainly; the connection stays listed and revocable.
+      const access = await openAiFeatureGate(tx, 'ai_app_access', { proof }, { now });
+      const accessRefusal = (reason: 'feature_off' | 'access_limit') =>
+        err({ kind: 'feature_off', reason } as const);
+      if (!access.ok) {
+        const reason = access.error.reason === 'daily_limit' ? 'access_limit' : 'feature_off';
+        await auditDenied(tx, connection, request.tool, reason, { now });
+        return accessRefusal(reason);
+      }
+      // Counted as the call starts, so this count row is always locked before the limit rows and
+      // the audit chain (one lock order for every tool), and given back below if the call ends
+      // refused: only answers actually given count.
+      if (!(await chargeAiFeatureUse(tx, access.value, now))) {
+        await auditDenied(tx, connection, request.tool, 'access_limit', { now });
+        return accessRefusal('access_limit');
+      }
       const selection = selectionFromStoredChoices(connection);
       const stepUp = selection.revealIdentifiers
         ? await stepUpFromAiConnection(tx, connection.connectionId)
@@ -726,9 +756,8 @@ async function runGate<T>(
       const record: AiCallRecord =
         described.kind === 'served' && served !== null ? { ...described, file: served } : described;
       if (record.kind === 'denied') {
-        await auditDenied(tx, connection, request.tool, record.reason, {
-          now: request.now ?? new Date(),
-        });
+        await refundAiFeatureUse(tx, access.value, now);
+        await auditDenied(tx, connection, request.tool, record.reason, { now });
       } else {
         // Product events first (savepoints that never throw), then the audit record.
         if (record.file) {

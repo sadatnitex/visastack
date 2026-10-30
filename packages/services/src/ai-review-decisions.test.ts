@@ -172,6 +172,7 @@ async function seed(email: string) {
   });
   const applicantId = applicant.value.id;
   const run = await runExtraction(db, stubAi, {
+    feature: 'ai_document_reading',
     actorAccountId: account.id,
     applicantId,
     documentVersionId: version.value.version.id,

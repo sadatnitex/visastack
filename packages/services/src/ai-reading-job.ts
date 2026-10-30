@@ -49,6 +49,10 @@ export const READING_STOP_REASONS = [
   'NO_CONSENT',
   /** The platform kill switch is on, or no AI provider is usable right now. */
   'SWITCHED_OFF',
+  /** The platform owner turned Automatic Reading off, or the person's plan does not include it (S28). */
+  'FEATURE_OFF',
+  /** The person's daily limit for Automatic Reading is used up for today (S28). */
+  'DAILY_LIMIT',
   /** The kind of document is on the protected list, so it is only ever read on request. */
   'PROTECTED',
   /** A spend, attempt or page limit stopped the reading. */

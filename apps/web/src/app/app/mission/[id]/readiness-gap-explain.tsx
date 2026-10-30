@@ -1,5 +1,6 @@
 'use client';
 
+import { type AiFeatureOffReason, aiFeatureOffHint } from '@visastack/core/ai-features';
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { type ActionState, explainReadinessGapAction } from './actions';
@@ -20,10 +21,13 @@ export function ExplainGapButton({
   missionId,
   packRequirementId,
   explanation,
+  off,
 }: {
   readonly missionId: string;
   readonly packRequirementId: string;
   readonly explanation: string | null;
+  /** Set when Gap Explanations is off (S28): the hint takes the button's place. */
+  readonly off?: AiFeatureOffReason | null;
 }) {
   const [state, formAction, pending] = useActionState(explainReadinessGapAction, INITIAL);
 
@@ -34,16 +38,20 @@ export function ExplainGapButton({
           {explanation}
         </p>
       ) : null}
-      <form action={formAction} style={{ display: 'inline' }}>
-        <input type="hidden" name="missionId" value={missionId} />
-        <input type="hidden" name="packRequirementId" value={packRequirementId} />
-        <SubmitButton
-          pending={pending}
-          idle={explanation ? 'Refresh Explanation' : 'Explain This with AI'}
-          busy="Asking AI…"
-          className="btn btn-secondary u-btn-xs"
-        />
-      </form>
+      {off !== undefined ? (
+        <p className="muted u-fs-085">{aiFeatureOffHint(off)}</p>
+      ) : (
+        <form action={formAction} style={{ display: 'inline' }}>
+          <input type="hidden" name="missionId" value={missionId} />
+          <input type="hidden" name="packRequirementId" value={packRequirementId} />
+          <SubmitButton
+            pending={pending}
+            idle={explanation ? 'Refresh Explanation' : 'Explain This with AI'}
+            busy="Asking AI…"
+            className="btn btn-secondary u-btn-xs"
+          />
+        </form>
+      )}
       <FormMessage result={state} style={{ fontSize: 'var(--text-caption)' }} />
     </div>
   );

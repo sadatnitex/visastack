@@ -82,3 +82,13 @@ Added 30 Oct 2026 (S29, plans and test payments):
 | A plan nobody new can be put on | Retired (status), Offered (status) | "Archived", "Disabled", "Deprecated" | **New (S29)** |
 | A payment made in the gateway's test mode | Test Payment (badge); the mode on Billing Rules and the status page: Test Payments Only, Live, Not Set Up | "Sandbox Payment", "Fake Payment", "Dry Run" | **New (S29)** |
 | A coming price on Plan and Usage | "From {date}, your next billing period, the price is {amount}. Invoices already made keep their amounts." | "Price Change Pending", "Repricing" | **New (S29)** |
+
+Added 30 Oct 2026 (S28, AI feature controls):
+
+| Thing | Canonical name | Retire | Status |
+|---|---|---|---|
+| The one admin area for AI | AI Settings (Admin > Settings), sections AI Features, AI Providers, Data Terms, AI Apps | "AI Gateway", "AI Provider Settings" as a page name, "AI Configuration" | **New (S28)** |
+| The AI features (registry names) | Automatic Reading, Read with AI, Document Kind Suggestions, Gap Explanations, Consistency Checks, AI App Access, AI App Suggestions, AI App Original Files | "AI Extraction", "Classification", "Inconsistency Check", "MCP Access", "Connector" | **New (S28)**, extends the S21 row |
+| A person's own AI counts | AI Use Today (Privacy & Consent); badges On, Off, Limit Reached; lines "2 files today", "3 of 10 checks today" | "AI Quota", "Usage Meter", "Tokens" | **New (S28)** |
+| Where an AI button was, while the feature is off | "This AI feature is turned off right now. Everything else works as usual." | "Feature disabled", "AI unavailable (error)" | **New (S28)** |
+| Today's limit used up | "You have reached today's limit for this AI feature. It starts again at 6 AM Bangladesh time." | "Rate limited", "Quota exceeded" | **New (S28)** |

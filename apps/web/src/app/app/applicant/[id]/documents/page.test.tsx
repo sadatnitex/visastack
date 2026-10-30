@@ -1,7 +1,10 @@
+import { AI_FEATURE_LIMIT_HINT, AI_FEATURE_OFF_HINT } from '@visastack/core/ai-features';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderServer, stub, stubProps, textOf } from '../../../../../lib/next-mocks.test-support';
 
 const mocks = vi.hoisted(() => ({
+  /** The AI feature switches (S28): every feature on unless a test turns one off. */
+  aiFeatureOff: new Map<string, string>(),
   getApplicant: vi.fn(),
   getWalletView: vi.fn(),
   listDocumentsDetailed: vi.fn(),
@@ -46,6 +49,13 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   listPendingProposals: mocks.listPendingProposals,
   listApplicantProfile: async () => [],
   requireAccess: mocks.requireAccess,
+  getAiFeatureStates: async (_db: unknown, features: readonly string[]) =>
+    Object.fromEntries(
+      features.map((feature) => {
+        const reason = mocks.aiFeatureOff.get(feature) ?? null;
+        return [feature, { feature, available: reason === null, reason, dailyLimit: null }];
+      }),
+    ),
   listDocumentReadingStates: mocks.listDocumentReadingStates,
   listRedactionStates: mocks.listRedactionStates,
 }));
@@ -660,6 +670,27 @@ describe('the one invitation to switch reading on, and Read Again', () => {
 
     grants(['CORE_PROCESSING']);
     expect(await offered('c')).toBe(0);
+  });
+
+  it('puts the plain hint where Read Again was while Read with AI is off (S28), and keeps the rest', async () => {
+    grants(['CORE_PROCESSING', 'AI_EXTRACTION']);
+    mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [read('c')] });
+    mocks.listDocumentReadingStates.mockResolvedValue(
+      statesOf({ c: { stage: 'could_not_read', reason: 'FEATURE_OFF' } }),
+    );
+    mocks.aiFeatureOff.set('ai_document_reading', 'turned_off');
+    try {
+      const html = await render('c');
+      expect(stubProps(html, 'ReadAgainButton')).toHaveLength(0);
+      const text = textOf(html);
+      expect(text).toContain(AI_FEATURE_OFF_HINT);
+      expect(text).toContain('Automatic Reading is turned off right now');
+      expect(text).not.toContain('try Read Again');
+      mocks.aiFeatureOff.set('ai_document_reading', 'daily_limit');
+      expect(textOf(await render('c'))).toContain(AI_FEATURE_LIMIT_HINT);
+    } finally {
+      mocks.aiFeatureOff.clear();
+    }
   });
 
   it('shows the passport’s suggestions without any AI switch, each with where it came from', async () => {

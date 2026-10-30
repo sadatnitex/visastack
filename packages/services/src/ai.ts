@@ -1,9 +1,18 @@
 import { createHash } from 'node:crypto';
 import type { FactStatus, ProposalType } from '@visastack/core';
 import { type Result, err, isOk, ok } from '@visastack/core';
+import type { AiReadingFeature } from '@visastack/core/ai-features';
 import { CATALOGUE_DOCUMENTS, isRepeatingFieldKey } from '@visastack/core/catalogue';
 import { and, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access';
+import {
+  type AiFeatureGate,
+  aiDailyLimitRefusal,
+  aiFeatureRefusal,
+  aiOwnerContext,
+  chargeAiFeatureUse,
+  openAiFeatureGate,
+} from './ai-feature-settings';
 import { scopeFieldKeys } from './ai-field-scope';
 import {
   CONNECTOR_MODEL_PREFIX,
@@ -899,6 +908,17 @@ export interface RunExtractionInput {
   readonly applicantId: string;
   readonly documentVersionId: string;
   readonly text: string;
+  /**
+   * Which AI feature this reading is (S28): the automatic reading job passes
+   * `ai_automatic_reading`, a person's own request `ai_document_reading`. Required, so a new
+   * caller cannot skip the platform owner's switch, the plan or the daily limit.
+   */
+  readonly feature: AiReadingFeature;
+  /**
+   * True when this file's reading was already counted today by the step before it (the automatic
+   * reading reads a scan first, then its details: one file, one use).
+   */
+  readonly countedAlready?: boolean;
   /** Platform-wide pilot budget cap (master directive §8/§21 — cost controls; env: AI_PILOT_MONTHLY_HARD_LIMIT_USD). */
   readonly budgetLimitUnits: number;
   /** Per-document spend cap, in the same cost units (env: AI_PER_DOCUMENT_LIMIT_USD). Unset = no cap. */
@@ -1098,6 +1118,7 @@ async function reserveExtractionSlot(
   db: Db,
   ai: AiExtractionPort,
   input: RunExtractionInput,
+  gate: AiFeatureGate | null,
   triggeredByRunId?: string,
 ): Promise<ExtractionReservation> {
   return db.transaction(async (tx): Promise<ExtractionReservation> => {
@@ -1318,6 +1339,12 @@ async function reserveExtractionSlot(
       };
     }
 
+    // The feature's use today is counted here, last, once every other check has passed and a
+    // real call is certain: a cache hit, a refusal or a fallback attempt is never counted (S28).
+    if (gate && !(await chargeAiFeatureUse(tx, gate))) {
+      return { kind: 'final', outcome: err(aiDailyLimitRefusal(gate)) };
+    }
+
     const run = required(
       first(
         await tx
@@ -1522,6 +1549,15 @@ export async function runExtraction(
   const owned = await loadOwnedApplicant(db, input);
   if (!owned.ok) return err(owned.error);
   const applicant = owned.value;
+  // The feature first (S28): the platform, the platform owner's switch, the plan and today's
+  // limit, then the person's consent, then the spend and attempt limits.
+  const gate = await openAiFeatureGate(
+    db,
+    input.feature,
+    aiOwnerContext(applicant.ownerAccountId),
+    input.countedAlready ? { alreadyCounted: true } : {},
+  );
+  if (!gate.ok) return err(aiFeatureRefusal(gate.error));
   if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_EXTRACTION'))) {
     return err(serviceError('consent_required', 'AI extraction consent is required'));
   }
@@ -1529,7 +1565,12 @@ export async function runExtraction(
   const rateLimited = await aiRateLimitRefusal(db, input.actorAccountId);
   if (rateLimited) return err(rateLimited);
 
-  const reservation = await reserveExtractionSlot(db, ai, input);
+  const reservation = await reserveExtractionSlot(
+    db,
+    ai,
+    input,
+    input.countedAlready ? null : gate.value,
+  );
   if (reservation.kind === 'final') return reservation.outcome;
 
   const primary = await dispatchAndReconcile(
@@ -1551,6 +1592,7 @@ export async function runExtraction(
     db,
     input.fallback.ai,
     input,
+    null,
     reservation.runId,
   );
   if (fallbackReservation.kind === 'final') return fallbackReservation.outcome;
@@ -1631,6 +1673,7 @@ async function reserveClassificationSlot(
   db: Db,
   ai: AiClassifyPort,
   input: RunClassificationInput,
+  gate: AiFeatureGate | null,
   vocabulary: KindVocabulary = 'rules',
 ): Promise<ClassificationReservation> {
   return db.transaction(async (tx): Promise<ClassificationReservation> => {
@@ -1787,6 +1830,12 @@ async function reserveClassificationSlot(
           ),
         ),
       };
+    }
+
+    // The feature's use today is counted here, last, once every other check has passed and a
+    // real call is certain: a cache hit, a refusal or a fallback attempt is never counted (S28).
+    if (gate && !(await chargeAiFeatureUse(tx, gate))) {
+      return { kind: 'final', outcome: err(aiDailyLimitRefusal(gate)) };
     }
 
     const run = required(
@@ -1946,6 +1995,13 @@ export async function runClassification(
   const owned = await loadOwnedApplicant(db, input);
   if (!owned.ok) return err(owned.error);
   const applicant = owned.value;
+  // The same feature as `suggestDocumentKind` (S28), checked before consent.
+  const gate = await openAiFeatureGate(
+    db,
+    'ai_document_kind',
+    aiOwnerContext(applicant.ownerAccountId),
+  );
+  if (!gate.ok) return err(aiFeatureRefusal(gate.error));
   if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_EXTRACTION'))) {
     return err(serviceError('consent_required', 'AI extraction consent is required'));
   }
@@ -1988,7 +2044,7 @@ export async function runClassification(
   const rateLimited = await aiRateLimitRefusal(db, input.actorAccountId);
   if (rateLimited) return err(rateLimited);
 
-  const reservation = await reserveClassificationSlot(db, ai, input);
+  const reservation = await reserveClassificationSlot(db, ai, input, gate.value);
   if (reservation.kind === 'final') return reservation.outcome;
 
   const dispatched = await dispatchAndReconcileClassification(
@@ -2319,6 +2375,9 @@ export async function suggestDocumentKind(
   if (row.safetyStatus !== 'CLEAN' || !SUGGESTIBLE_PROCESSING_STATES.has(row.processingStatus)) {
     return err(serviceError('invalid', 'this file has not finished its safety checks'));
   }
+  // The feature first (S28), then consent.
+  const gate = await openAiFeatureGate(db, 'ai_document_kind', { proof });
+  if (!gate.ok) return err(aiFeatureRefusal(gate.error));
   if (!(await hasConsent(db, ownerAccountId, 'CORE_PROCESSING'))) {
     return err(serviceError('consent_required', 'processing consent is required'));
   }
@@ -2393,7 +2452,7 @@ export async function suggestDocumentKind(
   // cache key, so a reading made from another list is never reused for this one.
   const kinds = CATALOGUE_DOCUMENT_KINDS;
   if (kinds.length === 0) return ok({ status: 'no_suggestion' });
-  const reservation = await reserveClassificationSlot(db, ai, runInput, kinds);
+  const reservation = await reserveClassificationSlot(db, ai, runInput, gate.value, kinds);
   const summary =
     reservation.kind === 'final'
       ? reservation.outcome
@@ -2471,6 +2530,8 @@ export interface RunOcrInput {
   /** Already-rendered bytes (`renderOcrSourceImage`'s own output) -- mirrors `RunExtractionInput.text`, which is likewise caller-supplied, not computed inside this function. */
   readonly imageBytes: Uint8Array;
   readonly contentType: AiOcrContentType;
+  /** Which AI feature this reading is (S28); see `RunExtractionInput.feature`. */
+  readonly feature: AiReadingFeature;
   /** Same shared, platform-wide budget `runExtraction` enforces (Part 8 Chunk 18/19) -- pass the identical resolved value both call sites use. */
   readonly budgetLimitUnits: number;
   readonly perDocumentBudgetLimitUnits?: number;
@@ -2540,6 +2601,7 @@ async function reserveOcrSlot(
   db: Db,
   ai: AiOcrPort,
   input: RunOcrInput,
+  gate: AiFeatureGate | null,
   triggeredByRunId?: string,
 ): Promise<OcrReservation> {
   return db.transaction(async (tx): Promise<OcrReservation> => {
@@ -2656,6 +2718,12 @@ async function reserveOcrSlot(
           ),
         ),
       };
+    }
+
+    // The feature's use today is counted here, last, once every other check has passed and a
+    // real call is certain: a cache hit, a refusal or a fallback attempt is never counted (S28).
+    if (gate && !(await chargeAiFeatureUse(tx, gate))) {
+      return { kind: 'final', outcome: err(aiDailyLimitRefusal(gate)) };
     }
 
     const run = required(
@@ -2803,6 +2871,9 @@ export async function runOcr(
   const owned = await loadOwnedApplicant(db, input);
   if (!owned.ok) return err(owned.error);
   const applicant = owned.value;
+  // The feature first (S28), then consent, then the spend and attempt limits.
+  const gate = await openAiFeatureGate(db, input.feature, aiOwnerContext(applicant.ownerAccountId));
+  if (!gate.ok) return err(aiFeatureRefusal(gate.error));
   if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_OCR'))) {
     return err(serviceError('consent_required', 'AI OCR consent is required'));
   }
@@ -2810,7 +2881,7 @@ export async function runOcr(
   const rateLimited = await aiRateLimitRefusal(db, input.actorAccountId);
   if (rateLimited) return err(rateLimited);
 
-  const reservation = await reserveOcrSlot(db, ai, input);
+  const reservation = await reserveOcrSlot(db, ai, input, gate.value);
   if (reservation.kind === 'final') return reservation.outcome;
 
   const primary = await dispatchAndReconcileOcr(
@@ -2826,7 +2897,13 @@ export async function runOcr(
   // Cross-provider fallback (Part 8 §13) -- see `runExtraction`'s own doc
   // comment for why this second reservation is an honest, independent check
   // rather than a race against the (already fully reconciled) primary.
-  const fallbackReservation = await reserveOcrSlot(db, input.fallback.ai, input, reservation.runId);
+  const fallbackReservation = await reserveOcrSlot(
+    db,
+    input.fallback.ai,
+    input,
+    null,
+    reservation.runId,
+  );
   if (fallbackReservation.kind === 'final') return fallbackReservation.outcome;
 
   const fallback = await dispatchAndReconcileOcr(
@@ -3531,6 +3608,7 @@ async function reserveExplanationSlot(
   db: Db,
   ai: AiExplainPort,
   input: RunExplanationInput,
+  gate: AiFeatureGate | null,
 ): Promise<ExplanationReservation> {
   return db.transaction(async (tx): Promise<ExplanationReservation> => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('visastack:ai-platform-budget'))`);
@@ -3600,6 +3678,12 @@ async function reserveExplanationSlot(
           ),
         ),
       };
+    }
+
+    // The feature's use today is counted here, last, once every other check has passed and a
+    // real call is certain: a cache hit, a refusal or a fallback attempt is never counted (S28).
+    if (gate && !(await chargeAiFeatureUse(tx, gate))) {
+      return { kind: 'final', outcome: err(aiDailyLimitRefusal(gate)) };
     }
 
     const run = required(
@@ -3724,10 +3808,14 @@ export async function explainReadinessGap(
   ai: AiExplainPort,
   input: RunExplanationInput,
 ): Promise<Result<RunExplanationSummary, ServiceError>> {
+  // The feature first (S28): the person asking's plan and count (no record data is sent).
+  const gate = await openAiFeatureGate(db, 'ai_explanations', aiOwnerContext(input.actorAccountId));
+  if (!gate.ok) return err(aiFeatureRefusal(gate.error));
+
   const rateLimited = await aiRateLimitRefusal(db, input.actorAccountId);
   if (rateLimited) return err(rateLimited);
 
-  const reservation = await reserveExplanationSlot(db, ai, input);
+  const reservation = await reserveExplanationSlot(db, ai, input, gate.value);
   if (reservation.kind === 'final') return reservation.outcome;
 
   const dispatched = await dispatchAndReconcileExplanation(
@@ -3876,6 +3964,7 @@ async function reserveInconsistencySlot(
   db: Db,
   ai: AiInconsistencyPort,
   input: RunInconsistencyCheckInput,
+  gate: AiFeatureGate | null,
 ): Promise<InconsistencyReservation> {
   return db.transaction(async (tx): Promise<InconsistencyReservation> => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('visastack:ai-platform-budget'))`);
@@ -4031,6 +4120,12 @@ async function reserveInconsistencySlot(
           ),
         ),
       };
+    }
+
+    // The feature's use today is counted here, last, once every other check has passed and a
+    // real call is certain: a cache hit, a refusal or a fallback attempt is never counted (S28).
+    if (gate && !(await chargeAiFeatureUse(tx, gate))) {
+      return { kind: 'final', outcome: err(aiDailyLimitRefusal(gate)) };
     }
 
     const run = required(
@@ -4190,6 +4285,13 @@ export async function runInconsistencyCheck(
   const owned = await loadOwnedApplicant(db, input);
   if (!owned.ok) return err(owned.error);
   const applicant = owned.value;
+  // The feature first (S28), then consent, then the spend and attempt limits.
+  const gate = await openAiFeatureGate(
+    db,
+    'ai_consistency_checks',
+    aiOwnerContext(applicant.ownerAccountId),
+  );
+  if (!gate.ok) return err(aiFeatureRefusal(gate.error));
   if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_EXTRACTION'))) {
     return err(serviceError('consent_required', 'AI extraction consent is required'));
   }
@@ -4197,7 +4299,7 @@ export async function runInconsistencyCheck(
   const rateLimited = await aiRateLimitRefusal(db, input.actorAccountId);
   if (rateLimited) return err(rateLimited);
 
-  const reservation = await reserveInconsistencySlot(db, ai, input);
+  const reservation = await reserveInconsistencySlot(db, ai, input, gate.value);
   if (reservation.kind === 'final') return reservation.outcome;
 
   const dispatched = await dispatchAndReconcileInconsistency(
