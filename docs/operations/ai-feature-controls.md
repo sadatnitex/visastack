@@ -68,3 +68,12 @@ What counts as one use:
 - **AI App Access:** with a daily limit it is counted as the call starts (as before). With no limit it is counted after the call, in a statement of its own, so one person's calls never wait on each other.
 - **AI Use Today:** all counts are read in one query, and AI App Suggestions and AI App Original Files show Limit Reached when their limit is used up.
 - **Day boundary wording:** people see "Daily limits start again at 6 AM Bangladesh time." A file Automatic Reading skipped for the limit says it was not read and to choose Read Again after 6 AM Bangladesh time; it is not read again by itself.
+
+## Round 3 changes (30 Oct 2026)
+
+This replaces the round 2 "one file, one use" note above.
+
+- **One file, one use, read from the database:** a scan that made a real model call is always counted and is never given back, even when the details are then refused or the job fails. The details of the same file are not counted when the file's scan record shows a counted scan for the record's owner in the current UTC day or the last 15 minutes (a scan at 23:59 UTC and its details at 00:01 count once). The counted scan is the first provider's run: never a reading served from earlier work, and never one the kill switch stopped. When the first provider times out and a second one answers, the first run stays counted and covers the details. This holds across separate clicks, Read Again, queue retries and separate server processes, with nothing kept in memory and nothing a caller can claim.
+- **Giving a use back:** only once per use, marked as given back only after the database took it; a failed give-back can be tried again. It goes back to the day it was counted in.
+- **AI App Access:** a count after the call that cannot be written is reported as a server error; the app still gets its answer.
+- **Consent screen:** one sentence per reason, naming AI App Access: not part of your plan, turned off right now, not available yet, or today's limit reached. The line that the app can still connect stays.

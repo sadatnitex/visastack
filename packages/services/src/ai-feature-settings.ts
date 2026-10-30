@@ -24,7 +24,7 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import { type EntitlementSubject, resolveEntitlements } from './entitlements';
 import { type AiFeatureReason, type ServiceError, refusal, serviceError } from './errors';
-import { RATE_LIMITS, refundRateLimit, windowStartFor } from './rate-limit';
+import { RATE_LIMITS, refundRateLimitWindow, windowStartFor } from './rate-limit';
 
 /**
  * Whether an AI feature works for a person right now, and how much a day (S21 framework; S28
@@ -461,9 +461,8 @@ export async function openAiFeatureGate(
 }
 
 /**
- * One counted use, kept as proof: for the step after it (a scan counted for one file lets the
- * reading of its details go uncounted) and for giving the use back. Made only by
- * `chargeAiFeatureUse`; a copied or made-up object is never accepted.
+ * One counted use, so it can be given back. Made only by `chargeAiFeatureUse`; a copied or made-up
+ * object is never accepted.
  */
 export interface AiFeatureCharge {
   readonly feature: AiFeatureKey;
@@ -475,8 +474,8 @@ interface ChargeRecord {
   readonly subjectId: string;
   readonly action: string;
   readonly windowStart: Date;
-  readonly documentVersionId: string | null;
-  state: 'open' | 'used' | 'refunded';
+  /** `refunding` while the give-back is being written; `refunded` only once it was. */
+  state: 'open' | 'refunding' | 'refunded';
 }
 const CHARGES = new WeakMap<AiFeatureCharge, ChargeRecord>();
 
@@ -485,13 +484,11 @@ const CHARGES = new WeakMap<AiFeatureCharge, ChargeRecord>();
  * when the daily limit is already reached (nothing is counted then). With no limit the use is
  * still counted, for the AI Use Today page. A use is never counted twice: the count only rises
  * while it is under the limit, in one statement, so two calls at once cannot both pass it.
- * `documentVersionId` ties the charge to one file, so a scan's charge can cover that file's
- * details and nothing else.
  */
 export async function chargeAiFeatureUse(
   db: Db,
   gate: AiFeatureGate,
-  options: { readonly now?: Date; readonly documentVersionId?: string } = {},
+  options: { readonly now?: Date } = {},
 ): Promise<AiFeatureCharge | null> {
   if (gate.subject === null || !countedHere(gate.feature)) {
     return Object.freeze({ feature: gate.feature, counted: false });
@@ -512,58 +509,32 @@ export async function chargeAiFeatureUse(
     .returning({ count: bucket.count });
   if (rows.length === 0) return null;
   const charge: AiFeatureCharge = Object.freeze({ feature: gate.feature, counted: true });
-  CHARGES.set(charge, {
-    subjectId: gate.subject.id,
-    action,
-    windowStart: window,
-    documentVersionId: options.documentVersionId ?? null,
-    state: 'open',
-  });
+  CHARGES.set(charge, { subjectId: gate.subject.id, action, windowStart: window, state: 'open' });
   return charge;
 }
 
 /**
- * Gives one counted use back, never below zero and never twice: for a call that was counted and
- * then made no model call (the kill switch stopped it) or ended refused. Refusals are free.
+ * Gives one counted use back, never below zero and only once: for a call that was counted and then
+ * made no model call (the kill switch stopped it) or ended refused. Refusals are free. The charge
+ * is marked given back only after the database took it; a second give-back of the same charge,
+ * even one started while the first is being written, does nothing, and a failed one can be tried
+ * again. The count goes back to the day it was counted in.
  */
 export async function refundAiFeatureUse(db: Db, charge: AiFeatureCharge | null): Promise<void> {
   const record = charge ? CHARGES.get(charge) : undefined;
-  if (!record || record.state === 'refunded') return;
-  record.state = 'refunded';
-  await refundRateLimit(
-    db,
-    { subjectId: record.subjectId, action: record.action },
-    { limit: AI_FEATURE_LIMIT_MAX, windowMs: AI_FEATURE_WINDOW_MS },
-    record.windowStart,
-  );
-}
-
-/**
- * Whether `charge` is a scan counted today for this very file, feature and person, not yet relied
- * on; if so it is marked used, so the reading of the file's details is not counted again. A charge
- * from another file, another person, an earlier day, or one already used is never accepted.
- */
-export function useScanCharge(
-  charge: AiFeatureCharge | undefined,
-  expected: {
-    readonly feature: AiFeatureKey;
-    readonly accountId: string;
-    readonly documentVersionId: string;
-    readonly now?: Date;
-  },
-): boolean {
-  const record = charge ? CHARGES.get(charge) : undefined;
-  if (!charge || !record || record.state !== 'open') return false;
-  if (
-    charge.feature !== expected.feature ||
-    record.subjectId !== expected.accountId ||
-    record.documentVersionId !== expected.documentVersionId ||
-    record.windowStart.getTime() !== windowStart(expected.now ?? new Date()).getTime()
-  ) {
-    return false;
+  if (!record || record.state !== 'open') return;
+  record.state = 'refunding';
+  try {
+    await refundRateLimitWindow(
+      db,
+      { subjectId: record.subjectId, action: record.action },
+      record.windowStart,
+    );
+  } catch (error) {
+    record.state = 'open';
+    throw error;
   }
-  record.state = 'used';
-  return true;
+  record.state = 'refunded';
 }
 
 /** The refusal a service returns for a feature that is off: a plain sentence and a typed reason. */

@@ -5,7 +5,7 @@ import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
 import { eq, like, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createAiConnection,
   exchangeAiAuthorizationCode,
@@ -1118,13 +1118,13 @@ describe('AI tools: AI App Access, the switch for every call (S28)', () => {
    * transaction (the count row then stays locked until the call ends, so a person's next call
    * waits on it), "after" a write of its own once the call has ended.
    */
-  function watched(handle: Db, log: string[], inside = false): Db {
+  function watched(handle: Db, log: string[], inside = false, failAfter = false): Db {
     return new Proxy(handle, {
       get(target, prop, receiver) {
         const value = Reflect.get(target, prop, receiver);
         if (prop === 'transaction') {
           return (work: (tx: Db) => Promise<unknown>, ...rest: unknown[]) =>
-            value.call(target, (tx: Db) => work(watched(tx, log, true)), ...rest);
+            value.call(target, (tx: Db) => work(watched(tx, log, true, failAfter)), ...rest);
         }
         if (prop === 'insert') {
           return (table: unknown) => {
@@ -1137,6 +1137,7 @@ describe('AI tools: AI App Access, the switch for every call (S28)', () => {
                 return (row: { action: string }) => {
                   if (row.action === 'ai_feature.ai_app_access') {
                     log.push(inside ? 'inside' : 'after');
+                    if (!inside && failAfter) throw new Error('count could not be written');
                   }
                   return member.call(b, row);
                 };
@@ -1148,6 +1149,32 @@ describe('AI tools: AI App Access, the switch for every call (S28)', () => {
       },
     }) as Db;
   }
+
+  it('gives the answer even when the count after the call cannot be written (round 3)', async () => {
+    const { ownerId, applicantId } = await seed();
+    const { token } = await connect(ownerId, applicantId, { ...CASE_A_ONLY, caseMode: 'NONE' });
+    const log: string[] = [];
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const outcome = await withAiConnection(
+        watched(db, log, false, true),
+        { token, resource: RESOURCE, tool: 'probe', admission: ADMIT, encryption: keys },
+        async (gateway) => (await gateway.compose()).ok,
+        () => ({ kind: 'served', layers: [], cases: 0, values: 0, documents: 0, documentTexts: 0 }),
+      );
+      expect(outcome).toMatchObject({ ok: true, value: true });
+      expect(log).toEqual(['after']);
+      const reported = errors.mock.calls.map((call) => String(call[0])).join('\n');
+      expect(reported).toContain('aiAppAccessCount');
+      expect(reported).not.toContain(token);
+    } finally {
+      errors.mockRestore();
+    }
+    // No failed-call record for an answer that was given.
+    const audit = await aiAudit();
+    expect(audit.filter((row) => row.eventType === 'AI_CONTEXT_SERVED')).toHaveLength(1);
+    expect(audit.filter((row) => row.eventType === 'AI_CONTEXT_DENIED')).toHaveLength(0);
+  });
 
   it('with no limit, counts after the call and holds no lock while it runs (round 2)', async () => {
     const { ownerId, applicantId } = await seed();

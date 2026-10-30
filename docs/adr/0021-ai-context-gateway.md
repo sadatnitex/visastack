@@ -425,3 +425,8 @@ Owner rule: AI is additive. Without AI the product already meets every goal; eve
 - **Counting, corrected.** A scan's charge is proof (made only by the charge, registered in the service, never accepted as a copy or a made-up object) bound to the file, person, feature and UTC day, usable once; only it lets a file's details go uncounted. A scan served from the cache counts nothing and gives none. A busy refusal of the details after a counted scan gives the scan's count back, so a retry counts the file once. A call stopped by the kill switch after its count is given back, through one helper used by all five kinds of AI call.
 - **AI App Access.** With no daily limit, the answer given is counted after the call's transaction in a statement of its own, so the count row is never held locked through a call. With a limit, unchanged: counted as the call starts, given back when refused.
 - **Plan rules.** An included AI feature may have no plan limit (the admin's limit still applies).
+
+### S28 round 3 (30 Oct 2026)
+
+- **Counting, replaced.** The in-memory scan charge and the `afterScan` input are removed. A real scan is always counted and never given back. `runExtraction` does not count the details when `ocr_runs` holds a primary run (not served from the cache, not a fallback, not stopped by the kill switch) for the same document version and applicant in the current UTC day or the last 15 minutes. The primary row is written in the same transaction that counts it, and stays when a fallback answers. No migration.
+- **Give-backs.** One shared helper in `rate-limit.ts` gives back to a stored window; a charge is marked given back only after the update, and never twice.

@@ -247,7 +247,19 @@ export async function refundRateLimit(
   config: RateLimitConfig,
   now: Date = new Date(),
 ): Promise<void> {
-  const windowStart = windowStartFor(now, config.windowMs);
+  await refundRateLimitWindow(db, input, windowStartFor(now, config.windowMs));
+}
+
+/**
+ * Give one count back for the window that started at `windowStart`, never below zero: for a caller
+ * that kept the window it counted in (a use counted just before midnight is given back to that
+ * day, not the next).
+ */
+export async function refundRateLimitWindow(
+  db: Db,
+  input: { readonly subjectId: string; readonly action: string },
+  windowStart: Date,
+): Promise<void> {
   await db
     .update(schema.rateLimitBuckets)
     .set({ count: sql`greatest(${schema.rateLimitBuckets.count} - 1, 0)`, updatedAt: sql`now()` })

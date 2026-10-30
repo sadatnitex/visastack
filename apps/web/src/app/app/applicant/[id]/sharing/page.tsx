@@ -73,8 +73,6 @@ const ACCESS_LOG_LIMIT = 300;
 
 /** The AI app features this page shows (S28), read together in one pass. */
 const AI_APP_FEATURES = ['ai_app_access', 'ai_app_original_files', 'ai_app_suggestions'] as const;
-type AiAppFeature = (typeof AI_APP_FEATURES)[number];
-type RecordProof = Extract<Parameters<typeof getAiFeatureStates>[2], { proof: unknown }>['proof'];
 
 export default async function SharingPage({
   params,
@@ -118,45 +116,36 @@ export default async function SharingPage({
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
     // AI connections of this record, through the central access gate (owner only). Read even
     // while connecting AI apps is off, so a live connection can still be turned off.
-    // The three AI app features, read once for the page (S28): any proof for this record and
-    // person gives the same answer, so whichever read below comes first asks for all three.
-    let aiStates: ReturnType<typeof getAiFeatureStates<AiAppFeature>> | undefined;
-    const aiAppStates = (proof: RecordProof) => {
-      aiStates ??= getAiFeatureStates(db, AI_APP_FEATURES, { proof });
-      return aiStates;
-    };
+    const aiGate = await requireAccess(
+      db,
+      accountPrincipal(accountId),
+      'VIEW_METADATA',
+      { applicantId: id },
+      { purpose: 'ai_connection' },
+    );
+    // The three AI app features, read once for the page (S28): settings and plan in one pass.
+    const aiStates = aiGate.ok
+      ? await getAiFeatureStates(db, AI_APP_FEATURES, { proof: aiGate.value })
+      : null;
     const readAiConnections = async () => {
-      const aiGate = await requireAccess(
-        db,
-        accountPrincipal(accountId),
-        'VIEW_METADATA',
-        { applicantId: id },
-        { purpose: 'ai_connection' },
-      );
       const listed = aiGate.ok ? await listAiConnections(aiGate.value) : null;
       const list = listed?.ok
         ? listed.value
         : { available: false, active: [], activeTotal: 0, recentlyEnded: [] };
       // AI App Access (S28): while it is off, apps read nothing; the connections stay listed.
-      const access =
-        aiGate.ok && list.active.length > 0
-          ? (await aiAppStates(aiGate.value)).ai_app_access
-          : null;
+      const access = aiStates && list.active.length > 0 ? aiStates.ai_app_access : null;
       // "Original Files" (S20): what may be ticked, and what each live connection has ticked.
       let files: AiConnectionFiles | undefined;
       if (aiGate.ok && list.active.length > 0) {
         const candidates = await listAiFileCandidates(aiGate.value);
         if (candidates.ok && candidates.value.available) {
-          const [feature, ticked] = await Promise.all([
-            aiAppStates(aiGate.value).then((states) => states.ai_app_original_files),
-            listAiConnectionFiles(
-              aiGate.value,
-              list.active.map((item) => item.id),
-            ),
-          ]);
+          const ticked = await listAiConnectionFiles(
+            aiGate.value,
+            list.active.map((item) => item.id),
+          );
           files = {
             view: {
-              available: feature.available,
+              available: aiStates?.ai_app_original_files.available ?? false,
               candidates: candidates.value.documents.map((document) => ({
                 documentId: document.documentId,
                 referenceCode: document.referenceCode,
@@ -201,12 +190,9 @@ export default async function SharingPage({
         { purpose: 'ai_drafts' },
       );
       if (!gate.ok) return { available: false, drafts: [] as AiDraftItem[], more: 0 };
-      const [feature, drafts] = await Promise.all([
-        aiAppStates(gate.value).then((states) => states.ai_app_suggestions),
-        listAiDrafts(gate.value),
-      ]);
+      const drafts = await listAiDrafts(gate.value);
       return {
-        available: feature.available,
+        available: aiStates?.ai_app_suggestions.available ?? false,
         drafts: drafts.drafts.map(
           (draft): AiDraftItem => ({
             id: draft.id,

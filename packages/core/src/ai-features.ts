@@ -203,17 +203,25 @@ export function aiFeatureOffHint(reason: AiFeatureOffReason | null): string {
 }
 
 /**
- * The same, naming the feature, where a screen speaks about one feature by name (the AI app
- * consent screen): "AI App Access is turned off right now."
+ * The same, naming the feature, one sentence for each reason, where a screen speaks about one
+ * feature by name (the AI app consent screen): "AI App Access is not part of your plan."
  */
 export function aiFeatureOffSentence(
   feature: AiFeatureKey,
   reason: AiFeatureOffReason | null,
 ): string {
   const name = AI_FEATURES[feature].name;
-  return reason === 'daily_limit'
-    ? `You have reached today’s limit for ${name}. It starts again at 6 AM Bangladesh time.`
-    : `${name} is turned off right now.`;
+  switch (reason) {
+    case 'daily_limit':
+      return `You have reached today’s limit for ${name}. It starts again at 6 AM Bangladesh time.`;
+    case 'not_in_plan':
+      return `${name} is not part of your plan.`;
+    case 'not_available_yet':
+      return `${name} is not available yet.`;
+    default:
+      // platform_off and turned_off: the person cannot tell these apart, and nothing to do.
+      return `${name} is turned off right now.`;
+  }
 }
 
 // --- How an AI app is named on screen ----------------------------------------------------------

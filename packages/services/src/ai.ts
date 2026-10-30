@@ -3,7 +3,7 @@ import type { FactStatus, ProposalType } from '@visastack/core';
 import { type Result, err, isOk, ok } from '@visastack/core';
 import type { AiReadingFeature } from '@visastack/core/ai-features';
 import { CATALOGUE_DOCUMENTS, isRepeatingFieldKey } from '@visastack/core/catalogue';
-import { and, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access';
 import {
   type AiFeatureCharge,
@@ -13,8 +13,8 @@ import {
   aiOwnerContext,
   chargeAiFeatureUse,
   openAiFeatureGate,
+  aiFeatureDay,
   refundAiFeatureUse,
-  useScanCharge,
 } from './ai-feature-settings';
 import { scopeFieldKeys } from './ai-field-scope';
 import {
@@ -932,13 +932,6 @@ export interface RunExtractionInput {
    * caller cannot skip the platform owner's switch, the plan or the daily limit.
    */
   readonly feature: AiReadingFeature;
-  /**
-   * The charge `runOcr` returned when it read this very file as a scan just before (its
-   * `scanCharge`): one file is one use, so its details are then not counted again. Only a genuine
-   * charge for this file, person, feature and day, not used before, is accepted; anything else is
-   * ignored and the reading is counted as usual, so no caller can skip the count by setting it.
-   */
-  readonly afterScan?: AiFeatureCharge;
   /** Platform-wide pilot budget cap (master directive §8/§21 — cost controls; env: AI_PILOT_MONTHLY_HARD_LIMIT_USD). */
   readonly budgetLimitUnits: number;
   /** Per-document spend cap, in the same cost units (env: AI_PER_DOCUMENT_LIMIT_USD). Unset = no cap. */
@@ -1571,12 +1564,11 @@ export async function runExtraction(
   const owned = await loadOwnedApplicant(db, input);
   if (!owned.ok) return err(owned.error);
   const ownerAccountId = owned.value.ownerAccountId;
-  // One file is one use (S28): a scan counted for this very file just before covers its details.
-  const scanCounted = useScanCharge(input.afterScan, {
-    feature: input.feature,
-    accountId: ownerAccountId,
-    documentVersionId: input.documentVersionId,
-  });
+  // One file is one use (S28 round 3): when the database shows a scan of this very file was
+  // counted for its owner today, the details are not counted again, and today's limit does not
+  // stop them. Read from the scan's own run record, so it holds across clicks, retries and
+  // processes, and no caller can claim it.
+  const scanCounted = await scanAlreadyCounted(db, input);
   // The feature first (S28): the platform, the platform owner's switch, the plan and today's
   // limit, then the person's consent, then the spend and attempt limits.
   const gate = await openAiFeatureGate(
@@ -1586,19 +1578,51 @@ export async function runExtraction(
     scanCounted ? { alreadyCounted: true } : {},
   );
   if (!gate.ok) return err(aiFeatureRefusal(gate.error));
-  const result = await extractAfterGate(
-    db,
-    ai,
-    input,
-    ownerAccountId,
-    scanCounted ? null : gate.value,
+  return extractAfterGate(db, ai, input, ownerAccountId, scanCounted ? null : gate.value);
+}
+
+/**
+ * How far back a counted scan still covers the same file's details when the day changed in
+ * between (a scan at 23:59 UTC, its details at 00:01).
+ */
+const SCAN_COVERS_DETAILS_ACROSS_MIDNIGHT_MS = 15 * 60 * 1000;
+
+/**
+ * Whether a scan of this file version was counted for the record's owner in the current UTC day
+ * (or the last 15 minutes). The counted scan is the primary run of a real model call: never a
+ * reading served from the cache, never the fallback attempt (the primary row is the one charged,
+ * and stays even when a fallback gives the answer), never one the kill switch stopped (its use was
+ * given back). The record belongs to one applicant, so its owner is the person counted.
+ */
+async function scanAlreadyCounted(
+  db: Db,
+  input: { readonly documentVersionId: string; readonly applicantId: string },
+  now: Date = new Date(),
+): Promise<boolean> {
+  const since = new Date(
+    Math.min(
+      aiFeatureDay(now).from.getTime(),
+      now.getTime() - SCAN_COVERS_DETAILS_ACROSS_MIDNIGHT_MS,
+    ),
   );
-  // Refused for a moment (busy), the scan's count is given back, so trying again (the queue's
-  // retry, or the person's) counts the file once, not twice.
-  if (scanCounted && !result.ok && result.error.code === 'rate_limited') {
-    await refundAiFeatureUse(db, input.afterScan ?? null);
-  }
-  return result;
+  const runs = schema.ocrRuns;
+  const row = first(
+    await db
+      .select({ id: runs.id })
+      .from(runs)
+      .where(
+        and(
+          eq(runs.documentVersionId, input.documentVersionId),
+          eq(runs.applicantId, input.applicantId),
+          isNull(runs.servedFromCacheRunId),
+          isNull(runs.triggeredByRunId),
+          or(isNull(runs.errorCode), ne(runs.errorCode, 'disabled')),
+          gte(runs.createdAt, since),
+        ),
+      )
+      .limit(1),
+  );
+  return row !== undefined;
 }
 
 /** `runExtraction` once the feature is on; `gate` is null when a scan already counted the file. */
@@ -2599,12 +2623,6 @@ export type OcrRunRow = typeof schema.ocrRuns.$inferSelect;
 
 export interface RunOcrSummary {
   readonly ocrRun: OcrRunRow;
-  /**
-   * Set only when this reading made a real model call and counted it today (S28), never for a
-   * reading served from the cache. Pass it as `afterScan` when reading the same file's details
-   * next, so the file counts once.
-   */
-  readonly scanCharge?: AiFeatureCharge;
 }
 
 type OcrReservation =
@@ -2784,9 +2802,7 @@ async function reserveOcrSlot(
 
     // The feature's use today is counted here, last, once every other check has passed and a
     // real call is certain: a cache hit, a refusal or a fallback attempt is never counted (S28).
-    const charge = gate
-      ? await chargeAiFeatureUse(tx, gate, { documentVersionId: input.documentVersionId })
-      : null;
+    const charge = gate ? await chargeAiFeatureUse(tx, gate) : null;
     if (gate && !charge) {
       return { kind: 'final', outcome: err(aiDailyLimitRefusal(gate)) };
     }
@@ -2956,15 +2972,10 @@ export async function runOcr(
     reservation.runId,
     reservation.cacheKey,
   );
+  // A scan that made a real call stays counted whatever happens next (S28 round 3); only one the
+  // kill switch stopped before any call is given back.
   await refundIfSwitchedOff(db, reservation.charge, primary.outcome);
-  // The file was counted once when the scan was reserved; the result carries that proof.
-  const withCharge = (
-    result: Result<RunOcrSummary, ServiceError>,
-  ): Result<RunOcrSummary, ServiceError> =>
-    result.ok && reservation.charge?.counted
-      ? ok({ ...result.value, scanCharge: reservation.charge })
-      : result;
-  if (primary.outcome.ok) return withCharge(primary.result);
+  if (primary.outcome.ok) return primary.result;
   if (!input.fallback || !isOcrRecoverableForFallback(primary.outcome.code)) return primary.result;
 
   // Cross-provider fallback (Part 8 §13) -- see `runExtraction`'s own doc
@@ -2986,7 +2997,7 @@ export async function runOcr(
     fallbackReservation.runId,
     fallbackReservation.cacheKey,
   );
-  return withCharge(fallback.result);
+  return fallback.result;
 }
 
 /**

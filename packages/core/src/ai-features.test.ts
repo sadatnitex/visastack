@@ -108,13 +108,21 @@ describe('the AI feature registry', () => {
     }
   });
 
-  it('names the feature where one screen speaks about it (S28 round 2)', () => {
-    expect(aiFeatureOffSentence('ai_app_access', 'turned_off')).toBe(
-      'AI App Access is turned off right now.',
+  it('names the feature where one screen speaks about it, one sentence per reason (S28 round 3)', () => {
+    const said = Object.fromEntries(
+      AI_FEATURE_OFF_REASONS.map((reason) => [
+        reason,
+        aiFeatureOffSentence('ai_app_access', reason),
+      ]),
     );
-    expect(aiFeatureOffSentence('ai_app_access', 'daily_limit')).toBe(
-      'You have reached today’s limit for AI App Access. It starts again at 6 AM Bangladesh time.',
-    );
+    expect(said).toEqual({
+      platform_off: 'AI App Access is turned off right now.',
+      turned_off: 'AI App Access is turned off right now.',
+      not_in_plan: 'AI App Access is not part of your plan.',
+      daily_limit:
+        'You have reached today’s limit for AI App Access. It starts again at 6 AM Bangladesh time.',
+      not_available_yet: 'AI App Access is not available yet.',
+    });
   });
 });
 

@@ -37,6 +37,8 @@ import { appendAuditEvent } from '../audit';
 import { hasConsent } from '../consent';
 import { type Db, first, schema } from '../db';
 import { readOriginalDocumentFile, writeDocumentAccessAudit } from '../document-access';
+import { serverErrorEvent } from '../error-report';
+import { formatObservabilityLine } from '../observability-format';
 import type { KeyManagementPort } from '../ports';
 import {
   aiContextDayKey,
@@ -826,8 +828,15 @@ async function runGate<T>(
     if (seen.target) await auditFailedCall(db, seen.target, request.tool);
     throw error;
   }
-  // Outside the call's transaction: one short statement, holding no lock while the call runs.
-  if (after.count) await chargeAiFeatureUse(db, after.count, { now: request.now ?? new Date() });
+  // Outside the call's transaction: one short statement, holding no lock while the call runs. The
+  // answer was already given, so a count that cannot be written is reported, never a failed call.
+  if (after.count) {
+    try {
+      await chargeAiFeatureUse(db, after.count, { now: request.now ?? new Date() });
+    } catch (error) {
+      console.error(formatObservabilityLine(serverErrorEvent('aiAppAccessCount', error)));
+    }
+  }
   return result;
 }
 
