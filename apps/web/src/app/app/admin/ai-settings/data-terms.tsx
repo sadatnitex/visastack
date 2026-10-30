@@ -130,7 +130,6 @@ export function DataTermsPanel(props: DataTermsPanelProps) {
 
   return (
     <article className="card u-mb-150">
-      <p className="card-kicker">Data Terms</p>
       <h3 className="card-title">What AI Providers Do with What We Send</h3>
       <div className="rows rows-grid u-mb-100">
         <div className="row">

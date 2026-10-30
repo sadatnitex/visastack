@@ -430,3 +430,8 @@ Owner rule: AI is additive. Without AI the product already meets every goal; eve
 
 - **Counting, replaced.** The in-memory scan charge and the `afterScan` input are removed. A real scan is always counted and never given back. `runExtraction` does not count the details when `ocr_runs` holds a primary run (not served from the cache, not a fallback, not stopped by the kill switch) for the same document version and applicant in the current UTC day or the last 15 minutes. The primary row is written in the same transaction that counts it, and stays when a fallback answers. No migration.
 - **Give-backs.** One shared helper in `rate-limit.ts` gives back to a stored window; a charge is marked given back only after the update, and never twice.
+
+### S28 round 4 (30 Oct 2026)
+
+- **Cover tokens.** The `ocr_runs` inference is removed. A counted scan leaves a single-use cover (`rate_limit_buckets`, action `ai_scan_cover:<feature>:<document version>`, the person, the day window) written with the charge; the details step for the same feature, person and file uses it with one conditional update in today's or yesterday's window, after the feature gate and consent, inside the reserve transaction. Giving back a kill-switched scan removes its cover; giving back a details call that used a cover puts the cover back.
+- **AI App Access.** With no limit, the after-call count is unconditional; a passed limit set mid-call is reported once.

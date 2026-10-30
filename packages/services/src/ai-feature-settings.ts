@@ -14,7 +14,7 @@ import {
   aiFeatureOffHint,
   effectiveAiDailyLimit,
 } from '@visastack/core/ai-features';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, sql } from 'drizzle-orm';
 import { type StaffScope, SystemScope, staffScopeProblem } from './access/principal';
 import { AuthorizedApplicant } from './access/require-access';
 import { aiFilesAvailable } from './ai-files-ready';
@@ -23,7 +23,9 @@ import { aiSuggestionsAvailable } from './ai-suggestions';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import { type EntitlementSubject, resolveEntitlements } from './entitlements';
+import { serverErrorEvent } from './error-report';
 import { type AiFeatureReason, type ServiceError, refusal, serviceError } from './errors';
+import { formatObservabilityLine } from './observability-format';
 import { RATE_LIMITS, refundRateLimitWindow, windowStartFor } from './rate-limit';
 
 /**
@@ -461,34 +463,64 @@ export async function openAiFeatureGate(
 }
 
 /**
- * One counted use, so it can be given back. Made only by `chargeAiFeatureUse`; a copied or made-up
- * object is never accepted.
+ * One counted use (or one used scan cover), so it can be given back. Made only by
+ * `chargeAiFeatureUse` and `useScanCover`; a copied or made-up object is never accepted.
  */
 export interface AiFeatureCharge {
   readonly feature: AiFeatureKey;
-  /** False when nothing was counted (staff, or a feature that counts its own way). */
+  /** False when nothing was counted (staff, a feature that counts its own way, a used cover). */
   readonly counted: boolean;
 }
 
 interface ChargeRecord {
   readonly subjectId: string;
+  /** The bucket counted, or for a used cover, the cover it came from. */
   readonly action: string;
   readonly windowStart: Date;
+  /** `use`: giving back lowers the count; `cover`: giving back puts the used cover back. */
+  readonly kind: 'use' | 'cover';
+  /** For a counted scan: its cover, removed with the use when the use is given back. */
+  readonly coverAction: string | null;
   /** `refunding` while the give-back is being written; `refunded` only once it was. */
   state: 'open' | 'refunding' | 'refunded';
 }
 const CHARGES = new WeakMap<AiFeatureCharge, ChargeRecord>();
 
 /**
+ * The cover a counted scan leaves for the reading of the same file's details (S28 round 4): one
+ * bucket row per person, feature and file version per UTC day, in `rate_limit_buckets` (no
+ * migration). Its count is how many details readings it still covers; each is used once.
+ */
+function coverAction(feature: AiFeatureKey, documentVersionId: string): string {
+  return `ai_scan_cover:${feature}:${documentVersionId}`;
+}
+
+/** Adds one to a bucket, always (no limit). Returns the new count. */
+async function addOne(db: Db, subjectId: string, action: string, window: Date): Promise<number> {
+  const bucket = schema.rateLimitBuckets;
+  const rows = await db
+    .insert(bucket)
+    .values({ subjectId, action, windowStart: window, count: 1 })
+    .onConflictDoUpdate({
+      target: [bucket.subjectId, bucket.action, bucket.windowStart],
+      set: { count: sql`${bucket.count} + 1`, updatedAt: sql`now()` },
+    })
+    .returning({ count: bucket.count });
+  return rows[0]?.count ?? 1;
+}
+
+/**
  * Counts one use against today's bucket, last, inside the transaction that does the work: null
  * when the daily limit is already reached (nothing is counted then). With no limit the use is
  * still counted, for the AI Use Today page. A use is never counted twice: the count only rises
  * while it is under the limit, in one statement, so two calls at once cannot both pass it.
+ * `coverFor` (a scan of one file version) also leaves one cover for that file's details, in the
+ * same transaction, only when the use was really counted.
  */
 export async function chargeAiFeatureUse(
   db: Db,
   gate: AiFeatureGate,
-  options: { readonly now?: Date } = {},
+  options: { readonly now?: Date; readonly coverFor?: string } = {},
 ): Promise<AiFeatureCharge | null> {
   if (gate.subject === null || !countedHere(gate.feature)) {
     return Object.freeze({ feature: gate.feature, counted: false });
@@ -508,33 +540,152 @@ export async function chargeAiFeatureUse(
     })
     .returning({ count: bucket.count });
   if (rows.length === 0) return null;
+  const cover = options.coverFor !== undefined ? coverAction(gate.feature, options.coverFor) : null;
+  if (cover !== null) await addOne(db, gate.subject.id, cover, window);
   const charge: AiFeatureCharge = Object.freeze({ feature: gate.feature, counted: true });
-  CHARGES.set(charge, { subjectId: gate.subject.id, action, windowStart: window, state: 'open' });
+  CHARGES.set(charge, {
+    subjectId: gate.subject.id,
+    action,
+    windowStart: window,
+    kind: 'use',
+    coverAction: cover,
+    state: 'open',
+  });
   return charge;
 }
 
 /**
+ * Uses one cover a counted scan of this very file left for this feature and person, in today's
+ * window or yesterday's (a scan at 23:40 UTC, its details at 00:30): one conditional statement that
+ * takes one from a cover still above zero, so a cover is never used twice, even by two calls at
+ * once. Null when there is none: the details are then counted as usual. The result can be given
+ * back (`refundAiFeatureUse`) when the details made no model call after all.
+ */
+export async function useScanCover(
+  db: Db,
+  gate: AiFeatureGate,
+  documentVersionId: string,
+  now: Date = new Date(),
+): Promise<AiFeatureCharge | null> {
+  if (gate.subject?.kind !== 'account' || !countedHere(gate.feature)) return null;
+  const bucket = schema.rateLimitBuckets;
+  const action = coverAction(gate.feature, documentVersionId);
+  const today = windowStart(now);
+  const yesterday = new Date(today.getTime() - AI_FEATURE_WINDOW_MS);
+  const rows = await db
+    .update(bucket)
+    .set({ count: sql`${bucket.count} - 1`, updatedAt: sql`now()` })
+    .where(
+      and(
+        gt(bucket.count, 0),
+        eq(
+          bucket.id,
+          sql`(select ${bucket.id} from ${bucket} where ${bucket.subjectId} = ${gate.subject.id} and ${bucket.action} = ${action} and ${bucket.windowStart} in (${today.toISOString()}::timestamptz, ${yesterday.toISOString()}::timestamptz) and ${bucket.count} > 0 order by ${bucket.windowStart} desc limit 1)`,
+        ),
+      ),
+    )
+    .returning({ windowStart: bucket.windowStart });
+  const used = rows[0];
+  if (!used) return null;
+  const charge: AiFeatureCharge = Object.freeze({ feature: gate.feature, counted: false });
+  CHARGES.set(charge, {
+    subjectId: gate.subject.id,
+    action,
+    windowStart: used.windowStart,
+    kind: 'cover',
+    coverAction: null,
+    state: 'open',
+  });
+  return charge;
+}
+
+/** Whether a cover is waiting for this file's details (read only, nothing is used). */
+export async function hasScanCover(
+  db: Db,
+  feature: AiFeatureKey,
+  accountId: string,
+  documentVersionId: string,
+  now: Date = new Date(),
+): Promise<boolean> {
+  const bucket = schema.rateLimitBuckets;
+  const today = windowStart(now);
+  const rows = await db
+    .select({ id: bucket.id })
+    .from(bucket)
+    .where(
+      and(
+        eq(bucket.subjectId, accountId),
+        eq(bucket.action, coverAction(feature, documentVersionId)),
+        inArray(bucket.windowStart, [today, new Date(today.getTime() - AI_FEATURE_WINDOW_MS)]),
+        gt(bucket.count, 0),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
+/**
  * Gives one counted use back, never below zero and only once: for a call that was counted and then
- * made no model call (the kill switch stopped it) or ended refused. Refusals are free. The charge
- * is marked given back only after the database took it; a second give-back of the same charge,
- * even one started while the first is being written, does nothing, and a failed one can be tried
- * again. The count goes back to the day it was counted in.
+ * made no model call (the kill switch stopped it) or ended refused. Refusals are free. A scan's use
+ * takes its cover with it; a used cover is put back. The charge is marked given back only after
+ * the database took it; a second give-back of the same charge, even one started while the first
+ * is being written, does nothing, and a failed one can be tried again. The count goes back to the
+ * day it was counted in.
  */
 export async function refundAiFeatureUse(db: Db, charge: AiFeatureCharge | null): Promise<void> {
   const record = charge ? CHARGES.get(charge) : undefined;
   if (!record || record.state !== 'open') return;
   record.state = 'refunding';
   try {
-    await refundRateLimitWindow(
-      db,
-      { subjectId: record.subjectId, action: record.action },
-      record.windowStart,
-    );
+    if (record.kind === 'cover') {
+      await addOne(db, record.subjectId, record.action, record.windowStart);
+    } else {
+      const key = { subjectId: record.subjectId, action: record.action };
+      await refundRateLimitWindow(db, key, record.windowStart);
+      if (record.coverAction !== null) {
+        await refundRateLimitWindow(
+          db,
+          { subjectId: record.subjectId, action: record.coverAction },
+          record.windowStart,
+        );
+      }
+    }
   } catch (error) {
     record.state = 'open';
     throw error;
   }
   record.state = 'refunded';
+}
+
+/**
+ * Counts an answer already given (AI App Access with no daily limit when the call started), in a
+ * statement of its own after the call: always counted, so the count is what was served. If the
+ * platform owner set a limit while the call ran, the count can pass it by one; the next call is
+ * then refused, and the first such overage of the day is reported once (server error event).
+ */
+export async function countAiUseAfterCall(
+  db: Db,
+  gate: AiFeatureGate,
+  now: Date = new Date(),
+): Promise<void> {
+  if (gate.subject === null || !countedHere(gate.feature)) return;
+  const count = await addOne(db, gate.subject.id, usageAction(gate.feature), windowStart(now));
+  const [resolved] = await resolveStates(db, [gate.feature], gate.subject, {
+    now,
+    alreadyCounted: true,
+  });
+  const limit = resolved?.state.dailyLimit ?? null;
+  if (limit !== null && count === limit + 1) {
+    console.error(
+      formatObservabilityLine(
+        serverErrorEvent(
+          'aiFeatureOverage',
+          new Error('an answer was counted after its daily limit was set'),
+          { feature: gate.feature },
+        ),
+      ),
+    );
+  }
 }
 
 /** The refusal a service returns for a feature that is off: a plain sentence and a typed reason. */

@@ -77,3 +77,11 @@ This replaces the round 2 "one file, one use" note above.
 - **Giving a use back:** only once per use, marked as given back only after the database took it; a failed give-back can be tried again. It goes back to the day it was counted in.
 - **AI App Access:** a count after the call that cannot be written is reported as a server error; the app still gets its answer.
 - **Consent screen:** one sentence per reason, naming AI App Access: not part of your plan, turned off right now, not available yet, or today's limit reached. The line that the app can still connect stays.
+
+## Round 4 changes (30 Oct 2026)
+
+This replaces the round 3 "one file, one use" note above.
+
+- **A cover per counted scan:** when a scan that made a real call is counted against a feature for a person and a file, the same transaction leaves one cover (a `rate_limit_buckets` row `ai_scan_cover:<feature>:<file version>` for that person and day; no migration). The reading of that file's details for the same feature first uses one cover, in one conditional statement, in today's window or yesterday's (a scan at 23:40 UTC, its details at 00:30). Used, the details are not counted and today's limit does not stop them; without one, they are counted and limited as usual. A cover is used once: a second reading of the details is counted again.
+- A cover never serves another feature, person or file. A scan served from earlier work and one the kill switch stopped leave none (giving back the stopped scan removes its cover). A details step refused before the work (the switch, the plan, consent, the kill switch) leaves the cover for the next Read Again. When the first provider times out and a second answers, the first, counted scan's cover stays.
+- **AI App Access with no limit:** the count after the call always goes up, so it is what was served. If a limit was set while the call ran, the count can pass it by one; the next call is refused and the first such overage of the day is reported once.

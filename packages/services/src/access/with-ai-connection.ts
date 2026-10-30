@@ -18,6 +18,7 @@ import {
 import {
   type AiFeatureGate,
   chargeAiFeatureUse,
+  countAiUseAfterCall,
   getAiFeatureState,
   openAiFeatureGate,
   refundAiFeatureUse,
@@ -828,11 +829,12 @@ async function runGate<T>(
     if (seen.target) await auditFailedCall(db, seen.target, request.tool);
     throw error;
   }
-  // Outside the call's transaction: one short statement, holding no lock while the call runs. The
-  // answer was already given, so a count that cannot be written is reported, never a failed call.
+  // Outside the call's transaction: one short statement, holding no lock while the call runs, and
+  // always counted, so the count is what was served. The answer was already given, so a count that
+  // cannot be written is reported, never a failed call.
   if (after.count) {
     try {
-      await chargeAiFeatureUse(db, after.count, { now: request.now ?? new Date() });
+      await countAiUseAfterCall(db, after.count, request.now ?? new Date());
     } catch (error) {
       console.error(formatObservabilityLine(serverErrorEvent('aiAppAccessCount', error)));
     }

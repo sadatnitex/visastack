@@ -30,6 +30,7 @@ import {
   aiFeatureDay,
   aiOwnerContext,
   chargeAiFeatureUse,
+  countAiUseAfterCall,
   getAiFeatureState,
   getAiFeatureStates,
   getAiUsageToday,
@@ -802,17 +803,36 @@ describe('one file is one use, and only real calls count (round 2)', () => {
     TIMEOUT,
   );
 
+  async function coverCount(reader: Reader, feature: AiFeatureKey, versionId: string) {
+    const rows = await db
+      .select({ count: schema.rateLimitBuckets.count })
+      .from(schema.rateLimitBuckets)
+      .where(
+        and(
+          eq(schema.rateLimitBuckets.subjectId, reader.accountId),
+          eq(schema.rateLimitBuckets.action, `ai_scan_cover:${feature}:${versionId}`),
+        ),
+      );
+    return rows.reduce((sum, row) => sum + row.count, 0);
+  }
+
+  async function readers(email: string) {
+    const reader = await seedReader(db, email);
+    const { ports, calls } = countingPorts();
+    const ocr = await ports.ocr();
+    const extraction = await ports.extraction();
+    if (!ocr || !extraction) throw new Error('ports');
+    return { reader, ocr, extraction, calls };
+  }
+
   it(
-    'counts one file once when a person reads the scan, then the details, in two separate clicks',
+    'counts one file once for a scan and its details, even with a refused try in between',
     async () => {
-      const reader = await seedReader(db, 'two-clicks@example.com');
-      const { ports, calls } = countingPorts();
-      const ocr = await ports.ocr();
-      const extraction = await ports.extraction();
-      if (!ocr || !extraction) throw new Error('ports');
+      const { reader, ocr, extraction, calls } = await readers('two-clicks@example.com');
       expect((await runOcr(db, ocr.ai, scanInput(reader, 'ai_document_reading'))).ok).toBe(true);
       expect(await bucketCount(reader.accountId, 'ai_document_reading')).toBe(1);
-      // A refused details step is never counted.
+      expect(await coverCount(reader, 'ai_document_reading', reader.versionId)).toBe(1);
+      // A refused details step uses nothing: the cover waits for the next Read Again.
       await setConsent(db, {
         actorAccountId: reader.accountId,
         accountId: reader.accountId,
@@ -820,21 +840,88 @@ describe('one file is one use, and only real calls count (round 2)', () => {
         granted: false,
       });
       expect((await runExtraction(db, extraction.ai, readInput(reader, SCAN_TEXT))).ok).toBe(false);
+      expect(await coverCount(reader, 'ai_document_reading', reader.versionId)).toBe(1);
       await setConsent(db, {
         actorAccountId: reader.accountId,
         accountId: reader.accountId,
         type: 'AI_EXTRACTION',
         granted: true,
       });
-      // The second click (or Read Again) finds the counted scan and does not count again.
       expect((await runExtraction(db, extraction.ai, readInput(reader, SCAN_TEXT))).ok).toBe(true);
       expect(calls).toMatchObject({ ocr: 1, extract: 1 });
       expect(await bucketCount(reader.accountId, 'ai_document_reading')).toBe(1);
-      // Another file's details are counted as usual.
-      const other = await addDocumentVersionFor(reader, 'other-file');
+      expect(await coverCount(reader, 'ai_document_reading', reader.versionId)).toBe(0);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'counts a second reading of the same file’s details again: a cover is used once',
+    async () => {
+      const { reader, ocr, extraction, calls } = await readers('twice@example.com');
+      await runOcr(db, ocr.ai, scanInput(reader, 'ai_document_reading'));
+      await runExtraction(db, extraction.ai, readInput(reader, SCAN_TEXT));
+      expect(await bucketCount(reader.accountId, 'ai_document_reading')).toBe(1);
+      // Read again later (for example after the kind of document changed): a real call, counted.
+      await runExtraction(db, extraction.ai, readInput(reader, `${SCAN_TEXT} again`));
+      expect(calls.extract).toBe(2);
+      expect(await bucketCount(reader.accountId, 'ai_document_reading')).toBe(2);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'never lets a scan for Automatic Reading cover the details a person asks for with Read with AI',
+    async () => {
+      const { reader, ocr, extraction } = await readers('other-feature@example.com');
+      await runOcr(db, ocr.ai, scanInput(reader, 'ai_automatic_reading'));
+      await runExtraction(db, extraction.ai, readInput(reader, SCAN_TEXT));
+      expect(await bucketCount(reader.accountId, 'ai_automatic_reading')).toBe(1);
+      expect(await bucketCount(reader.accountId, 'ai_document_reading')).toBe(1);
+      expect(await coverCount(reader, 'ai_automatic_reading', reader.versionId)).toBe(1);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'counts once when the scan is at 23:40 UTC and the details are tried again at 00:30',
+    async () => {
+      const { reader, ocr, extraction } = await readers('midnight@example.com');
+      const midnight = aiFeatureDay().to;
+      vi.useFakeTimers({ toFake: ['Date'] });
+      try {
+        vi.setSystemTime(new Date(midnight.getTime() - 20 * 60 * 1000));
+        expect((await runOcr(db, ocr.ai, scanInput(reader, 'ai_document_reading'))).ok).toBe(true);
+        vi.setSystemTime(new Date(midnight.getTime() + 30 * 60 * 1000));
+        expect((await runExtraction(db, extraction.ai, readInput(reader, SCAN_TEXT))).ok).toBe(
+          true,
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+      // One count, in the day the scan was made.
+      expect(await bucketCount(reader.accountId, 'ai_document_reading')).toBe(1);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'leaves no cover for a scan served from earlier work, so its details are counted',
+    async () => {
+      const { reader, ocr, extraction, calls } = await readers('cached-cover@example.com');
+      await runOcr(db, ocr.ai, scanInput(reader, 'ai_document_reading'));
+      // The same picture as another file: served from the first reading, counted nothing.
+      const second = await addDocumentVersionFor(reader, 'same-picture-cover');
+      const cached = await runOcr(db, ocr.ai, {
+        ...scanInput(reader, 'ai_document_reading'),
+        documentVersionId: second,
+      });
+      expect(isOk(cached) && cached.value.ocrRun.servedFromCacheRunId).not.toBeNull();
+      expect(calls.ocr).toBe(1);
+      expect(await coverCount(reader, 'ai_document_reading', second)).toBe(0);
       await runExtraction(db, extraction.ai, {
-        ...readInput(reader, LETTER_TEXT),
-        documentVersionId: other,
+        ...readInput(reader, SCAN_TEXT),
+        documentVersionId: second,
       });
       expect(await bucketCount(reader.accountId, 'ai_document_reading')).toBe(2);
     },
@@ -901,39 +988,6 @@ describe('one file is one use, and only real calls count (round 2)', () => {
   );
 
   it(
-    'counts once when the scan is at 23:59:59 UTC and its details at 00:00:01',
-    async () => {
-      const reader = await seedReader(db, 'midnight@example.com');
-      const { ports } = countingPorts();
-      const ocr = await ports.ocr();
-      const extraction = await ports.extraction();
-      if (!ocr || !extraction) throw new Error('ports');
-      const midnight = aiFeatureDay().to;
-      const before = new Date(midnight.getTime() - 1000);
-      const after = new Date(midnight.getTime() + 1000);
-      vi.useFakeTimers({ toFake: ['Date'] });
-      try {
-        vi.setSystemTime(before);
-        expect((await runOcr(db, ocr.ai, scanInput(reader, 'ai_document_reading'))).ok).toBe(true);
-        // The scan's record carries the time it was made.
-        await db
-          .update(schema.ocrRuns)
-          .set({ createdAt: before })
-          .where(eq(schema.ocrRuns.documentVersionId, reader.versionId));
-        vi.setSystemTime(after);
-        expect((await runExtraction(db, extraction.ai, readInput(reader, SCAN_TEXT))).ok).toBe(
-          true,
-        );
-      } finally {
-        vi.useRealTimers();
-      }
-      // One count, in the day the scan was made.
-      expect(await bucketCount(reader.accountId, 'ai_document_reading')).toBe(1);
-    },
-    TIMEOUT,
-  );
-
-  it(
     'gives back the use of a call the kill switch stopped after it was counted',
     async () => {
       const reader = await seedReader(db, 'stopped@example.com');
@@ -954,6 +1008,10 @@ describe('one file is one use, and only real calls count (round 2)', () => {
       expect(scan.ok).toBe(false);
       expect(calls).toMatchObject({ extract: 0, ocr: 0 });
       expect(await bucketCount(reader.accountId, 'ai_document_reading')).toBe(0);
+      // A stopped scan leaves no cover: the details read next are counted.
+      expect(await coverCount(reader, 'ai_document_reading', reader.versionId)).toBe(0);
+      await runExtraction(db, extraction.ai, readInput(reader, LETTER_TEXT));
+      expect(await bucketCount(reader.accountId, 'ai_document_reading')).toBe(1);
     },
     TIMEOUT,
   );
@@ -990,6 +1048,33 @@ describe('one file is one use, and only real calls count (round 2)', () => {
     await expect(refundAiFeatureUse(broken, charge)).rejects.toThrow('database unavailable');
     await refundAiFeatureUse(db, charge);
     expect(await bucketCount('refund-retry', 'ai_consistency_checks')).toBe(0);
+  });
+
+  it('counts an answer given after the call always, and reports once when a limit set meanwhile is passed', async () => {
+    const reader = await seedReader(db, 'overage@example.com');
+    const gate = {
+      feature: 'ai_app_access' as const,
+      dailyLimit: null,
+      subject: { kind: 'account' as const, id: reader.accountId },
+    };
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      await countAiUseAfterCall(db, gate);
+      // The platform owner sets a limit of 1 while another call is still running.
+      await setFeature('ai_app_access', true, 1);
+      await countAiUseAfterCall(db, gate);
+      await countAiUseAfterCall(db, gate);
+      expect(await bucketCount(reader.accountId, 'ai_app_access')).toBe(3);
+      const reports = errors.mock.calls.filter((call) =>
+        String(call[0]).includes('aiFeatureOverage'),
+      );
+      expect(reports).toHaveLength(1);
+    } finally {
+      errors.mockRestore();
+    }
+    // The next call is refused.
+    const proof = await ownerProof(reader);
+    expect((await getAiFeatureState(db, 'ai_app_access', { proof })).reason).toBe('daily_limit');
   });
 
   it('every kind of AI call gives back a use the kill switch stopped, through one helper', () => {

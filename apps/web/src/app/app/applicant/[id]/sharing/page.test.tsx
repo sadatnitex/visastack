@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   requireAccess: vi.fn(),
   listAiConnections: vi.fn(),
   listMissions: vi.fn(),
+  listAiDrafts: vi.fn(),
+  getAiFeatureStates: vi.fn(),
 }));
 vi.mock('@visastack/services', async (original) => ({
   ...(await original<typeof import('@visastack/services')>()),
@@ -60,6 +62,15 @@ beforeEach(() => {
     ok: true,
     value: { available: true, active: [], recentlyEnded: [] },
   });
+  mocks.listAiDrafts.mockResolvedValue({ available: true, drafts: [], more: 0 });
+  mocks.getAiFeatureStates.mockImplementation(async (_db: unknown, features: string[]) =>
+    Object.fromEntries(
+      features.map((feature) => [
+        feature,
+        { feature, available: true, reason: null, dailyLimit: null },
+      ]),
+    ),
+  );
 });
 describe('actual authorized sharing composition', () => {
   it('refuses foreign ownership before any sharing/document/audit read', async () => {
@@ -455,5 +466,62 @@ describe('after a change to access, the reloaded page says what changed (CCD qui
       expect(html, done).not.toContain('notice-ok');
       expect(html, done).not.toContain('stolen');
     }
+  });
+});
+
+describe('the AI app feature states (S28 round 4)', () => {
+  it('reads AI App Suggestions through the drafts read’s own proof, even when the connection read is refused', async () => {
+    mocks.requireAccess.mockImplementation(
+      async (
+        _db: unknown,
+        _who: unknown,
+        _action: unknown,
+        _target: unknown,
+        options: { purpose: string },
+      ) =>
+        options.purpose === 'ai_drafts'
+          ? { ok: true, value: { proof: 'drafts' } }
+          : { ok: false, error: { code: 'forbidden' } },
+    );
+    mocks.listAiDrafts.mockResolvedValue({
+      available: true,
+      drafts: [
+        {
+          id: 'd1',
+          title: 'Synthetic draft title',
+          body: 'Synthetic draft body',
+          caseTitle: null,
+          appName: 'Synthetic App',
+          appHost: null,
+          createdAt: new Date('2026-10-30T00:00:00Z'),
+        },
+      ],
+      more: 0,
+    });
+    mocks.getAiFeatureStates.mockResolvedValue({
+      ai_app_suggestions: {
+        feature: 'ai_app_suggestions',
+        available: true,
+        reason: null,
+        dailyLimit: 15,
+      },
+    });
+    const html = await render();
+    expect(mocks.listAiConnections).not.toHaveBeenCalled();
+    expect(mocks.getAiFeatureStates).toHaveBeenCalledTimes(1);
+    expect(mocks.getAiFeatureStates).toHaveBeenCalledWith({}, ['ai_app_suggestions'], {
+      proof: { proof: 'drafts' },
+    });
+    expect(
+      stubProps<{ suggestionsAvailable: boolean }>(html, 'AiConnectionsSection')[0],
+    ).toMatchObject({
+      suggestionsAvailable: true,
+    });
+    expect(textOf(html)).toContain('Synthetic draft title');
+  });
+
+  it('reads no feature state when there is nothing to show it for', async () => {
+    await render();
+    expect(mocks.getAiFeatureStates).not.toHaveBeenCalled();
   });
 });

@@ -71,9 +71,6 @@ export const dynamic = 'force-dynamic';
 /** How many access log entries the page reads, newest first. */
 const ACCESS_LOG_LIMIT = 300;
 
-/** The AI app features this page shows (S28), read together in one pass. */
-const AI_APP_FEATURES = ['ai_app_access', 'ai_app_original_files', 'ai_app_suggestions'] as const;
-
 export default async function SharingPage({
   params,
   searchParams,
@@ -116,57 +113,61 @@ export default async function SharingPage({
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
     // AI connections of this record, through the central access gate (owner only). Read even
     // while connecting AI apps is off, so a live connection can still be turned off.
-    const aiGate = await requireAccess(
-      db,
-      accountPrincipal(accountId),
-      'VIEW_METADATA',
-      { applicantId: id },
-      { purpose: 'ai_connection' },
-    );
-    // The three AI app features, read once for the page (S28): settings and plan in one pass.
-    const aiStates = aiGate.ok
-      ? await getAiFeatureStates(db, AI_APP_FEATURES, { proof: aiGate.value })
-      : null;
     const readAiConnections = async () => {
+      const aiGate = await requireAccess(
+        db,
+        accountPrincipal(accountId),
+        'VIEW_METADATA',
+        { applicantId: id },
+        { purpose: 'ai_connection' },
+      );
       const listed = aiGate.ok ? await listAiConnections(aiGate.value) : null;
       const list = listed?.ok
         ? listed.value
         : { available: false, active: [], activeTotal: 0, recentlyEnded: [] };
+      if (!aiGate.ok || list.active.length === 0) {
+        return { list, files: undefined, returningFiles: null, access: null };
+      }
+      // AI App Access and Original Files (S28, S20), read together and only with a live
+      // connection to show them for, beside the files that may be ticked.
+      const [states, candidates] = await Promise.all([
+        getAiFeatureStates(db, ['ai_app_access', 'ai_app_original_files'], {
+          proof: aiGate.value,
+        }),
+        listAiFileCandidates(aiGate.value),
+      ]);
       // AI App Access (S28): while it is off, apps read nothing; the connections stay listed.
-      const access = aiStates && list.active.length > 0 ? aiStates.ai_app_access : null;
+      const access = states.ai_app_access;
       // "Original Files" (S20): what may be ticked, and what each live connection has ticked.
       let files: AiConnectionFiles | undefined;
-      if (aiGate.ok && list.active.length > 0) {
-        const candidates = await listAiFileCandidates(aiGate.value);
-        if (candidates.ok && candidates.value.available) {
-          const ticked = await listAiConnectionFiles(
-            aiGate.value,
-            list.active.map((item) => item.id),
-          );
-          files = {
-            view: {
-              available: aiStates?.ai_app_original_files.available ?? false,
-              candidates: candidates.value.documents.map((document) => ({
-                documentId: document.documentId,
-                referenceCode: document.referenceCode,
-                kind: document.kind,
-                group: document.group,
-                safeCopyReady: document.safeCopyReady,
-              })),
-            },
-            byConnection: Object.fromEntries(
-              [...ticked].map(([connectionId, choices]) => [
-                connectionId,
-                choices.map(
-                  (choice): AiFileChoice => ({
-                    documentId: choice.documentId,
-                    variant: choice.variant === 'ORIGINAL' ? 'ORIGINAL' : 'SAFE_COPY',
-                  }),
-                ),
-              ]),
-            ),
-          };
-        }
+      if (candidates.ok && candidates.value.available) {
+        const ticked = await listAiConnectionFiles(
+          aiGate.value,
+          list.active.map((item) => item.id),
+        );
+        files = {
+          view: {
+            available: states.ai_app_original_files.available,
+            candidates: candidates.value.documents.map((document) => ({
+              documentId: document.documentId,
+              referenceCode: document.referenceCode,
+              kind: document.kind,
+              group: document.group,
+              safeCopyReady: document.safeCopyReady,
+            })),
+          },
+          byConnection: Object.fromEntries(
+            [...ticked].map(([connectionId, choices]) => [
+              connectionId,
+              choices.map(
+                (choice): AiFileChoice => ({
+                  documentId: choice.documentId,
+                  variant: choice.variant === 'ORIGINAL' ? 'ORIGINAL' : 'SAFE_COPY',
+                }),
+              ),
+            ]),
+          ),
+        };
       }
       // The files the person ticked before a fresh sign-in check: a signed cookie, never a link.
       const returningFiles =
@@ -179,9 +180,10 @@ export default async function SharingPage({
           : null;
       return { list, files, returningFiles, access };
     };
-    // What AI apps left for the person (S21): their drafts, and whether suggestions work now.
-    // Drafts stay readable and removable whether or not the feature is on.
-    const readAiSuggestions = async () => {
+    // What AI apps left for the person (S21): their drafts, and whether suggestions work now, read
+    // through this read's own proof. Drafts stay readable and removable whether or not the
+    // feature is on; its state is read only when there are drafts or connections to show it for.
+    const readAiSuggestions = async (connections: ReturnType<typeof readAiConnections>) => {
       const gate = await requireAccess(
         db,
         accountPrincipal(accountId),
@@ -191,8 +193,12 @@ export default async function SharingPage({
       );
       if (!gate.ok) return { available: false, drafts: [] as AiDraftItem[], more: 0 };
       const drafts = await listAiDrafts(gate.value);
+      const shown = drafts.drafts.length > 0 || (await connections).list.active.length > 0;
+      const states = shown
+        ? await getAiFeatureStates(db, ['ai_app_suggestions'], { proof: gate.value })
+        : null;
       return {
-        available: aiStates?.ai_app_suggestions.available ?? false,
+        available: states?.ai_app_suggestions.available ?? false,
         drafts: drafts.drafts.map(
           (draft): AiDraftItem => ({
             id: draft.id,
@@ -206,6 +212,7 @@ export default async function SharingPage({
         more: drafts.more,
       };
     };
+    const aiConnections = readAiConnections();
     const [access, documents, auditEvents, profileEntries, aiRead, aiSuggestions] =
       await Promise.all([
         listAccessForApplicantDetailed(db, accountId, id),
@@ -213,8 +220,8 @@ export default async function SharingPage({
         // A longer history than the old list showed: it now scrolls in its own box and filters.
         listAuditEventsForApplicant(db, accountId, id, ACCESS_LOG_LIMIT),
         listApplicantProfile(db, id),
-        readAiConnections(),
-        readAiSuggestions(),
+        aiConnections,
+        readAiSuggestions(aiConnections),
       ]);
     const grants = access.ok ? access.value : [];
 
