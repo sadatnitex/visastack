@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, not } from 'drizzle-orm';
 import { DEFAULT_DOCUMENT_PROTECTION, SystemScope, isRestrictedDocumentType } from './access';
 import { loadDocumentProtectionSettings } from './access/restricted-documents';
 import {
@@ -10,6 +10,7 @@ import {
 } from './ai';
 import { isAiDispatchAllowed } from './ai-provider-config';
 import { READER_VERSION, type ReadingStopReason } from './ai-reading-job';
+import { connectorRunsOnly } from './ai-run-kinds';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, schema } from './db';
@@ -141,7 +142,8 @@ async function loadReadingTarget(
 /**
  * True when suggestions were already read for this version, by AI or by the passport's
  * machine-readable lines. A repeated job never lists the same details twice, and an AI reading of
- * a passport that already has its lines read would only compete with them.
+ * a passport that already has its lines read would only compete with them. A suggestion the
+ * person's own AI app made about the document is not a reading of it, so it never stops one (S21).
  */
 async function alreadyHasSuggestions(db: Db, documentVersionId: string): Promise<boolean> {
   const row = first(
@@ -152,6 +154,7 @@ async function alreadyHasSuggestions(db: Db, documentVersionId: string): Promise
         and(
           eq(schema.aiExtractionRuns.documentVersionId, documentVersionId),
           eq(schema.aiExtractionRuns.status, 'SUCCEEDED'),
+          not(connectorRunsOnly(schema.aiExtractionRuns.modelVersion)),
         ),
       )
       .limit(1),

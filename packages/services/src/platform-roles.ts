@@ -126,6 +126,7 @@ export type PlatformAction =
   | 'SUPPORT_GRANT_APPROVE'
   | 'ACCOUNT_SIGN_IN_RECOVERY'
   | 'BILLING_SETTINGS_MANAGE'
+  | 'AI_FEATURES_MANAGE'
   | 'BILLING_REFUND_MANAGE'
   | 'BILLING_LEDGER_EXPORT';
 
@@ -174,6 +175,9 @@ const ACTION_ROLES: Readonly<
   // Grace and then Suspended) are a commercial decision for the platform owner alone, like every
   // other billing change (billing.ts): no concern-scoped role holds it.
   BILLING_SETTINGS_MANAGE: null,
+  // Which AI features people can use, and how much a day (S21, AI Features page): a product and
+  // commercial decision for the platform owner alone, like the billing rules.
+  AI_FEATURES_MANAGE: null,
   // S18: refunds, credits, refunds made outside VisaStack and the monthly accounting file move or
   // reveal money, so they stay with the platform owner too (owner decision D1, 30 Oct 2026). A
   // billing staff role can be added later as its own concern.

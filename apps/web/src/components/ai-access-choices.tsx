@@ -1,3 +1,4 @@
+import { AI_FEATURE_OFF_HINT } from '@visastack/core/ai-features';
 import { useId } from 'react';
 import {
   AI_CONNECTION_LAYERS,
@@ -10,6 +11,9 @@ import {
   AI_FULL_NUMBERS_LABEL,
   AI_LAYER_LABELS,
   AI_LAYER_NOTES,
+  AI_SUGGEST_CHANGES_LABEL,
+  AI_SUGGEST_CHANGES_NOTE,
+  AI_SUGGEST_KEPT_NOTE,
 } from '../lib/ai-consent-labels';
 
 export interface AiAccessChoicesProps {
@@ -21,6 +25,20 @@ export interface AiAccessChoicesProps {
   readonly defaultDuration: string;
   /** Points the matching field at the form's error message. */
   readonly invalid?: { readonly field: string; readonly messageId: string };
+  /**
+   * Whether AI App Suggestions works right now (the platform owner's switch, S21). When it does
+   * not, "Suggest Changes" stays on the screen, turned off, with a plain sentence saying so, and a
+   * choice already made is kept as it was.
+   */
+  readonly suggestionsAvailable?: boolean;
+  /**
+   * `consent`: a new connection. The box always starts unticked, whatever a link asked for, so the
+   * person ticks it themselves. `change`: Change Access on an existing connection. A stored choice
+   * starts ticked and can always be unticked; while the feature is off it cannot be ticked on.
+   */
+  readonly suggestMode?: 'consent' | 'change';
+  /** Change Access: whether the connection has it stored. Only then may it stay on while off. */
+  readonly suggestStored?: boolean;
 }
 
 /**
@@ -35,7 +53,14 @@ export function AiAccessChoices({
   durations,
   defaultDuration,
   invalid,
+  suggestionsAvailable = false,
+  suggestMode = 'consent',
+  suggestStored = false,
 }: AiAccessChoicesProps) {
+  // Enabled while the feature works, or on Change Access when already stored (so it can be
+  // unticked). Never shown ticked unless the server would keep it ticked.
+  const suggestEditable = suggestionsAvailable || (suggestMode === 'change' && suggestStored);
+  const suggestStartsTicked = suggestMode === 'change' && initial.suggestChanges && suggestEditable;
   const id = useId();
   const problem = (field: string) =>
     invalid?.field === field
@@ -174,6 +199,33 @@ export function AiAccessChoices({
               </span>
             </span>
           </label>
+        </div>
+      </fieldset>
+
+      <fieldset className="fieldset">
+        <legend className="field-label">Changes</legend>
+        <div className="checks">
+          <label className="check output-check" htmlFor={`${id}-ai-suggest`}>
+            <input
+              id={`${id}-ai-suggest`}
+              type="checkbox"
+              name="suggest_changes"
+              defaultChecked={suggestStartsTicked}
+              disabled={!suggestEditable}
+              {...(suggestionsAvailable ? {} : { 'aria-describedby': `${id}-ai-suggest-off` })}
+            />
+            <span className="output-check-text">
+              <span>{AI_SUGGEST_CHANGES_LABEL}</span>
+              <span className="muted u-fs-075">{AI_SUGGEST_CHANGES_NOTE}</span>
+            </span>
+          </label>
+          {suggestionsAvailable ? null : (
+            <p className="muted u-fs-075 u-m-0" id={`${id}-ai-suggest-off`}>
+              {suggestMode === 'change' && suggestStored
+                ? `${AI_FEATURE_OFF_HINT} ${AI_SUGGEST_KEPT_NOTE}`
+                : AI_FEATURE_OFF_HINT}
+            </p>
+          )}
         </div>
       </fieldset>
 

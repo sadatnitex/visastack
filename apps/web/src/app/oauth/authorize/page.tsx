@@ -1,4 +1,10 @@
-import { listApplicants, listMissions } from '@visastack/services';
+import {
+  accountPrincipal,
+  getAiFeatureState,
+  listApplicants,
+  listMissions,
+  requireAccess,
+} from '@visastack/services';
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { aiConnectorEnabled } from '../../../lib/ai-connector';
@@ -93,7 +99,21 @@ export default async function AuthorizePage({
             .filter((mission) => mission.state !== 'CANCELLED' && mission.state !== 'CLOSED')
             .map((mission) => ({ id: mission.id, title: mission.title }))
         : [];
-    return { records, chosen, cases };
+    // "Suggest Changes" is offered only while AI App Suggestions works for this person (S21).
+    const access = chosen
+      ? await requireAccess(
+          db,
+          accountPrincipal(accountId),
+          'VIEW_METADATA',
+          { applicantId: chosen.id },
+          { purpose: 'ai_connection' },
+        )
+      : null;
+    const suggestionsAvailable =
+      access?.ok === true
+        ? (await getAiFeatureState(db, 'ai_app_suggestions', { proof: access.value })).available
+        : false;
+    return { records, chosen, cases, suggestionsAvailable };
   });
 
   const appName = request.client.clientName;
@@ -147,6 +167,7 @@ export default async function AuthorizePage({
             appName={appName}
             record={view.chosen}
             cases={view.cases}
+            suggestionsAvailable={view.suggestionsAvailable}
             initial={settleConsentCases(
               consentChoicesFromQuery((name) => singleParam(search[name])),
               view.cases.map((item) => item.id),

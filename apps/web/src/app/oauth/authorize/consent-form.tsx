@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useId, useRef } from 'react';
+import { useActionState, useId, useRef, useState } from 'react';
 import { AiAccessChoices } from '../../../components/ai-access-choices';
 import {
   FormMessage,
@@ -14,7 +14,7 @@ import {
   CONSENT_DEFAULTS,
   type ConsentInitial,
 } from '../../../lib/ai-consent-choices';
-import { AI_DURATION_LABELS } from '../../../lib/ai-consent-labels';
+import { AI_DURATION_LABELS, aiConsentSentence } from '../../../lib/ai-consent-labels';
 import { answerAiConsentAction } from './actions';
 
 export interface ConsentFormProps {
@@ -31,6 +31,8 @@ export interface ConsentFormProps {
   readonly cases: readonly { readonly id: string; readonly title: string }[];
   /** The choices to start from: the safe defaults, or the person's own after a sign-in check. */
   readonly initial?: ConsentInitial;
+  /** Whether AI App Suggestions works right now (S21). */
+  readonly suggestionsAvailable?: boolean;
 }
 
 /**
@@ -43,13 +45,26 @@ export function ConsentForm({
   record,
   cases,
   initial = CONSENT_DEFAULTS,
+  suggestionsAvailable = false,
 }: ConsentFormProps) {
   const [state, formAction, pending] = useActionState(answerAiConsentAction, NO_RESULT);
+  // The sentence under the choices says what the app will be able to do, as the box is ticked.
+  const [suggest, setSuggest] = useState(initial.suggestChanges);
   const messageId = `${useId()}-ai-consent-message`;
   const formRef = useRef<HTMLFormElement>(null);
   useFocusInvalidField(formRef, state);
   return (
-    <form ref={formRef} action={formAction} className="field-list">
+    <form
+      ref={formRef}
+      action={formAction}
+      className="field-list"
+      onChange={(event) => {
+        const target = event.target;
+        if (target instanceof HTMLInputElement && target.name === 'suggest_changes') {
+          setSuggest(target.checked);
+        }
+      }}
+    >
       <input type="hidden" name="client_id" value={request.clientId} />
       <input type="hidden" name="redirect_uri" value={request.redirectUri} />
       <input type="hidden" name="code_challenge" value={request.codeChallenge} />
@@ -66,13 +81,11 @@ export function ConsentForm({
           label: AI_DURATION_LABELS[duration],
         }))}
         defaultDuration={initial.duration}
+        suggestionsAvailable={suggestionsAvailable}
         {...(isFailure(state) && state.field ? { invalid: { field: state.field, messageId } } : {})}
       />
 
-      <p className="card-body">
-        This app can read what you choose here. It cannot change anything in VisaStack. You can turn
-        it off at any time.
-      </p>
+      <p className="card-body">{aiConsentSentence(suggestionsAvailable && suggest)}</p>
       <FormMessage id={messageId} result={state} pending={pending} pendingText="Connecting…" />
       <div className="page-actions">
         <SubmitButton

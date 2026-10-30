@@ -311,6 +311,23 @@ describe('the automatic reading job', () => {
     expect(calls.texts).toEqual([LETTER_TEXT]);
   });
 
+  it('still reads a file an AI app already made a suggestion about (S21)', async () => {
+    const reader = await seedReader(db, 'app-first@example.com', { docType: 'HOTEL_BOOKING' });
+    const { ports, calls } = countingPorts();
+    await runIntake(db, reader.versionId, extractorFor(LETTER_TEXT));
+    // The person's own AI app suggested a detail from this file before the reading ran.
+    await db.insert(schema.aiExtractionRuns).values({
+      documentVersionId: reader.versionId,
+      applicantId: reader.applicantId,
+      status: 'SUCCEEDED',
+      modelVersion: 'connector:claude.ai',
+      promptVersion: 'connection:00000000-0000-4000-8000-000000000000',
+    });
+    await runAiReadingWorker(db, scope(), ports);
+    expect(calls).toMatchObject({ extract: 1 });
+    expect(calls.texts).toEqual([LETTER_TEXT]);
+  });
+
   it('records no document text in the audit trail or on the job row', async () => {
     const reader = await seedReader(db, 'quiet@example.com', { docType: 'HOTEL_BOOKING' });
     const { ports } = countingPorts();

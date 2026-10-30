@@ -17,6 +17,8 @@ const service = vi.hoisted(() => ({
   requireAccess: vi.fn(),
   listDeadlineClock: vi.fn(),
   listNeedsAttention: vi.fn(),
+  listPendingAppSuggestions: vi.fn(),
+  aiSuggestionsInUse: vi.fn(),
 }));
 vi.mock('@visastack/services', () => service);
 vi.mock('./ccd/depth.server', () => ({ readDepth: async () => 'auto' }));
@@ -50,6 +52,8 @@ beforeEach(() => {
   service.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [] });
   service.getWalletView.mockResolvedValue({ ok: true, value: [] });
   service.listPendingProposals.mockResolvedValue([]);
+  service.listPendingAppSuggestions.mockResolvedValue([]);
+  service.aiSuggestionsInUse.mockResolvedValue(false);
   service.listMissions.mockResolvedValue({ ok: true, value: [] });
   service.listEvidenceRequestsForApplicant.mockResolvedValue({ ok: true, value: [] });
   service.listAccessForApplicant.mockResolvedValue({ ok: true, value: [] });
@@ -121,6 +125,24 @@ describe('traveller composition and independent record guards', () => {
     const html = renderToStaticMarkup(await overview(params));
     expect(html).toContain('2 items need a decision or a closer look.');
     expect(html).not.toContain('1 items');
+  });
+  it('counts an AI app’s suggestions about the profile apart from readings, and links to My Profile (S21)', async () => {
+    service.listPendingProposals.mockResolvedValue([
+      { proposal: { id: 'p1', fieldKey: 'given_name', documentVersionId: 'v-1' }, evidence: [] },
+      {
+        proposal: { id: 'p2', fieldKey: 'phone', documentVersionId: null },
+        evidence: [],
+        fromApp: { name: 'Claude', host: 'claude.ai' },
+      },
+    ]);
+    const html = renderToStaticMarkup(await overview(params));
+    expect(html).toContain('2 items need a decision or a closer look.');
+    expect(html).toMatch(
+      /href="\/app\/applicant\/person\/profile"[^>]*><span class="row-key">Suggestions from AI Apps Waiting for You<\/span>/,
+    );
+    expect(html).toMatch(
+      /href="\/app\/applicant\/person\/documents"[^>]*><span class="row-key">Suggested Details Awaiting Approval<\/span><span[^>]*>1</,
+    );
   });
   it('uses the newest active case and actual readiness, excluding closed cases', async () => {
     const now = new Date('2026-10-11');

@@ -3,7 +3,9 @@ import {
   AI_CONNECTION_DEFAULT_LAYERS as SERVICE_DEFAULT_LAYERS,
   AI_CONNECTION_DURATIONS as SERVICE_DURATIONS,
   AI_CONNECTION_LAYERS as SERVICE_LAYERS,
+  AI_SUGGEST_CHANGES_SCOPE as SERVICE_SUGGEST_CHANGES_SCOPE,
   AI_CONNECTION_WARNING_LAYERS as SERVICE_WARNING_LAYERS,
+  scopesFromChoices,
 } from '@visastack/services';
 import { describe, expect, it } from 'vitest';
 import * as browser from './ai-consent-choices';
@@ -24,6 +26,15 @@ describe('the consent screen vocabulary', () => {
     expect(browser.AI_CONNECTION_WARNING_LAYERS).toEqual(SERVICE_WARNING_LAYERS);
     expect(browser.AI_CONNECTION_DURATIONS).toEqual(SERVICE_DURATIONS);
     expect(browser.AI_CONNECTION_DEFAULT_DURATION).toBe(SERVICE_DEFAULT_DURATION);
+    expect(browser.AI_SUGGEST_CHANGES_SCOPE).toBe(SERVICE_SUGGEST_CHANGES_SCOPE);
+    expect(
+      scopesFromChoices({
+        layers: [],
+        documentList: false,
+        documentText: false,
+        suggestChanges: true,
+      }),
+    ).toEqual([browser.AI_SUGGEST_CHANGES_SCOPE]);
   });
 
   it('names every choice, in words without engineering terms', () => {
@@ -54,10 +65,15 @@ describe('choices kept through a fresh sign-in check', () => {
       documentList: false,
       documentText: true,
       revealIdentifiers: true,
+      suggestChanges: true,
       duration: '1h',
     };
     const query = browser.consentChoicesToQuery(chosen);
-    expect(browser.consentChoicesFromQuery((name) => query[name])).toEqual(chosen);
+    // Every read choice comes back, but never a ticked Suggest Changes: a link cannot carry it (S21).
+    expect(browser.consentChoicesFromQuery((name) => query[name])).toEqual({
+      ...chosen,
+      suggestChanges: false,
+    });
   });
 
   it('fall back to the safe defaults for anything unknown', () => {
@@ -137,9 +153,15 @@ describe('reading the submitted choices (one parser for consent and Change Acces
         documentList: true,
         documentText: false,
         revealIdentifiers: true,
+        suggestChanges: false,
         duration: '7d',
       },
     });
+    // "Suggest Changes" only when its box is ticked (S21).
+    const ticked = browser.parseAiAccessChoices(form({ suggest_changes: 'on' }));
+    expect(ticked.ok && ticked.value.suggestChanges).toBe(true);
+    const other = browser.parseAiAccessChoices(form({ suggest_changes: 'yes' }));
+    expect(other.ok && other.value.suggestChanges).toBe(false);
   });
 
   it('defaults to all current cases and the screen default for How Long', () => {

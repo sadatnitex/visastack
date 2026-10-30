@@ -10,11 +10,14 @@ import {
   ORIGINAL_DOCUMENT_KEYS,
   OTHER_OPTION,
   PROPOSED_PACKS,
+  type SavableFieldDefinition,
   amountKeyOfTaxBasis,
   computeCompletion,
   documentsSupportingFields,
+  fieldRegistryInputOf,
   isFieldAnswered,
   knownFieldOptions,
+  savableFieldDefinition,
 } from '@visastack/core/catalogue';
 import type {
   ChoiceGroup,
@@ -384,39 +387,19 @@ export function fieldLabel(key: string): string | undefined {
   return LIVE_BY_KEY.get(key)?.label ?? CATALOGUE_BY_KEY.get(key)?.label;
 }
 
-/** The shape a save needs for any field, live or added. Live definitions always win. */
-export interface SavableField {
-  readonly key: string;
-  readonly label: string;
-  readonly sensitivity: 'STANDARD' | 'SENSITIVE' | 'RESTRICTED';
-  readonly type: 'text' | 'date';
-  readonly repeating: boolean;
-  readonly packId: string;
-}
+/**
+ * The shape a save needs for any field, live or added. Live definitions always win. One shape for
+ * every writer, from @visastack/core/catalogue, so a field's registry entry never depends on
+ * whether the person, a reading or an AI app saved it first (S21 round 3).
+ */
+export type SavableField = SavableFieldDefinition;
 
 export function savableField(key: string): SavableField | undefined {
-  const live = LIVE_BY_KEY.get(key);
-  if (live) {
-    return {
-      key: live.key,
-      label: live.label,
-      sensitivity: live.sensitivity,
-      type: live.type === 'date' ? 'date' : 'text',
-      repeating: live.group !== undefined,
-      packId: live.pack,
-    };
-  }
-  const added = CATALOGUE_BY_KEY.get(key);
-  if (!added) return undefined;
-  return {
-    key: added.key,
-    label: added.label,
-    sensitivity: added.sensitivity,
-    type: added.type,
-    repeating: added.group !== undefined,
-    packId: added.pack,
-  };
+  return savableFieldDefinition(key);
 }
+
+/** The registry entry a save registers for a field from `savableField`, the same for every writer. */
+export { fieldRegistryInputOf };
 
 const NEW_CATEGORIES = new Map(
   PROPOSED_PACKS.map((pack) => [pack.key as string, pack.label] as const),

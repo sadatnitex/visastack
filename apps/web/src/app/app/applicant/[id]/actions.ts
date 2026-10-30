@@ -55,7 +55,7 @@ import {
 } from '../../../../lib/ai';
 import { ensureDocumentFieldsRegistered } from '../../../../lib/field-registry';
 import { documentTypeLabel } from '../../../../lib/labels';
-import { savableField } from '../../../../lib/master-profile';
+import { fieldRegistryInputOf, savableField } from '../../../../lib/master-profile';
 import { createKeyManagementPort, createPreviewRenderer } from '../../../../lib/providers';
 import { reportServerError } from '../../../../lib/server-error';
 import { withSession } from '../../../../lib/session';
@@ -126,13 +126,7 @@ export async function saveFactAction(_prev: ActionState, formData: FormData): Pr
     if (!(await assertOwned(db, accountId, applicantId))) {
       return { ok: false, message: 'Not authorized.' } satisfies ActionState;
     }
-    await registerFieldDefinition(db, {
-      key: def.key,
-      dataType: def.type === 'date' ? 'date' : 'string',
-      sensitivity: def.sensitivity,
-      repeating: def.repeating,
-      packId: def.packId,
-    });
+    await registerFieldDefinition(db, fieldRegistryInputOf(def));
     const encryption = createKeyManagementPort();
     const edit = await editFact(db, {
       actorAccountId: accountId,

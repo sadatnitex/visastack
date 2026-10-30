@@ -330,16 +330,24 @@ export async function listNeedsAttention(
       )
       .orderBy(asc(schema.documents.expiresAt), asc(schema.documents.id))
       .limit(ATTENTION_SOURCE_LIMIT),
-    // The same filter as `listPendingProposals`, counted rather than loaded with its evidence.
+    // The same filter as `listPendingProposals`, counted rather than loaded with its evidence, in
+    // two groups: suggestions about a document (read from it, or an AI app's about it), and an AI
+    // app's suggestions about the profile itself, which have no document and are reviewed on My
+    // Profile (S21; only a connector run may have no document).
     db
-      .select({ pending: count(), oldest: min(schema.fieldProposals.createdAt) })
+      .select({
+        profileLevel: isNull(schema.fieldProposals.documentVersionId),
+        pending: count(),
+        oldest: min(schema.fieldProposals.createdAt),
+      })
       .from(schema.fieldProposals)
       .where(
         and(
           eq(schema.fieldProposals.applicantId, applicantId),
           eq(schema.fieldProposals.status, 'PENDING'),
         ),
-      ),
+      )
+      .groupBy(isNull(schema.fieldProposals.documentVersionId)),
   ]);
   const missionById = new Map(missions.map((m) => [m.id, m]));
   const active = missions
@@ -543,7 +551,8 @@ export async function listNeedsAttention(
   }
 
   // e. Suggested details: one item with the count, never one per suggestion.
-  const suggestions = pending[0];
+  const suggestions = pending.find((group) => !group.profileLevel);
+  const appSuggestions = pending.find((group) => group.profileLevel);
   if (suggestions && suggestions.pending > 0) {
     push({
       key: `suggestions:${applicantId}`,
@@ -562,6 +571,26 @@ export async function listNeedsAttention(
       subject: null,
       href: `/app/applicant/${applicantId}/documents`,
       createdAt: (suggestions.oldest ?? now).toISOString(),
+    });
+  }
+  if (appSuggestions && appSuggestions.pending > 0) {
+    push({
+      key: `app-suggestions:${applicantId}`,
+      kind: 'suggestions',
+      title: 'Suggestions from AI Apps Waiting for You',
+      why: 'An AI app you connected suggested changes to your profile. Nothing is saved until you accept them.',
+      applicantId,
+      applicantName,
+      caseId: null,
+      caseTitle: null,
+      dueDate: null,
+      dueState: 'none',
+      daysUntilDue: null,
+      sentBack: false,
+      count: appSuggestions.pending,
+      subject: null,
+      href: `/app/applicant/${applicantId}/profile#ai-app-suggestions`,
+      createdAt: (appSuggestions.oldest ?? now).toISOString(),
     });
   }
 

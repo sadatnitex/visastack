@@ -59,6 +59,8 @@ vi.mock('../app/app/actions', standIn);
 vi.mock('../app/app/admin/actions', standIn);
 vi.mock('../app/app/admin/ai-settings/actions', standIn);
 vi.mock('../app/app/admin/billing/actions', standIn);
+vi.mock('../app/app/admin/ai/actions', standIn);
+vi.mock('../app/app/applicant/[id]/sharing/ai-draft-actions', standIn);
 vi.mock('../app/app/admin/document-protection/actions', standIn);
 vi.mock('../app/app/admin/sign-in-recovery/actions', standIn);
 vi.mock('../app/app/admin/email/actions', standIn);
@@ -94,6 +96,8 @@ const adminForms = await import('../app/app/admin/admin-forms');
 const aiSettings = await import('../app/app/admin/ai-settings/forms');
 const protectionForms = await import('../app/app/admin/document-protection/forms');
 const billingRulesForms = await import('../app/app/admin/billing/forms');
+const aiFeatureForms = await import('../app/app/admin/ai/forms');
+const aiDraftForms = await import('../app/app/applicant/[id]/sharing/ai-drafts');
 const aiConsentForms = await import('../app/oauth/authorize/consent-form');
 const signInRecoveryForms = await import('../app/app/admin/sign-in-recovery/forms');
 const emailDeliveryForms = await import('../app/app/admin/email/forms');
@@ -637,6 +641,7 @@ const SHARING: readonly Case[] = [
           documentList: true,
           documentText: false,
           revealIdentifiers: false,
+          suggestChanges: false,
         }}
         durations={[
           { value: 'keep', label: 'Keep the Current End (6 Nov 2026, 14:05)' },
@@ -1488,6 +1493,38 @@ const ADMIN: readonly Case[] = [
       />
     )),
     fields: ['reason'],
+  },
+  {
+    name: 'an AI feature switch and daily limit',
+    element: () => (
+      <aiFeatureForms.AiFeatureForm
+        feature="ai_app_suggestions"
+        name="AI App Suggestions"
+        enabled={false}
+        adminDailyLimit={null}
+        planDailyLimit={15}
+      />
+    ),
+    fields: ['dailyLimit'],
+  },
+  {
+    name: 'drafts an AI app saved',
+    element: () => (
+      <aiDraftForms.AiDraftsSection
+        applicantId="00000000-0000-4000-8000-000000000001"
+        drafts={[
+          {
+            id: '00000000-0000-4000-8000-000000000002',
+            title: 'Cover Letter',
+            body: 'Dear Sir or Madam',
+            caseTitle: 'London Trip',
+            app: 'Claude (claude.ai)',
+            savedOn: '30 Oct 2026',
+          },
+        ]}
+        more={0}
+      />
+    ),
   },
   {
     name: 'save the billing rules (off)',

@@ -261,3 +261,14 @@ Also still open as written below: O1 (private repository), O3 (paid Vercel and N
 - **Until then:** option 3 is how refunds work. Live refunds also still need O6 (the live store credentials).
 - **Then switch it on:** set `PAYMENT_REFUNDS_VIA_GATEWAY=true` in Vercel Production (then a redeploy) after the fixed address is registered with SSLCOMMERZ. It is off until you set it, and nothing else changes while it is off.
 - **Also noted (D1):** refunds, credits and the monthly accounting file are platform owner only. Tell us if you want a separate billing staff role.
+
+## S21 owner decisions and O8 for migration 0105 (added 30 Oct 2026)
+
+- **O8, migration 0105 (S21, AI app suggestions):** after S21 merges, give your word for this one run (workflow db-migrate.yml, confirm "migrate"). It adds three tables (drafts from AI apps, the private mark on reminders AI apps add, and the AI Features switches). It also lets a suggestion have no document, only when an AI app made it. No existing table gains a column and no existing row changes, and it is safe to run again. Until it runs, the three suggestion tools answer "not available yet" and everything else works as before. If S18 merges first, it is renumbered 0105 before the merge.
+- **AI Features switch (new):** AI App Suggestions is **off by default**. After migration 0105 runs, turn it on in Admin, Settings, AI Features, when you want people's AI apps to be able to leave suggestions, drafts and reminders. Turning it off later never removes anything people already have.
+- **Decided by you on 30 Oct 2026, recorded here:**
+  1. **Daily limit:** 15 a day per person, across all their apps and all three tools, and 15 per connection. You can lower it (never raise it above the plan) as Daily Limit per Person on AI Features.
+  2. **Only when the person asks:** the tools tell the app to use them only when the person explicitly asks for the change; VisaStack never creates these on its own; the audit records each write as requested by the person through the app.
+  3. **Reminders are private:** a reminder an AI app adds is seen only by the person, never by an agency, even on a shared case. This replaces the earlier plan that agencies would see AI-added reminders like any other task.
+  4. **Plans later:** today everyone gets the free tier (AI App Suggestions, 15 a day). A paid plan can later include more AI features or more use; everyone keeps the free tier. Where this plugs in is recorded in ADR 0021's 30 Oct amendment.
+- **Still yours to confirm:** the deviation from ADR 0021 that a reminder always needs a case (tasks belong to a case; there is no record-level task), and drafts living on the Sharing page beside AI Connections.

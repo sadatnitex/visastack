@@ -5,7 +5,12 @@ import { CATALOGUE_DOCUMENTS, isRepeatingFieldKey } from '@visastack/core/catalo
 import { and, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access';
 import { scopeFieldKeys } from './ai-field-scope';
-import { excludingDeterministicRuns } from './ai-run-kinds';
+import {
+  CONNECTOR_MODEL_PREFIX,
+  connectionIdOfRun,
+  excludingDeterministicRuns,
+  isConnectorModelVersion,
+} from './ai-run-kinds';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { CLASSIFIABLE_DOCUMENT_TYPES } from './classification';
@@ -3005,6 +3010,14 @@ export async function approveProposal(
     ),
     'ai extraction run',
   );
+  // A suggestion the person's own AI app made (S21) is the person's word once they accept it, not
+  // something a document shows: it is saved as confirmed by them, entered by hand, with no source
+  // document, whatever document the app named.
+  const fromApp = isConnectorModelVersion(run.modelVersion);
+  const sourceDocumentVersionId = proposal.documentVersionId;
+  if (!fromApp && sourceDocumentVersionId === null) {
+    return err(serviceError('invalid', 'proposal has no document to approve from'));
+  }
 
   const repeatingRecordKey = input.repeatingRecordKey ?? null;
   const existingFactId = await findExistingFactId(
@@ -3061,12 +3074,12 @@ export async function approveProposal(
         applicantId: proposal.applicantId,
         fieldKey,
         value: finalValue,
-        status: conflict ? 'CONFLICTED' : 'DOCUMENT_SUPPORTED',
-        method: 'DOCUMENT',
-        sourceDocumentVersionId: proposal.documentVersionId,
+        status: conflict ? 'CONFLICTED' : fromApp ? 'APPLICANT_CONFIRMED' : 'DOCUMENT_SUPPORTED',
+        method: fromApp ? 'MANUAL' : 'DOCUMENT',
+        ...(!fromApp && sourceDocumentVersionId ? { sourceDocumentVersionId } : {}),
         modelVersion: run.modelVersion,
         promptVersion: run.promptVersion,
-        reason: 'ai_proposal_approved',
+        reason: fromApp ? 'ai_app_suggestion_approved' : 'ai_proposal_approved',
         ...(input.resolution === 'changed' && input.effectiveFrom
           ? { effectiveFrom: input.effectiveFrom }
           : {}),
@@ -3096,7 +3109,9 @@ export async function approveProposal(
           factId: conflict.factId,
           previousFactVersionId: conflict.previousFactVersionId,
           newFactVersionId: version.id,
-          note: `AI proposed "${finalValue}" but the current confirmed value differs`,
+          note: fromApp
+            ? `An AI app suggested "${finalValue}" but the current confirmed value differs`
+            : `AI proposed "${finalValue}" but the current confirmed value differs`,
         });
       }
 
@@ -3109,7 +3124,7 @@ export async function approveProposal(
             ? 'AI_PROPOSAL_CORRECTED'
             : 'AI_PROPOSAL_ACCEPTED',
         accountId: input.actorAccountId,
-        dimension: 'EXTRACTION',
+        dimension: fromApp ? 'CONNECTOR' : 'EXTRACTION',
       });
 
       return editResult;
@@ -3228,6 +3243,24 @@ export async function approveClearProposals(
         .where(inArray(schema.fieldDefinitions.key, keys))
     : [];
   const sensitivityOf = new Map(definitions.map((row) => [row.key, row.sensitivity] as const));
+  // An AI app's suggestion (S21) is never accepted in bulk, whatever the page sent: each one is
+  // looked at and decided on its own.
+  const runIds = [...new Set(proposals.map((proposal) => proposal.aiExtractionRunId))];
+  const fromApp = new Set(
+    runIds.length
+      ? (
+          await db
+            .select({
+              id: schema.aiExtractionRuns.id,
+              modelVersion: schema.aiExtractionRuns.modelVersion,
+            })
+            .from(schema.aiExtractionRuns)
+            .where(inArray(schema.aiExtractionRuns.id, runIds))
+        )
+          .filter((run) => isConnectorModelVersion(run.modelVersion))
+          .map((run) => run.id)
+      : [],
+  );
 
   let approved = 0;
   let leftForReview = ids.length - proposals.length;
@@ -3242,6 +3275,7 @@ export async function approveClearProposals(
     const quotes = evidence.filter((item) => item.fieldProposalId === proposal.id);
     if (
       !fieldKey ||
+      fromApp.has(proposal.aiExtractionRunId) ||
       !isClearReading(proposal, quotes) ||
       sensitivityOf.get(fieldKey) !== 'STANDARD' ||
       isRepeatingFieldKey(fieldKey)
@@ -3331,10 +3365,17 @@ export async function rejectProposal(
       resourceId: proposal.id,
       metadata: { fieldKey: proposal.fieldKey, reason: input.reason },
     });
+    const run = first(
+      await tx
+        .select({ modelVersion: schema.aiExtractionRuns.modelVersion })
+        .from(schema.aiExtractionRuns)
+        .where(eq(schema.aiExtractionRuns.id, proposal.aiExtractionRunId))
+        .limit(1),
+    );
     await recordProductEvent(tx, {
       eventType: 'AI_PROPOSAL_REJECTED',
       accountId: input.actorAccountId,
-      dimension: 'EXTRACTION',
+      dimension: isConnectorModelVersion(run?.modelVersion) ? 'CONNECTOR' : 'EXTRACTION',
     });
     return ok(updated);
   });
@@ -3342,9 +3383,18 @@ export async function rejectProposal(
 
 export type EvidenceLocationRow = typeof schema.evidenceLocations.$inferSelect;
 
+/** The AI app a suggestion came from (S21): its name as it was stored, and its web address. */
+export interface ProposalApp {
+  /** The app's name, or null when its connection is gone. Cleaned again before it is shown. */
+  readonly name: string | null;
+  readonly host: string;
+}
+
 export interface ProposalWithEvidence {
   readonly proposal: FieldProposalRow;
   readonly evidence: readonly EvidenceLocationRow[];
+  /** Set when the person's own AI app made this suggestion through its connection. */
+  readonly fromApp?: ProposalApp;
 }
 
 /** Pending proposals for an applicant (the review queue), newest first. */
@@ -3352,9 +3402,17 @@ export async function listPendingProposals(
   db: Db,
   applicantId: string,
 ): Promise<ProposalWithEvidence[]> {
-  const proposals = await db
-    .select()
+  const rows = await db
+    .select({
+      proposal: schema.fieldProposals,
+      modelVersion: schema.aiExtractionRuns.modelVersion,
+      promptVersion: schema.aiExtractionRuns.promptVersion,
+    })
     .from(schema.fieldProposals)
+    .innerJoin(
+      schema.aiExtractionRuns,
+      eq(schema.aiExtractionRuns.id, schema.fieldProposals.aiExtractionRunId),
+    )
     .where(
       and(
         eq(schema.fieldProposals.applicantId, applicantId),
@@ -3363,13 +3421,46 @@ export async function listPendingProposals(
     )
     .orderBy(desc(schema.fieldProposals.createdAt));
 
+  // The apps behind connector suggestions, by connection, read once, from this record only.
+  const connectionIds = [
+    ...new Set(rows.flatMap((row) => connectionIdOfRun(row) ?? [])),
+  ] as string[];
+  const appNames = new Map<string, string>(
+    connectionIds.length
+      ? (
+          await db
+            .select({ id: schema.aiConnections.id, name: schema.aiConnections.clientName })
+            .from(schema.aiConnections)
+            .where(
+              and(
+                inArray(schema.aiConnections.id, connectionIds),
+                eq(schema.aiConnections.applicantId, applicantId),
+              ),
+            )
+        ).map((row) => [row.id, row.name] as const)
+      : [],
+  );
+
   const result: ProposalWithEvidence[] = [];
-  for (const proposal of proposals) {
+  for (const row of rows) {
+    const { proposal } = row;
     const evidence = await db
       .select()
       .from(schema.evidenceLocations)
       .where(eq(schema.evidenceLocations.fieldProposalId, proposal.id));
-    result.push({ proposal, evidence });
+    const connectionId = connectionIdOfRun(row);
+    result.push({
+      proposal,
+      evidence,
+      ...(isConnectorModelVersion(row.modelVersion)
+        ? {
+            fromApp: {
+              name: connectionId ? (appNames.get(connectionId) ?? null) : null,
+              host: row.modelVersion.slice(CONNECTOR_MODEL_PREFIX.length),
+            },
+          }
+        : {}),
+    });
   }
   return result;
 }

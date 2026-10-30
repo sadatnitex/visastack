@@ -117,6 +117,7 @@ export async function changeAiAccessAction(
     documentList: rest.documentList,
     documentText: rest.documentText,
     revealIdentifiers: rest.revealIdentifiers,
+    suggestChanges: rest.suggestChanges,
     duration: rest.duration,
   };
   const choices = {
@@ -126,6 +127,7 @@ export async function changeAiAccessAction(
     documentList: rest.documentList,
     documentText: rest.documentText,
     revealIdentifiers: rest.revealIdentifiers,
+    suggestChanges: rest.suggestChanges,
     duration: rest.duration,
   };
 

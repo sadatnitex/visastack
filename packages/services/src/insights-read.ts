@@ -1,6 +1,7 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, not } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access/require-access';
+import { connectorRunsOnly } from './ai-run-kinds';
 import { schema } from './db';
 import { listDocumentsDetailed } from './documents';
 import { type ServiceError, serviceError } from './errors';
@@ -71,10 +72,17 @@ export async function getTravellerInsights(
         schema.documentVersions,
         eq(schema.documentVersions.id, schema.fieldProposals.documentVersionId),
       )
+      .innerJoin(
+        schema.aiExtractionRuns,
+        eq(schema.aiExtractionRuns.id, schema.fieldProposals.aiExtractionRunId),
+      )
       .where(
         and(
           eq(schema.fieldProposals.applicantId, applicantId),
           eq(schema.fieldProposals.status, 'PENDING'),
+          // Only what was read from a file: an AI app's claim about a document is not a reading
+          // of it (S21), so it never appears here as one.
+          not(connectorRunsOnly(schema.aiExtractionRuns.modelVersion)),
         ),
       ),
     db
