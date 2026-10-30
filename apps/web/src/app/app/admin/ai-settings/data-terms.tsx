@@ -132,7 +132,7 @@ export function DataTermsPanel(props: DataTermsPanelProps) {
     <article className="card u-mb-150">
       <p className="card-kicker">Data Terms</p>
       <h2 className="card-title">What AI Providers Do with What We Send</h2>
-      <div className="rows u-mb-100">
+      <div className="rows rows-grid u-mb-100">
         <div className="row">
           <span className="row-key">Data on This Platform</span>
           <span className={`badge ${realData ? 'badge-warning' : 'badge-neutral'}`}>

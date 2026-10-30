@@ -398,7 +398,7 @@ export default async function AdminOperationsPage() {
                   Real usage milestones, counted from an append-only event log - no PII, no
                   free-text properties.
                 </p>
-                <div className="rows admin-scorecard">
+                <div className="rows rows-grid admin-scorecard">
                   {data.scorecard.map((row) => (
                     <div className="row" key={row.eventType}>
                       <span className="row-key">{SCORECARD_LABELS[row.eventType]}</span>
@@ -430,17 +430,17 @@ export default async function AdminOperationsPage() {
                     Backup Recovery Checks
                   </a>
                 </p>
-                <dl className="rows">
+                <dl className="rows provider-readings">
                   {data.providerOperations.map((row) => (
-                    <div key={row.label} className="row" style={{ alignItems: 'flex-start' }}>
-                      <dt className="row-key" style={{ flex: '0 1 14rem' }}>
-                        {row.label}
-                      </dt>
-                      <dd style={{ margin: 0, flex: '1 1 18rem', minWidth: 0 }}>
+                    <div key={row.label} className="row">
+                      <dt className="provider-reading-head">
+                        <span className="row-key">{row.label}</span>
                         <span className={`badge ${PROVIDER_STATUS_TONE[row.standing]}`}>
                           {row.standing}
-                        </span>{' '}
-                        <strong>{row.headline}</strong>
+                        </span>
+                      </dt>
+                      <dd className="provider-reading-body">
+                        <span>{row.headline}</span>
                         <details>
                           <summary>Show Technical Detail</summary>
                           <p>
@@ -541,7 +541,7 @@ export default async function AdminOperationsPage() {
                       The signals could not be loaded; see the notice above.
                     </p>
                   ) : (
-                    <div className="rows">
+                    <div className="rows rows-grid">
                       {data.signals.map((signal) => (
                         <div
                           className="row"
@@ -656,7 +656,7 @@ export default async function AdminOperationsPage() {
               {data.readiness === null ? (
                 <p className="card-body">Readiness could not be evaluated; see the notice above.</p>
               ) : (
-                <div className="rows">
+                <div className="rows rows-grid">
                   {(() => {
                     const r = data.readiness;
                     const missingSignIn = Object.entries(r.env.signIn)
@@ -741,7 +741,7 @@ export default async function AdminOperationsPage() {
               </p>
               {data.analytics.available ? (
                 <>
-                  <div className="rows u-mb-125">
+                  <div className="rows rows-grid u-mb-125">
                     {data.analytics.categories.map((category) => (
                       <div className="row" key={category.key}>
                         <span className="row-key">{category.label}</span>
@@ -754,7 +754,7 @@ export default async function AdminOperationsPage() {
                       </div>
                     ))}
                   </div>
-                  <div className="rows">
+                  <div className="rows rows-grid">
                     {(
                       [
                         ['Intake to ready (first time)', data.analytics.intakeToReady],
@@ -860,7 +860,7 @@ export default async function AdminOperationsPage() {
                       {data.commercial.ready ? 'ready' : 'not ready'}
                     </span>
                   </div>
-                  <div className="rows">
+                  <div className="rows rows-grid">
                     {data.commercial.gates.map((gate) => {
                       const status = gateStatus(gate);
                       return (
