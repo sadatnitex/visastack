@@ -4678,9 +4678,12 @@ export const aiDrafts = pgTable(
   ],
 );
 
-// Which AI app added a reminder to a case (S21): one row per task an app added, so the task can
-// say "Added by <app name>" wherever it is shown. It holds no record data, only the app's name and
-// address as they were, keyed by the task; it goes when the task goes.
+// Which AI app added a reminder to a case (S21). A row here also makes the task private to the
+// record's owner: agencies never see or change it, even on a shared case (owner decision,
+// 30 Oct 2026). Kept beside mission_tasks rather than as a column on it, so no existing read or
+// write of tasks changes before or after the migration, and the mark survives the connection being
+// removed. It holds no record data, only the app's name and address as they were; it goes when the
+// task goes.
 export const aiTaskOrigins = pgTable('ai_task_origins', {
   taskId: uuid('task_id')
     .primaryKey()
@@ -4692,6 +4695,28 @@ export const aiTaskOrigins = pgTable('ai_task_origins', {
   clientHost: text('client_host').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// The platform owner's switch and daily limit for each AI feature (S21 framework, ADR 0021
+// amendment). Keys are the registry in packages/core/src/ai-features.ts; a feature with no row
+// uses its registered default. Holds no personal data.
+export const platformAiFeatureSettings = pgTable(
+  'platform_ai_feature_settings',
+  {
+    featureKey: text('feature_key').primaryKey(),
+    enabled: boolean('enabled').notNull(),
+    dailyLimit: integer('daily_limit'),
+    updatedByAccountId: uuid('updated_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      'platform_ai_feature_settings_daily_limit',
+      sql`${table.dailyLimit} is null or ${table.dailyLimit} between 1 and 1000`,
+    ),
+  ],
+);
 
 // A private calendar subscription link for one traveller (v1.2 B05 live feed, ADR 0016). Calendar
 // apps cannot sign in, so the link carries a long random secret; only its SHA-256 is kept, so

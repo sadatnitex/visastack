@@ -2,7 +2,7 @@ import { type Result, err, ok } from '@visastack/core';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { AuthorizedApplicant } from './access';
 import { type ReadingStopReason, isAiReadingKey, isReadingStopReason } from './ai-reading-job';
-import { isDeterministicModelVersion } from './ai-run-kinds';
+import { isConnectorModelVersion, isDeterministicModelVersion } from './ai-run-kinds';
 import { schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 
@@ -84,6 +84,8 @@ export const READING_SOURCES = [
   'document_text',
   /** The picture of the file, read by an AI provider. */
   'ai_image',
+  /** Suggested by the person's own AI app through its connection (S21), not read from the file. */
+  'ai_app',
 ] as const;
 export type ReadingSource = (typeof READING_SOURCES)[number];
 
@@ -145,18 +147,27 @@ export async function listDocumentReadingStates(
     newestJob.set(job.documentVersionId, { status: job.status, errorCode: job.errorCode });
   }
 
+  // The reading's own suggestions only: an AI app's suggestion about a document says nothing
+  // about how far the reading of the file got.
   const proposals = await db
     .select({
       documentVersionId: schema.fieldProposals.documentVersionId,
       status: schema.fieldProposals.status,
+      modelVersion: schema.aiExtractionRuns.modelVersion,
     })
     .from(schema.fieldProposals)
+    .innerJoin(
+      schema.aiExtractionRuns,
+      eq(schema.aiExtractionRuns.id, schema.fieldProposals.aiExtractionRunId),
+    )
     .where(inArray(schema.fieldProposals.documentVersionId, ownIds));
   const pending = new Map<string, number>();
   const decided = new Map<string, number>();
   for (const proposal of proposals) {
+    const versionId = proposal.documentVersionId;
+    if (versionId === null || isConnectorModelVersion(proposal.modelVersion)) continue;
     const bucket = proposal.status === 'PENDING' ? pending : decided;
-    bucket.set(proposal.documentVersionId, (bucket.get(proposal.documentVersionId) ?? 0) + 1);
+    bucket.set(versionId, (bucket.get(versionId) ?? 0) + 1);
   }
 
   const states = new Map<string, DocumentReadingState>();
@@ -215,13 +226,16 @@ export async function listDocumentReadingStates(
   );
   const sourceOfRun = new Map<string, ReadingSource>();
   for (const run of runs) {
+    const versionId = run.documentVersionId ?? '';
     sourceOfRun.set(
       run.id,
-      isDeterministicModelVersion(run.modelVersion)
-        ? 'machine_readable'
-        : !withOwnText.has(run.documentVersionId) && withPictureReading.has(run.documentVersionId)
-          ? 'ai_image'
-          : 'document_text',
+      isConnectorModelVersion(run.modelVersion)
+        ? 'ai_app'
+        : isDeterministicModelVersion(run.modelVersion)
+          ? 'machine_readable'
+          : !withOwnText.has(versionId) && withPictureReading.has(versionId)
+            ? 'ai_image'
+            : 'document_text',
     );
   }
   return ok({ states, sourceOfRun });

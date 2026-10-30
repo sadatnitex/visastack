@@ -125,7 +125,8 @@ export type PlatformAction =
   | 'AUDIT_TRAIL_VIEW'
   | 'SUPPORT_GRANT_APPROVE'
   | 'ACCOUNT_SIGN_IN_RECOVERY'
-  | 'BILLING_SETTINGS_MANAGE';
+  | 'BILLING_SETTINGS_MANAGE'
+  | 'AI_FEATURES_MANAGE';
 
 /**
  * The one role, besides `PLATFORM_OWNER`, that may perform each action. `null` means the platform
@@ -172,6 +173,9 @@ const ACTION_ROLES: Readonly<
   // Grace and then Suspended) are a commercial decision for the platform owner alone, like every
   // other billing change (billing.ts): no concern-scoped role holds it.
   BILLING_SETTINGS_MANAGE: null,
+  // Which AI features people can use, and how much a day (S21, AI Features page): a product and
+  // commercial decision for the platform owner alone, like the billing rules.
+  AI_FEATURES_MANAGE: null,
 };
 
 /**

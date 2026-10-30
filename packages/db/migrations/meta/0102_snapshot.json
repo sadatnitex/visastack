@@ -1,5 +1,5 @@
 {
-  "id": "c2a7c250-321a-428c-9d33-244014d485ac",
+  "id": "0d31e17b-6ccc-4ddf-ab26-c4755115f80f",
   "prevId": "cc07162f-51d9-4229-ac2b-02d9d7b15d69",
   "version": "7",
   "dialect": "postgresql",
@@ -12803,6 +12803,69 @@
         "plans_price_currency_together": {
           "name": "plans_price_currency_together",
           "value": "(\"plans\".\"price_minor_units\" is null) = (\"plans\".\"currency\" is null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.platform_ai_feature_settings": {
+      "name": "platform_ai_feature_settings",
+      "schema": "",
+      "columns": {
+        "feature_key": {
+          "name": "feature_key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "daily_limit": {
+          "name": "daily_limit",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by_account_id": {
+          "name": "updated_by_account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "platform_ai_feature_settings_updated_by_account_id_accounts_id_fk": {
+          "name": "platform_ai_feature_settings_updated_by_account_id_accounts_id_fk",
+          "tableFrom": "platform_ai_feature_settings",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "updated_by_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "platform_ai_feature_settings_daily_limit": {
+          "name": "platform_ai_feature_settings_daily_limit",
+          "value": "\"platform_ai_feature_settings\".\"daily_limit\" is null or \"platform_ai_feature_settings\".\"daily_limit\" between 1 and 1000"
         }
       },
       "isRLSEnabled": false

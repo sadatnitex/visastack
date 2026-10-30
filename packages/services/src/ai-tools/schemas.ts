@@ -169,3 +169,35 @@ export const documentTextOutputSchema = z.looseObject({
   guidance: z.string(),
   notice: noticeField,
 });
+
+/** `suggest_profile_update` (S21): the suggestion is waiting for the person; nothing has changed. */
+export const suggestionOutputSchema = z.looseObject({
+  status: z.literal('waiting_for_approval'),
+  section: z.string(),
+  fieldLabel: z.string(),
+  document: z
+    .string()
+    .nullable()
+    .describe('The document reference the suggestion is about, if any.'),
+  guidance: z.string(),
+  notice: noticeField,
+});
+
+/** `save_draft` (S21). */
+export const draftOutputSchema = z.looseObject({
+  status: z.literal('saved'),
+  title: z.string(),
+  case: z.string().nullable().describe('The case reference the draft is kept with, if any.'),
+  guidance: z.string(),
+  notice: noticeField,
+});
+
+/** `add_reminder` (S21). */
+export const reminderOutputSchema = z.looseObject({
+  status: z.literal('added'),
+  case: z.string(),
+  title: z.string(),
+  dueDate: z.string(),
+  guidance: z.string(),
+  notice: noticeField,
+});

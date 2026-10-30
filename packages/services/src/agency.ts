@@ -15,6 +15,7 @@ import {
   withCaseExclusions,
 } from './access/grant-scope';
 import { AuthorizedApplicant } from './access/require-access';
+import { ownerOnlyTaskIds } from './ai-task-origins';
 import { latestTimeZoneName, recognisedTimeZone } from './attention';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
@@ -478,7 +479,16 @@ export async function listTasksForOrg(
   missionId: string,
 ): Promise<OrgVisibleTask[]> {
   if (!(await canReadMissionCollaboration(db, organizationId, applicantId, missionId))) return [];
-  return db.select().from(schema.missionTasks).where(eq(schema.missionTasks.missionId, missionId));
+  const rows = await db
+    .select()
+    .from(schema.missionTasks)
+    .where(eq(schema.missionTasks.missionId, missionId));
+  // A reminder the traveller's own AI app added is private to them, even on a shared case (S21).
+  const ownerOnly = await ownerOnlyTaskIds(
+    db,
+    rows.map((row) => row.id),
+  );
+  return rows.filter((row) => !ownerOnly.has(row.id));
 }
 
 /**
@@ -608,7 +618,10 @@ export async function updateTaskForOrg(
         )
         .limit(1),
     );
-    if (!task) return err(serviceError('not_found', 'task not found'));
+    // A reminder the traveller's own AI app added is theirs alone (S21): not found for an agency.
+    if (!task || (await ownerOnlyTaskIds(tx, [task.id])).has(task.id)) {
+      return err(serviceError('not_found', 'task not found'));
+    }
 
     let changes: Record<string, { readonly before: unknown; readonly after: unknown }> = {};
     if (input.assigneeAccountId !== undefined) {
@@ -703,7 +716,10 @@ export async function decideTaskForOrg(
         )
         .limit(1),
     );
-    if (!task) return err(serviceError('not_found', 'task not found'));
+    // A reminder the traveller's own AI app added is theirs alone (S21): not found for an agency.
+    if (!task || (await ownerOnlyTaskIds(tx, [task.id])).has(task.id)) {
+      return err(serviceError('not_found', 'task not found'));
+    }
     if (!TASK_TRANSITIONS_FOR_ORG[task.status]?.includes(input.status)) {
       return err(
         serviceError('invalid', `cannot move a task from ${task.status} to ${input.status}`),

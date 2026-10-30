@@ -1,11 +1,15 @@
 -- Written to be re-runnable: production applies each statement on its own, so a run
 -- interrupted part way must be able to start again from the top.
--- AI app suggestion tools (S21, ADR 0021 extension "Suggest Changes"). Additive: two new tables
--- (drafts an AI app saved for the person, and which app added a reminder to a case), and a
--- document becomes optional on a suggestion, only for a suggestion an AI app made about the
--- profile itself. Every existing row keeps its document, so nothing written before changes.
+-- AI app suggestion tools (S21, ADR 0021 extension "Suggest Changes"). Additive: three new tables
+-- (drafts an AI app saved for the person; which app added a reminder to a case, which also keeps
+-- that reminder private to the person; and the platform owner's switch and daily limit for each
+-- AI feature), and a document becomes optional on a suggestion, only for a suggestion an AI app
+-- made about the profile itself. Every existing row keeps its document, so nothing written before
+-- changes, and no existing table gains a column.
 -- Until this runs, the three suggestion tools answer "not available yet" and write nothing, the
--- "Suggest Changes" choice is not offered, and everything else works as before.
+-- "Suggest Changes" choice is shown turned off, the AI Features page says it is not available yet,
+-- and everything else works as before. After it runs, AI App Suggestions stays off until the
+-- platform owner turns it on in AI Features (no row is written here).
 CREATE TABLE IF NOT EXISTS "ai_drafts" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"applicant_id" uuid NOT NULL,
@@ -55,6 +59,21 @@ END $fk$;
 DO $fk$ BEGIN
 	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ai_task_origins_connection_id_ai_connections_id_fk') THEN
 		ALTER TABLE "ai_task_origins" ADD CONSTRAINT "ai_task_origins_connection_id_ai_connections_id_fk" FOREIGN KEY ("connection_id") REFERENCES "public"."ai_connections"("id") ON DELETE set null ON UPDATE no action;
+	END IF;
+END $fk$;
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "platform_ai_feature_settings" (
+	"feature_key" text PRIMARY KEY NOT NULL,
+	"enabled" boolean NOT NULL,
+	"daily_limit" integer,
+	"updated_by_account_id" uuid,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "platform_ai_feature_settings_daily_limit" CHECK ("platform_ai_feature_settings"."daily_limit" is null or "platform_ai_feature_settings"."daily_limit" between 1 and 1000)
+);
+--> statement-breakpoint
+DO $fk$ BEGIN
+	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'platform_ai_feature_settings_updated_by_account_id_accounts_id_fk') THEN
+		ALTER TABLE "platform_ai_feature_settings" ADD CONSTRAINT "platform_ai_feature_settings_updated_by_account_id_accounts_id_fk" FOREIGN KEY ("updated_by_account_id") REFERENCES "public"."accounts"("id") ON DELETE set null ON UPDATE no action;
 	END IF;
 END $fk$;
 --> statement-breakpoint

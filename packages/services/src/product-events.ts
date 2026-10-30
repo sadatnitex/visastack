@@ -92,7 +92,8 @@ export const PRODUCT_EVENT_TYPES = [
 
 export type ProductEventType = (typeof PRODUCT_EVENT_TYPES)[number];
 
-const AI_TASK_KINDS = ['EXTRACTION', 'CLASSIFICATION', 'INCONSISTENCY'] as const;
+// CONNECTOR: a suggestion the person's own AI app made through its connection (S21).
+const AI_TASK_KINDS = ['EXTRACTION', 'CLASSIFICATION', 'INCONSISTENCY', 'CONNECTOR'] as const;
 
 /** A closed vocabulary in upper case, keeping each value's literal type. */
 function upperLabels<T extends string>(values: readonly T[]): readonly Uppercase<T>[] {

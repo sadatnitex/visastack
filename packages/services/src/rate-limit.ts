@@ -107,6 +107,14 @@ export const RATE_LIMITS = {
   // set-up messages included; a refusal is a "try again" (429).
   AI_CONNECTION_MINUTE: { limit: 60, windowMs: 60 * 1000 },
   AI_CONNECTION_DAY: { limit: 2_000, windowMs: 24 * HOUR_MS },
+  // What AI apps may leave for a person through "Suggest Changes" (S21, ADR 0021 extension, owner
+  // decision 30 Oct 2026): 15 a day per person across all their apps and all three tools, and 15
+  // a day per connection. A suggestion, a draft or a reminder each count once, only when one is
+  // actually saved (a suggestion already waiting from the same app is not counted again). These
+  // are the windows and the FREE tier's numbers; the limit that applies on a call is the AI
+  // feature's daily limit (packages/services/src/ai-feature-settings.ts), never more than these.
+  AI_WRITE_CONNECTION_DAY: { limit: 15, windowMs: 24 * HOUR_MS },
+  AI_WRITE_ACCOUNT_DAY: { limit: 15, windowMs: 24 * HOUR_MS },
   // Failed sign-ins at the AI context address, per network address, charged only when a token is
   // refused. Claude and ChatGPT share a few cloud addresses, so this sits far above an expired
   // token being retried, and far below guessing.

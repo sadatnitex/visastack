@@ -77,10 +77,11 @@ describe('migration 0104: AI app suggestions', () => {
       await proposal(oldRun, `'${version}'`);
       // Before: a suggestion with no document is refused, and the new tables are absent.
       await expect(run('null', 'connector:claude.ai')).rejects.toThrow();
-      const before = await client.query<{ drafts: boolean; origins: boolean }>(
-        `select to_regclass('ai_drafts') is not null as drafts, to_regclass('ai_task_origins') is not null as origins`,
+      const before = await client.query<{ drafts: boolean; origins: boolean; settings: boolean }>(
+        `select to_regclass('ai_drafts') is not null as drafts, to_regclass('ai_task_origins') is not null as origins,
+                to_regclass('platform_ai_feature_settings') is not null as settings`,
       );
-      expect(before.rows[0]).toEqual({ drafts: false, origins: false });
+      expect(before.rows[0]).toEqual({ drafts: false, origins: false, settings: false });
 
       // Statement by statement, twice: the second run changes nothing.
       for (let pass = 0; pass < 2; pass++) {
@@ -121,6 +122,17 @@ describe('migration 0104: AI app suggestions', () => {
       await expect(draft('Title', '')).rejects.toThrow();
       await expect(draft('Title', 'y'.repeat(20_001))).rejects.toThrow();
       await draft('x'.repeat(120), 'y'.repeat(20_000));
+
+      // The platform owner's AI feature switches: a limit from 1 to 1000, or none.
+      const setting = (key: string, limit: string) =>
+        client.query(
+          `insert into platform_ai_feature_settings (feature_key, enabled, daily_limit) values ('${key}', true, ${limit})`,
+        );
+      await setting('ai_app_suggestions', '15');
+      await setting('feature_without_limit', 'null');
+      await expect(setting('limit_zero', '0')).rejects.toThrow();
+      await expect(setting('limit_too_high', '1001')).rejects.toThrow();
+      await expect(setting('ai_app_suggestions', '10')).rejects.toThrow();
 
       // Removing the record removes its drafts.
       await client.query(`delete from applicants where id = '${applicant}'`);

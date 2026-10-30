@@ -77,13 +77,27 @@ export type AiCaseMode = (typeof AI_CASE_MODES)[number];
  * against this, and its test pins the two equal. Audit records and telemetry name a tool only
  * from this list, never from what an app sent.
  */
-export const AI_TOOL_NAMES = [
+export const AI_READ_TOOL_NAMES = [
   'prepare_context',
   'list_cases',
   'get_profile_section',
   'list_documents',
   'get_document_text',
 ] as const;
+
+/**
+ * The three suggestion tools (S21, ADR 0021 extension): each one only leaves something for the
+ * person to look at (a suggestion waiting for approval, a draft, a reminder on their own case).
+ * They work only while the person has turned on "Suggest Changes" for the connection.
+ */
+export const AI_SUGGESTION_TOOL_NAMES = [
+  'suggest_profile_update',
+  'save_draft',
+  'add_reminder',
+] as const;
+export type AiSuggestionToolName = (typeof AI_SUGGESTION_TOOL_NAMES)[number];
+
+export const AI_TOOL_NAMES = [...AI_READ_TOOL_NAMES, ...AI_SUGGESTION_TOOL_NAMES] as const;
 export type AiKnownToolName = (typeof AI_TOOL_NAMES)[number];
 
 /** A tool name as audit records and telemetry may hold it: a known name, or `unknown`. */
@@ -104,6 +118,15 @@ export const AI_DENIAL_REASONS = [
   'no_text',
   'too_large',
   'failed',
+  // The suggestion tools (S21).
+  'suggestions_not_granted',
+  'field_not_shared',
+  'write_limit',
+  'case_finished',
+  'consent_required',
+  'not_available',
+  'invalid_input',
+  'feature_off',
 ] as const;
 export type AiDenialReason = (typeof AI_DENIAL_REASONS)[number];
 
@@ -117,21 +140,34 @@ export interface AiConnectionChoices {
   readonly documentText: boolean;
   readonly revealIdentifiers: boolean;
   readonly duration: AiConnectionDuration;
+  /** "Suggest Changes" (S21): off unless the person turns it on. */
+  readonly suggestChanges?: boolean;
 }
 
 const DOCUMENT_LIST_SCOPE = 'document_list';
 const DOCUMENT_TEXT_SCOPE = 'document_text';
+/**
+ * "Suggest Changes" (S21, ADR 0021 extension), stored beside the other choices. The app may then
+ * leave suggestions, drafts and reminders; nothing changes in the record until the person approves.
+ */
+export const AI_SUGGEST_CHANGES_SCOPE = 'suggest_changes';
 
 /** The stored form of the choices: one string per granted thing, nothing else. */
 export function scopesFromChoices(
-  choices: Pick<AiConnectionChoices, 'layers' | 'documentList' | 'documentText'>,
+  choices: Pick<AiConnectionChoices, 'layers' | 'documentList' | 'documentText' | 'suggestChanges'>,
 ): string[] {
   const layers = AI_CONNECTION_LAYERS.filter((layer) => choices.layers.includes(layer));
   return [
     ...layers,
     ...(choices.documentList ? [DOCUMENT_LIST_SCOPE] : []),
     ...(choices.documentText && layers.length > 0 ? [DOCUMENT_TEXT_SCOPE] : []),
+    ...(choices.suggestChanges === true ? [AI_SUGGEST_CHANGES_SCOPE] : []),
   ];
+}
+
+/** Whether a stored connection lets the app suggest changes. Only the exact stored string counts. */
+export function allowsSuggestions(scopes: readonly string[]): boolean {
+  return scopes.includes(AI_SUGGEST_CHANGES_SCOPE);
 }
 
 /** The OAuth scope names a token describes itself with (informative only). */
@@ -141,7 +177,12 @@ export function oauthScopeNames(scopes: readonly string[]): string[] {
 
 /** Every OAuth scope this server can describe, for discovery metadata. */
 export const AI_OAUTH_SCOPES_SUPPORTED: readonly string[] = [
-  ...oauthScopeNames([...AI_CONNECTION_LAYERS, DOCUMENT_LIST_SCOPE, DOCUMENT_TEXT_SCOPE]),
+  ...oauthScopeNames([
+    ...AI_CONNECTION_LAYERS,
+    DOCUMENT_LIST_SCOPE,
+    DOCUMENT_TEXT_SCOPE,
+    AI_SUGGEST_CHANGES_SCOPE,
+  ]),
   'offline_access',
 ];
 
