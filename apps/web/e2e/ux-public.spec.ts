@@ -1233,6 +1233,9 @@ test.describe('collapsible sidebar and account menu fit the screen', () => {
           await page.setViewportSize({ width, height });
           await openUiFixture(page, 'shell', { sidebar });
           await page.locator('.record-account > summary').click();
+          // The menu fits itself to the screen when the browser reports it open (a moment after the
+          // click); measure what a person sees, once it has placed itself.
+          await expect(page.locator('.record-account')).toHaveAttribute('data-placement', /\S/);
           const panel = await box(page, '.account-menu-panel');
           const opener = await box(page, '.record-account > summary');
           expect(panel.x).toBeGreaterThanOrEqual(0);
@@ -1287,6 +1290,9 @@ test.describe('collapsible sidebar and account menu fit the screen', () => {
       await openUiFixture(page, 'shell');
       expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
       await page.locator('.record-account > summary').click();
+      // The menu fits itself to the screen when the browser reports it open (a moment after the
+      // click); measure what a person sees, once it has placed itself.
+      await expect(page.locator('.record-account')).toHaveAttribute('data-placement', /\S/);
       expect((await box(page, '.account-menu-row')).height).toBe(44);
       const panel = await box(page, '.account-menu-panel');
       expect(768 - (panel.y + panel.height)).toBeGreaterThanOrEqual(16);
@@ -1306,6 +1312,9 @@ test.describe('collapsible sidebar and account menu fit the screen', () => {
       bar.style.bottom = '0';
     });
     await page.locator('.record-account > summary').click();
+    // The menu fits itself to the screen when the browser reports it open (a moment after the
+    // click); measure what a person sees, once it has placed itself.
+    await expect(page.locator('.record-account')).toHaveAttribute('data-placement', /\S/);
     const panel = await box(page, '.account-menu-panel');
     const opener = await box(page, '.record-account > summary');
     expect(panel.y + panel.height).toBeLessThanOrEqual(opener.y);
