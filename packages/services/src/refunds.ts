@@ -21,6 +21,7 @@ import {
   isValidMinorUnitAmount,
   normalizeCurrency,
   outstandingMinorUnits,
+  refundSourceMode,
 } from './invoice-ledger';
 import {
   cancelQueuedNotificationsForResource,
@@ -28,6 +29,13 @@ import {
 } from './notifications';
 import { parseAmountForCurrency } from './payment-amounts';
 import type { PaymentAttempt } from './payments';
+import {
+  type PaymentMode,
+  attemptColumns,
+  gatewayServesMode,
+  ledgerColumns,
+  ledgerModeSql,
+} from './plans-schema';
 import { type PaymentPort, type RefundingPaymentPort, isRefundingPaymentPort } from './ports';
 
 /**
@@ -84,6 +92,8 @@ const OPEN_STATUSES: readonly RefundStatus[] = ['REQUESTED', 'SUBMITTED'];
 export const NEEDS_CHECK_CODE = 'ledger_refused';
 /** On a refund waiting to send: Send Again was answered "failed". Staff must check the panel. */
 export const RETRY_REFUSED_CODE = 'retry_refused';
+/** On a sent refund: the payment gateway's mode (test or live) changed since it was sent (S29). */
+export const MODE_CHANGED_CODE = 'mode_changed';
 /** On a sent refund: the gateway's refund reference is already behind another refund of the agency. */
 export const DUPLICATE_REFERENCE_CODE = 'duplicate_reference';
 export const RETRY_REFUSED_MESSAGE =
@@ -295,7 +305,7 @@ async function creditFrom(tx: Db, attemptId: string): Promise<InvoicePayment | u
   const p = schema.invoicePayments;
   return first(
     await tx
-      .select()
+      .select(ledgerColumns(await ledgerModeSql(tx)))
       .from(p)
       .where(and(eq(p.kind, 'CREDIT'), eq(p.sourceId, attemptId)))
       .limit(1),
@@ -311,7 +321,7 @@ async function lockAttempt(
   const a = schema.paymentAttempts;
   return first(
     await tx
-      .select()
+      .select(attemptColumns())
       .from(a)
       .where(and(eq(a.id, attemptId), eq(a.organizationId, organizationId)))
       .limit(1)
@@ -349,7 +359,11 @@ async function lockSource(
   if (!isUuid(source.invoicePaymentId)) return null;
   const p = schema.invoicePayments;
   const unlocked = first(
-    await tx.select().from(p).where(eq(p.id, source.invoicePaymentId)).limit(1),
+    await tx
+      .select(ledgerColumns(await ledgerModeSql(tx)))
+      .from(p)
+      .where(eq(p.id, source.invoicePaymentId))
+      .limit(1),
   );
   if (!unlocked) return null;
   const invoice = first(
@@ -372,7 +386,7 @@ async function lockSource(
     attempt =
       first(
         await tx
-          .select()
+          .select(attemptColumns())
           .from(schema.paymentAttempts)
           .where(eq(schema.paymentAttempts.id, entry.sourceId))
           .limit(1),
@@ -689,6 +703,13 @@ function refundPort(port: PaymentPort): RefundingPaymentPort | null {
  * lock and writes the request `REQUESTED` with its audit record; the gateway is called only after
  * that commits; transaction 2 records what the gateway said. Nothing reaches the ledger here.
  */
+/** Why a refund cannot go through the gateway in its current mode (S29). */
+function modeMismatchMessage(sourceMode: PaymentMode): string {
+  return sourceMode === 'TEST'
+    ? 'This was a test payment, so it cannot be refunded through the live payment gateway. No money was taken. If you need a record, use Record a Refund Made Outside VisaStack.'
+    : 'This was a real payment, and the payment gateway is in test mode now. Refund it when the gateway is live again, or refund it another way and record it here.';
+}
+
 export async function requestRefund(
   db: Db,
   port: PaymentPort,
@@ -735,6 +756,12 @@ export async function requestRefund(
       }
       const problem = limitProblem(source, amount);
       if (problem) return err(problem);
+      // S29: money is given back through the gateway mode it was taken in, never the other one: a
+      // test payment never reaches the live gateway, and a real one never the test gateway.
+      const sourceMode = source.kind === 'held' ? source.attempt.mode : source.entry.mode;
+      if (!gatewayServesMode(gateway, sourceMode)) {
+        return err(refusal('test_payment_live_gateway', modeMismatchMessage(sourceMode)));
+      }
       const bankTranId = providerTarget(source, gateway.provider);
       if (!bankTranId) {
         return err(
@@ -961,6 +988,10 @@ export async function retryRefund(
   if (!row.ok) return row;
   if (row.value.provider !== gateway.provider) {
     return err(serviceError('invalid', 'This refund belongs to another payment gateway.'));
+  }
+  const sourceMode = await refundSourceMode(db, row.value.id);
+  if (!gatewayServesMode(gateway, sourceMode)) {
+    return err(refusal('test_payment_live_gateway', modeMismatchMessage(sourceMode)));
   }
   const now = input.now ?? new Date();
   // Under the request's lock: never after a refused resend, and never while another send of it is
@@ -1212,6 +1243,31 @@ const EMPTY_CHECK: RefundCheckSummary = {
 type CheckCode = 'confirmed' | 'failed' | 'processing' | 'unavailable' | 'needs_check' | 'skipped';
 
 /**
+ * Marks a sent refund Needs a Check because the gateway's mode changed (S29), once: only a refund
+ * with no mark yet gets `mode_changed` and an audit record; an earlier mark stays.
+ */
+async function markModeChanged(db: Db, seen: RefundRequest, now: Date): Promise<CheckCode> {
+  const r = schema.refundRequests;
+  const marked = await inTransaction(db, async (tx): Promise<Result<CheckCode, ServiceError>> => {
+    const locked = first(await tx.select().from(r).where(eq(r.id, seen.id)).limit(1).for('update'));
+    if (!locked || locked.status !== 'SUBMITTED') return ok('skipped');
+    // Any earlier mark is kept as it is, and not audited again: `ledger_refused` and
+    // `duplicate_reference` say the gateway already confirmed the money went back, which must
+    // never be hidden behind a later "mode changed" (staff could refund the same money by hand).
+    if (locked.failureCode !== null) return ok('needs_check');
+    await tx
+      .update(r)
+      .set({ failureCode: MODE_CHANGED_CODE, lastCheckedAt: now, updatedAt: now })
+      .where(eq(r.id, locked.id));
+    await auditRefund(tx, 'INVOICE_REFUND_NEEDS_CHECK', locked, null, {
+      failureCode: MODE_CHANGED_CODE,
+    });
+    return ok('needs_check');
+  });
+  return marked.ok ? marked.value : 'needs_check';
+}
+
+/**
  * Asks the gateway about one sent refund and acts on the answer. Refunded: under the locks
  * (held payment, request, invoice), the request is confirmed and, for counted money, the one
  * `REFUND` ledger row is written; a second confirmation finds the request already confirmed and
@@ -1226,6 +1282,11 @@ async function confirmOne(
 ): Promise<CheckCode> {
   if (seen.status !== 'SUBMITTED' || seen.providerRefundId === null) return 'skipped';
   if (seen.provider !== gateway.provider) return 'skipped';
+  // S29: a refund sent in the other gateway mode is never asked about here (that store does not
+  // know it). A person checks it: it is marked Needs a Check (mode changed), once.
+  if (!gatewayServesMode(gateway, await refundSourceMode(db, seen.id))) {
+    return markModeChanged(db, seen, now);
+  }
   let report: Awaited<ReturnType<RefundingPaymentPort['queryRefund']>>;
   try {
     report = await gateway.queryRefund(seen.providerRefundId);
@@ -1847,6 +1908,8 @@ export interface RefundableEntryView {
   /** The day the money came in: a refund recorded for it cannot be earlier. */
   readonly paidOn: Date;
   readonly refundableMinorUnits: number;
+  /** S29: TEST for a payment made in the gateway's test mode (shown as "Test Payment"). */
+  readonly mode: PaymentMode;
   /** True when the gateway can be asked to refund it (paid online, with the gateway's payment id). */
   readonly viaGateway: boolean;
 }
@@ -1865,6 +1928,8 @@ export interface HeldPaymentView {
   readonly creditedMinorUnits: number;
   /** The gateway confirmed exactly this amount: it can be applied as a credit or refunded through the gateway. */
   readonly verified: boolean;
+  /** S29: TEST for a payment made in the gateway's test mode (shown as "Test Payment"). */
+  readonly mode: PaymentMode;
   readonly viaGateway: boolean;
 }
 
@@ -1901,6 +1966,11 @@ const MAX_PAGE = 1000;
 export interface RefundWorkInput {
   readonly organizationId: string;
   readonly gatewayProvider: string | null;
+  /**
+   * S29: the gateway's mode (TEST or LIVE). A payment is offered for a gateway refund only when it
+   * was taken in this mode. Absent: no payment is offered.
+   */
+  readonly gatewayMode?: PaymentMode | null;
   /** 1 (the default) is the newest page; each older page holds the next 25. */
   readonly page?: number;
   /** Only payments on invoices whose reference contains this text (case does not matter). */
@@ -1954,25 +2024,32 @@ export async function getOrganizationRefundWork(
   const heldCredited = sql<number>`coalesce((select cp.amount_minor_units from invoice_payments cp where cp.kind = 'CREDIT' and cp.source_id = ${a.id} limit 1), 0)::int`;
   const heldCommitted = sql<number>`coalesce((select sum(rr.amount_minor_units) from refund_requests rr where rr.payment_attempt_id = ${a.id} and rr.status in (${limitIn})), 0)::int`;
 
+  // The ledger read waits only for its own mode, so all three reads still run side by side.
   const [entryRows, heldRows, requestRows] = await Promise.all([
-    db
-      .select({ entry: p, invoiceRef: i.invoiceRef, committed: entryCommitted })
-      .from(p)
-      .innerJoin(i, eq(i.id, p.invoiceId))
-      .where(
-        and(
-          eq(i.organizationId, input.organizationId),
-          sql`${p.kind} <> 'REFUND'`,
-          sql`${p.amountMinorUnits} > ${entryCommitted}`,
-          refFilter,
-        ),
-      )
-      .orderBy(desc(p.createdAt), desc(p.seq))
-      .limit(REFUND_WORK_LIMIT + 1)
-      .offset(offset),
+    ledgerModeSql(db).then((mode) =>
+      db
+        .select({
+          entry: ledgerColumns(mode),
+          invoiceRef: i.invoiceRef,
+          committed: entryCommitted,
+        })
+        .from(p)
+        .innerJoin(i, eq(i.id, p.invoiceId))
+        .where(
+          and(
+            eq(i.organizationId, input.organizationId),
+            sql`${p.kind} <> 'REFUND'`,
+            sql`${p.amountMinorUnits} > ${entryCommitted}`,
+            refFilter,
+          ),
+        )
+        .orderBy(desc(p.createdAt), desc(p.seq))
+        .limit(REFUND_WORK_LIMIT + 1)
+        .offset(offset),
+    ),
     db
       .select({
-        attempt: a,
+        attempt: attemptColumns(),
         invoiceRef: i.invoiceRef,
         credited: heldCredited,
         committed: heldCommitted,
@@ -2009,7 +2086,9 @@ export async function getOrganizationRefundWork(
     ),
   ];
   const sourceAttempts =
-    attemptIds.length === 0 ? [] : await db.select().from(a).where(inArray(a.id, attemptIds));
+    attemptIds.length === 0
+      ? []
+      : await db.select(attemptColumns()).from(a).where(inArray(a.id, attemptIds));
   const attemptById = new Map(sourceAttempts.map((row) => [row.id, row]));
   const gateway = input.gatewayProvider;
 
@@ -2026,8 +2105,10 @@ export async function getOrganizationRefundWork(
       createdAt: row.createdAt,
       paidOn: row.collectedDate,
       refundableMinorUnits: Math.max(0, row.amountMinorUnits - Number(committed)),
+      mode: row.mode,
       viaGateway:
         gateway !== null &&
+        input.gatewayMode === row.mode &&
         row.provider === gateway &&
         attempt !== undefined &&
         attempt.provider === gateway &&
@@ -2053,8 +2134,13 @@ export async function getOrganizationRefundWork(
         attempt.amountMinorUnits - Number(credited) - Number(committed),
       ),
       verified,
+      mode: attempt.mode,
       viaGateway:
-        gateway !== null && verified && attempt.provider === gateway && attempt.bankTranId !== null,
+        gateway !== null &&
+        input.gatewayMode === attempt.mode &&
+        verified &&
+        attempt.provider === gateway &&
+        attempt.bankTranId !== null,
     };
   });
 

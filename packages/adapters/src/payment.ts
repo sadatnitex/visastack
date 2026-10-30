@@ -24,6 +24,7 @@ import {
  */
 export class NullPaymentPort implements PaymentPort {
   readonly configured = false;
+  readonly mode = null;
   readonly provider = 'none';
   readonly storeId = null;
 
@@ -201,6 +202,8 @@ function gatewayTime(value: string | null): Date | null {
 export class SslcommerzPaymentPort implements RefundingPaymentPort {
   readonly configured = true;
   readonly provider = 'sslcommerz';
+  /** S29: the sandbox is the gateway's test mode (TEST); only `live` takes real money. */
+  readonly mode: 'TEST' | 'LIVE';
   readonly storeId: string;
   readonly #storePassword: string;
   readonly #base: string;
@@ -218,6 +221,7 @@ export class SslcommerzPaymentPort implements RefundingPaymentPort {
       throw new Error('SslcommerzPaymentPort mode must be sandbox or live');
     }
     this.storeId = storeId;
+    this.mode = options.mode === 'live' ? 'LIVE' : 'TEST';
     this.#storePassword = options.storePassword;
     this.#base = HOSTS[options.mode];
     this.#fetch = options.fetch ?? globalThis.fetch;

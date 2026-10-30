@@ -1,4 +1,5 @@
 import {
+  TEST_PAYMENT_LABEL,
   billingDaysUntil,
   formatBillingDate,
   formatBillingDateTime,
@@ -51,12 +52,18 @@ export function InvoiceCard({
   invoice,
   organizationId,
   onlineAvailable,
+  testModeHint = null,
   latestDate,
   now = new Date(),
 }: {
   readonly invoice: AgencyInvoiceView;
   readonly organizationId: string;
   readonly onlineAvailable: boolean;
+  /**
+   * S29 round 2: while the gateway is in test mode (and the viewer is not the platform owner) the
+   * sentence saying online payment is being tested; shown in place of Pay Online.
+   */
+  readonly testModeHint?: string | null;
   /** The latest day a payment can have been made (YYYY-MM-DD, anywhere on earth). */
   readonly latestDate: string;
   /** The moment the page is drawn, for Overdue and Due Today. */
@@ -82,6 +89,7 @@ export function InvoiceCard({
   });
   const due = open ? dueMarker(invoice, now) : null;
   const headingId = `invoice-${invoice.id}`;
+  const showTestHint = testModeHint !== null && invoice.currency === ONLINE_CURRENCY;
   const hasOldPayment = invoice.attempts.some((a) => a.status === 'REDIRECTED');
 
   return (
@@ -139,7 +147,16 @@ export function InvoiceCard({
       </dl>
 
       {open ? (
-        <div className="invoice-actions">
+        <section
+          className="invoice-actions"
+          aria-label={`Pay ${invoice.invoiceRef}`}
+          {...(showTestHint ? { 'aria-describedby': `${headingId}-test-mode` } : {})}
+        >
+          {showTestHint ? (
+            <p className="invoice-note" id={`${headingId}-test-mode`}>
+              {testModeHint}
+            </p>
+          ) : null}
           {invoice.recentAttemptStartedAt ? (
             <RecentPaymentChoices
               organizationId={organizationId}
@@ -171,7 +188,7 @@ export function InvoiceCard({
               latestDate={latestDate}
             />
           )}
-        </div>
+        </section>
       ) : null}
 
       {invoice.claims.length > 0 ? (
@@ -233,6 +250,9 @@ export function InvoiceCard({
                 >
                   {ATTEMPT_STATUS_LABELS[attempt.status]}
                 </StatusBadge>
+                {attempt.mode === 'TEST' ? (
+                  <StatusBadge tone="warning">{TEST_PAYMENT_LABEL}</StatusBadge>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -255,6 +275,9 @@ export function InvoiceCard({
                   {plainAmount(receipt.amountMinorUnits, receipt.currency)} on{' '}
                   {formatBillingDate(receipt.issuedAt)}
                 </span>
+                {receipt.mode === 'TEST' ? (
+                  <StatusBadge tone="warning">{TEST_PAYMENT_LABEL}</StatusBadge>
+                ) : null}
                 <a
                   className="invoice-link"
                   href={`/app/agency/${organizationId}/plan/invoices/receipts/${receipt.id}/pdf`}

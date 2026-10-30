@@ -2,6 +2,7 @@ import { formatBillingDateTime } from '@visastack/core';
 import {
   type BillingSettings,
   type OverduePreview,
+  countLedgerTestRows,
   dayCount,
   getBillingSettings,
   previewOverdueHandling,
@@ -9,11 +10,13 @@ import {
 import type { Metadata } from 'next';
 import { PageHeader, StatusBadge } from '../../../../components/ui';
 import { bootstrapAdminEmails, staffPrincipal } from '../../../../lib/admin';
+import { paymentMode } from '../../../../lib/providers';
 import { withSession } from '../../../../lib/session';
 import { AdminRestricted } from '../admin-restricted';
 import { BillingRulesForm } from './forms';
 import {
   PAID_IN_FULL,
+  PAYMENT_MODE_WORDS,
   TRAVELLER_UPLOADS_NOTE,
   WHAT_SUSPENDED_DOES,
   daysAfterDue,
@@ -99,8 +102,19 @@ export default async function BillingRulesPage({
       });
       if (counted.ok) preview = counted.value;
     }
-    return { kind: 'ready' as const, settings, preview };
+    // S29: how many test payments this month's accounting file leaves out.
+    const exportScope = await staffPrincipal(
+      db,
+      { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
+      'BILLING_LEDGER_EXPORT',
+    );
+    const counted = exportScope.ok
+      ? await countLedgerTestRows(db, exportScope.value, thisMonth)
+      : null;
+    const testRowsLeftOut = counted?.ok ? counted.value : null;
+    return { kind: 'ready' as const, settings, preview, testRowsLeftOut };
   });
+  const mode = PAYMENT_MODE_WORDS[paymentMode() ?? 'NONE'];
 
   return (
     <section className="section container">
@@ -131,6 +145,19 @@ export default async function BillingRulesPage({
             )}
           </article>
 
+          <article className="card u-mb-150" aria-labelledby="online-payments-title">
+            <h2 className="card-title" id="online-payments-title">
+              Online Payments
+            </h2>
+            <div className="rows">
+              <div className="row">
+                <span className="row-key">Mode</span>
+                <StatusBadge tone={mode.tone}>{mode.badge}</StatusBadge>
+              </div>
+            </div>
+            <p className="card-body">{mode.sentence}</p>
+          </article>
+
           <article className="card u-mb-150">
             <h2 className="card-title">What Grace and Suspended Do</h2>
             <p className="card-body">{WHAT_SUSPENDED_DOES}</p>
@@ -154,7 +181,11 @@ export default async function BillingRulesPage({
             />
           </article>
 
-          <LedgerCard thisMonth={thisMonth} problem={ledger} />
+          <LedgerCard
+            thisMonth={thisMonth}
+            problem={ledger}
+            testRowsLeftOut={data.testRowsLeftOut}
+          />
         </>
       )}
     </section>

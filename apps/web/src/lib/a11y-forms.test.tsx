@@ -97,6 +97,7 @@ const aiSettings = await import('../app/app/admin/ai-settings/forms');
 const protectionForms = await import('../app/app/admin/document-protection/forms');
 const billingRulesForms = await import('../app/app/admin/billing/forms');
 const aiFeatureForms = await import('../app/app/admin/ai/forms');
+const planForms = await import('../app/app/admin/plans/forms');
 const aiDraftForms = await import('../app/app/applicant/[id]/sharing/ai-drafts');
 const aiConsentForms = await import('../app/oauth/authorize/consent-form');
 const signInRecoveryForms = await import('../app/app/admin/sign-in-recovery/forms');
@@ -1551,6 +1552,29 @@ const ADMIN: readonly Case[] = [
           },
         ]}
         more={0}
+      />
+    ),
+  },
+  {
+    name: 'create or change a plan (S29)',
+    element: () => (
+      <planForms.PlanForm
+        planId="00000000-0000-4000-8000-000000000009"
+        planName="Agency Growth"
+        initial={{ name: 'Agency Growth', periodDays: '30', price: '2500.00', currency: 'BDT' }}
+        periodLocked={false}
+        traveller={false}
+      />
+    ),
+    fields: ['name', 'periodDays', 'price', 'currency', 'limit.seats'],
+  },
+  {
+    name: 'retire a plan (S29)',
+    element: () => (
+      <planForms.RetirePlanForm
+        planId="00000000-0000-4000-8000-000000000009"
+        planName="Agency Growth"
+        headingId="plan-00000000-0000-4000-8000-000000000009"
       />
     ),
   },

@@ -450,6 +450,51 @@ export async function triggerAccountDeletionSweep(): Promise<{ readonly executed
 }
 
 /**
+ * The loop over due downgrades, kept apart from `triggerDowngradeSweep` so it can be tested
+ * without a database pool. Each downgrade is tried on its own: a refusal or an error on one is
+ * reported and counted, and the rest still run (S29 round 3).
+ */
+export async function executeDueDowngrades(
+  handle: Parameters<typeof listDueDowngrades>[0],
+  deps: {
+    readonly list?: typeof listDueDowngrades;
+    readonly execute?: typeof executeScheduledDowngrade;
+    readonly report?: typeof reportServerError;
+  } = {},
+): Promise<{ readonly executed: number; readonly errors: number }> {
+  const list = deps.list ?? listDueDowngrades;
+  const execute = deps.execute ?? executeScheduledDowngrade;
+  const report = deps.report ?? reportServerError;
+  let executed = 0;
+  let errors = 0;
+  for (const downgrade of await list(handle)) {
+    try {
+      const result = await execute(handle, { downgradeId: downgrade.id });
+      if (isOk(result)) {
+        executed++;
+        continue;
+      }
+      errors++;
+      // S29 round 2: a refused downgrade (for example its plan was retired) is reported through
+      // the one error channel, with its code and id, never only printed.
+      report(
+        'triggerDowngradeSweep',
+        new Error(`scheduled downgrade not executed: ${result.error.code}`),
+        {
+          step: 'execute',
+          downgradeId: downgrade.id,
+          code: result.error.code,
+        },
+      );
+    } catch (error) {
+      errors++;
+      report('triggerDowngradeSweep', error, { step: 'execute', downgradeId: downgrade.id });
+    }
+  }
+  return { executed, errors };
+}
+
+/**
  * Executes every scheduled downgrade whose effective date has arrived
  * (Commercial V1 COM-02, Part 5 §7 "Downgrade"). This is the only thing
  * that ever calls `executeScheduledDowngrade` -- without it, a downgrade
@@ -459,32 +504,31 @@ export async function triggerAccountDeletionSweep(): Promise<{ readonly executed
  * abort the rest of the sweep -- same rationale as
  * `triggerAccountDeletionSweep`.
  */
-export async function triggerDowngradeSweep(): Promise<{ readonly executed: number }> {
+export async function triggerDowngradeSweep(): Promise<{
+  readonly executed: number;
+  readonly errors: number;
+}> {
   const connectionString = resolveDatabaseUrl(process.env);
   if (!connectionString) {
     console.error('[triggerDowngradeSweep] database not configured');
-    return { executed: 0 };
+    return { executed: 0, errors: 0 };
   }
 
   const { db, pool } = createPooledDb(connectionString);
   pool.on('error', (error) => {
     reportServerError('triggerDowngradeSweep', error, { step: 'idle pool connection error' });
   });
-  let executed = 0;
+  let outcome = { executed: 0, errors: 0 };
   try {
     const handle = db as unknown as Parameters<typeof listDueDowngrades>[0];
-    const due = await listDueDowngrades(handle);
-    for (const downgrade of due) {
-      const result = await executeScheduledDowngrade(handle, { downgradeId: downgrade.id });
-      if (isOk(result)) executed++;
-      else console.error('[triggerDowngradeSweep] execution failed', result.error);
-    }
+    outcome = await executeDueDowngrades(handle);
   } catch (error) {
     reportServerError('triggerDowngradeSweep', error, { step: 'sweep failed' });
+    outcome = { ...outcome, errors: outcome.errors + 1 };
   } finally {
     await pool.end();
   }
-  return { executed };
+  return outcome;
 }
 
 /**

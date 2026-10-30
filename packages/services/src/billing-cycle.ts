@@ -38,6 +38,7 @@ import type { ServiceError } from './errors';
 import { applyOverdueStatusChange } from './invoice-ledger';
 import { enqueueNotificationBothChannels } from './notifications';
 import { formatObservabilityLine } from './observability-format';
+import { entitlementsSchemaPresent } from './plans-schema';
 
 export {
   type AutomaticStatusChange,
@@ -354,13 +355,38 @@ interface InvoiceCandidate {
   readonly period_start_ms: string;
 }
 
+/**
+ * Agencies whose current billing period has no invoice yet. S29: after migration 0107 the amount is
+ * the plan's price in effect when that period started (`plan_prices`), so a price change applies
+ * from each agency's next period and never to a period already under way. Before 0107 it is the
+ * plan's own price, as before.
+ */
 async function invoiceCandidates(db: Db, now: Date, limit: number): Promise<InvoiceCandidate[]> {
   const at = now.toISOString();
+  const priced = await entitlementsSchemaPresent(db);
+  const price = priced
+    ? sql`pr.price_minor_units, pr.currency`
+    : sql`p.price_minor_units, p.currency`;
+  const priceJoin = priced
+    ? sql`cross join lateral (
+          select pp.price_minor_units, pp.currency from plan_prices pp
+          where pp.plan_id = s.plan_id
+            and pp.effective_from <= date_trunc('milliseconds', s.started_at) + make_interval(secs => (
+              floor(extract(epoch from (${at}::timestamptz - date_trunc('milliseconds', s.started_at)))
+                / (nullif(p.period_days, 0) * 86400.0)) * p.period_days * 86400
+            )::double precision)
+          order by pp.effective_from desc
+          limit 1
+        ) pr`
+    : sql``;
+  const priceFilter = priced
+    ? sql`pr.price_minor_units > 0 and pr.currency is not null`
+    : sql`p.price_minor_units > 0 and p.currency is not null`;
   return rowsOf<InvoiceCandidate>(
     await db.execute(sql`
       with rules as (select invoicing_starts_at from billing_settings where id),
       current_periods as (
-        select s.organization_id, s.plan_id, p.price_minor_units, p.currency, p.period_days,
+        select s.organization_id, s.plan_id, ${price}, p.period_days,
           date_trunc('milliseconds', s.started_at) + make_interval(secs => (
             floor(extract(epoch from (${at}::timestamptz - date_trunc('milliseconds', s.started_at)))
               / (p.period_days * 86400.0)) * p.period_days * 86400
@@ -369,10 +395,10 @@ async function invoiceCandidates(db: Db, now: Date, limit: number): Promise<Invo
         join plans p on p.id = s.plan_id
         join organizations o on o.id = s.organization_id
         join billing_accounts b on b.organization_id = s.organization_id
+        ${priceJoin}
         where s.ended_at is null
           and s.started_at <= ${at}::timestamptz
-          and p.price_minor_units > 0
-          and p.currency is not null
+          and ${priceFilter}
           and p.period_days > 0
           and o.status = 'ACTIVE'
           and b.status in ('ACTIVE', 'GRACE')

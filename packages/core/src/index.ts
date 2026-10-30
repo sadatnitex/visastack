@@ -22,3 +22,4 @@ export * from './day-count';
 export * from './money';
 export * from './billing-date';
 export * from './billing-words';
+export * from './switches';

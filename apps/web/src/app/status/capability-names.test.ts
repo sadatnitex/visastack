@@ -49,6 +49,15 @@ describe('capabilityRows', () => {
     expect(rows.get('sharing')).toMatchObject({ label: 'Working with Limits', tone: 'warning' });
   });
 
+  it('names payments in the gateway test mode "Test Payments Only" (S29)', () => {
+    const rows = new Map(
+      capabilityRows({ payments: 'degraded', sharing: 'degraded' }).map((row) => [row.key, row]),
+    );
+    expect(rows.get('payments')).toMatchObject({ label: 'Test Payments Only', tone: 'warning' });
+    expect(rows.get('sharing')).toMatchObject({ label: 'Working with Limits' });
+    expect(capabilityRows({ payments: 'available' })[0]?.label).toBe('Working');
+  });
+
   it('keeps "not set up yet" and "switched off" apart, and never shows the hidden one', () => {
     const labels = new Set(capabilityRows(platform).map((row) => row.label));
     expect(labels).toEqual(

@@ -43,8 +43,8 @@ describe('migration 0096: online payment attempts (S11)', () => {
       const attempt = (tran: string, extra = '', status = 'REDIRECTED') =>
         client.query(
           `insert into payment_attempts (invoice_id, organization_id, provider, merchant_tran_id,
-             amount_minor_units, currency, status${extra ? `, ${extra.split('=')[0]}` : ''})
-           values ('${invoice}', '${org}', 'sslcommerz', '${tran}', 10000, 'BDT', '${status}'${
+             amount_minor_units, currency, mode, status${extra ? `, ${extra.split('=')[0]}` : ''})
+           values ('${invoice}', '${org}', 'sslcommerz', '${tran}', 10000, 'BDT', 'LIVE', '${status}'${
              extra ? `, ${extra.split('=')[1]}` : ''
            })`,
         );
@@ -56,8 +56,8 @@ describe('migration 0096: online payment attempts (S11)', () => {
       await expect(
         client.query(
           `insert into payment_attempts (invoice_id, organization_id, provider, merchant_tran_id,
-             amount_minor_units, currency)
-           values ('${invoice}', '${org}', 'sslcommerz', 'VSP0000000000000000000002', 0, 'BDT')`,
+             amount_minor_units, currency, mode)
+           values ('${invoice}', '${org}', 'sslcommerz', 'VSP0000000000000000000002', 0, 'BDT', 'LIVE')`,
         ),
       ).rejects.toThrow();
       // A recorded attempt carries its time; a held attempt carries its reason.

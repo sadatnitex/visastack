@@ -1,4 +1,5 @@
 import { formatBillingDate, formatMoney } from '@visastack/core';
+import { AI_FEATURES, AI_FEATURE_KEYS } from '@visastack/core/ai-features';
 import {
   getPendingDowngradeForOrganization,
   getUsageForOrganization,
@@ -13,6 +14,16 @@ import { BillingStatusNotice, loadBillingNotice } from '../billing-status-notice
 import { loadOrgAccess } from '../console-data';
 
 export const metadata: Metadata = { title: 'Agency Usage and Billing' };
+
+/** What the plan gives for one AI feature, in the page's words (S29). */
+function aiFeatureWords(
+  entitlement: { readonly included: boolean; readonly dailyLimit: number | null } | undefined,
+): string {
+  if (!entitlement?.included) return 'Not in Your Plan';
+  return entitlement.dailyLimit === null
+    ? 'Included'
+    : `Included, up to ${entitlement.dailyLimit} a day per person`;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -101,20 +112,30 @@ export default async function OrgPlanPage({
                 An access offer has not been recorded for this organization. Your measured usage is
                 shown below. Record permissions and safety checks still apply.
               </p>
-            ) : data.usage.plan.key === 'agency_founding_access' &&
-              data.usage.plan.priceMinorUnits === 0 ? (
+            ) : data.usage.entitlements.bypassLimits ? (
               <p className="card-body">
                 Complimentary during public beta. No payment method is required. Fair-use safeguards
                 and private-record permissions still apply. Storage and processing remain subject to
                 available capacity.
               </p>
             ) : (
-              <p className="card-body">
-                Billing period: {data.usage.plan.periodDays} days.{' '}
-                {data.usage.plan.priceMinorUnits !== null && data.usage.plan.currency
-                  ? `Price: ${formatMoney(data.usage.plan.priceMinorUnits, data.usage.plan.currency)}.`
-                  : 'VisaStack has not set a price for this plan yet.'}
-              </p>
+              <>
+                <p className="card-body">
+                  Billing period:{' '}
+                  {data.usage.plan.periodDays === 1
+                    ? '1 day'
+                    : `${data.usage.plan.periodDays} days`}
+                  .{' '}
+                  {data.usage.entitlements.plan?.price
+                    ? `Price: ${formatMoney(data.usage.entitlements.plan.price.priceMinorUnits, data.usage.entitlements.plan.price.currency)}.`
+                    : 'VisaStack has not set a price for this plan yet.'}
+                </p>
+                {data.usage.entitlements.plan?.nextPrice ? (
+                  <p className="notice plan-change-notice">
+                    {`From ${formatBillingDate(data.usage.entitlements.plan.nextPrice.from)}, your next billing period, the price is ${formatMoney(data.usage.entitlements.plan.nextPrice.priceMinorUnits, data.usage.entitlements.plan.nextPrice.currency)}. Invoices already made keep their amounts.`}
+                  </p>
+                ) : null}
+              </>
             )}
             {data.downgrade ? (
               <p className="notice plan-change-notice">
@@ -147,11 +168,34 @@ export default async function OrgPlanPage({
                     style={{ fontSize: 'var(--text-small)', marginTop: '0.35rem' }}
                   >
                     {meter.definition}
+                    {meter.shownOnly
+                      ? ' Shown for your information; it does not stop any work.'
+                      : ''}
                   </p>
                 </div>
               ))}
             </div>
           </article>
+
+          {/* Agencies have no AI features of their own yet (S22, S28): the resolver answers "not
+              applicable" (null), so this section stays away until they do. */}
+          {data.usage.entitlements.features ? (
+            <article className="card u-mt-150">
+              <p className="card-kicker">What Your Plan Includes</p>
+              <h2 className="card-title">AI Features</h2>
+              <div className="rows">
+                {AI_FEATURE_KEYS.map((feature) => {
+                  const included = data.usage?.entitlements.features?.[feature];
+                  return (
+                    <div key={feature} className="row">
+                      <span className="row-key">{AI_FEATURES[feature].name}</span>
+                      <span>{aiFeatureWords(included)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </article>
+          ) : null}
         </>
       )}
     </>

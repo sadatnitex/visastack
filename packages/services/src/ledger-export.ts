@@ -1,13 +1,14 @@
 import { type Result, csvCell, err, ok } from '@visastack/core';
 import { utcToWallClock, wallClockToUtc } from '@visastack/core/calendar';
-import { and, asc, eq, gte, lt } from 'drizzle-orm';
+import { and, asc, count, eq, gte, lt, ne } from 'drizzle-orm';
 import type { StaffScope } from './access/principal';
 import { staffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { BILLING_TIME_ZONE, agencyCode } from './billing-standing';
-import { type Db, schema } from './db';
+import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { currencyDecimals } from './payment-amounts';
+import { ledgerModeSql } from './plans-schema';
 
 /**
  * The monthly accounting export (Small Commercial V1 S18, ADR 0020 Phase 2 "Accounting export"
@@ -147,6 +148,8 @@ export interface LedgerExport {
   readonly month: string;
   readonly filename: string;
   readonly rowCount: number;
+  /** S29: test payments (and credits and refunds of them) in the month, left out of the file. */
+  readonly testRowsLeftOut: number;
   readonly csv: string;
 }
 
@@ -154,6 +157,43 @@ export interface LedgerExport {
  * The ledger rows of one Bangladesh calendar month as a CSV file. Refused for a month that is not
  * `YYYY-MM`, without a fresh sign-in check, or above the row cap.
  */
+async function countTestLedgerRows(
+  db: Db,
+  bounds: { readonly start: Date; readonly end: Date },
+): Promise<number> {
+  const p = schema.invoicePayments;
+  const row = first(
+    await db
+      .select({ n: count() })
+      .from(p)
+      .where(
+        and(
+          gte(p.createdAt, bounds.start),
+          lt(p.createdAt, bounds.end),
+          eq(await ledgerModeSql(db), 'TEST'),
+        ),
+      ),
+  );
+  return row?.n ?? 0;
+}
+
+/**
+ * How many test payments, credits and refunds of them a month has (S29), for the Monthly
+ * Accounting File card: "N test payments left out". Platform owner only.
+ */
+export async function countLedgerTestRows(
+  db: Db,
+  staff: StaffScope<'BILLING_LEDGER_EXPORT'>,
+  month: string,
+): Promise<Result<number, ServiceError>> {
+  if (staffScopeProblem(staff, 'BILLING_LEDGER_EXPORT')) {
+    return err(serviceError('forbidden', 'Only the platform owner can download the ledger.'));
+  }
+  const bounds = ledgerMonthBounds(month.trim());
+  if (!bounds) return err(serviceError('invalid', 'Choose a month.'));
+  return ok(await countTestLedgerRows(db, bounds));
+}
+
 export async function exportLedgerMonth(
   db: Db,
   staff: StaffScope<'BILLING_LEDGER_EXPORT'>,
@@ -193,7 +233,14 @@ export async function exportLedgerMonth(
     .from(p)
     .innerJoin(i, eq(i.id, p.invoiceId))
     .innerJoin(o, eq(o.id, i.organizationId))
-    .where(and(gte(p.createdAt, bounds.start), lt(p.createdAt, bounds.end)))
+    .where(
+      and(
+        gte(p.createdAt, bounds.start),
+        lt(p.createdAt, bounds.end),
+        // S29: test payments are not money; the accountant never sees them.
+        ne(await ledgerModeSql(db), 'TEST'),
+      ),
+    )
     .orderBy(asc(p.seq))
     .limit(LEDGER_EXPORT_MAX_ROWS + 1);
   if (rows.length > LEDGER_EXPORT_MAX_ROWS) {
@@ -204,6 +251,7 @@ export async function exportLedgerMonth(
       ),
     );
   }
+  const testRowsLeftOut = await countTestLedgerRows(db, bounds);
   await db.transaction(async (tx) => {
     await appendAuditEvent(tx, {
       eventType: 'BILLING_LEDGER_EXPORTED',
@@ -213,13 +261,14 @@ export async function exportLedgerMonth(
       result: 'ALLOWED',
       resourceType: 'invoice_ledger',
       resourceId: null,
-      metadata: { month, rowCount: rows.length },
+      metadata: { month, rowCount: rows.length, testRowsLeftOut },
     });
   });
   return ok({
     month,
     filename: `visastack-ledger-${month}.csv`,
     rowCount: rows.length,
+    testRowsLeftOut,
     csv: ledgerCsv(rows),
   });
 }

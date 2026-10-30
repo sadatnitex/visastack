@@ -488,6 +488,7 @@ describe('numbered receipts (S12)', () => {
           sourceId: randomUUID(),
           reference: 'refund-1',
           collectedDate: new Date(),
+          mode: 'LIVE',
         })
         .returning()
     )[0];

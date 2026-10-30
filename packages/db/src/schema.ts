@@ -3536,6 +3536,14 @@ export const notifications = pgTable(
 // agency_starter, agency_pro) -- the catalog itself must stay genuinely
 // data-driven, so a product owner can add a fourth plan as a data row,
 // never a migration.
+// S29 (ADR 0020 S29 amendment): who a plan is for, how each entitlement counts, and whether a
+// payment was a test. Plan rules move into `plan_entitlements` (one row per plan and key, keys from
+// the registry in packages/core/src/entitlements.ts); the five limit columns below stay as they
+// were and are read only before migration 0107 has run.
+export const planAudience = pgEnum('plan_audience', ['AGENCY', 'TRAVELLER']);
+export const entitlementPer = pgEnum('entitlement_per', ['PERIOD', 'DAY', 'TOTAL', 'CONCURRENT']);
+export const paymentMode = pgEnum('payment_mode', ['TEST', 'LIVE']);
+
 export const plans = pgTable(
   'plans',
   {
@@ -3568,6 +3576,12 @@ export const plans = pgTable(
     // cash"). Both null together (Traveller Free) or both set together.
     priceMinorUnits: integer('price_minor_units'),
     currency: text('currency'),
+    // S29: who may be put on this plan. Agencies get AGENCY plans; travellers are on the one
+    // TRAVELLER plan (traveller_free) as data, with no subscription row yet.
+    audience: planAudience('audience').notNull().default('AGENCY'),
+    // S29: every capacity limit is lifted (the complimentary Founding Access offer). Only a free
+    // agency plan may carry it; it replaces the hard-coded plan key the checks used to read.
+    bypassLimits: boolean('bypass_limits').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -3576,6 +3590,82 @@ export const plans = pgTable(
     check(
       'plans_price_currency_together',
       sql`(${table.priceMinorUnits} is null) = (${table.currency} is null)`,
+    ),
+    check(
+      'plans_bypass_free',
+      sql`not ${table.bypassLimits} or coalesce(${table.priceMinorUnits}, 0) = 0`,
+    ),
+    check('plans_bypass_agency', sql`not ${table.bypassLimits} or ${table.audience} = 'AGENCY'`),
+    check('plans_currency_iso', sql`${table.currency} is null or ${table.currency} ~ '^[A-Z]{3}$'`),
+  ],
+);
+
+// S29: one row per plan and entitlement key. NULL limit = no limit; `included` false = the plan
+// does not include it (then there is no limit to state). `per` says how the limit counts and is
+// fixed by the key, so a seat limit can never be read as a daily one.
+export const planEntitlements = pgTable(
+  'plan_entitlements',
+  {
+    planId: uuid('plan_id')
+      .notNull()
+      .references(() => plans.id, { onDelete: 'restrict' }),
+    key: text('key').notNull(),
+    included: boolean('included').notNull().default(true),
+    limitValue: bigint('limit_value', { mode: 'number' }),
+    per: entitlementPer('per').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.planId, table.key] }),
+    check(
+      'plan_entitlements_key_shape',
+      sql`${table.key} ~ '^(seats|invitations|cases_per_period|open_cases|storage_bytes|ai_allowance_units|ai\\.[a-z][a-z0-9_]{0,62})$'`,
+    ),
+    check(
+      'plan_entitlements_per_matches_key',
+      sql`(${table.key} in ('seats', 'invitations', 'open_cases') and ${table.per} = 'CONCURRENT') or (${table.key} in ('cases_per_period', 'ai_allowance_units') and ${table.per} = 'PERIOD') or (${table.key} = 'storage_bytes' and ${table.per} = 'TOTAL') or (${table.key} like 'ai.%' and ${table.per} = 'DAY')`,
+    ),
+    check(
+      'plan_entitlements_limit_nonnegative',
+      sql`${table.limitValue} is null or ${table.limitValue} >= 0`,
+    ),
+    check(
+      'plan_entitlements_limit_needs_included',
+      sql`${table.included} or ${table.limitValue} is null`,
+    ),
+  ],
+);
+
+// S29: every price a plan has had, from when. An invoice uses the price in effect when its billing
+// period started, so a price change applies from each agency's next period. Append-only (a
+// trigger refuses UPDATE, DELETE and TRUNCATE); `created_by_account_id` carries no foreign key for
+// the ledger's reason (a financial record outlives the person who typed it).
+export const planPrices = pgTable(
+  'plan_prices',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    planId: uuid('plan_id')
+      .notNull()
+      .references(() => plans.id, { onDelete: 'restrict' }),
+    priceMinorUnits: integer('price_minor_units'),
+    currency: text('currency'),
+    effectiveFrom: timestamp('effective_from', { withTimezone: true }).notNull(),
+    createdByAccountId: uuid('created_by_account_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('plan_prices_plan_effective_unique').on(table.planId, table.effectiveFrom),
+    check(
+      'plan_prices_price_currency_together',
+      sql`(${table.priceMinorUnits} is null) = (${table.currency} is null)`,
+    ),
+    check(
+      'plan_prices_price_nonnegative',
+      sql`${table.priceMinorUnits} is null or ${table.priceMinorUnits} >= 0`,
+    ),
+    check(
+      'plan_prices_currency_iso',
+      sql`${table.currency} is null or ${table.currency} ~ '^[A-Z]{3}$'`,
     ),
   ],
 );
@@ -4167,6 +4257,10 @@ export const invoicePayments = pgTable(
     reference: text('reference').notNull(),
     collectedDate: timestamp('collected_date', { withTimezone: true }).notNull(),
     recordedByAccountId: uuid('recorded_by_account_id'),
+    // S29: TEST for money taken through the gateway's test (sandbox) mode, copied from its online
+    // payment; a reported or staff-recorded payment is always LIVE. TEST rows are left out of the
+    // Monthly Accounting File.
+    mode: paymentMode('mode').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -4191,6 +4285,10 @@ export const invoicePayments = pgTable(
       sql`(${table.provider} is null) = (${table.providerTransactionId} is null)`,
     ),
     check('invoice_payments_reference_present', sql`length(btrim(${table.reference})) > 0`),
+    check(
+      'invoice_payments_manual_live',
+      sql`${table.kind} not in ('MANUAL_CLAIM', 'ADMIN_RECORDED') or ${table.mode} = 'LIVE'`,
+    ),
   ],
 );
 
@@ -4377,6 +4475,9 @@ export const paymentAttempts = pgTable(
     // A plain code (risky_payment, already_paid, mismatch, ...) set with HELD_FOR_REVIEW, and
     // start_failed or start_incomplete with FAILED. Never provider text.
     reasonCode: text('reason_code'),
+    // S29: the gateway mode this payment was started in (TEST for the sandbox). Fixed at start; an
+    // attempt still open when the mode changes is closed as expired (reason mode_changed).
+    mode: paymentMode('mode').notNull(),
     initiatedByAccountId: uuid('initiated_by_account_id'),
     redirectedAt: timestamp('redirected_at', { withTimezone: true }),
     lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),

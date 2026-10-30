@@ -1,6 +1,6 @@
 import {
-  BILLING_PAYMENT_KIND_LABELS,
   type Result,
+  TEST_PAYMENT_LABEL,
   billingDaysUntil,
   err,
   formatBillingDate,
@@ -8,6 +8,7 @@ import {
   formatBillingPeriod,
   formatMoney,
   ok,
+  paymentKindWords,
 } from '@visastack/core';
 import { and, asc, eq } from 'drizzle-orm';
 import { invoiceLedgerReader } from './billing';
@@ -16,6 +17,7 @@ import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { isUuid, normalizeCurrency, outstandingMinorUnits } from './invoice-ledger';
 import { isMissingRelationError } from './missing-relation';
+import { type PaymentMode, ledgerModeSql } from './plans-schema';
 import { formatReceiptNumber } from './receipts';
 
 /**
@@ -128,6 +130,8 @@ export interface InvoiceDocumentPayment {
   readonly reference: string;
   /** The receipt issued for this payment, when one was. */
   readonly receiptNumber: number | null;
+  /** S29: TEST for a payment made in the gateway's test mode; absent or LIVE for real money. */
+  readonly mode?: PaymentMode;
 }
 
 /** What an invoice document is made from. Plain data, so the wording can be tested alone. */
@@ -153,6 +157,8 @@ export interface InvoiceDocumentFacts {
 export interface ReceiptDocumentFacts {
   readonly receiptNumber: number;
   readonly kind: InvoiceDocumentPayment['kind'];
+  /** S29: TEST for a payment made in the gateway's test mode. */
+  readonly mode?: PaymentMode;
   readonly amountMinorUnits: number;
   readonly currency: string;
   readonly collectedDate: Date;
@@ -168,8 +174,8 @@ export interface ReceiptDocumentFacts {
   readonly billingEmail: string | null;
 }
 
-function paymentKindLabel(kind: string): string {
-  return (BILLING_PAYMENT_KIND_LABELS as Readonly<Record<string, string>>)[kind] ?? 'Payment';
+function paymentKindLabel(kind: string, mode?: PaymentMode): string {
+  return paymentKindWords(kind, mode);
 }
 
 function billedTo(facts: {
@@ -239,7 +245,7 @@ export function buildInvoiceDocument(facts: InvoiceDocumentFacts, now: Date): Bi
       columns: ['Date', 'How It Was Paid', 'Payment Reference', 'Receipt', 'Amount'],
       rows: received.map((p) => [
         formatBillingDate(p.collectedDate),
-        paymentKindLabel(p.kind),
+        paymentKindLabel(p.kind, p.mode),
         p.reference,
         p.receiptNumber === null ? '' : formatReceiptNumber(p.receiptNumber),
         money(p.amountMinorUnits),
@@ -328,12 +334,17 @@ export function buildReceiptDocument(facts: ReceiptDocumentFacts, now: Date): Bi
       { label: 'Receipt Issued', value: formatBillingDate(facts.issuedAt) },
       { label: 'Payment Date', value: formatBillingDate(facts.collectedDate) },
       { label: 'Invoice', value: facts.invoiceRef },
+      ...(facts.mode === 'TEST'
+        ? [{ label: 'Payment Type', value: `${TEST_PAYMENT_LABEL}, not money received` }]
+        : []),
     ],
     billedTo: billedTo(facts),
     items: {
       heading: 'Payment',
       columns: ['How It Was Paid', 'Payment Reference', 'Amount'],
-      rows: [[paymentKindLabel(facts.kind), facts.reference, money(facts.amountMinorUnits)]],
+      rows: [
+        [paymentKindLabel(facts.kind, facts.mode), facts.reference, money(facts.amountMinorUnits)],
+      ],
     },
     totals: [
       { label: 'Invoice Amount', value: money(facts.invoicedAmountMinorUnits) },
@@ -383,6 +394,7 @@ async function ledgerRows(db: Db, invoiceId: string): Promise<InvoiceDocumentPay
       .select({
         id: p.id,
         kind: p.kind,
+        mode: await ledgerModeSql(db),
         amountMinorUnits: p.amountMinorUnits,
         collectedDate: p.collectedDate,
         reference: p.reference,
@@ -404,6 +416,7 @@ async function ledgerRows(db: Db, invoiceId: string): Promise<InvoiceDocumentPay
     }
     return rows.map((row) => ({
       kind: row.kind,
+      mode: row.mode,
       amountMinorUnits: row.amountMinorUnits,
       collectedDate: row.collectedDate,
       reference: row.reference,
@@ -483,6 +496,7 @@ export async function getReceiptDocument(
     | {
         receiptNumber: number;
         kind: InvoiceDocumentPayment['kind'];
+        mode: PaymentMode;
         amountMinorUnits: number;
         currency: string;
         collectedDate: Date;
@@ -502,6 +516,7 @@ export async function getReceiptDocument(
         .select({
           receiptNumber: r.receiptNumber,
           kind: p.kind,
+          mode: await ledgerModeSql(db),
           amountMinorUnits: r.amountMinorUnits,
           currency: r.currency,
           collectedDate: p.collectedDate,

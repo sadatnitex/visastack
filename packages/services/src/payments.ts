@@ -5,7 +5,7 @@ import type { SystemScope } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { invoiceLedgerReader } from './billing';
 import { type Db, first, required, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, refusal, serviceError } from './errors';
 import {
   REFUNDED_INVOICE_MESSAGE,
   applyInvoiceCollection,
@@ -16,6 +16,14 @@ import {
 } from './invoice-ledger';
 import { isMissingRelationError } from './missing-relation';
 import { isOrgAdmin } from './organizations';
+import {
+  type PaymentMode,
+  attemptColumns,
+  attemptModeColumn,
+  entitlementsSchemaPresent,
+  gatewayServesMode,
+} from './plans-schema';
+import { isPlatformOwner } from './platform-roles';
 import type { PaymentPort, PaymentValidation } from './ports';
 import { RATE_LIMITS, checkRateLimit, checkRateLimits } from './rate-limit';
 
@@ -243,7 +251,7 @@ export interface SettlePaymentAttemptInput {
 async function loadAttempt(db: Db, merchantTranId: string): Promise<PaymentAttempt | undefined> {
   return first(
     await db
-      .select()
+      .select(attemptColumns())
       .from(schema.paymentAttempts)
       .where(eq(schema.paymentAttempts.merchantTranId, merchantTranId))
       .limit(1),
@@ -273,6 +281,16 @@ export async function settlePaymentAttempt(
     if (attempt.status === 'RECORDED') return outcome('already_recorded', attempt.status);
     if (attempt.status === 'HELD_FOR_REVIEW') return outcome('held', attempt.status);
     if (attempt.status === 'REFUNDED') return outcome('refunded', attempt.status);
+    // S29: a payment started in the other mode (test or live) is never judged by this gateway: it
+    // belongs to a different store (`gatewayServesMode`). A test payment still open when the
+    // gateway went live is closed as expired (mode_changed). A live payment seen while the gateway
+    // is in test mode is real money that may still arrive: it stays exactly as it is, unasked, so
+    // the usual checks (including a late success) judge it once the live gateway is back.
+    if (!gatewayServesMode(port, attempt.mode)) {
+      return attempt.mode === 'TEST'
+        ? expireForModeChange(db, attempt, input.source, now)
+        : outcome('pending', attempt.status);
+    }
 
     // Each payment may make VisaStack call the gateway only so often, so a stream of callbacks
     // for one real payment cannot be turned into a stream of calls to the gateway.
@@ -315,6 +333,39 @@ export async function settlePaymentAttempt(
   }
 }
 
+/** Closes an open payment that was started in the other gateway mode (S29). Idempotent. */
+async function expireForModeChange(
+  db: Db,
+  seen: PaymentAttempt,
+  source: SettlementSource,
+  now: Date,
+): Promise<SettlementOutcome> {
+  return db.transaction(async (tx) => {
+    const attempts = schema.paymentAttempts;
+    const attempt = first(
+      await tx
+        .select(attemptColumns())
+        .from(attempts)
+        .where(eq(attempts.id, seen.id))
+        .limit(1)
+        .for('update'),
+    );
+    if (!attempt) return outcome('unknown_transaction');
+    if (attempt.status !== 'CREATED' && attempt.status !== 'REDIRECTED') {
+      return outcome(closeCode(attempt.status), attempt.status);
+    }
+    await tx
+      .update(attempts)
+      .set({ status: 'EXPIRED', reasonCode: MODE_CHANGED, lastCheckedAt: now, updatedAt: now })
+      .where(eq(attempts.id, attempt.id));
+    await auditAttemptMove(tx, attempt, 'EXPIRED', source, MODE_CHANGED);
+    return outcome('expired', 'EXPIRED');
+  });
+}
+
+/** The reason an open payment closes when the gateway mode changed under it (S29). */
+export const MODE_CHANGED = 'mode_changed';
+
 async function applyDecision(
   db: Db,
   port: PaymentPort,
@@ -338,7 +389,12 @@ async function applyDecision(
     const attempts = schema.paymentAttempts;
     // The attempt is locked for the whole decision, so two callbacks for one payment take turns.
     const attempt = first(
-      await tx.select().from(attempts).where(eq(attempts.id, seen.id)).limit(1).for('update'),
+      await tx
+        .select(attemptColumns())
+        .from(attempts)
+        .where(eq(attempts.id, seen.id))
+        .limit(1)
+        .for('update'),
     );
     if (!attempt) return outcome('unknown_transaction');
     if (attempt.status === 'RECORDED') return outcome('already_recorded', attempt.status);
@@ -567,6 +623,12 @@ export interface StartOnlinePaymentInput {
   readonly urlFor: (kind: PaymentReturnKind, merchantTranId: string) => string;
   /** True once the person has seen a recent unfinished payment and still wants a new one. */
   readonly startAnother?: boolean;
+  /**
+   * The person's sign-in email and the bootstrap owner list, to recognise the platform owner while
+   * the gateway is in test mode (S29). Not needed in live mode.
+   */
+  readonly actorEmail?: string;
+  readonly bootstrapEmails?: readonly string[];
   readonly now?: Date;
   /** How long the gateway may take to open a payment page. Defaults to 15 seconds; tests shorten it. */
   readonly timeoutMs?: number;
@@ -599,6 +661,13 @@ export function isRecentAttempt(
 }
 
 const NOT_AVAILABLE = 'Online payment is not available yet. Please try again later.';
+
+/**
+ * What an agency is told while the gateway is in test mode (S29): a test payment would mark a real
+ * invoice paid, so only the platform owner may make one.
+ */
+export const TEST_PAYMENTS_ONLY =
+  'Online payment is being tested right now, so it is not open to agencies yet. Nothing was charged. Please pay another way or try again later.';
 const START_FAILED = 'We could not open the payment page. Nothing was charged. Try again.';
 
 /**
@@ -613,9 +682,12 @@ export async function startOnlinePayment(
   port: PaymentPort,
   input: StartOnlinePaymentInput,
 ): Promise<Result<StartedPayment, ServiceError>> {
-  if (!port.configured) return err(serviceError('invalid', NOT_AVAILABLE));
+  if (!port.configured || port.mode === null) return err(serviceError('invalid', NOT_AVAILABLE));
   const now = input.now ?? new Date();
+  const mode: PaymentMode = port.mode;
   try {
+    // S29: every attempt records its mode, which needs migration 0107.
+    if (!(await entitlementsSchemaPresent(db))) return err(serviceError('invalid', NOT_AVAILABLE));
     const invoice = first(
       await db
         .select()
@@ -625,6 +697,18 @@ export async function startOnlinePayment(
     );
     if (!invoice || !(await isOrgAdmin(db, input.actorAccountId, invoice.organizationId))) {
       return err(serviceError('not_found', 'invoice not found'));
+    }
+    // A test payment marks a real invoice paid, so in test mode only the platform owner may start
+    // one (checked before anything is written or sent).
+    if (
+      mode === 'TEST' &&
+      !(await isPlatformOwner(db, {
+        accountId: input.actorAccountId,
+        email: input.actorEmail ?? '',
+        bootstrapEmails: input.bootstrapEmails ?? [],
+      }))
+    ) {
+      return err(refusal('test_mode_owner_only', TEST_PAYMENTS_ONLY));
     }
 
     // The person first, then the agency: once a person is refused they cannot spend the rest of
@@ -689,7 +773,7 @@ export async function startOnlinePayment(
 
         if (input.startAnother !== true) {
           const earlier = await tx
-            .select()
+            .select(attemptColumns())
             .from(attempts)
             .where(
               and(
@@ -737,9 +821,10 @@ export async function startOnlinePayment(
                 amountMinorUnits: amount,
                 currency: normalizeCurrency(locked.currency),
                 status: 'CREATED',
+                mode,
                 initiatedByAccountId: input.actorAccountId,
               })
-              .returning(),
+              .returning(attemptColumns()),
           ),
           'payment attempt',
         );
@@ -757,6 +842,7 @@ export async function startOnlinePayment(
             provider: port.provider,
             amountMinorUnits: amount,
             currency: normalizeCurrency(locked.currency),
+            mode,
           },
         });
         return ok({
@@ -922,7 +1008,7 @@ export async function reconcilePaymentAttempts(
     // Attempts that never reached the gateway cannot have been paid.
     const staleBefore = new Date(now.getTime() - STALE_CREATED_MS);
     const stale = await db
-      .select()
+      .select(attemptColumns())
       .from(attempts)
       .where(
         and(
@@ -953,13 +1039,17 @@ export async function reconcilePaymentAttempts(
     // to have succeeded) take whatever room is left, least recently asked about first, so a pile
     // of abandoned payments can never crowd out a live one and each is revisited in turn.
     const open = await db
-      .select()
+      .select(attemptColumns())
       .from(attempts)
       .where(
         and(
           eq(attempts.provider, port.provider),
           eq(attempts.status, 'REDIRECTED'),
           lte(attempts.redirectedAt, redirectedBefore),
+          // S29 round 3: a live payment is left alone while the gateway is in test mode (never
+          // expired, never asked), so it takes no room in the batch either. A test payment open
+          // when the gateway is live is still taken, once, to be closed as expired.
+          port.mode === 'TEST' ? eq(attemptModeColumn(), 'TEST') : undefined,
         ),
       )
       .orderBy(attempts.redirectedAt)
@@ -968,13 +1058,15 @@ export async function reconcilePaymentAttempts(
     const expired =
       room > 0
         ? await db
-            .select()
+            .select(attemptColumns())
             .from(attempts)
             .where(
               and(
                 eq(attempts.provider, port.provider),
                 eq(attempts.status, 'EXPIRED'),
                 gte(attempts.redirectedAt, lateAfter),
+                // Only the gateway's own mode can say a closed payment succeeded late.
+                port.mode === null ? undefined : eq(attemptModeColumn(), port.mode),
               ),
             )
             .orderBy(sql`${attempts.lastCheckedAt} asc nulls first`)
@@ -1106,7 +1198,7 @@ export async function refreshInvoicePaymentAttempts(
   const attempts = schema.paymentAttempts;
   try {
     const open = await db
-      .select()
+      .select(attemptColumns())
       .from(attempts)
       .where(
         and(
@@ -1192,6 +1284,8 @@ export interface PaymentAttemptView {
   readonly recordedAt: Date | null;
   readonly reasonCode: string | null;
   readonly merchantTranId: string | null;
+  /** S29: TEST for a payment started in the gateway's test mode (shown as "Test Payment"). */
+  readonly mode: PaymentMode;
 }
 
 /** One attempt as a screen shows it: the plain reason code and the VisaStack transaction id for platform staff only. */
@@ -1206,6 +1300,7 @@ export function attemptView(row: PaymentAttempt, platform: boolean): PaymentAtte
     recordedAt: row.recordedAt,
     reasonCode: platform ? row.reasonCode : null,
     merchantTranId: platform ? row.merchantTranId : null,
+    mode: row.mode,
   };
 }
 
@@ -1222,7 +1317,7 @@ export async function getInvoicePaymentAttempts(
   if (!allowed.ok) return allowed;
   try {
     const rows = await db
-      .select()
+      .select(attemptColumns())
       .from(schema.paymentAttempts)
       .where(eq(schema.paymentAttempts.invoiceId, allowed.value.invoiceId))
       .orderBy(desc(schema.paymentAttempts.createdAt))

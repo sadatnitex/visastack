@@ -24,6 +24,13 @@ import {
   cancelQueuedNotificationsForResource,
   enqueueNotificationBothChannels,
 } from './notifications';
+import {
+  type PaymentMode,
+  attemptModeColumn,
+  entitlementsSchemaPresent,
+  ledgerColumns,
+  ledgerModeSql,
+} from './plans-schema';
 import { recordProductEvent } from './product-events';
 import { type PaymentReceipt, issueReceiptForPayment } from './receipts';
 
@@ -308,7 +315,6 @@ export async function applyInvoiceCollection(
   const sourceId = input.sourceId ?? null;
   const provider = input.provider ?? null;
   const providerTransactionId = input.providerTransactionId ?? null;
-  const payments = schema.invoicePayments;
 
   if (ledgerPresent) {
     // A replay is answered from the first recording, before any other check:
@@ -367,9 +373,8 @@ export async function applyInvoiceCollection(
 
   let payment: InvoicePayment | null = null;
   if (ledgerPresent) {
-    const inserted = await tx
-      .insert(payments)
-      .values({
+    payment =
+      (await insertLedgerRow(tx, {
         invoiceId: invoice.id,
         amountMinorUnits: input.amountMinorUnits,
         currency: normalizeCurrency(invoice.currency),
@@ -380,10 +385,7 @@ export async function applyInvoiceCollection(
         reference: input.reference.trim(),
         collectedDate: input.collectedDate,
         recordedByAccountId: input.recordedByAccountId ?? null,
-      })
-      .onConflictDoNothing()
-      .returning();
-    payment = first(inserted) ?? null;
+      })) ?? null;
     if (payment === null) {
       // Another transaction recorded the same key an instant ago, against a different
       // invoice (so our invoice lock did not order us). Nothing has been written.
@@ -460,6 +462,110 @@ export async function applyInvoiceCollection(
   });
 }
 
+/** One ledger row as written; its mode is worked out from where the money came from. */
+interface LedgerRowValues {
+  readonly invoiceId: string;
+  readonly amountMinorUnits: number;
+  readonly currency: string;
+  readonly kind: InvoicePaymentKind;
+  readonly sourceId: string | null;
+  readonly provider: string | null;
+  readonly providerTransactionId: string | null;
+  readonly reference: string;
+  readonly collectedDate: Date;
+  readonly recordedByAccountId: string | null;
+}
+
+/**
+ * The mode a new ledger row takes (S29): an online payment or a credit copies the online payment
+ * it came from; a refund copies the ledger row it gives money back from (or, for held money, the
+ * online payment); a reported or staff-recorded payment is always real money (LIVE). Copied from
+ * the stored rows, never taken from a caller or a form.
+ */
+async function ledgerModeFor(tx: Db, values: LedgerRowValues): Promise<PaymentMode> {
+  if (values.sourceId === null) return 'LIVE';
+  if (values.kind === 'ONLINE' || values.kind === 'CREDIT') {
+    // The online payment it came from; with none (never the case in practice), real money, as
+    // migration 0107's backfill reads it.
+    const a = schema.paymentAttempts;
+    const row = first(
+      await tx
+        .select({ mode: attemptModeColumn() })
+        .from(a)
+        .where(eq(a.id, values.sourceId))
+        .limit(1),
+    );
+    return row?.mode ?? 'LIVE';
+  }
+  if (values.kind === 'REFUND') return refundSourceMode(tx, values.sourceId);
+  return 'LIVE';
+}
+
+/**
+ * The mode of the money one refund request gives back (S29): the ledger row it refunds, else the
+ * held online payment it refunds, else real money. The same rule as migration 0107's backfill
+ * (`coalesce(source row, online payment, 'LIVE')`), and the one refunds.ts uses at the gateway.
+ */
+export async function refundSourceMode(tx: Db, refundRequestId: string): Promise<PaymentMode> {
+  const r = schema.refundRequests;
+  const p = schema.invoicePayments;
+  const a = schema.paymentAttempts;
+  const row = first(
+    await tx
+      .select({
+        entryId: p.id,
+        entryMode: await ledgerModeSql(tx),
+        attemptId: a.id,
+        attemptMode: attemptModeColumn(),
+      })
+      .from(r)
+      .leftJoin(p, eq(p.id, r.invoicePaymentId))
+      .leftJoin(a, eq(a.id, r.paymentAttemptId))
+      .where(eq(r.id, refundRequestId))
+      .limit(1),
+  );
+  if (row?.entryId) return row.entryMode;
+  if (row?.attemptId) return row.attemptMode;
+  return 'LIVE';
+}
+
+/**
+ * Writes one ledger row once (a repeat with the same key writes nothing and returns undefined).
+ * After migration 0107 the row carries its mode; before it, the row is written with the columns
+ * every database has and 0107 fills the mode in.
+ */
+async function insertLedgerRow(
+  tx: Db,
+  values: LedgerRowValues,
+): Promise<InvoicePayment | undefined> {
+  const payments = schema.invoicePayments;
+  if (await entitlementsSchemaPresent(tx)) {
+    const mode = await ledgerModeFor(tx, values);
+    return first(
+      await tx
+        .insert(payments)
+        .values({ ...values, mode })
+        .onConflictDoNothing()
+        .returning(ledgerColumns(await ledgerModeSql(tx))),
+    );
+  }
+  const id = crypto.randomUUID();
+  const written = await tx.execute(
+    sql`insert into invoice_payments (id, invoice_id, amount_minor_units, currency, kind, source_id, provider, provider_transaction_id, reference, collected_date, recorded_by_account_id)
+      values (${id}, ${values.invoiceId}, ${values.amountMinorUnits}, ${values.currency}, ${values.kind}, ${values.sourceId}, ${values.provider}, ${values.providerTransactionId}, ${values.reference}, ${values.collectedDate.toISOString()}::timestamptz, ${values.recordedByAccountId})
+      on conflict do nothing returning id`,
+  );
+  const rows = Array.isArray(written) ? written : (written as { rows?: unknown[] }).rows;
+  if (!rows || rows.length === 0) return undefined;
+  return first(
+    await tx
+      .select(ledgerColumns(await ledgerModeSql(tx)))
+      .from(payments)
+      .where(eq(payments.id, id))
+      .limit(1),
+  );
+}
+
 async function findExisting(
   tx: Db,
   kind: CollectionKind,
@@ -471,7 +577,7 @@ async function findExisting(
   if (sourceId !== null) {
     const bySource = first(
       await tx
-        .select()
+        .select(ledgerColumns(await ledgerModeSql(tx)))
         .from(payments)
         .where(and(eq(payments.kind, kind), eq(payments.sourceId, sourceId)))
         .limit(1),
@@ -481,7 +587,7 @@ async function findExisting(
   if (provider !== null && providerTransactionId !== null) {
     return first(
       await tx
-        .select()
+        .select(ledgerColumns(await ledgerModeSql(tx)))
         .from(payments)
         .where(
           and(
@@ -587,7 +693,7 @@ export async function applyInvoiceRefund(
   const payments = schema.invoicePayments;
   const existing = first(
     await tx
-      .select()
+      .select(ledgerColumns(await ledgerModeSql(tx)))
       .from(payments)
       .where(and(eq(payments.kind, 'REFUND'), eq(payments.sourceId, input.refundRequestId)))
       .limit(1),
@@ -611,24 +717,18 @@ export async function applyInvoiceRefund(
       message: 'this refund is more than the invoice holds',
     });
   }
-  const inserted = first(
-    await tx
-      .insert(payments)
-      .values({
-        invoiceId: invoice.id,
-        amountMinorUnits: -input.amountMinorUnits,
-        currency: normalizeCurrency(invoice.currency),
-        kind: 'REFUND',
-        sourceId: input.refundRequestId,
-        provider: input.provider,
-        providerTransactionId: input.providerTransactionId,
-        reference: input.reference.trim().slice(0, 120),
-        collectedDate: input.refundedAt,
-        recordedByAccountId: input.recordedByAccountId,
-      })
-      .onConflictDoNothing()
-      .returning(),
-  );
+  const inserted = await insertLedgerRow(tx, {
+    invoiceId: invoice.id,
+    amountMinorUnits: -input.amountMinorUnits,
+    currency: normalizeCurrency(invoice.currency),
+    kind: 'REFUND',
+    sourceId: input.refundRequestId,
+    provider: input.provider,
+    providerTransactionId: input.providerTransactionId,
+    reference: input.reference.trim().slice(0, 120),
+    collectedDate: input.refundedAt,
+    recordedByAccountId: input.recordedByAccountId,
+  });
   if (!inserted) {
     return err({ code: 'key_conflict', message: 'this refund reference was already used' });
   }

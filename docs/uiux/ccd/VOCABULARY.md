@@ -70,3 +70,15 @@ Added 30 Oct 2026 (S20, AI app original files):
 | The platform owner's switch for it | AI App Original Files (on AI Features) | "File Sharing for AI", "Connector Files" | **New (S20)** |
 | How many files a connection has, on the Sharing page | Original Files: {n} Files ({m} Originals), or (Safe Copies) | "Attachments: n" | **New (S20)** |
 | The protected types, wherever files are offered | "Passports, identity, money and health documents are protected and never shared with AI apps." | "Restricted", "Blocked" | **New (S20)** |
+
+Added 30 Oct 2026 (S29, plans and test payments):
+
+| Thing | Canonical name | Retire | Status |
+|---|---|---|---|
+| The platform owner's page of plans | Plans (Admin > Settings); actions Save, Retire Plan; card New Plan | "Plan Admin", "Pricing Table", "SKUs" | **New (S29)** |
+| What a plan includes (registry names) | Team Members, Team Members and Invitations, New Cases, Open Cases, Storage, AI Allowance, and each AI feature by its own name | "Entitlements", "Quotas", "Seats" | **New (S29)**, extends the S30 row |
+| A plan that lifts every limit | Complimentary | "Founding Bypass", "Unlimited Plan", "Free Tier" | **New (S29)** |
+| Who a plan is for | For: Agencies, or Travellers | "Audience", "Tenant Type" | **New (S29)** |
+| A plan nobody new can be put on | Retired (status), Offered (status) | "Archived", "Disabled", "Deprecated" | **New (S29)** |
+| A payment made in the gateway's test mode | Test Payment (badge); the mode on Billing Rules and the status page: Test Payments Only, Live, Not Set Up | "Sandbox Payment", "Fake Payment", "Dry Run" | **New (S29)** |
+| A coming price on Plan and Usage | "From {date}, your next billing period, the price is {amount}. Invoices already made keep their amounts." | "Price Change Pending", "Repricing" | **New (S29)** |

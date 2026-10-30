@@ -218,6 +218,7 @@ export default async function AdminOrganizationPage({
       ? await getOrganizationRefundWork(db, refundScope.value, {
           organizationId: orgId,
           gatewayProvider,
+          gatewayMode: sendPort?.mode ?? null,
           page: Number.isFinite(refundPage) ? refundPage : 1,
           invoiceRef: asked.refundInvoice ?? null,
         })
@@ -226,7 +227,8 @@ export default async function AdminOrganizationPage({
     return {
       owner: true as const,
       org,
-      activePlans: allPlans.filter((p) => p.active),
+      // S29: only offered agency plans can be given to an agency (Traveller Free never).
+      activePlans: allPlans.filter((p) => p.active && p.audience === 'AGENCY'),
       planById: new Map(allPlans.map((p) => [p.id, p])),
       currentPlan,
       pendingDowngrade,

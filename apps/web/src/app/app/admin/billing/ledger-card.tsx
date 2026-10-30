@@ -17,13 +17,26 @@ export function ledgerProblem(reason: string | undefined): string | null {
   return reason !== undefined && Object.hasOwn(REASONS, reason) ? (REASONS[reason] ?? null) : null;
 }
 
+/**
+ * "1 test entry left out" (S29): how many of this month's rows the file leaves out (test payments,
+ * and credits and refunds made from them).
+ */
+export function testRowsSentence(count: number): string {
+  return count === 1
+    ? 'This month, 1 test entry is left out of the file.'
+    : `This month, ${count} test entries are left out of the file.`;
+}
+
 export function LedgerCard({
   thisMonth,
   problem,
+  testRowsLeftOut = null,
 }: {
   /** The current Bangladesh month (YYYY-MM), the default and the latest choice. */
   readonly thisMonth: string;
   readonly problem: string | null;
+  /** S29: test payments (and their credits and refunds) this month; null when not counted. */
+  readonly testRowsLeftOut?: number | null;
 }) {
   return (
     <article className="card u-mb-150" id="ledger" aria-labelledby="ledger-title">
@@ -33,8 +46,11 @@ export function LedgerCard({
       <p className="card-body">
         One file of every payment, credit and refund counted in a month (Bangladesh time), for your
         accountant. It names each agency but never a traveller. Payments still waiting for a check
-        are not in it until they are counted.
+        are not in it until they are counted. Test payments are never in it.
       </p>
+      {testRowsLeftOut !== null && testRowsLeftOut > 0 ? (
+        <p className="card-body">{testRowsSentence(testRowsLeftOut)}</p>
+      ) : null}
       {problem ? (
         <p id="ledger-problem" className="notice notice-warn" role="alert">
           {problem}

@@ -41,6 +41,7 @@ import {
   startOnlinePayment,
 } from './payments';
 import { FakePaymentPort } from './payments.test-support';
+import { ledgerColumns, ledgerModeSql } from './plans-schema';
 import { grantPlatformRole } from './platform-roles';
 import {
   AMOUNT_MISMATCH,
@@ -119,7 +120,12 @@ async function world(db: Db, tag: string, platform?: World): Promise<World> {
     role: 'CASE_MANAGER',
     active: true,
   });
-  const plan = (await db.select().from(schema.plans).where(eq(schema.plans.key, 'agency_pro')))[0];
+  const plan = (
+    await db
+      .select({ id: schema.plans.id })
+      .from(schema.plans)
+      .where(eq(schema.plans.key, 'agency_pro'))
+  )[0];
   if (!plan) throw new Error('plan');
   const opened = await openBillingAccount(db, {
     actor,
@@ -187,6 +193,7 @@ async function paidOnline(w: World, invoiceId: string, amount: number) {
   const [attempt] = await w.db
     .insert(schema.paymentAttempts)
     .values({
+      mode: 'LIVE',
       invoiceId,
       organizationId: w.organizationId,
       provider: 'sslcommerz',
@@ -230,6 +237,7 @@ async function heldPayment(
   const [attempt] = await w.db
     .insert(schema.paymentAttempts)
     .values({
+      mode: 'LIVE',
       invoiceId,
       organizationId: w.organizationId,
       provider: 'sslcommerz',
@@ -249,7 +257,7 @@ async function heldPayment(
 
 async function entryOf(w: World, invoiceId: string, kind: 'ONLINE' | 'ADMIN_RECORDED' | 'CREDIT') {
   const rows = await w.db
-    .select()
+    .select(ledgerColumns(await ledgerModeSql(w.db)))
     .from(schema.invoicePayments)
     .where(
       and(eq(schema.invoicePayments.invoiceId, invoiceId), eq(schema.invoicePayments.kind, kind)),
@@ -1171,6 +1179,7 @@ describe('before migration 0104', () => {
       const work = await getOrganizationRefundWork(db, staff, {
         organizationId: w.organizationId,
         gatewayProvider: 'sslcommerz',
+        gatewayMode: 'LIVE',
       });
       expect(isOk(work) && work.value.available).toBe(false);
       const manual = await recordManualRefund(db, staff, {
@@ -1443,6 +1452,7 @@ describe('S18 round 2: resends, It Went Through, refunded invoices, durable chec
       const work = await getOrganizationRefundWork(db, await scopeOf(w), {
         organizationId: w.organizationId,
         gatewayProvider: 'sslcommerz',
+        gatewayMode: 'LIVE',
       });
       expect(isOk(work) && work.value.held.map((h) => [h.id, h.verified])).toEqual([
         [attempt.id, true],
@@ -1485,6 +1495,7 @@ describe('S18 round 2: resends, It Went Through, refunded invoices, durable chec
       const view = await getOrganizationRefundWork(db, await scopeOf(w), {
         organizationId: w.organizationId,
         gatewayProvider: 'sslcommerz',
+        gatewayMode: 'LIVE',
       });
       expect(
         isOk(view) && view.value.requests.find((r) => r.id === stuck.value.request.id)?.failureCode,
@@ -1527,6 +1538,7 @@ describe('S18 round 2: resends, It Went Through, refunded invoices, durable chec
           amountMinorUnits: 100,
           currency: 'BDT',
           kind: 'ADMIN_RECORDED',
+          mode: 'LIVE',
           sourceId: randomUUID(),
           reference: `BANK-${i}`,
           collectedDate: new Date(base + i * DAY),

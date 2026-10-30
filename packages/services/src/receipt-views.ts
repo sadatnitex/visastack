@@ -1,9 +1,10 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { type SQL, and, asc, eq, inArray } from 'drizzle-orm';
 import { invoiceLedgerReader } from './billing';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { isMissingRelationError } from './missing-relation';
+import { type PaymentMode, ledgerModeSql } from './plans-schema';
 import { formatReceiptNumber } from './receipts';
 
 /**
@@ -33,13 +34,15 @@ export interface ReceiptView {
   readonly currency: string;
   /** How the money arrived: ONLINE, MANUAL_CLAIM, ADMIN_RECORDED or CREDIT. */
   readonly kind: string;
+  /** S29: TEST for a payment made in the gateway's test mode (shown as "Test Payment"). */
+  readonly mode: 'TEST' | 'LIVE';
   readonly collectedDate: Date;
   readonly issuedAt: Date;
 }
 
 const NOT_ALLOWED = 'not allowed to see these receipts';
 
-function viewColumns() {
+function viewColumns(mode: SQL<PaymentMode>) {
   return {
     id: schema.paymentReceipts.id,
     receiptNumber: schema.paymentReceipts.receiptNumber,
@@ -48,6 +51,7 @@ function viewColumns() {
     amountMinorUnits: schema.paymentReceipts.amountMinorUnits,
     currency: schema.paymentReceipts.currency,
     kind: schema.invoicePayments.kind,
+    mode,
     collectedDate: schema.invoicePayments.collectedDate,
     issuedAt: schema.paymentReceipts.issuedAt,
   };
@@ -61,6 +65,7 @@ function toView(row: {
   amountMinorUnits: number;
   currency: string;
   kind: string;
+  mode: PaymentMode;
   collectedDate: Date;
   issuedAt: Date;
 }): ReceiptView {
@@ -92,7 +97,7 @@ export async function listReceipts(
     }
     const scope = and(...filters);
     const rows = await db
-      .select(viewColumns())
+      .select(viewColumns(await ledgerModeSql(db)))
       .from(receipts)
       .innerJoin(schema.invoices, eq(schema.invoices.id, receipts.invoiceId))
       .innerJoin(schema.invoicePayments, eq(schema.invoicePayments.id, receipts.invoicePaymentId))
@@ -129,7 +134,7 @@ export async function getReceipt(
     const row = first(
       await db
         .select({
-          ...viewColumns(),
+          ...viewColumns(await ledgerModeSql(db)),
           reference: schema.invoicePayments.reference,
           organizationName: schema.organizations.name,
           invoicedAmountMinorUnits: schema.invoices.invoicedAmountMinorUnits,

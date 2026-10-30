@@ -109,8 +109,18 @@ async function seed() {
     dueDate: new Date(now.getTime() + 14 * 86_400_000),
   });
   if (!created.ok) throw new Error('invoice');
+  // S29: the sandbox is the gateway's test mode, where only the platform owner may start a
+  // payment (for an agency they belong to), as the owner does when testing.
+  await db.insert(schema.memberships).values({
+    accountId: platform.value.id,
+    organizationId: org.value.id,
+    role: 'ADMIN',
+    active: true,
+  });
   const started = await startOnlinePayment(db, port, {
-    actorAccountId: admin.value.id,
+    actorAccountId: platform.value.id,
+    actorEmail: platform.value.email,
+    bootstrapEmails: [],
     invoiceId: created.value.id,
     urlFor: (kind, id) =>
       `${BASE}/api/payments/sslcommerz/${kind === 'ipn' ? 'ipn' : `return?o=${kind}&t=${id}`}`,
@@ -497,9 +507,17 @@ async function freshAttempt(ref: string): Promise<{ invoiceId: string; tran: str
     })
     .returning();
   if (!row) throw new Error('invoice');
-  const admin = (await db.select().from(schema.memberships))[0];
+  // S29: in the sandbox (test mode) the platform owner, who is also an admin here, starts it.
+  const owner = (
+    await db
+      .select({ id: schema.accounts.id, email: schema.accounts.email })
+      .from(schema.accounts)
+      .where(eq(schema.accounts.email, 'platform@example.com'))
+  )[0];
   const started = await startOnlinePayment(db, port, {
-    actorAccountId: admin?.accountId ?? randomUUID(),
+    actorAccountId: owner?.id ?? randomUUID(),
+    actorEmail: owner?.email ?? '',
+    bootstrapEmails: [],
     invoiceId: row.id,
     urlFor: (kind, id) => `${BASE}/x/${kind}/${id}`,
   });

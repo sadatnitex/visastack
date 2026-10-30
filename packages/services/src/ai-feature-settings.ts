@@ -19,6 +19,7 @@ import { aiFilesAvailable } from './ai-files-ready';
 import { aiSuggestionsAvailable } from './ai-suggestions';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
+import { resolveEntitlements } from './entitlements';
 import { type ServiceError, serviceError } from './errors';
 
 /**
@@ -64,15 +65,19 @@ export interface AiPlanEntitlement {
 }
 
 /**
- * The AI features a person's plan includes. Today every person is on the FREE tier, which is also
- * the floor everyone keeps. Paid tiers plug in here: read the account's plan (for example its
- * subscription) and return that tier from `AI_PLAN_TIERS`, keeping FREE for anyone without one.
- * The caller already passed the access gate; this only decides how much.
+ * The AI features a person's plan includes (S29): read from the traveller plan's rules
+ * (`plan_entitlements`, keys `ai.<feature>`) through the one entitlement resolver, so the platform
+ * owner sets them on the Plans page. Every person is on Traveller Free today, which is also the
+ * floor everyone keeps; a feature the plan has no row for uses the built-in FREE tier
+ * (`AI_PLAN_TIERS`, which now only seeds the plan). The caller already passed the access gate;
+ * this only decides how much.
  */
-export function aiEntitlementFor(_context: {
-  readonly accountId: string | null;
-}): AiPlanEntitlement {
-  return { tier: 'FREE', features: AI_PLAN_TIERS.FREE };
+export async function aiEntitlementFor(
+  db: Db,
+  _context: { readonly accountId: string | null },
+): Promise<AiPlanEntitlement> {
+  const resolved = await resolveEntitlements(db, { accountId: _context.accountId });
+  return { tier: 'FREE', features: resolved.features ?? AI_PLAN_TIERS.FREE };
 }
 
 interface SavedSetting {
@@ -146,7 +151,7 @@ export async function getAiFeatureState(
   // Each readiness probe caches a "yes" per database handle, so asking again is free.
   if (!(await FEATURE_READY[feature](db))) return off('not_available_yet');
   const saved = await savedSetting(db, feature);
-  const plan = aiEntitlementFor({ accountId }).features[feature];
+  const plan = (await aiEntitlementFor(db, { accountId })).features[feature];
   const dailyLimit = effectiveAiDailyLimit(plan.dailyLimit, saved.dailyLimit);
   if (!saved.enabled) return off('turned_off', dailyLimit);
   if (!plan.included) return off('not_in_plan', dailyLimit);
@@ -161,7 +166,7 @@ export interface AiFeatureSettingView {
   readonly enabled: boolean;
   /** The admin's own limit, or null for the plan's. */
   readonly adminDailyLimit: number | null;
-  /** The FREE tier's limit, the most anyone gets today. */
+  /** The traveller plan's limit (set on the Plans page), the most anyone gets today. */
   readonly planDailyLimit: number | null;
   readonly ready: boolean;
   readonly updatedAt: Date | null;
@@ -182,6 +187,7 @@ export async function listAiFeatureSettings(
   if (denied) return err(denied);
   const available = await settingsTablePresent(db);
   const features: AiFeatureSettingView[] = [];
+  const plan = await aiEntitlementFor(db, { accountId: null });
   for (const feature of AI_FEATURE_KEYS) {
     const saved = await savedSetting(db, feature);
     features.push({
@@ -190,7 +196,7 @@ export async function listAiFeatureSettings(
       description: AI_FEATURES[feature].description,
       enabled: saved.enabled,
       adminDailyLimit: saved.dailyLimit,
-      planDailyLimit: AI_PLAN_TIERS.FREE[feature].dailyLimit,
+      planDailyLimit: plan.features[feature].dailyLimit,
       ready: await FEATURE_READY[feature](db),
       updatedAt: saved.updatedAt,
     });

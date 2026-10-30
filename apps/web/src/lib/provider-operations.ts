@@ -17,7 +17,12 @@ export interface ProviderOperationsRow {
 
 /** Counts describe application records, never a provider's invoice or remaining quota. */
 export function describeProviderOperations(
-  input: { readonly evidenceBytes?: number; readonly aiCostUnits?: number },
+  input: {
+    readonly evidenceBytes?: number;
+    readonly aiCostUnits?: number;
+    /** S29: the gateway mode from `paymentMode()` (providers.ts); null when not configured. */
+    readonly paymentMode?: 'TEST' | 'LIVE' | null;
+  },
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): ProviderOperationsRow[] {
   const rows = rawRows(input, env);
@@ -25,7 +30,11 @@ export function describeProviderOperations(
 }
 
 function rawRows(
-  input: { readonly evidenceBytes?: number; readonly aiCostUnits?: number },
+  input: {
+    readonly evidenceBytes?: number;
+    readonly aiCostUnits?: number;
+    readonly paymentMode?: 'TEST' | 'LIVE' | null;
+  },
   env: Readonly<Record<string, string | undefined>>,
 ): Omit<ProviderOperationsRow, 'standing' | 'headline'>[] {
   const read = (name: string) => env[name];
@@ -52,6 +61,18 @@ function rawRows(
       source: 'Configuration',
       detail:
         'Provider acceptance is different from delivery. Receipt endpoint registration and signed events must also be verified.',
+    },
+    {
+      label: 'Online Payments',
+      reading:
+        input.paymentMode === 'LIVE'
+          ? 'Live payments'
+          : input.paymentMode === 'TEST'
+            ? 'Test payments only'
+            : 'Not configured',
+      source: 'Configuration',
+      detail:
+        'Test payments mark invoices paid but are not money: they are labelled Test Payment and left out of the Monthly Accounting File. Only the platform owner can make one. Live payments need the live store settings.',
     },
     {
       label: 'Document Storage',
@@ -140,6 +161,19 @@ function plain(
               'Receipt checking is switched on. Delivery is unproven until a real receipt arrives.',
           }
         : { standing: 'Not Set Up', headline: 'Delivery receipts are not being checked yet.' };
+    case 'Online Payments':
+      return row.reading === 'Live payments'
+        ? {
+            standing: 'Set Up',
+            headline: 'Agencies can pay invoices online with real money.',
+          }
+        : row.reading === 'Test payments only'
+          ? {
+              standing: 'Set Up',
+              headline:
+                'Online payment is in test mode. Only you can make a test payment; agencies cannot pay online yet.',
+            }
+          : { standing: 'Not Set Up', headline: 'Online payment is not set up.' };
     case 'Document Storage':
       return row.reading === 'Configuration present'
         ? {

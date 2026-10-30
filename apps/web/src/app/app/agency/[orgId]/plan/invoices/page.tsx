@@ -1,12 +1,18 @@
 import {
   type AgencyInvoiceView,
   type Db,
+  TEST_PAYMENTS_ONLY,
   listAgencyInvoices,
   refreshInvoicePaymentAttempts,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { PageHeader } from '../../../../../../components/ui';
-import { createPaymentPort, isPaymentProviderConfigured } from '../../../../../../lib/providers';
+import { isPlatformOwnerAccount } from '../../../../../../lib/admin';
+import {
+  createPaymentPort,
+  isPaymentProviderConfigured,
+  paymentMode,
+} from '../../../../../../lib/providers';
 import { reportServerError } from '../../../../../../lib/server-error';
 import { withSession } from '../../../../../../lib/session';
 import { BillingStatusNotice, loadBillingNotice } from '../../billing-status-notice';
@@ -73,17 +79,22 @@ export default async function AgencyInvoicesPage({
 }) {
   const { orgId } = await params;
 
-  const data = await withSession(async ({ db, accountId }) => {
+  const data = await withSession(async ({ db, accountId, email }) => {
     let listed = await listAgencyInvoices(db, { actorAccountId: accountId, organizationId: orgId });
     if (listed.ok && (await checkOpenPayments(db, accountId, orgId, listed.value))) {
       listed = await listAgencyInvoices(db, { actorAccountId: accountId, organizationId: orgId });
     }
-    if (!listed.ok) return { invoices: [], allowed: false, status: null };
+    if (!listed.ok) return { invoices: [], allowed: false, status: null, owner: false };
     const status = await loadBillingNotice(db, accountId, orgId);
-    return { invoices: listed.value, allowed: true, status };
+    // S29 round 2: in the gateway's test mode only the platform owner can pay online.
+    const owner =
+      paymentMode() === 'TEST' ? await isPlatformOwnerAccount(db, { accountId, email }) : false;
+    return { invoices: listed.value, allowed: true, status, owner };
   });
   const now = new Date();
-  const onlineAvailable = isPaymentProviderConfigured();
+  const mode = paymentMode();
+  const onlineAvailable = mode === 'LIVE' || (mode === 'TEST' && data.owner);
+  const testModeHint = mode === 'TEST' && !data.owner ? TEST_PAYMENTS_ONLY : null;
   // The newest calendar day anywhere on earth (UTC+14), so nobody is stopped from choosing their own today.
   const latestDate = new Date(Date.now() + 14 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
@@ -115,6 +126,7 @@ export default async function AgencyInvoicesPage({
               invoice={invoice}
               organizationId={orgId}
               onlineAvailable={onlineAvailable}
+              testModeHint={testModeHint}
               latestDate={latestDate}
               now={now}
             />

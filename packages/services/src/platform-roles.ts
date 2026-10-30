@@ -128,7 +128,8 @@ export type PlatformAction =
   | 'BILLING_SETTINGS_MANAGE'
   | 'AI_FEATURES_MANAGE'
   | 'BILLING_REFUND_MANAGE'
-  | 'BILLING_LEDGER_EXPORT';
+  | 'BILLING_LEDGER_EXPORT'
+  | 'PLANS_MANAGE';
 
 /**
  * The one role, besides `PLATFORM_OWNER`, that may perform each action. `null` means the platform
@@ -183,6 +184,9 @@ const ACTION_ROLES: Readonly<
   // billing staff role can be added later as its own concern.
   BILLING_REFUND_MANAGE: null,
   BILLING_LEDGER_EXPORT: null,
+  // S29: the plans agencies can be put on, their limits and their prices are a commercial
+  // decision for the platform owner alone, like the billing rules.
+  PLANS_MANAGE: null,
 };
 
 /**

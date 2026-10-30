@@ -18,6 +18,8 @@ import {
 export class FakePaymentPort implements RefundingPaymentPort {
   readonly configured = true;
   readonly provider = 'sslcommerz';
+  /** S29: LIVE unless a test sets TEST (in test mode only the platform owner can start a payment). */
+  mode: 'TEST' | 'LIVE' = 'LIVE';
   readonly storeId: string | null = 'teststore';
   readonly checkouts: CreateCheckoutInput[] = [];
   readonly validationCalls: string[] = [];

@@ -13,6 +13,7 @@ import {
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { bootstrapAdminEmails } from '../../../../../../lib/admin-emails';
 import { resolveBaseUrl } from '../../../../../../lib/base-url';
 import { moneyFieldOf } from '../../../../../../lib/money-fields';
 import { paymentUrlFor } from '../../../../../../lib/payment-urls';
@@ -80,7 +81,11 @@ export async function startPaymentAction(
   const startAnother = text(formData, 'startAnother') === 'yes';
 
   const outcome = await withSession(
-    async ({ db, accountId }): Promise<InvoiceActionState | { readonly redirectUrl: string }> => {
+    async ({
+      db,
+      accountId,
+      email,
+    }): Promise<InvoiceActionState | { readonly redirectUrl: string }> => {
       let port: ReturnType<typeof createPaymentPort>;
       try {
         port = createPaymentPort();
@@ -89,6 +94,9 @@ export async function startPaymentAction(
       }
       const started = await startOnlinePayment(db, port, {
         actorAccountId: accountId,
+        // S29: in the gateway's test mode only the platform owner may start a payment.
+        actorEmail: email,
+        bootstrapEmails: bootstrapAdminEmails(),
         invoiceId: found.invoiceId,
         urlFor: paymentUrlFor(resolveBaseUrl()),
         startAnother,

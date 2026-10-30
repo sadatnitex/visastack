@@ -13,6 +13,7 @@ import {
   attemptView,
   isRecentAttempt,
 } from './payments';
+import { attemptColumns } from './plans-schema';
 import { type ReceiptView, listReceipts } from './receipt-views';
 
 /**
@@ -136,7 +137,7 @@ export async function listAgencyInvoices(
   let attempts: PaymentAttempt[] = [];
   try {
     attempts = await db
-      .select()
+      .select(attemptColumns())
       .from(schema.paymentAttempts)
       .where(inArray(schema.paymentAttempts.invoiceId, ids))
       .orderBy(desc(schema.paymentAttempts.createdAt))
