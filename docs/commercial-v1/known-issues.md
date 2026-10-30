@@ -6572,3 +6572,14 @@ Owner request after #348: a model dropdown so a display name ("Claude 5.5") cann
   - "Travellers" on the Plans page counts every account, agency members included, since each uses the traveller plan for its own record.
   - The own-record lookup on upload runs only when an agency suspension is in play.
   - Break-to-red, restored from cp backups: kept mark, live payments in the check, probe count (0 after warm-up), Storage rounding, downgrade error, Founding Access words, traveller count. All went red.
+
+### 2026-10-30, readable admin layouts, phase 1: AI Settings and Platform Overview
+
+Owner report: long, plain, full-width fields and read-outs are hard to follow (label on the far left, value on the far right of a wide card; forms of one input per line).
+
+- New opt-in styles, block `WP-UX-DENSE` at the end of `apps/web/src/app/globals.css`: `.rows-grid` turns a `.rows` read-out into tiles with each label right above its value (two columns on a phone, more on wider screens); `.form-section` and `.form-grid` turn a long form into titled groups whose fields sit in columns; `.action-bar` holds a card's actions with revoke and delete at the far end; `.field-static` shows a value that cannot change on a form. No existing class changed behaviour; pages opt in.
+- AI Settings: each configuration is one card (`config-card.tsx`) with its facts in tiles and one action bar; the page is grouped into Active Setup, Drafts, New Setup (folded unless nothing is configured), Data Rules and AI App Connections, and Earlier Versions (folded). The settings form is grouped into Model, Access, Spending Limits (rare limits folded), Fallback, and data terms (folded on a new draft). Field names, ids and actions are unchanged; wording lost engineering references.
+- Platform Overview: the Product Scorecard, Operational Signals, Platform Readiness Detail, Learning Areas and Commercial Readiness read-outs use the tiles; the providers rail is wider and each provider reads as name and status, then its reading. Failed jobs stay a list (each has its own action).
+- Checks: the web tests (lib, admin, components: 2,430) passed after the change, including the accessibility and title-case guards. Looked at with the page's own captured markup at desktop and phone widths.
+- Phase 2 (after owner review): organisations, plans, packs, billing, privacy and access admin pages, then the profile editor, case and agency pages that share the same pattern.
+

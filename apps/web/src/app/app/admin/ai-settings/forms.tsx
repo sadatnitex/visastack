@@ -1,7 +1,7 @@
 'use client';
 
 import type { AiProviderConfig } from '@visastack/services';
-import { useActionState, useState } from 'react';
+import { type ReactNode, useActionState, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { OTHER_MODEL, aiModelOptionsFor } from '../../../../lib/ai-models';
 import { aiConfigStatusLabel, aiProviderLabel } from '../../../../lib/labels';
@@ -82,7 +82,7 @@ export interface FallbackOption {
 type KeyMode = 'required' | 'keep' | 'copy';
 
 const KEY_PLACEHOLDER: Record<KeyMode, string> = {
-  required: 'Write-only -- never shown again after saving',
+  required: 'Write-only, never shown again after saving',
   keep: 'Leave blank to keep the saved key',
   copy: 'Leave blank to reuse the saved key',
 };
@@ -175,6 +175,7 @@ function ModelPicker({
 function ConfigSettingsFields({
   idPrefix,
   provider,
+  providerField,
   resetCount,
   fallbackOptions,
   config,
@@ -182,6 +183,8 @@ function ConfigSettingsFields({
 }: {
   readonly idPrefix: string;
   readonly provider: string;
+  /** The provider control (a list on a new draft, the fixed name on an edit), first in the Model group. */
+  readonly providerField: ReactNode;
   /** Bumped when the form resets, so the model list starts again from what the form shows. */
   readonly resetCount: number;
   readonly fallbackOptions: readonly FallbackOption[];
@@ -191,208 +194,244 @@ function ConfigSettingsFields({
   const id = (name: string) => `${idPrefix}-${name}`;
   const usd = (value: number | null | undefined) =>
     value === null || value === undefined ? undefined : Number(value.toFixed(2));
+  // The rarely changed limits stay folded away unless one of them is already set.
+  const moreLimitsSet =
+    config !== undefined &&
+    [
+      config.maxAttemptsPerDocument,
+      config.maxPagesPerDocument,
+      config.cacheMaxAgeDays,
+      config.maxConcurrentCalls,
+    ].some((value) => value !== null);
   return (
     <>
-      <ModelPicker
-        // A new provider, or a reset form, starts the list again from the top.
-        key={`${provider}-${resetCount}`}
-        idPrefix={idPrefix}
-        provider={provider}
-        {...(config ? { savedModel: config.model } : {})}
-      />
-      <div className="field-row">
-        <label className="field-label" htmlFor={id('reasoningEffort')}>
-          Reasoning Effort
-        </label>
-        <select
-          id={id('reasoningEffort')}
-          name="reasoningEffort"
-          className="input"
-          defaultValue={config?.reasoningEffort ?? ''}
-          aria-describedby={id('reasoningEffort-hint')}
-        >
-          {REASONING_EFFORT_OPTIONS.map((r) => (
-            <option key={r.value} value={r.value}>
-              {r.label}
-            </option>
-          ))}
-        </select>
-        <p id={id('reasoningEffort-hint')} className="field-hint">
-          Lower is faster and cheaper; higher reads more carefully. Keep Use Model Default unless
-          the model supports this setting. Claude models that do not support it skip it.
-        </p>
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor={id('apiKey')}>
-          API Key
-        </label>
-        <input
-          id={id('apiKey')}
-          name="apiKey"
-          type="password"
-          required={keyMode === 'required'}
-          autoComplete="off"
-          className="input"
-          placeholder={KEY_PLACEHOLDER[keyMode]}
-          aria-describedby={config ? id('apiKey-hint') : undefined}
-        />
-        {config ? (
-          <p id={id('apiKey-hint')} className="field-hint">
-            Saved key: {config.apiKeyFingerprint}.
-            {keyMode === 'keep'
-              ? ' A new key clears the data terms recorded for this draft; record them again for the new key.'
-              : ''}
-          </p>
-        ) : null}
-      </div>
-      <label className="check">
-        <input
-          type="checkbox"
-          name="dataPolicyApproved"
-          defaultChecked={config?.dataPolicyApproved ?? false}
-        />
-        <span>
-          I have reviewed and approved this provider&rsquo;s data handling for this configuration
-          (Part 8 §5 reviewed data policy -- required before this configuration can be activated).
-        </span>
-      </label>
-      <div className="field-row">
-        <label className="field-label" htmlFor={id('budgetLimitUsd')}>
-          Monthly Budget (USD)
-        </label>
-        <input
-          id={id('budgetLimitUsd')}
-          name="budgetLimitUsd"
-          type="number"
-          min="0.01"
-          step="0.01"
-          required
-          className="input"
-          placeholder="e.g. 20"
-          defaultValue={usd(config?.budgetUsd)}
-        />
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor={id('perDocumentBudgetLimitUsd')}>
-          Per-Document Budget (USD, Optional)
-        </label>
-        <input
-          id={id('perDocumentBudgetLimitUsd')}
-          name="perDocumentBudgetLimitUsd"
-          type="number"
-          min="0.01"
-          step="0.01"
-          className="input"
-          placeholder="e.g. 0.5"
-          defaultValue={usd(config?.perDocumentBudgetUsd)}
-        />
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor={id('maxAttemptsPerDocument')}>
-          Max Attempts per Document (Optional)
-        </label>
-        <input
-          id={id('maxAttemptsPerDocument')}
-          name="maxAttemptsPerDocument"
-          type="number"
-          min="1"
-          step="1"
-          className="input"
-          placeholder="e.g. 3"
-          defaultValue={config?.maxAttemptsPerDocument ?? undefined}
-        />
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor={id('maxPagesPerDocument')}>
-          Max Pages per Document (Optional)
-        </label>
-        <input
-          id={id('maxPagesPerDocument')}
-          name="maxPagesPerDocument"
-          type="number"
-          min="1"
-          step="1"
-          className="input"
-          placeholder="e.g. 25"
-          defaultValue={config?.maxPagesPerDocument ?? undefined}
-        />
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor={id('cacheMaxAgeDays')}>
-          Cache Max Age, Days (Optional)
-        </label>
-        <input
-          id={id('cacheMaxAgeDays')}
-          name="cacheMaxAgeDays"
-          type="number"
-          min="1"
-          step="1"
-          className="input"
-          placeholder="e.g. 30"
-          defaultValue={config?.cacheMaxAgeDays ?? undefined}
-        />
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor={id('maxConcurrentCalls')}>
-          Max Concurrent Calls (Optional)
-        </label>
-        <input
-          id={id('maxConcurrentCalls')}
-          name="maxConcurrentCalls"
-          type="number"
-          min="1"
-          step="1"
-          className="input"
-          placeholder="e.g. 5"
-          defaultValue={config?.maxConcurrentCalls ?? undefined}
-        />
-      </div>
-      <label className="check">
-        <input
-          type="checkbox"
-          name="fallbackEnabled"
-          defaultChecked={config?.fallbackEnabled ?? false}
-        />
-        <span>
-          Enable cross-provider fallback (Part 8 §13): if this configuration&rsquo;s call times out
-          or is rate-limited, automatically retry once against the fallback configuration below.
-          Never used after a refusal, an authentication failure, or any other non-recoverable
-          outcome. The fallback must use a different provider.
-        </span>
-      </label>
-      <div className="field-row">
-        <label className="field-label" htmlFor={id('fallbackProviderConfigId')}>
-          Fallback Configuration (Optional)
-        </label>
-        <select
-          id={id('fallbackProviderConfigId')}
-          name="fallbackProviderConfigId"
-          className="input"
-          defaultValue={config?.fallbackProviderConfigId ?? ''}
-        >
-          <option value="">None</option>
-          {fallbackOptions
-            .filter((c) => c.id !== config?.id)
-            .map((c) => (
-              <option key={c.id} value={c.id}>
-                {aiProviderLabel(c.provider)}, {c.model}: {aiConfigStatusLabel(c.status)}
-              </option>
-            ))}
-        </select>
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor={id('notes')}>
-          Notes (Optional)
-        </label>
-        <input
-          id={id('notes')}
-          name="notes"
-          type="text"
-          className="input"
-          placeholder="Internal notes"
-          defaultValue={config?.notes ?? undefined}
-        />
-      </div>
+      <fieldset className="form-section">
+        <legend>Model</legend>
+        <div className="form-grid">
+          {providerField}
+          <ModelPicker
+            // A new provider, or a reset form, starts the list again from the top.
+            key={`${provider}-${resetCount}`}
+            idPrefix={idPrefix}
+            provider={provider}
+            {...(config ? { savedModel: config.model } : {})}
+          />
+          <div className="field-row">
+            <label className="field-label" htmlFor={id('reasoningEffort')}>
+              Reasoning Effort
+            </label>
+            <select
+              id={id('reasoningEffort')}
+              name="reasoningEffort"
+              className="input"
+              defaultValue={config?.reasoningEffort ?? ''}
+              aria-describedby={id('reasoningEffort-hint')}
+            >
+              {REASONING_EFFORT_OPTIONS.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+            <p id={id('reasoningEffort-hint')} className="field-hint">
+              Lower is faster and cheaper; higher reads more carefully. Models without this setting
+              skip it.
+            </p>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset className="form-section">
+        <legend>Access</legend>
+        <div className="form-grid">
+          <div className="field-row field-wide">
+            <label className="field-label" htmlFor={id('apiKey')}>
+              API Key
+            </label>
+            <input
+              id={id('apiKey')}
+              name="apiKey"
+              type="password"
+              required={keyMode === 'required'}
+              autoComplete="off"
+              className="input"
+              placeholder={KEY_PLACEHOLDER[keyMode]}
+              aria-describedby={config ? id('apiKey-hint') : undefined}
+            />
+            {config ? (
+              <p id={id('apiKey-hint')} className="field-hint">
+                Saved key: {config.apiKeyFingerprint}.
+                {keyMode === 'keep'
+                  ? ' A new key clears the data terms recorded for this draft; record them again for the new key.'
+                  : ''}
+              </p>
+            ) : null}
+          </div>
+          <label className="check field-wide">
+            <input
+              type="checkbox"
+              name="dataPolicyApproved"
+              defaultChecked={config?.dataPolicyApproved ?? false}
+            />
+            <span>
+              I have reviewed and approve this provider&rsquo;s data handling. Required before this
+              setup can be activated.
+            </span>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset className="form-section">
+        <legend>Spending Limits</legend>
+        <div className="form-grid">
+          <div className="field-row">
+            <label className="field-label" htmlFor={id('budgetLimitUsd')}>
+              Monthly Budget (USD)
+            </label>
+            <input
+              id={id('budgetLimitUsd')}
+              name="budgetLimitUsd"
+              type="number"
+              min="0.01"
+              step="0.01"
+              required
+              className="input"
+              placeholder="e.g. 20"
+              defaultValue={usd(config?.budgetUsd)}
+            />
+          </div>
+          <div className="field-row">
+            <label className="field-label" htmlFor={id('perDocumentBudgetLimitUsd')}>
+              Per-Document Budget (USD, Optional)
+            </label>
+            <input
+              id={id('perDocumentBudgetLimitUsd')}
+              name="perDocumentBudgetLimitUsd"
+              type="number"
+              min="0.01"
+              step="0.01"
+              className="input"
+              placeholder="e.g. 0.5"
+              defaultValue={usd(config?.perDocumentBudgetUsd)}
+            />
+          </div>
+        </div>
+        <details className="disclosure form-more" open={moreLimitsSet}>
+          <summary>More Limits (Optional)</summary>
+          <div className="disclosure-body form-grid">
+            <div className="field-row">
+              <label className="field-label" htmlFor={id('maxAttemptsPerDocument')}>
+                Max Attempts per Document
+              </label>
+              <input
+                id={id('maxAttemptsPerDocument')}
+                name="maxAttemptsPerDocument"
+                type="number"
+                min="1"
+                step="1"
+                className="input"
+                placeholder="e.g. 3"
+                defaultValue={config?.maxAttemptsPerDocument ?? undefined}
+              />
+            </div>
+            <div className="field-row">
+              <label className="field-label" htmlFor={id('maxPagesPerDocument')}>
+                Max Pages per Document
+              </label>
+              <input
+                id={id('maxPagesPerDocument')}
+                name="maxPagesPerDocument"
+                type="number"
+                min="1"
+                step="1"
+                className="input"
+                placeholder="e.g. 25"
+                defaultValue={config?.maxPagesPerDocument ?? undefined}
+              />
+            </div>
+            <div className="field-row">
+              <label className="field-label" htmlFor={id('cacheMaxAgeDays')}>
+                Days to Keep Readings
+              </label>
+              <input
+                id={id('cacheMaxAgeDays')}
+                name="cacheMaxAgeDays"
+                type="number"
+                min="1"
+                step="1"
+                className="input"
+                placeholder="e.g. 30"
+                defaultValue={config?.cacheMaxAgeDays ?? undefined}
+              />
+            </div>
+            <div className="field-row">
+              <label className="field-label" htmlFor={id('maxConcurrentCalls')}>
+                Max Calls at Once
+              </label>
+              <input
+                id={id('maxConcurrentCalls')}
+                name="maxConcurrentCalls"
+                type="number"
+                min="1"
+                step="1"
+                className="input"
+                placeholder="e.g. 5"
+                defaultValue={config?.maxConcurrentCalls ?? undefined}
+              />
+            </div>
+          </div>
+        </details>
+      </fieldset>
+
+      <fieldset className="form-section">
+        <legend>Fallback</legend>
+        <div className="form-grid">
+          <label className="check field-wide">
+            <input
+              type="checkbox"
+              name="fallbackEnabled"
+              defaultChecked={config?.fallbackEnabled ?? false}
+            />
+            <span>
+              If this setup times out or is busy, try once more with the fallback below. Never after
+              a refusal or a key problem. The fallback must use a different provider.
+            </span>
+          </label>
+          <div className="field-row">
+            <label className="field-label" htmlFor={id('fallbackProviderConfigId')}>
+              Fallback Setup
+            </label>
+            <select
+              id={id('fallbackProviderConfigId')}
+              name="fallbackProviderConfigId"
+              className="input"
+              defaultValue={config?.fallbackProviderConfigId ?? ''}
+            >
+              <option value="">None</option>
+              {fallbackOptions
+                .filter((c) => c.id !== config?.id)
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {aiProviderLabel(c.provider)}, {c.model}: {aiConfigStatusLabel(c.status)}
+                  </option>
+                ))}
+            </select>
+          </div>
+          <div className="field-row">
+            <label className="field-label" htmlFor={id('notes')}>
+              Notes (Optional)
+            </label>
+            <input
+              id={id('notes')}
+              name="notes"
+              type="text"
+              className="input"
+              placeholder="Internal notes"
+              defaultValue={config?.notes ?? undefined}
+            />
+          </div>
+        </div>
+      </fieldset>
     </>
   );
 }
@@ -411,39 +450,46 @@ export function CreateDraftConfigForm({
   return (
     <form
       action={formAction}
-      className="field-list"
+      className="field-list form-narrow"
       onReset={() => {
         setProvider('openai');
         setResetCount((n) => n + 1);
       }}
     >
-      <div className="field-row">
-        <label className="field-label" htmlFor="draft-provider">
-          Provider
-        </label>
-        <select
-          id="draft-provider"
-          name="provider"
-          required
-          className="input"
-          value={provider}
-          onChange={(e) => setProvider(e.target.value)}
-        >
-          {PROVIDER_OPTIONS.map((p) => (
-            <option key={p.value} value={p.value}>
-              {p.label}
-            </option>
-          ))}
-        </select>
-      </div>
       <ConfigSettingsFields
         idPrefix="draft"
         provider={provider}
+        providerField={
+          <div className="field-row">
+            <label className="field-label" htmlFor="draft-provider">
+              Provider
+            </label>
+            <select
+              id="draft-provider"
+              name="provider"
+              required
+              className="input"
+              value={provider}
+              onChange={(e) => setProvider(e.target.value)}
+            >
+              {PROVIDER_OPTIONS.map((p) => (
+                <option key={p.value} value={p.value}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        }
         resetCount={resetCount}
         fallbackOptions={fallbackOptions}
         keyMode="required"
       />
-      <TermsFields idPrefix="draft" optional />
+      <details className="disclosure form-more">
+        <summary>Provider Data Terms (Optional, Can Be Recorded Later)</summary>
+        <div className="disclosure-body">
+          <TermsFields idPrefix="draft" optional />
+        </div>
+      </details>
       <div>
         <SubmitButton
           pending={pending}
@@ -481,7 +527,7 @@ export function EditConfigForm({
   return (
     <form
       action={formAction}
-      className="field-list u-mt-100"
+      className="field-list form-narrow u-mt-100"
       onReset={() => setResetCount((n) => n + 1)}
     >
       {inPlace ? (
@@ -498,13 +544,15 @@ export function EditConfigForm({
           </p>
         </>
       )}
-      <div className="row">
-        <span className="row-key">Provider</span>
-        <span className="row-val">{aiProviderLabel(config.provider)}</span>
-      </div>
       <ConfigSettingsFields
         idPrefix={`edit-${config.id}`}
         provider={config.provider}
+        providerField={
+          <div className="field-row">
+            <span className="field-label">Provider</span>
+            <span className="field-static">{aiProviderLabel(config.provider)}</span>
+          </div>
+        }
         resetCount={resetCount}
         fallbackOptions={fallbackOptions}
         config={config}
@@ -768,99 +816,106 @@ function TermsFields({
 }) {
   const id = (name: string) => `${idPrefix}-${name}`;
   return (
-    <fieldset className="field-list">
-      <legend className="field-label">Provider Data Terms</legend>
-      <div className="field-row">
-        <label className="field-label" htmlFor={id('termsTier')}>
-          Plan
-        </label>
-        <select
-          id={id('termsTier')}
-          name="termsTier"
-          className="input"
-          defaultValue=""
-          required={!optional}
-        >
-          <option value="">{optional ? 'Not Recorded Yet' : 'Choose'}</option>
-          <option value="FREE">Free</option>
-          <option value="PAID">Paid</option>
-        </select>
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor={id('termsTrains')}>
-          May Train on What It Is Sent
-        </label>
-        <select id={id('termsTrains')} name="termsTrains" className="input" defaultValue="UNKNOWN">
-          <option value="UNKNOWN">Not Known</option>
-          <option value="YES">Yes</option>
-          <option value="NO">No</option>
-        </select>
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor={id('termsRetentionDays')}>
-          Kept for How Many Days (Optional)
-        </label>
-        <input
-          id={id('termsRetentionDays')}
-          name="termsRetentionDays"
-          type="number"
-          min="0"
-          max="3650"
-          step="1"
-          className="input"
-          placeholder="e.g. 30"
-        />
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor={id('termsRegion')}>
-          Where It Is Processed (Optional)
-        </label>
-        <input
-          id={id('termsRegion')}
-          name="termsRegion"
-          type="text"
-          maxLength={120}
-          className="input"
-          placeholder="e.g. United States"
-        />
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor={id('termsUrl')}>
-          Terms Address
-        </label>
-        <input
-          id={id('termsUrl')}
-          name="termsUrl"
-          type="url"
-          maxLength={500}
-          className="input"
-          placeholder="https://"
-        />
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor={id('termsCheckedOn')}>
-          Date Checked
-        </label>
-        <input
-          id={id('termsCheckedOn')}
-          name="termsCheckedOn"
-          type="date"
-          className="input"
-          required={!optional}
-        />
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor={id('termsNotes')}>
-          What the Terms Say (Optional)
-        </label>
-        <input
-          id={id('termsNotes')}
-          name="termsNotes"
-          type="text"
-          maxLength={500}
-          className="input"
-          placeholder="Short note, e.g. section name"
-        />
+    <fieldset className="form-section">
+      <legend>Provider Data Terms</legend>
+      <div className="form-grid">
+        <div className="field-row">
+          <label className="field-label" htmlFor={id('termsTier')}>
+            Plan
+          </label>
+          <select
+            id={id('termsTier')}
+            name="termsTier"
+            className="input"
+            defaultValue=""
+            required={!optional}
+          >
+            <option value="">{optional ? 'Not Recorded Yet' : 'Choose'}</option>
+            <option value="FREE">Free</option>
+            <option value="PAID">Paid</option>
+          </select>
+        </div>
+        <div className="field-row">
+          <label className="field-label" htmlFor={id('termsTrains')}>
+            May Train on What It Is Sent
+          </label>
+          <select
+            id={id('termsTrains')}
+            name="termsTrains"
+            className="input"
+            defaultValue="UNKNOWN"
+          >
+            <option value="UNKNOWN">Not Known</option>
+            <option value="YES">Yes</option>
+            <option value="NO">No</option>
+          </select>
+        </div>
+        <div className="field-row">
+          <label className="field-label" htmlFor={id('termsRetentionDays')}>
+            Kept for How Many Days (Optional)
+          </label>
+          <input
+            id={id('termsRetentionDays')}
+            name="termsRetentionDays"
+            type="number"
+            min="0"
+            max="3650"
+            step="1"
+            className="input"
+            placeholder="e.g. 30"
+          />
+        </div>
+        <div className="field-row">
+          <label className="field-label" htmlFor={id('termsRegion')}>
+            Where It Is Processed (Optional)
+          </label>
+          <input
+            id={id('termsRegion')}
+            name="termsRegion"
+            type="text"
+            maxLength={120}
+            className="input"
+            placeholder="e.g. United States"
+          />
+        </div>
+        <div className="field-row">
+          <label className="field-label" htmlFor={id('termsUrl')}>
+            Terms Address
+          </label>
+          <input
+            id={id('termsUrl')}
+            name="termsUrl"
+            type="url"
+            maxLength={500}
+            className="input"
+            placeholder="https://"
+          />
+        </div>
+        <div className="field-row">
+          <label className="field-label" htmlFor={id('termsCheckedOn')}>
+            Date Checked
+          </label>
+          <input
+            id={id('termsCheckedOn')}
+            name="termsCheckedOn"
+            type="date"
+            className="input"
+            required={!optional}
+          />
+        </div>
+        <div className="field-row">
+          <label className="field-label" htmlFor={id('termsNotes')}>
+            What the Terms Say (Optional)
+          </label>
+          <input
+            id={id('termsNotes')}
+            name="termsNotes"
+            type="text"
+            maxLength={500}
+            className="input"
+            placeholder="Short note, e.g. section name"
+          />
+        </div>
       </div>
     </fieldset>
   );
@@ -870,7 +925,7 @@ function TermsFields({
 export function RecordTermsForm({ configId }: { readonly configId: string }) {
   const [state, formAction, pending] = useActionState(recordAiProviderTermsAction, INITIAL);
   return (
-    <form action={formAction} className="field-list">
+    <form action={formAction} className="field-list form-narrow u-mt-100">
       <input type="hidden" name="configId" value={configId} />
       <TermsFields idPrefix={`terms-${configId}`} />
       <div>

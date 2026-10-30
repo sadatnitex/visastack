@@ -4638,7 +4638,8 @@ body:has(.auth-shell) > .footer {
 }
 .admin-reference-working-area {
   display: grid;
-  grid-template-columns: minmax(0, 2.8fr) minmax(280px, 1fr);
+  /* A wider rail, so provider readings are not a thin column of wrapped text. */
+  grid-template-columns: minmax(0, 2.2fr) minmax(300px, 1.2fr);
   gap: 1.5rem;
   align-items: start;
 }
@@ -10747,3 +10748,166 @@ summary.safe-copy-title {
   gap: 0 1.25rem;
   padding-left: 2.05rem;
 }
+
+/* WP-UX-DENSE readable settings layouts (opt-in): facts read as a grid with each label right above
+   its value, instead of label on the far left and value on the far right of a wide card; long forms
+   become titled groups whose fields sit in columns; one bar holds a card's actions. Nothing here
+   changes a class already in use: a page opts in by adding these classes. */
+.rows.rows-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr));
+  gap: var(--space-4) var(--space-5);
+}
+@media (min-width: 720px) {
+  .rows.rows-grid {
+    grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  }
+}
+.rows-grid > .row {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 0.2rem;
+  padding: 0;
+  border-bottom: none;
+}
+.rows-grid > .row > .row-key {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.rows-grid > .row > .row-val {
+  font-family: inherit;
+  font-size: var(--text-body);
+}
+.rows-grid > .row > .row-val.mono {
+  font-family: var(--font-mono);
+}
+.rows-grid > .row-wide {
+  grid-column: 1 / -1;
+}
+.form-narrow {
+  max-width: 60rem;
+}
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius);
+}
+/* A floated legend is laid out like any heading, so the group title sits inside the box. */
+.form-section > legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+  font-size: var(--text-body);
+  font-weight: 650;
+  color: var(--text);
+}
+.form-section > legend + * {
+  clear: both;
+}
+@media (max-width: 600px) {
+  .form-section {
+    padding: var(--space-3) var(--space-3) var(--space-4);
+  }
+  .disclosure > .disclosure-body:has(> form .form-section),
+  .disclosure > .disclosure-body:has(> .form-section) {
+    padding: 0 0.75rem 1rem;
+  }
+}
+.form-section-note {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: var(--space-4) var(--space-5);
+  align-items: start;
+}
+.form-grid > .field-wide {
+  grid-column: 1 / -1;
+}
+.form-more > summary {
+  padding: 0.75rem 1rem;
+  font-size: var(--text-small);
+  font-weight: 650;
+}
+.form-more > .disclosure-body {
+  padding: 0 1rem 1rem;
+}
+.card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.card-head .card-title {
+  margin: 0;
+}
+.action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--hairline-soft);
+}
+.action-bar-end {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+.stack-sm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.section-heading {
+  margin: var(--space-6) 0 var(--space-3);
+  font-size: 1.15rem;
+  font-weight: 650;
+}
+/* A value that cannot change on this form, shown where its field would be. */
+.field-static {
+  display: flex;
+  align-items: center;
+  min-height: 49px;
+  color: var(--text);
+  font-size: var(--text-body);
+}
+/* Platform Overview providers: the name and its status on one line, the reading under it. */
+.provider-readings > .row {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0.3rem;
+}
+.provider-reading-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+  font-weight: 650;
+}
+.provider-reading-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+

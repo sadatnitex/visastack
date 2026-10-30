@@ -14,24 +14,17 @@ import { bootstrapAdminEmails, staffPrincipal } from '../../../../lib/admin';
 import { unitsToUsd } from '../../../../lib/ai';
 import { aiConnectorEnabled } from '../../../../lib/ai-connector';
 import { currentAiDataMode } from '../../../../lib/ai-data-rule';
-import { formatTimestamp } from '../../../../lib/format-date';
 import { reportServerError } from '../../../../lib/server-error';
 import { withSession } from '../../../../lib/session';
 import { AiConnectionsCard, type AiConnectionsCardProps } from './ai-connections-card';
-import { DataTermsPanel, TermsRows } from './data-terms';
+import { ConfigCard } from './config-card';
+import { DataTermsPanel } from './data-terms';
 import {
-  ActivateConfigButton,
   type ConfigFormView,
   CreateDraftConfigForm,
-  DeleteDraftButton,
-  EditConfigForm,
   EmergencyDisableButton,
   type FallbackOption,
-  RecordTermsForm,
-  RevokeKeyButton,
   RollbackConfigButton,
-  RunEvaluationButton,
-  TestConnectionButton,
 } from './forms';
 
 export const metadata: Metadata = { title: 'AI Settings' };
@@ -47,13 +40,6 @@ export const dynamic = 'force-dynamic';
 // reason; if this deployment's plan caps lower than the value below, Vercel
 // itself clamps to that ceiling rather than erroring.
 export const maxDuration = 300;
-
-const STATUS_BADGE: Record<AiProviderConfig['status'], { label: string; tone: string }> = {
-  DRAFT: { label: 'Draft', tone: 'badge-neutral' },
-  ACTIVE: { label: 'Active', tone: 'badge-success' },
-  SUPERSEDED: { label: 'Superseded', tone: 'badge-neutral' },
-  DISABLED: { label: 'Disabled', tone: 'badge-danger' },
-};
 
 /**
  * What the settings forms may see of a configuration: its settings, never its key material.
@@ -202,189 +188,106 @@ export default async function AiSettingsPage() {
         </div>
       ) : null}
 
-      <DataTermsPanel
-        mode={data.mode}
-        setting={data.setting}
-        termsAvailable={data.terms.available}
-        active={data.active}
-        fallback={data.fallback}
-        termsFor={(configId) => aiProviderTermsFor(data.terms, configId)}
-      />
+      {(() => {
+        const viewsById = new Map(formViews.map((view) => [view.id, view]));
+        const card = (config: AiProviderConfig) => {
+          const formView = viewsById.get(config.id);
+          if (!formView) return null;
+          // Part 8 §13: the target need not be ACTIVE (it commonly is not -- the platform's own
+          // single-winner invariant means it is necessarily some other status), so this looks it
+          // up by id across the FULL history list, not just active/eligible rows.
+          const fallbackTarget = config.fallbackEnabled
+            ? data.history.find((c) => c.id === config.fallbackProviderConfigId)
+            : undefined;
+          return (
+            <ConfigCard
+              key={config.id}
+              config={config}
+              formView={formView}
+              fallbackTarget={fallbackTarget}
+              terms={aiProviderTermsFor(data.terms, config.id)}
+              fallbackOptions={fallbackOptions}
+            />
+          );
+        };
+        const drafts = data.history.filter((c) => c.status === 'DRAFT');
+        const earlier = data.history.filter(
+          (c) => c.status === 'SUPERSEDED' || c.status === 'DISABLED',
+        );
+        return (
+          <>
+            {data.active ? (
+              <section aria-labelledby="ai-active-heading">
+                <h2 className="section-heading" id="ai-active-heading">
+                  Active Setup
+                </h2>
+                {card(data.active)}
+              </section>
+            ) : null}
 
-      <AiConnectionsCard counts={data.connectionCounts} enabled={aiConnectorEnabled()} />
+            {drafts.length > 0 ? (
+              <section aria-labelledby="ai-drafts-heading">
+                <h2 className="section-heading" id="ai-drafts-heading">
+                  Drafts ({drafts.length})
+                </h2>
+                <div className="stack-sm">{drafts.map(card)}</div>
+              </section>
+            ) : null}
 
-      <article className="card u-mb-150">
-        <p className="card-kicker">New Configuration</p>
-        <h2 className="card-title">Create Draft</h2>
-        <p className="card-body u-mb-100">
-          Saving a draft has no effect on live traffic -- it only takes effect once activated below.
-          The API key is write-only: it is encrypted immediately and never shown again, only a
-          masked fingerprint.
-        </p>
-        <CreateDraftConfigForm fallbackOptions={fallbackOptions} />
-      </article>
-
-      {data.history.length > 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {data.history.map((config, index) => {
-            const badge = STATUS_BADGE[config.status];
-            const formView = formViews[index];
-            const isDraft = config.status === 'DRAFT';
-            const canActivate =
-              config.status === 'DRAFT' &&
-              config.dataPolicyApproved &&
-              config.keyRevokedAt === null;
-            const canRevoke = config.keyRevokedAt === null;
-            // A revoked key is fully retired ("cannot resurrect: revoked
-            // key") -- otherwise testing is useful at every other status:
-            // before activating a DRAFT, or to re-check an ACTIVE/SUPERSEDED/
-            // DISABLED version's credentials still round-trip.
-            const canTest = config.keyRevokedAt === null;
-            // Same eligibility bar as the connection test -- a revoked key
-            // has nothing left to evaluate.
-            const canEvaluate = config.keyRevokedAt === null;
-            // Part 8 §13: the target need not be ACTIVE (it commonly is not
-            // -- the platform's own single-winner invariant means it is
-            // necessarily some other status), so this looks it up by id
-            // across the FULL history list, not just active/eligible rows.
-            const configName = `${config.provider} / ${config.model}`;
-            const fallbackTarget = config.fallbackEnabled
-              ? data.history.find((c) => c.id === config.fallbackProviderConfigId)
-              : undefined;
-            return (
-              <article className="card" key={config.id}>
-                <div className="toolbar" style={{ marginBottom: '1rem', alignItems: 'center' }}>
-                  <h2 className="card-title u-m-0">
-                    {config.provider} / {config.model}
-                  </h2>
-                  <span className={`badge ${badge.tone}`}>{badge.label}</span>
-                </div>
-                <div className="rows">
-                  <div className="row">
-                    <span className="row-key">API Key</span>
-                    <span className="row-val">{config.apiKeyFingerprint}</span>
-                  </div>
-                  {config.reasoningEffort !== null ? (
-                    <div className="row">
-                      <span className="row-key">Reasoning Effort</span>
-                      <span className="row-val">{config.reasoningEffort}</span>
-                    </div>
-                  ) : null}
-                  <div className="row">
-                    <span className="row-key">Data Policy</span>
-                    <span
-                      className={`badge ${config.dataPolicyApproved ? 'badge-success' : 'badge-neutral'}`}
-                    >
-                      {config.dataPolicyApproved ? 'Approved' : 'Not Approved'}
+            <section aria-labelledby="ai-new-heading">
+              <h2 className="section-heading" id="ai-new-heading">
+                New Setup
+              </h2>
+              <details className="disclosure" open={!data.hasAny}>
+                <summary>
+                  <span>
+                    <strong>Create a New Draft</strong>
+                    <span className="muted u-fs-085">
+                      {' '}
+                      Has no effect until activated. The API key is encrypted at once and never
+                      shown again, only its last characters.
                     </span>
-                  </div>
-                  <div className="row">
-                    <span className="row-key">Monthly Budget</span>
-                    <span className="row-val">
-                      ${unitsToUsd(config.budgetLimitUnits).toFixed(2)}
-                    </span>
-                  </div>
-                  {config.perDocumentBudgetLimitUnits !== null ? (
-                    <div className="row">
-                      <span className="row-key">Per-Document Budget</span>
-                      <span className="row-val">
-                        ${unitsToUsd(config.perDocumentBudgetLimitUnits).toFixed(2)}
-                      </span>
-                    </div>
-                  ) : null}
-                  {config.maxAttemptsPerDocument !== null ? (
-                    <div className="row">
-                      <span className="row-key">Max attempts / document</span>
-                      <span className="row-val">{config.maxAttemptsPerDocument}</span>
-                    </div>
-                  ) : null}
-                  {config.maxPagesPerDocument !== null ? (
-                    <div className="row">
-                      <span className="row-key">Max pages / document</span>
-                      <span className="row-val">{config.maxPagesPerDocument}</span>
-                    </div>
-                  ) : null}
-                  {config.cacheMaxAgeDays !== null ? (
-                    <div className="row">
-                      <span className="row-key">Cache Max Age</span>
-                      <span className="row-val">{config.cacheMaxAgeDays} days</span>
-                    </div>
-                  ) : null}
-                  {config.maxConcurrentCalls !== null ? (
-                    <div className="row">
-                      <span className="row-key">Max Concurrent Calls</span>
-                      <span className="row-val">{config.maxConcurrentCalls}</span>
-                    </div>
-                  ) : null}
-                  {config.notes !== null && config.notes.length > 0 ? (
-                    <div className="row">
-                      <span className="row-key">Notes</span>
-                      <span className="row-val">{config.notes}</span>
-                    </div>
-                  ) : null}
-                  {config.keyRevokedAt !== null ? (
-                    <div className="row">
-                      <span className="row-key">Key Revoked</span>
-                      <span className="row-val">{formatTimestamp(config.keyRevokedAt)}</span>
-                    </div>
-                  ) : null}
-                  {config.fallbackEnabled ? (
-                    <div className="row">
-                      <span className="row-key">Fallback</span>
-                      <span className="row-val">
-                        {fallbackTarget
-                          ? `${fallbackTarget.provider} / ${fallbackTarget.model}`
-                          : 'Configured target no longer exists'}
-                      </span>
-                    </div>
-                  ) : null}
-                  <TermsRows terms={aiProviderTermsFor(data.terms, config.id)} />
-                  <div className="row">
-                    <span className="row-key">Created</span>
-                    <span className="muted u-fs-085">{formatTimestamp(config.createdAt)}</span>
-                  </div>
+                  </span>
+                </summary>
+                <div className="disclosure-body">
+                  <CreateDraftConfigForm fallbackOptions={fallbackOptions} />
                 </div>
-                {canTest || canEvaluate || canActivate || canRevoke || isDraft ? (
-                  <div
-                    style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}
-                  >
-                    {canTest ? (
-                      <TestConnectionButton configId={config.id} configName={configName} />
-                    ) : null}
-                    {canEvaluate ? (
-                      <RunEvaluationButton configId={config.id} configName={configName} />
-                    ) : null}
-                    {canActivate ? (
-                      <ActivateConfigButton configId={config.id} configName={configName} />
-                    ) : null}
-                    {canRevoke ? (
-                      <RevokeKeyButton configId={config.id} configName={configName} />
-                    ) : null}
-                    {isDraft ? (
-                      <DeleteDraftButton configId={config.id} configName={configName} />
-                    ) : null}
-                  </div>
-                ) : null}
-                {formView ? (
-                  <details className="u-mt-100">
-                    <summary className="muted">
-                      {formView.editableInPlace ? 'Edit' : 'Edit as New Draft'}
-                      <span className="sr-only"> {configName}</span>
-                    </summary>
-                    <EditConfigForm config={formView} fallbackOptions={fallbackOptions} />
-                  </details>
-                ) : null}
-                <details className="u-mt-100">
-                  <summary className="muted">
-                    Record Data Terms<span className="sr-only"> for {configName}</span>
+              </details>
+            </section>
+
+            <section aria-labelledby="ai-rules-heading">
+              <h2 className="section-heading" id="ai-rules-heading">
+                Data Rules and AI App Connections
+              </h2>
+              <div className="grid">
+                <DataTermsPanel
+                  mode={data.mode}
+                  setting={data.setting}
+                  termsAvailable={data.terms.available}
+                  active={data.active}
+                  fallback={data.fallback}
+                  termsFor={(configId) => aiProviderTermsFor(data.terms, configId)}
+                />
+                <AiConnectionsCard counts={data.connectionCounts} enabled={aiConnectorEnabled()} />
+              </div>
+            </section>
+
+            {earlier.length > 0 ? (
+              <section aria-labelledby="ai-earlier-heading">
+                <h2 className="section-heading" id="ai-earlier-heading">
+                  Earlier Versions
+                </h2>
+                <details className="disclosure">
+                  <summary>
+                    Show {earlier.length} earlier {earlier.length === 1 ? 'version' : 'versions'}
                   </summary>
-                  <RecordTermsForm configId={config.id} />
+                  <div className="disclosure-body stack-sm">{earlier.map(card)}</div>
                 </details>
-              </article>
-            );
-          })}
-        </div>
-      ) : null}
+              </section>
+            ) : null}
+          </>
+        );
+      })()}
     </section>
   );
 }
