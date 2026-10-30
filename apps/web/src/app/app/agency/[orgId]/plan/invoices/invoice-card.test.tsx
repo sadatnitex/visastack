@@ -169,6 +169,22 @@ describe('an invoice card on the agency Invoices page', () => {
     expect(html).not.toContain('I Paid Another Way');
   });
 
+  it('says online payment is being tested instead of offering Pay Online (S29 round 2)', () => {
+    const hint = 'Online payment is being tested right now.';
+    const html = renderToStaticMarkup(
+      <InvoiceCard
+        invoice={invoice()}
+        organizationId={ORG}
+        onlineAvailable={false}
+        testModeHint={hint}
+        latestDate="2026-10-30"
+      />,
+    );
+    expect(html).toContain(hint);
+    expect(html).not.toContain('Pay Online');
+    expect(html).toMatch(/aria-describedby="invoice-[^"]+-test-mode"/);
+  });
+
   it('labels a payment made in the gateway test mode "Test Payment", and a real one not (S29)', () => {
     const paid = {
       status: 'PAID' as const,

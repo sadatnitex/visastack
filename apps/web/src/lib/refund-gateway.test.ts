@@ -32,8 +32,8 @@ afterEach(() => {
 });
 
 describe('refunds through the payment gateway (S18)', () => {
-  it('are off unless the switch says "true" (spaces around it ignored, S29 switchOn)', () => {
-    for (const value of [undefined, '', 'TRUE', '1', 'yes', 'true!']) {
+  it('are off unless the switch is exactly "true"', () => {
+    for (const value of [undefined, '', 'TRUE', '1', 'yes', ' true']) {
       expect(
         refundsViaGatewayEnabled(() => value),
         String(value),
@@ -42,7 +42,6 @@ describe('refunds through the payment gateway (S18)', () => {
     }
     expect(refundsViaGatewayEnabled(on)).toBe(true);
     expect(refundSendPort(on)).toBe(refunding);
-    expect(refundsViaGatewayEnabled(() => ' true ')).toBe(true);
   });
 
   it('never make the payment port when the configuration is incomplete', () => {

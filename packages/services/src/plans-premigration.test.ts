@@ -20,7 +20,7 @@ import { startOnlinePayment } from './payments';
 import { FakePaymentPort } from './payments.test-support';
 import { getUsageForOrganization, listPlans } from './plans';
 import { listPlansForAdmin, savePlan } from './plans-admin';
-import { entitlementsSchemaPresent } from './plans-schema';
+import { entitlementsSchemaPresent, ledgerColumns, ledgerModeSql } from './plans-schema';
 import { grantPlatformRole } from './platform-roles';
 
 /**
@@ -148,6 +148,45 @@ describe('before and after migration 0107 (S29)', () => {
       });
       expect(isOk(paid)).toBe(true);
 
+      // Ledger rows of every kind, written as production has them before 0107 (no mode column).
+      const one = async (text: string) => {
+        const id = (await client.query<{ id: string }>(text)).rows[0]?.id;
+        if (!id) throw new Error(text);
+        return id;
+      };
+      const inv = invoice.value.id;
+      const org = founding.value.id;
+      const attemptId = await one(
+        `insert into payment_attempts (invoice_id, organization_id, provider, merchant_tran_id, amount_minor_units, currency, status, recorded_at)
+         values ('${inv}', '${org}', 'sslcommerz', 'VSP${'e'.repeat(26)}', 1000, 'BDT', 'RECORDED', now()) returning id`,
+      );
+      const onlineEntry = await one(
+        `insert into invoice_payments (invoice_id, amount_minor_units, currency, kind, source_id, provider, provider_transaction_id, reference, collected_date)
+         values ('${inv}', 1000, 'BDT', 'ONLINE', '${attemptId}', 'sslcommerz', 'VALPRE1', 'BANK-PRE', now()) returning id`,
+      );
+      const heldId = await one(
+        `insert into payment_attempts (invoice_id, organization_id, provider, merchant_tran_id, amount_minor_units, currency, status, reason_code)
+         values ('${inv}', '${org}', 'sslcommerz', 'VSP${'f'.repeat(26)}', 500, 'BDT', 'HELD_FOR_REVIEW', 'already_paid') returning id`,
+      );
+      const refundRow = async (source: string, column: string, key: string) => {
+        const request = await one(
+          `insert into refund_requests (organization_id, invoice_id, ${column}, method, status, amount_minor_units, currency, idempotency_key, reason, requested_by_account_id, confirmed_at, reference)
+           values ('${org}', '${inv}', '${source}', 'MANUAL', 'CONFIRMED', 100, 'BDT', '${crypto.randomUUID()}', 'Back', gen_random_uuid(), now(), '${key}') returning id`,
+        );
+        await one(
+          `insert into invoice_payments (invoice_id, amount_minor_units, currency, kind, source_id, reference, collected_date, recorded_by_account_id)
+           values ('${inv}', -100, 'BDT', 'REFUND', '${request}', '${key}', now(), gen_random_uuid()) returning id`,
+        );
+      };
+      await refundRow(onlineEntry, 'invoice_payment_id', 'REF-PRE-ONLINE');
+      await refundRow(heldId, 'payment_attempt_id', 'REF-PRE-HELD');
+      const modesBefore = new Map(
+        (await db.select(ledgerColumns(await ledgerModeSql(db))).from(schema.invoicePayments)).map(
+          (r) => [r.id, r.mode],
+        ),
+      );
+      expect(modesBefore.get(onlineEntry)).toBe('TEST');
+
       // Online payment and plan changes wait for 0107, refused calmly with a typed reason.
       const port = new FakePaymentPort();
       const started = await startOnlinePayment(db, port, {
@@ -184,6 +223,17 @@ describe('before and after migration 0107 (S29)', () => {
       expect((await resolveEntitlements(after, { organizationId: founding.value.id })).gate).toBe(
         'bypass',
       );
+      // Round 2: what was read before 0107 is exactly what 0107 wrote, row by row.
+      const modesAfter = new Map(
+        (
+          await after
+            .select({ id: schema.invoicePayments.id, mode: schema.invoicePayments.mode })
+            .from(schema.invoicePayments)
+        ).map((r) => [r.id, r.mode]),
+      );
+      expect(modesAfter.size).toBe(modesBefore.size);
+      for (const [id, mode] of modesAfter) expect(modesBefore.get(id), id).toBe(mode);
+      expect([...modesAfter.values()].filter((m) => m === 'TEST')).toHaveLength(3);
       const [row] = await after
         .select({ mode: schema.invoicePayments.mode })
         .from(schema.invoicePayments)

@@ -1001,6 +1001,35 @@ describe('suspended billing blocks new paid work (COM-02 + COM-03)', () => {
     }
   });
 
+  it("never blocks a person's upload to their own record, even when they work in the suspended agency (S29 round 2)", async () => {
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'own-record-staff');
+    await setConsent(db, {
+      actorAccountId: ownerAccountId,
+      accountId: ownerAccountId,
+      type: 'CORE_PROCESSING',
+      granted: true,
+    });
+    const own = await createApplicant(db, {
+      actorAccountId: ownerAccountId,
+      ownerAccountId,
+      displayName: 'Agency Owner Themself',
+    });
+    if (!isOk(own)) throw new Error('applicant');
+    await grantOrgAccessToApplicant(db, {
+      applicantOwnerAccountId: ownerAccountId,
+      applicantId: own.value.id,
+      organizationId,
+      orgOwnerAccountId: ownerAccountId,
+    });
+    await suspendOrg(organizationId);
+    const result = await reserveUpload(
+      db,
+      { accountId: ownerAccountId, applicantId: own.value.id, sizeBytes: 1 * MB },
+      generousUploadConfig,
+    );
+    expect(isOk(result)).toBe(true);
+  });
+
   it("never blocks a traveller's own upload when an accessing agency is suspended, and pauses that agency's own staff (owner decision O13, S29)", async () => {
     const traveller = await seedTraveller(db, 'storage-suspended');
     const { organizationId, ownerAccountId } = await seedOrganization(db, 'storage-suspended-org');

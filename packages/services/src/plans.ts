@@ -28,6 +28,8 @@ import {
   enqueueNotificationBothChannels,
 } from './notifications';
 import {
+  DEFAULT_AGENCY_PLAN_KEY,
+  DEFAULT_PLAN_PRICE_NEEDED,
   PLANS_UNAVAILABLE,
   PLAN_PRICE_FROM_START,
   assignableToAgency,
@@ -325,6 +327,9 @@ export async function updatePlan(
   }
   if (plan.bypassLimits && (input.priceMinorUnits ?? plan.priceMinorUnits ?? 0) > 0) {
     return err(serviceError('invalid', 'a complimentary plan cannot have a price'));
+  }
+  if (plan.key === DEFAULT_AGENCY_PLAN_KEY && input.priceMinorUnits === null) {
+    return err(serviceError('invalid', DEFAULT_PLAN_PRICE_NEEDED));
   }
 
   return db.transaction(async (tx) => {
@@ -1136,7 +1141,8 @@ export interface OrganizationUsage {
   readonly entitlements: ResolvedEntitlements;
 }
 
-async function countPendingInvitationsFor(db: Db, organizationId: string): Promise<number> {
+/** Invitations of one organization not yet answered (the one counter; enforcement uses it too). */
+export async function countPendingInvitations(db: Db, organizationId: string): Promise<number> {
   const row = first(
     await db
       .select({ n: sql<number>`count(*)::int` })
@@ -1266,7 +1272,7 @@ export async function getUsageForOrganization(
   const [seatsUsed, invitationsPending, casesUsed, concurrentUsed, storageUsed, aiUsed] =
     await Promise.all([
       countActiveSeats(db, input.organizationId),
-      countPendingInvitationsFor(db, input.organizationId),
+      countPendingInvitations(db, input.organizationId),
       countCasesInPeriod(db, input.organizationId, periodStart),
       countConcurrentOpenCases(db, input.organizationId),
       getOrganizationEvidenceBytes(db, input.organizationId),

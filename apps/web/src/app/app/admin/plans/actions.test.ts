@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   staffPrincipal: vi.fn(),
-  listPlansForAdmin: vi.fn(),
+  getPlanLatestPrice: vi.fn(),
   savePlan: vi.fn(),
   previewPlanRetire: vi.fn(),
   retirePlan: vi.fn(),
@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('@visastack/services', async (load) => ({
   ...(await load<typeof import('@visastack/services')>()),
-  listPlansForAdmin: mocks.listPlansForAdmin,
+  getPlanLatestPrice: mocks.getPlanLatestPrice,
   savePlan: mocks.savePlan,
   previewPlanRetire: mocks.previewPlanRetire,
   retirePlan: mocks.retirePlan,
@@ -73,12 +73,9 @@ beforeEach(() => {
   jar.clear();
   vi.stubEnv('NEON_AUTH_COOKIE_SECRET', 'x'.repeat(64));
   mocks.staffPrincipal.mockResolvedValue({ ok: true, value: SCOPE });
-  mocks.listPlansForAdmin.mockResolvedValue({
+  mocks.getPlanLatestPrice.mockResolvedValue({
     ok: true,
-    value: {
-      available: true,
-      plans: [{ id: PLAN, price: { priceMinorUnits: 250000, currency: 'BDT' } }],
-    },
+    value: { priceMinorUnits: 250000, currency: 'BDT' },
   });
   mocks.savePlan.mockResolvedValue({
     ok: true,
@@ -94,9 +91,11 @@ describe('saving a plan (S29)', () => {
       INITIAL,
       form({
         'limit.seats': '5',
+        'limit.open_cases': '',
         'limit.storage_bytes': '2048',
         'on.ai_app_suggestions': 'on',
         'limit.ai.ai_app_suggestions': '10',
+        'limit.ai.ai_app_original_files': '',
       }),
     );
     expect(result).toMatchObject({ ok: true, message: 'Saved.' });
@@ -109,13 +108,21 @@ describe('saving a plan (S29)', () => {
     expect(input.draft.rules.storage_bytes).toEqual({ included: true, limit: 2048 * 1024 * 1024 });
     expect(input.draft.rules['ai.ai_app_suggestions']).toEqual({ included: true, limit: 10 });
     expect(input.draft.rules['ai.ai_app_original_files']).toEqual({ included: false, limit: null });
-    expect(result.values?.['limit.seats']).toBe('5');
+    expect(result.values).toMatchObject({ 'limit.seats': '5' });
+    // A field the form did not show is not touched: invitations follow Team Members in the service.
+    expect(input.draft.rules.invitations).toBeUndefined();
+    expect(input.draft.rules.cases_per_period).toBeUndefined();
+    expect(mocks.getPlanLatestPrice.mock.calls[0]?.[2]).toBe(PLAN);
   });
 
   it('shows what a new price means first, and saves it only once the box is ticked', async () => {
     const changed = form({ price: '3,000.00' });
     const first = await savePlanAction(INITIAL, changed);
-    expect(first).toMatchObject({ ok: true, message: '', pricePreview: true });
+    expect(first).toMatchObject({
+      ok: true,
+      message: '',
+      pricePreview: { before: 'BDT\u00a02,500.00', after: 'BDT\u00a03,000.00' },
+    });
     expect(mocks.savePlan).not.toHaveBeenCalled();
     const unticked = await savePlanAction(
       first,
@@ -144,6 +151,22 @@ describe('saving a plan (S29)', () => {
     expect(badAmount).toMatchObject({ ok: false, field: 'price' });
     const badLimit = await savePlanAction(INITIAL, form({ 'limit.seats': 'ten' }));
     expect(badLimit).toMatchObject({ ok: false, field: 'limit.seats' });
+    const storage = await savePlanAction(INITIAL, form({ 'limit.storage_bytes': '1.5' }));
+    expect(storage).toMatchObject({ ok: false, field: 'limit.storage_bytes' });
+    expect(storage.message).toContain('in MB');
+    expect(storage.message).toContain('leave it empty for Unlimited');
+    // An AI feature that is on needs a daily limit from 1; one typed while off is refused.
+    const zero = await savePlanAction(
+      INITIAL,
+      form({ 'on.ai_app_suggestions': 'on', 'limit.ai.ai_app_suggestions': '0' }),
+    );
+    expect(zero).toMatchObject({ ok: false, field: 'limit.ai.ai_app_suggestions' });
+    const offWithLimit = await savePlanAction(
+      INITIAL,
+      form({ 'limit.ai.ai_app_suggestions': '5' }),
+    );
+    expect(offWithLimit).toMatchObject({ ok: false, field: 'limit.ai.ai_app_suggestions' });
+    expect(offWithLimit.message).toContain('is off');
     mocks.savePlan.mockResolvedValueOnce({
       ok: false,
       error: { code: 'invalid', reason: 'period_locked', message: 'fixed', field: 'periodDays' },
@@ -179,7 +202,10 @@ describe('saving a plan (S29)', () => {
 
 describe('retiring a plan (S29)', () => {
   it('shows who keeps it first, then retires it once confirmed', async () => {
-    mocks.previewPlanRetire.mockResolvedValue({ ok: true, value: { agenciesOnIt: 2 } });
+    mocks.previewPlanRetire.mockResolvedValue({
+      ok: true,
+      value: { agenciesOnIt: 2, pendingDowngrades: 0 },
+    });
     const data = new FormData();
     data.set('planId', PLAN);
     const first = await retirePlanAction(INITIAL, data);
@@ -189,6 +215,22 @@ describe('retiring a plan (S29)', () => {
     data.set('retirePreviewed', 'yes');
     data.set('confirmRetire', 'yes');
     const done = await retirePlanAction(first, data);
-    expect(done.message).toBe('Retired. Nobody new can be put on this plan; 2 agencies keep it.');
+    expect(done).toMatchObject({
+      ok: true,
+      retired: true,
+      message: 'Retired. Nobody new can be put on this plan; 2 agencies keep it.',
+    });
+  });
+
+  it('says plainly when scheduled plan changes to the plan must be cancelled first', async () => {
+    mocks.previewPlanRetire.mockResolvedValue({
+      ok: true,
+      value: { agenciesOnIt: 0, pendingDowngrades: 1 },
+    });
+    const data = new FormData();
+    data.set('planId', PLAN);
+    const first = await retirePlanAction(INITIAL, data);
+    expect(first.waiting).toContain('1 scheduled plan change still moves an agency to this plan');
+    expect(mocks.retirePlan).not.toHaveBeenCalled();
   });
 });

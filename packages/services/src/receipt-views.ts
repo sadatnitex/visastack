@@ -1,10 +1,10 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { type SQL, and, asc, eq, inArray } from 'drizzle-orm';
 import { invoiceLedgerReader } from './billing';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { isMissingRelationError } from './missing-relation';
-import { type PaymentMode, ledgerModeColumn } from './plans-schema';
+import { type PaymentMode, ledgerModeSql } from './plans-schema';
 import { formatReceiptNumber } from './receipts';
 
 /**
@@ -42,7 +42,7 @@ export interface ReceiptView {
 
 const NOT_ALLOWED = 'not allowed to see these receipts';
 
-function viewColumns() {
+function viewColumns(mode: SQL<PaymentMode>) {
   return {
     id: schema.paymentReceipts.id,
     receiptNumber: schema.paymentReceipts.receiptNumber,
@@ -51,7 +51,7 @@ function viewColumns() {
     amountMinorUnits: schema.paymentReceipts.amountMinorUnits,
     currency: schema.paymentReceipts.currency,
     kind: schema.invoicePayments.kind,
-    mode: ledgerModeColumn(),
+    mode,
     collectedDate: schema.invoicePayments.collectedDate,
     issuedAt: schema.paymentReceipts.issuedAt,
   };
@@ -97,7 +97,7 @@ export async function listReceipts(
     }
     const scope = and(...filters);
     const rows = await db
-      .select(viewColumns())
+      .select(viewColumns(await ledgerModeSql(db)))
       .from(receipts)
       .innerJoin(schema.invoices, eq(schema.invoices.id, receipts.invoiceId))
       .innerJoin(schema.invoicePayments, eq(schema.invoicePayments.id, receipts.invoicePaymentId))
@@ -134,7 +134,7 @@ export async function getReceipt(
     const row = first(
       await db
         .select({
-          ...viewColumns(),
+          ...viewColumns(await ledgerModeSql(db)),
           reference: schema.invoicePayments.reference,
           organizationName: schema.organizations.name,
           invoicedAmountMinorUnits: schema.invoices.invoicedAmountMinorUnits,

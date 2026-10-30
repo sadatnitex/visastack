@@ -1,5 +1,9 @@
 import { type Result, err, isIsoCurrencyCode, normalizeCurrencyCode, ok } from '@visastack/core';
-import { AI_FEATURE_LIMIT_MAX, AI_PLAN_TIERS } from '@visastack/core/ai-features';
+import {
+  AI_FEATURE_LIMIT_MAX,
+  AI_FEATURE_LIMIT_MIN,
+  AI_PLAN_TIERS,
+} from '@visastack/core/ai-features';
 import {
   CAPACITY_KEYS,
   type CapacityKey,
@@ -42,6 +46,10 @@ export const DEFAULT_AGENCY_PLAN_KEY = 'agency_founding_access';
 
 /** The first price of a plan applies from before any billing period could start. */
 export const PLAN_PRICE_FROM_START = new Date('2000-01-01T00:00:00Z');
+
+/** The plan every new agency starts on keeps a price of zero in its currency (S29 round 2). */
+export const DEFAULT_PLAN_PRICE_NEEDED =
+  'Every new agency starts on this plan, so it keeps a price of 0. Enter 0 and its currency, for example 0 and USD.';
 
 /** Why plans cannot be changed yet. */
 export const PLANS_UNAVAILABLE = 'Plans can be changed after the database update.';
@@ -120,6 +128,22 @@ export function planDraftProblem(draft: PlanDraft): PlanRefusal | undefined {
     if (!isEntitlementKey(key) || rule === undefined) {
       return refuse('This plan has a rule VisaStack does not know. Reload the page.');
     }
+    // S29 round 2: an AI feature that is on has a daily limit, from 1 (a feature at 0 a day is
+    // simply off).
+    if (aiFeatureOfKey(key) !== null && rule.included) {
+      if (
+        rule.limit === null ||
+        !Number.isSafeInteger(rule.limit) ||
+        rule.limit < AI_FEATURE_LIMIT_MIN ||
+        rule.limit > AI_FEATURE_LIMIT_MAX
+      ) {
+        return refuse(
+          `Enter the daily limit for ${entitlementDefinition(key).name} as a whole number from ${AI_FEATURE_LIMIT_MIN} to ${AI_FEATURE_LIMIT_MAX}.`,
+          key,
+        );
+      }
+      continue;
+    }
     if (rule.limit !== null) {
       if (!rule.included) {
         return refuse(`${entitlementDefinition(key).name} is off, so it has no limit.`, key);
@@ -137,6 +161,15 @@ export function planDraftProblem(draft: PlanDraft): PlanRefusal | undefined {
 }
 
 type Rules = Record<EntitlementKey, PlanRuleInput>;
+
+/**
+ * Team Members and Invitations always follow Team Members (S29 round 2, as `updatePlan` keeps
+ * them): the Plans page edits only Team Members; the invitations key stays internal.
+ */
+export function withInvitationsFollowingSeats(rules: Readonly<Partial<Rules>>): Partial<Rules> {
+  const { invitations: _ignored, ...rest } = rules;
+  return rest.seats ? { ...rest, invitations: rest.seats } : rest;
+}
 
 async function currentRules(tx: Db, planId: string): Promise<Partial<Rules>> {
   const e = schema.planEntitlements;
@@ -343,6 +376,8 @@ export async function listPlansForAdmin(
   const denied = staffScopeProblem(staff, 'PLANS_MANAGE');
   if (denied) return err(denied);
   const available = await entitlementsSchemaPresent(db);
+  // A fixed number of queries, whatever the number of plans: the plans with their counts, then
+  // (after 0107) every rule row and every plan's newest price, then the traveller count.
   const plans = await db
     .select({
       plan: planColumns(),
@@ -351,12 +386,41 @@ export async function listPlansForAdmin(
     })
     .from(schema.plans)
     .orderBy(desc(schema.plans.createdAt));
-  const accounts = first(await db.select({ n: count() }).from(schema.accounts))?.n ?? 0;
+  const storedRules = new Map<string, Partial<Rules>>();
+  const latestPrices = new Map<string, PlanPriceInput | null>();
+  if (available) {
+    const e = schema.planEntitlements;
+    for (const row of await db
+      .select({ planId: e.planId, key: e.key, included: e.included, limit: e.limitValue })
+      .from(e)) {
+      if (!isEntitlementKey(row.key)) continue;
+      const rules = storedRules.get(row.planId) ?? {};
+      rules[row.key] = { included: row.included, limit: row.limit };
+      storedRules.set(row.planId, rules);
+    }
+    const pp = schema.planPrices;
+    for (const row of await db
+      .selectDistinctOn([pp.planId], {
+        planId: pp.planId,
+        price: pp.priceMinorUnits,
+        currency: pp.currency,
+      })
+      .from(pp)
+      .orderBy(pp.planId, desc(pp.effectiveFrom))) {
+      latestPrices.set(
+        row.planId,
+        row.price !== null && row.currency !== null
+          ? { priceMinorUnits: row.price, currency: row.currency }
+          : null,
+      );
+    }
+  }
+  const travellers = await travellerCount(db);
   const views: PlanAdminView[] = [];
   for (const row of plans) {
     const plan = row.plan;
     const rules = {} as Rules;
-    const stored = available ? await currentRules(db, plan.id) : {};
+    const stored = storedRules.get(plan.id) ?? {};
     const fromColumns = rulesFromColumns(plan);
     for (const key of entitlementKeys()) {
       rules[key] =
@@ -368,7 +432,7 @@ export async function listPlansForAdmin(
             : standardRule(key, plan.audience));
     }
     const price = available
-      ? await latestPrice(db, plan.id)
+      ? (latestPrices.get(plan.id) ?? null)
       : plan.priceMinorUnits !== null && plan.currency !== null
         ? { priceMinorUnits: plan.priceMinorUnits, currency: plan.currency }
         : null;
@@ -382,12 +446,58 @@ export async function listPlansForAdmin(
       periodDays: plan.periodDays,
       price,
       rules,
-      onIt: plan.key === TRAVELLER_PLAN_KEY ? accounts : row.onIt,
+      onIt: plan.key === TRAVELLER_PLAN_KEY ? travellers : row.onIt,
       periodLocked: row.ever > 0,
       retireBlocked: retireBlock(plan),
     });
   }
   return ok({ available, plans: views });
+}
+
+/** Accounts that are travellers only: no active place in any agency (S29 round 2). */
+async function travellerCount(db: Db): Promise<number> {
+  const row = first(
+    await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(schema.accounts)
+      .where(
+        sql`not exists (select 1 from memberships m where m.account_id = ${schema.accounts.id} and m.active)`,
+      ),
+  );
+  return row?.n ?? 0;
+}
+
+/**
+ * One plan's newest price, for the Plans page's save (S29 round 2: it reads only that plan, never
+ * the whole list). Owner only. Null when the plan has no price; not found when it does not exist.
+ */
+export async function getPlanLatestPrice(
+  db: Db,
+  staff: StaffScope<'PLANS_MANAGE'>,
+  planId: string,
+): Promise<Result<PlanPriceInput | null, ServiceError>> {
+  const denied = staffScopeProblem(staff, 'PLANS_MANAGE');
+  if (denied) return err(denied);
+  const plan = first(
+    await db
+      .select({
+        id: schema.plans.id,
+        price: schema.plans.priceMinorUnits,
+        currency: schema.plans.currency,
+      })
+      .from(schema.plans)
+      .where(eq(schema.plans.id, planId))
+      .limit(1),
+  );
+  if (!plan) return err(serviceError('not_found', 'This plan was not found. Reload the page.'));
+  if (!(await entitlementsSchemaPresent(db))) {
+    return ok(
+      plan.price !== null && plan.currency !== null
+        ? { priceMinorUnits: plan.price, currency: plan.currency }
+        : null,
+    );
+  }
+  return ok(await latestPrice(db, planId));
 }
 
 export interface SavePlanInput {
@@ -456,9 +566,10 @@ export async function savePlan(
           })
           .returning({ id: schema.plans.id });
         if (!created) throw new Error('expected the new plan to be returned');
+        const given = withInvitationsFollowingSeats(input.draft.rules);
         const rules: Partial<Rules> = {};
         for (const k of entitlementKeys()) {
-          rules[k] = input.draft.rules[k] ?? standardRule(k, 'AGENCY');
+          rules[k] = given[k] ?? standardRule(k, 'AGENCY');
         }
         await writePlanRules(tx, created.id, rules, now);
         await writePlanPrice(tx, created.id, input.draft.price, {
@@ -498,6 +609,9 @@ export async function savePlan(
       ) {
         return err(refuse('A complimentary plan has no price. Leave the price empty.', 'price'));
       }
+      if (plan.key === DEFAULT_AGENCY_PLAN_KEY && input.draft.price === null) {
+        return err(refuse(DEFAULT_PLAN_PRICE_NEEDED, 'price'));
+      }
       if (plan.audience === 'TRAVELLER' && input.draft.price !== null) {
         return err(refuse('The traveller plan has no price.', 'price'));
       }
@@ -535,7 +649,12 @@ export async function savePlan(
           .set({ ...set, updatedAt: now })
           .where(eq(schema.plans.id, plan.id));
       }
-      const ruleChanges = await writePlanRules(tx, plan.id, input.draft.rules, now);
+      const ruleChanges = await writePlanRules(
+        tx,
+        plan.id,
+        withInvitationsFollowingSeats(input.draft.rules),
+        now,
+      );
       const priceChange = await writePlanPrice(tx, plan.id, input.draft.price, {
         effectiveFrom: now,
         actorAccountId: staff.accountId,
@@ -592,6 +711,26 @@ export async function savePlan(
 export interface RetirePreview {
   /** Agencies on the plan now: they keep it. */
   readonly agenciesOnIt: number;
+  /** Scheduled plan changes still waiting to move an agency onto this plan (retiring waits for them). */
+  readonly pendingDowngrades: number;
+}
+
+async function pendingDowngradesTo(db: Db, planId: string): Promise<number> {
+  const d = schema.scheduledDowngrades;
+  const row = first(
+    await db
+      .select({ n: count() })
+      .from(d)
+      .where(and(eq(d.toPlanId, planId), eq(d.status, 'PENDING'))),
+  );
+  return row?.n ?? 0;
+}
+
+/** Why a plan with waiting plan changes to it cannot be retired yet, in plain words. */
+export function pendingDowngradesSentence(n: number): string {
+  return n === 1
+    ? "1 scheduled plan change still moves an agency to this plan. Cancel it on that agency's page first, then retire the plan."
+    : `${n} scheduled plan changes still move agencies to this plan. Cancel them on those agencies' pages first, then retire the plan.`;
 }
 
 /** How many agencies keep a plan that is retired now. Owner only. */
@@ -608,7 +747,10 @@ export async function previewPlanRetire(
       .from(schema.subscriptions)
       .where(and(eq(schema.subscriptions.planId, planId), isNull(schema.subscriptions.endedAt))),
   );
-  return ok({ agenciesOnIt: row?.n ?? 0 });
+  return ok({
+    agenciesOnIt: row?.n ?? 0,
+    pendingDowngrades: await pendingDowngradesTo(db, planId),
+  });
 }
 
 /**
@@ -657,6 +799,8 @@ export async function retirePlan(
     if (blocked === 'retired') {
       return err(refusal('retire_blocked', 'This plan is already retired.'));
     }
+    const waiting = await pendingDowngradesTo(tx, plan.id);
+    if (waiting > 0) return err(refusal('retire_blocked', pendingDowngradesSentence(waiting)));
     await tx
       .update(schema.plans)
       .set({ active: false, updatedAt: now })

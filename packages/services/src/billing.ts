@@ -31,7 +31,7 @@ import {
 import { cancelQueuedNotificationsForResource } from './notifications';
 import { isOrgAdmin } from './organizations';
 import { parseAmountForCurrency } from './payment-amounts';
-import { ledgerColumns } from './plans-schema';
+import { ledgerColumns, ledgerModeSql } from './plans-schema';
 import { type PlatformAuthInput, isPlatformOwner } from './platform-roles';
 
 /**
@@ -898,7 +898,7 @@ export async function getInvoiceLedger(
     return ok({ available: false, entries: [], totalMinorUnits: 0 });
   }
   const rows = await db
-    .select(ledgerColumns())
+    .select(ledgerColumns(await ledgerModeSql(db)))
     .from(schema.invoicePayments)
     .where(eq(schema.invoicePayments.invoiceId, invoice.id))
     .orderBy(asc(schema.invoicePayments.seq));

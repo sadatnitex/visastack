@@ -459,6 +459,43 @@ export async function triggerAccountDeletionSweep(): Promise<{ readonly executed
  * abort the rest of the sweep -- same rationale as
  * `triggerAccountDeletionSweep`.
  */
+export async function executeDueDowngrades(
+  handle: Parameters<typeof listDueDowngrades>[0],
+  deps: {
+    readonly list?: typeof listDueDowngrades;
+    readonly execute?: typeof executeScheduledDowngrade;
+    readonly report?: typeof reportServerError;
+  } = {},
+): Promise<number> {
+  const list = deps.list ?? listDueDowngrades;
+  const execute = deps.execute ?? executeScheduledDowngrade;
+  const report = deps.report ?? reportServerError;
+  let executed = 0;
+  for (const downgrade of await list(handle)) {
+    const result = await execute(handle, { downgradeId: downgrade.id });
+    if (isOk(result)) {
+      executed++;
+      continue;
+    }
+    // S29 round 2: a refused downgrade (for example its plan was retired) is reported through
+    // the one error channel, with its code and id, never only printed.
+    report(
+      'triggerDowngradeSweep',
+      new Error(`scheduled downgrade not executed: ${result.error.code}`),
+      {
+        step: 'execute',
+        downgradeId: downgrade.id,
+        code: result.error.code,
+      },
+    );
+  }
+  return executed;
+}
+
+/**
+ * The daily sweep's loop over due downgrades (see `executeDueDowngrades` above for the loop
+ * itself, kept apart so it can be tested without a database pool).
+ */
 export async function triggerDowngradeSweep(): Promise<{ readonly executed: number }> {
   const connectionString = resolveDatabaseUrl(process.env);
   if (!connectionString) {
@@ -473,12 +510,7 @@ export async function triggerDowngradeSweep(): Promise<{ readonly executed: numb
   let executed = 0;
   try {
     const handle = db as unknown as Parameters<typeof listDueDowngrades>[0];
-    const due = await listDueDowngrades(handle);
-    for (const downgrade of due) {
-      const result = await executeScheduledDowngrade(handle, { downgradeId: downgrade.id });
-      if (isOk(result)) executed++;
-      else console.error('[triggerDowngradeSweep] execution failed', result.error);
-    }
+    executed = await executeDueDowngrades(handle);
   } catch (error) {
     reportServerError('triggerDowngradeSweep', error, { step: 'sweep failed' });
   } finally {

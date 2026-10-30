@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto';
 import { type SQL, sql } from 'drizzle-orm';
-import { type Db, schema } from './db';
+import { type Db, first, schema } from './db';
 
 /**
  * Reading and writing plans, online payments and ledger rows so that the code works both before
@@ -30,18 +31,41 @@ export type PlanAudience = (typeof schema.planAudience.enumValues)[number];
 const seen = new WeakMap<object, true>();
 
 /**
+ * Databases (by a hash of their connection string) already seen with migration 0107 complete,
+ * for the whole process (S29 round 2): migrations are additive, so a "yes" stays true; a "no" is
+ * never kept, because the migration may run at any moment. A handle whose connection string
+ * cannot be read (an in-memory test database, a transaction) uses the per-handle record above.
+ */
+const seenConnections = new Set<string>();
+
+/** A stable key for the database behind a handle, or null when it cannot be read. */
+function connectionKey(db: Db): string | null {
+  const client = (db as unknown as { $client?: unknown }).$client as
+    | { options?: { connectionString?: unknown }; connectionString?: unknown }
+    | undefined;
+  const value = client?.options?.connectionString ?? client?.connectionString;
+  if (typeof value !== 'string' || value.length === 0) return null;
+  return createHash('sha256').update(value).digest('hex');
+}
+
+/**
  * Whether migration 0107 has run to its end: the ledger's mode is filled in for every row and
  * required (its last column change), which also means every earlier statement ran. Never raises.
  */
 export async function entitlementsSchemaPresent(db: Db): Promise<boolean> {
   if (seen.has(db)) return true;
+  const key = connectionKey(db);
+  if (key !== null && seenConnections.has(key)) return true;
   const rows = await db
     .select({
       present: sql<boolean>`to_regclass('plan_prices') is not null and to_regclass('plan_entitlements') is not null and exists (select 1 from information_schema.columns where table_schema = current_schema() and table_name = 'invoice_payments' and column_name = 'mode' and is_nullable = 'NO')`,
     })
     .from(sql`(select 1) as probe`);
   const present = rows[0]?.present === true;
-  if (present) seen.set(db, true);
+  if (present) {
+    seen.set(db, true);
+    if (key !== null) seenConnections.add(key);
+  }
   return present;
 }
 
@@ -107,10 +131,44 @@ export function attemptColumns() {
 }
 
 /**
- * Every column of a ledger row. Before 0107 a row reads as LIVE: every row was counted as real
- * money then, which is what the accounting file did.
+ * A ledger row's mode, read the way it reads on this database (S29 round 2):
+ * - after 0107, the stored mode;
+ * - before it, exactly what 0107's backfill will write: an online payment or a credit takes its
+ *   online payment's mode (TEST before 0107; LIVE when there is none), a refund takes its source's
+ *   mode (the ledger row it gives back from, else its held payment, else LIVE), anything else is
+ *   LIVE. Tables a database does not have yet (online payments before 0096, refunds before 0104)
+ *   are left out of the expression; no row of that kind can exist then.
  */
-export function ledgerColumns() {
+export async function ledgerModeSql(db: Db): Promise<SQL<PaymentMode>> {
+  const p = schema.invoicePayments;
+  if (await entitlementsSchemaPresent(db)) return sql<PaymentMode>`${p.mode}::text`;
+  const tables = first(
+    await db
+      .select({
+        attempts: sql<boolean>`to_regclass('payment_attempts') is not null`,
+        refunds: sql<boolean>`to_regclass('refund_requests') is not null`,
+      })
+      .from(sql`(select 1) as probe`),
+  );
+  const attemptMode = (alias: string, source: SQL | typeof p.sourceId) =>
+    tables?.attempts === true
+      ? sql`(select coalesce(to_jsonb(${sql.raw(alias)}) ->> 'mode', 'TEST') from payment_attempts ${sql.raw(alias)} where ${sql.raw(alias)}.id = ${source})`
+      : sql`null`;
+  const refundBranch =
+    tables?.refunds === true
+      ? sql`when ${p.kind} = 'REFUND' then (select coalesce(
+            (select coalesce(to_jsonb(s0) ->> 'mode', case when s0.kind in ('ONLINE', 'CREDIT') then ${attemptMode('a2', sql`s0.source_id`)} end) from invoice_payments s0 where s0.id = r0.invoice_payment_id),
+            ${attemptMode('a3', sql`r0.payment_attempt_id`)})
+          from refund_requests r0 where r0.id = ${p.sourceId})`
+      : sql``;
+  return sql<PaymentMode>`coalesce(to_jsonb(${p}) ->> 'mode', case when ${p.kind} in ('ONLINE', 'CREDIT') then ${attemptMode('a1', p.sourceId)} ${refundBranch} end, 'LIVE')`;
+}
+
+/**
+ * Every column of a ledger row, with its mode from `ledgerModeSql` (pass its result, so the read
+ * gives the mode 0107 gives the row, before and after 0107).
+ */
+export function ledgerColumns(mode: SQL<PaymentMode>) {
   const p = schema.invoicePayments;
   return {
     id: p.id,
@@ -125,17 +183,24 @@ export function ledgerColumns() {
     reference: p.reference,
     collectedDate: p.collectedDate,
     recordedByAccountId: p.recordedByAccountId,
-    mode: addedColumn<PaymentMode>(p, 'mode', sql`'LIVE'`),
+    mode,
     createdAt: p.createdAt,
   };
-}
-
-/** One ledger row's mode expression (for a select that does not need the whole row). */
-export function ledgerModeColumn(): SQL<PaymentMode> {
-  return addedColumn<PaymentMode>(schema.invoicePayments, 'mode', sql`'LIVE'`);
 }
 
 /** One online payment's mode expression. */
 export function attemptModeColumn(): SQL<PaymentMode> {
   return addedColumn<PaymentMode>(schema.paymentAttempts, 'mode', sql`'TEST'`);
+}
+
+/**
+ * The one TEST/LIVE rule at the gateway boundary (S29): a gateway only ever judges, refunds or
+ * checks money taken in its own mode. Used by settlement, refund requests, refund retries, refund
+ * checks and the refund panel. A port without a mode (not configured) serves nothing.
+ */
+export function gatewayServesMode(
+  port: { readonly mode: PaymentMode | null },
+  mode: PaymentMode,
+): boolean {
+  return port.mode !== null && port.mode === mode;
 }

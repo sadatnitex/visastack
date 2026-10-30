@@ -218,6 +218,7 @@ export default async function AdminOrganizationPage({
       ? await getOrganizationRefundWork(db, refundScope.value, {
           organizationId: orgId,
           gatewayProvider,
+          gatewayMode: sendPort?.mode ?? null,
           page: Number.isFinite(refundPage) ? refundPage : 1,
           invoiceRef: asked.refundInvoice ?? null,
         })

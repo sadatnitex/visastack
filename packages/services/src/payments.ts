@@ -16,7 +16,12 @@ import {
 } from './invoice-ledger';
 import { isMissingRelationError } from './missing-relation';
 import { isOrgAdmin } from './organizations';
-import { type PaymentMode, attemptColumns, entitlementsSchemaPresent } from './plans-schema';
+import {
+  type PaymentMode,
+  attemptColumns,
+  entitlementsSchemaPresent,
+  gatewayServesMode,
+} from './plans-schema';
 import { isPlatformOwner } from './platform-roles';
 import type { PaymentPort, PaymentValidation } from './ports';
 import { RATE_LIMITS, checkRateLimit, checkRateLimits } from './rate-limit';
@@ -276,9 +281,14 @@ export async function settlePaymentAttempt(
     if (attempt.status === 'HELD_FOR_REVIEW') return outcome('held', attempt.status);
     if (attempt.status === 'REFUNDED') return outcome('refunded', attempt.status);
     // S29: a payment started in the other mode (test or live) is never judged by this gateway: it
-    // belongs to a different store. One still open is closed as expired (mode_changed).
-    if (port.mode !== null && attempt.mode !== port.mode) {
-      return expireForModeChange(db, attempt, input.source, now);
+    // belongs to a different store (`gatewayServesMode`). A test payment still open when the
+    // gateway went live is closed as expired (mode_changed). A live payment seen while the gateway
+    // is in test mode is real money that may still arrive: it stays exactly as it is, unasked, so
+    // the usual checks (including a late success) judge it once the live gateway is back.
+    if (!gatewayServesMode(port, attempt.mode)) {
+      return attempt.mode === 'TEST'
+        ? expireForModeChange(db, attempt, input.source, now)
+        : outcome('pending', attempt.status);
     }
 
     // Each payment may make VisaStack call the gateway only so often, so a stream of callbacks

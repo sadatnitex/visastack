@@ -1,7 +1,11 @@
 'use server';
 
-import { isIsoCurrencyCode, normalizeCurrencyCode, parseMoney } from '@visastack/core';
-import { AI_FEATURE_KEYS, AI_FEATURE_LIMIT_MAX } from '@visastack/core/ai-features';
+import { formatMoney, isIsoCurrencyCode, normalizeCurrencyCode, parseMoney } from '@visastack/core';
+import {
+  AI_FEATURE_KEYS,
+  AI_FEATURE_LIMIT_MAX,
+  AI_FEATURE_LIMIT_MIN,
+} from '@visastack/core/ai-features';
 import {
   CAPACITY_KEYS,
   type EntitlementKey,
@@ -13,7 +17,8 @@ import {
   PLAN_PRICE_MAX_MINOR_UNITS,
   type PlanDraft,
   type PlanRuleInput,
-  listPlansForAdmin,
+  getPlanLatestPrice,
+  pendingDowngradesSentence,
   previewPlanRetire,
   retirePlan,
   savePlan,
@@ -37,6 +42,7 @@ import {
   type PlanFormState,
   type PlanFormValues,
   type RetireFormState,
+  aiFeatureName,
   featureLimitField,
   featureOnField,
   limitField,
@@ -49,14 +55,21 @@ const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const DENIED: FormResult = { ok: false, message: 'Only the platform owner can change plans.' };
 const NOT_FOUND: FormResult = { ok: false, message: 'This plan was not found. Reload the page.' };
 
+/**
+ * What was typed, by field. A field the form did not show (Limits on Traveller Free, AI features on
+ * an agency plan, the internal invitations key) is absent, so the save leaves that rule as it is.
+ */
 function typedValues(formData: FormData): Record<string, string> {
   const values: Record<string, string> = {};
   for (const name of planFieldNames()) {
     const raw = formData.get(name);
-    values[name] = typeof raw === 'string' ? raw.trim().slice(0, 120) : '';
+    if (typeof raw === 'string') values[name] = raw.trim().slice(0, 120);
   }
   return values;
 }
+
+/** The largest Storage in MB a plan can hold. */
+const STORAGE_MB_MAX = Math.floor(Number.MAX_SAFE_INTEGER / BYTES_PER_MB);
 
 /** The form field a service refusal points at. */
 function formField(field: string | undefined): string | undefined {
@@ -104,34 +117,50 @@ function parseDraft(values: PlanFormValues): Parsed {
   }
   const rules: Partial<Record<EntitlementKey, PlanRuleInput>> = {};
   for (const key of CAPACITY_KEYS) {
-    const text = values[limitField(key)] ?? '';
+    const text = values[limitField(key)];
+    if (text === undefined) continue;
     if (text.length === 0) {
       rules[key] = { included: true, limit: null };
       continue;
     }
-    if (!/^\d{1,13}$/.test(text)) {
+    if (key === 'storage_bytes') {
+      if (!/^\d{1,10}$/.test(text) || Number(text) > STORAGE_MB_MAX) {
+        return problem(
+          `Enter Storage in MB as a whole number up to ${STORAGE_MB_MAX.toLocaleString('en-US')}, or leave it empty for Unlimited.`,
+          limitField(key),
+        );
+      }
+      rules[key] = { included: true, limit: Number(text) * BYTES_PER_MB };
+      continue;
+    }
+    if (!/^\d{1,10}$/.test(text)) {
       return problem('Enter a whole number, or leave it empty for Unlimited.', limitField(key));
     }
-    const typed = Number(text);
-    rules[key] = { included: true, limit: key === 'storage_bytes' ? typed * BYTES_PER_MB : typed };
+    rules[key] = { included: true, limit: Number(text) };
   }
   for (const feature of AI_FEATURE_KEYS) {
+    const text = values[featureLimitField(feature)];
+    // The AI features are on the form only for Traveller Free; absent, the rule is left as it is.
+    if (text === undefined) continue;
     const on = values[featureOnField(feature)] === 'on';
-    const text = values[featureLimitField(feature)] ?? '';
     if (!on) {
+      if (text.length > 0) {
+        return problem(
+          `${aiFeatureName(feature)} is off, so its daily limit is not kept. Switch it on, or empty the box.`,
+          featureLimitField(feature),
+        );
+      }
       rules[aiEntitlementKey(feature)] = { included: false, limit: null };
       continue;
     }
-    if (text.length > 0 && !/^\d{1,4}$/.test(text)) {
+    const limit = /^\d{1,4}$/.test(text) ? Number(text) : Number.NaN;
+    if (!(limit >= AI_FEATURE_LIMIT_MIN && limit <= AI_FEATURE_LIMIT_MAX)) {
       return problem(
-        `Enter a whole number from 0 to ${AI_FEATURE_LIMIT_MAX}, or leave it empty for no daily limit.`,
+        `Enter the daily limit for ${aiFeatureName(feature)} as a whole number from ${AI_FEATURE_LIMIT_MIN} to ${AI_FEATURE_LIMIT_MAX}.`,
         featureLimitField(feature),
       );
     }
-    rules[aiEntitlementKey(feature)] = {
-      included: true,
-      limit: text.length === 0 ? null : Number(text),
-    };
+    rules[aiEntitlementKey(feature)] = { included: true, limit };
   }
   return {
     draft: { name: read('name'), periodDays: Number(periodText), price, rules },
@@ -182,17 +211,23 @@ export async function savePlanAction(
     );
     if (!staff.ok) return reply(DENIED);
     if (planId !== undefined) {
-      const listed = await listPlansForAdmin(db, staff.value);
-      if (!listed.ok) return reply(DENIED);
-      const current = listed.value.plans.find((plan) => plan.id === planId);
-      if (!current) return reply(NOT_FOUND);
+      // Only this plan's newest price is read, never the whole list (round 2).
+      const current = await getPlanLatestPrice(db, staff.value, planId);
+      if (!current.ok) return reply(current.error.code === 'forbidden' ? DENIED : NOT_FOUND);
+      const before = current.value;
       const samePrice =
-        (current.price === null && draft.price === null) ||
-        (current.price !== null &&
+        (before === null && draft.price === null) ||
+        (before !== null &&
           draft.price !== null &&
-          current.price.priceMinorUnits === draft.price.priceMinorUnits &&
-          current.price.currency === draft.price.currency);
+          before.priceMinorUnits === draft.price.priceMinorUnits &&
+          before.currency === draft.price.currency);
       if (!samePrice && formData.get('confirmPrice') !== 'yes') {
+        const pricePreview = {
+          before: before ? formatMoney(before.priceMinorUnits, before.currency) : null,
+          after: draft.price
+            ? formatMoney(draft.price.priceMinorUnits, draft.price.currency)
+            : 'no price',
+        };
         // The first save of a new price only shows what it means. Not a failure.
         return formData.get('pricePreviewed') === 'yes'
           ? reply(
@@ -201,9 +236,9 @@ export async function savePlanAction(
                 message: 'Tick the box to confirm the new price, then save again.',
                 field: 'confirmPrice',
               },
-              { pricePreview: true },
+              { pricePreview },
             )
-          : reply({ ok: true, message: '' }, { pricePreview: true });
+          : reply({ ok: true, message: '' }, { pricePreview });
       }
     }
     const input = { ...(planId !== undefined ? { planId } : {}), draft };
@@ -271,14 +306,19 @@ export async function retirePlanAction(
     if (formData.get('confirmRetire') !== 'yes') {
       const preview = await previewPlanRetire(db, staff.value, planId);
       if (!preview.ok) return DENIED;
-      return formData.get('retirePreviewed') === 'yes'
+      // Scheduled plan changes to this plan are cancelled first; the preview says so plainly.
+      const waiting =
+        preview.value.pendingDowngrades > 0
+          ? { waiting: pendingDowngradesSentence(preview.value.pendingDowngrades) }
+          : {};
+      return formData.get('retirePreviewed') === 'yes' && preview.value.pendingDowngrades === 0
         ? {
             ok: false,
             message: 'Tick the box to confirm, then choose Retire Plan again.',
             field: 'confirmRetire',
             agenciesKeepingIt: preview.value.agenciesOnIt,
           }
-        : { ok: true, message: '', agenciesKeepingIt: preview.value.agenciesOnIt };
+        : { ok: true, message: '', agenciesKeepingIt: preview.value.agenciesOnIt, ...waiting };
     }
     let result = await retirePlan(db, staff.value, { planId, stepUpSatisfied: false });
     if (!result.ok && result.error.code === 'step_up_required') {
@@ -300,6 +340,7 @@ export async function retirePlanAction(
     revalidatePath(PLANS_PATH);
     return {
       ok: true,
+      retired: true,
       message:
         result.value.agenciesKeepingIt === 0
           ? 'Retired. Nobody new can be put on this plan.'

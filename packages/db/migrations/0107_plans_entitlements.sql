@@ -169,10 +169,12 @@ UPDATE "invoice_payments" p SET "mode" = a."mode"
 FROM "payment_attempts" a
 WHERE p."mode" IS NULL AND p."kind" IN ('ONLINE', 'CREDIT') AND a."id" = p."source_id";
 --> statement-breakpoint
--- A refund takes the mode of the ledger row it gave money back from.
-UPDATE "invoice_payments" p SET "mode" = coalesce(src."mode", 'LIVE')
+-- A refund takes the mode of the money it gave back: the ledger row it refunds, else the held
+-- online payment it refunds, else real money (the same rule as ledgerModeFor in the code).
+UPDATE "invoice_payments" p SET "mode" = coalesce(src."mode", a."mode", 'LIVE')
 FROM "refund_requests" r
 LEFT JOIN "invoice_payments" src ON src."id" = r."invoice_payment_id"
+LEFT JOIN "payment_attempts" a ON a."id" = r."payment_attempt_id"
 WHERE p."mode" IS NULL AND p."kind" = 'REFUND' AND r."id" = p."source_id";
 --> statement-breakpoint
 -- Everything else (reported and staff-recorded payments) is real money.

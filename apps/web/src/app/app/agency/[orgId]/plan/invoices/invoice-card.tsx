@@ -52,12 +52,18 @@ export function InvoiceCard({
   invoice,
   organizationId,
   onlineAvailable,
+  testModeHint = null,
   latestDate,
   now = new Date(),
 }: {
   readonly invoice: AgencyInvoiceView;
   readonly organizationId: string;
   readonly onlineAvailable: boolean;
+  /**
+   * S29 round 2: while the gateway is in test mode (and the viewer is not the platform owner) the
+   * sentence saying online payment is being tested; shown in place of Pay Online.
+   */
+  readonly testModeHint?: string | null;
   /** The latest day a payment can have been made (YYYY-MM-DD, anywhere on earth). */
   readonly latestDate: string;
   /** The moment the page is drawn, for Overdue and Due Today. */
@@ -83,6 +89,7 @@ export function InvoiceCard({
   });
   const due = open ? dueMarker(invoice, now) : null;
   const headingId = `invoice-${invoice.id}`;
+  const showTestHint = testModeHint !== null && invoice.currency === ONLINE_CURRENCY;
   const hasOldPayment = invoice.attempts.some((a) => a.status === 'REDIRECTED');
 
   return (
@@ -140,7 +147,17 @@ export function InvoiceCard({
       </dl>
 
       {open ? (
-        <div className="invoice-actions">
+        <div
+          className="invoice-actions"
+          role="group"
+          aria-label={`Pay ${invoice.invoiceRef}`}
+          {...(showTestHint ? { 'aria-describedby': `${headingId}-test-mode` } : {})}
+        >
+          {showTestHint ? (
+            <p className="invoice-note" id={`${headingId}-test-mode`}>
+              {testModeHint}
+            </p>
+          ) : null}
           {invoice.recentAttemptStartedAt ? (
             <RecentPaymentChoices
               organizationId={organizationId}

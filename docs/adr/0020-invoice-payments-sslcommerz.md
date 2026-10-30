@@ -230,3 +230,14 @@ S29 (migration 0107 `plans_entitlements`; audit PAYMENTS-AUDIT-2026-10-30 M1, M2
 9. **Provider (O14, 30 Oct 2026).** SSLCOMMERZ, with bKash, Rocket and Nagad through its own checkout. Direct wallet integrations are optional later entries in the provider registry (S19 step 0).
 
 Not done here: traveller paid subscriptions, enforcing the AI allowance (S28), the provider registry (S19 step 0).
+
+### S29 round 2 (30 Oct 2026), after review
+
+- **Point 8 is withdrawn.** No launch switch that existed before S29 changes its reading. Exactly `true`: `PAYMENT_REFUNDS_VIA_GATEWAY`, `PERSONAL_SHARING_INVITATIONS_ENABLED`, `CASE_RETENTION_PURGE_ENABLED`, `INACTIVE_ACCOUNT_DELETION_ENABLED`, `COMMERCIAL_READINESS_ATTEST_*`, `AI_ENABLED`, `OPENAI_STORE_RESPONSES`. Trimmed, then `true`: `AI_CONNECTOR_ENABLED`. `apps/web/src/lib/launch-switch-parsing.test.ts` pins each. `switchOn` (@visastack/core) stays as a helper for switches new from S29 on; none uses it yet.
+- **Mode boundary.** One rule, `gatewayServesMode`, at every gateway step: settlement, refund request, refund retry, refund check and the refund panel's offer. A test payment still open when the gateway goes live is closed as expired (`mode_changed`); a live payment seen while the gateway is in test mode stays as it is, unasked, so the usual checks (late success included) judge it once live is back. A sent refund the gateway's current mode does not serve is never asked about: it is marked Needs a Check (`mode_changed`) once.
+- **Refund modes** follow one rule in code and in 0107: the refunded ledger row's mode, else the held online payment's, else LIVE (`refundSourceMode`, invoice-ledger.ts). Before 0107 a ledger row's mode is read exactly as 0107 will write it (`ledgerModeSql`).
+- **Founding Access** counts as free with no price or a price of 0 (the same rule as `plans_bypass_free`), so clearing its price never stops new agencies; the Plans page and `updatePlan` refuse to clear it.
+- **Retiring** waits while a scheduled plan change still moves an agency to the plan. A refused scheduled downgrade is reported through the server error channel.
+- **Plans page.** Team Members and Invitations follows Team Members (not edited separately). An AI feature that is on needs a daily limit from 1 to 1000. Traveller Free shows no limits (not enforced on travellers) and agency plans no AI features (agencies have none yet; the resolver answers "not applicable" for an agency, before and after 0107). "Travellers" counts accounts with no active place in an agency.
+- **Uploads.** A person adding files to their own record is never stopped by an agency's suspension, even when they work in that agency.
+- **Scope.** `resolveEntitlements` takes no scope proof, so it is not exported from the services index (a test holds this).

@@ -17,11 +17,14 @@ export function ledgerProblem(reason: string | undefined): string | null {
   return reason !== undefined && Object.hasOwn(REASONS, reason) ? (REASONS[reason] ?? null) : null;
 }
 
-/** "1 test payment left out" (S29): how many of this month's rows the file leaves out. */
+/**
+ * "1 test entry left out" (S29): how many of this month's rows the file leaves out (test payments,
+ * and credits and refunds made from them).
+ */
 export function testRowsSentence(count: number): string {
   return count === 1
-    ? 'This month, 1 test payment is left out of the file.'
-    : `This month, ${count} test payments are left out of the file.`;
+    ? 'This month, 1 test entry is left out of the file.'
+    : `This month, ${count} test entries are left out of the file.`;
 }
 
 export function LedgerCard({

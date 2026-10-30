@@ -102,7 +102,30 @@ async function seed(client: PGlite) {
   };
   const onlineRefund = await refundOf(online, 'REF-ONLINE');
   const recordedRefund = await refundOf(recorded, 'REF-CASH');
-  return { org, invoice, attempt, online, recorded, onlineRefund, recordedRefund, random };
+  // A refund of held money names the online payment, not a ledger row: it takes that payment's mode.
+  const held = await one(
+    `insert into payment_attempts (invoice_id, organization_id, provider, merchant_tran_id, amount_minor_units, currency, status, reason_code)
+     values ('${invoice}', '${org}', 'sslcommerz', 'VSP${'d'.repeat(26)}', 300, 'BDT', 'HELD_FOR_REVIEW', 'already_paid') returning id`,
+  );
+  const heldRequest = await one(
+    `insert into refund_requests (organization_id, invoice_id, payment_attempt_id, method, status, amount_minor_units, currency, idempotency_key, reason, requested_by_account_id, confirmed_at, reference)
+     values ('${org}', '${invoice}', '${held}', 'MANUAL', 'CONFIRMED', 100, 'BDT', '${crypto.randomUUID()}', 'Held money back', gen_random_uuid(), now(), 'REF-HELD') returning id`,
+  );
+  const heldRefund = await one(
+    `insert into invoice_payments (invoice_id, amount_minor_units, currency, kind, source_id, reference, collected_date, recorded_by_account_id)
+     values ('${invoice}', -100, 'BDT', 'REFUND', '${heldRequest}', 'REF-HELD', now(), gen_random_uuid()) returning id`,
+  );
+  return {
+    org,
+    invoice,
+    attempt,
+    online,
+    recorded,
+    onlineRefund,
+    recordedRefund,
+    heldRefund,
+    random,
+  };
 }
 
 describe('migration 0107: plans admin, entitlements and test payments', () => {
@@ -210,6 +233,7 @@ describe('migration 0107: plans admin, entitlements and test payments', () => {
       expect(modeOf(seeded.recorded)).toBe('LIVE');
       expect(modeOf(seeded.onlineRefund)).toBe('TEST');
       expect(modeOf(seeded.recordedRefund)).toBe('LIVE');
+      expect(modeOf(seeded.heldRefund)).toBe('TEST');
       const attemptMode = await client.query<{ mode: string }>(
         `select mode::text from payment_attempts where id = '${seeded.attempt}'`,
       );

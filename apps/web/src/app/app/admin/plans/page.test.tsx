@@ -68,6 +68,16 @@ beforeEach(() => {
           price: { priceMinorUnits: 0, currency: 'USD' },
           retireBlocked: 'default',
         }),
+        plan({
+          id: '00000000-0000-4000-8000-000000000003',
+          key: 'traveller_free',
+          name: 'Traveller Free',
+          audience: 'TRAVELLER',
+          price: null,
+          onIt: 41,
+          periodDays: 1,
+          retireBlocked: 'traveller',
+        }),
       ],
     },
   });
@@ -82,7 +92,12 @@ describe('Platform > Plans (S29)', () => {
     expect(text).toContain('every 30 days');
     expect(text).toContain('3 Agencies');
     expect(text).toContain('1024 MB');
-    expect(text).toContain('On, 15 a Day');
+    // AI features are set on Traveller Free only; its limits are not offered (round 2).
+    expect(text.match(/On, 15 a Day/g)).toHaveLength(1);
+    expect(text).toContain('41 Travellers');
+    expect(text).toContain('Every traveller is on this plan, so it cannot be retired.');
+    // The internal invitations key is never shown as a limit of its own.
+    expect(text).not.toContain('Team Members and Invitations');
     expect(text).toContain('Complimentary');
     expect(text).toContain('Every new agency starts on this plan, so it cannot be retired.');
     expect(text).toContain('New Plan');

@@ -39,9 +39,29 @@ export function capacityLabel(key: CapacityKey): string {
 }
 
 export const UNLIMITED_HINT = 'Leave empty for Unlimited.';
+
+/**
+ * The limits the Plans page edits. Team Members and Invitations is not among them: it always
+ * follows Team Members (round 2), and its key stays internal.
+ */
+export const EDITABLE_CAPACITY_KEYS: readonly CapacityKey[] = CAPACITY_KEYS.filter(
+  (key) => key !== 'invitations',
+);
+
+/** Traveller Free's limits are not enforced on travellers, so the page does not offer them. */
+export const TRAVELLER_LIMITS_NOTE =
+  'Travellers have no plan limits to set: their uploads follow the platform storage rules.';
+
+/** Agencies have no AI features of their own yet (S22, S28). */
+export const AGENCY_AI_NOTE =
+  'AI features for agencies come in a later update. Traveller AI limits are set on Traveller Free.';
+
+/** Said in the card once a plan is retired. */
+export const RETIRED_LINE = 'Retired. Nobody new can be put on this plan.';
 export const AI_ALLOWANCE_HINT =
   'Shown on Plan and Usage for now; it does not stop any work yet. Leave empty for Unlimited.';
-export const AI_LIMIT_HINT = 'Uses per person per day. Leave empty for no daily limit.';
+export const AI_LIMIT_HINT =
+  'Uses per person per day, from 1 to 1000, while the feature is on. A limit typed for a feature that is off is not kept.';
 
 /** S29 plan decision: a price change never touches a period already under way. */
 export const PRICE_CHANGE_NOTE =
@@ -58,13 +78,20 @@ export type PlanFormValues = Readonly<Record<string, string>>;
 
 export interface PlanFormState extends FormResult {
   readonly values?: PlanFormValues;
-  /** Set when the price changed and the change must be confirmed before saving. */
-  readonly pricePreview?: boolean;
+  /**
+   * Set when the price changed and the change must be confirmed before saving: the price now
+   * (null for none) and the new one, as people read them.
+   */
+  readonly pricePreview?: { readonly before: string | null; readonly after: string };
 }
 
 export interface RetireFormState extends FormResult {
   /** Set after the first press: how many agencies keep the plan. */
   readonly agenciesKeepingIt?: number;
+  /** Set when scheduled plan changes to it must be cancelled first: why, in plain words. */
+  readonly waiting?: string;
+  /** Set once the plan is retired. */
+  readonly retired?: true;
 }
 
 /** "3 Agencies" or "1 Traveller", for the list. */

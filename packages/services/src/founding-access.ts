@@ -62,7 +62,9 @@ export async function assignFoundingAccess(
     ),
     'founding offer',
   );
-  if (!plan.active || plan.priceMinorUnits !== 0 || !plan.bypassLimits) {
+  // Free means no price or a price of zero, the same rule as the lifted-limits flag
+  // (`plans_bypass_free`), so clearing the price never stops new agencies being created.
+  if (!plan.active || (plan.priceMinorUnits ?? 0) !== 0 || !plan.bypassLimits) {
     throw new Error('The complimentary founding offer is unavailable.');
   }
   const subscription = required(

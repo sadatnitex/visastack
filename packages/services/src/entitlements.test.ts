@@ -24,8 +24,17 @@ import {
   getPlanByKey,
   getUsageForOrganization,
   scheduleDowngrade,
+  updatePlan,
 } from './plans';
-import { type PlanDraft, listPlansForAdmin, retirePlan, savePlan } from './plans-admin';
+import {
+  DEFAULT_PLAN_PRICE_NEEDED,
+  type PlanDraft,
+  listPlansForAdmin,
+  pendingDowngradesSentence,
+  previewPlanRetire,
+  retirePlan,
+  savePlan,
+} from './plans-admin';
 import { grantPlatformRole } from './platform-roles';
 
 /**
@@ -285,9 +294,10 @@ describe('the entitlement resolver and the Plans page (S29)', () => {
       resolved = await resolveEntitlements(db, { organizationId });
       expect(resolved.gate).toBe('plan');
       expect(resolved.limits.seats).toBe(4);
-      expect(resolved.limits.invitations).toBe(6);
-      expect(resolved.features.ai_app_suggestions).toEqual({ included: true, dailyLimit: 3 });
-      expect(resolved.features.ai_app_original_files.included).toBe(false);
+      // Team Members and Invitations follow Team Members, whatever a draft says (round 2).
+      expect(resolved.limits.invitations).toBe(4);
+      // Agencies have no AI features of their own yet: not applicable, never "not in the plan".
+      expect(resolved.features).toBeNull();
       // The old columns follow the rules (code before S29 reads them).
       const [row] = await db
         .select({ seats: schema.plans.seatsAllowed })
@@ -300,7 +310,7 @@ describe('the entitlement resolver and the Plans page (S29)', () => {
         organizationId,
       });
       if (!isOk(usage)) throw new Error('usage');
-      expect(usage.value.meters.find((m) => m.key === 'invitations')?.allowed).toBe(6);
+      expect(usage.value.meters.find((m) => m.key === 'invitations')?.allowed).toBe(4);
       expect(usage.value.meters.find((m) => m.key === 'seats')?.label).toBe('Team Members');
     },
     TIMEOUT,
@@ -327,7 +337,7 @@ describe('the entitlement resolver and the Plans page (S29)', () => {
       });
       expect(isOk(saved)).toBe(true);
       const resolved = await resolveEntitlements(db, { accountId: ownerId });
-      expect(resolved.features.ai_app_suggestions).toEqual({ included: true, dailyLimit: 4 });
+      expect(resolved.features?.ai_app_suggestions).toEqual({ included: true, dailyLimit: 4 });
       const ai = await aiEntitlementFor(db, { accountId: ownerId });
       expect(ai.features.ai_app_suggestions).toEqual({ included: true, dailyLimit: 4 });
     },
@@ -487,6 +497,88 @@ describe('the entitlement resolver and the Plans page (S29)', () => {
       expect(isErr(badLimit) && badLimit.error.field).toBe('seats');
       const forged = await savePlan(db, {} as never, { draft: draft(), stepUpSatisfied: true });
       expect(isErr(forged) && forged.error.code).toBe('forbidden');
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'keeps Founding Access free and agency creation working when its price is cleared (round 2)',
+    async () => {
+      const scope = await plansScope();
+      await agency('founding-first');
+      const founding = await getPlanByKey(db, 'agency_founding_access');
+      if (!founding) throw new Error('founding');
+      // Cleared by hand: no price at all still counts as free, as the lifted-limits rule does.
+      await db
+        .update(schema.plans)
+        .set({ priceMinorUnits: null, currency: null })
+        .where(eq(schema.plans.id, founding.id));
+      const later = await agency('founding-after-clear');
+      expect((await resolveEntitlements(db, { organizationId: later.organizationId })).gate).toBe(
+        'bypass',
+      );
+      // The Plans page and the older call both refuse to clear it, in plain words.
+      const saved = await savePlan(db, scope, {
+        planId: founding.id,
+        draft: { name: founding.name, periodDays: founding.periodDays, price: null, rules: {} },
+        stepUpSatisfied: true,
+      });
+      expect(isErr(saved) && saved.error.message).toBe(DEFAULT_PLAN_PRICE_NEEDED);
+      expect(isErr(saved) && saved.error.field).toBe('price');
+      const older = await updatePlan(db, {
+        actor: actor(),
+        stepUpSatisfied: true,
+        planId: founding.id,
+        priceMinorUnits: null,
+        currency: null,
+      });
+      expect(isErr(older) && older.error.message).toBe(DEFAULT_PLAN_PRICE_NEEDED);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'waits to retire a plan until scheduled plan changes to it are cancelled, and says so (round 2)',
+    async () => {
+      const scope = await plansScope();
+      const { organizationId } = await agency('retire-wait');
+      const big = await newPlan({
+        name: 'Agency Big',
+        rules: { seats: { included: true, limit: 10 } },
+      });
+      const small = await newPlan({
+        name: 'Agency Small',
+        rules: { seats: { included: true, limit: 2 } },
+      });
+      await putOn(organizationId, big);
+      const scheduled = await scheduleDowngrade(db, {
+        actor: actor(),
+        stepUpSatisfied: true,
+        organizationId,
+        toPlanId: small,
+        reason: 'test',
+      });
+      expect(isOk(scheduled)).toBe(true);
+      const preview = await previewPlanRetire(db, scope, small);
+      expect(isOk(preview) && preview.value.pendingDowngrades).toBe(1);
+      const refused = await retirePlan(db, scope, { planId: small, stepUpSatisfied: true });
+      expect(isErr(refused) && refused.error.reason).toBe('retire_blocked');
+      expect(isErr(refused) && refused.error.message).toBe(pendingDowngradesSentence(1));
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'needs a daily limit of at least 1 for an AI feature that is on (round 2)',
+    async () => {
+      const scope = await plansScope();
+      for (const limit of [null, 0]) {
+        const saved = await savePlan(db, scope, {
+          draft: draft({ rules: { 'ai.ai_app_suggestions': { included: true, limit } } }),
+          stepUpSatisfied: true,
+        });
+        expect(isErr(saved) && saved.error.field).toBe('ai.ai_app_suggestions');
+      }
     },
     TIMEOUT,
   );

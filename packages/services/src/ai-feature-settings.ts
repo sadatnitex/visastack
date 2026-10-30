@@ -5,6 +5,7 @@ import {
   AI_FEATURE_KEYS,
   AI_FEATURE_LIMIT_MAX,
   AI_FEATURE_LIMIT_MIN,
+  AI_PLAN_TIERS,
   type AiFeatureEntitlement,
   type AiFeatureKey,
   type AiFeatureOffReason,
@@ -76,7 +77,7 @@ export async function aiEntitlementFor(
   _context: { readonly accountId: string | null },
 ): Promise<AiPlanEntitlement> {
   const resolved = await resolveEntitlements(db, { accountId: _context.accountId });
-  return { tier: 'FREE', features: resolved.features };
+  return { tier: 'FREE', features: resolved.features ?? AI_PLAN_TIERS.FREE };
 }
 
 interface SavedSetting {

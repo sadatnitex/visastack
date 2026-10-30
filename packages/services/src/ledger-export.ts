@@ -8,7 +8,7 @@ import { BILLING_TIME_ZONE, agencyCode } from './billing-standing';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { currencyDecimals } from './payment-amounts';
-import { ledgerModeColumn } from './plans-schema';
+import { ledgerModeSql } from './plans-schema';
 
 /**
  * The monthly accounting export (Small Commercial V1 S18, ADR 0020 Phase 2 "Accounting export"
@@ -170,7 +170,7 @@ async function countTestLedgerRows(
         and(
           gte(p.createdAt, bounds.start),
           lt(p.createdAt, bounds.end),
-          eq(ledgerModeColumn(), 'TEST'),
+          eq(await ledgerModeSql(db), 'TEST'),
         ),
       ),
   );
@@ -238,7 +238,7 @@ export async function exportLedgerMonth(
         gte(p.createdAt, bounds.start),
         lt(p.createdAt, bounds.end),
         // S29: test payments are not money; the accountant never sees them.
-        ne(ledgerModeColumn(), 'TEST'),
+        ne(await ledgerModeSql(db), 'TEST'),
       ),
     )
     .orderBy(asc(p.seq))

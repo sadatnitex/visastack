@@ -21,6 +21,7 @@ import {
   isValidMinorUnitAmount,
   normalizeCurrency,
   outstandingMinorUnits,
+  refundSourceMode,
 } from './invoice-ledger';
 import {
   cancelQueuedNotificationsForResource,
@@ -31,9 +32,9 @@ import type { PaymentAttempt } from './payments';
 import {
   type PaymentMode,
   attemptColumns,
-  attemptModeColumn,
+  gatewayServesMode,
   ledgerColumns,
-  ledgerModeColumn,
+  ledgerModeSql,
 } from './plans-schema';
 import { type PaymentPort, type RefundingPaymentPort, isRefundingPaymentPort } from './ports';
 
@@ -91,6 +92,8 @@ const OPEN_STATUSES: readonly RefundStatus[] = ['REQUESTED', 'SUBMITTED'];
 export const NEEDS_CHECK_CODE = 'ledger_refused';
 /** On a refund waiting to send: Send Again was answered "failed". Staff must check the panel. */
 export const RETRY_REFUSED_CODE = 'retry_refused';
+/** On a sent refund: the payment gateway's mode (test or live) changed since it was sent (S29). */
+export const MODE_CHANGED_CODE = 'mode_changed';
 /** On a sent refund: the gateway's refund reference is already behind another refund of the agency. */
 export const DUPLICATE_REFERENCE_CODE = 'duplicate_reference';
 export const RETRY_REFUSED_MESSAGE =
@@ -302,7 +305,7 @@ async function creditFrom(tx: Db, attemptId: string): Promise<InvoicePayment | u
   const p = schema.invoicePayments;
   return first(
     await tx
-      .select(ledgerColumns())
+      .select(ledgerColumns(await ledgerModeSql(tx)))
       .from(p)
       .where(and(eq(p.kind, 'CREDIT'), eq(p.sourceId, attemptId)))
       .limit(1),
@@ -356,7 +359,11 @@ async function lockSource(
   if (!isUuid(source.invoicePaymentId)) return null;
   const p = schema.invoicePayments;
   const unlocked = first(
-    await tx.select(ledgerColumns()).from(p).where(eq(p.id, source.invoicePaymentId)).limit(1),
+    await tx
+      .select(ledgerColumns(await ledgerModeSql(tx)))
+      .from(p)
+      .where(eq(p.id, source.invoicePaymentId))
+      .limit(1),
   );
   if (!unlocked) return null;
   const invoice = first(
@@ -703,36 +710,6 @@ function modeMismatchMessage(sourceMode: PaymentMode): string {
     : 'This was a real payment, and the payment gateway is in test mode now. Refund it when the gateway is live again, or refund it another way and record it here.';
 }
 
-/** The mode of the money a refund request gives back: its ledger row's, or its held payment's. */
-async function refundSourceMode(
-  db: Db,
-  request: { readonly invoicePaymentId: string | null; readonly paymentAttemptId: string | null },
-): Promise<PaymentMode> {
-  if (request.invoicePaymentId !== null) {
-    const p = schema.invoicePayments;
-    const row = first(
-      await db
-        .select({ mode: ledgerModeColumn() })
-        .from(p)
-        .where(eq(p.id, request.invoicePaymentId))
-        .limit(1),
-    );
-    return row?.mode === 'TEST' ? 'TEST' : 'LIVE';
-  }
-  if (request.paymentAttemptId !== null) {
-    const a = schema.paymentAttempts;
-    const row = first(
-      await db
-        .select({ mode: attemptModeColumn() })
-        .from(a)
-        .where(eq(a.id, request.paymentAttemptId))
-        .limit(1),
-    );
-    return row?.mode === 'LIVE' ? 'LIVE' : 'TEST';
-  }
-  return 'LIVE';
-}
-
 export async function requestRefund(
   db: Db,
   port: PaymentPort,
@@ -782,7 +759,7 @@ export async function requestRefund(
       // S29: money is given back through the gateway mode it was taken in, never the other one: a
       // test payment never reaches the live gateway, and a real one never the test gateway.
       const sourceMode = source.kind === 'held' ? source.attempt.mode : source.entry.mode;
-      if (gateway.mode !== null && sourceMode !== gateway.mode) {
+      if (!gatewayServesMode(gateway, sourceMode)) {
         return err(refusal('test_payment_live_gateway', modeMismatchMessage(sourceMode)));
       }
       const bankTranId = providerTarget(source, gateway.provider);
@@ -1012,8 +989,8 @@ export async function retryRefund(
   if (row.value.provider !== gateway.provider) {
     return err(serviceError('invalid', 'This refund belongs to another payment gateway.'));
   }
-  const sourceMode = await refundSourceMode(db, row.value);
-  if (gateway.mode !== null && sourceMode !== gateway.mode) {
+  const sourceMode = await refundSourceMode(db, row.value.id);
+  if (!gatewayServesMode(gateway, sourceMode)) {
     return err(refusal('test_payment_live_gateway', modeMismatchMessage(sourceMode)));
   }
   const now = input.now ?? new Date();
@@ -1272,6 +1249,25 @@ type CheckCode = 'confirmed' | 'failed' | 'processing' | 'unavailable' | 'needs_
  * writes nothing. Cancelled by the gateway: `FAILED`. Still processing: nothing but the time it
  * was asked.
  */
+/** Marks a sent refund Needs a Check because the gateway's mode changed (audited the first time). */
+async function markModeChanged(db: Db, seen: RefundRequest, now: Date): Promise<CheckCode> {
+  const r = schema.refundRequests;
+  const marked = await inTransaction(db, async (tx): Promise<Result<CheckCode, ServiceError>> => {
+    const locked = first(await tx.select().from(r).where(eq(r.id, seen.id)).limit(1).for('update'));
+    if (!locked || locked.status !== 'SUBMITTED') return ok('skipped');
+    if (locked.failureCode === MODE_CHANGED_CODE) return ok('needs_check');
+    await tx
+      .update(r)
+      .set({ failureCode: MODE_CHANGED_CODE, lastCheckedAt: now, updatedAt: now })
+      .where(eq(r.id, locked.id));
+    await auditRefund(tx, 'INVOICE_REFUND_NEEDS_CHECK', locked, null, {
+      failureCode: MODE_CHANGED_CODE,
+    });
+    return ok('needs_check');
+  });
+  return marked.ok ? marked.value : 'needs_check';
+}
+
 async function confirmOne(
   db: Db,
   gateway: RefundingPaymentPort,
@@ -1280,6 +1276,11 @@ async function confirmOne(
 ): Promise<CheckCode> {
   if (seen.status !== 'SUBMITTED' || seen.providerRefundId === null) return 'skipped';
   if (seen.provider !== gateway.provider) return 'skipped';
+  // S29: a refund sent in the other gateway mode is never asked about here (that store does not
+  // know it). A person checks it: it is marked Needs a Check (mode changed), once.
+  if (!gatewayServesMode(gateway, await refundSourceMode(db, seen.id))) {
+    return markModeChanged(db, seen, now);
+  }
   let report: Awaited<ReturnType<RefundingPaymentPort['queryRefund']>>;
   try {
     report = await gateway.queryRefund(seen.providerRefundId);
@@ -1959,6 +1960,11 @@ const MAX_PAGE = 1000;
 export interface RefundWorkInput {
   readonly organizationId: string;
   readonly gatewayProvider: string | null;
+  /**
+   * S29: the gateway's mode (TEST or LIVE). A payment is offered for a gateway refund only when it
+   * was taken in this mode. Absent: no payment is offered.
+   */
+  readonly gatewayMode?: PaymentMode | null;
   /** 1 (the default) is the newest page; each older page holds the next 25. */
   readonly page?: number;
   /** Only payments on invoices whose reference contains this text (case does not matter). */
@@ -2014,7 +2020,11 @@ export async function getOrganizationRefundWork(
 
   const [entryRows, heldRows, requestRows] = await Promise.all([
     db
-      .select({ entry: ledgerColumns(), invoiceRef: i.invoiceRef, committed: entryCommitted })
+      .select({
+        entry: ledgerColumns(await ledgerModeSql(db)),
+        invoiceRef: i.invoiceRef,
+        committed: entryCommitted,
+      })
       .from(p)
       .innerJoin(i, eq(i.id, p.invoiceId))
       .where(
@@ -2089,6 +2099,7 @@ export async function getOrganizationRefundWork(
       mode: row.mode,
       viaGateway:
         gateway !== null &&
+        input.gatewayMode === row.mode &&
         row.provider === gateway &&
         attempt !== undefined &&
         attempt.provider === gateway &&
@@ -2116,7 +2127,11 @@ export async function getOrganizationRefundWork(
       verified,
       mode: attempt.mode,
       viaGateway:
-        gateway !== null && verified && attempt.provider === gateway && attempt.bankTranId !== null,
+        gateway !== null &&
+        input.gatewayMode === attempt.mode &&
+        verified &&
+        attempt.provider === gateway &&
+        attempt.bankTranId !== null,
     };
   });
 

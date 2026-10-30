@@ -12,6 +12,7 @@ import { AdminRestricted } from '../admin-restricted';
 import { PlanForm, RetirePlanForm } from './forms';
 import {
   BYTES_PER_MB,
+  EDITABLE_CAPACITY_KEYS,
   type PlanFormValues,
   aiFeatureName,
   aiFeatureSummary,
@@ -54,7 +55,12 @@ function initialValues(plan: PlanAdminView | null): PlanFormValues {
 function priceWords(plan: PlanAdminView): string {
   if (plan.audience === 'TRAVELLER') return 'Free';
   if (!plan.price) return 'No Price';
-  return `${formatMoney(plan.price.priceMinorUnits, plan.price.currency)} every ${plan.periodDays} days`;
+  return `${formatMoney(plan.price.priceMinorUnits, plan.price.currency)} every ${periodWords(plan.periodDays)}`;
+}
+
+/** "30 days", "1 day". */
+function periodWords(days: number): string {
+  return days === 1 ? '1 day' : `${days} days`;
 }
 
 function limitWords(plan: PlanAdminView, key: (typeof CAPACITY_KEYS)[number]): string {
@@ -76,7 +82,7 @@ function PlanCard({
   const titleId = `plan-${plan.id}`;
   return (
     <article className="card u-mb-150" aria-labelledby={titleId} id={titleId.concat('-card')}>
-      <h2 className="card-title" id={titleId}>
+      <h2 className="card-title" id={titleId} tabIndex={-1}>
         {plan.name}
       </h2>
       <div className="rows">
@@ -101,13 +107,15 @@ function PlanCard({
             {plan.bypassLimits ? <StatusBadge tone="success">Complimentary</StatusBadge> : null}
           </span>
         </div>
-        {CAPACITY_KEYS.map((key) => (
-          <div className="row" key={key}>
-            <span className="row-key">{capacityLabel(key).replace(' (MB)', '')}</span>
-            <span>{limitWords(plan, key)}</span>
-          </div>
-        ))}
-        {AI_FEATURE_KEYS.map((feature) => (
+        {plan.audience === 'TRAVELLER'
+          ? null
+          : EDITABLE_CAPACITY_KEYS.map((key) => (
+              <div className="row" key={key}>
+                <span className="row-key">{capacityLabel(key).replace(' (MB)', '')}</span>
+                <span>{limitWords(plan, key)}</span>
+              </div>
+            ))}
+        {(plan.audience === 'TRAVELLER' ? AI_FEATURE_KEYS : []).map((feature) => (
           <div className="row" key={feature}>
             <span className="row-key">{aiFeatureName(feature)}</span>
             <span>
@@ -129,12 +137,19 @@ function PlanCard({
             traveller={plan.audience === 'TRAVELLER'}
             {...(retry ? { retry } : {})}
           />
-          {plan.retireBlocked === null ? (
+          {plan.retireBlocked === null || plan.retireBlocked === 'retired' ? (
             <>
-              <h3 className="card-title">Retire {plan.name}</h3>
-              <RetirePlanForm planId={plan.id} planName={plan.name} />
+              {plan.retireBlocked === null ? (
+                <h3 className="card-title">Retire {plan.name}</h3>
+              ) : null}
+              <RetirePlanForm
+                planId={plan.id}
+                planName={plan.name}
+                headingId={titleId}
+                retired={plan.retireBlocked === 'retired'}
+              />
             </>
-          ) : plan.retireBlocked === 'retired' ? null : (
+          ) : (
             <p className="muted u-fs-085">
               {plan.retireBlocked === 'traveller'
                 ? 'Every traveller is on this plan, so it cannot be retired.'

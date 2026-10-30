@@ -20,7 +20,12 @@ import {
 import { FakePaymentPort } from './payments.test-support';
 import { getPlanByKey } from './plans';
 import { grantPlatformRole } from './platform-roles';
-import { requestRefund } from './refunds';
+import {
+  MODE_CHANGED_CODE,
+  checkRefundsNow,
+  getOrganizationRefundWork,
+  requestRefund,
+} from './refunds';
 
 /**
  * S29 test payments (ADR 0020 S29 amendment, audit M2): every online payment and ledger row says
@@ -262,5 +267,80 @@ describe('test payments (S29)', () => {
         mode: 'TEST',
       }),
     ).rejects.toThrow();
+  });
+
+  it('leaves a live payment open and unasked while the gateway is in test mode (round 2)', async () => {
+    port.mode = 'LIVE';
+    const invoiceId = await openInvoice('INV-S29-LIVE-OPEN');
+    expect(isOk(await start(invoiceId, agencyOwnerId, 'agency-owner-s29@acme.example.com'))).toBe(
+      true,
+    );
+    const [attempt] = await attemptsOf(invoiceId);
+    if (!attempt) throw new Error('attempt');
+    port.mode = 'TEST';
+    const seen = await settlePaymentAttempt(db, port, {
+      merchantTranId: attempt.merchantTranId,
+      valId: null,
+      source: 'reconcile',
+    });
+    expect(seen.code).toBe('pending');
+    const [still] = await attemptsOf(invoiceId);
+    expect(still?.status).toBe(attempt.status);
+    expect(still?.reasonCode).toBeNull();
+    expect(port.queryCalls).toHaveLength(0);
+    // Live again: the usual check, late success included, records it.
+    port.mode = 'LIVE';
+    const paid = port.succeed(attempt.merchantTranId, 5000);
+    const settled = await settlePaymentAttempt(db, port, {
+      merchantTranId: attempt.merchantTranId,
+      valId: paid.valId,
+      source: 'ipn',
+    });
+    expect(settled.code).toBe('recorded');
+  });
+
+  it('never asks the other mode about a sent refund: it is marked Needs a Check once (round 2)', async () => {
+    const { invoiceId } = await paidTestPayment('INV-S29-REFUND-CHECK');
+    const [entry] = await db
+      .select()
+      .from(schema.invoicePayments)
+      .where(eq(schema.invoicePayments.invoiceId, invoiceId));
+    if (!entry) throw new Error('entry');
+    const scope = await staffPrincipal(
+      db,
+      { accountId: ownerId, email: ownerEmail, bootstrapEmails: [] },
+      'BILLING_REFUND_MANAGE',
+    );
+    if (!isOk(scope)) throw new Error('scope');
+    // Sent while the gateway was in test mode.
+    const sent = await requestRefund(db, port, scope.value, {
+      organizationId,
+      source: { kind: 'entry', invoicePaymentId: entry.id },
+      amountMinorUnits: 1000,
+      reason: 'Test refund',
+      idempotencyKey: randomUUID(),
+      stepUpSatisfied: true,
+    });
+    expect(isOk(sent)).toBe(true);
+    // The panel does not offer a gateway refund of a test payment to the live gateway.
+    const work = await getOrganizationRefundWork(db, scope.value, {
+      organizationId,
+      gatewayProvider: 'sslcommerz',
+      gatewayMode: 'LIVE',
+    });
+    expect(isOk(work) && work.value.entries.every((e) => !e.viaGateway)).toBe(true);
+    port.mode = 'LIVE';
+    for (let run = 0; run < 2; run++) {
+      const checked = await checkRefundsNow(db, port, scope.value, { organizationId });
+      expect(isOk(checked) && checked.value.needsCheck).toBe(1);
+    }
+    expect(port.refundQueries).toHaveLength(0);
+    const [request] = await db.select().from(schema.refundRequests);
+    expect(request?.failureCode).toBe(MODE_CHANGED_CODE);
+    const marks = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'INVOICE_REFUND_NEEDS_CHECK'));
+    expect(marks).toHaveLength(1);
   });
 });

@@ -8,7 +8,12 @@ import {
 import { type Db, first, schema } from './db';
 import { type ResolvedEntitlements, resolveEntitlements } from './entitlements';
 import { type ServiceError, refusal } from './errors';
-import { countActiveSeats, countCasesInPeriod, countConcurrentOpenCases } from './plans';
+import {
+  countActiveSeats,
+  countCasesInPeriod,
+  countConcurrentOpenCases,
+  countPendingInvitations,
+} from './plans';
 import { recordProductEvent } from './product-events';
 import { getOrganizationEvidenceBytes } from './quotas';
 
@@ -203,21 +208,6 @@ export async function checkSeatEntitlement(
   return ok(undefined);
 }
 
-async function countPendingInvitations(tx: Db, organizationId: string): Promise<number> {
-  const row = first(
-    await tx
-      .select({ n: sql<number>`count(*)::int` })
-      .from(schema.organizationInvitations)
-      .where(
-        and(
-          eq(schema.organizationInvitations.organizationId, organizationId),
-          eq(schema.organizationInvitations.status, 'PENDING'),
-        ),
-      ),
-  );
-  return row?.n ?? 0;
-}
-
 /**
  * Refuses to mint a new invitation if active seats plus already-pending
  * invitations have already reached the plan's `seatsAllowed` -- the
@@ -373,12 +363,23 @@ export async function checkStorageEntitlement(
   // A full plan is the agency's own to fix: its staff get the next step (S30).
   const full = async (organizationId: string) =>
     (await inAgency(organizationId)) ? AGENCY_STORAGE_FULL : TRAVELLER_UPLOAD_PAUSED;
+  // S29 round 2: a person adding files to their own record is never stopped by any agency's
+  // suspension, even when they also work in that agency.
+  const ownRecord =
+    uploaderAccountId !== undefined &&
+    (
+      await tx
+        .select({ owner: schema.applicants.ownerAccountId })
+        .from(schema.applicants)
+        .where(eq(schema.applicants.id, applicantId))
+        .limit(1)
+    )[0]?.owner === uploaderAccountId;
   for (const organizationId of organizationIds) {
     const resolved = await resolveEntitlements(tx, { organizationId });
     if (unrestricted(resolved)) continue;
     // Owner decision O13 (30 Oct 2026): a suspension pauses only the agency's own team. A
     // traveller (or another agency's staff) adding files is never stopped by it.
-    if (resolved.gate === 'suspended' && (await inAgency(organizationId))) {
+    if (resolved.gate === 'suspended' && !ownRecord && (await inAgency(organizationId))) {
       return err(refusal('billing_suspended', AGENCY_UPLOAD_PAUSED));
     }
     const allowed = resolved.limits.storage_bytes;

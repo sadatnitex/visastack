@@ -76,3 +76,12 @@ Owner decision O13 (30 Oct 2026): Grace 7 days after the due date, Suspended 30 
 2. Under Change the Rules: Grace 7, Suspended 30, tick Automatic Grace and Suspended.
 3. Save. The page first shows how many agencies the rules would move today; tick the box to confirm and Save again (a fresh sign-in check follows).
 4. From the next daily run, unpaid agencies move to Grace and then Suspended. Travellers who share records with a Suspended agency keep adding their own files.
+
+## Round 2 (30 Oct 2026, after review)
+
+- Switches: each keeps the reading it had before S29 (see `docs/operations/current-platform.md`, correction of 30 Oct). `PAYMENT_REFUNDS_VIA_GATEWAY` is on only for exactly `true`.
+- Founding Access cannot have its price cleared (enter 0 and its currency); with no price it still counts as free, so new agencies are always created.
+- Retiring a plan waits until every scheduled plan change that would move an agency onto it is cancelled; the first press says how many there are.
+- The Plans page edits Team Members only; Team Members and Invitations always follows it. Traveller Free shows its AI features (each on needs a daily limit from 1 to 1000) and no limits; agency plans show their limits and no AI features.
+- Test mode on the Invoices page: agencies read "Online payment is being tested right now" instead of Pay Online; the platform owner still sees Pay Online.
+- Mode changes: a test payment still open when the gateway goes live closes as expired; a live payment open while the gateway is in test mode is left alone and checked again once live is back. A refund sent in the other mode is marked Needs a Check: look it up in that mode's merchant panel. It is checked as usual again once the gateway is back in the mode it was sent in.

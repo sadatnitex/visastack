@@ -2,6 +2,8 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import type { Db } from './db';
+import { entitlementsSchemaPresent } from './plans-schema';
 
 /**
  * S29 guard: before migration 0107 a plain `.select()`, a plain `.returning()` or a whole-table
@@ -91,5 +93,59 @@ describe('reads of plans, online payments and ledger rows (S29)', () => {
     expect(unsafeTableReads('tx.update(schema.plans).set({}).returning(planColumns());')).toEqual(
       [],
     );
+  });
+});
+
+describe('the entitlement resolver stays inside the services package (S29 round 2)', () => {
+  it('is not exported from the package index, since it takes no scope proof', () => {
+    const index = readFileSync(join(SRC, 'index.ts'), 'utf8');
+    const exportedNames = [...index.matchAll(/export\s*\{([^}]*)\}\s*from\s*'\.\/entitlements'/g)]
+      .flatMap((m) => (m[1] ?? '').split(','))
+      .map((n) => n.trim().replace(/^type\s+/, ''));
+    expect(exportedNames).not.toContain('resolveEntitlements');
+    expect(exportedNames.length).toBeGreaterThan(0);
+  });
+});
+
+describe('the migration 0107 probe is remembered per database (S29 round 2)', () => {
+  /** A stand-in handle that answers the probe with `present` and counts how often it was asked. */
+  function handle(connectionString: string | null, present: boolean) {
+    const calls = { n: 0 };
+    const db = {
+      ...(connectionString === null ? {} : { $client: { options: { connectionString } } }),
+      select: () => ({
+        from: async () => {
+          calls.n++;
+          return [{ present }];
+        },
+      }),
+    } as unknown as Db;
+    return { db, calls };
+  }
+
+  it('keeps a yes for every handle on the same database, never a no', async () => {
+    const url = `postgres://probe-${crypto.randomUUID()}`;
+    const no = handle(url, false);
+    expect(await entitlementsSchemaPresent(no.db)).toBe(false);
+    expect(await entitlementsSchemaPresent(no.db)).toBe(false);
+    expect(no.calls.n).toBe(2);
+    const yes = handle(url, true);
+    expect(await entitlementsSchemaPresent(yes.db)).toBe(true);
+    // A new handle (a new pool, a new request) on the same database is not asked again.
+    const later = handle(url, false);
+    expect(await entitlementsSchemaPresent(later.db)).toBe(true);
+    expect(later.calls.n).toBe(0);
+    // Another database is asked for itself.
+    const other = handle(`postgres://other-${crypto.randomUUID()}`, false);
+    expect(await entitlementsSchemaPresent(other.db)).toBe(false);
+  });
+
+  it('remembers per handle when the connection string cannot be read', async () => {
+    const yes = handle(null, true);
+    expect(await entitlementsSchemaPresent(yes.db)).toBe(true);
+    expect(await entitlementsSchemaPresent(yes.db)).toBe(true);
+    expect(yes.calls.n).toBe(1);
+    const fresh = handle(null, false);
+    expect(await entitlementsSchemaPresent(fresh.db)).toBe(false);
   });
 });

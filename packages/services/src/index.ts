@@ -2062,8 +2062,9 @@ export {
   type ResolvedPlan,
   TRAVELLER_PLAN_KEY,
   billingPeriodStart,
-  resolveEntitlements,
 } from './entitlements';
+// S29 round 2: `resolveEntitlements` is not exported. It takes no scope proof, so only service
+// code (behind its own gates) calls it; plans-schema.test.ts holds this.
 export {
   DEFAULT_AGENCY_PLAN_KEY,
   PLANS_UNAVAILABLE,
@@ -2080,7 +2081,10 @@ export {
   type RetirePreview,
   type SavePlanInput,
   type SavedPlan,
+  DEFAULT_PLAN_PRICE_NEEDED,
+  getPlanLatestPrice,
   listPlansForAdmin,
+  pendingDowngradesSentence,
   planDraftProblem,
   previewPlanRetire,
   retirePlan,
@@ -2089,3 +2093,4 @@ export {
 export { type PaymentMode, type PlanAudience, entitlementsSchemaPresent } from './plans-schema';
 export { MODE_CHANGED, TEST_PAYMENTS_ONLY } from './payments';
 export { countLedgerTestRows } from './ledger-export';
+export { MODE_CHANGED_CODE } from './refunds';

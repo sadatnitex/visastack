@@ -29,7 +29,7 @@ import {
   attemptModeColumn,
   entitlementsSchemaPresent,
   ledgerColumns,
-  ledgerModeColumn,
+  ledgerModeSql,
 } from './plans-schema';
 import { recordProductEvent } from './product-events';
 import { type PaymentReceipt, issueReceiptForPayment } from './receipts';
@@ -485,6 +485,8 @@ interface LedgerRowValues {
 async function ledgerModeFor(tx: Db, values: LedgerRowValues): Promise<PaymentMode> {
   if (values.sourceId === null) return 'LIVE';
   if (values.kind === 'ONLINE' || values.kind === 'CREDIT') {
+    // The online payment it came from; with none (never the case in practice), real money, as
+    // migration 0107's backfill reads it.
     const a = schema.paymentAttempts;
     const row = first(
       await tx
@@ -493,41 +495,37 @@ async function ledgerModeFor(tx: Db, values: LedgerRowValues): Promise<PaymentMo
         .where(eq(a.id, values.sourceId))
         .limit(1),
     );
-    return row?.mode === 'LIVE' ? 'LIVE' : 'TEST';
+    return row?.mode ?? 'LIVE';
   }
-  if (values.kind === 'REFUND') {
-    const r = schema.refundRequests;
-    const request = first(
-      await tx
-        .select({ entryId: r.invoicePaymentId, attemptId: r.paymentAttemptId })
-        .from(r)
-        .where(eq(r.id, values.sourceId))
-        .limit(1),
-    );
-    if (request?.entryId) {
-      const p = schema.invoicePayments;
-      const row = first(
-        await tx
-          .select({ mode: ledgerModeColumn() })
-          .from(p)
-          .where(eq(p.id, request.entryId))
-          .limit(1),
-      );
-      return row?.mode === 'TEST' ? 'TEST' : 'LIVE';
-    }
-    if (request?.attemptId) {
-      const a = schema.paymentAttempts;
-      const row = first(
-        await tx
-          .select({ mode: attemptModeColumn() })
-          .from(a)
-          .where(eq(a.id, request.attemptId))
-          .limit(1),
-      );
-      return row?.mode === 'LIVE' ? 'LIVE' : 'TEST';
-    }
-    return 'LIVE';
-  }
+  if (values.kind === 'REFUND') return refundSourceMode(tx, values.sourceId);
+  return 'LIVE';
+}
+
+/**
+ * The mode of the money one refund request gives back (S29): the ledger row it refunds, else the
+ * held online payment it refunds, else real money. The same rule as migration 0107's backfill
+ * (`coalesce(source row, online payment, 'LIVE')`), and the one refunds.ts uses at the gateway.
+ */
+export async function refundSourceMode(tx: Db, refundRequestId: string): Promise<PaymentMode> {
+  const r = schema.refundRequests;
+  const p = schema.invoicePayments;
+  const a = schema.paymentAttempts;
+  const row = first(
+    await tx
+      .select({
+        entryId: p.id,
+        entryMode: await ledgerModeSql(tx),
+        attemptId: a.id,
+        attemptMode: attemptModeColumn(),
+      })
+      .from(r)
+      .leftJoin(p, eq(p.id, r.invoicePaymentId))
+      .leftJoin(a, eq(a.id, r.paymentAttemptId))
+      .where(eq(r.id, refundRequestId))
+      .limit(1),
+  );
+  if (row?.entryId) return row.entryMode;
+  if (row?.attemptId) return row.attemptMode;
   return 'LIVE';
 }
 
@@ -548,7 +546,7 @@ async function insertLedgerRow(
         .insert(payments)
         .values({ ...values, mode })
         .onConflictDoNothing()
-        .returning(ledgerColumns()),
+        .returning(ledgerColumns(await ledgerModeSql(tx))),
     );
   }
   const id = crypto.randomUUID();
@@ -559,7 +557,13 @@ async function insertLedgerRow(
   );
   const rows = Array.isArray(written) ? written : (written as { rows?: unknown[] }).rows;
   if (!rows || rows.length === 0) return undefined;
-  return first(await tx.select(ledgerColumns()).from(payments).where(eq(payments.id, id)).limit(1));
+  return first(
+    await tx
+      .select(ledgerColumns(await ledgerModeSql(tx)))
+      .from(payments)
+      .where(eq(payments.id, id))
+      .limit(1),
+  );
 }
 
 async function findExisting(
@@ -573,7 +577,7 @@ async function findExisting(
   if (sourceId !== null) {
     const bySource = first(
       await tx
-        .select(ledgerColumns())
+        .select(ledgerColumns(await ledgerModeSql(tx)))
         .from(payments)
         .where(and(eq(payments.kind, kind), eq(payments.sourceId, sourceId)))
         .limit(1),
@@ -583,7 +587,7 @@ async function findExisting(
   if (provider !== null && providerTransactionId !== null) {
     return first(
       await tx
-        .select(ledgerColumns())
+        .select(ledgerColumns(await ledgerModeSql(tx)))
         .from(payments)
         .where(
           and(
@@ -689,7 +693,7 @@ export async function applyInvoiceRefund(
   const payments = schema.invoicePayments;
   const existing = first(
     await tx
-      .select(ledgerColumns())
+      .select(ledgerColumns(await ledgerModeSql(tx)))
       .from(payments)
       .where(and(eq(payments.kind, 'REFUND'), eq(payments.sourceId, input.refundRequestId)))
       .limit(1),

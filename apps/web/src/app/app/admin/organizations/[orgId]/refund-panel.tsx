@@ -1,6 +1,7 @@
 import { TEST_PAYMENT_LABEL, formatBillingDate, formatMoney } from '@visastack/core';
 import {
   DUPLICATE_REFERENCE_CODE,
+  MODE_CHANGED_CODE,
   NEEDS_CHECK_CODE,
   NO_OPEN_INVOICE_FOR_CREDIT,
   type OrganizationRefundWork,
@@ -71,7 +72,9 @@ function RefundLine({
   const unconfirmed = request.method === 'PROVIDER' && request.status === 'REQUESTED';
   const needsCheck =
     request.status === 'SUBMITTED' &&
-    (request.failureCode === NEEDS_CHECK_CODE || request.failureCode === DUPLICATE_REFERENCE_CODE);
+    (request.failureCode === NEEDS_CHECK_CODE ||
+      request.failureCode === DUPLICATE_REFERENCE_CODE ||
+      request.failureCode === MODE_CHANGED_CODE);
   return (
     <li
       id={`refund-line-${request.id}`}
@@ -95,9 +98,11 @@ function RefundLine({
       ) : null}
       {needsCheck ? (
         <p className="invoice-note">
-          {request.failureCode === DUPLICATE_REFERENCE_CODE
-            ? 'The payment gateway says this refund was made, but its refund reference is already recorded for another refund, so it was not counted again.'
-            : 'The payment gateway says this refund was made, but the invoice no longer holds that much money, so it was not taken off.'}{' '}
+          {request.failureCode === MODE_CHANGED_CODE
+            ? 'The payment gateway changed between test and live since this refund was sent, so VisaStack does not ask it about this refund.'
+            : request.failureCode === DUPLICATE_REFERENCE_CODE
+              ? 'The payment gateway says this refund was made, but its refund reference is already recorded for another refund, so it was not counted again.'
+              : 'The payment gateway says this refund was made, but the invoice no longer holds that much money, so it was not taken off.'}{' '}
           Look at the invoice and the gateway's merchant panel before doing anything else.
         </p>
       ) : null}

@@ -1,7 +1,7 @@
 'use client';
 
-import { AI_FEATURE_KEYS, AI_FEATURE_LIMIT_MAX } from '@visastack/core/ai-features';
-import { CAPACITY_KEYS, type CapacityKey } from '@visastack/core/entitlements';
+import { AI_FEATURE_KEYS } from '@visastack/core/ai-features';
+import type { CapacityKey } from '@visastack/core/entitlements';
 import { useActionState, useEffect, useId, useRef } from 'react';
 import {
   FormMessage,
@@ -11,14 +11,18 @@ import {
 } from '../../../../components/form-feedback';
 import { retirePlanAction, savePlanAction } from './actions';
 import {
+  AGENCY_AI_NOTE,
   AI_ALLOWANCE_HINT,
   AI_LIMIT_HINT,
+  EDITABLE_CAPACITY_KEYS,
   PERIOD_LOCKED_NOTE,
   PRICE_CHANGE_NOTE,
   type PlanFormState,
   type PlanFormValues,
+  RETIRED_LINE,
   RETIRE_NOTE,
   type RetireFormState,
+  TRAVELLER_LIMITS_NOTE,
   UNLIMITED_HINT,
   aiFeatureName,
   capacityLabel,
@@ -64,11 +68,16 @@ export function PlanForm({
 }: PlanFormProps) {
   const [state, formAction, pending] = useActionState(savePlanAction, NO_REPLY);
   const form = useRef<HTMLFormElement>(null);
-  const confirmStep = useRef<HTMLDivElement>(null);
+  const confirmStep = useRef<HTMLFieldSetElement>(null);
+  const notSaved = useRef<HTMLOutputElement>(null);
   useFocusInvalidField(form, state);
   useEffect(() => {
     if (state.pricePreview && state.ok) confirmStep.current?.focus();
   }, [state]);
+  // Back from the fresh sign-in check: focus starts on the notice that the change waits.
+  useEffect(() => {
+    if (retry) notSaved.current?.focus();
+  }, [retry]);
   const id = useId();
   const messageId = `${id}-message`;
   const values: PlanFormValues = state.values ?? retry ?? initial;
@@ -101,7 +110,7 @@ export function PlanForm({
     <form ref={form} action={formAction} className="field-list">
       <input type="hidden" name="planId" value={planId ?? ''} />
       {retry && state === NO_REPLY ? (
-        <output className="notice notice-warn">
+        <output className="notice notice-warn" ref={notSaved} tabIndex={-1}>
           Your change was not saved yet. Check it below and choose Save again.
         </output>
       ) : null}
@@ -173,54 +182,63 @@ export function PlanForm({
             </small>
           </fieldset>
         )}
-        <fieldset className="fieldset">
-          <legend className="field-label">Limits</legend>
-          {CAPACITY_KEYS.map(capacity)}
-        </fieldset>
-        <fieldset className="fieldset">
-          <legend className="field-label">AI Features</legend>
-          {AI_FEATURE_KEYS.map((feature) => (
-            <div className="field-row" key={feature}>
-              <div className="checks">
-                <label className="check" htmlFor={`${id}-${feature}-on`}>
-                  <input
-                    id={`${id}-${feature}-on`}
-                    type="checkbox"
-                    name={featureOnField(feature)}
-                    defaultChecked={value(featureOnField(feature)) === 'on'}
-                  />
-                  <span>{aiFeatureName(feature)}</span>
+        {traveller ? (
+          <p className="muted u-fs-085">{TRAVELLER_LIMITS_NOTE}</p>
+        ) : (
+          <fieldset className="fieldset">
+            <legend className="field-label">Limits</legend>
+            {EDITABLE_CAPACITY_KEYS.map(capacity)}
+          </fieldset>
+        )}
+        {traveller ? (
+          <fieldset className="fieldset">
+            <legend className="field-label">AI Features</legend>
+            {AI_FEATURE_KEYS.map((feature) => (
+              <div className="field-row" key={feature}>
+                <div className="checks">
+                  <label className="check" htmlFor={`${id}-${feature}-on`}>
+                    <input
+                      id={`${id}-${feature}-on`}
+                      type="checkbox"
+                      name={featureOnField(feature)}
+                      defaultChecked={value(featureOnField(feature)) === 'on'}
+                    />
+                    <span>{aiFeatureName(feature)}</span>
+                  </label>
+                </div>
+                <label className="field-label" htmlFor={`${id}-${feature}-limit`}>
+                  Daily Limit per Person: {aiFeatureName(feature)}
                 </label>
+                <input
+                  id={`${id}-${feature}-limit`}
+                  type="text"
+                  inputMode="numeric"
+                  className="input"
+                  {...input(featureLimitField(feature), `${id}-${feature}-hint`)}
+                />
+                <small className="muted" id={`${id}-${feature}-hint`}>
+                  {AI_LIMIT_HINT}
+                </small>
               </div>
-              <label className="field-label" htmlFor={`${id}-${feature}-limit`}>
-                Daily Limit per Person: {aiFeatureName(feature)}
-              </label>
-              <input
-                id={`${id}-${feature}-limit`}
-                type="number"
-                inputMode="numeric"
-                min={0}
-                max={AI_FEATURE_LIMIT_MAX}
-                step={1}
-                className="input"
-                {...input(featureLimitField(feature), `${id}-${feature}-hint`)}
-              />
-              <small className="muted" id={`${id}-${feature}-hint`}>
-                {AI_LIMIT_HINT}
-              </small>
-            </div>
-          ))}
-        </fieldset>
+            ))}
+          </fieldset>
+        ) : (
+          <p className="muted u-fs-085">{AGENCY_AI_NOTE}</p>
+        )}
       </div>
       {state.pricePreview ? (
-        <div
+        <fieldset
           ref={confirmStep}
           tabIndex={-1}
-          className="notice notice-warn"
-          aria-labelledby={`${id}-price-step`}
+          className="fieldset notice notice-warn"
+          aria-describedby={`${id}-price-step`}
         >
+          <legend className="field-label">Before You Save the New Price</legend>
           <p id={`${id}-price-step`}>
-            <strong>Before You Save the New Price.</strong> {PRICE_CHANGE_NOTE}
+            {state.pricePreview.before
+              ? `The price changes from ${state.pricePreview.before} to ${state.pricePreview.after}.`
+              : `The plan gets a price of ${state.pricePreview.after}.`}{' '}
+            {PRICE_CHANGE_NOTE}
           </p>
           <input type="hidden" name="pricePreviewed" value="yes" />
           <div className="checks">
@@ -237,7 +255,7 @@ export function PlanForm({
               <span>I Understand the New Price Applies from the Next Billing Period</span>
             </label>
           </div>
-        </div>
+        </fieldset>
       ) : null}
       <div className="page-actions">
         <SubmitButton pending={pending} idle="Save" busy="Saving…" label={`Save: ${planName}`} />
@@ -254,23 +272,40 @@ export function PlanForm({
 export function RetirePlanForm({
   planId,
   planName,
-}: { readonly planId: string; readonly planName: string }) {
+  headingId,
+  retired = false,
+}: {
+  readonly planId: string;
+  readonly planName: string;
+  /** The plan card's heading, where focus goes once the plan is retired. */
+  readonly headingId: string;
+  /** The plan is retired: the card keeps a polite line saying so, and no button. */
+  readonly retired?: boolean;
+}) {
   const [state, formAction, pending] = useActionState(retirePlanAction, NO_RETIRE_REPLY);
   const form = useRef<HTMLFormElement>(null);
-  const confirmStep = useRef<HTMLDivElement>(null);
+  const confirmStep = useRef<HTMLFieldSetElement>(null);
   useFocusInvalidField(form, state);
   useEffect(() => {
     if (state.agenciesKeepingIt !== undefined && state.ok) confirmStep.current?.focus();
   }, [state]);
+  // Once retired, focus moves to the card's heading, where the polite line below is read.
+  useEffect(() => {
+    if (state.ok && state.retired) document.getElementById(headingId)?.focus();
+  }, [state, headingId]);
   const id = useId();
   const messageId = `${id}-message`;
   const keeping = state.agenciesKeepingIt;
+  if (retired || (state.ok && state.retired)) {
+    return <output className="notice">{RETIRED_LINE}</output>;
+  }
   return (
     <form ref={form} action={formAction} className="field-list">
       <input type="hidden" name="planId" value={planId} />
       <p className="muted u-fs-085">{RETIRE_NOTE}</p>
       {keeping !== undefined ? (
-        <div ref={confirmStep} tabIndex={-1} className="notice notice-warn">
+        <fieldset ref={confirmStep} tabIndex={-1} className="fieldset notice notice-warn">
+          <legend className="field-label">Retire {planName}</legend>
           <p>
             {keeping === 0
               ? 'No agency is on this plan now.'
@@ -278,22 +313,28 @@ export function RetirePlanForm({
                 ? '1 agency is on this plan now and keeps it.'
                 : `${keeping} agencies are on this plan now and keep it.`}
           </p>
-          <input type="hidden" name="retirePreviewed" value="yes" />
-          <div className="checks">
-            <label className="check" htmlFor={`${id}-confirm`}>
-              <input
-                id={`${id}-confirm`}
-                type="checkbox"
-                name="confirmRetire"
-                value="yes"
-                {...(fieldProblem(state, 'confirmRetire', messageId)['aria-invalid']
-                  ? { 'aria-invalid': true as const, 'aria-describedby': messageId }
-                  : {})}
-              />
-              <span>Retire {planName}</span>
-            </label>
-          </div>
-        </div>
+          {state.waiting ? (
+            <p>{state.waiting}</p>
+          ) : (
+            <>
+              <input type="hidden" name="retirePreviewed" value="yes" />
+              <div className="checks">
+                <label className="check" htmlFor={`${id}-confirm`}>
+                  <input
+                    id={`${id}-confirm`}
+                    type="checkbox"
+                    name="confirmRetire"
+                    value="yes"
+                    {...(fieldProblem(state, 'confirmRetire', messageId)['aria-invalid']
+                      ? { 'aria-invalid': true as const, 'aria-describedby': messageId }
+                      : {})}
+                  />
+                  <span>Retire {planName}</span>
+                </label>
+              </div>
+            </>
+          )}
+        </fieldset>
       ) : null}
       <div className="page-actions">
         <SubmitButton

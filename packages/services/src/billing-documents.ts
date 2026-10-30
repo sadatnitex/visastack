@@ -17,7 +17,7 @@ import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { isUuid, normalizeCurrency, outstandingMinorUnits } from './invoice-ledger';
 import { isMissingRelationError } from './missing-relation';
-import { type PaymentMode, ledgerModeColumn } from './plans-schema';
+import { type PaymentMode, ledgerModeSql } from './plans-schema';
 import { formatReceiptNumber } from './receipts';
 
 /**
@@ -394,7 +394,7 @@ async function ledgerRows(db: Db, invoiceId: string): Promise<InvoiceDocumentPay
       .select({
         id: p.id,
         kind: p.kind,
-        mode: ledgerModeColumn(),
+        mode: await ledgerModeSql(db),
         amountMinorUnits: p.amountMinorUnits,
         collectedDate: p.collectedDate,
         reference: p.reference,
@@ -516,7 +516,7 @@ export async function getReceiptDocument(
         .select({
           receiptNumber: r.receiptNumber,
           kind: p.kind,
-          mode: ledgerModeColumn(),
+          mode: await ledgerModeSql(db),
           amountMinorUnits: r.amountMinorUnits,
           currency: r.currency,
           collectedDate: p.collectedDate,

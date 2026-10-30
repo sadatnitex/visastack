@@ -45,10 +45,8 @@ function usage(entitlements: Record<string, unknown>) {
       entitlements: {
         bypassLimits: false,
         plan: { price: { priceMinorUnits: 250000, currency: 'BDT' }, nextPrice: null },
-        features: {
-          ai_app_suggestions: { included: true, dailyLimit: 15 },
-          ai_app_original_files: { included: false, dailyLimit: null },
-        },
+        // Agencies have no AI features of their own yet: not applicable.
+        features: null,
         ...entitlements,
       },
     },
@@ -79,15 +77,17 @@ describe('Plan and Usage (S29)', () => {
     expect(text).toContain('Invoices already made keep their amounts.');
     expect(text).toContain('Team Members and Invitations');
     expect(text).toContain('it does not stop any work');
-    expect(text).toContain('AI App Suggestions');
-    expect(text).toContain('Included, up to 15 a day per person');
-    expect(text).toContain('Not in Your Plan');
+    // No AI section for an agency until agencies have AI features (round 2).
+    expect(text).not.toContain('AI App Suggestions');
+    expect(text).not.toContain('Not in Your Plan');
   });
 
   it('says Complimentary from the plan flag, not from its key', async () => {
     mocks.usage.mockResolvedValue(usage({ bypassLimits: true }));
     const text = textOf(await renderServer(Page({ params: Promise.resolve({ orgId: 'o1' }) })));
-    expect(text).toContain('Complimentary');
+    expect(text).toContain('Complimentary during public beta.');
+    // Said once, not twice.
+    expect(text.match(/Complimentary/g)).toHaveLength(1);
     expect(text).not.toContain('BDT 2,500.00');
   });
 });

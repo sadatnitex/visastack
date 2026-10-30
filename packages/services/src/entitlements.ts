@@ -65,8 +65,12 @@ export interface ResolvedEntitlements {
   readonly bypassLimits: boolean;
   /** The plan's limit for each capacity key; null is no limit. */
   readonly limits: Readonly<Record<CapacityKey, number | null>>;
-  /** What the plan gives for each AI feature. */
-  readonly features: Readonly<Record<AiFeatureKey, AiFeatureEntitlement>>;
+  /**
+   * What the plan gives for each AI feature, for a traveller. Null for an agency: agencies have no
+   * AI features of their own yet (S22, S28), so the answer is "not applicable", the same before and
+   * after migration 0107, never "not in your plan".
+   */
+  readonly features: Readonly<Record<AiFeatureKey, AiFeatureEntitlement>> | null;
   readonly gate: EntitlementGate;
   /** When the current billing period started (agencies with a plan only). */
   readonly periodStart: Date | null;
@@ -133,8 +137,8 @@ function limitOf(value: string | null): number | null {
 
 /**
  * The plan's rules from its rows. A capacity key with no row keeps the old column (no row was
- * ever written for it). An AI feature with no row is not in an agency plan; on the traveller plan
- * it is the built-in FREE tier, the floor every person keeps.
+ * ever written for it). The AI features are read for the traveller plan only (agencies have
+ * none yet); a feature with no row is the built-in FREE tier, the floor every person keeps.
  */
 function fromRows(
   plan: PlanRow,
@@ -154,9 +158,7 @@ function fromRows(
     const row = byKey.get(aiEntitlementKey(feature));
     features[feature] = row
       ? { included: row.included, dailyLimit: row.included ? limitOf(row.limit) : null }
-      : plan.audience === 'TRAVELLER'
-        ? AI_PLAN_TIERS.FREE[feature]
-        : { included: false, dailyLimit: null };
+      : AI_PLAN_TIERS.FREE[feature];
   }
   return { limits, features };
 }
@@ -313,7 +315,7 @@ async function resolveForOrganization(
       override: overrideUntil ? { until: overrideUntil } : null,
       bypassLimits: false,
       limits: NO_LIMITS,
-      features: freeTier(),
+      features: null,
       gate,
       periodStart: null,
       source: present ? 'entitlements' : 'columns',
@@ -323,16 +325,16 @@ async function resolveForOrganization(
     row?.startedAt instanceof Date
       ? billingPeriodStart(row.startedAt, planRow.periodDays, now)
       : null;
-  const rules = present
-    ? fromRows(planRow, row?.entitlements ?? [])
-    : { limits: columnLimits(planRow), features: freeTier() };
+  const limits = present
+    ? fromRows(planRow, row?.entitlements ?? []).limits
+    : columnLimits(planRow);
   return {
     plan: resolvedPlan(planRow, present ? (row?.prices ?? []) : null, periodStart, now),
     billingStatus,
     override: overrideUntil ? { until: overrideUntil } : null,
     bypassLimits: bypass,
-    limits: rules.limits,
-    features: rules.features,
+    limits,
+    features: null,
     gate,
     periodStart,
     source: present ? 'entitlements' : 'columns',
