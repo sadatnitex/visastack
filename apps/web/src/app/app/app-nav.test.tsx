@@ -198,6 +198,7 @@ describe('short words on the phone bar (UX-H)', () => {
       [PLATFORM, '/app/admin'],
     ];
     const shortened = new Set<string>();
+    const lengthened = new Set<string>();
     for (const [access, pathname] of contexts) {
       route.pathname = pathname;
       mount(access);
@@ -207,8 +208,15 @@ describe('short words on the phone bar (UX-H)', () => {
         const name = link.getAttribute('aria-label') ?? '';
         expect(name.toLowerCase()).toContain(compact.toLowerCase());
         if (compact !== name) shortened.add(`${name} > ${compact}`);
+        // S30: a long label is set smaller so it fits whole instead of being cut.
+        const long = link
+          .querySelector('.app-link-compact')
+          ?.classList.contains('app-link-compact-long');
+        expect(long, compact).toBe(compact.length > 10);
+        if (long) lengthened.add(compact);
       }
     }
+    expect(lengthened).toContain('Organizations');
     expect(shortened).toContain('Account Overview > Overview');
     expect(shortened).toContain('All Travellers > Travellers');
   });

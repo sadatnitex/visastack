@@ -10,7 +10,7 @@ vi.mock('./actions', () => ({
   submitClaimAction: async () => ({ ok: true, message: '' }),
 }));
 
-const { InvoiceCard } = await import('./invoice-card');
+const { InvoiceCard, dueMarker } = await import('./invoice-card');
 
 const ORG = '11111111-2222-4333-8444-555555555555';
 const DAY = 24 * 60 * 60 * 1000;
@@ -293,5 +293,56 @@ describe('an invoice card on the agency Invoices page', () => {
     expect(html).toContain('<dt>Kept After Refunds</dt>');
     expect(html).not.toContain('<dt>Due</dt>');
     expect(html).not.toContain('<dt>Paid So Far</dt>');
+  });
+
+  it('hides Pay Online while a payment report waits, and says it is being checked (S30)', () => {
+    const html = render(invoice({ state: 'PAYMENT_REPORTED', claims: [claim('SUBMITTED')] }));
+    expect(html).not.toContain('Pay Online');
+    expect(html).toContain('Payment Reported: we are checking it.');
+  });
+
+  it('marks an overdue invoice and one due today with a word and a mark, never colour alone (S30)', () => {
+    const now = new Date('2026-10-30T10:00:00Z');
+    const overdue = renderToStaticMarkup(
+      <InvoiceCard
+        invoice={invoice({ dueDate: new Date('2026-10-22T00:00:00Z') })}
+        organizationId={ORG}
+        onlineAvailable
+        latestDate="2026-10-30"
+        now={now}
+      />,
+    );
+    expect(overdue).toContain('<span class="badge badge-danger">Overdue</span>');
+    expect(overdue).toContain('It was due on 22 Oct 2026.');
+    expect(overdue).toContain('class="invoice-due invoice-due-danger">22 Oct 2026<');
+    const today = renderToStaticMarkup(
+      <InvoiceCard
+        invoice={invoice({ dueDate: new Date('2026-10-30T00:00:00Z') })}
+        organizationId={ORG}
+        onlineAvailable
+        latestDate="2026-10-30"
+        now={now}
+      />,
+    );
+    expect(today).toContain('<span class="badge badge-warning">Due Today</span>');
+    expect(today).toContain('It is due today.');
+    // Nothing owed, nothing marked.
+    expect(
+      dueMarker({ dueDate: new Date('2026-10-01T00:00:00Z'), outstandingMinorUnits: 0 }, now),
+    ).toBe(null);
+    expect(
+      dueMarker({ dueDate: new Date('2026-11-08T00:00:00Z'), outstandingMinorUnits: 1 }, now),
+    ).toBe(null);
+  });
+
+  it('offers the invoice and each receipt as a PDF download, by real links (S30)', () => {
+    const html = render(invoice({ receipts: [receipt] }));
+    expect(html).toContain(
+      `href="/app/agency/${ORG}/plan/invoices/inv-1/pdf" download="">Download Invoice (PDF)<span class="sr-only"> INV-2026-001</span></a>`,
+    );
+    expect(html).toContain(`href="/app/agency/${ORG}/plan/invoices/receipts/r-1/pdf"`);
+    expect(html).toContain('Download Receipt (PDF)');
+    // The money and dates read the one billing way.
+    expect(html).toContain('on 27 Oct 2026');
   });
 });
