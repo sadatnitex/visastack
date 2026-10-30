@@ -94,13 +94,16 @@ export const AI_FEATURE_OFF_HINT =
 
 // --- How an AI app is named on screen ----------------------------------------------------------
 
-/** Control, zero-width and text-direction characters, which could disguise a name on screen. */
-function hiddenCharacter(codePoint: number): boolean {
+/**
+ * Control, zero-width, line-separator and text-direction characters, which could disguise text on
+ * screen. The one list every AI app text filter uses (app names, suggested values, drafts).
+ */
+export function isHiddenCodePoint(codePoint: number): boolean {
   return (
     codePoint < 0x20 ||
     (codePoint >= 0x7f && codePoint <= 0x9f) ||
     (codePoint >= 0x200b && codePoint <= 0x200f) ||
-    (codePoint >= 0x202a && codePoint <= 0x202e) ||
+    (codePoint >= 0x2028 && codePoint <= 0x202e) ||
     (codePoint >= 0x2066 && codePoint <= 0x2069) ||
     codePoint === 0xfeff
   );
@@ -116,7 +119,7 @@ export const AI_APP_FALLBACK_NAME = 'an AI App';
 export function aiAppName(name: string | null | undefined): string {
   if (typeof name !== 'string') return AI_APP_FALLBACK_NAME;
   const visible = Array.from(name)
-    .filter((char) => !hiddenCharacter(char.codePointAt(0) ?? 0))
+    .filter((char) => !isHiddenCodePoint(char.codePointAt(0) ?? 0))
     .join('')
     .replace(/\s+/g, ' ')
     .trim();

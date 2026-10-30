@@ -6355,3 +6355,48 @@ Built locally on branch s21-wip (from main aaa29e34). Not merged, not live. ADR 
   - A draft the person deleted after a backup point comes back if that backup is restored, until reconciliation replays draft deletions.
   - An output the person makes themselves can list their own open tasks, including AI reminders, as it does for any task.
   - S28 wires the other AI features into the framework.
+
+Round 2, 30 Oct 2026 (max code review, security review and accessibility review at a9dddf8e):
+
+- **Security S1 fixed:** a crafted link could pre-tick Suggest Changes while the feature was off, with no way to untick it. Now:
+  - the consent screen never pre-ticks it from a link, and nothing hidden carries it;
+  - the service stores `suggest_changes` on a new connection only while AI App Suggestions works for the person;
+  - on Change Access a stored choice stays and can be unticked, but while the feature is off it can never be ticked on.
+- **Code review items:**
+  1. A catalogue detail nobody has saved yet is registered when first suggested, as the profile editor does.
+  2. Home and the traveller overview count an AI app's profile suggestions apart, linking to My Profile.
+  3. My Profile decrypts protected values before comparing.
+  4. Consent wording and the server instruction now say reminders are added at once (with their usual notices).
+  5. Lock order:
+     - Before: a reminder appended its case-history audit record (audit chain lock) before the limit rows were charged, while drafts and suggestions charged the rows first. Two concurrent writes from one person could therefore deadlock.
+     - Now: every write takes the connection's limit row, then the account's limit row, then the audit chain.
+     - A static guard checks the order.
+  6. Insights no longer show an app's claim as read from a file. The full list of readers of suggestions and runs is in ADR 0021's amendment.
+  7. An empty optional reference counts as none.
+  8. A waiting identical suggestion is found before the limit check.
+  9. The account export includes tasks, AI task origins, drafts and AI connections, and lists no new gaps.
+  10. Deleting the last draft keeps the section ("No drafts from AI apps.", confirmation read out at the heading).
+  11. The Change Access sentence follows the live box.
+  12. My Profile filters app suggestions in the database.
+  13. The migration is probed once per call, with a positive result cached per database handle.
+  - Cleanups:
+    - the finished case states are shared;
+    - there is one hidden-character filter, in core;
+    - agency task reads go through one condition, with a guard listing every module that uses `mission_tasks`.
+- **Accessibility and wording:**
+  - My Profile keeps decisions in a polite message and moves focus to the section heading.
+  - Draft text is a named, focusable region.
+  - Copying again is announced again.
+  - Copy failure says "Choose Show Draft, select the text and copy it."
+  - The admin box reads "On for Everyone", and typed values come back after the fresh sign-in check with "Your change was not saved yet."
+  - "Added by" shows the app's name and web address.
+- **Owner decisions recorded:**
+  - Drafts stay after a case's retention purge.
+  - Known issue: a restore from backup brings back drafts the person deleted after the backup point, until reconciliation replays draft deletions (not built).
+- **Break-to-red proofs this round** (each restored from a cp backup):
+  - (S1) restoring the hidden input turned both consent-box tests red;
+  - (2) counting profile suggestions as readings turned the Home test red;
+  - (5) appending the audit record before the charge turned the lock-order guard red;
+  - (6) dropping the insights filter turned the insights test red;
+  - (8) checking the limit before the waiting suggestion turned the resend test red.
+

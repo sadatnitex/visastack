@@ -13,7 +13,9 @@ const service = vi.hoisted(() => ({
   listApplicantProfile: vi.fn(),
   listDocumentsDetailed: vi.fn(),
   // Suggestions from AI apps (S21): none, so the page is the one captured before S21.
-  listPendingProposals: vi.fn(async () => []),
+  listPendingAppSuggestions: vi.fn(async () => []),
+  aiSuggestionsInUse: vi.fn(async () => false),
+  requireAccess: vi.fn(),
 }));
 const depth = vi.hoisted(() => ({ level: 'auto' }));
 
@@ -67,7 +69,10 @@ registerParity({
     service.listApplicantAssurance.mockResolvedValue({ ok: true, value: [] });
     service.listApplicantProfile.mockResolvedValue([]);
     service.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [] });
-    service.listPendingProposals.mockResolvedValue([]);
+    service.listPendingAppSuggestions.mockResolvedValue([]);
+    service.aiSuggestionsInUse.mockResolvedValue(false);
+    service.aiSuggestionsInUse.mockResolvedValue(false);
+    service.requireAccess.mockResolvedValue({ ok: true, value: {} });
   },
   render: async () =>
     await renderServer(

@@ -31,7 +31,7 @@ import {
   aiContextToolLabel,
   recordProductEvent,
 } from '../product-events';
-import { RATE_LIMITS, checkRateLimits, isRateLimitReached } from '../rate-limit';
+import { RATE_LIMITS, checkRateLimits } from '../rate-limit';
 import {
   type CaseSelection,
   type SelectedOutput,
@@ -723,9 +723,15 @@ function suggestionWrites(context: WriteContext): AiSuggestionWrites {
   async function blocked(): Promise<AiWriteFailure | null> {
     if (!context.isOpen()) return 'failed';
     if (!scope.suggestChanges) return 'suggestions_not_granted';
+    // One storage check per call, handed to the feature state rather than made again.
     if (!(await aiSuggestionsAvailable(tx))) return 'not_available';
     // The platform owner's switch for AI App Suggestions and the person's plan, on every call.
-    const feature = await getAiFeatureState(tx, 'ai_app_suggestions', { proof: context.proof });
+    const feature = await getAiFeatureState(
+      tx,
+      'ai_app_suggestions',
+      { proof: context.proof },
+      { ready: true },
+    );
     if (!feature.available) {
       return feature.reason === 'not_available_yet' ? 'not_available' : 'feature_off';
     }
@@ -733,9 +739,9 @@ function suggestionWrites(context: WriteContext): AiSuggestionWrites {
     if (!(await hasConsent(tx, connection.accountId, 'CORE_PROCESSING'))) {
       return 'consent_required';
     }
-    for (const cap of caps) {
-      if (await isRateLimitReached(tx, cap.input, cap.config, now)) return 'write_limit';
-    }
+    // The daily limits are checked when something is about to be saved (in `save`), after the
+    // same suggestion already waiting has been found, so a resend after a timeout is answered
+    // as before rather than refused at the limit.
     return null;
   }
 
@@ -777,8 +783,11 @@ function suggestionWrites(context: WriteContext): AiSuggestionWrites {
         if (outcome.kind === 'refused') throw new WriteAborted(outcome.reason);
         if (outcome.kind === 'existing') return outcome.value;
         // Charged last, only for something actually saved; over the limit undoes the write.
+        // Lock order, the same for every write: the connection's limit row, the account's limit
+        // row (in `caps` order), then the audit chain (guarded in tool-guard.test.ts).
         const charged = await checkRateLimits(savepoint, caps, now);
         if (!charged.allowed) throw new WriteAborted('write_limit');
+        for (const record of outcome.audit ?? []) await appendAuditEvent(savepoint, record);
         await appendAuditEvent(savepoint, {
           ...auditBase(connection),
           ...(audit.missionId ? { missionId: audit.missionId } : {}),

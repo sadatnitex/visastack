@@ -1,12 +1,27 @@
 import { type Result, err, ok, parseReferenceCode } from '@visastack/core';
-import { type FieldPolicy, fieldPolicyOf } from '@visastack/core/catalogue';
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { isHiddenCodePoint } from '@visastack/core/ai-features';
+import {
+  CATALOGUE_FIELDS,
+  type FieldPolicy,
+  LEGACY_FIELD_SNAPSHOT,
+  fieldPolicyOf,
+} from '@visastack/core/catalogue';
+import { and, desc, eq, gt, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access/require-access';
-import { connectionPromptVersion, connectorModelVersion } from './ai-run-kinds';
-import { latestTimeZoneName } from './attention';
-import { appendAuditEvent } from './audit';
+import type { ProposalWithEvidence } from './ai';
+import { AI_SUGGEST_CHANGES_SCOPE } from './ai-connection-scopes';
+import {
+  CONNECTION_PROMPT_PREFIX,
+  CONNECTOR_MODEL_PREFIX,
+  connectionPromptVersion,
+  connectorModelVersion,
+  connectorRunsOnly,
+} from './ai-run-kinds';
+import { FINISHED_CASE_STATES, latestTimeZoneName } from './attention';
+import { type AuditEventInput, appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { type RegisterFieldInput, registerFieldDefinition } from './profile';
 import { findReferenceEntity } from './reference-codes';
 
 /**
@@ -49,7 +64,11 @@ export const AI_SUGGESTION_LIMITS = Object.freeze({
  * statements) and both new tables exist. Read from the catalogue, so it never fails a transaction
  * the way a query on a missing table would; every reader and writer asks it first.
  */
+/** Database handles already seen with migration 0104 in place. Only a "yes" is kept: migrations are additive. */
+const READY = new WeakSet<object>();
+
 export async function aiSuggestionsAvailable(db: Db): Promise<boolean> {
+  if (READY.has(db)) return true;
   const rows = await db
     .select({
       ready: sql<boolean>`(
@@ -66,7 +85,9 @@ export async function aiSuggestionsAvailable(db: Db): Promise<boolean> {
       )`,
     })
     .from(sql`(select 1) as probe`);
-  return rows[0]?.ready === true;
+  const ready = rows[0]?.ready === true;
+  if (ready) READY.add(db);
+  return ready;
 }
 
 // --- Which details an app may suggest (pure) ---------------------------------
@@ -114,17 +135,10 @@ export function decideSuggestionField(input: SuggestionFieldInput): FieldPolicy 
   return policy;
 }
 
-/** Control, zero-width and text-direction characters, which could disguise text on screen. */
+/** Hidden characters, except line breaks and tabs in text that keeps its lines. */
 function hiddenCharacter(codePoint: number, keepLineBreaks: boolean): boolean {
   if (keepLineBreaks && (codePoint === 0x0a || codePoint === 0x09)) return false;
-  return (
-    codePoint < 0x20 ||
-    (codePoint >= 0x7f && codePoint <= 0x9f) ||
-    (codePoint >= 0x200b && codePoint <= 0x200f) ||
-    (codePoint >= 0x2028 && codePoint <= 0x202e) ||
-    (codePoint >= 0x2066 && codePoint <= 0x2069) ||
-    codePoint === 0xfeff
-  );
+  return isHiddenCodePoint(codePoint);
 }
 
 function visible(text: string, keepLineBreaks: boolean, replacement: string): string {
@@ -143,6 +157,23 @@ export function cleanText(text: string): string {
   return visible(text.replace(/\r\n?/g, '\n'), true, '').trim();
 }
 
+/**
+ * The registry entry a catalogue detail gets when it is first saved, the same one the profile
+ * editor registers (live fields first, then the catalogue), or undefined for an unknown key.
+ */
+function catalogueDefinition(key: string): RegisterFieldInput | undefined {
+  const live = LEGACY_FIELD_SNAPSHOT.find((field) => field.key === key);
+  const field = live ?? CATALOGUE_FIELDS.find((candidate) => candidate.key === key);
+  if (!field) return undefined;
+  return {
+    key: field.key,
+    dataType: field.type === 'date' ? 'date' : 'string',
+    sensitivity: field.sensitivity,
+    repeating: field.group !== undefined,
+    packId: field.pack,
+  };
+}
+
 // --- Writes, through the gate's proof ----------------------------------------
 
 export type AiWriteRefusal =
@@ -152,7 +183,16 @@ export type AiWriteRefusal =
   | 'invalid_input';
 
 export type AiWriteOutcome<T> =
-  | { readonly kind: 'created'; readonly value: T }
+  | {
+      readonly kind: 'created';
+      readonly value: T;
+      /**
+       * Audit records this write needs beyond the gate's own, appended by the gate after it has
+       * charged the daily limits, so every write takes its locks in one order: the connection's
+       * limit row, the account's limit row, then the audit chain.
+       */
+      readonly audit?: readonly AuditEventInput[];
+    }
   /** The same suggestion from the same connection is already waiting: nothing new was written. */
   | { readonly kind: 'existing'; readonly value: T }
   | { readonly kind: 'refused'; readonly reason: AiWriteRefusal };
@@ -203,15 +243,12 @@ export async function recordProfileSuggestion(
   if (reason.length === 0 || reason.length > AI_SUGGESTION_LIMITS.reasonChars) {
     return { kind: 'refused', reason: 'invalid_input' };
   }
-  // The live registry decides too: the approval writes through it.
-  const definition = first(
-    await tx
-      .select({ sensitivity: schema.fieldDefinitions.sensitivity })
-      .from(schema.fieldDefinitions)
-      .where(eq(schema.fieldDefinitions.key, input.fieldKey))
-      .limit(1),
-  );
-  if (!definition || definition.sensitivity === 'RESTRICTED') {
+  // The live registry decides too: the approval writes through it. A catalogue detail nobody has
+  // saved yet has no row: it is registered here exactly as saving it by hand would register it.
+  const catalogue = catalogueDefinition(input.fieldKey);
+  if (!catalogue) return { kind: 'refused', reason: 'field_not_shared' };
+  const definition = await registerFieldDefinition(tx, catalogue);
+  if (definition.sensitivity === 'RESTRICTED') {
     return { kind: 'refused', reason: 'field_not_shared' };
   }
 
@@ -364,8 +401,6 @@ export async function recordAiDraft(
   return { kind: 'created', value: { draftId: draft.id } };
 }
 
-/** Cases in these states take no new reminders. */
-const FINISHED_CASE_STATES: ReadonlySet<string> = new Set(['CLOSED', 'CANCELLED']);
 const DUE_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 /** Today's date where the traveller lives, as `YYYY-MM-DD` (an unknown zone counts as UTC). */
@@ -452,19 +487,25 @@ export async function recordAiReminder(
     clientName: input.writer.clientName,
     clientHost: input.writer.clientHost,
   });
-  // The case's own history, as for a task added by hand; the app is named by its address only.
-  await appendAuditEvent(tx, {
-    eventType: 'MISSION_TASK_CREATED',
-    actorAccountId: proof.applicant.ownerAccountId ?? null,
-    method: 'API',
-    result: 'ALLOWED',
-    applicantId: proof.applicant.id,
-    missionId: mission.id,
-    resourceType: 'mission_task',
-    resourceId: task.id,
-    metadata: { addedBy: 'ai_app', clientHost: input.writer.clientHost },
-  });
-  return { kind: 'created', value: { taskId: task.id, dueDate: input.dueDate } };
+  return {
+    kind: 'created',
+    value: { taskId: task.id, dueDate: input.dueDate },
+    // The case's own history, as for a task added by hand; the app is named by its address only.
+    // Appended by the gate after the daily limits are charged (one lock order for every write).
+    audit: [
+      {
+        eventType: 'MISSION_TASK_CREATED',
+        actorAccountId: proof.applicant.ownerAccountId ?? null,
+        method: 'API',
+        result: 'ALLOWED',
+        applicantId: proof.applicant.id,
+        missionId: mission.id,
+        resourceType: 'mission_task',
+        resourceId: task.id,
+        metadata: { addedBy: 'ai_app', clientHost: input.writer.clientHost },
+      },
+    ],
+  };
 }
 
 // --- The person's own view of drafts -----------------------------------------
@@ -569,4 +610,97 @@ export async function deleteAiDraft(
     metadata: { clientHost: row.clientHost },
   });
   return ok(undefined);
+}
+
+// --- The person's own view of profile suggestions -----------------------------
+
+/**
+ * An AI app's pending suggestions about the profile itself (no document), newest first, for My
+ * Profile. Filtered in the database (no document, connector run), with no evidence to load: an
+ * app's suggestion quotes nothing. Owner only; empty until migration 0104 runs.
+ */
+export async function listPendingAppSuggestions(
+  proof: AuthorizedApplicant<'VIEW_METADATA'>,
+): Promise<ProposalWithEvidence[]> {
+  if (
+    !AuthorizedApplicant.isGenuine(proof, 'VIEW_METADATA') ||
+    proof.actor.kind !== 'applicant_owner'
+  ) {
+    return [];
+  }
+  const tx = proof.tx;
+  if (!(await aiSuggestionsAvailable(tx))) return [];
+  const rows = await tx
+    .select({
+      proposal: schema.fieldProposals,
+      modelVersion: schema.aiExtractionRuns.modelVersion,
+      appName: schema.aiConnections.clientName,
+    })
+    .from(schema.fieldProposals)
+    .innerJoin(
+      schema.aiExtractionRuns,
+      eq(schema.aiExtractionRuns.id, schema.fieldProposals.aiExtractionRunId),
+    )
+    .leftJoin(
+      schema.aiConnections,
+      and(
+        sql`${schema.aiExtractionRuns.promptVersion} = ${CONNECTION_PROMPT_PREFIX} || ${schema.aiConnections.id}::text`,
+        eq(schema.aiConnections.applicantId, proof.applicant.id),
+      ),
+    )
+    .where(
+      and(
+        eq(schema.fieldProposals.applicantId, proof.applicant.id),
+        eq(schema.fieldProposals.status, 'PENDING'),
+        isNull(schema.fieldProposals.documentVersionId),
+        connectorRunsOnly(schema.aiExtractionRuns.modelVersion),
+      ),
+    )
+    .orderBy(desc(schema.fieldProposals.createdAt))
+    .limit(100);
+  return rows.map((row) => ({
+    proposal: row.proposal,
+    evidence: [],
+    fromApp: {
+      name: row.appName,
+      host: row.modelVersion.slice(CONNECTOR_MODEL_PREFIX.length),
+    },
+  }));
+}
+
+/**
+ * Whether any live connection of this record lets its app suggest changes. Pages keep their
+ * "from AI apps" sections in place while this is true, so the last decision or deletion is still
+ * confirmed there. Owner only; false until migration 0104 runs.
+ */
+export async function aiSuggestionsInUse(
+  proof: AuthorizedApplicant<'VIEW_METADATA'>,
+): Promise<boolean> {
+  if (
+    !AuthorizedApplicant.isGenuine(proof, 'VIEW_METADATA') ||
+    proof.actor.kind !== 'applicant_owner'
+  ) {
+    return false;
+  }
+  const tx = proof.tx;
+  if (!(await aiSuggestionsAvailable(tx))) return false;
+  const row = first(
+    await tx
+      .select({ id: schema.aiConnections.id })
+      .from(schema.aiConnections)
+      .where(
+        and(
+          eq(schema.aiConnections.applicantId, proof.applicant.id),
+          isNull(schema.aiConnections.revokedAt),
+          isNotNull(schema.aiConnections.activatedAt),
+          sql`${AI_SUGGEST_CHANGES_SCOPE} = any(${schema.aiConnections.scopes})`,
+          or(
+            isNull(schema.aiConnections.expiresAt),
+            gt(schema.aiConnections.expiresAt, new Date()),
+          ),
+        ),
+      )
+      .limit(1),
+  );
+  return row !== undefined;
 }

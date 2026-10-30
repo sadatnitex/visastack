@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { navigationState, renderServer, textOf } from '../../../../lib/next-mocks.test-support';
+import {
+  navigationState,
+  renderServer,
+  stubProps,
+  textOf,
+} from '../../../../lib/next-mocks.test-support';
 
 const mocks = vi.hoisted(() => ({
   staffPrincipal: vi.fn(),
@@ -90,5 +95,26 @@ describe('Platform > AI Features', () => {
     const text = textOf(await renderServer(Page()));
     expect(text).toContain('every AI feature listed here stays off');
     expect(text).not.toContain('Change AI App Suggestions');
+  });
+});
+
+describe('after a fresh sign-in check', () => {
+  it('hands the typed values back to that feature’s form, unsaved', async () => {
+    const first = await renderServer(
+      Page({
+        searchParams: Promise.resolve({
+          retry_feature: 'ai_app_suggestions',
+          retry_on: '1',
+          retry_limit: '10',
+        }),
+      }),
+    );
+    expect(stubProps(first, 'AiFeatureForm')[0]).toMatchObject({
+      retry: { enabled: true, dailyLimit: '10' },
+    });
+    const other = await renderServer(
+      Page({ searchParams: Promise.resolve({ retry_feature: 'unknown' }) }),
+    );
+    expect(stubProps(other, 'AiFeatureForm')[0]).not.toHaveProperty('retry');
   });
 });

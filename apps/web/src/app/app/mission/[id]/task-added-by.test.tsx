@@ -22,9 +22,9 @@ const task = {
 describe('a reminder an AI app added, on the case page (S21)', () => {
   it('says which app added it', () => {
     const html = renderToStaticMarkup(
-      <TasksPanel missionId="m-1" tasks={[{ ...task, addedBy: 'Claude' }]} />,
+      <TasksPanel missionId="m-1" tasks={[{ ...task, addedBy: 'Claude (claude.ai)' }]} />,
     );
-    expect(textOf(html)).toContain('Added by Claude');
+    expect(textOf(html)).toContain('Added by Claude (claude.ai)');
   });
 
   it('shows a task added by hand exactly as before', () => {

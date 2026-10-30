@@ -29,6 +29,7 @@ import {
 import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { aiConnectorEnabled } from '../../../../../lib/ai-connector';
 import { consentChoicesFromQuery, isAiChangeDuration } from '../../../../../lib/ai-consent-choices';
+import { aiAllowsSuggestions } from '../../../../../lib/ai-consent-labels';
 import { depthCopy } from '../../../../../lib/ccd/depth-copy';
 import { depthWord } from '../../../../../lib/ccd/depth-words';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
@@ -90,7 +91,7 @@ export default async function SharingPage({
     aiChangeId && one('choice_layers') !== undefined
       ? {
           connectionId: aiChangeId,
-          choices: consentChoicesFromQuery(one),
+          choices: consentChoicesFromQuery(one, { suggestFromLink: true }),
           duration: isAiChangeDuration(aiChangeDuration) ? aiChangeDuration : 'keep',
         }
       : undefined;
@@ -471,7 +472,9 @@ export default async function SharingPage({
               {...(aiReturning ? { returning: aiReturning } : {})}
             />
 
-            {data.aiSuggestions.drafts.length > 0 ? (
+            {/* Kept while an app may save more, so the last deletion is still confirmed here. */}
+            {data.aiSuggestions.drafts.length > 0 ||
+            data.aiConnections.active.some((item) => aiAllowsSuggestions(item.scopes)) ? (
               <AiDraftsSection
                 applicantId={id}
                 drafts={data.aiSuggestions.drafts}

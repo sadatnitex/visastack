@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -205,5 +205,140 @@ describe('what the suggestion writer can touch', () => {
     };
     visit(probe);
     expect(seen).toBe(true);
+  });
+});
+
+/** Every call to a function named `name` inside `fn` (by text position), in source order. */
+function callPositions(sf: ts.SourceFile, fn: ts.Node, names: readonly string[]) {
+  const found: { name: string; pos: number }[] = [];
+  const visit = (node: ts.Node) => {
+    if (ts.isCallExpression(node)) {
+      const callee = node.expression;
+      const name = ts.isIdentifier(callee)
+        ? callee.text
+        : ts.isPropertyAccessExpression(callee)
+          ? callee.name.text
+          : '';
+      if (names.includes(name)) found.push({ name, pos: node.getStart(sf) });
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(fn);
+  return found.sort((a, b) => a.pos - b.pos);
+}
+
+function functionNamed(sf: ts.SourceFile, name: string): ts.FunctionDeclaration {
+  let found: ts.FunctionDeclaration | undefined;
+  const visit = (node: ts.Node) => {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === name) found = node;
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  if (!found) throw new Error(`no function ${name}`);
+  return found;
+}
+
+/** Whether the calls in a write path take the limit rows before the audit chain. */
+function lockOrderProblems(source: string): string[] {
+  const sf = ts.createSourceFile('gate.ts', source, ts.ScriptTarget.Latest, true);
+  const save = functionNamed(sf, 'save');
+  const calls = callPositions(sf, save, ['checkRateLimits', 'appendAuditEvent', 'lockAuditChain']);
+  const charge = calls.findIndex((call) => call.name === 'checkRateLimits');
+  const problems: string[] = [];
+  if (charge === -1) problems.push('save does not charge the limits');
+  if (calls.slice(0, Math.max(charge, 0)).some((call) => call.name !== 'checkRateLimits')) {
+    problems.push('the audit chain is touched before the limit rows');
+  }
+  const caps = functionNamed(sf, 'capsAt').getText(sf);
+  if (caps.indexOf('ai_write.connection') > caps.indexOf('ai_write.account')) {
+    problems.push('the account limit row is taken before the connection limit row');
+  }
+  return problems;
+}
+
+describe('one lock order for every AI write (S21 review item 5)', () => {
+  it('limit rows (connection, then account), then the audit chain; the writer itself never touches the chain', () => {
+    const gate = readFileSync(path.join(srcDir, 'access', 'with-ai-connection.ts'), 'utf8');
+    expect(lockOrderProblems(gate)).toEqual([]);
+    const writer = readFileSync(path.join(srcDir, 'ai-suggestions.ts'), 'utf8');
+    const sf = ts.createSourceFile('ai-suggestions.ts', writer, ts.ScriptTarget.Latest, true);
+    for (const name of ['recordProfileSuggestion', 'recordAiDraft', 'recordAiReminder']) {
+      expect(
+        callPositions(sf, functionNamed(sf, name), [
+          'appendAuditEvent',
+          'lockAuditChain',
+          'checkRateLimit',
+          'checkRateLimits',
+        ]),
+        name,
+      ).toEqual([]);
+    }
+  });
+
+  it('the rule itself sees an audit append before the charge', () => {
+    const bad = `function capsAt() { return ['ai_write.connection', 'ai_write.account']; }
+      async function save() { await appendAuditEvent(tx, {}); await checkRateLimits(tx, caps); }`;
+    expect(lockOrderProblems(bad)).toEqual(['the audit chain is touched before the limit rows']);
+  });
+});
+
+/** Modules that use `mission_tasks`, and whether they serve an agency. A new one must be listed. */
+const TASK_READERS: Readonly<Record<string, 'agency' | 'owner or system'>> = {
+  'agency.ts': 'agency',
+  'ai-suggestions.ts': 'owner or system',
+  'attention.ts': 'owner or system',
+  'case-retention.ts': 'owner or system',
+  'deadline-clock.ts': 'owner or system',
+  'export.ts': 'owner or system',
+  'missions.ts': 'owner or system',
+  'notification-sweep.ts': 'owner or system',
+};
+
+/** The `.from(schema.missionTasks)` reads in a file that are not filtered by `agencyVisibleTasks`. */
+function unfilteredTaskReads(source: string): number {
+  const sf = ts.createSourceFile('agency.ts', source, ts.ScriptTarget.Latest, true);
+  let unfiltered = 0;
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === 'from' &&
+      node.arguments[0]?.getText(sf) === 'schema.missionTasks'
+    ) {
+      // The whole query chain this read belongs to.
+      let chain: ts.Node = node;
+      while (
+        ts.isPropertyAccessExpression(chain.parent) ||
+        (ts.isCallExpression(chain.parent) && chain.parent.expression === chain)
+      ) {
+        chain = chain.parent;
+      }
+      if (!chain.getText(sf).includes('agencyVisibleTasks(')) unfiltered += 1;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return unfiltered;
+}
+
+describe('agencies never read an AI reminder (S21 review cleanup)', () => {
+  it('every module that reads tasks is known, and every agency read goes through agencyVisibleTasks', () => {
+    const readers = readdirSync(srcDir)
+      .filter((file) => file.endsWith('.ts') && !/\.test(-support)?\.ts$/.test(file))
+      .filter((file) =>
+        /schema\.missionTasks\b/.test(readFileSync(path.join(srcDir, file), 'utf8')),
+      )
+      .sort();
+    expect(readers).toEqual(Object.keys(TASK_READERS).sort());
+    const agency = readFileSync(path.join(srcDir, 'agency.ts'), 'utf8');
+    expect(unfilteredTaskReads(agency)).toBe(0);
+  });
+
+  it('the rule itself sees an unfiltered agency read', () => {
+    expect(
+      unfilteredTaskReads(
+        'async function f(db) { return db.select().from(schema.missionTasks).where(eq(a, b)); }',
+      ),
+    ).toBe(1);
   });
 });

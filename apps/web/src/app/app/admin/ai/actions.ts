@@ -73,9 +73,15 @@ export async function saveAiFeatureAction(
       stepUpSatisfied: false,
     });
     if (!result.ok && result.error.code === 'step_up_required') {
+      // The typed values come back with the person after the sign-in check, to save again.
+      const back = new URLSearchParams({
+        retry_feature: feature,
+        retry_on: values.enabled ? '1' : '0',
+        retry_limit: dailyLimit === null ? '' : String(dailyLimit),
+      });
       const stepUp = await tryEstablishStepUp(
         { accountId, action: 'AI_FEATURES_UPDATE', resourceId: feature },
-        AI_FEATURES_PATH,
+        `${AI_FEATURES_PATH}?${back.toString()}`,
       );
       if (stepUp.kind === 'not_configured') {
         return reply({ ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE });

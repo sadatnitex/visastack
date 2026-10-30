@@ -8,14 +8,14 @@ import type {
 } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
 import { authorize } from '@visastack/policy';
-import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
+import { type SQL, and, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 import {
   loadCaseExclusions,
   orgCaseRecordVisibleSql,
   withCaseExclusions,
 } from './access/grant-scope';
 import { AuthorizedApplicant } from './access/require-access';
-import { ownerOnlyTaskIds } from './ai-task-origins';
+import { aiSuggestionsAvailable } from './ai-suggestions';
 import { latestTimeZoneName, recognisedTimeZone } from './attention';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
@@ -461,6 +461,17 @@ export async function listAssignmentsDetailed(
   return rows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() }));
 }
 
+/**
+ * The one condition every agency read of `mission_tasks` uses (S21): a task an AI app added is
+ * private to the record's owner, so agencies never see or change it, even on a shared case. Before
+ * migration 0104 there can be no such task, so there is nothing to leave out. A guard test
+ * (`ai-tools/tool-guard.test.ts`) fails if an agency read of tasks does not use it.
+ */
+async function agencyVisibleTasks(db: Db): Promise<SQL | undefined> {
+  if (!(await aiSuggestionsAvailable(db))) return undefined;
+  return sql`not exists (select 1 from ${schema.aiTaskOrigins} where ${schema.aiTaskOrigins.taskId} = ${schema.missionTasks.id})`;
+}
+
 export type OrgVisibleTask = typeof schema.missionTasks.$inferSelect;
 
 /**
@@ -479,16 +490,11 @@ export async function listTasksForOrg(
   missionId: string,
 ): Promise<OrgVisibleTask[]> {
   if (!(await canReadMissionCollaboration(db, organizationId, applicantId, missionId))) return [];
-  const rows = await db
+  // A reminder the traveller's own AI app added is private to them, even on a shared case (S21).
+  return db
     .select()
     .from(schema.missionTasks)
-    .where(eq(schema.missionTasks.missionId, missionId));
-  // A reminder the traveller's own AI app added is private to them, even on a shared case (S21).
-  const ownerOnly = await ownerOnlyTaskIds(
-    db,
-    rows.map((row) => row.id),
-  );
-  return rows.filter((row) => !ownerOnly.has(row.id));
+    .where(and(eq(schema.missionTasks.missionId, missionId), await agencyVisibleTasks(db)));
 }
 
 /**
@@ -614,14 +620,13 @@ export async function updateTaskForOrg(
           and(
             eq(schema.missionTasks.id, input.taskId),
             eq(schema.missionTasks.missionId, input.missionId),
+            // A reminder the traveller's own AI app added is theirs alone (S21): not found here.
+            await agencyVisibleTasks(tx),
           ),
         )
         .limit(1),
     );
-    // A reminder the traveller's own AI app added is theirs alone (S21): not found for an agency.
-    if (!task || (await ownerOnlyTaskIds(tx, [task.id])).has(task.id)) {
-      return err(serviceError('not_found', 'task not found'));
-    }
+    if (!task) return err(serviceError('not_found', 'task not found'));
 
     let changes: Record<string, { readonly before: unknown; readonly after: unknown }> = {};
     if (input.assigneeAccountId !== undefined) {
@@ -712,14 +717,13 @@ export async function decideTaskForOrg(
           and(
             eq(schema.missionTasks.id, input.taskId),
             eq(schema.missionTasks.missionId, input.missionId),
+            // A reminder the traveller's own AI app added is theirs alone (S21): not found here.
+            await agencyVisibleTasks(tx),
           ),
         )
         .limit(1),
     );
-    // A reminder the traveller's own AI app added is theirs alone (S21): not found for an agency.
-    if (!task || (await ownerOnlyTaskIds(tx, [task.id])).has(task.id)) {
-      return err(serviceError('not_found', 'task not found'));
-    }
+    if (!task) return err(serviceError('not_found', 'task not found'));
     if (!TASK_TRANSITIONS_FOR_ORG[task.status]?.includes(input.status)) {
       return err(
         serviceError('invalid', `cannot move a task from ${task.status} to ${input.status}`),

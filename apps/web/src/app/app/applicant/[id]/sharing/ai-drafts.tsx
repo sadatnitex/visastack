@@ -28,27 +28,26 @@ function AiDraft({
 }: {
   readonly applicantId: string;
   readonly draft: AiDraftItem;
-  readonly onDeleted: (result: FormResult) => void;
+  readonly onDeleted: (id: string, result: FormResult) => void;
 }) {
   const [state, formAction, pending] = useActionState(
     async (previous: FormResult, formData: FormData) => {
       const result = await deleteAiDraftAction(previous, formData);
       // A success removes this draft; the list keeps the message. A refusal stays here.
-      if (result.ok) onDeleted(result);
+      if (result.ok) onDeleted(draft.id, result);
       return result;
     },
     NO_RESULT,
   );
   const [copied, setCopied] = useState<FormResult>(NO_RESULT);
   const copy = async () => {
+    // Cleared first, so copying again is announced again.
+    setCopied(NO_RESULT);
     try {
       await navigator.clipboard.writeText(draft.body);
       setCopied({ ok: true, message: 'Copied. You can paste it where you need it.' });
     } catch {
-      setCopied({
-        ok: false,
-        message: 'This browser did not allow copying. Open the draft, select the text and copy it.',
-      });
+      setCopied({ ok: false, message: 'Choose Show Draft, select the text and copy it.' });
     }
   };
   return (
@@ -60,7 +59,17 @@ function AiDraft({
       </p>
       <details className="ai-draft-text">
         <summary>Show Draft</summary>
-        <p className="ai-draft-body">{draft.body}</p>
+        {/* A long draft scrolls in its own box, which keyboard users can reach and scroll. */}
+        <p
+          className="ai-draft-body"
+          // biome-ignore lint/a11y/noNoninteractiveTabindex: the scrolling box must be reachable by keyboard.
+          tabIndex={0}
+          // biome-ignore lint/a11y/useSemanticElements: a named, focusable scroll box for one draft's text.
+          role="region"
+          aria-label={`Draft text: ${draft.title}`}
+        >
+          {draft.body}
+        </p>
       </details>
       <div className="page-actions">
         <button
@@ -104,7 +113,9 @@ export function AiDraftsSection({
   readonly more: number;
 }) {
   const [lastResult, setLastResult] = useState<FormResult>(NO_RESULT);
+  const [deleted, setDeleted] = useState<ReadonlySet<string>>(new Set());
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const shown = drafts.filter((draft) => !deleted.has(draft.id));
   // After a draft goes, focus moves to the section, where the confirmation is read out.
   useEffect(() => {
     if (lastResult.ok && lastResult.message) headingRef.current?.focus();
@@ -117,19 +128,27 @@ export function AiDraftsSection({
       </h2>
       <p className="card-body">
         Drafts your AI apps saved for you, such as letters and notes. They are kept here for you
-        only: nothing is sent anywhere, and agencies never see them.
+        only: nothing is sent anywhere, and agencies never see them. Drafts stay until you delete
+        them.
       </p>
       <FormMessage result={lastResult} />
-      <ul className="ai-draft-list">
-        {drafts.map((draft) => (
-          <AiDraft
-            key={draft.id}
-            applicantId={applicantId}
-            draft={draft}
-            onDeleted={setLastResult}
-          />
-        ))}
-      </ul>
+      {shown.length > 0 ? (
+        <ul className="ai-draft-list">
+          {shown.map((draft) => (
+            <AiDraft
+              key={draft.id}
+              applicantId={applicantId}
+              draft={draft}
+              onDeleted={(id, result) => {
+                setDeleted((previous) => new Set(previous).add(id));
+                setLastResult(result);
+              }}
+            />
+          ))}
+        </ul>
+      ) : (
+        <p className="card-body muted">No drafts from AI apps.</p>
+      )}
       {more > 0 ? (
         <p className="card-body muted">
           And {plural(more, 'more draft', 'more drafts')}, not shown here. Delete ones you no longer

@@ -1918,8 +1918,10 @@ export {
   aiSuggestionsAvailable,
   deleteAiDraft,
   listAiDrafts,
+  aiSuggestionsInUse,
+  listPendingAppSuggestions,
 } from './ai-suggestions';
-export { type TaskAddedBy, ownerOnlyTaskIds, taskAddedByApps } from './ai-task-origins';
+export { type TaskAddedBy, taskAddedByApps } from './ai-task-origins';
 export {
   CONNECTOR_MODEL_PREFIX,
   isConnectorModelVersion,

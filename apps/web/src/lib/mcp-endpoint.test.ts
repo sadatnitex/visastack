@@ -410,9 +410,12 @@ describe('the AI context address: protocol', () => {
   it('tells the app what can and cannot change', async () => {
     const response = await handleMcpPost(post(INITIALIZE), deps());
     const body = (await response.json()) as { result: { instructions?: string } };
+    expect(body.result.instructions).toContain('changes nothing until the person accepts it');
+    // Reminders are added at once, and their notices are sent to the person.
     expect(body.result.instructions).toContain(
-      'nothing in the record changes until the person approves it',
+      'add_reminder adds a task to one of the person’s cases straight away',
     );
+    expect(body.result.instructions).toContain('None of them sends anything to anyone else.');
     expect(body.result.instructions).toContain(
       'Use only when the person explicitly asks for this change.',
     );

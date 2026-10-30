@@ -64,6 +64,10 @@ describe('saving an AI feature', () => {
       action: 'AI_FEATURES_UPDATE',
       resourceId: 'ai_app_suggestions',
     });
+    // The typed values come back after the sign-in check.
+    expect(mocks.tryEstablishStepUp.mock.calls[0]?.[1]).toBe(
+      '/app/admin/ai?retry_feature=ai_app_suggestions&retry_on=1&retry_limit=10',
+    );
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/app/admin/ai');
   });
 

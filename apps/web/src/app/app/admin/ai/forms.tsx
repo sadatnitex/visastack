@@ -19,6 +19,8 @@ export interface AiFeatureFormProps {
   readonly enabled: boolean;
   readonly adminDailyLimit: number | null;
   readonly planDailyLimit: number | null;
+  /** What was typed before a fresh sign-in check, to save again; it was not saved yet. */
+  readonly retry?: AiFeatureValues;
 }
 
 /**
@@ -31,20 +33,27 @@ export function AiFeatureForm({
   enabled,
   adminDailyLimit,
   planDailyLimit,
+  retry,
 }: AiFeatureFormProps) {
   const [state, formAction, pending] = useActionState(saveAiFeatureAction, NO_REPLY);
   const form = useRef<HTMLFormElement>(null);
   useFocusInvalidField(form, state);
   const id = useId();
   const messageId = `${id}-message`;
-  const values: AiFeatureValues = state.values ?? {
-    enabled,
-    dailyLimit: adminDailyLimit === null ? '' : String(adminDailyLimit),
-  };
+  const values: AiFeatureValues = state.values ??
+    retry ?? {
+      enabled,
+      dailyLimit: adminDailyLimit === null ? '' : String(adminDailyLimit),
+    };
   return (
     <form ref={form} action={formAction} className="field-list">
       <input type="hidden" name="feature" value={feature} />
       {/* Drawn again from what was sent back, so the browser's reset never empties it. */}
+      {retry && state === NO_REPLY ? (
+        <output className="notice notice-warn">
+          Your change was not saved yet. Check it below and choose Save again.
+        </output>
+      ) : null}
       <fieldset className="fieldset" key={JSON.stringify(values)}>
         <legend className="field-label">{name}</legend>
         <div className="checks">
@@ -55,7 +64,7 @@ export function AiFeatureForm({
               name="enabled"
               defaultChecked={values.enabled}
             />
-            <span>On</span>
+            <span>On for Everyone</span>
           </label>
         </div>
         <div className="field-row">

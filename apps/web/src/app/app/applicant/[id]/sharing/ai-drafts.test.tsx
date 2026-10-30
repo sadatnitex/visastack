@@ -30,6 +30,10 @@ describe('Drafts from AI Apps', () => {
     expect(text).toContain('Drafts from AI Apps');
     expect(text).toContain('Saved by Claude (claude.ai) on 30 Oct 2026, for London Trip.');
     expect(text).toContain('nothing is sent anywhere, and agencies never see them');
+    expect(text).toContain('Drafts stay until you delete them.');
+    expect(html).toContain('role="region"');
+    expect(html).toContain('aria-label="Draft text: Cover Letter"');
+    expect(html).toContain('tabindex="0"');
     expect(text).toContain('Copy Draft');
     expect(text).toContain('Delete Draft');
     expect(html).toContain('aria-label="Delete Draft: Cover Letter"');

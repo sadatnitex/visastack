@@ -58,7 +58,8 @@ export const suggestProfileUpdate: AiSuggestionToolDefinition<typeof inputSchema
       field: input.field,
       value: input.value,
       reason: input.reason,
-      ...(input.document_reference !== undefined
+      // An empty reference is no reference: apps often send "" for an optional field.
+      ...(input.document_reference !== undefined && input.document_reference.trim() !== ''
         ? { documentReference: input.document_reference }
         : {}),
     });

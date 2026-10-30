@@ -25,8 +25,12 @@ import {
 import type { AiConnectionChoices } from '../ai-connection-scopes';
 import { deleteAiDraft, listAiDrafts } from '../ai-suggestions';
 import { createApplicant } from '../applicants';
+import { listNeedsAttention } from '../attention';
 import { setConsent } from '../consent';
 import type { Db } from '../db';
+import { exportAccount } from '../export';
+import { buildExportCsvTables } from '../export-csv';
+import { getTravellerInsights } from '../insights-read';
 import { createMission, listTasks, transitionMission } from '../missions';
 import { addMembership, createOrganization, reviewOrganization } from '../organizations';
 import { editFact, registerFieldDefinition } from '../profile';
@@ -1068,5 +1072,195 @@ describe('what an agency sees (owner decision 30 Oct 2026: AI reminders are priv
     if (!isOk(agency)) throw new Error(`agency access: ${agency.error.message}`);
     expect(agency.value.actor.kind).not.toBe('applicant_owner');
     expect((await listAiDrafts(agency.value)).drafts).toEqual([]);
+  });
+});
+
+describe('Suggest Changes can only be added while the feature is on (security review S1)', () => {
+  const scopesOf = async (connectionId: string) =>
+    (
+      await db
+        .select({ scopes: schema.aiConnections.scopes })
+        .from(schema.aiConnections)
+        .where(eq(schema.aiConnections.id, connectionId))
+    )[0]?.scopes ?? [];
+  const change = async (ownerId: string, applicantId: string, id: string, suggest: boolean) => {
+    const owner = await requireAccess(
+      db,
+      accountPrincipal(ownerId),
+      'VIEW_METADATA',
+      { applicantId },
+      { purpose: 'ai_connection' },
+    );
+    if (!isOk(owner)) throw new Error('owner');
+    const changed = await changeAiConnection(owner.value, {
+      connectionId: id,
+      choices: { ...SUGGEST, suggestChanges: suggest, duration: 'keep' },
+    });
+    if (!isOk(changed)) throw new Error('change');
+  };
+
+  it('a consent sent while the feature is off stores no Suggest Changes; once on, it does', async () => {
+    const { ownerId, applicantId } = await person();
+    await setFeature(false);
+    const off = await connect(ownerId, applicantId, SUGGEST);
+    expect(await scopesOf(off.connectionId)).not.toContain('suggest_changes');
+    await setFeature(true);
+    const on = await connect(ownerId, applicantId, SUGGEST);
+    expect(await scopesOf(on.connectionId)).toContain('suggest_changes');
+  });
+
+  it('while off, Change Access can keep or remove it, never add it', async () => {
+    const { ownerId, applicantId } = await person();
+    const had = await connect(ownerId, applicantId, SUGGEST);
+    const never = await connect(ownerId, applicantId, { ...SUGGEST, suggestChanges: false });
+    await setFeature(false);
+    await change(ownerId, applicantId, had.connectionId, true);
+    expect(await scopesOf(had.connectionId)).toContain('suggest_changes');
+    await change(ownerId, applicantId, never.connectionId, true);
+    expect(await scopesOf(never.connectionId)).not.toContain('suggest_changes');
+    await change(ownerId, applicantId, had.connectionId, false);
+    expect(await scopesOf(had.connectionId)).not.toContain('suggest_changes');
+    // And once removed while off, it cannot come back until the feature is on.
+    await change(ownerId, applicantId, had.connectionId, true);
+    expect(await scopesOf(had.connectionId)).not.toContain('suggest_changes');
+  });
+});
+
+describe('S21 review round 2', () => {
+  const ownerRead = async (ownerId: string, applicantId: string) => {
+    const proof = await requireAccess(
+      db,
+      accountPrincipal(ownerId),
+      'VIEW_METADATA',
+      { applicantId },
+      { purpose: 'ai_review' },
+    );
+    if (!isOk(proof)) throw new Error('owner');
+    return proof.value;
+  };
+
+  it('registers a catalogue detail nobody has saved yet, as saving it by hand would', async () => {
+    const { ownerId, applicantId } = await person();
+    const { token } = await connect(ownerId, applicantId, SUGGEST);
+    expect(
+      await db
+        .select()
+        .from(schema.fieldDefinitions)
+        .where(eq(schema.fieldDefinitions.key, 'phone')),
+    ).toEqual([]);
+    await saved(token, 'suggest_profile_update', phoneSuggestion);
+    const [definition] = await db
+      .select()
+      .from(schema.fieldDefinitions)
+      .where(eq(schema.fieldDefinitions.key, 'phone'));
+    expect(definition).toMatchObject({ sensitivity: 'STANDARD', repeating: false });
+    const [pending] = await listPendingProposals(db, applicantId);
+    expect(
+      isOk(
+        await approveProposal(db, {
+          actorAccountId: ownerId,
+          proposalId: pending?.proposal.id ?? '',
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it('counts profile suggestions apart on Home, linking to My Profile, and keeps them out of insights', async () => {
+    const { ownerId, applicantId } = await person();
+    await fact(ownerId, applicantId, 'passport_expiry', '2031-01-01');
+    const passport = await document(applicantId, 'PASSPORT');
+    const { token } = await connect(ownerId, applicantId, SUGGEST);
+    await saved(token, 'suggest_profile_update', phoneSuggestion);
+    await saved(token, 'suggest_profile_update', {
+      section: 'travel_documents',
+      field: 'passport_expiry',
+      value: '2032-02-02',
+      reason: 'The person said the passport was renewed.',
+      document_reference: passport.reference,
+    });
+    const attention = await listNeedsAttention(await ownerRead(ownerId, applicantId), { now });
+    if (!isOk(attention)) throw new Error('attention');
+    const suggestionItems = attention.value.items
+      .filter((item) => item.kind === 'suggestions')
+      .map((item) => ({ title: item.title, count: item.count, href: item.href }));
+    expect(suggestionItems).toEqual(
+      expect.arrayContaining([
+        {
+          title: 'Suggestions from AI Apps Waiting for You',
+          count: 1,
+          href: `/app/applicant/${applicantId}/profile#ai-app-suggestions`,
+        },
+        {
+          title: 'Suggested Details Waiting for Your Decision',
+          count: 1,
+          href: `/app/applicant/${applicantId}/documents`,
+        },
+      ]),
+    );
+    // An app's claim about the passport is never shown as something read from the file.
+    const insights = await getTravellerInsights(await ownerRead(ownerId, applicantId), {
+      now,
+    });
+    if (!isOk(insights)) throw new Error('insights');
+    expect(insights.value.mismatches).toEqual([]);
+  });
+
+  it('treats an empty optional reference as no reference', async () => {
+    const { ownerId, applicantId } = await person();
+    await register('phone');
+    const { token } = await connect(ownerId, applicantId, SUGGEST);
+    expect(
+      await saved(token, 'suggest_profile_update', { ...phoneSuggestion, document_reference: '' }),
+    ).toMatchObject({ document: null });
+    expect(
+      await saved(token, 'save_draft', { title: 'Letter', body: 'Body', case_reference: '' }),
+    ).toMatchObject({ case: null });
+  });
+
+  it('answers a resend of the 15th write as already waiting, and still refuses a 16th', async () => {
+    const { ownerId, applicantId } = await person();
+    await register('phone');
+    const { token } = await connect(ownerId, applicantId, SUGGEST);
+    for (let n = 1; n <= 14; n++) {
+      await saved(token, 'save_draft', { title: `Draft ${n}`, body: 'Body' });
+    }
+    const first = await saved(token, 'suggest_profile_update', phoneSuggestion);
+    // The app timed out and sent the same suggestion again: the same answer, nothing new.
+    expect(await saved(token, 'suggest_profile_update', phoneSuggestion)).toEqual(first);
+    expect(await refused(token, 'save_draft', { title: 'Draft 16', body: 'Body' })).toBe(
+      MESSAGES.writeLimit,
+    );
+    expect((await counts()).proposals).toBe(1);
+  });
+
+  it('puts drafts, tasks, which app added them and the AI connections in the account export', async () => {
+    const { ownerId, applicantId } = await person();
+    const trip = await caseFor(ownerId, applicantId, 'London Trip');
+    const { token } = await connect(ownerId, applicantId, SUGGEST);
+    await saved(token, 'save_draft', { title: 'Letter', body: 'Dear Sir' });
+    await saved(token, 'add_reminder', {
+      case_reference: trip.reference,
+      title: 'Book it',
+      due_date: DUE,
+    });
+    const exported = await exportAccount(db, { actorAccountId: ownerId, accountId: ownerId });
+    if (!isOk(exported)) throw new Error('export');
+    expect(exported.value.manifest.counts).toMatchObject({
+      aiDrafts: 1,
+      missionTasks: 1,
+      aiTaskOrigins: 1,
+      aiConnections: 1,
+    });
+    const tables = buildExportCsvTables(exported.value);
+    const rows = (name: string) => tables.find((table) => table.name === name)?.rowCount;
+    expect([
+      rows('ai_drafts.csv'),
+      rows('mission_tasks.csv'),
+      rows('ai_task_origins.csv'),
+      rows('ai_connections.csv'),
+    ]).toEqual([1, 1, 1, 1]);
+    // Token hashes are never part of it.
+    expect(JSON.stringify(exported.value)).not.toContain('token_hash');
+    expect(JSON.stringify(exported.value)).not.toContain('tokenHash');
   });
 });

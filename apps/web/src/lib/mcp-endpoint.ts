@@ -208,7 +208,7 @@ function buildServer(
     { name: 'visastack', title: 'VisaStack', version: '1.0.0', icons: connectorIcons() },
     {
       instructions:
-        'VisaStack holds one person’s own visa record. The read tools give only what that person chose to share. If the person turned on Suggest Changes, suggest_profile_update, save_draft and add_reminder leave a suggestion, a draft or a reminder for the person to review: nothing in the record changes until the person approves it in VisaStack, and nothing is sent anywhere. Use only when the person explicitly asks for this change. Start with prepare_context.',
+        'VisaStack holds one person’s own visa record. The read tools give only what that person chose to share. If the person turned on Suggest Changes: suggest_profile_update leaves a suggested update that changes nothing until the person accepts it in VisaStack; save_draft saves a draft that only the person sees; add_reminder adds a task to one of the person’s cases straight away, and VisaStack sends the person its usual notices before the task is due. None of them sends anything to anyone else. Use only when the person explicitly asks for this change. Start with prepare_context.',
     },
   );
   for (const tool of AI_TOOLS as readonly AnyAiToolDefinition[]) {

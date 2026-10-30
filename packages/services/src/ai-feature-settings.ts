@@ -132,6 +132,8 @@ export async function getAiFeatureState(
   db: Db,
   feature: AiFeatureKey,
   context: AiFeatureContext,
+  /** The feature's storage readiness, when the caller has just checked it (one probe per call). */
+  options: { readonly ready?: boolean } = {},
 ): Promise<AiFeatureState> {
   const off = (reason: AiFeatureOffReason, dailyLimit: number | null = null): AiFeatureState => ({
     feature,
@@ -141,7 +143,8 @@ export async function getAiFeatureState(
   });
   const accountId = contextAccount(context);
   if (accountId === undefined) return off('turned_off');
-  if (!(await FEATURE_READY[feature](db))) return off('not_available_yet');
+  const ready = options.ready ?? (await FEATURE_READY[feature](db));
+  if (!ready) return off('not_available_yet');
   const saved = await savedSetting(db, feature);
   const plan = aiEntitlementFor({ accountId }).features[feature];
   const dailyLimit = effectiveAiDailyLimit(plan.dailyLimit, saved.dailyLimit);

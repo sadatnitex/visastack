@@ -158,5 +158,21 @@ export function buildExportCsvTables(
       'field_proposals.csv',
       applicants.flatMap((a) => a.aiRuns.flatMap((r) => r.proposals)),
     ),
+    table(
+      'mission_tasks.csv',
+      applicants.flatMap((a) => a.missions.flatMap((m) => m.tasks)),
+    ),
+    table(
+      'ai_task_origins.csv',
+      applicants.flatMap((a) => a.missions.flatMap((m) => m.aiTaskOrigins)),
+    ),
+    table(
+      'ai_drafts.csv',
+      applicants.flatMap((a) => a.aiDrafts),
+    ),
+    table(
+      'ai_connections.csv',
+      applicants.flatMap((a) => a.aiConnections),
+    ),
   ];
 }

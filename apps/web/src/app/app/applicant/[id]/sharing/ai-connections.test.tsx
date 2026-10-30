@@ -279,17 +279,23 @@ describe('Suggest Changes on AI Connections (S21)', () => {
     expect(text).toContain(
       'This AI feature is turned off right now. Everything else works as usual.',
     );
+    expect(text).not.toContain('Your choice is kept');
     expect(before).not.toContain('<dt>Suggest Changes</dt>');
   });
 
-  it('keeps an app’s choice while the feature is off, so turning it on again loses nothing', () => {
+  it('keeps an app’s choice while the feature is off, and the person can still untick it', () => {
     const html = render({
       list: list({ active: [connection({ scopes: ['identity', 'suggest_changes'] })] }),
     });
     expect(html).toContain('<dt>Suggest Changes</dt>');
     expect(textOf(html)).toContain('Yes, but turned off right now');
-    expect(html).toContain('<input type="hidden" name="suggest_changes" value="on"/>');
-    expect(textOf(html)).toContain('nothing changes until you approve it');
+    // Ticked and enabled, so it can be unticked; nothing hidden carries it.
+    const box = html.match(/<input[^>]*name="suggest_changes"[^>]*>/)?.[0] ?? '';
+    expect(box).toContain('checked=""');
+    expect(box).not.toContain('disabled');
+    expect(html).not.toContain('type="hidden" name="suggest_changes"');
+    expect(textOf(html)).toContain('Your choice is kept for when it is turned on again.');
+    expect(textOf(html)).toContain('Suggested updates change nothing until you accept them');
   });
 
   it('offers the choice when the feature is on', () => {

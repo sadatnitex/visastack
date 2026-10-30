@@ -13,6 +13,7 @@ import {
   AI_LAYER_NOTES,
   AI_SUGGEST_CHANGES_LABEL,
   AI_SUGGEST_CHANGES_NOTE,
+  AI_SUGGEST_KEPT_NOTE,
 } from '../lib/ai-consent-labels';
 
 export interface AiAccessChoicesProps {
@@ -30,6 +31,12 @@ export interface AiAccessChoicesProps {
    * choice already made is kept as it was.
    */
   readonly suggestionsAvailable?: boolean;
+  /**
+   * `consent`: a new connection. The box always starts unticked, whatever a link asked for, so the
+   * person ticks it themselves. `change`: Change Access on an existing connection. A stored choice
+   * starts ticked and can always be unticked; while the feature is off it cannot be ticked on.
+   */
+  readonly suggestMode?: 'consent' | 'change';
 }
 
 /**
@@ -45,7 +52,10 @@ export function AiAccessChoices({
   defaultDuration,
   invalid,
   suggestionsAvailable = false,
+  suggestMode = 'consent',
 }: AiAccessChoicesProps) {
+  const suggestStartsTicked = suggestMode === 'change' && initial.suggestChanges;
+  const suggestEditable = suggestionsAvailable || suggestStartsTicked;
   const id = useId();
   const problem = (field: string) =>
     invalid?.field === field
@@ -195,8 +205,8 @@ export function AiAccessChoices({
               id={`${id}-ai-suggest`}
               type="checkbox"
               name="suggest_changes"
-              defaultChecked={initial.suggestChanges}
-              disabled={!suggestionsAvailable}
+              defaultChecked={suggestStartsTicked}
+              disabled={!suggestEditable}
               {...(suggestionsAvailable ? {} : { 'aria-describedby': `${id}-ai-suggest-off` })}
             />
             <span className="output-check-text">
@@ -206,13 +216,11 @@ export function AiAccessChoices({
           </label>
           {suggestionsAvailable ? null : (
             <p className="muted u-fs-075 u-m-0" id={`${id}-ai-suggest-off`}>
-              {AI_FEATURE_OFF_HINT}
+              {suggestStartsTicked
+                ? `${AI_FEATURE_OFF_HINT} ${AI_SUGGEST_KEPT_NOTE}`
+                : AI_FEATURE_OFF_HINT}
             </p>
           )}
-          {/* A choice already made is kept while the feature is off, so turning it back on loses nothing. */}
-          {!suggestionsAvailable && initial.suggestChanges ? (
-            <input type="hidden" name="suggest_changes" value="on" />
-          ) : null}
         </div>
       </fieldset>
 

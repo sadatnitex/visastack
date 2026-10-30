@@ -69,6 +69,11 @@ export function consentChoicesToQuery(
  */
 export function consentChoicesFromQuery(
   read: (name: string) => string | undefined,
+  /**
+   * Whether the link may carry "Suggest Changes" back. Only Change Access, returning from its own
+   * sign-in check, passes true; the consent screen never pre-ticks it from a link (S21).
+   */
+  options: { readonly suggestFromLink?: boolean } = {},
 ): ConsentInitial {
   const layersRaw = read('choice_layers');
   if (layersRaw === undefined) return CONSENT_DEFAULTS;
@@ -81,7 +86,7 @@ export function consentChoicesFromQuery(
     documentList: read('choice_list') !== '0',
     documentText: read('choice_text') === '1',
     revealIdentifiers: read('choice_reveal') === '1',
-    suggestChanges: read('choice_suggest') === '1',
+    suggestChanges: options.suggestFromLink === true && read('choice_suggest') === '1',
     duration: (AI_CONNECTION_DURATIONS as readonly string[]).includes(duration ?? '')
       ? (duration as AiConnectionDuration)
       : AI_CONNECTION_DEFAULT_DURATION,

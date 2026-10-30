@@ -43,7 +43,10 @@ export const saveDraft: AiSuggestionToolDefinition<typeof inputSchema> = {
     const saved = await gateway.writes.saveDraft({
       title: input.title,
       body: input.body,
-      ...(input.case_reference !== undefined ? { caseReference: input.case_reference } : {}),
+      // An empty reference is no reference: apps often send "" for an optional field.
+      ...(input.case_reference !== undefined && input.case_reference.trim() !== ''
+        ? { caseReference: input.case_reference }
+        : {}),
     });
     if (!saved.ok) return writeRefusal(saved.error);
     return answer(`Draft saved. ${GUIDANCE}`, {

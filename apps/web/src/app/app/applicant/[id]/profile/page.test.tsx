@@ -10,7 +10,9 @@ const service = vi.hoisted(() => ({
   listApplicantAssurance: vi.fn(),
   listApplicantProfile: vi.fn(),
   listDocumentsDetailed: vi.fn(),
-  listPendingProposals: vi.fn(),
+  listPendingAppSuggestions: vi.fn(),
+  aiSuggestionsInUse: vi.fn(),
+  requireAccess: vi.fn(),
 }));
 
 vi.mock('@visastack/services', async (importOriginal) => ({
@@ -21,6 +23,9 @@ vi.mock('../../../../../lib/session', () => ({
   withSession: (callback: (ctx: unknown) => unknown) => callback({ db: {}, accountId: 'owner' }),
 }));
 vi.mock('../../../../../lib/profile-photos', () => ({ ownedPhotoUrl: () => null }));
+vi.mock('../../../../../lib/providers', () => ({
+  createKeyManagementPort: () => ({ port: 'keys' }),
+}));
 vi.mock('../../../../../lib/ccd/depth.server', () => ({ readDepth: async () => 'auto' }));
 vi.mock('../profile-editor', () => ({
   ProfileEditor: () => <div id="profile-editor">Versioned editor</div>,
@@ -90,7 +95,9 @@ beforeEach(() => {
   service.listApplicantAssurance.mockResolvedValue({ ok: true, value: [] });
   service.listApplicantProfile.mockResolvedValue([]);
   service.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [] });
-  service.listPendingProposals.mockResolvedValue([]);
+  service.listPendingAppSuggestions.mockResolvedValue([]);
+  service.aiSuggestionsInUse.mockResolvedValue(false);
+  service.requireAccess.mockResolvedValue({ ok: true, value: { proof: 'owner' } });
 });
 
 describe('Suggestions from AI Apps on My Profile (S21)', () => {
@@ -101,12 +108,7 @@ describe('Suggestions from AI Apps on My Profile (S21)', () => {
   });
 
   it('lists an app’s suggestion about the profile, named by the app, with its own reason', async () => {
-    service.listPendingProposals.mockResolvedValue([
-      suggestion(),
-      // A suggestion about a document is reviewed on Documents; a reading of a file is not an app's.
-      suggestion({ documentVersionId: 'v-1' }),
-      suggestion({ fromApp: undefined }),
-    ]);
+    service.listPendingAppSuggestions.mockResolvedValue([suggestion()]);
     const html = await render();
     const text = textOf(html);
     expect(html.match(/<h1/g)).toHaveLength(1);
@@ -119,5 +121,41 @@ describe('Suggestions from AI Apps on My Profile (S21)', () => {
     expect(text).toContain('Skip');
     expect(html.match(/Suggested by/g)).toHaveLength(1);
     expect(await axeViolations(html)).toEqual([]);
+  });
+});
+
+describe('comparing an app suggestion with a protected value (S21 review)', () => {
+  it('reads the protected value first, so the same value is not shown as a difference', async () => {
+    const entry = (value: string | null) => ({
+      factId: 'f-phone',
+      fieldKey: 'phone',
+      repeatingRecordKey: null,
+      value,
+      status: 'APPLICANT_CONFIRMED',
+      method: 'MANUAL',
+      updatedAt: '2026-10-10T12:00:00Z',
+      effectiveFrom: null,
+      isProtected: true,
+      sourceDocumentId: null,
+    });
+    // Without the key the stored value cannot be read; with it, it is the same as the suggestion.
+    service.listApplicantProfile.mockImplementation(async (_db, _id, keys) =>
+      keys ? [entry('+8801700000999')] : [entry('masked')],
+    );
+    service.listPendingAppSuggestions.mockResolvedValue([suggestion()]);
+    const text = textOf(await render());
+    expect(service.listApplicantProfile).toHaveBeenCalledWith({}, 'person', { port: 'keys' });
+    expect(text).toContain('Suggested by Claude (claude.ai)');
+    expect(text).not.toContain('Which is right?');
+  });
+});
+
+describe('the section after the last decision (S21 review A2)', () => {
+  it('stays, saying nothing is waiting, while an app may suggest more', async () => {
+    service.aiSuggestionsInUse.mockResolvedValue(true);
+    const html = await render();
+    expect(textOf(html)).toContain('Suggestions from AI Apps');
+    expect(textOf(html)).toContain('Nothing waiting.');
+    expect(html).toContain('id="ai-app-suggestions-title" tabindex="-1"');
   });
 });

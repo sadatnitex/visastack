@@ -5,8 +5,10 @@ import {
   type AiConnectionChoices,
   type AiConnectionDuration,
   aiConnectionExpiry,
+  allowsSuggestions,
   scopesFromChoices,
 } from '../ai-connection-scopes';
+import { getAiFeatureState } from '../ai-feature-settings';
 import { appendAuditEvent } from '../audit';
 import { type Db, first, schema } from '../db';
 import { isMissingRelationError } from '../missing-relation';
@@ -393,7 +395,13 @@ export async function changeAiConnection(
         );
         if (!mission) return err({ code: 'case_not_on_record' } as const);
       }
-      const scopes = scopesFromChoices(choices);
+      // While AI App Suggestions is off, "Suggest Changes" can be kept or removed, never added (S21).
+      const hadSuggestions = allowsSuggestions(connection.scopes);
+      const suggestChanges =
+        choices.suggestChanges === true &&
+        (hadSuggestions ||
+          (await getAiFeatureState(tx, 'ai_app_suggestions', { proof })).available);
+      const scopes = scopesFromChoices({ ...choices, suggestChanges });
       const expiresAt =
         choices.duration === 'keep'
           ? connection.expiresAt
