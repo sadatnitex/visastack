@@ -62,14 +62,14 @@ describe('the invoice document in words (S30)', () => {
       { label: 'Invoice Number', value: 'INV-7D3F9A2C-20261101' },
       { label: 'Issue Date', value: '1 Nov 2026' },
       { label: 'Due Date', value: '8 Nov 2026' },
-      { label: 'Period', value: '1 Nov 2026 to 1 Dec 2026' },
+      { label: 'Period', value: '1 Nov 2026 to 30 Nov 2026' },
     ]);
     expect(doc.billedTo).toEqual({
       name: 'Dhaka Visa Desk',
       lines: ['Agency Code 7D3F9A2C', 'owner@dhakavisadesk.example'],
     });
     expect(doc.items.rows).toEqual([
-      ['Agency Standard', '1 Nov 2026 to 1 Dec 2026', `BDT${NBSP}2,500.00`],
+      ['Agency Standard', '1 Nov 2026 to 30 Nov 2026', `BDT${NBSP}2,500.00`],
     ]);
     expect(doc.totals).toEqual([
       { label: 'Invoiced', value: `BDT${NBSP}2,500.00` },

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { formatBillingDate, formatMoney } from '@visastack/core';
+import { formatBillingDate, formatBillingDateTime, formatMoney } from '@visastack/core';
 import {
   type BillingStatus,
   type Invoice,
@@ -31,7 +31,6 @@ import {
   billingHistoryMove,
   billingHistoryReason,
 } from '../../../../../lib/billing-history-labels';
-import { formatTimestamp } from '../../../../../lib/format-date';
 import { CLAIM_METHOD_LABELS, CLAIM_STATUS_LABELS } from '../../../../../lib/invoice-labels';
 import {
   billingStatusLabel,
@@ -426,7 +425,6 @@ export default async function AdminOrganizationPage({
                 <a
                   className="invoice-link"
                   href={`/app/admin/organizations/${orgId}/invoices/${invoice.id}/pdf`}
-                  download
                 >
                   Download Invoice (PDF)
                   <span className="sr-only"> {invoice.invoiceRef}</span>
@@ -507,7 +505,7 @@ export default async function AdminOrganizationPage({
                   style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.4rem' }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
-                    <span className="row-key">Until {formatTimestamp(o.expiryAt)}</span>
+                    <span className="row-key">Until {formatBillingDateTime(o.expiryAt)}</span>
                     <span className="row-end">
                       <span className={`badge ${tone}`}>{status}</span>
                       {active ? (

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { billingDaysUntil, formatBillingDate, formatBillingDateTime } from './billing-date';
+import {
+  billingDaysUntil,
+  formatBillingDate,
+  formatBillingDateTime,
+  formatBillingPeriod,
+} from './billing-date';
 
 describe('billing dates (S30)', () => {
   it('writes day, short month and year on the Bangladesh calendar', () => {
@@ -34,5 +39,14 @@ describe('billing dates (S30)', () => {
     expect(
       billingDaysUntil(new Date('2026-10-30T00:00:00Z'), new Date('2026-10-30T19:00:00Z')),
     ).toBe(-1);
+  });
+
+  it('shows a period with its last day included (the stored end is exclusive)', () => {
+    const DAY = 86_400_000;
+    const first = new Date('2026-11-01T04:00:00Z');
+    const second = new Date(first.getTime() + 30 * DAY);
+    const third = new Date(second.getTime() + 30 * DAY);
+    expect(formatBillingPeriod(first, second)).toBe('1 Nov 2026 to 30 Nov 2026');
+    expect(formatBillingPeriod(second, third)).toBe('1 Dec 2026 to 30 Dec 2026');
   });
 });

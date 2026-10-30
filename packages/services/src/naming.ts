@@ -1,4 +1,4 @@
-import { MAX_DOCUMENT_NAME_LENGTH, isOtherDocumentType } from '@visastack/core';
+import { MAX_DOCUMENT_NAME_LENGTH, formatBillingDate, isOtherDocumentType } from '@visastack/core';
 import { documentTypeName } from '@visastack/core/catalogue/documents';
 
 /**
@@ -132,29 +132,13 @@ export function firstNameOf(displayName: string): string {
   return cleanDocumentName(sanitizeNameComponent(name ?? '')).replace(/[,.]+$/, '');
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
 /**
- * The day a moment fell on in the traveller's time zone, as "27 Oct 2026". Built from its parts so
- * the text is the same on every server (some runtimes write "Sept"). An unknown zone falls back to
- * UTC rather than to the server's own.
+ * The day a moment fell on in the traveller's time zone, as "27 Oct 2026". The one day-month-year
+ * style of @visastack/core (S30), so documents, billing and notices write a day the same way. An
+ * unknown zone falls back to UTC rather than to the server's own.
  */
 export function titleDate(at: Date, timeZone: string): string {
-  const parts = (zone: string) =>
-    new Intl.DateTimeFormat('en-GB', {
-      timeZone: zone,
-      year: 'numeric',
-      month: 'numeric',
-      day: 'numeric',
-    }).formatToParts(at);
-  let found: Intl.DateTimeFormatPart[];
-  try {
-    found = parts(timeZone);
-  } catch {
-    found = parts('UTC');
-  }
-  const part = (type: string) => Number(found.find((p) => p.type === type)?.value);
-  return `${part('day')} ${MONTHS[part('month') - 1] ?? ''} ${part('year')}`;
+  return formatBillingDate(at, timeZone);
 }
 
 export interface DocumentTitleInput {

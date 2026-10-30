@@ -46,7 +46,6 @@ export default async function ReceiptPage({
           <a
             className="btn btn-secondary"
             href={`/app/agency/${orgId}/plan/invoices/receipts/${receiptId}/pdf`}
-            download
           >
             Download Receipt (PDF)
           </a>

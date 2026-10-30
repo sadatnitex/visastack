@@ -5,6 +5,7 @@ import {
   err,
   formatBillingDate,
   formatBillingDateTime,
+  formatBillingPeriod,
   formatMoney,
   ok,
 } from '@visastack/core';
@@ -13,7 +14,7 @@ import { invoiceLedgerReader } from './billing';
 import { agencyCode } from './billing-standing';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
-import { outstandingMinorUnits } from './invoice-ledger';
+import { isUuid, normalizeCurrency, outstandingMinorUnits } from './invoice-ledger';
 import { isMissingRelationError } from './missing-relation';
 import { formatReceiptNumber } from './receipts';
 
@@ -185,10 +186,6 @@ function billedTo(facts: {
   };
 }
 
-function periodText(start: Date, end: Date): string {
-  return `${formatBillingDate(start)} to ${formatBillingDate(end)}`;
-}
-
 /** The stamp of an invoice, from the same facts as its state on the Invoices page. */
 export function invoiceDocumentStamp(
   facts: Pick<
@@ -295,7 +292,7 @@ export function buildInvoiceDocument(facts: InvoiceDocumentFacts, now: Date): Bi
       ...(facts.status === 'VOID' || wasRefunded
         ? []
         : [{ label: 'Due Date', value: formatBillingDate(facts.dueDate) }]),
-      { label: 'Period', value: periodText(facts.periodStart, facts.periodEnd) },
+      { label: 'Period', value: formatBillingPeriod(facts.periodStart, facts.periodEnd) },
     ],
     billedTo: billedTo(facts),
     items: {
@@ -304,7 +301,7 @@ export function buildInvoiceDocument(facts: InvoiceDocumentFacts, now: Date): Bi
       rows: [
         [
           facts.planName,
-          periodText(facts.periodStart, facts.periodEnd),
+          formatBillingPeriod(facts.periodStart, facts.periodEnd),
           money(facts.invoicedAmountMinorUnits),
         ],
       ],
@@ -346,7 +343,13 @@ export function buildReceiptDocument(facts: ReceiptDocumentFacts, now: Date): Bi
       {
         heading: 'For Invoice',
         columns: ['Invoice', 'Plan', 'Period'],
-        rows: [[facts.invoiceRef, facts.planName, periodText(facts.periodStart, facts.periodEnd)]],
+        rows: [
+          [
+            facts.invoiceRef,
+            facts.planName,
+            formatBillingPeriod(facts.periodStart, facts.periodEnd),
+          ],
+        ],
       },
     ],
     notes: [
@@ -357,8 +360,6 @@ export function buildReceiptDocument(facts: ReceiptDocumentFacts, now: Date): Bi
 }
 
 // --- Reading ----------------------------------------------------------------------------------
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** The address billing notices go to first: the agency's earliest active owner. */
 async function billingEmailFor(db: Db, organizationId: string): Promise<string | null> {
@@ -422,7 +423,7 @@ export async function getInvoiceDocument(
   db: Db,
   input: BillingDocumentReader & { readonly invoiceId: string },
 ): Promise<Result<BillingDocument, ServiceError>> {
-  if (!UUID.test(input.invoiceId) || !UUID.test(input.organizationId)) {
+  if (!isUuid(input.invoiceId) || !isUuid(input.organizationId)) {
     return err(serviceError('not_found', NOT_FOUND));
   }
   if ((await invoiceLedgerReader(db, input)) === null) {
@@ -453,7 +454,7 @@ export async function getInvoiceDocument(
   if (!row) return err(serviceError('not_found', NOT_FOUND));
   const facts: InvoiceDocumentFacts = {
     ...row,
-    currency: row.currency.trim().toUpperCase(),
+    currency: normalizeCurrency(row.currency),
     organizationId: input.organizationId,
     billingEmail: await billingEmailFor(db, input.organizationId),
     payments: await ledgerRows(db, input.invoiceId),
@@ -469,7 +470,7 @@ export async function getReceiptDocument(
   db: Db,
   input: BillingDocumentReader & { readonly receiptId: string },
 ): Promise<Result<BillingDocument, ServiceError>> {
-  if (!UUID.test(input.receiptId) || !UUID.test(input.organizationId)) {
+  if (!isUuid(input.receiptId) || !isUuid(input.organizationId)) {
     return err(serviceError('not_found', NOT_FOUND));
   }
   if ((await invoiceLedgerReader(db, input)) === null) {
@@ -514,7 +515,7 @@ export async function getReceiptDocument(
           organizationName: schema.organizations.name,
         })
         .from(r)
-        .innerJoin(i, eq(i.id, r.invoiceId))
+        .innerJoin(i, and(eq(i.id, r.invoiceId), eq(i.organizationId, input.organizationId)))
         .innerJoin(p, eq(p.id, r.invoicePaymentId))
         .innerJoin(schema.plans, eq(schema.plans.id, i.planId))
         .innerJoin(schema.organizations, eq(schema.organizations.id, r.organizationId))
@@ -530,7 +531,7 @@ export async function getReceiptDocument(
     buildReceiptDocument(
       {
         ...row,
-        currency: row.currency.trim().toUpperCase(),
+        currency: normalizeCurrency(row.currency),
         organizationId: input.organizationId,
         billingEmail: await billingEmailFor(db, input.organizationId),
       },

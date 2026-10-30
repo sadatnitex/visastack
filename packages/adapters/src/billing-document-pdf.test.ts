@@ -27,7 +27,7 @@ import {
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { describe, expect, it } from 'vitest';
-import { renderBillingDocumentPdf } from './billing-document-pdf';
+import { BILLING_DOCUMENT_LAYOUT, renderBillingDocumentPdf } from './billing-document-pdf';
 import { DeterministicTextExtractor } from './text-extraction';
 
 const NOW = new Date('2026-10-30T08:05:00Z');
@@ -99,8 +99,8 @@ describe('the billing document PDF (S30)', () => {
         'VisaStack vs.obsidianglobal.studio Invoice INV-7D3F9A2C-20260901',
         'Billed To Dhaka Visa Desk Agency Code 7D3F9A2C owner@dhakavisadesk.example',
         'Invoice Number INV-7D3F9A2C-20260901 Issue Date 1 Sep 2026 Due Date 22 Oct 2026',
-        'Period 1 Sep 2026 to 1 Oct 2026 Status Overdue',
-        'Plan Description Period Amount Agency Standard 1 Sep 2026 to 1 Oct 2026 BDT 2,500.00',
+        'Period 1 Sep 2026 to 30 Sep 2026 Status Overdue',
+        'Plan Description Period Amount Agency Standard 1 Sep 2026 to 30 Sep 2026 BDT 2,500.00',
         'Invoiced BDT 2,500.00 Paid So Far BDT 1,000.00 Still Owed BDT 1,500.00',
         'Payments Received Date How It Was Paid Payment Reference Receipt Amount',
         '12 Oct 2026 Reported Payment, Confirmed BKASH-8H2K4Q R-000041 BDT 1,000.00',
@@ -163,6 +163,52 @@ describe('the billing document PDF (S30)', () => {
     ]);
     expect(raw).not.toMatch(/pdf-lib|github\.com/i);
     expect(raw).not.toMatch(/\/JavaScript|\/OpenAction|\/Launch|\/EmbeddedFile/);
+  });
+
+  it('wraps a long billing address so nothing runs into the facts column (S30)', async () => {
+    const email = `${'billing.department.of.the.agency'.padEnd(46, 'x')}@example-agency.com`;
+    expect(email.length).toBe(65);
+    const bytes = await renderBillingDocumentPdf(
+      buildInvoiceDocument(facts({ billingEmail: email }), NOW),
+      {},
+      NOW,
+    );
+    const { getDocumentProxy } = await import('unpdf');
+    const pdf = await getDocumentProxy(new Uint8Array(bytes));
+    try {
+      const page = await pdf.getPage(1);
+      const content = await page.getTextContent();
+      const items = content.items.flatMap((item) =>
+        'str' in item && item.str.trim()
+          ? [
+              {
+                text: item.str,
+                x: item.transform[4] as number,
+                y: item.transform[5] as number,
+                width: item.width,
+              },
+            ]
+          : [],
+      );
+      // The Billed To block: everything above the first table's heading, left of the facts.
+      const planY = items.find((item) => item.text === 'Plan')?.y ?? 0;
+      const left = items.filter(
+        (item) => item.y > planY && item.x < BILLING_DOCUMENT_LAYOUT.factsX - 1,
+      );
+      expect(left.map((item) => item.text).join('')).toContain('@example-agency.com');
+      for (const item of left) {
+        expect(item.x + item.width, item.text).toBeLessThan(BILLING_DOCUMENT_LAYOUT.factsX - 10);
+      }
+    } finally {
+      await pdf.loadingTask.destroy();
+    }
+  });
+
+  it('asks the reader to show the document title in its window (S30)', async () => {
+    const raw = Buffer.from(
+      await renderBillingDocumentPdf(buildInvoiceDocument(facts(), NOW), {}, NOW),
+    ).toString('latin1');
+    expect(raw).toMatch(/\/DisplayDocTitle true/);
   });
 
   it('flows a long list onto further pages, each with the footer', async () => {

@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import {
   createInvoice,
+  getAgencyBillingNotice,
   getBillingAccountForOrganization,
   isBillingSuspended,
   listBillingStatusHistory,
@@ -653,6 +654,102 @@ describe('invoices -- issue, collect, void (COM-03)', () => {
       reason: 'bank transfer',
     });
     expect(isErr(emptyRef)).toBe(true);
+  });
+
+  it('tells the status notice whether a person set the status and whether anything is owed (S30)', async () => {
+    const reader = { actorAccountId: ownerAccountId, organizationId };
+    expect(await getAgencyBillingNotice(db, reader)).toEqual({ ok: true, value: null });
+    const opened = await openBillingAccount(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      initialStatus: 'ACTIVE',
+      reason: 'terms agreed',
+    });
+    if (!isOk(opened)) throw new Error('account');
+    expect(await getAgencyBillingNotice(db, reader)).toEqual({ ok: true, value: null });
+    const moved = await transitionBillingStatus(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      toStatus: 'SUSPENDED',
+      reason: 'held by the owner',
+    });
+    if (!isOk(moved)) throw new Error('move');
+    expect(await getAgencyBillingNotice(db, reader)).toEqual({
+      ok: true,
+      value: { status: 'SUSPENDED', setByPerson: true, invoiceOwed: false },
+    });
+    const { periodStart, periodEnd, dueDate } = periodDates();
+    const made = await createInvoice(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      planId,
+      periodStart,
+      periodEnd,
+      invoiceRef: 'INV-NOTICE-1',
+      invoicedAmountMinorUnits: 1000,
+      currency: 'BDT',
+      dueDate,
+    });
+    if (!isOk(made)) throw new Error('invoice');
+    const notice = await getAgencyBillingNotice(db, reader);
+    expect(isOk(notice) && notice.value?.invoiceOwed).toBe(true);
+    const stranger = await seedStranger(db, 'notice');
+    expect(
+      isErr(await getAgencyBillingNotice(db, { actorAccountId: stranger, organizationId })),
+    ).toBe(true);
+  });
+
+  it('reads a typed amount in the stored invoice currency, never in one the form names (S30)', async () => {
+    const make = async (ref: string, currency: string, amount: number) => {
+      const { periodStart, periodEnd, dueDate } = periodDates();
+      const made = await createInvoice(db, {
+        actor: owner.actor,
+        stepUpSatisfied: true,
+        organizationId,
+        planId,
+        periodStart,
+        periodEnd,
+        invoiceRef: ref,
+        invoicedAmountMinorUnits: amount,
+        currency,
+        dueDate,
+      });
+      if (!isOk(made)) throw new Error('invoice');
+      return made.value.id;
+    };
+    const record = (invoiceId: string, amountText: string) =>
+      recordInvoicePayment(db, {
+        actor: owner.actor,
+        stepUpSatisfied: true,
+        invoiceId,
+        amountText,
+        collectedDate: new Date(),
+        paymentReference: `ref-${amountText}`,
+        reason: 'bank transfer',
+      });
+    const yen = await make('INV-TYPED-JPY', 'JPY', 10000);
+    const taka = await make('INV-TYPED-BDT', 'BDT', 1000000);
+    const paidYen = await record(yen, '2,500');
+    expect(isOk(paidYen) && paidYen.value.collectedAmountMinorUnits).toBe(2500);
+    const paidTaka = await record(taka, '2,500.00');
+    expect(isOk(paidTaka) && paidTaka.value.collectedAmountMinorUnits).toBe(250000);
+    // More places than the invoice currency has, or nonsense, is refused.
+    expect(isErr(await record(yen, '1.5'))).toBe(true);
+    expect(isErr(await record(taka, 'two thousand'))).toBe(true);
+    const both = await recordInvoicePayment(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      invoiceId: taka,
+      amountText: '1.00',
+      amountMinorUnits: 100,
+      collectedDate: new Date(),
+      paymentReference: 'ref-both',
+      reason: 'bank transfer',
+    });
+    expect(isErr(both)).toBe(true);
   });
 
   it('refuses an unknown invoice and refuses a payment that would exceed the invoiced amount', async () => {

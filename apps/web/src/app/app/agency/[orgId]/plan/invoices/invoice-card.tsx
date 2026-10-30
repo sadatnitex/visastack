@@ -68,14 +68,15 @@ export function InvoiceCard({
   const refunded = invoice.refundedMinorUnits > 0;
   const open = invoice.status !== 'PAID' && invoice.status !== 'VOID' && !refunded;
   const reported = invoice.state === 'PAYMENT_REPORTED';
-  // While a payment report waits, paying online could pay twice: the report is checked first.
-  const canPayOnline =
+  // Whether this invoice can be paid online at all: payments switched on, its currency covered.
+  const onlineOffered =
     open &&
-    !reported &&
     onlineAvailable &&
     invoice.state !== 'NEEDS_CHECK' &&
     invoice.currency === ONLINE_CURRENCY &&
     invoice.outstandingMinorUnits > 0;
+  // While a payment report waits, paying online could pay twice: the report is checked first.
+  const canPayOnline = onlineOffered && !reported;
   const balance = formatMoneyNumber(invoice.outstandingMinorUnits, invoice.currency, {
     grouping: false,
   });
@@ -157,8 +158,9 @@ export function InvoiceCard({
           )}
           {reported ? (
             <p className="invoice-note">
-              Payment Reported: we are checking it. Once it is decided you can pay online or report
-              another payment.
+              {onlineOffered
+                ? 'Payment Reported: we are checking it. Once it is decided you can pay online or report another payment.'
+                : 'Payment Reported: we are checking it. We will update this invoice once it is checked.'}
             </p>
           ) : (
             <ClaimForm
@@ -256,7 +258,6 @@ export function InvoiceCard({
                 <a
                   className="invoice-link"
                   href={`/app/agency/${organizationId}/plan/invoices/receipts/${receipt.id}/pdf`}
-                  download
                 >
                   Download Receipt (PDF)
                   <span className="sr-only"> {receipt.number}</span>
@@ -271,7 +272,6 @@ export function InvoiceCard({
         <a
           className="btn btn-secondary"
           href={`/app/agency/${organizationId}/plan/invoices/${invoice.id}/pdf`}
-          download
         >
           Download Invoice (PDF)
           <span className="sr-only"> {invoice.invoiceRef}</span>

@@ -9,7 +9,7 @@ import { PageHeader } from '../../../../../../components/ui';
 import { createPaymentPort, isPaymentProviderConfigured } from '../../../../../../lib/providers';
 import { reportServerError } from '../../../../../../lib/server-error';
 import { withSession } from '../../../../../../lib/session';
-import { BillingStatusNotice, loadNoticeBillingStatus } from '../../billing-status-notice';
+import { BillingStatusNotice, loadBillingNotice } from '../../billing-status-notice';
 import { InvoiceCard } from './invoice-card';
 
 export const metadata: Metadata = { title: 'Agency Invoices' };
@@ -79,7 +79,7 @@ export default async function AgencyInvoicesPage({
       listed = await listAgencyInvoices(db, { actorAccountId: accountId, organizationId: orgId });
     }
     if (!listed.ok) return { invoices: [], allowed: false, status: null };
-    const status = await loadNoticeBillingStatus(db, accountId, orgId);
+    const status = await loadBillingNotice(db, accountId, orgId);
     return { invoices: listed.value, allowed: true, status };
   });
   const now = new Date();
@@ -96,7 +96,7 @@ export default async function AgencyInvoicesPage({
         back={{ href: `/app/agency/${orgId}/plan`, label: 'Plan & Usage' }}
         as="h2"
       />
-      <BillingStatusNotice status={data.status} admin organizationId={orgId} showAction={false} />
+      <BillingStatusNotice notice={data.status} admin organizationId={orgId} showAction={false} />
       {!data.allowed ? (
         <article className="card">
           <p className="card-body">Only owners and admins can see and pay invoices.</p>

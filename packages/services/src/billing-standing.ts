@@ -1,3 +1,4 @@
+import { BILLING_CALENDAR_TIME_ZONE, billingDaysUntil } from '@visastack/core';
 import { type SQL, and, asc, eq, inArray, lt, sql } from 'drizzle-orm';
 import {
   type BillingStatus,
@@ -6,7 +7,7 @@ import {
   newestBillingStatusChange,
 } from './billing-history';
 import { type Db, first, schema } from './db';
-import { localDateDiffInDays, toLocalDateParts } from './notification-sweep';
+import { toLocalDateParts } from './notification-sweep';
 
 /**
  * What the daily billing run, the payment path and the Billing Rules preview all need to judge
@@ -22,7 +23,7 @@ import { localDateDiffInDays, toLocalDateParts } from './notification-sweep';
  */
 
 /** The calendar billing days are counted in. */
-export const BILLING_TIME_ZONE = 'Asia/Dhaka';
+export const BILLING_TIME_ZONE = BILLING_CALENDAR_TIME_ZONE;
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -32,7 +33,9 @@ export const DAY_MS = 24 * 60 * 60 * 1000;
  * stored) reads as that same day in Bangladesh.
  */
 export function daysPastDue(dueDate: Date, now: Date): number {
-  return localDateDiffInDays(dueDate, now, BILLING_TIME_ZONE);
+  // The one day rule (S30): core's billingDaysUntil, which the invoice card's Overdue marker and
+  // the invoice document's stamp use too, so the screens, the documents and the daily run agree.
+  return 0 - billingDaysUntil(dueDate, now);
 }
 
 /** Overdue means from the Bangladesh day after the due date: the due day itself is not overdue. */

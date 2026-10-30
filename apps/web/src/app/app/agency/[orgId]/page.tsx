@@ -13,7 +13,7 @@ import { humanizeCode } from '../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { agree, plural } from '../../../../lib/plural';
 import { withSession } from '../../../../lib/session';
-import { BillingStatusNotice, loadNoticeBillingStatus } from './billing-status-notice';
+import { BillingStatusNotice, loadBillingNotice } from './billing-status-notice';
 import { CaseSearchForm, STAGE_LABELS } from './case-search-form';
 import {
   loadApplicants,
@@ -96,7 +96,7 @@ export default async function AgencyDashboardPage({
         loadUnassignedQueue(db, orgId, access),
         loadApplicants(db, orgId, access),
         loadClientsJoined(db, accountId, orgId),
-        loadNoticeBillingStatus(db, accountId, orgId),
+        loadBillingNotice(db, accountId, orgId),
       ]);
     return {
       admin: access.admin,
@@ -294,7 +294,7 @@ export default async function AgencyDashboardPage({
 
   return (
     <DepthScope family="agency-home" depth={depth}>
-      <BillingStatusNotice status={data.billingStatus} admin={data.admin} organizationId={orgId} />
+      <BillingStatusNotice notice={data.billingStatus} admin={data.admin} organizationId={orgId} />
       <DepthSwitch family="agency-home" initial={depth} copy={depthWords} />
       <section className="agency-reference-metrics" aria-label="Agency overview">
         <Stat

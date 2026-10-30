@@ -1,4 +1,11 @@
-import { type Result, err, isIsoCurrencyCode, normalizeCurrencyCode, ok } from '@visastack/core';
+import {
+  type Result,
+  err,
+  formatBillingDate,
+  isIsoCurrencyCode,
+  normalizeCurrencyCode,
+  ok,
+} from '@visastack/core';
 import { and, desc, eq, gte, inArray, isNull, lte, notInArray, sql } from 'drizzle-orm';
 import { isActiveMember, listApplicantsForOrganization } from './agency';
 import { excludingDeterministicRuns } from './ai-run-kinds';
@@ -727,7 +734,7 @@ export async function scheduleDowngrade(
           organizationId: input.organizationId,
           payload: {
             subject: 'A plan change is scheduled for your organization',
-            summary: `Your plan will change from ${fromPlan.name} to ${toPlan.name} on ${effectiveAt.toDateString()}.`,
+            summary: `Your plan will change from ${fromPlan.name} to ${toPlan.name} on ${formatBillingDate(effectiveAt)}.`,
             deepLinkPath: `/app/agency/${input.organizationId}/plan`,
           },
         });

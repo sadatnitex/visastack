@@ -1,3 +1,4 @@
+import { formatBillingDate, formatMoney } from '@visastack/core';
 import {
   DUPLICATE_REFERENCE_CODE,
   NEEDS_CHECK_CODE,
@@ -9,7 +10,6 @@ import {
   type RefundRequestView,
 } from '@visastack/services';
 import { StatusBadge } from '../../../../../components/ui';
-import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
 import {
   REFUND_STATUS_LABELS,
   REFUND_STATUS_TONES,
@@ -17,7 +17,6 @@ import {
   receiptKindLabel,
 } from '../../../../../lib/invoice-labels';
 import { REFUNDS_IN_PANEL } from '../../../../../lib/refund-gateway';
-import { formatPrice } from '../../../../../lib/usage-format';
 import { LazyDisclosure, RefundFeedback } from './refund-feedback';
 import {
   ApplyCreditForm,
@@ -81,11 +80,11 @@ function RefundLine({
     >
       <span className="row-key">{request.invoiceRef}</span>
       <span>
-        {formatPrice(request.amountMinorUnits, request.currency)}
+        {formatMoney(request.amountMinorUnits, request.currency)}
         {request.fromHeldPayment ? ' from a payment that needed a check' : ''}.{' '}
         {request.method === 'MANUAL'
-          ? `Made outside VisaStack, reference ${request.reference ?? ''}${request.refundedOn ? `, refunded on ${formatDateOnly(request.refundedOn)}` : ''}; recorded on ${formatTimestampDate(request.createdAt)}.`
-          : `Through the payment gateway, asked on ${formatTimestampDate(request.createdAt)}${request.refundedOn ? `, refunded on ${formatDateOnly(request.refundedOn)}` : ''}.`}
+          ? `Made outside VisaStack, reference ${request.reference ?? ''}${request.refundedOn ? `, refunded on ${formatBillingDate(request.refundedOn)}` : ''}; recorded on ${formatBillingDate(request.createdAt)}.`
+          : `Through the payment gateway, asked on ${formatBillingDate(request.createdAt)}${request.refundedOn ? `, refunded on ${formatBillingDate(request.refundedOn)}` : ''}.`}
       </span>
       <StatusBadge tone={needsCheck ? 'danger' : REFUND_STATUS_TONES[request.status]}>
         {needsCheck ? 'Needs a Check' : REFUND_STATUS_LABELS[request.status]}
@@ -256,20 +255,20 @@ export function RefundsCard({
                   .filter((target) => target.currency === held.currency)
                   .map((target) => ({
                     id: target.id,
-                    label: `${target.invoiceRef}, ${formatPrice(target.outstandingMinorUnits, target.currency)} owed, due ${formatDateOnly(target.dueDate)}`,
+                    label: `${target.invoiceRef}, ${formatMoney(target.outstandingMinorUnits, target.currency)} owed, due ${formatBillingDate(target.dueDate)}`,
                   }));
-                const limitText = formatPrice(held.remainingMinorUnits, held.currency);
+                const limitText = formatMoney(held.remainingMinorUnits, held.currency);
                 return (
                   <li key={held.id} className="invoice-list-item invoice-list-item-block">
                     <span className="row-key">{held.invoiceRef}</span>
                     <span>
-                      {formatPrice(held.amountMinorUnits, held.currency)} paid online on{' '}
-                      {formatTimestampDate(held.createdAt)}. {holdReasonLabel(held.reasonCode)}
+                      {formatMoney(held.amountMinorUnits, held.currency)} paid online on{' '}
+                      {formatBillingDate(held.createdAt)}. {holdReasonLabel(held.reasonCode)}
                     </span>
                     <span className="muted u-fs-085">
                       {limitText} is left to apply or refund
                       {held.creditedMinorUnits > 0
-                        ? `; ${formatPrice(held.creditedMinorUnits, held.currency)} was applied as a credit`
+                        ? `; ${formatMoney(held.creditedMinorUnits, held.currency)} was applied as a credit`
                         : ''}
                       .
                     </span>
@@ -320,14 +319,14 @@ export function RefundsCard({
           ) : (
             <ul className="invoice-list u-mb-100">
               {work.entries.map((entry) => {
-                const limitText = formatPrice(entry.refundableMinorUnits, entry.currency);
+                const limitText = formatMoney(entry.refundableMinorUnits, entry.currency);
                 return (
                   <li key={entry.id} className="invoice-list-item invoice-list-item-block">
                     <span className="row-key">{entry.invoiceRef}</span>
                     <span>
                       {receiptKindLabel(entry.kind)},{' '}
-                      {formatPrice(entry.amountMinorUnits, entry.currency)} on{' '}
-                      {formatTimestampDate(entry.createdAt)}. Reference {entry.reference}.
+                      {formatMoney(entry.amountMinorUnits, entry.currency)} on{' '}
+                      {formatBillingDate(entry.createdAt)}. Reference {entry.reference}.
                     </span>
                     <span className="muted u-fs-085">Up to {limitText} can be refunded.</span>
                     {entry.viaGateway && gatewayAvailable ? (

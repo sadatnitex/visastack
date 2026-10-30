@@ -86,7 +86,21 @@ describe('payment amounts', () => {
     expect(parseAmountForCurrency('1.234', 'BHD')).toBe(1234);
     expect(parseAmountForCurrency('1.2345', 'BHD')).toBeNull();
     expect(parseAmountForCurrency('100.505', 'BDT')).toBeNull();
-    for (const bad of ['', '-5', '1e3', '1,250', '.5', '5.', '99999999999999', '21474836.48']) {
+    // S30: thousands separators in the right places are read too, as on the other admin forms.
+    expect(parseAmountForCurrency('1,250', 'BDT')).toBe(125000);
+    expect(parseAmountForCurrency('2,500.00', 'BDT')).toBe(250000);
+    expect(parseAmountForCurrency('21,474,836.47', 'BDT')).toBe(2_147_483_647);
+    for (const bad of [
+      '',
+      '-5',
+      '1e3',
+      '12,50',
+      '1,2500',
+      '.5',
+      '5.',
+      '99999999999999',
+      '21474836.48',
+    ]) {
       expect(parseAmountForCurrency(bad, 'BDT'), bad).toBeNull();
     }
   });

@@ -1,4 +1,4 @@
-import { type Result, err, formatBillingDate, ok } from '@visastack/core';
+import { type Result, dayCount, err, formatBillingDate, ok } from '@visastack/core';
 import { type SQL, and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { type StaffScope, type SystemScope, staffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
@@ -132,6 +132,46 @@ export interface OverduePolicy {
  * The status change the run would make for one billing account, or null. Pure, so the run and the
  * Billing Rules preview judge an agency by exactly the same rule.
  */
+/**
+ * Whether VisaStack may move this account by itself: it is Active, or in a Grace that VisaStack
+ * set. A status a person set (other than Active) and Suspended are never moved by the run.
+ */
+export function movableAutomatically(standing: BillingStanding): boolean {
+  return (
+    standing.status === 'ACTIVE' || (standing.status === 'GRACE' && standing.cause === 'NONPAYMENT')
+  );
+}
+
+/**
+ * Whether an overdue invoice counts towards an automatic move: a person's last change covers
+ * every invoice that was already overdue when they made it (for example an extension).
+ */
+export function countedAutomatically(
+  standing: BillingStanding,
+  invoice: { readonly dueDate: Date },
+): boolean {
+  if (standing.cause === 'NONPAYMENT' || standing.changedAt === null) return true;
+  return !isOverdue(invoice.dueDate, standing.changedAt);
+}
+
+/**
+ * The day an unpaid invoice would move the agency to Suspended by itself, when that is really
+ * ahead: the rules are on, the agency could be moved by the run (`movableAutomatically`), the
+ * invoice counts (`countedAutomatically`) and the day has not come yet. Null otherwise, so a
+ * reminder never warns about a pause that will not happen (S30). Same parts as the run itself.
+ */
+export function automaticSuspensionDay(
+  standing: BillingStanding | null,
+  policy: OverduePolicy | null,
+  invoice: { readonly dueDate: Date },
+  now: Date,
+): Date | null {
+  if (policy === null || standing === null) return null;
+  if (!movableAutomatically(standing) || !countedAutomatically(standing, invoice)) return null;
+  if (daysPastDue(invoice.dueDate, now) >= policy.suspendAfterDays) return null;
+  return billingDay(invoice.dueDate, policy.suspendAfterDays);
+}
+
 export function automaticStatusChange(
   standing: BillingStanding,
   policy: OverduePolicy | null,
@@ -152,14 +192,8 @@ export function automaticStatusChange(
     return null;
   }
   if (policy === null) return null;
-  const movable = standing.status === 'ACTIVE' || (standing.status === 'GRACE' && setByVisaStack);
-  if (!movable) return null;
-  // A person's last change covers every invoice that was already overdue when they made it.
-  const changedAt = standing.changedAt;
-  const relevant =
-    setByVisaStack || changedAt === null
-      ? overdue
-      : overdue.filter((invoice) => !isOverdue(invoice.dueDate, changedAt));
+  if (!movableAutomatically(standing)) return null;
+  const relevant = overdue.filter((invoice) => countedAutomatically(standing, invoice));
   const oldest = [...relevant].sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())[0];
   if (!oldest) return null;
   const days = daysPastDue(oldest.dueDate, now);
@@ -531,7 +565,9 @@ export function reminderWords(
       : '';
     return {
       subject: 'Invoice Still Overdue',
-      summary: line(`Invoice ${ref} was due on ${dueDay} and is still unpaid a week later.${next}`),
+      summary: line(
+        `Invoice ${ref} was due on ${dueDay} and is still unpaid ${dayCount(-daysUntilDue)} after its due date.${next}`,
+      ),
       timing: 'overdue',
       heading: 'An invoice is still past its due date',
     };
@@ -547,6 +583,23 @@ export function reminderWords(
 function hasBillingContactSql(organizationId: SQL): SQL {
   const m = schema.memberships;
   return sql`exists (select 1 from ${m} where ${m.organizationId} = ${organizationId} and ${m.active} = true and ${m.role} in ('OWNER', 'ADMIN'))`;
+}
+
+/** An agency's billing standing at `now`, read without a lock (for reminder words only). */
+async function standingOf(
+  db: Db,
+  organizationId: string,
+  now: Date,
+): Promise<BillingStanding | null> {
+  const b = schema.billingAccounts;
+  const account = first(
+    await db
+      .select({ id: b.id, organizationId: b.organizationId, status: b.status })
+      .from(b)
+      .where(eq(b.organizationId, organizationId))
+      .limit(1),
+  );
+  return account ? readBillingStanding(db, account, now) : null;
 }
 
 async function queueReminders(
@@ -631,10 +684,16 @@ async function queueReminders(
         if (contacts.length === 0) return -1;
         // What happens next, only when VisaStack moves unpaid agencies automatically and the day
         // it would is still ahead.
-        const suspendsOn =
-          policy !== null && -daysUntilDue < policy.suspendAfterDays
-            ? formatBillingDate(billingDay(invoice.dueDate, policy.suspendAfterDays))
+        const suspendsOnDay =
+          stage === 'overdue_7' && policy !== null
+            ? automaticSuspensionDay(
+                await standingOf(tx, invoice.organizationId, now),
+                policy,
+                invoice,
+                now,
+              )
             : null;
+        const suspendsOn = suspendsOnDay ? formatBillingDate(suspendsOnDay) : null;
         const words = reminderWords(
           daysUntilDue,
           invoice.invoiceRef,

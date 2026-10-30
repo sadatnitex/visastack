@@ -36,6 +36,21 @@ export type CspMode = 'enforce' | 'report-only';
 export const CSP_HEADER_ENFORCE = 'Content-Security-Policy';
 export const CSP_HEADER_REPORT_ONLY = 'Content-Security-Policy-Report-Only';
 
+/**
+ * The policy of a downloaded billing document (S30): nothing may load or run. The download
+ * routes set it themselves, and the middleware gives those addresses the same policy instead of
+ * the page policy, so the stricter one holds whichever header Next.js keeps.
+ */
+export const DOCUMENT_DOWNLOAD_POLICY = "default-src 'none'; sandbox";
+
+const DOCUMENT_DOWNLOAD_PATH =
+  /^\/app\/(?:agency\/[^/]+\/plan\/invoices\/(?:receipts\/)?[^/]+|admin\/organizations\/[^/]+\/invoices\/[^/]+)\/pdf\/?$/;
+
+/** Whether an address is one of the Invoice and Receipt PDF downloads. */
+export function isDocumentDownloadPath(pathname: string): boolean {
+  return DOCUMENT_DOWNLOAD_PATH.test(pathname);
+}
+
 /** Same-origin endpoint browsers post violation reports to (see api/csp-report). */
 export const CSP_REPORT_PATH = '/api/csp-report';
 

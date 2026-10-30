@@ -1,7 +1,12 @@
 'use client';
 
-import { useActionState } from 'react';
-import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
+import { useActionState, useId, useRef } from 'react';
+import {
+  FormMessage,
+  SubmitButton,
+  fieldProblem,
+  useFocusInvalidField,
+} from '../../../../../components/form-feedback';
 import { billingStatusLabel } from '../../../../../lib/labels';
 import {
   type ActionState,
@@ -21,6 +26,17 @@ import {
 } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
+
+/** A hint id, joined with the form message's id while the problem is about this field. */
+function describedBy(
+  hintId: string,
+  problem: { 'aria-invalid'?: true; 'aria-describedby'?: string },
+): { 'aria-describedby': string; 'aria-invalid'?: true } {
+  return {
+    'aria-describedby': [hintId, problem['aria-describedby']].filter(Boolean).join(' '),
+    ...(problem['aria-invalid'] ? { 'aria-invalid': true as const } : {}),
+  };
+}
 
 function StatusMessage({ state }: { readonly state: ActionState }) {
   return <FormMessage result={state} />;
@@ -336,8 +352,11 @@ export function CreateInvoiceForm({
   readonly plans: readonly PlanOption[];
 }) {
   const [state, formAction, pending] = useActionState(createInvoiceAction, INITIAL);
+  const formRef = useRef<HTMLFormElement>(null);
+  const messageId = useId();
+  useFocusInvalidField(formRef, state);
   return (
-    <form action={formAction} className="field-list">
+    <form ref={formRef} action={formAction} className="field-list">
       <input type="hidden" name="organizationId" value={organizationId} />
       <div className="field-row">
         <label className="field-label" htmlFor="invoice-planId">
@@ -372,25 +391,6 @@ export function CreateInvoiceForm({
         />
       </div>
       <div className="field-row">
-        <label className="field-label" htmlFor="invoice-amount">
-          Invoiced Amount
-        </label>
-        <input
-          id="invoice-amount"
-          name="invoicedAmount"
-          type="text"
-          inputMode="decimal"
-          autoComplete="off"
-          required
-          className="input"
-          placeholder="2,500.00"
-          aria-describedby="invoice-amount-hint"
-        />
-        <p className="field-hint" id="invoice-amount-hint">
-          In the currency below, as people write it, for example 2,500.00.
-        </p>
-      </div>
-      <div className="field-row">
         <label className="field-label" htmlFor="invoice-currency">
           Currency
         </label>
@@ -404,10 +404,29 @@ export function CreateInvoiceForm({
           autoCapitalize="characters"
           className="input"
           placeholder="BDT"
-          aria-describedby="invoice-currency-hint"
+          {...describedBy('invoice-currency-hint', fieldProblem(state, 'currency', messageId))}
         />
         <p className="field-hint" id="invoice-currency-hint">
           The three-letter currency code, for example BDT.
+        </p>
+      </div>
+      <div className="field-row">
+        <label className="field-label" htmlFor="invoice-amount">
+          Invoiced Amount
+        </label>
+        <input
+          id="invoice-amount"
+          name="invoicedAmount"
+          type="text"
+          inputMode="decimal"
+          autoComplete="off"
+          required
+          className="input"
+          placeholder="2,500.00"
+          {...describedBy('invoice-amount-hint', fieldProblem(state, 'invoicedAmount', messageId))}
+        />
+        <p className="field-hint" id="invoice-amount-hint">
+          In the currency above, for example 2500.00 or 2,500.00.
         </p>
       </div>
       <div className="field-row">
@@ -435,7 +454,7 @@ export function CreateInvoiceForm({
           busy="Creating…"
           className="btn btn-primary"
         />
-        <StatusMessage state={state} />
+        <FormMessage id={messageId} result={state} />
       </div>
     </form>
   );
@@ -456,8 +475,12 @@ export function RecordPaymentForm({
 }) {
   const [state, formAction, pending] = useActionState(recordInvoicePaymentAction, INITIAL);
   const confirmCurrency = /^[A-Za-z]{3}$/.test(currency.trim());
+  const formRef = useRef<HTMLFormElement>(null);
+  const messageId = useId();
+  useFocusInvalidField(formRef, state);
   return (
     <form
+      ref={formRef}
       action={formAction}
       className="field-list"
       style={{ maxWidth: '22rem', marginTop: '0.5rem' }}
@@ -469,7 +492,6 @@ export function RecordPaymentForm({
         <label className="field-label" htmlFor={`payment-amount-${invoiceId}`}>
           Payment Amount
         </label>
-        <input type="hidden" name="invoiceCurrency" value={currency} />
         <input
           id={`payment-amount-${invoiceId}`}
           name="amount"
@@ -479,10 +501,14 @@ export function RecordPaymentForm({
           required
           className="input"
           placeholder="2,500.00"
-          aria-describedby={`payment-amount-hint-${invoiceId}`}
+          {...describedBy(
+            `payment-amount-hint-${invoiceId}`,
+            fieldProblem(state, 'amount', messageId),
+          )}
         />
         <p className="field-hint" id={`payment-amount-hint-${invoiceId}`}>
-          In {currency.trim().toUpperCase() || 'the invoice currency'}, for example 2,500.00.
+          In {currency.trim().toUpperCase() || 'the invoice currency'}, for example 2500.00 or
+          2,500.00.
         </p>
       </div>
       {confirmCurrency ? (
@@ -500,6 +526,7 @@ export function RecordPaymentForm({
             autoCapitalize="characters"
             placeholder={`e.g. ${currency.trim().toUpperCase()}`}
             className="input"
+            {...fieldProblem(state, 'currency', messageId)}
           />
         </div>
       ) : null}
@@ -548,7 +575,7 @@ export function RecordPaymentForm({
           busy="Recording…"
           className="btn btn-secondary u-btn-sm"
         />
-        <StatusMessage state={state} />
+        <FormMessage id={messageId} result={state} />
       </div>
     </form>
   );

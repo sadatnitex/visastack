@@ -1,7 +1,8 @@
 import 'server-only';
 import { type BillingDocumentIssuer, renderBillingDocumentPdf } from '@visastack/adapters';
-import type { BillingDocument } from '@visastack/services';
-import { resolveAppOrigin } from './csp';
+import { type BillingDocument, isUuid } from '@visastack/services';
+import { DOCUMENT_DOWNLOAD_POLICY, resolveAppOrigin } from './csp';
+import { supportEmail } from './support-email';
 
 /**
  * The response side of the downloadable Invoice and Receipt (S30). The routes stay thin: they
@@ -9,12 +10,9 @@ import { resolveAppOrigin } from './csp';
  * sends it. Nothing is stored; every download is made fresh.
  */
 
-const SUPPORT_EMAIL_VAR = 'SUPPORT_EMAIL';
-const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /** Whether a path segment is an id at all (anything else is answered "not found" unread). */
 export function isDocumentId(value: string): boolean {
-  return ID.test(value);
+  return isUuid(value);
 }
 
 /** Who issues the document: the product's address and the watched support inbox, when set up. */
@@ -23,10 +21,8 @@ export function billingDocumentIssuer(
 ): BillingDocumentIssuer {
   const origin = resolveAppOrigin(readEnv);
   const website = origin ? new URL(origin).host : undefined;
-  const support = readEnv(SUPPORT_EMAIL_VAR)?.trim();
-  const supportEmail =
-    support && /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/.test(support) ? support : undefined;
-  return { ...(website ? { website } : {}), ...(supportEmail ? { supportEmail } : {}) };
+  const support = supportEmail(readEnv);
+  return { ...(website ? { website } : {}), ...(support ? { supportEmail: support } : {}) };
 }
 
 const PRIVATE_HEADERS = {
@@ -62,7 +58,7 @@ export async function billingDocumentResponse(
       'Content-Type': 'application/pdf',
       'Content-Length': String(bytes.byteLength),
       'Content-Disposition': `attachment; filename="${fileName}"`,
-      'Content-Security-Policy': "default-src 'none'; sandbox",
+      'Content-Security-Policy': DOCUMENT_DOWNLOAD_POLICY,
       'Cross-Origin-Resource-Policy': 'same-origin',
     },
   });

@@ -1,4 +1,4 @@
-import { type Result, dayCount, err, ok } from '@visastack/core';
+import { type Result, dayCount, err, normalizeCurrencyCode, ok } from '@visastack/core';
 import { and, eq, sql } from 'drizzle-orm';
 import type { SystemScope } from './access/principal';
 import { appendAuditEvent } from './audit';
@@ -87,7 +87,7 @@ export function isUuid(value: string): boolean {
 
 /** An ISO currency code as the ledger compares it: trimmed and upper case. */
 export function normalizeCurrency(raw: string): string {
-  return raw.trim().toUpperCase();
+  return normalizeCurrencyCode(raw);
 }
 
 /** True when the text is a three-letter currency code (before or after normalizing). */

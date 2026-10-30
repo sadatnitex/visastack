@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { PageHeader } from '../../../../../components/ui';
 import { withSession } from '../../../../../lib/session';
 import { formatMeterValue, meterFraction, meterTone } from '../../../../../lib/usage-format';
-import { BillingStatusNotice, loadNoticeBillingStatus } from '../billing-status-notice';
+import { BillingStatusNotice, loadBillingNotice } from '../billing-status-notice';
 import { loadOrgAccess } from '../console-data';
 
 export const metadata: Metadata = { title: 'Agency Usage and Billing' };
@@ -52,7 +52,7 @@ export default async function OrgPlanPage({
     // Only after the usage read has shown this person belongs to the agency.
     const [access, status, pending] = await Promise.all([
       loadOrgAccess(db, accountId, orgId),
-      loadNoticeBillingStatus(db, accountId, orgId),
+      loadBillingNotice(db, accountId, orgId),
       getPendingDowngradeForOrganization(db, orgId),
     ]);
     const target = pending
@@ -81,7 +81,7 @@ export default async function OrgPlanPage({
         as="h2"
       />
 
-      <BillingStatusNotice status={data.status} admin={data.admin} organizationId={orgId} />
+      <BillingStatusNotice notice={data.status} admin={data.admin} organizationId={orgId} />
 
       {!data.usage ? (
         <article className="card">

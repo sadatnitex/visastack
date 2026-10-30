@@ -1,4 +1,4 @@
-import { currencyDecimals as coreCurrencyDecimals, formatMoney } from '@visastack/core';
+import { currencyDecimals as coreCurrencyDecimals, formatMoney, parseMoney } from '@visastack/core';
 import { MAX_MINOR_UNITS } from './invoice-ledger';
 
 /**
@@ -50,21 +50,14 @@ export function formatMinorUnits(minorUnits: number): string {
 export const currencyDecimals = coreCurrencyDecimals;
 
 /**
- * Whole minor units from the amount a person typed ("1250.50", "1250"), in a currency with its own
- * number of decimal places, or null when the text is not a plain, non-negative amount with no
- * more places than the currency has. Digits only: no signs, no thousands separators, no
- * exponents. Exact: the digits are joined as text, never multiplied as floating point.
+ * Whole minor units from the amount a person typed ("2,500.00", "2500", "1250.50"), in a currency
+ * with its own number of decimal places, or null when the text is not a plain, non-negative
+ * amount with no more places than the currency has, or is above what the amount columns hold.
+ * Thousands separators are accepted where they are in the right places (S30), as on every other
+ * billing form. Exact: the core money parser joins the digits as text.
  */
 export function parseAmountForCurrency(text: string, currency: string): number | null {
-  const decimals = currencyDecimals(currency);
-  const match = text.trim().match(/^([0-9]{1,12})(?:\.([0-9]{1,8}))?$/);
-  if (!match) return null;
-  const whole = match[1] ?? '';
-  const fraction = match[2] ?? '';
-  if (fraction.length > decimals && /[1-9]/.test(fraction.slice(decimals))) return null;
-  const value = Number(`${whole}${fraction.slice(0, decimals).padEnd(decimals, '0')}`);
-  if (!Number.isSafeInteger(value) || value > MAX_MINOR_UNITS) return null;
-  return value;
+  return parseMoney(text, currency, MAX_MINOR_UNITS);
 }
 
 /**

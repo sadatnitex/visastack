@@ -1,11 +1,9 @@
-import fontkit from '@pdf-lib/fontkit';
 import type {
   BillingDocument,
   BillingDocumentTable,
   BillingDocumentTone,
 } from '@visastack/services';
-import { PDFDocument, type PDFFont, type PDFPage, type RGB, rgb } from 'pdf-lib';
-import { INTER_REGULAR_TTF_BASE64, INTER_SEMIBOLD_TTF_BASE64 } from './billing-document-fonts';
+import type { PDFDocument, PDFFont, PDFPage, RGB } from 'pdf-lib';
 
 /**
  * Draws a billing document (S30) as an A4 PDF. Pure layout: everything it writes comes from the
@@ -14,11 +12,14 @@ import { INTER_REGULAR_TTF_BASE64, INTER_SEMIBOLD_TTF_BASE64 } from './billing-d
  * file.
  *
  * Look: the product's light, flat style translated to print. Inter (the product's typeface,
- * embedded and subset), the brand blue for the mark and one rule, hairline table borders, a soft
+ * embedded whole: fontkit's subsetter fails on these glyphs, and the Latin-1 files are small), the brand blue for the mark and one rule, hairline table borders, a soft
  * header row, and a status stamp drawn as an outlined pill whose word carries the meaning (never
  * colour alone). No gradients, no shadows, no images other than the mark.
  *
  * Long content flows onto further pages; every page carries the footer and "Page n of m".
+ *
+ * The PDF library, its font engine and the font data load only when a document is drawn (dynamic
+ * imports), so nothing that merely imports @visastack/adapters pays for them.
  */
 
 /** Who issues the document and how to reach them; from the deployment, never from the model. */
@@ -33,6 +34,18 @@ const A4 = { width: 595.28, height: 841.89 } as const;
 const MARGIN = 48;
 const CONTENT_WIDTH = A4.width - MARGIN * 2;
 const FOOTER_TOP = 72;
+/** The Billed To column ends well before the facts column starts (at 52% of the width). */
+const BILLED_TO_WIDTH = 230;
+export const BILLING_DOCUMENT_LAYOUT = {
+  margin: MARGIN,
+  billedToWidth: BILLED_TO_WIDTH,
+  factsX: MARGIN + CONTENT_WIDTH * 0.52,
+} as const;
+
+/** A colour in pdf-lib's own shape, made without loading the library. */
+function rgb(red: number, green: number, blue: number): RGB {
+  return { type: 'RGB', red, green, blue } as unknown as RGB;
+}
 
 function hex(value: string): RGB {
   const n = Number.parseInt(value.slice(1), 16);
@@ -74,6 +87,18 @@ interface Fonts {
   readonly regular: PDFFont;
   readonly semibold: PDFFont;
   readonly supported: ReadonlySet<number>;
+}
+
+/** The decoded font files, decoded once per server instance. */
+let fontFiles: Promise<{ readonly regular: Uint8Array; readonly semibold: Uint8Array }> | null =
+  null;
+
+function loadFontFiles(): Promise<{ readonly regular: Uint8Array; readonly semibold: Uint8Array }> {
+  fontFiles ??= import('./billing-document-fonts').then((fonts) => ({
+    regular: base64Bytes(fonts.INTER_REGULAR_TTF_BASE64),
+    semibold: base64Bytes(fonts.INTER_SEMIBOLD_TTF_BASE64),
+  }));
+  return fontFiles;
 }
 
 function base64Bytes(text: string): Uint8Array {
@@ -328,13 +353,20 @@ export async function renderBillingDocumentPdf(
   issuer: BillingDocumentIssuer = {},
   madeAt: Date = new Date(),
 ): Promise<Uint8Array> {
+  const [{ PDFDocument }, fontkitModule, files] = await Promise.all([
+    import('pdf-lib'),
+    import('@pdf-lib/fontkit'),
+    loadFontFiles(),
+  ]);
+  const fontkit = (fontkitModule as { default?: unknown }).default ?? fontkitModule;
   const pdf = await PDFDocument.create({ updateMetadata: false });
-  pdf.registerFontkit(fontkit);
-  const regular = await pdf.embedFont(base64Bytes(INTER_REGULAR_TTF_BASE64), { subset: false });
-  const semibold = await pdf.embedFont(base64Bytes(INTER_SEMIBOLD_TTF_BASE64), { subset: false });
+  pdf.registerFontkit(fontkit as Parameters<PDFDocument['registerFontkit']>[0]);
+  // Whole fonts, not subsets: @pdf-lib/fontkit 1.1.1's subsetter throws on these glyph tables.
+  const regular = await pdf.embedFont(files.regular, { subset: false });
+  const semibold = await pdf.embedFont(files.semibold, { subset: false });
   const fonts: Fonts = { regular, semibold, supported: new Set(regular.getCharacterSet()) };
 
-  pdf.setTitle(`${doc.title} ${doc.number}`);
+  pdf.setTitle(`${doc.title} ${doc.number}`, { showInWindowTitleBar: true });
   pdf.setAuthor('VisaStack');
   pdf.setCreator('VisaStack');
   pdf.setProducer('VisaStack');
@@ -365,13 +397,20 @@ export async function renderBillingDocumentPdf(
   const blockTop = layout.y;
   layout.text('Billed To', MARGIN, blockTop, { size: 8.5, bold: true, color: COLOURS.tertiary });
   let left = blockTop - 17;
-  for (const line of wrap(fonts.semibold, 12.5, printable(fonts, doc.billedTo.name), 230)) {
+  for (const line of wrap(
+    fonts.semibold,
+    12.5,
+    printable(fonts, doc.billedTo.name),
+    BILLED_TO_WIDTH,
+  )) {
     layout.text(line, MARGIN, left, { size: 12.5, bold: true });
     left -= 16;
   }
   for (const line of doc.billedTo.lines) {
-    layout.text(line, MARGIN, left, { size: 9.5, color: COLOURS.secondary });
-    left -= 13.5;
+    for (const part of wrap(fonts.regular, 9.5, printable(fonts, line), BILLED_TO_WIDTH)) {
+      layout.text(part, MARGIN, left, { size: 9.5, color: COLOURS.secondary });
+      left -= 13.5;
+    }
   }
 
   const factsX = MARGIN + CONTENT_WIDTH * 0.52;

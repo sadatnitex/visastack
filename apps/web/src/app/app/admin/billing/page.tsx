@@ -1,3 +1,4 @@
+import { formatBillingDateTime } from '@visastack/core';
 import {
   type BillingSettings,
   type OverduePreview,
@@ -8,7 +9,6 @@ import {
 import type { Metadata } from 'next';
 import { PageHeader, StatusBadge } from '../../../../components/ui';
 import { bootstrapAdminEmails, staffPrincipal } from '../../../../lib/admin';
-import { formatTimestamp } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
 import { AdminRestricted } from '../admin-restricted';
 import { BillingRulesForm } from './forms';
@@ -55,7 +55,7 @@ function Rules({ settings }: { readonly settings: BillingSettings }) {
       {settings.invoicingStartsAt ? (
         <div className="row">
           <span className="row-key">Invoices Made Automatically From</span>
-          <span>{formatTimestamp(settings.invoicingStartsAt)}</span>
+          <span>{formatBillingDateTime(settings.invoicingStartsAt)}</span>
         </div>
       ) : null}
     </div>
@@ -124,7 +124,7 @@ export default async function BillingRulesPage({
             <Rules settings={data.settings} />
             {data.settings.updatedAt && data.settings.updatedByAccountId ? (
               <p className="muted u-fs-085">
-                Last changed on {formatTimestamp(data.settings.updatedAt)}.
+                Last changed on {formatBillingDateTime(data.settings.updatedAt)}.
               </p>
             ) : (
               <p className="muted u-fs-085">The standard rules, never changed.</p>

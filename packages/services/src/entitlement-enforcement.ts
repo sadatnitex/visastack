@@ -1,6 +1,10 @@
 import { type Result, err, ok } from '@visastack/core';
 import { and, eq, gt, inArray, sql } from 'drizzle-orm';
-import { listApplicantsForOrganization, listOrganizationsWithAccessToApplicant } from './agency';
+import {
+  isActiveMember,
+  listApplicantsForOrganization,
+  listOrganizationsWithAccessToApplicant,
+} from './agency';
 import { isBillingSuspended } from './billing';
 import { isCommercialOverrideActive } from './commercial-override';
 import { type Db, first, schema } from './db';
@@ -94,13 +98,20 @@ type PlanLimit = 'SEATS' | 'INVITATIONS' | 'CASES_PER_PERIOD' | 'OPEN_CASES' | '
 export const TRAVELLER_UPLOAD_PAUSED =
   'Adding files to this record is paused right now. Try again later or contact your agency.';
 
+/** The same refusal for someone working in the agency itself, who is never told to contact it. */
+export const AGENCY_UPLOAD_PAUSED =
+  'Adding files to this record is paused right now. Try again later.';
+
 function count(n: number, noun: string): string {
   return `${n} ${noun}${n === 1 ? '' : 's'}`;
 }
 
-function teamMembers(n: number): string {
-  return `${n} team member${n === 1 ? '' : 's'}`;
-}
+/**
+ * What a person accepting an invitation is told when the agency has no room or its billing is
+ * paused: never the agency's billing, invoices or members, only the next step.
+ */
+export const INVITEE_CANNOT_JOIN =
+  'This agency cannot add new team members right now. Ask the person who invited you to contact VisaStack.';
 
 /**
  * Refuses with `error` and records, for OPS-04's plan-usage learning, that this
@@ -172,7 +183,7 @@ export async function checkSeatEntitlement(
       'SEATS',
       refusal(
         'limit_reached',
-        `Your agency's plan allows ${teamMembers(plan.seatsAllowed)}, and that many are active. Remove someone who no longer needs access, or ask VisaStack about a larger plan.`,
+        `Your agency's plan allows ${count(plan.seatsAllowed, 'team member')}, and that many are active. Remove someone who no longer needs access, or ask VisaStack about a larger plan.`,
       ),
     );
   }
@@ -232,7 +243,7 @@ export async function checkInvitationEntitlement(
       'INVITATIONS',
       refusal(
         'limit_reached',
-        `Your agency's plan allows ${teamMembers(plan.seatsAllowed)}, and active members and open invitations already fill it. Cancel an invitation, remove someone who no longer needs access, or ask VisaStack about a larger plan.`,
+        `Your agency's plan allows ${count(plan.seatsAllowed, 'team member')}, and active members and open invitations already fill it. Cancel an invitation, remove someone who no longer needs access, or ask VisaStack about a larger plan.`,
       ),
     );
   }
@@ -336,13 +347,20 @@ export async function checkStorageEntitlement(
   tx: Db,
   applicantId: string,
   additionalBytes: number,
+  uploaderAccountId?: string,
 ): Promise<Result<void, ServiceError>> {
   const organizationIds = await listOrganizationsWithAccessToApplicant(tx, applicantId);
+  // The neutral sentence, chosen by who is adding the file: a member of the refusing agency is
+  // not told to contact their own agency (S30).
+  const paused = async (organizationId: string) =>
+    uploaderAccountId !== undefined && (await isActiveMember(tx, uploaderAccountId, organizationId))
+      ? AGENCY_UPLOAD_PAUSED
+      : TRAVELLER_UPLOAD_PAUSED;
   for (const organizationId of organizationIds) {
     if (await isCommercialOverrideActive(tx, organizationId)) continue;
     if (await hasFoundingAccess(tx, organizationId)) continue;
     if (await isBillingSuspended(tx, organizationId)) {
-      return err(refusal('billing_suspended', TRAVELLER_UPLOAD_PAUSED));
+      return err(refusal('billing_suspended', await paused(organizationId)));
     }
     const plan = await getCurrentPlanForOrganization(tx, organizationId);
     if (!plan || plan.storageBytesAllowed === null) continue;
@@ -353,7 +371,7 @@ export async function checkStorageEntitlement(
         tx,
         organizationId,
         'STORAGE',
-        refusal('limit_reached', TRAVELLER_UPLOAD_PAUSED),
+        refusal('limit_reached', await paused(organizationId)),
       );
     }
   }

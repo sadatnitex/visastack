@@ -87,3 +87,13 @@ export function billingDaysUntil(value: Date | string, now: Date = new Date()): 
   const day = (p: DayParts) => Date.UTC(p.year, p.month - 1, p.day) / 86_400_000;
   return Math.round(day(a) - day(b));
 }
+
+/**
+ * A billing period as people read it, with its last day included: "1 Nov 2026 to 30 Nov 2026".
+ * A period is stored with an exclusive end (the next period starts at that moment), so the last
+ * day shown is the stored end minus one day. The one place a period is written (S30).
+ */
+export function formatBillingPeriod(start: Date | string, end: Date | string): string {
+  const last = new Date(toDate(end).getTime() - 86_400_000);
+  return `${formatBillingDate(start)} to ${formatBillingDate(last)}`;
+}

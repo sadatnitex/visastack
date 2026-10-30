@@ -35,6 +35,7 @@ import {
 import {
   type BillingStanding,
   automaticStatusChange,
+  automaticSuspensionDay,
   cycleInvoiceRef,
   previewOverdueHandling,
   reminderStage,
@@ -1412,7 +1413,7 @@ describe('round 2: due days, overdue days, overlaps, budgets and notices', () =>
     expect(seven).toEqual({
       subject: 'Invoice Still Overdue',
       summary:
-        'Dhaka Visa Desk: invoice INV-1 was due on 9 Nov 2026 and is still unpaid a week later.',
+        'Dhaka Visa Desk: invoice INV-1 was due on 9 Nov 2026 and is still unpaid 7 days after its due date.',
       timing: 'overdue',
       heading: 'An invoice is still past its due date',
     });
@@ -1423,9 +1424,73 @@ describe('round 2: due days, overdue days, overlaps, budgets and notices', () =>
       suspendsOn: '23 Nov 2026',
     });
     expect(next.summary).toBe(
-      'Dhaka Visa Desk: invoice INV-1 was due on 9 Nov 2026 and is still unpaid a week later. If it is still unpaid on 23 Nov 2026, adding cases, team members and files will pause until it is paid. Nothing is deleted or hidden.',
+      'Dhaka Visa Desk: invoice INV-1 was due on 9 Nov 2026 and is still unpaid 7 days after its due date. If it is still unpaid on 23 Nov 2026, adding cases, team members and files will pause until it is paid. Nothing is deleted or hidden.',
     );
     for (const words of [three, seven, next]) expect(words.summary).not.toMatch(/BDT|\d,\d{3}/);
+  });
+
+  it('uses the real day count in the 7-day reminder (S30)', () => {
+    const ten = reminderWords(-10, 'INV-1', '9 Nov 2026', { stage: 'overdue_7' });
+    expect(ten.summary).toBe(
+      'Invoice INV-1 was due on 9 Nov 2026 and is still unpaid 10 days after its due date.',
+    );
+  });
+
+  it('warns about a pause only when the run itself would make it (S30)', () => {
+    const policy = { graceAfterDays: 7, suspendAfterDays: 14 };
+    const due = new Date('2026-10-20T00:00:00Z');
+    const now = new Date('2026-10-28T06:00:00Z');
+    const standing = (overrides: Partial<BillingStanding>): BillingStanding => ({
+      status: 'GRACE',
+      cause: 'NONPAYMENT',
+      changedAt: new Date('2026-10-27T00:00:00Z'),
+      overdue: [],
+      ...overrides,
+    });
+    // Moved to Grace by VisaStack: Suspended follows on day 14.
+    expect(automaticSuspensionDay(standing({}), policy, { dueDate: due }, now)).toEqual(
+      new Date('2026-11-03T00:00:00Z'),
+    );
+    // Active, never changed by a person: counted too.
+    expect(
+      automaticSuspensionDay(
+        standing({ status: 'ACTIVE', changedAt: null }),
+        policy,
+        { dueDate: due },
+        now,
+      ),
+    ).not.toBeNull();
+    // A person extended the agency after this invoice was already overdue: no automatic move.
+    expect(
+      automaticSuspensionDay(
+        standing({
+          status: 'ACTIVE',
+          cause: 'MANUAL',
+          changedAt: new Date('2026-10-25T00:00:00Z'),
+        }),
+        policy,
+        { dueDate: due },
+        now,
+      ),
+    ).toBeNull();
+    // Already Suspended, or put in Grace by a person: nothing more will happen automatically.
+    expect(
+      automaticSuspensionDay(standing({ status: 'SUSPENDED' }), policy, { dueDate: due }, now),
+    ).toBeNull();
+    expect(
+      automaticSuspensionDay(standing({ cause: 'MANUAL' }), policy, { dueDate: due }, now),
+    ).toBeNull();
+    // Rules off, no billing account, or the day already passed.
+    expect(automaticSuspensionDay(standing({}), null, { dueDate: due }, now)).toBeNull();
+    expect(automaticSuspensionDay(null, policy, { dueDate: due }, now)).toBeNull();
+    expect(
+      automaticSuspensionDay(
+        standing({}),
+        policy,
+        { dueDate: due },
+        new Date('2026-11-04T06:00:00Z'),
+      ),
+    ).toBeNull();
   });
 
   it('counts a reminder only when it was written, and names an agency nobody can be told about once', async () => {

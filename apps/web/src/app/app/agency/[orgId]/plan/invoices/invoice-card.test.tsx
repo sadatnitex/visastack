@@ -299,6 +299,15 @@ describe('an invoice card on the agency Invoices page', () => {
     const html = render(invoice({ state: 'PAYMENT_REPORTED', claims: [claim('SUBMITTED')] }));
     expect(html).not.toContain('Pay Online');
     expect(html).toContain('Payment Reported: we are checking it.');
+    expect(html).toContain('you can pay online');
+    // Online payment would not be offered for this invoice: the note does not promise it.
+    for (const view of [
+      render(invoice({ state: 'PAYMENT_REPORTED', claims: [claim('SUBMITTED')] }), false),
+      render(invoice({ state: 'PAYMENT_REPORTED', currency: 'USD', claims: [claim('SUBMITTED')] })),
+    ]) {
+      expect(view).not.toContain('pay online');
+      expect(view).toContain('We will update this invoice once it is checked.');
+    }
   });
 
   it('marks an overdue invoice and one due today with a word and a mark, never colour alone (S30)', () => {
@@ -338,9 +347,11 @@ describe('an invoice card on the agency Invoices page', () => {
   it('offers the invoice and each receipt as a PDF download, by real links (S30)', () => {
     const html = render(invoice({ receipts: [receipt] }));
     expect(html).toContain(
-      `href="/app/agency/${ORG}/plan/invoices/inv-1/pdf" download="">Download Invoice (PDF)<span class="sr-only"> INV-2026-001</span></a>`,
+      `href="/app/agency/${ORG}/plan/invoices/inv-1/pdf">Download Invoice (PDF)<span class="sr-only"> INV-2026-001</span></a>`,
     );
-    expect(html).toContain(`href="/app/agency/${ORG}/plan/invoices/receipts/r-1/pdf"`);
+    expect(html).toContain(`href="/app/agency/${ORG}/plan/invoices/receipts/r-1/pdf">`);
+    // The server sends the file as a download; the links carry no download attribute (S30).
+    expect(html).not.toMatch(/\/pdf" download/);
     expect(html).toContain('Download Receipt (PDF)');
     // The money and dates read the one billing way.
     expect(html).toContain('on 27 Oct 2026');

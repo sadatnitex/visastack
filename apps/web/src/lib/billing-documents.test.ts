@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@visastack/services', () => ({
   getInvoiceDocument: mocks.getInvoiceDocument,
   getReceiptDocument: mocks.getReceiptDocument,
+  isUuid: (value: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value),
 }));
 vi.mock('@visastack/adapters', () => ({ renderBillingDocumentPdf: mocks.render }));
 vi.mock('./admin', () => ({
@@ -166,5 +168,24 @@ describe('who issues the document', () => {
       ),
     ).toEqual({ website: 'vs.obsidianglobal.studio', supportEmail: 'help@x.io' });
     expect(billingDocumentIssuer(env({ SUPPORT_EMAIL: 'not an address' }))).toEqual({});
+  });
+});
+
+describe('the download links', () => {
+  it('carry no download attribute: the server already sends the file as a download (S30)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const root = join(process.cwd(), 'src');
+    const files = [
+      'app/app/agency/[orgId]/plan/invoices/invoice-card.tsx',
+      'app/app/agency/[orgId]/plan/invoices/receipts/[receiptId]/page.tsx',
+      'app/app/admin/organizations/[orgId]/page.tsx',
+    ];
+    for (const file of files) {
+      const source = readFileSync(join(root, file), 'utf8');
+      const links = [...source.matchAll(/<a\b[^>]*\/pdf`\}[^>]*>/g)].map((m) => m[0]);
+      expect(links.length, file).toBeGreaterThan(0);
+      for (const link of links) expect(link, file).not.toMatch(/\bdownload\b/);
+    }
   });
 });
