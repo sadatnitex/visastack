@@ -1,12 +1,23 @@
 import { randomBytes } from 'node:crypto';
 import type { PGlite } from '@electric-sql/pglite';
-import { isErr, isOk } from '@visastack/core';
+import { isErr, isOk, referenceCheckCharacter } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
 import { and, eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { describe, expect, it } from 'vitest';
 import { EACH_GRANT, accountPrincipal, requireAccess, verifyStepUp } from './access';
+import {
+  agency as aiAgency,
+  caseOf as aiCaseOf,
+  fact as aiFact,
+  traveller as aiTraveller,
+  callAgencyTool,
+  connectAgency,
+  enableAgencyAiTools,
+  said,
+  shareWithAgency,
+} from './access/agency-ai.test-support';
 import { caseSharingLockKey } from './access/grant-scope';
 import { provisionAccount } from './accounts';
 import {
@@ -1519,6 +1530,64 @@ describe('review fixes: one-shot answers, the sharing lock, recipient-level exce
         (await listMissionsForOrganization(s.db, s.a.organizationId)).map((m) => m.missionId),
       ).toContain(s.c2);
       expect(third).toBeTruthy();
+    },
+    HEAVY_TIMEOUT_MS,
+  );
+});
+
+describe('per-case sharing exceptions on the agency AI path (S22)', () => {
+  it(
+    'a case the traveller kept from an agency is unreachable by its AI tools, the same as an unknown case, until the exception is removed',
+    async () => {
+      const client = await createMigratedPglite();
+      const db = drizzle(client, { schema }) as unknown as Db;
+      await enableAgencyAiTools(db);
+      const t = await aiTraveller(db, 'ai-exception@example.com');
+      await aiFact(db, t.ownerId, t.applicantId, 'given_name', 'Kept Name', 'universal');
+      const shared = await aiCaseOf(db, t.ownerId, t.applicantId, 'Shared Trip');
+      const a = await aiAgency(db, 'ai-exception-owner@example.com', 'Agency A');
+      const grantId = await shareWithAgency(db, { ...t, organization: a, ai: true });
+      // A new case after the grant: the traveller answers "no" for this agency.
+      const kept = await aiCaseOf(db, t.ownerId, t.applicantId, 'Private Trip');
+      const manage = await requireAccess(
+        db,
+        accountPrincipal(t.ownerId),
+        'MANAGE',
+        { missionId: kept.missionId },
+        { purpose: 'owner_case_sharing' },
+      );
+      if (!isOk(manage)) throw new Error('owner proof');
+      const answered = await applyCaseSharingAnswers(manage.value, {
+        allowedGrantIds: [],
+        allowedInvitationIds: [],
+      });
+      if (!isOk(answered)) throw new Error(answered.error.message);
+      expect(answered.value.excludedGrantIds).toEqual([grantId]);
+      const { token } = await connectAgency(db, a.organizationId, a.ownerId);
+
+      const listed = await callAgencyTool(db, token, 'list_cases', {});
+      expect(said(listed.result)).toContain('Shared Trip');
+      expect(said(listed.result)).not.toContain('Private Trip');
+      const hidden = await callAgencyTool(db, token, 'prepare_context', {
+        case_reference: kept.reference,
+      });
+      const unknown = await callAgencyTool(db, token, 'prepare_context', {
+        case_reference: `C-Z9Z9Z${referenceCheckCharacter('C', 'Z9Z9Z')}`,
+      });
+      expect(hidden.result).toEqual(unknown.result);
+      expect(said(hidden.result)).not.toContain('Kept Name');
+      // Documents belong to no case: the exception hides the case, never the shared record.
+      const open = await callAgencyTool(db, token, 'prepare_context', {
+        case_reference: shared.reference,
+      });
+      expect(said(open.result)).toContain('Kept Name');
+
+      const removed = await removeCaseException(manage.value, { grantId });
+      expect(isOk(removed)).toBe(true);
+      const back = await callAgencyTool(db, token, 'prepare_context', {
+        case_reference: kept.reference,
+      });
+      expect(said(back.result)).toContain('Private Trip');
     },
     HEAVY_TIMEOUT_MS,
   );
