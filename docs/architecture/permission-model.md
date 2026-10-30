@@ -72,3 +72,13 @@ reviewer, and support roles.
 Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance.
 
 Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.
+
+## Agency AI tools: the `AI_ASSIST` permission (S22, 31 Oct 2026)
+
+Owner approval 26 Oct 2026; ADR 0021 S22 amendment.
+
+- `AI_ASSIST` ("Let This Agency Use AI Tools on What I Share") is a new action. It is never implied by any other action and implies none: it only lets the agency's AI tools read what the same grant already allows the agency to see, and only with `VIEW_METADATA` on that grant. It is off on every existing grant, never part of making a grant, and only the traveller turns it on or off, on an agency grant, with a fresh identity check to turn it on.
+- An agency AI connection is the connecting member's authority (an active OWNER or ADMIN, D1) acting for the agency. Every read is judged by `authorize()` against the traveller's AI grants alone: grants to that agency (a grant naming one person counts only for that person) holding both `AI_ASSIST` and `VIEW_METADATA`, each on its own purpose. Another grant the agency holds never adds to what the AI tools read (the same-grant rule).
+- Laws 5, 6 and 9 apply unchanged: a case-only grant gives the case and never the record; revoking, pausing, expiry, a per-case exception or turning `AI_ASSIST` off fails the next request; documents keep their own scope.
+- A member who owns the traveller's record never reads it through the agency's AI tools.
+- Each test: `packages/services/src/access/agency-ai.test.ts`, the agency AI sections of `tenant-isolation.test.ts` and `case-exclusion-enforcement.test.ts`, and `agency-ai-premigration.test.ts`.
