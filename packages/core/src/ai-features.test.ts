@@ -22,7 +22,8 @@ describe('the AI feature registry', () => {
     for (const key of AI_FEATURE_KEYS) {
       const feature = AI_FEATURES[key];
       expect(feature.key).toBe(key);
-      expect(feature.name).toMatch(/^([A-Z][A-Za-z]*|AI)( ([A-Z][A-Za-z]*|AI))*$/);
+      // Every word starts with a capital ("AI" included); one space between words.
+      expect(feature.name).toMatch(/^[A-Z][A-Za-z]*(?: [A-Z][A-Za-z]*)*$/);
       expect(feature.description).toMatch(/^[A-Z].*\.$/);
       for (const tier of Object.values(AI_PLAN_TIERS)) expect(tier[key]).toBeDefined();
     }
