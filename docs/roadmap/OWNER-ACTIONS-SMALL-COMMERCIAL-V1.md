@@ -259,4 +259,5 @@ Also still open as written below: O1 (private repository), O3 (paid Vercel and N
   2. **Relay:** a small server with a fixed address that forwards only the refund calls. More to run and secure.
   3. **Manual refunds only:** refund in the SSLCOMMERZ panel and record each one in VisaStack ("Record a Refund Made Outside VisaStack"). Nothing more to set up; the gateway refund button simply stays unused.
 - **Until then:** option 3 is how refunds work. Live refunds also still need O6 (the live store credentials).
+- **Then switch it on:** set `PAYMENT_REFUNDS_VIA_GATEWAY=true` in Vercel Production (then a redeploy) after the fixed address is registered with SSLCOMMERZ. It is off until you set it, and nothing else changes while it is off.
 - **Also noted (D1):** refunds, credits and the monthly accounting file are platform owner only. Tell us if you want a separate billing staff role.

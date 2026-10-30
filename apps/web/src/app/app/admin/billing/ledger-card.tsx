@@ -1,7 +1,7 @@
 import { LEDGER_EXPORT_MAX_ROWS } from '@visastack/services';
 
 /**
- * Download Ledger CSV (Small Commercial V1 S18) on the Billing Rules page: a plain form that asks
+ * The Monthly Accounting File (Small Commercial V1 S18) on the Billing Rules page: a plain form that asks
  * for one month's file. The download itself checks who is asking and asks for a fresh sign-in
  * check; a refusal comes back here with `ledger` set to a reason.
  */
@@ -28,7 +28,7 @@ export function LedgerCard({
   return (
     <article className="card u-mb-150" id="ledger" aria-labelledby="ledger-title">
       <h2 className="card-title" id="ledger-title">
-        Accounting File
+        Monthly Accounting File
       </h2>
       <p className="card-body">
         One file of every payment, credit and refund counted in a month (Bangladesh time), for your
@@ -36,7 +36,7 @@ export function LedgerCard({
         are not in it until they are counted.
       </p>
       {problem ? (
-        <p className="notice notice-warn" role="alert">
+        <p id="ledger-problem" className="notice notice-warn" role="alert">
           {problem}
         </p>
       ) : null}
@@ -53,11 +53,16 @@ export function LedgerCard({
             max={thisMonth}
             defaultValue={thisMonth}
             className="input"
+            aria-describedby={problem ? 'ledger-month-hint ledger-problem' : 'ledger-month-hint'}
+            {...(problem ? { 'aria-invalid': true, autoFocus: true } : {})}
           />
+          <p id="ledger-month-hint" className="muted u-fs-085">
+            For example 2026-10.
+          </p>
         </div>
         <div>
           <button type="submit" className="btn btn-secondary">
-            Download Ledger CSV
+            Download Accounting File (CSV)
           </button>
         </div>
       </form>

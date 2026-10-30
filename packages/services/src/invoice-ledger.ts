@@ -12,6 +12,7 @@ import {
   type BillingAccountRow,
   billingContacts,
   databaseNow,
+  invoiceHasRefundSql,
   invoicesPath,
   lockBillingAccount,
   readBillingStanding,
@@ -133,6 +134,8 @@ export type CollectionRefusalCode =
   | 'currency_mismatch'
   | 'exceeds_outstanding'
   | 'key_conflict'
+  /** The invoice has a refund (D2): it is never owed again, so money arriving on it is held. */
+  | 'refunded_invoice'
   | 'unavailable';
 
 export interface CollectionRefusal {
@@ -338,6 +341,11 @@ export async function applyInvoiceCollection(
   if (normalizeCurrency(invoice.currency) !== normalizeCurrency(input.currency)) {
     return refuse('currency_mismatch', 'this payment is in a different currency from the invoice');
   }
+  // S18 (D2): an invoice with a refund is never owed again. Money arriving on it is refused here,
+  // so an online payment is held for a check and an admin or a reported payment is shown why.
+  if (ledgerPresent && (await invoiceHasRefund(tx, invoice.id))) {
+    return refuse('refunded_invoice', REFUNDED_INVOICE_MESSAGE);
+  }
   const newCollected = invoice.collectedAmountMinorUnits + input.amountMinorUnits;
   if (newCollected > invoice.invoicedAmountMinorUnits) {
     return refuse('exceeds_outstanding', 'this payment would exceed the invoiced amount');
@@ -493,16 +501,9 @@ export const REFUNDED_INVOICE_MESSAGE =
 /** Whether this invoice has any refund in its ledger (S18, D2: such an invoice is never owed again). */
 export async function invoiceHasRefund(db: Db, invoiceId: string): Promise<boolean> {
   const rows = await db
-    .select({ id: schema.invoicePayments.id })
-    .from(schema.invoicePayments)
-    .where(
-      and(
-        eq(schema.invoicePayments.invoiceId, invoiceId),
-        eq(schema.invoicePayments.kind, 'REFUND'),
-      ),
-    )
-    .limit(1);
-  return rows.length > 0;
+    .select({ refunded: sql<boolean>`${invoiceHasRefundSql(sql`${invoiceId}::uuid`)}` })
+    .from(sql`(select 1) as probe`);
+  return rows[0]?.refunded === true;
 }
 
 export interface ApplyInvoiceRefundInput {

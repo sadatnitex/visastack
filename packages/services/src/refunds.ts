@@ -3,7 +3,12 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { StaffScope, SystemScope } from './access/principal';
 import { staffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
-import { billingContacts, invoiceNotRefundedSql, invoicesPath } from './billing-standing';
+import {
+  billingContacts,
+  billingDay,
+  invoiceNotRefundedSql,
+  invoicesPath,
+} from './billing-standing';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import {
@@ -72,6 +77,11 @@ const NOT_ALLOWED = 'Only the platform owner can refund or apply credits.';
 export const LIMIT_STATUSES: readonly RefundStatus[] = ['REQUESTED', 'SUBMITTED', 'CONFIRMED'];
 const OPEN_STATUSES: readonly RefundStatus[] = ['REQUESTED', 'SUBMITTED'];
 
+/** On a sent refund: the gateway confirmed it, but the ledger refused it. A person must look. */
+export const NEEDS_CHECK_CODE = 'ledger_refused';
+/** On a refund waiting to send: Send Again was answered "failed". Staff must check the panel. */
+export const RETRY_REFUSED_CODE = 'retry_refused';
+
 /**
  * Why money can be held, where the gateway confirmed exactly this payment's amount and currency
  * (risky, or the invoice was settled or cancelled another way). Only such money can be applied as
@@ -81,6 +91,7 @@ const OPEN_STATUSES: readonly RefundStatus[] = ['REQUESTED', 'SUBMITTED'];
 const VERIFIED_HOLD_REASONS: ReadonlySet<string> = new Set([
   'already_paid',
   'invoice_void',
+  'invoice_refunded',
   'risky_payment',
   'risk_unknown',
 ]);
@@ -162,6 +173,8 @@ export interface RefundRequestView {
   readonly failureCode: string | null;
   readonly createdAt: Date;
   readonly confirmedAt: Date | null;
+  /** The day the money went back, as the gateway or the person recording it said. */
+  readonly refundedOn: Date | null;
 }
 
 function requestView(row: RefundRequest, invoiceRef: string): RefundRequestView {
@@ -179,6 +192,7 @@ function requestView(row: RefundRequest, invoiceRef: string): RefundRequestView 
     failureCode: row.failureCode,
     createdAt: row.createdAt,
     confirmedAt: row.confirmedAt,
+    refundedOn: row.providerRefundedAt,
   };
 }
 
@@ -463,7 +477,8 @@ async function auditRefund(
     | 'INVOICE_REFUND_CONFIRMED'
     | 'INVOICE_REFUND_FAILED'
     | 'INVOICE_REFUND_CANCELLED'
-    | 'INVOICE_REFUND_RECORDED',
+    | 'INVOICE_REFUND_RECORDED'
+    | 'INVOICE_REFUND_NEEDS_CHECK',
   row: RefundRequest,
   actorAccountId: string | null,
   extra: Readonly<Record<string, unknown>> = {},
@@ -672,13 +687,24 @@ export async function requestRefund(
       request: requestView(prepared.value.row, invoiceRef),
     });
   }
-  return ok(await sendToGateway(db, gateway, prepared.value.row, invoiceRef, staff.accountId, now));
+  return ok(
+    await sendToGateway(db, gateway, prepared.value.row, invoiceRef, staff.accountId, now, 'first'),
+  );
 }
 
 /**
  * Asks the gateway, after the request is committed, then records its answer under the request's
  * lock. An answer that cannot be trusted (no answer, a reference another request already holds)
  * leaves the request `REQUESTED`, still counting against the limit.
+ *
+ * A refusal frees the limit (`FAILED`) only on the **first** send, and only when the adapter
+ * calls it definite (for SSLCOMMERZ: `APIConnect` is `DONE`, `status` is `failed` and the reply
+ * names no `refund_ref_id`, so the gateway took nothing it could name). On **Send Again** the same
+ * refund id has been sent before with an unknown outcome, and what the gateway does with a
+ * repeated `refund_trans_id` is not documented: a "failed" may mean "already refunded under this
+ * id". So a refusal on a resend keeps the request `REQUESTED` and counted, marks it
+ * `retry_refused`, and staff are told to check the merchant panel (then It Went Through or It Did
+ * Not Go Through).
  */
 async function sendToGateway(
   db: Db,
@@ -687,6 +713,7 @@ async function sendToGateway(
   invoiceRef: string,
   actorAccountId: string,
   now: Date,
+  sending: 'first' | 'again',
 ): Promise<RefundOutcome> {
   const unconfirmed = (): RefundOutcome => ({
     code: 'unconfirmed',
@@ -717,6 +744,24 @@ async function sendToGateway(
     if (!locked) return unconfirmed();
     if (locked.status !== 'REQUESTED') {
       return { code: 'already_requested', request: requestView(locked, invoiceRef) };
+    }
+    if (answer.kind === 'refused' && sending === 'again') {
+      const marked = required(
+        first(
+          await tx
+            .update(r)
+            .set({ failureCode: RETRY_REFUSED_CODE, lastCheckedAt: now, updatedAt: now })
+            .where(eq(r.id, locked.id))
+            .returning(),
+        ),
+        'refund request',
+      );
+      if (locked.failureCode !== RETRY_REFUSED_CODE) {
+        await auditRefund(tx, 'INVOICE_REFUND_NEEDS_CHECK', marked, actorAccountId, {
+          failureCode: RETRY_REFUSED_CODE,
+        });
+      }
+      return { code: 'unconfirmed', request: requestView(marked, invoiceRef) };
     }
     if (answer.kind === 'refused') {
       const failed = required(
@@ -835,6 +880,7 @@ export async function retryRefund(
       invoiceRef,
       staff.accountId,
       input.now ?? new Date(),
+      'again',
     ),
   );
 }
@@ -889,6 +935,116 @@ export async function cancelRefund(
   return ok(requestView(done.value, await invoiceRefOf(db, done.value.invoiceId)));
 }
 
+export interface ConfirmUnsentRefundInput extends RefundRequestActionInput {
+  /** The refund reference the merchant panel shows. */
+  readonly reference: string;
+  /** The day the panel says the refund was made. */
+  readonly refundedOn: Date;
+}
+
+/**
+ * "It Went Through": a refund whose sending VisaStack could not confirm, that staff found made in
+ * the gateway's merchant panel. Under the locks (held payment, request, invoice), in one
+ * transaction, the request is confirmed with the panel's refund reference and day, and (for
+ * counted money) the one `REFUND` ledger row is written, recorded by this staff member. The day may
+ * not be before the request was made, nor in the future. Only for a request still `REQUESTED`.
+ */
+export async function confirmUnsentRefund(
+  db: Db,
+  staff: StaffScope<'BILLING_REFUND_MANAGE'>,
+  input: ConfirmUnsentRefundInput,
+): Promise<Result<RefundRequestView, ServiceError>> {
+  const forbidden = denied(staff);
+  if (forbidden) return err(forbidden);
+  const reference = cleanText(input.reference, MAX_REFERENCE);
+  if (!reference) {
+    return err(serviceError('invalid', 'Enter the refund reference, up to 120 characters.'));
+  }
+  const now = input.now ?? new Date();
+  const notLater = refundDayProblem(input.refundedOn, null, now);
+  if (notLater) return err(notLater);
+  if (!input.stepUpSatisfied) {
+    return err(serviceError('step_up_required', 'confirming a refund requires reauthentication'));
+  }
+  if (!(await refundsPresent(db))) return err(serviceError('invalid', REFUNDS_UNAVAILABLE));
+  const seen = await openProviderRequest(db, input);
+  if (!seen.ok) return seen;
+  const tooEarly = refundDayProblem(input.refundedOn, seen.value.createdAt, now);
+  if (tooEarly) return err(tooEarly);
+  const done = await inTransaction(db, async (tx): Promise<Result<RefundRequest, ServiceError>> => {
+    // Lock order: the held payment, then the request, then (inside the ledger write) the invoice.
+    const attempt =
+      seen.value.paymentAttemptId !== null
+        ? await lockAttempt(tx, seen.value.organizationId, seen.value.paymentAttemptId)
+        : undefined;
+    const r = schema.refundRequests;
+    const locked = first(
+      await tx.select().from(r).where(eq(r.id, seen.value.id)).limit(1).for('update'),
+    );
+    if (!locked || locked.status !== 'REQUESTED') {
+      return err(serviceError('invalid', 'This refund changed meanwhile. Reload the page.'));
+    }
+    const taken = first(
+      await tx
+        .select({ id: r.id })
+        .from(r)
+        .where(and(eq(r.provider, locked.provider ?? ''), eq(r.providerRefundId, reference)))
+        .limit(1),
+    );
+    if (taken) {
+      return err(
+        serviceError('invalid', 'That refund reference is already recorded for another refund.'),
+      );
+    }
+    if (locked.invoicePaymentId !== null) {
+      const written = await applyInvoiceRefund(tx, {
+        invoiceId: locked.invoiceId,
+        refundRequestId: locked.id,
+        amountMinorUnits: locked.amountMinorUnits,
+        currency: locked.currency,
+        provider: locked.provider,
+        providerTransactionId: reference,
+        reference,
+        refundedAt: input.refundedOn,
+        recordedByAccountId: staff.accountId,
+      });
+      if (!written.ok) {
+        return err(
+          serviceError('invalid', 'This refund could not be recorded against the invoice.'),
+        );
+      }
+      await cancelQueuedNotificationsForResource(tx, locked.invoiceId);
+    }
+    const confirmed = required(
+      first(
+        await tx
+          .update(r)
+          .set({
+            status: 'CONFIRMED',
+            providerRefundId: reference,
+            reference,
+            providerRefundedAt: input.refundedOn,
+            confirmedAt: now,
+            closedAt: now,
+            lastCheckedAt: now,
+            updatedAt: now,
+          })
+          .where(eq(r.id, locked.id))
+          .returning(),
+      ),
+      'refund request',
+    );
+    if (attempt) await closeHeldIfSettled(tx, attempt, staff.accountId, now);
+    await auditRefund(tx, 'INVOICE_REFUND_CONFIRMED', confirmed, staff.accountId, {
+      confirmedBy: 'staff_from_panel',
+    });
+    await noticeRefund(tx, confirmed, await invoiceRefOf(tx, confirmed.invoiceId));
+    return ok(confirmed);
+  });
+  if (!done.ok) return done;
+  return ok(requestView(done.value, await invoiceRefOf(db, done.value.invoiceId)));
+}
+
 // --- Confirming with the gateway --------------------------------------------------------------
 
 export interface RefundCheckSummary {
@@ -906,6 +1062,8 @@ export interface RefundCheckSummary {
   readonly needsCheck: number;
   /** Requests whose sending was never confirmed: staff must check the gateway panel. */
   readonly awaitingCheck: number;
+  /** Sent refunds not asked about because the run's time budget ran out; the next run asks. */
+  readonly leftForLater: number;
 }
 
 const EMPTY_CHECK: RefundCheckSummary = {
@@ -918,6 +1076,7 @@ const EMPTY_CHECK: RefundCheckSummary = {
   unavailable: 0,
   needsCheck: 0,
   awaitingCheck: 0,
+  leftForLater: 0,
 };
 
 type CheckCode = 'confirmed' | 'failed' | 'processing' | 'unavailable' | 'needs_check' | 'skipped';
@@ -995,8 +1154,22 @@ async function confirmOne(
         refundedAt,
         recordedByAccountId: null,
       });
-      // The gateway refunded money the ledger cannot take back as asked: a person must look.
-      if (!written.ok) return ok('needs_check');
+      // The gateway refunded money the ledger cannot take back as asked: a person must look. The
+      // request keeps its status (SUBMITTED) and gets a reason code, which the guard trigger and
+      // the checks allow on an open row; it is audited once, the first time it is found.
+      if (!written.ok) {
+        await tx
+          .update(r)
+          .set({ failureCode: NEEDS_CHECK_CODE, lastCheckedAt: now, updatedAt: now })
+          .where(eq(r.id, locked.id));
+        if (locked.failureCode !== NEEDS_CHECK_CODE) {
+          await auditRefund(tx, 'INVOICE_REFUND_NEEDS_CHECK', locked, null, {
+            failureCode: NEEDS_CHECK_CODE,
+            ledgerRefusal: written.error.code,
+          });
+        }
+        return ok('needs_check');
+      }
       // A refunded invoice is never chased again (D2): its queued reminders never go out.
       await cancelQueuedNotificationsForResource(tx, locked.invoiceId);
     }
@@ -1032,10 +1205,16 @@ async function checkBatch(
   gateway: RefundingPaymentPort,
   rows: readonly RefundRequest[],
   now: Date,
+  deadline: number | null = null,
 ): Promise<RefundCheckSummary> {
   let summary = { ...EMPTY_CHECK };
   let outagesInARow = 0;
-  for (const row of rows) {
+  for (const [index, row] of rows.entries()) {
+    // No new gateway call is started once the time budget is spent (the job has 60 seconds).
+    if (deadline !== null && Date.now() >= deadline) {
+      summary = { ...summary, leftForLater: rows.length - index };
+      break;
+    }
     const code = await confirmOne(db, gateway, row, now);
     if (code === 'skipped') continue;
     summary = {
@@ -1075,18 +1254,25 @@ async function submittedRequests(
   limit: number,
 ): Promise<RefundRequest[]> {
   const r = schema.refundRequests;
-  return db
-    .select()
-    .from(r)
-    .where(
-      and(
-        eq(r.status, 'SUBMITTED'),
-        eq(r.provider, provider),
-        organizationId === null ? undefined : eq(r.organizationId, organizationId),
-      ),
-    )
-    .orderBy(sql`${r.lastCheckedAt} asc nulls first`, asc(r.createdAt))
-    .limit(limit);
+  return (
+    db
+      .select()
+      .from(r)
+      .where(
+        and(
+          eq(r.status, 'SUBMITTED'),
+          eq(r.provider, provider),
+          organizationId === null ? undefined : eq(r.organizationId, organizationId),
+        ),
+      )
+      // Refunds that already need a person go last, so they can never crowd out the others.
+      .orderBy(
+        sql`(${r.failureCode} is not null) asc`,
+        sql`${r.lastCheckedAt} asc nulls first`,
+        asc(r.createdAt),
+      )
+      .limit(limit)
+  );
 }
 
 /**
@@ -1097,7 +1283,12 @@ export async function reconcileRefunds(
   db: Db,
   scope: SystemScope<'process-payment-reconciliation'>,
   port: PaymentPort,
-  options: { readonly now?: Date; readonly limit?: number } = {},
+  options: {
+    readonly now?: Date;
+    readonly limit?: number;
+    /** A clock time (ms) after which no new gateway call is started. */
+    readonly deadline?: number;
+  } = {},
 ): Promise<RefundCheckSummary> {
   if (scope.job !== 'process-payment-reconciliation') throw new Error('wrong job scope');
   if (!(await refundsPresent(db))) return { ...EMPTY_CHECK, available: false };
@@ -1110,6 +1301,7 @@ export async function reconcileRefunds(
     gateway,
     await submittedRequests(db, gateway.provider, null, limit),
     now,
+    options.deadline ?? null,
   );
   return { ...summary, awaitingCheck: await countAwaitingCheck(db, null) };
 }
@@ -1135,6 +1327,39 @@ export async function checkRefundsNow(
     now,
   );
   return ok({ ...summary, awaitingCheck: await countAwaitingCheck(db, input.organizationId) });
+}
+
+/**
+ * Why a refund day cannot be right, or null. A refund day is stored as UTC midnight of its
+ * Bangladesh day (the shape every billing day has); it may not be later than today in Bangladesh,
+ * nor earlier than `earliest` (the day the money came in, or the day the refund was asked for).
+ */
+export function refundDayProblem(
+  refundedOn: Date,
+  earliest: Date | null,
+  now: Date,
+): ServiceError | null {
+  if (Number.isNaN(refundedOn.getTime())) {
+    return serviceError('invalid', 'Enter the day the refund was made.');
+  }
+  const day = billingDay(refundedOn).getTime();
+  if (day > billingDay(now).getTime()) {
+    return serviceError('invalid', 'The refund day cannot be in the future.');
+  }
+  if (earliest !== null && day < billingDay(earliest).getTime()) {
+    return serviceError(
+      'invalid',
+      `The refund day cannot be before ${billingDay(earliest).toISOString().slice(0, 10)}, when the money came in or the refund was asked for.`,
+    );
+  }
+  return null;
+}
+
+/** The day the money behind a source came in. */
+function paymentDay(source: LockedSource): Date {
+  return source.kind === 'entry'
+    ? source.entry.collectedDate
+    : (source.attempt.redirectedAt ?? source.attempt.createdAt);
 }
 
 // --- Refunds made outside VisaStack -----------------------------------------------------------
@@ -1174,15 +1399,8 @@ export async function recordManualRefund(
   if (!reference)
     return err(serviceError('invalid', 'Enter the refund reference, up to 120 characters.'));
   if (!reason) return err(serviceError('invalid', 'Give a reason, up to 500 characters.'));
-  // A Bangladesh day can be up to a day ahead of the server clock's day.
-  if (
-    Number.isNaN(input.refundedOn.getTime()) ||
-    input.refundedOn.getTime() > now.getTime() + 86_400_000
-  ) {
-    return err(
-      serviceError('invalid', 'Enter the day the refund was made. It cannot be in the future.'),
-    );
-  }
+  const notLater = refundDayProblem(input.refundedOn, null, now);
+  if (notLater) return err(notLater);
   if (!isUuid(input.idempotencyKey) || !isUuid(input.organizationId)) {
     return err(serviceError('invalid', 'This page is out of date. Reload it and try again.'));
   }
@@ -1208,6 +1426,9 @@ export async function recordManualRefund(
       }
       const problem = limitProblem(source, input.amountMinorUnits);
       if (problem) return err(problem);
+      // Never before the money came in (the payment's own day, in Bangladesh time).
+      const tooEarly = refundDayProblem(input.refundedOn, paymentDay(source), now);
+      if (tooEarly) return err(tooEarly);
       const ids = sourceIds(source);
       const row = first(
         await tx
@@ -1474,6 +1695,8 @@ export interface RefundableEntryView {
   readonly currency: string;
   readonly reference: string;
   readonly createdAt: Date;
+  /** The day the money came in: a refund recorded for it cannot be earlier. */
+  readonly paidOn: Date;
   readonly refundableMinorUnits: number;
   /** True when the gateway can be asked to refund it (paid online, with the gateway's payment id). */
   readonly viaGateway: boolean;
@@ -1487,6 +1710,8 @@ export interface HeldPaymentView {
   readonly currency: string;
   readonly reasonCode: string | null;
   readonly createdAt: Date;
+  /** The day the money came in: a refund recorded for it cannot be earlier. */
+  readonly paidOn: Date;
   readonly remainingMinorUnits: number;
   readonly creditedMinorUnits: number;
   /** The gateway confirmed exactly this amount: it can be applied as a credit or refunded through the gateway. */
@@ -1508,7 +1733,12 @@ export interface OrganizationRefundWork {
   readonly held: readonly HeldPaymentView[];
   readonly requests: readonly RefundRequestView[];
   readonly creditTargets: readonly CreditTargetView[];
+  /** True when more payments can still give something back than the lists show (at most 25 each). */
+  readonly more: boolean;
 }
+
+/** The most payments each list on the admin card shows, newest first. */
+export const REFUND_WORK_LIMIT = 25;
 
 /**
  * Everything the admin organization page needs for refunds and credits: the counted payments that
@@ -1529,6 +1759,7 @@ export async function getOrganizationRefundWork(
     held: [],
     requests: [],
     creditTargets: [],
+    more: false,
   };
   if (!isUuid(input.organizationId)) return ok(empty);
   if (!(await refundsPresent(db))) return ok(empty);
@@ -1581,6 +1812,7 @@ export async function getOrganizationRefundWork(
         currency: row.currency,
         reference: row.reference,
         createdAt: row.createdAt,
+        paidOn: row.collectedDate,
         refundableMinorUnits: entryRefundableMinorUnits(
           row.amountMinorUnits,
           requests.filter((request) => request.invoicePaymentId === row.id),
@@ -1593,7 +1825,8 @@ export async function getOrganizationRefundWork(
           attempt.bankTranId !== null,
       };
     })
-    .filter((entry) => entry.refundableMinorUnits > 0);
+    .filter((entry) => entry.refundableMinorUnits > 0)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
   const held = attempts.map((attempt): HeldPaymentView => {
     const credited =
@@ -1609,6 +1842,7 @@ export async function getOrganizationRefundWork(
       currency: normalizeCurrency(attempt.currency),
       reasonCode: attempt.reasonCode,
       createdAt: attempt.createdAt,
+      paidOn: attempt.redirectedAt ?? attempt.createdAt,
       creditedMinorUnits: credited,
       remainingMinorUnits: heldRemainingMinorUnits(
         attempt.amountMinorUnits,
@@ -1629,10 +1863,14 @@ export async function getOrganizationRefundWork(
     )
   ).flat();
 
+  const heldLeft = held
+    .filter((row) => row.remainingMinorUnits > 0)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   return ok({
     available: true,
-    entries,
-    held,
+    entries: entries.slice(0, REFUND_WORK_LIMIT),
+    held: heldLeft.slice(0, REFUND_WORK_LIMIT),
+    more: entries.length > REFUND_WORK_LIMIT || heldLeft.length > REFUND_WORK_LIMIT,
     requests: requests.slice(0, 50).map((row) => requestView(row, refOf.get(row.invoiceId) ?? '')),
     creditTargets: targets.map((invoice) => ({
       id: invoice.id,

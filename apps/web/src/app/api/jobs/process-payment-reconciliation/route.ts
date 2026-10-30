@@ -24,9 +24,16 @@ export async function GET(request: Request): Promise<Response> {
   // A run that could not start, or found the table missing, must not read as "nothing to do".
   // Also when every payment asked about could not be answered: a wrong store setting or a wrong
   // mode then shows as a failed run instead of a quiet 200.
+  // The refund check (S18) counts the same way: a crash, or every sent refund unanswered, is a
+  // failed run. Refunds not available yet (before migration 0104) is not a failure.
+  const refunds = 'refunds' in result ? result.refunds : undefined;
+  const refundsStopped =
+    refunds !== undefined &&
+    ('error' in refunds || (refunds.checked > 0 && refunds.unavailable === refunds.checked));
   const stopped =
     'error' in result ||
     !result.available ||
-    (result.checked > 0 && result.unavailable === result.checked);
+    (result.checked > 0 && result.unavailable === result.checked) ||
+    refundsStopped;
   return Response.json(result, { status: stopped ? 503 : 200 });
 }

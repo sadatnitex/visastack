@@ -449,6 +449,9 @@ async function applyDecision(
           return hold('already_paid', []);
         case 'void_invoice':
           return hold('invoice_void', []);
+        case 'refunded_invoice':
+          // S18 (D2): the invoice was refunded meanwhile and is never owed again.
+          return hold('invoice_refunded', []);
         case 'currency_mismatch':
           return hold('mismatch', ['currency']);
         case 'key_conflict':
@@ -859,6 +862,8 @@ export interface ReconciliationSummary {
    * (held for review). A number above zero is the signal that staff have something to look at.
    */
   readonly awaitingReview: number;
+  /** Payments not asked about because the run's time budget ran out; the next run asks. */
+  readonly leftForLater: number;
 }
 
 const EMPTY_SUMMARY: ReconciliationSummary = {
@@ -871,6 +876,7 @@ const EMPTY_SUMMARY: ReconciliationSummary = {
   stillPending: 0,
   unavailable: 0,
   awaitingReview: 0,
+  leftForLater: 0,
 };
 
 async function countAwaitingReview(db: Db, provider: string): Promise<number> {
@@ -900,7 +906,12 @@ export async function reconcilePaymentAttempts(
   db: Db,
   scope: SystemScope<'process-payment-reconciliation'>,
   port: PaymentPort,
-  options: { readonly now?: Date; readonly limit?: number } = {},
+  options: {
+    readonly now?: Date;
+    readonly limit?: number;
+    /** A clock time (ms) after which no new gateway call is started (the job has 60 seconds). */
+    readonly deadline?: number;
+  } = {},
 ): Promise<ReconciliationSummary> {
   if (scope.job !== 'process-payment-reconciliation') throw new Error('wrong job scope');
   if (!port.configured) return { ...EMPTY_SUMMARY, configured: false };
@@ -970,11 +981,16 @@ export async function reconcilePaymentAttempts(
             .limit(room)
         : [];
     const awaitingReview = await countAwaitingReview(db, port.provider);
-    return await settleBatch(db, port, [...open, ...expired], 'reconcile', now, {
-      ...EMPTY_SUMMARY,
-      closed,
-      awaitingReview,
-    });
+    return await settleBatch(
+      db,
+      port,
+      [...open, ...expired],
+      'reconcile',
+      now,
+      { ...EMPTY_SUMMARY, closed, awaitingReview },
+      false,
+      options.deadline ?? null,
+    );
   } catch (error) {
     if (isMissingRelationError(error)) return { ...EMPTY_SUMMARY, available: false };
     throw error;
@@ -989,17 +1005,23 @@ async function settleBatch(
   now: Date,
   start: ReconciliationSummary,
   concurrent = false,
+  deadline: number | null = null,
 ): Promise<ReconciliationSummary> {
   const settleOne = (attempt: PaymentAttempt) =>
     settlePaymentAttempt(db, port, { merchantTranId: attempt.merchantTranId, source, now });
   const codes: SettlementCode[] = [];
+  let leftForLater = 0;
   if (concurrent) {
     // A person is waiting (an invoice being opened): ask about the few payments together.
     const results = await Promise.all(batch.map(settleOne));
     codes.push(...results.map((r) => r.code));
   } else {
     let outagesInARow = 0;
-    for (const attempt of batch) {
+    for (const [index, attempt] of batch.entries()) {
+      if (deadline !== null && Date.now() >= deadline) {
+        leftForLater = batch.length - index;
+        break;
+      }
       const { code } = await settleOne(attempt);
       codes.push(code);
       outagesInARow = code === 'unavailable' ? outagesInARow + 1 : 0;
@@ -1023,6 +1045,7 @@ async function settleBatch(
     closed,
     stillPending,
     unavailable,
+    leftForLater: start.leftForLater + leftForLater,
   };
 }
 

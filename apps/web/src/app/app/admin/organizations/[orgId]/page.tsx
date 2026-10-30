@@ -10,7 +10,6 @@ import {
   getOrganizationRefundWork,
   getPendingDowngradeForOrganization,
   getUsageForOrganization,
-  isRefundingPaymentPort,
   legalBillingTransitions,
   listBillingStatusHistory,
   listCommercialOverridesForOrganization,
@@ -42,7 +41,7 @@ import {
   invoiceStatusLabel,
   organizationStatusLabel,
 } from '../../../../../lib/labels';
-import { createPaymentPort } from '../../../../../lib/providers';
+import { refundCheckPort, refundSendPort } from '../../../../../lib/refund-gateway';
 import { withSession } from '../../../../../lib/session';
 import {
   formatMeterValue,
@@ -211,9 +210,11 @@ export default async function AdminOrganizationPage({
       listCommercialOverridesForOrganization(db, orgId),
     ]);
 
-    // S18: refunds and credits, under the platform owner's own refund scope.
-    const port = createPaymentPort();
-    const gatewayProvider = port.configured && isRefundingPaymentPort(port) ? port.provider : null;
+    // S18: refunds and credits, under the platform owner's own refund scope. The payment port is
+    // never made unguarded: an incomplete configuration means "no gateway", never a broken page.
+    const sendPort = refundSendPort();
+    const checkPort = refundCheckPort();
+    const gatewayProvider = sendPort?.provider ?? null;
     const refundScope = await staffPrincipal(
       db,
       { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
@@ -245,7 +246,8 @@ export default async function AdminOrganizationPage({
       refundProblem: refundScope.ok
         ? undefined
         : 'Refunds and credits need your authenticator code first. Enter it, then open this page again.',
-      gatewayAvailable: gatewayProvider !== null,
+      gatewayAvailable: sendPort !== null,
+      checkAvailable: checkPort !== null,
     };
   });
 
@@ -463,6 +465,7 @@ export default async function AdminOrganizationPage({
         organizationId={orgId}
         work={data.refundWork}
         gatewayAvailable={data.gatewayAvailable}
+        checkAvailable={data.checkAvailable}
         latestDate={new Intl.DateTimeFormat('en-CA', {
           timeZone: 'Asia/Dhaka',
           year: 'numeric',

@@ -1623,8 +1623,7 @@ const ADMIN: readonly Case[] = [
         organizationId="o1"
         source={{ kind: 'entry', id: rowId() }}
         currency="BDT"
-        limit="1500.00"
-        idempotencyKey="6f1c2d1e-8a54-4c8f-9d55-0a1b2c3d4e5f"
+        limitText="BDT 1,500.00"
       />
     ),
     fields: ['amount', 'reason'],
@@ -1637,8 +1636,8 @@ const ADMIN: readonly Case[] = [
         organizationId="o1"
         source={{ kind: 'held', id: rowId() }}
         currency="BDT"
-        limit="1500.00"
-        idempotencyKey="6f1c2d1e-8a54-4c8f-9d55-0a1b2c3d4e5f"
+        limitText="BDT 1,500.00"
+        earliestDate="2026-10-01"
         latestDate="2026-10-30"
       />
     ),
@@ -1659,9 +1658,25 @@ const ADMIN: readonly Case[] = [
   row('send a refund again', () => (
     <refundForms.RetryRefundButton organizationId="o1" refundRequestId={rowId()} />
   )),
-  row('cancel a refund', () => (
-    <refundForms.CancelRefundForm organizationId="o1" refundRequestId={rowId()} />
-  )),
+  {
+    name: 'say a refund did not go through',
+    element: () => <refundForms.CancelRefundForm organizationId="o1" refundRequestId={rowId()} />,
+    fields: ['reason'],
+    repeated: true,
+  },
+  {
+    name: 'say a refund went through',
+    element: () => (
+      <refundForms.ConfirmUnsentRefundForm
+        organizationId="o1"
+        refundRequestId={rowId()}
+        earliestDate="2026-10-01"
+        latestDate="2026-10-30"
+      />
+    ),
+    fields: ['reference', 'refundedOn'],
+    repeated: true,
+  },
   row('pay an invoice online', () => (
     <invoiceForms.PayOnlineButton organizationId="o1" invoiceId={rowId()} />
   )),

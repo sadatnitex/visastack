@@ -15,6 +15,7 @@ import {
   type BillingStanding,
   DAY_MS,
   type OverdueInvoice,
+  agencyCode,
   billingContacts,
   billingDay,
   databaseNow,
@@ -100,7 +101,7 @@ export function reminderStage(daysUntilDue: number): ReminderStage | null {
 
 /** INV-<first 8 hex of the organization id>-<period start as YYYYMMDD in Bangladesh time>. */
 export function cycleInvoiceRef(organizationId: string, periodStart: Date): string {
-  const org = organizationId.replace(/-/g, '').slice(0, 8).toUpperCase();
+  const org = agencyCode(organizationId);
   const day = new Intl.DateTimeFormat('en-CA', {
     timeZone: BILLING_TIME_ZONE,
     year: 'numeric',

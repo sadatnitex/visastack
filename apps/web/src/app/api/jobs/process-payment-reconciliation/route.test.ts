@@ -73,3 +73,33 @@ it('reads as failed when every payment asked about could not be answered (a wron
   });
   expect((await GET(request())).status).toBe(200);
 });
+
+it('reads as failed when the refund check crashed or no sent refund could be asked about (S18)', async () => {
+  const payments = {
+    available: true,
+    configured: true,
+    checked: 1,
+    recorded: 1,
+    held: 0,
+    closed: 0,
+    stillPending: 0,
+    unavailable: 0,
+  };
+  mocks.reconcile.mockResolvedValue({ ...payments, refunds: { error: 'failed' } });
+  expect((await GET(request())).status).toBe(503);
+  mocks.reconcile.mockResolvedValue({
+    ...payments,
+    refunds: { available: true, configured: true, checked: 2, unavailable: 2 },
+  });
+  expect((await GET(request())).status).toBe(503);
+  mocks.reconcile.mockResolvedValue({
+    ...payments,
+    refunds: { available: false, configured: true, checked: 0, unavailable: 0 },
+  });
+  expect((await GET(request())).status).toBe(200);
+  mocks.reconcile.mockResolvedValue({
+    ...payments,
+    refunds: { available: true, configured: true, checked: 2, unavailable: 1 },
+  });
+  expect((await GET(request())).status).toBe(200);
+});

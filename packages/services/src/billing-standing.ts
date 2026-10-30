@@ -122,8 +122,16 @@ export async function lockBillingAccount(
  * migration 0094, before every caller's own migration (0103), so this never meets a missing table.
  */
 export function invoiceNotRefundedSql(invoiceId: SQL): SQL {
+  return sql`not ${invoiceHasRefundSql(invoiceId)}`;
+}
+
+/**
+ * The one rule for "this invoice has a refund" (S18, D2): any `REFUND` row in its ledger. Every
+ * place that asks (overdue, reminders, paying, reporting, recording money) uses this.
+ */
+export function invoiceHasRefundSql(invoiceId: SQL): SQL {
   const p = schema.invoicePayments;
-  return sql`not exists (select 1 from ${p} where ${p.invoiceId} = ${invoiceId} and ${p.kind} = 'REFUND')`;
+  return sql`exists (select 1 from ${p} where ${p.invoiceId} = ${invoiceId} and ${p.kind} = 'REFUND')`;
 }
 
 /** Unpaid invoices of these organizations that are overdue at `now`. Refunded invoices are never overdue (D2). */
@@ -215,6 +223,15 @@ export async function databaseNow(db: Db): Promise<Date> {
     .from(sql`(select 1) as probe`);
   const ms = Number(rows[0]?.now);
   return Number.isFinite(ms) ? new Date(ms) : new Date();
+}
+
+/**
+ * An agency's short code: the first 8 hex of its organization id, upper case. Used in run-made
+ * invoice references (S17) and in the monthly accounting file (S18); organizations have no
+ * reference code of their own.
+ */
+export function agencyCode(organizationId: string): string {
+  return organizationId.replace(/-/g, '').slice(0, 8).toUpperCase();
 }
 
 /** Where billing notices lead: the agency's Invoices page. */

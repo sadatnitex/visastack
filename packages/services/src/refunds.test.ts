@@ -33,14 +33,23 @@ import {
 } from './ledger-export';
 import { submitManualPaymentClaim } from './manual-claims';
 import { createOrganization, reviewOrganization } from './organizations';
-import { newMerchantTranId, startOnlinePayment } from './payments';
+import {
+  newMerchantTranId,
+  reconcilePaymentAttempts,
+  settlePaymentAttempt,
+  startOnlinePayment,
+} from './payments';
 import { FakePaymentPort } from './payments.test-support';
 import { grantPlatformRole } from './platform-roles';
 import {
+  NEEDS_CHECK_CODE,
   REFUNDS_UNAVAILABLE,
+  REFUND_WORK_LIMIT,
+  RETRY_REFUSED_CODE,
   applyHeldPaymentCredit,
   cancelRefund,
   checkRefundsNow,
+  confirmUnsentRefund,
   entryRefundableMinorUnits,
   getOrganizationRefundWork,
   heldRemainingMinorUnits,
@@ -550,7 +559,7 @@ describe('refunds through the gateway (S18)', () => {
           source: entrySource(entry.id),
           amountMinorUnits: 10_000,
           reference: 'BANK-OUT-77',
-          refundedOn: new Date(Date.now() - DAY),
+          refundedOn: new Date(),
           reason: 'Agency closed',
           idempotencyKey: key,
           stepUpSatisfied: true,
@@ -1076,7 +1085,9 @@ describe('the monthly accounting export (S18)', () => {
       if (!isOk(exported)) throw new Error(exported.error.message);
       const text = exported.value.csv;
       expect(exported.value.filename).toBe(`visastack-ledger-${month}.csv`);
-      const header = text.split('\r\n')[0];
+      // A UTF-8 byte-order mark first, so Excel reads non-ASCII names right.
+      expect([...Buffer.from(text, 'utf8').subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+      const header = text.slice(1).split('\r\n')[0];
       expect(header).toBe(LEDGER_CSV_COLUMNS.map((c) => `"${c}"`).join(','));
       expect(text).not.toContain('Rahim');
       expect(text).not.toContain('P0X1234567');
@@ -1238,4 +1249,296 @@ describe('lock order (S18)', () => {
     // Nothing here locks a billing account directly (only the recording function does).
     expect(source).not.toContain('lockBillingAccount(');
   });
+});
+
+describe('S18 round 2: resends, It Went Through, refunded invoices, durable checks', () => {
+  let db: Db;
+  let w: World;
+  let port: FakePaymentPort;
+  beforeEach(async () => {
+    db = await freshDb();
+    w = await world(db, 'round2');
+    port = new FakePaymentPort();
+  });
+
+  const ask = async (entryId: string, amount: number) =>
+    requestRefund(db, port, await scopeOf(w), {
+      organizationId: w.organizationId,
+      source: entrySource(entryId),
+      amountMinorUnits: amount,
+      reason: 'Refund',
+      idempotencyKey: randomUUID(),
+      stepUpSatisfied: true,
+    });
+
+  it(
+    'keeps the amount blocked when Send Again is answered "failed" after an unclear first send',
+    async () => {
+      const inv = await invoice(w, 'INV-RESEND', 10_000);
+      const { entry } = await paidOnline(w, inv, 10_000);
+      port.refundBehaviour = 'throw';
+      const first = await ask(entry.id, 10_000);
+      if (!isOk(first)) throw new Error('first');
+      expect(first.value.code).toBe('unconfirmed');
+      port.refundBehaviour = 'refuse';
+      const again = await retryRefund(db, port, await scopeOf(w), {
+        organizationId: w.organizationId,
+        refundRequestId: first.value.request.id,
+        stepUpSatisfied: true,
+      });
+      expect(isOk(again) && again.value.code).toBe('unconfirmed');
+      const row = (await requests(w))[0];
+      expect(row).toMatchObject({ status: 'REQUESTED', failureCode: RETRY_REFUSED_CODE });
+      // Still counted: nothing more can be asked for until staff decide from the panel.
+      port.refundBehaviour = 'accept';
+      const more = await ask(entry.id, 1);
+      expect(isErr(more) && more.error.message).toContain('already been refunded');
+      expect(await refundRows(w)).toHaveLength(0);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'confirms a refund found in the panel (It Went Through) once, with its reference and day, never before the request day',
+    async () => {
+      const inv = await invoice(w, 'INV-WENT', 10_000);
+      const { entry } = await paidOnline(w, inv, 10_000);
+      port.refundBehaviour = 'throw';
+      const first = await ask(entry.id, 4000);
+      if (!isOk(first)) throw new Error('first');
+      const staff = await scopeOf(w);
+      const confirm = (refundedOn: Date) =>
+        confirmUnsentRefund(db, staff, {
+          organizationId: w.organizationId,
+          refundRequestId: first.value.request.id,
+          reference: 'PANEL-RR-1',
+          refundedOn,
+          stepUpSatisfied: true,
+        });
+      const early = await confirm(new Date(Date.now() - 3 * DAY));
+      expect(isErr(early) && early.error.message).toContain('cannot be before');
+      const future = await confirm(new Date(Date.now() + 3 * DAY));
+      expect(isErr(future) && future.error.message).toContain('future');
+      const noStepUp = await confirmUnsentRefund(db, staff, {
+        organizationId: w.organizationId,
+        refundRequestId: first.value.request.id,
+        reference: 'PANEL-RR-1',
+        refundedOn: new Date(),
+        stepUpSatisfied: false,
+      });
+      expect(isErr(noStepUp) && noStepUp.error.code).toBe('step_up_required');
+      expect(await refundRows(w)).toHaveLength(0);
+      const done = await confirm(new Date());
+      expect(isOk(done) && done.value.status).toBe('CONFIRMED');
+      expect(
+        (await refundRows(w)).map((r) => [
+          r.amountMinorUnits,
+          r.providerTransactionId,
+          r.recordedByAccountId,
+        ]),
+      ).toEqual([[-4000, 'PANEL-RR-1', w.owner.accountId]]);
+      expect(isErr(await confirm(new Date()))).toBe(true);
+      expect(await refundRows(w)).toHaveLength(1);
+      expect((await invoiceRow(w, inv))?.collectedAmountMinorUnits).toBe(6000);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'holds an online payment that arrives on an invoice refunded meanwhile, and refuses recording one by hand',
+    async () => {
+      const inv = await invoice(w, 'INV-LATE-PAY', 10_000);
+      const handEntry = await paidByHand(w, inv, 4000);
+      const started = await startOnlinePayment(db, port, {
+        actorAccountId: w.orgOwnerId,
+        invoiceId: inv,
+        urlFor: (kind, tran) => `https://app.example.test/${kind}?t=${tran}`,
+      });
+      if (!isOk(started) || started.value.kind !== 'redirect') throw new Error('start');
+      const attempt = (
+        await db
+          .select()
+          .from(schema.paymentAttempts)
+          .where(eq(schema.paymentAttempts.invoiceId, inv))
+      )[0];
+      if (!attempt) throw new Error('attempt');
+      const refunded = await recordManualRefund(db, await scopeOf(w), {
+        organizationId: w.organizationId,
+        source: entrySource(handEntry.id),
+        amountMinorUnits: 1000,
+        reference: 'BANK-OUT',
+        refundedOn: new Date(),
+        reason: 'Discount',
+        idempotencyKey: randomUUID(),
+        stepUpSatisfied: true,
+      });
+      if (!isOk(refunded)) throw new Error('refund');
+      const paid = port.succeed(attempt.merchantTranId, attempt.amountMinorUnits);
+      const settled = await settlePaymentAttempt(db, port, {
+        merchantTranId: attempt.merchantTranId,
+        valId: paid.valId,
+        source: 'ipn',
+      });
+      expect(settled.code).toBe('held');
+      const after = (
+        await db
+          .select()
+          .from(schema.paymentAttempts)
+          .where(eq(schema.paymentAttempts.id, attempt.id))
+      )[0];
+      expect(after).toMatchObject({ status: 'HELD_FOR_REVIEW', reasonCode: 'invoice_refunded' });
+      const online = await db
+        .select()
+        .from(schema.invoicePayments)
+        .where(
+          and(eq(schema.invoicePayments.invoiceId, inv), eq(schema.invoicePayments.kind, 'ONLINE')),
+        );
+      expect(online).toHaveLength(0);
+      const byHand = await recordInvoicePayment(db, {
+        actor: w.actor,
+        stepUpSatisfied: true,
+        invoiceId: inv,
+        amountMinorUnits: 100,
+        collectedDate: new Date(),
+        paymentReference: 'BANK-IN-2',
+        reason: 'late transfer',
+        idempotencyKey: randomUUID(),
+      });
+      expect(isErr(byHand) && byHand.error.message).toBe(REFUNDED_INVOICE_MESSAGE);
+      // The held money is verified, so it can go to another invoice or back to the agency.
+      const work = await getOrganizationRefundWork(db, await scopeOf(w), {
+        organizationId: w.organizationId,
+        gatewayProvider: 'sslcommerz',
+      });
+      expect(isOk(work) && work.value.held.map((h) => [h.id, h.verified])).toEqual([
+        [attempt.id, true],
+      ]);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'marks a confirmed refund the ledger refused as needing a check, once, and never lets it starve the others',
+    async () => {
+      const stuckInv = await invoice(w, 'INV-STUCK', 10_000);
+      const { entry: stuckEntry } = await paidOnline(w, stuckInv, 10_000);
+      const okInv = await invoice(w, 'INV-OK', 10_000);
+      const { entry: okEntry } = await paidOnline(w, okInv, 10_000);
+      const stuck = await ask(stuckEntry.id, 5000);
+      if (!isOk(stuck)) throw new Error('stuck');
+      // The invoice no longer holds the money (an inconsistency only a person can sort out).
+      await db
+        .update(schema.invoices)
+        .set({ collectedAmountMinorUnits: 0, status: 'OPEN' })
+        .where(eq(schema.invoices.id, stuckInv));
+      port.refundStatus.set(stuck.value.request.reference ?? '', 'REFUNDED');
+      const scope = systemScopeForTest('process-payment-reconciliation');
+      expect(await reconcileRefunds(db, scope, port)).toMatchObject({ needsCheck: 1 });
+      expect(await reconcileRefunds(db, scope, port)).toMatchObject({ needsCheck: 1 });
+      const row = (await requests(w)).find((r) => r.id === stuck.value.request.id);
+      expect(row).toMatchObject({ status: 'SUBMITTED', failureCode: NEEDS_CHECK_CODE });
+      expect(row?.lastCheckedAt).not.toBeNull();
+      const audits = await db
+        .select()
+        .from(schema.auditEvents)
+        .where(eq(schema.auditEvents.eventType, 'INVOICE_REFUND_NEEDS_CHECK'));
+      expect(audits).toHaveLength(1);
+      // A healthy refund sent later is still asked about first, with room for only one.
+      const healthy = await ask(okEntry.id, 1000);
+      if (!isOk(healthy)) throw new Error('healthy');
+      port.refundStatus.set(healthy.value.request.reference ?? '', 'REFUNDED');
+      expect(await reconcileRefunds(db, scope, port, { limit: 1 })).toMatchObject({ confirmed: 1 });
+      const view = await getOrganizationRefundWork(db, await scopeOf(w), {
+        organizationId: w.organizationId,
+        gatewayProvider: 'sslcommerz',
+      });
+      expect(
+        isOk(view) && view.value.requests.find((r) => r.id === stuck.value.request.id)?.failureCode,
+      ).toBe(NEEDS_CHECK_CODE);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'never records a refund made outside VisaStack before the money came in',
+    async () => {
+      const inv = await invoice(w, 'INV-DAY', 10_000);
+      const entry = await paidByHand(w, inv, 10_000);
+      const record = async (refundedOn: Date) =>
+        recordManualRefund(db, await scopeOf(w), {
+          organizationId: w.organizationId,
+          source: entrySource(entry.id),
+          amountMinorUnits: 100,
+          reference: 'BANK-OUT',
+          refundedOn,
+          reason: 'Discount',
+          idempotencyKey: randomUUID(),
+          stepUpSatisfied: true,
+        });
+      const early = await record(new Date(Date.now() - 2 * DAY));
+      expect(isErr(early) && early.error.message).toContain('cannot be before');
+      expect(isOk(await record(new Date()))).toBe(true);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'lists at most 25 payments that can still be refunded, newest first, and says when there are more',
+    async () => {
+      const inv = await invoice(w, 'INV-MANY', 1_000_000);
+      const base = Date.now() - 60 * DAY;
+      for (let i = 0; i < REFUND_WORK_LIMIT + 2; i++) {
+        await db.insert(schema.invoicePayments).values({
+          invoiceId: inv,
+          amountMinorUnits: 100,
+          currency: 'BDT',
+          kind: 'ADMIN_RECORDED',
+          sourceId: randomUUID(),
+          reference: `BANK-${i}`,
+          collectedDate: new Date(base + i * DAY),
+          recordedByAccountId: w.owner.accountId,
+          createdAt: new Date(base + i * DAY),
+        });
+      }
+      const work = await getOrganizationRefundWork(db, await scopeOf(w), {
+        organizationId: w.organizationId,
+        gatewayProvider: null,
+      });
+      if (!isOk(work)) throw new Error('work');
+      expect(work.value.entries).toHaveLength(REFUND_WORK_LIMIT);
+      expect(work.value.more).toBe(true);
+      expect(work.value.entries[0]?.reference).toBe(`BANK-${REFUND_WORK_LIMIT + 1}`);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'starts no new gateway call once the time budget is spent, and says how many were left',
+    async () => {
+      const inv = await invoice(w, 'INV-BUDGET', 10_000);
+      const { entry } = await paidOnline(w, inv, 10_000);
+      const sent = await ask(entry.id, 1000);
+      if (!isOk(sent)) throw new Error('sent');
+      const scope = systemScopeForTest('process-payment-reconciliation');
+      const queries = port.refundQueries.length;
+      expect(await reconcileRefunds(db, scope, port, { deadline: Date.now() - 1 })).toMatchObject({
+        checked: 0,
+        leftForLater: 1,
+      });
+      expect(port.refundQueries.length).toBe(queries);
+      const startedPay = await startOnlinePayment(db, port, {
+        actorAccountId: w.orgOwnerId,
+        invoiceId: await invoice(w, 'INV-BUDGET-2', 5000),
+        urlFor: (kind, tran) => `https://app.example.test/${kind}?t=${tran}`,
+      });
+      if (!isOk(startedPay)) throw new Error('start');
+      await db
+        .update(schema.paymentAttempts)
+        .set({ redirectedAt: new Date(Date.now() - 60 * 60 * 1000) })
+        .where(eq(schema.paymentAttempts.status, 'REDIRECTED'));
+      const summary = await reconcilePaymentAttempts(db, scope, port, { deadline: Date.now() - 1 });
+      expect(summary).toMatchObject({ checked: 0, leftForLater: 1 });
+    },
+    TIMEOUT,
+  );
 });

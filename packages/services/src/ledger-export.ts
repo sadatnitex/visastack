@@ -4,7 +4,7 @@ import { and, asc, eq, gte, lt } from 'drizzle-orm';
 import type { StaffScope } from './access/principal';
 import { staffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
-import { BILLING_TIME_ZONE } from './billing-standing';
+import { BILLING_TIME_ZONE, agencyCode } from './billing-standing';
 import { type Db, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { currencyDecimals } from './payment-amounts';
@@ -52,6 +52,8 @@ export const LEDGER_CSV_COLUMNS = [
 ] as const;
 
 const MONTH = /^(\d{4})-(0[1-9]|1[0-2])$/;
+/** U+FEFF, written as the first character of the file (bytes EF BB BF in UTF-8). */
+export const UTF8_BOM = String.fromCharCode(0xfeff);
 const FORMULA_START = new Set(['=', '+', '-', '@', '\t', '\r']);
 
 /**
@@ -74,11 +76,6 @@ export function exactDecimal(minorUnits: number, currency: string): string {
   if (decimals === 0) return digits;
   const padded = digits.padStart(decimals + 1, '0');
   return `${padded.slice(0, -decimals)}.${padded.slice(-decimals)}`;
-}
-
-/** The short agency code used on invoice references: the first 8 hex of its id, upper case. */
-export function agencyCode(organizationId: string): string {
-  return organizationId.replace(/-/g, '').slice(0, 8).toUpperCase();
 }
 
 /** The UTC bounds of one Bangladesh calendar month, or null for text that is not `YYYY-MM`. */
@@ -148,7 +145,8 @@ export function ledgerCsv(rows: readonly LedgerExportRow[]): string {
     };
     lines.push(LEDGER_CSV_COLUMNS.map((column) => ledgerCsvCell(cells[column])).join(','));
   }
-  return `${lines.join('\r\n')}\r\n`;
+  // A UTF-8 byte-order mark first, so Excel reads non-ASCII agency names (Bangla, accents) right.
+  return `${UTF8_BOM}${lines.join('\r\n')}\r\n`;
 }
 
 export interface LedgerExport {

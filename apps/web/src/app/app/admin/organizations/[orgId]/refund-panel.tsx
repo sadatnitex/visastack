@@ -1,12 +1,12 @@
-import { randomUUID } from 'node:crypto';
 import {
+  NEEDS_CHECK_CODE,
   NO_OPEN_INVOICE_FOR_CREDIT,
   type OrganizationRefundWork,
   REFUNDS_UNAVAILABLE,
+  REFUND_WORK_LIMIT,
+  RETRY_REFUSED_CODE,
   type RefundRequestView,
-  formatAmountForCurrency,
 } from '@visastack/services';
-import type { ReactNode } from 'react';
 import { StatusBadge } from '../../../../../components/ui';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
 import {
@@ -15,11 +15,14 @@ import {
   holdReasonLabel,
   receiptKindLabel,
 } from '../../../../../lib/invoice-labels';
+import { REFUNDS_IN_PANEL } from '../../../../../lib/refund-gateway';
 import { formatPrice } from '../../../../../lib/usage-format';
+import { LazyDisclosure, RefundFeedback } from './refund-feedback';
 import {
   ApplyCreditForm,
   CancelRefundForm,
   CheckRefundsButton,
+  ConfirmUnsentRefundForm,
   ManualRefundForm,
   RefundForm,
   RetryRefundButton,
@@ -29,12 +32,8 @@ import {
  * The Refunds and Credits card of the admin organization page (Small Commercial V1 S18): money
  * the gateway confirmed that was held for a check (apply it to the next invoice, or refund it),
  * counted payments that can still give something back, and every refund with where it stands.
+ * Forms are drawn only when their disclosure is opened.
  */
-
-/** Decimal text for a form field ("1500.00"), in the currency's own number of places. */
-function decimal(minorUnits: number, currency: string): string {
-  return formatAmountForCurrency(minorUnits, currency).slice(currency.length).trim();
-}
 
 const FAILURE_WORDS: Readonly<Record<string, string>> = {
   provider_cancelled: 'The payment gateway cancelled it.',
@@ -48,60 +47,83 @@ function failureWords(code: string | null): string {
     : 'It did not go through.';
 }
 
-function Disclosure({ title, children }: { readonly title: string; readonly children: ReactNode }) {
-  return (
-    <details className="disclosure u-mt-100">
-      <summary>
-        <span className="disclosure-title">{title}</span>
-      </summary>
-      <div className="disclosure-body">{children}</div>
-    </details>
-  );
+/** A day as a date field takes it (YYYY-MM-DD), in Bangladesh time. */
+function dayField(at: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Dhaka',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(at);
 }
 
 function RefundLine({
   organizationId,
   request,
   gatewayAvailable,
+  latestDate,
 }: {
   readonly organizationId: string;
   readonly request: RefundRequestView;
   readonly gatewayAvailable: boolean;
+  readonly latestDate: string;
 }) {
   const unconfirmed = request.method === 'PROVIDER' && request.status === 'REQUESTED';
+  const needsCheck = request.status === 'SUBMITTED' && request.failureCode === NEEDS_CHECK_CODE;
   return (
-    <li className="invoice-list-item invoice-list-item-block">
+    <li
+      id={`refund-line-${request.id}`}
+      tabIndex={-1}
+      className="invoice-list-item invoice-list-item-block"
+    >
       <span className="row-key">{request.invoiceRef}</span>
       <span>
         {formatPrice(request.amountMinorUnits, request.currency)}
-        {request.fromHeldPayment ? ' from a payment that needed a check' : ''}, asked on{' '}
-        {formatTimestampDate(request.createdAt)}.{' '}
+        {request.fromHeldPayment ? ' from a payment that needed a check' : ''}.{' '}
         {request.method === 'MANUAL'
-          ? `Made outside VisaStack, reference ${request.reference ?? ''}.`
-          : 'Through the payment gateway.'}
+          ? `Made outside VisaStack, reference ${request.reference ?? ''}${request.refundedOn ? `, refunded on ${formatDateOnly(request.refundedOn)}` : ''}; recorded on ${formatTimestampDate(request.createdAt)}.`
+          : `Through the payment gateway, asked on ${formatTimestampDate(request.createdAt)}${request.refundedOn ? `, refunded on ${formatDateOnly(request.refundedOn)}` : ''}.`}
       </span>
-      <StatusBadge tone={REFUND_STATUS_TONES[request.status]}>
-        {REFUND_STATUS_LABELS[request.status]}
+      <StatusBadge tone={needsCheck ? 'danger' : REFUND_STATUS_TONES[request.status]}>
+        {needsCheck ? 'Needs a Check' : REFUND_STATUS_LABELS[request.status]}
       </StatusBadge>
       <span className="muted u-fs-085">Reason: {request.reason}</span>
       {request.status === 'FAILED' ? (
         <span className="muted u-fs-085">{failureWords(request.failureCode)}</span>
       ) : null}
+      {needsCheck ? (
+        <p className="invoice-note">
+          The payment gateway says this refund was made, but the invoice no longer holds that much
+          money, so it was not taken off. Look at the invoice and the gateway's merchant panel
+          before doing anything else.
+        </p>
+      ) : null}
       {unconfirmed ? (
         <>
           <p className="invoice-note">
-            We could not confirm the refund was sent. Check the payment gateway's merchant panel
-            before doing anything else. If the refund is there, wait for it to be confirmed here. If
-            it is not, send it again or cancel it.
+            {request.failureCode === RETRY_REFUSED_CODE
+              ? 'The payment gateway answered "failed" to the second send, which can mean the first send already went through. The amount stays blocked.'
+              : 'We could not confirm the refund was sent. The amount stays blocked until you decide.'}{' '}
+            Check the payment gateway's merchant panel for this refund. If it is there, choose It
+            Went Through and enter its reference and day. If it is not, choose It Did Not Go Through
+            {gatewayAvailable ? ', or send it again' : ''}.
           </p>
-          <div className="invoice-action-row">
-            {gatewayAvailable ? (
+          {gatewayAvailable && request.failureCode !== RETRY_REFUSED_CODE ? (
+            <div className="invoice-action-row">
               <RetryRefundButton organizationId={organizationId} refundRequestId={request.id} />
-            ) : null}
-          </div>
-          <Disclosure title="Cancel This Refund">
+            </div>
+          ) : null}
+          <LazyDisclosure title={`It Went Through (${request.invoiceRef})`}>
+            <ConfirmUnsentRefundForm
+              organizationId={organizationId}
+              refundRequestId={request.id}
+              earliestDate={dayField(request.createdAt)}
+              latestDate={latestDate}
+            />
+          </LazyDisclosure>
+          <LazyDisclosure title={`It Did Not Go Through (${request.invoiceRef})`}>
             <CancelRefundForm organizationId={organizationId} refundRequestId={request.id} />
-          </Disclosure>
+          </LazyDisclosure>
         </>
       ) : null}
     </li>
@@ -112,33 +134,44 @@ export function RefundsCard({
   organizationId,
   work,
   gatewayAvailable,
+  checkAvailable,
   latestDate,
   problem,
 }: {
   readonly organizationId: string;
   /** Undefined when the owner's refund scope could not be made (`problem` says why). */
   readonly work: OrganizationRefundWork | undefined;
-  /** True when the payment gateway can be asked to refund in this deployment. */
+  /** True when refunds may be sent to the payment gateway here (switched on and set up). */
   readonly gatewayAvailable: boolean;
+  /** True when sent refunds can be checked with the payment gateway here. */
+  readonly checkAvailable: boolean;
   /** Today in Bangladesh (YYYY-MM-DD): the latest day a refund can have been made. */
   readonly latestDate: string;
   readonly problem?: string;
 }) {
   return (
-    <article className="card u-mb-150">
+    <article className="card u-mb-150" aria-labelledby="refunds-title">
       <p className="card-kicker">Commerce</p>
-      <h2 className="card-title">Refunds and Credits</h2>
+      <h2 className="card-title" id="refunds-title">
+        Refunds and Credits
+      </h2>
       {!work ? (
         <p className="card-body">{problem ?? 'Refunds cannot be shown right now.'}</p>
       ) : !work.available ? (
         <p className="card-body">{REFUNDS_UNAVAILABLE}</p>
       ) : (
-        <>
+        <RefundFeedback>
           <p className="card-body u-mb-100">
             A refund through the payment gateway counts only once the gateway confirms it. A refund
-            made another way is recorded here with its reference. Every action asks you to confirm
-            it is you.
+            made another way is recorded here with its reference. Every refund and credit asks you
+            to confirm it is you.
           </p>
+          {gatewayAvailable ? null : <p className="card-body u-mb-100">{REFUNDS_IN_PANEL}</p>}
+          {work.more ? (
+            <p className="muted u-fs-085 u-mb-100">
+              Showing the {REFUND_WORK_LIMIT} most recent payments that can still be refunded.
+            </p>
+          ) : null}
 
           <h3 className="invoice-subhead">Payments Needing a Check</h3>
           {work.held.length === 0 ? (
@@ -152,7 +185,7 @@ export function RefundsCard({
                     id: target.id,
                     label: `${target.invoiceRef}, ${formatPrice(target.outstandingMinorUnits, target.currency)} owed, due ${formatDateOnly(target.dueDate)}`,
                   }));
-                const limit = decimal(held.remainingMinorUnits, held.currency);
+                const limitText = formatPrice(held.remainingMinorUnits, held.currency);
                 return (
                   <li key={held.id} className="invoice-list-item invoice-list-item-block">
                     <span className="row-key">{held.invoiceRef}</span>
@@ -161,17 +194,14 @@ export function RefundsCard({
                       {formatTimestampDate(held.createdAt)}. {holdReasonLabel(held.reasonCode)}
                     </span>
                     <span className="muted u-fs-085">
-                      {formatPrice(held.remainingMinorUnits, held.currency)} is left to apply or
-                      refund
+                      {limitText} is left to apply or refund
                       {held.creditedMinorUnits > 0
                         ? `; ${formatPrice(held.creditedMinorUnits, held.currency)} was applied as a credit`
                         : ''}
                       .
                     </span>
-                    {held.remainingMinorUnits > 0 &&
-                    held.verified &&
-                    held.creditedMinorUnits === 0 ? (
-                      <Disclosure title="Apply to Next Invoice">
+                    {held.verified && held.creditedMinorUnits === 0 ? (
+                      <LazyDisclosure title={`Apply to Next Invoice (${held.invoiceRef})`}>
                         {targets.length > 0 ? (
                           <ApplyCreditForm
                             organizationId={organizationId}
@@ -181,31 +211,30 @@ export function RefundsCard({
                         ) : (
                           <p className="card-body">{NO_OPEN_INVOICE_FOR_CREDIT}</p>
                         )}
-                      </Disclosure>
+                      </LazyDisclosure>
                     ) : null}
-                    {held.remainingMinorUnits > 0 && held.viaGateway && gatewayAvailable ? (
-                      <Disclosure title="Refund">
+                    {held.viaGateway && gatewayAvailable ? (
+                      <LazyDisclosure title={`Refund (${held.invoiceRef})`}>
                         <RefundForm
                           organizationId={organizationId}
                           source={{ kind: 'held', id: held.id }}
                           currency={held.currency}
-                          limit={limit}
-                          idempotencyKey={randomUUID()}
+                          limitText={limitText}
                         />
-                      </Disclosure>
+                      </LazyDisclosure>
                     ) : null}
-                    {held.remainingMinorUnits > 0 ? (
-                      <Disclosure title="Record a Refund Made Outside VisaStack">
-                        <ManualRefundForm
-                          organizationId={organizationId}
-                          source={{ kind: 'held', id: held.id }}
-                          currency={held.currency}
-                          limit={limit}
-                          idempotencyKey={randomUUID()}
-                          latestDate={latestDate}
-                        />
-                      </Disclosure>
-                    ) : null}
+                    <LazyDisclosure
+                      title={`Record a Refund Made Outside VisaStack (${held.invoiceRef})`}
+                    >
+                      <ManualRefundForm
+                        organizationId={organizationId}
+                        source={{ kind: 'held', id: held.id }}
+                        currency={held.currency}
+                        limitText={limitText}
+                        earliestDate={dayField(held.paidOn)}
+                        latestDate={latestDate}
+                      />
+                    </LazyDisclosure>
                   </li>
                 );
               })}
@@ -218,7 +247,7 @@ export function RefundsCard({
           ) : (
             <ul className="invoice-list u-mb-100">
               {work.entries.map((entry) => {
-                const limit = decimal(entry.refundableMinorUnits, entry.currency);
+                const limitText = formatPrice(entry.refundableMinorUnits, entry.currency);
                 return (
                   <li key={entry.id} className="invoice-list-item invoice-list-item-block">
                     <span className="row-key">{entry.invoiceRef}</span>
@@ -227,31 +256,29 @@ export function RefundsCard({
                       {formatPrice(entry.amountMinorUnits, entry.currency)} on{' '}
                       {formatTimestampDate(entry.createdAt)}. Reference {entry.reference}.
                     </span>
-                    <span className="muted u-fs-085">
-                      Up to {formatPrice(entry.refundableMinorUnits, entry.currency)} can be
-                      refunded.
-                    </span>
+                    <span className="muted u-fs-085">Up to {limitText} can be refunded.</span>
                     {entry.viaGateway && gatewayAvailable ? (
-                      <Disclosure title="Refund">
+                      <LazyDisclosure title={`Refund (${entry.invoiceRef})`}>
                         <RefundForm
                           organizationId={organizationId}
                           source={{ kind: 'entry', id: entry.id }}
                           currency={entry.currency}
-                          limit={limit}
-                          idempotencyKey={randomUUID()}
+                          limitText={limitText}
                         />
-                      </Disclosure>
+                      </LazyDisclosure>
                     ) : null}
-                    <Disclosure title="Record a Refund Made Outside VisaStack">
+                    <LazyDisclosure
+                      title={`Record a Refund Made Outside VisaStack (${entry.invoiceRef})`}
+                    >
                       <ManualRefundForm
                         organizationId={organizationId}
                         source={{ kind: 'entry', id: entry.id }}
                         currency={entry.currency}
-                        limit={limit}
-                        idempotencyKey={randomUUID()}
+                        limitText={limitText}
+                        earliestDate={dayField(entry.paidOn)}
                         latestDate={latestDate}
                       />
-                    </Disclosure>
+                    </LazyDisclosure>
                   </li>
                 );
               })}
@@ -259,7 +286,7 @@ export function RefundsCard({
           )}
 
           <h3 className="invoice-subhead">Refunds</h3>
-          {gatewayAvailable && work.requests.some((r) => r.status === 'SUBMITTED') ? (
+          {checkAvailable && work.requests.some((r) => r.status === 'SUBMITTED') ? (
             <div className="invoice-action-row u-mb-100">
               <CheckRefundsButton organizationId={organizationId} />
             </div>
@@ -274,11 +301,12 @@ export function RefundsCard({
                   organizationId={organizationId}
                   request={request}
                   gatewayAvailable={gatewayAvailable}
+                  latestDate={latestDate}
                 />
               ))}
             </ul>
           )}
-        </>
+        </RefundFeedback>
       )}
     </article>
   );

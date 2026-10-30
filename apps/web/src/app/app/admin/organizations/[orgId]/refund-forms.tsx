@@ -1,10 +1,8 @@
 'use client';
 
-import { useActionState, useRef } from 'react';
+import { useActionState, useRef, useState } from 'react';
 import {
   FormMessage,
-  type FormResult,
-  NO_RESULT,
   SubmitButton,
   fieldProblem,
   useFocusInvalidField,
@@ -13,17 +11,54 @@ import {
   applyCreditAction,
   cancelRefundAction,
   checkRefundsAction,
+  confirmUnsentRefundAction,
   recordManualRefundAction,
   requestRefundAction,
   retryRefundAction,
 } from './refund-actions';
+import { useRefundReport } from './refund-feedback';
+import { REFUND_NO_REPLY, type RefundFormState } from './refund-state';
 
 /**
  * The refund and credit forms of the admin organization page (Small Commercial V1 S18). Each one
- * names the payment it acts on, keeps what was typed when the server answers with a problem, and
- * points at the field at fault. Nothing here runs service code: amounts are checked again on the
- * server, which is the only place the limits are known for certain.
+ * names the payment it acts on, keeps what was typed when the server answers with a problem (the
+ * fields are drawn again from the reply), points at the field at fault, and reports to the card
+ * (`RefundFeedback`), so its result is still read out when the row it sat in is gone. Nothing here
+ * runs service code: amounts are checked on the server, where the limits are known for certain.
+ * Each form makes its own idempotency key when it is first drawn, and takes a fresh one from every
+ * reply.
  */
+
+type Action = (prev: RefundFormState, formData: FormData) => Promise<RefundFormState>;
+
+function newKey(): string {
+  return globalThis.crypto.randomUUID();
+}
+
+/** `useActionState` with the reply also reported to the card. */
+function useRefundAction(action: Action) {
+  const report = useRefundReport();
+  return useActionState<RefundFormState, FormData>(async (prev, formData) => {
+    const reply = await action(prev, formData);
+    report(reply);
+    return reply;
+  }, REFUND_NO_REPLY);
+}
+
+/** A failure stays with the form; a success is said once, by the card. */
+function failureOnly(state: RefundFormState): RefundFormState {
+  return state.ok ? { ...state, message: '' } : state;
+}
+
+function describedBy(...ids: (string | undefined)[]): string | undefined {
+  const joined = ids.filter(Boolean).join(' ');
+  return joined.length > 0 ? joined : undefined;
+}
+
+/** One typed value from a reply (a variable key, so it satisfies both the compiler and the linter). */
+function typedValue(values: Readonly<Record<string, string>> | undefined, name: string): string {
+  return values?.[name] ?? '';
+}
 
 type Source = { readonly kind: 'entry' | 'held'; readonly id: string };
 
@@ -49,61 +84,57 @@ function SourceFields({
   );
 }
 
-function AmountField({
+function TextField({
   id,
-  state,
+  name,
   label,
-  currency,
-  limit,
+  state,
+  errorId,
+  hint,
+  type = 'text',
+  inputMode,
+  maxLength,
+  min,
+  max,
 }: {
   readonly id: string;
-  readonly state: FormResult;
+  readonly name: string;
   readonly label: string;
-  readonly currency: string;
-  /** The most that can be given back, as decimal text, shown under the field. */
-  readonly limit: string;
+  readonly state: RefundFormState;
+  readonly errorId: string;
+  readonly hint?: string;
+  readonly type?: 'text' | 'date';
+  readonly inputMode?: 'decimal';
+  readonly maxLength?: number;
+  readonly min?: string;
+  readonly max?: string;
 }) {
-  const problem = fieldProblem(state, 'amount', `${id}-error`);
+  const problem = fieldProblem(state, name, errorId);
+  const hintId = hint ? `${id}-hint` : undefined;
   return (
     <div className="field-row">
-      <label className="field-label" htmlFor={`${id}-amount`}>
-        {label} ({currency})
+      <label className="field-label" htmlFor={id}>
+        {label}
       </label>
       <input
-        id={`${id}-amount`}
-        name="amount"
-        type="text"
-        inputMode="decimal"
+        id={id}
+        name={name}
+        type={type}
         required
         className="input"
-        defaultValue={limit}
+        defaultValue={typedValue(state.values, name)}
         aria-invalid={problem['aria-invalid']}
-        aria-describedby={[`${id}-amount-hint`, problem['aria-describedby']]
-          .filter(Boolean)
-          .join(' ')}
+        aria-describedby={describedBy(hintId, problem['aria-describedby'])}
+        {...(inputMode ? { inputMode } : {})}
+        {...(maxLength ? { maxLength } : {})}
+        {...(min ? { min } : {})}
+        {...(max ? { max } : {})}
       />
-      <p id={`${id}-amount-hint`} className="muted u-fs-085">
-        Up to {currency} {limit}.
-      </p>
-    </div>
-  );
-}
-
-function ReasonField({ id, state }: { readonly id: string; readonly state: FormResult }) {
-  return (
-    <div className="field-row">
-      <label className="field-label" htmlFor={`${id}-reason`}>
-        Reason
-      </label>
-      <input
-        id={`${id}-reason`}
-        name="reason"
-        type="text"
-        required
-        maxLength={500}
-        className="input"
-        {...fieldProblem(state, 'reason', `${id}-error`)}
-      />
+      {hint ? (
+        <p id={hintId} className="muted u-fs-085">
+          {hint}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -113,17 +144,18 @@ export function RefundForm({
   organizationId,
   source,
   currency,
-  limit,
-  idempotencyKey,
+  limitText,
 }: {
   readonly organizationId: string;
   readonly source: Source;
   readonly currency: string;
-  readonly limit: string;
-  readonly idempotencyKey: string;
+  /** The most that can be given back, as the page shows amounts ("BDT 1,500.00"). */
+  readonly limitText: string;
 }) {
-  const [state, formAction, pending] = useActionState(requestRefundAction, NO_RESULT);
+  const [state, formAction, pending] = useRefundAction(requestRefundAction);
+  const [firstKey] = useState(newKey);
   const id = `refund-${source.id}`;
+  const errorId = `${id}-error`;
   const formRef = useRef<HTMLFormElement>(null);
   useFocusInvalidField(formRef, state);
   return (
@@ -132,16 +164,27 @@ export function RefundForm({
         organizationId={organizationId}
         source={source}
         currency={currency}
-        idempotencyKey={idempotencyKey}
+        idempotencyKey={state.nextKey ?? firstKey}
       />
-      <AmountField
-        id={id}
-        state={state}
-        label="Amount to Refund"
-        currency={currency}
-        limit={limit}
-      />
-      <ReasonField id={id} state={state} />
+      <div key={state.nextKey ?? firstKey} className="field-list">
+        <TextField
+          id={`${id}-amount`}
+          name="amount"
+          label={`Amount to Refund (${currency})`}
+          inputMode="decimal"
+          hint={`Up to ${limitText}.`}
+          state={state}
+          errorId={errorId}
+        />
+        <TextField
+          id={`${id}-reason`}
+          name="reason"
+          label="Reason"
+          maxLength={500}
+          state={state}
+          errorId={errorId}
+        />
+      </div>
       <div>
         <SubmitButton
           pending={pending}
@@ -149,7 +192,7 @@ export function RefundForm({
           busy="Sending"
           className="btn btn-secondary u-btn-sm"
         />
-        <FormMessage id={`${id}-error`} result={state} />
+        <FormMessage id={errorId} result={failureOnly(state)} />
       </div>
     </form>
   );
@@ -160,20 +203,23 @@ export function ManualRefundForm({
   organizationId,
   source,
   currency,
-  limit,
-  idempotencyKey,
+  limitText,
+  earliestDate,
   latestDate,
 }: {
   readonly organizationId: string;
   readonly source: Source;
   readonly currency: string;
-  readonly limit: string;
-  readonly idempotencyKey: string;
-  /** The latest day a refund can have been made (YYYY-MM-DD). */
+  readonly limitText: string;
+  /** The day the money came in (YYYY-MM-DD): a refund cannot be earlier. */
+  readonly earliestDate: string;
+  /** Today in Bangladesh (YYYY-MM-DD): a refund cannot be later. */
   readonly latestDate: string;
 }) {
-  const [state, formAction, pending] = useActionState(recordManualRefundAction, NO_RESULT);
+  const [state, formAction, pending] = useRefundAction(recordManualRefundAction);
+  const [firstKey] = useState(newKey);
   const id = `manual-refund-${source.id}`;
+  const errorId = `${id}-error`;
   const formRef = useRef<HTMLFormElement>(null);
   useFocusInvalidField(formRef, state);
   return (
@@ -182,53 +228,46 @@ export function ManualRefundForm({
         organizationId={organizationId}
         source={source}
         currency={currency}
-        idempotencyKey={idempotencyKey}
+        idempotencyKey={state.nextKey ?? firstKey}
       />
-      <AmountField
-        id={id}
-        state={state}
-        label="Amount Refunded"
-        currency={currency}
-        limit={limit}
-      />
-      <div className="field-row">
-        <label className="field-label" htmlFor={`${id}-reference`}>
-          Refund Reference
-        </label>
-        <input
+      <div key={state.nextKey ?? firstKey} className="field-list">
+        <TextField
+          id={`${id}-amount`}
+          name="amount"
+          label={`Amount Refunded (${currency})`}
+          inputMode="decimal"
+          hint={`Up to ${limitText}.`}
+          state={state}
+          errorId={errorId}
+        />
+        <TextField
           id={`${id}-reference`}
           name="reference"
-          type="text"
-          required
+          label="Refund Reference"
           maxLength={120}
-          className="input"
-          aria-invalid={fieldProblem(state, 'reference', `${id}-error`)['aria-invalid']}
-          aria-describedby={[
-            `${id}-reference-hint`,
-            fieldProblem(state, 'reference', `${id}-error`)['aria-describedby'],
-          ]
-            .filter(Boolean)
-            .join(' ')}
+          hint="The bank transfer id, or the refund reference shown in the payment gateway's merchant panel."
+          state={state}
+          errorId={errorId}
         />
-        <p id={`${id}-reference-hint`} className="muted u-fs-085">
-          The bank transfer id, or the refund reference shown in the payment gateway's panel.
-        </p>
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor={`${id}-day`}>
-          Day Refunded
-        </label>
-        <input
+        <TextField
           id={`${id}-day`}
           name="refundedOn"
+          label="Day Refunded"
           type="date"
-          required
+          min={earliestDate}
           max={latestDate}
-          className="input"
-          {...fieldProblem(state, 'refundedOn', `${id}-error`)}
+          state={state}
+          errorId={errorId}
+        />
+        <TextField
+          id={`${id}-reason`}
+          name="reason"
+          label="Reason"
+          maxLength={500}
+          state={state}
+          errorId={errorId}
         />
       </div>
-      <ReasonField id={id} state={state} />
       <div>
         <SubmitButton
           pending={pending}
@@ -236,7 +275,7 @@ export function ManualRefundForm({
           busy="Recording"
           className="btn btn-secondary u-btn-sm"
         />
-        <FormMessage id={`${id}-error`} result={state} />
+        <FormMessage id={errorId} result={failureOnly(state)} />
       </div>
     </form>
   );
@@ -253,7 +292,7 @@ export function ApplyCreditForm({
   /** Open invoices in the same currency, the one due first first. */
   readonly targets: readonly { readonly id: string; readonly label: string }[];
 }) {
-  const [state, formAction, pending] = useActionState(applyCreditAction, NO_RESULT);
+  const [state, formAction, pending] = useRefundAction(applyCreditAction);
   const id = `credit-${paymentAttemptId}`;
   return (
     <form action={formAction} className="field-list">
@@ -263,7 +302,13 @@ export function ApplyCreditForm({
         <label className="field-label" htmlFor={`${id}-target`}>
           Apply To
         </label>
-        <select id={`${id}-target`} name="targetInvoiceId" className="input" defaultValue="">
+        <select
+          key={state.nextKey ?? 'first'}
+          id={`${id}-target`}
+          name="targetInvoiceId"
+          className="input"
+          defaultValue={typedValue(state.values, 'targetInvoiceId')}
+        >
           <option value="">The Open Invoice Due First</option>
           {targets.map((target) => (
             <option key={target.id} value={target.id}>
@@ -279,7 +324,7 @@ export function ApplyCreditForm({
           busy="Applying"
           className="btn btn-secondary u-btn-sm"
         />
-        <FormMessage id={`${id}-error`} result={state} />
+        <FormMessage id={`${id}-error`} result={failureOnly(state)} />
       </div>
     </form>
   );
@@ -287,7 +332,7 @@ export function ApplyCreditForm({
 
 /** Asks the payment gateway about this agency's sent refunds now. */
 export function CheckRefundsButton({ organizationId }: { readonly organizationId: string }) {
-  const [state, formAction, pending] = useActionState(checkRefundsAction, NO_RESULT);
+  const [state, formAction, pending] = useRefundAction(checkRefundsAction);
   return (
     <form action={formAction} className="invoice-action">
       <input type="hidden" name="organizationId" value={organizationId} />
@@ -298,7 +343,7 @@ export function CheckRefundsButton({ organizationId }: { readonly organizationId
         className="btn btn-secondary u-btn-sm"
       />
       <FormMessage
-        result={state}
+        result={failureOnly(state)}
         pending={pending}
         pendingText="Asking the payment gateway about sent refunds."
       />
@@ -314,7 +359,7 @@ export function RetryRefundButton({
   readonly organizationId: string;
   readonly refundRequestId: string;
 }) {
-  const [state, formAction, pending] = useActionState(retryRefundAction, NO_RESULT);
+  const [state, formAction, pending] = useRefundAction(retryRefundAction);
   return (
     <form action={formAction} className="invoice-action">
       <input type="hidden" name="organizationId" value={organizationId} />
@@ -325,12 +370,67 @@ export function RetryRefundButton({
         busy="Sending"
         className="btn btn-secondary u-btn-sm"
       />
-      <FormMessage result={state} />
+      <FormMessage result={failureOnly(state)} />
     </form>
   );
 }
 
-/** Cancels a refund that never reached the gateway, with a reason. */
+/** "It Went Through": a refund found made in the merchant panel, recorded with its reference and day. */
+export function ConfirmUnsentRefundForm({
+  organizationId,
+  refundRequestId,
+  earliestDate,
+  latestDate,
+}: {
+  readonly organizationId: string;
+  readonly refundRequestId: string;
+  /** The day the refund was asked for (YYYY-MM-DD). */
+  readonly earliestDate: string;
+  readonly latestDate: string;
+}) {
+  const [state, formAction, pending] = useRefundAction(confirmUnsentRefundAction);
+  const id = `went-through-${refundRequestId}`;
+  const errorId = `${id}-error`;
+  const formRef = useRef<HTMLFormElement>(null);
+  useFocusInvalidField(formRef, state);
+  return (
+    <form ref={formRef} action={formAction} className="field-list">
+      <input type="hidden" name="organizationId" value={organizationId} />
+      <input type="hidden" name="refundRequestId" value={refundRequestId} />
+      <div key={state.nextKey ?? 'first'} className="field-list">
+        <TextField
+          id={`${id}-reference`}
+          name="reference"
+          label="Refund Reference in the Panel"
+          maxLength={120}
+          state={state}
+          errorId={errorId}
+        />
+        <TextField
+          id={`${id}-day`}
+          name="refundedOn"
+          label="Day Refunded"
+          type="date"
+          min={earliestDate}
+          max={latestDate}
+          state={state}
+          errorId={errorId}
+        />
+      </div>
+      <div>
+        <SubmitButton
+          pending={pending}
+          idle="Record as Refunded"
+          busy="Recording"
+          className="btn btn-secondary u-btn-sm"
+        />
+        <FormMessage id={errorId} result={failureOnly(state)} />
+      </div>
+    </form>
+  );
+}
+
+/** "It Did Not Go Through": cancels a refund the merchant panel does not show, with a reason. */
 export function CancelRefundForm({
   organizationId,
   refundRequestId,
@@ -338,28 +438,25 @@ export function CancelRefundForm({
   readonly organizationId: string;
   readonly refundRequestId: string;
 }) {
-  const [state, formAction, pending] = useActionState(cancelRefundAction, NO_RESULT);
+  const [state, formAction, pending] = useRefundAction(cancelRefundAction);
   const id = `cancel-refund-${refundRequestId}`;
+  const errorId = `${id}-error`;
+  const formRef = useRef<HTMLFormElement>(null);
+  useFocusInvalidField(formRef, state);
   return (
-    <form action={formAction} className="field-list">
+    <form ref={formRef} action={formAction} className="field-list">
       <input type="hidden" name="organizationId" value={organizationId} />
       <input type="hidden" name="refundRequestId" value={refundRequestId} />
-      <div className="field-row">
-        <label className="field-label" htmlFor={`${id}-reason`}>
-          Why Cancel
-        </label>
-        <input
+      <div key={state.nextKey ?? 'first'} className="field-list">
+        <TextField
           id={`${id}-reason`}
           name="reason"
-          type="text"
-          required
+          label="Why It Did Not Go Through"
           maxLength={500}
-          className="input"
-          aria-describedby={`${id}-hint`}
+          hint="Only when the payment gateway's merchant panel shows no such refund."
+          state={state}
+          errorId={errorId}
         />
-        <p id={`${id}-hint`} className="muted u-fs-085">
-          Only when the payment gateway's panel shows no such refund.
-        </p>
       </div>
       <div>
         <SubmitButton
@@ -368,7 +465,7 @@ export function CancelRefundForm({
           busy="Cancelling"
           className="btn btn-secondary u-btn-sm"
         />
-        <FormMessage id={`${id}-error`} result={state} />
+        <FormMessage id={errorId} result={failureOnly(state)} />
       </div>
     </form>
   );

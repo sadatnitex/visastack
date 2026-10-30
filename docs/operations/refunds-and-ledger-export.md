@@ -1,8 +1,8 @@
 # Refunds, credits and the monthly accounting file (S18)
 
-Contract: ADR 0020, Phase 2 and the S18 amendment (30 Oct 2026). Code: `packages/services/src/refunds.ts` (refunds, credits, refunds made outside VisaStack, the daily check), `ledger-export.ts` (the monthly file), `applyInvoiceRefund` in `invoice-ledger.ts` (the one place a refund reaches the ledger), the refund methods of `SslcommerzPaymentPort` in `packages/adapters/src/payment.ts`. Screens: the admin organization page (`/app/admin/organizations/<id>`, card "Refunds and Credits") and Billing Rules (`/app/admin/billing`, card "Accounting File").
+Contract: ADR 0020, Phase 2 and the S18 amendment (30 Oct 2026). Code: `packages/services/src/refunds.ts` (refunds, credits, refunds made outside VisaStack, the daily check), `ledger-export.ts` (the monthly file), `applyInvoiceRefund` in `invoice-ledger.ts` (the one place a refund reaches the ledger), the refund methods of `SslcommerzPaymentPort` in `packages/adapters/src/payment.ts`. Screens: the admin organization page (`/app/admin/organizations/<id>`, card "Refunds and Credits") and Billing Rules (`/app/admin/billing`, card "Monthly Accounting File").
 
-Status on 30 Oct 2026: built and tested, not merged and not live. Migration 0104 runs only on the owner's word (O8). Refunds through SSLCOMMERZ also need O6 (credentials) and the outbound address decision (O18); refunds made outside VisaStack need neither.
+Status on 30 Oct 2026: built and tested, not merged and not live. Migration 0104 runs only on the owner's word (O8). Refunds through SSLCOMMERZ also need O6 (credentials), the outbound address decision (O18) and the switch `PAYMENT_REFUNDS_VIA_GATEWAY=true` (Vercel Production, exactly "true"; off by default). While it is off, the card offers only **Record a Refund Made Outside VisaStack** and says that refunds are made in the payment gateway's merchant panel and recorded here. An incomplete payment configuration never breaks the page: gateway actions are simply not offered.
 
 ## Who can do this
 
@@ -32,12 +32,17 @@ Only the platform owner (`BILLING_REFUND_MANAGE` and `BILLING_LEDGER_EXPORT`, he
 The refund is listed as **Waiting to Send**. It still counts against what that payment can give back, so it can never be sent twice by accident.
 
 1. Open the SSLCOMMERZ merchant panel and look for a refund on that payment. VisaStack's refund id is the refund request id; it is sent as the refund's reference.
-2. If the refund **is** there: VisaStack never learned its refund reference, so it cannot confirm it by itself. Open **Cancel This Refund** (reason: "made in the panel, recorded by hand"), then at once **Record a Refund Made Outside VisaStack** on the same payment with the panel's refund reference and day. Do both together, so the refund is counted exactly once.
-3. If the refund **is not** there: either **Send Again** (it is sent with the same refund id, so the gateway can only see the same refund twice), or open **Cancel This Refund**, give a reason ("not in the panel") and confirm. A cancelled refund stops counting against the limit.
+2. If the refund **is** there: open **It Went Through** on the refund, enter the panel's refund reference and the day it was made (not before the day the refund was asked for, not in the future), and confirm it is you. The refund shows as **Refunded** and the invoice total drops, in one step.
+3. If the refund **is not** there: open **It Did Not Go Through**, give a reason ("not in the panel") and confirm it is you. The amount can be refunded again. While the gateway switch is on you may instead **Send Again**: it is sent with the same refund id.
+4. If **Send Again** is answered "failed", the amount stays blocked: a "failed" to a second send can mean the first one already went through. Check the panel and choose It Went Through or It Did Not Go Through; Send Again is no longer offered for that refund.
 
-Never cancel a refund the panel shows as made without recording it as in step 2.
+Nothing confirms a refund waiting to send by itself: you decide, from the merchant panel.
+
+A refund marked **Needs a Check** was confirmed by the gateway, but the invoice no longer holds that much money, so nothing was taken off. It stays listed (and is asked about last each day) until a person looks at the invoice and the panel.
 
 ## How to record a refund made outside VisaStack
+
+The day refunded cannot be before the day the money came in, nor in the future.
 
 Use this for a payment typed in by hand or reported by the agency (refunded by bank transfer or bKash), and for any refund made in the SSLCOMMERZ panel (for example while live gateway refunds are not set up, O18).
 
@@ -56,14 +61,22 @@ If the agency has no open invoice yet, the card says so: apply the credit after 
 
 ## How to download the monthly accounting file
 
-1. Open `/app/admin/billing`, card **Accounting File**.
-2. Choose the month and **Download Ledger CSV**, then confirm it is you. The file downloads as `visastack-ledger-YYYY-MM.csv`.
+1. Open `/app/admin/billing`, card **Monthly Accounting File**.
+2. Choose the month (for example 2026-10) and **Download Accounting File (CSV)**, then confirm it is you. The file downloads as `visastack-ledger-YYYY-MM.csv`.
 3. The month is a Bangladesh calendar month (from midnight on the 1st, Bangladesh time), by when each row was recorded. Once a month is over its file never changes.
 4. One row per payment, credit or refund that was counted: entry id, when recorded (Bangladesh time), the collected or refunded day, invoice reference, agency code and name, kind, IN or OUT, the exact amount (never with a minus sign), currency, provider and its transaction id, reference, the refund request id for a refund, and whether the gateway or a staff member recorded it. Held money is not in it until it is counted. No traveller data is in it.
-5. Every cell is quoted, and a cell that would start a spreadsheet formula starts with an apostrophe instead, so the file is safe to open in Excel or Google Sheets.
+5. Every cell is quoted, and a cell that would start a spreadsheet formula starts with an apostrophe instead, so the file is safe to open in Excel or Google Sheets. The file starts with a UTF-8 byte-order mark, so Excel shows Bangla and accented agency names correctly.
 6. A month above 20,000 rows is refused with a plain message; nothing is downloaded.
 
 Each download is recorded in the audit trail (`BILLING_LEDGER_EXPORTED`, with the month and the row count).
+
+## Money arriving on a refunded invoice
+
+An invoice with any refund is never owed again. If an online payment for it arrives anyway (for example a payment page opened before the refund), it is held under **Payments Needing a Check** ("The invoice was refunded, so nothing more is owed on it."). Apply it to another open invoice or refund it. A payment typed in or a reported payment on such an invoice is refused with the reason.
+
+## The daily check
+
+The `process-payment-reconciliation` job asks about payments and then sent refunds. It stops starting new gateway calls after about 40 seconds (the job may run for 60) and reports how many were left (`leftForLater`); the next run asks about them. The run reads as failed (503) when the refund check crashed or no sent refund could be asked about, as for payments; refunds not available yet (before 0104) is not a failure.
 
 ## Before migration 0104
 
@@ -91,7 +104,7 @@ Both must be true.
 
 ## Audit events
 
-`INVOICE_REFUND_REQUESTED`, `INVOICE_REFUND_SUBMITTED`, `INVOICE_REFUND_CONFIRMED`, `INVOICE_REFUND_FAILED`, `INVOICE_REFUND_CANCELLED`, `INVOICE_REFUND_RECORDED`, `INVOICE_CREDIT_APPLIED` (plus the credit's own `INVOICE_PAYMENT_RECORDED`), `PAYMENT_ATTEMPT_STATUS_CHANGED` when a held payment is closed, and `BILLING_LEDGER_EXPORTED`. Each carries ids, statuses and amounts, never a store credential.
+`INVOICE_REFUND_REQUESTED`, `INVOICE_REFUND_SUBMITTED`, `INVOICE_REFUND_CONFIRMED` (also for It Went Through, with `confirmedBy: staff_from_panel`), `INVOICE_REFUND_NEEDS_CHECK` (once per refund, for `ledger_refused` and `retry_refused`), `INVOICE_REFUND_FAILED`, `INVOICE_REFUND_CANCELLED`, `INVOICE_REFUND_RECORDED`, `INVOICE_CREDIT_APPLIED` (plus the credit's own `INVOICE_PAYMENT_RECORDED`), `PAYMENT_ATTEMPT_STATUS_CHANGED` when a held payment is closed, and `BILLING_LEDGER_EXPORTED`. Each carries ids, statuses and amounts, never a store credential.
 
 ## Not verified
 

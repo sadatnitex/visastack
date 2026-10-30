@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   recordManualRefund: vi.fn(),
   applyHeldPaymentCredit: vi.fn(),
   checkRefundsNow: vi.fn(),
+  sendPort: vi.fn(),
   tryEstablishStepUp: vi.fn(),
   revalidatePath: vi.fn(),
 }));
@@ -24,8 +25,10 @@ vi.mock('../../../../../lib/admin', () => ({
   bootstrapAdminEmails: () => [],
   staffPrincipal: mocks.staffPrincipal,
 }));
-vi.mock('../../../../../lib/providers', () => ({
-  createPaymentPort: () => ({ configured: true, provider: 'sslcommerz' }),
+vi.mock('../../../../../lib/refund-gateway', () => ({
+  REFUNDS_IN_PANEL: 'Refunds are made in the merchant panel.',
+  refundSendPort: mocks.sendPort,
+  refundCheckPort: () => ({ configured: true, provider: 'sslcommerz' }),
 }));
 vi.mock('../../../../../lib/step-up', () => ({
   tryEstablishStepUp: mocks.tryEstablishStepUp,
@@ -78,6 +81,7 @@ function form(fields: Record<string, string>): FormData {
 beforeEach(() => {
   mocks.staffPrincipal.mockResolvedValue({ ok: true, value: SCOPE });
   mocks.tryEstablishStepUp.mockResolvedValue({ kind: 'satisfied' });
+  mocks.sendPort.mockReturnValue({ configured: true, provider: 'sslcommerz' });
   mocks.requestRefund.mockResolvedValue({ ok: true, value: { code: 'sent', request: REQUEST } });
 });
 afterEach(() => {
@@ -171,11 +175,82 @@ describe('refund actions (S18)', () => {
         unavailable: 0,
         needsCheck: 0,
         awaitingCheck: 0,
+        leftForLater: 0,
       },
     });
     const result = await checkRefundsAction(INITIAL, form({}));
     expect(result).toMatchObject({ ok: true });
     expect(result.message).toContain('1 refunded, 1 still on the way');
+    mocks.checkRefundsNow.mockResolvedValue({
+      ok: true,
+      value: {
+        available: true,
+        configured: true,
+        checked: 3,
+        confirmed: 0,
+        failed: 0,
+        stillProcessing: 0,
+        unavailable: 2,
+        needsCheck: 1,
+        awaitingCheck: 0,
+        leftForLater: 0,
+      },
+    });
+    const mixed = await checkRefundsAction(INITIAL, form({}));
+    expect(mixed.message).toContain('1 needs a check, 2 could not be asked');
     expect(mocks.tryEstablishStepUp).not.toHaveBeenCalled();
+  });
+
+  it('offer only recording a refund made outside VisaStack while the gateway switch is off (S18 round 2)', async () => {
+    mocks.sendPort.mockReturnValue(null);
+    const result = await requestRefundAction(INITIAL, form({}));
+    expect(result).toMatchObject({ ok: false, message: 'Refunds are made in the merchant panel.' });
+    expect(mocks.requestRefund).not.toHaveBeenCalled();
+    expect(mocks.tryEstablishStepUp).not.toHaveBeenCalled();
+  });
+
+  it('refresh the page after a send that was refused or not confirmed, and start the form afresh with a new key', async () => {
+    mocks.requestRefund.mockResolvedValue({
+      ok: true,
+      value: { code: 'refused', request: { ...REQUEST, status: 'FAILED' } },
+    });
+    const refused = await requestRefundAction(INITIAL, form({}));
+    expect(refused.ok).toBe(false);
+    expect(mocks.revalidatePath).toHaveBeenCalledWith(`/app/admin/organizations/${ORG}`);
+    expect(refused.nextKey).toMatch(/^[0-9a-f-]{36}$/);
+    expect(refused.values).toEqual({});
+    expect(refused.focusId).toBe('refund-line-r1');
+    const again = await requestRefundAction(INITIAL, form({}));
+    expect(again.nextKey).not.toBe(refused.nextKey);
+  });
+
+  it('keep what was typed when the answer is a problem with the form', async () => {
+    const result = await recordManualRefundAction(
+      INITIAL,
+      form({ reference: 'BANK-9', refundedOn: '2026-02-30', amount: '12.50' }),
+    );
+    expect(result).toMatchObject({ ok: false, field: 'refundedOn' });
+    expect(result.values).toMatchObject({
+      amount: '12.50',
+      reference: 'BANK-9',
+      reason: 'Agency overpaid',
+    });
+  });
+
+  it('word a repeated send by what the earlier refund really became', async () => {
+    for (const [status, words] of [
+      ['FAILED', 'did not go through'],
+      ['CANCELLED', 'was cancelled'],
+      ['CONFIRMED', 'already made'],
+      ['SUBMITTED', 'already sent'],
+    ] as const) {
+      mocks.requestRefund.mockResolvedValue({
+        ok: true,
+        value: { code: 'already_requested', request: { ...REQUEST, status } },
+      });
+      const result = await requestRefundAction(INITIAL, form({}));
+      expect(result.message, status).toContain(words);
+      expect(result.message, status).not.toContain('already asked for');
+    }
   });
 });

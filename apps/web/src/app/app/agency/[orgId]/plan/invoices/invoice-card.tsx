@@ -43,7 +43,9 @@ export function InvoiceCard({
   readonly latestDate: string;
 }) {
   // A refunded invoice is never owed again (S18, D2): it has no Pay button and no report form.
-  const refunded = invoice.state === 'REFUNDED' || invoice.state === 'PARTLY_REFUNDED';
+  // Decided from the money itself, not from the state, so a payment held for a check (which
+  // outranks the refunded states) can never bring back a way to pay a refunded invoice.
+  const refunded = invoice.refundedMinorUnits > 0;
   const open = invoice.status !== 'PAID' && invoice.status !== 'VOID' && !refunded;
   const reported = invoice.state === 'PAYMENT_REPORTED';
   const canPayOnline =
@@ -84,7 +86,7 @@ export function InvoiceCard({
           <dd>{plainAmount(invoice.invoicedAmountMinorUnits, invoice.currency)}</dd>
         </div>
         <div>
-          <dt>Paid So Far</dt>
+          <dt>{refunded ? 'Kept After Refunds' : 'Paid So Far'}</dt>
           <dd>{plainAmount(invoice.collectedAmountMinorUnits, invoice.currency)}</dd>
         </div>
         {invoice.refundedMinorUnits > 0 ? (
@@ -97,10 +99,12 @@ export function InvoiceCard({
           <dt>Still Owed</dt>
           <dd>{plainAmount(invoice.outstandingMinorUnits, invoice.currency)}</dd>
         </div>
-        <div>
-          <dt>Due</dt>
-          <dd>{formatDateOnly(invoice.dueDate)}</dd>
-        </div>
+        {refunded ? null : (
+          <div>
+            <dt>Due</dt>
+            <dd>{formatDateOnly(invoice.dueDate)}</dd>
+          </div>
+        )}
       </dl>
 
       {open ? (

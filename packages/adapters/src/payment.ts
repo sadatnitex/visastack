@@ -344,7 +344,7 @@ export class SslcommerzPaymentPort implements RefundingPaymentPort {
    * merchant-transaction endpoint, as widely documented; not verified against the live
    * documentation). VisaStack's refund id goes as both `refund_trans_id` and `refe_id`, so asking
    * again can only repeat this refund. Only a clear `success` (or `processing`) with a refund
-   * reference is accepted and only a clear `failed` is a refusal; anything else (no answer, an
+   * reference is accepted and only a clear `failed` naming no `refund_ref_id` is a refusal; anything else (no answer, an
    * unknown status, the call not accepted) throws, so the caller leaves the refund unconfirmed.
    * Live calls also need this server's address registered with the gateway.
    */
@@ -381,7 +381,9 @@ export class SslcommerzPaymentPort implements RefundingPaymentPort {
     if ((status === 'success' || status === 'processing') && ref && REFUND_REF_PATTERN.test(ref)) {
       return { kind: 'accepted', refundRefId: ref };
     }
-    if (status === 'failed') return { kind: 'refused', code: 'provider_refused' };
+    // Definite only when the gateway names no refund at all: a "failed" that carries a refund
+    // reference describes a refund that exists, so it is not a clear refusal.
+    if (status === 'failed' && ref === null) return { kind: 'refused', code: 'provider_refused' };
     throw this.#unavailable(
       'refund',
       'unreadable',

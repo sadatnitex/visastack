@@ -816,6 +816,9 @@ export async function triggerDataKeyRewrap(
  * Does nothing (and reports `configured: false`) while no payment provider is configured. Returns
  * counts only.
  */
+/** How long the daily payment check may keep starting gateway calls (the route allows 60 seconds). */
+export const RECONCILIATION_BUDGET_MS = 40_000;
+
 export async function triggerPaymentReconciliation(
   scope: SystemScope<'process-payment-reconciliation'>,
 ): Promise<
@@ -833,12 +836,15 @@ export async function triggerPaymentReconciliation(
   try {
     const port = createPaymentPort();
     const handle = db as unknown as Parameters<typeof reconcilePaymentAttempts>[0];
-    const payments = await reconcilePaymentAttempts(handle, scope, port);
+    // The route may run for 60 seconds. No new gateway call is started after about 40, across
+    // payments and refunds together; whatever is left is counted and asked about next run.
+    const deadline = Date.now() + RECONCILIATION_BUDGET_MS;
+    const payments = await reconcilePaymentAttempts(handle, scope, port, { deadline });
     // S18: refunds the gateway has taken are confirmed in the same daily run. A refund check that
     // fails is reported on its own and never hides the payment counts.
     let refunds: RefundCheckSummary | { readonly error: string };
     try {
-      refunds = await reconcileRefunds(handle, scope, port);
+      refunds = await reconcileRefunds(handle, scope, port, { deadline });
     } catch (error) {
       reportServerError('triggerPaymentReconciliation', withoutPaymentSecrets(error), {
         step: 'refund check failed',

@@ -276,4 +276,22 @@ describe('an invoice card on the agency Invoices page', () => {
     );
     expect(html).toContain('Credit from an earlier payment');
   });
+
+  it('never offers a way to pay a refunded invoice, even while a payment on it needs a check (S18 round 2)', () => {
+    const html = render(
+      invoice({
+        status: 'PARTIALLY_PAID',
+        state: 'NEEDS_CHECK',
+        collectedAmountMinorUnits: 100000,
+        outstandingMinorUnits: 0,
+        refundedMinorUnits: 25050,
+        attempts: [attempt('HELD_FOR_REVIEW')],
+      }),
+    );
+    expect(html).not.toContain('Pay Online');
+    expect(html).not.toContain('Report This Payment');
+    expect(html).toContain('<dt>Kept After Refunds</dt>');
+    expect(html).not.toContain('<dt>Due</dt>');
+    expect(html).not.toContain('<dt>Paid So Far</dt>');
+  });
 });
