@@ -6714,3 +6714,13 @@ Fixes from the max code review and the security and accessibility review of `4c4
 
   No timeouts; nothing was rerun.
 - **Not verified.** A browser run; the SSLCOMMERZ sandbox (O6).
+
+### 2026-10-30, S19 step 0 round 5: stranded matches the daily check (`e2c7ca4b`)
+
+- **Correction.** A LIVE payment closed as EXPIRED inside the late-success window now blocks a new payment while its provider is off. Round 4 said EXPIRED never blocks; that was wrong, because the daily check keeps asking about such payments. The late-success selection, the staff count and the stranded probe now share one condition (`stillUncertainSql` / `isStillUncertain`). TEST and CREATED payments, and anything older than the window, never block.
+- **Tests.**
+  - The 24-hour job's EXPIRED payment, 3 days on with its provider off, blocks a new payment, and Check Status reports it stranded. Once it is older than the window, it stops blocking.
+  - A drift test runs the daily check over a fixture set and fails if it disagrees with the stranded rule. A REDIRECTED payment older than the window is asked once (to be closed) and deliberately does not block, so it is left out of that comparison.
+- **Break-to-red.** 3 proofs, all red.
+- **Verification.** All passed: lint, typecheck (after `rm -rf apps/web/.next`), all suites (services 2757, web 3875), build (3072 MB), audit, em dash sweep 0.
+- **Merge.** Main had not moved past `cd2e8153`, so there was no merge.
