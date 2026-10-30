@@ -64,6 +64,14 @@ describe('the five reading states', () => {
     }
   });
 
+  it('says a file stopped by today’s limit is not read by itself later (S28 round 2)', () => {
+    const plain = readingStatusCopy({ stage: 'could_not_read', reason: 'DAILY_LIMIT' });
+    expect(plain?.body).toContain(
+      'This file was not read because today’s limit for Automatic Reading is used up. Choose Read Again after 6 AM Bangladesh time.',
+    );
+    expect(plain?.body).not.toContain('starts again');
+  });
+
   it('keeps the page’s own advice for a file that needs attention', () => {
     const advice = 'Try a different copy, such as a clearer scan.';
     expect(readingStatusCopy({ stage: 'needs_attention' }, { problemNextStep: advice })?.body).toBe(

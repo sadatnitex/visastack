@@ -186,18 +186,18 @@ export function AiProvidersSection({ data }: { readonly data: AiProviderSettings
         </div>
       ) : !data.hasActive ? (
         <div className="notice notice-warn u-mb-150">
-          <strong>Nothing is currently ACTIVE.</strong> AI extraction is disabled platform-wide
-          until a configuration below is activated or rolled back to.
+          <strong>No AI provider is in use right now.</strong> Nothing is read with AI anywhere on
+          this platform until you activate a provider below, or go back to an earlier one.
         </div>
       ) : null}
 
       <article className="card u-mb-150">
         <p className="card-kicker">New Configuration</p>
-        <h2 className="card-title">Create Draft</h2>
+        <h3 className="card-title">Create Draft</h3>
         <p className="card-body u-mb-100">
-          Saving a draft has no effect on live traffic -- it only takes effect once activated below.
-          The API key is write-only: it is encrypted immediately and never shown again, only a
-          masked fingerprint.
+          Saving a draft changes nothing for anyone. It is used only once you activate it below. The
+          API key is locked away as soon as you save it and is never shown again: this page shows
+          only its last few characters, so you can tell keys apart.
         </p>
         <CreateDraftConfigForm fallbackOptions={fallbackOptions} />
       </article>
@@ -232,9 +232,9 @@ export function AiProvidersSection({ data }: { readonly data: AiProviderSettings
             return (
               <article className="card" key={config.id}>
                 <div className="toolbar u-mb-100">
-                  <h2 className="card-title u-m-0">
+                  <h3 className="card-title u-m-0">
                     {config.provider} / {config.model}
-                  </h2>
+                  </h3>
                   <span className={`badge ${badge.tone}`}>{badge.label}</span>
                 </div>
                 <div className="rows">

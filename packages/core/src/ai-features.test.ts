@@ -7,6 +7,7 @@ import {
   AI_FEATURE_OFF_REASONS,
   AI_PLAN_TIERS,
   aiFeatureOffHint,
+  aiFeatureOffSentence,
   effectiveAiDailyLimit,
   isAiFeatureKey,
 } from './ai-features';
@@ -105,6 +106,15 @@ describe('the AI feature registry', () => {
     for (const reason of AI_FEATURE_OFF_REASONS.filter((r) => r !== 'daily_limit')) {
       expect(aiFeatureOffHint(reason)).toBe(AI_FEATURE_OFF_HINT);
     }
+  });
+
+  it('names the feature where one screen speaks about it (S28 round 2)', () => {
+    expect(aiFeatureOffSentence('ai_app_access', 'turned_off')).toBe(
+      'AI App Access is turned off right now.',
+    );
+    expect(aiFeatureOffSentence('ai_app_access', 'daily_limit')).toBe(
+      'You have reached today’s limit for AI App Access. It starts again at 6 AM Bangladesh time.',
+    );
   });
 });
 

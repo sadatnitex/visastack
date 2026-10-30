@@ -3,7 +3,7 @@ import { createTranslator } from '@visastack/i18n';
 import {
   accountPrincipal,
   documentCategory,
-  getAiFeatureState,
+  getAiFeatureStates,
   getApplicant,
   listAccessForApplicantDetailed,
   listAiConnectionFiles,
@@ -71,6 +71,11 @@ export const dynamic = 'force-dynamic';
 /** How many access log entries the page reads, newest first. */
 const ACCESS_LOG_LIMIT = 300;
 
+/** The AI app features this page shows (S28), read together in one pass. */
+const AI_APP_FEATURES = ['ai_app_access', 'ai_app_original_files', 'ai_app_suggestions'] as const;
+type AiAppFeature = (typeof AI_APP_FEATURES)[number];
+type RecordProof = Extract<Parameters<typeof getAiFeatureStates>[2], { proof: unknown }>['proof'];
+
 export default async function SharingPage({
   params,
   searchParams,
@@ -113,6 +118,13 @@ export default async function SharingPage({
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
     // AI connections of this record, through the central access gate (owner only). Read even
     // while connecting AI apps is off, so a live connection can still be turned off.
+    // The three AI app features, read once for the page (S28): any proof for this record and
+    // person gives the same answer, so whichever read below comes first asks for all three.
+    let aiStates: ReturnType<typeof getAiFeatureStates<AiAppFeature>> | undefined;
+    const aiAppStates = (proof: RecordProof) => {
+      aiStates ??= getAiFeatureStates(db, AI_APP_FEATURES, { proof });
+      return aiStates;
+    };
     const readAiConnections = async () => {
       const aiGate = await requireAccess(
         db,
@@ -128,7 +140,7 @@ export default async function SharingPage({
       // AI App Access (S28): while it is off, apps read nothing; the connections stay listed.
       const access =
         aiGate.ok && list.active.length > 0
-          ? await getAiFeatureState(db, 'ai_app_access', { proof: aiGate.value })
+          ? (await aiAppStates(aiGate.value)).ai_app_access
           : null;
       // "Original Files" (S20): what may be ticked, and what each live connection has ticked.
       let files: AiConnectionFiles | undefined;
@@ -136,7 +148,7 @@ export default async function SharingPage({
         const candidates = await listAiFileCandidates(aiGate.value);
         if (candidates.ok && candidates.value.available) {
           const [feature, ticked] = await Promise.all([
-            getAiFeatureState(db, 'ai_app_original_files', { proof: aiGate.value }),
+            aiAppStates(aiGate.value).then((states) => states.ai_app_original_files),
             listAiConnectionFiles(
               aiGate.value,
               list.active.map((item) => item.id),
@@ -190,7 +202,7 @@ export default async function SharingPage({
       );
       if (!gate.ok) return { available: false, drafts: [] as AiDraftItem[], more: 0 };
       const [feature, drafts] = await Promise.all([
-        getAiFeatureState(db, 'ai_app_suggestions', { proof: gate.value }),
+        aiAppStates(gate.value).then((states) => states.ai_app_suggestions),
         listAiDrafts(gate.value),
       ]);
       return {

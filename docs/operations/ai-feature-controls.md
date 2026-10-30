@@ -59,3 +59,12 @@ What counts as one use:
 - `AI_ENABLED` keeps its meaning: it governs only the environment provider on a fresh install. Whether it should also stop a database-configured provider is decision O3 for the owner.
 - AI Allowance (`ai_allowance_units`) stays shown only, never enforced for travellers (O5).
 - No database migration. The counts use the existing `rate_limit_buckets` table; old buckets are pruned by the existing job after 48 hours.
+
+## Round 2 changes (30 Oct 2026)
+
+- **Plans page:** an AI feature that is on may have an empty daily limit. Empty means no plan limit; the Daily Limit per Person on AI Settings > AI Features still applies (AI App Suggestions and AI App Original Files also keep their built-in 15 and 30). A limit typed for a feature that is off is still refused. Traveller Free saves again with its six features on and no plan limit.
+- **One file, one use:** a scan returns proof that it counted the file. Only that proof, for the same file, person, feature and day and used once, lets the reading of the file's details go uncounted (Automatic Reading and Read Again alike). A scan served from earlier work counts nothing and gives no proof, so the details are counted. When the details are refused for a moment (busy) after a counted scan, the scan's count is given back, so the queue's retry, or the person trying again, counts the file once.
+- **Only real calls count:** a call the kill switch stops after it was counted is given back, for every kind of AI call.
+- **AI App Access:** with a daily limit it is counted as the call starts (as before). With no limit it is counted after the call, in a statement of its own, so one person's calls never wait on each other.
+- **AI Use Today:** all counts are read in one query, and AI App Suggestions and AI App Original Files show Limit Reached when their limit is used up.
+- **Day boundary wording:** people see "Daily limits start again at 6 AM Bangladesh time." A file Automatic Reading skipped for the limit says it was not read and to choose Read Again after 6 AM Bangladesh time; it is not read again by itself.

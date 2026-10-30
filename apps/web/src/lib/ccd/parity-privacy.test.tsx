@@ -147,7 +147,8 @@ describe('AI Use Today (S28)', () => {
     expect(text).toContain('Limit Reached');
     expect(text).toContain('0 explanations today');
     expect(text).toContain('Off');
-    expect(text).toContain('6 AM in Bangladesh');
+    expect(text).toContain('Daily limits start again at 6 AM Bangladesh time.');
+    expect(text).not.toContain('UTC');
   });
 
   it('leaves the card out, and the rest of the page as it is, when the counts cannot be read', async () => {

@@ -188,11 +188,10 @@ export const AI_FEATURE_OFF_HINT =
   'This AI feature is turned off right now. Everything else works as usual.';
 
 /**
- * When daily limits start again. The count is kept per UTC day, so a person in Bangladesh sees it
- * start again at 6 AM.
+ * When daily limits start again. The count is kept per UTC day (midnight UTC is 6 AM in Dhaka),
+ * said in the time people here live by.
  */
-export const AI_DAY_BOUNDARY_NOTE =
-  'Daily limits start again at midnight UTC, which is 6 AM in Bangladesh.';
+export const AI_DAY_BOUNDARY_NOTE = 'Daily limits start again at 6 AM Bangladesh time.';
 
 /** The sentence a person sees once today's limit for a feature is used up. */
 export const AI_FEATURE_LIMIT_HINT =
@@ -201,6 +200,20 @@ export const AI_FEATURE_LIMIT_HINT =
 /** What a person sees in place of a feature that is off, for the reason it is off. */
 export function aiFeatureOffHint(reason: AiFeatureOffReason | null): string {
   return reason === 'daily_limit' ? AI_FEATURE_LIMIT_HINT : AI_FEATURE_OFF_HINT;
+}
+
+/**
+ * The same, naming the feature, where a screen speaks about one feature by name (the AI app
+ * consent screen): "AI App Access is turned off right now."
+ */
+export function aiFeatureOffSentence(
+  feature: AiFeatureKey,
+  reason: AiFeatureOffReason | null,
+): string {
+  const name = AI_FEATURES[feature].name;
+  return reason === 'daily_limit'
+    ? `You have reached today’s limit for ${name}. It starts again at 6 AM Bangladesh time.`
+    : `${name} is turned off right now.`;
 }
 
 // --- How an AI app is named on screen ----------------------------------------------------------

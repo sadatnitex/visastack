@@ -1,7 +1,8 @@
 'use client';
 
-import { type AiFeatureOffReason, aiFeatureOffHint } from '@visastack/core/ai-features';
+import type { AiFeatureOffReason } from '@visastack/core/ai-features';
 import { useActionState } from 'react';
+import { AiFeatureOffNote } from '../../../../components/ai-feature-off';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { type ActionState, explainReadinessGapAction } from './actions';
 
@@ -39,7 +40,7 @@ export function ExplainGapButton({
         </p>
       ) : null}
       {off !== undefined ? (
-        <p className="muted u-fs-085">{aiFeatureOffHint(off)}</p>
+        <AiFeatureOffNote reason={off} />
       ) : (
         <form action={formAction} style={{ display: 'inline' }}>
           <input type="hidden" name="missionId" value={missionId} />
