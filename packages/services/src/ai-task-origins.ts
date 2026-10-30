@@ -12,7 +12,7 @@ export interface TaskAddedBy {
 /**
  * Which of these tasks an AI app added, and which app. Read beside a task list the owner is
  * already allowed to read: the rows hold no record data, only the app's name and address, keyed by
- * task. Empty until migration 0104 runs.
+ * task. Empty until migration 0105 runs.
  *
  * A task an AI app added is private to the record's owner (owner decision, 30 Oct 2026): every
  * agency read and write of tasks leaves it out through `agencyVisibleTasks`.

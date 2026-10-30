@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
+import { wallClockToUtc } from '@visastack/core/calendar';
 import {
   type CheckoutSession,
   type CreateCheckoutInput,
@@ -6,6 +7,10 @@ import {
   PaymentProviderUnavailableError,
   type PaymentValidation,
   type PaymentValidationStatus,
+  type RefundStatusReport,
+  type RefundSubmission,
+  type RefundSubmissionResult,
+  type RefundingPaymentPort,
   formatMinorUnits,
   parseDecimalToMinorUnits,
 } from '@visastack/services';
@@ -88,7 +93,7 @@ export interface SslcommerzPaymentPortOptions {
 }
 
 export interface PaymentProviderFailure {
-  readonly operation: 'checkout' | 'validation' | 'query';
+  readonly operation: 'checkout' | 'validation' | 'query' | 'refund' | 'refund_query';
   readonly reason:
     | 'unreachable'
     | 'error_status'
@@ -178,7 +183,22 @@ const NOTHING_KNOWN: Omit<PaymentValidation, 'status'> = {
   storeId: null,
 };
 
-export class SslcommerzPaymentPort implements PaymentPort {
+/** What a gateway refund reference looks like: letters, digits, dashes and underscores. */
+const REFUND_REF_PATTERN = /^[A-Za-z0-9_-]{4,64}$/;
+const BANK_TRAN_PATTERN = /^[A-Za-z0-9_-]{1,100}$/;
+const REFUND_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** The gateway's own clock for refund times (it is a Bangladesh gateway). */
+const GATEWAY_TIME_ZONE = 'Asia/Dhaka';
+
+/** A gateway time ("2026-10-30 14:05:00", Bangladesh time) as an instant, or null. */
+function gatewayTime(value: string | null): Date | null {
+  const match = value?.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(?::(\d{2}))?$/);
+  if (!match) return null;
+  const utc = wallClockToUtc(`${match[1]}T${match[2]}:${match[3] ?? '00'}`, GATEWAY_TIME_ZONE);
+  return utc ? new Date(utc) : null;
+}
+
+export class SslcommerzPaymentPort implements RefundingPaymentPort {
   readonly configured = true;
   readonly provider = 'sslcommerz';
   readonly storeId: string;
@@ -320,6 +340,87 @@ export class SslcommerzPaymentPort implements PaymentPort {
   }
 
   /**
+   * Asks the gateway to refund part or all of one payment (the v4 refund API on the same
+   * merchant-transaction endpoint, as widely documented; not verified against the live
+   * documentation). VisaStack's refund id goes as both `refund_trans_id` and `refe_id`, so asking
+   * again can only repeat this refund. Only a clear `success` (or `processing`) with a refund
+   * reference is accepted and only a clear `failed` naming no `refund_ref_id` is a refusal; anything else (no answer, an
+   * unknown status, the call not accepted) throws, so the caller leaves the refund unconfirmed.
+   * Live calls also need this server's address registered with the gateway.
+   */
+  async refund(input: RefundSubmission): Promise<RefundSubmissionResult> {
+    if (
+      !BANK_TRAN_PATTERN.test(input.bankTranId) ||
+      !REFUND_ID_PATTERN.test(input.refundId) ||
+      !Number.isSafeInteger(input.amountMinorUnits) ||
+      input.amountMinorUnits <= 0
+    ) {
+      return { kind: 'refused', code: 'invalid_request' };
+    }
+    const reply = await this.#authenticatedGet('refund', QUERY_PATH, {
+      bank_tran_id: input.bankTranId,
+      refund_amount: formatMinorUnits(input.amountMinorUnits),
+      refund_remarks:
+        input.remarks
+          .replace(/[\r\n]+/g, ' ')
+          .trim()
+          .slice(0, 100) || 'Refund',
+      refe_id: input.refundId,
+      refund_trans_id: input.refundId,
+    });
+    const body = asRecord(reply);
+    if (!body || text(field(body, 'APIConnect'))?.toUpperCase() !== 'DONE') {
+      throw this.#unavailable(
+        'refund',
+        'not_accepted',
+        'the payment provider did not take the refund',
+      );
+    }
+    const status = text(field(body, 'status'))?.toLowerCase() ?? '';
+    const ref = text(field(body, 'refund_ref_id'));
+    if ((status === 'success' || status === 'processing') && ref && REFUND_REF_PATTERN.test(ref)) {
+      return { kind: 'accepted', refundRefId: ref };
+    }
+    // Definite only when the gateway names no refund at all: a "failed" that carries a refund
+    // reference describes a refund that exists, so it is not a clear refusal.
+    if (status === 'failed' && ref === null) return { kind: 'refused', code: 'provider_refused' };
+    throw this.#unavailable(
+      'refund',
+      'unreadable',
+      'the payment provider refund reply was not clear',
+    );
+  }
+
+  /**
+   * Asks the gateway where one refund stands, by its refund reference: refunded, processing or
+   * cancelled. A reply about a different refund, or a status it does not use, reads as UNKNOWN
+   * (nothing is decided from it).
+   */
+  async queryRefund(refundRefId: string): Promise<RefundStatusReport> {
+    if (!REFUND_REF_PATTERN.test(refundRefId)) return { status: 'UNKNOWN', refundedAt: null };
+    const reply = await this.#authenticatedGet('refund_query', QUERY_PATH, {
+      refund_ref_id: refundRefId,
+    });
+    const body = asRecord(reply);
+    if (!body || text(field(body, 'APIConnect'))?.toUpperCase() !== 'DONE') {
+      throw this.#unavailable(
+        'refund_query',
+        'not_accepted',
+        'the payment provider could not be asked about the refund',
+      );
+    }
+    const named = text(field(body, 'refund_ref_id'));
+    if (named !== null && named !== refundRefId) return { status: 'UNKNOWN', refundedAt: null };
+    const status = text(field(body, 'status'))?.toLowerCase() ?? '';
+    if (status === 'refunded') {
+      return { status: 'REFUNDED', refundedAt: gatewayTime(text(field(body, 'refunded_on'))) };
+    }
+    if (status === 'processing') return { status: 'PROCESSING', refundedAt: null };
+    if (status === 'cancelled') return { status: 'CANCELLED', refundedAt: null };
+    return { status: 'UNKNOWN', refundedAt: null };
+  }
+
+  /**
    * The gateway signs each callback: `verify_key` names the fields covered, and `verify_sign` is
    * the MD5 of those fields plus the MD5 of the store password, sorted by name and joined as
    * `name=value&...`. This is a first filter only. It also refuses a signature that does not cover
@@ -371,7 +472,7 @@ export class SslcommerzPaymentPort implements PaymentPort {
   }
 
   async #authenticatedGet(
-    operation: 'validation' | 'query',
+    operation: 'validation' | 'query' | 'refund' | 'refund_query',
     path: string,
     params: Record<string, string>,
   ): Promise<unknown> {

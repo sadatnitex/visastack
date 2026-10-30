@@ -464,7 +464,7 @@ export async function listAssignmentsDetailed(
 /**
  * The one condition every agency read of `mission_tasks` uses (S21): a task an AI app added is
  * private to the record's owner, so agencies never see or change it, even on a shared case. Before
- * migration 0104 there can be no such task, so there is nothing to leave out. A guard test
+ * migration 0105 there can be no such task, so there is nothing to leave out. A guard test
  * (`ai-tools/tool-guard.test.ts`) fails if an agency read of tasks does not use it.
  */
 async function agencyVisibleTasks(db: Db): Promise<SQL | undefined> {

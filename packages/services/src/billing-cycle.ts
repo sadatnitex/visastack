@@ -15,10 +15,12 @@ import {
   type BillingStanding,
   DAY_MS,
   type OverdueInvoice,
+  agencyCode,
   billingContacts,
   billingDay,
   databaseNow,
   daysPastDue,
+  invoiceNotRefundedSql,
   invoicePeriodOverlaps,
   invoicesPath,
   isOverdue,
@@ -99,7 +101,7 @@ export function reminderStage(daysUntilDue: number): ReminderStage | null {
 
 /** INV-<first 8 hex of the organization id>-<period start as YYYYMMDD in Bangladesh time>. */
 export function cycleInvoiceRef(organizationId: string, periodStart: Date): string {
-  const org = organizationId.replace(/-/g, '').slice(0, 8).toUpperCase();
+  const org = agencyCode(organizationId);
   const day = new Intl.DateTimeFormat('en-CA', {
     timeZone: BILLING_TIME_ZONE,
     year: 'numeric',
@@ -536,6 +538,8 @@ async function queueReminders(
         lte(i.dueDate, new Date(now.getTime() + 5 * DAY_MS)),
         eq(o.status, 'ACTIVE'),
         hasBillingContactSql(sql`${i.organizationId}`),
+        // S18 (D2): a refunded invoice is never chased again.
+        invoiceNotRefundedSql(sql`${i.id}`),
       ),
     )
     .orderBy(asc(i.dueDate), asc(i.id));
@@ -551,6 +555,7 @@ async function queueReminders(
         lte(i.dueDate, new Date(now.getTime() + 5 * DAY_MS)),
         eq(o.status, 'ACTIVE'),
         sql`not ${hasBillingContactSql(sql`${i.organizationId}`)}`,
+        invoiceNotRefundedSql(sql`${i.id}`),
       ),
     );
   for (const row of unreachable) noContact.note(row.organizationId);

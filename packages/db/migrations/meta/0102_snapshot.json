@@ -1,5 +1,5 @@
 {
-  "id": "0d31e17b-6ccc-4ddf-ab26-c4755115f80f",
+  "id": "4a385e92-9bfd-4a4b-896e-186fb1379de9",
   "prevId": "cc07162f-51d9-4229-ac2b-02d9d7b15d69",
   "version": "7",
   "dialect": "postgresql",
@@ -1174,134 +1174,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.ai_drafts": {
-      "name": "ai_drafts",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "applicant_id": {
-          "name": "applicant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "mission_id": {
-          "name": "mission_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "connection_id": {
-          "name": "connection_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "client_name": {
-          "name": "client_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "client_host": {
-          "name": "client_host",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "body": {
-          "name": "body",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "ai_drafts_applicant_created_idx": {
-          "name": "ai_drafts_applicant_created_idx",
-          "columns": [
-            {
-              "expression": "applicant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "ai_drafts_applicant_id_applicants_id_fk": {
-          "name": "ai_drafts_applicant_id_applicants_id_fk",
-          "tableFrom": "ai_drafts",
-          "tableTo": "applicants",
-          "columnsFrom": ["applicant_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "ai_drafts_mission_id_missions_id_fk": {
-          "name": "ai_drafts_mission_id_missions_id_fk",
-          "tableFrom": "ai_drafts",
-          "tableTo": "missions",
-          "columnsFrom": ["mission_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "ai_drafts_connection_id_ai_connections_id_fk": {
-          "name": "ai_drafts_connection_id_ai_connections_id_fk",
-          "tableFrom": "ai_drafts",
-          "tableTo": "ai_connections",
-          "columnsFrom": ["connection_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "ai_drafts_title_length": {
-          "name": "ai_drafts_title_length",
-          "value": "char_length(\"ai_drafts\".\"title\") between 1 and 120"
-        },
-        "ai_drafts_body_length": {
-          "name": "ai_drafts_body_length",
-          "value": "char_length(\"ai_drafts\".\"body\") between 1 and 20000"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.ai_explanation_runs": {
       "name": "ai_explanation_runs",
       "schema": "",
@@ -1483,7 +1355,7 @@
           "name": "document_version_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "applicant_id": {
           "name": "applicant_id",
@@ -1676,12 +1548,7 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {
-        "ai_extraction_runs_document_or_connector": {
-          "name": "ai_extraction_runs_document_or_connector",
-          "value": "\"ai_extraction_runs\".\"document_version_id\" is not null or \"ai_extraction_runs\".\"model_version\" like 'connector:%'"
-        }
-      },
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.ai_inconsistency_runs": {
@@ -2209,69 +2076,6 @@
           "tableFrom": "ai_provider_configs",
           "tableTo": "accounts",
           "columnsFrom": ["created_by_account_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.ai_task_origins": {
-      "name": "ai_task_origins",
-      "schema": "",
-      "columns": {
-        "task_id": {
-          "name": "task_id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "connection_id": {
-          "name": "connection_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "client_name": {
-          "name": "client_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "client_host": {
-          "name": "client_host",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "ai_task_origins_task_id_mission_tasks_id_fk": {
-          "name": "ai_task_origins_task_id_mission_tasks_id_fk",
-          "tableFrom": "ai_task_origins",
-          "tableTo": "mission_tasks",
-          "columnsFrom": ["task_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "ai_task_origins_connection_id_ai_connections_id_fk": {
-          "name": "ai_task_origins_connection_id_ai_connections_id_fk",
-          "tableFrom": "ai_task_origins",
-          "tableTo": "ai_connections",
-          "columnsFrom": ["connection_id"],
           "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
@@ -7313,7 +7117,7 @@
           "name": "document_version_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "applicant_id": {
           "name": "applicant_id",
@@ -8077,6 +7881,21 @@
           "columns": [
             {
               "expression": "invoice_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "invoice_payments_created_idx": {
+          "name": "invoice_payments_created_idx",
+          "columns": [
+            {
+              "expression": "created_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -11924,65 +11743,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.platform_ai_feature_settings": {
-      "name": "platform_ai_feature_settings",
-      "schema": "",
-      "columns": {
-        "feature_key": {
-          "name": "feature_key",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "enabled": {
-          "name": "enabled",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "daily_limit": {
-          "name": "daily_limit",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_by_account_id": {
-          "name": "updated_by_account_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "platform_ai_feature_settings_updated_by_account_id_accounts_id_fk": {
-          "name": "platform_ai_feature_settings_updated_by_account_id_accounts_id_fk",
-          "tableFrom": "platform_ai_feature_settings",
-          "tableTo": "accounts",
-          "columnsFrom": ["updated_by_account_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "platform_ai_feature_settings_daily_limit": {
-          "name": "platform_ai_feature_settings_daily_limit",
-          "value": "\"platform_ai_feature_settings\".\"daily_limit\" is null or \"platform_ai_feature_settings\".\"daily_limit\" between 1 and 1000"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.platform_roles": {
       "name": "platform_roles",
       "schema": "",
@@ -13112,6 +12872,297 @@
         "reference_codes_code_format": {
           "name": "reference_codes_code_format",
           "value": "\"reference_codes\".\"code\" ~ '^[0-9A-HJKMNP-TV-Z]{6,8}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.refund_requests": {
+      "name": "refund_requests",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "invoice_id": {
+          "name": "invoice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "invoice_payment_id": {
+          "name": "invoice_payment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "payment_attempt_id": {
+          "name": "payment_attempt_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "method": {
+          "name": "method",
+          "type": "refund_method",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "refund_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'REQUESTED'"
+        },
+        "amount_minor_units": {
+          "name": "amount_minor_units",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider_refund_id": {
+          "name": "provider_refund_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bank_tran_id": {
+          "name": "bank_tran_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reference": {
+          "name": "reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "failure_code": {
+          "name": "failure_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "requested_by_account_id": {
+          "name": "requested_by_account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_refunded_at": {
+          "name": "provider_refunded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "submitted_at": {
+          "name": "submitted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "confirmed_at": {
+          "name": "confirmed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "closed_at": {
+          "name": "closed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_checked_at": {
+          "name": "last_checked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "refund_requests_open_idx": {
+          "name": "refund_requests_open_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"refund_requests\".\"status\" in ('REQUESTED', 'SUBMITTED')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "refund_requests_payment_idx": {
+          "name": "refund_requests_payment_idx",
+          "columns": [
+            {
+              "expression": "invoice_payment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "refund_requests_attempt_idx": {
+          "name": "refund_requests_attempt_idx",
+          "columns": [
+            {
+              "expression": "payment_attempt_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "refund_requests_organization_id_organizations_id_fk": {
+          "name": "refund_requests_organization_id_organizations_id_fk",
+          "tableFrom": "refund_requests",
+          "tableTo": "organizations",
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "refund_requests_invoice_id_invoices_id_fk": {
+          "name": "refund_requests_invoice_id_invoices_id_fk",
+          "tableFrom": "refund_requests",
+          "tableTo": "invoices",
+          "columnsFrom": ["invoice_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "refund_requests_invoice_payment_id_invoice_payments_id_fk": {
+          "name": "refund_requests_invoice_payment_id_invoice_payments_id_fk",
+          "tableFrom": "refund_requests",
+          "tableTo": "invoice_payments",
+          "columnsFrom": ["invoice_payment_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "refund_requests_payment_attempt_id_payment_attempts_id_fk": {
+          "name": "refund_requests_payment_attempt_id_payment_attempts_id_fk",
+          "tableFrom": "refund_requests",
+          "tableTo": "payment_attempts",
+          "columnsFrom": ["payment_attempt_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "refund_requests_idempotency_unique": {
+          "name": "refund_requests_idempotency_unique",
+          "nullsNotDistinct": false,
+          "columns": ["idempotency_key"]
+        },
+        "refund_requests_provider_refund_unique": {
+          "name": "refund_requests_provider_refund_unique",
+          "nullsNotDistinct": false,
+          "columns": ["provider", "provider_refund_id"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "refund_requests_one_source": {
+          "name": "refund_requests_one_source",
+          "value": "(\"refund_requests\".\"invoice_payment_id\" is null) <> (\"refund_requests\".\"payment_attempt_id\" is null)"
+        },
+        "refund_requests_amount_positive": {
+          "name": "refund_requests_amount_positive",
+          "value": "\"refund_requests\".\"amount_minor_units\" > 0"
+        },
+        "refund_requests_currency_code": {
+          "name": "refund_requests_currency_code",
+          "value": "\"refund_requests\".\"currency\" ~ '^[A-Z]{3}$'"
+        },
+        "refund_requests_reason_bounds": {
+          "name": "refund_requests_reason_bounds",
+          "value": "length(btrim(\"refund_requests\".\"reason\")) between 1 and 500"
+        },
+        "refund_requests_manual_shape": {
+          "name": "refund_requests_manual_shape",
+          "value": "\"refund_requests\".\"method\" = 'PROVIDER' or (\"refund_requests\".\"status\" = 'CONFIRMED' and \"refund_requests\".\"provider\" is null and length(btrim(coalesce(\"refund_requests\".\"reference\", ''))) between 1 and 120)"
+        },
+        "refund_requests_sent_has_ref": {
+          "name": "refund_requests_sent_has_ref",
+          "value": "\"refund_requests\".\"method\" = 'MANUAL' or \"refund_requests\".\"status\" in ('REQUESTED', 'CANCELLED', 'FAILED') or \"refund_requests\".\"provider_refund_id\" is not null"
+        },
+        "refund_requests_confirmed_time": {
+          "name": "refund_requests_confirmed_time",
+          "value": "\"refund_requests\".\"status\" <> 'CONFIRMED' or \"refund_requests\".\"confirmed_at\" is not null"
+        },
+        "refund_requests_failed_code": {
+          "name": "refund_requests_failed_code",
+          "value": "\"refund_requests\".\"status\" <> 'FAILED' or \"refund_requests\".\"failure_code\" is not null"
         }
       },
       "isRLSEnabled": false
@@ -14760,7 +14811,8 @@
         "FAILED",
         "CANCELLED",
         "EXPIRED",
-        "HELD_FOR_REVIEW"
+        "HELD_FOR_REVIEW",
+        "REFUNDED"
       ]
     },
     "public.permission_action": {
@@ -14815,6 +14867,16 @@
       "name": "reference_kind",
       "schema": "public",
       "values": ["P", "C", "D", "R"]
+    },
+    "public.refund_method": {
+      "name": "refund_method",
+      "schema": "public",
+      "values": ["PROVIDER", "MANUAL"]
+    },
+    "public.refund_status": {
+      "name": "refund_status",
+      "schema": "public",
+      "values": ["REQUESTED", "SUBMITTED", "CONFIRMED", "FAILED", "CANCELLED"]
     },
     "public.requirement_kind": {
       "name": "requirement_kind",

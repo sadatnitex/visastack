@@ -21,6 +21,10 @@ Plan: [SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md](SONNET-SMALL-COMMERCIAL-V1-HANDOFF
 | Try the AI connector with a made-up traveller | Proof that a real Claude or ChatGPT connection works end to end (not verified yet) | In your AI app: add a connector with the address `https://vs.obsidianglobal.studio/mcp` (Claude: a custom connector; ChatGPT: developer mode), sign in as a test traveller and choose what it may read. Turn it off afterwards on the Sharing page |
 | Name a payment provider | S19 (second provider) and the provider-facing parts of S17 and S18 can be tested. SSLCOMMERZ online payment also still needs O6 | Chat: reply with the provider (O14), and O6 for SSLCOMMERZ |
 | Staff authenticator codes (O8 for S3 is done) | Every staff account must enter an authenticator code. Enrol staff first ([staff-second-factor.md](../operations/staff-second-factor.md)) | Vercel Production: `STAFF_SECOND_FACTOR` = `required`, then a redeploy. It stays `off` until you set it |
+| Update 30 Oct: the S17 database change above is done (migration 0103 applied 29 Oct with your word, run 40894153710) | Recurring invoices, reminders and Billing Rules | Nothing more to do |
+| Approve the S18 database change once S18 merges | Refunds, credits from held payments, refunds made outside VisaStack and the monthly accounting file's refund rows. Until it runs, the refund card says "Refunds are not available yet."; the monthly file already works. Before it runs, the check in [refunds-and-ledger-export.md](../operations/refunds-and-ledger-export.md) must return 0 | Chat: reply "migrate S18" (migration 0104) |
+| Decide how live refunds reach SSLCOMMERZ (O18, new) | Refunds sent from VisaStack to SSLCOMMERZ. SSLCOMMERZ accepts refund calls only from a registered fixed address, which Vercel does not have by default. Until then, refund in the SSLCOMMERZ panel and record it in VisaStack | Chat: reply "static IPs", "relay" or "manual refunds only" (see O18) |
+| Note D1 (S18): refunds, credits and the accounting file are yours alone | Only the platform owner can refund, apply a credit, record a refund or download the ledger, each with a fresh sign-in check. A separate billing staff role can be added later if you want one | Nothing to do now; say so if you want a billing staff role |
 
 Also still open as written below: O1 (private repository), O3 (paid Vercel and Neon plans), O4 (virus scanner switch; readiness still says scanning is not configured), O5 (offline copy of the master key), O6 (SSLCOMMERZ), O7 (launch routes and reviewer), O10 (legal review), O11 and O12 (real data and release, after S24), O13 (overdue policy, needed for S17's automatic Grace and Suspended), O16 (AWS key service).
 
@@ -28,6 +32,7 @@ Also still open as written below: O1 (private repository), O3 (paid Vercel and N
 
 - O8 database changes: S3 (0092), S26 (0093) and S10 (0094) are recorded as applied in the handoff's section M; S13 (0100, AI connections) and the live calendar link (0101) were each run with your word. S11 (0096) and S12 (0097) are applied too (verified 29 Oct 2026 on Neon: drizzle.__drizzle_migrations holds 100 rows, equal to the 100 journal entries, newest = 0101). Nothing is pending.
 - O8 update, 29 Oct afternoon: S23 (0102, safe copy masks) was applied on 29 Oct with your word. Next: S17 (0103), once S17 merges.
+- O8 update, 30 Oct: S17 (0103, recurring invoices and billing rules) was applied on 29 Oct with your word (run 40894153710). Next: S18 (0104), once S18 merges.
 - O9 step 3: you switched the AI connector on in production on 28 Oct (`AI_CONNECTOR_ENABLED=true`), ahead of S24, for the pilot with made-up data. It is checked live: the sign-in discovery address answers and readiness says the connector is available.
 - `SUPPORT_EMAIL` set in Vercel Production (its value is not written here).
 
@@ -146,6 +151,7 @@ Also still open as written below: O1 (private repository), O3 (paid Vercel and N
   | S17 | Recurring invoices and billing settings |
   | S17 (detail, 29 Oct) | Recurring invoices and billing rules (migration 0103): one row of billing rules, a cause on each billing status change, one live invoice per agency, plan and period. Before running it, the duplicate check in [billing-cycle.md](../operations/billing-cycle.md) must return no rows |
   | S18 | Refund requests, if needed |
+  | S18 (detail, 30 Oct) | Refunds and credits (migration 0104): a `REFUNDED` payment attempt status, a `refund_requests` table with a guard (no deletes, money and source fixed, final rows frozen), and two indexes. Before running it, `select count(*) from invoice_payments where kind in ('REFUND', 'CREDIT')` must return 0 ([refunds-and-ledger-export.md](../operations/refunds-and-ledger-export.md)) |
   | S19 | Saved payment methods |
   | S20 | Original-file choices |
   | S22 | Agency AI permission |
@@ -244,10 +250,22 @@ Also still open as written below: O1 (private repository), O3 (paid Vercel and N
 
 - **You:** when you switch real data on, confirm in writing that the external penetration test is deferred (register H01, with its trigger). S27 makes this a recorded, visible deferral rather than a hidden pass.
 
-## S21 owner decisions and O8 for migration 0104 (added 30 Oct 2026)
+## O18. Live refunds through SSLCOMMERZ: a fixed outbound address (new, 30 Oct 2026)
 
-- **O8, migration 0104 (S21, AI app suggestions):** after S21 merges, give your word for this one run (workflow db-migrate.yml, confirm "migrate"). It adds three tables (drafts from AI apps, the private mark on reminders AI apps add, and the AI Features switches). It also lets a suggestion have no document, only when an AI app made it. No existing table gains a column and no existing row changes, and it is safe to run again. Until it runs, the three suggestion tools answer "not available yet" and everything else works as before. If S18 merges first, it is renumbered 0105 before the merge.
-- **AI Features switch (new):** AI App Suggestions is **off by default**. After migration 0104 runs, turn it on in Admin, Settings, AI Features, when you want people's AI apps to be able to leave suggestions, drafts and reminders. Turning it off later never removes anything people already have.
+- **Prepared (S18):** VisaStack can ask SSLCOMMERZ to refund a payment and confirm it later, and every refund made in the SSLCOMMERZ panel can be recorded in VisaStack with its reference. Both are built and tested against a fake gateway; nothing has been sent to SSLCOMMERZ.
+- **Why you are asked:** SSLCOMMERZ accepts refund calls only from a server address registered with it. Vercel functions do not have a fixed outbound address by default.
+- **You choose one:**
+  1. **Static IPs:** turn on Vercel's fixed outbound addresses for the project (a paid Vercel feature; check its current price), then register those addresses with SSLCOMMERZ.
+  2. **Relay:** a small server with a fixed address that forwards only the refund calls. More to run and secure.
+  3. **Manual refunds only:** refund in the SSLCOMMERZ panel and record each one in VisaStack ("Record a Refund Made Outside VisaStack"). Nothing more to set up; the gateway refund button simply stays unused.
+- **Until then:** option 3 is how refunds work. Live refunds also still need O6 (the live store credentials).
+- **Then switch it on:** set `PAYMENT_REFUNDS_VIA_GATEWAY=true` in Vercel Production (then a redeploy) after the fixed address is registered with SSLCOMMERZ. It is off until you set it, and nothing else changes while it is off.
+- **Also noted (D1):** refunds, credits and the monthly accounting file are platform owner only. Tell us if you want a separate billing staff role.
+
+## S21 owner decisions and O8 for migration 0105 (added 30 Oct 2026)
+
+- **O8, migration 0105 (S21, AI app suggestions):** after S21 merges, give your word for this one run (workflow db-migrate.yml, confirm "migrate"). It adds three tables (drafts from AI apps, the private mark on reminders AI apps add, and the AI Features switches). It also lets a suggestion have no document, only when an AI app made it. No existing table gains a column and no existing row changes, and it is safe to run again. Until it runs, the three suggestion tools answer "not available yet" and everything else works as before. If S18 merges first, it is renumbered 0105 before the merge.
+- **AI Features switch (new):** AI App Suggestions is **off by default**. After migration 0105 runs, turn it on in Admin, Settings, AI Features, when you want people's AI apps to be able to leave suggestions, drafts and reminders. Turning it off later never removes anything people already have.
 - **Decided by you on 30 Oct 2026, recorded here:**
   1. **Daily limit:** 15 a day per person, across all their apps and all three tools, and 15 per connection. You can lower it (never raise it above the plan) as Daily Limit per Person on AI Features.
   2. **Only when the person asks:** the tools tell the app to use them only when the person explicitly asks for the change; VisaStack never creates these on its own; the audit records each write as requested by the person through the app.

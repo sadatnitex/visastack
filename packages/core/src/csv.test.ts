@@ -28,4 +28,10 @@ describe('csvCell', () => {
     expect(csvCell('   ')).toBe('   ');
     expect(isCsvFormula('2026-10-30')).toBe(false);
   });
+
+  it('quotes every cell when asked, as the billing ledger file does', () => {
+    expect(csvCell('plain', { alwaysQuote: true })).toBe('"plain"');
+    expect(csvCell('', { alwaysQuote: true })).toBe('""');
+    expect(csvCell(' @x', { alwaysQuote: true })).toBe(`"' @x"`);
+  });
 });

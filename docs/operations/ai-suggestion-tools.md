@@ -49,7 +49,7 @@ Privacy:
 
 ## Before it works in production
 
-- Migration 0104 must run (owner action O8). Before it, the tools answer "not available yet", the AI Features page says it is not available yet, and nothing else changes.
+- Migration 0105 must run (owner action O8). Before it, the tools answer "not available yet", the AI Features page says it is not available yet, and nothing else changes.
 - Then the platform owner turns AI App Suggestions on in AI Features.
 
 ## Account export

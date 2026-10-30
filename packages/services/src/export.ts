@@ -171,7 +171,7 @@ export async function exportAccount(
     .where(eq(schema.applicants.ownerAccountId, input.accountId));
   const applicantIds = applicantRows.map((a) => a.id);
 
-  // Tables later migrations add are read only once they exist (S21: 0104; AI connections: 0100).
+  // Tables later migrations add are read only once they exist (S21: 0105; AI connections: 0100).
   const suggestionsReady = await aiSuggestionsAvailable(db);
   const connectionsReady =
     (

@@ -598,7 +598,14 @@ export async function recordInvoicePayment(
 }
 
 /** The recording function's refusals as the service errors callers already handle (not found stays not found; everything else is an `invalid` request with a plain message). */
+/** What platform staff are told when they record a payment on a refunded invoice (S18, D2). */
+export const REFUNDED_INVOICE_STAFF_MESSAGE =
+  'This invoice has a refund, so a new payment cannot be recorded on it. Issue a new invoice for any amount still owed.';
+
 function refusalToServiceError(refusal: CollectionRefusal): ServiceError {
+  if (refusal.code === 'refunded_invoice') {
+    return serviceError('invalid', REFUNDED_INVOICE_STAFF_MESSAGE);
+  }
   return serviceError(refusal.code === 'not_found' ? 'not_found' : 'invalid', refusal.message);
 }
 

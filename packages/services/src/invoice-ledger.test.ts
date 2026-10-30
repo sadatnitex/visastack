@@ -666,10 +666,12 @@ describe('cash ledger and the one recording function (S10)', () => {
         /append-only/,
       );
       expect(await refusal(db.delete(schema.invoicePayments))).toMatch(/append-only/);
-      // Receipts (S12) point at ledger rows, so the ledger is truncated together with them: the
-      // ledger's own trigger (first in the list) is the one that must refuse.
+      // Receipts (S12) and refund requests (S18) point at ledger rows, so the ledger is truncated
+      // together with them: the ledger's own trigger (first in the list) is the one that must refuse.
       expect(
-        await refusal(db.execute(sql`truncate table invoice_payments, payment_receipts`)),
+        await refusal(
+          db.execute(sql`truncate table invoice_payments, payment_receipts, refund_requests`),
+        ),
       ).toMatch(/invoice_payments is append-only/);
       const rows = await ledgerRows();
       expect(rows).toHaveLength(1);

@@ -26,6 +26,8 @@ function invoice(overrides: Partial<AgencyInvoiceView> = {}): AgencyInvoiceView 
     invoicedAmountMinorUnits: 125050,
     collectedAmountMinorUnits: 0,
     outstandingMinorUnits: 125050,
+    refundedMinorUnits: 0,
+    creditMinorUnits: 0,
     periodStart: new Date('2026-10-01T00:00:00Z'),
     periodEnd: new Date('2026-10-31T00:00:00Z'),
     dueDate: new Date(Date.now() + 14 * DAY),
@@ -228,9 +230,68 @@ describe('an invoice card on the agency Invoices page', () => {
         receipts: [receipt],
       }),
       invoice({ status: 'VOID', state: 'VOID' }),
+      invoice({ state: 'REFUNDED', outstandingMinorUnits: 0, refundedMinorUnits: 125050 }),
+      invoice({
+        status: 'PARTIALLY_PAID',
+        state: 'PARTLY_REFUNDED',
+        collectedAmountMinorUnits: 100000,
+        outstandingMinorUnits: 0,
+        refundedMinorUnits: 25050,
+        creditMinorUnits: 50000,
+      }),
     ];
     for (const view of views) {
       expect(await axeViolations(render(view)), view.state).toEqual([]);
     }
   }, 60_000);
+
+  it('shows a refunded invoice as refunded, with nothing to pay and no way to pay (S18)', () => {
+    for (const view of [
+      invoice({ state: 'REFUNDED', outstandingMinorUnits: 0, refundedMinorUnits: 125050 }),
+      invoice({
+        status: 'PARTIALLY_PAID',
+        state: 'PARTLY_REFUNDED',
+        collectedAmountMinorUnits: 100000,
+        outstandingMinorUnits: 0,
+        refundedMinorUnits: 25050,
+      }),
+    ]) {
+      const html = render(view);
+      expect(html).toContain(view.state === 'REFUNDED' ? 'Refunded' : 'Partly Refunded');
+      expect(html).toContain('<dt>Refunded</dt>');
+      expect(html).not.toContain('Pay Online');
+      expect(html).not.toContain('Report This Payment');
+    }
+  });
+
+  it('says when part of an invoice was paid by a credit from an earlier payment (S18)', () => {
+    const html = render(
+      invoice({
+        status: 'PAID',
+        state: 'PAID',
+        collectedAmountMinorUnits: 125050,
+        outstandingMinorUnits: 0,
+        creditMinorUnits: 50000,
+      }),
+    );
+    expect(html).toContain('Credit from an earlier payment');
+  });
+
+  it('never offers a way to pay a refunded invoice, even while a payment on it needs a check (S18 round 2)', () => {
+    const html = render(
+      invoice({
+        status: 'PARTIALLY_PAID',
+        state: 'NEEDS_CHECK',
+        collectedAmountMinorUnits: 100000,
+        outstandingMinorUnits: 0,
+        refundedMinorUnits: 25050,
+        attempts: [attempt('HELD_FOR_REVIEW')],
+      }),
+    );
+    expect(html).not.toContain('Pay Online');
+    expect(html).not.toContain('Report This Payment');
+    expect(html).toContain('<dt>Kept After Refunds</dt>');
+    expect(html).not.toContain('<dt>Due</dt>');
+    expect(html).not.toContain('<dt>Paid So Far</dt>');
+  });
 });

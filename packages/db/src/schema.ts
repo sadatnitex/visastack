@@ -1819,7 +1819,7 @@ export const fieldProposals = pgTable(
       .notNull()
       .references(() => aiExtractionRuns.id, { onDelete: 'cascade' }),
     // Null only for an AI app's suggestion about the profile itself (S21): a database trigger
-    // (migration 0104) refuses a null here unless the proposal's run is a connector run.
+    // (migration 0105) refuses a null here unless the proposal's run is a connector run.
     documentVersionId: uuid('document_version_id').references(() => documentVersions.id, {
       onDelete: 'cascade',
     }),
@@ -4171,6 +4171,8 @@ export const invoicePayments = pgTable(
   },
   (table) => [
     index('invoice_payments_invoice_idx').on(table.invoiceId),
+    // The monthly accounting export reads one month of rows by when they were written (S18).
+    index('invoice_payments_created_idx').on(table.createdAt),
     unique('invoice_payments_kind_source_unique').on(table.kind, table.sourceId),
     unique('invoice_payments_provider_transaction_unique').on(
       table.provider,
@@ -4348,6 +4350,8 @@ export const paymentAttemptStatus = pgEnum('payment_attempt_status', [
   'CANCELLED',
   'EXPIRED',
   'HELD_FOR_REVIEW',
+  // S18: held money that was refunded in full (none of it was applied as a credit). Final.
+  'REFUNDED',
 ]);
 
 export const paymentAttempts = pgTable(
@@ -4392,6 +4396,98 @@ export const paymentAttempts = pgTable(
     check(
       'payment_attempts_held_has_reason',
       sql`${table.status} <> 'HELD_FOR_REVIEW' or ${table.reasonCode} is not null`,
+    ),
+  ],
+);
+
+// --- Refunds (Small Commercial V1 S18, ADR 0020 Phase 2 and its S18 amendment) ---
+// One row per refund a platform owner asks for or records. A refund comes out of exactly one
+// source: a ledger entry (money VisaStack counted) or a held online payment (money the gateway
+// confirmed that VisaStack never counted). `PROVIDER` refunds are sent to the gateway after the
+// row is written as `REQUESTED`; the gateway's refund reference moves it to `SUBMITTED`, and only
+// the gateway confirming the refund moves it to `CONFIRMED`, which is the moment the negative
+// `REFUND` ledger row is written (for counted money; held money was never in the ledger).
+// `MANUAL` rows record a refund already made outside VisaStack and are born `CONFIRMED`.
+// `idempotency_key` comes from the staff form, so sending it twice makes one request; the row id
+// is what the gateway is sent as its refund id (`refund_trans_id`), so a retry can only repeat the
+// same refund. A trigger keeps the money, the source, the method and the person fixed,
+// freezes rows once they are final, and refuses deletes. Nothing here is applicant-owned; the
+// people carry no foreign keys for the same reason as the ledger.
+export const refundStatus = pgEnum('refund_status', [
+  'REQUESTED',
+  'SUBMITTED',
+  'CONFIRMED',
+  'FAILED',
+  'CANCELLED',
+]);
+
+export const refundMethod = pgEnum('refund_method', ['PROVIDER', 'MANUAL']);
+
+export const refundRequests = pgTable(
+  'refund_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'restrict' }),
+    invoiceId: uuid('invoice_id')
+      .notNull()
+      .references(() => invoices.id, { onDelete: 'restrict' }),
+    invoicePaymentId: uuid('invoice_payment_id').references(() => invoicePayments.id, {
+      onDelete: 'restrict',
+    }),
+    paymentAttemptId: uuid('payment_attempt_id').references(() => paymentAttempts.id, {
+      onDelete: 'restrict',
+    }),
+    method: refundMethod('method').notNull(),
+    status: refundStatus('status').notNull().default('REQUESTED'),
+    amountMinorUnits: integer('amount_minor_units').notNull(),
+    currency: text('currency').notNull(),
+    provider: text('provider'),
+    providerRefundId: text('provider_refund_id'),
+    bankTranId: text('bank_tran_id'),
+    idempotencyKey: uuid('idempotency_key').notNull(),
+    reason: text('reason').notNull(),
+    reference: text('reference'),
+    failureCode: text('failure_code'),
+    requestedByAccountId: uuid('requested_by_account_id').notNull(),
+    providerRefundedAt: timestamp('provider_refunded_at', { withTimezone: true }),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    unique('refund_requests_idempotency_unique').on(table.idempotencyKey),
+    unique('refund_requests_provider_refund_unique').on(table.provider, table.providerRefundId),
+    index('refund_requests_open_idx')
+      .on(table.status)
+      .where(sql`${table.status} in ('REQUESTED', 'SUBMITTED')`),
+    index('refund_requests_payment_idx').on(table.invoicePaymentId),
+    index('refund_requests_attempt_idx').on(table.paymentAttemptId),
+    check(
+      'refund_requests_one_source',
+      sql`(${table.invoicePaymentId} is null) <> (${table.paymentAttemptId} is null)`,
+    ),
+    check('refund_requests_amount_positive', sql`${table.amountMinorUnits} > 0`),
+    check('refund_requests_currency_code', sql`${table.currency} ~ '^[A-Z]{3}$'`),
+    check('refund_requests_reason_bounds', sql`length(btrim(${table.reason})) between 1 and 500`),
+    check(
+      'refund_requests_manual_shape',
+      sql`${table.method} = 'PROVIDER' or (${table.status} = 'CONFIRMED' and ${table.provider} is null and length(btrim(coalesce(${table.reference}, ''))) between 1 and 120)`,
+    ),
+    check(
+      'refund_requests_sent_has_ref',
+      sql`${table.method} = 'MANUAL' or ${table.status} in ('REQUESTED', 'CANCELLED', 'FAILED') or ${table.providerRefundId} is not null`,
+    ),
+    check(
+      'refund_requests_confirmed_time',
+      sql`${table.status} <> 'CONFIRMED' or ${table.confirmedAt} is not null`,
+    ),
+    check(
+      'refund_requests_failed_code',
+      sql`${table.status} <> 'FAILED' or ${table.failureCode} is not null`,
     ),
   ],
 );

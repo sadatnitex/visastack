@@ -1941,3 +1941,60 @@ export {
   listAiFeatureSettings,
   updateAiFeatureSetting,
 } from './ai-feature-settings';
+// S18: refunds, credits and the monthly accounting export.
+export {
+  type ApplyInvoiceRefundInput,
+  REFUNDED_INVOICE_MESSAGE,
+} from './invoice-ledger';
+export { REFUNDED_INVOICE_STAFF_MESSAGE } from './billing';
+export {
+  type ApplyHeldCreditInput,
+  type CreditTargetView,
+  type HeldCreditOutcome,
+  type HeldPaymentView,
+  NO_OPEN_INVOICE_FOR_CREDIT,
+  type OrganizationRefundWork,
+  REFUNDS_UNAVAILABLE,
+  type RecordManualRefundInput,
+  type RefundCheckSummary,
+  type RefundMethod,
+  type RefundOutcome,
+  type RefundOutcomeCode,
+  type RefundRequestView,
+  type RefundSource,
+  type RefundStatus,
+  type RefundableEntryView,
+  type RequestRefundInput,
+  NEEDS_CHECK_CODE,
+  REFUND_WORK_LIMIT,
+  RETRY_REFUSED_CODE,
+  DUPLICATE_REFERENCE_CODE,
+  REFERENCE_TAKEN,
+  AMOUNT_MISMATCH,
+  RETRY_REFUSED_MESSAGE,
+  type RefundWorkInput,
+  applyHeldPaymentCredit,
+  cancelRefund,
+  checkRefundsNow,
+  confirmUnsentRefund,
+  getOrganizationRefundWork,
+  reconcileRefunds,
+  recordManualRefund,
+  requestRefund,
+  retryRefund,
+} from './refunds';
+export {
+  LEDGER_CSV_COLUMNS,
+  LEDGER_EXPORT_MAX_ROWS,
+  type LedgerExport,
+  exportLedgerMonth,
+  ledgerMonthBounds,
+} from './ledger-export';
+export {
+  type RefundProviderStatus,
+  type RefundStatusReport,
+  type RefundSubmission,
+  type RefundSubmissionResult,
+  type RefundingPaymentPort,
+  isRefundingPaymentPort,
+} from './ports';

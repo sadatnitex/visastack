@@ -1554,7 +1554,7 @@ describe('reconcileRestoredBranch: AI connections (S15)', () => {
     await turnOffAiConnection(await ownerProof(oldDb, c.ownerId, c.applicantId), {
       connectionId: c.connectionId,
     });
-    // A branch from before 0100 also predates 0104 (S21), whose tables point at AI connections.
+    // A branch from before 0100 also predates 0105 (S21), whose tables point at AI connections.
     await newDb.execute(sql`drop table ai_drafts`);
     await newDb.execute(sql`drop table ai_task_origins`);
     await newDb.execute(sql`drop table ai_connection_tokens`);

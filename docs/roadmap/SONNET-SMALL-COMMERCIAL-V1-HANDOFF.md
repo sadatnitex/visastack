@@ -771,10 +771,10 @@ Generate a migration only after the previous migration is on main.
 | 15 | **S15. AI Connections screens: DONE.** Merged as #315 (`a513518e`) | none | none | done |
 | 16 | **S16. AI audit and telemetry: DONE.** Merged as #317 (`59537908`); one recorded deviation, see the note below the table | none | none | done |
 | 17 | **S17. Recurring invoices, reminders, overdue handling, reactivation: IN PROGRESS** (29 Oct; built locally, not merged, not live); migration 0103 runs only on the owner's word after the merge, after the duplicate check in `docs/operations/billing-cycle.md`; automatic Grace and Suspended stays off until O13 | yes | O8, O13 | owner word |
-| 18 | S18. Refunds, credits and accounting export | maybe | O8 | owner word |
+| 18 | **S18. Refunds, credits and accounting export: IN PROGRESS** (30 Oct; built locally, not merged, not live); migration 0104 runs only on the owner's word after the merge, after the check in `docs/operations/refunds-and-ledger-export.md`; live gateway refunds also need O6 and O18 | yes (0104) | O8, O6, O18 | owner word |
 | 19 | S19. Second payment provider | yes | O8, O14 | owner word |
 | 20 | S20. AI connector: original files | yes | O8 | owner word |
-| 21 | **S21. AI connector: suggestion tools: IN PROGRESS** (30 Oct; built locally, not merged, not live); migration 0104 (renumbered 0105 if S18 merges first) runs only on the owner's word after the merge; AI App Suggestions stays off until the owner turns it on in AI Features | yes | O8, AI Features switch | owner word |
+| 21 | **S21. AI connector: suggestion tools: IN PROGRESS** (30 Oct; built locally, not merged, not live); migration 0105 (renumbered from 0104 after S18 merged first) runs only on the owner's word after the merge; AI App Suggestions stays off until the owner turns it on in AI Features | yes | O8, AI Features switch | owner word |
 | 22 | S22. Agency AI connectors | yes (enum value plus columns) | O8, O10 | owner word |
 | 23 | **S23. Real redaction (ADR 0022): DONE.** Merged as #339 (`07d65797`); migration 0102 applied 29 Oct; live fixes #340 (`db5a52c4`, image library declared in the web app) and #341 (`424e525d`, opaque storage keys; confirmation page remembers the address) | yes | O8 | done |
 | 23a | **S27. Commercial-readiness reconciliation and daily backup: DONE.** Merged as #337 (`47f18e57`); no migration; pruning waits for `BACKUP_PRUNE=on`, the penetration test deferral for O17 | none | none | done |
@@ -787,6 +787,7 @@ Note, 29 Oct 2026:
 - Update, 29 Oct afternoon: the current order is now S17 (in progress; S23 is done), then S18, S20, S21, S22, then S24 (prepared only, never merged without the owner's explicit word). S19 only if the owner names a second payment provider (O14). S25 Bangla last, on the owner's word (O15).
 - S16 deviation from ADR 0021 section 7, recorded for the owner: the product events `AI_CONTEXT_REQUESTED` and `AI_CONTEXT_DENIED` are written once per connection, per UTC day and per label, not once per call, so analytics do not grow with AI traffic. Per-call counts come from the audit records (`AI_CONTEXT_SERVED`, `AI_CONTEXT_DENIED`), which the staff card shows. Detail: known-issues, S16 entry.
 - Not a package row: QA-F (#309) added migration 0101 (live calendar links), run with the owner's word.
+- Update, 30 Oct 2026: S17 is merged (#342, `aaa29e34`) and its migration 0103 was applied on 29 Oct with the owner's word (run 40894153710); the S17 row above still reads as it did before the merge. S18 is in progress (refunds, credits, refunds made outside VisaStack, the monthly accounting file, migration 0104), together with a separate fix for the `/auth/reauth` production error. Then S20, S21, S22, then S24.
 
 Order rationale:
 

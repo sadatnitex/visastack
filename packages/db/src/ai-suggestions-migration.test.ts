@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { migrationsFolder } from './paths';
 
 const MIGRATION_TIMEOUT_MS = 180_000;
-const FILE = '0104_ai_suggestions';
+const FILE = '0105_ai_suggestions';
 
 function statements(): string[] {
   return readFileSync(join(migrationsFolder, `${FILE}.sql`), 'utf8').split(
@@ -65,7 +65,7 @@ async function seed(client: PGlite) {
   return { one, account, applicant, version, run, proposal };
 }
 
-describe('migration 0104: AI app suggestions', () => {
+describe('migration 0105: AI app suggestions', () => {
   it(
     'runs twice on the database as it is today, keeps every existing suggestion and refuses what it should',
     async () => {

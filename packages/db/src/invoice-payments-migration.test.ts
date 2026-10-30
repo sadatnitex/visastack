@@ -114,11 +114,11 @@ describe('migration 0094: cash ledger (ADR 0020, S10)', () => {
         client.query('update invoice_payments set reference = $1', ['x']),
       ).rejects.toThrow(/append-only/);
       await expect(client.query('delete from invoice_payments')).rejects.toThrow(/append-only/);
-      // Receipts (0097) reference the ledger, so the ledger is truncated together with them: the
-      // ledger's own trigger (first in the list) is the one that must refuse.
-      await expect(client.query('truncate invoice_payments, payment_receipts')).rejects.toThrow(
-        /invoice_payments is append-only/,
-      );
+      // Receipts (0097) and refund requests (0104) reference the ledger, so the ledger is truncated
+      // together with them: the ledger's own trigger (first in the list) is the one that must refuse.
+      await expect(
+        client.query('truncate invoice_payments, payment_receipts, refund_requests'),
+      ).rejects.toThrow(/invoice_payments is append-only/);
       expect(await rows()).toHaveLength(3);
 
       // The database refuses the wrong sign, a missing source and a lone provider id.

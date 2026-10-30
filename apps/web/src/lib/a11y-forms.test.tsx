@@ -66,6 +66,7 @@ vi.mock('../app/app/admin/sign-in-recovery/actions', standIn);
 vi.mock('../app/app/admin/email/actions', standIn);
 vi.mock('../app/app/admin/complaints/actions', standIn);
 vi.mock('../app/app/admin/organizations/[orgId]/actions', standIn);
+vi.mock('../app/app/admin/organizations/[orgId]/refund-actions', standIn);
 vi.mock('../app/app/admin/packs/actions', standIn);
 vi.mock('../app/app/account/whatsapp/actions', standIn);
 vi.mock('../app/app/agency/actions', standIn);
@@ -103,6 +104,7 @@ const emailDeliveryForms = await import('../app/app/admin/email/forms');
 const staffCodeForms = await import('../app/app/staff-code/forms');
 const complaintForms = await import('../app/app/admin/complaints/forms');
 const organisationForms = await import('../app/app/admin/organizations/[orgId]/forms');
+const refundForms = await import('../app/app/admin/organizations/[orgId]/refund-forms');
 const packForms = await import('../app/app/admin/packs/pack-forms');
 const packVersionButtons = await import('../app/app/admin/packs/pack-version-buttons');
 const { PurgeButton } = await import('../app/app/admin/purge-button');
@@ -1651,6 +1653,68 @@ const ADMIN: readonly Case[] = [
   row('reject a reported payment', () => (
     <organisationForms.RejectClaimButton organizationId="o1" claimId={rowId()} />
   )),
+  {
+    name: 'refund through the payment gateway',
+    element: () => (
+      <refundForms.RefundForm
+        organizationId="o1"
+        source={{ kind: 'entry', id: rowId() }}
+        currency="BDT"
+        limitText="BDT 1,500.00"
+      />
+    ),
+    fields: ['amount', 'reason'],
+    repeated: true,
+  },
+  {
+    name: 'record a refund made outside VisaStack',
+    element: () => (
+      <refundForms.ManualRefundForm
+        organizationId="o1"
+        source={{ kind: 'held', id: rowId() }}
+        currency="BDT"
+        limitText="BDT 1,500.00"
+        earliestDate="2026-10-01"
+        latestDate="2026-10-30"
+      />
+    ),
+    fields: ['amount', 'reference', 'refundedOn', 'reason'],
+    repeated: true,
+  },
+  row('apply held money to the next invoice', () => (
+    <refundForms.ApplyCreditForm
+      organizationId="o1"
+      paymentAttemptId={rowId()}
+      targets={[{ id: 't1', label: 'INV-2026-002, BDT 1500.00 owed, due 1 Nov 2026' }]}
+    />
+  )),
+  {
+    name: 'check sent refunds now',
+    element: () => <refundForms.CheckRefundsButton organizationId="o1" />,
+  },
+  row('send a refund again', () => (
+    <refundForms.RetryRefundButton organizationId="o1" refundRequestId={rowId()} />
+  )),
+  {
+    name: 'say a refund did not go through',
+    element: () => <refundForms.CancelRefundForm organizationId="o1" refundRequestId={rowId()} />,
+    fields: ['reason'],
+    repeated: true,
+  },
+  {
+    name: 'say a refund went through',
+    element: () => (
+      <refundForms.ConfirmUnsentRefundForm
+        organizationId="o1"
+        refundRequestId={rowId()}
+        currency="BDT"
+        earliestDate="2026-10-01"
+        latestDate="2026-10-30"
+      />
+    ),
+    fields: ['amount', 'reference', 'refundedOn'],
+    repeated: true,
+  },
   row('pay an invoice online', () => (
     <invoiceForms.PayOnlineButton organizationId="o1" invoiceId={rowId()} />
   )),

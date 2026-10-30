@@ -19,6 +19,7 @@ import {
   daysAfterDue,
   previewSentence,
 } from './labels';
+import { LedgerCard, ledgerProblem } from './ledger-card';
 
 export const metadata: Metadata = { title: 'Billing Rules' };
 
@@ -62,7 +63,19 @@ function Rules({ settings }: { readonly settings: BillingSettings }) {
 }
 
 /** The platform owner sets when invoices fall due and whether an unpaid one changes an agency's billing status. */
-export default async function BillingRulesPage() {
+export default async function BillingRulesPage({
+  searchParams,
+}: {
+  readonly searchParams?: Promise<{ readonly ledger?: string }>;
+}) {
+  const ledger = ledgerProblem((await searchParams)?.ledger);
+  const thisMonth = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Dhaka',
+    year: 'numeric',
+    month: '2-digit',
+  })
+    .format(new Date())
+    .slice(0, 7);
   const data = await withSession(async ({ db, accountId, email }) => {
     const staff = await staffPrincipal(
       db,
@@ -100,7 +113,10 @@ export default async function BillingRulesPage() {
       {data.kind === 'restricted' ? (
         <AdminRestricted />
       ) : data.kind === 'unavailable' ? (
-        <output className="notice notice-warn">{UNAVAILABLE}</output>
+        <>
+          <output className="notice notice-warn">{UNAVAILABLE}</output>
+          <LedgerCard thisMonth={thisMonth} problem={ledger} />
+        </>
       ) : (
         <>
           <article className="card u-mb-150">
@@ -130,7 +146,7 @@ export default async function BillingRulesPage() {
             ) : null}
           </article>
 
-          <article className="card">
+          <article className="card u-mb-150">
             <h2 className="card-title">Change the Rules</h2>
             <BillingRulesForm
               dueDays={data.settings.dueDays}
@@ -139,6 +155,8 @@ export default async function BillingRulesPage() {
               suspendAfterDays={data.settings.suspendAfterDays}
             />
           </article>
+
+          <LedgerCard thisMonth={thisMonth} problem={ledger} />
         </>
       )}
     </section>

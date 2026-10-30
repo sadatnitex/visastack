@@ -33,7 +33,7 @@ import { findReferenceEntity } from './reference-codes';
  *   `connection:<connection id>`) with one PENDING proposal: the same review the person already
  *   uses for documents. It is kept out of every AI count and spend, and out of "accept all".
  * - The person's own reading and removing of drafts is here too, owner only.
- * - Until migration 0104 runs, `aiSuggestionsAvailable` is false and the gate writes nothing.
+ * - Until migration 0105 runs, `aiSuggestionsAvailable` is false and the gate writes nothing.
  */
 
 /** Who is writing: the connection and the app, as the gate resolved them. */
@@ -54,11 +54,11 @@ export const AI_SUGGESTION_LIMITS = Object.freeze({
   reminderYearsAhead: 5,
 });
 
-/** Database handles already seen with migration 0104 in place. Only a "yes" is kept: migrations are additive. */
+/** Database handles already seen with migration 0105 in place. Only a "yes" is kept: migrations are additive. */
 const READY = new WeakSet<object>();
 
 /**
- * Whether migration 0104 has run: a document became optional on a suggestion (its last
+ * Whether migration 0105 has run: a document became optional on a suggestion (its last
  * statements) and both new tables exist. Read from the catalogue, so it never fails a transaction
  * the way a query on a missing table would; every reader and writer asks it first.
  *
@@ -552,7 +552,7 @@ export interface AiDraftView {
 }
 
 export interface AiDraftList {
-  /** False until migration 0104 runs. */
+  /** False until migration 0105 runs. */
   readonly available: boolean;
   readonly drafts: readonly AiDraftView[];
   /** Drafts beyond the ones listed. */
@@ -646,7 +646,7 @@ export async function deleteAiDraft(
 /**
  * An AI app's pending suggestions about the profile itself (no document), newest first, for My
  * Profile. Filtered in the database (no document, connector run), with no evidence to load: an
- * app's suggestion quotes nothing. Owner only; empty until migration 0104 runs.
+ * app's suggestion quotes nothing. Owner only; empty until migration 0105 runs.
  */
 export async function listPendingAppSuggestions(
   proof: AuthorizedApplicant<'VIEW_METADATA'>,
@@ -700,7 +700,7 @@ export async function listPendingAppSuggestions(
 /**
  * Whether any live connection of this record lets its app suggest changes. Pages keep their
  * "from AI apps" sections in place while this is true, so the last decision or deletion is still
- * confirmed there. Owner only; false until migration 0104 runs.
+ * confirmed there. Owner only; false until migration 0105 runs.
  */
 export async function aiSuggestionsInUse(
   proof: AuthorizedApplicant<'VIEW_METADATA'>,

@@ -42,7 +42,11 @@ export function InvoiceCard({
   /** The latest day a payment can have been made (YYYY-MM-DD, anywhere on earth). */
   readonly latestDate: string;
 }) {
-  const open = invoice.status !== 'PAID' && invoice.status !== 'VOID';
+  // A refunded invoice is never owed again (S18, D2): it has no Pay button and no report form.
+  // Decided from the money itself, not from the state, so a payment held for a check (which
+  // outranks the refunded states) can never bring back a way to pay a refunded invoice.
+  const refunded = invoice.refundedMinorUnits > 0;
+  const open = invoice.status !== 'PAID' && invoice.status !== 'VOID' && !refunded;
   const reported = invoice.state === 'PAYMENT_REPORTED';
   const canPayOnline =
     open &&
@@ -70,23 +74,37 @@ export function InvoiceCard({
         {INVOICE_STATE_HINTS[invoice.state]}
         {invoice.partlyPaid && invoice.state === 'OPEN' ? ' Part of it has been paid.' : ''}
       </p>
+      {invoice.creditMinorUnits > 0 ? (
+        <p className="invoice-note">
+          Credit from an earlier payment: {plainAmount(invoice.creditMinorUnits, invoice.currency)}{' '}
+          of an online payment VisaStack held for a check was counted towards this invoice.
+        </p>
+      ) : null}
       <dl className="invoice-facts">
         <div>
           <dt>Invoiced</dt>
           <dd>{plainAmount(invoice.invoicedAmountMinorUnits, invoice.currency)}</dd>
         </div>
         <div>
-          <dt>Paid So Far</dt>
+          <dt>{refunded ? 'Kept After Refunds' : 'Paid So Far'}</dt>
           <dd>{plainAmount(invoice.collectedAmountMinorUnits, invoice.currency)}</dd>
         </div>
+        {invoice.refundedMinorUnits > 0 ? (
+          <div>
+            <dt>Refunded</dt>
+            <dd>{plainAmount(invoice.refundedMinorUnits, invoice.currency)}</dd>
+          </div>
+        ) : null}
         <div>
           <dt>Still Owed</dt>
           <dd>{plainAmount(invoice.outstandingMinorUnits, invoice.currency)}</dd>
         </div>
-        <div>
-          <dt>Due</dt>
-          <dd>{formatDateOnly(invoice.dueDate)}</dd>
-        </div>
+        {refunded ? null : (
+          <div>
+            <dt>Due</dt>
+            <dd>{formatDateOnly(invoice.dueDate)}</dd>
+          </div>
+        )}
       </dl>
 
       {open ? (

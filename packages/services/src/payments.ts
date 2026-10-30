@@ -7,7 +7,9 @@ import { invoiceLedgerReader } from './billing';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import {
+  REFUNDED_INVOICE_MESSAGE,
   applyInvoiceCollection,
+  invoiceHasRefund,
   invoiceLedgerPresent,
   normalizeCurrency,
   outstandingMinorUnits,
@@ -180,6 +182,8 @@ export type SettlementCode =
   | 'recorded'
   | 'already_recorded'
   | 'held'
+  /** Held money that staff refunded (S18). Final: nothing a gateway says later changes it. */
+  | 'refunded'
   | 'failed'
   | 'cancelled'
   | 'expired'
@@ -216,6 +220,9 @@ export function paymentResultState(status: PaymentAttemptStatus | null): Payment
     case 'EXPIRED':
       return 'not_completed';
     case 'HELD_FOR_REVIEW':
+    // Held money that was refunded (S18): the payer is told to check with VisaStack, never that
+    // the payment was received or that nothing was charged.
+    case 'REFUNDED':
       return 'needs_check';
     default:
       // CREATED, REDIRECTED, VALIDATED, or no attempt found yet: still being confirmed.
@@ -265,6 +272,7 @@ export async function settlePaymentAttempt(
     if (!attempt || attempt.provider !== port.provider) return outcome('unknown_transaction');
     if (attempt.status === 'RECORDED') return outcome('already_recorded', attempt.status);
     if (attempt.status === 'HELD_FOR_REVIEW') return outcome('held', attempt.status);
+    if (attempt.status === 'REFUNDED') return outcome('refunded', attempt.status);
 
     // Each payment may make VisaStack call the gateway only so often, so a stream of callbacks
     // for one real payment cannot be turned into a stream of calls to the gateway.
@@ -335,6 +343,7 @@ async function applyDecision(
     if (!attempt) return outcome('unknown_transaction');
     if (attempt.status === 'RECORDED') return outcome('already_recorded', attempt.status);
     if (attempt.status === 'HELD_FOR_REVIEW') return outcome('held', attempt.status);
+    if (attempt.status === 'REFUNDED') return outcome('refunded', attempt.status);
 
     const touch = {
       lastProviderStatus: providerStatus,
@@ -440,6 +449,9 @@ async function applyDecision(
           return hold('already_paid', []);
         case 'void_invoice':
           return hold('invoice_void', []);
+        case 'refunded_invoice':
+          // S18 (D2): the invoice was refunded meanwhile and is never owed again.
+          return hold('invoice_refunded', []);
         case 'currency_mismatch':
           return hold('mismatch', ['currency']);
         case 'key_conflict':
@@ -670,6 +682,10 @@ export async function startOnlinePayment(
         if (amount <= 0) return err(serviceError('invalid', 'This invoice is already paid.'));
         // Without the ledger no payment could be counted safely, so none is started.
         if (!(await invoiceLedgerPresent(tx))) return err(serviceError('invalid', NOT_AVAILABLE));
+        // S18 (D2): a refunded invoice is never owed again, so it is never paid again either.
+        if (await invoiceHasRefund(tx, locked.id)) {
+          return err(serviceError('invalid', REFUNDED_INVOICE_MESSAGE));
+        }
 
         if (input.startAnother !== true) {
           const earlier = await tx
@@ -846,6 +862,8 @@ export interface ReconciliationSummary {
    * (held for review). A number above zero is the signal that staff have something to look at.
    */
   readonly awaitingReview: number;
+  /** Payments not asked about because the run's time budget ran out; the next run asks. */
+  readonly leftForLater: number;
 }
 
 const EMPTY_SUMMARY: ReconciliationSummary = {
@@ -858,6 +876,7 @@ const EMPTY_SUMMARY: ReconciliationSummary = {
   stillPending: 0,
   unavailable: 0,
   awaitingReview: 0,
+  leftForLater: 0,
 };
 
 async function countAwaitingReview(db: Db, provider: string): Promise<number> {
@@ -887,7 +906,12 @@ export async function reconcilePaymentAttempts(
   db: Db,
   scope: SystemScope<'process-payment-reconciliation'>,
   port: PaymentPort,
-  options: { readonly now?: Date; readonly limit?: number } = {},
+  options: {
+    readonly now?: Date;
+    readonly limit?: number;
+    /** A clock time (ms) after which no new gateway call is started (the job has 60 seconds). */
+    readonly deadline?: number;
+  } = {},
 ): Promise<ReconciliationSummary> {
   if (scope.job !== 'process-payment-reconciliation') throw new Error('wrong job scope');
   if (!port.configured) return { ...EMPTY_SUMMARY, configured: false };
@@ -957,11 +981,16 @@ export async function reconcilePaymentAttempts(
             .limit(room)
         : [];
     const awaitingReview = await countAwaitingReview(db, port.provider);
-    return await settleBatch(db, port, [...open, ...expired], 'reconcile', now, {
-      ...EMPTY_SUMMARY,
-      closed,
-      awaitingReview,
-    });
+    return await settleBatch(
+      db,
+      port,
+      [...open, ...expired],
+      'reconcile',
+      now,
+      { ...EMPTY_SUMMARY, closed, awaitingReview },
+      false,
+      options.deadline ?? null,
+    );
   } catch (error) {
     if (isMissingRelationError(error)) return { ...EMPTY_SUMMARY, available: false };
     throw error;
@@ -976,17 +1005,23 @@ async function settleBatch(
   now: Date,
   start: ReconciliationSummary,
   concurrent = false,
+  deadline: number | null = null,
 ): Promise<ReconciliationSummary> {
   const settleOne = (attempt: PaymentAttempt) =>
     settlePaymentAttempt(db, port, { merchantTranId: attempt.merchantTranId, source, now });
   const codes: SettlementCode[] = [];
+  let leftForLater = 0;
   if (concurrent) {
     // A person is waiting (an invoice being opened): ask about the few payments together.
     const results = await Promise.all(batch.map(settleOne));
     codes.push(...results.map((r) => r.code));
   } else {
     let outagesInARow = 0;
-    for (const attempt of batch) {
+    for (const [index, attempt] of batch.entries()) {
+      if (deadline !== null && Date.now() >= deadline) {
+        leftForLater = batch.length - index;
+        break;
+      }
       const { code } = await settleOne(attempt);
       codes.push(code);
       outagesInARow = code === 'unavailable' ? outagesInARow + 1 : 0;
@@ -997,7 +1032,8 @@ async function settleBatch(
   for (const code of codes) {
     if (code === 'recorded' || code === 'already_recorded') recorded++;
     else if (code === 'held') held++;
-    else if (code === 'failed' || code === 'cancelled' || code === 'expired') closed++;
+    else if (code === 'failed' || code === 'cancelled' || code === 'expired' || code === 'refunded')
+      closed++;
     else if (code === 'unavailable') unavailable++;
     else stillPending++;
   }
@@ -1009,6 +1045,7 @@ async function settleBatch(
     closed,
     stillPending,
     unavailable,
+    leftForLater: start.leftForLater + leftForLater,
   };
 }
 

@@ -126,7 +126,9 @@ export type PlatformAction =
   | 'SUPPORT_GRANT_APPROVE'
   | 'ACCOUNT_SIGN_IN_RECOVERY'
   | 'BILLING_SETTINGS_MANAGE'
-  | 'AI_FEATURES_MANAGE';
+  | 'AI_FEATURES_MANAGE'
+  | 'BILLING_REFUND_MANAGE'
+  | 'BILLING_LEDGER_EXPORT';
 
 /**
  * The one role, besides `PLATFORM_OWNER`, that may perform each action. `null` means the platform
@@ -176,6 +178,11 @@ const ACTION_ROLES: Readonly<
   // Which AI features people can use, and how much a day (S21, AI Features page): a product and
   // commercial decision for the platform owner alone, like the billing rules.
   AI_FEATURES_MANAGE: null,
+  // S18: refunds, credits, refunds made outside VisaStack and the monthly accounting file move or
+  // reveal money, so they stay with the platform owner too (owner decision D1, 30 Oct 2026). A
+  // billing staff role can be added later as its own concern.
+  BILLING_REFUND_MANAGE: null,
+  BILLING_LEDGER_EXPORT: null,
 };
 
 /**

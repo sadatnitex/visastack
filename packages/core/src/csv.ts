@@ -21,10 +21,15 @@ export function isCsvFormula(text: string): boolean {
   return first !== undefined && FORMULA_START.has(first);
 }
 
-/** `text` as one safe CSV cell. */
-export function csvCell(text: string): string {
+/**
+ * `text` as one safe CSV cell. `alwaysQuote` quotes every cell, as the billing ledger file does;
+ * otherwise a cell is quoted only when it needs to be (or was defused).
+ */
+export function csvCell(text: string, options: { readonly alwaysQuote?: boolean } = {}): string {
   const formula = isCsvFormula(text);
   const safe = formula ? `'${text}` : text;
-  if (formula || /[",\r\n]/.test(safe)) return `"${safe.replace(/"/g, '""')}"`;
+  if (options.alwaysQuote || formula || /[",\r\n]/.test(safe)) {
+    return `"${safe.replace(/"/g, '""')}"`;
+  }
   return safe;
 }
