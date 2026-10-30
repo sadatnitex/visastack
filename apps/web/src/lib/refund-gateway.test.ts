@@ -8,9 +8,13 @@ const mocks = vi.hoisted(() => ({
 vi.mock('./providers', () => ({ paymentPorts: mocks.ports }));
 vi.mock('./server-error', () => ({ reportServerError: mocks.report }));
 
-const { refundCheckPort, refundPorts, refundSendPort, refundsViaGatewayEnabled } = await import(
-  './refund-gateway'
-);
+const {
+  refundCheckPort,
+  refundGatewayViews,
+  refundPorts,
+  refundSendPort,
+  refundsViaGatewayEnabled,
+} = await import('./refund-gateway');
 
 const refunding = {
   configured: true,
@@ -70,6 +74,19 @@ describe('refunds through the payment gateway (S18, S19 step 0)', () => {
     mocks.ports.mockReturnValue(mixed);
     expect(refundCheckPort()).toBe(mixed);
     expect(mixed.configured()).toHaveLength(2);
+  });
+
+  it('offer the gateway refund on the admin view only for providers that can refund (round 4)', () => {
+    const { refund: _refund, queryRefund: _query, ...payOnly } = refunding;
+    const mixed = paymentPortResolver([
+      { port: refunding, currencies: ['BDT'] },
+      { port: { ...payOnly, provider: 'otherpay' }, currencies: ['USD'] },
+    ]);
+    expect(refundGatewayViews(mixed)).toEqual([{ provider: 'sslcommerz', mode: 'LIVE' }]);
+    expect(refundGatewayViews(null)).toEqual([]);
+    expect(
+      refundGatewayViews(paymentPortResolver([{ port: payOnly, currencies: ['USD'] }])),
+    ).toEqual([]);
   });
 
   it('build the payment ports once for a page that needs both answers', () => {

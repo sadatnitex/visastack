@@ -59,6 +59,19 @@ export function refundSendPort(
   return checkPort === undefined ? refundCheckPort() : checkPort;
 }
 
+/**
+ * The gateways a refund panel may offer "Refund through the Gateway" for (S19 step 0 round 4):
+ * only configured providers that can refund (`isRefundingPaymentPort`, which the registry makes
+ * false for an entry without `supportsRefunds`), each with its mode.
+ */
+export function refundGatewayViews(
+  gateways: PaymentPortResolver | null,
+): { readonly provider: string; readonly mode: 'TEST' | 'LIVE' | null }[] {
+  return (gateways?.configured() ?? [])
+    .filter(isRefundingPaymentPort)
+    .map((port) => ({ provider: port.provider, mode: port.mode }));
+}
+
 /** Both answers for one page render, from one set of ports. */
 export function refundPorts(readEnv: ReadEnv = fromProcess): {
   readonly check: PaymentPortResolver | null;

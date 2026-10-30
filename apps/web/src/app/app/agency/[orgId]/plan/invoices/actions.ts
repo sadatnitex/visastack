@@ -128,6 +128,8 @@ export async function checkPaymentAction(
       organizationId: found.organizationId,
       invoiceId: found.invoiceId,
       minAgeMs: 0,
+      // Only Check Status asks whether a payment is stranded (S19 step 0 round 4).
+      withStranded: true,
     });
     if (!checked.ok) return { ok: false, message: 'We could not find this invoice.' };
     const summary = checked.value;

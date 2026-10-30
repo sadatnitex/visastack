@@ -37,7 +37,7 @@ import {
   invoiceStatusLabel,
   organizationStatusLabel,
 } from '../../../../../lib/labels';
-import { refundPorts } from '../../../../../lib/refund-gateway';
+import { refundGatewayViews, refundPorts } from '../../../../../lib/refund-gateway';
 import { withSession } from '../../../../../lib/session';
 import { formatMeterValue, meterFraction, meterTone } from '../../../../../lib/usage-format';
 import {
@@ -209,10 +209,8 @@ export default async function AdminOrganizationPage({
     // never made unguarded: an incomplete configuration means "no gateway", never a broken page.
     // S19 step 0: every gateway refunds may be sent to, each offered only its own payments.
     const { send: sendPort, check: checkPort } = refundPorts();
-    const gateways = (sendPort?.configured() ?? []).map((port) => ({
-      provider: port.provider,
-      mode: port.mode,
-    }));
+    // Round 4: only providers that can refund, so no other is ever offered the gateway refund.
+    const gateways = refundGatewayViews(sendPort);
     const refundScope = await staffPrincipal(
       db,
       { accountId, email, bootstrapEmails: bootstrapAdminEmails() },

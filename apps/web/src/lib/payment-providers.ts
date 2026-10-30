@@ -306,19 +306,46 @@ export function overallPaymentMode(
 }
 
 /**
+ * A provider's port with only the payment methods, so nothing can refund through it: what a
+ * registry entry that does not support refunds hands on, whatever its adapter can do.
+ */
+function paymentsOnly(port: PaymentPort): PaymentPort {
+  return {
+    get configured() {
+      return port.configured;
+    },
+    get mode() {
+      return port.mode;
+    },
+    provider: port.provider,
+    storeId: port.storeId,
+    createCheckout: (input) => port.createCheckout(input),
+    validatePayment: (input) => port.validatePayment(input),
+    queryByMerchantTranId: (merchantTranId) => port.queryByMerchantTranId(merchantTranId),
+    verifyIpnSignature: (form) => port.verifyIpnSignature(form),
+  };
+}
+
+/**
  * The ports of the configured providers, as the resolver the services take. Every configured
- * provider is in it, refunds or not: the refund services use only the ports that can refund, and
- * tell a provider that is switched off from one that cannot refund (S19 step 0 round 3).
+ * provider is in it, so the refund services can tell a provider that is switched off from one
+ * that cannot refund (S19 step 0 round 3). A provider can refund only when its registry entry says
+ * `supportsRefunds` AND its port has the refund methods (round 4): an entry that says no hands on
+ * a port without them, so the services, the refund panel and the daily check never refund through
+ * it.
  */
 export function buildPaymentPorts(
   env: ProviderEnv,
   onFailure: (event: PaymentProviderFailure) => void,
 ): PaymentPortResolver {
   return paymentPortResolver(
-    configuredPaymentProviders(env).map((provider) => ({
-      port: provider.entry.create(env, onFailure),
-      currencies: provider.entry.currencies,
-    })),
+    configuredPaymentProviders(env).map((provider) => {
+      const port = provider.entry.create(env, onFailure);
+      return {
+        port: provider.entry.supportsRefunds ? port : paymentsOnly(port),
+        currencies: provider.entry.currencies,
+      };
+    }),
   );
 }
 

@@ -19,7 +19,7 @@ import {
  * asked the gateway (and did not just believe a callback).
  */
 export class FakePaymentPort implements RefundingPaymentPort {
-  readonly configured = true;
+  configured = true;
   /** `sslcommerz` unless a test makes a second provider (S19 step 0). */
   readonly provider: string;
   /** S29: LIVE unless a test sets TEST (in test mode only the platform owner can start a payment). */

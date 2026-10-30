@@ -97,3 +97,8 @@ Owner steps (after that package is merged):
 - A refund of a payment whose payment method is still on but cannot send refunds gets "This payment cannot be refunded through the payment gateway. Refund it another way, then record it here." The "switched off" sentence is only for a payment method that is switched off.
 - A provider chosen with settings missing is logged at most once every 10 minutes per running server, however often its addresses are called; each call is still answered 503.
 - With no provider set up and the payments table not created yet, the daily check is a quiet run, not a failed one.
+
+## Update 2026-10-30 (S19 step 0, round 4)
+
+- A payer is stopped from paying online again only by a **live** payment that was sent to the payment page in the last 7 days with a payment method that is switched off now, because that gateway may have taken real money. Test payments, payments closed as expired (abandoned checkouts) and payments that never reached the payment page never stop anyone. The daily check still counts them for staff.
+- Refund through the Gateway is offered only for a payment method that can refund. When SSLCOMMERZ is switched off, refunding one of its payments says to refund it in SSLCOMMERZ's own panel and record it with Record a Refund Made Outside VisaStack, even if no other payment method can refund.

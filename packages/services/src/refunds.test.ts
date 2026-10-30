@@ -679,7 +679,7 @@ describe('refunds through the gateway (S18)', () => {
       expect(overdue.map((o) => o.invoiceRef)).toEqual(['INV-UNTOUCHED']);
 
       const listed = await listAgencyInvoices(db, {
-        configuredProviders: ['sslcommerz'],
+        payments: onePort(new FakePaymentPort()),
         actorAccountId: w.orgOwnerId,
         organizationId: w.organizationId,
       });
@@ -1225,7 +1225,7 @@ describe('before migration 0104', () => {
       });
       // The agency's invoices and the overdue rules still read as before.
       const listed = await listAgencyInvoices(db, {
-        configuredProviders: ['sslcommerz'],
+        payments: onePort(new FakePaymentPort()),
         actorAccountId: w.orgOwnerId,
         organizationId: w.organizationId,
       });
@@ -2204,6 +2204,45 @@ describe('a second payment provider (S19 step 0)', () => {
   );
 
   it(
+    'gives the switched-off guidance first, even when no gateway left can refund (round 4)',
+    async () => {
+      const bdt = await invoice(w, 'INV-TAKA-OFF', 10_000);
+      const { entry: taka } = await paidOnline(w, bdt, 10_000);
+      // A send whose outcome was never confirmed, so it can be sent again.
+      ssl.refundBehaviour = 'throw';
+      const unsent = await refundIn(taka.id, 1_000);
+      if (!isOk(unsent)) throw new Error('unsent');
+      const payOnly = {
+        configured: true,
+        mode: 'LIVE' as const,
+        provider: 'otherpay',
+        storeId: null,
+        createCheckout: other.createCheckout.bind(other),
+        validatePayment: other.validatePayment.bind(other),
+        queryByMerchantTranId: other.queryByMerchantTranId.bind(other),
+        verifyIpnSignature: other.verifyIpnSignature.bind(other),
+      };
+      // SSLCOMMERZ, the only provider that can refund, is switched off.
+      for (const left of [
+        paymentPortResolver([]),
+        paymentPortResolver([{ port: payOnly, currencies: ['USD'] }]),
+      ]) {
+        const asked = await refundIn(taka.id, 1_000, left);
+        expect(isErr(asked) && asked.error.message).toBe(REFUND_PROVIDER_OFF);
+        const again = await retryRefund(db, left, await scopeOf(w), {
+          organizationId: w.organizationId,
+          refundRequestId: unsent.value.request.id,
+          stepUpSatisfied: true,
+        });
+        expect(isErr(again) && again.error.message).toBe(REFUND_PROVIDER_OFF);
+      }
+      expect(REFUND_PROVIDER_OFF).toContain("Refund it in that payment method's own panel");
+      expect(REFUND_PROVIDER_OFF).toContain('Record a Refund Made Outside VisaStack');
+    },
+    TIMEOUT,
+  );
+
+  it(
     'gives each provider its own share of the daily check, so a slow first one cannot starve the next (round 2)',
     async () => {
       // Four open taka payments through SSLCOMMERZ, whose gateway answers slowly, and one dollar
@@ -2258,42 +2297,56 @@ describe('a second payment provider (S19 step 0)', () => {
   );
 
   it(
-    'agrees everywhere on a stranded payment: only one sent to the payment page within the late window blocks (round 3)',
+    'agrees everywhere on a stranded payment: only a live payment sent to the page within the late window blocks (rounds 3 and 4)',
     async () => {
-      const dollarsNow = paymentPortResolver([{ port: ssl, currencies: ['BDT', 'USD'] }]);
-      const cases: readonly (readonly [
-        string,
-        { provider: string; status: 'CREATED' | 'REDIRECTED' | 'EXPIRED'; agoMs: number | null },
-        boolean,
-      ])[] = [
+      // The second provider is still listed but its port is not usable, so the resolver drops it:
+      // the Invoices page, Check Status and a new payment all read that same resolver.
+      other.configured = false;
+      const dollarsNow = paymentPortResolver([
+        { port: ssl, currencies: ['BDT', 'USD'] },
+        { port: other, currencies: ['USD'] },
+      ]);
+      expect(dollarsNow.configured().map((port) => port.provider)).toEqual(['sslcommerz']);
+      type Case = {
+        provider: string;
+        status: 'CREATED' | 'REDIRECTED' | 'EXPIRED';
+        mode: 'TEST' | 'LIVE';
+        agoMs: number | null;
+      };
+      const cases: readonly (readonly [string, Case, boolean])[] = [
         [
-          'sent an hour ago, provider off',
-          { provider: 'otherpay', status: 'REDIRECTED', agoMs: HOUR },
+          'live, sent an hour ago, provider off',
+          { provider: 'otherpay', status: 'REDIRECTED', mode: 'LIVE', agoMs: HOUR },
           true,
         ],
         [
-          'closed as expired 3 days ago, provider off',
-          { provider: 'otherpay', status: 'EXPIRED', agoMs: 3 * DAY },
-          true,
-        ],
-        [
-          'sent beyond the late window, provider off',
-          { provider: 'otherpay', status: 'REDIRECTED', agoMs: LATE_SUCCESS_WINDOW_MS + HOUR },
+          'test payment, sent an hour ago, provider off',
+          { provider: 'otherpay', status: 'REDIRECTED', mode: 'TEST', agoMs: HOUR },
           false,
         ],
         [
-          'expired beyond the late window, provider off',
-          { provider: 'otherpay', status: 'EXPIRED', agoMs: LATE_SUCCESS_WINDOW_MS + HOUR },
+          'live, closed as expired 3 days ago, provider off',
+          { provider: 'otherpay', status: 'EXPIRED', mode: 'LIVE', agoMs: 3 * DAY },
+          false,
+        ],
+        [
+          'live, sent beyond the late window, provider off',
+          {
+            provider: 'otherpay',
+            status: 'REDIRECTED',
+            mode: 'LIVE',
+            agoMs: LATE_SUCCESS_WINDOW_MS + HOUR,
+          },
           false,
         ],
         [
           'never reached the gateway, provider off',
-          { provider: 'otherpay', status: 'CREATED', agoMs: null },
+          { provider: 'otherpay', status: 'CREATED', mode: 'LIVE', agoMs: null },
           false,
         ],
         [
-          'sent an hour ago, provider on',
-          { provider: 'sslcommerz', status: 'REDIRECTED', agoMs: HOUR },
+          'live, sent an hour ago, provider on',
+          { provider: 'sslcommerz', status: 'REDIRECTED', mode: 'LIVE', agoMs: HOUR },
           false,
         ],
       ];
@@ -2302,7 +2355,7 @@ describe('a second payment provider (S19 step 0)', () => {
         const invoiceId = await invoiceIn(`INV-STRAND-${n++}`, 2_500, 'USD');
         const at = attempt.agoMs === null ? null : new Date(Date.now() - attempt.agoMs);
         await db.insert(schema.paymentAttempts).values({
-          mode: 'LIVE',
+          mode: attempt.mode,
           invoiceId,
           organizationId: w.organizationId,
           provider: attempt.provider,
@@ -2316,7 +2369,7 @@ describe('a second payment provider (S19 step 0)', () => {
 
         // The Invoices page.
         const listed = await listAgencyInvoices(db, {
-          configuredProviders: ['sslcommerz'],
+          payments: dollarsNow,
           actorAccountId: w.orgOwnerId,
           organizationId: w.organizationId,
         });
@@ -2329,8 +2382,16 @@ describe('a second payment provider (S19 step 0)', () => {
           organizationId: w.organizationId,
           invoiceId,
           minAgeMs: 0,
+          withStranded: true,
         });
         expect(isOk(checked) && checked.value.strandedPayment, name).toBe(stranded);
+        // The page-load check does not ask.
+        const pageLoad = await refreshInvoicePaymentAttempts(db, dollarsNow, {
+          actorAccountId: w.orgOwnerId,
+          organizationId: w.organizationId,
+          invoiceId,
+        });
+        expect(isOk(pageLoad) && pageLoad.value.strandedPayment, name).toBe(false);
         // Starting another payment, on purpose.
         const again = await startOnlinePayment(db, dollarsNow, {
           actorAccountId: w.orgOwnerId,
@@ -2347,7 +2408,7 @@ describe('a second payment provider (S19 step 0)', () => {
       // Older payments of the switched-off provider never block, but the daily check still counts
       // the open ones for staff.
       const daily = await reconcilePaymentAttempts(db, scope(), dollarsNow);
-      expect(daily.providerNotConfigured).toBeGreaterThanOrEqual(3);
+      expect(daily.providerNotConfigured).toBeGreaterThanOrEqual(4);
     },
     TIMEOUT,
   );

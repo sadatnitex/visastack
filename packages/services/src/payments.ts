@@ -676,25 +676,26 @@ export const PAYMENT_METHOD_OFF =
   'Your earlier payment was started with a payment method that is switched off now. Contact us before paying again, so you are not charged twice.';
 
 /**
- * The one definition of a stranded payment (S19 step 0 round 3): one that was sent to the payment
- * page (still open, or closed as expired) within the late-success window the daily check uses, made
- * with a provider that is not configured here now. Only such a payment stops a new one: it may yet
- * have taken money, and nobody can ask its gateway. A payment that never reached the gateway
- * (CREATED) moved no money, and one older than the window can no longer be found to have
- * succeeded, so neither blocks; the daily check still counts them for staff.
+ * The one definition of a stranded payment (S19 step 0, narrowed in round 4): a LIVE payment whose
+ * payer was sent to the payment page (REDIRECTED) within the late-success window the daily check
+ * uses, made with a provider that is not configured here now. The gateway may have taken real
+ * money and nobody can ask it, so only such a payment stops a new one. A test payment (no real
+ * money), one closed as expired (an abandoned checkout, closed by the gateway or the daily job), one
+ * that never reached the gateway (CREATED) and one older than the window never block; the daily
+ * check still counts the open ones for staff. `hasStrandedAttempt` is the same rule as one query.
  */
 export function isStrandedAttempt(
-  attempt: Pick<PaymentAttempt, 'status' | 'redirectedAt' | 'provider'>,
+  attempt: Pick<PaymentAttempt, 'status' | 'redirectedAt' | 'provider' | 'mode'>,
   configuredProviders: readonly string[],
   now: Date,
 ): boolean {
-  if (attempt.status !== 'REDIRECTED' && attempt.status !== 'EXPIRED') return false;
+  if (attempt.mode !== 'LIVE' || attempt.status !== 'REDIRECTED') return false;
   if (attempt.redirectedAt === null) return false;
-  if (now.getTime() - attempt.redirectedAt.getTime() > LATE_SUCCESS_WINDOW_MS) return false;
+  if (attempt.redirectedAt.getTime() < now.getTime() - LATE_SUCCESS_WINDOW_MS) return false;
   return !configuredProviders.includes(attempt.provider);
 }
 
-/** Whether any payment of this invoice is stranded (`isStrandedAttempt`). */
+/** Whether any payment of this invoice is stranded (`isStrandedAttempt`), as one indexed probe. */
 async function hasStrandedAttempt(
   db: Db,
   invoiceId: string,
@@ -702,17 +703,22 @@ async function hasStrandedAttempt(
   now: Date,
 ): Promise<boolean> {
   const attempts = schema.paymentAttempts;
-  const candidates = await db
-    .select(attemptColumns())
+  const found = await db
+    .select({ id: attempts.id })
     .from(attempts)
     .where(
       and(
         eq(attempts.invoiceId, invoiceId),
-        inArray(attempts.status, ['REDIRECTED', 'EXPIRED']),
+        eq(attempts.status, 'REDIRECTED'),
+        eq(attemptModeColumn(), 'LIVE'),
         gte(attempts.redirectedAt, new Date(now.getTime() - LATE_SUCCESS_WINDOW_MS)),
+        configuredProviders.length === 0
+          ? undefined
+          : notInArray(attempts.provider, [...configuredProviders]),
       ),
-    );
-  return candidates.some((attempt) => isStrandedAttempt(attempt, configuredProviders, now));
+    )
+    .limit(1);
+  return found.length > 0;
 }
 
 /**
@@ -1339,7 +1345,15 @@ async function readerFor(
 export async function refreshInvoicePaymentAttempts(
   db: Db,
   payments: PaymentPortResolver,
-  input: InvoicePaymentsReader & { readonly minAgeMs?: number; readonly now?: Date },
+  input: InvoicePaymentsReader & {
+    readonly minAgeMs?: number;
+    readonly now?: Date;
+    /**
+     * Also answer whether a payment of the invoice is stranded (Check Status only, S19 step 0
+     * round 4); the page-load check leaves it out and runs no extra query.
+     */
+    readonly withStranded?: boolean;
+  },
 ): Promise<Result<InvoicePaymentCheck, ServiceError>> {
   const allowed = await readerFor(db, input);
   if (!allowed.ok) return allowed;
@@ -1377,12 +1391,14 @@ export async function refreshInvoicePaymentAttempts(
       { ...EMPTY_SUMMARY, configured },
       true,
     );
-    const strandedPayment = await hasStrandedAttempt(
-      db,
-      allowed.value.invoiceId,
-      payments.configured().map((port) => port.provider),
-      now,
-    );
+    const strandedPayment =
+      input.withStranded === true &&
+      (await hasStrandedAttempt(
+        db,
+        allowed.value.invoiceId,
+        payments.configured().map((port) => port.provider),
+        now,
+      ));
     return ok({ ...summary, strandedPayment });
   } catch (error) {
     if (isMissingRelationError(error)) {
@@ -1394,7 +1410,10 @@ export async function refreshInvoicePaymentAttempts(
 
 /** Check Status's answer: the counts, and whether a payment of the invoice is stranded. */
 export type InvoicePaymentCheck = ReconciliationSummary & {
-  /** `isStrandedAttempt` for any payment of the invoice: the payer must contact VisaStack. */
+  /**
+   * `isStrandedAttempt` for any payment of the invoice (the payer must contact VisaStack); false
+   * unless `withStranded` was asked for.
+   */
   readonly strandedPayment: boolean;
 };
 

@@ -298,3 +298,9 @@ Supersedes items 3 and 6 above where they differ.
 4. **Daily check without a provider.** With no provider configured, a missing table is a quiet run (`configured: false`, nothing stranded), never `available: false`.
 5. **Check Now.** When every refund asked about went unanswered, the answer also names the stranded refunds.
 6. **Result-link key.** No change: holding `NEON_AUTH_COOKIE_SECRET` already allows minting sign-in sessions. The runbook says to change `PAYMENT_RESULT_SIGNING_SECRET` only when no payment is in progress.
+
+### S19 step 0, round 4 (30 Oct 2026)
+
+1. **Stranded, narrowed.** Only a LIVE, REDIRECTED attempt within the late-success window, with a provider not configured, is stranded. `isStrandedAttempt` holds the rule, and `hasStrandedAttempt` is the same rule as one indexed probe (id only, `limit 1`). Check Status asks for it with `withStranded`; the page-load refresh runs no extra query. `listAgencyInvoices` takes the same `PaymentPortResolver` the services use (`payments`), and the Invoices page builds that resolver once.
+2. **Registry refund guard.** A provider refunds only when its entry has `supportsRefunds` AND its port passes `isRefundingPaymentPort`. `buildPaymentPorts` hands on a payments-only port for an entry without `supportsRefunds`, and `refundGatewayViews` (the admin refund panel's gateway list, and so `servedBy`) lists refunding ports only.
+3. **Own provider first.** `requestRefund` and `retryRefund` judge the payment's own provider before the "no refunding gateway at all" answer, so a switched-off provider always gets `REFUND_PROVIDER_OFF`.

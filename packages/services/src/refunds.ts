@@ -759,15 +759,9 @@ export async function requestRefund(
     return err(serviceError('step_up_required', 'a refund requires reauthentication'));
   }
   if (!(await refundsPresent(db))) return err(serviceError('invalid', REFUNDS_UNAVAILABLE));
-  const fallback = refundGateways(payments)[0];
-  if (!fallback) {
-    return err(
-      serviceError(
-        'invalid',
-        'Refunds through the payment gateway are not available here. Record a refund made outside VisaStack instead.',
-      ),
-    );
-  }
+  // S19 step 0 round 4: the payment's own provider is judged first (under the lock below), so a
+  // payment whose provider is switched off gets that guidance even when no gateway can refund.
+  const fallback = refundGateways(payments)[0] ?? null;
   const now = input.now ?? new Date();
 
   const prepared = await inTransaction(
@@ -775,18 +769,22 @@ export async function requestRefund(
     async (
       tx,
     ): Promise<
-      Result<{ row: RefundRequest; replay: boolean; gateway: RefundingPaymentPort }, ServiceError>
+      Result<
+        | { row: RefundRequest; replay: true }
+        | { row: RefundRequest; replay: false; gateway: RefundingPaymentPort },
+        ServiceError
+      >
     > => {
       const source = await lockSource(tx, input.organizationId, input.source);
       if (!source) return err(serviceError('not_found', 'payment not found'));
       // S19 step 0: the money goes back through the provider it was taken with. A source taken
       // another way is judged against the first configured gateway, which refuses it below
-      // exactly as it always did; one taken with a provider not configured here (or one that
-      // cannot refund) is refused before any mode check (round 2).
+      // exactly as it always did. One taken with a provider not configured here, or one that
+      // cannot refund, is refused before the "no gateway at all" answer and any mode check
+      // (rounds 2 to 4).
       const takenWith = sourceProvider(source);
       const takenPort = payments.forProvider(takenWith);
       const own = refundPort(takenPort);
-      const gateway = own ?? fallback;
       const amount = amountIn(input, sourceIds(source).currency);
       if (amount === null) return err(refusal('amount_invalid', AMOUNT_ABOVE_ZERO));
       // A repeated send is answered from the first request, under the same lock.
@@ -795,16 +793,25 @@ export async function requestRefund(
         if (!sameSource(replay, input.source) || replay.amountMinorUnits !== amount) {
           return err(serviceError('invalid', 'This page is out of date. Reload it and try again.'));
         }
-        return ok({ row: replay, replay: true, gateway });
+        return ok({ row: replay, replay: true });
       }
-      const problem = limitProblem(source, amount);
-      if (problem) return err(problem);
       if (takenWith !== null && takenPort === null) {
         return err(refusal('provider_not_configured', REFUND_PROVIDER_OFF));
       }
       if (takenWith !== null && own === null) {
         return err(serviceError('invalid', NOT_THROUGH_GATEWAY));
       }
+      const gateway = own ?? fallback;
+      if (gateway === null) {
+        return err(
+          serviceError(
+            'invalid',
+            'Refunds through the payment gateway are not available here. Record a refund made outside VisaStack instead.',
+          ),
+        );
+      }
+      const problem = limitProblem(source, amount);
+      if (problem) return err(problem);
       // S29: money is given back through the gateway mode it was taken in, never the other one: a
       // test payment never reaches the live gateway, and a real one never the test gateway.
       const sourceMode = source.kind === 'held' ? source.attempt.mode : source.entry.mode;
@@ -1034,12 +1041,10 @@ export async function retryRefund(
     return err(serviceError('step_up_required', 'a refund requires reauthentication'));
   }
   if (!(await refundsPresent(db))) return err(serviceError('invalid', REFUNDS_UNAVAILABLE));
-  if (refundGateways(payments).length === 0) {
-    return err(serviceError('invalid', 'The payment gateway is not available here.'));
-  }
   const row = await openProviderRequest(db, input);
   if (!row.ok) return row;
-  // S19 step 0: a refund is sent again only to the provider it was first sent to.
+  // S19 step 0: a refund is sent again only to the provider it was first sent to; its own
+  // provider is judged first (round 4), so a switched-off one gets that guidance.
   const sentWith = payments.forProvider(row.value.provider);
   if (sentWith === null) return err(refusal('provider_not_configured', REFUND_PROVIDER_OFF));
   const gateway = refundPort(sentWith);

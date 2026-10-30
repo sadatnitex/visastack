@@ -268,6 +268,30 @@ describe('the ports the services take', () => {
     expect(ports.currencyRefusal).toBe('Only invoices in Bangladeshi taka can be paid online.');
   });
 
+  it('never refund through an entry that says it cannot refund, even when its adapter could (round 4)', async () => {
+    const env = { PAYMENT_PROVIDER: 'sslcommerz', ...sslcommerz() };
+    const { refundGatewayViews } = await import('./refund-gateway');
+    // The SSLCOMMERZ adapter has the refund methods; the entry says it can refund.
+    const real = PAYMENT_PROVIDERS.sslcommerz.create(env, noFailure);
+    expect(isRefundingPaymentPort(real)).toBe(true);
+    const offered = buildPaymentPorts(env, noFailure);
+    expect(isRefundingPaymentPort(offered.configured()[0] as never)).toBe(true);
+    expect(refundGatewayViews(offered)).toEqual([{ provider: 'sslcommerz', mode: 'TEST' }]);
+    // The same adapter behind an entry that says no: never used for refunds, still for payments.
+    Reflect.set(PAYMENT_PROVIDERS.sslcommerz, 'supportsRefunds', false);
+    try {
+      const ports = buildPaymentPorts(env, noFailure);
+      const port = ports.configured()[0];
+      expect(port?.provider).toBe('sslcommerz');
+      expect(port?.mode).toBe('TEST');
+      expect(isRefundingPaymentPort(port as never)).toBe(false);
+      expect(ports.forCurrency('BDT')).toBe(port);
+      expect(refundGatewayViews(ports)).toEqual([]);
+    } finally {
+      Reflect.set(PAYMENT_PROVIDERS.sslcommerz, 'supportsRefunds', true);
+    }
+  });
+
   it('keep a configured provider whose port cannot refund (the refund services tell it apart, round 3)', () => {
     const env = { PAYMENT_PROVIDER: 'sslcommerz', ...sslcommerz() };
     const real = PAYMENT_PROVIDERS.sslcommerz.create(env, noFailure);

@@ -1,6 +1,7 @@
 import {
   type AgencyInvoiceView,
   type Db,
+  type PaymentPortResolver,
   TEST_PAYMENTS_ONLY,
   listAgencyInvoices,
   refreshInvoicePaymentAttempts,
@@ -8,11 +9,7 @@ import {
 import type { Metadata } from 'next';
 import { PageHeader } from '../../../../../../components/ui';
 import { isPlatformOwnerAccount } from '../../../../../../lib/admin';
-import {
-  type OnlineOffers,
-  configuredPaymentProviders,
-  onlineOffers,
-} from '../../../../../../lib/payment-providers';
+import { type OnlineOffers, onlineOffers } from '../../../../../../lib/payment-providers';
 import { paymentPorts } from '../../../../../../lib/providers';
 import { reportServerError } from '../../../../../../lib/server-error';
 import { withSession } from '../../../../../../lib/session';
@@ -41,6 +38,7 @@ function needsGatewayCheck(invoice: AgencyInvoiceView): boolean {
  */
 async function checkOpenPayments(
   db: Db,
+  payments: PaymentPortResolver,
   accountId: string,
   organizationId: string,
   invoices: readonly AgencyInvoiceView[],
@@ -49,7 +47,6 @@ async function checkOpenPayments(
   if (open.length === 0) return false;
   try {
     // S19 step 0: each payment is asked of the provider it was made with.
-    const payments = paymentPorts();
     if (payments.configured().length === 0) return false;
     await Promise.all(
       open.map((invoice) =>
@@ -96,17 +93,19 @@ export default async function AgencyInvoicesPage({
 }) {
   const { orgId } = await params;
   const offers = onlineOffers(process.env);
-  const configuredProviders = configuredPaymentProviders(process.env).map((p) => p.key);
+  // One resolver for the whole page (S19 step 0 round 4): the open-payment check and the stranded
+  // answer on each card both come from it, as they do in the services.
+  const payments = paymentPorts();
 
   const data = await withSession(async ({ db, accountId, email }) => {
     const list = () =>
       listAgencyInvoices(db, {
         actorAccountId: accountId,
         organizationId: orgId,
-        configuredProviders,
+        payments,
       });
     let listed = await list();
-    if (listed.ok && (await checkOpenPayments(db, accountId, orgId, listed.value))) {
+    if (listed.ok && (await checkOpenPayments(db, payments, accountId, orgId, listed.value))) {
       listed = await list();
     }
     if (!listed.ok) return { invoices: [], allowed: false, status: null, owner: false };
