@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import {
+  AI_FILE_TOOL_NAMES,
   AI_READ_TOOL_NAMES,
   AI_SUGGESTION_TOOL_NAMES,
   AI_TOOL_NAMES,
@@ -37,13 +38,14 @@ function inputs(tool: (typeof AI_TOOLS)[number]): { key: string; description: st
 }
 
 describe('the AI tools cannot do anything destructive or outward', () => {
-  it('registers exactly the five read tools and the three suggestion tools, in that order', () => {
+  it('registers exactly the six read tools (the file tool, S20, last) and the three suggestion tools, in that order', () => {
     expect(AI_TOOLS.map((t) => t.name)).toEqual([
       'prepare_context',
       'list_cases',
       'get_profile_section',
       'list_documents',
       'get_document_text',
+      'get_document_file',
       'suggest_profile_update',
       'save_draft',
       'add_reminder',
@@ -60,6 +62,7 @@ describe('the AI tools cannot do anything destructive or outward', () => {
       get_profile_section: READ_ONLY_ANNOTATIONS,
       list_documents: READ_ONLY_ANNOTATIONS,
       get_document_text: READ_ONLY_ANNOTATIONS,
+      get_document_file: READ_ONLY_ANNOTATIONS,
       suggest_profile_update: SUGGESTION_ANNOTATIONS,
       save_draft: SUGGESTION_ANNOTATIONS,
       add_reminder: SUGGESTION_ANNOTATIONS,
@@ -80,7 +83,12 @@ describe('the AI tools cannot do anything destructive or outward', () => {
       expect('kind' in tool && tool.kind === 'suggestion', tool.name).toBe(
         (AI_SUGGESTION_TOOL_NAMES as readonly string[]).includes(tool.name),
       );
+      // Only the file tool gets files (S20).
+      expect('kind' in tool && tool.kind === 'file', tool.name).toBe(
+        (AI_FILE_TOOL_NAMES as readonly string[]).includes(tool.name),
+      );
     }
+    expect([...AI_FILE_TOOL_NAMES]).toEqual(['get_document_file']);
   });
 
   it('names no forbidden action in any tool name or input, nor in a suggestion tool’s title or words', () => {

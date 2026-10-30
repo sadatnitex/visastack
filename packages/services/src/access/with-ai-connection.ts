@@ -1,17 +1,22 @@
 import { type Result, err, formatReferenceCode, ok, parseReferenceCode } from '@visastack/core';
 import type { DocumentGroupKey, LayerKey } from '@visastack/core/catalogue';
-import { eq } from 'drizzle-orm';
+import { resolveDocumentType } from '@visastack/core/catalogue/documents';
+import { and, eq, isNull } from 'drizzle-orm';
 import { touchAccountActivity } from '../accounts';
+import { aiFileErasurePending } from '../ai-connection-files';
 import {
   AI_CONNECTION_LAYERS,
   type AiCaseMode,
   type AiConnectionLayer,
   type AiDenialReason,
+  type AiFileVariant,
   aiAuditToolName,
   allowsSuggestions,
+  isAiFileVariant,
   selectionFromStoredChoices,
 } from '../ai-connection-scopes';
 import { getAiFeatureState } from '../ai-feature-settings';
+import { aiFilesAvailable } from '../ai-files-ready';
 import {
   type AiWriteOutcome,
   type AiWriter,
@@ -25,6 +30,7 @@ import {
 import { appendAuditEvent } from '../audit';
 import { hasConsent } from '../consent';
 import { type Db, first, schema } from '../db';
+import { readOriginalDocumentFile, writeDocumentAccessAudit } from '../document-access';
 import type { KeyManagementPort } from '../ports';
 import {
   aiContextDayKey,
@@ -32,7 +38,8 @@ import {
   aiContextToolLabel,
   recordProductEvent,
 } from '../product-events';
-import { RATE_LIMITS, checkRateLimits, isRateLimitReached } from '../rate-limit';
+import { RATE_LIMITS, checkRateLimit, checkRateLimits, isRateLimitReached } from '../rate-limit';
+import { type RedactionDeps, produceSafeCopy } from '../redaction';
 import {
   type CaseSelection,
   type SelectedOutput,
@@ -44,8 +51,13 @@ import {
 } from '../selected-output';
 import { type ResolvedAiConnection, resolveAiAccessToken } from './ai-connection';
 import { accountPrincipal } from './principal';
-import { type AuthorizedApplicant, requireAccess } from './require-access';
-import { stepUpFromAiConnection } from './step-up-proof';
+import {
+  type AuthorizedApplicant,
+  DEFAULT_DOCUMENT_PROTECTION,
+  requireAccess,
+} from './require-access';
+import { documentTypeRestricted, loadDocumentProtectionSettings } from './restricted-documents';
+import { stepUpForAiOriginalFile, stepUpFromAiConnection } from './step-up-proof';
 
 /**
  * The AI gate (ADR 0021 section 3): the only way an AI app's request reaches a person's record.
@@ -219,6 +231,62 @@ export interface AiWriteGateway extends AiContextGateway {
   readonly writes: AiSuggestionWrites;
 }
 
+/**
+ * The largest file an AI app is given, before it is encoded for the answer (S20, decision O1). The
+ * answer carries the file as base64 (a third larger) inside one response, and a hosted function's
+ * response is limited to about 4.5 MB, so 3 MB is what fits with room for the rest of the answer.
+ * ADR 0021's 10 MB needs a streamed answer verified on the host, and is deferred.
+ */
+export const AI_FILE_RESPONSE_LIMIT_BYTES = 3_000_000;
+
+/** The file types an AI app is given (decision O4). */
+export type AiFileMimeType = 'application/pdf' | 'image/png' | 'image/jpeg';
+
+/** A file the gate gave back for one ticked document: the bytes and plain facts, never an id or key. */
+export interface AiServedFile {
+  /** `D-XXXXXX`. */
+  readonly referenceCode: string;
+  /** The document's kind in plain words ("Visa"). */
+  readonly kind: string;
+  readonly variant: AiFileVariant;
+  readonly mimeType: AiFileMimeType;
+  readonly sizeBytes: number;
+  readonly bytes: Uint8Array;
+}
+
+/** Why a file was not given. Each is also an audit denial reason. */
+export type AiFileFailure = Extract<
+  AiDenialReason,
+  | 'not_available'
+  | 'feature_off'
+  | 'files_not_granted'
+  | 'file_not_chosen'
+  | 'document_protected'
+  | 'file_limit'
+  | 'safe_copy_limit'
+  | 'file_not_ready'
+  | 'safe_copy_not_ready'
+  | 'file_too_large'
+  | 'file_type_unsupported'
+  | 'failed'
+>;
+
+/** The gateway the file tool gets (S20): the read gateway, plus one ticked document's file. */
+export interface AiFileGateway extends AiContextGateway {
+  file(documentReference: string): Promise<Result<AiServedFile, AiFileFailure>>;
+}
+
+/** What the gate needs to give files: the private storage and the Safe Copy renderer. */
+export type AiFileDeps = Pick<RedactionDeps, 'storage' | 'renderer'>;
+
+/** What a served file adds to the audit record: never contents, file name, hash or key. */
+export interface AiServedFileRecord {
+  readonly documentId: string;
+  readonly variant: AiFileVariant;
+  readonly sizeBytes: number;
+  readonly mimeType: AiFileMimeType;
+}
+
 /** What a finished call gave back, for the audit: counts and section names only. */
 export type AiCallRecord =
   | {
@@ -228,6 +296,8 @@ export type AiCallRecord =
       readonly values: number;
       readonly documents: number;
       readonly documentTexts: number;
+      /** The file tool (S20): set by the gate itself, from the file it actually gave. */
+      readonly file?: AiServedFileRecord;
     }
   | { readonly kind: 'denied'; readonly reason: AiDenialReason };
 
@@ -251,6 +321,8 @@ export interface AiGateRequest {
   readonly now?: Date;
   /** Needed to read protected values; without it they are left out and counted. */
   readonly encryption?: KeyManagementPort;
+  /** Needed to give files (S20); without it the file tool answers "not available yet". */
+  readonly files?: AiFileDeps;
 }
 
 /** Account activity (inactive-account rules) is recorded at most this often from AI calls. */
@@ -489,9 +561,23 @@ export async function withAiSuggestionConnection<T>(
   return runGate(db, request, { mode: 'suggest', work }, describe);
 }
 
+/**
+ * The same gate for the file tool (S20): the gateway also gives the file of one document the
+ * person ticked under "Original Files", read again on this very call.
+ */
+export async function withAiFileConnection<T>(
+  db: Db,
+  request: AiGateRequest,
+  work: (gateway: AiFileGateway) => Promise<T>,
+  describe: (value: T) => AiCallRecord,
+): Promise<Result<T, AiGateRefusal>> {
+  return runGate(db, request, { mode: 'file', work }, describe);
+}
+
 type GateWork<T> =
   | { readonly mode: 'read'; readonly work: (gateway: AiContextGateway) => Promise<T> }
-  | { readonly mode: 'suggest'; readonly work: (gateway: AiWriteGateway) => Promise<T> };
+  | { readonly mode: 'suggest'; readonly work: (gateway: AiWriteGateway) => Promise<T> }
+  | { readonly mode: 'file'; readonly work: (gateway: AiFileGateway) => Promise<T> };
 
 /** Carries a refused write out of its savepoint, so everything it wrote is rolled back. */
 class WriteAborted extends Error {
@@ -590,40 +676,73 @@ async function runGate<T>(
         },
       });
 
+      // The file the file tool was given on this call, for the audit record (S20).
+      let served: AiServedFileRecord | null = null;
       let value: T;
       try {
-        value =
-          job.mode === 'read'
-            ? await job.work(gateway)
-            : await job.work(
-                Object.freeze({
-                  ...gateway,
-                  writes: suggestionWrites({
-                    tx,
-                    request,
-                    connection,
-                    proof,
-                    scope,
-                    compose: gateway.compose,
-                    resolveCases,
-                    isOpen: () => open,
-                    deny: (reason) => {
-                      denial = reason;
-                    },
-                  }),
-                }),
-              );
+        if (job.mode === 'read') {
+          value = await job.work(gateway);
+        } else if (job.mode === 'suggest') {
+          value = await job.work(
+            Object.freeze({
+              ...gateway,
+              writes: suggestionWrites({
+                tx,
+                request,
+                connection,
+                proof,
+                scope,
+                compose: gateway.compose,
+                resolveCases,
+                isOpen: () => open,
+                deny: (reason) => {
+                  denial = reason;
+                },
+              }),
+            }),
+          );
+        } else {
+          const file = fileReader({
+            tx,
+            request,
+            connection,
+            proof,
+            scope,
+            isOpen: () => open,
+            deny: (reason) => {
+              denial = reason;
+            },
+            served: (record) => {
+              served = record;
+            },
+          });
+          value = await job.work(Object.freeze({ ...gateway, file }));
+        }
       } finally {
         open = false;
       }
-      const record: AiCallRecord =
+      const described: AiCallRecord =
         denial !== null ? { kind: 'denied', reason: denial } : describe(value);
+      const record: AiCallRecord =
+        described.kind === 'served' && served !== null ? { ...described, file: served } : described;
       if (record.kind === 'denied') {
         await auditDenied(tx, connection, request.tool, record.reason, {
           now: request.now ?? new Date(),
         });
       } else {
-        // Product event first (a savepoint that never throws), then the audit record.
+        // Product events first (savepoints that never throw), then the audit record.
+        if (record.file) {
+          await recordProductEvent(tx, {
+            eventType: 'AI_FILE_SERVED',
+            accountId: connection.accountId,
+            dimension: record.file.variant,
+            onceFor: aiContextDayKey(
+              connection.connectionId,
+              `FILE_${record.file.variant}`,
+              request.now ?? new Date(),
+            ),
+          });
+        }
         const label = aiContextToolLabel(request.tool);
         await recordProductEvent(tx, {
           eventType: 'AI_CONTEXT_REQUESTED',
@@ -649,6 +768,17 @@ async function runGate<T>(
             documents: record.documents,
             documentTexts: record.documentTexts,
             depth: depth ?? scope.depth,
+            // The file tool (S20): which document, how it was given, its type and size. Never its
+            // contents, file name, hash or storage key.
+            ...(record.file
+              ? {
+                  fileServed: true,
+                  variant: record.file.variant,
+                  documentId: record.file.documentId,
+                  sizeBytes: record.file.sizeBytes,
+                  mimeType: record.file.mimeType,
+                }
+              : {}),
           },
         });
       }
@@ -927,4 +1057,285 @@ function suggestionWrites(context: WriteContext): AiSuggestionWrites {
     },
   };
   return Object.freeze(writes);
+}
+
+interface FileContext {
+  readonly tx: Db;
+  readonly request: AiGateRequest;
+  readonly connection: ResolvedAiConnection;
+  /** The owner's read proof for this call: the AI feature's state is read through it. */
+  readonly proof: AuthorizedApplicant<'VIEW_METADATA'>;
+  readonly scope: AiGrantedScope;
+  readonly isOpen: () => boolean;
+  readonly deny: (reason: AiFileFailure) => void;
+  readonly served: (record: AiServedFileRecord) => void;
+}
+
+/** Carries a refused file out of its savepoint, so the access and the count are rolled back. */
+class FileAborted extends Error {
+  constructor(
+    readonly reason: AiFileFailure,
+    /** A refused Safe Copy's DENIED access record, written again outside the savepoint. */
+    readonly denied?: {
+      readonly proof: AuthorizedApplicant<'DOWNLOAD_REDACTED'>;
+      readonly reason: string;
+    },
+  ) {
+    super('ai file refused');
+  }
+}
+
+/** What a DOCUMENT_ACCESS event records as the purpose of a Safe Copy given to an AI app. */
+const AI_SAFE_COPY_PURPOSES = Object.freeze({
+  owner: 'ai_connection_safe_copy',
+  shared: 'ai_connection_safe_copy',
+});
+
+/**
+ * The file of one ticked document (S20, ADR 0021 amendment), built for one call. Every step reads
+ * the stored state again, in the call's own transaction, in this order:
+ *
+ * 1. the feature: the migration has run, the file deps are wired, and AI App Original Files works
+ *    for this person (the platform owner's switch and the plan); List of My Documents is on;
+ * 2. the reference names a document this connection has ticked, on this connection's own record,
+ *    current and kept in the person's own documents (anything else: `file_not_chosen`, the same
+ *    answer whether it exists, is someone else's, or was unticked);
+ * 3. its type is not restricted by the document protection switches as they are now;
+ * 4. a cheap, read-only check that the person's daily file limit is not already reached;
+ * 5. a second proof from the access gate, owner only, for this one document: `DOWNLOAD_REDACTED`
+ *    for a Safe Copy, `DOWNLOAD_ORIGINAL` (with the standing identity check of a stored Original)
+ *    for the Original;
+ * 6. a Safe Copy only from `produceSafeCopy`: when it is not ready, or out of date after a new
+ *    version, the answer is `safe_copy_not_ready`, and the original is never given instead;
+ * 7. an Original only from `readOriginalDocumentFile`: the latest clean version, within the size
+ *    limit before a byte is read, a PDF, PNG or JPEG matching its stored hash;
+ * 8. the daily limit is charged last, only for a file actually given; over the limit undoes it.
+ *
+ * Steps 5 to 8 run in a savepoint: a file that is made but then refused (too large, over the
+ * limit) leaves no allowed access record and no count behind.
+ */
+function fileReader(context: FileContext): AiFileGateway['file'] {
+  const { tx, request, connection, scope } = context;
+  const now = request.now ?? new Date();
+
+  function fail(reason: AiFileFailure): Result<AiServedFile, AiFileFailure> {
+    context.deny(reason);
+    return err(reason);
+  }
+
+  return async (documentReference: string) => {
+    if (!context.isOpen()) return fail('failed');
+    // 1. The feature, on every call.
+    const deps = request.files;
+    if (!deps || !(await aiFilesAvailable(tx))) return fail('not_available');
+    const feature = await getAiFeatureState(tx, 'ai_app_original_files', { proof: context.proof });
+    if (!feature.available) {
+      return fail(feature.reason === 'not_available_yet' ? 'not_available' : 'feature_off');
+    }
+    if (!scope.documentList) return fail('files_not_granted');
+
+    // 2. A document this connection ticked, on its own record.
+    const parsed = parseReferenceCode(documentReference, 'D');
+    if (!parsed.ok) return fail('file_not_chosen');
+    const reference = formatReferenceCode('D', parsed.code);
+    const chosen = first(
+      await tx
+        .select({
+          documentId: schema.documents.id,
+          docType: schema.documents.docType,
+          variant: schema.aiConnectionDocuments.variant,
+        })
+        .from(schema.referenceCodes)
+        .innerJoin(
+          schema.aiConnectionDocuments,
+          and(
+            eq(schema.aiConnectionDocuments.documentId, schema.referenceCodes.entityId),
+            eq(schema.aiConnectionDocuments.connectionId, connection.connectionId),
+          ),
+        )
+        .innerJoin(
+          schema.documents,
+          and(
+            eq(schema.documents.id, schema.aiConnectionDocuments.documentId),
+            eq(schema.documents.applicantId, connection.applicantId),
+            isNull(schema.documents.supersededByDocumentId),
+            eq(schema.documents.walletVisible, true),
+          ),
+        )
+        .where(
+          and(eq(schema.referenceCodes.kind, 'D'), eq(schema.referenceCodes.code, parsed.code)),
+        )
+        .limit(1),
+    );
+    if (!chosen || !isAiFileVariant(chosen.variant)) return fail('file_not_chosen');
+    const variant: AiFileVariant = chosen.variant;
+    // A document queued for erasure is gone: the same answer as one never ticked.
+    if (await aiFileErasurePending(context.proof, chosen.documentId)) {
+      return fail('file_not_chosen');
+    }
+
+    // 3. Never a type the document protection switches restrict, as they are now (decision O2).
+    const protection = await loadDocumentProtectionSettings(tx, DEFAULT_DOCUMENT_PROTECTION);
+    if (documentTypeRestricted(chosen.docType, protection)) return fail('document_protected');
+
+    // 4. Read only: whether the person's daily file limit is already reached.
+    const cap = {
+      input: { subjectId: connection.accountId, action: 'ai_file.account' },
+      config: {
+        ...RATE_LIMITS.AI_FILE_ACCOUNT_DAY,
+        limit: feature.dailyLimit ?? RATE_LIMITS.AI_FILE_ACCOUNT_DAY.limit,
+      },
+    } as const;
+    if (await isRateLimitReached(tx, cap.input, cap.config, now)) return fail('file_limit');
+
+    // 5 to 8, in a savepoint.
+    let given: Omit<AiServedFile, 'referenceCode' | 'kind' | 'variant'>;
+    try {
+      given = await tx
+        .transaction(async (savepoint) => {
+          const principal = accountPrincipal(connection.accountId);
+          const target = { documentId: chosen.documentId };
+          let file: { bytes: Uint8Array; mimeType: AiFileMimeType };
+          if (variant === 'SAFE_COPY') {
+            const access = await requireAccess(savepoint, principal, 'DOWNLOAD_REDACTED', target, {
+              purpose: AI_CONNECTION_PURPOSE,
+            });
+            if (!ownerAccess(access, connection.applicantId)) throw new FileAborted('failed');
+            // A copy that is not ready is refused before the owner's hourly limit is counted.
+            const copy = await produceSafeCopy(access.value, deps, {
+              purposes: AI_SAFE_COPY_PURPOSES,
+              disposition: 'ai_file',
+            });
+            // Any refusal rolls the savepoint back, a count with it; its DENIED access record is
+            // written again below, outside the savepoint, as for an Original.
+            if (!copy.ok) {
+              throw new FileAborted(
+                safeCopyFailure(copy.error),
+                copy.error.auditReason !== undefined
+                  ? { proof: access.value, reason: copy.error.auditReason }
+                  : undefined,
+              );
+            }
+            file = { bytes: copy.value.bytes, mimeType: copy.value.contentType };
+          } else {
+            const stepUp = await stepUpForAiOriginalFile(
+              savepoint,
+              connection.connectionId,
+              chosen.documentId,
+            );
+            if (!stepUp) throw new FileAborted('file_not_chosen');
+            const access = await requireAccess(savepoint, principal, 'DOWNLOAD_ORIGINAL', target, {
+              purpose: AI_CONNECTION_PURPOSE,
+              stepUp,
+            });
+            if (!ownerAccess(access, connection.applicantId)) throw new FileAborted('failed');
+            const original = await readOriginalDocumentFile(
+              access.value,
+              deps,
+              AI_FILE_RESPONSE_LIMIT_BYTES,
+            );
+            if (!original.ok) return { refused: originalFailure(original.error) } as const;
+            file = { bytes: original.value.bytes, mimeType: original.value.contentType };
+          }
+          // A Safe Copy can be up to 4 MB; an answer holds at most the file limit.
+          if (file.bytes.byteLength > AI_FILE_RESPONSE_LIMIT_BYTES) {
+            throw new FileAborted('file_too_large');
+          }
+          // Charged last, only for a file actually given; over the limit undoes it.
+          const charged = await checkRateLimit(savepoint, cap.input, cap.config, now);
+          if (!charged.allowed) throw new FileAborted('file_limit');
+          return { ...file, sizeBytes: file.bytes.byteLength } as const;
+        })
+        .then((outcome) => {
+          if ('refused' in outcome) throw new FileAborted(outcome.refused);
+          return outcome;
+        });
+    } catch (error) {
+      if (!(error instanceof FileAborted)) throw error;
+      if (error.denied) {
+        // The refused Safe Copy's own record, with the fields `produceSafeCopy` writes.
+        await writeDocumentAccessAudit(
+          error.denied.proof,
+          {
+            documentId: chosen.documentId,
+            applicantId: connection.applicantId,
+            allowed: false,
+            reason: error.denied.reason,
+            metadata: { variant: 'redacted', disposition: 'ai_file' },
+            purposes: AI_SAFE_COPY_PURPOSES,
+          },
+          tx,
+        );
+      }
+      return fail(error.reason);
+    }
+
+    context.served({
+      documentId: chosen.documentId,
+      variant,
+      sizeBytes: given.sizeBytes,
+      mimeType: given.mimeType,
+    });
+    return ok({
+      referenceCode: reference,
+      kind:
+        (chosen.docType ? resolveDocumentType(chosen.docType)?.label : undefined) ??
+        'Other Document',
+      variant,
+      mimeType: given.mimeType,
+      sizeBytes: given.sizeBytes,
+      bytes: given.bytes,
+    });
+  };
+}
+
+/** The connection speaks for its owner only, on its own record; a share recipient never counts. */
+function ownerAccess<A extends 'DOWNLOAD_REDACTED' | 'DOWNLOAD_ORIGINAL'>(
+  access: Result<AuthorizedApplicant<A>, unknown>,
+  applicantId: string,
+): access is { readonly ok: true; readonly value: AuthorizedApplicant<A> } {
+  return (
+    access.ok &&
+    access.value.actor.kind === 'applicant_owner' &&
+    access.value.applicant.id === applicantId
+  );
+}
+
+/** A Safe Copy that was not made, as the app is told. Never a fallback to the original. */
+function safeCopyFailure(error: {
+  readonly code: string;
+  readonly refusal?: string;
+}): AiFileFailure {
+  // The owner's own hourly Safe Copy limit, never the daily AI file limit.
+  if (error.code === 'rate_limited') return 'safe_copy_limit';
+  switch (error.refusal) {
+    case 'not_prepared':
+    case 'not_ready_yet':
+    case 'out_of_date':
+      return 'safe_copy_not_ready';
+    case 'not_available':
+      return 'file_not_ready';
+    case 'too_large':
+      return 'file_too_large';
+    case 'unsupported':
+      return 'file_type_unsupported';
+    default:
+      return 'failed';
+  }
+}
+
+/** An Original that was not read, as the app is told. */
+function originalFailure(
+  refusal: 'not_ready' | 'too_large' | 'unsupported' | 'unreadable',
+): AiFileFailure {
+  switch (refusal) {
+    case 'not_ready':
+      return 'file_not_ready';
+    case 'too_large':
+      return 'file_too_large';
+    case 'unsupported':
+      return 'file_type_unsupported';
+    case 'unreadable':
+      return 'failed';
+  }
 }

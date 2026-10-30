@@ -16,6 +16,19 @@ vi.mock('@visastack/services', async (original) => ({
 }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
+/** The browser's cookie jar for the Sharing page (S20: ticked files kept across a sign-in check). */
+const jar = new Map<string, { value: string; options: { path?: string } }>();
+vi.mock('next/headers', () => ({
+  cookies: async () => ({
+    get: (name: string) => (jar.has(name) ? { name, value: jar.get(name)?.value } : undefined),
+    set: (name: string, value: string, options: { path?: string }) => {
+      jar.set(name, { value, options });
+    },
+    delete: (options: { name: string; path?: string }) => {
+      jar.delete(options.name);
+    },
+  }),
+}));
 vi.mock('../../../../../lib/step-up', () => ({
   STEP_UP_NOT_CONFIGURED_MESSAGE: 'Confirmation unavailable.',
   establishStepUpProof: mocks.establishStepUpProof,
@@ -47,7 +60,9 @@ function form(fields: Record<string, string | string[]>) {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  jar.clear();
   vi.stubEnv('AI_CONNECTOR_ENABLED', 'true');
+  vi.stubEnv('NEON_AUTH_COOKIE_SECRET', 'x'.repeat(64));
   mocks.requireAccess.mockResolvedValue({ ok: true, value: OWNER_PROOF });
   mocks.redirect.mockImplementation((url: string) => {
     throw new Error(`redirected:${url}`);
@@ -197,5 +212,133 @@ describe('Change Access', () => {
     mocks.changeAiConnection.mockClear();
     expect((await changeAiAccessAction(NONE, form(choices))).ok).toBe(false);
     expect(mocks.changeAiConnection).not.toHaveBeenCalled();
+  });
+});
+
+describe('Change Access: Original Files (S20)', () => {
+  const DOC_A = '44444444-4444-4444-8444-444444444444';
+  const DOC_B = '55555555-5555-4555-8555-555555555555';
+  const base = { layer: ['identity'], cases: 'all', document_list: 'on', duration: 'keep' };
+
+  it('sends the ticked files, a Safe Copy unless the Original was chosen', async () => {
+    mocks.changeAiConnection.mockResolvedValue({ ok: true, value: { expiresAt: null } });
+    await changeAiAccessAction(
+      NONE,
+      form({
+        ...base,
+        files_present: '1',
+        file: [DOC_A, DOC_B, 'not-an-id'],
+        [`file_variant_${DOC_B}`]: 'ORIGINAL',
+      }),
+    );
+    expect(mocks.changeAiConnection.mock.calls[0]?.[1].choices.files).toEqual([
+      { documentId: DOC_A, variant: 'SAFE_COPY' },
+      { documentId: DOC_B, variant: 'ORIGINAL' },
+    ]);
+    // A form without the choices keeps what is stored: nothing is sent.
+    await changeAiAccessAction(NONE, form(base));
+    expect(mocks.changeAiConnection.mock.calls[1]?.[1].choices).not.toHaveProperty('files');
+  });
+
+  it('keeps the ticked files in a signed cookie for the sign-in check, never in the address', async () => {
+    mocks.changeAiConnection.mockResolvedValue({ ok: false, error: { code: 'step_up_required' } });
+    mocks.establishStepUpProof.mockResolvedValue({ kind: 'reauth_required', reauthUrl: '/reauth' });
+    const ticked = {
+      ...base,
+      files_present: '1',
+      file: [DOC_A],
+      [`file_variant_${DOC_A}`]: 'ORIGINAL',
+    };
+    await expect(changeAiAccessAction(NONE, form(ticked))).rejects.toThrow('redirected:/reauth');
+    const [, back] = mocks.establishStepUpProof.mock.calls[0] ?? [];
+    expect(back).not.toContain(DOC_A);
+    expect(back).not.toMatch(/file/);
+    const kept = jar.get('vs_ai_file_picks');
+    expect(kept?.options.path).toBe(`/app/applicant/${APPLICANT}/sharing`);
+    const { decodeAiFilePicks } = await import('../../../../../lib/ai-file-picks-retry');
+    expect(
+      decodeAiFilePicks(kept?.value, {
+        accountId: 'owner',
+        applicantId: APPLICANT,
+        target: CONNECTION,
+      }),
+    ).toEqual([{ documentId: DOC_A, variant: 'ORIGINAL' }]);
+    // Still refused after the check: the files field is named, and the ticks come back.
+    mocks.establishStepUpProof.mockResolvedValue({ kind: 'proof', proof: {} });
+    expect(await changeAiAccessAction(NONE, form(ticked))).toMatchObject({
+      ok: false,
+      field: 'file',
+      files: [{ documentId: DOC_A, variant: 'ORIGINAL' }],
+    });
+    // A save clears the cookie.
+    mocks.changeAiConnection.mockResolvedValue({ ok: true, value: { expiresAt: null } });
+    await changeAiAccessAction(NONE, form(ticked));
+    expect(jar.has('vs_ai_file_picks')).toBe(false);
+  });
+
+  it('refuses files without List of My Documents, keeping what was typed', async () => {
+    const result = await changeAiAccessAction(
+      NONE,
+      form({
+        layer: ['identity'],
+        cases: 'all',
+        duration: 'keep',
+        files_present: '1',
+        file: [DOC_A],
+      }),
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      field: 'document_list',
+      files: [{ documentId: DOC_A, variant: 'SAFE_COPY' }],
+      choices: { layers: ['identity'], documentList: false, duration: 'keep' },
+    });
+    expect(mocks.changeAiConnection).not.toHaveBeenCalled();
+  });
+
+  it('saves an empty choice across the check, so files unticked before it never come back ticked', async () => {
+    mocks.changeAiConnection.mockResolvedValue({ ok: false, error: { code: 'step_up_required' } });
+    mocks.establishStepUpProof.mockResolvedValue({ kind: 'reauth_required', reauthUrl: '/reauth' });
+    const { decodeAiFilePicks } = await import('../../../../../lib/ai-file-picks-retry');
+    const expected = { accountId: 'owner', applicantId: APPLICANT, target: CONNECTION };
+    await expect(
+      changeAiAccessAction(
+        NONE,
+        form({ ...base, files_present: '1', file: [DOC_A], [`file_variant_${DOC_A}`]: 'ORIGINAL' }),
+      ),
+    ).rejects.toThrow('redirected:/reauth');
+    expect(decodeAiFilePicks(jar.get('vs_ai_file_picks')?.value, expected)).toHaveLength(1);
+    await expect(
+      changeAiAccessAction(NONE, form({ ...base, reveal_identifiers: 'on', files_present: '1' })),
+    ).rejects.toThrow('redirected:/reauth');
+    expect(decodeAiFilePicks(jar.get('vs_ai_file_picks')?.value, expected)).toEqual([]);
+    await expect(
+      changeAiAccessAction(NONE, form({ ...base, reveal_identifiers: 'on' })),
+    ).rejects.toThrow('redirected:/reauth');
+    expect(jar.has('vs_ai_file_picks')).toBe(false);
+  });
+
+  it('names both new choices in one sentence when both need the check', async () => {
+    mocks.changeAiConnection.mockResolvedValue({
+      ok: false,
+      error: { code: 'step_up_required', needs: ['full_numbers', 'original_files'] },
+    });
+    mocks.establishStepUpProof.mockResolvedValue({ kind: 'proof', proof: {} });
+    const result = await changeAiAccessAction(
+      NONE,
+      form({
+        ...base,
+        reveal_identifiers: 'on',
+        files_present: '1',
+        file: [DOC_A],
+        [`file_variant_${DOC_A}`]: 'ORIGINAL',
+      }),
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      field: 'reveal_identifiers',
+      message:
+        'To turn on Full Document Numbers and give an Original file, confirm it is you first: save again and sign in when asked.',
+    });
   });
 });

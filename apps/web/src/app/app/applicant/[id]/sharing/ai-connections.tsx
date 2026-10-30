@@ -4,14 +4,18 @@ import {
   AI_CONNECTION_LAYERS,
   AI_KEEP_END,
   type AiChangeDuration,
+  type AiFileChoice,
+  type AiFilesView,
   type ConsentInitial,
 } from '../../../../../lib/ai-consent-choices';
 import {
   AI_DURATION_LABELS,
   AI_FULL_NUMBERS_LABEL,
+  AI_ORIGINAL_FILES_LABEL,
   AI_SUGGEST_CHANGES_LABEL,
   aiAccessLabels,
   aiAllowsSuggestions,
+  aiFilesLine,
 } from '../../../../../lib/ai-consent-labels';
 import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
 import { ChangeAccessForm } from './ai-connection-change';
@@ -25,6 +29,14 @@ export interface AiChangeReturn {
   readonly connectionId: string;
   readonly choices: AccessChoices;
   readonly duration: AiChangeDuration;
+  /** The files the person ticked, from a signed cookie for this connection (never a link). */
+  readonly files?: readonly AiFileChoice[];
+}
+
+/** "Original Files" on the Sharing page (S20): what may be ticked, and what each connection has. */
+export interface AiConnectionFiles {
+  readonly view: AiFilesView;
+  readonly byConnection: Readonly<Record<string, readonly AiFileChoice[]>>;
 }
 
 function storedCase(item: AiConnectionSummary): string {
@@ -81,12 +93,14 @@ function ChangeAccess({
   cases,
   returning,
   suggestionsAvailable,
+  files,
 }: {
   readonly applicantId: string;
   readonly item: AiConnectionSummary;
   readonly cases: readonly CaseOption[];
   readonly returning: AiChangeReturn | undefined;
   readonly suggestionsAvailable: boolean;
+  readonly files: AiConnectionFiles | undefined;
 }) {
   const options = caseOptionsFor(item, cases);
   const back = returning?.connectionId === item.id ? returning : undefined;
@@ -112,6 +126,13 @@ function ChangeAccess({
         durations={changeDurations(item)}
         defaultDuration={back ? back.duration : AI_KEEP_END}
         suggestionsAvailable={suggestionsAvailable}
+        {...(files
+          ? {
+              files: files.view,
+              filesStored: files.byConnection[item.id] ?? [],
+              filesInitial: back?.files ?? files.byConnection[item.id] ?? [],
+            }
+          : {})}
       />
     </details>
   );
@@ -127,11 +148,14 @@ export function aiCaseLine(item: Pick<AiConnectionSummary, 'caseMode' | 'caseTit
 function Details({
   item,
   suggestionsAvailable,
+  files,
 }: {
   readonly item: AiConnectionSummary;
   readonly suggestionsAvailable: boolean;
+  readonly files: AiConnectionFiles | undefined;
 }) {
   const access = aiAccessLabels(item.scopes);
+  const ticked = files?.byConnection[item.id] ?? [];
   return (
     <dl className="ai-connection-facts">
       <div>
@@ -150,6 +174,16 @@ function Details({
         <dt>{AI_FULL_NUMBERS_LABEL}</dt>
         <dd>{item.revealIdentifiers ? 'Yes' : 'No'}</dd>
       </div>
+      {ticked.length > 0 ? (
+        <div>
+          <dt>{AI_ORIGINAL_FILES_LABEL}</dt>
+          <dd>
+            {files?.view.available
+              ? aiFilesLine(ticked)
+              : `${aiFilesLine(ticked)}, but turned off right now`}
+          </dd>
+        </div>
+      ) : null}
       {aiAllowsSuggestions(item.scopes) ? (
         <div>
           <dt>{AI_SUGGEST_CHANGES_LABEL}</dt>
@@ -188,10 +222,13 @@ export function AiConnectionsSection({
   cases = [],
   returning,
   suggestionsAvailable = false,
+  files,
 }: {
   readonly applicantId: string;
   readonly list: AiConnectionList;
   readonly connectorOn: boolean;
+  /** "Original Files" (S20): absent while it cannot be offered (not available yet). */
+  readonly files?: AiConnectionFiles;
   /** The record's current cases, for Change Access. */
   readonly cases?: readonly CaseOption[];
   /** Change Access choices coming back from a fresh sign-in check: that form opens with them. */
@@ -249,7 +286,7 @@ export function AiConnectionsSection({
               <h3 className="ai-connection-name">
                 {item.clientName} <span className="ai-consent-host">{item.clientHost}</span>
               </h3>
-              <Details item={item} suggestionsAvailable={suggestionsAvailable} />
+              <Details item={item} suggestionsAvailable={suggestionsAvailable} files={files} />
               {connectorOn ? (
                 <ChangeAccess
                   applicantId={applicantId}
@@ -257,6 +294,7 @@ export function AiConnectionsSection({
                   cases={cases}
                   returning={returning}
                   suggestionsAvailable={suggestionsAvailable}
+                  files={files}
                 />
               ) : null}
               <div className="page-actions ai-connection-actions">

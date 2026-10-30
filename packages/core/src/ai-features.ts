@@ -35,6 +35,14 @@ export const AI_FEATURES = {
     defaultEnabled: false,
     defaultDailyLimit: 15,
   },
+  ai_app_original_files: {
+    key: 'ai_app_original_files',
+    name: 'AI App Original Files',
+    description:
+      'Lets the AI apps people connect receive the files a person ticked, as a Safe Copy or the original, never passports, identity, money or health documents.',
+    defaultEnabled: false,
+    defaultDailyLimit: 30,
+  },
 } as const satisfies Readonly<Record<string, AiFeatureDefinition>>;
 
 export type AiFeatureKey = keyof typeof AI_FEATURES;
@@ -66,6 +74,7 @@ export interface AiFeatureEntitlement {
 export const AI_PLAN_TIERS = {
   FREE: {
     ai_app_suggestions: { included: true, dailyLimit: 15 },
+    ai_app_original_files: { included: true, dailyLimit: 30 },
   },
 } as const satisfies Readonly<Record<string, Readonly<Record<AiFeatureKey, AiFeatureEntitlement>>>>;
 

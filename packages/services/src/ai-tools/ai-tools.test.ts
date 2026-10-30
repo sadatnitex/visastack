@@ -375,8 +375,9 @@ describe('AI tools: declared shape', () => {
       'list_documents',
       'get_document_text',
     ]);
-    // The suggestion tools follow, each guarded in tool-guard.test.ts.
+    // The file tool (S20, read-only), then the suggestion tools, each guarded in tool-guard.test.ts.
     expect(AI_TOOLS.slice(readTools.length).map((t) => t.name)).toEqual([
+      'get_document_file',
       'suggest_profile_update',
       'save_draft',
       'add_reminder',

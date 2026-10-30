@@ -4792,6 +4792,35 @@ export const aiTaskOrigins = pgTable('ai_task_origins', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+// The documents a person chose under "Original Files" for one AI connection (S20, ADR 0021
+// amendment), and how each may be given: a Safe Copy (the default) or the Original. One row per
+// chosen document; unticking deletes the row, and the AI gate reads these rows again on every
+// call. A separate table rather than columns on ai_connections, because every existing read of a
+// connection selects the whole row and would fail before the migration runs. Both links cascade,
+// so a removed connection or document takes its choices with it, and a trigger in the migration
+// refuses a document of another record.
+export const aiConnectionDocuments = pgTable(
+  'ai_connection_documents',
+  {
+    connectionId: uuid('connection_id')
+      .notNull()
+      .references(() => aiConnections.id, { onDelete: 'cascade' }),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => documents.id, { onDelete: 'cascade' }),
+    variant: text('variant').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      name: 'ai_connection_documents_pkey',
+      columns: [table.connectionId, table.documentId],
+    }),
+    index('ai_connection_documents_document_idx').on(table.documentId),
+    check('ai_connection_documents_variant', sql`${table.variant} in ('SAFE_COPY', 'ORIGINAL')`),
+  ],
+);
+
 // The platform owner's switch and daily limit for each AI feature (S21 framework, ADR 0021
 // amendment). Keys are the registry in packages/core/src/ai-features.ts; a feature with no row
 // uses its registered default. Holds no personal data.

@@ -2,6 +2,7 @@ import { CONSENT_TYPES, type ConsentType, isOk } from '@visastack/core';
 import { and, asc, eq, gt, inArray, isNull, ne } from 'drizzle-orm';
 import { AI_CONNECTION_REVOKED_REASON } from './access/ai-connection-manage';
 import { caseExclusionsTablePresent } from './access/grant-scope';
+import { aiFilesAvailable } from './ai-files-ready';
 import { appendAuditEvent } from './audit';
 import { purgeMissionUnconditionally } from './case-retention';
 import { getConsents } from './consent';
@@ -409,12 +410,51 @@ async function forceAiConnectionNarrowed(
       }
       const ended = narrowed.expiresAt !== null && narrowed.expiresAt.getTime() <= now.getTime();
       const tokens = ended ? await revokeAiConnectionTokens(tx, resourceId, now) : 0;
-      return changed || tokens > 0;
+      const files = await narrowAiConnectionFiles(oldDb, tx, resourceId);
+      return changed || tokens > 0 || files;
     });
   } catch (error) {
     if (isMissingRelationError(error)) return false;
     throw error;
   }
+}
+
+/**
+ * "Original Files" (S20) under the same rule: the restored connection keeps only the documents
+ * both branches have ticked, and an Original only where both have it (a Safe Copy otherwise). A
+ * branch without the table has none ticked. Nothing is ever added.
+ */
+async function narrowAiConnectionFiles(oldDb: Db, tx: Db, connectionId: string): Promise<boolean> {
+  if (!(await aiFilesAvailable(tx))) return false;
+  const read = (db: Db) =>
+    db
+      .select({
+        documentId: schema.aiConnectionDocuments.documentId,
+        variant: schema.aiConnectionDocuments.variant,
+      })
+      .from(schema.aiConnectionDocuments)
+      .where(eq(schema.aiConnectionDocuments.connectionId, connectionId));
+  const source = new Map(
+    (await aiFilesAvailable(oldDb))
+      ? (await read(oldDb)).map((row) => [row.documentId, row.variant] as const)
+      : [],
+  );
+  let changed = false;
+  for (const row of await read(tx)) {
+    const where = and(
+      eq(schema.aiConnectionDocuments.connectionId, connectionId),
+      eq(schema.aiConnectionDocuments.documentId, row.documentId),
+    );
+    const kept = source.get(row.documentId);
+    if (kept === undefined) {
+      await tx.delete(schema.aiConnectionDocuments).where(where);
+      changed = true;
+    } else if (row.variant === 'ORIGINAL' && kept !== 'ORIGINAL') {
+      await tx.update(schema.aiConnectionDocuments).set({ variant: 'SAFE_COPY' }).where(where);
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 const UUID_TEXT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;

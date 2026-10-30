@@ -789,6 +789,7 @@ Note, 29 Oct 2026:
 - S16 deviation from ADR 0021 section 7, recorded for the owner: the product events `AI_CONTEXT_REQUESTED` and `AI_CONTEXT_DENIED` are written once per connection, per UTC day and per label, not once per call, so analytics do not grow with AI traffic. Per-call counts come from the audit records (`AI_CONTEXT_SERVED`, `AI_CONTEXT_DENIED`), which the staff card shows. Detail: known-issues, S16 entry.
 - Not a package row: QA-F (#309) added migration 0101 (live calendar links), run with the owner's word.
 - Update, 30 Oct 2026: S17 is merged (#342, `aaa29e34`) and its migration 0103 was applied on 29 Oct with the owner's word (run 40894153710); the S17 row above still reads as it did before the merge. S18 is in progress (refunds, credits, refunds made outside VisaStack, the monthly accounting file, migration 0104), together with a separate fix for the `/auth/reauth` production error. Then S20, S21, S22, then S24.
+- Update, 30 Oct 2026 (S20): built locally on `s20-wip` (not merged, not live). `get_document_file` and "Original Files" (Safe Copy by default, Original after a fresh sign-in check), the AI App Original Files switch (off by default, 30 files a day), migration 0106 `ai_connection_documents` (journal idx 104; renumbered to 0107 if another migration merges first) waiting for the owner's word (owner action O8-S20). The handoff's `document_ids` and `document_variants` columns became a child table, and the 10 MB limit is 3 MB until a streamed answer is verified; both recorded in ADR 0021's S20 amendment.
 
 Order rationale:
 

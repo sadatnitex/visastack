@@ -1,12 +1,15 @@
 import {
   type AiAdmission,
+  type AiFileDeps,
   type AiGateRequest,
   withAiConnection,
+  withAiFileConnection,
   withAiSuggestionConnection,
 } from '../access/with-ai-connection';
 import type { Db } from '../db';
 import type { KeyManagementPort } from '../ports';
 import { addReminder } from './add-reminder';
+import { getDocumentFile } from './get-document-file';
 import { getDocumentText } from './get-document-text';
 import { getProfileSection } from './get-profile-section';
 import { listCases } from './list-cases';
@@ -23,10 +26,11 @@ import { saveDraft } from './save-draft';
 import { suggestProfileUpdate } from './suggest-profile-update';
 
 /**
- * The AI connector's tools: the five read-only ones (ADR 0021 section 6), then the three
- * suggestion tools (S21, ADR 0021 extension), which work only while the person has turned on
- * "Suggest Changes". Each one runs only through the AI gate, here, and sees only the gateway it
- * hands over: a read tool never gets the writes.
+ * The AI connector's tools: the five read-only ones (ADR 0021 section 6), the read-only file tool
+ * (S20, "Original Files"), then the three suggestion tools (S21, ADR 0021 extension), which work
+ * only while the person has turned on "Suggest Changes". Each one runs only through the AI gate,
+ * here, and sees only the gateway it hands over: a read tool never gets the writes, and only the
+ * file tool gets files.
  */
 export const AI_TOOLS = [
   prepareContext,
@@ -34,6 +38,7 @@ export const AI_TOOLS = [
   getProfileSection,
   listDocuments,
   getDocumentText,
+  getDocumentFile,
   suggestProfileUpdate,
   saveDraft,
   addReminder,
@@ -47,6 +52,8 @@ export interface RunAiToolInput {
   /** The deployment's pilot-access rule (see `AiAdmission`). */
   readonly admission: AiAdmission;
   readonly encryption?: KeyManagementPort;
+  /** The private storage and Safe Copy renderer, for the file tool (S20). */
+  readonly files?: AiFileDeps;
   readonly now?: Date;
 }
 
@@ -77,6 +84,7 @@ export async function runAiTool<Tool extends AnyAiToolDefinition>(
       tool: tool.name,
       admission: request.admission,
       ...(request.encryption ? { encryption: request.encryption } : {}),
+      ...(request.files ? { files: request.files } : {}),
       ...(request.now ? { now: request.now } : {}),
     };
     const outcome =
@@ -87,12 +95,19 @@ export async function runAiTool<Tool extends AnyAiToolDefinition>(
             (gateway) => tool.run(gateway, input as never),
             describeResult,
           )
-        : await withAiConnection(
-            db,
-            gate,
-            (gateway) => tool.run(gateway, input as never),
-            describeResult,
-          );
+        : tool.kind === 'file'
+          ? await withAiFileConnection(
+              db,
+              gate,
+              (gateway) => tool.run(gateway, input as never),
+              describeResult,
+            )
+          : await withAiConnection(
+              db,
+              gate,
+              (gateway) => tool.run(gateway, input as never),
+              describeResult,
+            );
     if (!outcome.ok) return { kind: 'unauthorized', result: refusal(MESSAGES.ended) };
     return { kind: 'answered', result: outcome.value };
   } catch (error) {
@@ -104,6 +119,7 @@ export {
   AI_RESPONSE_LIMIT_BYTES,
   MESSAGES as AI_TOOL_MESSAGES,
   SUGGESTION_ANNOTATIONS,
+  type AiFileToolDefinition,
   type AnyAiToolDefinition,
   type AiSuggestionToolDefinition,
   type AiToolDefinition,

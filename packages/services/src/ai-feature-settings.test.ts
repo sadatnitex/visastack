@@ -157,6 +157,15 @@ describe('changing an AI feature', () => {
         planDailyLimit: 15,
         ready: true,
       }),
+      // S20: registered, off until turned on, 30 a day on the FREE tier.
+      expect.objectContaining({
+        feature: 'ai_app_original_files',
+        name: 'AI App Original Files',
+        enabled: false,
+        adminDailyLimit: null,
+        planDailyLimit: 30,
+        ready: true,
+      }),
     ]);
     const audit = await db
       .select()

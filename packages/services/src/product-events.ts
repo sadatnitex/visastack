@@ -5,6 +5,7 @@ import { and, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm';
 import {
   AI_CASE_MODES,
   AI_DENIAL_REASONS,
+  AI_FILE_VARIANTS,
   AI_TOOL_NAMES,
   type AiCaseMode,
   type AiDenialReason,
@@ -88,6 +89,9 @@ export const PRODUCT_EVENT_TYPES = [
   'AI_CONTEXT_REQUESTED',
   'AI_CONTEXT_DENIED',
   'AI_CONNECTOR_REVOKED',
+  // S20: a file given to an AI app through "Original Files", labelled with how it was given
+  // (SAFE_COPY or ORIGINAL); once per connection, per UTC day and per label.
+  'AI_FILE_SERVED',
 ] as const;
 
 export type ProductEventType = (typeof PRODUCT_EVENT_TYPES)[number];
@@ -166,6 +170,7 @@ const DIMENSION_RULES: Readonly<Partial<Record<ProductEventType, readonly string
   AI_CONNECTOR_CONNECTED: AI_CONNECTOR_CASE_LABELS,
   AI_CONTEXT_REQUESTED: AI_CONTEXT_TOOL_LABELS,
   AI_CONTEXT_DENIED: AI_CONTEXT_DENIAL_LABELS,
+  AI_FILE_SERVED: AI_FILE_VARIANTS,
 };
 
 /** The event types that may carry a measured number, and what the number is. */
@@ -418,6 +423,7 @@ export const PRODUCT_EVENT_CATEGORIES: ReadonlyArray<{
       'AI_CONTEXT_REQUESTED',
       'AI_CONTEXT_DENIED',
       'AI_CONNECTOR_REVOKED',
+      'AI_FILE_SERVED',
     ],
   },
 ];

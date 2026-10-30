@@ -115,6 +115,7 @@ describe('AI tools reach data only through withAiConnection', () => {
       'get-profile-section.ts',
       'list-documents.ts',
       'get-document-text.ts',
+      'get-document-file.ts',
       'index.ts',
     ]) {
       expect(names).toContain(expected);
@@ -169,6 +170,26 @@ describe('AI tools reach data only through withAiConnection', () => {
       expect(readFileSync(path.join(srcDir, index), 'utf8')).not.toContain(
         'stepUpFromAiConnection',
       );
+    }
+  });
+
+  it('only the gate makes the standing identity check for an Original file (S20)', () => {
+    const users = walk(srcDir)
+      .filter((file) => readFileSync(file, 'utf8').includes('stepUpForAiOriginalFile'))
+      .map((file) => path.relative(srcDir, file).replace(/\\/g, '/'))
+      .sort();
+    expect(users).toEqual(['access/step-up-proof.ts', 'access/with-ai-connection.ts']);
+    for (const index of ['access/index.ts', 'index.ts']) {
+      expect(readFileSync(path.join(srcDir, index), 'utf8')).not.toContain(
+        'stepUpForAiOriginalFile',
+      );
+    }
+    // Only the gate gives files: no tool module reads storage or makes a copy itself.
+    for (const file of toolModules()) {
+      const text = readFileSync(file, 'utf8');
+      for (const name of ['produceSafeCopy', 'readOriginalDocumentFile', 'getObject']) {
+        expect(text, `${path.basename(file)} ${name}`).not.toContain(name);
+      }
     }
   });
 });
