@@ -1067,6 +1067,8 @@ export {
   updateDraftAiProviderConfig,
 } from './ai-provider-config';
 
+export { aiModelIdProblem } from './ai-model-id';
+
 export {
   type DeletionImpactSummary,
   type DeletionRequest,

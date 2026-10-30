@@ -2,6 +2,7 @@ import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
 import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { type StaffScope, staffScopeProblem } from './access/principal';
+import { aiModelIdProblem } from './ai-model-id';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -124,6 +125,8 @@ export async function createDraftAiProviderConfig(
   }
   const problem = draftSettingsProblem(input);
   if (problem) return err(problem);
+  const modelProblem = aiModelIdProblem(input.provider.trim(), input.model);
+  if (modelProblem) return err(serviceError('invalid', modelProblem));
 
   return db.transaction(async (tx) => {
     // The same lock as revoke and delete, so a key is never copied from a row that is being
@@ -287,6 +290,9 @@ export async function updateDraftAiProviderConfig(
         ),
       );
     }
+    // The provider is fixed on an edit, so the model is checked against the saved one.
+    const modelProblem = aiModelIdProblem(target.provider, input.model);
+    if (modelProblem) return err(serviceError('invalid', modelProblem));
     // A draft another version falls back to may already have answered for it, so it is part of
     // the record too, and changing it would change live fallback calls without an activation.
     const fallingBack = first(

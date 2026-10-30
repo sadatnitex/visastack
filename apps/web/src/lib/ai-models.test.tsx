@@ -1,0 +1,47 @@
+import { aiModelIdProblem } from '@visastack/services';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it } from 'vitest';
+import { aiConfigView } from './ai-config-view.test-support';
+import { AI_MODEL_OPTIONS, OTHER_MODEL, aiModelOptionsFor, isListedAiModel } from './ai-models';
+import { IMPLEMENTED_PROVIDERS } from './ai-providers';
+import './next-mocks.test-support';
+
+describe('AI model list', () => {
+  it("lists models for every provider that can be configured, each unique and accepted by the service's own model rule", () => {
+    for (const provider of IMPLEMENTED_PROVIDERS) {
+      const options = aiModelOptionsFor(provider);
+      expect(options.length, provider).toBeGreaterThan(0);
+      const ids = options.map((o) => o.id);
+      expect(new Set(ids).size, provider).toBe(ids.length);
+      for (const id of ids) {
+        expect(aiModelIdProblem(provider, id), `${provider} ${id}`).toBeUndefined();
+        expect(id).not.toBe(OTHER_MODEL);
+      }
+    }
+    expect(Object.keys(AI_MODEL_OPTIONS).sort()).toEqual([...IMPLEMENTED_PROVIDERS].sort());
+  });
+
+  it('recommends Claude Opus 5.5 first for Anthropic, and knows what is listed', () => {
+    expect(aiModelOptionsFor('anthropic')[0]?.id).toBe('claude-opus-5-5');
+    expect(isListedAiModel('anthropic', 'claude-sonnet-5-5')).toBe(true);
+    expect(isListedAiModel('anthropic', 'Claude 5.5')).toBe(false);
+    expect(aiModelOptionsFor('unknown')).toEqual([]);
+  });
+});
+
+describe('AI settings model picker', () => {
+  it('offers the provider list with the saved model chosen, or opens on "Other Model ID" with an unlisted one filled in', async () => {
+    const { EditConfigForm } = await import('../app/app/admin/ai-settings/forms');
+    const view = aiConfigView({ model: 'claude-sonnet-5-5' });
+    const listed = renderToStaticMarkup(<EditConfigForm config={view} fallbackOptions={[]} />);
+    expect(listed).toContain('<option value="claude-sonnet-5-5" selected="">');
+    expect(listed).not.toContain('name="modelOther"');
+
+    const unlisted = renderToStaticMarkup(
+      <EditConfigForm config={{ ...view, model: 'claude-future-9' }} fallbackOptions={[]} />,
+    );
+    expect(unlisted).toContain(`<option value="${OTHER_MODEL}" selected="">`);
+    expect(unlisted).toMatch(/name="modelOther"[^>]*value="claude-future-9"/);
+    expect(unlisted).not.toContain('pattern=');
+  });
+});

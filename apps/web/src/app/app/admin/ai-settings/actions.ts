@@ -27,6 +27,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { bootstrapAdminEmails, hasPlatformPermission, staffPrincipal } from '../../../../lib/admin';
 import { resolveTestAdapter, usdToUnits } from '../../../../lib/ai';
+import { OTHER_MODEL } from '../../../../lib/ai-models';
 import { clearAiCapabilityCache } from '../../../../lib/capabilities';
 import { createKeyManagementPort } from '../../../../lib/providers';
 import { forgetReadinessSignals } from '../../../../lib/readiness-signals';
@@ -145,7 +146,9 @@ interface ConfigFields {
 
 /** Reads the shared settings, or a message naming what is missing. The key is checked by each caller. */
 function parseConfigFields(formData: FormData): ConfigFields | string {
-  const model = String(formData.get('model') ?? '').trim();
+  // The model list sends `modelChoice`, or `modelOther` when "Other Model ID" is chosen.
+  const choice = String(formData.get('modelChoice') ?? '').trim();
+  const model = (choice === OTHER_MODEL ? String(formData.get('modelOther') ?? '') : choice).trim();
   const budgetLimitUsd = parsePositiveNumber(formData.get('budgetLimitUsd'));
   const fallbackEnabled = formData.get('fallbackEnabled') === 'on';
   const fallbackProviderConfigId = String(formData.get('fallbackProviderConfigId') ?? '').trim();
