@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import type { AiProviderConfig } from '@visastack/services';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
@@ -81,10 +82,11 @@ function data(): Data {
   } as Data;
 }
 
-/** Every heading in the markup, as "h2 AI Providers". */
+/** Every heading in the markup, as "h2 AI Providers", read by the HTML parser. */
 function headings(html: string): string[] {
-  return [...html.matchAll(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/g)].map(
-    (match) => `h${match[1]} ${(match[2] ?? '').replace(/<[^>]+>/g, '').trim()}`,
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  return [...doc.querySelectorAll('h1, h2, h3, h4, h5, h6')].map(
+    (heading) => `${heading.tagName.toLowerCase()} ${(heading.textContent ?? '').trim()}`,
   );
 }
 
