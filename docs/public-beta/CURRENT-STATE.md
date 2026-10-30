@@ -104,3 +104,8 @@ This section supersedes the rows and sections above where they differ. Earlier s
 
 - **Live:** S23 real redaction is merged (#339, `07d65797`) and its migration 0102 was applied on 29 Oct with the owner's word. Two live fixes followed: #340 (`db5a52c4`) declares the image libraries in the web app, which made document previews and safe copies work in production again, and #341 (`424e525d`) gives safe copy files opaque storage keys and makes the sign-up confirmation page remember the address that was entered. Safe copies can be prepared and downloaded.
 - **In progress, not live:** S17 recurring invoices, reminders, overdue handling and reactivation (ADR 0020 Phase 2). It adds migration 0103, which runs only on the owner's word after the merge. Automatic Grace and Suspended stays off until the owner sets the policy (O13).
+
+**Update, 30 Oct 2026** (supersedes the "In progress" line above):
+
+- **Live:** S17 recurring invoices, reminders, overdue handling and reactivation is merged (#342, `aaa29e34`) and its migration 0103 was applied on 29 Oct with the owner's word (run 40894153710). Automatic Grace and Suspended stays off until the owner sets the policy (O13).
+- **In progress, not live:** S18 refunds, credits from held payments, refunds made outside VisaStack and the monthly accounting file (platform owner only), with migration 0104 on the owner's word after the merge; live gateway refunds also need O6 and O18. Alongside it, a fix for the `/auth/reauth` production error.

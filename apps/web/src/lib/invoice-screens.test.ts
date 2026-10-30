@@ -10,6 +10,8 @@ import {
   INVOICE_STATE_HINTS,
   INVOICE_STATE_LABELS,
   INVOICE_STATE_TONES,
+  REFUND_STATUS_LABELS,
+  REFUND_STATUS_TONES,
   receiptKindLabel,
 } from './invoice-labels';
 import { paymentUrlFor } from './payment-urls';
@@ -38,7 +40,17 @@ function block(): string {
 
 describe('the words of the Invoices page', () => {
   it('name every state, claim method, claim status and attempt status the database can hold', () => {
-    const states = ['OPEN', 'PAYMENT_STARTED', 'PAYMENT_REPORTED', 'PAID', 'NEEDS_CHECK', 'VOID'];
+    const states = [
+      'OPEN',
+      'PAYMENT_STARTED',
+      'PAYMENT_REPORTED',
+      'PAID',
+      'NEEDS_CHECK',
+      'VOID',
+      // S18: a refunded invoice is never owed again.
+      'REFUNDED',
+      'PARTLY_REFUNDED',
+    ];
     for (const table of [INVOICE_STATE_LABELS, INVOICE_STATE_HINTS, INVOICE_STATE_TONES]) {
       expect(Object.keys(table).sort()).toEqual([...states].sort());
     }
@@ -63,6 +75,22 @@ describe('the words of the Invoices page', () => {
     expect(INVOICE_STATE_HINTS.PAYMENT_REPORTED).toMatch(/Waiting for confirmation/);
     expect(INVOICE_STATE_LABELS.PAID).toBe('Paid');
     expect(INVOICE_STATE_LABELS.NEEDS_CHECK).toBe('Payment Needs a Check');
+  });
+
+  it('names every refund state the database can hold, and the refunded invoice states (S18)', () => {
+    for (const table of [REFUND_STATUS_LABELS, REFUND_STATUS_TONES]) {
+      expect(Object.keys(table).sort()).toEqual([...schema.refundStatus.enumValues].sort());
+    }
+    expect(REFUND_STATUS_LABELS).toEqual({
+      REQUESTED: 'Waiting to Send',
+      SUBMITTED: 'Sent (Waiting for Confirmation)',
+      CONFIRMED: 'Refunded',
+      FAILED: 'Not Completed',
+      CANCELLED: 'Cancelled',
+    });
+    expect(INVOICE_STATE_LABELS.REFUNDED).toBe('Refunded');
+    expect(INVOICE_STATE_LABELS.PARTLY_REFUNDED).toBe('Partly Refunded');
+    expect(ATTEMPT_STATUS_LABELS.REFUNDED).toBe('Refunded');
   });
 
   it('never shows gateway wording, codes or engineering terms', () => {

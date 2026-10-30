@@ -240,11 +240,11 @@ export default async function AdminOrganizationPage({
       claims: claims.ok ? claims.value : [],
       overrides,
       refundWork: refundWork?.ok ? refundWork.value : undefined,
+      // The page is the platform owner's already, so the refund scope fails only while this
+      // sign-in has not entered its authenticator code.
       refundProblem: refundScope.ok
         ? undefined
-        : refundScope.error.message === 'Enter your authenticator code first.'
-          ? refundScope.error.message
-          : 'Only the platform owner can refund or apply credits.',
+        : 'Refunds and credits need your authenticator code first. Enter it, then open this page again.',
       gatewayAvailable: gatewayProvider !== null,
     };
   });

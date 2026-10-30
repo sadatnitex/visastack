@@ -67,7 +67,7 @@ export default async function BillingRulesPage({
   searchParams,
 }: {
   readonly searchParams?: Promise<{ readonly ledger?: string }>;
-} = {}) {
+}) {
   const ledger = ledgerProblem((await searchParams)?.ledger);
   const thisMonth = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Dhaka',

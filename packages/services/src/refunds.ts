@@ -87,7 +87,7 @@ const VERIFIED_HOLD_REASONS: ReadonlySet<string> = new Set([
 
 const MAX_REASON = 500;
 const MAX_REFERENCE = 120;
-/** The gateway's refund remark is short; the full reason stays with VisaStack. */
+/** The gateway's refund remark is short and fixed; the reason staff typed stays with VisaStack. */
 const MAX_REMARKS = 100;
 
 // --- Is it there yet --------------------------------------------------------------------------
@@ -699,7 +699,8 @@ async function sendToGateway(
       bankTranId: row.bankTranId,
       amountMinorUnits: row.amountMinorUnits,
       refundId: row.id,
-      remarks: row.reason.slice(0, MAX_REMARKS),
+      // A fixed remark naming the invoice: the reason staff typed stays with VisaStack.
+      remarks: `Refund for invoice ${invoiceRef}`.slice(0, MAX_REMARKS),
     });
   } catch {
     await db

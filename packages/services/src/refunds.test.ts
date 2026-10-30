@@ -408,6 +408,12 @@ describe('refunds through the gateway (S18)', () => {
       const sent = await ask(3000);
       if (!isOk(sent) || !isOk(unknown)) throw new Error('requests');
       expect(sent.value.request.status).toBe('SUBMITTED');
+      // The gateway gets the request id as its refund id and a fixed remark, never the typed reason.
+      expect(port.refundCalls.at(-1)).toMatchObject({
+        refundId: sent.value.request.id,
+        amountMinorUnits: 3000,
+        remarks: 'Refund for invoice INV-CONFIRM',
+      });
       expect((await requests(w)).map((r) => r.status).sort()).toEqual([
         'FAILED',
         'REQUESTED',
