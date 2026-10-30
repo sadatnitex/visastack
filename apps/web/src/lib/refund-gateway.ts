@@ -37,9 +37,25 @@ export function refundCheckPort(): RefundingPaymentPort | null {
   }
 }
 
-/** The gateway refunds may be sent to: only with the switch on and a complete configuration. */
-export function refundSendPort(readEnv: ReadEnv = fromProcess): RefundingPaymentPort | null {
-  return refundsViaGatewayEnabled(readEnv) ? refundCheckPort() : null;
+/**
+ * The gateway refunds may be sent to: only with the switch on and a complete configuration. Pass
+ * the check port already made for this request, so the payment port is built once.
+ */
+export function refundSendPort(
+  readEnv: ReadEnv = fromProcess,
+  checkPort: RefundingPaymentPort | null | undefined = undefined,
+): RefundingPaymentPort | null {
+  if (!refundsViaGatewayEnabled(readEnv)) return null;
+  return checkPort === undefined ? refundCheckPort() : checkPort;
+}
+
+/** Both answers for one page render, from one payment port. */
+export function refundPorts(readEnv: ReadEnv = fromProcess): {
+  readonly check: RefundingPaymentPort | null;
+  readonly send: RefundingPaymentPort | null;
+} {
+  const check = refundCheckPort();
+  return { check, send: refundSendPort(readEnv, check) };
 }
 
 /** The one plain sentence shown when refunds cannot be sent from VisaStack. */

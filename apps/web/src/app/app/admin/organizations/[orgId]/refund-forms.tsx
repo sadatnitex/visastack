@@ -45,9 +45,12 @@ function useRefundAction(action: Action) {
   }, REFUND_NO_REPLY);
 }
 
-/** A failure stays with the form; a success is said once, by the card. */
+/**
+ * A failure about the form stays with the form; a success, and anything about a refund line (a
+ * refund written but not confirmed), is said once, by the card.
+ */
 function failureOnly(state: RefundFormState): RefundFormState {
-  return state.ok ? { ...state, message: '' } : state;
+  return state.ok || state.focusId !== undefined ? { ...state, message: '' } : state;
 }
 
 function describedBy(...ids: (string | undefined)[]): string | undefined {
@@ -379,11 +382,13 @@ export function RetryRefundButton({
 export function ConfirmUnsentRefundForm({
   organizationId,
   refundRequestId,
+  currency,
   earliestDate,
   latestDate,
 }: {
   readonly organizationId: string;
   readonly refundRequestId: string;
+  readonly currency: string;
   /** The day the refund was asked for (YYYY-MM-DD). */
   readonly earliestDate: string;
   readonly latestDate: string;
@@ -397,7 +402,17 @@ export function ConfirmUnsentRefundForm({
     <form ref={formRef} action={formAction} className="field-list">
       <input type="hidden" name="organizationId" value={organizationId} />
       <input type="hidden" name="refundRequestId" value={refundRequestId} />
+      <input type="hidden" name="currency" value={currency} />
       <div key={state.nextKey ?? 'first'} className="field-list">
+        <TextField
+          id={`${id}-amount`}
+          name="amount"
+          label={`Amount in the Panel (${currency})`}
+          inputMode="decimal"
+          hint="Type the amount exactly as the merchant panel shows it. It must match this refund."
+          state={state}
+          errorId={errorId}
+        />
         <TextField
           id={`${id}-reference`}
           name="reference"

@@ -27,9 +27,12 @@ export async function GET(request: Request): Promise<Response> {
   // The refund check (S18) counts the same way: a crash, or every sent refund unanswered, is a
   // failed run. Refunds not available yet (before migration 0104) is not a failure.
   const refunds = 'refunds' in result ? result.refunds : undefined;
+  // Running out of time before asking about any sent refund counts as nothing answered.
   const refundsStopped =
     refunds !== undefined &&
-    ('error' in refunds || (refunds.checked > 0 && refunds.unavailable === refunds.checked));
+    ('error' in refunds ||
+      (refunds.checked > 0 && refunds.unavailable === refunds.checked) ||
+      (refunds.checked === 0 && (refunds.leftForLater ?? 0) > 0));
   const stopped =
     'error' in result ||
     !result.available ||

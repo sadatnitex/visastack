@@ -22,6 +22,7 @@ import {
   recordInvoicePayment,
   transitionBillingStatus,
 } from './billing';
+import { REFUNDED_INVOICE_STAFF_MESSAGE } from './billing';
 import { overdueInvoices } from './billing-standing';
 import type { Db } from './db';
 import { REFUNDED_INVOICE_MESSAGE, applyInvoiceCollection } from './invoice-ledger';
@@ -42,10 +43,14 @@ import {
 import { FakePaymentPort } from './payments.test-support';
 import { grantPlatformRole } from './platform-roles';
 import {
+  AMOUNT_MISMATCH,
+  DUPLICATE_REFERENCE_CODE,
   NEEDS_CHECK_CODE,
+  REFERENCE_TAKEN,
   REFUNDS_UNAVAILABLE,
   REFUND_WORK_LIMIT,
   RETRY_REFUSED_CODE,
+  RETRY_REFUSED_MESSAGE,
   applyHeldPaymentCredit,
   cancelRefund,
   checkRefundsNow,
@@ -620,7 +625,7 @@ describe('refunds through the gateway (S18)', () => {
           organizationId: w.organizationId,
           source: entrySource(entry.id),
           amountMinorUnits: amount,
-          reference: 'BANK-OUT',
+          reference: `BANK-OUT-${amount}`,
           refundedOn: new Date(),
           reason: 'Discount agreed',
           idempotencyKey: randomUUID(),
@@ -1312,6 +1317,7 @@ describe('S18 round 2: resends, It Went Through, refunded invoices, durable chec
           organizationId: w.organizationId,
           refundRequestId: first.value.request.id,
           reference: 'PANEL-RR-1',
+          amountMinorUnits: 4000,
           refundedOn,
           stepUpSatisfied: true,
         });
@@ -1323,6 +1329,7 @@ describe('S18 round 2: resends, It Went Through, refunded invoices, durable chec
         organizationId: w.organizationId,
         refundRequestId: first.value.request.id,
         reference: 'PANEL-RR-1',
+        amountMinorUnits: 4000,
         refundedOn: new Date(),
         stepUpSatisfied: false,
       });
@@ -1404,7 +1411,8 @@ describe('S18 round 2: resends, It Went Through, refunded invoices, durable chec
         reason: 'late transfer',
         idempotencyKey: randomUUID(),
       });
-      expect(isErr(byHand) && byHand.error.message).toBe(REFUNDED_INVOICE_MESSAGE);
+      // Staff get their own words, not the agency's.
+      expect(isErr(byHand) && byHand.error.message).toBe(REFUNDED_INVOICE_STAFF_MESSAGE);
       // The held money is verified, so it can go to another invoice or back to the agency.
       const work = await getOrganizationRefundWork(db, await scopeOf(w), {
         organizationId: w.organizationId,
@@ -1506,8 +1514,47 @@ describe('S18 round 2: resends, It Went Through, refunded invoices, durable chec
       });
       if (!isOk(work)) throw new Error('work');
       expect(work.value.entries).toHaveLength(REFUND_WORK_LIMIT);
-      expect(work.value.more).toBe(true);
+      expect(work.value.moreEntries).toBe(true);
+      expect(work.value.moreHeld).toBe(false);
       expect(work.value.entries[0]?.reference).toBe(`BANK-${REFUND_WORK_LIMIT + 1}`);
+      // The older payments stay reachable: page 2 holds payment 26 and 27 (the two oldest).
+      const older = await getOrganizationRefundWork(db, await scopeOf(w), {
+        organizationId: w.organizationId,
+        gatewayProvider: null,
+        page: 2,
+      });
+      if (!isOk(older)) throw new Error('older');
+      expect(older.value.entries.map((e) => e.reference)).toEqual(['BANK-1', 'BANK-0']);
+      expect(older.value.moreEntries).toBe(false);
+      // And so does a search by invoice reference, which finds nothing for another invoice.
+      const other = await invoice(w, 'INV-ELSE', 5000);
+      await paidByHand(w, other, 5000);
+      const found = await getOrganizationRefundWork(db, await scopeOf(w), {
+        organizationId: w.organizationId,
+        gatewayProvider: null,
+        invoiceRef: 'inv-else',
+      });
+      expect(isOk(found) && found.value.entries.map((e) => e.invoiceRef)).toEqual(['INV-ELSE']);
+      // A payment fully refunded is no longer listed: the limit is worked out in the database.
+      const staff = await scopeOf(w);
+      const elseEntry = await entryOf(w, other, 'ADMIN_RECORDED');
+      const done = await recordManualRefund(db, staff, {
+        organizationId: w.organizationId,
+        source: entrySource(elseEntry.id),
+        amountMinorUnits: 5000,
+        reference: 'BANK-OUT-ELSE',
+        refundedOn: new Date(),
+        reason: 'Closed',
+        idempotencyKey: randomUUID(),
+        stepUpSatisfied: true,
+      });
+      expect(isOk(done)).toBe(true);
+      const after = await getOrganizationRefundWork(db, staff, {
+        organizationId: w.organizationId,
+        gatewayProvider: null,
+        invoiceRef: 'INV-ELSE',
+      });
+      expect(isOk(after) && after.value.entries).toEqual([]);
     },
     TIMEOUT,
   );
@@ -1538,6 +1585,233 @@ describe('S18 round 2: resends, It Went Through, refunded invoices, durable chec
         .where(eq(schema.paymentAttempts.status, 'REDIRECTED'));
       const summary = await reconcilePaymentAttempts(db, scope, port, { deadline: Date.now() - 1 });
       expect(summary).toMatchObject({ checked: 0, leftForLater: 1 });
+    },
+    TIMEOUT,
+  );
+});
+
+describe('S18 round 3: one panel refund counted once, safe resends, typed panel amounts', () => {
+  let db: Db;
+  let w: World;
+  let port: FakePaymentPort;
+  beforeEach(async () => {
+    db = await freshDb();
+    w = await world(db, 'round3');
+    port = new FakePaymentPort();
+  });
+
+  const ask = async (entryId: string, amount: number) =>
+    requestRefund(db, port, await scopeOf(w), {
+      organizationId: w.organizationId,
+      source: entrySource(entryId),
+      amountMinorUnits: amount,
+      reason: 'Refund',
+      idempotencyKey: randomUUID(),
+      stepUpSatisfied: true,
+    });
+  const recordByHand = async (entryId: string, amount: number, reference: string) =>
+    recordManualRefund(db, await scopeOf(w), {
+      organizationId: w.organizationId,
+      source: entrySource(entryId),
+      amountMinorUnits: amount,
+      reference,
+      refundedOn: new Date(),
+      reason: 'Refunded in the panel',
+      idempotencyKey: randomUUID(),
+      stepUpSatisfied: true,
+    });
+  const wentThrough = async (requestId: string, amount: number, reference: string) =>
+    confirmUnsentRefund(db, await scopeOf(w), {
+      organizationId: w.organizationId,
+      refundRequestId: requestId,
+      reference,
+      amountMinorUnits: amount,
+      refundedOn: new Date(),
+      stepUpSatisfied: true,
+    });
+
+  it(
+    'never lets one panel refund reach the ledger twice, by hand or through It Went Through, in either order',
+    async () => {
+      const a = await invoice(w, 'INV-A', 10_000);
+      const { entry: entryA } = await paidOnline(w, a, 10_000);
+      const b = await invoice(w, 'INV-B', 10_000);
+      const { entry: entryB } = await paidOnline(w, b, 10_000);
+      port.refundBehaviour = 'throw';
+      const unsent = await ask(entryA.id, 3000);
+      if (!isOk(unsent)) throw new Error('unsent');
+      // The reviewer's scenario: recorded by hand from the panel first, then It Went Through with it.
+      expect(isOk(await recordByHand(entryB.id, 3000, 'PANEL-77'))).toBe(true);
+      const second = await wentThrough(unsent.value.request.id, 3000, ' panel-77 ');
+      expect(isErr(second) && second.error.message).toBe(REFERENCE_TAKEN);
+      // The other order: It Went Through first, then by hand with the same reference.
+      expect(isOk(await wentThrough(unsent.value.request.id, 3000, 'PANEL-88'))).toBe(true);
+      const byHand = await recordByHand(entryB.id, 1000, 'PANEL-88');
+      expect(isErr(byHand) && byHand.error.message).toBe(REFERENCE_TAKEN);
+      expect((await refundRows(w)).map((row) => row.reference).sort()).toEqual([
+        'PANEL-77',
+        'PANEL-88',
+      ]);
+      // And the gateway confirming a sent refund under a reference already recorded by hand.
+      port.refundBehaviour = 'accept';
+      const sent = await ask(entryB.id, 1000);
+      if (!isOk(sent)) throw new Error('sent');
+      const gatewayRef = sent.value.request.reference ?? '';
+      // Recording it by hand now is refused...
+      const c = await invoice(w, 'INV-C', 10_000);
+      const entryC = await paidByHand(w, c, 10_000);
+      const late = await recordByHand(entryC.id, 1000, gatewayRef);
+      expect(isErr(late) && late.error.message).toBe(REFERENCE_TAKEN);
+      // ...and one written at the same moment (inserted directly here) never doubles the ledger.
+      await db.insert(schema.refundRequests).values({
+        organizationId: w.organizationId,
+        invoiceId: c,
+        invoicePaymentId: entryC.id,
+        method: 'MANUAL',
+        status: 'CONFIRMED',
+        amountMinorUnits: 1000,
+        currency: 'BDT',
+        idempotencyKey: randomUUID(),
+        reason: 'Recorded at the same moment',
+        reference: gatewayRef.toLowerCase(),
+        requestedByAccountId: w.owner.accountId,
+        confirmedAt: new Date(),
+      });
+      port.refundStatus.set(gatewayRef, 'REFUNDED');
+      expect(
+        await reconcileRefunds(db, systemScopeForTest('process-payment-reconciliation'), port),
+      ).toMatchObject({ needsCheck: 1, confirmed: 0 });
+      const row = (await requests(w)).find((x) => x.id === sent.value.request.id);
+      expect(row).toMatchObject({ status: 'SUBMITTED', failureCode: DUPLICATE_REFERENCE_CODE });
+      expect((await refundRows(w)).filter((x) => x.reference === gatewayRef)).toHaveLength(0);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'confirms It Went Through only with the amount the panel shows, and keeps the request amount',
+    async () => {
+      const inv = await invoice(w, 'INV-AMOUNT', 10_000);
+      const { entry } = await paidOnline(w, inv, 10_000);
+      port.refundBehaviour = 'throw';
+      const unsent = await ask(entry.id, 4000);
+      if (!isOk(unsent)) throw new Error('unsent');
+      const wrong = await wentThrough(unsent.value.request.id, 3999, 'PANEL-1');
+      expect(isErr(wrong) && wrong.error.message).toBe(AMOUNT_MISMATCH);
+      expect((await requests(w))[0]).toMatchObject({ status: 'REQUESTED', amountMinorUnits: 4000 });
+      expect(await refundRows(w)).toHaveLength(0);
+      const right = await wentThrough(unsent.value.request.id, 4000, 'PANEL-1');
+      expect(isOk(right) && right.value.status).toBe('CONFIRMED');
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'refuses Send Again after a refused resend, sends a double-clicked resend once, and clears the mark when confirmed',
+    async () => {
+      const inv = await invoice(w, 'INV-RETRY', 10_000);
+      const { entry } = await paidOnline(w, inv, 10_000);
+      port.refundBehaviour = 'throw';
+      const unsent = await ask(entry.id, 5000);
+      if (!isOk(unsent)) throw new Error('unsent');
+      const id = unsent.value.request.id;
+      const retry = async (now?: Date) =>
+        retryRefund(db, port, await scopeOf(w), {
+          organizationId: w.organizationId,
+          refundRequestId: id,
+          stepUpSatisfied: true,
+          ...(now ? { now } : {}),
+        });
+      const callsFor = () => port.refundCalls.filter((c) => c.refundId === id).length;
+      // A double click: two resends at once reach the gateway once.
+      const before = callsFor();
+      const both = await Promise.all([retry(), retry()]);
+      expect(both.filter(isErr)).toHaveLength(1);
+      expect(callsFor()).toBe(before + 1);
+      // Once a resend was answered "failed", the server refuses another one.
+      port.refundBehaviour = 'refuse';
+      expect(isOk(await retry(new Date(Date.now() + 60_000)))).toBe(true);
+      expect((await requests(w))[0]?.failureCode).toBe(RETRY_REFUSED_CODE);
+      const calls = callsFor();
+      const refused = await retry(new Date(Date.now() + 120_000));
+      expect(isErr(refused) && refused.error.message).toBe(RETRY_REFUSED_MESSAGE);
+      expect(callsFor()).toBe(calls);
+      // It Went Through clears the mark.
+      expect(isOk(await wentThrough(id, 5000, 'PANEL-R'))).toBe(true);
+      expect((await requests(w))[0]).toMatchObject({ status: 'CONFIRMED', failureCode: null });
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'answers a write of the same reference at the same moment (a unique violation) with the plain refusal',
+    async () => {
+      const inv = await invoice(w, 'INV-RACE3', 10_000);
+      const { entry } = await paidOnline(w, inv, 10_000);
+      port.refundBehaviour = 'throw';
+      const unsent = await ask(entry.id, 1000);
+      if (!isOk(unsent)) throw new Error('unsent');
+      const violation = Object.assign(new Error('duplicate key value violates unique constraint'), {
+        code: '23505',
+      });
+      const racing = new Proxy(db, {
+        get(target, key, receiver) {
+          if (key === 'transaction') {
+            return async () => {
+              throw new Error('failed query', { cause: violation });
+            };
+          }
+          return Reflect.get(target, key, receiver);
+        },
+      }) as Db;
+      const staff = await scopeOf(w);
+      const confirm = await confirmUnsentRefund(racing, staff, {
+        organizationId: w.organizationId,
+        refundRequestId: unsent.value.request.id,
+        reference: 'PANEL-RACE',
+        amountMinorUnits: 1000,
+        refundedOn: new Date(),
+        stepUpSatisfied: true,
+      });
+      expect(isErr(confirm) && confirm.error.message).toBe(REFERENCE_TAKEN);
+      const manual = await recordManualRefund(racing, staff, {
+        organizationId: w.organizationId,
+        source: entrySource(entry.id),
+        amountMinorUnits: 100,
+        reference: 'PANEL-RACE',
+        refundedOn: new Date(),
+        reason: 'Race',
+        idempotencyKey: randomUUID(),
+        stepUpSatisfied: true,
+      });
+      expect(isErr(manual) && manual.error.message).toBe(REFERENCE_TAKEN);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'leaves refunds for the next run when a slow gateway uses up the time budget',
+    async () => {
+      const inv = await invoice(w, 'INV-SLOW', 50_000);
+      const { entry } = await paidOnline(w, inv, 50_000);
+      for (let i = 0; i < 5; i++) {
+        const sent = await ask(entry.id, 1000);
+        if (!isOk(sent)) throw new Error('sent');
+      }
+      const slow = port.queryRefund.bind(port);
+      port.queryRefund = async (ref: string) => {
+        await new Promise((resolve) => setTimeout(resolve, 60));
+        return slow(ref);
+      };
+      const summary = await reconcileRefunds(
+        db,
+        systemScopeForTest('process-payment-reconciliation'),
+        port,
+        { deadline: Date.now() + 100 },
+      );
+      expect(summary.checked).toBeGreaterThan(0);
+      expect(summary.checked).toBeLessThan(5);
+      expect(summary.checked + summary.leftForLater).toBe(5);
     },
     TIMEOUT,
   );

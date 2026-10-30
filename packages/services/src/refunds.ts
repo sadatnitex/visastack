@@ -81,6 +81,12 @@ const OPEN_STATUSES: readonly RefundStatus[] = ['REQUESTED', 'SUBMITTED'];
 export const NEEDS_CHECK_CODE = 'ledger_refused';
 /** On a refund waiting to send: Send Again was answered "failed". Staff must check the panel. */
 export const RETRY_REFUSED_CODE = 'retry_refused';
+/** On a sent refund: the gateway's refund reference is already behind another refund of the agency. */
+export const DUPLICATE_REFERENCE_CODE = 'duplicate_reference';
+export const RETRY_REFUSED_MESSAGE =
+  'This refund cannot be sent again: the payment gateway already answered "failed" to a second send. Check the payment gateway\'s merchant panel, then choose It Went Through or It Did Not Go Through.';
+/** How long one Send Again holds a refund, so a double click sends it once. */
+const SEND_LEASE_MS = 30_000;
 
 /**
  * Why money can be held, where the gateway confirmed exactly this payment's amount and currency
@@ -453,6 +459,61 @@ async function invoiceRefOf(db: Db, invoiceId: string): Promise<string> {
   return row?.ref ?? '';
 }
 
+export const REFERENCE_TAKEN = 'That refund reference is already recorded for another refund.';
+export const AMOUNT_MISMATCH =
+  'The amount does not match this refund. Choose It Did Not Go Through, then record the refund made outside VisaStack with the amount the panel shows.';
+
+/**
+ * Whether a refund reference from the merchant panel or a bank is already behind another refund of
+ * this agency: as a gateway refund reference (`provider_refund_id`) or as the reference of a refund
+ * recorded outside VisaStack. Compared trimmed and without regard to case, so the same panel refund
+ * can never reach the ledger twice by two different paths.
+ */
+async function referenceTaken(
+  tx: Db,
+  organizationId: string,
+  reference: string,
+  exceptRequestId: string | null,
+): Promise<boolean> {
+  const r = schema.refundRequests;
+  const wanted = reference.trim().toLowerCase();
+  const rows = await tx
+    .select({ id: r.id })
+    .from(r)
+    .where(
+      and(
+        eq(r.organizationId, organizationId),
+        exceptRequestId === null ? undefined : sql`${r.id} <> ${exceptRequestId}`,
+        sql`(lower(btrim(coalesce(${r.providerRefundId}, ''))) = ${wanted} or (${r.method} = 'MANUAL' and lower(btrim(coalesce(${r.reference}, ''))) = ${wanted}))`,
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
+/** Postgres unique violation (23505), raised directly or wrapped by the driver. */
+function isUniqueViolation(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && typeof current === 'object' && current !== null; depth += 1) {
+    if ((current as { code?: unknown }).code === '23505') return true;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
+/** A transaction whose unique violation (two writes of the same reference at once) reads as the plain refusal. */
+async function inReferenceTransaction<T>(
+  db: Db,
+  work: (tx: Db) => Promise<Result<T, ServiceError>>,
+): Promise<Result<T, ServiceError>> {
+  try {
+    return await inTransaction(db, work);
+  } catch (error) {
+    if (isUniqueViolation(error)) return err(serviceError('invalid', REFERENCE_TAKEN));
+    throw error;
+  }
+}
+
 async function byIdempotencyKey(tx: Db, key: string): Promise<RefundRequest | undefined> {
   return first(
     await tx
@@ -732,7 +793,7 @@ async function sendToGateway(
   } catch {
     await db
       .update(schema.refundRequests)
-      .set({ lastCheckedAt: now, updatedAt: now })
+      .set({ updatedAt: now })
       .where(
         and(eq(schema.refundRequests.id, row.id), eq(schema.refundRequests.status, 'REQUESTED')),
       );
@@ -785,14 +846,11 @@ async function sendToGateway(
       });
       return { code: 'refused', request: requestView(failed, invoiceRef) };
     }
-    const taken = first(
-      await tx
-        .select({ id: r.id })
-        .from(r)
-        .where(and(eq(r.provider, gateway.provider), eq(r.providerRefundId, answer.refundRefId)))
-        .limit(1),
-    );
-    if (taken && taken.id !== locked.id) return unconfirmed();
+    // A refund reference already behind another refund of this agency (by the gateway or recorded
+    // by hand) is never taken on: the request stays waiting, for a person to check.
+    if (await referenceTaken(tx, locked.organizationId, answer.refundRefId, locked.id)) {
+      return unconfirmed();
+    }
     const sent = required(
       first(
         await tx
@@ -800,6 +858,7 @@ async function sendToGateway(
           .set({
             status: 'SUBMITTED',
             providerRefundId: answer.refundRefId,
+            failureCode: null,
             submittedAt: now,
             lastCheckedAt: now,
             updatedAt: now,
@@ -871,17 +930,50 @@ export async function retryRefund(
   if (row.value.provider !== gateway.provider) {
     return err(serviceError('invalid', 'This refund belongs to another payment gateway.'));
   }
-  const invoiceRef = await invoiceRefOf(db, row.value.invoiceId);
+  const now = input.now ?? new Date();
+  // Under the request's lock: never after a refused resend, and never while another send of it is
+  // under way (a double click). `last_checked_at` is the lease: a send claims it for 30 seconds.
+  const claimed = await inTransaction(
+    db,
+    async (tx): Promise<Result<RefundRequest, ServiceError>> => {
+      const r = schema.refundRequests;
+      const locked = first(
+        await tx.select().from(r).where(eq(r.id, row.value.id)).limit(1).for('update'),
+      );
+      if (!locked || locked.status !== 'REQUESTED') {
+        return err(serviceError('invalid', 'This refund changed meanwhile. Reload the page.'));
+      }
+      if (locked.failureCode === RETRY_REFUSED_CODE) {
+        return err(serviceError('invalid', RETRY_REFUSED_MESSAGE));
+      }
+      if (
+        locked.lastCheckedAt !== null &&
+        now.getTime() - locked.lastCheckedAt.getTime() < SEND_LEASE_MS
+      ) {
+        return err(
+          serviceError(
+            'invalid',
+            'This refund is being sent already. Wait a moment, then reload the page.',
+          ),
+        );
+      }
+      const leased = required(
+        first(
+          await tx
+            .update(r)
+            .set({ lastCheckedAt: now, updatedAt: now })
+            .where(eq(r.id, locked.id))
+            .returning(),
+        ),
+        'refund request',
+      );
+      return ok(leased);
+    },
+  );
+  if (!claimed.ok) return claimed;
+  const invoiceRef = await invoiceRefOf(db, claimed.value.invoiceId);
   return ok(
-    await sendToGateway(
-      db,
-      gateway,
-      row.value,
-      invoiceRef,
-      staff.accountId,
-      input.now ?? new Date(),
-      'again',
-    ),
+    await sendToGateway(db, gateway, claimed.value, invoiceRef, staff.accountId, now, 'again'),
   );
 }
 
@@ -938,6 +1030,8 @@ export async function cancelRefund(
 export interface ConfirmUnsentRefundInput extends RefundRequestActionInput {
   /** The refund reference the merchant panel shows. */
   readonly reference: string;
+  /** The amount the merchant panel shows, typed by staff: it must equal the request's amount. */
+  readonly amountMinorUnits: number;
   /** The day the panel says the refund was made. */
   readonly refundedOn: Date;
 }
@@ -971,76 +1065,75 @@ export async function confirmUnsentRefund(
   if (!seen.ok) return seen;
   const tooEarly = refundDayProblem(input.refundedOn, seen.value.createdAt, now);
   if (tooEarly) return err(tooEarly);
-  const done = await inTransaction(db, async (tx): Promise<Result<RefundRequest, ServiceError>> => {
-    // Lock order: the held payment, then the request, then (inside the ledger write) the invoice.
-    const attempt =
-      seen.value.paymentAttemptId !== null
-        ? await lockAttempt(tx, seen.value.organizationId, seen.value.paymentAttemptId)
-        : undefined;
-    const r = schema.refundRequests;
-    const locked = first(
-      await tx.select().from(r).where(eq(r.id, seen.value.id)).limit(1).for('update'),
-    );
-    if (!locked || locked.status !== 'REQUESTED') {
-      return err(serviceError('invalid', 'This refund changed meanwhile. Reload the page.'));
-    }
-    const taken = first(
-      await tx
-        .select({ id: r.id })
-        .from(r)
-        .where(and(eq(r.provider, locked.provider ?? ''), eq(r.providerRefundId, reference)))
-        .limit(1),
-    );
-    if (taken) {
-      return err(
-        serviceError('invalid', 'That refund reference is already recorded for another refund.'),
+  // The request's amount never changes (the guard trigger); a different panel amount is another refund.
+  if (input.amountMinorUnits !== seen.value.amountMinorUnits) {
+    return err(serviceError('invalid', AMOUNT_MISMATCH));
+  }
+  const done = await inReferenceTransaction(
+    db,
+    async (tx): Promise<Result<RefundRequest, ServiceError>> => {
+      // Lock order: the held payment, then the request, then (inside the ledger write) the invoice.
+      const attempt =
+        seen.value.paymentAttemptId !== null
+          ? await lockAttempt(tx, seen.value.organizationId, seen.value.paymentAttemptId)
+          : undefined;
+      const r = schema.refundRequests;
+      const locked = first(
+        await tx.select().from(r).where(eq(r.id, seen.value.id)).limit(1).for('update'),
       );
-    }
-    if (locked.invoicePaymentId !== null) {
-      const written = await applyInvoiceRefund(tx, {
-        invoiceId: locked.invoiceId,
-        refundRequestId: locked.id,
-        amountMinorUnits: locked.amountMinorUnits,
-        currency: locked.currency,
-        provider: locked.provider,
-        providerTransactionId: reference,
-        reference,
-        refundedAt: input.refundedOn,
-        recordedByAccountId: staff.accountId,
-      });
-      if (!written.ok) {
-        return err(
-          serviceError('invalid', 'This refund could not be recorded against the invoice.'),
-        );
+      if (!locked || locked.status !== 'REQUESTED') {
+        return err(serviceError('invalid', 'This refund changed meanwhile. Reload the page.'));
       }
-      await cancelQueuedNotificationsForResource(tx, locked.invoiceId);
-    }
-    const confirmed = required(
-      first(
-        await tx
-          .update(r)
-          .set({
-            status: 'CONFIRMED',
-            providerRefundId: reference,
-            reference,
-            providerRefundedAt: input.refundedOn,
-            confirmedAt: now,
-            closedAt: now,
-            lastCheckedAt: now,
-            updatedAt: now,
-          })
-          .where(eq(r.id, locked.id))
-          .returning(),
-      ),
-      'refund request',
-    );
-    if (attempt) await closeHeldIfSettled(tx, attempt, staff.accountId, now);
-    await auditRefund(tx, 'INVOICE_REFUND_CONFIRMED', confirmed, staff.accountId, {
-      confirmedBy: 'staff_from_panel',
-    });
-    await noticeRefund(tx, confirmed, await invoiceRefOf(tx, confirmed.invoiceId));
-    return ok(confirmed);
-  });
+      if (await referenceTaken(tx, locked.organizationId, reference, locked.id)) {
+        return err(serviceError('invalid', REFERENCE_TAKEN));
+      }
+      if (locked.invoicePaymentId !== null) {
+        const written = await applyInvoiceRefund(tx, {
+          invoiceId: locked.invoiceId,
+          refundRequestId: locked.id,
+          amountMinorUnits: locked.amountMinorUnits,
+          currency: locked.currency,
+          provider: locked.provider,
+          providerTransactionId: reference,
+          reference,
+          refundedAt: input.refundedOn,
+          recordedByAccountId: staff.accountId,
+        });
+        if (!written.ok) {
+          return err(
+            serviceError('invalid', 'This refund could not be recorded against the invoice.'),
+          );
+        }
+        await cancelQueuedNotificationsForResource(tx, locked.invoiceId);
+      }
+      const confirmed = required(
+        first(
+          await tx
+            .update(r)
+            .set({
+              status: 'CONFIRMED',
+              providerRefundId: reference,
+              reference,
+              failureCode: null,
+              providerRefundedAt: input.refundedOn,
+              confirmedAt: now,
+              closedAt: now,
+              lastCheckedAt: now,
+              updatedAt: now,
+            })
+            .where(eq(r.id, locked.id))
+            .returning(),
+        ),
+        'refund request',
+      );
+      if (attempt) await closeHeldIfSettled(tx, attempt, staff.accountId, now);
+      await auditRefund(tx, 'INVOICE_REFUND_CONFIRMED', confirmed, staff.accountId, {
+        confirmedBy: 'staff_from_panel',
+      });
+      await noticeRefund(tx, confirmed, await invoiceRefOf(tx, confirmed.invoiceId));
+      return ok(confirmed);
+    },
+  );
   if (!done.ok) return done;
   return ok(requestView(done.value, await invoiceRefOf(db, done.value.invoiceId)));
 }
@@ -1142,6 +1235,29 @@ async function confirmOne(
       return ok('failed');
     }
     const refundedAt = report.refundedAt ?? now;
+    // A person must look: the request keeps its status (SUBMITTED) and gets a reason code, which the
+    // guard trigger and the checks allow on an open row; it is audited once, the first time.
+    const needsCheck = async (
+      code: string,
+      detail: Record<string, unknown>,
+    ): Promise<CheckCode> => {
+      await tx
+        .update(r)
+        .set({ failureCode: code, lastCheckedAt: now, updatedAt: now })
+        .where(eq(r.id, locked.id));
+      if (locked.failureCode !== code) {
+        await auditRefund(tx, 'INVOICE_REFUND_NEEDS_CHECK', locked, null, {
+          failureCode: code,
+          ...detail,
+        });
+      }
+      return 'needs_check';
+    };
+    // The gateway's refund reference is already behind another refund of this agency (recorded by
+    // hand from the panel, say): counting it again would refund the same money twice in the ledger.
+    if (await referenceTaken(tx, locked.organizationId, providerRefundId, locked.id)) {
+      return ok(await needsCheck(DUPLICATE_REFERENCE_CODE, {}));
+    }
     if (locked.invoicePaymentId !== null) {
       const written = await applyInvoiceRefund(tx, {
         invoiceId: locked.invoiceId,
@@ -1154,21 +1270,9 @@ async function confirmOne(
         refundedAt,
         recordedByAccountId: null,
       });
-      // The gateway refunded money the ledger cannot take back as asked: a person must look. The
-      // request keeps its status (SUBMITTED) and gets a reason code, which the guard trigger and
-      // the checks allow on an open row; it is audited once, the first time it is found.
+      // The gateway refunded money the ledger cannot take back as asked.
       if (!written.ok) {
-        await tx
-          .update(r)
-          .set({ failureCode: NEEDS_CHECK_CODE, lastCheckedAt: now, updatedAt: now })
-          .where(eq(r.id, locked.id));
-        if (locked.failureCode !== NEEDS_CHECK_CODE) {
-          await auditRefund(tx, 'INVOICE_REFUND_NEEDS_CHECK', locked, null, {
-            failureCode: NEEDS_CHECK_CODE,
-            ledgerRefusal: written.error.code,
-          });
-        }
-        return ok('needs_check');
+        return ok(await needsCheck(NEEDS_CHECK_CODE, { ledgerRefusal: written.error.code }));
       }
       // A refunded invoice is never chased again (D2): its queued reminders never go out.
       await cancelQueuedNotificationsForResource(tx, locked.invoiceId);
@@ -1179,6 +1283,7 @@ async function confirmOne(
           .update(r)
           .set({
             status: 'CONFIRMED',
+            failureCode: null,
             confirmedAt: now,
             providerRefundedAt: refundedAt,
             closedAt: now,
@@ -1409,7 +1514,7 @@ export async function recordManualRefund(
   }
   if (!(await refundsPresent(db))) return err(serviceError('invalid', REFUNDS_UNAVAILABLE));
 
-  const done = await inTransaction(
+  const done = await inReferenceTransaction(
     db,
     async (tx): Promise<Result<{ row: RefundRequest; replay: boolean }, ServiceError>> => {
       const source = await lockSource(tx, input.organizationId, input.source);
@@ -1429,6 +1534,9 @@ export async function recordManualRefund(
       // Never before the money came in (the payment's own day, in Bangladesh time).
       const tooEarly = refundDayProblem(input.refundedOn, paymentDay(source), now);
       if (tooEarly) return err(tooEarly);
+      if (await referenceTaken(tx, input.organizationId, reference, null)) {
+        return err(serviceError('invalid', REFERENCE_TAKEN));
+      }
       const ids = sourceIds(source);
       const row = first(
         await tx
@@ -1729,37 +1837,62 @@ export interface CreditTargetView {
 
 export interface OrganizationRefundWork {
   readonly available: boolean;
+  /** One page (newest first) of the counted payments that can still give something back. */
   readonly entries: readonly RefundableEntryView[];
+  /** One page (newest first) of the held payments with something left. */
   readonly held: readonly HeldPaymentView[];
   readonly requests: readonly RefundRequestView[];
   readonly creditTargets: readonly CreditTargetView[];
-  /** True when more payments can still give something back than the lists show (at most 25 each). */
-  readonly more: boolean;
+  /** True when older counted payments that can still be refunded are on the next page. */
+  readonly moreEntries: boolean;
+  /** True when older held payments with something left are on the next page. */
+  readonly moreHeld: boolean;
+  /** The page shown (1 is the newest). */
+  readonly page: number;
+  /** The invoice reference searched for, or null. */
+  readonly invoiceRef: string | null;
 }
 
-/** The most payments each list on the admin card shows, newest first. */
+/** The most payments each list on the admin card shows on one page, newest first. */
 export const REFUND_WORK_LIMIT = 25;
+const MAX_PAGE = 1000;
+
+export interface RefundWorkInput {
+  readonly organizationId: string;
+  readonly gatewayProvider: string | null;
+  /** 1 (the default) is the newest page; each older page holds the next 25. */
+  readonly page?: number;
+  /** Only payments on invoices whose reference contains this text (case does not matter). */
+  readonly invoiceRef?: string | null;
+}
 
 /**
- * Everything the admin organization page needs for refunds and credits: the counted payments that
- * can still give something back, the held payments, the refunds (newest first), and the open
- * invoices a credit can go to. Platform owner only. Before migration 0104 it reports not available
- * and lists nothing.
+ * Everything the admin organization page needs for refunds and credits, bounded: one page (25,
+ * newest first) of the counted payments that can still give something back and one of the held
+ * payments with something left, both worked out in the database (so an agency with thousands of
+ * payments reads 26 rows, not thousands), with older pages and a search by invoice reference so
+ * any of them can be reached; the 50 newest refunds; and the open invoices a credit can go to.
+ * Platform owner only. Before migration 0104 it reports not available and lists nothing.
  */
 export async function getOrganizationRefundWork(
   db: Db,
   staff: StaffScope<'BILLING_REFUND_MANAGE'>,
-  input: { readonly organizationId: string; readonly gatewayProvider: string | null },
+  input: RefundWorkInput,
 ): Promise<Result<OrganizationRefundWork, ServiceError>> {
   const forbidden = denied(staff);
   if (forbidden) return err(forbidden);
+  const page = Math.min(MAX_PAGE, Math.max(1, Math.trunc(input.page ?? 1) || 1));
+  const search = (input.invoiceRef ?? '').trim().slice(0, 60);
   const empty: OrganizationRefundWork = {
     available: false,
     entries: [],
     held: [],
     requests: [],
     creditTargets: [],
-    more: false,
+    moreEntries: false,
+    moreHeld: false,
+    page,
+    invoiceRef: search.length > 0 ? search : null,
   };
   if (!isUuid(input.organizationId)) return ok(empty);
   if (!(await refundsPresent(db))) return ok(empty);
@@ -1767,29 +1900,69 @@ export async function getOrganizationRefundWork(
   const p = schema.invoicePayments;
   const a = schema.paymentAttempts;
   const r = schema.refundRequests;
-  const invoices = await db
-    .select({ id: i.id, ref: i.invoiceRef })
-    .from(i)
-    .where(eq(i.organizationId, input.organizationId));
-  const refOf = new Map(invoices.map((row) => [row.id, row.ref]));
-  const invoiceIds = invoices.map((row) => row.id);
-  if (invoiceIds.length === 0) return ok({ ...empty, available: true });
-  const [ledger, attempts, requests] = await Promise.all([
-    db.select().from(p).where(inArray(p.invoiceId, invoiceIds)).orderBy(asc(p.seq)),
+  const offset = (page - 1) * REFUND_WORK_LIMIT;
+  const refFilter =
+    search.length > 0
+      ? sql`position(${search.toLowerCase()} in lower(${i.invoiceRef})) > 0`
+      : undefined;
+  const limitIn = sql.join(
+    LIMIT_STATUSES.map((status) => sql`${status}`),
+    sql`, `,
+  );
+  const entryCommitted = sql<number>`coalesce((select sum(rr.amount_minor_units) from refund_requests rr where rr.invoice_payment_id = ${p.id} and rr.status in (${limitIn})), 0)::int`;
+  const heldCredited = sql<number>`coalesce((select cp.amount_minor_units from invoice_payments cp where cp.kind = 'CREDIT' and cp.source_id = ${a.id} limit 1), 0)::int`;
+  const heldCommitted = sql<number>`coalesce((select sum(rr.amount_minor_units) from refund_requests rr where rr.payment_attempt_id = ${a.id} and rr.status in (${limitIn})), 0)::int`;
+
+  const [entryRows, heldRows, requestRows] = await Promise.all([
     db
-      .select()
+      .select({ entry: p, invoiceRef: i.invoiceRef, committed: entryCommitted })
+      .from(p)
+      .innerJoin(i, eq(i.id, p.invoiceId))
+      .where(
+        and(
+          eq(i.organizationId, input.organizationId),
+          sql`${p.kind} <> 'REFUND'`,
+          sql`${p.amountMinorUnits} > ${entryCommitted}`,
+          refFilter,
+        ),
+      )
+      .orderBy(desc(p.createdAt), desc(p.seq))
+      .limit(REFUND_WORK_LIMIT + 1)
+      .offset(offset),
+    db
+      .select({
+        attempt: a,
+        invoiceRef: i.invoiceRef,
+        credited: heldCredited,
+        committed: heldCommitted,
+      })
       .from(a)
-      .where(and(eq(a.organizationId, input.organizationId), eq(a.status, 'HELD_FOR_REVIEW')))
-      .orderBy(asc(a.createdAt)),
+      .innerJoin(i, eq(i.id, a.invoiceId))
+      .where(
+        and(
+          eq(a.organizationId, input.organizationId),
+          eq(a.status, 'HELD_FOR_REVIEW'),
+          sql`${a.amountMinorUnits} - ${heldCredited} - ${heldCommitted} > 0`,
+          refFilter,
+        ),
+      )
+      .orderBy(desc(a.createdAt), desc(a.id))
+      .limit(REFUND_WORK_LIMIT + 1)
+      .offset(offset),
     db
-      .select()
+      .select({ request: r, invoiceRef: i.invoiceRef })
       .from(r)
+      .innerJoin(i, eq(i.id, r.invoiceId))
       .where(eq(r.organizationId, input.organizationId))
-      .orderBy(desc(r.createdAt)),
+      .orderBy(desc(r.createdAt))
+      .limit(50),
   ]);
+  const pageEntries = entryRows.slice(0, REFUND_WORK_LIMIT);
+  const pageHeld = heldRows.slice(0, REFUND_WORK_LIMIT);
   const attemptIds = [
     ...new Set(
-      ledger
+      pageEntries
+        .map(({ entry }) => entry)
         .filter((row) => (row.kind === 'ONLINE' || row.kind === 'CREDIT') && row.sourceId !== null)
         .map((row) => row.sourceId as string),
     ),
@@ -1799,55 +1972,44 @@ export async function getOrganizationRefundWork(
   const attemptById = new Map(sourceAttempts.map((row) => [row.id, row]));
   const gateway = input.gatewayProvider;
 
-  const entries = ledger
-    .filter((row) => row.kind !== 'REFUND')
-    .map((row): RefundableEntryView => {
-      const attempt = row.sourceId === null ? undefined : attemptById.get(row.sourceId);
-      return {
-        id: row.id,
-        invoiceId: row.invoiceId,
-        invoiceRef: refOf.get(row.invoiceId) ?? '',
-        kind: row.kind,
-        amountMinorUnits: row.amountMinorUnits,
-        currency: row.currency,
-        reference: row.reference,
-        createdAt: row.createdAt,
-        paidOn: row.collectedDate,
-        refundableMinorUnits: entryRefundableMinorUnits(
-          row.amountMinorUnits,
-          requests.filter((request) => request.invoicePaymentId === row.id),
-        ),
-        viaGateway:
-          gateway !== null &&
-          row.provider === gateway &&
-          attempt !== undefined &&
-          attempt.provider === gateway &&
-          attempt.bankTranId !== null,
-      };
-    })
-    .filter((entry) => entry.refundableMinorUnits > 0)
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  const entries = pageEntries.map(({ entry: row, invoiceRef, committed }): RefundableEntryView => {
+    const attempt = row.sourceId === null ? undefined : attemptById.get(row.sourceId);
+    return {
+      id: row.id,
+      invoiceId: row.invoiceId,
+      invoiceRef,
+      kind: row.kind,
+      amountMinorUnits: row.amountMinorUnits,
+      currency: row.currency,
+      reference: row.reference,
+      createdAt: row.createdAt,
+      paidOn: row.collectedDate,
+      refundableMinorUnits: Math.max(0, row.amountMinorUnits - Number(committed)),
+      viaGateway:
+        gateway !== null &&
+        row.provider === gateway &&
+        attempt !== undefined &&
+        attempt.provider === gateway &&
+        attempt.bankTranId !== null,
+    };
+  });
 
-  const held = attempts.map((attempt): HeldPaymentView => {
-    const credited =
-      ledger.find((row) => row.kind === 'CREDIT' && row.sourceId === attempt.id)
-        ?.amountMinorUnits ?? 0;
+  const held = pageHeld.map(({ attempt, invoiceRef, credited, committed }): HeldPaymentView => {
     const verified =
       VERIFIED_HOLD_REASONS.has(attempt.reasonCode ?? '') && attempt.providerValId !== null;
     return {
       id: attempt.id,
       invoiceId: attempt.invoiceId,
-      invoiceRef: refOf.get(attempt.invoiceId) ?? '',
+      invoiceRef,
       amountMinorUnits: attempt.amountMinorUnits,
       currency: normalizeCurrency(attempt.currency),
       reasonCode: attempt.reasonCode,
       createdAt: attempt.createdAt,
       paidOn: attempt.redirectedAt ?? attempt.createdAt,
-      creditedMinorUnits: credited,
-      remainingMinorUnits: heldRemainingMinorUnits(
-        attempt.amountMinorUnits,
-        credited,
-        requests.filter((request) => request.paymentAttemptId === attempt.id),
+      creditedMinorUnits: Number(credited),
+      remainingMinorUnits: Math.max(
+        0,
+        attempt.amountMinorUnits - Number(credited) - Number(committed),
       ),
       verified,
       viaGateway:
@@ -1863,15 +2025,14 @@ export async function getOrganizationRefundWork(
     )
   ).flat();
 
-  const heldLeft = held
-    .filter((row) => row.remainingMinorUnits > 0)
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   return ok({
+    ...empty,
     available: true,
-    entries: entries.slice(0, REFUND_WORK_LIMIT),
-    held: heldLeft.slice(0, REFUND_WORK_LIMIT),
-    more: entries.length > REFUND_WORK_LIMIT || heldLeft.length > REFUND_WORK_LIMIT,
-    requests: requests.slice(0, 50).map((row) => requestView(row, refOf.get(row.invoiceId) ?? '')),
+    entries,
+    held,
+    moreEntries: entryRows.length > REFUND_WORK_LIMIT,
+    moreHeld: heldRows.length > REFUND_WORK_LIMIT,
+    requests: requestRows.map(({ request, invoiceRef }) => requestView(request, invoiceRef)),
     creditTargets: targets.map((invoice) => ({
       id: invoice.id,
       invoiceRef: invoice.invoiceRef,

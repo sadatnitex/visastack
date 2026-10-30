@@ -1,4 +1,5 @@
 import {
+  DUPLICATE_REFERENCE_CODE,
   NEEDS_CHECK_CODE,
   NO_OPEN_INVOICE_FOR_CREDIT,
   type OrganizationRefundWork,
@@ -69,7 +70,9 @@ function RefundLine({
   readonly latestDate: string;
 }) {
   const unconfirmed = request.method === 'PROVIDER' && request.status === 'REQUESTED';
-  const needsCheck = request.status === 'SUBMITTED' && request.failureCode === NEEDS_CHECK_CODE;
+  const needsCheck =
+    request.status === 'SUBMITTED' &&
+    (request.failureCode === NEEDS_CHECK_CODE || request.failureCode === DUPLICATE_REFERENCE_CODE);
   return (
     <li
       id={`refund-line-${request.id}`}
@@ -93,9 +96,10 @@ function RefundLine({
       ) : null}
       {needsCheck ? (
         <p className="invoice-note">
-          The payment gateway says this refund was made, but the invoice no longer holds that much
-          money, so it was not taken off. Look at the invoice and the gateway's merchant panel
-          before doing anything else.
+          {request.failureCode === DUPLICATE_REFERENCE_CODE
+            ? 'The payment gateway says this refund was made, but its refund reference is already recorded for another refund, so it was not counted again.'
+            : 'The payment gateway says this refund was made, but the invoice no longer holds that much money, so it was not taken off.'}{' '}
+          Look at the invoice and the gateway's merchant panel before doing anything else.
         </p>
       ) : null}
       {unconfirmed ? (
@@ -117,6 +121,7 @@ function RefundLine({
             <ConfirmUnsentRefundForm
               organizationId={organizationId}
               refundRequestId={request.id}
+              currency={request.currency}
               earliestDate={dayField(request.createdAt)}
               latestDate={latestDate}
             />
@@ -127,6 +132,78 @@ function RefundLine({
         </>
       ) : null}
     </li>
+  );
+}
+
+/** The page note, Newer and Older Payments, and the search by invoice reference (plain links and a GET form). */
+function RefundPaging({
+  organizationId,
+  work,
+}: {
+  readonly organizationId: string;
+  readonly work: OrganizationRefundWork;
+}) {
+  const search = work.invoiceRef ?? '';
+  const query = search.length > 0 ? `&refundInvoice=${encodeURIComponent(search)}` : '';
+  const first = (work.page - 1) * REFUND_WORK_LIMIT + 1;
+  const cut = [
+    work.moreEntries ? 'payments that can be refunded' : null,
+    work.moreHeld ? 'payments needing a check' : null,
+  ].filter((part): part is string => part !== null);
+  return (
+    <div className="u-mb-100">
+      {work.page > 1 || cut.length > 0 ? (
+        <p className="muted u-fs-085">
+          {work.page > 1
+            ? `Showing older payments, from number ${first}, newest first${search ? ` on invoices matching ${search}` : ''}.`
+            : `Showing the ${REFUND_WORK_LIMIT} most recent ${cut.join(' and the 25 most recent ')}${search ? ` on invoices matching ${search}` : ''}.`}
+        </p>
+      ) : search ? (
+        <p className="muted u-fs-085">Showing payments on invoices matching {search}.</p>
+      ) : null}
+      <div className="invoice-action-row">
+        {work.page > 1 ? (
+          <a
+            className="invoice-link"
+            href={`/app/admin/organizations/${organizationId}?refundPage=${work.page - 1}${query}#refunds-title`}
+          >
+            Newer Payments
+          </a>
+        ) : null}
+        {work.moreEntries || work.moreHeld ? (
+          <a
+            className="invoice-link"
+            href={`/app/admin/organizations/${organizationId}?refundPage=${work.page + 1}${query}#refunds-title`}
+          >
+            Older Payments
+          </a>
+        ) : null}
+      </div>
+      <form
+        method="get"
+        action={`/app/admin/organizations/${organizationId}`}
+        className="field-list"
+      >
+        <div className="field-row">
+          <label className="field-label" htmlFor="refund-invoice-search">
+            Find Payments by Invoice Reference
+          </label>
+          <input
+            id="refund-invoice-search"
+            name="refundInvoice"
+            type="search"
+            maxLength={60}
+            defaultValue={search}
+            className="input"
+          />
+        </div>
+        <div>
+          <button type="submit" className="btn btn-secondary u-btn-sm">
+            Find Payments
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
 
@@ -167,11 +244,7 @@ export function RefundsCard({
             to confirm it is you.
           </p>
           {gatewayAvailable ? null : <p className="card-body u-mb-100">{REFUNDS_IN_PANEL}</p>}
-          {work.more ? (
-            <p className="muted u-fs-085 u-mb-100">
-              Showing the {REFUND_WORK_LIMIT} most recent payments that can still be refunded.
-            </p>
-          ) : null}
+          <RefundPaging organizationId={organizationId} work={work} />
 
           <h3 className="invoice-subhead">Payments Needing a Check</h3>
           {work.held.length === 0 ? (

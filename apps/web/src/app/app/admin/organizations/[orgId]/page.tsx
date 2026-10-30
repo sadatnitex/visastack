@@ -41,7 +41,7 @@ import {
   invoiceStatusLabel,
   organizationStatusLabel,
 } from '../../../../../lib/labels';
-import { refundCheckPort, refundSendPort } from '../../../../../lib/refund-gateway';
+import { refundPorts } from '../../../../../lib/refund-gateway';
 import { withSession } from '../../../../../lib/session';
 import {
   formatMeterValue,
@@ -172,10 +172,14 @@ function invoiceAmount(invoice: Invoice): string {
 
 export default async function AdminOrganizationPage({
   params,
+  searchParams,
 }: {
   readonly params: Promise<{ orgId: string }>;
+  readonly searchParams?: Promise<{ refundPage?: string; refundInvoice?: string }>;
 }) {
   const { orgId } = await params;
+  const asked = (await searchParams) ?? {};
+  const refundPage = Number.parseInt(asked.refundPage ?? '1', 10);
 
   const data = await withSession(async ({ db, accountId, email }) => {
     if (!(await isPlatformOwnerAccount(db, { accountId, email }))) return { owner: false as const };
@@ -212,8 +216,7 @@ export default async function AdminOrganizationPage({
 
     // S18: refunds and credits, under the platform owner's own refund scope. The payment port is
     // never made unguarded: an incomplete configuration means "no gateway", never a broken page.
-    const sendPort = refundSendPort();
-    const checkPort = refundCheckPort();
+    const { send: sendPort, check: checkPort } = refundPorts();
     const gatewayProvider = sendPort?.provider ?? null;
     const refundScope = await staffPrincipal(
       db,
@@ -224,6 +227,8 @@ export default async function AdminOrganizationPage({
       ? await getOrganizationRefundWork(db, refundScope.value, {
           organizationId: orgId,
           gatewayProvider,
+          page: Number.isFinite(refundPage) ? refundPage : 1,
+          invoiceRef: asked.refundInvoice ?? null,
         })
       : undefined;
 

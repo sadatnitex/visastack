@@ -11,7 +11,7 @@ vi.mock('./providers', () => ({
 }));
 vi.mock('./server-error', () => ({ reportServerError: mocks.report }));
 
-const { refundCheckPort, refundSendPort, refundsViaGatewayEnabled } = await import(
+const { refundCheckPort, refundPorts, refundSendPort, refundsViaGatewayEnabled } = await import(
   './refund-gateway'
 );
 
@@ -63,5 +63,11 @@ describe('refunds through the payment gateway (S18)', () => {
   it('ignore a configured gateway that cannot refund', () => {
     mocks.create.mockReturnValue({ configured: true, provider: 'other' });
     expect(refundSendPort(on)).toBeNull();
+  });
+
+  it('build the payment port once for a page that needs both answers', () => {
+    expect(refundPorts(on)).toEqual({ check: refunding, send: refunding });
+    expect(mocks.create).toHaveBeenCalledTimes(1);
+    expect(refundPorts(() => undefined)).toEqual({ check: refunding, send: null });
   });
 });

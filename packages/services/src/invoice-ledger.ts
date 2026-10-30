@@ -342,7 +342,8 @@ export async function applyInvoiceCollection(
     return refuse('currency_mismatch', 'this payment is in a different currency from the invoice');
   }
   // S18 (D2): an invoice with a refund is never owed again. Money arriving on it is refused here,
-  // so an online payment is held for a check and an admin or a reported payment is shown why.
+  // so an online payment is held for a check and an admin or a reported payment is shown why
+  // (each caller words it for its reader: staff get their own message, billing.ts).
   if (ledgerPresent && (await invoiceHasRefund(tx, invoice.id))) {
     return refuse('refunded_invoice', REFUNDED_INVOICE_MESSAGE);
   }

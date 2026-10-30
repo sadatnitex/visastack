@@ -41,7 +41,10 @@ const request = (overrides: Partial<RefundRequestView>): RefundRequestView => ({
 
 const work = (overrides: Partial<OrganizationRefundWork> = {}): OrganizationRefundWork => ({
   available: true,
-  more: false,
+  moreEntries: false,
+  moreHeld: false,
+  page: 1,
+  invoiceRef: null,
   creditTargets: [],
   held: [],
   requests: [],
@@ -89,13 +92,24 @@ describe('the Refunds and Credits card (S18)', () => {
   it('draws no form, and no idempotency key, until a disclosure is opened', () => {
     const html = render();
     expect(html).not.toContain('name="idempotencyKey"');
-    expect(html).not.toContain('<form');
+    // Only the search by invoice reference is a form until a disclosure is opened.
+    expect(html.match(/<form/g)).toHaveLength(1);
+    expect(html).not.toContain('name="amount"');
   });
 
-  it('says when it shows only the most recent payments', () => {
-    expect(render({ work: work({ more: true }) })).toContain(
-      'Showing the 25 most recent payments that can still be refunded',
-    );
+  it('says which list was cut, offers Older Payments, and a search by invoice reference', () => {
+    const cut = render({ work: work({ moreEntries: true }) });
+    expect(cut).toContain('Showing the 25 most recent payments that can be refunded.');
+    expect(cut).not.toContain('needing a check');
+    expect(cut).toContain(`href="/app/admin/organizations/${ORG}?refundPage=2#refunds-title"`);
+    expect(cut).toContain('Older Payments');
+    expect(cut).toContain('name="refundInvoice"');
+    const older = render({ work: work({ page: 2, invoiceRef: 'INV-7' }) });
+    expect(older).toContain('Showing older payments, from number 26');
+    expect(older).toContain('Newer Payments');
+    expect(older).not.toContain('Older Payments');
+    expect(older).toContain('refundPage=1&amp;refundInvoice=INV-7');
+    expect(render()).not.toContain('Older Payments');
   });
 
   it('shows a refund the ledger refused as Needs a Check, and unconfirmed ones with both choices', () => {

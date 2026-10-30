@@ -102,4 +102,15 @@ it('reads as failed when the refund check crashed or no sent refund could be ask
     refunds: { available: true, configured: true, checked: 2, unavailable: 1 },
   });
   expect((await GET(request())).status).toBe(200);
+  // Time ran out before any sent refund was asked about: nothing answered.
+  mocks.reconcile.mockResolvedValue({
+    ...payments,
+    refunds: { available: true, configured: true, checked: 0, unavailable: 0, leftForLater: 3 },
+  });
+  expect((await GET(request())).status).toBe(503);
+  mocks.reconcile.mockResolvedValue({
+    ...payments,
+    refunds: { available: true, configured: true, checked: 1, unavailable: 0, leftForLater: 3 },
+  });
+  expect((await GET(request())).status).toBe(200);
 });

@@ -32,9 +32,9 @@ Only the platform owner (`BILLING_REFUND_MANAGE` and `BILLING_LEDGER_EXPORT`, he
 The refund is listed as **Waiting to Send**. It still counts against what that payment can give back, so it can never be sent twice by accident.
 
 1. Open the SSLCOMMERZ merchant panel and look for a refund on that payment. VisaStack's refund id is the refund request id; it is sent as the refund's reference.
-2. If the refund **is** there: open **It Went Through** on the refund, enter the panel's refund reference and the day it was made (not before the day the refund was asked for, not in the future), and confirm it is you. The refund shows as **Refunded** and the invoice total drops, in one step.
+2. If the refund **is** there: open **It Went Through** on the refund, enter the amount, the refund reference and the day the panel shows (not before the day the refund was asked for, not in the future), and confirm it is you. The amount must equal the refund's. If the panel shows a different amount, choose It Did Not Go Through, then record the refund made outside VisaStack with the amount the panel shows. A refund reference already recorded for another refund of the agency (by the gateway or by hand) is refused, so one panel refund is never counted twice. The refund shows as **Refunded** and the invoice total drops, in one step.
 3. If the refund **is not** there: open **It Did Not Go Through**, give a reason ("not in the panel") and confirm it is you. The amount can be refunded again. While the gateway switch is on you may instead **Send Again**: it is sent with the same refund id.
-4. If **Send Again** is answered "failed", the amount stays blocked: a "failed" to a second send can mean the first one already went through. Check the panel and choose It Went Through or It Did Not Go Through; Send Again is no longer offered for that refund.
+4. If **Send Again** is answered "failed", the amount stays blocked: a "failed" to a second send can mean the first one already went through. Check the panel and choose It Went Through or It Did Not Go Through; Send Again is no longer offered (and is refused) for that refund. A second click on Send Again within 30 seconds is refused too, so the gateway is asked once.
 
 Nothing confirms a refund waiting to send by itself: you decide, from the merchant panel.
 
@@ -70,13 +70,17 @@ If the agency has no open invoice yet, the card says so: apply the credit after 
 
 Each download is recorded in the audit trail (`BILLING_LEDGER_EXPORTED`, with the month and the row count).
 
+## Finding older payments
+
+The card lists the 25 newest payments that can still be refunded, and the 25 newest payments needing a check, worked out in the database. Use **Older Payments** for the next 25, or **Find Payments by Invoice Reference**.
+
 ## Money arriving on a refunded invoice
 
 An invoice with any refund is never owed again. If an online payment for it arrives anyway (for example a payment page opened before the refund), it is held under **Payments Needing a Check** ("The invoice was refunded, so nothing more is owed on it."). Apply it to another open invoice or refund it. A payment typed in or a reported payment on such an invoice is refused with the reason.
 
 ## The daily check
 
-The `process-payment-reconciliation` job asks about payments and then sent refunds. It stops starting new gateway calls after about 40 seconds (the job may run for 60) and reports how many were left (`leftForLater`); the next run asks about them. The run reads as failed (503) when the refund check crashed or no sent refund could be asked about, as for payments; refunds not available yet (before 0104) is not a failure.
+The `process-payment-reconciliation` job asks about payments for up to 25 seconds, then sent refunds for up to 15 seconds of their own (the job may run for 60), and reports how many were left (`leftForLater`); the next run asks about them. The run reads as failed (503) when the refund check crashed, no sent refund could be answered, or time ran out before any sent refund was asked about (that is also logged); refunds not available yet (before 0104) is not a failure. A sent refund whose gateway reference is already recorded for another refund is not counted and shows as Needs a Check.
 
 ## Before migration 0104
 

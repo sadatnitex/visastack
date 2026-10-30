@@ -1670,11 +1670,12 @@ const ADMIN: readonly Case[] = [
       <refundForms.ConfirmUnsentRefundForm
         organizationId="o1"
         refundRequestId={rowId()}
+        currency="BDT"
         earliestDate="2026-10-01"
         latestDate="2026-10-30"
       />
     ),
-    fields: ['reference', 'refundedOn'],
+    fields: ['amount', 'reference', 'refundedOn'],
     repeated: true,
   },
   row('pay an invoice online', () => (

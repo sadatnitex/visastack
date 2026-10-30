@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   REFUNDS_UNAVAILABLE,
+  RETRY_REFUSED_CODE,
   type RefundOutcome,
   type RefundRequestView,
   type RefundSource,
@@ -143,7 +144,7 @@ function outcomeMessage(outcome: RefundOutcome): Omit<RefundFormState, 'nextKey'
       return {
         ok: false,
         focusId,
-        message: outcome.request.failureCode === 'retry_refused' ? RETRY_REFUSED : UNCONFIRMED,
+        message: outcome.request.failureCode === RETRY_REFUSED_CODE ? RETRY_REFUSED : UNCONFIRMED,
       };
     case 'already_requested':
       return { ...replayMessage(outcome.request), focusId };
@@ -438,11 +439,22 @@ export async function confirmUnsentRefundAction(
   _prev: RefundFormState,
   formData: FormData,
 ): Promise<RefundFormState> {
-  const values = typed(formData, ['reference', 'refundedOn']);
+  const values = typed(formData, ['amount', 'reference', 'refundedOn']);
   const organizationId = text(formData, 'organizationId');
   const refundRequestId = text(formData, 'refundRequestId');
   const reference = typedValue(values, 'reference');
   const refundedOn = dayOf(typedValue(values, 'refundedOn'));
+  const amount = parseAmountForCurrency(typedValue(values, 'amount'), text(formData, 'currency'));
+  if (amount === null || amount <= 0) {
+    return reply(
+      {
+        ok: false,
+        message: 'Enter the amount the merchant panel shows, for example 1500.00.',
+        field: 'amount',
+      },
+      values,
+    );
+  }
   if (reference.length === 0 || reference.length > 120) {
     return reply(
       {
@@ -468,6 +480,7 @@ export async function confirmUnsentRefundAction(
         organizationId,
         refundRequestId,
         reference,
+        amountMinorUnits: amount,
         refundedOn,
         stepUpSatisfied: true,
       });

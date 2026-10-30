@@ -36,8 +36,11 @@ export function RefundFeedback({ children }: { readonly children: ReactNode }) {
   const report = useCallback<Report>((result) => {
     setLast((before) => ({ result, n: (before?.n ?? 0) + 1 }));
   }, []);
+  // Said here for a success and for any result about a refund line (a refund written but not
+  // confirmed, say), because the row whose form was used may be gone after the page is drawn again.
+  const shown = last !== null && (last.result.ok || last.result.focusId !== undefined);
   useEffect(() => {
-    if (!last || !last.result.ok) return;
+    if (!last || !(last.result.ok || last.result.focusId !== undefined)) return;
     // Wait for the page drawn again after the action, then move focus to the new line.
     const timer = window.setTimeout(() => {
       const line = last.result.focusId ? document.getElementById(last.result.focusId) : null;
@@ -47,8 +50,12 @@ export function RefundFeedback({ children }: { readonly children: ReactNode }) {
   }, [last]);
   return (
     <ReportContext.Provider value={report}>
-      <output ref={region} tabIndex={-1} className="field-msg field-msg-ok">
-        {last?.result.ok ? last.result.message : ''}
+      <output
+        ref={region}
+        tabIndex={-1}
+        className={`field-msg ${last?.result.ok === false ? 'field-msg-err' : 'field-msg-ok'}`}
+      >
+        {last && shown ? last.result.message : ''}
       </output>
       {children}
     </ReportContext.Provider>

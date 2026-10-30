@@ -811,14 +811,19 @@ export async function triggerDataKeyRewrap(
 }
 
 /**
+ * The daily payment check's time budget (the route allows 60 seconds): payments may start gateway
+ * calls for 25 seconds, then refunds for 15 of their own, so a slow payment check can never leave
+ * refunds without time (S18).
+ */
+export const PAYMENT_CHECK_BUDGET_MS = 25_000;
+export const REFUND_CHECK_BUDGET_MS = 15_000;
+
+/**
  * Asks the payment gateway about online payments that have not been confirmed yet (S11, ADR
  * 0020): payments the payer left open, and ones closed as expired that may still have succeeded.
  * Does nothing (and reports `configured: false`) while no payment provider is configured. Returns
  * counts only.
  */
-/** How long the daily payment check may keep starting gateway calls (the route allows 60 seconds). */
-export const RECONCILIATION_BUDGET_MS = 40_000;
-
 export async function triggerPaymentReconciliation(
   scope: SystemScope<'process-payment-reconciliation'>,
 ): Promise<
@@ -836,15 +841,25 @@ export async function triggerPaymentReconciliation(
   try {
     const port = createPaymentPort();
     const handle = db as unknown as Parameters<typeof reconcilePaymentAttempts>[0];
-    // The route may run for 60 seconds. No new gateway call is started after about 40, across
-    // payments and refunds together; whatever is left is counted and asked about next run.
-    const deadline = Date.now() + RECONCILIATION_BUDGET_MS;
-    const payments = await reconcilePaymentAttempts(handle, scope, port, { deadline });
+    // The route may run for 60 seconds: payments get 25 seconds to start gateway calls, then
+    // refunds 15 of their own; whatever is left is counted and asked about next run.
+    const payments = await reconcilePaymentAttempts(handle, scope, port, {
+      deadline: Date.now() + PAYMENT_CHECK_BUDGET_MS,
+    });
     // S18: refunds the gateway has taken are confirmed in the same daily run. A refund check that
     // fails is reported on its own and never hides the payment counts.
     let refunds: RefundCheckSummary | { readonly error: string };
     try {
-      refunds = await reconcileRefunds(handle, scope, port, { deadline });
+      refunds = await reconcileRefunds(handle, scope, port, {
+        deadline: Date.now() + REFUND_CHECK_BUDGET_MS,
+      });
+      if (refunds.checked === 0 && refunds.leftForLater > 0) {
+        reportServerError(
+          'triggerPaymentReconciliation',
+          new Error('the refund check ran out of time before asking about any sent refund'),
+          { step: 'refund check out of time', left: String(refunds.leftForLater) },
+        );
+      }
     } catch (error) {
       reportServerError('triggerPaymentReconciliation', withoutPaymentSecrets(error), {
         step: 'refund check failed',

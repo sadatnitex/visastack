@@ -1893,6 +1893,7 @@ export {
   type ApplyInvoiceRefundInput,
   REFUNDED_INVOICE_MESSAGE,
 } from './invoice-ledger';
+export { REFUNDED_INVOICE_STAFF_MESSAGE } from './billing';
 export {
   type ApplyHeldCreditInput,
   type CreditTargetView,
@@ -1914,6 +1915,11 @@ export {
   NEEDS_CHECK_CODE,
   REFUND_WORK_LIMIT,
   RETRY_REFUSED_CODE,
+  DUPLICATE_REFERENCE_CODE,
+  REFERENCE_TAKEN,
+  AMOUNT_MISMATCH,
+  RETRY_REFUSED_MESSAGE,
+  type RefundWorkInput,
   applyHeldPaymentCredit,
   cancelRefund,
   checkRefundsNow,
