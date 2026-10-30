@@ -24,6 +24,7 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import { type EntitlementSubject, resolveEntitlements } from './entitlements';
 import { type AiFeatureReason, type ServiceError, refusal, serviceError } from './errors';
+import { RATE_LIMITS, refundRateLimit, windowStartFor } from './rate-limit';
 
 /**
  * Whether an AI feature works for a person right now, and how much a day (S21 framework; S28
@@ -115,18 +116,27 @@ const FEATURE_READY: Readonly<Record<AiFeatureKey, (db: Db) => Promise<boolean>>
 /**
  * Where a feature's use is counted: one fixed-window bucket per subject per UTC day. AI App
  * Suggestions (S21) and AI App Original Files (S20) keep the buckets they already charge, so their
- * limits work exactly as before; every other feature is counted here, as `ai_feature.<key>`.
+ * limits work exactly as before, with their built-in daily ceiling when neither the plan nor the
+ * admin sets one; every other feature is counted here, as `ai_feature.<key>`.
  */
-const SHARED_BUCKETS: Partial<Record<AiFeatureKey, string>> = {
-  ai_app_suggestions: 'ai_write.account',
-  ai_app_original_files: 'ai_file.account',
+const SHARED_BUCKETS: Partial<
+  Record<AiFeatureKey, { readonly action: string; readonly ceiling: number }>
+> = {
+  ai_app_suggestions: {
+    action: 'ai_write.account',
+    ceiling: RATE_LIMITS.AI_WRITE_ACCOUNT_DAY.limit,
+  },
+  ai_app_original_files: {
+    action: 'ai_file.account',
+    ceiling: RATE_LIMITS.AI_FILE_ACCOUNT_DAY.limit,
+  },
 };
 
 /** One UTC day: daily limits start again at midnight UTC (6 AM in Bangladesh). */
 export const AI_FEATURE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 function usageAction(feature: AiFeatureKey): string {
-  return SHARED_BUCKETS[feature] ?? `ai_feature.${feature}`;
+  return SHARED_BUCKETS[feature]?.action ?? `ai_feature.${feature}`;
 }
 
 /** Whether S28 counts and limits this feature (the others count their own way). */
@@ -135,7 +145,7 @@ function countedHere(feature: AiFeatureKey): boolean {
 }
 
 function windowStart(now: Date): Date {
-  return new Date(Math.floor(now.getTime() / AI_FEATURE_WINDOW_MS) * AI_FEATURE_WINDOW_MS);
+  return windowStartFor(now, AI_FEATURE_WINDOW_MS);
 }
 
 /** When today's count started and when the next one starts (UTC midnights). */
@@ -251,6 +261,38 @@ function entitlementSubject(subject: AiSubject | null): EntitlementSubject {
   return { accountId: subject?.id ?? null };
 }
 
+/** Today's count of every feature for one subject, in one read, without counting anything. */
+async function usageToday(
+  db: Db,
+  subject: AiSubject,
+  now: Date,
+): Promise<Map<AiFeatureKey, number>> {
+  // The features S21 and S20 count are counted per person only.
+  const features = AI_FEATURE_KEYS.filter(
+    (feature) => countedHere(feature) || subject.kind === 'account',
+  );
+  const rows = await db
+    .select({ action: schema.rateLimitBuckets.action, count: schema.rateLimitBuckets.count })
+    .from(schema.rateLimitBuckets)
+    .where(
+      and(
+        eq(schema.rateLimitBuckets.subjectId, subject.id),
+        inArray(schema.rateLimitBuckets.action, features.map(usageAction)),
+        eq(schema.rateLimitBuckets.windowStart, windowStart(now)),
+      ),
+    );
+  const byAction = new Map(rows.map((row) => [row.action, row.count] as const));
+  return new Map(
+    AI_FEATURE_KEYS.map(
+      (feature) =>
+        [
+          feature,
+          features.includes(feature) ? (byAction.get(usageAction(feature)) ?? 0) : 0,
+        ] as const,
+    ),
+  );
+}
+
 /** Today's count for one feature and subject, without counting anything. */
 async function usedToday(
   db: Db,
@@ -284,12 +326,21 @@ export interface AiFeatureStateOptions {
    * provider kill switch.
    */
   readonly platform?: Partial<Record<AiFeatureKind, boolean>>;
+  readonly now?: Date;
+}
+
+/** What only the services pass: never part of the options the web app can give. */
+interface ResolveOptions extends AiFeatureStateOptions {
   /**
-   * This use was already counted today by the step before it (one file read as a scan, then for
-   * its details), so today's limit does not stop it again.
+   * This use was already counted today by the step before it (a scan that was charged for this
+   * very file), so today's limit does not stop it again. Set only from a genuine scan charge.
    */
   readonly alreadyCounted?: boolean;
-  readonly now?: Date;
+  /**
+   * Today's counts, read once by the caller (AI Use Today). Given, the features S21 and S20 count
+   * are checked against their limit too, so the page never says "On" when they are used up.
+   */
+  readonly usage?: ReadonlyMap<AiFeatureKey, number>;
 }
 
 interface ResolvedState {
@@ -301,7 +352,7 @@ async function resolveStates(
   db: Db,
   features: readonly AiFeatureKey[],
   subject: AiSubject | null | undefined,
-  options: AiFeatureStateOptions,
+  options: ResolveOptions,
 ): Promise<ResolvedState[]> {
   const off = (
     feature: AiFeatureKey,
@@ -324,7 +375,11 @@ async function resolveStates(
     const kind = AI_FEATURES[feature].kind;
     const setting = saved.get(feature) ?? standardSetting(feature);
     const entitlement = plan[feature];
-    const dailyLimit = effectiveAiDailyLimit(entitlement.dailyLimit, setting.dailyLimit);
+    const shared = SHARED_BUCKETS[feature];
+    const chosen = effectiveAiDailyLimit(entitlement.dailyLimit, setting.dailyLimit);
+    // S21 and S20 keep their built-in ceiling when neither the plan nor the admin sets a limit.
+    const dailyLimit = chosen ?? shared?.ceiling ?? null;
+    const checksLimit = shared === undefined || options.usage !== undefined;
     const platformOn = options.platform?.[kind] !== false && (kind !== 'model' || dispatchAllowed);
     let state: AiFeatureState;
     if (!platformOn) state = off(feature, 'platform_off', dailyLimit);
@@ -333,11 +388,11 @@ async function resolveStates(
     else if (!setting.enabled) state = off(feature, 'turned_off', dailyLimit);
     else if (!entitlement.included) state = off(feature, 'not_in_plan', dailyLimit);
     else if (
-      countedHere(feature) &&
+      checksLimit &&
       options.alreadyCounted !== true &&
       dailyLimit !== null &&
       subject !== null &&
-      (await usedToday(db, feature, subject, now)) >= dailyLimit
+      (options.usage?.get(feature) ?? (await usedToday(db, feature, subject, now))) >= dailyLimit
     ) {
       state = off(feature, 'daily_limit', dailyLimit);
     } else state = { feature, available: true, reason: null, dailyLimit };
@@ -395,7 +450,7 @@ export async function openAiFeatureGate(
   db: Db,
   feature: AiFeatureKey,
   context: AiFeatureContext,
-  options: AiFeatureStateOptions = {},
+  options: AiFeatureStateOptions & { readonly alreadyCounted?: boolean } = {},
 ): Promise<Result<AiFeatureGate, AiFeatureState>> {
   const [resolved] = await resolveStates(db, [feature], contextSubject(context), options);
   if (!resolved) {
@@ -406,35 +461,109 @@ export async function openAiFeatureGate(
 }
 
 /**
- * Counts one use against today's bucket, last, inside the transaction that does the work: false
+ * One counted use, kept as proof: for the step after it (a scan counted for one file lets the
+ * reading of its details go uncounted) and for giving the use back. Made only by
+ * `chargeAiFeatureUse`; a copied or made-up object is never accepted.
+ */
+export interface AiFeatureCharge {
+  readonly feature: AiFeatureKey;
+  /** False when nothing was counted (staff, or a feature that counts its own way). */
+  readonly counted: boolean;
+}
+
+interface ChargeRecord {
+  readonly subjectId: string;
+  readonly action: string;
+  readonly windowStart: Date;
+  readonly documentVersionId: string | null;
+  state: 'open' | 'used' | 'refunded';
+}
+const CHARGES = new WeakMap<AiFeatureCharge, ChargeRecord>();
+
+/**
+ * Counts one use against today's bucket, last, inside the transaction that does the work: null
  * when the daily limit is already reached (nothing is counted then). With no limit the use is
  * still counted, for the AI Use Today page. A use is never counted twice: the count only rises
  * while it is under the limit, in one statement, so two calls at once cannot both pass it.
+ * `documentVersionId` ties the charge to one file, so a scan's charge can cover that file's
+ * details and nothing else.
  */
 export async function chargeAiFeatureUse(
   db: Db,
   gate: AiFeatureGate,
-  now: Date = new Date(),
-): Promise<boolean> {
-  if (gate.subject === null || !countedHere(gate.feature)) return true;
+  options: { readonly now?: Date; readonly documentVersionId?: string } = {},
+): Promise<AiFeatureCharge | null> {
+  if (gate.subject === null || !countedHere(gate.feature)) {
+    return Object.freeze({ feature: gate.feature, counted: false });
+  }
   const limit = gate.dailyLimit;
-  if (limit !== null && limit <= 0) return false;
+  if (limit !== null && limit <= 0) return null;
   const bucket = schema.rateLimitBuckets;
+  const action = usageAction(gate.feature);
+  const window = windowStart(options.now ?? new Date());
   const rows = await db
     .insert(bucket)
-    .values({
-      subjectId: gate.subject.id,
-      action: usageAction(gate.feature),
-      windowStart: windowStart(now),
-      count: 1,
-    })
+    .values({ subjectId: gate.subject.id, action, windowStart: window, count: 1 })
     .onConflictDoUpdate({
       target: [bucket.subjectId, bucket.action, bucket.windowStart],
       set: { count: sql`${bucket.count} + 1`, updatedAt: sql`now()` },
       ...(limit !== null ? { setWhere: sql`${bucket.count} < ${limit}` } : {}),
     })
     .returning({ count: bucket.count });
-  return rows.length > 0;
+  if (rows.length === 0) return null;
+  const charge: AiFeatureCharge = Object.freeze({ feature: gate.feature, counted: true });
+  CHARGES.set(charge, {
+    subjectId: gate.subject.id,
+    action,
+    windowStart: window,
+    documentVersionId: options.documentVersionId ?? null,
+    state: 'open',
+  });
+  return charge;
+}
+
+/**
+ * Gives one counted use back, never below zero and never twice: for a call that was counted and
+ * then made no model call (the kill switch stopped it) or ended refused. Refusals are free.
+ */
+export async function refundAiFeatureUse(db: Db, charge: AiFeatureCharge | null): Promise<void> {
+  const record = charge ? CHARGES.get(charge) : undefined;
+  if (!record || record.state === 'refunded') return;
+  record.state = 'refunded';
+  await refundRateLimit(
+    db,
+    { subjectId: record.subjectId, action: record.action },
+    { limit: AI_FEATURE_LIMIT_MAX, windowMs: AI_FEATURE_WINDOW_MS },
+    record.windowStart,
+  );
+}
+
+/**
+ * Whether `charge` is a scan counted today for this very file, feature and person, not yet relied
+ * on; if so it is marked used, so the reading of the file's details is not counted again. A charge
+ * from another file, another person, an earlier day, or one already used is never accepted.
+ */
+export function useScanCharge(
+  charge: AiFeatureCharge | undefined,
+  expected: {
+    readonly feature: AiFeatureKey;
+    readonly accountId: string;
+    readonly documentVersionId: string;
+    readonly now?: Date;
+  },
+): boolean {
+  const record = charge ? CHARGES.get(charge) : undefined;
+  if (!charge || !record || record.state !== 'open') return false;
+  if (
+    charge.feature !== expected.feature ||
+    record.subjectId !== expected.accountId ||
+    record.documentVersionId !== expected.documentVersionId ||
+    record.windowStart.getTime() !== windowStart(expected.now ?? new Date()).getTime()
+  ) {
+    return false;
+  }
+  record.state = 'used';
+  return true;
 }
 
 /** The refusal a service returns for a feature that is off: a plain sentence and a typed reason. */
@@ -446,29 +575,6 @@ export function aiFeatureRefusal(state: AiFeatureState): ServiceError {
         ? 'ai_daily_limit'
         : 'ai_feature_off';
   return refusal(reason, aiFeatureOffHint(state.reason));
-}
-
-/**
- * Gives one counted use back, never below zero: for a call that was counted when it started (so
- * its count row is locked before anything else) and then ended refused. Refusals are free.
- */
-export async function refundAiFeatureUse(
-  db: Db,
-  gate: AiFeatureGate,
-  now: Date = new Date(),
-): Promise<void> {
-  if (gate.subject === null || !countedHere(gate.feature)) return;
-  const bucket = schema.rateLimitBuckets;
-  await db
-    .update(bucket)
-    .set({ count: sql`greatest(${bucket.count} - 1, 0)`, updatedAt: sql`now()` })
-    .where(
-      and(
-        eq(bucket.subjectId, gate.subject.id),
-        eq(bucket.action, usageAction(gate.feature)),
-        eq(bucket.windowStart, windowStart(now)),
-      ),
-    );
 }
 
 /** The refusal for a use the daily limit stopped at the moment it was to be counted. */
@@ -516,19 +622,17 @@ export async function getAiUsageToday(
     'accountId' in subject
       ? { kind: 'account', id: subject.accountId }
       : { kind: 'organization', id: subject.organizationId };
-  const resolved = await resolveStates(db, AI_FEATURE_KEYS, who, { ...options, now });
-  const features: AiUsageToday[] = [];
-  for (const { state } of resolved) {
-    features.push({
-      feature: state.feature,
-      name: AI_FEATURES[state.feature].name,
-      unit: AI_FEATURES[state.feature].unit,
-      used: await usedToday(db, state.feature, who, now),
-      dailyLimit: state.dailyLimit,
-      available: state.available,
-      reason: state.reason,
-    });
-  }
+  const usage = await usageToday(db, who, now);
+  const resolved = await resolveStates(db, AI_FEATURE_KEYS, who, { ...options, now, usage });
+  const features: AiUsageToday[] = resolved.map(({ state }) => ({
+    feature: state.feature,
+    name: AI_FEATURES[state.feature].name,
+    unit: AI_FEATURES[state.feature].unit,
+    used: usage.get(state.feature) ?? 0,
+    dailyLimit: state.dailyLimit,
+    available: state.available,
+    reason: state.reason,
+  }));
   return { features, startsAgainAt: aiFeatureDay(now).to };
 }
 

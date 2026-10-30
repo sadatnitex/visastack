@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { isOk } from '@visastack/core';
 import {
   AI_FEATURE_KEYS,
@@ -19,9 +21,11 @@ import {
   rejectProposal,
   runExtraction,
   runInconsistencyCheck,
+  runOcr,
   suggestDocumentKind,
 } from './ai';
 import {
+  AI_FEATURE_WINDOW_MS,
   aiEntitlementFor,
   aiFeatureDay,
   aiOwnerContext,
@@ -33,6 +37,7 @@ import {
   openAiFeatureGate,
   updateAiFeatureSetting,
 } from './ai-feature-settings';
+import { processAiReading } from './ai-reading';
 import {
   LETTER_TEXT,
   type Reader,
@@ -40,6 +45,7 @@ import {
   extractorFor,
   freshDb,
   jobsOf,
+  noTextExtractor,
   proposalsOf,
   runIntake,
   scope,
@@ -62,6 +68,7 @@ import {
 } from './packs';
 import { seedStaffAccount, staffScopeFor } from './platform-roles.test-support';
 import { editFact, registerFieldDefinition } from './profile';
+import { windowStartFor } from './rate-limit';
 import { acceptGrant, createGrant } from './sharing';
 
 /*
@@ -370,7 +377,7 @@ describe('what a plan gives', () => {
       id: org.value.id,
     });
     if (!isOk(opened)) throw new Error('gate');
-    expect(await chargeAiFeatureUse(db, opened.value)).toBe(true);
+    expect((await chargeAiFeatureUse(db, opened.value))?.counted).toBe(true);
     expect(await bucketCount(org.value.id, 'ai_explanations')).toBe(1);
     expect(await bucketCount(reader.accountId, 'ai_explanations')).toBe(0);
     // An owner's proof is not an agency context.
@@ -460,9 +467,9 @@ describe('counting each use against the daily limit', () => {
       dailyLimit: 1,
       subject: { kind: 'account' as const, id: 'someone' },
     };
-    expect(await chargeAiFeatureUse(db, gate)).toBe(true);
-    expect(await chargeAiFeatureUse(db, gate)).toBe(false);
-    expect(await chargeAiFeatureUse(db, gate)).toBe(false);
+    expect((await chargeAiFeatureUse(db, gate))?.counted).toBe(true);
+    expect(await chargeAiFeatureUse(db, gate)).toBeNull();
+    expect(await chargeAiFeatureUse(db, gate)).toBeNull();
     expect(await bucketCount('someone', 'ai_consistency_checks')).toBe(1);
   });
 
@@ -708,6 +715,187 @@ describe('VisaStack works fully with every AI feature off (the all-off journey)'
         // Only the reading made before the switches changed.
         [expect.objectContaining({ action: 'ai_feature.ai_automatic_reading', count: 1 })],
       );
+    },
+    TIMEOUT,
+  );
+});
+
+describe('one file is one use, and only real calls count (round 2)', () => {
+  function scanInput(reader: Reader, feature: 'ai_document_reading' | 'ai_automatic_reading') {
+    return {
+      actorAccountId: reader.accountId,
+      applicantId: reader.applicantId,
+      documentVersionId: reader.versionId,
+      imageBytes: new Uint8Array([1, 2, 3]),
+      contentType: 'image/png' as const,
+      feature,
+      budgetLimitUnits: 1000,
+    };
+  }
+
+  it(
+    'counts the details of a file whose scan came from earlier work, which counted nothing',
+    async () => {
+      const reader = await seedReader(db, 'cached-scan@example.com', { docType: 'HOTEL_BOOKING' });
+      const { ports, calls } = countingPorts();
+      // The first file: no text of its own, so a scan (counted) and then its details (not again).
+      await runIntake(db, reader.versionId, noTextExtractor);
+      await runAiReadingWorker(db, scope(), ports);
+      expect(calls).toMatchObject({ ocr: 1, extract: 1 });
+      expect(await bucketCount(reader.accountId, 'ai_automatic_reading')).toBe(1);
+      // The details read from it are older than the reuse window now; the scan is not.
+      await db
+        .update(schema.aiExtractionRuns)
+        .set({ createdAt: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000) })
+        .where(eq(schema.aiExtractionRuns.documentVersionId, reader.versionId));
+      // The same picture again: the scan is served from the first one (free), the details are a
+      // real call, so they are counted.
+      const second = await addDocumentVersionFor(reader, 'same-picture');
+      await runIntake(db, second, noTextExtractor);
+      await runAiReadingWorker(db, scope(), ports);
+      expect(calls).toMatchObject({ ocr: 1, extract: 2 });
+      expect(await bucketCount(reader.accountId, 'ai_automatic_reading')).toBe(2);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'counts a file once when the queue tries again after its details were refused for a moment',
+    async () => {
+      const reader = await seedReader(db, 'retry@example.com', { docType: 'HOTEL_BOOKING' });
+      const { ports, calls } = countingPorts();
+      await runIntake(db, reader.versionId, noTextExtractor);
+      // One AI call left this hour: the scan takes it, the details are refused as busy.
+      const hour = 60 * 60 * 1000;
+      await db.insert(schema.rateLimitBuckets).values({
+        subjectId: reader.accountId,
+        action: 'ai.run',
+        windowStart: windowStartFor(new Date(), hour),
+        count: 149,
+      });
+      await expect(
+        processAiReading(db, scope(), ports, { documentVersionId: reader.versionId }),
+      ).rejects.toThrow('busy');
+      expect(calls.ocr).toBe(1);
+      expect(await bucketCount(reader.accountId, 'ai_automatic_reading')).toBe(0);
+      // The retry: the text is there now, so only the details are read, and counted once.
+      await db.delete(schema.rateLimitBuckets).where(eq(schema.rateLimitBuckets.action, 'ai.run'));
+      const retried = await processAiReading(db, scope(), ports, {
+        documentVersionId: reader.versionId,
+      });
+      expect(retried.outcome).toBe('READ');
+      expect(calls).toMatchObject({ ocr: 1, extract: 1 });
+      expect(await bucketCount(reader.accountId, 'ai_automatic_reading')).toBe(1);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'accepts a scan only as proof for its own file, once; a copy or a made-up one is counted as usual',
+    async () => {
+      const reader = await seedReader(db, 'proof@example.com');
+      const { ports } = countingPorts();
+      const ocr = await ports.ocr();
+      const extraction = await ports.extraction();
+      if (!ocr || !extraction) throw new Error('ports');
+      const scan = await runOcr(db, ocr.ai, scanInput(reader, 'ai_document_reading'));
+      if (!isOk(scan) || !scan.value.scanCharge) throw new Error('scan');
+      const proof = scan.value.scanCharge;
+      expect(await bucketCount(reader.accountId, 'ai_document_reading')).toBe(1);
+      // A made-up proof and a copy of the real one are ignored: counted.
+      const forged = { feature: 'ai_document_reading' as const, counted: true };
+      for (const [i, afterScan] of [forged, { ...proof }].entries()) {
+        const run = await runExtraction(db, extraction.ai, {
+          ...readInput(reader, `${LETTER_TEXT} ${i}`),
+          afterScan,
+        });
+        expect(run.ok).toBe(true);
+      }
+      expect(await bucketCount(reader.accountId, 'ai_document_reading')).toBe(3);
+      // The real one covers this file once; used again, it is counted.
+      for (const i of [2, 3]) {
+        await runExtraction(db, extraction.ai, {
+          ...readInput(reader, `${LETTER_TEXT} ${i}`),
+          afterScan: proof,
+        });
+      }
+      expect(await bucketCount(reader.accountId, 'ai_document_reading')).toBe(4);
+      // A scan read again from earlier work carries no proof at all.
+      const cached = await runOcr(db, ocr.ai, scanInput(reader, 'ai_document_reading'));
+      expect(isOk(cached) && cached.value.scanCharge).toBeUndefined();
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'gives back the use of a call the kill switch stopped after it was counted',
+    async () => {
+      const reader = await seedReader(db, 'stopped@example.com');
+      const { ports, calls } = countingPorts();
+      const ocr = await ports.ocr();
+      const extraction = await ports.extraction();
+      if (!ocr || !extraction) throw new Error('ports');
+      const stopped = { killSwitchCheck: async () => false };
+      const details = await runExtraction(db, extraction.ai, {
+        ...readInput(reader, LETTER_TEXT),
+        ...stopped,
+      });
+      expect(details.ok).toBe(false);
+      const scan = await runOcr(db, ocr.ai, {
+        ...scanInput(reader, 'ai_document_reading'),
+        ...stopped,
+      });
+      expect(scan.ok).toBe(false);
+      expect(calls).toMatchObject({ extract: 0, ocr: 0 });
+      expect(await bucketCount(reader.accountId, 'ai_document_reading')).toBe(0);
+    },
+    TIMEOUT,
+  );
+
+  it('every kind of AI call gives back a use the kill switch stopped, through one helper', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ai.ts', import.meta.url)), 'utf8');
+    // Extraction, OCR, classification (twice: its own call and the document kind suggestion),
+    // explanation and the consistency check.
+    expect(source.match(/await refundIfSwitchedOff\(db, reservation\.charge, /g)).toHaveLength(6);
+  });
+});
+
+describe('AI Use Today shows every limit that is used up (round 2)', () => {
+  it(
+    'says Limit Reached for AI App Suggestions and AI App Original Files, which count their own way',
+    async () => {
+      const reader = await seedReader(db, 'usage@example.com');
+      await setFeature('ai_app_suggestions', true, null);
+      await setFeature('ai_app_original_files', true, 3);
+      const day = windowStartFor(new Date(), AI_FEATURE_WINDOW_MS);
+      await db.insert(schema.rateLimitBuckets).values([
+        { subjectId: reader.accountId, action: 'ai_write.account', windowStart: day, count: 15 },
+        { subjectId: reader.accountId, action: 'ai_file.account', windowStart: day, count: 3 },
+        {
+          subjectId: reader.accountId,
+          action: 'ai_feature.ai_explanations',
+          windowStart: day,
+          count: 2,
+        },
+      ]);
+      const today = await getAiUsageToday(db, { accountId: reader.accountId });
+      const row = (feature: AiFeatureKey) => today.features.find((f) => f.feature === feature);
+      expect(row('ai_app_suggestions')).toMatchObject({
+        used: 15,
+        dailyLimit: 15,
+        available: false,
+        reason: 'daily_limit',
+      });
+      expect(row('ai_app_original_files')).toMatchObject({
+        used: 3,
+        dailyLimit: 3,
+        available: false,
+        reason: 'daily_limit',
+      });
+      expect(row('ai_explanations')).toMatchObject({ used: 2, available: true });
+      // The tools themselves keep their own answer for their own limit.
+      const proof = await ownerProof(reader);
+      expect((await getAiFeatureState(db, 'ai_app_suggestions', { proof })).available).toBe(true);
     },
     TIMEOUT,
   );

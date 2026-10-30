@@ -2101,6 +2101,7 @@ export { MODE_CHANGED_CODE } from './refunds';
 // S28: AI feature controls. The owner context, the gate and the charge stay inside the services.
 export {
   AI_FEATURE_WINDOW_MS,
+  type AiFeatureCharge,
   type AiFeatureStateOptions,
   type AiUsageToday,
   aiFeatureDay,

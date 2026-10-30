@@ -351,6 +351,26 @@ describe('reading a file again', () => {
     expect(order).toEqual(['picture', 'details']);
   });
 
+  it('counts one file once: the details go uncounted only after a scan that counted it (S28 round 2)', async () => {
+    const scanCharge = Object.freeze({ feature: 'ai_document_reading', counted: true });
+    // A scan that made a real call carries its proof to the details of the same file.
+    mocks.getLatestExtractedText.mockResolvedValueOnce(undefined).mockResolvedValue('read text');
+    mocks.runOcr.mockResolvedValueOnce({
+      ok: true,
+      value: { ocrRun: { reviewIssues: [] }, scanCharge },
+    });
+    await again();
+    expect(mocks.runExtraction.mock.calls[0]?.[2].afterScan).toBe(scanCharge);
+    // A scan served from earlier work counted nothing, so the details are counted as usual.
+    mocks.getLatestExtractedText.mockResolvedValueOnce(undefined).mockResolvedValue('read text');
+    await again();
+    expect(mocks.runExtraction.mock.calls[1]?.[2]).not.toHaveProperty('afterScan');
+    // Read with AI on its own never claims a scan.
+    mocks.getLatestExtractedText.mockResolvedValue('some text');
+    await again();
+    expect(mocks.runExtraction.mock.calls[2]?.[2]).not.toHaveProperty('afterScan');
+  });
+
   it('stops after a picture that could not be read, and says it in plain words', async () => {
     mocks.getLatestExtractedText.mockResolvedValue(undefined);
     mocks.runOcr.mockResolvedValue({

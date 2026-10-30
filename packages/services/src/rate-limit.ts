@@ -147,7 +147,8 @@ export type RateLimitDecision =
   | { readonly allowed: true }
   | { readonly allowed: false; readonly reason: string };
 
-function windowStartFor(now: Date, windowMs: number): Date {
+/** When the fixed window holding `now` started: the one place the bucket maths lives. */
+export function windowStartFor(now: Date, windowMs: number): Date {
   return new Date(Math.floor(now.getTime() / windowMs) * windowMs);
 }
 

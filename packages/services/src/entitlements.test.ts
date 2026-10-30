@@ -569,16 +569,63 @@ describe('the entitlement resolver and the Plans page (S29)', () => {
   );
 
   it(
-    'needs a daily limit of at least 1 for an AI feature that is on (round 2)',
+    'needs a daily limit from 1 for an AI feature that is on, or none at all (round 2, S28 round 2)',
     async () => {
       const scope = await plansScope();
-      for (const limit of [null, 0]) {
+      for (const limit of [0, 1001]) {
         const saved = await savePlan(db, scope, {
           draft: draft({ rules: { 'ai.ai_app_suggestions': { included: true, limit } } }),
           stepUpSatisfied: true,
         });
         expect(isErr(saved) && saved.error.field).toBe('ai.ai_app_suggestions');
       }
+      // A limit for a feature that is off is still refused.
+      const offWithLimit = await savePlan(db, scope, {
+        draft: draft({ rules: { 'ai.ai_app_suggestions': { included: false, limit: 5 } } }),
+        stepUpSatisfied: true,
+      });
+      expect(isErr(offWithLimit) && offWithLimit.error.field).toBe('ai.ai_app_suggestions');
+      // On with no plan limit: saved as such (the admin's daily limit still applies).
+      const noPlanLimit = await savePlan(db, scope, {
+        draft: draft({ rules: { 'ai.ai_explanations': { included: true, limit: null } } }),
+        stepUpSatisfied: true,
+      });
+      expect(isOk(noPlanLimit)).toBe(true);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'saves the whole Traveller Free form as the Plans page fills it, with an unrelated change (S28 round 2)',
+    async () => {
+      const scope = await plansScope();
+      const listed = await listPlansForAdmin(db, scope);
+      if (!isOk(listed)) throw new Error('list');
+      const traveller = listed.value.plans.find((p) => p.key === 'traveller_free');
+      if (!traveller) throw new Error('traveller plan');
+      // Every rule the page shows, sent back unchanged: the six AI features S28 brought in are on
+      // with no plan limit, and AI App Suggestions and AI App Original Files keep 15 and 30.
+      expect(traveller.rules['ai.ai_automatic_reading']).toEqual({ included: true, limit: null });
+      const rules = Object.fromEntries(
+        Object.entries(traveller.rules).filter(([key]) => key.startsWith('ai.')),
+      );
+      expect(Object.keys(rules)).toHaveLength(8);
+      const saved = await savePlan(db, scope, {
+        planId: traveller.id,
+        draft: {
+          name: 'Traveller Free (renamed)',
+          periodDays: traveller.periodDays,
+          price: null,
+          rules,
+        },
+        stepUpSatisfied: true,
+      });
+      if (!isOk(saved)) throw new Error(`refused: ${saved.error.message}`);
+      expect(saved.value.changed).toBe(true);
+      // Nothing was turned off for anyone.
+      const ai = await aiEntitlementFor(db, { accountId: ownerId });
+      expect(ai.features.ai_automatic_reading).toEqual({ included: true, dailyLimit: null });
+      expect(ai.features.ai_app_suggestions).toEqual({ included: true, dailyLimit: 15 });
     },
     TIMEOUT,
   );

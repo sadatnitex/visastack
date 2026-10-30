@@ -8,7 +8,12 @@ import {
   runExtraction,
   runOcr,
 } from './ai';
-import { getAiFeatureState, isAiFeatureRefusal } from './ai-feature-settings';
+import {
+  type AiFeatureCharge,
+  getAiFeatureState,
+  isAiFeatureRefusal,
+  refundAiFeatureUse,
+} from './ai-feature-settings';
 import { isAiDispatchAllowed } from './ai-provider-config';
 import { READER_VERSION, type ReadingStopReason } from './ai-reading-job';
 import { connectorRunsOnly } from './ai-run-kinds';
@@ -278,6 +283,8 @@ export async function processAiReading(
 
   const killSwitchCheck = () => isAiDispatchAllowed(db);
   let ranOcr = false;
+  // Set only when the scan below made a real call and counted this file today (S28).
+  let scanCharge: AiFeatureCharge | undefined;
   let text = await getLatestReadableText(db, scope, target.versionId, target.applicantId);
 
   if (!text) {
@@ -312,45 +319,60 @@ export async function processAiReading(
       return reason === 'SKIP' ? skipped : stopped(reason);
     }
     ranOcr = true;
+    scanCharge = ocrRun.value.scanCharge;
     text = await getLatestReadableText(db, scope, target.versionId, target.applicantId);
     if (!text) return stopped('NOTHING_TO_READ', { ranOcr });
   }
 
-  // The text is in hand; reading details out of it needs the other consent.
-  if (!mayReadDetails) return stopped('NO_CONSENT', { ranOcr });
-  // One reading per file (see alreadyHasSuggestions).
-  if (await alreadyHasSuggestions(db, target.versionId)) {
-    return audited({ outcome: 'READ', ranOcr, ranExtraction: false, suggestions: 0 });
-  }
-  const extraction = await ports.extraction();
-  if (!extraction) return stopped('SWITCHED_OFF', { ranOcr });
-  await ports.prepareFields(target.versionId);
-  const extractionInput: RunExtractionInput = {
-    actorAccountId: target.ownerAccountId,
-    applicantId: target.applicantId,
-    documentVersionId: target.versionId,
-    text: text.text,
-    feature: 'ai_automatic_reading',
-    // One file is one use: a scan read just now already counted it.
-    countedAlready: ranOcr,
-    budgetLimitUnits: extraction.limits.budgetLimitUnits,
-    perDocumentBudgetLimitUnits: extraction.limits.perDocumentBudgetLimitUnits,
-    maxAttemptsPerDocument: extraction.limits.maxAttemptsPerDocument,
-    maxPagesPerDocument: extraction.limits.maxPagesPerDocument,
-    cacheMaxAgeDays: extraction.limits.cacheMaxAgeDays,
-    maxConcurrentCalls: extraction.limits.maxConcurrentCalls,
-    killSwitchCheck,
-    ...(extraction.fallback ? { fallback: extraction.fallback } : {}),
+  // True once the details were read: from then on the file's count stands whatever happens.
+  let detailsRead = false;
+  const readDetails = async (): Promise<AiReadingResult> => {
+    if (!text) return stopped('NOTHING_TO_READ', { ranOcr });
+    // The text is in hand; reading details out of it needs the other consent.
+    if (!mayReadDetails) return stopped('NO_CONSENT', { ranOcr });
+    // One reading per file (see alreadyHasSuggestions).
+    if (await alreadyHasSuggestions(db, target.versionId)) {
+      return audited({ outcome: 'READ', ranOcr, ranExtraction: false, suggestions: 0 });
+    }
+    const extraction = await ports.extraction();
+    if (!extraction) return stopped('SWITCHED_OFF', { ranOcr });
+    await ports.prepareFields(target.versionId);
+    const extractionInput: RunExtractionInput = {
+      actorAccountId: target.ownerAccountId,
+      applicantId: target.applicantId,
+      documentVersionId: target.versionId,
+      text: text.text,
+      feature: 'ai_automatic_reading',
+      // One file is one use: a scan that counted this file just now covers its details.
+      ...(scanCharge ? { afterScan: scanCharge } : {}),
+      budgetLimitUnits: extraction.limits.budgetLimitUnits,
+      perDocumentBudgetLimitUnits: extraction.limits.perDocumentBudgetLimitUnits,
+      maxAttemptsPerDocument: extraction.limits.maxAttemptsPerDocument,
+      maxPagesPerDocument: extraction.limits.maxPagesPerDocument,
+      cacheMaxAgeDays: extraction.limits.cacheMaxAgeDays,
+      maxConcurrentCalls: extraction.limits.maxConcurrentCalls,
+      killSwitchCheck,
+      ...(extraction.fallback ? { fallback: extraction.fallback } : {}),
+    };
+    const run = await runExtraction(db, extraction.ai, extractionInput);
+    if (!run.ok) {
+      const reason = await reasonForRefusal(db, run.error);
+      return reason === 'SKIP' ? skipped : stopped(reason, { ranOcr });
+    }
+    detailsRead = true;
+    return audited({
+      outcome: 'READ',
+      ranOcr,
+      ranExtraction: true,
+      suggestions: run.value.proposals.length,
+    });
   };
-  const run = await runExtraction(db, extraction.ai, extractionInput);
-  if (!run.ok) {
-    const reason = await reasonForRefusal(db, run.error);
-    return reason === 'SKIP' ? skipped : stopped(reason, { ranOcr });
+
+  try {
+    return await readDetails();
+  } catch (error) {
+    // The queue will try again: give back the scan's count first, so the file counts once.
+    if (!detailsRead) await refundAiFeatureUse(db, scanCharge ?? null);
+    throw error;
   }
-  return audited({
-    outcome: 'READ',
-    ranOcr,
-    ranExtraction: true,
-    suggestions: run.value.proposals.length,
-  });
 }

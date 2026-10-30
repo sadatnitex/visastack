@@ -2,7 +2,13 @@
 
 import { createHash } from 'node:crypto';
 import type { ApplicantId, Result } from '@visastack/core';
-import type { Actor, Db, DocumentKindSuggestion, ServiceError } from '@visastack/services';
+import type {
+  Actor,
+  AiFeatureCharge,
+  Db,
+  DocumentKindSuggestion,
+  ServiceError,
+} from '@visastack/services';
 import type { RegisteredDocumentWithVersion } from '@visastack/services';
 import {
   CONVERTED_FROM_HEIC_SOURCE,
@@ -540,6 +546,17 @@ export async function runAiExtractionAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  return readDetailsStep(formData);
+}
+
+/**
+ * The details step of reading a file. `afterScan` is the proof a scan in the same request counted
+ * this file (S28): one file is one use, so the details are then not counted again.
+ */
+async function readDetailsStep(
+  formData: FormData,
+  afterScan?: AiFeatureCharge,
+): Promise<ActionState> {
   const applicantId = String(formData.get('applicantId') ?? '');
   const documentVersionId = String(formData.get('documentVersionId') ?? '');
 
@@ -566,6 +583,7 @@ export async function runAiExtractionAction(
       text,
       // The person asked (S28): Read with AI, not Automatic Reading.
       feature: 'ai_document_reading',
+      ...(afterScan ? { afterScan } : {}),
       budgetLimitUnits: resolved.limits.budgetLimitUnits,
       perDocumentBudgetLimitUnits: resolved.limits.perDocumentBudgetLimitUnits,
       maxAttemptsPerDocument: resolved.limits.maxAttemptsPerDocument,
@@ -633,7 +651,7 @@ function readingFinished(count: number): string {
  * the person asked for it.
  */
 export async function readAgainAction(
-  previous: ActionState,
+  _previous: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   const applicantId = String(formData.get('applicantId') ?? '');
@@ -643,11 +661,14 @@ export async function readAgainAction(
     return (await getLatestExtractedText(db, documentVersionId, applicantId)) !== undefined;
   });
   if (hasText === undefined) return { ok: false, message: 'Not authorized.' };
+  // One file is one use (S28): only a scan that actually counted this file covers its details.
+  let afterScan: AiFeatureCharge | undefined;
   if (!hasText) {
-    const scan = await runOcrAction(previous, formData);
-    if (!scan.ok) return scan;
+    const scan = await readScanStep(formData);
+    if (!scan.state.ok) return scan.state;
+    afterScan = scan.scanCharge;
   }
-  return runAiExtractionAction(previous, formData);
+  return readDetailsStep(formData, afterScan);
 }
 
 /**
@@ -659,20 +680,21 @@ export async function readAgainAction(
  * getLatestOcrRun, not returned through this action directly.
  */
 export async function runOcrAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return (await readScanStep(formData)).state;
+}
+
+/** The scan step of reading a file, with the proof it counted the file when it did (S28). */
+async function readScanStep(
+  formData: FormData,
+): Promise<{ readonly state: ActionState; readonly scanCharge?: AiFeatureCharge }> {
   const applicantId = String(formData.get('applicantId') ?? '');
   const documentVersionId = String(formData.get('documentVersionId') ?? '');
+  const refused = (message: string) => ({ state: { ok: false, message } satisfies ActionState });
 
   const result = await withSession(async ({ db, accountId }) => {
-    if (!(await assertOwned(db, accountId, applicantId))) {
-      return { ok: false, message: 'Not authorized.' } satisfies ActionState;
-    }
+    if (!(await assertOwned(db, accountId, applicantId))) return refused('Not authorized.');
     const resolved = await resolveOcrAdapter(db, createKeyManagementPort());
-    if (!resolved) {
-      return {
-        ok: false,
-        message: 'Reading scans with AI is not set up yet.',
-      } satisfies ActionState;
-    }
+    if (!resolved) return refused('Reading scans with AI is not set up yet.');
     const rendered = await renderOcrSourceImage(
       db,
       createStorage(db),
@@ -680,9 +702,7 @@ export async function runOcrAction(_prev: ActionState, formData: FormData): Prom
       documentVersionId,
       applicantId,
     );
-    if (!rendered.ok) {
-      return { ok: false, message: rendered.message } satisfies ActionState;
-    }
+    if (!rendered.ok) return refused(rendered.message);
     const run = await runOcr(db, resolved.ai, {
       actorAccountId: accountId,
       applicantId,
@@ -698,18 +718,19 @@ export async function runOcrAction(_prev: ActionState, formData: FormData): Prom
       killSwitchCheck: () => isAiDispatchAllowed(db),
       ...(resolved.fallback ? { fallback: resolved.fallback } : {}),
     });
-    if (!run.ok) return { ok: false, message: readingRefusal(run.error) } satisfies ActionState;
+    if (!run.ok) return refused(readingRefusal(run.error));
     const issueCount = run.value.ocrRun.reviewIssues?.length ?? 0;
-    return {
+    const state = {
       ok: true,
       message:
         issueCount > 0
           ? `We read the text from this scan, but ${issueCount === 1 ? 'one thing needs' : `${issueCount} things need`} a look. Check the text below.`
           : 'We read the text from this scan. Check it below.',
     } satisfies ActionState;
+    return run.value.scanCharge ? { state, scanCharge: run.value.scanCharge } : { state };
   });
 
-  if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
+  if (result.state.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
   return result;
 }
 

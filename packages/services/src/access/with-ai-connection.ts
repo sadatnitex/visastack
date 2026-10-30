@@ -16,6 +16,7 @@ import {
   selectionFromStoredChoices,
 } from '../ai-connection-scopes';
 import {
+  type AiFeatureGate,
   chargeAiFeatureUse,
   getAiFeatureState,
   openAiFeatureGate,
@@ -606,8 +607,11 @@ async function runGate<T>(
 ): Promise<Result<T, AiGateRefusal>> {
   // Set once the connection is known, so a failure part-way can still be recorded.
   const seen: { target: AuditTarget | null } = { target: null };
+  // AI App Access with no daily limit: the answer given is counted after the call, see below.
+  const after: { count: AiFeatureGate | null } = { count: null };
+  let result: Result<T, AiGateRefusal>;
   try {
-    return await db.transaction(async (tx) => {
+    result = await db.transaction(async (tx) => {
       const opened = await openConnection(tx, request);
       if (!opened) return err({ kind: 'unauthorized' } as const);
       const { connection, proof } = opened;
@@ -623,10 +627,14 @@ async function runGate<T>(
         await auditDenied(tx, connection, request.tool, reason, { now });
         return accessRefusal(reason);
       }
-      // Counted as the call starts, so this count row is always locked before the limit rows and
-      // the audit chain (one lock order for every tool), and given back below if the call ends
-      // refused: only answers actually given count.
-      if (!(await chargeAiFeatureUse(tx, access.value, now))) {
+      // With a daily limit, counted as the call starts, so this count row is always locked before
+      // the limit rows and the audit chain (one lock order for every tool), and given back below
+      // if the call ends refused: only answers actually given count. With no limit (the default)
+      // nothing is locked here: the answer is counted after the call, in a statement of its own,
+      // so one person's calls never wait on each other.
+      const limited = access.value.dailyLimit !== null;
+      const charge = limited ? await chargeAiFeatureUse(tx, access.value, { now }) : null;
+      if (limited && !charge) {
         await auditDenied(tx, connection, request.tool, 'access_limit', { now });
         return accessRefusal('access_limit');
       }
@@ -756,9 +764,10 @@ async function runGate<T>(
       const record: AiCallRecord =
         described.kind === 'served' && served !== null ? { ...described, file: served } : described;
       if (record.kind === 'denied') {
-        await refundAiFeatureUse(tx, access.value, now);
+        await refundAiFeatureUse(tx, charge);
         await auditDenied(tx, connection, request.tool, record.reason, { now });
       } else {
+        if (!limited) after.count = access.value;
         // Product events first (savepoints that never throw), then the audit record.
         if (record.file) {
           await recordProductEvent(tx, {
@@ -817,6 +826,9 @@ async function runGate<T>(
     if (seen.target) await auditFailedCall(db, seen.target, request.tool);
     throw error;
   }
+  // Outside the call's transaction: one short statement, holding no lock while the call runs.
+  if (after.count) await chargeAiFeatureUse(db, after.count, { now: request.now ?? new Date() });
+  return result;
 }
 
 interface WriteContext {

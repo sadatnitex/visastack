@@ -1112,4 +1112,64 @@ describe('AI tools: AI App Access, the switch for every call (S28)', () => {
     const last = (await aiAudit()).filter((row) => row.eventType === 'AI_CONTEXT_DENIED').at(-1);
     expect(last?.reason).toBe('access_limit');
   });
+
+  /**
+   * Where AI App Access is counted, seen from the database handle: "inside" a write in the call's
+   * transaction (the count row then stays locked until the call ends, so a person's next call
+   * waits on it), "after" a write of its own once the call has ended.
+   */
+  function watched(handle: Db, log: string[], inside = false): Db {
+    return new Proxy(handle, {
+      get(target, prop, receiver) {
+        const value = Reflect.get(target, prop, receiver);
+        if (prop === 'transaction') {
+          return (work: (tx: Db) => Promise<unknown>, ...rest: unknown[]) =>
+            value.call(target, (tx: Db) => work(watched(tx, log, true)), ...rest);
+        }
+        if (prop === 'insert') {
+          return (table: unknown) => {
+            const builder = value.call(target, table);
+            if (table !== schema.rateLimitBuckets) return builder;
+            return new Proxy(builder, {
+              get(b, key) {
+                const member = Reflect.get(b, key);
+                if (key !== 'values') return typeof member === 'function' ? member.bind(b) : member;
+                return (row: { action: string }) => {
+                  if (row.action === 'ai_feature.ai_app_access') {
+                    log.push(inside ? 'inside' : 'after');
+                  }
+                  return member.call(b, row);
+                };
+              },
+            });
+          };
+        }
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    }) as Db;
+  }
+
+  it('with no limit, counts after the call and holds no lock while it runs (round 2)', async () => {
+    const { ownerId, applicantId } = await seed();
+    const { token } = await connect(ownerId, applicantId, { ...CASE_A_ONLY, caseMode: 'NONE' });
+    const probe = async (log: string[]) =>
+      withAiConnection(
+        watched(db, log),
+        { token, resource: RESOURCE, tool: 'probe', admission: ADMIT, encryption: keys },
+        async (gateway) => (await gateway.compose()).ok,
+        () => ({ kind: 'served', layers: [], cases: 0, values: 0, documents: 0, documentTexts: 0 }),
+      );
+    // No limit (the default): two calls at once, then the counts.
+    const unlimited: string[] = [];
+    const both = await Promise.all([probe(unlimited), probe(unlimited)]);
+    expect(both.every((outcome) => outcome.ok)).toBe(true);
+    expect(unlimited).toEqual(['after', 'after']);
+    expect(await accessCount(ownerId)).toBe(2);
+    // With a limit, exactly as before: counted as the call starts, inside it.
+    await setAccess(true, 5);
+    const limited: string[] = [];
+    expect((await probe(limited)).ok).toBe(true);
+    expect(limited).toEqual(['inside']);
+    expect(await accessCount(ownerId)).toBe(3);
+  });
 });

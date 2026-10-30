@@ -57,7 +57,7 @@ const REASON_COPY: Readonly<Record<NotReadReason, string>> = {
   SWITCHED_OFF: 'Reading with AI is switched off for now.',
   FEATURE_OFF: 'Automatic Reading is turned off right now, so only the file itself was checked.',
   DAILY_LIMIT:
-    'You have reached today’s limit for Automatic Reading. It starts again at 6 AM Bangladesh time.',
+    'This file was not read because today’s limit for Automatic Reading is used up. Choose Read Again after 6 AM Bangladesh time.',
   PROTECTED: 'We only read this kind of document with AI when you ask.',
   LIMIT_REACHED: 'We reached a reading limit for this file.',
   COULD_NOT_READ: 'The reading did not work this time.',

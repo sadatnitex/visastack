@@ -6,12 +6,15 @@ import { CATALOGUE_DOCUMENTS, isRepeatingFieldKey } from '@visastack/core/catalo
 import { and, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access';
 import {
+  type AiFeatureCharge,
   type AiFeatureGate,
   aiDailyLimitRefusal,
   aiFeatureRefusal,
   aiOwnerContext,
   chargeAiFeatureUse,
   openAiFeatureGate,
+  refundAiFeatureUse,
+  useScanCharge,
 } from './ai-feature-settings';
 import { scopeFieldKeys } from './ai-field-scope';
 import {
@@ -342,6 +345,19 @@ async function aiRateLimitRefusal(
     RATE_LIMITS.AI_RUN,
   );
   return decision.allowed ? undefined : serviceError('rate_limited', decision.reason);
+}
+
+/**
+ * A call the kill switch stopped after its slot was reserved made no model call, so the use it
+ * counted today is given back (S28): only real calls count. The one place every kind of AI call
+ * does this.
+ */
+async function refundIfSwitchedOff(
+  db: Db,
+  charge: AiFeatureCharge | null,
+  outcome: { readonly ok: true } | { readonly ok: false; readonly code: string },
+): Promise<void> {
+  if (!outcome.ok && outcome.code === 'disabled') await refundAiFeatureUse(db, charge);
 }
 
 /**
@@ -917,10 +933,12 @@ export interface RunExtractionInput {
    */
   readonly feature: AiReadingFeature;
   /**
-   * True when this file's reading was already counted today by the step before it (the automatic
-   * reading reads a scan first, then its details: one file, one use).
+   * The charge `runOcr` returned when it read this very file as a scan just before (its
+   * `scanCharge`): one file is one use, so its details are then not counted again. Only a genuine
+   * charge for this file, person, feature and day, not used before, is accepted; anything else is
+   * ignored and the reading is counted as usual, so no caller can skip the count by setting it.
    */
-  readonly countedAlready?: boolean;
+  readonly afterScan?: AiFeatureCharge;
   /** Platform-wide pilot budget cap (master directive §8/§21 — cost controls; env: AI_PILOT_MONTHLY_HARD_LIMIT_USD). */
   readonly budgetLimitUnits: number;
   /** Per-document spend cap, in the same cost units (env: AI_PER_DOCUMENT_LIMIT_USD). Unset = no cap. */
@@ -1105,6 +1123,7 @@ type ExtractionReservation =
       readonly runId: string;
       readonly allowedFieldKeys: readonly string[];
       readonly cacheKey: string;
+      readonly charge: AiFeatureCharge | null;
     };
 
 /**
@@ -1343,7 +1362,8 @@ async function reserveExtractionSlot(
 
     // The feature's use today is counted here, last, once every other check has passed and a
     // real call is certain: a cache hit, a refusal or a fallback attempt is never counted (S28).
-    if (gate && !(await chargeAiFeatureUse(tx, gate))) {
+    const charge = gate ? await chargeAiFeatureUse(tx, gate) : null;
+    if (gate && !charge) {
       return { kind: 'final', outcome: err(aiDailyLimitRefusal(gate)) };
     }
 
@@ -1364,7 +1384,7 @@ async function reserveExtractionSlot(
       'ai extraction run',
     );
 
-    return { kind: 'proceed', runId: run.id, allowedFieldKeys, cacheKey };
+    return { kind: 'proceed', runId: run.id, allowedFieldKeys, cacheKey, charge };
   });
 }
 
@@ -1550,29 +1570,53 @@ export async function runExtraction(
 ): Promise<Result<RunExtractionSummary, ServiceError>> {
   const owned = await loadOwnedApplicant(db, input);
   if (!owned.ok) return err(owned.error);
-  const applicant = owned.value;
+  const ownerAccountId = owned.value.ownerAccountId;
+  // One file is one use (S28): a scan counted for this very file just before covers its details.
+  const scanCounted = useScanCharge(input.afterScan, {
+    feature: input.feature,
+    accountId: ownerAccountId,
+    documentVersionId: input.documentVersionId,
+  });
   // The feature first (S28): the platform, the platform owner's switch, the plan and today's
   // limit, then the person's consent, then the spend and attempt limits.
   const gate = await openAiFeatureGate(
     db,
     input.feature,
-    aiOwnerContext(applicant.ownerAccountId),
-    input.countedAlready ? { alreadyCounted: true } : {},
+    aiOwnerContext(ownerAccountId),
+    scanCounted ? { alreadyCounted: true } : {},
   );
   if (!gate.ok) return err(aiFeatureRefusal(gate.error));
-  if (!(await hasConsent(db, applicant.ownerAccountId, 'AI_EXTRACTION'))) {
+  const result = await extractAfterGate(
+    db,
+    ai,
+    input,
+    ownerAccountId,
+    scanCounted ? null : gate.value,
+  );
+  // Refused for a moment (busy), the scan's count is given back, so trying again (the queue's
+  // retry, or the person's) counts the file once, not twice.
+  if (scanCounted && !result.ok && result.error.code === 'rate_limited') {
+    await refundAiFeatureUse(db, input.afterScan ?? null);
+  }
+  return result;
+}
+
+/** `runExtraction` once the feature is on; `gate` is null when a scan already counted the file. */
+async function extractAfterGate(
+  db: Db,
+  ai: AiExtractionPort,
+  input: RunExtractionInput,
+  ownerAccountId: string,
+  gate: AiFeatureGate | null,
+): Promise<Result<RunExtractionSummary, ServiceError>> {
+  if (!(await hasConsent(db, ownerAccountId, 'AI_EXTRACTION'))) {
     return err(serviceError('consent_required', 'AI extraction consent is required'));
   }
 
   const rateLimited = await aiRateLimitRefusal(db, input.actorAccountId);
   if (rateLimited) return err(rateLimited);
 
-  const reservation = await reserveExtractionSlot(
-    db,
-    ai,
-    input,
-    input.countedAlready ? null : gate.value,
-  );
+  const reservation = await reserveExtractionSlot(db, ai, input, gate);
   if (reservation.kind === 'final') return reservation.outcome;
 
   const primary = await dispatchAndReconcile(
@@ -1583,6 +1627,7 @@ export async function runExtraction(
     reservation.allowedFieldKeys,
     reservation.cacheKey,
   );
+  await refundIfSwitchedOff(db, reservation.charge, primary.outcome);
   if (primary.outcome.ok) return primary.result;
   if (!input.fallback || !isRecoverableForFallback(primary.outcome.code)) return primary.result;
 
@@ -1657,6 +1702,7 @@ type ClassificationReservation =
       readonly runId: string;
       readonly allowedTypes: readonly string[];
       readonly cacheKey: string;
+      readonly charge: AiFeatureCharge | null;
     };
 
 /**
@@ -1836,7 +1882,8 @@ async function reserveClassificationSlot(
 
     // The feature's use today is counted here, last, once every other check has passed and a
     // real call is certain: a cache hit, a refusal or a fallback attempt is never counted (S28).
-    if (gate && !(await chargeAiFeatureUse(tx, gate))) {
+    const charge = gate ? await chargeAiFeatureUse(tx, gate) : null;
+    if (gate && !charge) {
       return { kind: 'final', outcome: err(aiDailyLimitRefusal(gate)) };
     }
 
@@ -1856,7 +1903,7 @@ async function reserveClassificationSlot(
       'ai classification run',
     );
 
-    return { kind: 'proceed', runId: run.id, allowedTypes, cacheKey };
+    return { kind: 'proceed', runId: run.id, allowedTypes, cacheKey, charge };
   });
 }
 
@@ -2057,6 +2104,7 @@ export async function runClassification(
     reservation.allowedTypes,
     reservation.cacheKey,
   );
+  await refundIfSwitchedOff(db, reservation.charge, dispatched.outcome);
   return dispatched.result;
 }
 
@@ -2455,19 +2503,20 @@ export async function suggestDocumentKind(
   const kinds = CATALOGUE_DOCUMENT_KINDS;
   if (kinds.length === 0) return ok({ status: 'no_suggestion' });
   const reservation = await reserveClassificationSlot(db, ai, runInput, gate.value, kinds);
-  const summary =
-    reservation.kind === 'final'
-      ? reservation.outcome
-      : (
-          await dispatchAndReconcileClassification(
-            db,
-            ai,
-            runInput,
-            reservation.runId,
-            reservation.allowedTypes,
-            reservation.cacheKey,
-          )
-        ).result;
+  let summary: Result<RunClassificationSummary, ServiceError>;
+  if (reservation.kind === 'final') summary = reservation.outcome;
+  else {
+    const dispatched = await dispatchAndReconcileClassification(
+      db,
+      ai,
+      runInput,
+      reservation.runId,
+      reservation.allowedTypes,
+      reservation.cacheKey,
+    );
+    await refundIfSwitchedOff(db, reservation.charge, dispatched.outcome);
+    summary = dispatched.result;
+  }
   if (!summary.ok) return summary;
   const proposal = summary.value.proposal;
   if (!proposal) return ok({ status: 'no_suggestion' });
@@ -2550,11 +2599,22 @@ export type OcrRunRow = typeof schema.ocrRuns.$inferSelect;
 
 export interface RunOcrSummary {
   readonly ocrRun: OcrRunRow;
+  /**
+   * Set only when this reading made a real model call and counted it today (S28), never for a
+   * reading served from the cache. Pass it as `afterScan` when reading the same file's details
+   * next, so the file counts once.
+   */
+  readonly scanCharge?: AiFeatureCharge;
 }
 
 type OcrReservation =
   | { readonly kind: 'final'; readonly outcome: Result<RunOcrSummary, ServiceError> }
-  | { readonly kind: 'proceed'; readonly runId: string; readonly cacheKey: string };
+  | {
+      readonly kind: 'proceed';
+      readonly runId: string;
+      readonly cacheKey: string;
+      readonly charge: AiFeatureCharge | null;
+    };
 
 /**
  * Run AI OCR over a document's already-rendered image bytes, persisting the
@@ -2724,7 +2784,10 @@ async function reserveOcrSlot(
 
     // The feature's use today is counted here, last, once every other check has passed and a
     // real call is certain: a cache hit, a refusal or a fallback attempt is never counted (S28).
-    if (gate && !(await chargeAiFeatureUse(tx, gate))) {
+    const charge = gate
+      ? await chargeAiFeatureUse(tx, gate, { documentVersionId: input.documentVersionId })
+      : null;
+    if (gate && !charge) {
       return { kind: 'final', outcome: err(aiDailyLimitRefusal(gate)) };
     }
 
@@ -2746,7 +2809,7 @@ async function reserveOcrSlot(
       'ocr run',
     );
 
-    return { kind: 'proceed', runId: run.id, cacheKey };
+    return { kind: 'proceed', runId: run.id, cacheKey, charge };
   });
 }
 
@@ -2893,7 +2956,15 @@ export async function runOcr(
     reservation.runId,
     reservation.cacheKey,
   );
-  if (primary.outcome.ok) return primary.result;
+  await refundIfSwitchedOff(db, reservation.charge, primary.outcome);
+  // The file was counted once when the scan was reserved; the result carries that proof.
+  const withCharge = (
+    result: Result<RunOcrSummary, ServiceError>,
+  ): Result<RunOcrSummary, ServiceError> =>
+    result.ok && reservation.charge?.counted
+      ? ok({ ...result.value, scanCharge: reservation.charge })
+      : result;
+  if (primary.outcome.ok) return withCharge(primary.result);
   if (!input.fallback || !isOcrRecoverableForFallback(primary.outcome.code)) return primary.result;
 
   // Cross-provider fallback (Part 8 §13) -- see `runExtraction`'s own doc
@@ -2915,7 +2986,7 @@ export async function runOcr(
     fallbackReservation.runId,
     fallbackReservation.cacheKey,
   );
-  return fallback.result;
+  return withCharge(fallback.result);
 }
 
 /**
@@ -3597,7 +3668,12 @@ export interface RunExplanationSummary {
 
 type ExplanationReservation =
   | { readonly kind: 'final'; readonly outcome: Result<RunExplanationSummary, ServiceError> }
-  | { readonly kind: 'proceed'; readonly runId: string; readonly cacheKey: string };
+  | {
+      readonly kind: 'proceed';
+      readonly runId: string;
+      readonly cacheKey: string;
+      readonly charge: AiFeatureCharge | null;
+    };
 
 /**
  * Phase 1 (RESERVE) -- structurally mirrors `reserveExtractionSlot`, minus
@@ -3684,7 +3760,8 @@ async function reserveExplanationSlot(
 
     // The feature's use today is counted here, last, once every other check has passed and a
     // real call is certain: a cache hit, a refusal or a fallback attempt is never counted (S28).
-    if (gate && !(await chargeAiFeatureUse(tx, gate))) {
+    const charge = gate ? await chargeAiFeatureUse(tx, gate) : null;
+    if (gate && !charge) {
       return { kind: 'final', outcome: err(aiDailyLimitRefusal(gate)) };
     }
 
@@ -3703,7 +3780,7 @@ async function reserveExplanationSlot(
       'ai explanation run',
     );
 
-    return { kind: 'proceed', runId: run.id, cacheKey };
+    return { kind: 'proceed', runId: run.id, cacheKey, charge };
   });
 }
 
@@ -3827,6 +3904,7 @@ export async function explainReadinessGap(
     reservation.runId,
     reservation.cacheKey,
   );
+  await refundIfSwitchedOff(db, reservation.charge, dispatched.outcome);
   return dispatched.result;
 }
 
@@ -3959,6 +4037,7 @@ type InconsistencyReservation =
       readonly runId: string;
       readonly profileFacts: readonly { readonly fieldKey: string; readonly value: string }[];
       readonly cacheKey: string;
+      readonly charge: AiFeatureCharge | null;
     };
 
 /** Phase 1 (RESERVE) -- structurally mirrors `reserveExtractionSlot`; see that function's own doc comment (on `runExtraction`) for the full reasoning behind every check and lock here. */
@@ -4126,7 +4205,8 @@ async function reserveInconsistencySlot(
 
     // The feature's use today is counted here, last, once every other check has passed and a
     // real call is certain: a cache hit, a refusal or a fallback attempt is never counted (S28).
-    if (gate && !(await chargeAiFeatureUse(tx, gate))) {
+    const charge = gate ? await chargeAiFeatureUse(tx, gate) : null;
+    if (gate && !charge) {
       return { kind: 'final', outcome: err(aiDailyLimitRefusal(gate)) };
     }
 
@@ -4146,7 +4226,7 @@ async function reserveInconsistencySlot(
       'ai inconsistency run',
     );
 
-    return { kind: 'proceed', runId: run.id, profileFacts, cacheKey };
+    return { kind: 'proceed', runId: run.id, profileFacts, cacheKey, charge };
   });
 }
 
@@ -4312,6 +4392,7 @@ export async function runInconsistencyCheck(
     reservation.profileFacts,
     reservation.cacheKey,
   );
+  await refundIfSwitchedOff(db, reservation.charge, dispatched.outcome);
   return dispatched.result;
 }
 
