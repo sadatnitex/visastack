@@ -39,3 +39,15 @@ Approved by the owner on 2026-10-28 (decision D3). Applies to user-facing words:
 | What an agency kept on a refunded invoice | Kept After Refunds (instead of Paid So Far); no due date on a refunded invoice | "Net Paid", "Balance After Reversal" | **New (S18 round 2)** |
 
 Every rename is also an approved change in `apps/web/src/lib/ccd/approved-changes.ts`, so the parity test knows it is intended. Tests that assert an old name (`navigation.test.ts`, `labels.test.ts` and others) change only the expected word, never their strength.
+
+Added 30 Oct 2026 (S21, AI app suggestion tools):
+
+| Thing | Canonical name | Retire | Status |
+|---|---|---|---|
+| The consent choice that lets an AI app leave suggestions, drafts and reminders | Suggest Changes (in the group "Changes") | "Write Access", "Edit Access", "Allow Changes" | **New (S21)** |
+| Profile suggestions from a person's AI apps, on My Profile | Suggestions from AI Apps | "AI Edits", "Pending Changes" | **New (S21)** |
+| The label on a suggestion an AI app made | Suggested by {app name} ({address}); no name stored: "an AI App" | "From Connector", "AI Proposal" | **New (S21)** |
+| Drafts an AI app saved, on the Sharing page | Drafts from AI Apps; actions Show Draft, Copy Draft, Delete Draft | "AI Notes", "Generated Drafts" | **New (S21)** |
+| The label on a reminder an AI app added to a case | Added by {app name} | "AI Task", "Bot Reminder" | **New (S21)** |
+| The platform owner's page of AI switches | AI Features; one feature "AI App Suggestions"; fields On and Daily Limit per Person | "AI Toggles", "Feature Flags" | **New (S21)** |
+| A feature that is off, wherever it would have been | "This AI feature is turned off right now. Everything else works as usual." | "Disabled", "Unavailable" | **New (S21)** |

@@ -1686,9 +1686,11 @@ export const aiExtractionRuns = pgTable(
   'ai_extraction_runs',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    documentVersionId: uuid('document_version_id')
-      .notNull()
-      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    // Null only for a suggestion an AI app made about the profile itself, with no document
+    // (S21, ADR 0021 extension): the check below allows it for connector runs alone.
+    documentVersionId: uuid('document_version_id').references(() => documentVersions.id, {
+      onDelete: 'cascade',
+    }),
     applicantId: uuid('applicant_id')
       .notNull()
       .references(() => applicants.id, { onDelete: 'cascade' }),
@@ -1736,6 +1738,10 @@ export const aiExtractionRuns = pgTable(
     index('ai_extraction_runs_applicant_idx').on(table.applicantId),
     index('ai_extraction_runs_cache_key_idx').on(table.cacheKey),
     index('ai_extraction_runs_triggered_by_idx').on(table.triggeredByRunId),
+    check(
+      'ai_extraction_runs_document_or_connector',
+      sql`${table.documentVersionId} is not null or ${table.modelVersion} like 'connector:%'`,
+    ),
   ],
 );
 
@@ -1812,9 +1818,11 @@ export const fieldProposals = pgTable(
     aiExtractionRunId: uuid('ai_extraction_run_id')
       .notNull()
       .references(() => aiExtractionRuns.id, { onDelete: 'cascade' }),
-    documentVersionId: uuid('document_version_id')
-      .notNull()
-      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    // Null only for an AI app's suggestion about the profile itself (S21): a database trigger
+    // (migration 0105) refuses a null here unless the proposal's run is a connector run.
+    documentVersionId: uuid('document_version_id').references(() => documentVersions.id, {
+      onDelete: 'cascade',
+    }),
     applicantId: uuid('applicant_id')
       .notNull()
       .references(() => applicants.id, { onDelete: 'cascade' }),
@@ -4733,6 +4741,75 @@ export const aiConnectionTokens = pgTable(
     check(
       'ai_connection_tokens_code_binding',
       sql`${table.kind} <> 'CODE' or (${table.codeChallenge} is not null and ${table.redirectUri} is not null)`,
+    ),
+  ],
+);
+
+// A draft an AI app saved for the person (S21, ADR 0021 extension): plain text the person can
+// read, copy and delete. Never sent, shared or submitted by anything; never shown to an agency or
+// any other recipient; never used as a fact or an output. The app's name and address are kept as
+// they were when it saved the draft, so the label survives the connection being removed.
+export const aiDrafts = pgTable(
+  'ai_drafts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    // The case it was written for, if any. Removing the case keeps the draft, unlinked.
+    missionId: uuid('mission_id').references(() => missions.id, { onDelete: 'set null' }),
+    connectionId: uuid('connection_id').references(() => aiConnections.id, {
+      onDelete: 'set null',
+    }),
+    clientName: text('client_name').notNull(),
+    clientHost: text('client_host').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('ai_drafts_applicant_created_idx').on(table.applicantId, table.createdAt),
+    check('ai_drafts_title_length', sql`char_length(${table.title}) between 1 and 120`),
+    check('ai_drafts_body_length', sql`char_length(${table.body}) between 1 and 20000`),
+  ],
+);
+
+// Which AI app added a reminder to a case (S21). A row here also makes the task private to the
+// record's owner: agencies never see or change it, even on a shared case (owner decision,
+// 30 Oct 2026). Kept beside mission_tasks rather than as a column on it, so no existing read or
+// write of tasks changes before or after the migration, and the mark survives the connection being
+// removed. It holds no record data, only the app's name and address as they were; it goes when the
+// task goes.
+export const aiTaskOrigins = pgTable('ai_task_origins', {
+  taskId: uuid('task_id')
+    .primaryKey()
+    .references(() => missionTasks.id, { onDelete: 'cascade' }),
+  connectionId: uuid('connection_id').references(() => aiConnections.id, {
+    onDelete: 'set null',
+  }),
+  clientName: text('client_name').notNull(),
+  clientHost: text('client_host').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// The platform owner's switch and daily limit for each AI feature (S21 framework, ADR 0021
+// amendment). Keys are the registry in packages/core/src/ai-features.ts; a feature with no row
+// uses its registered default. Holds no personal data.
+export const platformAiFeatureSettings = pgTable(
+  'platform_ai_feature_settings',
+  {
+    featureKey: text('feature_key').primaryKey(),
+    enabled: boolean('enabled').notNull(),
+    dailyLimit: integer('daily_limit'),
+    updatedByAccountId: uuid('updated_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      'platform_ai_feature_settings_daily_limit',
+      sql`${table.dailyLimit} is null or ${table.dailyLimit} between 1 and 1000`,
     ),
   ],
 );

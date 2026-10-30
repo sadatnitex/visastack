@@ -10593,3 +10593,46 @@ summary.safe-copy-title {
 .verify-other-address[open] > summary {
   margin-bottom: var(--space-2);
 }
+
+/* WP-S21 AI app suggestions: Drafts From AI Apps on the Sharing page, and Suggestions From AI
+   Apps on My Profile. Flat, the same hairline cards as AI Connections, light and dark through the
+   existing tokens. */
+.ai-draft-list {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.ai-draft {
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-2);
+}
+.ai-draft-title {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.ai-draft-text > summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+.ai-draft-body {
+  margin: var(--space-2) 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 24rem;
+  overflow-y: auto;
+}
+.ai-app-suggestions .finding-card + .finding-card {
+  margin-top: var(--space-3);
+}
+.task-added-by {
+  font-size: var(--text-caption);
+}

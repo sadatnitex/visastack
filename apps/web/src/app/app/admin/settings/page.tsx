@@ -51,6 +51,15 @@ export default async function PlatformSettingsPage() {
             <Link href="/app/admin/billing">Manage Billing Rules</Link>
           </article>
         ) : null}
+        {access.owner ? (
+          <article className="card">
+            <h2 className="card-title">AI Features</h2>
+            <p className="card-body">
+              Turn AI features on or off for everyone, and set how much each person may use them.
+            </p>
+            <Link href="/app/admin/ai">Manage AI Features</Link>
+          </article>
+        ) : null}
         {access.ai ? (
           <article className="card">
             <h2 className="card-title">AI Configuration</h2>

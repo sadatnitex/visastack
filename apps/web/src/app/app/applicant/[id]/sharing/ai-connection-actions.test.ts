@@ -106,6 +106,7 @@ describe('Change Access', () => {
         documentList: true,
         documentText: false,
         revealIdentifiers: false,
+        suggestChanges: false,
         duration: '7d',
       },
     });
@@ -172,6 +173,7 @@ describe('Change Access', () => {
       documentList: true,
       documentText: true,
       revealIdentifiers: false,
+      suggestChanges: false,
       duration: '7d',
     });
   });

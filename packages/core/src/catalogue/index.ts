@@ -17,3 +17,4 @@ export * from './queries';
 export * from './completion';
 export * from './report';
 export * from './field-policy';
+export * from './registry-shape';

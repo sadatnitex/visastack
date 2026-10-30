@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useId, useRef } from 'react';
+import { useActionState, useEffect, useId, useRef, useState } from 'react';
 import { AiAccessChoices } from '../../../../../components/ai-access-choices';
 import {
   FormMessage,
@@ -10,6 +10,7 @@ import {
   useFocusInvalidField,
 } from '../../../../../components/form-feedback';
 import type { ConsentInitial } from '../../../../../lib/ai-consent-choices';
+import { aiChangeSentence } from '../../../../../lib/ai-consent-labels';
 import { type AiConnectionActionState, changeAiAccessAction } from './ai-connection-actions';
 
 export interface ChangeAccessFormProps {
@@ -21,6 +22,10 @@ export interface ChangeAccessFormProps {
   readonly initial: Omit<ConsentInitial, 'duration'>;
   readonly durations: readonly { readonly value: string; readonly label: string }[];
   readonly defaultDuration: string;
+  /** Whether AI App Suggestions works right now (S21). */
+  readonly suggestionsAvailable?: boolean;
+  /** Whether the connection has Suggest Changes stored (it can then always be unticked). */
+  readonly suggestStored?: boolean;
 }
 
 /**
@@ -35,6 +40,8 @@ export function ChangeAccessForm({
   initial,
   durations,
   defaultDuration,
+  suggestionsAvailable = false,
+  suggestStored = false,
 }: ChangeAccessFormProps) {
   const [state, formAction, pending] = useActionState<AiConnectionActionState, FormData>(
     changeAiAccessAction,
@@ -46,8 +53,22 @@ export function ChangeAccessForm({
   useEffect(() => {
     if (state.ok && state.refreshPath) window.location.assign(state.refreshPath);
   }, [state]);
+  // The sentence under the choices follows the Suggest Changes box as it is ticked.
+  const shown = state.choices ?? initial;
+  const [suggest, setSuggest] = useState(shown.suggestChanges);
+  useEffect(() => setSuggest(shown.suggestChanges), [shown.suggestChanges]);
   return (
-    <form ref={formRef} action={formAction} className="field-list">
+    <form
+      ref={formRef}
+      action={formAction}
+      className="field-list"
+      onChange={(event) => {
+        const target = event.target;
+        if (target instanceof HTMLInputElement && target.name === 'suggest_changes') {
+          setSuggest(target.checked);
+        }
+      }}
+    >
       <input type="hidden" name="applicantId" value={applicantId} />
       <input type="hidden" name="connectionId" value={connectionId} />
       <AiAccessChoices
@@ -59,11 +80,12 @@ export function ChangeAccessForm({
         initial={state.choices ?? initial}
         durations={durations}
         defaultDuration={state.choices?.duration ?? defaultDuration}
+        suggestionsAvailable={suggestionsAvailable}
+        suggestMode="change"
+        suggestStored={suggestStored}
         {...(isFailure(state) && state.field ? { invalid: { field: state.field, messageId } } : {})}
       />
-      <p className="card-body">
-        {appName} can read only what you choose here. It cannot change anything in VisaStack.
-      </p>
+      <p className="card-body">{aiChangeSentence(appName, suggestionsAvailable && suggest)}</p>
       <FormMessage id={messageId} result={state} pending={pending} pendingText="Saving…" />
       <div className="page-actions">
         <SubmitButton pending={pending} idle="Save Changes" busy="Saving…" />

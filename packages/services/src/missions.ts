@@ -5,6 +5,7 @@ import { and, desc, eq, inArray } from 'drizzle-orm';
 import { AuthorizedApplicant, accountPrincipal, requireAccess } from './access';
 import { lockCaseSharing } from './access/grant-scope';
 import { orgGrantPermits } from './agency';
+import { type TaskAddedBy, taskAddedByApps } from './ai-task-origins';
 import { getApplicant } from './applicants';
 import { latestTimeZoneName, recognisedTimeZone } from './attention';
 import { appendAuditEvent } from './audit';
@@ -2163,19 +2164,30 @@ export async function updateTask(
   });
 }
 
+/** A task, and the AI app that added it when one did (S21). */
+export type MissionTaskView = MissionTask & { readonly addedBy: TaskAddedBy | null };
+
 /** Every task for a mission, newest first (owner-scoped). */
 export async function listTasks(
   db: Db,
   actorAccountId: string,
   missionId: string,
-): Promise<Result<MissionTask[], ServiceError>> {
+): Promise<Result<MissionTaskView[], ServiceError>> {
   const owned = await ownedMission(db, actorAccountId, missionId);
   if (!owned.ok) return owned;
   const rows = await db
     .select()
     .from(schema.missionTasks)
     .where(eq(schema.missionTasks.missionId, missionId));
-  return ok([...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
+  const addedBy = await taskAddedByApps(
+    db,
+    rows.map((row) => row.id),
+  );
+  return ok(
+    [...rows]
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((row) => ({ ...row, addedBy: addedBy.get(row.id) ?? null })),
+  );
 }
 
 // --- Mission appointments (Commercial V1 Part 4 §11) ------------------------

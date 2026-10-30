@@ -108,7 +108,13 @@ export default async function ApplicantOverviewPage({
   // The short starter list leads; the size of the whole profile follows once it is done.
   const essentials = essentialsProgress(data.profile, data.sectionChoices);
   const essentialsDone = essentials.done;
-  const attention = requests.length + data.proposals.length + flagged.length;
+  // An AI app's suggestions about the profile itself are reviewed on My Profile (S21); every other
+  // suggestion belongs to a document.
+  const appSuggestions = data.proposals.filter(
+    (reading) => reading.fromApp !== undefined && reading.proposal?.documentVersionId === null,
+  );
+  const readings = data.proposals.filter((reading) => !appSuggestions.includes(reading));
+  const attention = requests.length + readings.length + appSuggestions.length + flagged.length;
   const partial = !data.documents.ok || !data.missions.ok || !data.requests.ok || !data.access.ok;
   const topItem = data.attentionRead?.items[0];
   // The ranking decides first, with Account Home's wording. Without it (a failed read) the page
@@ -137,61 +143,69 @@ export default async function ApplicantOverviewPage({
             why: 'An agency is waiting for evidence before it can continue.',
             action: 'Open Requests',
           }
-        : data.attentionRead === null && data.proposals.length
+        : data.attentionRead === null && readings.length
           ? {
               href: `/app/applicant/${id}/documents`,
               title: 'Review Suggested Details',
               why: 'Nothing is added to your profile until you approve it.',
               action: 'Review Suggestions',
             }
-          : flagged.length
+          : data.attentionRead === null && appSuggestions.length
             ? {
-                href: `/app/applicant/${id}/documents`,
-                title: 'Check a Flagged Document',
-                why: 'A document needs review before it can be relied on.',
-                action: 'Open Documents',
+                href: `/app/applicant/${id}/profile`,
+                title: 'Suggestions from AI Apps Waiting for You',
+                why: 'Nothing is saved to your profile until you accept it.',
+                action: 'Review Suggestions',
               }
-            : !essentialsDone
+            : flagged.length
               ? {
-                  href: `/app/applicant/${id}/profile`,
-                  title: 'Add Your Essentials',
-                  why: `${essentials.answered} of ${essentials.total} essentials added: the details most visa forms ask for first. This is completeness, not verification.`,
-                  action: 'Open Profile',
+                  href: `/app/applicant/${id}/documents`,
+                  title: 'Check a Flagged Document',
+                  why: 'A document needs review before it can be relied on.',
+                  action: 'Open Documents',
                 }
-              : completeness < 100
+              : !essentialsDone
                 ? {
                     href: `/app/applicant/${id}/profile`,
-                    title: 'Continue Your Profile',
-                    why: `${completed} of ${completion.total} details in your open sections have values. This is completeness, not verification.`,
+                    title: 'Add Your Essentials',
+                    why: `${essentials.answered} of ${essentials.total} essentials added: the details most visa forms ask for first. This is completeness, not verification.`,
                     action: 'Open Profile',
                   }
-                : partial || data.attentionRead === null
+                : completeness < 100
                   ? {
-                      // Something could not be read, so the page cannot say nothing is waiting.
-                      href: `/app/applicant/${id}/missions`,
-                      title: 'Start or Review a Case',
-                      why: 'Reuse your existing profile for the next visa route.',
-                      action: 'Open Cases',
+                      href: `/app/applicant/${id}/profile`,
+                      title: 'Continue Your Profile',
+                      why: `${completed} of ${completion.total} details in your open sections have values. This is completeness, not verification.`,
+                      action: 'Open Profile',
                     }
-                  : {
-                      // Nothing needs the person: a calm all-clear that picks the case back up.
-                      href: data.featured
-                        ? `/app/mission/${data.featured.id}`
-                        : `/app/applicant/${id}/missions#start-case`,
-                      title: 'Nothing Needs You Right Now',
-                      why: data.featured
-                        ? `You are up to date. Pick up ${data.featured.title} where you left off.`
-                        : [
-                            'You are up to date.',
-                            // One real fact, never an invented task (CCD section 6).
-                            data.deadlines && validUntilLine(data.deadlines, { showPerson: false }),
-                            'Start a case when you plan your next trip.',
-                          ]
-                            .filter(Boolean)
-                            .join(' '),
-                      action: data.featured ? 'Continue Case' : 'Start a Case',
-                      tone: 'ok' as const,
-                    };
+                  : partial || data.attentionRead === null
+                    ? {
+                        // Something could not be read, so the page cannot say nothing is waiting.
+                        href: `/app/applicant/${id}/missions`,
+                        title: 'Start or Review a Case',
+                        why: 'Reuse your existing profile for the next visa route.',
+                        action: 'Open Cases',
+                      }
+                    : {
+                        // Nothing needs the person: a calm all-clear that picks the case back up.
+                        href: data.featured
+                          ? `/app/mission/${data.featured.id}`
+                          : `/app/applicant/${id}/missions#start-case`,
+                        title: 'Nothing Needs You Right Now',
+                        why: data.featured
+                          ? `You are up to date. Pick up ${data.featured.title} where you left off.`
+                          : [
+                              'You are up to date.',
+                              // One real fact, never an invented task (CCD section 6).
+                              data.deadlines &&
+                                validUntilLine(data.deadlines, { showPerson: false }),
+                              'Start a case when you plan your next trip.',
+                            ]
+                              .filter(Boolean)
+                              .join(' '),
+                        action: data.featured ? 'Continue Case' : 'Start a Case',
+                        tone: 'ok' as const,
+                      };
   const agenda = data.active
     .flatMap((m) => [
       ...(m.targetDeadline
@@ -385,10 +399,16 @@ export default async function ApplicantOverviewPage({
                       <StatusBadge tone="warning">{requests.length}</StatusBadge>
                     </Link>
                   ) : null}
-                  {data.proposals.length ? (
+                  {readings.length ? (
                     <Link className="row row-link" href={`/app/applicant/${id}/documents`}>
                       <span className="row-key">Suggested Details Awaiting Approval</span>
-                      <StatusBadge tone="warning">{data.proposals.length}</StatusBadge>
+                      <StatusBadge tone="warning">{readings.length}</StatusBadge>
+                    </Link>
+                  ) : null}
+                  {appSuggestions.length ? (
+                    <Link className="row row-link" href={`/app/applicant/${id}/profile`}>
+                      <span className="row-key">Suggestions from AI Apps Waiting for You</span>
+                      <StatusBadge tone="warning">{appSuggestions.length}</StatusBadge>
                     </Link>
                   ) : null}
                   {flagged.length ? (

@@ -1,4 +1,4 @@
-import { type Result, err, ok } from '@visastack/core';
+import { type Result, csvCell, err, ok } from '@visastack/core';
 import { utcToWallClock, wallClockToUtc } from '@visastack/core/calendar';
 import { and, asc, eq, gte, lt } from 'drizzle-orm';
 import type { StaffScope } from './access/principal';
@@ -54,19 +54,13 @@ export const LEDGER_CSV_COLUMNS = [
 const MONTH = /^(\d{4})-(0[1-9]|1[0-2])$/;
 /** U+FEFF, written as the first character of the file (bytes EF BB BF in UTF-8). */
 export const UTF8_BOM = String.fromCharCode(0xfeff);
-const FORMULA_START = new Set(['=', '+', '-', '@', '\t', '\r']);
-
 /**
  * One CSV cell, safe to open in a spreadsheet: always quoted, quotes doubled, and an apostrophe in
- * front when the first character after leading spaces could start a formula.
+ * front when the first character after leading spaces could start a formula. The rule is
+ * `csvCell` in @visastack/core, shared with the account export (S21 round 3).
  */
 export function ledgerCsvCell(value: string | number | null): string {
-  let text = value === null ? '' : String(value);
-  let at = 0;
-  while (at < text.length && text[at] === ' ') at += 1;
-  const lead = text[at];
-  if (lead !== undefined && FORMULA_START.has(lead)) text = `'${text}`;
-  return `"${text.replace(/"/g, '""')}"`;
+  return csvCell(value === null ? '' : String(value), { alwaysQuote: true });
 }
 
 /** An exact, unsigned decimal ("1500.00") from whole minor units, with the currency's own places. */

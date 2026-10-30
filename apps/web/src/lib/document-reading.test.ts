@@ -95,11 +95,13 @@ describe('the five reading states', () => {
 });
 
 describe('where a suggestion came from', () => {
-  it('names the three sources in Title Case and explains each', () => {
+  it('names the four sources in Title Case and explains each', () => {
     expect(READING_SOURCE_LABELS).toEqual({
       machine_readable: 'Read from the Machine-Readable Lines',
       document_text: 'Read from the Document',
       ai_image: 'Read with AI',
+      // S21: a suggestion the person's own AI app made, not a reading of the file.
+      ai_app: 'Suggested by an AI App',
     });
     for (const label of Object.values(READING_SOURCE_LABELS)) {
       expect(isTitleCase(label), label).toBe(true);
@@ -107,6 +109,7 @@ describe('where a suggestion came from', () => {
     expect(READING_SOURCE_NOTES.machine_readable).toContain('No AI was used.');
     expect(READING_SOURCE_NOTES.document_text).toContain('An AI service picked out the details');
     expect(READING_SOURCE_NOTES.ai_image).toContain('AI service');
+    expect(READING_SOURCE_NOTES.ai_app).toContain('not read from the file by VisaStack');
   });
 });
 

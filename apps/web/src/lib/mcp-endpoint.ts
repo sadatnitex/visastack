@@ -7,8 +7,8 @@ import {
   AI_TOOLS,
   AI_TOOL_MESSAGES,
   type AiAdmission,
-  type AiToolDefinition,
   type AiToolResult,
+  type AnyAiToolDefinition,
   type Db,
   type KeyManagementPort,
   RATE_LIMITS,
@@ -193,7 +193,7 @@ export function connectorIcons() {
   ];
 }
 
-/** One MCP server per request, with the five tools bound to this request's token. */
+/** One MCP server per request, with the eight tools bound to this request's token. */
 function buildServer(
   db: Db,
   context: {
@@ -208,10 +208,10 @@ function buildServer(
     { name: 'visastack', title: 'VisaStack', version: '1.0.0', icons: connectorIcons() },
     {
       instructions:
-        'VisaStack holds one person’s own visa record. Every tool only reads what that person chose to share; nothing can be changed. Start with prepare_context.',
+        'VisaStack holds one person’s own visa record. The read tools give only what that person chose to share. If the person turned on Suggest Changes: suggest_profile_update leaves a suggested update that changes nothing until the person accepts it in VisaStack; save_draft saves a draft that only the person sees; add_reminder adds a task to one of the person’s cases straight away, and VisaStack sends the person its usual notices before the task is due. None of them sends anything to anyone else. Use only when the person explicitly asks for this change. Start with prepare_context.',
     },
   );
-  for (const tool of AI_TOOLS as readonly AiToolDefinition[]) {
+  for (const tool of AI_TOOLS as readonly AnyAiToolDefinition[]) {
     server.registerTool(
       tool.name,
       {

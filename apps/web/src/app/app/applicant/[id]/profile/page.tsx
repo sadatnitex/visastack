@@ -1,6 +1,8 @@
 import { resolveDocumentType } from '@visastack/core/catalogue';
 import {
   type FactAssuranceView,
+  accountPrincipal,
+  aiSuggestionsInUse,
   getApplicant,
   getProfileSectionState,
   getWalletView,
@@ -8,6 +10,8 @@ import {
   listApplicantAssurance,
   listApplicantProfile,
   listDocumentsDetailed,
+  listPendingAppSuggestions,
+  requireAccess,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -19,11 +23,14 @@ import { ProfilePhotoControl } from '../../../../../components/profile-photo/pro
 import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { depthCopyFor } from '../../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
+import { confirmedValues, findingViewModel } from '../../../../../lib/document-findings';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { buildMasterProfileView, fieldLabel } from '../../../../../lib/master-profile';
 import { agree, plural } from '../../../../../lib/plural';
 import { ownedPhotoUrl } from '../../../../../lib/profile-photos';
+import { createKeyManagementPort } from '../../../../../lib/providers';
 import { withSession } from '../../../../../lib/session';
+import { AppSuggestionsSection } from '../app-suggestions';
 import { type FieldAssurance, ProfileEditor } from '../profile-editor';
 
 export const metadata: Metadata = { title: 'My Profile' };
@@ -71,7 +78,7 @@ export default async function ApplicantProfilePage({
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
-    const [profile, coreGranted, assurance, sectionChoices, documents, photoUrl] =
+    const [profile, coreGranted, assurance, sectionChoices, documents, photoUrl, fromApps] =
       await Promise.all([
         listApplicantProfile(db, id),
         hasConsent(db, accountId, 'CORE_PROCESSING'),
@@ -82,6 +89,22 @@ export default async function ApplicantProfilePage({
           listDocumentsDetailed(db, accountId, id),
         ]),
         ownedPhotoUrl(db, accountId, id),
+        // Suggestions the person's own AI apps made about the profile itself, with no document
+        // (S21). They stay here to decide whether or not AI App Suggestions is on.
+        requireAccess(
+          db,
+          accountPrincipal(accountId),
+          'VIEW_METADATA',
+          { applicantId: id },
+          { purpose: 'ai_app_suggestions' },
+        ).then(async (gate) =>
+          gate.ok
+            ? {
+                pending: await listPendingAppSuggestions(gate.value),
+                inUse: await aiSuggestionsInUse(gate.value),
+              }
+            : { pending: [], inUse: false },
+        ),
       ]);
     // How many usable copies of each kind are in the wallet, so each section can say what backs
     // it. Usable: shown in the wallet, not expired or replaced, and not failed or quarantined.
@@ -99,10 +122,24 @@ export default async function ApplicantProfilePage({
         if (kind) uploadedDocumentTypes.set(kind, (uploadedDocumentTypes.get(kind) ?? 0) + 1);
       }
     }
+    const pending = fromApps.pending;
+    // Compared with the profile only when there is something to compare, with protected values
+    // read on the server first (as Documents does), so an identical value is never a difference.
+    const encryption = pending.length > 0 ? createKeyManagementPort() : undefined;
+    const confirmedNow =
+      pending.length > 0
+        ? confirmedValues(
+            encryption ? await listApplicantProfile(db, id, encryption) : profile,
+            encryption !== undefined,
+          )
+        : new Map();
     return {
       applicant,
       photoUrl,
       profile,
+      appSuggestions: pending.map((reading) => findingViewModel(reading, confirmedNow)),
+      // The section stays while an app may suggest more, so the last decision is still confirmed.
+      appSuggestionsInUse: fromApps.inUse,
       coreGranted,
       sectionChoices,
       uploadedDocumentTypes,
@@ -195,6 +232,13 @@ export default async function ApplicantProfilePage({
           )
         }
       />
+      {data.appSuggestions.length > 0 || data.appSuggestionsInUse ? (
+        <AppSuggestionsSection
+          applicantId={id}
+          proposals={data.appSuggestions}
+          canApprove={data.coreGranted}
+        />
+      ) : null}
       <DepthScope family="profile" depth={depth}>
         <DepthSwitch family="profile" initial={depth} copy={depthWords} />
         <section

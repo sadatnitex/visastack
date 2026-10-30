@@ -6317,3 +6317,132 @@ Owner approved 2026-10-25. Two fixes where the product said something that was n
 - Round 3 (30 Oct, re-review of round 2). Fixed: (1) one panel refund is counted once: a refund reference is checked (trimmed, any case) against the agency's gateway refund references and the references of refunds recorded outside VisaStack in It Went Through, the manual record, the gateway's answer to a send (left waiting) and the daily confirmation (`duplicate_reference`, Needs a Check, not counted), refused as "That refund reference is already recorded for another refund."; (2) the card-level output and focus now also report a result that is not a success but belongs to a refund line (a full-amount refund not confirmed), with the form keeping only plain form problems; (3) every move to SUBMITTED or CONFIRMED clears the reason code, Send Again is refused on the server after a refused resend, and a resend takes a 30-second lease on the request under its lock so a double click reaches the gateway once (the first send's unclear outcome no longer touches that lease); (4) payments get 25 seconds and refunds 15 of their own; a refund check that ran out of time before asking about any refund is logged and answers 503; (5) the lists are worked out in SQL, one page of 25 each, newest first, with Older Payments, Newer Payments and Find Payments by Invoice Reference, and the note names the list that was cut; (6) It Went Through needs the amount the panel shows and refuses a different one with the plain instruction; (7) a unique violation (23505) in It Went Through or the manual record reads as the plain refusal; (8) staff recording a payment on a refunded invoice get their own message; (9) the budget constants sit above `triggerPaymentReconciliation`'s comment; (10) the actions use the exported `RETRY_REFUSED_CODE`, and the page builds the payment port once (`refundPorts`).
 - Round 3 tests: services, every file: 141 files, 2581 passed (`refunds.test.ts` 31, 5 new: one panel refund counted once in either order and on the gateway's confirmation; It Went Through refuses a different panel amount; Send Again refused after a refused resend, a double click sends once, the mark cleared on confirmation; a unique violation reads as the plain refusal; a slow gateway leaves refunds for the next run; the paging test now reaches payments 26 and 27 and finds one by invoice reference); db 15 files, 51 passed, 1 skipped as on main; adapters 29; core 154; web dirs 261 files, 2733 passed (new `refund-feedback.behaviour.test.tsx` 2: a full-amount unconfirmed refund and a held refund recorded in full are still reported and focused after their row is gone; panel paging, `refundPorts`, the job route's out-of-time 503). Lint, typecheck after `rm -rf apps/web/.next`, `pnpm --filter @visastack/web build` green; the em dash sweep prints 0.
 - Round 3 break-to-red proofs, each restored from a cp backup and green again: (1) the reference check answering "not taken" turned the "never lets one panel refund reach the ledger twice" test red; (3) not refusing a resend after a refused one turned the Send Again test red (a first attempt at this break did not apply because of indentation and was redone); (6) accepting any panel amount turned the It Went Through amount test red.
+
+### 2026-10-30, S21: AI connector suggestion tools
+
+Built locally on branch s21-wip (from main aaa29e34). Not merged, not live. ADR 0021 amendment of 30 Oct 2026; operations note `docs/operations/ai-suggestion-tools.md`.
+
+- **What was built:**
+  - Three suggestion tools beside the five read tools: `suggest_profile_update` (one profile detail, about the profile itself or about one listed document), `save_draft` (title and plain text, optionally for one case) and `add_reminder` (a task with a due date on one of the person's own open cases).
+  - They work only while the person has ticked "Suggest Changes" for that connection and the platform owner has turned on "AI App Suggestions" in the new Admin, Settings, AI Features page (off by default).
+  - Every write goes through the AI gate's separate write gateway: a second `PROPOSE_EDIT` proof from the access gate (owner only, `ai_connection` purpose), the person's processing consent, the field rules (granted section only; never RESTRICTED, special-category or biometric details; a document number only with Full Document Numbers; one refusal message for all of them), and the daily limits, charged last inside a savepoint.
+  - Suggestions are zero-cost connector runs with one pending proposal, labelled "Suggested by <app> (<address>)". They are kept out of AI counts, spend, attempt limits, "accept all clear details" and the reading stage, and they never stop the automatic reading of a file. Approving one saves it as confirmed by the person, entered by hand, with no source document.
+  - Drafts are on the Sharing page ("Drafts from AI Apps": Show, Copy, Delete). Profile suggestions are on My Profile ("Suggestions from AI Apps"). Reminders show "Added by <app>" on the case and are private to the person.
+  - The reusable AI feature framework: registry in core, `platform_ai_feature_settings`, `getAiFeatureState` (admin switch, migration present, FREE tier entitlement, smaller limit wins).
+- **Migration:** 0105_ai_suggestions (journal idx 103, snapshot 0103):
+  - three new tables (`ai_drafts`, `ai_task_origins`, `platform_ai_feature_settings`);
+  - a document becomes optional on a suggestion and its run only for connector runs (a CHECK on runs, a trigger on suggestions);
+  - no existing table gains a column.
+  - It is re-runnable and was tested twice on the previous head. Code tolerates it missing: the tools say "not available yet", the consent box is shown turned off, the AI Features page says not available yet.
+- **Owner decisions (30 Oct 2026), recorded in the owner actions file:**
+  - 15 writes a day per person across all their apps and all three tools, and 15 per connection. This replaces the plan's 20 per connection and 50 per account.
+  - Tools for person-requested changes only ("Use only when the person explicitly asks for this change." in every tool description and the server instruction; audit `requestedBy: person_via_app`).
+  - AI-added reminders are private to the person. This replaces the plan's "agencies see AI-added reminders on shared cases".
+  - AI App Suggestions is off until the owner turns it on.
+- **Deviations, and why:**
+  - A reminder always needs a case: ADR's "or record" form is not built, because tasks belong to a case.
+  - The private mark on reminders lives in `ai_task_origins` beside `mission_tasks`, not in a column on it. A column would be listed by every existing Drizzle read and write of tasks, which would fail before the migration. A column pointing at the connection would also lose the mark when the connection is removed.
+  - Drafts live in `ai_drafts`, not `generated_outputs`. A draft is not a grounded output.
+  - `save_draft` takes a title instead of the ADR's `kind`.
+  - Raising `RATE_LIMITS` alone does not raise the limit: the plan tier's 15 binds. The break-to-red proof therefore targets the plan limit.
+- **Tests (final run):**
+  - lint: green after formatting fixes;
+  - typecheck: green;
+  - core: all green;
+  - db: migration, schema drift and status, all green;
+  - services: 29 files, 651 tests. The only failure was the reconciliation test's pre-0100 simulation, which now also drops the two S21 tables that reference AI connections; it is green on rerun. A further 6 export, signals and retention files, 91 tests, are green.
+  - web: 341 files, 3456 tests. The only failure was the reading-source label list, now naming the fourth source; it is green on rerun.
+  - `pnpm --filter @visastack/web build` succeeded.
+  - New tests include `suggestion-tools.test.ts` (21, end to end through the real gate), `tool-guard.test.ts`, `ai-feature-settings.test.ts`, `ai-suggestions.test.ts`, the migration test, an automatic-reading test, and web tests for the AI Features page and action, Drafts from AI Apps, Suggestions from AI Apps, "Added by", the consent box turned off and on, and tools/list and the server instruction.
+- **Break-to-red proofs.** Each was restored from a cp backup and is green again:
+  1. writing a fact in the suggestion writer turned "no fact until the person approves" red;
+  2. dropping the layer checks turned the refused-details test red;
+  3. raising the FREE tier's limit turned both daily-limit tests red;
+  4. caching the connection's scope in the gate turned "stops on the very next call after Change Access" red;
+  5. registering add_reminder with destructiveHint true turned the guard red;
+  6. ignoring the admin switch turned both switch tests red;
+  7. letting an app's suggestion count as a reading turned the automatic-reading test red;
+  8. showing AI reminders to agencies turned the tenant test red;
+  9. removing the bulk-accept exclusion turned the bulk test red (after the test was made to look clear);
+  10. removing the trigger from the migration turned the migration test red.
+- **Not verified:**
+  - real Claude and ChatGPT behaviour (their confirmation before a non-read-only call, and how long they keep an older tool list);
+  - next start and Playwright (the lead runs those);
+  - production, which waits for O8 and the owner's switch.
+- **Follow-ups:**
+  - Drafts are not in the account export yet. Mission tasks and AI connections are not either.
+  - A draft the person deleted after a backup point comes back if that backup is restored, until reconciliation replays draft deletions.
+  - An output the person makes themselves can list their own open tasks, including AI reminders, as it does for any task.
+  - S28 wires the other AI features into the framework.
+
+Round 2, 30 Oct 2026 (max code review, security review and accessibility review at a9dddf8e):
+
+- **Security S1 fixed:** a crafted link could pre-tick Suggest Changes while the feature was off, with no way to untick it. Now:
+  - the consent screen never pre-ticks it from a link, and nothing hidden carries it;
+  - the service stores `suggest_changes` on a new connection only while AI App Suggestions works for the person;
+  - on Change Access a stored choice stays and can be unticked, but while the feature is off it can never be ticked on.
+- **Code review items:**
+  1. A catalogue detail nobody has saved yet is registered when first suggested, as the profile editor does.
+  2. Home and the traveller overview count an AI app's profile suggestions apart, linking to My Profile.
+  3. My Profile decrypts protected values before comparing.
+  4. Consent wording and the server instruction now say reminders are added at once (with their usual notices).
+  5. Lock order:
+     - Before: a reminder appended its case-history audit record (audit chain lock) before the limit rows were charged, while drafts and suggestions charged the rows first. Two concurrent writes from one person could therefore deadlock.
+     - Now: every write takes the connection's limit row, then the account's limit row, then the audit chain.
+     - A static guard checks the order.
+  6. Insights no longer show an app's claim as read from a file. The full list of readers of suggestions and runs is in ADR 0021's amendment.
+  7. An empty optional reference counts as none.
+  8. A waiting identical suggestion is found before the limit check.
+  9. The account export includes tasks, AI task origins, drafts and AI connections, and lists no new gaps.
+  10. Deleting the last draft keeps the section ("No drafts from AI apps.", confirmation read out at the heading).
+  11. The Change Access sentence follows the live box.
+  12. My Profile filters app suggestions in the database.
+  13. The migration is probed once per call, with a positive result cached per database handle.
+  - Cleanups:
+    - the finished case states are shared;
+    - there is one hidden-character filter, in core;
+    - agency task reads go through one condition, with a guard listing every module that uses `mission_tasks`.
+- **Accessibility and wording:**
+  - My Profile keeps decisions in a polite message and moves focus to the section heading.
+  - Draft text is a named, focusable region.
+  - Copying again is announced again.
+  - Copy failure says "Choose Show Draft, select the text and copy it."
+  - The admin box reads "On for Everyone", and typed values come back after the fresh sign-in check with "Your change was not saved yet."
+  - "Added by" shows the app's name and web address.
+- **Owner decisions recorded:**
+  - Drafts stay after a case's retention purge.
+  - Known issue: a restore from backup brings back drafts the person deleted after the backup point, until reconciliation replays draft deletions (not built).
+- **Break-to-red proofs this round** (each restored from a cp backup):
+  - (S1) restoring the hidden input turned both consent-box tests red;
+  - (2) counting profile suggestions as readings turned the Home test red;
+  - (5) appending the audit record before the charge turned the lock-order guard red;
+  - (6) dropping the insights filter turned the insights test red;
+  - (8) checking the limit before the waiting suggestion turned the resend test red.
+
+Round 3, 30 Oct 2026 (re-review of a9dddf8e..9a60875e, 10 items):
+
+1. **Security:** Change Access read Suggest Changes from the address after its sign-in check. Now it starts from the stored scope only, the address never carries it, and the box is enabled only when stored or when the feature works. Test: a crafted `choice_suggest=1` link ticks nothing (section and page level).
+2. Two concurrent first suggestions of a new detail could fail on the registry's unique key. `registerFieldDefinition` now inserts with "do nothing on conflict" and reads the winning row. Test: a row inserted between the check and the insert.
+3. The cheap read-only limit check is back, after the waiting-duplicate check and before listing documents or resolving a case. The atomic charge stays last. Test: an app at its cap sends no query to `documents`, `document_versions` or `missions`; the resend test stays green.
+4. **Security:** formula injection in the account CSV. New pure helper `csvCell` in `@visastack/core` for every cell, headers included. Test: a draft title `=HYPERLINK(...)` and other formula cells across every table. Since merging main (S18, d62b880c), the ledger CSV's `ledgerCsvCell` uses the same helper.
+5. **Security:** AI Features retry values came from the address. Now a signed, httpOnly, account-bound, 15-minute cookie scoped to `/app/admin/ai` (key derived from `NEON_AUTH_COOKIE_SECRET` with a fixed label), cleared on a successful save. Tests: a crafted link shows nothing; a valid cookie restores; another account's, a forged or an expired cookie shows nothing; a save clears it.
+6. The agency task guard now scans every folder of `packages/services/src` and finds the table by identifier (import, rename, destructuring, local name, element access, relational query, raw SQL). `export-csv.ts` is listed: it names `mission_tasks.csv` and reads nothing.
+7. `getAiFeatureState` lost its `ready` option; the per-handle cache makes the second probe free.
+8. The `READY` cache sits above the documented `aiSuggestionsAvailable`, with the cache behaviour in the comment.
+9. The account export reads all of a person's tasks in one query and their origins in one more.
+10. One registry shape for every writer: `fieldRegistryInput` / `savableFieldDefinition` in `@visastack/core/catalogue`, used by services, `field-registry.ts`, `master-profile.ts` and the two profile save actions.
+
+- **Break-to-red proofs this round** (each restored from a cp backup):
+  - (1) reading the link's choice again turned the crafted-link test red;
+  - (2) dropping "do nothing on conflict" failed the race test with a duplicate-key error;
+  - (3) removing the cheap check turned the "no expensive work" test red;
+  - (4) the old quoting-only escape turned the `=HYPERLINK` test red;
+  - (5) dropping the account check and the clear on save turned three tests red;
+  - (6) an unfiltered read in `access/` turned the guard red, both unlisted and listed as agency-facing.
+
+Merge with main after S18 (d62b880c), 30 Oct 2026:
+
+- S18 took migration number 0104 (`0104_refunds_credits`, journal idx 102). S21's migration is now `0105_ai_suggestions` (journal idx 103, `meta/0103_snapshot.json`, prevId = S18's 0102 snapshot id, fresh id, generated by drizzle-kit from the merged schema). A second `drizzle-kit generate` finds no schema changes. Every S21 reference to 0104 now says 0105; S18's references are unchanged.
+- Docs conflicts were resolved by taking main's file and appending S21's own blocks. `AI_FEATURES_MANAGE` and S18's `BILLING_REFUND_MANAGE` and `BILLING_LEDGER_EXPORT` are all kept.
+- O8 for the owner is now migration 0105, to run after S18's 0104.
+- Verification after the merge, run once as one job: lint (green after formatting the two generated migration meta files), typecheck after removing apps/web/.next, core, db, adapters, services (146 files, 2641 tests), web (367 files, 3689 tests), `pnpm --filter @visastack/web build`, and the em dash sweep against origin/main (0) all passed. Not run here: next start and Playwright.

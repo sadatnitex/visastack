@@ -1,6 +1,11 @@
 import type { z } from 'zod';
-import type { AiCallRecord, AiContextGateway } from '../access/with-ai-connection';
-import type { AiKnownToolName } from '../ai-connection-scopes';
+import type {
+  AiCallRecord,
+  AiContextGateway,
+  AiWriteFailure,
+  AiWriteGateway,
+} from '../access/with-ai-connection';
+import type { AiKnownToolName, AiSuggestionToolName } from '../ai-connection-scopes';
 
 /**
  * How every AI tool answers (ADR 0021 sections 6 and 7): plain refusals as tool results, never an
@@ -22,6 +27,18 @@ export const READ_ONLY_ANNOTATIONS = Object.freeze({
   readOnlyHint: true,
   destructiveHint: false,
   idempotentHint: true,
+  openWorldHint: false,
+} as const);
+
+/**
+ * The suggestion tools (S21, ADR 0021 extension): each call may leave something new for the person
+ * (so it is not read-only, and calling twice may leave two), but none removes or overwrites
+ * anything, and none reaches anything outside VisaStack.
+ */
+export const SUGGESTION_ANNOTATIONS = Object.freeze({
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
   openWorldHint: false,
 } as const);
 
@@ -49,7 +66,61 @@ export const MESSAGES = {
     'This answer was shortened to fit the size limit. Ask about one case, one section or one document at a time to see the rest.',
   tooLarge:
     'This answer is too large to send. Ask about one case, one section or one document at a time.',
+  // The suggestion tools (S21).
+  suggestionsOff:
+    'This AI app cannot suggest changes. The person can turn on Suggest Changes for it in VisaStack under Sharing, AI Connections.',
+  fieldNotOpen:
+    'This AI app cannot suggest that detail. It may be outside the parts the person chose, protected, or not a detail VisaStack keeps. Use get_profile_section to see the details in a section and their names.',
+  writeLimit:
+    'This app has reached its limit of suggestions for today. Nothing was saved. The person can still make changes themselves in VisaStack.',
+  caseFinished: 'That case is closed, so a reminder cannot be added to it. Nothing was saved.',
+  notAvailableYet: 'Suggestions are not available in VisaStack yet. Nothing was saved.',
+  featureOff:
+    'This AI feature is turned off right now. Everything else works as usual. Nothing was saved.',
+  consentNeeded:
+    'The person has not turned on processing in VisaStack yet, so nothing can be saved for them. Nothing was saved.',
+  invalidInput:
+    'That could not be saved. Check the text is not empty and within the limits, and give a due date as YYYY-MM-DD from today onward.',
+  documentNotOpen:
+    'That document is not one this AI app can see. Use list_documents to see the documents and their references.',
+  noCases:
+    'Cases are not open to this AI app. The person can change this in VisaStack under Sharing, AI Connections.',
 } as const;
+
+/** The plain answer to a suggestion, draft or reminder that was not saved. */
+export function writeRefusal(reason: AiWriteFailure): AiToolResult {
+  switch (reason) {
+    case 'suggestions_not_granted':
+      return refusal(MESSAGES.suggestionsOff);
+    case 'not_available':
+      return refusal(MESSAGES.notAvailableYet);
+    case 'feature_off':
+      return refusal(MESSAGES.featureOff);
+    case 'consent_required':
+      return refusal(MESSAGES.consentNeeded);
+    case 'write_limit':
+      return refusal(MESSAGES.writeLimit);
+    case 'field_not_shared':
+      return refusal(MESSAGES.fieldNotOpen);
+    case 'case_finished':
+      return refusal(MESSAGES.caseFinished);
+    case 'invalid_input':
+      return refusal(MESSAGES.invalidInput);
+    case 'cases_not_granted':
+      return refusal(MESSAGES.noCases);
+    case 'case_not_shared':
+      return refusal(MESSAGES.caseNotShared);
+    case 'case_unavailable':
+      return refusal(MESSAGES.caseUnavailable);
+    case 'document_not_shared':
+      return refusal(MESSAGES.documentNotOpen);
+    case 'layer_not_granted':
+    case 'document_list_not_granted':
+      return refusal(MESSAGES.notShared);
+    case 'failed':
+      return refusal(MESSAGES.failed);
+  }
+}
 
 export function refusal(message: string): AiToolResult {
   return { content: [{ type: 'text', text: message }], isError: true };
@@ -173,6 +244,7 @@ export function answer(
 export interface AiToolDefinition<Input extends z.ZodObject = z.ZodObject> {
   /** One of `AI_TOOL_NAMES`: the only names audit records and telemetry may hold. */
   readonly name: AiKnownToolName;
+  readonly kind?: never;
   readonly title: string;
   /** Plain words: what it gives back and when to use it. */
   readonly description: string;
@@ -182,6 +254,24 @@ export interface AiToolDefinition<Input extends z.ZodObject = z.ZodObject> {
   /** Gets the gateway and nothing else: no database, no proof, no other record. */
   run(gateway: AiContextGateway, input: z.infer<Input>): Promise<AiToolResult>;
 }
+
+/**
+ * One suggestion tool (S21): the same shape, with the write gateway, whose three writes only ever
+ * leave a suggestion, a draft or a reminder for the person.
+ */
+export interface AiSuggestionToolDefinition<Input extends z.ZodObject = z.ZodObject> {
+  readonly name: AiSuggestionToolName;
+  readonly kind: 'suggestion';
+  readonly title: string;
+  readonly description: string;
+  readonly inputSchema: Input;
+  readonly outputSchema: z.ZodObject;
+  readonly annotations: typeof SUGGESTION_ANNOTATIONS;
+  run(gateway: AiWriteGateway, input: z.infer<Input>): Promise<AiToolResult>;
+}
+
+/** Any tool the server lists: one of the five read tools or one of the three suggestion tools. */
+export type AnyAiToolDefinition = AiToolDefinition | AiSuggestionToolDefinition;
 
 function listLength(holder: unknown, key: string): number {
   if (typeof holder !== 'object' || holder === null) return 0;

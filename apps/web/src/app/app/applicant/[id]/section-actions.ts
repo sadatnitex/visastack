@@ -9,7 +9,7 @@ import {
   setSectionOpen,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
-import { savableField } from '../../../../lib/master-profile';
+import { fieldRegistryInputOf, savableField } from '../../../../lib/master-profile';
 import { createKeyManagementPort } from '../../../../lib/providers';
 import { withSession } from '../../../../lib/session';
 import { otherItemSavedLine } from '../../../../lib/success-lines';
@@ -133,13 +133,7 @@ export async function saveOtherItemAction(
       if (value === '') continue;
       const def = savableField(`other_item_${module.pack}_${suffix}`);
       if (!def) return { ok: false, message: 'This section cannot hold extra items yet.' };
-      await registerFieldDefinition(db, {
-        key: def.key,
-        dataType: def.type === 'date' ? 'date' : 'string',
-        sensitivity: def.sensitivity,
-        repeating: def.repeating,
-        packId: def.packId,
-      });
+      await registerFieldDefinition(db, fieldRegistryInputOf(def));
       const edit = await editFact(db, {
         actorAccountId: accountId,
         applicantId,

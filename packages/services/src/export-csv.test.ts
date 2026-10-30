@@ -59,10 +59,12 @@ describe('reference codes in the account export tables (ADR 0018)', () => {
           { document: { id: 'd1' }, versions: [], nameVersions: [], scanResults: [] },
           { document: { id: 'd2' }, versions: [], nameVersions: [], scanResults: [] },
         ],
-        missions: [{ mission: { id: 'm1' }, snapshots: [] }],
+        missions: [{ mission: { id: 'm1' }, snapshots: [], tasks: [], aiTaskOrigins: [] }],
         grantsGranted: [],
         evidenceRequests: [{ id: 'r1' }],
         aiRuns: [],
+        aiDrafts: [],
+        aiConnections: [],
       },
     ],
   } as unknown as AccountExport;
@@ -95,6 +97,55 @@ describe('reference codes in the account export tables (ADR 0018)', () => {
       'evidence_requests.csv',
     ]) {
       expect(csvOf(tables, name)).not.toContain('reference_code');
+    }
+  });
+});
+
+describe('formula cells in the account export (S21 round 3, CSV injection)', () => {
+  const data = {
+    account: { id: 'acct', email: '@me' },
+    consents: {},
+    consentHistory: [],
+    memberships: [],
+    assignments: [],
+    grantsReceived: [],
+    missionNotesAuthored: [],
+    productEvents: [],
+    auditEvents: [],
+    applicants: [
+      {
+        applicant: { id: 'a1', displayName: '+1 Traveller' },
+        facts: [],
+        documents: [],
+        missions: [
+          {
+            mission: { id: 'm1', title: '-Trip' },
+            snapshots: [],
+            tasks: [{ id: 't1', description: '  =1+1' }],
+            aiTaskOrigins: [{ taskId: 't1', clientName: '\t=cmd' }],
+          },
+        ],
+        grantsGranted: [],
+        evidenceRequests: [],
+        aiRuns: [],
+        aiDrafts: [{ id: 'x1', title: '=HYPERLINK("https://evil.test","Open me")', body: 'Body' }],
+        aiConnections: [],
+      },
+    ],
+  } as unknown as AccountExport;
+
+  it('defuses a draft title starting with =HYPERLINK, and every other formula cell of every table', () => {
+    const tables = buildExportCsvTables(data);
+    const drafts = tables.find((t) => t.name === 'ai_drafts.csv')?.csv ?? '';
+    expect(drafts).toContain(`"'=HYPERLINK(""https://evil.test"",""Open me"")"`);
+    expect(drafts).not.toMatch(/(^|,)=HYPERLINK/m);
+    // No cell anywhere in the export starts, after spaces, with a formula character.
+    for (const table of tables) {
+      for (const line of table.csv.split('\r\n')) {
+        for (const cell of line.split(',')) {
+          expect(cell, `${table.name}: ${cell}`).not.toMatch(/^"? *[=+\-@\t\r]/);
+        }
+      }
     }
   });
 });

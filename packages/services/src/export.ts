@@ -1,6 +1,7 @@
 import { type Result, err, ok } from '@visastack/core';
-import { eq, inArray, or } from 'drizzle-orm';
+import { eq, inArray, or, sql } from 'drizzle-orm';
 import { listCaseExclusionsForApplicant } from './access/grant-scope';
+import { aiSuggestionsAvailable } from './ai-suggestions';
 import { appendAuditEvent } from './audit';
 import { type ConsentRecord, getConsents, listConsentHistory } from './consent';
 import { type Db, schema } from './db';
@@ -46,6 +47,12 @@ export interface AccountExportManifest {
     readonly caseExceptions: number;
     readonly evidenceRequests: number;
     readonly aiExtractionRuns: number;
+    /** Tasks on this account's cases, and which of them an AI app added (S21). */
+    readonly missionTasks: number;
+    readonly aiTaskOrigins: number;
+    /** Drafts AI apps saved for this account's records, and the AI app connections (S21). */
+    readonly aiDrafts: number;
+    readonly aiConnections: number;
     readonly auditEvents: number;
     readonly productEvents: number;
     readonly consentHistoryEntries: number;
@@ -111,6 +118,9 @@ export interface AccountExport {
     readonly missions: ReadonlyArray<{
       readonly mission: typeof schema.missions.$inferSelect;
       readonly snapshots: ReadonlyArray<typeof schema.missionSnapshots.$inferSelect>;
+      readonly tasks: ReadonlyArray<typeof schema.missionTasks.$inferSelect>;
+      /** Which tasks an AI app added (S21): the app's name and address only. */
+      readonly aiTaskOrigins: ReadonlyArray<typeof schema.aiTaskOrigins.$inferSelect>;
     }>;
     readonly grantsGranted: ReadonlyArray<ExportedGrantGranted>;
     /** Case exceptions on sharing invitations this account sent ("case exceptions on pending invitations"). */
@@ -123,6 +133,10 @@ export interface AccountExport {
       readonly run: typeof schema.aiExtractionRuns.$inferSelect;
       readonly proposals: ReadonlyArray<typeof schema.fieldProposals.$inferSelect>;
     }>;
+    /** Drafts AI apps saved for this record (S21). */
+    readonly aiDrafts: ReadonlyArray<typeof schema.aiDrafts.$inferSelect>;
+    /** The AI apps connected to this record (ADR 0021). No token or token hash is ever included. */
+    readonly aiConnections: ReadonlyArray<typeof schema.aiConnections.$inferSelect>;
   }>;
   readonly auditEvents: ReadonlyArray<typeof schema.auditEvents.$inferSelect>;
   readonly exportedAt: string;
@@ -157,6 +171,14 @@ export async function exportAccount(
     .where(eq(schema.applicants.ownerAccountId, input.accountId));
   const applicantIds = applicantRows.map((a) => a.id);
 
+  // Tables later migrations add are read only once they exist (S21: 0105; AI connections: 0100).
+  const suggestionsReady = await aiSuggestionsAvailable(db);
+  const connectionsReady =
+    (
+      await db
+        .select({ present: sql<boolean>`to_regclass('ai_connections') is not null` })
+        .from(sql`(select 1) as probe`)
+    )[0]?.present === true;
   const applicants = await Promise.all(
     applicantRows.map(async (applicant) => {
       const factRows = await db
@@ -206,6 +228,28 @@ export async function exportAccount(
         .select()
         .from(schema.missions)
         .where(eq(schema.missions.applicantId, applicant.id));
+      // One query for every task across this person's cases, and one for which app added them.
+      const missionIds = missionRows.map((mission) => mission.id);
+      const taskRows =
+        missionIds.length > 0
+          ? await db
+              .select()
+              .from(schema.missionTasks)
+              .where(inArray(schema.missionTasks.missionId, missionIds))
+          : [];
+      const originRows =
+        suggestionsReady && taskRows.length > 0
+          ? await db
+              .select()
+              .from(schema.aiTaskOrigins)
+              .where(
+                inArray(
+                  schema.aiTaskOrigins.taskId,
+                  taskRows.map((task) => task.id),
+                ),
+              )
+          : [];
+      const missionOfTask = new Map(taskRows.map((task) => [task.id, task.missionId] as const));
       const missions = await Promise.all(
         missionRows.map(async (mission) => ({
           mission,
@@ -213,6 +257,10 @@ export async function exportAccount(
             .select()
             .from(schema.missionSnapshots)
             .where(eq(schema.missionSnapshots.missionId, mission.id)),
+          tasks: taskRows.filter((task) => task.missionId === mission.id),
+          aiTaskOrigins: originRows.filter(
+            (origin) => missionOfTask.get(origin.taskId) === mission.id,
+          ),
         })),
       );
 
@@ -285,6 +333,19 @@ export async function exportAccount(
         })),
       );
 
+      const aiDrafts = suggestionsReady
+        ? await db
+            .select()
+            .from(schema.aiDrafts)
+            .where(eq(schema.aiDrafts.applicantId, applicant.id))
+        : [];
+      const aiConnections = connectionsReady
+        ? await db
+            .select()
+            .from(schema.aiConnections)
+            .where(eq(schema.aiConnections.applicantId, applicant.id))
+        : [];
+
       const profileSections = await db
         .select()
         .from(schema.profileSectionStates)
@@ -304,6 +365,8 @@ export async function exportAccount(
         profileSections,
         profileExemptions,
         aiRuns,
+        aiDrafts,
+        aiConnections,
       };
     }),
   );
@@ -381,6 +444,16 @@ export async function exportAccount(
       ),
       evidenceRequests: applicants.reduce((n, a) => n + a.evidenceRequests.length, 0),
       aiExtractionRuns: applicants.reduce((n, a) => n + a.aiRuns.length, 0),
+      missionTasks: applicants.reduce(
+        (n, a) => n + a.missions.reduce((m, mi) => m + mi.tasks.length, 0),
+        0,
+      ),
+      aiTaskOrigins: applicants.reduce(
+        (n, a) => n + a.missions.reduce((m, mi) => m + mi.aiTaskOrigins.length, 0),
+        0,
+      ),
+      aiDrafts: applicants.reduce((n, a) => n + a.aiDrafts.length, 0),
+      aiConnections: applicants.reduce((n, a) => n + a.aiConnections.length, 0),
       auditEvents: auditEvents.length,
       productEvents: productEvents.length,
       consentHistoryEntries: consentHistory.length,

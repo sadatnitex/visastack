@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { lookup as dnsLookup } from 'node:dns/promises';
 import { isIPv4, isIPv6 } from 'node:net';
 import { type Result, err, ok } from '@visastack/core';
+import { isHiddenCodePoint } from '@visastack/core/ai-features';
 import { and, eq, isNull, lt, or } from 'drizzle-orm';
 import { type Db, schema } from './db';
 import { isMissingRelationError } from './missing-relation';
@@ -218,23 +219,11 @@ export function redirectMatches(registered: readonly string[], requested: string
 
 // --- Names --------------------------------------------------------------------------------------
 
-/** Control, zero-width and text-direction characters, which could disguise a name on screen. */
-function isHiddenCharacter(codePoint: number): boolean {
-  return (
-    codePoint < 0x20 ||
-    (codePoint >= 0x7f && codePoint <= 0x9f) ||
-    (codePoint >= 0x200b && codePoint <= 0x200f) ||
-    (codePoint >= 0x202a && codePoint <= 0x202e) ||
-    (codePoint >= 0x2066 && codePoint <= 0x2069) ||
-    codePoint === 0xfeff
-  );
-}
-
 /** A display-safe client name: hidden characters removed, spaces collapsed, at most 80 characters. */
 function cleanClientName(value: unknown, fallback: string): string {
   if (typeof value !== 'string') return fallback;
   const visible = Array.from(value)
-    .filter((char) => !isHiddenCharacter(char.codePointAt(0) ?? 0))
+    .filter((char) => !isHiddenCodePoint(char.codePointAt(0) ?? 0))
     .join('')
     .replace(/\s+/g, ' ')
     .trim();

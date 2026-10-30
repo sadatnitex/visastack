@@ -8,6 +8,7 @@ import {
   oauthScopeNames,
   scopesFromChoices,
 } from '../ai-connection-scopes';
+import { getAiFeatureState } from '../ai-feature-settings';
 import { appendAuditEvent } from '../audit';
 import { type Db, first, required, schema } from '../db';
 import { isMissingRelationError } from '../missing-relation';
@@ -284,7 +285,12 @@ export async function createAiConnection(
       );
       if (!mission) return err(oauthError('invalid_request', 'that case is not on this record'));
     }
-    const scopes = scopesFromChoices(choices);
+    // "Suggest Changes" is stored only while AI App Suggestions works for this person (S21): a
+    // crafted request can never add it while the feature is off.
+    const suggestionsOn =
+      choices.suggestChanges === true &&
+      (await getAiFeatureState(tx, 'ai_app_suggestions', { proof })).available;
+    const scopes = scopesFromChoices({ ...choices, suggestChanges: suggestionsOn });
     const expiresAt = aiConnectionExpiry(choices.duration, now);
     const connection = required(
       first(

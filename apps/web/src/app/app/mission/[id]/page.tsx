@@ -1,3 +1,4 @@
+import { aiAppLabel } from '@visastack/core/ai-features';
 import { createTranslator } from '@visastack/i18n';
 import {
   type ChangesSinceConfirmed,
@@ -560,6 +561,11 @@ export default async function MissionPage({
             priority: t.priority,
             dueDate: t.dueDate ? t.dueDate.toISOString() : null,
             dueTimezone: t.dueTimezone,
+            // A reminder the person's own AI app added (S21), named by the app, cleaned here.
+            // Name and web address, so an app calling itself "VisaStack" cannot pass as us.
+            addedBy: t.addedBy
+              ? aiAppLabel({ name: t.addedBy.appName, host: t.addedBy.appHost })
+              : null,
           }))
         : [],
       appointments: appointments.ok

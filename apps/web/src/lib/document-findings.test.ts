@@ -103,3 +103,16 @@ describe('comparing a reading with the profile, on the server', () => {
     expect(findingViewModel(reading('given_name', 'Ayesha', 'Name:'), none).clear).toBe(false);
   });
 });
+
+describe('a suggestion an AI app made (S21)', () => {
+  it('is named by the app, cleaned again here, and is never clear enough to accept in bulk', () => {
+    const fromApp = {
+      ...reading('given_name', 'Nusrat'),
+      fromApp: { name: `Clau${String.fromCodePoint(0x202e)}de`, host: 'claude.ai' },
+    } as ProposalWithEvidence;
+    const view = findingViewModel(fromApp, new Map());
+    expect(view.app).toBe('Claude (claude.ai)');
+    expect(view.clear).toBe(false);
+    expect(findingViewModel(reading('given_name', 'Nusrat'), new Map()).app).toBeUndefined();
+  });
+});

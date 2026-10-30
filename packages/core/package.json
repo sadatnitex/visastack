@@ -15,7 +15,8 @@
     "./catalogue/packs": "./src/catalogue/packs-entry.ts",
     "./destinations": "./src/destinations/index.ts",
     "./photo-specs": "./src/photo-specs.ts",
-    "./redaction-boxes": "./src/redaction-boxes.ts"
+    "./redaction-boxes": "./src/redaction-boxes.ts",
+    "./ai-features": "./src/ai-features.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",

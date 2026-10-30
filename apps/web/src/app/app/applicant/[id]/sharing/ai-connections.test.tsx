@@ -188,6 +188,7 @@ describe('Change Access in each row', () => {
       documentList: false,
       documentText: true,
       revealIdentifiers: true,
+      suggestChanges: false,
     });
     expect(changeDurations(oneCase).map((item) => item.value)).toEqual([
       'keep',
@@ -222,6 +223,7 @@ describe('Change Access in each row', () => {
           documentList: true,
           documentText: false,
           revealIdentifiers: true,
+          suggestChanges: false,
         },
         duration: '7d',
       },
@@ -250,5 +252,83 @@ describe('Change Access in each row', () => {
     );
     expect(text).toContain('Turned off. That app can no longer read this record.');
     expect(text).not.toContain('No AI apps are connected');
+  });
+});
+
+describe('Suggest Changes on AI Connections (S21)', () => {
+  const render = (props: Partial<Parameters<typeof AiConnectionsSection>[0]> = {}) =>
+    renderToStaticMarkup(
+      <AiConnectionsSection
+        applicantId={APPLICANT}
+        list={list({ active: [connection()] })}
+        connectorOn
+        {...props}
+      />,
+    );
+
+  it('with the feature off and no app allowed to suggest, reads exactly as before S21', () => {
+    const before = render();
+    expect(render({ suggestionsAvailable: false })).toBe(before);
+    const text = textOf(before);
+    expect(text).toContain('cannot change anything in VisaStack');
+    // Only the Change Access form mentions the choice, turned off with its plain sentence.
+    expect(before).toContain('name="suggest_changes"');
+    expect(before).toMatch(
+      /<input[^>]*name="suggest_changes"[^>]*disabled=""|<input[^>]*disabled=""[^>]*name="suggest_changes"/,
+    );
+    expect(text).toContain(
+      'This AI feature is turned off right now. Everything else works as usual.',
+    );
+    expect(text).not.toContain('Your choice is kept');
+    expect(before).not.toContain('<dt>Suggest Changes</dt>');
+  });
+
+  it('keeps an app’s choice while the feature is off, and the person can still untick it', () => {
+    const html = render({
+      list: list({ active: [connection({ scopes: ['identity', 'suggest_changes'] })] }),
+    });
+    expect(html).toContain('<dt>Suggest Changes</dt>');
+    expect(textOf(html)).toContain('Yes, but turned off right now');
+    // Ticked and enabled, so it can be unticked; nothing hidden carries it.
+    const box = html.match(/<input[^>]*name="suggest_changes"[^>]*>/)?.[0] ?? '';
+    expect(box).toContain('checked=""');
+    expect(box).not.toContain('disabled');
+    expect(html).not.toContain('type="hidden" name="suggest_changes"');
+    expect(textOf(html)).toContain('Your choice is kept for when it is turned on again.');
+    expect(textOf(html)).toContain('Suggested updates change nothing until you accept them');
+  });
+
+  it('a crafted Change Access link with choice_suggest=1 never ticks it: it starts from the stored scope', () => {
+    const crafted = {
+      connectionId: connection().id,
+      choices: {
+        layers: ['identity'] as const,
+        cases: 'all' as const,
+        documentList: true,
+        documentText: false,
+        revealIdentifiers: false,
+        suggestChanges: true,
+      },
+      duration: 'keep' as const,
+    };
+    for (const suggestionsAvailable of [true, false]) {
+      const html = render({ suggestionsAvailable, returning: crafted });
+      const box = html.match(/<input[^>]*name="suggest_changes"[^>]*>/)?.[0] ?? '';
+      expect(box).not.toContain('checked');
+      expect(html).toContain('<details class="ai-connection-change" open="">');
+    }
+  });
+
+  it('offers the choice when the feature is on', () => {
+    const html = render({
+      suggestionsAvailable: true,
+      list: list({ active: [connection({ scopes: ['identity', 'suggest_changes'] })] }),
+    });
+    expect(html).not.toMatch(
+      /<input[^>]*name="suggest_changes"[^>]*disabled=""|<input[^>]*disabled=""[^>]*name="suggest_changes"/,
+    );
+    expect(html).not.toContain('type="hidden" name="suggest_changes"');
+    expect(textOf(html)).not.toContain('turned off right now');
+    expect(storedChoices(connection({ scopes: ['suggest_changes'] })).suggestChanges).toBe(true);
   });
 });

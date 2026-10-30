@@ -1888,6 +1888,59 @@ export {
   updateBillingSettings,
 } from './billing-settings';
 
+// S21: AI app suggestion tools ("Suggest Changes", ADR 0021 extension).
+export {
+  AI_READ_TOOL_NAMES,
+  AI_SUGGESTION_TOOL_NAMES,
+  AI_SUGGEST_CHANGES_SCOPE,
+  type AiSuggestionToolName,
+  allowsSuggestions,
+} from './ai-connection-scopes';
+export {
+  type AiAddReminderInput,
+  type AiSaveDraftInput,
+  type AiSuggestProfileInput,
+  type AiSuggestionWrites,
+  type AiWriteFailure,
+  type AiWriteGateway,
+  withAiSuggestionConnection,
+} from './access/with-ai-connection';
+export {
+  type AnyAiToolDefinition,
+  type AiSuggestionToolDefinition,
+  SUGGESTION_ANNOTATIONS,
+} from './ai-tools';
+export {
+  AI_DRAFT_LIST_LIMIT,
+  AI_SUGGESTION_LIMITS,
+  type AiDraftList,
+  type AiDraftView,
+  aiSuggestionsAvailable,
+  deleteAiDraft,
+  listAiDrafts,
+  aiSuggestionsInUse,
+  listPendingAppSuggestions,
+} from './ai-suggestions';
+export { type TaskAddedBy, taskAddedByApps } from './ai-task-origins';
+export {
+  CONNECTOR_MODEL_PREFIX,
+  isConnectorModelVersion,
+} from './ai-run-kinds';
+export type { MissionTaskView } from './missions';
+export type { ProposalApp } from './ai';
+export {
+  AI_FEATURE_SETTINGS_UNAVAILABLE,
+  type AiFeatureContext,
+  type AiFeatureSettingView,
+  type AiFeatureSettingsList,
+  type AiFeatureState,
+  type AiPlanEntitlement,
+  type UpdateAiFeatureSettingInput,
+  aiEntitlementFor,
+  getAiFeatureState,
+  listAiFeatureSettings,
+  updateAiFeatureSetting,
+} from './ai-feature-settings';
 // S18: refunds, credits and the monthly accounting export.
 export {
   type ApplyInvoiceRefundInput,

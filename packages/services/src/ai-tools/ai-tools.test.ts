@@ -366,17 +366,29 @@ async function aiAudit() {
 }
 
 describe('AI tools: declared shape', () => {
-  it('are exactly the five read-only tools ADR 0021 names, each with an output schema', () => {
-    expect(AI_TOOLS.map((t) => t.name)).toEqual([
+  it('are the five read-only tools ADR 0021 names, each with an output schema, then the three suggestion tools (S21)', () => {
+    const readTools = AI_TOOLS.filter((t) => !('kind' in t));
+    expect(readTools.map((t) => t.name)).toEqual([
       'prepare_context',
       'list_cases',
       'get_profile_section',
       'list_documents',
       'get_document_text',
     ]);
+    // The suggestion tools follow, each guarded in tool-guard.test.ts.
+    expect(AI_TOOLS.slice(readTools.length).map((t) => t.name)).toEqual([
+      'suggest_profile_update',
+      'save_draft',
+      'add_reminder',
+    ]);
     // The names audit records and telemetry may hold are exactly these (S16).
     expect(AI_TOOLS.map((t) => t.name)).toEqual([...AI_TOOL_NAMES]);
     for (const t of AI_TOOLS) {
+      expect(t.title).toMatch(/^[A-Z]/);
+      expect(t.description.length).toBeGreaterThan(40);
+      expect(t.outputSchema).toBeDefined();
+    }
+    for (const t of readTools) {
       expect(t.annotations).toEqual({
         readOnlyHint: true,
         destructiveHint: false,

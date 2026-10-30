@@ -9,7 +9,9 @@ import {
 import {
   AI_DURATION_LABELS,
   AI_FULL_NUMBERS_LABEL,
+  AI_SUGGEST_CHANGES_LABEL,
   aiAccessLabels,
+  aiAllowsSuggestions,
 } from '../../../../../lib/ai-consent-labels';
 import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
 import { ChangeAccessForm } from './ai-connection-change';
@@ -38,6 +40,7 @@ export function storedChoices(item: AiConnectionSummary): AccessChoices {
     documentList: item.scopes.includes('document_list'),
     documentText: item.scopes.includes('document_text'),
     revealIdentifiers: item.revealIdentifiers,
+    suggestChanges: aiAllowsSuggestions(item.scopes),
   };
 }
 
@@ -77,15 +80,19 @@ function ChangeAccess({
   item,
   cases,
   returning,
+  suggestionsAvailable,
 }: {
   readonly applicantId: string;
   readonly item: AiConnectionSummary;
   readonly cases: readonly CaseOption[];
   readonly returning: AiChangeReturn | undefined;
+  readonly suggestionsAvailable: boolean;
 }) {
   const options = caseOptionsFor(item, cases);
   const back = returning?.connectionId === item.id ? returning : undefined;
-  const chosen = back ? back.choices : storedChoices(item);
+  const stored = storedChoices(item);
+  // Suggest Changes always starts from what the connection has stored, never from a link.
+  const chosen = back ? { ...back.choices, suggestChanges: stored.suggestChanges } : stored;
   const valid =
     chosen.cases === 'all' ||
     chosen.cases === 'none' ||
@@ -101,8 +108,10 @@ function ChangeAccess({
         appName={item.clientName}
         cases={options}
         initial={{ ...chosen, cases: valid ? chosen.cases : storedCase(item) }}
+        suggestStored={stored.suggestChanges}
         durations={changeDurations(item)}
         defaultDuration={back ? back.duration : AI_KEEP_END}
+        suggestionsAvailable={suggestionsAvailable}
       />
     </details>
   );
@@ -115,7 +124,13 @@ export function aiCaseLine(item: Pick<AiConnectionSummary, 'caseMode' | 'caseTit
   return item.caseTitle ? `Only ${item.caseTitle}` : 'No Cases. The chosen case was removed.';
 }
 
-function Details({ item }: { readonly item: AiConnectionSummary }) {
+function Details({
+  item,
+  suggestionsAvailable,
+}: {
+  readonly item: AiConnectionSummary;
+  readonly suggestionsAvailable: boolean;
+}) {
   const access = aiAccessLabels(item.scopes);
   return (
     <dl className="ai-connection-facts">
@@ -135,6 +150,12 @@ function Details({ item }: { readonly item: AiConnectionSummary }) {
         <dt>{AI_FULL_NUMBERS_LABEL}</dt>
         <dd>{item.revealIdentifiers ? 'Yes' : 'No'}</dd>
       </div>
+      {aiAllowsSuggestions(item.scopes) ? (
+        <div>
+          <dt>{AI_SUGGEST_CHANGES_LABEL}</dt>
+          <dd>{suggestionsAvailable ? 'Yes' : 'Yes, but turned off right now'}</dd>
+        </div>
+      ) : null}
       <div>
         <dt>Ends</dt>
         <dd>{item.expiresAt ? formatTimestamp(item.expiresAt) : 'Until You Turn It Off'}</dd>
@@ -166,6 +187,7 @@ export function AiConnectionsSection({
   notice,
   cases = [],
   returning,
+  suggestionsAvailable = false,
 }: {
   readonly applicantId: string;
   readonly list: AiConnectionList;
@@ -176,6 +198,8 @@ export function AiConnectionsSection({
   readonly returning?: AiChangeReturn;
   /** What just happened, after the page reloaded. */
   readonly notice?: 'off' | 'changed';
+  /** Whether AI App Suggestions works right now (S21). */
+  readonly suggestionsAvailable?: boolean;
 }) {
   // While connecting is off the card shows only what can still be acted on, or what just happened.
   if (!connectorOn && list.active.length === 0 && !notice) return null;
@@ -190,10 +214,18 @@ export function AiConnectionsSection({
       <h2 className="card-title" id="ai-connections-title">
         AI Connections
       </h2>
-      <p className="card-body">
-        AI apps you connected to this record. Each one can read only what you chose and cannot
-        change anything in VisaStack. Turning one off stops it straight away.
-      </p>
+      {list.active.some((item) => aiAllowsSuggestions(item.scopes)) ? (
+        <p className="card-body">
+          AI apps you connected to this record. Each one can read only what you chose. An app you
+          let suggest changes can leave suggestions, drafts and reminders for you, and nothing
+          changes until you approve it. Turning one off stops it straight away.
+        </p>
+      ) : (
+        <p className="card-body">
+          AI apps you connected to this record. Each one can read only what you chose and cannot
+          change anything in VisaStack. Turning one off stops it straight away.
+        </p>
+      )}
       {notice ? (
         <output className="notice ai-connections-notice">
           {notice === 'off'
@@ -217,13 +249,14 @@ export function AiConnectionsSection({
               <h3 className="ai-connection-name">
                 {item.clientName} <span className="ai-consent-host">{item.clientHost}</span>
               </h3>
-              <Details item={item} />
+              <Details item={item} suggestionsAvailable={suggestionsAvailable} />
               {connectorOn ? (
                 <ChangeAccess
                   applicantId={applicantId}
                   item={item}
                   cases={cases}
                   returning={returning}
+                  suggestionsAvailable={suggestionsAvailable}
                 />
               ) : null}
               <div className="page-actions ai-connection-actions">
