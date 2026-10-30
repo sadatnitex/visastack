@@ -8,6 +8,7 @@ import {
   listApplicantAssurance,
   listApplicantProfile,
   listDocumentsDetailed,
+  listPendingProposals,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -19,11 +20,13 @@ import { ProfilePhotoControl } from '../../../../../components/profile-photo/pro
 import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { depthCopyFor } from '../../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
+import { confirmedValues, findingViewModel } from '../../../../../lib/document-findings';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { buildMasterProfileView, fieldLabel } from '../../../../../lib/master-profile';
 import { agree, plural } from '../../../../../lib/plural';
 import { ownedPhotoUrl } from '../../../../../lib/profile-photos';
 import { withSession } from '../../../../../lib/session';
+import { AiProposalReview } from '../ai-review';
 import { type FieldAssurance, ProfileEditor } from '../profile-editor';
 
 export const metadata: Metadata = { title: 'My Profile' };
@@ -71,7 +74,7 @@ export default async function ApplicantProfilePage({
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
-    const [profile, coreGranted, assurance, sectionChoices, documents, photoUrl] =
+    const [profile, coreGranted, assurance, sectionChoices, documents, photoUrl, pending] =
       await Promise.all([
         listApplicantProfile(db, id),
         hasConsent(db, accountId, 'CORE_PROCESSING'),
@@ -82,6 +85,14 @@ export default async function ApplicantProfilePage({
           listDocumentsDetailed(db, accountId, id),
         ]),
         ownedPhotoUrl(db, accountId, id),
+        // Suggestions the person's own AI apps made about the profile itself, with no document
+        // (S21). They stay here to decide whether or not AI App Suggestions is on.
+        listPendingProposals(db, id).then((all) =>
+          all.filter(
+            (reading) =>
+              reading.fromApp !== undefined && reading.proposal.documentVersionId === null,
+          ),
+        ),
       ]);
     // How many usable copies of each kind are in the wallet, so each section can say what backs
     // it. Usable: shown in the wallet, not expired or replaced, and not failed or quarantined.
@@ -99,10 +110,13 @@ export default async function ApplicantProfilePage({
         if (kind) uploadedDocumentTypes.set(kind, (uploadedDocumentTypes.get(kind) ?? 0) + 1);
       }
     }
+    // Compared with the profile only when there is something to compare.
+    const confirmedNow = pending.length > 0 ? confirmedValues(profile, false) : new Map();
     return {
       applicant,
       photoUrl,
       profile,
+      appSuggestions: pending.map((reading) => findingViewModel(reading, confirmedNow)),
       coreGranted,
       sectionChoices,
       uploadedDocumentTypes,
@@ -195,6 +209,31 @@ export default async function ApplicantProfilePage({
           )
         }
       />
+      {data.appSuggestions.length > 0 ? (
+        <section
+          className="card u-mb-150 ai-app-suggestions"
+          id="ai-app-suggestions"
+          aria-labelledby="ai-app-suggestions-title"
+        >
+          <p className="card-kicker">AI Apps</p>
+          <h2 className="card-title" id="ai-app-suggestions-title">
+            Suggestions from AI Apps
+          </h2>
+          <p className="card-body">
+            {plural(data.appSuggestions.length, 'change', 'changes')} your AI apps suggested for
+            your profile. Nothing is saved until you accept it. Check each one: an app can be wrong.
+          </p>
+          {data.appSuggestions.map((proposal) => (
+            <AiProposalReview
+              key={proposal.id}
+              applicantId={id}
+              proposal={proposal}
+              canApprove={data.coreGranted}
+              headingLevel="h3"
+            />
+          ))}
+        </section>
+      ) : null}
       <DepthScope family="profile" depth={depth}>
         <DepthSwitch family="profile" initial={depth} copy={depthWords} />
         <section

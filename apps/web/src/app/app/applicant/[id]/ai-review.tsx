@@ -160,6 +160,11 @@ export interface AiProposalViewModel {
   readonly repeating?: boolean;
   /** Where the reading came from, decided on the server from the records. */
   readonly source?: ReadingSource;
+  /**
+   * Set when the person's own AI app suggested this (S21): the app's name and address, cleaned on
+   * the server. `rationale` is then the app's own reason, shown as the app's words.
+   */
+  readonly app?: string;
 }
 
 /** A reading still waiting for the person: accept, change, settle a difference, or skip. */
@@ -170,9 +175,12 @@ export function AiProposalReview({
   onEditedChange,
   onResult,
   locked = false,
+  headingLevel = 'h4',
 }: {
   readonly applicantId: string;
   readonly proposal: AiProposalViewModel;
+  /** The card's heading, one level below the list it sits in. */
+  readonly headingLevel?: 'h3' | 'h4';
   /** Accepting all clear details is running: this card's buttons refuse clicks until it finishes (focus stays put). */
   readonly locked?: boolean;
   /** Tells the list when the value was changed, so it is no longer accepted in bulk as read. */
@@ -218,7 +226,7 @@ export function AiProposalReview({
       aria-labelledby={headingId}
     >
       <header className="finding-card-head">
-        <h4 id={headingId}>{label}</h4>
+        {headingLevel === 'h3' ? <h3 id={headingId}>{label}</h3> : <h4 id={headingId}>{label}</h4>}
         <StatusBadge tone={clear ? 'success' : 'warning'}>
           {clear ? 'Clear' : 'Please Check'}
         </StatusBadge>
@@ -229,7 +237,16 @@ export function AiProposalReview({
           Found as <q>{quote.snippet}</q>
         </p>
       ) : null}
-      {proposal.source ? (
+      {proposal.app ? (
+        <p className="finding-origin">
+          <StatusBadge tone="neutral">Suggested by {proposal.app}</StatusBadge>
+          {proposal.rationale ? (
+            <small className="muted">
+              The app’s reason, in its own words: <q>{proposal.rationale}</q>
+            </small>
+          ) : null}
+        </p>
+      ) : proposal.source ? (
         <ReadingSourceNote
           source={proposal.source}
           detail={proposal.source === 'machine_readable' ? proposal.rationale : null}
@@ -295,7 +312,7 @@ export function AiProposalReview({
                 checked={choice === 'use_document'}
                 onChange={() => setChoice('use_document')}
               />
-              Use This Document&rsquo;s Value
+              {proposal.app ? 'Use the Suggested Value' : <>Use This Document&rsquo;s Value</>}
             </label>
             {proposal.fixed ? null : (
               <label>

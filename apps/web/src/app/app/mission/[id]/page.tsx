@@ -1,3 +1,4 @@
+import { aiAppName } from '@visastack/core/ai-features';
 import { createTranslator } from '@visastack/i18n';
 import {
   type ChangesSinceConfirmed,
@@ -560,6 +561,8 @@ export default async function MissionPage({
             priority: t.priority,
             dueDate: t.dueDate ? t.dueDate.toISOString() : null,
             dueTimezone: t.dueTimezone,
+            // A reminder the person's own AI app added (S21), named by the app, cleaned here.
+            addedBy: t.addedBy ? aiAppName(t.addedBy.appName) : null,
           }))
         : [],
       appointments: appointments.ok

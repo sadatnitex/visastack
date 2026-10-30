@@ -19,6 +19,8 @@ export const AI_CONNECTION_WARNING_LAYERS: readonly AiConnectionLayer[] = [
   'declarations',
   'health',
 ];
+/** "Suggest Changes" as the stored connection holds it (S21). */
+export const AI_SUGGEST_CHANGES_SCOPE = 'suggest_changes';
 export const AI_CONNECTION_DURATIONS = ['1h', '24h', '7d', '30d', 'until_off'] as const;
 export type AiConnectionDuration = (typeof AI_CONNECTION_DURATIONS)[number];
 export const AI_CONNECTION_DEFAULT_DURATION: AiConnectionDuration = '30d';
@@ -31,6 +33,8 @@ export interface ConsentInitial {
   readonly documentList: boolean;
   readonly documentText: boolean;
   readonly revealIdentifiers: boolean;
+  /** "Suggest Changes" (S21): off unless the person turns it on. */
+  readonly suggestChanges: boolean;
   readonly duration: AiConnectionDuration;
 }
 
@@ -40,6 +44,7 @@ export const CONSENT_DEFAULTS: ConsentInitial = {
   documentList: true,
   documentText: false,
   revealIdentifiers: false,
+  suggestChanges: false,
   duration: AI_CONNECTION_DEFAULT_DURATION,
 };
 
@@ -53,6 +58,7 @@ export function consentChoicesToQuery(
     choice_list: choice.documentList ? '1' : '0',
     choice_text: choice.documentText ? '1' : '0',
     choice_reveal: choice.revealIdentifiers ? '1' : '0',
+    choice_suggest: choice.suggestChanges ? '1' : '0',
     choice_duration: choice.duration,
   };
 }
@@ -75,6 +81,7 @@ export function consentChoicesFromQuery(
     documentList: read('choice_list') !== '0',
     documentText: read('choice_text') === '1',
     revealIdentifiers: read('choice_reveal') === '1',
+    suggestChanges: read('choice_suggest') === '1',
     duration: (AI_CONNECTION_DURATIONS as readonly string[]).includes(duration ?? '')
       ? (duration as AiConnectionDuration)
       : AI_CONNECTION_DEFAULT_DURATION,
@@ -123,6 +130,7 @@ export interface ParsedAiAccessChoices<D extends string> {
   readonly documentList: boolean;
   readonly documentText: boolean;
   readonly revealIdentifiers: boolean;
+  readonly suggestChanges: boolean;
   readonly duration: D;
 }
 
@@ -178,6 +186,7 @@ export function parseAiAccessChoices(
       documentList: formData.get('document_list') === 'on',
       documentText: formData.get('document_text') === 'on',
       revealIdentifiers: formData.get('reveal_identifiers') === 'on',
+      suggestChanges: formData.get('suggest_changes') === 'on',
       duration,
     },
   };

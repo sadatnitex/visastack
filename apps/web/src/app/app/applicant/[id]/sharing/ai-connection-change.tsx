@@ -21,6 +21,8 @@ export interface ChangeAccessFormProps {
   readonly initial: Omit<ConsentInitial, 'duration'>;
   readonly durations: readonly { readonly value: string; readonly label: string }[];
   readonly defaultDuration: string;
+  /** Whether AI App Suggestions works right now (S21). */
+  readonly suggestionsAvailable?: boolean;
 }
 
 /**
@@ -35,6 +37,7 @@ export function ChangeAccessForm({
   initial,
   durations,
   defaultDuration,
+  suggestionsAvailable = false,
 }: ChangeAccessFormProps) {
   const [state, formAction, pending] = useActionState<AiConnectionActionState, FormData>(
     changeAiAccessAction,
@@ -59,10 +62,13 @@ export function ChangeAccessForm({
         initial={state.choices ?? initial}
         durations={durations}
         defaultDuration={state.choices?.duration ?? defaultDuration}
+        suggestionsAvailable={suggestionsAvailable}
         {...(isFailure(state) && state.field ? { invalid: { field: state.field, messageId } } : {})}
       />
       <p className="card-body">
-        {appName} can read only what you choose here. It cannot change anything in VisaStack.
+        {suggestionsAvailable && (state.choices ?? initial).suggestChanges
+          ? `${appName} can read only what you choose here, and suggest changes for you to approve. Nothing changes until you approve it.`
+          : `${appName} can read only what you choose here. It cannot change anything in VisaStack.`}
       </p>
       <FormMessage id={messageId} result={state} pending={pending} pendingText="Saving…" />
       <div className="page-actions">

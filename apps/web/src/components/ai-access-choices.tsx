@@ -1,3 +1,4 @@
+import { AI_FEATURE_OFF_HINT } from '@visastack/core/ai-features';
 import { useId } from 'react';
 import {
   AI_CONNECTION_LAYERS,
@@ -10,6 +11,8 @@ import {
   AI_FULL_NUMBERS_LABEL,
   AI_LAYER_LABELS,
   AI_LAYER_NOTES,
+  AI_SUGGEST_CHANGES_LABEL,
+  AI_SUGGEST_CHANGES_NOTE,
 } from '../lib/ai-consent-labels';
 
 export interface AiAccessChoicesProps {
@@ -21,6 +24,12 @@ export interface AiAccessChoicesProps {
   readonly defaultDuration: string;
   /** Points the matching field at the form's error message. */
   readonly invalid?: { readonly field: string; readonly messageId: string };
+  /**
+   * Whether AI App Suggestions works right now (the platform owner's switch, S21). When it does
+   * not, "Suggest Changes" stays on the screen, turned off, with a plain sentence saying so, and a
+   * choice already made is kept as it was.
+   */
+  readonly suggestionsAvailable?: boolean;
 }
 
 /**
@@ -35,6 +44,7 @@ export function AiAccessChoices({
   durations,
   defaultDuration,
   invalid,
+  suggestionsAvailable = false,
 }: AiAccessChoicesProps) {
   const id = useId();
   const problem = (field: string) =>
@@ -174,6 +184,35 @@ export function AiAccessChoices({
               </span>
             </span>
           </label>
+        </div>
+      </fieldset>
+
+      <fieldset className="fieldset">
+        <legend className="field-label">Changes</legend>
+        <div className="checks">
+          <label className="check output-check" htmlFor={`${id}-ai-suggest`}>
+            <input
+              id={`${id}-ai-suggest`}
+              type="checkbox"
+              name="suggest_changes"
+              defaultChecked={initial.suggestChanges}
+              disabled={!suggestionsAvailable}
+              {...(suggestionsAvailable ? {} : { 'aria-describedby': `${id}-ai-suggest-off` })}
+            />
+            <span className="output-check-text">
+              <span>{AI_SUGGEST_CHANGES_LABEL}</span>
+              <span className="muted u-fs-075">{AI_SUGGEST_CHANGES_NOTE}</span>
+            </span>
+          </label>
+          {suggestionsAvailable ? null : (
+            <p className="muted u-fs-075 u-m-0" id={`${id}-ai-suggest-off`}>
+              {AI_FEATURE_OFF_HINT}
+            </p>
+          )}
+          {/* A choice already made is kept while the feature is off, so turning it back on loses nothing. */}
+          {!suggestionsAvailable && initial.suggestChanges ? (
+            <input type="hidden" name="suggest_changes" value="on" />
+          ) : null}
         </div>
       </fieldset>
 

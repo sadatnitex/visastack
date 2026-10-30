@@ -1,10 +1,13 @@
+import { aiAppLabel } from '@visastack/core/ai-features';
 import { createTranslator } from '@visastack/i18n';
 import {
   accountPrincipal,
   documentCategory,
+  getAiFeatureState,
   getApplicant,
   listAccessForApplicantDetailed,
   listAiConnections,
+  listAiDrafts,
   listApplicantProfile,
   listAuditEventsForApplicant,
   listDocumentsDetailed,
@@ -40,6 +43,7 @@ import { withSession } from '../../../../../lib/session';
 import { accessDoneLine } from '../../../../../lib/success-lines';
 import { revokeSharingInvitationAction } from './actions';
 import { type AiChangeReturn, AiConnectionsSection } from './ai-connections';
+import { type AiDraftItem, AiDraftsSection } from './ai-drafts';
 import { CaseExceptions } from './case-exceptions';
 import { DoneNotice } from './done-notice';
 import { GrantForm } from './grant-form';
@@ -110,14 +114,46 @@ export default async function SharingPage({
         ? listed.value
         : { available: false, active: [], activeTotal: 0, recentlyEnded: [] };
     };
-    const [access, documents, auditEvents, profileEntries, aiConnections] = await Promise.all([
-      listAccessForApplicantDetailed(db, accountId, id),
-      listDocumentsDetailed(db, accountId, id),
-      // A longer history than the old list showed: it now scrolls in its own box and filters.
-      listAuditEventsForApplicant(db, accountId, id, ACCESS_LOG_LIMIT),
-      listApplicantProfile(db, id),
-      readAiConnections(),
-    ]);
+    // What AI apps left for the person (S21): their drafts, and whether suggestions work now.
+    // Drafts stay readable and removable whether or not the feature is on.
+    const readAiSuggestions = async () => {
+      const gate = await requireAccess(
+        db,
+        accountPrincipal(accountId),
+        'VIEW_METADATA',
+        { applicantId: id },
+        { purpose: 'ai_drafts' },
+      );
+      if (!gate.ok) return { available: false, drafts: [] as AiDraftItem[], more: 0 };
+      const [feature, drafts] = await Promise.all([
+        getAiFeatureState(db, 'ai_app_suggestions', { proof: gate.value }),
+        listAiDrafts(gate.value),
+      ]);
+      return {
+        available: feature.available,
+        drafts: drafts.drafts.map(
+          (draft): AiDraftItem => ({
+            id: draft.id,
+            title: draft.title,
+            body: draft.body,
+            caseTitle: draft.caseTitle,
+            app: aiAppLabel({ name: draft.appName, host: draft.appHost }),
+            savedOn: formatTimestampDate(draft.createdAt),
+          }),
+        ),
+        more: drafts.more,
+      };
+    };
+    const [access, documents, auditEvents, profileEntries, aiConnections, aiSuggestions] =
+      await Promise.all([
+        listAccessForApplicantDetailed(db, accountId, id),
+        listDocumentsDetailed(db, accountId, id),
+        // A longer history than the old list showed: it now scrolls in its own box and filters.
+        listAuditEventsForApplicant(db, accountId, id, ACCESS_LOG_LIMIT),
+        listApplicantProfile(db, id),
+        readAiConnections(),
+        readAiSuggestions(),
+      ]);
     const grants = access.ok ? access.value : [];
 
     // PRD SHR-01: for every still-live category grant, find whatever now
@@ -174,6 +210,7 @@ export default async function SharingPage({
     return {
       aiConnections,
       aiCases,
+      aiSuggestions,
       invitations,
       invitationExceptions: invitationExceptions.ok ? invitationExceptions.value : [],
       applicant,
@@ -429,9 +466,18 @@ export default async function SharingPage({
               list={data.aiConnections}
               connectorOn={connectorOn}
               cases={data.aiCases}
+              suggestionsAvailable={data.aiSuggestions.available}
               {...(aiNotice ? { notice: aiNotice } : {})}
               {...(aiReturning ? { returning: aiReturning } : {})}
             />
+
+            {data.aiSuggestions.drafts.length > 0 ? (
+              <AiDraftsSection
+                applicantId={id}
+                drafts={data.aiSuggestions.drafts}
+                more={data.aiSuggestions.more}
+              />
+            ) : null}
 
             {data.invitations.length ? (
               <details className="card sharing-invitation-history" {...atLevel('browse')}>

@@ -74,6 +74,7 @@ export async function answerAiConsentAction(
     documentList,
     documentText,
     revealIdentifiers,
+    suggestChanges,
     duration,
   } = parsed.value;
 
@@ -96,6 +97,7 @@ export async function answerAiConsentAction(
           documentList,
           documentText,
           revealIdentifiers,
+          suggestChanges,
           duration,
         }),
       });
@@ -133,6 +135,7 @@ export async function answerAiConsentAction(
           documentList,
           documentText,
           revealIdentifiers,
+          suggestChanges,
           duration,
         },
         codeChallenge: request.codeChallenge,

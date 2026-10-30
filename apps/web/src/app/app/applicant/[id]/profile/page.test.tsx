@@ -1,0 +1,123 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { axeViolations } from '../../../../../lib/axe.test-support';
+import { renderServer, textOf } from '../../../../../lib/next-mocks.test-support';
+
+const service = vi.hoisted(() => ({
+  getApplicant: vi.fn(),
+  getProfileSectionState: vi.fn(),
+  getWalletView: vi.fn(),
+  hasConsent: vi.fn(),
+  listApplicantAssurance: vi.fn(),
+  listApplicantProfile: vi.fn(),
+  listDocumentsDetailed: vi.fn(),
+  listPendingProposals: vi.fn(),
+}));
+
+vi.mock('@visastack/services', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@visastack/services')>()),
+  ...service,
+}));
+vi.mock('../../../../../lib/session', () => ({
+  withSession: (callback: (ctx: unknown) => unknown) => callback({ db: {}, accountId: 'owner' }),
+}));
+vi.mock('../../../../../lib/profile-photos', () => ({ ownedPhotoUrl: () => null }));
+vi.mock('../../../../../lib/ccd/depth.server', () => ({ readDepth: async () => 'auto' }));
+vi.mock('../profile-editor', () => ({
+  ProfileEditor: () => <div id="profile-editor">Versioned editor</div>,
+}));
+vi.mock('../../../../../components/profile-photo/profile-photo-control', () => ({
+  ProfilePhotoControl: () => <div>Photo control</div>,
+}));
+vi.mock('../actions', () => ({
+  decideProposalAction: vi.fn(),
+  acceptClearDetailsAction: vi.fn(),
+  decideClassificationProposalAction: vi.fn(),
+  decideInconsistencyFlagAction: vi.fn(),
+  readAgainAction: vi.fn(),
+  runClassificationAction: vi.fn(),
+  runInconsistencyCheckAction: vi.fn(),
+}));
+
+const { default: ProfilePage } = await import('./page');
+
+const render = async () =>
+  renderServer(
+    ProfilePage({
+      params: Promise.resolve({ id: 'person' }),
+      searchParams: Promise.resolve({}),
+    } as never),
+  );
+
+function suggestion(overrides: { documentVersionId?: string | null; fromApp?: unknown } = {}) {
+  return {
+    proposal: {
+      id: 'p-1',
+      aiExtractionRunId: 'r-1',
+      documentVersionId: overrides.documentVersionId ?? null,
+      applicantId: 'person',
+      type: 'UPDATE',
+      fieldKey: 'phone',
+      value: '+8801700000999',
+      confidence: 0,
+      rationale: 'The person told me their number changed.',
+      status: 'PENDING',
+    },
+    evidence: [],
+    ...('fromApp' in overrides
+      ? overrides.fromApp === undefined
+        ? {}
+        : { fromApp: overrides.fromApp }
+      : { fromApp: { name: 'Claude', host: 'claude.ai' } }),
+  };
+}
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  service.getApplicant.mockResolvedValue({
+    id: 'person',
+    displayName: 'Karim Hossain',
+    relationship: 'SELF',
+    ownerAccountId: 'owner',
+    createdAt: new Date('2026-01-01'),
+  });
+  service.getProfileSectionState.mockResolvedValue({
+    activated: new Set(),
+    notApplicable: new Set(),
+    noneDeclared: new Set(),
+  });
+  service.getWalletView.mockResolvedValue({ ok: true, value: [] });
+  service.hasConsent.mockResolvedValue(true);
+  service.listApplicantAssurance.mockResolvedValue({ ok: true, value: [] });
+  service.listApplicantProfile.mockResolvedValue([]);
+  service.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [] });
+  service.listPendingProposals.mockResolvedValue([]);
+});
+
+describe('Suggestions from AI Apps on My Profile (S21)', () => {
+  it('is not there when no AI app suggested anything, so the page reads as before', async () => {
+    const text = textOf(await render());
+    expect(text).not.toContain('Suggestions from AI Apps');
+    expect(text).not.toContain('Suggested by');
+  });
+
+  it('lists an app’s suggestion about the profile, named by the app, with its own reason', async () => {
+    service.listPendingProposals.mockResolvedValue([
+      suggestion(),
+      // A suggestion about a document is reviewed on Documents; a reading of a file is not an app's.
+      suggestion({ documentVersionId: 'v-1' }),
+      suggestion({ fromApp: undefined }),
+    ]);
+    const html = await render();
+    const text = textOf(html);
+    expect(html.match(/<h1/g)).toHaveLength(1);
+    expect(text).toContain('Suggestions from AI Apps');
+    expect(text).toContain('1 change your AI apps suggested');
+    expect(text).toContain('Suggested by Claude (claude.ai)');
+    expect(text).toContain('The app’s reason, in its own words:');
+    expect(text).toContain('The person told me their number changed.');
+    expect(text).toContain('Accept');
+    expect(text).toContain('Skip');
+    expect(html.match(/Suggested by/g)).toHaveLength(1);
+    expect(await axeViolations(html)).toEqual([]);
+  });
+});

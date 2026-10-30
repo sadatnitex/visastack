@@ -90,6 +90,7 @@ export const READING_SOURCE_LABELS: Readonly<Record<ReadingSource, string>> = {
   machine_readable: 'Read from the Machine-Readable Lines',
   document_text: 'Read from the Document',
   ai_image: 'Read with AI',
+  ai_app: 'Suggested by an AI App',
 };
 
 /** The same, as a sentence that explains it, for the line under a suggestion. */
@@ -99,6 +100,8 @@ export const READING_SOURCE_NOTES: Readonly<Record<ReadingSource, string>> = {
   document_text:
     "Taken from the document's own text. An AI service picked out the details from that text; the file itself was not sent.",
   ai_image: 'Read from a picture of the file by an AI service.',
+  ai_app:
+    'Suggested by an AI app you connected, not read from the file by VisaStack. Check it before you accept.',
 };
 
 export interface ReadingOffer {

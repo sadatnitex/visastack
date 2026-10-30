@@ -496,8 +496,10 @@ export const AI_DRAFT_LIST_LIMIT = 50;
 export async function listAiDrafts(
   proof: AuthorizedApplicant<'VIEW_METADATA'>,
 ): Promise<AiDraftList> {
-  if (!AuthorizedApplicant.isGenuine(proof, 'VIEW_METADATA')) throw new NotTheGate();
-  if (proof.actor.kind !== 'applicant_owner') return { available: true, drafts: [], more: 0 };
+  // Owner only: anything else (an agency, a share recipient, a copied proof) gets nothing.
+  if (!AuthorizedApplicant.isGenuine(proof, 'VIEW_METADATA') || proof.actor.kind !== 'applicant_owner') {
+    return { available: true, drafts: [], more: 0 };
+  }
   const tx = proof.tx;
   if (!(await aiSuggestionsAvailable(tx))) return { available: false, drafts: [], more: 0 };
   const rows = await tx

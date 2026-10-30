@@ -1,3 +1,4 @@
+import { aiAppLabel } from '@visastack/core/ai-features';
 import { isRepeatingFieldKey } from '@visastack/core/catalogue';
 import {
   type ProfileEntry,
@@ -47,7 +48,7 @@ export function confirmedValues(
  * server: the page only learns that a sensitive or protected detail differs, never its value.
  */
 export function findingViewModel(
-  { proposal, evidence }: ProposalWithEvidence,
+  { proposal, evidence, fromApp }: ProposalWithEvidence,
   confirmed: ReadonlyMap<string, ConfirmedValue>,
   /** Where the reading came from (decided from the records); omitted when it is not known. */
   source?: ReadingSource,
@@ -73,6 +74,8 @@ export function findingViewModel(
     ...(key && isFixedFieldKey(key) ? { fixed: true } : {}),
     ...(key && isRepeatingFieldKey(key) ? { repeating: true } : {}),
     ...(source ? { source } : {}),
+    // A suggestion the person's own AI app made (S21): named by the app, cleaned again here.
+    ...(fromApp ? { app: aiAppLabel(fromApp), clear: false } : {}),
     ...(differs ? { difference: { current: showCurrent ? current.value : null } } : {}),
   };
 }

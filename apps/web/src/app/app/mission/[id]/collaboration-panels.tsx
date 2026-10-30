@@ -34,6 +34,8 @@ interface TaskView {
   readonly priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
   readonly dueDate: string | null;
   readonly dueTimezone: string | null;
+  /** The AI app that added this reminder (S21); only the person sees these. */
+  readonly addedBy?: string | null;
 }
 
 export function TasksPanel({
@@ -75,6 +77,11 @@ export function TasksPanel({
                 {task.status === 'IN_PROGRESS' ? (
                   <span className="badge badge-neutral" style={{ fontSize: 'var(--text-caption)' }}>
                     In Progress
+                  </span>
+                ) : null}
+                {task.addedBy ? (
+                  <span className="badge badge-neutral" style={{ fontSize: 'var(--text-caption)' }}>
+                    Added by {task.addedBy}
                   </span>
                 ) : null}
                 {task.dueDate ? (

@@ -354,13 +354,14 @@ describe('the AI context address: protocol', () => {
     expect(body.result.capabilities.tools).toBeDefined();
   });
 
-  it('lists the five tools with titles, read-only annotations and output schemas', async () => {
+  it('lists the five read tools and the three suggestion tools, with their annotations and output schemas', async () => {
     const response = await handleMcpPost(post(LIST), deps());
     const body = (await response.json()) as {
       result: {
         tools: {
           name: string;
           title: string;
+          description: string;
           annotations: Record<string, boolean>;
           outputSchema?: { type: string };
           inputSchema: { type: string };
@@ -373,18 +374,48 @@ describe('the AI context address: protocol', () => {
       'get_profile_section',
       'list_documents',
       'get_document_text',
+      'suggest_profile_update',
+      'save_draft',
+      'add_reminder',
     ]);
+    const suggestion = new Set(['suggest_profile_update', 'save_draft', 'add_reminder']);
     for (const t of body.result.tools) {
       expect(t.title.length).toBeGreaterThan(0);
-      expect(t.annotations).toMatchObject({
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      });
+      // What the app sees is what the guard test pins (S21): nothing destructive, nothing outward.
+      expect(t.annotations).toMatchObject(
+        suggestion.has(t.name)
+          ? {
+              readOnlyHint: false,
+              destructiveHint: false,
+              idempotentHint: false,
+              openWorldHint: false,
+            }
+          : {
+              readOnlyHint: true,
+              destructiveHint: false,
+              idempotentHint: true,
+              openWorldHint: false,
+            },
+      );
+      if (suggestion.has(t.name)) {
+        expect(t.description).toContain(
+          'Use only when the person explicitly asks for this change.',
+        );
+      }
       expect(t.outputSchema?.type).toBe('object');
       expect(t.inputSchema.type).toBe('object');
     }
+  });
+
+  it('tells the app what can and cannot change', async () => {
+    const response = await handleMcpPost(post(INITIALIZE), deps());
+    const body = (await response.json()) as { result: { instructions?: string } };
+    expect(body.result.instructions).toContain(
+      'nothing in the record changes until the person approves it',
+    );
+    expect(body.result.instructions).toContain(
+      'Use only when the person explicitly asks for this change.',
+    );
   });
 
   it('runs a tool through the gate with this request token and resource', async () => {

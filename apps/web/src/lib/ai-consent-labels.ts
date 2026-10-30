@@ -1,5 +1,6 @@
 import {
   AI_CONNECTION_LAYERS,
+  AI_SUGGEST_CHANGES_SCOPE,
   type AiConnectionDuration,
   type AiConnectionLayer,
 } from './ai-consent-choices';
@@ -42,6 +43,10 @@ export const AI_DURATION_LABELS: Readonly<Record<AiConnectionDuration, string>> 
 export const AI_DOCUMENT_LIST_LABEL = 'List of My Documents';
 export const AI_DOCUMENT_TEXT_LABEL = 'Text Read From My Documents';
 export const AI_FULL_NUMBERS_LABEL = 'Full Document Numbers';
+/** "Suggest Changes" (S21, ADR 0021 extension), and the ADR's own sentence under it. */
+export const AI_SUGGEST_CHANGES_LABEL = 'Suggest Changes';
+export const AI_SUGGEST_CHANGES_NOTE =
+  'The app can suggest updates and save drafts. Nothing changes until you approve it in VisaStack.';
 
 /**
  * What a stored connection lets the app read, in the consent screen's own words and order. The
@@ -56,4 +61,16 @@ export function aiAccessLabels(scopes: readonly string[]): string[] {
     ...(scopes.includes('document_list') ? [AI_DOCUMENT_LIST_LABEL] : []),
     ...(scopes.includes('document_text') ? [AI_DOCUMENT_TEXT_LABEL] : []),
   ];
+}
+
+/** Whether a stored connection lets the app suggest changes (only the exact stored string). */
+export function aiAllowsSuggestions(scopes: readonly string[]): boolean {
+  return scopes.includes(AI_SUGGEST_CHANGES_SCOPE);
+}
+
+/** The sentence under the consent choices: what the app can and cannot do with these choices. */
+export function aiConsentSentence(suggestChanges: boolean): string {
+  return suggestChanges
+    ? 'This app can read what you choose here, and suggest updates, drafts and reminders for you to review. Nothing in VisaStack changes until you approve it. You can turn it off at any time.'
+    : 'This app can read what you choose here. It cannot change anything in VisaStack. You can turn it off at any time.';
 }

@@ -34,6 +34,7 @@ async function mount() {
           documentList: true,
           documentText: false,
           revealIdentifiers: false,
+          suggestChanges: false,
         }}
         durations={[
           { value: 'keep', label: 'Keep the Current End' },
