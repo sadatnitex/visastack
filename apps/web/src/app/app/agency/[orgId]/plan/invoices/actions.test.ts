@@ -206,7 +206,8 @@ describe('reporting a payment made another way', () => {
   });
 
   it('names the field at fault for a bad amount, a bad date and a file that is too big, before any work', async () => {
-    for (const amount of ['', 'abc', '-5', '12.505', '1,250', '0']) {
+    // Separators in the right places are read since S30 ("1,250"); misplaced ones are not.
+    for (const amount of ['', 'abc', '-5', '12.505', '12,50', '0']) {
       expect(await run({ amount }), amount).toMatchObject({ ok: false, field: 'amount' });
     }
     expect(await run({ paidOn: '25/10/2026' })).toMatchObject({ ok: false, field: 'paidOn' });
