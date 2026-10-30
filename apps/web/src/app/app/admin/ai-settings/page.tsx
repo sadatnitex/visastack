@@ -21,8 +21,12 @@ import { AiConnectionsCard, type AiConnectionsCardProps } from './ai-connections
 import { DataTermsPanel, TermsRows } from './data-terms';
 import {
   ActivateConfigButton,
+  type ConfigFormView,
   CreateDraftConfigForm,
+  DeleteDraftButton,
+  EditConfigForm,
   EmergencyDisableButton,
+  type FallbackOption,
   RecordTermsForm,
   RevokeKeyButton,
   RollbackConfigButton,
@@ -50,6 +54,41 @@ const STATUS_BADGE: Record<AiProviderConfig['status'], { label: string; tone: st
   SUPERSEDED: { label: 'Superseded', tone: 'badge-neutral' },
   DISABLED: { label: 'Disabled', tone: 'badge-danger' },
 };
+
+/**
+ * What the settings forms may see of a configuration: its settings, never its key material.
+ * `fallbackFor` holds the ids that a version which has run falls back to; those drafts are
+ * copied rather than edited (the service refuses the edit too).
+ */
+function toConfigFormView(
+  config: AiProviderConfig,
+  fallbackFor: ReadonlySet<string>,
+): ConfigFormView {
+  return {
+    id: config.id,
+    status: config.status,
+    provider: config.provider,
+    model: config.model,
+    reasoningEffort: config.reasoningEffort,
+    dataPolicyApproved: config.dataPolicyApproved,
+    budgetUsd: unitsToUsd(config.budgetLimitUnits),
+    perDocumentBudgetUsd:
+      config.perDocumentBudgetLimitUnits === null
+        ? null
+        : unitsToUsd(config.perDocumentBudgetLimitUnits),
+    maxAttemptsPerDocument: config.maxAttemptsPerDocument,
+    maxPagesPerDocument: config.maxPagesPerDocument,
+    cacheMaxAgeDays: config.cacheMaxAgeDays,
+    maxConcurrentCalls: config.maxConcurrentCalls,
+    fallbackEnabled: config.fallbackEnabled,
+    fallbackProviderConfigId: config.fallbackProviderConfigId,
+    notes: config.notes,
+    apiKeyFingerprint: config.apiKeyFingerprint,
+    keyRevoked: config.keyRevokedAt !== null,
+    editableInPlace:
+      config.status === 'DRAFT' && config.keyRevokedAt === null && !fallbackFor.has(config.id),
+  };
+}
 
 export default async function AiSettingsPage() {
   const data = await withSession(async ({ db, accountId, email }) => {
@@ -114,6 +153,19 @@ export default async function AiSettingsPage() {
     );
   }
 
+  const fallbackFor = new Set(
+    data.history
+      .filter((c) => c.status !== 'DRAFT' && c.fallbackEnabled && c.fallbackProviderConfigId)
+      .map((c) => c.fallbackProviderConfigId as string),
+  );
+  const formViews = data.history.map((config) => toConfigFormView(config, fallbackFor));
+  const fallbackOptions: FallbackOption[] = data.history.map(({ id, status, provider, model }) => ({
+    id,
+    status,
+    provider,
+    model,
+  }));
+
   return (
     <section className="section container">
       <div className="u-mb-150">
@@ -124,7 +176,7 @@ export default async function AiSettingsPage() {
       <PageHeader
         eyebrow="Admin · AI Gateway"
         title="AI Provider Settings"
-        description="Configure, activate, and roll back the AI extraction provider (master directive Part 8 §5). Every version below is a permanent, immutable snapshot -- nothing is ever edited in place."
+        description="Configure, activate, and roll back the AI extraction provider (master directive Part 8 §5). A draft can be edited or deleted until it is activated. After that, each version stays in the history as it ran; Edit as New Draft copies it."
         actions={
           data.hasAny ? (
             <div style={{ display: 'flex', gap: '0.6rem' }}>
@@ -169,13 +221,15 @@ export default async function AiSettingsPage() {
           The API key is write-only: it is encrypted immediately and never shown again, only a
           masked fingerprint.
         </p>
-        <CreateDraftConfigForm existingConfigs={data.history} />
+        <CreateDraftConfigForm fallbackOptions={fallbackOptions} />
       </article>
 
       {data.history.length > 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {data.history.map((config) => {
+          {data.history.map((config, index) => {
             const badge = STATUS_BADGE[config.status];
+            const formView = formViews[index];
+            const isDraft = config.status === 'DRAFT';
             const canActivate =
               config.status === 'DRAFT' &&
               config.dataPolicyApproved &&
@@ -193,6 +247,7 @@ export default async function AiSettingsPage() {
             // -- the platform's own single-winner invariant means it is
             // necessarily some other status), so this looks it up by id
             // across the FULL history list, not just active/eligible rows.
+            const configName = `${config.provider} / ${config.model}`;
             const fallbackTarget = config.fallbackEnabled
               ? data.history.find((c) => c.id === config.fallbackProviderConfigId)
               : undefined;
@@ -289,18 +344,40 @@ export default async function AiSettingsPage() {
                     <span className="muted u-fs-085">{formatTimestamp(config.createdAt)}</span>
                   </div>
                 </div>
-                {canTest || canEvaluate || canActivate || canRevoke ? (
+                {canTest || canEvaluate || canActivate || canRevoke || isDraft ? (
                   <div
                     style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}
                   >
-                    {canTest ? <TestConnectionButton configId={config.id} /> : null}
-                    {canEvaluate ? <RunEvaluationButton configId={config.id} /> : null}
-                    {canActivate ? <ActivateConfigButton configId={config.id} /> : null}
-                    {canRevoke ? <RevokeKeyButton configId={config.id} /> : null}
+                    {canTest ? (
+                      <TestConnectionButton configId={config.id} configName={configName} />
+                    ) : null}
+                    {canEvaluate ? (
+                      <RunEvaluationButton configId={config.id} configName={configName} />
+                    ) : null}
+                    {canActivate ? (
+                      <ActivateConfigButton configId={config.id} configName={configName} />
+                    ) : null}
+                    {canRevoke ? (
+                      <RevokeKeyButton configId={config.id} configName={configName} />
+                    ) : null}
+                    {isDraft ? (
+                      <DeleteDraftButton configId={config.id} configName={configName} />
+                    ) : null}
                   </div>
                 ) : null}
+                {formView ? (
+                  <details className="u-mt-100">
+                    <summary className="muted">
+                      {formView.editableInPlace ? 'Edit' : 'Edit as New Draft'}
+                      <span className="sr-only"> {configName}</span>
+                    </summary>
+                    <EditConfigForm config={formView} fallbackOptions={fallbackOptions} />
+                  </details>
+                ) : null}
                 <details className="u-mt-100">
-                  <summary className="muted">Record Data Terms</summary>
+                  <summary className="muted">
+                    Record Data Terms<span className="sr-only"> for {configName}</span>
+                  </summary>
                   <RecordTermsForm configId={config.id} />
                 </details>
               </article>

@@ -450,10 +450,9 @@ describe('resolveAiExtractor (Part 8 §5: the DB config becomes authoritative on
 
     expect(resolved).toBeDefined();
     expect(resolved?.ai.cacheKeyComponents().model).toBe('claude-opus-5-5');
-    // Claude has no reasoning-effort dial (see AnthropicExtractionAdapter's
-    // own doc comment) -- its cache key never claims to depend on one, even
-    // though the config row carries a value for the field.
-    expect(resolved?.ai.cacheKeyComponents().reasoningEffort).toBeUndefined();
+    // The saved effort reaches Claude as output_config.effort, so the cache
+    // key depends on it (see AnthropicExtractionAdapter's own doc comment).
+    expect(resolved?.ai.cacheKeyComponents().reasoningEffort).toBe('high');
     expect(revealAiProviderApiKey).toHaveBeenCalledWith(
       db,
       encryption,
