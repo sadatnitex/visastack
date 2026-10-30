@@ -6640,3 +6640,38 @@ Fixes from the max code review and the security and accessibility review of `4c4
   - The SSLCOMMERZ sandbox (O6).
   - The status page's note is read when the page is built: it is not marked dynamic, like its version notice, so a payment setting change shows there after a redeploy.
   - `/code-review` and `/security-review` were not rerun in this helper round.
+
+### 2026-10-30, S19 step 0 round 3: merge of main and re-review fixes
+
+- **Merge.** `0665963f` merges origin/main `ed38503c` (S29 #349, squash) and #350 into `s19s0-wip`. S29 files take main's final round-3 version, with this branch's S19 changes replayed on top; docs keep main's text with this branch's entries after it. S29 round 3 is intact:
+  - `markModeChanged` keeps earlier marks;
+  - the reconcile queries skip other-mode attempts, now inside the per-provider query;
+  - the per-connection schema cache;
+  - `executeDueDowngrades` per-item catch.
+  The S29 round 3 tests that passed a single port now pass `onePort(port)`.
+- **Fixes, `7c7bb9a0`:**
+  - **Stranded payment, one definition.** `isStrandedAttempt` counts only a REDIRECTED or EXPIRED attempt within `LATE_SUCCESS_WINDOW_MS` whose provider is not configured. CREATED and older attempts never block, and the daily check still counts them. `strandedPayment` comes from it on `AgencyInvoiceView` (new required `configuredProviders` input) and on Check Status; `startOnlinePayment` uses it too.
+  - **Refunds.** `REFUND_PROVIDER_OFF` is given only when the provider is not configured. A configured provider that cannot refund gets the earlier "refund it another way" refusal. The refund services now get every configured provider, and `refundsOnly` is removed.
+  - **Callback reports.** At most once per provider per 10 minutes per instance; the answer stays 503.
+  - **No provider and no table.** The daily check is a quiet run (`configured: false`, nothing stranded).
+  - **Check Now.** The answer when every refund was unreachable also names the stranded refunds.
+  - **Tidying.** Doc comments fixed, `readSslcommerz` without the redundant clause, `PAYMENT_PROVIDER_KEYS` in the overview, the `isNull` branch for the NOT NULL attempts provider column removed.
+  - **Runbook.** Change `PAYMENT_RESULT_SIGNING_SECRET` only when no payment is in progress. The result-link key itself is unchanged, by decision.
+- **Break-to-red.** 7 proofs, all red, each restored from a cp backup: late window; CREATED; list definition; report throttle; off vs cannot refund; quiet run; unreachable plus stranded. The agreement test covers six attempt cases across the list, Check Status and start.
+- **Verification on `7c7bb9a0`.** All passed:
+
+  | Check | Result |
+  |---|---|
+  | lint | pass |
+  | typecheck (after `rm -rf apps/web/.next`) | pass |
+  | core | 188 |
+  | policy | 38 |
+  | db | 55, 1 skipped (existing) |
+  | adapters | 525, 2 skipped (existing) |
+  | services | 2754 |
+  | web | 3873 |
+  | build (3072 MB) | pass |
+  | audit high | pass |
+  | em dash sweep against origin/main | 0 |
+
+- **Not verified.** A browser run; the SSLCOMMERZ sandbox (O6). Review helpers were not rerun in this round.
