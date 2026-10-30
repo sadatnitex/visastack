@@ -12,7 +12,11 @@ import { openBillingAccount, transitionBillingStatus } from './billing';
 import { runBillingCycle } from './billing-cycle';
 import { grantCommercialOverride } from './commercial-override';
 import type { Db } from './db';
-import { checkSeatEntitlement } from './entitlement-enforcement';
+import {
+  checkCaseCreationEntitlement,
+  checkInvitationEntitlement,
+  checkSeatEntitlement,
+} from './entitlement-enforcement';
 import { resolveEntitlements } from './entitlements';
 import { createOrganization, reviewOrganization } from './organizations';
 import {
@@ -152,6 +156,20 @@ describe('the entitlement resolver and the Plans page (S29)', () => {
       expect(resolved.bypassLimits).toBe(true);
       expect(resolved.source).toBe('entitlements');
 
+      // On a second agency, also on Founding Access, an override outranks the lifted limits.
+      const second = await agency('order-2');
+      const early = await grantCommercialOverride(db, {
+        actor: actor(),
+        stepUpSatisfied: true,
+        organizationId: second.organizationId,
+        reason: 'pilot',
+        durationDays: 3,
+      });
+      expect(isOk(early)).toBe(true);
+      expect((await resolveEntitlements(db, { organizationId: second.organizationId })).gate).toBe(
+        'override',
+      );
+
       // Suspended on Founding Access: the lifted limits still win (as before S29).
       await suspend(organizationId);
       resolved = await resolveEntitlements(db, { organizationId });
@@ -181,6 +199,60 @@ describe('the entitlement resolver and the Plans page (S29)', () => {
       resolved = await resolveEntitlements(db, { organizationId });
       expect(resolved.gate).toBe('override');
       expect(resolved.override?.until.getTime()).toBeGreaterThan(Date.now());
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'keeps the S30 refusal codes and sentences exactly (thin wrappers over the resolver)',
+    async () => {
+      const { organizationId } = await agency('words');
+      const planId = await newPlan({
+        rules: {
+          seats: { included: true, limit: 1 },
+          invitations: { included: true, limit: 1 },
+          cases_per_period: { included: true, limit: 0 },
+          open_cases: { included: true, limit: 0 },
+        },
+      });
+      await putOn(organizationId, planId);
+      const run = <T>(check: (tx: Db) => Promise<T>) => db.transaction((tx) => check(tx));
+      const seat = await run((tx) => checkSeatEntitlement(tx, organizationId));
+      expect(isErr(seat) && seat.error).toEqual({
+        code: 'invalid',
+        reason: 'limit_reached',
+        message:
+          "Your agency's plan allows 1 team member, and that many are active. Remove someone who no longer needs access, or ask VisaStack about a larger plan.",
+      });
+      const invite = await run((tx) => checkInvitationEntitlement(tx, organizationId));
+      expect(isErr(invite) && invite.error).toEqual({
+        code: 'invalid',
+        reason: 'limit_reached',
+        message:
+          "Your agency's plan allows 1 team member, and active members and open invitations already fill it. Cancel an invitation, remove someone who no longer needs access, or ask VisaStack about a larger plan.",
+      });
+      const cases = await run((tx) => checkCaseCreationEntitlement(tx, organizationId));
+      expect(isErr(cases) && cases.error).toEqual({
+        code: 'invalid',
+        reason: 'limit_reached',
+        message:
+          "Your agency's plan allows 0 new cases every 30 days, and they are used. You can start more when the period moves on, or ask VisaStack about a larger plan.",
+      });
+      await suspend(organizationId);
+      const paused = await run((tx) => checkCaseCreationEntitlement(tx, organizationId));
+      expect(isErr(paused) && paused.error).toEqual({
+        code: 'invalid',
+        reason: 'billing_suspended',
+        message:
+          "Your agency's billing is paused, so starting new cases is paused too. An owner or admin can pay the open invoice to continue.",
+      });
+      const pausedInvite = await run((tx) => checkInvitationEntitlement(tx, organizationId));
+      expect(isErr(pausedInvite) && pausedInvite.error).toEqual({
+        code: 'invalid',
+        reason: 'billing_suspended',
+        message:
+          "Your agency's billing is paused, so inviting team members is paused too. Pay the open invoice to continue.",
+      });
     },
     TIMEOUT,
   );
@@ -298,7 +370,6 @@ describe('the entitlement resolver and the Plans page (S29)', () => {
         reason: 'test',
       });
       const scope = systemScopeForTest('process-billing-cycle');
-      await runBillingCycle(db, scope);
       const invoices = () =>
         db
           .select({
@@ -308,9 +379,7 @@ describe('the entitlement resolver and the Plans page (S29)', () => {
           .from(schema.invoices)
           .where(eq(schema.invoices.organizationId, organizationId))
           .orderBy(asc(schema.invoices.periodStart));
-      expect((await invoices()).map((i) => i.amount)).toEqual([100_000]);
-
-      // The price changes now.
+      // The price changes now, during a period that has no invoice yet.
       const saved = await savePlan(db, await plansScope(), {
         planId,
         draft: draft({ price: { priceMinorUnits: 150_000, currency: 'BDT' } }),
@@ -321,6 +390,10 @@ describe('the entitlement resolver and the Plans page (S29)', () => {
       expect(resolved.plan?.price).toEqual({ priceMinorUnits: 100_000, currency: 'BDT' });
       expect(resolved.plan?.nextPrice?.priceMinorUnits).toBe(150_000);
       expect(resolved.plan?.nextPrice?.from.getTime()).toBe(startedAt.getTime() + 30 * DAY);
+
+      // The period under way is billed at the price in effect when it started.
+      await runBillingCycle(db, scope);
+      expect((await invoices()).map((i) => i.amount)).toEqual([100_000]);
 
       // Later in the same period: nothing new, and the invoice already made is unchanged.
       await runBillingCycle(db, scope, { now: new Date(Date.now() + 5 * DAY) });

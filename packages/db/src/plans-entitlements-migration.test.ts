@@ -215,7 +215,13 @@ describe('migration 0107: plans admin, entitlements and test payments', () => {
       );
       expect(attemptMode.rows[0]?.mode).toBe('TEST');
 
-      // The strict guards are back: no ledger row or price can change or go.
+      // The strict guards are back: no ledger row or price can change or go, and the ledger guard
+      // has no trace of the one-time mode fill.
+      const guard = await client.query<{ src: string }>(
+        `select prosrc as src from pg_proc where proname = 'visastack_invoice_payments_append_only'`,
+      );
+      expect(guard.rows).toHaveLength(1);
+      expect(guard.rows[0]?.src).not.toContain('mode');
       await expect(
         client.query(`update invoice_payments set reference = 'X' where id = '${seeded.recorded}'`),
       ).rejects.toThrow(/append-only/);
