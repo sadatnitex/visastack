@@ -52,11 +52,24 @@ describe('refunds through the payment gateway (S18, S19 step 0)', () => {
     expect(refundSendPort(on)).toBe(gateways);
   });
 
-  it('ask only for gateways that can refund, and give "no gateway" when none is configured', () => {
+  it('give "no gateway" when no configured provider can refund, and every configured one otherwise (round 3)', () => {
     mocks.ports.mockReturnValue(none);
     expect(refundSendPort(on)).toBeNull();
     expect(refundCheckPort()).toBeNull();
-    expect(mocks.ports).toHaveBeenCalledWith({ refundsOnly: true });
+    // A configured provider that cannot refund alone: still no gateway.
+    const { refund: _refund, queryRefund: _query, ...payOnly } = refunding;
+    const cannot = paymentPortResolver([{ port: payOnly, currencies: ['USD'] }]);
+    mocks.ports.mockReturnValue(cannot);
+    expect(refundCheckPort()).toBeNull();
+    // Beside one that can, both are passed on, so the services can tell "switched off" from
+    // "cannot refund".
+    const mixed = paymentPortResolver([
+      { port: refunding, currencies: ['BDT'] },
+      { port: { ...payOnly, provider: 'otherpay' }, currencies: ['USD'] },
+    ]);
+    mocks.ports.mockReturnValue(mixed);
+    expect(refundCheckPort()).toBe(mixed);
+    expect(mixed.configured()).toHaveLength(2);
   });
 
   it('build the payment ports once for a page that needs both answers', () => {

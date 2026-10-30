@@ -90,18 +90,35 @@ async function readCallback(
 
 const notFound = () => new Response('Not found', { status: 404 });
 
+/** At most one report per provider per this long, on each running instance (S19 step 0 round 3). */
+export const INCOMPLETE_REPORT_INTERVAL_MS = 10 * 60 * 1000;
+
+/** When each provider's incomplete settings were last reported on this instance. */
+const lastIncompleteReport = new Map<string, number>();
+
+/** Forgets the reports made so far (tests only). */
+export function forgetIncompleteReports(): void {
+  lastIncompleteReport.clear();
+}
+
 /**
  * A callback reached a provider that is off. When the owner chose it but left its settings
- * incomplete, that is reported once for this request (its name and the settings it lacks, never a
- * value), as a refused port used to be before the registry.
+ * incomplete, that is reported (its name and the settings it lacks, never a value). These addresses
+ * take anonymous requests before any limit applies, so the report is made at most once per
+ * provider every 10 minutes on each instance: anyone can call, nobody can flood the error log. The
+ * answer itself (503, or the general page) is the same every time.
  */
 function reportIfIncomplete(
   area: string,
   provider: PaymentProviderKey,
   deps: PaymentCallbackDeps,
+  now: number = Date.now(),
 ): void {
   const incomplete = deps.incomplete(provider);
   if (incomplete === null) return;
+  const last = lastIncompleteReport.get(provider);
+  if (last !== undefined && now - last < INCOMPLETE_REPORT_INTERVAL_MS) return;
+  lastIncompleteReport.set(provider, now);
   reportServerError(area, new Error(incompleteProviderMessage(incomplete)), {
     step: 'provider settings incomplete',
     provider,

@@ -63,7 +63,6 @@ export function InvoiceCard({
   invoice,
   organizationId,
   online,
-  configuredProviders,
   testModeHint = null,
   latestDate,
   now = new Date(),
@@ -72,8 +71,6 @@ export function InvoiceCard({
   readonly organizationId: string;
   /** Per invoice currency, what online payment this viewer is offered (from the Invoices page). */
   readonly online: Readonly<Record<string, OnlineOffer>>;
-  /** The payment providers configured now (S19 step 0 round 2), to spot a payment left stranded. */
-  readonly configuredProviders: readonly string[];
   /**
    * S29 round 2: the sentence saying online payment is being tested, shown in place of Pay Online
    * where the invoice's currency is `testing` for this viewer.
@@ -90,10 +87,9 @@ export function InvoiceCard({
   const refunded = invoice.refundedMinorUnits > 0;
   const open = invoice.status !== 'PAID' && invoice.status !== 'VOID' && !refunded;
   const reported = invoice.state === 'PAYMENT_REPORTED';
-  // A payment still open with a provider switched off now: it cannot be checked, so no new one.
-  const stranded = invoice.openPaymentProviders.some(
-    (provider) => provider === null || !configuredProviders.includes(provider),
-  );
+  // A stranded payment (S19 step 0, decided once in the service): no new online payment.
+  const stranded = invoice.strandedPayment;
+
   // Whether this invoice can be paid online at all: a provider takes its stored currency, for this
   // viewer, now.
   const offer = offerFor(online, invoice.currency);

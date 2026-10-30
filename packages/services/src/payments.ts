@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, gte, inArray, isNull, lte, notInArray, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lte, notInArray, or, sql } from 'drizzle-orm';
 import type { SystemScope } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { invoiceLedgerReader } from './billing';
@@ -669,17 +669,56 @@ export function isRecentAttempt(
 const NOT_AVAILABLE = 'Online payment is not available yet. Please try again later.';
 
 /**
- * What an agency is told while the gateway is in test mode (S29): a test payment would mark a real
- * invoice paid, so only the platform owner may make one.
- */
-/**
- * Said to the payer while a payment of the invoice is still open with a provider that is not
- * configured here any more (S19 step 0 round 2): nobody can ask that gateway about it, so a new
- * payment could charge twice.
+ * Said to the payer while a payment of the invoice is stranded (`isStrandedAttempt`, S19 step 0
+ * rounds 2 and 3): nobody can ask its gateway about it, so a new payment could charge twice.
  */
 export const PAYMENT_METHOD_OFF =
   'Your earlier payment was started with a payment method that is switched off now. Contact us before paying again, so you are not charged twice.';
 
+/**
+ * The one definition of a stranded payment (S19 step 0 round 3): one that was sent to the payment
+ * page (still open, or closed as expired) within the late-success window the daily check uses, made
+ * with a provider that is not configured here now. Only such a payment stops a new one: it may yet
+ * have taken money, and nobody can ask its gateway. A payment that never reached the gateway
+ * (CREATED) moved no money, and one older than the window can no longer be found to have
+ * succeeded, so neither blocks; the daily check still counts them for staff.
+ */
+export function isStrandedAttempt(
+  attempt: Pick<PaymentAttempt, 'status' | 'redirectedAt' | 'provider'>,
+  configuredProviders: readonly string[],
+  now: Date,
+): boolean {
+  if (attempt.status !== 'REDIRECTED' && attempt.status !== 'EXPIRED') return false;
+  if (attempt.redirectedAt === null) return false;
+  if (now.getTime() - attempt.redirectedAt.getTime() > LATE_SUCCESS_WINDOW_MS) return false;
+  return !configuredProviders.includes(attempt.provider);
+}
+
+/** Whether any payment of this invoice is stranded (`isStrandedAttempt`). */
+async function hasStrandedAttempt(
+  db: Db,
+  invoiceId: string,
+  configuredProviders: readonly string[],
+  now: Date,
+): Promise<boolean> {
+  const attempts = schema.paymentAttempts;
+  const candidates = await db
+    .select(attemptColumns())
+    .from(attempts)
+    .where(
+      and(
+        eq(attempts.invoiceId, invoiceId),
+        inArray(attempts.status, ['REDIRECTED', 'EXPIRED']),
+        gte(attempts.redirectedAt, new Date(now.getTime() - LATE_SUCCESS_WINDOW_MS)),
+      ),
+    );
+  return candidates.some((attempt) => isStrandedAttempt(attempt, configuredProviders, now));
+}
+
+/**
+ * What an agency is told while the gateway is in test mode (S29): a test payment would mark a real
+ * invoice paid, so only the platform owner may make one.
+ */
 export const TEST_PAYMENTS_ONLY =
   'Online payment is being tested right now, so it is not open to agencies yet. Nothing was charged. Please pay another way or try again later.';
 const START_FAILED = 'We could not open the payment page. Nothing was charged. Try again.';
@@ -797,21 +836,10 @@ export async function startOnlinePayment(
           return err(serviceError('invalid', REFUNDED_INVOICE_MESSAGE));
         }
 
-        // S19 step 0 round 2: a payment still open with a provider not configured here cannot be
-        // checked, so no other payment starts for this invoice, even on purpose.
+        // S19 step 0: a stranded payment (`isStrandedAttempt`) cannot be checked, so no other
+        // payment starts for this invoice, even on purpose.
         const configuredProviders = payments.configured().map((port) => port.provider);
-        const stranded = await tx
-          .select({ id: attempts.id })
-          .from(attempts)
-          .where(
-            and(
-              eq(attempts.invoiceId, locked.id),
-              inArray(attempts.status, ['CREATED', 'REDIRECTED']),
-              or(isNull(attempts.provider), notInArray(attempts.provider, configuredProviders)),
-            ),
-          )
-          .limit(1);
-        if (stranded.length > 0) {
+        if (await hasStrandedAttempt(tx, locked.id, configuredProviders, now)) {
           return err(refusal('provider_not_configured', PAYMENT_METHOD_OFF));
         }
 
@@ -1042,9 +1070,7 @@ async function countProviderNotConfigured(
     .from(attempts)
     .where(
       and(
-        providers.length === 0
-          ? undefined
-          : or(isNull(attempts.provider), notInArray(attempts.provider, [...providers])),
+        providers.length === 0 ? undefined : notInArray(attempts.provider, [...providers]),
         or(
           inArray(attempts.status, ['CREATED', 'REDIRECTED']),
           and(eq(attempts.status, 'EXPIRED'), gte(attempts.redirectedAt, lateAfter)),
@@ -1102,7 +1128,13 @@ export async function reconcilePaymentAttempts(
       ),
     };
   } catch (error) {
-    if (isMissingRelationError(error)) return { ...EMPTY_SUMMARY, available: false };
+    // S19 step 0 round 3: with no provider configured, a table a lagging migration has not made
+    // yet is nothing to do (a quiet run, nothing stranded), never a failed one.
+    if (isMissingRelationError(error)) {
+      return ports.length === 0
+        ? { ...EMPTY_SUMMARY, configured: false }
+        : { ...EMPTY_SUMMARY, available: false };
+    }
     throw error;
   }
 }
@@ -1308,7 +1340,7 @@ export async function refreshInvoicePaymentAttempts(
   db: Db,
   payments: PaymentPortResolver,
   input: InvoicePaymentsReader & { readonly minAgeMs?: number; readonly now?: Date },
-): Promise<Result<ReconciliationSummary, ServiceError>> {
+): Promise<Result<InvoicePaymentCheck, ServiceError>> {
   const allowed = await readerFor(db, input);
   if (!allowed.ok) return allowed;
   // With no provider configured nothing is asked, but an open payment is still counted as one no
@@ -1336,22 +1368,35 @@ export async function refreshInvoicePaymentAttempts(
         (a.status === 'REDIRECTED' ||
           now.getTime() - a.redirectedAt.getTime() <= LATE_SUCCESS_WINDOW_MS),
     );
-    return ok(
-      await settleBatch(
-        db,
-        (attempt) => payments.forProvider(attempt.provider),
-        eligible,
-        'refresh',
-        now,
-        { ...EMPTY_SUMMARY, configured },
-        true,
-      ),
+    const summary = await settleBatch(
+      db,
+      (attempt) => payments.forProvider(attempt.provider),
+      eligible,
+      'refresh',
+      now,
+      { ...EMPTY_SUMMARY, configured },
+      true,
     );
+    const strandedPayment = await hasStrandedAttempt(
+      db,
+      allowed.value.invoiceId,
+      payments.configured().map((port) => port.provider),
+      now,
+    );
+    return ok({ ...summary, strandedPayment });
   } catch (error) {
-    if (isMissingRelationError(error)) return ok({ ...EMPTY_SUMMARY, available: false });
+    if (isMissingRelationError(error)) {
+      return ok({ ...EMPTY_SUMMARY, available: false, strandedPayment: false });
+    }
     throw error;
   }
 }
+
+/** Check Status's answer: the counts, and whether a payment of the invoice is stranded. */
+export type InvoicePaymentCheck = ReconciliationSummary & {
+  /** `isStrandedAttempt` for any payment of the invoice: the payer must contact VisaStack. */
+  readonly strandedPayment: boolean;
+};
 
 // --- Reading ----------------------------------------------------------------------------------
 

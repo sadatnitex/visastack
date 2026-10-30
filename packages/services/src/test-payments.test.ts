@@ -368,7 +368,7 @@ describe('test payments (S29)', () => {
       'BILLING_REFUND_MANAGE',
     );
     if (!isOk(scope)) throw new Error('scope');
-    const sent = await requestRefund(db, port, scope.value, {
+    const sent = await requestRefund(db, onePort(port), scope.value, {
       organizationId,
       source: { kind: 'entry', invoicePaymentId: entry.id },
       amountMinorUnits: 1000,
@@ -384,7 +384,7 @@ describe('test payments (S29)', () => {
       .from(schema.auditEvents)
       .where(eq(schema.auditEvents.eventType, 'INVOICE_REFUND_NEEDS_CHECK'));
     port.mode = 'LIVE';
-    const checked = await checkRefundsNow(db, port, scope.value, { organizationId });
+    const checked = await checkRefundsNow(db, onePort(port), scope.value, { organizationId });
     expect(isOk(checked) && checked.value.needsCheck).toBe(1);
     const [request] = await db.select().from(schema.refundRequests);
     expect(request?.failureCode).toBe('ledger_refused');
@@ -422,7 +422,7 @@ describe('test payments (S29)', () => {
     const summary = await reconcilePaymentAttempts(
       db,
       systemScopeForTest('process-payment-reconciliation'),
-      port,
+      onePort(port),
       { now: new Date(Date.now() + 60 * 60 * 1000), limit: 2 },
     );
     expect(summary.recorded).toBe(1);

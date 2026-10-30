@@ -139,8 +139,8 @@ export async function checkPaymentAction(
         message: 'Your payment needs a check. VisaStack will contact you.',
       };
     }
-    // S19 step 0 round 2: a payment open with a provider switched off now cannot be checked.
-    if (summary.providerNotConfigured > 0) return { ok: false, message: PAYMENT_METHOD_OFF };
+    // S19 step 0: a stranded payment (the service's one definition) cannot be checked.
+    if (summary.strandedPayment) return { ok: false, message: PAYMENT_METHOD_OFF };
     if (!summary.configured) return UNAVAILABLE;
     if (summary.unavailable > 0 || summary.stillPending > 0) {
       return {

@@ -916,7 +916,7 @@ export async function triggerPaymentReconciliation(
     // fails is reported on its own and never hides the payment counts.
     let refunds: RefundCheckSummary | { readonly error: string };
     try {
-      refunds = await reconcileRefunds(handle, scope, paymentPorts({ refundsOnly: true }), {
+      refunds = await reconcileRefunds(handle, scope, payments, {
         deadline: Date.now() + REFUND_CHECK_BUDGET_MS,
       });
       if (refunds.checked === 0 && refunds.leftForLater > 0) {

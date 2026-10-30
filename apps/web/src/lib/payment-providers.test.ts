@@ -268,7 +268,7 @@ describe('the ports the services take', () => {
     expect(ports.currencyRefusal).toBe('Only invoices in Bangladeshi taka can be paid online.');
   });
 
-  it('leave out, for refunds, a configured provider whose port cannot refund', () => {
+  it('keep a configured provider whose port cannot refund (the refund services tell it apart, round 3)', () => {
     const env = { PAYMENT_PROVIDER: 'sslcommerz', ...sslcommerz() };
     const real = PAYMENT_PROVIDERS.sslcommerz.create(env, noFailure);
     vi.spyOn(PAYMENT_PROVIDERS.sslcommerz, 'create').mockReturnValue({
@@ -281,7 +281,8 @@ describe('the ports the services take', () => {
       queryByMerchantTranId: real.queryByMerchantTranId.bind(real),
       verifyIpnSignature: real.verifyIpnSignature.bind(real),
     });
-    expect(buildPaymentPorts(env, noFailure).configured()).toHaveLength(1);
-    expect(buildPaymentPorts(env, noFailure, { refundsOnly: true }).configured()).toEqual([]);
+    const ports = buildPaymentPorts(env, noFailure);
+    expect(ports.configured()).toHaveLength(1);
+    expect(isRefundingPaymentPort(ports.configured()[0] as never)).toBe(false);
   });
 });

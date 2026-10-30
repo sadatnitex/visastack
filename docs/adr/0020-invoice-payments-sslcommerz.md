@@ -284,3 +284,17 @@ Supersedes items 3 and 6 above where they differ.
    - a `PAYMENT_RESULT_SIGNING_SECRET` that is set but shorter than 32 characters fails readiness, naming only the setting.
 9. **One settings parser.** `readSslcommerzConfig`, `SslcommerzConfig`, `isPaymentProviderConfigured` and `createPaymentPort` are deleted (no production caller). The registry contract test also checks that each entry's key equals its port's `provider`.
 10. **Overview wording.** The row label is "Online Payments", like "Document Storage". With several providers each row is "Online Payments in <currency in plain words>". The provider's name is in the detail. Currency names come from the one list in `payment-resolver.ts` (`currencyWords`, `currencyListWords`).
+
+### S19 step 0, round 3 (30 Oct 2026): re-review fixes
+
+1. **One definition of stranded.** `isStrandedAttempt` in payments.ts: a payment sent to the payment page (REDIRECTED, or EXPIRED) within the late-success window (`LATE_SUCCESS_WINDOW_MS`, the one the daily check uses), made with a provider not configured now. All three places use it:
+   - `listAgencyInvoices` (the new required `configuredProviders` input gives `strandedPayment` on each view, which the card reads);
+   - `startOnlinePayment`, which refuses another payment;
+   - Check Status (`refreshInvoicePaymentAttempts` returns `strandedPayment`).
+
+   CREATED attempts and older ones never block. The daily check still counts the open ones.
+2. **Refunds.** `REFUND_PROVIDER_OFF` only when the payment's provider is not configured. A configured provider that cannot refund gets the earlier "cannot be refunded through the payment gateway" refusal. The web passes every configured provider to the refund services, which filter by `isRefundingPaymentPort`, so the `refundsOnly` option is removed.
+3. **Callback reports.** A chosen-but-incomplete provider is reported at most once per provider every 10 minutes per instance (`INCOMPLETE_REPORT_INTERVAL_MS`); the 503 is unchanged.
+4. **Daily check without a provider.** With no provider configured, a missing table is a quiet run (`configured: false`, nothing stranded), never `available: false`.
+5. **Check Now.** When every refund asked about went unanswered, the answer also names the stranded refunds.
+6. **Result-link key.** No change: holding `NEON_AUTH_COOKIE_SECRET` already allows minting sign-in sessions. The runbook says to change `PAYMENT_RESULT_SIGNING_SECRET` only when no payment is in progress.

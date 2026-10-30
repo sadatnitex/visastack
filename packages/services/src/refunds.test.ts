@@ -36,6 +36,7 @@ import { submitManualPaymentClaim } from './manual-claims';
 import { createOrganization, reviewOrganization } from './organizations';
 import { paymentPortResolver } from './payment-resolver';
 import {
+  LATE_SUCCESS_WINDOW_MS,
   PAYMENT_METHOD_OFF,
   newMerchantTranId,
   reconcilePaymentAttempts,
@@ -70,6 +71,7 @@ import {
 } from './refunds';
 
 const DAY = 24 * 60 * 60 * 1000;
+const HOUR = 60 * 60 * 1000;
 const TIMEOUT = 120_000;
 
 async function freshDb(): Promise<Db> {
@@ -677,6 +679,7 @@ describe('refunds through the gateway (S18)', () => {
       expect(overdue.map((o) => o.invoiceRef)).toEqual(['INV-UNTOUCHED']);
 
       const listed = await listAgencyInvoices(db, {
+        configuredProviders: ['sslcommerz'],
         actorAccountId: w.orgOwnerId,
         organizationId: w.organizationId,
       });
@@ -1222,6 +1225,7 @@ describe('before migration 0104', () => {
       });
       // The agency's invoices and the overdue rules still read as before.
       const listed = await listAgencyInvoices(db, {
+        configuredProviders: ['sslcommerz'],
         actorAccountId: w.orgOwnerId,
         organizationId: w.organizationId,
       });
@@ -2169,7 +2173,8 @@ describe('a second payment provider (S19 step 0)', () => {
       expect(ssl.refundCalls).toHaveLength(0);
       expect(other.refundCalls).toHaveLength(0);
       expect(await requests(w)).toHaveLength(0);
-      // A provider that is on but cannot refund is refused the same way.
+      // Round 3: a provider that is on but cannot refund is not "switched off": it gets the
+      // plain "refund it another way" refusal, and nothing is sent.
       const noRefunds = {
         configured: true,
         mode: 'LIVE' as const,
@@ -2188,7 +2193,12 @@ describe('a second payment provider (S19 step 0)', () => {
           { port: noRefunds, currencies: ['USD'] },
         ]),
       );
-      expect(isErr(cannot) && cannot.error.reason).toBe('provider_not_configured');
+      expect(isErr(cannot) && cannot.error.reason).toBeUndefined();
+      expect(isErr(cannot) && cannot.error.message).toBe(
+        'This payment cannot be refunded through the payment gateway. Refund it another way, then record it here.',
+      );
+      expect(ssl.refundCalls).toHaveLength(0);
+      expect(await requests(w)).toHaveLength(0);
     },
     TIMEOUT,
   );
@@ -2243,6 +2253,101 @@ describe('a second payment provider (S19 step 0)', () => {
       expect(ssl.refundQueries.length).toBeLessThan(4);
       expect(other.refundQueries).toHaveLength(1);
       expect(summary.leftForLater).toBe(4 - ssl.refundQueries.length);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'agrees everywhere on a stranded payment: only one sent to the payment page within the late window blocks (round 3)',
+    async () => {
+      const dollarsNow = paymentPortResolver([{ port: ssl, currencies: ['BDT', 'USD'] }]);
+      const cases: readonly (readonly [
+        string,
+        { provider: string; status: 'CREATED' | 'REDIRECTED' | 'EXPIRED'; agoMs: number | null },
+        boolean,
+      ])[] = [
+        [
+          'sent an hour ago, provider off',
+          { provider: 'otherpay', status: 'REDIRECTED', agoMs: HOUR },
+          true,
+        ],
+        [
+          'closed as expired 3 days ago, provider off',
+          { provider: 'otherpay', status: 'EXPIRED', agoMs: 3 * DAY },
+          true,
+        ],
+        [
+          'sent beyond the late window, provider off',
+          { provider: 'otherpay', status: 'REDIRECTED', agoMs: LATE_SUCCESS_WINDOW_MS + HOUR },
+          false,
+        ],
+        [
+          'expired beyond the late window, provider off',
+          { provider: 'otherpay', status: 'EXPIRED', agoMs: LATE_SUCCESS_WINDOW_MS + HOUR },
+          false,
+        ],
+        [
+          'never reached the gateway, provider off',
+          { provider: 'otherpay', status: 'CREATED', agoMs: null },
+          false,
+        ],
+        [
+          'sent an hour ago, provider on',
+          { provider: 'sslcommerz', status: 'REDIRECTED', agoMs: HOUR },
+          false,
+        ],
+      ];
+      let n = 0;
+      for (const [name, attempt, stranded] of cases) {
+        const invoiceId = await invoiceIn(`INV-STRAND-${n++}`, 2_500, 'USD');
+        const at = attempt.agoMs === null ? null : new Date(Date.now() - attempt.agoMs);
+        await db.insert(schema.paymentAttempts).values({
+          mode: 'LIVE',
+          invoiceId,
+          organizationId: w.organizationId,
+          provider: attempt.provider,
+          merchantTranId: newMerchantTranId(),
+          amountMinorUnits: 2_500,
+          currency: 'USD',
+          status: attempt.status,
+          createdAt: at ?? new Date(),
+          redirectedAt: at,
+        });
+
+        // The Invoices page.
+        const listed = await listAgencyInvoices(db, {
+          configuredProviders: ['sslcommerz'],
+          actorAccountId: w.orgOwnerId,
+          organizationId: w.organizationId,
+        });
+        if (!isOk(listed)) throw new Error('list');
+        const view = listed.value.find((item) => item.id === invoiceId);
+        expect(view?.strandedPayment, name).toBe(stranded);
+        // Check Status.
+        const checked = await refreshInvoicePaymentAttempts(db, dollarsNow, {
+          actorAccountId: w.orgOwnerId,
+          organizationId: w.organizationId,
+          invoiceId,
+          minAgeMs: 0,
+        });
+        expect(isOk(checked) && checked.value.strandedPayment, name).toBe(stranded);
+        // Starting another payment, on purpose.
+        const again = await startOnlinePayment(db, dollarsNow, {
+          actorAccountId: w.orgOwnerId,
+          invoiceId,
+          startAnother: true,
+          urlFor: () => 'https://vs.example.test/x',
+        });
+        expect(isErr(again) && again.error.reason === 'provider_not_configured', name).toBe(
+          stranded,
+        );
+        if (!stranded) expect(isOk(again), name).toBe(true);
+      }
+
+      // Older payments of the switched-off provider never block, but the daily check still counts
+      // the open ones for staff.
+      const daily = await reconcilePaymentAttempts(db, scope(), dollarsNow);
+      expect(daily.providerNotConfigured).toBeGreaterThanOrEqual(3);
     },
     TIMEOUT,
   );

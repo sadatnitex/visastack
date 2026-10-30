@@ -408,9 +408,10 @@ export async function checkRefundsAction(
         : { ok: false, message: stranded };
     }
     if (summary.unavailable > 0 && summary.unavailable === summary.checked) {
+      const unreachable = `The payment gateway could not be reached, so ${plural(summary.unavailable, 'refund was', 'refunds were')} not asked about. Try again later.`;
       return {
         ok: false,
-        message: `The payment gateway could not be reached, so ${plural(summary.unavailable, 'refund was', 'refunds were')} not asked about. Try again later.`,
+        message: stranded === null ? unreachable : `${unreachable} ${stranded}`,
       };
     }
     const parts = [

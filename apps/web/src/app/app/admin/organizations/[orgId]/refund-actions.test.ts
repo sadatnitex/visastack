@@ -277,6 +277,13 @@ describe('refund actions (S18)', () => {
     expect(both.message).toMatch(
       /^Checked with the payment gateway: 1 refunded\. 1 sent refund is waiting/,
     );
+    // Every refund the gateway that is on was asked about went unanswered: both are said (round 3).
+    mocks.checkRefundsNow.mockResolvedValue(
+      summary({ checked: 2, unavailable: 2, providerNotConfigured: 1 }),
+    );
+    expect((await checkRefundsAction(INITIAL, form({}))).message).toBe(
+      "The payment gateway could not be reached, so 2 refunds were not asked about. Try again later. 1 sent refund is waiting on a payment method that is switched off now, so VisaStack cannot ask about it. Check it in that payment method's own panel, then record what happened.",
+    );
     // Nothing on and nothing stranded: the plain "not set up".
     mocks.checkRefundsNow.mockResolvedValue(summary({ configured: false }));
     expect((await checkRefundsAction(INITIAL, form({}))).message).toBe(

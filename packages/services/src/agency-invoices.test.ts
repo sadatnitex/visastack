@@ -753,6 +753,7 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
       expect(invoice?.collectedAmountMinorUnits).toBe(0);
       expect(invoice?.status).toBe('OPEN');
       const listed = await listAgencyInvoices(db, {
+        configuredProviders: ['sslcommerz'],
         actorAccountId: org.ownerAccountId,
         organizationId: org.organizationId,
       });
@@ -793,6 +794,7 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
       expect(isErr(started) && started.error.code).toBe('not_found');
       expect(port.checkouts).toHaveLength(0);
       const seen = await listAgencyInvoices(db, {
+        configuredProviders: ['sslcommerz'],
         actorAccountId: org.memberAccountId,
         organizationId: org.organizationId,
       });
@@ -898,6 +900,7 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
       });
       expect(isOk(listed) && listed.value).toEqual([]);
       const invoices = await listAgencyInvoices(db, {
+        configuredProviders: ['sslcommerz'],
         actorAccountId: org.ownerAccountId,
         organizationId: org.organizationId,
       });
@@ -1457,6 +1460,7 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
       void theirs;
 
       const listed = await listAgencyInvoices(db, {
+        configuredProviders: ['sslcommerz'],
         actorAccountId: org.adminAccountId,
         organizationId: org.organizationId,
       });
@@ -1470,12 +1474,14 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
       expect(listed.value.find((i) => i.invoiceRef === 'INV-P-OPEN')?.state).toBe('OPEN');
       // Platform staff may read any agency's list; the other agency's owner may not read this one.
       const staff = await listAgencyInvoices(db, {
+        configuredProviders: ['sslcommerz'],
         actorAccountId: platform.accountId,
         actorEmail: platform.email,
         organizationId: org.organizationId,
       });
       expect(isOk(staff)).toBe(true);
       const crossed = await listAgencyInvoices(db, {
+        configuredProviders: ['sslcommerz'],
         actorAccountId: other.ownerAccountId,
         organizationId: org.organizationId,
       });
@@ -1493,6 +1499,7 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
       expect(isOk(started)).toBe(true);
       const view = async () => {
         const listed = await listAgencyInvoices(db, {
+          configuredProviders: ['sslcommerz'],
           actorAccountId: org.ownerAccountId,
           organizationId: org.organizationId,
         });

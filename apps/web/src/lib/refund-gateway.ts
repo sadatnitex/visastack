@@ -1,5 +1,5 @@
 import 'server-only';
-import type { PaymentPortResolver } from '@visastack/services';
+import { type PaymentPortResolver, isRefundingPaymentPort } from '@visastack/services';
 import { paymentPorts } from './providers';
 
 /**
@@ -28,20 +28,22 @@ export function refundsViaGatewayEnabled(readEnv: ReadEnv = fromProcess): boolea
 }
 
 /**
- * The configured gateways that can refund, whatever the switch says (for checking sent refunds),
- * or null when there is none.
+ * Every configured gateway, whatever the switch says (for checking sent refunds), or null when
+ * none of them can refund. The services use only the ones that can refund, and tell a payment
+ * whose provider is switched off from one whose provider is on but cannot refund (S19 step 0
+ * round 3), so the resolver carries every configured provider.
  */
 export function refundCheckPort(): PaymentPortResolver | null {
-  const gateways = paymentPorts({ refundsOnly: true });
-  return gateways.configured().length > 0 ? gateways : null;
+  const gateways = paymentPorts();
+  return gateways.configured().some(isRefundingPaymentPort) ? gateways : null;
 }
 
 /**
- * The gateways that can refund, possibly none (for "Check Now", which still counts sent refunds
- * no gateway here can be asked about, S19 step 0 round 2).
+ * Every configured gateway, possibly none (for "Check Now", which still counts sent refunds no
+ * gateway here can be asked about, S19 step 0 round 2).
  */
 export function refundCheckPorts(): PaymentPortResolver {
-  return paymentPorts({ refundsOnly: true });
+  return paymentPorts();
 }
 
 /**

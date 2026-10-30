@@ -4,7 +4,6 @@ import {
   type PaymentPort,
   type PaymentPortResolver,
   currencyListWords,
-  isRefundingPaymentPort,
   paymentPortResolver,
 } from '@visastack/services';
 
@@ -124,15 +123,17 @@ function readSslcommerz(env: ProviderEnv): {
 } {
   const storeId = namedValue(env, 'SSLCOMMERZ_STORE_ID')?.trim() ?? '';
   const storePassword = namedValue(env, 'SSLCOMMERZ_STORE_PASSWORD') ?? '';
-  const mode = namedValue(env, 'SSLCOMMERZ_MODE')?.trim();
-  const missing: string[] = [];
-  if (storeId === '') missing.push('SSLCOMMERZ_STORE_ID');
-  if (storePassword === '') missing.push('SSLCOMMERZ_STORE_PASSWORD');
-  if (mode !== 'sandbox' && mode !== 'live') missing.push('SSLCOMMERZ_MODE');
-  if (missing.length > 0 || (mode !== 'sandbox' && mode !== 'live')) {
-    return { settings: null, missing };
-  }
-  return { settings: { storeId, storePassword, mode }, missing };
+  const typed = namedValue(env, 'SSLCOMMERZ_MODE')?.trim();
+  const mode: SslcommerzSettings['mode'] | null =
+    typed === 'sandbox' || typed === 'live' ? typed : null;
+  const missing = [
+    ...(storeId === '' ? ['SSLCOMMERZ_STORE_ID'] : []),
+    ...(storePassword === '' ? ['SSLCOMMERZ_STORE_PASSWORD'] : []),
+    ...(mode === null ? ['SSLCOMMERZ_MODE'] : []),
+  ];
+  // Settings exactly when nothing is missing (the three facts the list above is made from).
+  const settings = storeId && storePassword && mode ? { storeId, storePassword, mode } : null;
+  return { settings, missing };
 }
 
 function sslcommerzSettings(env: ProviderEnv): SslcommerzSettings | null {
@@ -305,22 +306,20 @@ export function overallPaymentMode(
 }
 
 /**
- * The ports of the configured providers, as the resolver the services take. With
- * `refundsOnly`, only providers whose port can refund.
+ * The ports of the configured providers, as the resolver the services take. Every configured
+ * provider is in it, refunds or not: the refund services use only the ports that can refund, and
+ * tell a provider that is switched off from one that cannot refund (S19 step 0 round 3).
  */
 export function buildPaymentPorts(
   env: ProviderEnv,
   onFailure: (event: PaymentProviderFailure) => void,
-  options: { readonly refundsOnly?: boolean } = {},
 ): PaymentPortResolver {
-  const choices = [];
-  for (const provider of configuredPaymentProviders(env)) {
-    if (options.refundsOnly && !provider.entry.supportsRefunds) continue;
-    const port = provider.entry.create(env, onFailure);
-    if (options.refundsOnly && !isRefundingPaymentPort(port)) continue;
-    choices.push({ port, currencies: provider.entry.currencies });
-  }
-  return paymentPortResolver(choices);
+  return paymentPortResolver(
+    configuredPaymentProviders(env).map((provider) => ({
+      port: provider.entry.create(env, onFailure),
+      currencies: provider.entry.currencies,
+    })),
+  );
 }
 
 /** What the Invoices page may offer, per invoice currency: the provider that takes it, and its mode. */

@@ -151,6 +151,7 @@ describe('checking a payment', () => {
       unavailable: 0,
       awaitingReview: 0,
       providerNotConfigured: 0,
+      strandedPayment: false,
       ...overrides,
     },
   });
@@ -181,13 +182,19 @@ describe('checking a payment', () => {
     // Whether other providers are on or none is.
     for (const configured of [true, false]) {
       mocks.refreshInvoicePaymentAttempts.mockResolvedValue(
-        summary({ configured, checked: 0, providerNotConfigured: 1 }),
+        summary({ configured, checked: 0, providerNotConfigured: 1, strandedPayment: true }),
       );
       expect(await run(), String(configured)).toEqual({ ok: false, message: off });
     }
+    // Round 3: only the service's stranded answer counts; an old payment left with a switched-off
+    // provider (counted for staff) does not stop the payer.
+    mocks.refreshInvoicePaymentAttempts.mockResolvedValue(
+      summary({ checked: 0, providerNotConfigured: 1, strandedPayment: false }),
+    );
+    expect((await run()).message).toMatch(/no open payment/);
     // Good news about another payment of the invoice still comes first.
     mocks.refreshInvoicePaymentAttempts.mockResolvedValue(
-      summary({ recorded: 1, providerNotConfigured: 1 }),
+      summary({ recorded: 1, providerNotConfigured: 1, strandedPayment: true }),
     );
     expect((await run()).message).toBe('Your payment was received. Thank you.');
     // With nothing configured and nothing stranded, online payment is simply not available.

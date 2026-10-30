@@ -10,6 +10,7 @@ import { provisionAccount } from './accounts';
 import { createInvoice, recordInvoicePayment } from './billing';
 import type { Db } from './db';
 import { createOrganization, reviewOrganization } from './organizations';
+import { paymentPortResolver } from './payment-resolver';
 import {
   type PaymentAttempt,
   RECENT_ATTEMPT_MS,
@@ -1086,6 +1087,16 @@ describe('online invoice payments (S11)', () => {
       // Refund requests (S18, migration 0104) point at attempts and cannot exist before 0096 either.
       await db.execute(sql`drop table refund_requests`);
       await db.execute(sql`drop table payment_attempts`);
+    });
+
+    it('is a quiet run, not a failed one, when no provider is configured either (S19 step 0 round 3)', async () => {
+      expect(
+        await reconcilePaymentAttempts(
+          db,
+          systemScopeForTest('process-payment-reconciliation'),
+          paymentPortResolver([]),
+        ),
+      ).toMatchObject({ available: true, configured: false, checked: 0, providerNotConfigured: 0 });
     });
 
     it('reports not available yet instead of failing, and records nothing', async () => {

@@ -130,7 +130,10 @@ describe('a second provider in another mode (S19 step 0 round 2)', () => {
    * reading of "some live, some in test mode" is checked against the one registry answer.
    */
   async function withOtherPay(run: () => Promise<void>) {
-    const { PAYMENT_PROVIDERS, readFormCallbackFields } = await import('./payment-providers');
+    const { PAYMENT_PROVIDERS, PAYMENT_PROVIDER_KEYS, readFormCallbackFields } = await import(
+      './payment-providers'
+    );
+    const keys = PAYMENT_PROVIDER_KEYS as string[];
     type Env = Readonly<Record<string, string | undefined>>;
     const KEY = 'OTHERPAY_KEY';
     const MODE = 'OTHERPAY_MODE';
@@ -162,9 +165,11 @@ describe('a second provider in another mode (S19 step 0 round 2)', () => {
         return fields === null ? null : { fields, merchantTranId: null, valId: null };
       },
     });
+    keys.push('otherpay');
     try {
       await run();
     } finally {
+      keys.pop();
       Reflect.deleteProperty(PAYMENT_PROVIDERS, 'otherpay');
     }
   }

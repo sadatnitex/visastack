@@ -89,3 +89,11 @@ Owner steps (after that package is merged):
 - **Refunds of a payment taken with a provider that is switched off** are refused before anything else. The refusal says to refund it in that payment method's own panel and record it with Record a Refund Made Outside VisaStack.
 - **Result page links:** only VisaStack's own keys sign them. The old store-password key is gone (decision O2 closed: no such link ever existed, since SSLCOMMERZ was never set up in production). `PAYMENT_RESULT_SIGNING_SECRET` shorter than 32 characters fails readiness. A link made just before you set it keeps working for its hour.
 - **The platform overview** row is "Online Payments" (with several providers, "Online Payments in <currency>"), and its detail names the provider.
+
+## Update 2026-10-30 (S19 step 0, round 3)
+
+- Change `PAYMENT_RESULT_SIGNING_SECRET` only when no payment is in progress. A result link lasts one hour, and a link signed with the old value stops working once the value changes.
+- A payment counts as stranded only when it was sent to the payment page (still open, or closed as expired) within the last 7 days with a payment method that is switched off now. Only such a payment stops the payer from paying online again. Older ones, and ones that never reached the payment page, never block, but the daily check still counts the open ones for staff.
+- A refund of a payment whose payment method is still on but cannot send refunds gets "This payment cannot be refunded through the payment gateway. Refund it another way, then record it here." The "switched off" sentence is only for a payment method that is switched off.
+- A provider chosen with settings missing is logged at most once every 10 minutes per running server, however often its addresses are called; each call is still answered 503.
+- With no provider set up and the payments table not created yet, the daily check is a quiet run, not a failed one.

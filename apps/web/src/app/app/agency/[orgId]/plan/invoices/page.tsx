@@ -99,9 +99,15 @@ export default async function AgencyInvoicesPage({
   const configuredProviders = configuredPaymentProviders(process.env).map((p) => p.key);
 
   const data = await withSession(async ({ db, accountId, email }) => {
-    let listed = await listAgencyInvoices(db, { actorAccountId: accountId, organizationId: orgId });
+    const list = () =>
+      listAgencyInvoices(db, {
+        actorAccountId: accountId,
+        organizationId: orgId,
+        configuredProviders,
+      });
+    let listed = await list();
     if (listed.ok && (await checkOpenPayments(db, accountId, orgId, listed.value))) {
-      listed = await listAgencyInvoices(db, { actorAccountId: accountId, organizationId: orgId });
+      listed = await list();
     }
     if (!listed.ok) return { invoices: [], allowed: false, status: null, owner: false };
     const status = await loadBillingNotice(db, accountId, orgId);
@@ -144,7 +150,6 @@ export default async function AgencyInvoicesPage({
               invoice={invoice}
               organizationId={orgId}
               online={online}
-              configuredProviders={configuredProviders}
               testModeHint={TEST_PAYMENTS_ONLY}
               latestDate={latestDate}
               now={now}

@@ -76,7 +76,7 @@ export function describeProviderOperations(
 function paymentRows(env: Readonly<Record<string, string | undefined>>): ProviderOperationsRow[] {
   const configured = configuredPaymentProviders(env);
   const chosen = chosenPaymentProviders(env);
-  const keys = Object.keys(PAYMENT_PROVIDERS) as (keyof typeof PAYMENT_PROVIDERS)[];
+  const keys = PAYMENT_PROVIDER_KEYS;
   return keys.map((key) => {
     const entry: PaymentProviderEntry = PAYMENT_PROVIDERS[key];
     const on = configured.find((provider) => provider.key === key);

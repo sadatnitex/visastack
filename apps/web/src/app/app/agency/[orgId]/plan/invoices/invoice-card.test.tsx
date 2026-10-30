@@ -32,7 +32,7 @@ function invoice(overrides: Partial<AgencyInvoiceView> = {}): AgencyInvoiceView 
     periodEnd: new Date('2026-10-31T00:00:00Z'),
     dueDate: new Date(Date.now() + 14 * DAY),
     recentAttemptStartedAt: null,
-    openPaymentProviders: [],
+    strandedPayment: false,
     attempts: [],
     claims: [],
     receipts: [],
@@ -49,7 +49,6 @@ const render = (view: AgencyInvoiceView, onlineAvailable = true) =>
       invoice={view}
       organizationId={ORG}
       online={onlineAvailable ? PAY_BDT : {}}
-      configuredProviders={['sslcommerz']}
       latestDate="2026-10-28"
     />,
   );
@@ -126,7 +125,6 @@ describe('an invoice card on the agency Invoices page', () => {
       <InvoiceCard
         invoice={dollars}
         organizationId={ORG}
-        configuredProviders={['sslcommerz']}
         online={{ USD: 'pay' }}
         latestDate="2026-10-28"
       />,
@@ -136,7 +134,6 @@ describe('an invoice card on the agency Invoices page', () => {
       <InvoiceCard
         invoice={invoice()}
         organizationId={ORG}
-        configuredProviders={['sslcommerz']}
         online={{ USD: 'pay' }}
         testModeHint="Online payment is being tested right now."
         latestDate="2026-10-28"
@@ -169,7 +166,7 @@ describe('an invoice card on the agency Invoices page', () => {
         invoice({
           state: 'PAYMENT_STARTED',
           recentAttemptStartedAt: recent,
-          openPaymentProviders: ['otherpay'],
+          strandedPayment: true,
           attempts: [attempt('REDIRECTED')],
         }),
       );
@@ -187,7 +184,7 @@ describe('an invoice card on the agency Invoices page', () => {
       invoice({
         state: 'PAYMENT_STARTED',
         recentAttemptStartedAt: new Date(),
-        openPaymentProviders: ['sslcommerz'],
+        strandedPayment: false,
         attempts: [attempt('REDIRECTED')],
       }),
     );
@@ -239,7 +236,6 @@ describe('an invoice card on the agency Invoices page', () => {
       <InvoiceCard
         invoice={invoice()}
         organizationId={ORG}
-        configuredProviders={['sslcommerz']}
         online={{ BDT: 'testing' }}
         testModeHint={hint}
         latestDate="2026-10-30"
@@ -418,7 +414,6 @@ describe('an invoice card on the agency Invoices page', () => {
       <InvoiceCard
         invoice={invoice({ dueDate: new Date('2026-10-22T00:00:00Z') })}
         organizationId={ORG}
-        configuredProviders={['sslcommerz']}
         online={PAY_BDT}
         latestDate="2026-10-30"
         now={now}
@@ -431,7 +426,6 @@ describe('an invoice card on the agency Invoices page', () => {
       <InvoiceCard
         invoice={invoice({ dueDate: new Date('2026-10-30T00:00:00Z') })}
         organizationId={ORG}
-        configuredProviders={['sslcommerz']}
         online={PAY_BDT}
         latestDate="2026-10-30"
         now={now}

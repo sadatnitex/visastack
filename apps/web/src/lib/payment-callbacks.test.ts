@@ -29,9 +29,13 @@ const STORE_ID = 'visastacktest001';
 const PASSWORD = 'store-password-that-must-never-leak';
 const BASE = 'https://app.example.test';
 
-const { handleBrowserReturn, handleGatewayNotification, readCallbackBody } = await import(
-  './payment-callbacks'
-);
+const {
+  INCOMPLETE_REPORT_INTERVAL_MS,
+  forgetIncompleteReports,
+  handleBrowserReturn,
+  handleGatewayNotification,
+  readCallbackBody,
+} = await import('./payment-callbacks');
 const { PAYMENT_PROVIDERS } = await import('./payment-providers');
 
 /** The SSLCOMMERZ callback addresses' provider (S19 step 0). */
@@ -168,6 +172,7 @@ beforeEach(async () => {
     validationTimeoutMs: 500,
   });
   logged = [];
+  forgetIncompleteReports();
   for (const level of ['log', 'info', 'warn', 'error'] as const) {
     vi.spyOn(console, level).mockImplementation((...args: unknown[]) => {
       logged.push(args.map(String).join(' '));
@@ -384,20 +389,29 @@ describe('the gateway notification address', () => {
     expect(await ledger()).toHaveLength(0);
   });
 
-  it('answers 503 and reports once per request when the provider is chosen with incomplete settings (round 2)', async () => {
-    for (const request of [1, 2]) {
-      const answer = await handleGatewayNotification(
+  it('answers 503 every time, but reports incomplete settings at most once per 10 minutes (rounds 2 and 3)', async () => {
+    const start = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(start);
+    const send = () =>
+      handleGatewayNotification(
         ipn(gateway.notification(tran)),
         SSL,
         deps({ port: () => null, incomplete: () => INCOMPLETE }),
       );
-      expect(answer.status, String(request)).toBe(503);
-      const reports = logged.filter((line) => line.includes('server_error'));
-      expect(reports, String(request)).toHaveLength(request);
-      expect(reports[request - 1]).toContain('paymentNotification');
-      expect(reports[request - 1]).toContain('sslcommerz');
-      expect(reports[request - 1]).toContain('SSLCOMMERZ_MODE');
-    }
+    const reports = () => logged.filter((line) => line.includes('server_error'));
+    // A flood of anonymous calls: each answered 503, one report.
+    for (let i = 0; i < 5; i++) expect((await send()).status).toBe(503);
+    expect(reports()).toHaveLength(1);
+    expect(reports()[0]).toContain('paymentNotification');
+    expect(reports()[0]).toContain('sslcommerz');
+    expect(reports()[0]).toContain('SSLCOMMERZ_MODE');
+    clock.mockReturnValue(start + INCOMPLETE_REPORT_INTERVAL_MS - 1);
+    expect((await send()).status).toBe(503);
+    expect(reports()).toHaveLength(1);
+    // Ten minutes on, it is reported again.
+    clock.mockReturnValue(start + INCOMPLETE_REPORT_INTERVAL_MS);
+    expect((await send()).status).toBe(503);
+    expect(reports()).toHaveLength(2);
     expect(logged.join('\n')).not.toContain(PASSWORD);
     expect(gateway.requests.filter((r) => r.path.includes('validator'))).toHaveLength(0);
     expect(await ledger()).toHaveLength(0);

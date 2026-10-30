@@ -331,13 +331,10 @@ function paymentFailureRecorder(): (event: PaymentProviderFailure) => void {
 /**
  * Every configured payment provider's port, as the resolver the services take (S19 step 0): a
  * payment starts on the provider that takes the invoice's currency, and a check or refund goes to
- * the provider the payment was made with. Empty (nothing can start) when none is configured. With
- * `refundsOnly`, only providers that can refund.
+ * the provider the payment was made with. Empty (nothing can start) when none is configured.
  */
-export function paymentPorts(
-  options: { readonly refundsOnly?: boolean } = {},
-): PaymentPortResolver {
-  return buildPaymentPorts(process.env, paymentFailureRecorder(), options);
+export function paymentPorts(): PaymentPortResolver {
+  return buildPaymentPorts(process.env, paymentFailureRecorder());
 }
 
 /** One provider's port when it is chosen and fully configured, else null. Never throws. */
