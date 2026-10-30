@@ -118,7 +118,7 @@ function rawRows(
       reading: aiConnectorEnabled((name) => env[name]) ? 'On' : 'Off',
       source: 'Configuration',
       detail:
-        'Whether people can connect an AI app to VisaStack (the AI_CONNECTOR_ENABLED switch). Each connection still needs the person to approve it, and they can remove it at any time.',
+        'Whether people can connect an AI app to VisaStack. Each connection still needs the person to approve it, and they can remove it at any time.',
     },
     {
       label: 'Document Storage',
