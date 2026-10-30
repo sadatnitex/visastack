@@ -6,7 +6,7 @@ import type { ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 import { describe, expect, it, vi } from 'vitest';
-import type { ConfigFormView } from '../app/app/admin/ai-settings/forms';
+import { aiConfigView } from './ai-config-view.test-support';
 import { axeViolations } from './axe.test-support';
 import {
   fixtureDocumentGroups,
@@ -1419,31 +1419,6 @@ const AGENCY: readonly Case[] = [
     ),
   },
 ];
-
-/** A saved AI configuration as the settings forms see it. */
-function aiConfigView(overrides: Partial<ConfigFormView> = {}): ConfigFormView {
-  return {
-    id: 'c1',
-    status: 'DRAFT',
-    provider: 'anthropic',
-    model: 'claude-opus-5-5',
-    reasoningEffort: null,
-    dataPolicyApproved: true,
-    budgetUsd: 100,
-    perDocumentBudgetUsd: null,
-    maxAttemptsPerDocument: 3,
-    maxPagesPerDocument: null,
-    cacheMaxAgeDays: null,
-    maxConcurrentCalls: null,
-    fallbackEnabled: false,
-    fallbackProviderConfigId: null,
-    notes: 'Pilot',
-    apiKeyFingerprint: '...MQAA',
-    keyRevoked: false,
-    editableInPlace: true,
-    ...overrides,
-  };
-}
 
 const ADMIN: readonly Case[] = [
   row('release a legal hold', () => <adminButtons.ReleaseHoldButton holdId={rowId()} />),

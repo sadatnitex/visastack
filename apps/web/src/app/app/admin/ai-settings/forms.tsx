@@ -88,22 +88,6 @@ const KEY_PLACEHOLDER: Record<KeyMode, string> = {
 };
 
 /**
- * Every setting of a configuration except the provider, shared by the create, edit and "edit as
- * new draft" forms. `config` prefills the fields; `idPrefix` keeps ids unique when several forms
- * are on the page.
- *
- * `fallbackOptions` populates the fallback dropdown (Part 8 §13) -- every
- * configuration ever created, any status, since a fallback target need not
- * be ACTIVE (it commonly is not: the platform's own single-winner ACTIVE
- * invariant means a fallback target is necessarily some other status, most
- * naturally the config this new one might one day supersede). The real
- * eligibility gate (different provider, data policy approved, key not
- * revoked) is enforced server-side at activation time
- * (`activateAiProviderConfig`), not here -- a DRAFT is inert either way, the
- * same "loose at save time, hard-gated at activation" discipline every
- * other field on this form already follows.
- */
-/**
  * The model, chosen from the provider's listed model IDs (`lib/ai-models.ts`), or typed under
  * "Other Model ID" for one not listed yet. A saved model that is not listed opens on "Other" with
  * its ID filled in. Sends `modelChoice`, and `modelOther` when "Other" is chosen.
@@ -160,7 +144,6 @@ function ModelPicker({
             required
             className="input"
             placeholder="e.g. claude-opus-5-5"
-            pattern="[A-Za-z0-9][A-Za-z0-9._:@\-]{0,99}"
             defaultValue={savedIsListed ? undefined : savedModel}
             aria-describedby={id('modelOther-hint')}
           />
@@ -173,15 +156,34 @@ function ModelPicker({
   );
 }
 
+/**
+ * Every setting of a configuration except the provider, shared by the create, edit and "edit as
+ * new draft" forms. `config` prefills the fields; `idPrefix` keeps ids unique when several forms
+ * are on the page.
+ *
+ * `fallbackOptions` populates the fallback dropdown (Part 8 §13) -- every
+ * configuration ever created, any status, since a fallback target need not
+ * be ACTIVE (it commonly is not: the platform's own single-winner ACTIVE
+ * invariant means a fallback target is necessarily some other status, most
+ * naturally the config this new one might one day supersede). The real
+ * eligibility gate (different provider, data policy approved, key not
+ * revoked) is enforced server-side at activation time
+ * (`activateAiProviderConfig`), not here -- a DRAFT is inert either way, the
+ * same "loose at save time, hard-gated at activation" discipline every
+ * other field on this form already follows.
+ */
 function ConfigSettingsFields({
   idPrefix,
   provider,
+  resetCount,
   fallbackOptions,
   config,
   keyMode,
 }: {
   readonly idPrefix: string;
   readonly provider: string;
+  /** Bumped when the form resets, so the model list starts again from what the form shows. */
+  readonly resetCount: number;
   readonly fallbackOptions: readonly FallbackOption[];
   readonly config?: ConfigFormView;
   readonly keyMode: KeyMode;
@@ -192,8 +194,8 @@ function ConfigSettingsFields({
   return (
     <>
       <ModelPicker
-        // A new provider starts its own list from the top.
-        key={provider}
+        // A new provider, or a reset form, starts the list again from the top.
+        key={`${provider}-${resetCount}`}
         idPrefix={idPrefix}
         provider={provider}
         {...(config ? { savedModel: config.model } : {})}
@@ -403,8 +405,18 @@ export function CreateDraftConfigForm({
 }) {
   const [state, formAction, pending] = useActionState(createDraftAiProviderConfigAction, INITIAL);
   const [provider, setProvider] = useState('openai');
+  // React resets the form after every save; the provider and model lists follow the reset, so
+  // what is shown is always what is sent.
+  const [resetCount, setResetCount] = useState(0);
   return (
-    <form action={formAction} className="field-list">
+    <form
+      action={formAction}
+      className="field-list"
+      onReset={() => {
+        setProvider('openai');
+        setResetCount((n) => n + 1);
+      }}
+    >
       <div className="field-row">
         <label className="field-label" htmlFor="draft-provider">
           Provider
@@ -427,6 +439,7 @@ export function CreateDraftConfigForm({
       <ConfigSettingsFields
         idPrefix="draft"
         provider={provider}
+        resetCount={resetCount}
         fallbackOptions={fallbackOptions}
         keyMode="required"
       />
@@ -463,8 +476,14 @@ export function EditConfigForm({
     INITIAL,
   );
   const keyMode: KeyMode = inPlace ? 'keep' : config.keyRevoked ? 'required' : 'copy';
+  // As on the create form: the model list follows React's reset after a save.
+  const [resetCount, setResetCount] = useState(0);
   return (
-    <form action={formAction} className="field-list u-mt-100">
+    <form
+      action={formAction}
+      className="field-list u-mt-100"
+      onReset={() => setResetCount((n) => n + 1)}
+    >
       {inPlace ? (
         <input type="hidden" name="configId" value={config.id} />
       ) : (
@@ -486,6 +505,7 @@ export function EditConfigForm({
       <ConfigSettingsFields
         idPrefix={`edit-${config.id}`}
         provider={config.provider}
+        resetCount={resetCount}
         fallbackOptions={fallbackOptions}
         config={config}
         keyMode={keyMode}

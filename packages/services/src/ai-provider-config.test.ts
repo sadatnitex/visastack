@@ -100,6 +100,12 @@ interface DraftOverrides {
   readonly fallbackProviderConfigId?: string;
 }
 
+const MODEL_FOR: Readonly<Record<string, string>> = {
+  openai: 'gpt-5.6-terra',
+  anthropic: 'claude-opus-5-5',
+  gemini: 'gemini-3.8-flash',
+};
+
 function draftInput(
   actor: Awaited<ReturnType<typeof seedSecurityAdmin>>,
   overrides?: DraftOverrides,
@@ -108,7 +114,8 @@ function draftInput(
     actor,
     stepUpSatisfied: true,
     provider: overrides?.provider ?? 'openai',
-    model: 'gpt-5.6-terra',
+    // A model of the provider's own family, as the service requires.
+    model: MODEL_FOR[overrides?.provider ?? 'openai'] ?? 'gpt-5.6-terra',
     apiKey: overrides?.apiKey ?? 'sk-test-1234',
     encryption,
     dataPolicyApproved: overrides?.dataPolicyApproved ?? true,
@@ -988,7 +995,7 @@ function editInput(
     stepUpSatisfied: true,
     configId,
     encryption,
-    model: 'claude-opus-5-5',
+    model: 'gpt-5.7-edited',
     dataPolicyApproved: true,
     budgetLimitUnits: 3_000_000,
     ...overrides,
@@ -1025,14 +1032,18 @@ describe('AI provider configuration -- editing a draft in place', () => {
     const edited = await editDraft(
       db,
       actor,
-      editInput(draft.value.id, { reasoningEffort: 'low', notes: 'new notes' }),
+      editInput(draft.value.id, {
+        model: 'claude-sonnet-5-5',
+        reasoningEffort: 'low',
+        notes: 'new notes',
+      }),
     );
     expect(isOk(edited)).toBe(true);
     if (!isOk(edited)) return;
     expect(edited.value.id).toBe(draft.value.id);
     expect(edited.value.status).toBe('DRAFT');
     expect(edited.value.provider).toBe('anthropic');
-    expect(edited.value.model).toBe('claude-opus-5-5');
+    expect(edited.value.model).toBe('claude-sonnet-5-5');
     expect(edited.value.reasoningEffort).toBe('low');
     expect(edited.value.budgetLimitUnits).toBe(3_000_000);
     expect(edited.value.notes).toBe('new notes');
@@ -1354,13 +1365,21 @@ describe('AI provider configuration -- what editing and revoking protect', () =>
     );
     if (!isOk(primary)) throw new Error('primary');
 
-    expect(isOk(await editDraft(db, actor, editInput(fallback.value.id)))).toBe(true);
+    expect(
+      isOk(
+        await editDraft(db, actor, editInput(fallback.value.id, { model: 'claude-sonnet-5-5' })),
+      ),
+    ).toBe(true);
     await activateAiProviderConfig(db, {
       actor,
       stepUpSatisfied: true,
       configId: primary.value.id,
     });
-    const edited = await editDraft(db, actor, editInput(fallback.value.id));
+    const edited = await editDraft(
+      db,
+      actor,
+      editInput(fallback.value.id, { model: 'claude-sonnet-5-5' }),
+    );
     expect(isErr(edited) && edited.error.message).toContain('fallback');
   });
 
@@ -1439,31 +1458,51 @@ describe('AI provider configuration -- what editing and revoking protect', () =>
   });
 });
 
-describe('AI provider configuration -- the model must be an exact model ID', () => {
+describe('AI provider configuration -- the model must be an exact model ID of the provider', () => {
   let db: Db;
   beforeEach(async () => {
     db = await freshDb();
   });
 
-  it('refuses a display name or anything that is not a model ID, on create and on edit, and accepts real IDs', async () => {
+  it('refuses a display name or anything that is not a model ID, on create and on edit', async () => {
     const actor = await seedSecurityAdmin(db);
-    for (const model of ['Claude 5.5', 'claude opus', 'models/gemini', 'x'.repeat(101)]) {
+    for (const model of ['Claude 5.5', 'claude opus', 'models/gpt', 'x'.repeat(101)]) {
       const created = await createDraftAiProviderConfig(db, { ...draftInput(actor), model });
       expect(isErr(created) && created.error.message).toContain('exact model ID');
-    }
-    for (const model of [
-      'claude-opus-5-5',
-      'gemini-3.8-flash',
-      'gpt-5.6-terra',
-      'ft:gpt-5:org:x',
-    ]) {
-      expect(isOk(await createDraftAiProviderConfig(db, { ...draftInput(actor), model }))).toBe(
-        true,
-      );
     }
     const draft = await createDraftAiProviderConfig(db, draftInput(actor));
     if (!isOk(draft)) throw new Error('draft');
     const edited = await editDraft(db, actor, editInput(draft.value.id, { model: 'Claude 5.5' }));
     expect(isErr(edited) && edited.error.message).toContain('exact model ID');
+  });
+
+  it("accepts the provider's own IDs and unknown families, and refuses another provider's model", async () => {
+    const actor = await seedSecurityAdmin(db);
+    // draftInput is OpenAI: its own ID, a fine-tuned one, and a new family are saved.
+    for (const model of ['gpt-5.6-terra', 'ft:gpt-5:org:x', 'o9-reasoner']) {
+      expect(isOk(await createDraftAiProviderConfig(db, { ...draftInput(actor), model }))).toBe(
+        true,
+      );
+    }
+    const crossed = await createDraftAiProviderConfig(db, {
+      ...draftInput(actor, { provider: 'gemini' }),
+      model: 'claude-opus-5-5',
+    });
+    expect(isErr(crossed) && crossed.error.message).toContain('Anthropic model');
+    // Gemini puts the ID in its request path, so no colon there.
+    const colon = await createDraftAiProviderConfig(db, {
+      ...draftInput(actor, { provider: 'gemini' }),
+      model: 'gemini-3.5-flash:latest',
+    });
+    expect(isErr(colon) && colon.error.message).toContain('exact model ID');
+
+    const draft = await createDraftAiProviderConfig(db, draftInput(actor));
+    if (!isOk(draft)) throw new Error('draft');
+    const crossedEdit = await editDraft(
+      db,
+      actor,
+      editInput(draft.value.id, { model: 'gemini-3.8-flash' }),
+    );
+    expect(isErr(crossedEdit) && crossedEdit.error.message).toContain('Google Gemini model');
   });
 });

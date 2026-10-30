@@ -147,7 +147,7 @@ interface ConfigFields {
 /** Reads the shared settings, or a message naming what is missing. The key is checked by each caller. */
 function parseConfigFields(formData: FormData): ConfigFields | string {
   // The model list sends `modelChoice`, or `modelOther` when "Other Model ID" is chosen.
-  const choice = String(formData.get('modelChoice') ?? formData.get('model') ?? '').trim();
+  const choice = String(formData.get('modelChoice') ?? '').trim();
   const model = (choice === OTHER_MODEL ? String(formData.get('modelOther') ?? '') : choice).trim();
   const budgetLimitUsd = parsePositiveNumber(formData.get('budgetLimitUsd'));
   const fallbackEnabled = formData.get('fallbackEnabled') === 'on';

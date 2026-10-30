@@ -1,20 +1,20 @@
+import { aiModelIdProblem } from '@visastack/services';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { aiConfigView } from './ai-config-view.test-support';
 import { AI_MODEL_OPTIONS, OTHER_MODEL, aiModelOptionsFor, isListedAiModel } from './ai-models';
 import { IMPLEMENTED_PROVIDERS } from './ai-providers';
-
-/** The same model ID rule the service applies before saving (packages/services/src/ai-provider-config.ts). */
-const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,99}$/;
+import './next-mocks.test-support';
 
 describe('AI model list', () => {
-  it('lists models for every provider that can be configured, each a valid, unique model ID', () => {
+  it("lists models for every provider that can be configured, each unique and accepted by the service's own model rule", () => {
     for (const provider of IMPLEMENTED_PROVIDERS) {
       const options = aiModelOptionsFor(provider);
       expect(options.length, provider).toBeGreaterThan(0);
       const ids = options.map((o) => o.id);
       expect(new Set(ids).size, provider).toBe(ids.length);
       for (const id of ids) {
-        expect(id, provider).toMatch(MODEL_ID);
+        expect(aiModelIdProblem(provider, id), `${provider} ${id}`).toBeUndefined();
         expect(id).not.toBe(OTHER_MODEL);
       }
     }
@@ -32,26 +32,7 @@ describe('AI model list', () => {
 describe('AI settings model picker', () => {
   it('offers the provider list with the saved model chosen, or opens on "Other Model ID" with an unlisted one filled in', async () => {
     const { EditConfigForm } = await import('../app/app/admin/ai-settings/forms');
-    const view = {
-      id: 'c1',
-      status: 'DRAFT' as const,
-      provider: 'anthropic',
-      model: 'claude-sonnet-5-5',
-      reasoningEffort: null,
-      dataPolicyApproved: true,
-      budgetUsd: 10,
-      perDocumentBudgetUsd: null,
-      maxAttemptsPerDocument: null,
-      maxPagesPerDocument: null,
-      cacheMaxAgeDays: null,
-      maxConcurrentCalls: null,
-      fallbackEnabled: false,
-      fallbackProviderConfigId: null,
-      notes: null,
-      apiKeyFingerprint: '...abcd',
-      keyRevoked: false,
-      editableInPlace: true,
-    };
+    const view = aiConfigView({ model: 'claude-sonnet-5-5' });
     const listed = renderToStaticMarkup(<EditConfigForm config={view} fallbackOptions={[]} />);
     expect(listed).toContain('<option value="claude-sonnet-5-5" selected="">');
     expect(listed).not.toContain('name="modelOther"');
@@ -61,5 +42,6 @@ describe('AI settings model picker', () => {
     );
     expect(unlisted).toContain(`<option value="${OTHER_MODEL}" selected="">`);
     expect(unlisted).toMatch(/name="modelOther"[^>]*value="claude-future-9"/);
+    expect(unlisted).not.toContain('pattern=');
   });
 });
