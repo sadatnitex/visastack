@@ -406,7 +406,7 @@ export interface DeleteDraftAiProviderConfigInput {
  * configuration names it as its fallback, so no pointer is left dangling. Refused too when it is
  * the only configuration left: an empty table hands document reading back to the deployment's
  * environment settings (`isAiDispatchAllowed`), which no admin chose. The audit trail keeps that
- * the draft existed and was deleted, with its provider, model and key fingerprint.
+ * the draft existed and was deleted, with its provider and model; nothing derived from the key.
  */
 export async function deleteDraftAiProviderConfig(
   db: Db,
@@ -481,7 +481,6 @@ export async function deleteDraftAiProviderConfig(
       metadata: {
         provider: target.provider,
         model: target.model,
-        keyFingerprint: target.apiKeyFingerprint,
       },
     });
     return ok({ id: target.id });

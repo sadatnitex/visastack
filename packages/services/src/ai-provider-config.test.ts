@@ -1000,7 +1000,6 @@ interface AuditMetadata {
   readonly changed?: unknown;
   readonly keyReplaced?: unknown;
   readonly keyCopiedFromConfigId?: unknown;
-  readonly keyFingerprint?: unknown;
   readonly termsCleared?: unknown;
   readonly sameKeyAsConfigId?: unknown;
 }
@@ -1195,7 +1194,7 @@ describe('AI provider configuration -- deleting a draft', () => {
     db = await freshDb();
   });
 
-  it('deletes a draft with its key and data terms, and audits the deletion with the key fingerprint only', async () => {
+  it('deletes a draft with its key and data terms, and audits the deletion with nothing derived from the key', async () => {
     const actor = await seedSecurityAdmin(db);
     await createDraftAiProviderConfig(db, draftInput(actor, { apiKey: 'sk-kept-5555' }));
     const draft = await createDraftAiProviderConfig(
@@ -1222,7 +1221,7 @@ describe('AI provider configuration -- deleting a draft', () => {
 
     const [event] = await auditOf(db, 'AI_PROVIDER_CONFIG_DELETED');
     expect(event?.resourceId).toBe(draft.value.id);
-    expect((event?.metadata as AuditMetadata).keyFingerprint).toBe('...4444');
+    expect(event?.metadata).toEqual({ provider: 'openai', model: 'gpt-5.6-terra' });
     expect(JSON.stringify(event?.metadata)).not.toContain('sk-gone');
   });
 
