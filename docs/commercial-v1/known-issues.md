@@ -6526,6 +6526,15 @@ Owner report: an Anthropic configuration on `claude-opus-5-5` failed Test Connec
 - CodeQL on the pull request (one high alert, "password hash with insufficient computational effort", `packages/db/src/audit.ts:31`): the delete audit record carried the masked key fingerprint, and the audit chain hashes every record's metadata. The record now holds only the provider and model; the test pins that exact metadata. CI on the commit before the fix: every required check passed.
 - Accessibility review follow-up: each card's Test Connection, Run Evaluation, Activate, Revoke Key and Delete Draft buttons now name their configuration in the accessible name (`SubmitButton` label), and the Edit and Record Data Terms disclosures carry it as screen-reader text.
 
+### 2026-10-30, AI Settings: model list
+
+Owner request after #348: a model dropdown so a display name ("Claude 5.5") cannot be saved again.
+
+- The Model field is a list per provider (`apps/web/src/lib/ai-models.ts`): Anthropic's current IDs from its models table (Claude Opus 5.5 first, recommended), and for OpenAI and Gemini only the IDs this platform already runs, so no ID is guessed. "Other Model ID" takes any other exact ID, so a new model needs no code change. A saved model that is not listed opens on "Other" with its ID filled in. Changing the provider on the create form restarts the list.
+- The service refuses a model that is not an exact model ID (letters, digits and `. _ : @ -`, no spaces or slashes, at most 100 characters) on create and edit, with a plain message. Existing rows are not touched.
+- Guards: every listed ID must pass the same rule and be unique per provider, and every configurable provider must have a list; adding a display name to the list turned that test red. Picker states (listed, unlisted) are covered by render and accessibility tests.
+- Code review (high) before push, 8 findings, all fixed: React resets a form after every save, and the controlled provider and model lists did not follow the reset, so after a refused save the form could show one provider and send another model; both forms now resynchronise on reset (a jsdom test resets the form and checks what is shown is what is sent; removing the resync turned both cases red). The model rule is now provider-aware and lives once, in `packages/services/src/ai-model-id.ts` (another provider's family such as `claude-` under Gemini is refused; `:` and `@` are refused for Gemini, whose request path carries the ID); the browser pattern was dropped in favour of the server's plain message; the list test checks every listed ID against the service rule itself; the test fixture is shared (`ai-config-view.test-support.ts`).
+
 ### 2026-10-30, S29: plans admin, entitlement resolver, test payments
 
 - Built on local branch `s29-wip` (not merged, not live), from S20's final tree merged with main, then merged with origin/main after S20's squash (`c6bb8817`, identical tree). Audit PAYMENTS-AUDIT-2026-10-30 items M1, M2, M5, S2, S3 (payment mode only), S4 (no new helpers), S6.
@@ -6552,6 +6561,18 @@ Owner report: an Anthropic configuration on `claude-opus-5-5` failed Test Connec
   - Accessibility: a polite line and focus on the card heading after a retire; Pay Online only in live mode or for the platform owner, otherwise the test-mode sentence linked to the payment actions; no limits shown for Traveller Free; confirmation steps are fieldsets with legends; the AI daily limit is a text field with a linked, focused error; a limit typed for a feature that is off is refused; the price step shows the old and new price; Storage messages in MB; "1 day"; "test entries"; focus on the "not saved yet" notice after the sign-in check; Complimentary said once.
   - Break-to-red, restored from cp backups: Founding Access free rule, live attempt left open, the switch parsing guard, the own-record upload rule. All went red.
   - Requirements ledger rows appended for COM-01, COM-02, COM-03.
+- S29 round 3 (30 Oct 2026), re-review of round 2:
+  - A sent refund already marked Needs a Check (ledger refused, duplicate reference) keeps its mark and is not recorded again when the gateway's mode changes.
+  - While the gateway is in test mode, live payments take no room in the payment check and are not counted as still waiting; closed live payments are looked at only by the live gateway. A live payment is still never closed because the mode changed.
+  - The "has the plans update run" answer is kept per database connection and shared with its transactions, so a settlement asks nothing more after the first answer; the refund panel's three reads run side by side again.
+  - Recovery runbook: after any restore to a point before a migration, redeploy the app so running copies forget which tables exist (also noted at the cache in code).
+  - Founding Access with a price above 0 gets the same words as an empty price: enter 0 and its currency.
+  - The Plans page writes Storage only when the typed MB differs from the rounded MB it showed, so saving other fields never moves a limit that is not a whole number of MB.
+  - The daily downgrade run keeps going when one downgrade throws, reports it and counts it (the job reply now says how many failed).
+  - "Travellers" on the Plans page counts every account, agency members included, since each uses the traveller plan for its own record.
+  - The own-record lookup on upload runs only when an agency suspension is in play.
+  - Break-to-red, restored from cp backups: kept mark, live payments in the check, probe count (0 after warm-up), Storage rounding, downgrade error, Founding Access words, traveller count. All went red.
+
 
 ### 2026-10-30, S19 step 0: payment provider registry
 

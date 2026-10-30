@@ -241,6 +241,8 @@ Not done here: traveller paid subscriptions, enforcing the AI allowance (S28), t
 - **Plans page.** Team Members and Invitations follows Team Members (not edited separately). An AI feature that is on needs a daily limit from 1 to 1000. Traveller Free shows no limits (not enforced on travellers) and agency plans no AI features (agencies have none yet; the resolver answers "not applicable" for an agency, before and after 0107). "Travellers" counts accounts with no active place in an agency.
 - **Uploads.** A person adding files to their own record is never stopped by an agency's suspension, even when they work in that agency.
 - **Scope.** `resolveEntitlements` takes no scope proof, so it is not exported from the services index (a test holds this).
+- **Round 3 (30 Oct 2026).** A refund's earlier Needs a Check mark is never overwritten by the mode-change mark. While the gateway is in test mode the payment check selects no live payments (they stay open, never expired by the mode change), and closed payments are rechecked only by their own mode. The plans-update probe answer is kept per connection and shared with its transactions; after a restore to before a migration, the app is redeployed so running copies forget it. "Travellers" counts every account.
+
 
 ## Amendment, S19 step 0 (30 Oct 2026): the payment provider registry
 

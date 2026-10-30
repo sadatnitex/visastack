@@ -115,6 +115,23 @@ describe('saving a plan (S29)', () => {
     expect(mocks.getPlanLatestPrice.mock.calls[0]?.[2]).toBe(PLAN);
   });
 
+  it('leaves Storage exactly as stored when the rounded value shown comes back unchanged (round 3)', async () => {
+    const unchanged = await savePlanAction(
+      INITIAL,
+      form({ 'limit.storage_bytes': '1', 'shown.storage_bytes': '1', 'limit.seats': '3' }),
+    );
+    expect(unchanged).toMatchObject({ ok: true, message: 'Saved.' });
+    const kept = mocks.savePlan.mock.calls[0]?.[2];
+    expect(kept.draft.rules.seats).toEqual({ included: true, limit: 3 });
+    expect(kept.draft.rules.storage_bytes).toBeUndefined();
+    mocks.savePlan.mockClear();
+    await savePlanAction(INITIAL, form({ 'limit.storage_bytes': '2', 'shown.storage_bytes': '1' }));
+    expect(mocks.savePlan.mock.calls[0]?.[2].draft.rules.storage_bytes).toEqual({
+      included: true,
+      limit: 2 * 1024 * 1024,
+    });
+  });
+
   it('shows what a new price means first, and saves it only once the box is ticked', async () => {
     const changed = form({ price: '3,000.00' });
     const first = await savePlanAction(INITIAL, changed);

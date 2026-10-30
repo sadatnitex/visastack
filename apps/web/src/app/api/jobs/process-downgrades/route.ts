@@ -21,8 +21,8 @@ export async function GET(request: Request): Promise<Response> {
   const denied = rejectUnauthorizedCron(request);
   if (denied) return denied;
 
-  const { executed } = await triggerDowngradeSweep();
+  const { executed, errors } = await triggerDowngradeSweep();
   // Emails this run queued go out now, not at the next day's sending run.
   after(() => triggerNotificationWorker().then(() => undefined));
-  return Response.json({ executed });
+  return Response.json({ executed, errors });
 }

@@ -1314,19 +1314,18 @@ function addChecks(a: RefundCheckSummary, b: RefundCheckSummary): RefundCheckSum
 type CheckCode = 'confirmed' | 'failed' | 'processing' | 'unavailable' | 'needs_check' | 'skipped';
 
 /**
- * Asks the gateway about one sent refund and acts on the answer. Refunded: under the locks
- * (held payment, request, invoice), the request is confirmed and, for counted money, the one
- * `REFUND` ledger row is written; a second confirmation finds the request already confirmed and
- * writes nothing. Cancelled by the gateway: `FAILED`. Still processing: nothing but the time it
- * was asked.
+ * Marks a sent refund Needs a Check because the gateway's mode changed (S29), once: only a refund
+ * with no mark yet gets `mode_changed` and an audit record; an earlier mark stays.
  */
-/** Marks a sent refund Needs a Check because the gateway's mode changed (audited the first time). */
 async function markModeChanged(db: Db, seen: RefundRequest, now: Date): Promise<CheckCode> {
   const r = schema.refundRequests;
   const marked = await inTransaction(db, async (tx): Promise<Result<CheckCode, ServiceError>> => {
     const locked = first(await tx.select().from(r).where(eq(r.id, seen.id)).limit(1).for('update'));
     if (!locked || locked.status !== 'SUBMITTED') return ok('skipped');
-    if (locked.failureCode === MODE_CHANGED_CODE) return ok('needs_check');
+    // Any earlier mark is kept as it is, and not audited again: `ledger_refused` and
+    // `duplicate_reference` say the gateway already confirmed the money went back, which must
+    // never be hidden behind a later "mode changed" (staff could refund the same money by hand).
+    if (locked.failureCode !== null) return ok('needs_check');
     await tx
       .update(r)
       .set({ failureCode: MODE_CHANGED_CODE, lastCheckedAt: now, updatedAt: now })
@@ -1339,6 +1338,13 @@ async function markModeChanged(db: Db, seen: RefundRequest, now: Date): Promise<
   return marked.ok ? marked.value : 'needs_check';
 }
 
+/**
+ * Asks the gateway about one sent refund and acts on the answer. Refunded: under the locks
+ * (held payment, request, invoice), the request is confirmed and, for counted money, the one
+ * `REFUND` ledger row is written; a second confirmation finds the request already confirmed and
+ * writes nothing. Cancelled by the gateway: `FAILED`. Still processing: nothing but the time it
+ * was asked.
+ */
 async function confirmOne(
   db: Db,
   gateway: RefundingPaymentPort,
@@ -2135,26 +2141,29 @@ export async function getOrganizationRefundWork(
   const heldCredited = sql<number>`coalesce((select cp.amount_minor_units from invoice_payments cp where cp.kind = 'CREDIT' and cp.source_id = ${a.id} limit 1), 0)::int`;
   const heldCommitted = sql<number>`coalesce((select sum(rr.amount_minor_units) from refund_requests rr where rr.payment_attempt_id = ${a.id} and rr.status in (${limitIn})), 0)::int`;
 
+  // The ledger read waits only for its own mode, so all three reads still run side by side.
   const [entryRows, heldRows, requestRows] = await Promise.all([
-    db
-      .select({
-        entry: ledgerColumns(await ledgerModeSql(db)),
-        invoiceRef: i.invoiceRef,
-        committed: entryCommitted,
-      })
-      .from(p)
-      .innerJoin(i, eq(i.id, p.invoiceId))
-      .where(
-        and(
-          eq(i.organizationId, input.organizationId),
-          sql`${p.kind} <> 'REFUND'`,
-          sql`${p.amountMinorUnits} > ${entryCommitted}`,
-          refFilter,
-        ),
-      )
-      .orderBy(desc(p.createdAt), desc(p.seq))
-      .limit(REFUND_WORK_LIMIT + 1)
-      .offset(offset),
+    ledgerModeSql(db).then((mode) =>
+      db
+        .select({
+          entry: ledgerColumns(mode),
+          invoiceRef: i.invoiceRef,
+          committed: entryCommitted,
+        })
+        .from(p)
+        .innerJoin(i, eq(i.id, p.invoiceId))
+        .where(
+          and(
+            eq(i.organizationId, input.organizationId),
+            sql`${p.kind} <> 'REFUND'`,
+            sql`${p.amountMinorUnits} > ${entryCommitted}`,
+            refFilter,
+          ),
+        )
+        .orderBy(desc(p.createdAt), desc(p.seq))
+        .limit(REFUND_WORK_LIMIT + 1)
+        .offset(offset),
+    ),
     db
       .select({
         attempt: attemptColumns(),

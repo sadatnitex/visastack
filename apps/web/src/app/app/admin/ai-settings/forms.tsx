@@ -1,8 +1,9 @@
 'use client';
 
 import type { AiProviderConfig } from '@visastack/services';
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { OTHER_MODEL, aiModelOptionsFor } from '../../../../lib/ai-models';
 import { aiConfigStatusLabel, aiProviderLabel } from '../../../../lib/labels';
 import {
   type ActionState,
@@ -87,6 +88,75 @@ const KEY_PLACEHOLDER: Record<KeyMode, string> = {
 };
 
 /**
+ * The model, chosen from the provider's listed model IDs (`lib/ai-models.ts`), or typed under
+ * "Other Model ID" for one not listed yet. A saved model that is not listed opens on "Other" with
+ * its ID filled in. Sends `modelChoice`, and `modelOther` when "Other" is chosen.
+ */
+function ModelPicker({
+  idPrefix,
+  provider,
+  savedModel,
+}: {
+  readonly idPrefix: string;
+  readonly provider: string;
+  readonly savedModel?: string;
+}) {
+  const id = (name: string) => `${idPrefix}-${name}`;
+  const options = aiModelOptionsFor(provider);
+  const savedIsListed = savedModel !== undefined && options.some((o) => o.id === savedModel);
+  const [choice, setChoice] = useState(
+    savedModel === undefined
+      ? (options[0]?.id ?? OTHER_MODEL)
+      : savedIsListed
+        ? savedModel
+        : OTHER_MODEL,
+  );
+  return (
+    <>
+      <div className="field-row">
+        <label className="field-label" htmlFor={id('model')}>
+          Model
+        </label>
+        <select
+          id={id('model')}
+          name="modelChoice"
+          className="input"
+          value={choice}
+          onChange={(e) => setChoice(e.target.value)}
+        >
+          {options.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.label} ({o.id})
+            </option>
+          ))}
+          <option value={OTHER_MODEL}>Other Model ID</option>
+        </select>
+      </div>
+      {choice === OTHER_MODEL ? (
+        <div className="field-row">
+          <label className="field-label" htmlFor={id('modelOther')}>
+            Model ID
+          </label>
+          <input
+            id={id('modelOther')}
+            name="modelOther"
+            type="text"
+            required
+            className="input"
+            placeholder="e.g. claude-opus-5-5"
+            defaultValue={savedIsListed ? undefined : savedModel}
+            aria-describedby={id('modelOther-hint')}
+          />
+          <p id={id('modelOther-hint')} className="field-hint">
+            The provider&rsquo;s exact model ID, with no spaces, not its display name.
+          </p>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+/**
  * Every setting of a configuration except the provider, shared by the create, edit and "edit as
  * new draft" forms. `config` prefills the fields; `idPrefix` keeps ids unique when several forms
  * are on the page.
@@ -104,11 +174,16 @@ const KEY_PLACEHOLDER: Record<KeyMode, string> = {
  */
 function ConfigSettingsFields({
   idPrefix,
+  provider,
+  resetCount,
   fallbackOptions,
   config,
   keyMode,
 }: {
   readonly idPrefix: string;
+  readonly provider: string;
+  /** Bumped when the form resets, so the model list starts again from what the form shows. */
+  readonly resetCount: number;
   readonly fallbackOptions: readonly FallbackOption[];
   readonly config?: ConfigFormView;
   readonly keyMode: KeyMode;
@@ -118,24 +193,13 @@ function ConfigSettingsFields({
     value === null || value === undefined ? undefined : Number(value.toFixed(2));
   return (
     <>
-      <div className="field-row">
-        <label className="field-label" htmlFor={id('model')}>
-          Model
-        </label>
-        <input
-          id={id('model')}
-          name="model"
-          type="text"
-          required
-          className="input"
-          placeholder="e.g. gpt-5 or claude-opus-5-5"
-          defaultValue={config?.model}
-          aria-describedby={id('model-hint')}
-        />
-        <p id={id('model-hint')} className="field-hint">
-          The exact model ID from the provider, such as claude-opus-5-5, not its display name.
-        </p>
-      </div>
+      <ModelPicker
+        // A new provider, or a reset form, starts the list again from the top.
+        key={`${provider}-${resetCount}`}
+        idPrefix={idPrefix}
+        provider={provider}
+        {...(config ? { savedModel: config.model } : {})}
+      />
       <div className="field-row">
         <label className="field-label" htmlFor={id('reasoningEffort')}>
           Reasoning Effort
@@ -340,8 +404,19 @@ export function CreateDraftConfigForm({
   readonly fallbackOptions: readonly FallbackOption[];
 }) {
   const [state, formAction, pending] = useActionState(createDraftAiProviderConfigAction, INITIAL);
+  const [provider, setProvider] = useState('openai');
+  // React resets the form after every save; the provider and model lists follow the reset, so
+  // what is shown is always what is sent.
+  const [resetCount, setResetCount] = useState(0);
   return (
-    <form action={formAction} className="field-list">
+    <form
+      action={formAction}
+      className="field-list"
+      onReset={() => {
+        setProvider('openai');
+        setResetCount((n) => n + 1);
+      }}
+    >
       <div className="field-row">
         <label className="field-label" htmlFor="draft-provider">
           Provider
@@ -351,7 +426,8 @@ export function CreateDraftConfigForm({
           name="provider"
           required
           className="input"
-          defaultValue="openai"
+          value={provider}
+          onChange={(e) => setProvider(e.target.value)}
         >
           {PROVIDER_OPTIONS.map((p) => (
             <option key={p.value} value={p.value}>
@@ -360,7 +436,13 @@ export function CreateDraftConfigForm({
           ))}
         </select>
       </div>
-      <ConfigSettingsFields idPrefix="draft" fallbackOptions={fallbackOptions} keyMode="required" />
+      <ConfigSettingsFields
+        idPrefix="draft"
+        provider={provider}
+        resetCount={resetCount}
+        fallbackOptions={fallbackOptions}
+        keyMode="required"
+      />
       <TermsFields idPrefix="draft" optional />
       <div>
         <SubmitButton
@@ -394,8 +476,14 @@ export function EditConfigForm({
     INITIAL,
   );
   const keyMode: KeyMode = inPlace ? 'keep' : config.keyRevoked ? 'required' : 'copy';
+  // As on the create form: the model list follows React's reset after a save.
+  const [resetCount, setResetCount] = useState(0);
   return (
-    <form action={formAction} className="field-list u-mt-100">
+    <form
+      action={formAction}
+      className="field-list u-mt-100"
+      onReset={() => setResetCount((n) => n + 1)}
+    >
       {inPlace ? (
         <input type="hidden" name="configId" value={config.id} />
       ) : (
@@ -416,6 +504,8 @@ export function EditConfigForm({
       </div>
       <ConfigSettingsFields
         idPrefix={`edit-${config.id}`}
+        provider={config.provider}
+        resetCount={resetCount}
         fallbackOptions={fallbackOptions}
         config={config}
         keyMode={keyMode}
