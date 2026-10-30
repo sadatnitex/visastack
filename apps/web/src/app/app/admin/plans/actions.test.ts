@@ -139,7 +139,7 @@ describe('saving a plan (S29)', () => {
   it('points at the field at fault and keeps what was typed', async () => {
     const badCurrency = await savePlanAction(INITIAL, form({ currency: 'XYZ' }));
     expect(badCurrency).toMatchObject({ ok: false, field: 'currency' });
-    expect(badCurrency.values?.['currency']).toBe('XYZ');
+    expect(badCurrency.values).toMatchObject({ currency: 'XYZ' });
     const badAmount = await savePlanAction(INITIAL, form({ price: '25,00' }));
     expect(badAmount).toMatchObject({ ok: false, field: 'price' });
     const badLimit = await savePlanAction(INITIAL, form({ 'limit.seats': 'ten' }));

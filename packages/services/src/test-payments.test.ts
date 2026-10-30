@@ -113,10 +113,7 @@ describe('test payments (S29)', () => {
     });
 
   const attemptsOf = (invoiceId: string) =>
-    db
-      .select()
-      .from(schema.paymentAttempts)
-      .where(eq(schema.paymentAttempts.invoiceId, invoiceId));
+    db.select().from(schema.paymentAttempts).where(eq(schema.paymentAttempts.invoiceId, invoiceId));
 
   async function paidTestPayment(ref: string) {
     const invoiceId = await openInvoice(ref);

@@ -263,7 +263,9 @@ describe('migration 0107: plans admin, entitlements and test payments', () => {
         `insert into plan_entitlements (plan_id, key, included, per) values (${starter}, 'ai.extra', false, 'DAY')`,
       );
       await expect(
-        client.query(`update plans set price_minor_units = 100 where key = 'agency_founding_access'`),
+        client.query(
+          `update plans set price_minor_units = 100 where key = 'agency_founding_access'`,
+        ),
       ).rejects.toThrow();
       await expect(
         client.query(`update plans set bypass_limits = true where key = 'traveller_free'`),

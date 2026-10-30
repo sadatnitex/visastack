@@ -135,7 +135,10 @@ export function entitlementKeys(): EntitlementKey[] {
 }
 
 /** A definition with the plan's period length filled in. */
-export function entitlementDefinitionText(definition: EntitlementDefinition, periodDays: number): string {
+export function entitlementDefinitionText(
+  definition: EntitlementDefinition,
+  periodDays: number,
+): string {
   return definition.definition.replace('{days}', String(periodDays));
 }
 

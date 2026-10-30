@@ -31,7 +31,7 @@ function sourceFiles(dir: string): string[] {
   return out;
 }
 
-function escape(text: string): string {
+function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
@@ -48,7 +48,7 @@ function tableNames(source: string): string[] {
 function unsafeTableReads(source: string): string[] {
   const problems: string[] = [];
   for (const name of tableNames(source)) {
-    const target = escape(name);
+    const target = escapeRegExp(name);
     const plainSelect = new RegExp(`\\.select\\(\\)\\s*\\.from\\(\\s*${target}\\s*\\)`, 'g');
     for (const match of source.matchAll(plainSelect)) problems.push(match[0]);
     const plainReturning = new RegExp(
