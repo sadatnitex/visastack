@@ -105,9 +105,9 @@ describe('AI feature state', () => {
     ).toMatchObject({ available: false, reason: 'turned_off' });
   });
 
-  it('gives everyone the FREE tier today', () => {
-    expect(aiEntitlementFor({ accountId: null }).tier).toBe('FREE');
-    expect(aiEntitlementFor({ accountId: 'any' }).features.ai_app_suggestions).toEqual({
+  it('gives everyone the FREE tier today, read from the traveller plan', async () => {
+    expect((await aiEntitlementFor(db, { accountId: null })).tier).toBe('FREE');
+    expect((await aiEntitlementFor(db, { accountId: 'any' })).features.ai_app_suggestions).toEqual({
       included: true,
       dailyLimit: 15,
     });

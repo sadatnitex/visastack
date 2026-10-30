@@ -2053,3 +2053,39 @@ export {
   type AiFileGateway,
   type AiServedFile,
 } from './access/with-ai-connection';
+// S29: plans admin, one entitlement resolver and test payments (ADR 0020 S29 amendment).
+export {
+  type EntitlementGate,
+  type EntitlementSubject,
+  type PlanPrice,
+  type ResolvedEntitlements,
+  type ResolvedPlan,
+  TRAVELLER_PLAN_KEY,
+  billingPeriodStart,
+  resolveEntitlements,
+} from './entitlements';
+export {
+  DEFAULT_AGENCY_PLAN_KEY,
+  PLANS_UNAVAILABLE,
+  PLAN_NAME_MAX,
+  PLAN_PERIOD_DAYS_MAX,
+  PLAN_PRICE_MAX_MINOR_UNITS,
+  type PlanAdminView,
+  type PlanDraft,
+  type PlanField,
+  type PlanPriceInput,
+  type PlanRefusal,
+  type PlanRuleInput,
+  type PlansAdminList,
+  type RetirePreview,
+  type SavePlanInput,
+  type SavedPlan,
+  listPlansForAdmin,
+  planDraftProblem,
+  previewPlanRetire,
+  retirePlan,
+  savePlan,
+} from './plans-admin';
+export { type PaymentMode, type PlanAudience, entitlementsSchemaPresent } from './plans-schema';
+export { MODE_CHANGED, TEST_PAYMENTS_ONLY } from './payments';
+export { countLedgerTestRows } from './ledger-export';

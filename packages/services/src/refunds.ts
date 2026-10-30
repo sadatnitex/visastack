@@ -28,6 +28,13 @@ import {
 } from './notifications';
 import { parseAmountForCurrency } from './payment-amounts';
 import type { PaymentAttempt } from './payments';
+import {
+  type PaymentMode,
+  attemptColumns,
+  attemptModeColumn,
+  ledgerColumns,
+  ledgerModeColumn,
+} from './plans-schema';
 import { type PaymentPort, type RefundingPaymentPort, isRefundingPaymentPort } from './ports';
 
 /**
@@ -295,7 +302,7 @@ async function creditFrom(tx: Db, attemptId: string): Promise<InvoicePayment | u
   const p = schema.invoicePayments;
   return first(
     await tx
-      .select()
+      .select(ledgerColumns())
       .from(p)
       .where(and(eq(p.kind, 'CREDIT'), eq(p.sourceId, attemptId)))
       .limit(1),
@@ -311,7 +318,7 @@ async function lockAttempt(
   const a = schema.paymentAttempts;
   return first(
     await tx
-      .select()
+      .select(attemptColumns())
       .from(a)
       .where(and(eq(a.id, attemptId), eq(a.organizationId, organizationId)))
       .limit(1)
@@ -349,7 +356,7 @@ async function lockSource(
   if (!isUuid(source.invoicePaymentId)) return null;
   const p = schema.invoicePayments;
   const unlocked = first(
-    await tx.select().from(p).where(eq(p.id, source.invoicePaymentId)).limit(1),
+    await tx.select(ledgerColumns()).from(p).where(eq(p.id, source.invoicePaymentId)).limit(1),
   );
   if (!unlocked) return null;
   const invoice = first(
@@ -372,7 +379,7 @@ async function lockSource(
     attempt =
       first(
         await tx
-          .select()
+          .select(attemptColumns())
           .from(schema.paymentAttempts)
           .where(eq(schema.paymentAttempts.id, entry.sourceId))
           .limit(1),
@@ -689,6 +696,43 @@ function refundPort(port: PaymentPort): RefundingPaymentPort | null {
  * lock and writes the request `REQUESTED` with its audit record; the gateway is called only after
  * that commits; transaction 2 records what the gateway said. Nothing reaches the ledger here.
  */
+/** Why a refund cannot go through the gateway in its current mode (S29). */
+function modeMismatchMessage(sourceMode: PaymentMode): string {
+  return sourceMode === 'TEST'
+    ? 'This was a test payment, so it cannot be refunded through the live payment gateway. No money was taken. If you need a record, use Record a Refund Made Outside VisaStack.'
+    : 'This was a real payment, and the payment gateway is in test mode now. Refund it when the gateway is live again, or refund it another way and record it here.';
+}
+
+/** The mode of the money a refund request gives back: its ledger row's, or its held payment's. */
+async function refundSourceMode(
+  db: Db,
+  request: { readonly invoicePaymentId: string | null; readonly paymentAttemptId: string | null },
+): Promise<PaymentMode> {
+  if (request.invoicePaymentId !== null) {
+    const p = schema.invoicePayments;
+    const row = first(
+      await db
+        .select({ mode: ledgerModeColumn() })
+        .from(p)
+        .where(eq(p.id, request.invoicePaymentId))
+        .limit(1),
+    );
+    return row?.mode === 'TEST' ? 'TEST' : 'LIVE';
+  }
+  if (request.paymentAttemptId !== null) {
+    const a = schema.paymentAttempts;
+    const row = first(
+      await db
+        .select({ mode: attemptModeColumn() })
+        .from(a)
+        .where(eq(a.id, request.paymentAttemptId))
+        .limit(1),
+    );
+    return row?.mode === 'LIVE' ? 'LIVE' : 'TEST';
+  }
+  return 'LIVE';
+}
+
 export async function requestRefund(
   db: Db,
   port: PaymentPort,
@@ -735,6 +779,12 @@ export async function requestRefund(
       }
       const problem = limitProblem(source, amount);
       if (problem) return err(problem);
+      // S29: money is given back through the gateway mode it was taken in, never the other one: a
+      // test payment never reaches the live gateway, and a real one never the test gateway.
+      const sourceMode = source.kind === 'held' ? source.attempt.mode : source.entry.mode;
+      if (gateway.mode !== null && sourceMode !== gateway.mode) {
+        return err(refusal('test_payment_live_gateway', modeMismatchMessage(sourceMode)));
+      }
       const bankTranId = providerTarget(source, gateway.provider);
       if (!bankTranId) {
         return err(
@@ -961,6 +1011,10 @@ export async function retryRefund(
   if (!row.ok) return row;
   if (row.value.provider !== gateway.provider) {
     return err(serviceError('invalid', 'This refund belongs to another payment gateway.'));
+  }
+  const sourceMode = await refundSourceMode(db, row.value);
+  if (gateway.mode !== null && sourceMode !== gateway.mode) {
+    return err(refusal('test_payment_live_gateway', modeMismatchMessage(sourceMode)));
   }
   const now = input.now ?? new Date();
   // Under the request's lock: never after a refused resend, and never while another send of it is
@@ -2009,7 +2063,9 @@ export async function getOrganizationRefundWork(
     ),
   ];
   const sourceAttempts =
-    attemptIds.length === 0 ? [] : await db.select().from(a).where(inArray(a.id, attemptIds));
+    attemptIds.length === 0
+      ? []
+      : await db.select(attemptColumns()).from(a).where(inArray(a.id, attemptIds));
   const attemptById = new Map(sourceAttempts.map((row) => [row.id, row]));
   const gateway = input.gatewayProvider;
 

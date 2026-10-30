@@ -1001,7 +1001,7 @@ describe('suspended billing blocks new paid work (COM-02 + COM-03)', () => {
     }
   });
 
-  it('blocks reserveUpload once an accessing organization is suspended, even with no plan assigned at all', async () => {
+  it("never blocks a traveller's own upload when an accessing agency is suspended, and pauses that agency's own staff (owner decision O13, S29)", async () => {
     const traveller = await seedTraveller(db, 'storage-suspended');
     const { organizationId, ownerAccountId } = await seedOrganization(db, 'storage-suspended-org');
     await grantOrgAccessToApplicant(db, {
@@ -1011,17 +1011,23 @@ describe('suspended billing blocks new paid work (COM-02 + COM-03)', () => {
       orgOwnerAccountId: ownerAccountId,
     });
     await suspendOrg(organizationId);
-    const result = await reserveUpload(
+    // The traveller keeps adding files to their own record.
+    const own = await reserveUpload(
       db,
       { accountId: traveller.accountId, applicantId: traveller.applicantId, sizeBytes: 1 * MB },
       generousUploadConfig,
     );
-    expect(isErr(result)).toBe(true);
-    if (isErr(result)) {
-      expect(result.error.reason).toBe('billing_suspended');
-      // A traveller is never told about an agency's billing (audit M5).
-      expect(result.error.message).toBe(TRAVELLER_UPLOAD_PAUSED);
-      expect(result.error.message).not.toMatch(/billing|suspend|agency's|organization/i);
+    expect(isOk(own)).toBe(true);
+    // The suspended agency's own team is paused, with a typed reason and its own sentence.
+    const staff = await reserveUpload(
+      db,
+      { accountId: ownerAccountId, applicantId: traveller.applicantId, sizeBytes: 1 * MB },
+      generousUploadConfig,
+    );
+    expect(isErr(staff)).toBe(true);
+    if (isErr(staff)) {
+      expect(staff.error.reason).toBe('billing_suspended');
+      expect(staff.error.message).toBe(AGENCY_UPLOAD_PAUSED);
     }
   });
 

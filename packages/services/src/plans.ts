@@ -6,16 +6,36 @@ import {
   normalizeCurrencyCode,
   ok,
 } from '@visastack/core';
+import {
+  CAPACITY_ENTITLEMENTS,
+  type CapacityKey,
+  entitlementDefinitionText,
+} from '@visastack/core/entitlements';
 import { and, desc, eq, gte, inArray, isNull, lte, notInArray, sql } from 'drizzle-orm';
 import { isActiveMember, listApplicantsForOrganization } from './agency';
 import { excludingDeterministicRuns } from './ai-run-kinds';
 import { appendAuditEvent } from './audit';
 import { type Db, first, isUniqueViolation, required, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import {
+  type ResolvedEntitlements,
+  TRAVELLER_PLAN_KEY,
+  planCapacityLimits,
+  resolveEntitlements,
+} from './entitlements';
+import { type ServiceError, refusal, serviceError } from './errors';
 import {
   cancelQueuedNotificationsForResource,
   enqueueNotificationBothChannels,
 } from './notifications';
+import {
+  PLANS_UNAVAILABLE,
+  PLAN_PRICE_FROM_START,
+  assignableToAgency,
+  rulesFromColumns,
+  writePlanPrice,
+  writePlanRules,
+} from './plans-admin';
+import { entitlementsSchemaPresent, planColumns } from './plans-schema';
 import { type PlatformAuthInput, isPlatformOwner } from './platform-roles';
 import { recordProductEvent } from './product-events';
 import { getOrganizationEvidenceBytes } from './quotas';
@@ -98,7 +118,7 @@ import { getOrganizationEvidenceBytes } from './quotas';
  * admin's later, more immediate decision.
  */
 
-export const TRAVELLER_FREE_PLAN_KEY = 'traveller_free';
+export const TRAVELLER_FREE_PLAN_KEY = TRAVELLER_PLAN_KEY;
 
 export type Plan = typeof schema.plans.$inferSelect;
 export type Subscription = typeof schema.subscriptions.$inferSelect;
@@ -179,6 +199,10 @@ export async function createPlan(
   const invalid = validateEntitlementNumbers(input);
   if (invalid) return err(serviceError('invalid', invalid));
 
+  // S29: plans are written with their rule rows and price history, which exist after 0107.
+  if (!(await entitlementsSchemaPresent(db))) {
+    return err(refusal('plans_unavailable', PLANS_UNAVAILABLE));
+  }
   const existing = first(
     await db
       .select({ id: schema.plans.id })
@@ -205,9 +229,19 @@ export async function createPlan(
             priceMinorUnits: input.priceMinorUnits ?? null,
             currency: input.currency ? normalizeCurrencyCode(input.currency) : null,
           })
-          .returning(),
+          .returning(planColumns()),
       ),
       'plan',
+    );
+    const now = new Date();
+    await writePlanRules(tx, plan.id, rulesFromColumns(plan), now);
+    await writePlanPrice(
+      tx,
+      plan.id,
+      plan.priceMinorUnits !== null && plan.currency !== null
+        ? { priceMinorUnits: plan.priceMinorUnits, currency: plan.currency }
+        : null,
+      { effectiveFrom: PLAN_PRICE_FROM_START, actorAccountId: input.actor.accountId, now },
     );
     await appendAuditEvent(tx, {
       eventType: 'PLAN_CREATED',
@@ -262,8 +296,15 @@ export async function updatePlan(
     return err(serviceError('invalid', 'name cannot be blank'));
   }
 
+  if (!(await entitlementsSchemaPresent(db))) {
+    return err(refusal('plans_unavailable', PLANS_UNAVAILABLE));
+  }
   const plan = first(
-    await db.select().from(schema.plans).where(eq(schema.plans.id, input.planId)).limit(1),
+    await db
+      .select(planColumns())
+      .from(schema.plans)
+      .where(eq(schema.plans.id, input.planId))
+      .limit(1),
   );
   if (!plan) return err(serviceError('not_found', 'plan not found'));
 
@@ -281,6 +322,9 @@ export async function updatePlan(
     return err(
       serviceError('invalid', 'priceMinorUnits and currency must be set together, or neither'),
     );
+  }
+  if (plan.bypassLimits && (input.priceMinorUnits ?? plan.priceMinorUnits ?? 0) > 0) {
+    return err(serviceError('invalid', 'a complimentary plan cannot have a price'));
   }
 
   return db.transaction(async (tx) => {
@@ -309,10 +353,41 @@ export async function updatePlan(
 
     const updated = required(
       first(
-        await tx.update(schema.plans).set(set).where(eq(schema.plans.id, input.planId)).returning(),
+        await tx
+          .update(schema.plans)
+          .set(set)
+          .where(eq(schema.plans.id, input.planId))
+          .returning(planColumns()),
       ),
       'plan',
     );
+    // S29: the rule rows and the price history follow the columns this older call changes. A
+    // price change applies from each agency's next billing period, like one made on the Plans page.
+    const fromColumns = rulesFromColumns(updated);
+    const touched: Partial<Record<CapacityKey, (typeof fromColumns)[CapacityKey]>> = {};
+    const columnKeys: Readonly<Record<string, readonly CapacityKey[]>> = {
+      seatsAllowed: ['seats', 'invitations'],
+      casesPerPeriodAllowed: ['cases_per_period'],
+      concurrentOpenCasesAllowed: ['open_cases'],
+      storageBytesAllowed: ['storage_bytes'],
+      aiAllowanceUnitsAllowed: ['ai_allowance_units'],
+    };
+    for (const [column, keys] of Object.entries(columnKeys)) {
+      if (!(column in changes)) continue;
+      for (const key of keys) touched[key] = fromColumns[key];
+    }
+    const now = new Date();
+    await writePlanRules(tx, updated.id, touched, now);
+    if ('priceMinorUnits' in changes || 'currency' in changes) {
+      await writePlanPrice(
+        tx,
+        updated.id,
+        updated.priceMinorUnits !== null && updated.currency !== null
+          ? { priceMinorUnits: updated.priceMinorUnits, currency: updated.currency }
+          : null,
+        { effectiveFrom: now, actorAccountId: input.actor.accountId, now },
+      );
+    }
     await appendAuditEvent(tx, {
       eventType: 'PLAN_UPDATED',
       actorAccountId: input.actor.accountId,
@@ -338,14 +413,16 @@ export async function listPlans(
   options: { readonly activeOnly?: boolean } = {},
 ): Promise<Plan[]> {
   return db
-    .select()
+    .select(planColumns())
     .from(schema.plans)
     .where(options.activeOnly ? eq(schema.plans.active, true) : undefined)
     .orderBy(desc(schema.plans.createdAt));
 }
 
 export async function getPlanByKey(db: Db, key: string): Promise<Plan | undefined> {
-  return first(await db.select().from(schema.plans).where(eq(schema.plans.key, key)).limit(1));
+  return first(
+    await db.select(planColumns()).from(schema.plans).where(eq(schema.plans.key, key)).limit(1),
+  );
 }
 
 export interface ActivateSubscriptionInput {
@@ -388,11 +465,20 @@ export async function activateSubscription(
   if (!org) return err(serviceError('not_found', 'organization not found'));
 
   const plan = first(
-    await db.select().from(schema.plans).where(eq(schema.plans.id, input.planId)).limit(1),
+    await db
+      .select(planColumns())
+      .from(schema.plans)
+      .where(eq(schema.plans.id, input.planId))
+      .limit(1),
   );
   if (!plan) return err(serviceError('not_found', 'plan not found'));
   if (!plan.active) {
     return err(serviceError('invalid', 'this plan is retired and cannot be newly assigned'));
+  }
+  if (!assignableToAgency(plan)) {
+    return err(
+      serviceError('invalid', 'this plan is for travellers and cannot be given to an agency'),
+    );
   }
 
   return db.transaction(async (tx) => {
@@ -558,24 +644,19 @@ async function supersedePendingDowngrade(
   await cancelQueuedNotificationsForResource(tx, pending.id);
 }
 
-const DOWNGRADE_COMPARISON_DIMENSIONS = [
-  'seatsAllowed',
-  'casesPerPeriodAllowed',
-  'concurrentOpenCasesAllowed',
-  'storageBytesAllowed',
-  'aiAllowanceUnitsAllowed',
-] as const;
-
 /**
  * True if `to` is not MORE generous than `from` on any entitlement
  * dimension (`null` = unlimited = the largest possible value). The gate
  * `scheduleDowngrade` uses to refuse being used for what is actually an
  * upgrade, or a mixed change that increases some dimension, in disguise.
  */
-function isDowngrade(from: Plan, to: Plan): boolean {
-  return DOWNGRADE_COMPARISON_DIMENSIONS.every((dimension) => {
-    const fromValue = from[dimension] ?? Number.POSITIVE_INFINITY;
-    const toValue = to[dimension] ?? Number.POSITIVE_INFINITY;
+function isDowngrade(
+  from: Readonly<Record<CapacityKey, number | null>>,
+  to: Readonly<Record<CapacityKey, number | null>>,
+): boolean {
+  return (Object.keys(from) as CapacityKey[]).every((key) => {
+    const fromValue = from[key] ?? Number.POSITIVE_INFINITY;
+    const toValue = to[key] ?? Number.POSITIVE_INFINITY;
     return toValue <= fromValue;
   });
 }
@@ -651,11 +732,20 @@ export async function scheduleDowngrade(
   if (!org) return err(serviceError('not_found', 'organization not found'));
 
   const toPlan = first(
-    await db.select().from(schema.plans).where(eq(schema.plans.id, input.toPlanId)).limit(1),
+    await db
+      .select(planColumns())
+      .from(schema.plans)
+      .where(eq(schema.plans.id, input.toPlanId))
+      .limit(1),
   );
   if (!toPlan) return err(serviceError('not_found', 'plan not found'));
   if (!toPlan.active) {
     return err(serviceError('invalid', 'this plan is retired and cannot be newly assigned'));
+  }
+  if (!assignableToAgency(toPlan)) {
+    return err(
+      serviceError('invalid', 'this plan is for travellers and cannot be given to an agency'),
+    );
   }
 
   const fromPlan = await getCurrentPlanForOrganization(db, input.organizationId);
@@ -667,7 +757,7 @@ export async function scheduleDowngrade(
       ),
     );
   }
-  if (!isDowngrade(fromPlan, toPlan)) {
+  if (!isDowngrade(await planCapacityLimits(db, fromPlan), await planCapacityLimits(db, toPlan))) {
     return err(
       serviceError(
         'invalid',
@@ -901,9 +991,17 @@ export async function executeScheduledDowngrade(
     }
 
     const toPlan = first(
-      await tx.select().from(schema.plans).where(eq(schema.plans.id, pending.toPlanId)).limit(1),
+      await tx
+        .select(planColumns())
+        .from(schema.plans)
+        .where(eq(schema.plans.id, pending.toPlanId))
+        .limit(1),
     );
     if (!toPlan) return err(serviceError('not_found', 'plan not found'));
+    // S29: a plan retired, or not an agency plan, since the change was scheduled is never applied.
+    if (!toPlan.active || !assignableToAgency(toPlan)) {
+      return err(serviceError('invalid', 'the target plan can no longer be given to an agency'));
+    }
 
     await tx
       .update(schema.subscriptions)
@@ -997,7 +1095,7 @@ export async function getCurrentPlanForOrganization(
 ): Promise<Plan | undefined> {
   const row = first(
     await db
-      .select({ plan: schema.plans })
+      .select({ plan: planColumns() })
       .from(schema.subscriptions)
       .innerJoin(schema.plans, eq(schema.plans.id, schema.subscriptions.planId))
       .where(
@@ -1014,21 +1112,43 @@ export async function getCurrentPlanForOrganization(
 export interface UsageMeter {
   readonly key:
     | 'seats'
+    | 'invitations'
     | 'casesPerPeriod'
     | 'concurrentOpenCases'
     | 'storageBytes'
     | 'aiAllowanceUnits';
+  /** The registry key this meter shows (packages/core/src/entitlements.ts). */
+  readonly entitlement: CapacityKey;
   readonly label: string;
   readonly definition: string;
   readonly used: number;
-  /** null = unlimited (the plan's own column is null), never "no plan." */
+  /** null = unlimited (no limit on the plan), never "no plan." */
   readonly allowed: number | null;
+  /** Shown but not enforced yet (the AI allowance). */
+  readonly shownOnly: boolean;
 }
 
 export interface OrganizationUsage {
   readonly planAssigned: boolean;
   readonly plan: Plan | undefined;
   readonly meters: readonly UsageMeter[];
+  /** S29: the resolver's whole answer: price and next price, Complimentary, AI features. */
+  readonly entitlements: ResolvedEntitlements;
+}
+
+async function countPendingInvitationsFor(db: Db, organizationId: string): Promise<number> {
+  const row = first(
+    await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(schema.organizationInvitations)
+      .where(
+        and(
+          eq(schema.organizationInvitations.organizationId, organizationId),
+          eq(schema.organizationInvitations.status, 'PENDING'),
+        ),
+      ),
+  );
+  return row?.n ?? 0;
 }
 
 export async function countActiveSeats(db: Db, organizationId: string): Promise<number> {
@@ -1136,55 +1256,43 @@ export async function getUsageForOrganization(
     return err(serviceError('forbidden', 'not an active member of this organization'));
   }
   const now = input.now ?? new Date();
+  // S29: the same answer every limit check reads (entitlements.ts), so what this page shows and
+  // what stops a person can never disagree.
+  const resolved = await resolveEntitlements(db, { organizationId: input.organizationId }, now);
   const plan = await getCurrentPlanForOrganization(db, input.organizationId);
-  const periodStart = new Date(now.getTime() - (plan?.periodDays ?? 30) * 24 * 60 * 60 * 1000);
+  const periodDays = resolved.plan?.periodDays ?? 30;
+  const periodStart = new Date(now.getTime() - periodDays * 24 * 60 * 60 * 1000);
 
-  const [seatsUsed, casesUsed, concurrentUsed, storageUsed, aiUsed] = await Promise.all([
-    countActiveSeats(db, input.organizationId),
-    countCasesInPeriod(db, input.organizationId, periodStart),
-    countConcurrentOpenCases(db, input.organizationId),
-    getOrganizationEvidenceBytes(db, input.organizationId),
-    sumAiAllowanceUsed(db, input.organizationId, periodStart),
-  ]);
+  const [seatsUsed, invitationsPending, casesUsed, concurrentUsed, storageUsed, aiUsed] =
+    await Promise.all([
+      countActiveSeats(db, input.organizationId),
+      countPendingInvitationsFor(db, input.organizationId),
+      countCasesInPeriod(db, input.organizationId, periodStart),
+      countConcurrentOpenCases(db, input.organizationId),
+      getOrganizationEvidenceBytes(db, input.organizationId),
+      sumAiAllowanceUsed(db, input.organizationId, periodStart),
+    ]);
 
+  const meter = (key: UsageMeter['key'], entitlement: CapacityKey, used: number): UsageMeter => {
+    const definition = CAPACITY_ENTITLEMENTS[entitlement];
+    return {
+      key,
+      entitlement,
+      label: definition.name,
+      definition: entitlementDefinitionText(definition, periodDays),
+      used,
+      allowed: resolved.limits[entitlement],
+      shownOnly: definition.shownOnly,
+    };
+  };
   const meters: UsageMeter[] = [
-    {
-      key: 'seats',
-      label: 'Team Members',
-      definition: 'People with an active place in your agency.',
-      used: seatsUsed,
-      allowed: plan?.seatsAllowed ?? null,
-    },
-    {
-      key: 'casesPerPeriod',
-      label: 'New Cases',
-      definition: `Cases your agency started in the last ${plan?.periodDays ?? 30} days.`,
-      used: casesUsed,
-      allowed: plan?.casesPerPeriodAllowed ?? null,
-    },
-    {
-      key: 'concurrentOpenCases',
-      label: 'Open Cases',
-      definition: 'Cases of your agency that are not closed or cancelled yet.',
-      used: concurrentUsed,
-      allowed: plan?.concurrentOpenCasesAllowed ?? null,
-    },
-    {
-      key: 'storageBytes',
-      label: 'Storage',
-      definition:
-        'Files kept for every traveller who currently shares their record with your agency.',
-      used: storageUsed,
-      allowed: plan?.storageBytesAllowed ?? null,
-    },
-    {
-      key: 'aiAllowanceUnits',
-      label: 'AI Allowance',
-      definition: `Automatic document reading used in the last ${plan?.periodDays ?? 30} days for travellers who share their record with your agency.`,
-      used: aiUsed,
-      allowed: plan?.aiAllowanceUnitsAllowed ?? null,
-    },
+    meter('seats', 'seats', seatsUsed),
+    meter('invitations', 'invitations', seatsUsed + invitationsPending),
+    meter('casesPerPeriod', 'cases_per_period', casesUsed),
+    meter('concurrentOpenCases', 'open_cases', concurrentUsed),
+    meter('storageBytes', 'storage_bytes', storageUsed),
+    meter('aiAllowanceUnits', 'ai_allowance_units', aiUsed),
   ];
 
-  return ok({ planAssigned: plan !== undefined, plan, meters });
+  return ok({ planAssigned: plan !== undefined, plan, meters, entitlements: resolved });
 }

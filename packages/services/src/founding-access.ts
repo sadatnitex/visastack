@@ -1,31 +1,68 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
+import {
+  PLAN_PRICE_FROM_START,
+  rulesFromColumns,
+  writePlanPrice,
+  writePlanRules,
+} from './plans-admin';
+import { entitlementsSchemaPresent, planColumns } from './plans-schema';
 
 export const AGENCY_FOUNDING_PLAN_KEY = 'agency_founding_access';
 
-/** Runs inside new-organization creation; never changes an existing subscription. */
+/**
+ * Runs inside new-organization creation; never changes an existing subscription.
+ *
+ * S29: Founding Access stays the plan every new agency starts on. What makes it complimentary is
+ * the plan's `bypass_limits` flag (an agency plan with no price that lifts every limit), no longer
+ * its key; the Plans page refuses to retire it. Before migration 0107 the plan row is written with
+ * the columns every database has, and the checks recognise it by its key and zero price as before.
+ */
 export async function assignFoundingAccess(
   tx: Db,
   organizationId: string,
   creatorAccountId: string,
 ): Promise<void> {
-  await tx
-    .insert(schema.plans)
-    .values({
-      key: AGENCY_FOUNDING_PLAN_KEY,
-      name: 'VisaStack Founding Access',
-      priceMinorUnits: 0,
-      currency: 'USD',
-    })
-    .onConflictDoNothing({ target: schema.plans.key });
+  if (await entitlementsSchemaPresent(tx)) {
+    const [created] = await tx
+      .insert(schema.plans)
+      .values({
+        key: AGENCY_FOUNDING_PLAN_KEY,
+        name: 'VisaStack Founding Access',
+        priceMinorUnits: 0,
+        currency: 'USD',
+        audience: 'AGENCY',
+        bypassLimits: true,
+      })
+      .onConflictDoNothing({ target: schema.plans.key })
+      .returning(planColumns());
+    if (created) {
+      // A plan written for the first time gets its rule rows and its price, like any other.
+      const now = new Date();
+      await writePlanRules(tx, created.id, rulesFromColumns(created), now);
+      await writePlanPrice(
+        tx,
+        created.id,
+        { priceMinorUnits: 0, currency: 'USD' },
+        { effectiveFrom: PLAN_PRICE_FROM_START, actorAccountId: null, now },
+      );
+    }
+  } else {
+    await tx.execute(
+      sql`insert into plans (key, name, price_minor_units, currency) values (${AGENCY_FOUNDING_PLAN_KEY}, 'VisaStack Founding Access', 0, 'USD') on conflict (key) do nothing`,
+    );
+  }
   const plan = required(
     first(
-      await tx.select().from(schema.plans).where(eq(schema.plans.key, AGENCY_FOUNDING_PLAN_KEY)),
+      await tx
+        .select(planColumns())
+        .from(schema.plans)
+        .where(eq(schema.plans.key, AGENCY_FOUNDING_PLAN_KEY)),
     ),
     'founding offer',
   );
-  if (!plan.active || plan.priceMinorUnits !== 0) {
+  if (!plan.active || plan.priceMinorUnits !== 0 || !plan.bypassLimits) {
     throw new Error('The complimentary founding offer is unavailable.');
   }
   const subscription = required(
@@ -51,26 +88,4 @@ export async function assignFoundingAccess(
     resourceId: subscription.id,
     metadata: { organizationId, planKey: AGENCY_FOUNDING_PLAN_KEY, complimentary: true },
   });
-}
-
-/** A commercial offer only; this grants no object permissions or operational assurance. */
-export async function hasFoundingAccess(tx: Db, organizationId: string): Promise<boolean> {
-  return Boolean(
-    first(
-      await tx
-        .select({ id: schema.subscriptions.id })
-        .from(schema.subscriptions)
-        .innerJoin(schema.plans, eq(schema.subscriptions.planId, schema.plans.id))
-        .where(
-          and(
-            eq(schema.subscriptions.organizationId, organizationId),
-            isNull(schema.subscriptions.endedAt),
-            eq(schema.plans.key, AGENCY_FOUNDING_PLAN_KEY),
-            eq(schema.plans.priceMinorUnits, 0),
-            eq(schema.plans.active, true),
-          ),
-        )
-        .limit(1),
-    ),
-  );
 }

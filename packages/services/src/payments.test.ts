@@ -340,6 +340,7 @@ describe('online invoice payments (S11)', () => {
       // An attempt that is still being opened (no gateway page yet) also counts as recent...
       const other = await openInvoice('INV-S11-INFLIGHT');
       await db.insert(schema.paymentAttempts).values({
+        mode: 'LIVE',
         invoiceId: other,
         organizationId: org.organizationId,
         provider: 'sslcommerz',
@@ -912,6 +913,7 @@ describe('online invoice payments (S11)', () => {
       const [attempt] = await db
         .insert(schema.paymentAttempts)
         .values({
+          mode: 'LIVE',
           invoiceId,
           organizationId: org.organizationId,
           provider: 'sslcommerz',

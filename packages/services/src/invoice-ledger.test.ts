@@ -377,6 +377,7 @@ describe('cash ledger and the one recording function (S10)', () => {
         sourceId,
         reference: 'r',
         collectedDate: new Date(),
+        mode: 'LIVE' as const,
       };
       await db.insert(schema.invoicePayments).values(row);
       await expect(db.insert(schema.invoicePayments).values(row)).rejects.toThrow();
@@ -688,6 +689,7 @@ describe('cash ledger and the one recording function (S10)', () => {
         amountMinorUnits: -2500,
         currency: 'BDT',
         kind: 'REFUND',
+        mode: 'LIVE',
         sourceId: randomUUID(),
         reference: 'refund-1',
         collectedDate: new Date(),

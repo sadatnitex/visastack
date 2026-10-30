@@ -187,6 +187,7 @@ async function paidOnline(w: World, invoiceId: string, amount: number) {
   const [attempt] = await w.db
     .insert(schema.paymentAttempts)
     .values({
+      mode: 'LIVE',
       invoiceId,
       organizationId: w.organizationId,
       provider: 'sslcommerz',
@@ -230,6 +231,7 @@ async function heldPayment(
   const [attempt] = await w.db
     .insert(schema.paymentAttempts)
     .values({
+      mode: 'LIVE',
       invoiceId,
       organizationId: w.organizationId,
       provider: 'sslcommerz',
@@ -1527,6 +1529,7 @@ describe('S18 round 2: resends, It Went Through, refunded invoices, durable chec
           amountMinorUnits: 100,
           currency: 'BDT',
           kind: 'ADMIN_RECORDED',
+          mode: 'LIVE',
           sourceId: randomUUID(),
           reference: `BANK-${i}`,
           collectedDate: new Date(base + i * DAY),

@@ -36,7 +36,25 @@ export type ServiceErrorCode =
  * words without reading the message: the agency's billing is suspended, or a plan limit is
  * reached. The message stays a plain sentence for whoever reads it.
  */
-export type RefusalReason = 'billing_suspended' | 'limit_reached' | FieldReason;
+export type RefusalReason =
+  | 'billing_suspended'
+  | 'limit_reached'
+  | FieldReason
+  | PlanAdminReason
+  | PaymentModeReason;
+
+/**
+ * Why a plan change was refused (S29): plans cannot change before migration 0107, a plan's period
+ * is fixed once an agency has been on it, or the plan may not be retired.
+ */
+export type PlanAdminReason = 'plans_unavailable' | 'period_locked' | 'retire_blocked';
+
+/**
+ * Why a payment step was refused because of the gateway's mode (S29): in test mode only the
+ * platform owner can start a payment, and a test payment cannot be refunded through the live
+ * gateway.
+ */
+export type PaymentModeReason = 'test_mode_owner_only' | 'test_payment_live_gateway';
 
 /**
  * Why a typed money field was refused (S30), so a form can point to the field at fault without

@@ -5,17 +5,10 @@ import {
   listApplicantsForOrganization,
   listOrganizationsWithAccessToApplicant,
 } from './agency';
-import { isBillingSuspended } from './billing';
-import { isCommercialOverrideActive } from './commercial-override';
 import { type Db, first, schema } from './db';
+import { type ResolvedEntitlements, resolveEntitlements } from './entitlements';
 import { type ServiceError, refusal } from './errors';
-import { hasFoundingAccess } from './founding-access';
-import {
-  countActiveSeats,
-  countCasesInPeriod,
-  countConcurrentOpenCases,
-  getCurrentPlanForOrganization,
-} from './plans';
+import { countActiveSeats, countCasesInPeriod, countConcurrentOpenCases } from './plans';
 import { recordProductEvent } from './product-events';
 import { getOrganizationEvidenceBytes } from './quotas';
 
@@ -84,7 +77,23 @@ import { getOrganizationEvidenceBytes } from './quotas';
  * Deliberately NOT in this file (see requirements-ledger.md COM-02):
  * - AI allowance enforcement -- the directive's own §7 text defers it ("AI
  *   later"), not a gap this chunk silently left.
+ *
+ * S29: the order above (override, then a plan that lifts every limit, then
+ * suspension, then the plan's numbers) now lives in one place,
+ * `resolveEntitlements` (entitlements.ts). Each check below takes its lock
+ * first, asks the resolver once, and only then counts; the refusal codes and
+ * sentences are S30's, unchanged. Founding Access is no longer recognised by
+ * its key: it is the plan's `bypass_limits` flag.
+ *
+ * S29, owner decision of 30 Oct 2026 (O13): an agency's billing suspension
+ * never stops a traveller adding files to their own record. It pauses only
+ * the agency's own team (see `checkStorageEntitlement`).
  */
+
+/** Whether the resolver's answer lets the action through without counting anything. */
+function unrestricted(resolved: ResolvedEntitlements): boolean {
+  return resolved.gate === 'override' || resolved.gate === 'bypass';
+}
 
 type PlanLimit = 'SEATS' | 'INVITATIONS' | 'CASES_PER_PERIOD' | 'OPEN_CASES' | 'STORAGE';
 
@@ -167,9 +176,9 @@ export async function checkSeatEntitlement(
   await tx.execute(
     sql`select pg_advisory_xact_lock(${SEAT_QUOTA_LOCK_NAMESPACE}, hashtext(${organizationId}))`,
   );
-  if (await isCommercialOverrideActive(tx, organizationId)) return ok(undefined);
-  if (await hasFoundingAccess(tx, organizationId)) return ok(undefined);
-  if (await isBillingSuspended(tx, organizationId)) {
+  const resolved = await resolveEntitlements(tx, { organizationId });
+  if (unrestricted(resolved)) return ok(undefined);
+  if (resolved.gate === 'suspended') {
     return err(
       refusal(
         'billing_suspended',
@@ -177,17 +186,17 @@ export async function checkSeatEntitlement(
       ),
     );
   }
-  const plan = await getCurrentPlanForOrganization(tx, organizationId);
-  if (!plan || plan.seatsAllowed === null) return ok(undefined);
+  const allowed = resolved.limits.seats;
+  if (allowed === null) return ok(undefined);
   const current = await countActiveSeats(tx, organizationId);
-  if (current >= plan.seatsAllowed) {
+  if (current >= allowed) {
     return limitReached(
       tx,
       organizationId,
       'SEATS',
       refusal(
         'limit_reached',
-        `Your agency's plan allows ${count(plan.seatsAllowed, 'team member')}, and that many are active. Remove someone who no longer needs access, or ask VisaStack about a larger plan.`,
+        `Your agency's plan allows ${count(allowed, 'team member')}, and that many are active. Remove someone who no longer needs access, or ask VisaStack about a larger plan.`,
       ),
     );
   }
@@ -226,9 +235,9 @@ export async function checkInvitationEntitlement(
   await tx.execute(
     sql`select pg_advisory_xact_lock(${SEAT_QUOTA_LOCK_NAMESPACE}, hashtext(${organizationId}))`,
   );
-  if (await isCommercialOverrideActive(tx, organizationId)) return ok(undefined);
-  if (await hasFoundingAccess(tx, organizationId)) return ok(undefined);
-  if (await isBillingSuspended(tx, organizationId)) {
+  const resolved = await resolveEntitlements(tx, { organizationId });
+  if (unrestricted(resolved)) return ok(undefined);
+  if (resolved.gate === 'suspended') {
     return err(
       refusal(
         'billing_suspended',
@@ -236,18 +245,18 @@ export async function checkInvitationEntitlement(
       ),
     );
   }
-  const plan = await getCurrentPlanForOrganization(tx, organizationId);
-  if (!plan || plan.seatsAllowed === null) return ok(undefined);
+  const allowed = resolved.limits.invitations;
+  if (allowed === null) return ok(undefined);
   const activeSeats = await countActiveSeats(tx, organizationId);
   const pending = await countPendingInvitations(tx, organizationId);
-  if (activeSeats + pending >= plan.seatsAllowed) {
+  if (activeSeats + pending >= allowed) {
     return limitReached(
       tx,
       organizationId,
       'INVITATIONS',
       refusal(
         'limit_reached',
-        `Your agency's plan allows ${count(plan.seatsAllowed, 'team member')}, and active members and open invitations already fill it. Cancel an invitation, remove someone who no longer needs access, or ask VisaStack about a larger plan.`,
+        `Your agency's plan allows ${count(allowed, 'team member')}, and active members and open invitations already fill it. Cancel an invitation, remove someone who no longer needs access, or ask VisaStack about a larger plan.`,
       ),
     );
   }
@@ -270,9 +279,9 @@ export async function checkCaseCreationEntitlement(
   await tx.execute(
     sql`select pg_advisory_xact_lock(${CASE_QUOTA_LOCK_NAMESPACE}, hashtext(${organizationId}))`,
   );
-  if (await isCommercialOverrideActive(tx, organizationId)) return ok(undefined);
-  if (await hasFoundingAccess(tx, organizationId)) return ok(undefined);
-  if (await isBillingSuspended(tx, organizationId)) {
+  const resolved = await resolveEntitlements(tx, { organizationId });
+  if (unrestricted(resolved)) return ok(undefined);
+  if (resolved.gate === 'suspended') {
     return err(
       refusal(
         'billing_suspended',
@@ -280,35 +289,37 @@ export async function checkCaseCreationEntitlement(
       ),
     );
   }
-  const plan = await getCurrentPlanForOrganization(tx, organizationId);
+  const plan = resolved.plan;
   if (!plan) return ok(undefined);
 
-  if (plan.casesPerPeriodAllowed !== null) {
+  const casesAllowed = resolved.limits.cases_per_period;
+  if (casesAllowed !== null) {
     const periodStart = new Date(Date.now() - plan.periodDays * 24 * 60 * 60 * 1000);
     const casesThisPeriod = await countCasesInPeriod(tx, organizationId, periodStart);
-    if (casesThisPeriod >= plan.casesPerPeriodAllowed) {
+    if (casesThisPeriod >= casesAllowed) {
       return limitReached(
         tx,
         organizationId,
         'CASES_PER_PERIOD',
         refusal(
           'limit_reached',
-          `Your agency's plan allows ${count(plan.casesPerPeriodAllowed, 'new case')} every ${plan.periodDays} days, and they are used. You can start more when the period moves on, or ask VisaStack about a larger plan.`,
+          `Your agency's plan allows ${count(casesAllowed, 'new case')} every ${plan.periodDays} days, and they are used. You can start more when the period moves on, or ask VisaStack about a larger plan.`,
         ),
       );
     }
   }
 
-  if (plan.concurrentOpenCasesAllowed !== null) {
+  const openAllowed = resolved.limits.open_cases;
+  if (openAllowed !== null) {
     const concurrentOpen = await countConcurrentOpenCases(tx, organizationId);
-    if (concurrentOpen >= plan.concurrentOpenCasesAllowed) {
+    if (concurrentOpen >= openAllowed) {
       return limitReached(
         tx,
         organizationId,
         'OPEN_CASES',
         refusal(
           'limit_reached',
-          `Your agency's plan allows ${count(plan.concurrentOpenCasesAllowed, 'open case')} at a time, and that many are open. Close a finished case, or ask VisaStack about a larger plan.`,
+          `Your agency's plan allows ${count(openAllowed, 'open case')} at a time, and that many are open. Close a finished case, or ask VisaStack about a larger plan.`,
         ),
       );
     }
@@ -359,22 +370,22 @@ export async function checkStorageEntitlement(
   const inAgency = async (organizationId: string) =>
     uploaderAccountId !== undefined &&
     (await isActiveMember(tx, uploaderAccountId, organizationId));
-  const paused = async (organizationId: string) =>
-    (await inAgency(organizationId)) ? AGENCY_UPLOAD_PAUSED : TRAVELLER_UPLOAD_PAUSED;
   // A full plan is the agency's own to fix: its staff get the next step (S30).
   const full = async (organizationId: string) =>
     (await inAgency(organizationId)) ? AGENCY_STORAGE_FULL : TRAVELLER_UPLOAD_PAUSED;
   for (const organizationId of organizationIds) {
-    if (await isCommercialOverrideActive(tx, organizationId)) continue;
-    if (await hasFoundingAccess(tx, organizationId)) continue;
-    if (await isBillingSuspended(tx, organizationId)) {
-      return err(refusal('billing_suspended', await paused(organizationId)));
+    const resolved = await resolveEntitlements(tx, { organizationId });
+    if (unrestricted(resolved)) continue;
+    // Owner decision O13 (30 Oct 2026): a suspension pauses only the agency's own team. A
+    // traveller (or another agency's staff) adding files is never stopped by it.
+    if (resolved.gate === 'suspended' && (await inAgency(organizationId))) {
+      return err(refusal('billing_suspended', AGENCY_UPLOAD_PAUSED));
     }
-    const plan = await getCurrentPlanForOrganization(tx, organizationId);
-    if (!plan || plan.storageBytesAllowed === null) continue;
+    const allowed = resolved.limits.storage_bytes;
+    if (allowed === null) continue;
     const committed = await getOrganizationEvidenceBytes(tx, organizationId);
     const reserved = await activeReservedBytesForOrganization(tx, organizationId);
-    if (committed + reserved + additionalBytes > plan.storageBytesAllowed) {
+    if (committed + reserved + additionalBytes > allowed) {
       return limitReached(
         tx,
         organizationId,

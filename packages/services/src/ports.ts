@@ -170,6 +170,11 @@ export class PaymentProviderUnavailableError extends Error {
  */
 export interface PaymentPort {
   readonly configured: boolean;
+  /**
+   * S29: TEST when the gateway is in its test (sandbox) mode, LIVE when it takes real money, null
+   * when no gateway is configured. Every online payment and ledger row records it.
+   */
+  readonly mode: 'TEST' | 'LIVE' | null;
   /** A short stable name stored with each payment, for example `sslcommerz`. */
   readonly provider: string;
   /** The merchant (store) this deployment is configured for. */
