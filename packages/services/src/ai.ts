@@ -13,6 +13,7 @@ import {
   aiOwnerContext,
   chargeAiFeatureUse,
   hasScanCover,
+  leaveScanCover,
   openAiFeatureGate,
   refundAiFeatureUse,
   useScanCover,
@@ -1570,21 +1571,25 @@ export async function runExtraction(
   const owned = await loadOwnedApplicant(db, input);
   if (!owned.ok) return err(owned.error);
   const ownerAccountId = owned.value.ownerAccountId;
-  // One file is one use (S28 round 4): a counted scan of this very file, for this feature and
-  // person, leaves one cover in the database. While one is waiting, today's limit does not stop
-  // the details; the cover itself is used, once, where the details would be counted (below).
-  const covered = await hasScanCover(db, input.feature, ownerAccountId, input.documentVersionId);
-  // The feature first (S28): the platform, the platform owner's switch, the plan and today's
-  // limit, then the person's consent, then the spend and attempt limits. A refusal here leaves
-  // the cover unused, so the next Read Again of the file is still not counted.
-  const gate = await openAiFeatureGate(
-    db,
-    input.feature,
-    aiOwnerContext(ownerAccountId),
-    covered ? { alreadyCounted: true } : {},
-  );
+  // The feature first (S28): the platform, the platform owner's switch and the plan, then the
+  // person's consent. Today's limit is checked after these, once it is known whether a scan of
+  // this file already counted it (below). A refusal here reads no cover and uses none.
+  const gate = await openAiFeatureGate(db, input.feature, aiOwnerContext(ownerAccountId), {
+    alreadyCounted: true,
+  });
   if (!gate.ok) return err(aiFeatureRefusal(gate.error));
-  return extractAfterGate(db, ai, input, ownerAccountId, gate.value);
+  if (!(await hasConsent(db, ownerAccountId, 'AI_EXTRACTION'))) {
+    return err(serviceError('consent_required', 'AI extraction consent is required'));
+  }
+  // One file is one use (S28 rounds 4 and 5): a counted scan of this very file, for this feature
+  // and person, leaves one cover. With one waiting, today's limit does not stop the details and
+  // the cover is used, once, where they would be counted (in the reserve transaction). Without
+  // one, today's limit applies now and the details are counted.
+  if (!(await hasScanCover(db, gate.value, input.documentVersionId))) {
+    const limited = await openAiFeatureGate(db, input.feature, aiOwnerContext(ownerAccountId));
+    if (!limited.ok) return err(aiFeatureRefusal(limited.error));
+  }
+  return extractAfterGate(db, ai, input, gate.value);
 }
 
 /** `runExtraction` once the feature is on. */
@@ -1592,13 +1597,8 @@ async function extractAfterGate(
   db: Db,
   ai: AiExtractionPort,
   input: RunExtractionInput,
-  ownerAccountId: string,
   gate: AiFeatureGate,
 ): Promise<Result<RunExtractionSummary, ServiceError>> {
-  if (!(await hasConsent(db, ownerAccountId, 'AI_EXTRACTION'))) {
-    return err(serviceError('consent_required', 'AI extraction consent is required'));
-  }
-
   const rateLimited = await aiRateLimitRefusal(db, input.actorAccountId);
   if (rateLimited) return err(rateLimited);
 
@@ -2764,10 +2764,7 @@ async function reserveOcrSlot(
 
     // The feature's use today is counted here, last, once every other check has passed and a
     // real call is certain: a cache hit, a refusal or a fallback attempt is never counted (S28).
-    // A counted scan leaves one cover for this file's details (S28 round 4).
-    const charge = gate
-      ? await chargeAiFeatureUse(tx, gate, { coverFor: input.documentVersionId })
-      : null;
+    const charge = gate ? await chargeAiFeatureUse(tx, gate) : null;
     if (gate && !charge) {
       return { kind: 'final', outcome: err(aiDailyLimitRefusal(gate)) };
     }
@@ -2940,7 +2937,17 @@ export async function runOcr(
   // A scan that made a real call stays counted whatever happens next (S28 round 3); only one the
   // kill switch stopped before any call is given back.
   await refundIfSwitchedOff(db, reservation.charge, primary.outcome);
-  if (primary.outcome.ok) return primary.result;
+  // A counted scan that read text leaves one cover for this file's details (S28 round 5), from
+  // whichever provider answered; a scan that failed or read nothing leaves none.
+  const covered = async (
+    result: Result<RunOcrSummary, ServiceError>,
+  ): Promise<Result<RunOcrSummary, ServiceError>> => {
+    if (result.ok && (result.value.ocrRun.extractedText ?? '').trim().length > 0) {
+      await leaveScanCover(db, reservation.charge, input.documentVersionId);
+    }
+    return result;
+  };
+  if (primary.outcome.ok) return covered(primary.result);
   if (!input.fallback || !isOcrRecoverableForFallback(primary.outcome.code)) return primary.result;
 
   // Cross-provider fallback (Part 8 §13) -- see `runExtraction`'s own doc
@@ -2953,7 +2960,7 @@ export async function runOcr(
     null,
     reservation.runId,
   );
-  if (fallbackReservation.kind === 'final') return fallbackReservation.outcome;
+  if (fallbackReservation.kind === 'final') return covered(fallbackReservation.outcome);
 
   const fallback = await dispatchAndReconcileOcr(
     db,
@@ -2962,7 +2969,7 @@ export async function runOcr(
     fallbackReservation.runId,
     fallbackReservation.cacheKey,
   );
-  return fallback.result;
+  return covered(fallback.result);
 }
 
 /**

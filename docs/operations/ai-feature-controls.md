@@ -85,3 +85,10 @@ This replaces the round 3 "one file, one use" note above.
 - **A cover per counted scan:** when a scan that made a real call is counted against a feature for a person and a file, the same transaction leaves one cover (a `rate_limit_buckets` row `ai_scan_cover:<feature>:<file version>` for that person and day; no migration). The reading of that file's details for the same feature first uses one cover, in one conditional statement, in today's window or yesterday's (a scan at 23:40 UTC, its details at 00:30). Used, the details are not counted and today's limit does not stop them; without one, they are counted and limited as usual. A cover is used once: a second reading of the details is counted again.
 - A cover never serves another feature, person or file. A scan served from earlier work and one the kill switch stopped leave none (giving back the stopped scan removes its cover). A details step refused before the work (the switch, the plan, consent, the kill switch) leaves the cover for the next Read Again. When the first provider times out and a second answers, the first, counted scan's cover stays.
 - **AI App Access with no limit:** the count after the call always goes up, so it is what was served. If a limit was set while the call ran, the count can pass it by one; the next call is refused and the first such overage of the day is reported once.
+
+## Round 5 changes (30 Oct 2026)
+
+- A cover kept into the next day still stands for exactly one counted scan: every free details reading is backed by one counted scan, and only which day's limit it falls on shifts.
+- Only a counted scan that read text leaves a cover, and a file has at most one waiting: scanning it again sets the cover to one, never more. A scan that failed or read nothing leaves none.
+- The details step checks for a cover only after the feature switch, the plan and consent pass; a refused call reads no cover.
+- AI App Access with no limit: after the call only the platform owner's saved limit is read; a count past it is reported at most once per person, feature and day.

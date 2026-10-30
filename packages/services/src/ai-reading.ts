@@ -330,8 +330,8 @@ export async function processAiReading(
     applicantId: target.applicantId,
     documentVersionId: target.versionId,
     text: text.text,
-    // One file is one use: when a scan of this file was counted today, `runExtraction` finds its
-    // run record and does not count the details again (S28 round 3).
+    // One file is one use: a counted scan of this file that read text left one cover, and
+    // `runExtraction` uses it so the details are not counted again (S28 rounds 4 and 5).
     feature: 'ai_automatic_reading',
     budgetLimitUnits: extraction.limits.budgetLimitUnits,
     perDocumentBudgetLimitUnits: extraction.limits.perDocumentBudgetLimitUnits,

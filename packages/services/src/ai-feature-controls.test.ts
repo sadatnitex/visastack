@@ -856,6 +856,37 @@ describe('one file is one use, and only real calls count (round 2)', () => {
   );
 
   it(
+    'leaves a cover only for a scan that read text, and never more than one (round 5)',
+    async () => {
+      const { reader, ocr, extraction } = await readers('one-cover@example.com');
+      const fails: AiOcrPort = {
+        async performOcr() {
+          return { ok: false, code: 'invalid_response', message: 'unreadable answer' };
+        },
+        cacheKeyComponents: () => ({ model: 'm', promptVersion: 'o1' }),
+      };
+      // A real scan that failed: counted, but no cover.
+      expect((await runOcr(db, fails, scanInput(reader, 'ai_document_reading'))).ok).toBe(false);
+      expect(await bucketCount(reader.accountId, 'ai_document_reading')).toBe(1);
+      expect(await coverCount(reader, 'ai_document_reading', reader.versionId)).toBe(0);
+      // Two scans that read text: each counted, one cover between them.
+      await runOcr(db, ocr.ai, scanInput(reader, 'ai_document_reading'));
+      await runOcr(db, ocr.ai, {
+        ...scanInput(reader, 'ai_document_reading'),
+        imageBytes: new Uint8Array([4, 5, 6]),
+      });
+      expect(await bucketCount(reader.accountId, 'ai_document_reading')).toBe(3);
+      expect(await coverCount(reader, 'ai_document_reading', reader.versionId)).toBe(1);
+      // The details are free once; Read Again of the details is counted.
+      await runExtraction(db, extraction.ai, readInput(reader, SCAN_TEXT));
+      expect(await bucketCount(reader.accountId, 'ai_document_reading')).toBe(3);
+      await runExtraction(db, extraction.ai, readInput(reader, `${SCAN_TEXT} again`));
+      expect(await bucketCount(reader.accountId, 'ai_document_reading')).toBe(4);
+    },
+    TIMEOUT,
+  );
+
+  it(
     'counts a second reading of the same file’s details again: a cover is used once',
     async () => {
       const { reader, ocr, extraction, calls } = await readers('twice@example.com');
@@ -1050,7 +1081,7 @@ describe('one file is one use, and only real calls count (round 2)', () => {
     expect(await bucketCount('refund-retry', 'ai_consistency_checks')).toBe(0);
   });
 
-  it('counts an answer given after the call always, and reports once when a limit set meanwhile is passed', async () => {
+  it('counts answers given after the call always, and reports a passed limit once a day (round 5)', async () => {
     const reader = await seedReader(db, 'overage@example.com');
     const gate = {
       feature: 'ai_app_access' as const,
@@ -1058,17 +1089,17 @@ describe('one file is one use, and only real calls count (round 2)', () => {
       subject: { kind: 'account' as const, id: reader.accountId },
     };
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const reports = () =>
+      errors.mock.calls.filter((call) => String(call[0]).includes('aiFeatureOverage')).length;
     try {
+      for (let i = 0; i < 31; i += 1) await countAiUseAfterCall(db, gate);
+      expect(reports()).toBe(0);
+      // The platform owner sets a limit of 10 while one more call is still running.
+      await setFeature('ai_app_access', true, 10);
       await countAiUseAfterCall(db, gate);
-      // The platform owner sets a limit of 1 while another call is still running.
-      await setFeature('ai_app_access', true, 1);
       await countAiUseAfterCall(db, gate);
-      await countAiUseAfterCall(db, gate);
-      expect(await bucketCount(reader.accountId, 'ai_app_access')).toBe(3);
-      const reports = errors.mock.calls.filter((call) =>
-        String(call[0]).includes('aiFeatureOverage'),
-      );
-      expect(reports).toHaveLength(1);
+      expect(await bucketCount(reader.accountId, 'ai_app_access')).toBe(33);
+      expect(reports()).toBe(1);
     } finally {
       errors.mockRestore();
     }
