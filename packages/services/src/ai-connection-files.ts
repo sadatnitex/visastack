@@ -17,7 +17,6 @@ import {
 import { aiFilesAvailable } from './ai-files-ready';
 import { type Db, schema } from './db';
 import { isDocumentVersionUsable } from './documents';
-import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { isSafeCopyReady, listRedactionStates } from './redaction';
 import { referenceCodesFor } from './reference-codes';
@@ -103,8 +102,9 @@ interface EligibleDocument {
 /**
  * The record's documents an AI app could be given: current (not replaced), kept in the person's
  * own documents (not handed over for one case only), latest version safe to use or still being
- * checked (never failed, rejected or erased), and not of a type the document protection switches
- * restrict right now. `only` narrows to those ids.
+ * checked (never failed or rejected), and not of a type the document protection switches restrict
+ * right now. `only` narrows to those ids. A file being erased is refused when it would be given
+ * (`latestUsableVersion`), and erasing a document removes its ticks with it.
  */
 async function eligibleDocuments(
   db: Db,
@@ -134,7 +134,6 @@ async function eligibleDocuments(
     .select({
       id: schema.documentVersions.id,
       documentId: schema.documentVersions.documentId,
-      storageObjectId: schema.documentVersions.storageObjectId,
       safetyStatus: schema.documentVersions.safetyStatus,
       processingStatus: schema.documentVersions.processingStatus,
     })
@@ -150,14 +149,10 @@ async function eligibleDocuments(
   for (const version of versions) {
     if (!latest.has(version.documentId)) latest.set(version.documentId, version);
   }
-  const erased = await activeOrVerifiedErasureStorageObjectIds(
-    db,
-    [...latest.values()].map((version) => version.storageObjectId),
-  );
   const eligible: EligibleDocument[] = [];
   for (const row of open) {
     const version = latest.get(row.id);
-    if (!version || erased.has(version.storageObjectId)) continue;
+    if (!version) continue;
     // A new version still being checked keeps the document on the list, so saving Change Access
     // in the meantime never unticks it; nothing is given until that version is clean.
     const checking = version.safetyStatus === 'PENDING' || version.safetyStatus === 'SCANNING';
