@@ -31,5 +31,8 @@ Approved by the owner on 2026-10-28 (decision D3). Applies to user-facing words:
 | An agency's billing status that pauses adding cases, team members and files | Suspended | "Blocked", "Locked", "Disabled" | **New (S17)**; the existing status label |
 | An unpaid invoice past its due date | Overdue (in sentences: "past its due date") | "Late", "Delinquent", "Arrears" | **New (S17)** |
 | The action in invoice emails and reminders | Pay Invoice (status notices: Open Invoices) | "Pay Now", "Settle", "Make Payment" | **New (S17)** |
+| Money given back to an agency (ADR 0020 S18 amendment) | Refund; states Waiting to Send, Sent (Waiting for Confirmation), Refunded, Not Completed, Cancelled; staff actions Refund, Record a Refund Made Outside VisaStack, Send Again, Cancel This Refund, Check Now; invoice states Refunded and Partly Refunded | "Reversal", "Chargeback", "Write-off", "Rebate" | **New (S18, 30 Oct 2026)** |
+| Held money counted towards another invoice | Credit; staff action Apply to Next Invoice; on the agency's invoice "Credit from an earlier payment"; held payments are listed as Payments Needing a Check | "Carry Forward", "Balance Transfer", "Wallet" | **New (S18)** |
+| The monthly file of ledger rows for the accountant | Accounting File; button Download Ledger CSV | "Export", "Report" | **New (S18)** |
 
 Every rename is also an approved change in `apps/web/src/lib/ccd/approved-changes.ts`, so the parity test knows it is intended. Tests that assert an old name (`navigation.test.ts`, `labels.test.ts` and others) change only the expected word, never their strength.

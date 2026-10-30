@@ -42,7 +42,9 @@ export function InvoiceCard({
   /** The latest day a payment can have been made (YYYY-MM-DD, anywhere on earth). */
   readonly latestDate: string;
 }) {
-  const open = invoice.status !== 'PAID' && invoice.status !== 'VOID';
+  // A refunded invoice is never owed again (S18, D2): it has no Pay button and no report form.
+  const refunded = invoice.state === 'REFUNDED' || invoice.state === 'PARTLY_REFUNDED';
+  const open = invoice.status !== 'PAID' && invoice.status !== 'VOID' && !refunded;
   const reported = invoice.state === 'PAYMENT_REPORTED';
   const canPayOnline =
     open &&
@@ -70,6 +72,12 @@ export function InvoiceCard({
         {INVOICE_STATE_HINTS[invoice.state]}
         {invoice.partlyPaid && invoice.state === 'OPEN' ? ' Part of it has been paid.' : ''}
       </p>
+      {invoice.creditMinorUnits > 0 ? (
+        <p className="invoice-note">
+          Credit from an earlier payment: {plainAmount(invoice.creditMinorUnits, invoice.currency)}{' '}
+          of an online payment VisaStack held for a check was counted towards this invoice.
+        </p>
+      ) : null}
       <dl className="invoice-facts">
         <div>
           <dt>Invoiced</dt>
@@ -79,6 +87,12 @@ export function InvoiceCard({
           <dt>Paid So Far</dt>
           <dd>{plainAmount(invoice.collectedAmountMinorUnits, invoice.currency)}</dd>
         </div>
+        {invoice.refundedMinorUnits > 0 ? (
+          <div>
+            <dt>Refunded</dt>
+            <dd>{plainAmount(invoice.refundedMinorUnits, invoice.currency)}</dd>
+          </div>
+        ) : null}
         <div>
           <dt>Still Owed</dt>
           <dd>{plainAmount(invoice.outstandingMinorUnits, invoice.currency)}</dd>

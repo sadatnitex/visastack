@@ -7,8 +7,10 @@ import {
   getBillingAccountForOrganization,
   getCurrentPlanForOrganization,
   getOrganization,
+  getOrganizationRefundWork,
   getPendingDowngradeForOrganization,
   getUsageForOrganization,
+  isRefundingPaymentPort,
   legalBillingTransitions,
   listBillingStatusHistory,
   listCommercialOverridesForOrganization,
@@ -20,7 +22,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PageHeader } from '../../../../../components/ui';
-import { bootstrapAdminEmails, isPlatformOwnerAccount } from '../../../../../lib/admin';
+import {
+  bootstrapAdminEmails,
+  isPlatformOwnerAccount,
+  staffPrincipal,
+} from '../../../../../lib/admin';
 import {
   billingHistoryMove,
   billingHistoryReason,
@@ -36,6 +42,7 @@ import {
   invoiceStatusLabel,
   organizationStatusLabel,
 } from '../../../../../lib/labels';
+import { createPaymentPort } from '../../../../../lib/providers';
 import { withSession } from '../../../../../lib/session';
 import {
   formatMeterValue,
@@ -58,6 +65,7 @@ import {
   TransitionBillingStatusForm,
   VoidInvoiceButton,
 } from './forms';
+import { RefundsCard } from './refund-panel';
 
 export const metadata: Metadata = { title: 'Organization' };
 
@@ -203,6 +211,21 @@ export default async function AdminOrganizationPage({
       listCommercialOverridesForOrganization(db, orgId),
     ]);
 
+    // S18: refunds and credits, under the platform owner's own refund scope.
+    const port = createPaymentPort();
+    const gatewayProvider = port.configured && isRefundingPaymentPort(port) ? port.provider : null;
+    const refundScope = await staffPrincipal(
+      db,
+      { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
+      'BILLING_REFUND_MANAGE',
+    );
+    const refundWork = refundScope.ok
+      ? await getOrganizationRefundWork(db, refundScope.value, {
+          organizationId: orgId,
+          gatewayProvider,
+        })
+      : undefined;
+
     return {
       owner: true as const,
       org,
@@ -216,6 +239,13 @@ export default async function AdminOrganizationPage({
       invoices: invoices.ok ? invoices.value : [],
       claims: claims.ok ? claims.value : [],
       overrides,
+      refundWork: refundWork?.ok ? refundWork.value : undefined,
+      refundProblem: refundScope.ok
+        ? undefined
+        : refundScope.error.message === 'Enter your authenticator code first.'
+          ? refundScope.error.message
+          : 'Only the platform owner can refund or apply credits.',
+      gatewayAvailable: gatewayProvider !== null,
     };
   });
 
@@ -428,6 +458,19 @@ export default async function AdminOrganizationPage({
         </p>
         <ClaimQueue organizationId={orgId} claims={data.claims} />
       </article>
+
+      <RefundsCard
+        organizationId={orgId}
+        work={data.refundWork}
+        gatewayAvailable={data.gatewayAvailable}
+        latestDate={new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Asia/Dhaka',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        }).format(new Date())}
+        {...(data.refundProblem ? { problem: data.refundProblem } : {})}
+      />
 
       <article className="card">
         <p className="card-kicker">Commerce</p>
