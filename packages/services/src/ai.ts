@@ -829,8 +829,9 @@ function computeCacheKey(
 /**
  * OCR's own cache key -- `ocr_runs.cache_key`'s own doc comment:
  * `sha256(contentHash|model|promptVersion)`, deliberately simpler than
- * `computeCacheKey` above since OCR has no parser/schema-version or
- * reasoning-effort dial to fold in. `contentHash` here is a hash of the
+ * `computeCacheKey` above since OCR has no parser/schema version. A reasoning
+ * effort, when the adapter sends one, is added as its own part, so a key
+ * made without one stays exactly as it was. `contentHash` here is a hash of the
  * actual rendered image bytes about to be sent (computed by `runOcr`
  * itself), mirroring `runExtraction`'s own "hash of the exact content about
  * to be sent" choice -- not `document_versions.sha256`, which is a
@@ -845,6 +846,7 @@ function computeOcrCacheKey(
     cacheKeyComponents.model,
     cacheKeyComponents.promptVersion,
     ...providerKeyPart(cacheKeyComponents),
+    ...(cacheKeyComponents.reasoningEffort ? [`effort:${cacheKeyComponents.reasoningEffort}`] : []),
   ];
   return createHash('sha256').update(parts.join('|')).digest('hex');
 }

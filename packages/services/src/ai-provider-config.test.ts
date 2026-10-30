@@ -970,6 +970,8 @@ interface AuditMetadata {
   readonly keyReplaced?: unknown;
   readonly keyCopiedFromConfigId?: unknown;
   readonly keyFingerprint?: unknown;
+  readonly termsCleared?: unknown;
+  readonly sameKeyAsConfigId?: unknown;
 }
 
 async function auditOf(db: Db, eventType: string) {
@@ -1104,14 +1106,6 @@ describe('AI provider configuration -- Edit as New Draft (reusing a saved key)',
     if (!isOk(source)) throw new Error('source');
     await activateAiProviderConfig(db, { actor, stepUpSatisfied: true, configId: source.value.id });
 
-    await db.insert(schema.aiProviderConfigTerms).values({
-      configId: source.value.id,
-      tier: 'PAID',
-      trainsOnInputs: 'NO',
-      termsUrl: 'https://example.com/terms',
-      checkedOn: '2026-10-30',
-    });
-
     const copy = await createDraftAiProviderConfig(db, {
       ...draftInput(actor, { provider: 'anthropic', apiKey: '' }),
       model: 'claude-opus-5-5',
@@ -1130,13 +1124,6 @@ describe('AI provider configuration -- Edit as New Draft (reusing a saved key)',
     const events = await auditOf(db, 'AI_PROVIDER_CONFIG_CREATED');
     const copied = events.find((e) => e.resourceId === copy.value.id);
     expect((copied?.metadata as AuditMetadata).keyCopiedFromConfigId).toBe(source.value.id);
-    // The same key is the same account, so its recorded data terms come along.
-    const copiedTerms = await db
-      .select()
-      .from(schema.aiProviderConfigTerms)
-      .where(eq(schema.aiProviderConfigTerms.configId, copy.value.id));
-    expect(copiedTerms).toHaveLength(1);
-    expect(copiedTerms[0]?.trainsOnInputs).toBe('NO');
     // The source is part of the record and stays exactly as it was.
     const after = await getAiProviderConfigById(db, actor, source.value.id);
     expect(isOk(after) && after.value.status).toBe('ACTIVE');
@@ -1175,6 +1162,7 @@ describe('AI provider configuration -- deleting a draft', () => {
 
   it('deletes a draft with its key and data terms, and audits the deletion with the key fingerprint only', async () => {
     const actor = await seedSecurityAdmin(db);
+    await createDraftAiProviderConfig(db, draftInput(actor, { apiKey: 'sk-kept-5555' }));
     const draft = await createDraftAiProviderConfig(
       db,
       draftInput(actor, { apiKey: 'sk-gone-4444' }),
@@ -1223,18 +1211,43 @@ describe('AI provider configuration -- deleting a draft', () => {
     const actor = await seedSecurityAdmin(db);
     const target = await createDraftAiProviderConfig(db, draftInput(actor, { provider: 'gemini' }));
     if (!isOk(target)) throw new Error('target');
-    await createDraftAiProviderConfig(
+    const user = await createDraftAiProviderConfig(
       db,
       draftInput(actor, { fallbackEnabled: true, fallbackProviderConfigId: target.value.id }),
     );
+    if (!isOk(user)) throw new Error('user');
 
-    const deleted = await deleteDraftAiProviderConfig(db, {
+    const whileDraft = await deleteDraftAiProviderConfig(db, {
       actor,
       stepUpSatisfied: true,
       configId: target.value.id,
     });
-    expect(isErr(deleted) && deleted.error.code).toBe('invalid');
+    expect(isErr(whileDraft) && whileDraft.error.message).toContain(
+      'change or delete that draft first',
+    );
+
+    // Once the version using it has run, it is history and can never be changed: say so.
+    await activateAiProviderConfig(db, { actor, stepUpSatisfied: true, configId: user.value.id });
+    const afterRun = await deleteDraftAiProviderConfig(db, {
+      actor,
+      stepUpSatisfied: true,
+      configId: target.value.id,
+    });
+    expect(isErr(afterRun) && afterRun.error.message).toContain('stays in the history');
     expect(isOk(await getAiProviderConfigById(db, actor, target.value.id))).toBe(true);
+  });
+
+  it('refuses to delete the only saved configuration, which would hand reading back to the deployment settings', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const only = await createDraftAiProviderConfig(db, draftInput(actor));
+    if (!isOk(only)) throw new Error('draft');
+    const deleted = await deleteDraftAiProviderConfig(db, {
+      actor,
+      stepUpSatisfied: true,
+      configId: only.value.id,
+    });
+    expect(isErr(deleted) && deleted.error.message).toContain('only saved configuration');
+    expect(await isAiDispatchAllowed(db)).toBe(false);
   });
 
   it('refuses a stranger and a request without step-up, and reports a missing draft', async () => {
@@ -1261,5 +1274,145 @@ describe('AI provider configuration -- deleting a draft', () => {
       configId: '00000000-0000-4000-8000-000000000000',
     });
     expect(isErr(missing) && missing.error.code).toBe('not_found');
+  });
+});
+
+describe('AI provider configuration -- what editing and revoking protect', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('clears the draft data terms when its key is replaced, since a new key may be another account', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const draft = await createDraftAiProviderConfig(db, draftInput(actor));
+    if (!isOk(draft)) throw new Error('draft');
+    await db.insert(schema.aiProviderConfigTerms).values({
+      configId: draft.value.id,
+      tier: 'PAID',
+      trainsOnInputs: 'NO',
+      termsUrl: 'https://example.com/terms',
+      checkedOn: '2026-10-30',
+    });
+
+    await updateDraftAiProviderConfig(db, editInput(actor, draft.value.id));
+    expect(await db.select().from(schema.aiProviderConfigTerms)).toHaveLength(1);
+
+    await updateDraftAiProviderConfig(db, editInput(actor, draft.value.id, { apiKey: 'sk-other' }));
+    expect(await db.select().from(schema.aiProviderConfigTerms)).toHaveLength(0);
+    const events = await auditOf(db, 'AI_PROVIDER_CONFIG_UPDATED');
+    const flags = events.map((e) => (e.metadata as AuditMetadata).termsCleared).sort();
+    expect(flags).toEqual([false, true]);
+  });
+
+  it('refuses to edit a draft whose key was revoked', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const draft = await createDraftAiProviderConfig(db, draftInput(actor));
+    if (!isOk(draft)) throw new Error('draft');
+    await revokeAiProviderConfigKey(db, { actor, stepUpSatisfied: true, configId: draft.value.id });
+    const edited = await updateDraftAiProviderConfig(
+      db,
+      editInput(actor, draft.value.id, { apiKey: 'sk-fresh' }),
+    );
+    expect(isErr(edited) && edited.error.message).toContain('revoked');
+  });
+
+  it('refuses to edit a draft that a version which has run falls back to, but allows it while only drafts point at it', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const fallback = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, { provider: 'anthropic' }),
+    );
+    if (!isOk(fallback)) throw new Error('fallback');
+    const primary = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, { fallbackEnabled: true, fallbackProviderConfigId: fallback.value.id }),
+    );
+    if (!isOk(primary)) throw new Error('primary');
+
+    expect(isOk(await updateDraftAiProviderConfig(db, editInput(actor, fallback.value.id)))).toBe(
+      true,
+    );
+    await activateAiProviderConfig(db, {
+      actor,
+      stepUpSatisfied: true,
+      configId: primary.value.id,
+    });
+    const edited = await updateDraftAiProviderConfig(db, editInput(actor, fallback.value.id));
+    expect(isErr(edited) && edited.error.message).toContain('fallback');
+  });
+
+  it('revokes every copy of a key with it, disabling an active copy, and leaves other keys alone', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const original = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, { provider: 'anthropic', apiKey: 'sk-ant-shared-7777' }),
+    );
+    if (!isOk(original)) throw new Error('original');
+    const copy = await createDraftAiProviderConfig(db, {
+      ...draftInput(actor, { provider: 'anthropic', apiKey: '' }),
+      copyApiKeyFromConfigId: original.value.id,
+    });
+    if (!isOk(copy)) throw new Error('copy');
+    // Same last four characters, different key: must not be revoked.
+    const lookalike = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, { provider: 'anthropic', apiKey: 'sk-ant-other-7777' }),
+    );
+    if (!isOk(lookalike)) throw new Error('lookalike');
+    await activateAiProviderConfig(db, { actor, stepUpSatisfied: true, configId: copy.value.id });
+
+    const revoked = await revokeAiProviderConfigKey(db, {
+      actor,
+      stepUpSatisfied: true,
+      configId: original.value.id,
+      encryption,
+    });
+    expect(isOk(revoked)).toBe(true);
+    const read = async (id: string) => {
+      const row = await getAiProviderConfigById(db, actor, id);
+      if (!isOk(row)) throw new Error('read');
+      return row.value;
+    };
+    expect((await read(original.value.id)).keyRevokedAt).not.toBeNull();
+    const copyAfter = await read(copy.value.id);
+    expect(copyAfter.keyRevokedAt).not.toBeNull();
+    expect(copyAfter.status).toBe('DISABLED');
+    expect((await read(lookalike.value.id)).keyRevokedAt).toBeNull();
+
+    const events = await auditOf(db, 'AI_PROVIDER_CONFIG_KEY_REVOKED');
+    const forCopy = events.find((e) => e.resourceId === copy.value.id);
+    expect((forCopy?.metadata as AuditMetadata).sameKeyAsConfigId).toBe(original.value.id);
+  });
+
+  it('asking again on an already-revoked key still catches a copy of it', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const original = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, { apiKey: 'sk-x-8888' }),
+    );
+    if (!isOk(original)) throw new Error('original');
+    const copy = await createDraftAiProviderConfig(db, {
+      ...draftInput(actor, { apiKey: '' }),
+      copyApiKeyFromConfigId: original.value.id,
+    });
+    if (!isOk(copy)) throw new Error('copy');
+    // A revoke without the key service revokes only that row.
+    await revokeAiProviderConfigKey(db, {
+      actor,
+      stepUpSatisfied: true,
+      configId: original.value.id,
+    });
+    const before = await getAiProviderConfigById(db, actor, copy.value.id);
+    expect(isOk(before) && before.value.keyRevokedAt).toBeNull();
+
+    await revokeAiProviderConfigKey(db, {
+      actor,
+      stepUpSatisfied: true,
+      configId: original.value.id,
+      encryption,
+    });
+    const after = await getAiProviderConfigById(db, actor, copy.value.id);
+    expect(isOk(after) && after.value.keyRevokedAt).not.toBeNull();
   });
 });

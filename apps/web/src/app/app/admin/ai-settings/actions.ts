@@ -2,15 +2,18 @@
 
 import { passesThresholds, runEvaluationSuite } from '@visastack/adapters';
 import {
+  type AiProviderDataTerms,
   type AiProviderTier,
   type AiTrainingAnswer,
   type PlatformAuthInput,
   type RecordAiProviderDataTermsInput,
   activateAiProviderConfig,
+  aiProviderTermsFor,
   createDraftAiProviderConfig,
   deleteDraftAiProviderConfig,
   emergencyDisableAiProviderConfig,
   getAiProviderConfigById,
+  loadAiProviderDataTerms,
   recordAiProviderConfigEvaluation,
   recordAiProviderConfigTest,
   recordAiProviderDataTerms,
@@ -196,6 +199,20 @@ function configSettings(fields: ConfigFields) {
   };
 }
 
+/** The recorded terms of a configuration as fields to record again, or undefined when none are recorded. */
+function carriedTerms(terms: AiProviderDataTerms): TermsFields | undefined {
+  if (!terms.recorded || terms.tier === 'UNKNOWN' || terms.checkedOn === null) return undefined;
+  return {
+    tier: terms.tier,
+    trainsOnInputs: terms.trainsOnInputs,
+    checkedOn: terms.checkedOn,
+    ...(terms.retentionDays !== null ? { retentionDays: terms.retentionDays } : {}),
+    ...(terms.region ? { region: terms.region } : {}),
+    ...(terms.termsUrl ? { termsUrl: terms.termsUrl } : {}),
+    ...(terms.notes ? { notes: terms.notes } : {}),
+  };
+}
+
 const ENCRYPTION_NOT_CONFIGURED: ActionState = {
   ok: false,
   message:
@@ -247,13 +264,25 @@ export async function createDraftAiProviderConfigAction(
       ...configSettings(fields),
     });
     if (!draft.ok) return { ok: false, message: draft.error.message } satisfies ActionState;
-    if (terms) {
+    // A reused key is the same provider account, so the terms recorded for it still describe
+    // it: they are recorded again for the new draft, through the same checks and audit.
+    const carried =
+      !terms && copyApiKeyFromConfigId && !fields.apiKey
+        ? carriedTerms(
+            aiProviderTermsFor(
+              await loadAiProviderDataTerms(db, [copyApiKeyFromConfigId]),
+              copyApiKeyFromConfigId,
+            ),
+          )
+        : undefined;
+    const termsToRecord = terms ?? carried;
+    if (termsToRecord) {
       const staff = await staffPrincipal(db, actor(accountId, email), 'AI_SETTINGS_MANAGE');
       if (!staff.ok) return DENIED;
       const recorded = await recordAiProviderDataTerms(db, staff.value, {
         stepUpSatisfied: true,
         configId: draft.value.id,
-        ...terms,
+        ...termsToRecord,
       });
       if (!recorded.ok) {
         return {
@@ -467,10 +496,13 @@ export async function revokeAiProviderConfigKeyAction(
     }
     if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
 
+    // With the key service, every other configuration holding the same key is revoked too.
+    const encryption = createKeyManagementPort();
     const revoked = await revokeAiProviderConfigKey(db, {
       actor: actor(accountId, email),
       stepUpSatisfied: true,
       configId,
+      ...(encryption ? { encryption } : {}),
     });
     if (!revoked.ok) return { ok: false, message: revoked.error.message } satisfies ActionState;
     return { ok: true, message: 'API key revoked.' } satisfies ActionState;

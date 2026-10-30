@@ -291,7 +291,7 @@ describe('AnthropicOcrAdapter', () => {
     });
   });
 
-  it('sends the chosen reasoning effort to a model that takes it, and folds it into the cache key', async () => {
+  it('sends the chosen reasoning effort to a model that takes it, and keys the cache on it', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       jsonResponse(200, {
         stop_reason: 'end_turn',
@@ -304,19 +304,23 @@ describe('AnthropicOcrAdapter', () => {
       reasoningEffort: 'low',
       fetchImpl,
     });
-    const outcome = await adapter.performOcr(VALID_INPUT);
+    await adapter.performOcr(VALID_INPUT);
     const [, requestInit] = fetchImpl.mock.calls[0] as [string, RequestInit];
     expect(JSON.parse(requestInit.body as string).output_config.effort).toBe('low');
-    expect(adapter.cacheKeyComponents().promptVersion).toBe('2026-10-30-v1+effort-low');
-    expect(outcome.ok && outcome.result.usage.promptVersion).toBe('2026-10-30-v1+effort-low');
+    expect(adapter.cacheKeyComponents()).toEqual({
+      provider: 'anthropic',
+      model: 'claude-sonnet-5-5',
+      promptVersion: '2026-10-30-v1',
+      reasoningEffort: 'low',
+    });
   });
 
-  it('sends no effort to a model that refuses one, and keeps the plain prompt version', () => {
+  it('sends no effort to a model that refuses one, and leaves it out of the cache key', () => {
     const adapter = new AnthropicOcrAdapter({
       apiKey: 'sk-ant-test',
       model: 'claude-haiku-4-5',
       reasoningEffort: 'high',
     });
-    expect(adapter.cacheKeyComponents().promptVersion).toBe('2026-10-30-v1');
+    expect(adapter.cacheKeyComponents().reasoningEffort).toBeUndefined();
   });
 });

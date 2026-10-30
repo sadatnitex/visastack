@@ -1440,6 +1440,7 @@ function aiConfigView(overrides: Partial<ConfigFormView> = {}): ConfigFormView {
     notes: 'Pilot',
     apiKeyFingerprint: '...MQAA',
     keyRevoked: false,
+    editableInPlace: true,
     ...overrides,
   };
 }
@@ -1474,25 +1475,35 @@ const ADMIN: readonly Case[] = [
   {
     name: 'new AI configuration',
     element: () => (
-      <aiSettings.CreateDraftConfigForm existingConfigs={[aiConfigView({ status: 'ACTIVE' })]} />
+      <aiSettings.CreateDraftConfigForm fallbackOptions={[aiConfigView({ status: 'ACTIVE' })]} />
     ),
   },
   row('edit an AI draft', () => {
     const config = aiConfigView({ id: rowId() });
-    return <aiSettings.EditConfigForm config={config} existingConfigs={[config]} />;
+    return <aiSettings.EditConfigForm config={config} fallbackOptions={[config]} />;
   }),
   row('edit an active AI configuration as a new draft', () => {
-    const config = aiConfigView({ id: rowId(), status: 'ACTIVE', reasoningEffort: 'low' });
-    return <aiSettings.EditConfigForm config={config} existingConfigs={[config]} />;
+    const config = aiConfigView({
+      id: rowId(),
+      status: 'ACTIVE',
+      reasoningEffort: 'low',
+      editableInPlace: false,
+    });
+    return <aiSettings.EditConfigForm config={config} fallbackOptions={[config]} />;
   }),
   row('edit a revoked AI configuration as a new draft', () => {
-    const config = aiConfigView({ id: rowId(), status: 'SUPERSEDED', keyRevoked: true });
-    return <aiSettings.EditConfigForm config={config} existingConfigs={[config]} />;
+    const config = aiConfigView({
+      id: rowId(),
+      status: 'SUPERSEDED',
+      keyRevoked: true,
+      editableInPlace: false,
+    });
+    return <aiSettings.EditConfigForm config={config} fallbackOptions={[config]} />;
   }),
   row('delete an AI draft', () => <aiSettings.DeleteDraftButton configId={rowId()} />),
   {
     name: 'new AI configuration (first one)',
-    element: () => <aiSettings.CreateDraftConfigForm existingConfigs={[]} />,
+    element: () => <aiSettings.CreateDraftConfigForm fallbackOptions={[]} />,
   },
   row('test an AI connection', () => <aiSettings.TestConnectionButton configId={rowId()} />),
   row('run an AI evaluation', () => <aiSettings.RunEvaluationButton configId={rowId()} />),

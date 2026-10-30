@@ -26,6 +26,7 @@ import {
   DeleteDraftButton,
   EditConfigForm,
   EmergencyDisableButton,
+  type FallbackOption,
   RecordTermsForm,
   RevokeKeyButton,
   RollbackConfigButton,
@@ -54,8 +55,15 @@ const STATUS_BADGE: Record<AiProviderConfig['status'], { label: string; tone: st
   DISABLED: { label: 'Disabled', tone: 'badge-danger' },
 };
 
-/** What the settings forms may see of a configuration: its settings, never its key material. */
-function toConfigFormView(config: AiProviderConfig): ConfigFormView {
+/**
+ * What the settings forms may see of a configuration: its settings, never its key material.
+ * `fallbackFor` holds the ids that a version which has run falls back to; those drafts are
+ * copied rather than edited (the service refuses the edit too).
+ */
+function toConfigFormView(
+  config: AiProviderConfig,
+  fallbackFor: ReadonlySet<string>,
+): ConfigFormView {
   return {
     id: config.id,
     status: config.status,
@@ -77,6 +85,8 @@ function toConfigFormView(config: AiProviderConfig): ConfigFormView {
     notes: config.notes,
     apiKeyFingerprint: config.apiKeyFingerprint,
     keyRevoked: config.keyRevokedAt !== null,
+    editableInPlace:
+      config.status === 'DRAFT' && config.keyRevokedAt === null && !fallbackFor.has(config.id),
   };
 }
 
@@ -143,7 +153,18 @@ export default async function AiSettingsPage() {
     );
   }
 
-  const formViews = data.history.map(toConfigFormView);
+  const fallbackFor = new Set(
+    data.history
+      .filter((c) => c.status !== 'DRAFT' && c.fallbackEnabled && c.fallbackProviderConfigId)
+      .map((c) => c.fallbackProviderConfigId as string),
+  );
+  const formViews = data.history.map((config) => toConfigFormView(config, fallbackFor));
+  const fallbackOptions: FallbackOption[] = data.history.map(({ id, status, provider, model }) => ({
+    id,
+    status,
+    provider,
+    model,
+  }));
 
   return (
     <section className="section container">
@@ -200,7 +221,7 @@ export default async function AiSettingsPage() {
           The API key is write-only: it is encrypted immediately and never shown again, only a
           masked fingerprint.
         </p>
-        <CreateDraftConfigForm existingConfigs={formViews} />
+        <CreateDraftConfigForm fallbackOptions={fallbackOptions} />
       </article>
 
       {data.history.length > 0 ? (
@@ -335,8 +356,10 @@ export default async function AiSettingsPage() {
                 ) : null}
                 {formView ? (
                   <details className="u-mt-100">
-                    <summary className="muted">{isDraft ? 'Edit' : 'Edit as New Draft'}</summary>
-                    <EditConfigForm config={formView} existingConfigs={formViews} />
+                    <summary className="muted">
+                      {formView.editableInPlace ? 'Edit' : 'Edit as New Draft'}
+                    </summary>
+                    <EditConfigForm config={formView} fallbackOptions={fallbackOptions} />
                   </details>
                 ) : null}
                 <details className="u-mt-100">

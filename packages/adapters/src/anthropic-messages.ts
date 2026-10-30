@@ -271,6 +271,30 @@ export async function callStructured(input: StructuredCallInput): Promise<Struct
   }
 }
 
+/** An adapter's failure outcome for a failed call; every port's failure has this shape. */
+export function anthropicFailure(failure: {
+  readonly code: AnthropicCallErrorCode;
+  readonly message: string;
+  readonly latencyMs: number;
+}) {
+  return {
+    ok: false as const,
+    code: failure.code,
+    message: failure.message,
+    provider: 'anthropic',
+    latencyMs: failure.latencyMs,
+  };
+}
+
+/** A JSON answer that is missing a field the task needs: never treated as an empty answer. */
+export function anthropicInvalidShape(latencyMs: number) {
+  return anthropicFailure({
+    code: 'invalid_response',
+    message: 'Anthropic response had an unexpected shape',
+    latencyMs,
+  });
+}
+
 /** Matches a reply's enum value to one of `allowed` ignoring case: JSON outputs keep the value but not always its capitalization. */
 export function matchEnumValue<T extends string>(
   allowed: readonly T[],

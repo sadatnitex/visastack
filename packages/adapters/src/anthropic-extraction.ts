@@ -18,8 +18,9 @@ import type {
 } from '@visastack/services';
 import {
   ANTHROPIC_DEFAULT_MAX_TOKENS,
-  type AnthropicCallErrorCode,
   anthropicEffortFor,
+  anthropicFailure,
+  anthropicInvalidShape,
   callStructured,
   matchEnumValue,
   structuredRequestBody,
@@ -282,9 +283,9 @@ export class AnthropicExtractionAdapter
       `Allowed field keys (JSON array - use ONLY these, or UNMAPPED/UNCERTAIN): ${JSON.stringify(input.allowedFieldKeys)}\n\nDocument text:\n"""\n${input.text}\n"""`,
       PROPOSAL_ANSWER_SCHEMA,
     );
-    if (!answer.ok) return failure(answer);
+    if (!answer.ok) return anthropicFailure(answer);
     const proposalsRaw = (answer.value as RawProposalAnswer).proposals;
-    if (!Array.isArray(proposalsRaw)) return invalidShape(answer.latencyMs);
+    if (!Array.isArray(proposalsRaw)) return anthropicInvalidShape(answer.latencyMs);
 
     const proposals: FieldProposal[] = proposalsRaw
       .filter((p): p is AnswerProposal => {
@@ -328,9 +329,9 @@ export class AnthropicExtractionAdapter
       `Allowed document types (JSON array - use ONLY these, or null): ${JSON.stringify(input.allowedTypes)}\n\nDocument text:\n"""\n${input.text}\n"""`,
       CLASSIFY_ANSWER_SCHEMA,
     );
-    if (!answer.ok) return failure(answer);
+    if (!answer.ok) return anthropicFailure(answer);
     const candidate = answer.value as RawClassificationAnswer;
-    if (typeof candidate.confidence !== 'number') return invalidShape(answer.latencyMs);
+    if (typeof candidate.confidence !== 'number') return anthropicInvalidShape(answer.latencyMs);
 
     return {
       ok: true,
@@ -363,9 +364,9 @@ export class AnthropicExtractionAdapter
       `Requirement kind: ${input.requirementKind}\nRequirement: ${input.requirementKey}\nStatus: ${input.state === 'CRITICAL_GAP' ? 'required and not yet met' : 'optional and not yet met'}\nCitation: """\n${input.citation}\n"""`,
       EXPLAIN_ANSWER_SCHEMA,
     );
-    if (!answer.ok) return failure(answer);
+    if (!answer.ok) return anthropicFailure(answer);
     const candidate = answer.value as RawExplanationAnswer;
-    if (typeof candidate.explanation !== 'string') return invalidShape(answer.latencyMs);
+    if (typeof candidate.explanation !== 'string') return anthropicInvalidShape(answer.latencyMs);
 
     return {
       ok: true,
@@ -394,9 +395,9 @@ export class AnthropicExtractionAdapter
       `Applicant's own confirmed profile facts (JSON array of fieldKey/value pairs): ${JSON.stringify(input.profileFacts)}\n\nDocument text:\n"""\n${input.text}\n"""`,
       INCONSISTENCY_ANSWER_SCHEMA,
     );
-    if (!answer.ok) return failure(answer);
+    if (!answer.ok) return anthropicFailure(answer);
     const flagsRaw = (answer.value as RawInconsistencyAnswer).flags;
-    if (!Array.isArray(flagsRaw)) return invalidShape(answer.latencyMs);
+    if (!Array.isArray(flagsRaw)) return anthropicInvalidShape(answer.latencyMs);
 
     const flags: AiInconsistencyFlag[] = flagsRaw
       .filter((f): f is AnswerFlag => {
@@ -427,31 +428,6 @@ export class AnthropicExtractionAdapter
 }
 
 type StructuredAnswer = Extract<Awaited<ReturnType<typeof callStructured>>, { ok: true }>;
-
-interface CallFailure {
-  readonly code: AnthropicCallErrorCode;
-  readonly message: string;
-  readonly latencyMs: number;
-}
-
-function failure(answer: CallFailure) {
-  return {
-    ok: false as const,
-    code: answer.code,
-    message: answer.message,
-    provider: PROVIDER,
-    latencyMs: answer.latencyMs,
-  };
-}
-
-/** A JSON answer that is missing the field the task needs: never treated as an empty answer. */
-function invalidShape(latencyMs: number) {
-  return failure({
-    code: 'invalid_response',
-    message: 'Anthropic response had an unexpected shape',
-    latencyMs,
-  });
-}
 
 function toProposalType(value: string): ProposalType {
   return matchEnumValue(PROPOSAL_TYPES, value) ?? 'UNCERTAIN';

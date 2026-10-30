@@ -1,9 +1,10 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
 import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { isMissingRelationError } from './missing-relation';
 import { type PlatformAuthInput, canPerformPlatformAction } from './platform-roles';
 import type { KeyManagementPort } from './ports';
 import { protectValue, revealValue } from './protected-fields';
@@ -46,6 +47,23 @@ function fingerprintApiKey(apiKey: string): string {
 }
 
 const LOCK_SQL = sql`select pg_advisory_xact_lock(hashtext('visastack:ai-provider-config'))`;
+
+/** The settings checks a draft must pass whether it is being created or edited. */
+function draftSettingsProblem(input: {
+  readonly model: string;
+  readonly budgetLimitUnits: number;
+  readonly fallbackEnabled?: boolean;
+  readonly fallbackProviderConfigId?: string;
+}): ServiceError | undefined {
+  if (input.model.trim().length === 0) return serviceError('invalid', 'a model is required');
+  if (!(input.budgetLimitUnits > 0)) {
+    return serviceError('invalid', 'a positive budget limit is required');
+  }
+  if (input.fallbackEnabled && !input.fallbackProviderConfigId) {
+    return serviceError('invalid', 'a fallback configuration must be selected to enable fallback');
+  }
+  return undefined;
+}
 
 export interface CreateDraftAiProviderConfigInput {
   readonly actor: PlatformAuthInput;
@@ -103,16 +121,13 @@ export async function createDraftAiProviderConfig(
   if (input.apiKey.trim().length === 0 && !input.copyApiKeyFromConfigId) {
     return err(serviceError('invalid', 'an API key is required'));
   }
-  if (!(input.budgetLimitUnits > 0)) {
-    return err(serviceError('invalid', 'a positive budget limit is required'));
-  }
-  if (input.fallbackEnabled && !input.fallbackProviderConfigId) {
-    return err(
-      serviceError('invalid', 'a fallback configuration must be selected to enable fallback'),
-    );
-  }
+  const problem = draftSettingsProblem(input);
+  if (problem) return err(problem);
 
   return db.transaction(async (tx) => {
+    // The same lock as revoke and delete, so a key is never copied from a row that is being
+    // revoked, and a fallback is never pointed at a draft that is being deleted.
+    await tx.execute(LOCK_SQL);
     let apiKey = input.apiKey.trim();
     const copiedFrom = apiKey.length === 0 ? input.copyApiKeyFromConfigId : undefined;
     if (copiedFrom) {
@@ -192,22 +207,6 @@ export async function createDraftAiProviderConfig(
       ),
       'ai provider config',
     );
-    if (copiedFrom) {
-      // The same key means the same provider account, so the data terms recorded for it still
-      // describe it: the newest are carried over (as a new row; terms are append-only).
-      const terms = first(
-        await tx
-          .select()
-          .from(schema.aiProviderConfigTerms)
-          .where(eq(schema.aiProviderConfigTerms.configId, copiedFrom))
-          .orderBy(desc(schema.aiProviderConfigTerms.createdAt))
-          .limit(1),
-      );
-      if (terms) {
-        const { id: _id, createdAt: _createdAt, ...carried } = terms;
-        await tx.insert(schema.aiProviderConfigTerms).values({ ...carried, configId: config.id });
-      }
-    }
     await appendAuditEvent(tx, {
       eventType: 'AI_PROVIDER_CONFIG_CREATED',
       actorAccountId: input.actor.accountId,
@@ -253,17 +252,8 @@ export async function updateDraftAiProviderConfig(
       serviceError('step_up_required', 'editing an AI configuration requires reauthentication'),
     );
   }
-  if (input.model.trim().length === 0) {
-    return err(serviceError('invalid', 'a model is required'));
-  }
-  if (!(input.budgetLimitUnits > 0)) {
-    return err(serviceError('invalid', 'a positive budget limit is required'));
-  }
-  if (input.fallbackEnabled && !input.fallbackProviderConfigId) {
-    return err(
-      serviceError('invalid', 'a fallback configuration must be selected to enable fallback'),
-    );
-  }
+  const problem = draftSettingsProblem(input);
+  if (problem) return err(problem);
   if (input.fallbackProviderConfigId === input.configId) {
     return err(serviceError('invalid', 'a configuration cannot be its own fallback'));
   }
@@ -282,6 +272,37 @@ export async function updateDraftAiProviderConfig(
     if (target.status !== 'DRAFT') {
       return err(
         serviceError('invalid', 'only a draft can be edited; use Edit as New Draft instead'),
+      );
+    }
+    if (target.keyRevokedAt !== null) {
+      return err(
+        serviceError(
+          'invalid',
+          "this draft's key was revoked, so it can never be used; use Edit as New Draft with a new key",
+        ),
+      );
+    }
+    // A draft another version falls back to may already have answered for it, so it is part of
+    // the record too, and changing it would change live fallback calls without an activation.
+    const fallingBack = first(
+      await tx
+        .select({ id: schema.aiProviderConfigs.id })
+        .from(schema.aiProviderConfigs)
+        .where(
+          and(
+            eq(schema.aiProviderConfigs.fallbackProviderConfigId, target.id),
+            eq(schema.aiProviderConfigs.fallbackEnabled, true),
+            ne(schema.aiProviderConfigs.status, 'DRAFT'),
+          ),
+        )
+        .limit(1),
+    );
+    if (fallingBack) {
+      return err(
+        serviceError(
+          'invalid',
+          'another configuration uses this draft as its fallback, so it stays as it is; use Edit as New Draft instead',
+        ),
       );
     }
 
@@ -327,6 +348,11 @@ export async function updateDraftAiProviderConfig(
       ),
       'ai provider config',
     );
+    // Recorded data terms describe the account of the key they were checked for. A new key may
+    // belong to another account, so this draft's terms are cleared and read as unknown until
+    // recorded again (refused while the do-not-train rule is on). The draft never ran, so no
+    // record of what the platform ran under is lost.
+    const termsCleared = protectedKey ? await clearDraftTerms(tx, target.id) : false;
     await appendAuditEvent(tx, {
       eventType: 'AI_PROVIDER_CONFIG_UPDATED',
       actorAccountId: input.actor.accountId,
@@ -340,10 +366,27 @@ export async function updateDraftAiProviderConfig(
         model: updated.model,
         changed,
         keyReplaced: protectedKey !== undefined,
+        termsCleared,
       },
     });
     return ok(updated);
   });
+}
+
+/** Removes a draft's recorded data terms, in a savepoint so a database without the terms table is unaffected. True when any were removed. */
+async function clearDraftTerms(tx: Db, configId: string): Promise<boolean> {
+  try {
+    const removed = await tx.transaction(async (inner) =>
+      inner
+        .delete(schema.aiProviderConfigTerms)
+        .where(eq(schema.aiProviderConfigTerms.configId, configId))
+        .returning({ id: schema.aiProviderConfigTerms.id }),
+    );
+    return removed.length > 0;
+  } catch (error) {
+    if (isMissingRelationError(error)) return false;
+    throw error;
+  }
 }
 
 export interface DeleteDraftAiProviderConfigInput {
@@ -356,8 +399,10 @@ export interface DeleteDraftAiProviderConfigInput {
  * Deletes a DRAFT, its encrypted key and its recorded data terms. Only a draft: it never ran,
  * so nothing in the history of what the platform ran under refers to it. Every other status
  * stays as a record ("Revoke Key" retires its key for good instead). Refused while another
- * configuration names it as its fallback, so no pointer is left dangling. The audit trail
- * keeps that the draft existed and was deleted, with its provider, model and key fingerprint.
+ * configuration names it as its fallback, so no pointer is left dangling. Refused too when it is
+ * the only configuration left: an empty table hands document reading back to the deployment's
+ * environment settings (`isAiDispatchAllowed`), which no admin chose. The audit trail keeps that
+ * the draft existed and was deleted, with its provider, model and key fingerprint.
  */
 export async function deleteDraftAiProviderConfig(
   db: Db,
@@ -387,18 +432,36 @@ export async function deleteDraftAiProviderConfig(
         serviceError('invalid', 'only a draft can be deleted; revoke the key to retire this one'),
       );
     }
-    const dependant = first(
+    const other = first(
       await tx
         .select({ id: schema.aiProviderConfigs.id })
+        .from(schema.aiProviderConfigs)
+        .where(ne(schema.aiProviderConfigs.id, target.id))
+        .limit(1),
+    );
+    if (!other) {
+      return err(
+        serviceError(
+          'invalid',
+          'this is the only saved configuration; deleting it would hand document reading back to the deployment settings, so create another one first or keep this draft',
+        ),
+      );
+    }
+    const dependant = first(
+      await tx
+        .select()
         .from(schema.aiProviderConfigs)
         .where(eq(schema.aiProviderConfigs.fallbackProviderConfigId, target.id))
         .limit(1),
     );
     if (dependant) {
+      const name = `${dependant.provider} / ${dependant.model}`;
       return err(
         serviceError(
           'invalid',
-          'another configuration uses this one as its fallback; change or delete that one first',
+          dependant.status === 'DRAFT'
+            ? `the draft ${name} uses this one as its fallback; change or delete that draft first`
+            : `${name} uses this one as its fallback and stays in the history, so this draft is kept`,
         ),
       );
     }
@@ -707,6 +770,12 @@ export interface RevokeAiProviderConfigKeyInput {
   readonly actor: PlatformAuthInput;
   readonly stepUpSatisfied: boolean;
   readonly configId: string;
+  /**
+   * Lets the revoke find every other configuration holding the same key (a copy made with Edit
+   * as New Draft, or the same key typed twice) and revoke those too. Without it only this row
+   * is revoked.
+   */
+  readonly encryption?: KeyManagementPort;
 }
 
 /**
@@ -716,6 +785,13 @@ export interface RevokeAiProviderConfigKeyInput {
  * currently ACTIVE, it is disabled in the same transaction -- a revoked key
  * must never remain the platform's live credential for even a moment, so
  * this never waits on a separate emergency-disable call.
+ *
+ * A revoke is for the key, not just this row: with `encryption`, every other
+ * unrevoked configuration of the same provider whose key is the same
+ * (compared after decryption, in constant time, among rows with the same
+ * fingerprint) is revoked in the same transaction, and disabled if ACTIVE.
+ * Asking again on an already-revoked row repeats that sweep, so copies made
+ * before this existed are caught too.
  */
 export async function revokeAiProviderConfigKey(
   db: Db,
@@ -740,34 +816,84 @@ export async function revokeAiProviderConfigKey(
         .limit(1),
     );
     if (!target) return err(serviceError('not_found', 'configuration not found'));
-    if (target.keyRevokedAt !== null) return ok(target);
 
     const now = new Date();
-    const wasActive = target.status === 'ACTIVE';
-    const revoked = required(
-      first(
-        await tx
-          .update(schema.aiProviderConfigs)
-          .set({
-            keyRevokedAt: now,
-            ...(wasActive ? { status: 'DISABLED', disabledAt: now } : {}),
-          })
-          .where(eq(schema.aiProviderConfigs.id, target.id))
-          .returning(),
-      ),
-      'ai provider config',
-    );
-    await appendAuditEvent(tx, {
-      eventType: 'AI_PROVIDER_CONFIG_KEY_REVOKED',
-      actorAccountId: input.actor.accountId,
-      method: 'MANUAL',
-      result: 'ALLOWED',
-      resourceType: 'ai_provider_config',
-      resourceId: revoked.id,
-      metadata: { wasActive },
-    });
+    const copies = input.encryption ? await sameKeyConfigs(tx, input.encryption, target) : [];
+    const revokeRow = async (row: AiProviderConfig, sameKeyAs?: string) => {
+      const wasActive = row.status === 'ACTIVE';
+      const revoked = required(
+        first(
+          await tx
+            .update(schema.aiProviderConfigs)
+            .set({
+              keyRevokedAt: now,
+              ...(wasActive ? { status: 'DISABLED', disabledAt: now } : {}),
+            })
+            .where(eq(schema.aiProviderConfigs.id, row.id))
+            .returning(),
+        ),
+        'ai provider config',
+      );
+      await appendAuditEvent(tx, {
+        eventType: 'AI_PROVIDER_CONFIG_KEY_REVOKED',
+        actorAccountId: input.actor.accountId,
+        method: 'MANUAL',
+        result: 'ALLOWED',
+        resourceType: 'ai_provider_config',
+        resourceId: revoked.id,
+        metadata: { wasActive, ...(sameKeyAs ? { sameKeyAsConfigId: sameKeyAs } : {}) },
+      });
+      return revoked;
+    };
+    const revoked = target.keyRevokedAt === null ? await revokeRow(target) : target;
+    for (const copy of copies) await revokeRow(copy, target.id);
     return ok(revoked);
   });
+}
+
+/**
+ * Every other unrevoked configuration of the target's provider that holds the very same key. Runs
+ * in a savepoint and finds nothing if a key cannot be read, so the revoke of the target itself
+ * never fails because of another row.
+ */
+async function sameKeyConfigs(
+  tx: Db,
+  encryption: KeyManagementPort,
+  target: AiProviderConfig,
+): Promise<AiProviderConfig[]> {
+  try {
+    return await tx.transaction((inner) => findSameKeyConfigs(inner, encryption, target));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[ai-provider-config] copies of a revoked key could not be checked: ${message}`);
+    return [];
+  }
+}
+
+async function findSameKeyConfigs(
+  tx: Db,
+  encryption: KeyManagementPort,
+  target: AiProviderConfig,
+): Promise<AiProviderConfig[]> {
+  const candidates = await tx
+    .select()
+    .from(schema.aiProviderConfigs)
+    .where(
+      and(
+        eq(schema.aiProviderConfigs.provider, target.provider),
+        eq(schema.aiProviderConfigs.apiKeyFingerprint, target.apiKeyFingerprint),
+        isNull(schema.aiProviderConfigs.keyRevokedAt),
+        ne(schema.aiProviderConfigs.id, target.id),
+      ),
+    );
+  if (candidates.length === 0) return [];
+  const key = Buffer.from(await revealAiProviderApiKey(tx, encryption, target));
+  const matches: AiProviderConfig[] = [];
+  for (const candidate of candidates) {
+    const other = Buffer.from(await revealAiProviderApiKey(tx, encryption, candidate));
+    if (other.length === key.length && timingSafeEqual(other, key)) matches.push(candidate);
+  }
+  return matches;
 }
 
 /**

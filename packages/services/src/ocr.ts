@@ -94,6 +94,8 @@ export interface AiOcrCacheKeyComponents {
   readonly provider?: string;
   readonly model: string;
   readonly promptVersion: string;
+  /** The reasoning effort sent with the request, when one is; part of the cache key. */
+  readonly reasoningEffort?: string;
 }
 
 export interface AiOcrPort {

@@ -61,6 +61,20 @@ export interface ConfigFormView {
   readonly notes: string | null;
   readonly apiKeyFingerprint: string;
   readonly keyRevoked: boolean;
+  /**
+   * False for anything but a draft that may still change: an activated version, a draft whose
+   * key was revoked, or a draft another version that has run falls back to. Those are copied
+   * into a new draft instead.
+   */
+  readonly editableInPlace: boolean;
+}
+
+/** One entry of the fallback list: only what the option shows. */
+export interface FallbackOption {
+  readonly id: string;
+  readonly status: AiProviderConfig['status'];
+  readonly provider: string;
+  readonly model: string;
 }
 
 /** How the key field behaves: a new draft needs one; an edit or a copy may keep the saved one. */
@@ -77,7 +91,7 @@ const KEY_PLACEHOLDER: Record<KeyMode, string> = {
  * new draft" forms. `config` prefills the fields; `idPrefix` keeps ids unique when several forms
  * are on the page.
  *
- * `existingConfigs` populates the fallback dropdown (Part 8 §13) -- every
+ * `fallbackOptions` populates the fallback dropdown (Part 8 §13) -- every
  * configuration ever created, any status, since a fallback target need not
  * be ACTIVE (it commonly is not: the platform's own single-winner ACTIVE
  * invariant means a fallback target is necessarily some other status, most
@@ -90,12 +104,12 @@ const KEY_PLACEHOLDER: Record<KeyMode, string> = {
  */
 function ConfigSettingsFields({
   idPrefix,
-  existingConfigs,
+  fallbackOptions,
   config,
   keyMode,
 }: {
   readonly idPrefix: string;
-  readonly existingConfigs: readonly ConfigFormView[];
+  readonly fallbackOptions: readonly FallbackOption[];
   readonly config?: ConfigFormView;
   readonly keyMode: KeyMode;
 }) {
@@ -140,8 +154,8 @@ function ConfigSettingsFields({
           ))}
         </select>
         <p id={id('reasoningEffort-hint')} className="field-hint">
-          Lower is faster and cheaper; higher reads more carefully. Models that cannot take a
-          setting ignore it.
+          Lower is faster and cheaper; higher reads more carefully. Keep Use Model Default unless
+          the model supports this setting. Claude models that do not support it skip it.
         </p>
       </div>
       <div className="field-row">
@@ -160,7 +174,10 @@ function ConfigSettingsFields({
         />
         {config ? (
           <p id={id('apiKey-hint')} className="field-hint">
-            Saved key: {config.apiKeyFingerprint}
+            Saved key: {config.apiKeyFingerprint}.
+            {keyMode === 'keep'
+              ? ' A new key clears the data terms recorded for this draft; record them again for the new key.'
+              : ''}
           </p>
         ) : null}
       </div>
@@ -290,7 +307,7 @@ function ConfigSettingsFields({
           defaultValue={config?.fallbackProviderConfigId ?? ''}
         >
           <option value="">None</option>
-          {existingConfigs
+          {fallbackOptions
             .filter((c) => c.id !== config?.id)
             .map((c) => (
               <option key={c.id} value={c.id}>
@@ -318,9 +335,9 @@ function ConfigSettingsFields({
 
 /** Save a new DRAFT configuration. Has no effect on live traffic until activated. */
 export function CreateDraftConfigForm({
-  existingConfigs,
+  fallbackOptions,
 }: {
-  readonly existingConfigs: readonly ConfigFormView[];
+  readonly fallbackOptions: readonly FallbackOption[];
 }) {
   const [state, formAction, pending] = useActionState(createDraftAiProviderConfigAction, INITIAL);
   return (
@@ -343,7 +360,7 @@ export function CreateDraftConfigForm({
           ))}
         </select>
       </div>
-      <ConfigSettingsFields idPrefix="draft" existingConfigs={existingConfigs} keyMode="required" />
+      <ConfigSettingsFields idPrefix="draft" fallbackOptions={fallbackOptions} keyMode="required" />
       <TermsFields idPrefix="draft" optional />
       <div>
         <SubmitButton
@@ -366,12 +383,12 @@ export function CreateDraftConfigForm({
  */
 export function EditConfigForm({
   config,
-  existingConfigs,
+  fallbackOptions,
 }: {
   readonly config: ConfigFormView;
-  readonly existingConfigs: readonly ConfigFormView[];
+  readonly fallbackOptions: readonly FallbackOption[];
 }) {
-  const inPlace = config.status === 'DRAFT';
+  const inPlace = config.editableInPlace;
   const [state, formAction, pending] = useActionState(
     inPlace ? updateDraftAiProviderConfigAction : createDraftAiProviderConfigAction,
     INITIAL,
@@ -388,8 +405,8 @@ export function EditConfigForm({
             <input type="hidden" name="copyApiKeyFromConfigId" value={config.id} />
           )}
           <p className="card-body">
-            This version stays in the history as it is. Saving creates a new draft with these
-            settings, which you can test and activate.
+            This version stays as it is. Saving creates a new draft with these settings, which you
+            can test and activate.
           </p>
         </>
       )}
@@ -399,7 +416,7 @@ export function EditConfigForm({
       </div>
       <ConfigSettingsFields
         idPrefix={`edit-${config.id}`}
-        existingConfigs={existingConfigs}
+        fallbackOptions={fallbackOptions}
         config={config}
         keyMode={keyMode}
       />

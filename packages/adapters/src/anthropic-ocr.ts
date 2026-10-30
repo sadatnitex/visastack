@@ -8,6 +8,8 @@ import type {
 import {
   ANTHROPIC_DEFAULT_MAX_TOKENS,
   anthropicEffortFor,
+  anthropicFailure,
+  anthropicInvalidShape,
   callStructured,
   matchEnumValue,
   structuredRequestBody,
@@ -53,8 +55,7 @@ import {
  * - `storeResponses` is accepted-but-no-op, the identical documented
  *   limitation `AnthropicExtractionAdapter` already records (no per-request
  *   retention toggle). `reasoningEffort` is sent as `output_config.effort`
- *   to models that take it and is then folded into the cache key's prompt
- *   version, since `AiOcrCacheKeyComponents` has no field of its own for it.
+ *   to models that take it, and is then part of the cache key.
  */
 
 const DEFAULT_MODEL = 'claude-sonnet-5';
@@ -111,7 +112,6 @@ export interface AnthropicOcrAdapterOptions {
 export class AnthropicOcrAdapter implements AiOcrPort {
   private readonly apiKey: string;
   private readonly model: string;
-  /** The prompt version with the effort folded in (see the class doc comment). */
   private readonly promptVersion: string;
   private readonly effort: string | undefined;
   private readonly maxTokens: number;
@@ -121,16 +121,20 @@ export class AnthropicOcrAdapter implements AiOcrPort {
   constructor(options: AnthropicOcrAdapterOptions) {
     this.apiKey = options.apiKey;
     this.model = options.model ?? DEFAULT_MODEL;
+    this.promptVersion = options.promptVersion ?? DEFAULT_PROMPT_VERSION;
     this.effort = anthropicEffortFor(this.model, options.reasoningEffort);
-    const promptVersion = options.promptVersion ?? DEFAULT_PROMPT_VERSION;
-    this.promptVersion = this.effort ? `${promptVersion}+effort-${this.effort}` : promptVersion;
     this.maxTokens = options.maxTokens ?? ANTHROPIC_DEFAULT_MAX_TOKENS;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
   cacheKeyComponents(): AiOcrCacheKeyComponents {
-    return { provider: PROVIDER, model: this.model, promptVersion: this.promptVersion };
+    return {
+      provider: PROVIDER,
+      model: this.model,
+      promptVersion: this.promptVersion,
+      ...(this.effort ? { reasoningEffort: this.effort } : {}),
+    };
   }
 
   async performOcr(input: AiOcrInput): Promise<AiOcrOutcome> {
@@ -157,24 +161,10 @@ export class AnthropicOcrAdapter implements AiOcrPort {
         effort: this.effort,
       }),
     });
-    if (!answer.ok) {
-      return {
-        ok: false,
-        code: answer.code,
-        message: answer.message,
-        provider: PROVIDER,
-        latencyMs: answer.latencyMs,
-      };
-    }
+    if (!answer.ok) return anthropicFailure(answer);
     const raw = answer.value as RawOcrAnswer;
     if (typeof raw.text !== 'string' || !Array.isArray(raw.reviewIssues)) {
-      return {
-        ok: false,
-        code: 'invalid_response',
-        message: 'Anthropic response had an unexpected shape',
-        provider: PROVIDER,
-        latencyMs: answer.latencyMs,
-      };
+      return anthropicInvalidShape(answer.latencyMs);
     }
     const reviewIssues = raw.reviewIssues
       .filter((v): v is string => typeof v === 'string')
