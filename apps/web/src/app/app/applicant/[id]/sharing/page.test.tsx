@@ -393,7 +393,7 @@ describe('AI Connections on the Sharing page', () => {
       expect(stubProps<SectionProps>(html0, 'AiConnectionsSection')[0]?.cases).toEqual([]);
       mocks.listAiConnections.mockResolvedValue({
         ok: true,
-        value: { available: true, active: [{ id: 'c1' }], recentlyEnded: [] },
+        value: { available: true, active: [{ id: 'c1', scopes: ['identity'] }], recentlyEnded: [] },
       });
       mocks.listMissions.mockResolvedValue({
         ok: true,

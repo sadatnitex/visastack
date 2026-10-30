@@ -59,10 +59,12 @@ describe('reference codes in the account export tables (ADR 0018)', () => {
           { document: { id: 'd1' }, versions: [], nameVersions: [], scanResults: [] },
           { document: { id: 'd2' }, versions: [], nameVersions: [], scanResults: [] },
         ],
-        missions: [{ mission: { id: 'm1' }, snapshots: [] }],
+        missions: [{ mission: { id: 'm1' }, snapshots: [], tasks: [], aiTaskOrigins: [] }],
         grantsGranted: [],
         evidenceRequests: [{ id: 'r1' }],
         aiRuns: [],
+        aiDrafts: [],
+        aiConnections: [],
       },
     ],
   } as unknown as AccountExport;
