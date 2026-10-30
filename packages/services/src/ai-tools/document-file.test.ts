@@ -390,7 +390,7 @@ describe('get_document_file: a Safe Copy by default', () => {
           eq(schema.auditEvents.action, 'DOWNLOAD_REDACTED'),
         ),
       );
-    expect(access.map((row) => (row.metadata as Record<string, unknown>).purpose)).toEqual([
+    expect(access.map((row) => (row.metadata as { purpose?: unknown }).purpose)).toEqual([
       'ai_connection_safe_copy',
     ]);
     const everything = JSON.stringify(await db.select().from(schema.auditEvents));

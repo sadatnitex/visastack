@@ -50,6 +50,34 @@ export const AI_SUGGEST_CHANGES_NOTE =
 /** Added to the "turned off" sentence where a person's earlier choice is kept. */
 export const AI_SUGGEST_KEPT_NOTE = 'Your choice is kept for when it is turned on again.';
 
+/** "Original Files" (S20, ADR 0021 extension): the group, its rows and its plain sentences. */
+export const AI_ORIGINAL_FILES_LABEL = 'Original Files';
+export const AI_SHARE_FILE_LABEL = 'Share This File';
+export const AI_SAFE_COPY_LABEL = 'Safe Copy';
+export const AI_ORIGINAL_LABEL = 'Original';
+export const AI_ORIGINAL_FILES_NOTE =
+  'Sensitive: the app receives the whole file of each document you tick. A Safe Copy hides what you covered in black; the Original is the file exactly as you uploaded it. PDF, PNG and JPEG files up to 3 MB.';
+export const AI_ORIGINAL_FILES_PROTECTED =
+  'Passports, identity, money and health documents are protected and never shared with AI apps.';
+export const AI_ORIGINAL_FILES_NEEDS_LIST =
+  'Needs List of My Documents, so the app can find each file.';
+export const AI_ORIGINAL_NOTE = 'You confirm it is you before an Original is allowed.';
+export const AI_SAFE_COPY_NOT_READY =
+  'Prepare a Safe Copy on the document’s page. Until then the app gets nothing for this file.';
+export const AI_ORIGINAL_FILES_NONE = 'No documents can be shared as files yet.';
+/** While AI App Original Files is off: what stays possible. */
+export const AI_FILES_KEPT_NOTE = 'Files you ticked stay ticked, and you can untick them.';
+
+/** "2 Files (1 Original)": how many documents a connection was given, for the Sharing page. */
+export function aiFilesLine(files: readonly { readonly variant: string }[]): string {
+  if (files.length === 0) return 'None';
+  const originals = files.filter((file) => file.variant === 'ORIGINAL').length;
+  const count = `${files.length} ${files.length === 1 ? 'File' : 'Files'}`;
+  if (originals === 0) return `${count} (${files.length === 1 ? 'Safe Copy' : 'Safe Copies'})`;
+  if (originals === files.length) return `${count} (${originals === 1 ? 'Original' : 'Originals'})`;
+  return `${count} (${originals} ${originals === 1 ? 'Original' : 'Originals'})`;
+}
+
 /**
  * What a stored connection lets the app read, in the consent screen's own words and order. The
  * stored strings are layer keys plus `document_list` and `document_text`; anything else is left

@@ -8,15 +8,26 @@ import {
   turnOffAiConnection,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type { FormResult } from '../../../../../components/form-feedback';
 import { aiConnectorEnabled } from '../../../../../lib/ai-connector';
 import {
+  AI_KEEP_END,
   type AiChangeDuration,
+  type AiFileChoice,
   type ConsentInitial,
   consentChoicesToQuery,
+  isAiChangeDuration,
+  keptAiChoices,
   parseAiAccessChoices,
 } from '../../../../../lib/ai-consent-choices';
+import {
+  AI_FILE_PICKS_COOKIE,
+  aiFilePicksCookieOptions,
+  encodeAiFilePicks,
+} from '../../../../../lib/ai-file-picks-retry';
+import { resolveBaseUrl } from '../../../../../lib/base-url';
 import { withSession } from '../../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, establishStepUpProof } from '../../../../../lib/step-up';
 
@@ -30,6 +41,33 @@ export interface AiConnectionActionState extends FormResult {
   readonly refreshPath?: string;
   /** Change Access only: what was submitted, kept after React resets the form. */
   readonly choices?: SubmittedAiChoices;
+  /** Change Access only: the files ticked under Original Files (S20), kept the same way. */
+  readonly files?: readonly AiFileChoice[];
+}
+
+/** The Sharing page of one record: the only page that receives ticked files kept across sign-in. */
+function sharingPath(applicantId: string): string {
+  return `/app/applicant/${applicantId}/sharing`;
+}
+
+/** Keeps the ticked files across the fresh sign-in check, never in the address. Best effort. */
+async function rememberFiles(
+  accountId: string,
+  applicantId: string,
+  connectionId: string,
+  files: readonly AiFileChoice[],
+) {
+  const value = encodeAiFilePicks({ applicantId, target: connectionId, files }, accountId);
+  if (!value) return;
+  (await cookies()).set(
+    AI_FILE_PICKS_COOKIE,
+    value,
+    aiFilePicksCookieOptions(resolveBaseUrl().startsWith('https://'), sharingPath(applicantId)),
+  );
+}
+
+async function forgetFiles(applicantId: string) {
+  (await cookies()).delete({ name: AI_FILE_PICKS_COOKIE, path: sharingPath(applicantId) });
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -109,8 +147,16 @@ export async function changeAiAccessAction(
   const connectionId = text(formData, 'connectionId');
   if (!UUID_RE.test(applicantId) || !UUID_RE.test(connectionId)) return NOT_FOUND;
   const parsed = parseAiAccessChoices(formData, { allowKeep: true });
-  if (!parsed.ok) return parsed;
-  const { caseMode, missionId, ...rest } = parsed.value;
+  if (!parsed.ok) {
+    // Typed values are kept: the form starts again from what was submitted.
+    const { files, duration, ...kept } = keptAiChoices(formData);
+    return {
+      ...parsed,
+      choices: { ...kept, duration: isAiChangeDuration(duration) ? duration : AI_KEEP_END },
+      ...(files ? { files } : {}),
+    };
+  }
+  const { caseMode, missionId, files, ...rest } = parsed.value;
   const submitted: SubmittedAiChoices = {
     layers: rest.layers,
     cases: rest.cases,
@@ -129,7 +175,9 @@ export async function changeAiAccessAction(
     revealIdentifiers: rest.revealIdentifiers,
     suggestChanges: rest.suggestChanges,
     duration: rest.duration,
+    ...(files ? { files } : {}),
   };
+  const wantsOriginal = files?.some((file) => file.variant === 'ORIGINAL') === true;
 
   const outcome = await withSession(async ({ db, accountId }) => {
     const attempt = (stepUp?: StepUpProof) =>
@@ -155,8 +203,11 @@ export async function changeAiAccessAction(
       `/app/applicant/${applicantId}/sharing?${back.toString()}#ai-connections`,
     );
     if (stepUp.kind === 'not_configured') return { kind: 'step_up_unavailable' } as const;
-    if (stepUp.kind === 'reauth_required')
+    if (stepUp.kind === 'reauth_required') {
+      if (files && files.length > 0)
+        await rememberFiles(accountId, applicantId, connectionId, files);
       return { kind: 'reauth', url: stepUp.reauthUrl } as const;
+    }
     return attempt(stepUp.proof);
   });
 
@@ -166,6 +217,7 @@ export async function changeAiAccessAction(
     message,
     ...(field ? { field } : {}),
     choices: submitted,
+    ...(files ? { files } : {}),
   });
   if (outcome.kind === 'step_up_unavailable') return failed(STEP_UP_NOT_CONFIGURED_MESSAGE);
   if (outcome.kind === 'denied' || outcome.kind === 'not_owner') {
@@ -181,12 +233,18 @@ export async function changeAiAccessAction(
     return failed('Choose a case, all current cases or none.', 'cases');
   }
   if (outcome.kind === 'step_up_required') {
-    return failed(
-      'To turn on Full Document Numbers, confirm it is you first: save again and sign in when asked.',
-      'reveal_identifiers',
-    );
+    return wantsOriginal
+      ? failed(
+          'To give an Original file, confirm it is you first: save again and sign in when asked.',
+          'file',
+        )
+      : failed(
+          'To turn on Full Document Numbers, confirm it is you first: save again and sign in when asked.',
+          'reveal_identifiers',
+        );
   }
   if (outcome.kind !== 'done') return failed(NOT_FOUND.message);
+  await forgetFiles(applicantId);
   revalidatePath(`/app/applicant/${applicantId}/sharing`);
   return {
     ok: true,

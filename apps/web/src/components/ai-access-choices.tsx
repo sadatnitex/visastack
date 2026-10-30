@@ -3,6 +3,8 @@ import { useId } from 'react';
 import {
   AI_CONNECTION_LAYERS,
   AI_CONNECTION_WARNING_LAYERS,
+  type AiFileChoice,
+  type AiFilesView,
   type ConsentInitial,
 } from '../lib/ai-consent-choices';
 import {
@@ -15,6 +17,7 @@ import {
   AI_SUGGEST_CHANGES_NOTE,
   AI_SUGGEST_KEPT_NOTE,
 } from '../lib/ai-consent-labels';
+import { AiFileChoices } from './ai-file-choices';
 
 export interface AiAccessChoicesProps {
   readonly appName: string;
@@ -39,6 +42,15 @@ export interface AiAccessChoicesProps {
   readonly suggestMode?: 'consent' | 'change';
   /** Change Access: whether the connection has it stored. Only then may it stay on while off. */
   readonly suggestStored?: boolean;
+  /**
+   * "Original Files" (S20): the documents that may be ticked and whether the feature works. Absent
+   * while it cannot be offered at all (not available yet), which keeps what is stored.
+   */
+  readonly files?: AiFilesView;
+  /** The ticked documents to start from: stored on Change Access, or what was just submitted. */
+  readonly filesInitial?: readonly AiFileChoice[];
+  /** Change Access: what the connection has stored. */
+  readonly filesStored?: readonly AiFileChoice[];
 }
 
 /**
@@ -56,6 +68,9 @@ export function AiAccessChoices({
   suggestionsAvailable = false,
   suggestMode = 'consent',
   suggestStored = false,
+  files,
+  filesInitial = [],
+  filesStored = [],
 }: AiAccessChoicesProps) {
   // Enabled while the feature works, or on Change Access when already stored (so it can be
   // unticked). Never shown ticked unless the server would keep it ticked.
@@ -160,6 +175,7 @@ export function AiAccessChoices({
               type="checkbox"
               name="document_list"
               defaultChecked={initial.documentList}
+              {...problem('document_list')}
             />
             <span className="output-check-text">
               <span>{AI_DOCUMENT_LIST_LABEL}</span>
@@ -201,6 +217,16 @@ export function AiAccessChoices({
           </label>
         </div>
       </fieldset>
+
+      {files ? (
+        <AiFileChoices
+          candidates={files.candidates}
+          initial={filesInitial}
+          stored={filesStored}
+          available={files.available}
+          {...(invalid ? { invalid } : {})}
+        />
+      ) : null}
 
       <fieldset className="fieldset">
         <legend className="field-label">Changes</legend>

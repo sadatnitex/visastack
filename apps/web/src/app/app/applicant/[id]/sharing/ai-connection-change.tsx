@@ -9,7 +9,11 @@ import {
   isFailure,
   useFocusInvalidField,
 } from '../../../../../components/form-feedback';
-import type { ConsentInitial } from '../../../../../lib/ai-consent-choices';
+import type {
+  AiFileChoice,
+  AiFilesView,
+  ConsentInitial,
+} from '../../../../../lib/ai-consent-choices';
 import { aiChangeSentence } from '../../../../../lib/ai-consent-labels';
 import { type AiConnectionActionState, changeAiAccessAction } from './ai-connection-actions';
 
@@ -26,6 +30,12 @@ export interface ChangeAccessFormProps {
   readonly suggestionsAvailable?: boolean;
   /** Whether the connection has Suggest Changes stored (it can then always be unticked). */
   readonly suggestStored?: boolean;
+  /** "Original Files" (S20): what may be ticked, or absent while it cannot be offered. */
+  readonly files?: AiFilesView;
+  /** What the connection has ticked now. */
+  readonly filesStored?: readonly AiFileChoice[];
+  /** What to start from: the stored ticks, or the person's own after a fresh sign-in check. */
+  readonly filesInitial?: readonly AiFileChoice[];
 }
 
 /**
@@ -42,6 +52,9 @@ export function ChangeAccessForm({
   defaultDuration,
   suggestionsAvailable = false,
   suggestStored = false,
+  files,
+  filesStored = [],
+  filesInitial = filesStored,
 }: ChangeAccessFormProps) {
   const [state, formAction, pending] = useActionState<AiConnectionActionState, FormData>(
     changeAiAccessAction,
@@ -74,7 +87,7 @@ export function ChangeAccessForm({
       <AiAccessChoices
         // React resets a form after its action; starting again from what was submitted (a new key
         // re-applies the defaults) keeps the person's choices for the retry.
-        key={state.choices ? JSON.stringify(state.choices) : 'stored'}
+        key={state.choices ? JSON.stringify([state.choices, state.files ?? null]) : 'stored'}
         appName={appName}
         cases={cases}
         initial={state.choices ?? initial}
@@ -83,6 +96,9 @@ export function ChangeAccessForm({
         suggestionsAvailable={suggestionsAvailable}
         suggestMode="change"
         suggestStored={suggestStored}
+        {...(files ? { files } : {})}
+        filesInitial={state.files ?? filesInitial}
+        filesStored={filesStored}
         {...(isFailure(state) && state.field ? { invalid: { field: state.field, messageId } } : {})}
       />
       <p className="card-body">{aiChangeSentence(appName, suggestionsAvailable && suggest)}</p>

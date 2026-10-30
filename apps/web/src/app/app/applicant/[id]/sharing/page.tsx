@@ -6,8 +6,10 @@ import {
   getAiFeatureState,
   getApplicant,
   listAccessForApplicantDetailed,
+  listAiConnectionFiles,
   listAiConnections,
   listAiDrafts,
+  listAiFileCandidates,
   listApplicantProfile,
   listAuditEventsForApplicant,
   listDocumentsDetailed,
@@ -28,8 +30,13 @@ import {
 } from '../../../../../components/selected-scope-summary';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { aiConnectorEnabled } from '../../../../../lib/ai-connector';
-import { consentChoicesFromQuery, isAiChangeDuration } from '../../../../../lib/ai-consent-choices';
+import {
+  type AiFileChoice,
+  consentChoicesFromQuery,
+  isAiChangeDuration,
+} from '../../../../../lib/ai-consent-choices';
 import { aiAllowsSuggestions } from '../../../../../lib/ai-consent-labels';
+import { decodeAiFilePicks, rememberedAiFilePicks } from '../../../../../lib/ai-file-picks-retry';
 import { depthCopy } from '../../../../../lib/ccd/depth-copy';
 import { depthWord } from '../../../../../lib/ccd/depth-words';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
@@ -43,7 +50,11 @@ import { plural } from '../../../../../lib/plural';
 import { withSession } from '../../../../../lib/session';
 import { accessDoneLine } from '../../../../../lib/success-lines';
 import { revokeSharingInvitationAction } from './actions';
-import { type AiChangeReturn, AiConnectionsSection } from './ai-connections';
+import {
+  type AiChangeReturn,
+  type AiConnectionFiles,
+  AiConnectionsSection,
+} from './ai-connections';
 import { type AiDraftItem, AiDraftsSection } from './ai-drafts';
 import { CaseExceptions } from './case-exceptions';
 import { DoneNotice } from './done-notice';
@@ -111,9 +122,56 @@ export default async function SharingPage({
         { purpose: 'ai_connection' },
       );
       const listed = aiGate.ok ? await listAiConnections(aiGate.value) : null;
-      return listed?.ok
+      const list = listed?.ok
         ? listed.value
         : { available: false, active: [], activeTotal: 0, recentlyEnded: [] };
+      // "Original Files" (S20): what may be ticked, and what each live connection has ticked.
+      let files: AiConnectionFiles | undefined;
+      if (aiGate.ok && list.active.length > 0) {
+        const candidates = await listAiFileCandidates(aiGate.value);
+        if (candidates.ok && candidates.value.available) {
+          const [feature, ticked] = await Promise.all([
+            getAiFeatureState(db, 'ai_app_original_files', { proof: aiGate.value }),
+            listAiConnectionFiles(
+              aiGate.value,
+              list.active.map((item) => item.id),
+            ),
+          ]);
+          files = {
+            view: {
+              available: feature.available,
+              candidates: candidates.value.documents.map((document) => ({
+                documentId: document.documentId,
+                referenceCode: document.referenceCode,
+                kind: document.kind,
+                group: document.group,
+                safeCopyReady: document.safeCopyReady,
+              })),
+            },
+            byConnection: Object.fromEntries(
+              [...ticked].map(([connectionId, choices]) => [
+                connectionId,
+                choices.map(
+                  (choice): AiFileChoice => ({
+                    documentId: choice.documentId,
+                    variant: choice.variant === 'ORIGINAL' ? 'ORIGINAL' : 'SAFE_COPY',
+                  }),
+                ),
+              ]),
+            ),
+          };
+        }
+      }
+      // The files the person ticked before a fresh sign-in check: a signed cookie, never a link.
+      const returningFiles =
+        aiChangeId && files
+          ? decodeAiFilePicks(await rememberedAiFilePicks(), {
+              accountId,
+              applicantId: id,
+              target: aiChangeId,
+            })
+          : null;
+      return { list, files, returningFiles };
     };
     // What AI apps left for the person (S21): their drafts, and whether suggestions work now.
     // Drafts stay readable and removable whether or not the feature is on.
@@ -145,7 +203,7 @@ export default async function SharingPage({
         more: drafts.more,
       };
     };
-    const [access, documents, auditEvents, profileEntries, aiConnections, aiSuggestions] =
+    const [access, documents, auditEvents, profileEntries, aiRead, aiSuggestions] =
       await Promise.all([
         listAccessForApplicantDetailed(db, accountId, id),
         listDocumentsDetailed(db, accountId, id),
@@ -198,7 +256,7 @@ export default async function SharingPage({
 
     // The cases Change Access can offer: only needed when a connection can be changed.
     const aiCases =
-      connectorOn && aiConnections.active.length > 0
+      connectorOn && aiRead.list.active.length > 0
         ? await listMissions(db, accountId, id).then((missions) =>
             missions.ok
               ? missions.value
@@ -209,7 +267,9 @@ export default async function SharingPage({
         : [];
 
     return {
-      aiConnections,
+      aiConnections: aiRead.list,
+      aiFiles: aiRead.files,
+      aiReturningFiles: aiRead.returningFiles,
       aiCases,
       aiSuggestions,
       invitations,
@@ -468,8 +528,15 @@ export default async function SharingPage({
               connectorOn={connectorOn}
               cases={data.aiCases}
               suggestionsAvailable={data.aiSuggestions.available}
+              {...(data.aiFiles ? { files: data.aiFiles } : {})}
               {...(aiNotice ? { notice: aiNotice } : {})}
-              {...(aiReturning ? { returning: aiReturning } : {})}
+              {...(aiReturning
+                ? {
+                    returning: data.aiReturningFiles
+                      ? { ...aiReturning, files: data.aiReturningFiles }
+                      : aiReturning,
+                  }
+                : {})}
             />
 
             {/* Kept while an app may save more, so the last deletion is still confirmed here. */}

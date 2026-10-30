@@ -10636,3 +10636,23 @@ summary.safe-copy-title {
 .task-added-by {
   font-size: var(--text-caption);
 }
+
+/* WP-S20 AI app Original Files: one row per document under its group, its two ways side by side */
+.ai-file-group {
+  padding-left: var(--space-3);
+}
+.ai-file-choice {
+  border-top: 1px solid var(--hairline);
+  padding-top: var(--space-2);
+}
+.ai-file-name {
+  font-weight: 600;
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+.ai-file-ways {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.25rem;
+  padding-left: 2.05rem;
+}
