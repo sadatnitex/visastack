@@ -99,39 +99,50 @@ async function waitForHydration(page: Page): Promise<void> {
 
 test.describe('response headers on public pages', () => {
   for (const path of PAGES) {
-    test(`${path} carries an enforced, nonce-based Content-Security-Policy`, async ({
-      request,
-    }) => {
-      const response = await request.get(path, { maxRedirects: 0 });
-      const headers = response.headers();
+    // Only the home page runs in the light post-deployment check (`@live`, playwright-smoke.yml).
+    test(
+      `${path} carries an enforced, nonce-based Content-Security-Policy`,
+      {
+        tag: path === '/' ? '@live' : [],
+      },
+      async ({ request }) => {
+        const response = await request.get(path, { maxRedirects: 0 });
+        const headers = response.headers();
 
-      expect(headers['content-security-policy-report-only']).toBeUndefined();
-      const policy = headers['content-security-policy'];
-      expect(policy, 'Content-Security-Policy header').toBeDefined();
-      const parsed = directives(policy as string);
+        expect(headers['content-security-policy-report-only']).toBeUndefined();
+        const policy = headers['content-security-policy'];
+        expect(policy, 'Content-Security-Policy header').toBeDefined();
+        const parsed = directives(policy as string);
 
-      const script = parsed['script-src'] ?? [];
-      expect(script.some((s) => /^'nonce-[A-Za-z0-9+/_-]+={0,2}'$/.test(s))).toBe(true);
-      expect(script).toContain("'strict-dynamic'");
-      expect(script).not.toContain("'unsafe-inline'");
-      expect(script).not.toContain("'unsafe-eval'");
-      expect(script).not.toContain('*');
-      expect(parsed['default-src']).toEqual(["'self'"]);
-      expect(parsed['object-src']).toEqual(["'none'"]);
-      expect(parsed['base-uri']).toEqual(["'self'"]);
-      expect(parsed['frame-ancestors']).toEqual(["'none'"]);
-      expect(parsed['report-uri']).toEqual(['/api/csp-report']);
-    });
+        const script = parsed['script-src'] ?? [];
+        expect(script.some((s) => /^'nonce-[A-Za-z0-9+/_-]+={0,2}'$/.test(s))).toBe(true);
+        expect(script).toContain("'strict-dynamic'");
+        expect(script).not.toContain("'unsafe-inline'");
+        expect(script).not.toContain("'unsafe-eval'");
+        expect(script).not.toContain('*');
+        expect(parsed['default-src']).toEqual(["'self'"]);
+        expect(parsed['object-src']).toEqual(["'none'"]);
+        expect(parsed['base-uri']).toEqual(["'self'"]);
+        expect(parsed['frame-ancestors']).toEqual(["'none'"]);
+        expect(parsed['report-uri']).toEqual(['/api/csp-report']);
+      },
+    );
 
-    test(`${path} carries the standing security headers`, async ({ request }) => {
-      const headers = (await request.get(path, { maxRedirects: 0 })).headers();
-      expect(headers['x-content-type-options']).toBe('nosniff');
-      expect(headers['x-frame-options']).toBe('DENY');
-      expect(headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
-      expect(headers['strict-transport-security']).toContain('max-age=63072000');
-      expect(headers['strict-transport-security']).toContain('includeSubDomains');
-      expect(headers['permissions-policy']).toBe('camera=(), microphone=(), geolocation=()');
-    });
+    test(
+      `${path} carries the standing security headers`,
+      {
+        tag: path === '/' ? '@live' : [],
+      },
+      async ({ request }) => {
+        const headers = (await request.get(path, { maxRedirects: 0 })).headers();
+        expect(headers['x-content-type-options']).toBe('nosniff');
+        expect(headers['x-frame-options']).toBe('DENY');
+        expect(headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
+        expect(headers['strict-transport-security']).toContain('max-age=63072000');
+        expect(headers['strict-transport-security']).toContain('includeSubDomains');
+        expect(headers['permissions-policy']).toBe('camera=(), microphone=(), geolocation=()');
+      },
+    );
   }
 
   test('the nonce is new on every request', async ({ request }) => {

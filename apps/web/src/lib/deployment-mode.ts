@@ -1,5 +1,6 @@
 import 'server-only';
 import { DEPLOYMENT_MODES, type DeploymentMode } from '@visastack/core';
+import { isProductionSite } from './hosting';
 
 /** Variable-keyed env read (satisfies both TS index-signature and Biome rules). */
 function readEnv(name: string): string | undefined {
@@ -28,7 +29,10 @@ function isDeploymentMode(value: string): value is DeploymentMode {
 export function getDeploymentMode(): DeploymentMode {
   const override = readEnv('DEPLOYMENT_MODE');
   if (override && isDeploymentMode(override)) return override;
-  return readEnv('VERCEL_ENV') === 'production' ? 'controlled_pilot' : 'development';
+  // The production site (Vercel production, or the Render fallback marked HOSTING_PLATFORM=render,
+  // see hosting.ts) falls back to controlled_pilot, so a forgotten DEPLOYMENT_MODE on the
+  // fallback host can never open development behaviour on the public site.
+  return isProductionSite(readEnv) ? 'controlled_pilot' : 'development';
 }
 
 /** True for any real deployment (controlled pilot or commercial) — false for local dev, tests, and PR previews. */

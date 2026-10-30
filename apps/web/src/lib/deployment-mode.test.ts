@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
  * instead of each call site re-deriving "is this production" independently.
  */
 
-const ENV_KEYS = ['DEPLOYMENT_MODE', 'VERCEL_ENV'] as const;
+const ENV_KEYS = ['DEPLOYMENT_MODE', 'VERCEL_ENV', 'HOSTING_PLATFORM'] as const;
 const ORIGINAL: Record<string, string | undefined> = {};
 
 function setEnv(name: string, value: string): void {
@@ -20,6 +20,7 @@ beforeEach(() => {
   for (const key of ENV_KEYS) ORIGINAL[key] = process.env[key];
   unsetEnv('DEPLOYMENT_MODE');
   unsetEnv('VERCEL_ENV');
+  unsetEnv('HOSTING_PLATFORM');
 });
 
 afterEach(() => {
@@ -46,6 +47,14 @@ describe('getDeploymentMode', () => {
     setEnv('VERCEL_ENV', 'production');
     const { getDeploymentMode } = await import('./deployment-mode');
     expect(getDeploymentMode()).toBe('controlled_pilot');
+  });
+
+  it('is "controlled_pilot" on the Render fallback even when DEPLOYMENT_MODE was forgotten', async () => {
+    setEnv('HOSTING_PLATFORM', 'render');
+    const { getDeploymentMode } = await import('./deployment-mode');
+    expect(getDeploymentMode()).toBe('controlled_pilot');
+    setEnv('DEPLOYMENT_MODE', 'commercial');
+    expect(getDeploymentMode()).toBe('commercial');
   });
 
   it('honours an explicit DEPLOYMENT_MODE override over VERCEL_ENV', async () => {

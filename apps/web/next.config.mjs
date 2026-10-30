@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url';
+
 /**
  * @type {import('next').NextConfig}
  *
@@ -24,9 +26,26 @@ const securityHeaders = [
 const buildVersion =
   process.env.VERCEL_DEPLOYMENT_ID ??
   process.env.VERCEL_GIT_COMMIT_SHA ??
+  // The Render fallback image (Dockerfile) passes the commit it was built from.
+  (process.env.VISASTACK_BUILD_SHA || undefined) ??
   `local-${Date.now().toString(36)}`;
 
+/**
+ * A self-contained server for the Render fallback image only (Dockerfile sets
+ * `NEXT_OUTPUT=standalone`; docs/operations/render-fallback.md). Unset on Vercel, so the Vercel
+ * build is exactly as before. The tracing root is the repository root so the workspace packages
+ * and the native image libraries kept external below are copied into the image.
+ */
+const standaloneOutput =
+  process.env.NEXT_OUTPUT === 'standalone'
+    ? {
+        output: 'standalone',
+        outputFileTracingRoot: fileURLToPath(new URL('../../', import.meta.url)),
+      }
+    : {};
+
 const nextConfig = {
+  ...standaloneOutput,
   reactStrictMode: true,
   env: { VISASTACK_BUILD_VERSION: buildVersion },
   poweredByHeader: false,

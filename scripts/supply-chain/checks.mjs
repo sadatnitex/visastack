@@ -510,6 +510,10 @@ export const SECRET_WORKFLOW_ALLOWLIST = {
     'manual main-only reviewed revision, independent staging proof before synthetic credentials, no checkout credentials',
   'live-signed-in-check.yml':
     'production deployment or manual run only, live-check environment limited to main, read-only test account sign-in, no checkout credentials, no report upload',
+  'render-cron.yml':
+    'Render fallback jobs: off unless CRON_HOST=render, schedule or manual main-only, no checkout, only the cron secret',
+  'render-image.yml':
+    'Render fallback image: manual main-only, no checkout credentials, only the optional Render deploy hook',
 };
 
 export function checkPreviewCredentials(root, files = trackedFiles(root)) {
@@ -563,6 +567,36 @@ export function checkPreviewCredentials(root, files = trackedFiles(root)) {
         findings.push(
           `${f} must run in the main-only live-check environment, discard checkout credentials, start only after a deployment or by hand, and upload nothing`,
         );
+      }
+    }
+    if (base === 'render-cron.yml' && usesSecrets) {
+      for (const match of text.matchAll(/\$\{\{\s*secrets\.([A-Z0-9_]+)/g)) {
+        if (match[1] !== 'CRON_SECRET')
+          findings.push(`${f} requests a secret other than the cron secret`);
+      }
+      if (
+        !/^\s*if:\s*github\.ref == 'refs\/heads\/main' && vars\.CRON_HOST == 'render'\s*$/m.test(
+          text,
+        ) ||
+        /actions\/checkout/.test(text) ||
+        /^\s*(?:push|pull_request|workflow_run|deployment_status)\s*:/m.test(text)
+      ) {
+        findings.push(
+          `${f} must stay off unless CRON_HOST=render, run main code on a schedule or by hand only, and check nothing out`,
+        );
+      }
+    }
+    if (base === 'render-image.yml' && usesSecrets) {
+      for (const match of text.matchAll(/\$\{\{\s*secrets\.([A-Z0-9_]+)/g)) {
+        if (match[1] !== 'RENDER_DEPLOY_HOOK_URL')
+          findings.push(`${f} requests a secret other than the Render deploy hook`);
+      }
+      if (
+        !/^\s*if:\s*github\.ref == 'refs\/heads\/main'\s*$/m.test(text) ||
+        !/^\s*persist-credentials:\s*false\s*$/m.test(text) ||
+        /^\s*(?:push|pull_request|schedule|workflow_run|deployment_status)\s*:/m.test(text)
+      ) {
+        findings.push(`${f} must be started by hand on main only and discard checkout credentials`);
       }
     }
     if (base === 'database-restore-drill.yml') {

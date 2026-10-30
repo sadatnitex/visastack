@@ -1,0 +1,199 @@
+name: Render Cron
+
+# Scheduled jobs for the Render fallback host (docs/operations/render-fallback.md). Vercel runs
+# these jobs itself from apps/web/vercel.json; Render's free plan has no scheduler, so while the
+# site runs on Render this workflow calls the same job addresses on the same daily schedules (UTC),
+# signed with the same CRON_SECRET the site already checks (apps/web/src/lib/cron-auth.ts).
+#
+# OFF by default. Nothing runs unless the repository variable CRON_HOST is exactly `render`. Turn
+# it off again (delete CRON_HOST, or set any other value) as soon as the site is back on Vercel,
+# or every job will run twice a day: once from Vercel and once from here. The jobs are written to
+# be safe to repeat, but a double run is still wasted work.
+#
+# Automatic duplicate guard: before any job, the public site address (repository variable
+# PUBLIC_SITE_URL, https://vs.obsidianglobal.studio when not set) is asked for /api/health/live.
+# If Vercel answers it (the reply carries Vercel's x-vercel-id header) and Vercel is not paused,
+# Vercel's own scheduler is running these jobs, so every job here is skipped with a warning and the
+# run still ends green. A paused Vercel project (402) runs no scheduled jobs, so then the jobs run.
+#
+# Settings it needs (names only; values are set by the owner in GitHub):
+# - variable CRON_HOST = render, to switch it on;
+# - variable CRON_BASE_URL = the Render service address, for example https://visastack.onrender.com;
+# - variable PUBLIC_SITE_URL (optional) = the public address checked by the duplicate guard;
+# - secret CRON_SECRET = the same value as CRON_SECRET on the Render service.
+#
+# The job list below must match apps/web/vercel.json exactly, path and schedule;
+# scripts/render-cron.test.mjs fails when they drift apart. GitHub may start a scheduled run some
+# minutes late; every job here is daily, so that is harmless.
+on:
+  schedule:
+    - cron: '0 3 * * *'
+    - cron: '5 3 * * *'
+    - cron: '10 3 * * *'
+    - cron: '20 3 * * *'
+    - cron: '30 3 * * *'
+    - cron: '40 3 * * *'
+    - cron: '50 3 * * *'
+    - cron: '0 4 * * *'
+    - cron: '10 4 * * *'
+    - cron: '20 4 * * *'
+    - cron: '30 4 * * *'
+    - cron: '40 4 * * *'
+    - cron: '50 4 * * *'
+    - cron: '0 5 * * *'
+    - cron: '10 5 * * *'
+    - cron: '20 5 * * *'
+    - cron: '30 5 * * *'
+    - cron: '40 5 * * *'
+    - cron: '15 6 * * *'
+    - cron: '7 11 * * *'
+  workflow_dispatch:
+    inputs:
+      job:
+        description: 'One job address to run now, exactly as listed in this file, for example /api/jobs/process-billing-cycle'
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  run:
+    name: Run scheduled jobs on the Render host
+    # Off unless switched on, and only reviewed main code ever holds the cron secret.
+    if: github.ref == 'refs/heads/main' && vars.CRON_HOST == 'render'
+    runs-on: ubuntu-latest
+    # Worst case: about 6.5 minutes waking the site, 1.5 checking who serves the public address,
+    # and two jobs on the same schedule at up to 5 minutes each (40 5 * * *): about 18 minutes.
+    timeout-minutes: 30
+    # Runs for the same schedule never overlap; different schedules may.
+    concurrency:
+      group: render-cron-${{ github.event.schedule || inputs.job }}
+      cancel-in-progress: false
+    env:
+      # Schedule (UTC, five fields) then job address, one job per line, copied from
+      # apps/web/vercel.json.
+      CRON_TABLE: |
+        0 3 * * *   /api/jobs/process-intake
+        5 3 * * *   /api/jobs/process-ai-reading
+        10 3 * * *  /api/jobs/process-deletions
+        20 3 * * *  /api/jobs/process-erasure
+        30 3 * * *  /api/jobs/process-abandoned-uploads
+        40 3 * * *  /api/jobs/process-notifications
+        50 3 * * *  /api/jobs/process-notification-sweeps
+        0 4 * * *   /api/jobs/process-downgrades
+        10 4 * * *  /api/jobs/process-abandoned-invitations
+        20 4 * * *  /api/jobs/process-case-retention-notices
+        30 4 * * *  /api/jobs/process-case-retention-purge
+        40 4 * * *  /api/jobs/process-inactive-account-notices
+        50 4 * * *  /api/jobs/process-inactive-account-deletions
+        0 5 * * *   /api/jobs/process-account-exports
+        10 5 * * *  /api/jobs/process-account-export-expiry
+        20 5 * * *  /api/jobs/process-legal-hold-reminders
+        30 5 * * *  /api/jobs/process-rate-limit-prune
+        40 5 * * *  /api/jobs/process-payment-reconciliation
+        40 5 * * *  /api/jobs/process-whatsapp-inbox
+        15 6 * * *  /api/jobs/process-billing-cycle
+        7 11 * * *  /api/jobs/process-database-backup
+    steps:
+      - name: Choose the jobs to run
+        env:
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          REQUESTED: ${{ inputs.job }}
+        run: |
+          : > "$RUNNER_TEMP/due"
+          while read -r minute hour day month weekday path; do
+            [ -n "$path" ] || continue
+            if [ "$EVENT" = "workflow_dispatch" ]; then
+              if [ "$path" = "$REQUESTED" ]; then echo "$path" >> "$RUNNER_TEMP/due"; fi
+            elif [ "$minute $hour $day $month $weekday" = "$SCHEDULE" ]; then
+              echo "$path" >> "$RUNNER_TEMP/due"
+            fi
+          done <<< "$CRON_TABLE"
+          if [ ! -s "$RUNNER_TEMP/due" ]; then
+            echo "No job in this file matches: ${REQUESTED:-$SCHEDULE}"
+            exit 1
+          fi
+          echo "Jobs to run:"
+          cat "$RUNNER_TEMP/due"
+
+      - name: Check the settings
+        env:
+          CRON_BASE_URL: ${{ vars.CRON_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          case "$CRON_BASE_URL" in
+            https://*) ;;
+            *) echo "The CRON_BASE_URL variable must be the site address starting with https://"; exit 1 ;;
+          esac
+          if [ -z "$CRON_SECRET" ]; then
+            echo "The CRON_SECRET secret is not set."
+            exit 1
+          fi
+
+      # A free Render service sleeps after 15 minutes without visits and takes up to about a minute
+      # to start again, so the site is woken first, on its light liveness address.
+      - name: Wake the site
+        env:
+          CRON_BASE_URL: ${{ vars.CRON_BASE_URL }}
+        run: |
+          base="${CRON_BASE_URL%/}"
+          deadline=$((SECONDS + 360))
+          attempt=0
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            attempt=$((attempt + 1))
+            if curl -sf -o /dev/null --max-time 20 "$base/api/health/live"; then
+              echo "The site answered (attempt $attempt, after $SECONDS seconds)."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "The site did not answer within 6 minutes ($attempt attempts)."
+          exit 1
+
+      - name: Check that Vercel is not running these jobs too
+        id: guard
+        env:
+          PUBLIC_SITE_URL: ${{ vars.PUBLIC_SITE_URL }}
+        run: |
+          site="${PUBLIC_SITE_URL:-https://vs.obsidianglobal.studio}"
+          site="${site%/}"
+          code=$(curl -sS -D "$RUNNER_TEMP/public-headers" -o /dev/null -w '%{http_code}' \
+            --max-time 90 "$site/api/health/live") || true
+          if grep -qi '^x-vercel-id:' "$RUNNER_TEMP/public-headers" 2>/dev/null && [ "$code" != "402" ]; then
+            message="Vercel is serving $site (answered $code), so its own scheduler runs these jobs. Every job was skipped to avoid running it twice. Turn CRON_HOST off."
+            echo "::warning title=Render Cron skipped::$message"
+            echo "$message" >> "$GITHUB_STEP_SUMMARY"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "$site answered $code without Vercel serving it, so the jobs run here."
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Each job is called once (never retried here, so a slow job is never started twice), and
+      # every job is called even if an earlier one fails. Only the status and the job's own short
+      # summary (counts) are shown; the secret goes to curl on its standard input, never on the
+      # command line.
+      - name: Run the jobs
+        if: steps.guard.outputs.skip != 'true'
+        env:
+          CRON_BASE_URL: ${{ vars.CRON_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          base="${CRON_BASE_URL%/}"
+          failed=0
+          while read -r path; do
+            : > "$RUNNER_TEMP/body"
+            # curl prints 000 when the site cannot be reached at all.
+            code=$(printf 'Authorization: Bearer %s\n' "$CRON_SECRET" |
+              curl -sS -H @- -o "$RUNNER_TEMP/body" -w '%{http_code}' --max-time 300 \
+                "$base$path") || true
+            echo "$path answered $code: $(head -c 300 "$RUNNER_TEMP/body" 2>/dev/null)"
+            echo "| \`$path\` | $code |" >> "$RUNNER_TEMP/summary"
+            case "$code" in
+              2??) ;;
+              *) failed=1 ;;
+            esac
+          done < "$RUNNER_TEMP/due"
+          { echo '| Job | Status |'; echo '| --- | --- |'; cat "$RUNNER_TEMP/summary"; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$failed"

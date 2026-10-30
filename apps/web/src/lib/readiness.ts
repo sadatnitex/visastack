@@ -14,6 +14,7 @@ import { type getPlatformCapabilities, resolvePlatformCapabilities } from './cap
 import { evaluateCommercialReadiness, evaluateOperationalReadiness } from './commercial-readiness';
 import { getDeploymentMode } from './deployment-mode';
 import { NEON_AUTH_ENV_VARS, isPresent, isSignInConfigured, readEnv } from './env';
+import { hostingProblem } from './hosting';
 import { runKmsSelfTest } from './kms-self-test';
 import { SHIPPED_MIGRATIONS } from './migration-journal';
 import { validateProviderEnv } from './providers';
@@ -49,6 +50,8 @@ export interface ReadinessReport {
   readonly db: { connected: boolean; schemaApplied: boolean; error?: string };
   readonly migrations: MigrationReadiness;
   readonly providers: { valid: boolean; error?: string };
+  /** Whether the hosting platform has what it needs (hosting.ts); a plain reason when not. */
+  readonly hosting: { ready: boolean; problem?: string };
   readonly capabilities: {
     readonly signedBlobStorage: boolean;
     readonly asyncIntakeSweep: boolean;
@@ -146,12 +149,18 @@ export async function evaluateReadiness(): Promise<ReadinessReport> {
   // newer tables fail, which is how production broke when 0078 to 0082 were
   // never applied while this probe still reported ready.
   const migrationsCurrent = !migrations.checked || migrations.pending.length === 0;
+  // On the Render fallback a missing site address would send links to the wrong place.
+  const hostingIssue = hostingProblem();
+  const hosting: ReadinessReport['hosting'] = hostingIssue
+    ? { ready: false, problem: hostingIssue }
+    : { ready: true };
   const coreReady =
     db.connected &&
     db.schemaApplied &&
     migrationsCurrent &&
     isSignInConfigured() &&
-    providers.valid;
+    providers.valid &&
+    hosting.ready;
 
   // The synchronous gates read both answers, so they must have arrived before the gates run.
   // The database facts go to both guards directly and are also remembered for the synchronous
@@ -183,6 +192,7 @@ export async function evaluateReadiness(): Promise<ReadinessReport> {
     db,
     migrations,
     providers,
+    hosting,
     capabilities: {
       signedBlobStorage: isPresent('BLOB_SIGNING_SECRET'),
       asyncIntakeSweep: isPresent('CRON_SECRET'),
