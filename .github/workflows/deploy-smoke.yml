@@ -8,7 +8,7 @@ name: Deploy Smoke
 # with no repository secrets required.
 #
 # Load on the live site (30 Oct 2026, after the Vercel Hobby CPU pause): scripts/smoke.mjs makes
-# about 11 light requests. Vercel posts several deployment statuses per deployment (for example
+# 8 light requests (11 checks, measured). Vercel posts several deployment statuses per deployment (for example
 # pending, then success) and GitHub cannot filter them before a run starts, so each deployment
 # shows one skipped run and one real run; only the success status reaches the site. Deployment
 # records written by the migration and live signed-in workflows add further skipped runs.
@@ -32,11 +32,8 @@ jobs:
       github.event.deployment.environment != 'live-check'
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # A newer deployment cancels a check still running for an older one. At job level, so the
-    # skipped runs for other statuses never take part.
-    concurrency:
-      group: deploy-smoke-${{ github.event.deployment.environment }}
-      cancel-in-progress: true
+    # No concurrency group on purpose: every deployment keeps its own smoke result and release
+    # record, so a newer deployment never cancels or replaces the check of an older one.
     steps:
       # Explicit ref (master directive §8: "A deployment test may not check
       # out tests from another revision"). deployment_status carries the

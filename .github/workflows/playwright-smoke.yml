@@ -16,7 +16,8 @@ name: Playwright Deploy Smoke
 # most of that CPU came from this workflow running about 300 tests against the live site after
 # every merge. Against production it now runs only the tests tagged `@live` (8 at this writing:
 # home, sign-in, a protected page redirect, the security policy and headers, a real 404,
-# readiness and one phone-width layout), a handful of requests per deployment. Pull requests
+# readiness and one phone-width layout): 33 app requests plus 70 static files per deployment,
+# measured, against 1,245 app requests plus 2,603 static files for the full 310 tests before. Pull requests
 # still run every test in these specs, unchanged, on the CI machine (pr-browser-checks.yml).
 # scripts/live-checks.test.mjs fails if the grep is removed or more than 12 tests carry the tag.
 #
@@ -43,11 +44,8 @@ jobs:
       github.event.deployment.environment != 'live-check'
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # A newer deployment cancels a check still running for an older one. At job level, so the
-    # skipped runs for other statuses never take part.
-    concurrency:
-      group: playwright-deploy-smoke-${{ github.event.deployment.environment }}
-      cancel-in-progress: true
+    # No concurrency group on purpose: every deployment keeps its own browser check result, so a
+    # newer deployment never cancels or replaces the check of an older one.
     steps:
       # Explicit ref (master directive §8: "A deployment test may not check
       # out tests from another revision") -- same reasoning as

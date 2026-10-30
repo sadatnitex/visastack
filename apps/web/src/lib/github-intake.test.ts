@@ -26,6 +26,7 @@ describe('private intake dispatch', () => {
     vi.stubGlobal('fetch', fetcher);
     await dispatchGithubIntake();
     expect(fetcher).toHaveBeenCalledTimes(1);
+    vi.stubEnv('HOSTING_PLATFORM', '');
     vi.stubEnv('VERCEL_ENV', 'preview');
     await expect(dispatchGithubIntake()).rejects.toThrow('cannot be dispatched');
     expect(fetcher).toHaveBeenCalledTimes(1);

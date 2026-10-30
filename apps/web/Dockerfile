@@ -34,7 +34,10 @@ FROM ${NODE_IMAGE} AS run
 # Render's free instance has 512 MB. The JavaScript heap is kept well inside it, leaving room for
 # the native image libraries, and glibc's per-thread memory pools, which otherwise grow with image
 # work, are limited. Render sends traffic to PORT (10000 unless set on the service).
+# HOSTING_PLATFORM=render marks this as the Render copy of the live site (apps/web/src/lib/hosting.ts),
+# whatever Vercel settings are copied across; it is never set on Vercel.
 ENV NODE_ENV=production \
+    HOSTING_PLATFORM=render \
     NEXT_TELEMETRY_DISABLED=1 \
     HOSTNAME=0.0.0.0 \
     PORT=10000 \

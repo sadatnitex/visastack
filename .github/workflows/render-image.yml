@@ -70,6 +70,7 @@ jobs:
             -e IDENTITY_PROVIDER=neon_auth \
             -e NEON_AUTH_BASE_URL=https://auth.placeholder.invalid/neondb/auth \
             -e NEON_AUTH_COOKIE_SECRET="$(openssl rand -hex 32)" \
+            -e NEXT_PUBLIC_APP_URL=http://localhost:10000 \
             "$IMAGE:$GITHUB_SHA"
           for i in $(seq 1 60); do
             if curl -sf -o /dev/null http://localhost:10000/api/health/live; then exit 0; fi

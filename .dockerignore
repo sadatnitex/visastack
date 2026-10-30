@@ -8,9 +8,9 @@
 **/test-results
 **/*.tsbuildinfo
 .git
-.env
-.env.*
-!.env.example
+**/.env
+**/.env.*
+!**/.env.example
 **/*.pem
 **/*.key
 docs

@@ -1,8 +1,9 @@
 /**
  * Guards the Render fallback's scheduled jobs (.github/workflows/render-cron.yml). While the site
  * runs on Render, that workflow stands in for Vercel's scheduler, so it must call every job in
- * apps/web/vercel.json on the same schedule, and nothing else, and it must stay off until the
- * owner switches it on (repository variable CRON_HOST=render).
+ * apps/web/vercel.json on the same schedule, and nothing else. Its switch (CRON_HOST=render), the
+ * main-only rule and the one secret it may read are checked by the supply-chain check
+ * (scripts/supply-chain/checks.mjs, preview credential check), not here.
  *
  * Run with: node --test scripts/render-cron.test.mjs (part of `pnpm run test:node`).
  */
@@ -49,12 +50,4 @@ test('the workflow starts on exactly the schedules the jobs need', () => {
   const started = triggers(cron);
   assert.equal(new Set(started).size, started.length, 'a schedule is listed twice');
   assert.deepEqual(sorted(started), sorted(needed));
-});
-
-test('it stays off until CRON_HOST=render and signs every call with the cron secret', () => {
-  assert.match(cron, /^\s+if: github\.ref == 'refs\/heads\/main' && vars\.CRON_HOST == 'render'$/m);
-  assert.doesNotMatch(cron, /^\s+if:(?!.*vars\.CRON_HOST == 'render')/m, 'every job must be gated');
-  assert.match(cron, /CRON_SECRET: \$\{\{ secrets\.CRON_SECRET \}\}/);
-  assert.match(cron, /CRON_BASE_URL: \$\{\{ vars\.CRON_BASE_URL \}\}/);
-  assert.match(cron, /'Authorization: Bearer %s\\n' "\$CRON_SECRET"/);
 });

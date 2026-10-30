@@ -42,12 +42,13 @@ Written 30 Oct 2026, while Vercel has paused production (402 DEPLOYMENT_DISABLED
 
 Open Vercel, the project, **Settings**, **Environment Variables**, filter **Production**, and copy every variable that is set there into Render (**Environment**, **Add Environment Variable**, or **Add from .env** to paste many at once). Skip names starting with `VERCEL_` (Vercel sets those itself) and any old `WORKOS_` names. Vercel hides values marked sensitive; for those, use your own saved copy, or make a new value where the list below says it is safe to.
 
-Two settings are new on Render and must be added there:
+One setting is new on Render and must be added there:
 
 | Name | Value | Why |
 | --- | --- | --- |
-| `HOSTING_PLATFORM` | `render` | Tells the app it is the live site on Render: the private document scanner and the daily backup check may start, and the app treats requests the way Render delivers them. |
-| `NEXT_PUBLIC_APP_URL` | `https://vs.obsidianglobal.studio` | The address used in emails and links. On Vercel the app can work it out; on Render it must be set, or links would point at the old Vercel address. |
+| `NEXT_PUBLIC_APP_URL` | `https://vs.obsidianglobal.studio` | The address used in emails and links. On Vercel the app can work it out; on Render it must be set, or links would point at the old Vercel address. Until it is set, readiness says not ready, with that reason on the founder dashboard. |
+
+The image already sets `HOSTING_PLATFORM=render`, which tells the app it is the live site on Render (the private document scanner and the daily backup check may start, and visitor addresses are read the way Render delivers them). It wins over any `VERCEL_ENV` copied across, so copying Vercel's list cannot confuse it.
 
 The names the app reads, grouped, so you can tick them off. Copy only the ones Vercel Production has.
 
@@ -69,7 +70,7 @@ The names the app reads, grouped, so you can tick them off. Copy only the ones V
 | Security and monitoring | `CSP_MODE`, `CSP_FORM_ACTION_EXTRA`, `OBSERVABILITY_PROVIDER`, `SENTRY_DSN` | The browser security policy and error reporting |
 | Commercial readiness | every `COMMERCIAL_READINESS_ATTEST_...` and `COMMERCIAL_READINESS_DEFER_...` name Vercel has | Your recorded sign-offs; copy them as they are |
 
-Do not set `NODE_ENV`, `PORT`, `HOSTNAME` or `NODE_OPTIONS`: the image sets them. If the app later gains a setting not listed here, Vercel's list is still the one to copy.
+Do not set `NODE_ENV`, `PORT`, `HOSTNAME`, `NODE_OPTIONS` or `HOSTING_PLATFORM`: the image sets them. If the app later gains a setting not listed here, Vercel's list is still the one to copy.
 
 ## Step 4: check the service on its Render address
 
@@ -95,7 +96,10 @@ GitHub, the repository, **Settings**, **Secrets and variables**, **Actions**:
 1. **Secrets**, **New repository secret**: `CRON_SECRET`, the same value as `CRON_SECRET` on Render.
 2. **Variables**, **New repository variable**: `CRON_BASE_URL` = `https://<your-service>.onrender.com` (the Render address reaches the service whatever the DNS says).
 3. **Variables**, **New repository variable**: `CRON_HOST` = `render`. This switches the jobs on.
-4. To check at once: **Actions**, **Render Cron**, **Run workflow**, job `/api/jobs/process-rate-limit-prune`. It should finish green with status 200.
+4. Optional: **Variables**, `PUBLIC_SITE_URL` = the public address, if it is ever not https://vs.obsidianglobal.studio.
+5. To check at once: **Actions**, **Render Cron**, **Run workflow**, job `/api/jobs/process-rate-limit-prune`. It should finish green with status 200.
+
+A built-in guard stops double runs. Before any job, the workflow asks the public address (`PUBLIC_SITE_URL`) for its light liveness page. If Vercel answers it, and Vercel is not paused, Vercel's own scheduler is running the jobs, so every job is skipped, the run still ends green, and the summary shows a warning saying to turn `CRON_HOST` off. If Render answers, or Vercel answers "paused" (402, when Vercel runs no jobs), the jobs run. The guard cannot see the case where Vercel is running again but the address still points at Render; see "Switching back to Vercel".
 
 The daily billing run, reminders, notifications, retention, account exports, payment checks and the backup check then run every day at the times in `apps/web/vercel.json`. GitHub sometimes starts scheduled runs a few minutes late; all these jobs are daily, so that is harmless. GitHub also turns off scheduled workflows in a repository with no activity for 60 days; any push resets that.
 
@@ -105,6 +109,7 @@ The daily billing run, reminders, notifications, retention, account exports, pay
 2. Sign in with your own account, open the workspace.
 3. Upload one made-up test document and see it appear in the documents list.
 4. Optional: **Actions**, **Live signed-in check**, **Run workflow** (it signs in to the real address with the test account).
+5. Once, after the first deploy: check that sign-in limits see your real address. On Render, add `CLIENT_ADDRESS_CHECK` = `log-once` to the service, let it restart, open the sign-in page and sign in once. In Render, **Logs**, find the line starting `[client-address] Render check` and compare the address in it with your own (search the web for "what is my IP"). Then delete `CLIENT_ADDRESS_CHECK`. If the two differ (for example the log shows an address that is the same for everyone), tell the engineering session: sign-in limits would then be shared by all visitors, which is safe but stricter than intended.
 
 The automatic after-deployment checks (Deploy Smoke, Playwright Deploy Smoke) do not run on Render deployments: they start from Vercel's deployment notices. The Render Image workflow runs the smoke check on the image before it is published instead.
 
@@ -125,7 +130,7 @@ If Vercel resumes while the address still points at Render and you want to stay 
 ## What has not been checked
 
 - The service has not been created on Render; Render's site could not be opened from the build machine, so the facts above come from Render's documentation as quoted in search results, checked on 30 Oct 2026. In particular, that the free instance type accepts a prebuilt image (rather than only code from GitHub) is not confirmed; if Render refuses it, choose **Starter** for the first month or ask for help to switch to a Render build.
-- Render is reported to add a visitor's own forwarding header rather than replace it, so on Render the app reads the visitor address from the `cf-connecting-ip` header Render's edge network sets. That this header is always set and cannot be faked on Render is not confirmed by Render's documentation.
+- Render is reported to add to a visitor's own forwarding header (`x-forwarded-for`) rather than replace it. On Render the app therefore uses only the last address in that header, the one Render's proxy adds, and ignores the headers a visitor could write themselves (`x-real-ip`, `cf-connecting-ip`): no Render document found says its edge always overwrites them. Requests with no forwarded address share one limit. That the last address is the visitor's own, not a Render or Cloudflare machine, is not confirmed; the one-time log check in step 7 settles it.
 - The image and its checks were built and passed on a local machine, with a 512 MB memory limit. A real sign-in, upload, virus scan and job run on Render have not happened yet.
 - Whether Vercel Blob (used for the private mirror copy of files) keeps working while the Vercel project is paused is not confirmed.
 

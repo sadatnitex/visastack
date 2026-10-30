@@ -10,9 +10,16 @@ name: Render Cron
 # or every job will run twice a day: once from Vercel and once from here. The jobs are written to
 # be safe to repeat, but a double run is still wasted work.
 #
+# Automatic duplicate guard: before any job, the public site address (repository variable
+# PUBLIC_SITE_URL, https://vs.obsidianglobal.studio when not set) is asked for /api/health/live.
+# If Vercel answers it (the reply carries Vercel's x-vercel-id header) and Vercel is not paused,
+# Vercel's own scheduler is running these jobs, so every job here is skipped with a warning and the
+# run still ends green. A paused Vercel project (402) runs no scheduled jobs, so then the jobs run.
+#
 # Settings it needs (names only; values are set by the owner in GitHub):
 # - variable CRON_HOST = render, to switch it on;
-# - variable CRON_BASE_URL = the site address, for example https://vs.obsidianglobal.studio;
+# - variable CRON_BASE_URL = the Render service address, for example https://visastack.onrender.com;
+# - variable PUBLIC_SITE_URL (optional) = the public address checked by the duplicate guard;
 # - secret CRON_SECRET = the same value as CRON_SECRET on the Render service.
 #
 # The job list below must match apps/web/vercel.json exactly, path and schedule;
@@ -55,7 +62,9 @@ jobs:
     # Off unless switched on, and only reviewed main code ever holds the cron secret.
     if: github.ref == 'refs/heads/main' && vars.CRON_HOST == 'render'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Worst case: about 6.5 minutes waking the site, 1.5 checking who serves the public address,
+    # and two jobs on the same schedule at up to 5 minutes each (40 5 * * *): about 18 minutes.
+    timeout-minutes: 30
     # Runs for the same schedule never overlap; different schedules may.
     concurrency:
       group: render-cron-${{ github.event.schedule || inputs.job }}
@@ -129,21 +138,44 @@ jobs:
           CRON_BASE_URL: ${{ vars.CRON_BASE_URL }}
         run: |
           base="${CRON_BASE_URL%/}"
-          for attempt in $(seq 1 18); do
+          deadline=$((SECONDS + 360))
+          attempt=0
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            attempt=$((attempt + 1))
             if curl -sf -o /dev/null --max-time 20 "$base/api/health/live"; then
-              echo "The site answered (attempt $attempt)."
+              echo "The site answered (attempt $attempt, after $SECONDS seconds)."
               exit 0
             fi
             sleep 10
           done
-          echo "The site did not answer within about 6 minutes."
+          echo "The site did not answer within 6 minutes ($attempt attempts)."
           exit 1
+
+      - name: Check that Vercel is not running these jobs too
+        id: guard
+        env:
+          PUBLIC_SITE_URL: ${{ vars.PUBLIC_SITE_URL }}
+        run: |
+          site="${PUBLIC_SITE_URL:-https://vs.obsidianglobal.studio}"
+          site="${site%/}"
+          code=$(curl -sS -D "$RUNNER_TEMP/public-headers" -o /dev/null -w '%{http_code}' \
+            --max-time 90 "$site/api/health/live") || true
+          if grep -qi '^x-vercel-id:' "$RUNNER_TEMP/public-headers" 2>/dev/null && [ "$code" != "402" ]; then
+            message="Vercel is serving $site (answered $code), so its own scheduler runs these jobs. Every job was skipped to avoid running it twice. Turn CRON_HOST off."
+            echo "::warning title=Render Cron skipped::$message"
+            echo "$message" >> "$GITHUB_STEP_SUMMARY"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "$site answered $code without Vercel serving it, so the jobs run here."
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
 
       # Each job is called once (never retried here, so a slow job is never started twice), and
       # every job is called even if an earlier one fails. Only the status and the job's own short
       # summary (counts) are shown; the secret goes to curl on its standard input, never on the
       # command line.
       - name: Run the jobs
+        if: steps.guard.outputs.skip != 'true'
         env:
           CRON_BASE_URL: ${{ vars.CRON_BASE_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}

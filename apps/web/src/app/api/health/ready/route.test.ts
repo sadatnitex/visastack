@@ -24,6 +24,8 @@ const REQUIRED_ENV = [
   'EMAIL_PROVIDER',
   'OBSERVABILITY_PROVIDER',
   'PAYMENT_PROVIDER',
+  'HOSTING_PLATFORM',
+  'NEXT_PUBLIC_APP_URL',
 ] as const;
 
 const ORIGINAL_ENV: Record<string, string | undefined> = {};
@@ -99,6 +101,23 @@ describe('GET /api/health/ready — honest health (200 vs 503)', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.status).toBe('ready');
+  }, 15_000);
+
+  it('on the Render fallback, reports not ready until the site address is set', async () => {
+    setEnv('HOSTING_PLATFORM', 'render');
+    setEnv('DEPLOYMENT_MODE', 'development');
+    unsetEnv('NEXT_PUBLIC_APP_URL');
+    mockDb({});
+    const { GET } = await import('./route');
+    const missing = await GET();
+    expect(missing.status).toBe(503);
+    const body = await missing.json();
+    expect(body.status).toBe('degraded');
+    expect(body.hosting.problem).toMatch(/site address \(NEXT_PUBLIC_APP_URL\) is not set/);
+    setEnv('NEXT_PUBLIC_APP_URL', 'https://vs.obsidianglobal.studio');
+    const set = await GET();
+    expect(set.status).toBe(200);
+    expect((await set.json()).hosting).toEqual({ ready: true });
   }, 15_000);
 
   it('returns 503 "degraded" when the database connection fails', async () => {

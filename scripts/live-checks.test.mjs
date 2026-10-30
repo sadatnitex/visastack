@@ -8,8 +8,10 @@
  * - playwright-smoke.yml stops limiting its production run with `--grep @live`;
  * - more than 12 tests (or none) carry the `@live` tag;
  * - the pull request browser check loses its full run (it must not use `--grep`);
- * - a post-deployment workflow loses its cancel-older-runs concurrency, or its check name;
- * - the live signed-in check gains a timed schedule.
+ * - a post-deployment workflow loses its check name;
+ * - the smoke or browser check gains a concurrency group (each deployment must keep its own
+ *   result and release record, so neither may ever be cancelled or replaced by a newer one);
+ * - the live signed-in check loses its per-event cancel-older-runs group, or gains a schedule.
  *
  * Run with: node --test scripts/live-checks.test.mjs (part of `pnpm run test:node`).
  */
@@ -76,20 +78,31 @@ test(`between 1 and ${MAX_LIVE_TESTS} tests carry the @live tag`, () => {
   );
 });
 
-test('post-deployment checks keep their names and cancel runs for older deployments', () => {
+test('post-deployment checks keep their names', () => {
   for (const [file, name] of [
     ['deploy-smoke.yml', 'No-secret smoke check'],
     ['playwright-smoke.yml', 'No-secret Playwright checks'],
     ['live-signed-in-check.yml', 'Live signed-in check'],
   ]) {
-    const text = workflow(file);
-    assert.match(text, new RegExp(`^\\s+name: ${name}$`, 'm'), `${file} lost its check name`);
-    assert.match(
-      text,
-      /^ {4}concurrency:\n {6}group: [^\n]+\n {6}cancel-in-progress: true$/m,
-      `${file} needs job-level concurrency that cancels older runs`,
+    assert.match(workflow(file), new RegExp(`^\\s+name: ${name}$`, 'm'), `${file} lost its name`);
+  }
+});
+
+test('every deployment keeps its own smoke and browser check result', () => {
+  for (const file of ['deploy-smoke.yml', 'playwright-smoke.yml']) {
+    assert.doesNotMatch(
+      workflow(file),
+      /^\s*concurrency\s*:/m,
+      `${file} must not use a concurrency group: a queued or newer run would cancel an older deployment's check`,
     );
   }
+});
+
+test('the live signed-in check cancels older runs of the same kind only', () => {
+  assert.match(
+    workflow('live-signed-in-check.yml'),
+    /^ {4}concurrency:\n {6}group: live-signed-in-check-\$\{\{ github\.event_name \}\}\n {6}cancel-in-progress: true$/m,
+  );
 });
 
 test('the live signed-in check has no timed schedule', () => {
