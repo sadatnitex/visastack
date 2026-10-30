@@ -11,6 +11,18 @@ name: Playwright Deploy Smoke
 # browser-security.spec.ts (Commercial V1 SEC-02: the Content-Security-Policy is
 # served, is enforced, and the app still works under it) is listed by name for
 # the same reason: a spec no workflow names cannot fail a build.
+#
+# Light live run (30 Oct 2026): production was paused by Vercel Hobby's CPU fair-use limit, and
+# most of that CPU came from this workflow running about 300 tests against the live site after
+# every merge. Against production it now runs only the tests tagged `@live` (8 at this writing:
+# home, sign-in, a protected page redirect, the security policy and headers, a real 404,
+# readiness and one phone-width layout), a handful of requests per deployment. Pull requests
+# still run every test in these specs, unchanged, on the CI machine (pr-browser-checks.yml).
+# scripts/live-checks.test.mjs fails if the grep is removed or more than 12 tests carry the tag.
+#
+# Vercel posts several deployment statuses per deployment (for example pending, then success);
+# each starts a run, and every status other than success is skipped below, so a deployment shows
+# one skipped run and one real run. That is one real check per deployment, not two.
 on:
   deployment_status:
 
@@ -31,6 +43,11 @@ jobs:
       github.event.deployment.environment != 'live-check'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # A newer deployment cancels a check still running for an older one. At job level, so the
+    # skipped runs for other statuses never take part.
+    concurrency:
+      group: playwright-deploy-smoke-${{ github.event.deployment.environment }}
+      cancel-in-progress: true
     steps:
       # Explicit ref (master directive §8: "A deployment test may not check
       # out tests from another revision") -- same reasoning as
@@ -57,11 +74,11 @@ jobs:
         working-directory: apps/web
         run: npx playwright install --with-deps chromium
 
-      - name: Run no-secret Playwright checks against the deployed URL
+      - name: Run the light no-secret Playwright checks against the deployed URL
         working-directory: apps/web
         env:
           PLAYWRIGHT_BASE_URL: ${{ github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
-        run: npx playwright test no-secret-auth.spec.ts ux-public.spec.ts browser-security.spec.ts pwa.spec.ts
+        run: npx playwright test no-secret-auth.spec.ts ux-public.spec.ts browser-security.spec.ts pwa.spec.ts --grep @live
 
       - name: Upload Playwright report
         if: always()

@@ -1,6 +1,7 @@
 import 'server-only';
 import { isEnvAiExtractionConfigured } from './ai';
 import { isClamAvConfigured, isPresent, isSignInConfigured, readEnv } from './env';
+import { isProductionSite } from './hosting';
 import { kmsSelfTestPassed } from './kms-self-test';
 import {
   type AiProviderReadiness,
@@ -306,8 +307,9 @@ function realMalwareScannerCheck(signals: ReadinessSignals): GateCheck {
   if (provider === 'clamav') return { satisfied: isClamAvConfigured() };
   if (provider === 'github_clamav') {
     const problems: string[] = [];
-    // Intake dispatches to the runner only from the production deployment.
-    if (readEnv('VERCEL_ENV') !== 'production') {
+    // Intake dispatches to the runner only from the production site (Vercel production or the
+    // Render fallback, hosting.ts), the same rule github-intake.ts applies.
+    if (!isProductionSite(readEnv)) {
       problems.push('The private virus scanner only runs for the production site.');
     }
     // The same token `createMalwareScanner` refuses to start without.

@@ -1,0 +1,123 @@
+name: Render Image
+
+# Builds the VisaStack web app as a container image for the Render fallback host
+# (docs/operations/render-fallback.md) and publishes it to GitHub's package registry as
+# ghcr.io/<owner>/visastack-web, tagged `latest` and with the commit.
+#
+# Started by hand only (Actions, Render Image, Run workflow, on main). It never runs by itself and
+# never touches the live site: the image is built and checked on GitHub's machine. Vercel is not
+# affected; it keeps building from apps/web/vercel.json.
+#
+# Before anything is published, the image must pass two checks on this machine: the native image
+# libraries load inside it (apps/web/scripts/container-self-test.mjs), and the no-secret smoke
+# check passes against the image started with placeholder settings that reach no real service
+# (the same settings the pull request checks use).
+#
+# Optional: if the secret RENDER_DEPLOY_HOOK_URL is set (Render, the service, Settings, Deploy
+# Hook), Render is told to deploy the new image straight after it is published. Without it, press
+# Manual Deploy on Render.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: render-image
+  cancel-in-progress: false
+
+jobs:
+  image:
+    name: Build, check and publish the Render image
+    # Only reviewed main code becomes the image the live fallback runs.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Name the image
+        id: names
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          image="ghcr.io/$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')/visastack-web"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+
+      - name: Build the image
+        env:
+          IMAGE: ${{ steps.names.outputs.image }}
+        run: |
+          docker build -f apps/web/Dockerfile \
+            --build-arg VISASTACK_BUILD_SHA="$GITHUB_SHA" \
+            -t "$IMAGE:$GITHUB_SHA" -t "$IMAGE:latest" .
+
+      - name: Check the native libraries inside the image
+        env:
+          IMAGE: ${{ steps.names.outputs.image }}
+        run: docker run --rm "$IMAGE:$GITHUB_SHA" node apps/web/scripts/container-self-test.mjs
+
+      - name: Start the image with placeholder settings
+        env:
+          IMAGE: ${{ steps.names.outputs.image }}
+        run: |
+          docker run -d --name visastack -p 10000:10000 --memory 512m \
+            -e DEPLOYMENT_MODE=controlled_pilot \
+            -e IDENTITY_PROVIDER=neon_auth \
+            -e NEON_AUTH_BASE_URL=https://auth.placeholder.invalid/neondb/auth \
+            -e NEON_AUTH_COOKIE_SECRET="$(openssl rand -hex 32)" \
+            "$IMAGE:$GITHUB_SHA"
+          for i in $(seq 1 60); do
+            if curl -sf -o /dev/null http://localhost:10000/api/health/live; then exit 0; fi
+            sleep 2
+          done
+          echo "The image did not start within 120 seconds."
+          docker logs --tail 60 visastack
+          exit 1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Run the no-secret smoke check against the image
+        working-directory: apps/web
+        run: SMOKE_BASE_URL=http://localhost:10000 node scripts/smoke.mjs
+
+      - name: Show the image log
+        if: failure()
+        run: docker logs --tail 80 visastack || true
+
+      - name: Publish the image
+        env:
+          IMAGE: ${{ steps.names.outputs.image }}
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          docker push "$IMAGE:$GITHUB_SHA"
+          docker push "$IMAGE:latest"
+          {
+            echo '### Render image published'
+            echo "- \`$IMAGE:$GITHUB_SHA\`"
+            echo "- \`$IMAGE:latest\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Ask Render to deploy it
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "No deploy hook is set, so Render was not asked to deploy. Press Manual Deploy on Render." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -X POST "$RENDER_DEPLOY_HOOK_URL") || true
+          echo "Render deploy request answered $code." >> "$GITHUB_STEP_SUMMARY"
+          case "$code" in
+            2??) ;;
+            *) exit 1 ;;
+          esac

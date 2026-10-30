@@ -1,0 +1,16 @@
+# Build context for apps/web/Dockerfile (Render fallback image). Keeps the image small and keeps
+# anything local or secret out of it: the app reads every setting at run time from the host.
+**/node_modules
+**/.next
+**/.turbo
+**/coverage
+**/playwright-report
+**/test-results
+**/*.tsbuildinfo
+.git
+.env
+.env.*
+!.env.example
+**/*.pem
+**/*.key
+docs

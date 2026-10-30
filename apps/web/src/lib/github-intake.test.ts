@@ -18,6 +18,18 @@ describe('private intake dispatch', () => {
     await expect(dispatchGithubIntake()).rejects.toThrow('not configured');
     expect(fetcher).not.toHaveBeenCalled();
   });
+  it('dispatches from the Render fallback production site, never from a Vercel preview', async () => {
+    vi.stubEnv('VERCEL_ENV', '');
+    vi.stubEnv('HOSTING_PLATFORM', 'render');
+    vi.stubEnv('GITHUB_INTAKE_DISPATCH_TOKEN', 'synthetic-dispatch-credential');
+    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetcher);
+    await dispatchGithubIntake();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    vi.stubEnv('VERCEL_ENV', 'preview');
+    await expect(dispatchGithubIntake()).rejects.toThrow('cannot be dispatched');
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
   it('dispatches fixed main code without document data or caller-controlled inputs', async () => {
     vi.stubEnv('VERCEL_ENV', 'production');
     vi.stubEnv('GITHUB_INTAKE_DISPATCH_TOKEN', 'synthetic-dispatch-credential');
