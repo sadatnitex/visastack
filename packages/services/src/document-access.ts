@@ -173,8 +173,8 @@ export interface OriginalDocumentFile {
 /**
  * Why an original was not given: its latest version is not safe to use yet (`not_ready`), it is
  * larger than the caller's limit (`too_large`, refused before a byte is read when its size is
- * recorded), it is not a PDF, PNG or JPEG (`unsupported`), or what was read is missing or does not
- * match what was stored (`unreadable`).
+ * recorded), it is not a PDF, PNG or JPEG (`unsupported`), or it has no recorded size or hash,
+ * or what was read is missing or does not match what was stored (`unreadable`).
  */
 export type OriginalFileRefusal = 'not_ready' | 'too_large' | 'unsupported' | 'unreadable';
 
@@ -232,6 +232,12 @@ export async function readOriginalDocumentFile(
       .limit(1),
   );
   if (!storageObject) return refuse('stored_object_missing', 'unreadable');
+  // Nothing is read without a recorded size and a recorded hash to check it against.
+  const expected = version.sha256 ?? storageObject.contentHash;
+  if (expected === null) return refuse('hash_unknown', 'unreadable');
+  if (version.sizeBytes === null && storageObject.sizeBytes === null) {
+    return refuse('size_unknown', 'unreadable');
+  }
   // Refused unread when the recorded size is already too large.
   if (
     (version.sizeBytes !== null && version.sizeBytes > maxBytes) ||
@@ -243,8 +249,7 @@ export async function readOriginalDocumentFile(
   if (!stored) return refuse('stored_object_missing', 'unreadable');
   if (stored.bytes.byteLength > maxBytes) return refuse('too_large', 'too_large');
   const hash = createHash('sha256').update(stored.bytes).digest('hex');
-  const expected = version.sha256 ?? storageObject.contentHash;
-  if (expected !== null && expected !== hash) return refuse('hash_mismatch', 'unreadable');
+  if (expected !== hash) return refuse('hash_mismatch', 'unreadable');
   const contentType = stored.contentType.split(';')[0]?.trim().toLowerCase() ?? '';
   if (!isOriginalFileType(contentType) || !startsWith(stored.bytes, SIGNATURES[contentType])) {
     return refuse('unsupported_type', 'unsupported');

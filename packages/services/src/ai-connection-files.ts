@@ -1,7 +1,7 @@
 import { type Result, err, ok } from '@visastack/core';
 import { CATALOGUE_DOCUMENT_GROUPS, type DocumentGroupKey } from '@visastack/core/catalogue';
 import { resolveDocumentType } from '@visastack/core/catalogue/documents';
-import { and, desc, eq, inArray, isNull, notInArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm';
 import { AuthorizedApplicant, DEFAULT_DOCUMENT_PROTECTION } from './access/require-access';
 import {
   documentTypeRestricted,
@@ -16,7 +16,6 @@ import {
 } from './ai-connection-scopes';
 import { aiFilesAvailable } from './ai-files-ready';
 import { type Db, schema } from './db';
-import { isDocumentVersionUsable } from './documents';
 import { type ServiceError, serviceError } from './errors';
 import { isSafeCopyReady, listRedactionStates } from './redaction';
 import { referenceCodesFor } from './reference-codes';
@@ -99,12 +98,53 @@ interface EligibleDocument {
   readonly versionId: string;
 }
 
+/** Safety results and processing states that end a version for good: never listed. */
+const FAILED_SAFETY: ReadonlySet<string> = new Set(['QUARANTINED', 'FAILED']);
+const FAILED_PROCESSING: ReadonlySet<string> = new Set(['QUARANTINED', 'FAILED', 'REJECTED']);
+
+function isListableVersion(version: {
+  readonly safetyStatus: string;
+  readonly processingStatus: string;
+}): boolean {
+  return (
+    !FAILED_SAFETY.has(version.safetyStatus) && !FAILED_PROCESSING.has(version.processingStatus)
+  );
+}
+
+/**
+ * The documents among `documentIds` with any version queued for erasure (a job in any state: the
+ * file is meant to go). One query on the jobs table by storage object, private to this module.
+ */
+async function erasurePending(db: Db, documentIds: readonly string[]): Promise<Set<string>> {
+  if (documentIds.length === 0) return new Set();
+  const rows = await db
+    .selectDistinct({ documentId: schema.documentVersions.documentId })
+    .from(schema.documentVersions)
+    .innerJoin(
+      schema.erasureJobs,
+      eq(schema.erasureJobs.storageObjectId, schema.documentVersions.storageObjectId),
+    )
+    .where(inArray(schema.documentVersions.documentId, [...documentIds]));
+  return new Set(rows.map((row) => row.documentId));
+}
+
+/**
+ * Whether a ticked document is queued for erasure, for the AI gate: such a document is answered
+ * as not chosen, never "try again later". Owner proof for the document's own record only.
+ */
+export async function aiFileErasurePending(
+  proof: AuthorizedApplicant<'VIEW_METADATA'>,
+  documentId: string,
+): Promise<boolean> {
+  if (!ownerProof(proof)) return true;
+  return (await erasurePending(proof.tx, [documentId])).has(documentId);
+}
+
 /**
  * The record's documents an AI app could be given: current (not replaced), kept in the person's
- * own documents (not handed over for one case only), latest version safe to use or still being
- * checked (never failed or rejected), and not of a type the document protection switches restrict
- * right now. `only` narrows to those ids. A file being erased is refused when it would be given
- * (`latestUsableVersion`), and erasing a document removes its ticks with it.
+ * own documents (not handed over for one case only), not queued for erasure, latest version
+ * safe to use or still being checked or read (never failed, quarantined or rejected), and not of
+ * a type the document protection switches restrict right now. `only` narrows to those ids.
  */
 async function eligibleDocuments(
   db: Db,
@@ -149,23 +189,19 @@ async function eligibleDocuments(
   for (const version of versions) {
     if (!latest.has(version.documentId)) latest.set(version.documentId, version);
   }
+  const erasing = await erasurePending(
+    db,
+    open.map((row) => row.id),
+  );
   const eligible: EligibleDocument[] = [];
   for (const row of open) {
     const version = latest.get(row.id);
-    if (!version) continue;
-    // A new version still being checked keeps the document on the list, so saving Change Access
-    // in the meantime never unticks it; nothing is given until that version is clean.
-    const checking = version.safetyStatus === 'PENDING' || version.safetyStatus === 'SCANNING';
-    if (
-      !checking &&
-      !isDocumentVersionUsable({
-        safetyStatus: version.safetyStatus,
-        processingStatus: version.processingStatus,
-        erased: false,
-      })
-    ) {
-      continue;
-    }
+    // A document queued for erasure is gone for every purpose here: never listed or kept.
+    if (!version || erasing.has(row.id)) continue;
+    // A version still being checked or read (scanning, normalising, extracting, a re-read) keeps
+    // the document on the list, so saving Change Access in the meantime never unticks it. Nothing
+    // is given until the latest version is clean and servable.
+    if (!isListableVersion(version)) continue;
     eligible.push({ documentId: row.id, docType: row.docType, versionId: version.id });
   }
   return eligible;
@@ -363,21 +399,24 @@ export async function storeAiConnectionFiles(
           : []),
       ),
     );
-  for (const file of kept) {
-    if (stored.get(file.documentId) === file.variant) continue;
+  // Every new or changed choice in one statement.
+  const changed = kept.filter((file) => stored.get(file.documentId) !== file.variant);
+  if (changed.length > 0) {
     await db
       .insert(schema.aiConnectionDocuments)
-      .values({
-        connectionId: input.connectionId,
-        documentId: file.documentId,
-        variant: file.variant,
-      })
+      .values(
+        changed.map((file) => ({
+          connectionId: input.connectionId,
+          documentId: file.documentId,
+          variant: file.variant,
+        })),
+      )
       .onConflictDoUpdate({
         target: [
           schema.aiConnectionDocuments.connectionId,
           schema.aiConnectionDocuments.documentId,
         ],
-        set: { variant: file.variant },
+        set: { variant: sql`excluded.variant` },
       });
   }
   return ok({

@@ -718,3 +718,198 @@ describe('Original Files: what may be ticked', () => {
     ]);
   });
 });
+
+describe('S20 round 2', () => {
+  async function storageObjectOf(versionId: string) {
+    const [row] = await db
+      .select({ id: schema.documentVersions.storageObjectId })
+      .from(schema.documentVersions)
+      .where(eq(schema.documentVersions.id, versionId));
+    if (!row) throw new Error('version');
+    return row.id;
+  }
+
+  it('keeps a document ticked while a clean version is being read again, and gives nothing until it is servable', async () => {
+    const { ownerId, applicantId } = await person('reread@example.com');
+    const visa = await document(ownerId, applicantId, 'VISA');
+    const { token, connectionId } = await connect(
+      ownerId,
+      applicantId,
+      [{ documentId: visa.documentId, variant: 'ORIGINAL' }],
+      { stepUp: true },
+    );
+    for (const state of ['NORMALIZING', 'EXTRACTING'] as const) {
+      await db
+        .update(schema.documentVersions)
+        .set({ processingStatus: state })
+        .where(eq(schema.documentVersions.id, visa.versionId));
+      const proof = await gate(ownerId, 'VIEW_METADATA', { applicantId });
+      const listed = await listAiFileCandidates(proof);
+      expect(listed.ok && listed.value.documents.map((d) => d.documentId)).toEqual([
+        visa.documentId,
+      ]);
+      await changeAiConnection(proof, {
+        connectionId,
+        choices: {
+          ...BASE,
+          duration: 'keep',
+          files: [{ documentId: visa.documentId, variant: 'ORIGINAL' }],
+        },
+      });
+      expect((await listAiConnectionFiles(proof, [connectionId])).get(connectionId)).toEqual([
+        { documentId: visa.documentId, variant: 'ORIGINAL' },
+      ]);
+      expect(await refused(token, visa.reference)).toBe(MESSAGES.fileNotReady);
+    }
+  });
+
+  it('a refused Safe Copy never uses the owner’s hourly Safe Copy limit, and that limit has its own answer', async () => {
+    const { ownerId, applicantId } = await person('hourly@example.com');
+    const visa = await document(ownerId, applicantId, 'VISA');
+    const { token } = await connect(ownerId, applicantId, [{ documentId: visa.documentId }]);
+    const hourly = () =>
+      db
+        .select()
+        .from(schema.rateLimitBuckets)
+        .where(
+          and(
+            eq(schema.rateLimitBuckets.subjectId, ownerId),
+            eq(schema.rateLimitBuckets.action, 'safe_copy'),
+          ),
+        );
+    for (let i = 0; i < 3; i++) {
+      expect(await refused(token, visa.reference)).toBe(MESSAGES.safeCopyNotReady);
+    }
+    expect(await hourly()).toEqual([]);
+    await prepareSafeCopy(ownerId, visa.documentId, visa.versionId);
+    await given(token, visa.reference);
+    expect((await hourly())[0]?.count).toBe(1);
+    // The owner's own hourly limit reached (their downloads count too): its own words.
+    await db
+      .update(schema.rateLimitBuckets)
+      .set({ count: 30 })
+      .where(
+        and(
+          eq(schema.rateLimitBuckets.subjectId, ownerId),
+          eq(schema.rateLimitBuckets.action, 'safe_copy'),
+        ),
+      );
+    expect(await refused(token, visa.reference)).toBe(MESSAGES.safeCopyLimit);
+    expect(await lastDenial()).toBe('safe_copy_limit');
+    expect((await hourly())[0]?.count).toBe(30);
+  });
+
+  it('a document queued for erasure is not listed, not stored and answered as not chosen', async () => {
+    const { ownerId, applicantId } = await person('erasing@example.com');
+    const visa = await document(ownerId, applicantId, 'VISA');
+    await prepareSafeCopy(ownerId, visa.documentId, visa.versionId);
+    const { token, connectionId } = await connect(ownerId, applicantId, [
+      { documentId: visa.documentId },
+    ]);
+    await db.insert(schema.erasureJobs).values({
+      reason: 'RETENTION_PURGE',
+      bucket: 'CLEAN',
+      objectKey: visa.objectKey,
+      storageObjectId: await storageObjectOf(visa.versionId),
+    });
+    reads = [];
+    expect(await refused(token, visa.reference)).toBe(MESSAGES.fileNotChosen);
+    expect(await lastDenial()).toBe('file_not_chosen');
+    expect(reads).toEqual([]);
+    const proof = await gate(ownerId, 'VIEW_METADATA', { applicantId });
+    const listed = await listAiFileCandidates(proof);
+    expect(listed.ok && listed.value.documents).toEqual([]);
+    await changeAiConnection(proof, {
+      connectionId,
+      choices: { ...BASE, duration: 'keep', files: [{ documentId: visa.documentId }] },
+    });
+    expect((await listAiConnectionFiles(proof, [connectionId])).get(connectionId)).toBeUndefined();
+  });
+
+  it('records a Safe Copy for an AI app as given to it, not as a download', async () => {
+    const { ownerId, applicantId } = await person('disposition@example.com');
+    const visa = await document(ownerId, applicantId, 'VISA');
+    await prepareSafeCopy(ownerId, visa.documentId, visa.versionId);
+    const { token } = await connect(ownerId, applicantId, [{ documentId: visa.documentId }]);
+    await given(token, visa.reference);
+    const [row] = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(
+        and(
+          eq(schema.auditEvents.eventType, 'DOCUMENT_ACCESS'),
+          eq(schema.auditEvents.action, 'DOWNLOAD_REDACTED'),
+        ),
+      );
+    expect(row?.metadata).toMatchObject({
+      variant: 'redacted',
+      disposition: 'ai_file',
+      purpose: 'ai_connection_safe_copy',
+    });
+  });
+
+  it('names both new choices that need a sign-in check, and changes nothing', async () => {
+    const { ownerId, applicantId } = await person('both@example.com');
+    const visa = await document(ownerId, applicantId, 'VISA');
+    const { connectionId } = await connect(ownerId, applicantId, [{ documentId: visa.documentId }]);
+    const proof = await gate(ownerId, 'VIEW_METADATA', { applicantId });
+    const changed = await changeAiConnection(proof, {
+      connectionId,
+      choices: {
+        ...BASE,
+        revealIdentifiers: true,
+        duration: 'keep',
+        files: [{ documentId: visa.documentId, variant: 'ORIGINAL' }],
+      },
+    });
+    expect(!changed.ok && changed.error).toEqual({
+      code: 'step_up_required',
+      needs: ['full_numbers', 'original_files'],
+    });
+    // Only full numbers new: the files are not written either.
+    const fullOnly = await changeAiConnection(proof, {
+      connectionId,
+      choices: { ...BASE, revealIdentifiers: true, duration: 'keep', files: [] },
+    });
+    expect(!fullOnly.ok && fullOnly.error).toEqual({
+      code: 'step_up_required',
+      needs: ['full_numbers'],
+    });
+    expect((await listAiConnectionFiles(proof, [connectionId])).get(connectionId)).toEqual([
+      { documentId: visa.documentId, variant: 'SAFE_COPY' },
+    ]);
+  });
+
+  it('never reads an original without a recorded hash or a recorded size', async () => {
+    const { ownerId, applicantId } = await person('unknown@example.com');
+    const visa = await document(ownerId, applicantId, 'VISA');
+    const { token } = await connect(
+      ownerId,
+      applicantId,
+      [{ documentId: visa.documentId, variant: 'ORIGINAL' }],
+      { stepUp: true },
+    );
+    const objectId = await storageObjectOf(visa.versionId);
+    await db
+      .update(schema.documentVersions)
+      .set({ sha256: null })
+      .where(eq(schema.documentVersions.id, visa.versionId));
+    await db
+      .update(schema.storageObjects)
+      .set({ contentHash: null })
+      .where(eq(schema.storageObjects.id, objectId));
+    reads = [];
+    expect(await refused(token, visa.reference)).toBe(MESSAGES.failed);
+    const hash = createHash('sha256').update(ORIGINAL_PDF).digest('hex');
+    await db
+      .update(schema.documentVersions)
+      .set({ sha256: hash, sizeBytes: null })
+      .where(eq(schema.documentVersions.id, visa.versionId));
+    await db
+      .update(schema.storageObjects)
+      .set({ sizeBytes: null })
+      .where(eq(schema.storageObjects.id, objectId));
+    expect(await refused(token, visa.reference)).toBe(MESSAGES.failed);
+    expect(reads).toEqual([]);
+  });
+});

@@ -79,6 +79,8 @@ function fileRefusal(reason: AiFileFailure): AiTextToolResult {
       return refusal(MESSAGES.fileProtected);
     case 'file_limit':
       return refusal(MESSAGES.fileLimit);
+    case 'safe_copy_limit':
+      return refusal(MESSAGES.safeCopyLimit);
     case 'file_not_ready':
       return refusal(MESSAGES.fileNotReady);
     case 'safe_copy_not_ready':

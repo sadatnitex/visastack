@@ -527,3 +527,40 @@ describe('the AI context address: files (S20)', () => {
     expect(mocks.run.mock.calls[0]?.[3]).not.toHaveProperty('files');
   });
 });
+
+describe('the AI context address: file settings built only for the file tool (S20 round 2)', () => {
+  it('lists tools and answers other tools with storage settings missing; the file tool refuses plainly', async () => {
+    const files = vi.fn(() => {
+      throw new Error('BLOB_SIGNING_SECRET is not configured');
+    });
+    const listed = await handleMcpPost(post(LIST), { ...deps(), files });
+    const body = (await listed.json()) as { result: { tools: { name: string }[] } };
+    expect(body.result.tools.map((t) => t.name)).toContain('get_document_file');
+    await handleMcpPost(post(callTool('list_cases')), { ...deps(), files });
+    expect(files).not.toHaveBeenCalled();
+    expect(mocks.run).toHaveBeenCalledTimes(1);
+
+    const refused = await handleMcpPost(
+      post(callTool('get_document_file', { document_reference: 'D-7K2Q9M' })),
+      { ...deps(), files },
+    );
+    const text = await refused.text();
+    expect(files).toHaveBeenCalledTimes(1);
+    expect(text).toContain('could not prepare this');
+    expect(text).not.toContain('BLOB_SIGNING_SECRET');
+    expect(mocks.run).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives the larger limit by the tool definition’s kind, which only the file tool has', async () => {
+    const { AI_TOOLS } = await import('@visastack/services');
+    expect(AI_TOOLS.filter((t) => 'kind' in t && t.kind === 'file').map((t) => t.name)).toEqual([
+      'get_document_file',
+    ]);
+    const source = (await import('node:fs')).readFileSync(
+      new URL('./mcp-endpoint.ts', import.meta.url),
+      'utf8',
+    );
+    expect(source).toContain("definition?.kind === 'file'");
+    expect(source).not.toMatch(/tool === 'get_document_file'/);
+  });
+});

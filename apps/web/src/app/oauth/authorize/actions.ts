@@ -23,6 +23,7 @@ import {
   AI_FILE_PICKS_CONSENT,
   AI_FILE_PICKS_COOKIE,
   aiFilePicksCookieOptions,
+  consentRequestKey,
   encodeAiFilePicks,
 } from '../../../lib/ai-file-picks-retry';
 import { resolveBaseUrl } from '../../../lib/base-url';
@@ -42,14 +43,29 @@ export interface ConsentActionState extends FormResult {
   readonly files?: readonly AiFileChoice[];
 }
 
-/** Keeps the ticked files across the fresh sign-in check, never in the address. Best effort. */
+/**
+ * Keeps the ticked files across the fresh sign-in check, never in the address: always the latest
+ * choice, an empty one included, so files unticked before the check never come back ticked. Bound
+ * to the account, the record and this exact request. Without the choices on the form, any older
+ * saved choice is cleared. Best effort.
+ */
 async function rememberFiles(
   accountId: string,
   applicantId: string,
-  files: readonly AiFileChoice[],
+  request: string,
+  files: readonly AiFileChoice[] | undefined,
 ) {
-  const value = encodeAiFilePicks({ applicantId, target: AI_FILE_PICKS_CONSENT, files }, accountId);
-  if (!value) return;
+  const value =
+    files === undefined
+      ? null
+      : encodeAiFilePicks(
+          { applicantId, target: AI_FILE_PICKS_CONSENT, request, files },
+          accountId,
+        );
+  if (!value) {
+    await forgetFiles();
+    return;
+  }
   (await cookies()).set(
     AI_FILE_PICKS_COOKIE,
     value,
@@ -97,6 +113,8 @@ export async function answerAiConsentAction(
   }
   const { request } = check;
   if (formData.get('decision') !== 'allow') {
+    // Saved choices end with the answer, either way.
+    await forgetFiles();
     redirect(
       authorizationResponseUrl(
         request.redirectUri,
@@ -175,7 +193,16 @@ export async function answerAiConsentAction(
       );
       if (stepUp.kind === 'not_configured') return { kind: 'step_up_unavailable' } as const;
       if (stepUp.kind === 'reauth_required') {
-        if (files && files.length > 0) await rememberFiles(accountId, applicantId, files);
+        await rememberFiles(
+          accountId,
+          applicantId,
+          consentRequestKey({
+            clientId: request.client.clientId,
+            codeChallenge: request.codeChallenge,
+            state: request.state,
+          }),
+          files,
+        );
         return { kind: 'reauth', url: stepUp.reauthUrl } as const;
       }
       fullNumbersProof = stepUp.proof;

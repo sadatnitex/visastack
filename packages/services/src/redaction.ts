@@ -1587,8 +1587,11 @@ export interface ProducedSafeCopy {
 export async function produceSafeCopy(
   proof: AuthorizedApplicant<'DOWNLOAD_REDACTED'>,
   deps: Pick<RedactionDeps, 'storage' | 'renderer'>,
-  /** The purpose the DOCUMENT_ACCESS events record, when not a download (S20: an AI app). */
-  options: { readonly purposes?: DocumentPurposes } = {},
+  /**
+   * When the copy is not a download (S20: given to an AI app): the purpose and the disposition the
+   * DOCUMENT_ACCESS events record.
+   */
+  options: { readonly purposes?: DocumentPurposes; readonly disposition?: 'ai_file' } = {},
 ): Promise<Result<ProducedSafeCopy, SafeCopyError>> {
   if (!AuthorizedApplicant.isGenuine(proof, 'DOWNLOAD_REDACTED')) {
     return err(serviceError('forbidden', 'access denied'));
@@ -1600,7 +1603,7 @@ export async function produceSafeCopy(
   }
   const limited = await withinLimit(proof, 'SAFE_COPY');
   if (!limited.ok) return limited;
-  const requested = { variant: 'redacted', disposition: 'download' };
+  const requested = { variant: 'redacted', disposition: options.disposition ?? 'download' };
   const refuse = async (
     reason: string,
     refusal: SafeCopyRefusal,

@@ -88,7 +88,11 @@ export type AiConnectionManageError =
   | { readonly code: 'not_found' }
   | { readonly code: 'ended' }
   | { readonly code: 'case_not_on_record' }
-  | { readonly code: 'step_up_required' }
+  | {
+      readonly code: 'step_up_required';
+      /** Which new choices need the fresh identity check (S20): one or both. */
+      readonly needs?: readonly ('full_numbers' | 'original_files')[];
+    }
   | { readonly code: 'invalid' }
   | { readonly code: 'unavailable' };
 
@@ -339,6 +343,13 @@ export async function turnOffAiConnection(
   }
 }
 
+/** Carries the stored files' outcome out of a savepoint that is undone. */
+class FilesUndone extends Error {
+  constructor(readonly result: Awaited<ReturnType<typeof storeAiConnectionFiles>>) {
+    super('ai connection files undone');
+  }
+}
+
 /** The Change Access choices: the consent choices, with "keep the current end" as a duration. */
 export interface ChangeAiConnectionInput {
   readonly connectionId: string;
@@ -369,17 +380,13 @@ export async function changeAiConnection(
       if (!connection || connection.activatedAt === null)
         return err({ code: 'not_found' } as const);
       if (endOf(connection, now).endedAt !== null) return err({ code: 'ended' } as const);
-      if (
-        choices.revealIdentifiers &&
-        !connection.revealIdentifiers &&
-        !StepUpProof.covers(input.stepUp, {
-          accountId: owner.accountId,
-          action: 'EXPORT_PROFILE',
-          resourceId: owner.applicantId,
-        })
-      ) {
-        return err({ code: 'step_up_required' } as const);
-      }
+      const recordStepUp = StepUpProof.covers(input.stepUp, {
+        accountId: owner.accountId,
+        action: 'EXPORT_PROFILE',
+        resourceId: owner.applicantId,
+      });
+      const needsFullNumbers =
+        choices.revealIdentifiers && !connection.revealIdentifiers && !recordStepUp;
       const missionId = choices.caseMode === 'ONE' ? (choices.missionId ?? null) : null;
       if (missionId) {
         const mission = first(
@@ -403,28 +410,35 @@ export async function changeAiConnection(
         (hadSuggestions ||
           (await getAiFeatureState(tx, 'ai_app_suggestions', { proof })).available);
       const scopes = scopesFromChoices({ ...choices, suggestChanges });
-      // "Original Files" (S20), before anything is written: a new Original needs the same fresh
-      // identity check as Full Document Numbers, and refuses without changing anything. While AI
-      // App Original Files is off, ticked documents can be kept or unticked, never added.
-      const files = await storeAiConnectionFiles(proof, tx, {
-        connectionId: connection.id,
-        files: choices.files,
-        documentList: choices.documentList,
-        featureAvailable: (await getAiFeatureState(tx, 'ai_app_original_files', { proof }))
-          .available,
-        stepUpSatisfied: StepUpProof.covers(input.stepUp, {
-          accountId: owner.accountId,
-          action: 'EXPORT_PROFILE',
-          resourceId: owner.applicantId,
-        }),
-      });
-      if (!files.ok) {
-        return err(
-          files.error === 'step_up_required'
-            ? ({ code: 'step_up_required' } as const)
-            : ({ code: 'not_owner' } as const),
-        );
+      // "Original Files" (S20): a new Original needs the same fresh identity check as Full
+      // Document Numbers. While AI App Original Files is off, ticked documents can be kept or
+      // unticked, never added. Stored in a savepoint, undone when a check is still needed, so the
+      // answer can name every choice that needs one and nothing is changed.
+      const filesFeature = (await getAiFeatureState(tx, 'ai_app_original_files', { proof }))
+        .available;
+      let files: Awaited<ReturnType<typeof storeAiConnectionFiles>>;
+      try {
+        files = await tx.transaction(async (savepoint) => {
+          const stored = await storeAiConnectionFiles(proof, savepoint, {
+            connectionId: connection.id,
+            files: choices.files,
+            documentList: choices.documentList,
+            featureAvailable: filesFeature,
+            stepUpSatisfied: recordStepUp,
+          });
+          if (needsFullNumbers || !stored.ok) throw new FilesUndone(stored);
+          return stored;
+        });
+      } catch (error) {
+        if (!(error instanceof FilesUndone)) throw error;
+        files = error.result;
       }
+      const checks = [
+        ...(needsFullNumbers ? (['full_numbers'] as const) : []),
+        ...(!files.ok && files.error === 'step_up_required' ? (['original_files'] as const) : []),
+      ];
+      if (checks.length > 0) return err({ code: 'step_up_required', needs: checks } as const);
+      if (!files.ok) return err({ code: 'not_owner' } as const);
       const expiresAt =
         choices.duration === 'keep'
           ? connection.expiresAt

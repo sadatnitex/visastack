@@ -1,5 +1,7 @@
+'use client';
+
 import { AI_FEATURE_OFF_HINT } from '@visastack/core/ai-features';
-import { useId } from 'react';
+import { useId, useState } from 'react';
 import {
   AI_FILE_FIELD,
   AI_FILE_PRESENT_FIELD,
@@ -18,6 +20,7 @@ import {
   AI_ORIGINAL_NOTE,
   AI_SAFE_COPY_LABEL,
   AI_SAFE_COPY_NOT_READY,
+  AI_SHARE_FILE_FIRST,
   AI_SHARE_FILE_LABEL,
 } from '../lib/ai-consent-labels';
 
@@ -57,6 +60,13 @@ export function AiFileChoices({
   const offId = `${id}-files-off`;
   const originalNoteId = `${id}-files-original`;
   const ticked = new Map(initial.map((file) => [file.documentId, file.variant] as const));
+  // Which boxes are ticked now: the two ways of giving a file open only for a ticked document.
+  const [shared, setShared] = useState<ReadonlySet<string>>(
+    () => new Set(initial.map((file) => file.documentId)),
+  );
+  const fileError = invalid?.field === 'file' ? invalid.messageId : undefined;
+  const ids = (...parts: (string | false | undefined)[]) =>
+    parts.filter((part): part is string => typeof part === 'string').join(' ') || undefined;
   const storedVariant = new Map(stored.map((file) => [file.documentId, file.variant] as const));
   const groups: { readonly label: string; readonly documents: AiFileCandidateView[] }[] = [];
   for (const candidate of candidates) {
@@ -103,10 +113,12 @@ export function AiFileChoices({
               const originalOpen = available || was === 'ORIGINAL';
               const startsTicked = chosen !== undefined && boxOpen;
               const startsOriginal = chosen === 'ORIGINAL' && originalOpen;
+              const isShared = boxOpen && shared.has(document.documentId);
               const name = document.referenceCode
                 ? `${document.kind} (${document.referenceCode})`
                 : document.kind;
-              const notReadyId = `${rowId}-not-ready`;
+              const notReadyId = document.safeCopyReady ? undefined : `${rowId}-not-ready`;
+              const firstId = boxOpen && !isShared ? `${rowId}-first` : undefined;
               return (
                 <fieldset key={document.documentId} className="fieldset ai-file-choice">
                   <legend className="ai-file-name">{name}</legend>
@@ -118,6 +130,17 @@ export function AiFileChoices({
                       value={document.documentId}
                       defaultChecked={startsTicked}
                       disabled={!boxOpen}
+                      onChange={(event) => {
+                        const checked = event.currentTarget.checked;
+                        setShared((current) => {
+                          const next = new Set(current);
+                          if (checked) next.add(document.documentId);
+                          else next.delete(document.documentId);
+                          return next;
+                        });
+                      }}
+                      aria-describedby={ids(notReadyId, !boxOpen && offId, fileError)}
+                      {...(fileError ? { 'aria-invalid': true as const } : {})}
                     />
                     <span className="output-check-text">
                       <span>{AI_SHARE_FILE_LABEL}</span>
@@ -131,8 +154,8 @@ export function AiFileChoices({
                         name={aiFileVariantField(document.documentId)}
                         value="SAFE_COPY"
                         defaultChecked={!startsOriginal}
-                        disabled={!boxOpen}
-                        {...(document.safeCopyReady ? {} : { 'aria-describedby': notReadyId })}
+                        disabled={!isShared}
+                        aria-describedby={ids(notReadyId, firstId, !boxOpen && offId)}
                       />
                       <span className="output-check-text">
                         <span>{AI_SAFE_COPY_LABEL}</span>
@@ -145,19 +168,28 @@ export function AiFileChoices({
                         name={aiFileVariantField(document.documentId)}
                         value="ORIGINAL"
                         defaultChecked={startsOriginal}
-                        disabled={!originalOpen}
-                        aria-describedby={originalNoteId}
+                        disabled={!isShared || !originalOpen}
+                        aria-describedby={ids(
+                          originalNoteId,
+                          originalOpen && firstId,
+                          !originalOpen && offId,
+                        )}
                       />
                       <span className="output-check-text">
                         <span>{AI_ORIGINAL_LABEL}</span>
                       </span>
                     </label>
                   </div>
-                  {document.safeCopyReady ? null : (
+                  {firstId ? (
+                    <p className="muted u-fs-075 u-m-0" id={firstId}>
+                      {AI_SHARE_FILE_FIRST}
+                    </p>
+                  ) : null}
+                  {notReadyId ? (
                     <p className="muted u-fs-075 u-m-0" id={notReadyId}>
                       {AI_SAFE_COPY_NOT_READY}
                     </p>
-                  )}
+                  ) : null}
                 </fieldset>
               );
             })}

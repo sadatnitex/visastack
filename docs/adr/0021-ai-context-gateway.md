@@ -386,4 +386,15 @@ Appended for S20. It records how the "Original documents (S20)" extension above 
 - How Claude and ChatGPT handle an embedded PDF or image resource in a tool answer cannot be checked from here.
 - The 3 MB limit, memory (about four copies of a file during one answer) and a Neon storage read inside the route's 10 s have not been measured on the host.
 - The Safe Copy hourly limit (30, ADR 0022) is shared with the person's own Safe Copy downloads.
-- Production behaviour waits for migration 0106 (owner action O8) and for the platform owner to turn AI App Original Files on.
+- Production behaviour waits for migration 0106 (owner action O8-S20) and for the platform owner to turn AI App Original Files on.
+
+### Review round 2 (30 Oct 2026)
+
+- **Ticked files across the sign-in check.** The latest choice is always saved, an empty one included, and replaces any older one; a form without the choices clears it, so files unticked before the check never come back ticked. On the consent screen the saved choice is bound to the exact request (the app's client, its PKCE challenge and its state) as well as the account and the record, and is cleared on Allow and on Do Not Allow: another app's consent screen is never pre-ticked.
+- **What may be ticked.** A clean version still being normalised or read again stays listed, so saving Change Access never unticks it; nothing is given until it is servable. A document with any version queued for erasure is not listed, not stored, and answered as not chosen (a private check on the erasure jobs inside the gated module; the baselined erasure function is not called).
+- **Safe Copies.** Readiness is checked first (read only), so a refused Safe Copy never uses the owner's hourly Safe Copy limit; any later refusal rolls the savepoint back with its count. Reaching that hourly limit has its own answer, "The Safe Copy limit for this hour has been reached. Try again later." (reason `safe_copy_limit`), never the daily AI file limit. The document's access record says disposition `ai_file`, not a download.
+- **Originals.** Never read without a recorded hash, or without a recorded size.
+- **The route.** Storage and the renderer are built only when the file tool is called, so every other tool and protocol message works whatever the storage settings; the larger answer limit is chosen by the tool definition's kind (`file`), not its name.
+- **Change Access.** When Full Document Numbers and an Original are both new, one sentence names both, and nothing is changed until the check is passed.
+- **Screens.** Safe Copy and Original stay closed until Share This File is ticked, with a sentence saying so; every control the switch turned off is described by that sentence; on a file error each box is marked invalid and points at the message; the not-ready note is linked from the box too.
+- The migration's owner action has its own ID, **O8-S20**.

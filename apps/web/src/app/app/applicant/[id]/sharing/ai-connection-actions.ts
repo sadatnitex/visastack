@@ -50,15 +50,25 @@ function sharingPath(applicantId: string): string {
   return `/app/applicant/${applicantId}/sharing`;
 }
 
-/** Keeps the ticked files across the fresh sign-in check, never in the address. Best effort. */
+/**
+ * Keeps the ticked files across the fresh sign-in check, never in the address: always the latest
+ * choice, an empty one included, so files unticked before the check never come back ticked.
+ * Without the choices on the form, any older saved choice is cleared. Best effort.
+ */
 async function rememberFiles(
   accountId: string,
   applicantId: string,
   connectionId: string,
-  files: readonly AiFileChoice[],
+  files: readonly AiFileChoice[] | undefined,
 ) {
-  const value = encodeAiFilePicks({ applicantId, target: connectionId, files }, accountId);
-  if (!value) return;
+  const value =
+    files === undefined
+      ? null
+      : encodeAiFilePicks({ applicantId, target: connectionId, files }, accountId);
+  if (!value) {
+    await forgetFiles(applicantId);
+    return;
+  }
   (await cookies()).set(
     AI_FILE_PICKS_COOKIE,
     value,
@@ -189,7 +199,10 @@ export async function changeAiAccessAction(
           choices,
           ...(stepUp ? { stepUp } : {}),
         });
-        return result.ok ? ({ kind: 'done' } as const) : ({ kind: result.error.code } as const);
+        if (result.ok) return { kind: 'done' } as const;
+        return result.error.code === 'step_up_required'
+          ? ({ kind: 'step_up_required', needs: result.error.needs } as const)
+          : ({ kind: result.error.code } as const);
       });
     const first = await attempt();
     if (first.kind !== 'step_up_required') return first;
@@ -204,8 +217,7 @@ export async function changeAiAccessAction(
     );
     if (stepUp.kind === 'not_configured') return { kind: 'step_up_unavailable' } as const;
     if (stepUp.kind === 'reauth_required') {
-      if (files && files.length > 0)
-        await rememberFiles(accountId, applicantId, connectionId, files);
+      await rememberFiles(accountId, applicantId, connectionId, files);
       return { kind: 'reauth', url: stepUp.reauthUrl } as const;
     }
     return attempt(stepUp.proof);
@@ -233,7 +245,17 @@ export async function changeAiAccessAction(
     return failed('Choose a case, all current cases or none.', 'cases');
   }
   if (outcome.kind === 'step_up_required') {
-    return wantsOriginal
+    // Name every new choice that needs the check, in one sentence.
+    const needs = outcome.needs ?? (wantsOriginal ? ['original_files'] : ['full_numbers']);
+    const fullNumbers = needs.includes('full_numbers');
+    const original = needs.includes('original_files');
+    if (fullNumbers && original) {
+      return failed(
+        'To turn on Full Document Numbers and give an Original file, confirm it is you first: save again and sign in when asked.',
+        'reveal_identifiers',
+      );
+    }
+    return original
       ? failed(
           'To give an Original file, confirm it is you first: save again and sign in when asked.',
           'file',

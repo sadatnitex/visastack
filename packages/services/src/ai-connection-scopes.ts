@@ -143,6 +143,7 @@ export const AI_DENIAL_REASONS = [
   'file_too_large',
   'file_type_unsupported',
   'file_limit',
+  'safe_copy_limit',
 ] as const;
 export type AiDenialReason = (typeof AI_DENIAL_REASONS)[number];
 

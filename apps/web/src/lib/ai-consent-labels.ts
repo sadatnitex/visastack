@@ -64,6 +64,7 @@ export const AI_ORIGINAL_FILES_NEEDS_LIST =
 export const AI_ORIGINAL_NOTE = 'You confirm it is you before an Original is allowed.';
 export const AI_SAFE_COPY_NOT_READY =
   'Prepare a Safe Copy on the document’s page. Until then the app gets nothing for this file.';
+export const AI_SHARE_FILE_FIRST = 'Tick Share This File first to choose how it is given.';
 export const AI_ORIGINAL_FILES_NONE = 'No documents can be shared as files yet.';
 /** While AI App Original Files is off: what stays possible. */
 export const AI_FILES_KEPT_NOTE = 'Files you ticked stay ticked, and you can untick them.';

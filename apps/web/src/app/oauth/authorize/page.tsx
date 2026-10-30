@@ -17,6 +17,7 @@ import {
 } from '../../../lib/ai-consent-choices';
 import {
   AI_FILE_PICKS_CONSENT,
+  consentRequestKey,
   decodeAiFilePicks,
   rememberedAiFilePicks,
 } from '../../../lib/ai-file-picks-retry';
@@ -150,6 +151,12 @@ export default async function AuthorizePage({
             accountId,
             applicantId: chosen.id,
             target: AI_FILE_PICKS_CONSENT,
+            // Only for this exact request: another app's screen is never pre-ticked.
+            request: consentRequestKey({
+              clientId: request.client.clientId,
+              codeChallenge: request.codeChallenge,
+              state: request.state,
+            }),
           }) ?? [];
       }
     }

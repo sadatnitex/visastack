@@ -42,7 +42,7 @@ describe('Original Files', () => {
     expect(html).toContain('<legend class="field-label">Original Files</legend>');
     expect(html).toContain('<legend class="field-label">Travel and Immigration</legend>');
     expect(html).toContain('Visa (D-7K2Q9M)');
-    expect(html.match(/Share This File/g)).toHaveLength(2);
+    expect(html.match(/<span>Share This File<\/span>/g)).toHaveLength(2);
     expect(box(html, VISA)).not.toContain('checked');
     expect(input(html, VISA, 'SAFE_COPY')).toContain('checked');
     expect(input(html, VISA, 'ORIGINAL')).not.toContain('checked');
@@ -86,5 +86,53 @@ describe('Original Files', () => {
 
   it('says so when no document can be shared as a file', () => {
     expect(render({ candidates: [] })).toContain('No documents can be shared as files yet.');
+  });
+});
+
+describe('Original Files: what assistive technology hears (S20 round 2)', () => {
+  const describedBy = (tag: string) =>
+    tag.match(/aria-describedby="([^"]+)"/)?.[1]?.split(' ') ?? [];
+  const textOf = (html: string, id: string) =>
+    html.match(new RegExp(`id="${id}"[^>]*>([^<]*)<`))?.[1] ?? '';
+
+  it('keeps the two ways closed until Share This File is ticked, and says why', () => {
+    const html = render();
+    const safe = input(html, VISA, 'SAFE_COPY');
+    const original = input(html, VISA, 'ORIGINAL');
+    expect(safe).toContain('disabled');
+    expect(original).toContain('disabled');
+    const hint = describedBy(safe).find((id) => textOf(html, id).startsWith('Tick Share'));
+    expect(hint).toBeDefined();
+    expect(describedBy(original)).toContain(hint);
+    const ticked = render({ initial: [{ documentId: VISA, variant: 'SAFE_COPY' }] });
+    expect(input(ticked, VISA, 'SAFE_COPY')).not.toContain('disabled');
+    expect(input(ticked, VISA, 'ORIGINAL')).not.toContain('disabled');
+    expect(ticked.match(/Tick Share This File first/g)).toHaveLength(1);
+  });
+
+  it('links every control the switch turned off to the sentence that says so', () => {
+    const stored = [{ documentId: VISA, variant: 'SAFE_COPY' as const }];
+    const html = render({ available: false, stored, initial: stored });
+    const off = html.match(/id="([^"]+-files-off)"/)?.[1] ?? '';
+    expect(off).not.toBe('');
+    expect(describedBy(box(html, LETTER))).toContain(off);
+    expect(describedBy(input(html, LETTER, 'SAFE_COPY'))).toContain(off);
+    const original = describedBy(input(html, VISA, 'ORIGINAL'));
+    expect(original).toContain(off);
+    expect(original.some((id) => id.endsWith('-files-original'))).toBe(true);
+    // A control that still works is not described as off.
+    expect(describedBy(box(html, VISA))).not.toContain(off);
+  });
+
+  it('marks each box invalid on a file error, and links the not-ready note from the box', () => {
+    const html = render({ invalid: { field: 'file', messageId: 'msg' } });
+    for (const id of [VISA, LETTER]) {
+      expect(box(html, id)).toContain('aria-invalid="true"');
+      expect(describedBy(box(html, id))).toContain('msg');
+    }
+    const note = describedBy(box(html, LETTER)).find((id) => id.endsWith('-not-ready'));
+    expect(note).toBeDefined();
+    expect(textOf(html, note ?? '')).toContain('Prepare a Safe Copy');
+    expect(box(render(), VISA)).not.toContain('aria-invalid');
   });
 });

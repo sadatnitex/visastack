@@ -1,6 +1,7 @@
 import 'server-only';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
+import { createSafeCopyRenderer } from '@visastack/adapters';
 import {
   AI_CONNECTION_DEFAULT_LAYERS,
   AI_FILE_RESPONSE_LIMIT_BYTES,
@@ -28,8 +29,8 @@ import { clientAddressFrom, hashedSubject } from './client-address';
 import { checkPilotAccess } from './pilot-access';
 import { createKeyManagementPort } from './providers';
 import { withPublicDb } from './public-db';
-import { redactionDeps } from './safe-copy';
 import { reportServerError } from './server-error';
+import { createStorage } from './storage';
 
 /**
  * The AI context address, `/mcp` (ADR 0021 sections 1, 6 and 7): the Model Context Protocol over
@@ -57,7 +58,10 @@ export interface McpEndpointDeps {
   readonly encryption: () => KeyManagementPort | undefined;
   readonly admission: AiAdmission;
   readonly now: () => Date;
-  /** The private storage and Safe Copy renderer for `get_document_file` (S20); absent: no files. */
+  /**
+   * The private storage and Safe Copy renderer for `get_document_file` (S20); absent: no files.
+   * Built only when that tool is called, so every other message works whatever their settings.
+   */
   readonly files?: (db: Db) => AiFileDeps | undefined;
 }
 
@@ -71,10 +75,7 @@ const defaults: McpEndpointDeps = {
   admission: async (db, account) =>
     (await checkPilotAccess(db, { email: account.email, workosUserId: null })).allowed,
   now: () => new Date(),
-  files: (db) => {
-    const { storage, renderer } = redactionDeps(db);
-    return { storage, renderer };
-  },
+  files: (db) => ({ storage: createStorage(db), renderer: createSafeCopyRenderer() }),
 };
 
 /** The most a request body may carry. Tool inputs are a few short fields. */
@@ -217,7 +218,8 @@ function buildServer(
     readonly token: string;
     readonly resource: string;
     readonly encryption: KeyManagementPort | undefined;
-    readonly files: AiFileDeps | undefined;
+    /** Called only for the file tool. */
+    readonly files: () => AiFileDeps | undefined;
     readonly admission: AiAdmission;
     readonly onUnauthorized: () => void;
   },
@@ -242,12 +244,14 @@ function buildServer(
       async (input: unknown) => {
         let result: AiToolResult;
         try {
+          // Storage and the renderer exist only for the file tool, built when it is called.
+          const files = tool.kind === 'file' ? context.files() : undefined;
           const outcome = await runAiTool(db, tool, input as never, {
             token: context.token,
             resource: context.resource,
             admission: context.admission,
             ...(context.encryption ? { encryption: context.encryption } : {}),
-            ...(context.files ? { files: context.files } : {}),
+            ...(files ? { files } : {}),
           });
           if (outcome.kind === 'unauthorized') context.onUnauthorized();
           if (outcome.kind === 'failed') {
@@ -339,7 +343,7 @@ export async function handleMcpPost(
         token,
         resource,
         encryption: deps.encryption(),
-        files: deps.files?.(db),
+        files: () => deps.files?.(db),
         admission: deps.admission,
         onUnauthorized: () => {
           unauthorized = true;
@@ -354,9 +358,13 @@ export async function handleMcpPost(
         if (unauthorized) return mcpChallenge(issuer, INVALID_TOKEN);
         const text = await response.text();
         const tool = calledTool(body);
-        // Only the file tool's answer may carry a whole file (S20); every other answer keeps 54 KB.
+        const definition = (AI_TOOLS as readonly AnyAiToolDefinition[]).find(
+          (item) => item.name === tool,
+        );
+        // Only a file tool's answer (its definition's kind) may carry a whole file (S20); every other
+        // answer keeps 54 KB.
         const limit =
-          tool === 'get_document_file' ? MCP_MAX_FILE_RESPONSE_BYTES : MCP_MAX_RESPONSE_BYTES;
+          definition?.kind === 'file' ? MCP_MAX_FILE_RESPONSE_BYTES : MCP_MAX_RESPONSE_BYTES;
         if (Buffer.byteLength(text, 'utf8') > limit) {
           if (tool) await auditAiAnswerWithheld(db, { connectionId: caller.connectionId, tool });
           return jsonRpcError(

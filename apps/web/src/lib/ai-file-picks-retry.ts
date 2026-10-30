@@ -1,5 +1,5 @@
 import 'server-only';
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { cookies } from 'next/headers';
 import { AI_FILE_CHOICES_MAX, type AiFileChoice } from './ai-consent-choices';
 import { readEnv } from './env';
@@ -26,7 +26,23 @@ export interface AiFilePicksRetry {
   readonly applicantId: string;
   /** `consent`, or the connection id of a Change Access form. */
   readonly target: string;
+  /** The consent screen only: the exact request it answers (`consentRequestKey`). */
+  readonly request?: string;
   readonly files: readonly AiFileChoice[];
+}
+
+/**
+ * One AI app's one consent request: its client, its PKCE challenge and its state. Saved choices
+ * come back only to the same request, so another app's consent screen is never pre-ticked.
+ */
+export function consentRequestKey(request: {
+  readonly clientId: string;
+  readonly codeChallenge: string;
+  readonly state: string | null;
+}): string {
+  return createHash('sha256')
+    .update(JSON.stringify([request.clientId, request.codeChallenge, request.state ?? '']))
+    .digest('base64url');
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -59,6 +75,7 @@ export function encodeAiFilePicks(
     JSON.stringify({
       p: retry.applicantId,
       t: retry.target,
+      r: retry.request ?? '',
       // One letter for how: S for a Safe Copy, O for the Original.
       f: files.map((file) => `${file.variant === 'ORIGINAL' ? 'O' : 'S'}${file.documentId}`),
       a: accountId,
@@ -72,7 +89,12 @@ export function encodeAiFilePicks(
 /** The ticked documents in a cookie VisaStack signed for this account, record and form, unexpired. */
 export function decodeAiFilePicks(
   value: string | undefined,
-  expected: { readonly accountId: string; readonly applicantId: string; readonly target: string },
+  expected: {
+    readonly accountId: string;
+    readonly applicantId: string;
+    readonly target: string;
+    readonly request?: string;
+  },
   now: Date = new Date(),
 ): readonly AiFileChoice[] | null {
   const key = signingKey();
@@ -85,10 +107,11 @@ export function decodeAiFilePicks(
   try {
     const parsed: unknown = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
     if (typeof parsed !== 'object' || parsed === null) return null;
-    const { p, t, f, a, x } = parsed as Record<string, unknown>;
+    const { p, t, r, f, a, x } = parsed as Record<string, unknown>;
     if (a !== expected.accountId || p !== expected.applicantId || t !== expected.target) {
       return null;
     }
+    if (r !== (expected.request ?? '')) return null;
     if (typeof x !== 'number' || x * 1000 < now.getTime() || !Array.isArray(f)) return null;
     const files: AiFileChoice[] = [];
     for (const item of f.slice(0, AI_FILE_CHOICES_MAX)) {

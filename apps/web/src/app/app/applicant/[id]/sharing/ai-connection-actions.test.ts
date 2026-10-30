@@ -295,4 +295,50 @@ describe('Change Access: Original Files (S20)', () => {
     });
     expect(mocks.changeAiConnection).not.toHaveBeenCalled();
   });
+
+  it('saves an empty choice across the check, so files unticked before it never come back ticked', async () => {
+    mocks.changeAiConnection.mockResolvedValue({ ok: false, error: { code: 'step_up_required' } });
+    mocks.establishStepUpProof.mockResolvedValue({ kind: 'reauth_required', reauthUrl: '/reauth' });
+    const { decodeAiFilePicks } = await import('../../../../../lib/ai-file-picks-retry');
+    const expected = { accountId: 'owner', applicantId: APPLICANT, target: CONNECTION };
+    await expect(
+      changeAiAccessAction(
+        NONE,
+        form({ ...base, files_present: '1', file: [DOC_A], [`file_variant_${DOC_A}`]: 'ORIGINAL' }),
+      ),
+    ).rejects.toThrow('redirected:/reauth');
+    expect(decodeAiFilePicks(jar.get('vs_ai_file_picks')?.value, expected)).toHaveLength(1);
+    await expect(
+      changeAiAccessAction(NONE, form({ ...base, reveal_identifiers: 'on', files_present: '1' })),
+    ).rejects.toThrow('redirected:/reauth');
+    expect(decodeAiFilePicks(jar.get('vs_ai_file_picks')?.value, expected)).toEqual([]);
+    await expect(
+      changeAiAccessAction(NONE, form({ ...base, reveal_identifiers: 'on' })),
+    ).rejects.toThrow('redirected:/reauth');
+    expect(jar.has('vs_ai_file_picks')).toBe(false);
+  });
+
+  it('names both new choices in one sentence when both need the check', async () => {
+    mocks.changeAiConnection.mockResolvedValue({
+      ok: false,
+      error: { code: 'step_up_required', needs: ['full_numbers', 'original_files'] },
+    });
+    mocks.establishStepUpProof.mockResolvedValue({ kind: 'proof', proof: {} });
+    const result = await changeAiAccessAction(
+      NONE,
+      form({
+        ...base,
+        reveal_identifiers: 'on',
+        files_present: '1',
+        file: [DOC_A],
+        [`file_variant_${DOC_A}`]: 'ORIGINAL',
+      }),
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      field: 'reveal_identifiers',
+      message:
+        'To turn on Full Document Numbers and give an Original file, confirm it is you first: save again and sign in when asked.',
+    });
+  });
 });

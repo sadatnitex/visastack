@@ -131,6 +131,7 @@ export const MESSAGES = {
   fileTypeUnsupported: 'Only PDF, PNG and JPEG files can be given to an AI app.',
   fileLimit:
     'The person has reached today’s limit of files for AI apps. Nothing was given. Try again tomorrow.',
+  safeCopyLimit: 'The Safe Copy limit for this hour has been reached. Try again later.',
   filesNotAvailable: 'Files for AI apps are not available in VisaStack yet.',
   fileFeatureOff: 'This AI feature is turned off right now. Everything else works as usual.',
 } as const;

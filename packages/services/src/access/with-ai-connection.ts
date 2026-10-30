@@ -3,6 +3,7 @@ import type { DocumentGroupKey, LayerKey } from '@visastack/core/catalogue';
 import { resolveDocumentType } from '@visastack/core/catalogue/documents';
 import { and, eq, isNull } from 'drizzle-orm';
 import { touchAccountActivity } from '../accounts';
+import { aiFileErasurePending } from '../ai-connection-files';
 import {
   AI_CONNECTION_LAYERS,
   type AiCaseMode,
@@ -38,7 +39,13 @@ import {
   recordProductEvent,
 } from '../product-events';
 import { RATE_LIMITS, checkRateLimit, checkRateLimits, isRateLimitReached } from '../rate-limit';
-import { type RedactionDeps, produceSafeCopy } from '../redaction';
+import {
+  type RedactionDeps,
+  type SafeCopyState,
+  getSafeCopyState,
+  isSafeCopyReady,
+  produceSafeCopy,
+} from '../redaction';
 import {
   type CaseSelection,
   type SelectedOutput,
@@ -262,6 +269,7 @@ export type AiFileFailure = Extract<
   | 'file_not_chosen'
   | 'document_protected'
   | 'file_limit'
+  | 'safe_copy_limit'
   | 'file_not_ready'
   | 'safe_copy_not_ready'
   | 'file_too_large'
@@ -1160,6 +1168,10 @@ function fileReader(context: FileContext): AiFileGateway['file'] {
     );
     if (!chosen || !isAiFileVariant(chosen.variant)) return fail('file_not_chosen');
     const variant: AiFileVariant = chosen.variant;
+    // A document queued for erasure is gone: the same answer as one never ticked.
+    if (await aiFileErasurePending(context.proof, chosen.documentId)) {
+      return fail('file_not_chosen');
+    }
 
     // 3. Never a type the document protection switches restrict, as they are now (decision O2).
     const protection = await loadDocumentProtectionSettings(tx, DEFAULT_DOCUMENT_PROTECTION);
@@ -1188,13 +1200,19 @@ function fileReader(context: FileContext): AiFileGateway['file'] {
               purpose: AI_CONNECTION_PURPOSE,
             });
             if (!ownerAccess(access, connection.applicantId)) throw new FileAborted('failed');
+            // Ready first, read only: a copy that is not ready never uses the owner's hourly
+            // Safe Copy limit.
+            const state = await getSafeCopyState(access.value);
+            if (!state.ok) throw new FileAborted('failed');
+            if (!isSafeCopyReady(state.value)) {
+              throw new FileAborted(safeCopyStateFailure(state.value));
+            }
             const copy = await produceSafeCopy(access.value, deps, {
               purposes: AI_SAFE_COPY_PURPOSES,
+              disposition: 'ai_file',
             });
-            if (!copy.ok) {
-              // A refusal keeps its own DENIED access record: nothing was given.
-              return { refused: safeCopyFailure(copy.error) } as const;
-            }
+            // Any refusal rolls the savepoint back, the limit's count with it: nothing was given.
+            if (!copy.ok) throw new FileAborted(safeCopyFailure(copy.error));
             file = { bytes: copy.value.bytes, mimeType: copy.value.contentType };
           } else {
             const stepUp = await stepUpForAiOriginalFile(
@@ -1266,11 +1284,19 @@ function ownerAccess<A extends 'DOWNLOAD_REDACTED' | 'DOWNLOAD_ORIGINAL'>(
 }
 
 /** A Safe Copy that was not made, as the app is told. Never a fallback to the original. */
+/** A Safe Copy whose state says it cannot be given now. */
+function safeCopyStateFailure(state: SafeCopyState): AiFileFailure {
+  if (state === 'UNSUPPORTED') return 'file_type_unsupported';
+  if (state === 'TOO_LARGE') return 'file_too_large';
+  return 'safe_copy_not_ready';
+}
+
 function safeCopyFailure(error: {
   readonly code: string;
   readonly refusal?: string;
 }): AiFileFailure {
-  if (error.code === 'rate_limited') return 'file_limit';
+  // The owner's own hourly Safe Copy limit, never the daily AI file limit.
+  if (error.code === 'rate_limited') return 'safe_copy_limit';
   switch (error.refusal) {
     case 'not_prepared':
     case 'not_ready_yet':

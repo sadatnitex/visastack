@@ -90,7 +90,7 @@ A person can let one AI app receive the files of documents they tick, under **Or
 
 ### Before it works in production
 
-- Migration 0106 (`ai_connection_documents`) must run with the owner's word (O8). Before it, nothing can be ticked and the tool answers "Files for AI apps are not available in VisaStack yet."
+- Migration 0106 (`ai_connection_documents`) must run with the owner's word (owner action O8-S20). Before it, nothing can be ticked and the tool answers "Files for AI apps are not available in VisaStack yet."
 - Then the platform owner turns AI App Original Files on.
 
 ### Where to look
@@ -98,3 +98,11 @@ A person can let one AI app receive the files of documents they tick, under **Or
 - Audit: `AI_CONTEXT_SERVED` with `fileServed: true`, `variant`, `documentId`, `sizeBytes`, `mimeType`; the document's own `DOCUMENT_ACCESS` with purpose `ai_connection_safe_copy` or `ai_connection_original`; refusals as `AI_CONTEXT_DENIED` with reasons such as `file_not_chosen`, `document_protected`, `safe_copy_not_ready`, `file_too_large`, `file_limit`.
 - Product event: `AI_FILE_SERVED` (`SAFE_COPY` or `ORIGINAL`), once per connection per day.
 - Tests: `packages/services/src/ai-tools/document-file.test.ts`, `tool-guard.test.ts`, `boundary.test.ts`; `packages/db/src/ai-connection-documents-migration.test.ts`; `apps/web/src/lib/mcp-endpoint.test.ts`, `apps/web/src/components/ai-file-choices.test.tsx`, `apps/web/src/lib/ai-file-picks-retry.test.ts`.
+
+#### Original Files, review round 2 (30 Oct 2026)
+
+- A Safe Copy that is not ready never uses the person's hourly Safe Copy limit. When that hourly limit is reached the app is told "The Safe Copy limit for this hour has been reached. Try again later." (audit reason `safe_copy_limit`). The document's access record shows disposition `ai_file`.
+- A document queued for erasure disappears from the choices and is answered as not chosen.
+- An original with no recorded hash or size is never read (the app is told VisaStack could not prepare it).
+- Storage settings are needed only by `get_document_file`; the other tools keep working without them.
+- Migration 0106 is owner action **O8-S20**.
