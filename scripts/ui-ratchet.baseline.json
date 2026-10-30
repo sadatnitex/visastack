@@ -3,7 +3,6 @@
     "apps/web/src/app/app/add-applicant-form.tsx": 4,
     "apps/web/src/app/app/admin/access/page.tsx": 6,
     "apps/web/src/app/app/admin/action-buttons.tsx": 4,
-    "apps/web/src/app/app/admin/ai-settings/page.tsx": 4,
     "apps/web/src/app/app/admin/complaints/forms.tsx": 4,
     "apps/web/src/app/app/admin/complaints/page.tsx": 6,
     "apps/web/src/app/app/admin/failed-sections-banner.tsx": 1,

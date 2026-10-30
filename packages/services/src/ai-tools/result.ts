@@ -134,6 +134,11 @@ export const MESSAGES = {
   safeCopyLimit: 'The Safe Copy limit for this hour has been reached. Try again later.',
   filesNotAvailable: 'Files for AI apps are not available in VisaStack yet.',
   fileFeatureOff: 'This AI feature is turned off right now. Everything else works as usual.',
+  // AI App Access (S28): every tool.
+  accessOff:
+    'AI apps cannot read VisaStack right now: this AI feature is turned off. Everything else works as usual, and the person can still use VisaStack directly.',
+  accessLimit:
+    'The person has reached today’s limit of requests from AI apps. It starts again at 6 AM Bangladesh time. They can still use VisaStack directly.',
 } as const;
 
 /** The plain answer to a suggestion, draft or reminder that was not saved. */

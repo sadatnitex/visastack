@@ -23,6 +23,7 @@ import {
   getLatestExtractedText,
   growUploadReservation,
   isAiDispatchAllowed,
+  isAiFeatureRefusal,
   isValidDocumentDateString,
   loadUploadQuotaConfig,
   mbLabel,
@@ -563,6 +564,8 @@ export async function runAiExtractionAction(
       applicantId,
       documentVersionId,
       text,
+      // The person asked (S28): Read with AI, not Automatic Reading.
+      feature: 'ai_document_reading',
       budgetLimitUnits: resolved.limits.budgetLimitUnits,
       perDocumentBudgetLimitUnits: resolved.limits.perDocumentBudgetLimitUnits,
       maxAttemptsPerDocument: resolved.limits.maxAttemptsPerDocument,
@@ -598,6 +601,8 @@ export async function runAiExtractionAction(
  * logs; it can name providers and limits, so it is never shown as it is.
  */
 function readingRefusal(error: ServiceError): string {
+  // The feature is off or used up for today (S28): its own plain sentence, already for people.
+  if (isAiFeatureRefusal(error)) return error.message;
   switch (error.code) {
     case 'consent_required':
       return 'Reading with AI is off. You can turn it on from Home.';
@@ -684,6 +689,7 @@ export async function runOcrAction(_prev: ActionState, formData: FormData): Prom
       documentVersionId,
       imageBytes: rendered.imageBytes,
       contentType: rendered.contentType,
+      feature: 'ai_document_reading',
       budgetLimitUnits: resolved.limits.budgetLimitUnits,
       perDocumentBudgetLimitUnits: resolved.limits.perDocumentBudgetLimitUnits,
       maxAttemptsPerDocument: resolved.limits.maxAttemptsPerDocument,

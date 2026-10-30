@@ -35,6 +35,15 @@ vi.mock('./forms', async () => {
   const { stub } = await import('../../../../lib/next-mocks.test-support');
   return { AiFeatureForm: stub('AiFeatureForm') };
 });
+vi.mock('./provider-settings', async () => {
+  const { stub } = await import('../../../../lib/next-mocks.test-support');
+  return {
+    loadAiProviderSettings: async () => ({ hasAny: false }),
+    AiProvidersSection: stub('AiProvidersSection'),
+    DataTermsSection: stub('DataTermsSection'),
+    AiAppsSection: stub('AiAppsSection'),
+  };
+});
 
 const { default: Page } = await import('./page');
 const { AI_FEATURE_RETRY_COOKIE, encodeAiFeatureRetry } = await import(
@@ -45,7 +54,9 @@ const feature = {
   feature: 'ai_app_suggestions',
   name: 'AI App Suggestions',
   description: 'Lets the AI apps people connect leave suggestions.',
+  kind: 'connector',
   enabled: false,
+  planIncluded: true,
   adminDailyLimit: null,
   planDailyLimit: 15,
   ready: true,
@@ -78,6 +89,33 @@ describe('Platform > AI Features', () => {
     expect(text).toContain('Everything else in VisaStack keeps working.');
     expect(mocks.staffPrincipal.mock.calls[0]?.[2]).toBe('AI_FEATURES_MANAGE');
     expect(mocks.listAiFeatureSettings.mock.calls[0]?.[1]).toEqual({ kind: 'staff' });
+    // S28: one AI area, the provider sections beside the features.
+    expect(text).toContain('AI Settings');
+    expect(text).toContain('limits start again at 6 AM Bangladesh time');
+    expect(stubProps(html, 'AiProvidersSection')).toHaveLength(1);
+    expect(stubProps(html, 'DataTermsSection')).toHaveLength(1);
+    expect(stubProps(html, 'AiAppsSection')).toHaveLength(1);
+  });
+
+  it('shows a security admin the providers, data terms and AI apps, never the feature switches', async () => {
+    mocks.staffPrincipal.mockImplementation(
+      async (_db: unknown, _actor: unknown, action: string) =>
+        action === 'AI_SETTINGS_MANAGE'
+          ? { ok: true, value: { kind: 'staff' } }
+          : { ok: false, error: { code: 'forbidden' } },
+    );
+    const html = await renderServer(Page());
+    expect(mocks.listAiFeatureSettings).not.toHaveBeenCalled();
+    expect(textOf(html)).not.toContain('What Turning a Feature Off Does');
+    expect(stubProps(html, 'AiProvidersSection')).toHaveLength(1);
+  });
+
+  it('marks a feature the traveller plan leaves out', async () => {
+    mocks.listAiFeatureSettings.mockResolvedValue({
+      ok: true,
+      value: { available: true, features: [{ ...feature, planIncluded: false }] },
+    });
+    expect(textOf(await renderServer(Page()))).toContain('Not in the Traveller Plan');
   });
 
   it('shows a lowered limit and a feature that is on', async () => {
@@ -98,6 +136,7 @@ describe('Platform > AI Features', () => {
     const text = textOf(await renderServer(Page()));
     expect(mocks.listAiFeatureSettings).not.toHaveBeenCalled();
     expect(text).not.toContain('AI App Suggestions');
+    expect(text).toContain('restricted');
   });
 
   it('says plainly when the switches are not available yet', async () => {
@@ -106,7 +145,7 @@ describe('Platform > AI Features', () => {
       value: { available: false, features: [feature] },
     });
     const text = textOf(await renderServer(Page()));
-    expect(text).toContain('every AI feature listed here stays off');
+    expect(text).toContain('each AI feature keeps its standard setting');
     expect(text).not.toContain('Change AI App Suggestions');
   });
 });

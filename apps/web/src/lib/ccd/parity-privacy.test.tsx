@@ -10,6 +10,8 @@ const state = vi.hoisted(() => ({
   pending: null as unknown,
   jobs: [] as unknown[],
   depth: 'auto',
+  /** AI Use Today (S28); null makes the read fail, so the card is left out. */
+  aiUsage: [] as unknown[] | null,
 }));
 
 vi.mock('@visastack/services', async (importOriginal) => ({
@@ -19,7 +21,13 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   getDeletionImpactSummary: async () => ({ applicants: 1, documents: 2 }),
   listActiveLegalHoldsForAccount: async () => [],
   listAccountExportJobsForAccount: async () => state.jobs,
+  getAiUsageToday: async () => {
+    if (state.aiUsage === null) throw new Error('unreadable');
+    return { features: state.aiUsage, startsAgainAt: new Date('2026-10-31T00:00:00Z') };
+  },
 }));
+vi.mock('../ai', () => ({ resolveAiExtractionAvailability: async () => 'available' }));
+vi.mock('../server-error', () => ({ reportServerError: () => undefined }));
 vi.mock('../session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
     fn({ db: {}, accountId: 'acct-1', email: 'traveller@example.com' }),
@@ -39,6 +47,7 @@ registerParity({
     state.pending = null;
     state.jobs = [];
     state.depth = 'auto';
+    state.aiUsage = [];
   },
   render: async () => await renderServer(PrivacyPage()),
   states: [
@@ -88,5 +97,64 @@ describe('privacy levels', () => {
     }
     state.jobs = [{ ...job, status: 'EXPIRED' }];
     expect(await levelOf('large-export')).toBe('everything');
+  });
+});
+
+describe('AI Use Today (S28)', () => {
+  const row = (overrides: Record<string, unknown>) => ({
+    feature: 'ai_document_reading',
+    name: 'Read with AI',
+    unit: 'files',
+    used: 0,
+    dailyLimit: null,
+    available: true,
+    reason: null,
+    ...overrides,
+  });
+  beforeEach(() => {
+    state.aiUsage = [];
+  });
+
+  it('shows each feature with its state and today’s count, and when limits start again', async () => {
+    state.aiUsage = [
+      row({ used: 1 }),
+      row({
+        feature: 'ai_consistency_checks',
+        name: 'Consistency Checks',
+        unit: 'checks',
+        used: 3,
+        dailyLimit: 3,
+        available: false,
+        reason: 'daily_limit',
+      }),
+      row({
+        feature: 'ai_explanations',
+        name: 'Gap Explanations',
+        unit: 'explanations',
+        available: false,
+        reason: 'turned_off',
+      }),
+    ];
+    const html = await renderServer(PrivacyPage());
+    const doc = new JSDOM(html).window.document;
+    const card = doc.getElementById('ai-use-today');
+    expect(card?.getAttribute('data-level')).toBe('browse');
+    const text = card?.textContent?.replace(/\s+/g, ' ') ?? '';
+    expect(text).toContain('AI Use Today');
+    expect(text).toContain('Read with AI');
+    expect(text).toContain('1 file today');
+    expect(text).toContain('3 of 3 checks today');
+    expect(text).toContain('Limit Reached');
+    expect(text).toContain('0 explanations today');
+    expect(text).toContain('Off');
+    expect(text).toContain('Daily limits start again at 6 AM Bangladesh time.');
+    expect(text).not.toContain('UTC');
+  });
+
+  it('leaves the card out, and the rest of the page as it is, when the counts cannot be read', async () => {
+    state.aiUsage = null;
+    const html = await renderServer(PrivacyPage());
+    expect(html).not.toContain('AI Use Today');
+    expect(html).toContain('Consent History');
   });
 });

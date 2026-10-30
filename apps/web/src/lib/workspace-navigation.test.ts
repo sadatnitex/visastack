@@ -295,7 +295,7 @@ describe('workspace navigation link list (characterization)', () => {
     ]);
     expect(pairs(nav.tools)).toEqual([
       ['Rules & Packs', '/app/admin/packs'],
-      ['AI Settings', '/app/admin/ai-settings'],
+      ['AI Settings', '/app/admin/ai'],
       ['Privacy Operations', '/app/admin/privacy'],
       ['Platform Access', '/app/admin/access'],
       ['Complaints', '/app/admin/complaints'],

@@ -68,7 +68,7 @@ export const RETIRED_LINE = 'Retired. Nobody new can be put on this plan.';
 export const AI_ALLOWANCE_HINT =
   'Shown on Plan and Usage for now; it does not stop any work yet. Leave empty for Unlimited.';
 export const AI_LIMIT_HINT =
-  'Uses per person per day, from 1 to 1000, while the feature is on. A limit typed for a feature that is off is not kept.';
+  'Uses per person per day, from 1 to 1000, while the feature is on. Leave it empty for no plan limit: the daily limit set on the AI Features page still applies. A limit typed for a feature that is off is not kept.';
 
 /** S29 plan decision: a price change never touches a period already under way. */
 export const PRICE_CHANGE_NOTE =

@@ -7,6 +7,7 @@ import {
   type RequirementResultState,
   accountPrincipal,
   computeReadiness,
+  getAiFeatureState,
   getApplicant,
   getEvidenceCandidates,
   getLatestExplanationForRequirement,
@@ -379,6 +380,21 @@ export default async function MissionPage({
         ),
     );
     const explanationsByRequirement = new Map(explanationEntries);
+    // Gap Explanations' own switch (S28), read only when the button could show. Off, a short
+    // hint takes the button's place and any explanation already given stays.
+    const explanationGate =
+      explanationConfigured && explanationEntries.length > 0
+        ? await requireAccess(
+            db,
+            accountPrincipal(accountId),
+            'VIEW_METADATA',
+            { missionId: mission.id },
+            { purpose: 'self' },
+          )
+        : null;
+    const explanationFeature = explanationGate?.ok
+      ? await getAiFeatureState(db, 'ai_explanations', { proof: explanationGate.value })
+      : null;
     const requiredHardGaps = requirementDetails.filter(
       (r) =>
         !r.optional &&
@@ -540,6 +556,7 @@ export default async function MissionPage({
       firstHardGapLabel,
       requiredUnverifiedCount,
       explanationConfigured,
+      explanationFeature,
       explanationsByRequirement,
       packInfo: pack
         ? {
@@ -994,6 +1011,10 @@ export default async function MissionPage({
                                           data.explanationsByRequirement.get(r.packRequirementId)
                                             ?.explanation ?? null
                                         }
+                                        {...(data.explanationFeature &&
+                                        !data.explanationFeature.available
+                                          ? { off: data.explanationFeature.reason }
+                                          : {})}
                                       />
                                     ) : null}
                                   </div>

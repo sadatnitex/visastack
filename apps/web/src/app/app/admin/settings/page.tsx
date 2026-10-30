@@ -73,7 +73,7 @@ export default async function PlatformSettingsPage() {
         {access.ai ? (
           <article className="card">
             <h2 className="card-title">AI Configuration</h2>
-            <Link href="/app/admin/ai-settings">Manage Approved Provider Settings</Link>
+            <Link href="/app/admin/ai">Manage Approved Provider Settings</Link>
           </article>
         ) : null}
         {access.protection ? (

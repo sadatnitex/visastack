@@ -77,9 +77,11 @@ describe('Plan and Usage (S29)', () => {
     expect(text).toContain('Invoices already made keep their amounts.');
     expect(text).toContain('Team Members and Invitations');
     expect(text).toContain('it does not stop any work');
-    // No AI section for an agency until agencies have AI features (round 2).
+    // No AI feature list for an agency until agencies have AI features (round 2); S28 says so
+    // plainly instead of leaving the section out.
     expect(text).not.toContain('AI App Suggestions');
     expect(text).not.toContain('Not in Your Plan');
+    expect(text).toContain('AI features are not part of agency plans yet.');
   });
 
   it('says Complimentary from the plan flag, not from its key', async () => {

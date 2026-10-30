@@ -84,9 +84,9 @@ export function ConfigCard({
           <p className="card-kicker" id={kickerId}>
             {aiProviderLabel(config.provider)}
           </p>
-          <h3 className="card-title mono" id={titleId}>
+          <h4 className="card-title mono" id={titleId}>
             {config.model}
-          </h3>
+          </h4>
         </div>
         <span className={`badge ${badge.tone}`} id={statusId}>
           {badge.label}

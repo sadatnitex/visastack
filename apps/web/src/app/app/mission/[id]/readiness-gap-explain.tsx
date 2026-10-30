@@ -1,6 +1,8 @@
 'use client';
 
+import type { AiFeatureOffReason } from '@visastack/core/ai-features';
 import { useActionState } from 'react';
+import { AiFeatureOffNote } from '../../../../components/ai-feature-off';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { type ActionState, explainReadinessGapAction } from './actions';
 
@@ -20,10 +22,13 @@ export function ExplainGapButton({
   missionId,
   packRequirementId,
   explanation,
+  off,
 }: {
   readonly missionId: string;
   readonly packRequirementId: string;
   readonly explanation: string | null;
+  /** Set when Gap Explanations is off (S28): the hint takes the button's place. */
+  readonly off?: AiFeatureOffReason | null;
 }) {
   const [state, formAction, pending] = useActionState(explainReadinessGapAction, INITIAL);
 
@@ -34,16 +39,20 @@ export function ExplainGapButton({
           {explanation}
         </p>
       ) : null}
-      <form action={formAction} style={{ display: 'inline' }}>
-        <input type="hidden" name="missionId" value={missionId} />
-        <input type="hidden" name="packRequirementId" value={packRequirementId} />
-        <SubmitButton
-          pending={pending}
-          idle={explanation ? 'Refresh Explanation' : 'Explain This with AI'}
-          busy="Asking AI…"
-          className="btn btn-secondary u-btn-xs"
-        />
-      </form>
+      {off !== undefined ? (
+        <AiFeatureOffNote reason={off} />
+      ) : (
+        <form action={formAction} style={{ display: 'inline' }}>
+          <input type="hidden" name="missionId" value={missionId} />
+          <input type="hidden" name="packRequirementId" value={packRequirementId} />
+          <SubmitButton
+            pending={pending}
+            idle={explanation ? 'Refresh Explanation' : 'Explain This with AI'}
+            busy="Asking AI…"
+            className="btn btn-secondary u-btn-xs"
+          />
+        </form>
+      )}
       <FormMessage result={state} style={{ fontSize: 'var(--text-caption)' }} />
     </div>
   );

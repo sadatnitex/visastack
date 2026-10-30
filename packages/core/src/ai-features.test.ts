@@ -2,18 +2,52 @@ import { describe, expect, it } from 'vitest';
 import {
   AI_FEATURES,
   AI_FEATURE_KEYS,
+  AI_FEATURE_LIMIT_HINT,
+  AI_FEATURE_OFF_HINT,
+  AI_FEATURE_OFF_REASONS,
   AI_PLAN_TIERS,
+  aiFeatureOffHint,
+  aiFeatureOffSentence,
   effectiveAiDailyLimit,
   isAiFeatureKey,
 } from './ai-features';
 
 describe('the AI feature registry', () => {
+  it('registers every AI feature (S28), the six that worked before on by default and uncapped', () => {
+    expect(AI_FEATURE_KEYS).toEqual([
+      'ai_automatic_reading',
+      'ai_document_reading',
+      'ai_document_kind',
+      'ai_explanations',
+      'ai_consistency_checks',
+      'ai_app_access',
+      'ai_app_suggestions',
+      'ai_app_original_files',
+    ]);
+    for (const key of [
+      'ai_automatic_reading',
+      'ai_document_reading',
+      'ai_document_kind',
+      'ai_explanations',
+      'ai_consistency_checks',
+      'ai_app_access',
+    ] as const) {
+      // Defaults keep today's behaviour: on, included, counted but not limited.
+      expect(AI_FEATURES[key]).toMatchObject({
+        defaultEnabled: true,
+        planDefault: { included: true, dailyLimit: null },
+      });
+      expect(AI_PLAN_TIERS.FREE[key]).toEqual({ included: true, dailyLimit: null });
+    }
+    expect(AI_FEATURES.ai_app_access.kind).toBe('connector');
+    expect(AI_FEATURES.ai_document_reading).toMatchObject({ name: 'Read with AI', kind: 'model' });
+  });
+
   it('registers AI App Suggestions, off until the platform owner turns it on, 15 a day', () => {
-    expect(AI_FEATURE_KEYS).toEqual(['ai_app_suggestions', 'ai_app_original_files']);
     expect(AI_FEATURES.ai_app_suggestions).toMatchObject({
       name: 'AI App Suggestions',
       defaultEnabled: false,
-      defaultDailyLimit: 15,
+      planDefault: { included: true, dailyLimit: 15 },
     });
     expect(AI_PLAN_TIERS.FREE.ai_app_suggestions).toEqual({ included: true, dailyLimit: 15 });
   });
@@ -22,24 +56,31 @@ describe('the AI feature registry', () => {
     expect(AI_FEATURES.ai_app_original_files).toMatchObject({
       name: 'AI App Original Files',
       defaultEnabled: false,
-      defaultDailyLimit: 30,
+      planDefault: { included: true, dailyLimit: 30 },
     });
     expect(AI_PLAN_TIERS.FREE.ai_app_original_files).toEqual({ included: true, dailyLimit: 30 });
   });
 
-  it('gives every feature a Title Case name, one sentence and a place in every plan', () => {
+  it('gives every feature a Title Case name, one sentence, a unit and a place in every plan', () => {
     for (const key of AI_FEATURE_KEYS) {
       const feature = AI_FEATURES[key];
       expect(feature.key).toBe(key);
-      // Every word starts with a capital ("AI" included); one space between words.
-      expect(feature.name).toMatch(/^[A-Z][A-Za-z]*(?: [A-Z][A-Za-z]*)*$/);
+      // Every word starts with a capital ("AI" included), except a small joining word; one space
+      // between words.
+      expect(feature.name).toMatch(
+        /^[A-Z][A-Za-z]*(?: (?:with|for|and|of|the|to|[A-Z][A-Za-z]*))*$/,
+      );
       expect(feature.description).toMatch(/^[A-Z].*\.$/);
-      for (const tier of Object.values(AI_PLAN_TIERS)) expect(tier[key]).toBeDefined();
+      expect(feature.unit).toMatch(/^[a-z]+$/);
+      expect(['model', 'connector']).toContain(feature.kind);
+      // The built-in plan is the registry's own default, so the two can never drift apart.
+      for (const tier of Object.values(AI_PLAN_TIERS)) expect(tier[key]).toBe(feature.planDefault);
     }
   });
 
   it('knows only registered keys', () => {
     expect(isAiFeatureKey('ai_app_suggestions')).toBe(true);
+    expect(isAiFeatureKey('ai_automatic_reading')).toBe(true);
     expect(isAiFeatureKey('toString')).toBe(false);
     expect(isAiFeatureKey('automatic_reading')).toBe(false);
   });
@@ -50,6 +91,38 @@ describe('the AI feature registry', () => {
     expect(effectiveAiDailyLimit(15, 500)).toBe(15);
     expect(effectiveAiDailyLimit(null, 7)).toBe(7);
     expect(effectiveAiDailyLimit(null, null)).toBeNull();
+  });
+
+  it('lists the reasons a feature is off in the order they are decided, and words each', () => {
+    expect(AI_FEATURE_OFF_REASONS).toEqual([
+      'platform_off',
+      'turned_off',
+      'not_in_plan',
+      'daily_limit',
+      'not_available_yet',
+    ]);
+    expect(aiFeatureOffHint('daily_limit')).toBe(AI_FEATURE_LIMIT_HINT);
+    expect(AI_FEATURE_LIMIT_HINT).toContain('6 AM Bangladesh time');
+    for (const reason of AI_FEATURE_OFF_REASONS.filter((r) => r !== 'daily_limit')) {
+      expect(aiFeatureOffHint(reason)).toBe(AI_FEATURE_OFF_HINT);
+    }
+  });
+
+  it('names the feature where one screen speaks about it, one sentence per reason (S28 round 3)', () => {
+    const said = Object.fromEntries(
+      AI_FEATURE_OFF_REASONS.map((reason) => [
+        reason,
+        aiFeatureOffSentence('ai_app_access', reason),
+      ]),
+    );
+    expect(said).toEqual({
+      platform_off: 'AI App Access is turned off right now.',
+      turned_off: 'AI App Access is turned off right now.',
+      not_in_plan: 'AI App Access is not part of your plan.',
+      daily_limit:
+        'You have reached today’s limit for AI App Access. It starts again at 6 AM Bangladesh time.',
+      not_available_yet: 'AI App Access is not available yet.',
+    });
   });
 });
 

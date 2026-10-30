@@ -15,7 +15,14 @@ import {
   isAiFileVariant,
   selectionFromStoredChoices,
 } from '../ai-connection-scopes';
-import { getAiFeatureState } from '../ai-feature-settings';
+import {
+  type AiFeatureGate,
+  chargeAiFeatureUse,
+  countAiUseAfterCall,
+  getAiFeatureState,
+  openAiFeatureGate,
+  refundAiFeatureUse,
+} from '../ai-feature-settings';
 import { aiFilesAvailable } from '../ai-files-ready';
 import {
   type AiWriteOutcome,
@@ -31,6 +38,8 @@ import { appendAuditEvent } from '../audit';
 import { hasConsent } from '../consent';
 import { type Db, first, schema } from '../db';
 import { readOriginalDocumentFile, writeDocumentAccessAudit } from '../document-access';
+import { serverErrorEvent } from '../error-report';
+import { formatObservabilityLine } from '../observability-format';
 import type { KeyManagementPort } from '../ports';
 import {
   aiContextDayKey,
@@ -301,7 +310,14 @@ export type AiCallRecord =
     }
   | { readonly kind: 'denied'; readonly reason: AiDenialReason };
 
-export type AiGateRefusal = { readonly kind: 'unauthorized' };
+export type AiGateRefusal =
+  | { readonly kind: 'unauthorized' }
+  /**
+   * AI App Access is off for this person (the platform owner's switch or the plan), or today's
+   * limit of requests is used up (S28). The connection is still good: the app is told plainly and
+   * is not asked to sign in again.
+   */
+  | { readonly kind: 'feature_off'; readonly reason: 'feature_off' | 'access_limit' };
 
 /**
  * Whether the account may still use VisaStack: the deployment's pilot-access rule, handed in by
@@ -594,12 +610,37 @@ async function runGate<T>(
 ): Promise<Result<T, AiGateRefusal>> {
   // Set once the connection is known, so a failure part-way can still be recorded.
   const seen: { target: AuditTarget | null } = { target: null };
+  // AI App Access with no daily limit: the answer given is counted after the call, see below.
+  const after: { count: AiFeatureGate | null } = { count: null };
+  let result: Result<T, AiGateRefusal>;
   try {
-    return await db.transaction(async (tx) => {
+    result = await db.transaction(async (tx) => {
       const opened = await openConnection(tx, request);
       if (!opened) return err({ kind: 'unauthorized' } as const);
       const { connection, proof } = opened;
       seen.target = connection;
+      const now = request.now ?? new Date();
+      // AI App Access (S28), on every call: the platform owner's switch, the person's plan and
+      // today's limit. Off, the app is told plainly; the connection stays listed and revocable.
+      const access = await openAiFeatureGate(tx, 'ai_app_access', { proof }, { now });
+      const accessRefusal = (reason: 'feature_off' | 'access_limit') =>
+        err({ kind: 'feature_off', reason } as const);
+      if (!access.ok) {
+        const reason = access.error.reason === 'daily_limit' ? 'access_limit' : 'feature_off';
+        await auditDenied(tx, connection, request.tool, reason, { now });
+        return accessRefusal(reason);
+      }
+      // With a daily limit, counted as the call starts, so this count row is always locked before
+      // the limit rows and the audit chain (one lock order for every tool), and given back below
+      // if the call ends refused: only answers actually given count. With no limit (the default)
+      // nothing is locked here: the answer is counted after the call, in a statement of its own,
+      // so one person's calls never wait on each other.
+      const limited = access.value.dailyLimit !== null;
+      const charge = limited ? await chargeAiFeatureUse(tx, access.value, { now }) : null;
+      if (limited && !charge) {
+        await auditDenied(tx, connection, request.tool, 'access_limit', { now });
+        return accessRefusal('access_limit');
+      }
       const selection = selectionFromStoredChoices(connection);
       const stepUp = selection.revealIdentifiers
         ? await stepUpFromAiConnection(tx, connection.connectionId)
@@ -726,10 +767,10 @@ async function runGate<T>(
       const record: AiCallRecord =
         described.kind === 'served' && served !== null ? { ...described, file: served } : described;
       if (record.kind === 'denied') {
-        await auditDenied(tx, connection, request.tool, record.reason, {
-          now: request.now ?? new Date(),
-        });
+        await refundAiFeatureUse(tx, charge);
+        await auditDenied(tx, connection, request.tool, record.reason, { now });
       } else {
+        if (!limited) after.count = access.value;
         // Product events first (savepoints that never throw), then the audit record.
         if (record.file) {
           await recordProductEvent(tx, {
@@ -788,6 +829,17 @@ async function runGate<T>(
     if (seen.target) await auditFailedCall(db, seen.target, request.tool);
     throw error;
   }
+  // Outside the call's transaction: one short statement, holding no lock while the call runs, and
+  // always counted, so the count is what was served. The answer was already given, so a count that
+  // cannot be written is reported, never a failed call.
+  if (after.count) {
+    try {
+      await countAiUseAfterCall(db, after.count, request.now ?? new Date());
+    } catch (error) {
+      console.error(formatObservabilityLine(serverErrorEvent('aiAppAccessCount', error)));
+    }
+  }
+  return result;
 }
 
 interface WriteContext {

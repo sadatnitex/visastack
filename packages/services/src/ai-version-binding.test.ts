@@ -111,6 +111,7 @@ describe('AI reading entry points bind the version to the applicant (M12)', () =
     const { ai, calls } = countingExtractor();
     const text = 'Passport L898902C3 for Traveller One';
     const first = await runExtraction(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: victim.accountId,
       applicantId: victim.applicantId,
       documentVersionId: victim.versionId,
@@ -122,6 +123,7 @@ describe('AI reading entry points bind the version to the applicant (M12)', () =
 
     // The attacker names the victim's version and supplies the same text: the cache key would match.
     const stolen = await runExtraction(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: attacker.accountId,
       applicantId: attacker.applicantId,
       documentVersionId: victim.versionId,
@@ -159,7 +161,11 @@ describe('AI reading entry points bind the version to the applicant (M12)', () =
       '11111111-1111-4111-8111-111111111111',
       'not-an-id',
     ]) {
-      const result = await runExtraction(db, ai, { ...base, documentVersionId });
+      const result = await runExtraction(db, ai, {
+        feature: 'ai_document_reading',
+        ...base,
+        documentVersionId,
+      });
       if (!isErr(result)) throw new Error('expected a refusal');
       answers.push({ code: result.error.code, message: result.error.message });
     }
@@ -188,6 +194,7 @@ describe('AI reading entry points bind the version to the applicant (M12)', () =
     const calls = {
       ocr: (documentVersionId: string) =>
         runOcr(db, ocr, {
+          feature: 'ai_document_reading',
           ...common,
           documentVersionId,
           imageBytes: new Uint8Array([1]),
@@ -224,11 +231,13 @@ describe('AI reading entry points bind the version to the applicant (M12)', () =
     const { ai } = countingExtractor();
     const base = { actorAccountId: attacker.accountId, text: 't', budgetLimitUnits: 100 };
     const other = await runExtraction(db, ai, {
+      feature: 'ai_document_reading',
       ...base,
       applicantId: victim.applicantId,
       documentVersionId: victim.versionId,
     });
     const missing = await runExtraction(db, ai, {
+      feature: 'ai_document_reading',
       ...base,
       applicantId: '22222222-2222-4222-8222-222222222222',
       documentVersionId: victim.versionId,
@@ -244,6 +253,7 @@ describe('AI reading entry points bind the version to the applicant (M12)', () =
     const text = 'the very same passport text';
     for (const who of [first, second]) {
       const result = await runExtraction(db, ai, {
+        feature: 'ai_document_reading',
         actorAccountId: who.accountId,
         applicantId: who.applicantId,
         documentVersionId: who.versionId,
@@ -260,6 +270,7 @@ describe('AI reading entry points bind the version to the applicant (M12)', () =
     const own = await seedTraveller(db, 'own@example.com');
     const { ai, calls } = countingExtractor();
     const result = await runExtraction(db, ai, {
+      feature: 'ai_document_reading',
       actorAccountId: own.accountId,
       applicantId: own.applicantId,
       documentVersionId: own.versionId,
@@ -278,6 +289,7 @@ describe('AI reading entry points bind the version to the applicant (M12)', () =
       ocrCacheKeyComponents: NOT_CALLED,
     } as unknown as AiOcrPort;
     const result = await runOcr(db, ocr, {
+      feature: 'ai_document_reading',
       actorAccountId: attacker.accountId,
       applicantId: attacker.applicantId,
       documentVersionId: victim.versionId,

@@ -32,9 +32,9 @@ export function AiConnectionsCard({ counts, enabled }: AiConnectionsCardProps) {
   return (
     <article className="card u-mb-150" aria-labelledby="ai-app-connections-title">
       <p className="card-kicker">People’s AI Apps</p>
-      <h2 className="card-title" id="ai-app-connections-title">
+      <h3 className="card-title" id="ai-app-connections-title">
         AI App Connections
-      </h2>
+      </h3>
       <p className="card-body u-mb-100">
         {enabled
           ? 'AI apps can connect on this site. These are totals for everyone; no one’s own details are shown.'

@@ -407,3 +407,31 @@ Appended for S20. It records how the "Original documents (S20)" extension above 
 - **The route.** Incomplete storage settings make the file tool answer "not available" (recorded by the gate), not a server error; other errors are still reported.
 - **Change Access.** A refusal the person can act on is returned before any sign-in check is asked for.
 
+
+## S28 amendment: every AI feature behind one switch (30 Oct 2026)
+
+Owner rule: AI is additive. Without AI the product already meets every goal; every AI feature has an admin switch and a calm off state, and plans decide how much AI and where.
+
+- **Registry.** `packages/core/src/ai-features.ts` now lists eight features, each with a kind (calls a model, or serves an AI app), a plain unit, `defaultEnabled` and `planDefault`: Automatic Reading, Read with AI, Document Kind Suggestions, Gap Explanations, Consistency Checks, AI App Access (all on, counted, no daily limit by default, so nothing changes on deploy), AI App Suggestions (S21, off, 15) and AI App Original Files (S20, off, 30). `AI_PLAN_TIERS.FREE` is made from `planDefault` and only seeds plans; the S29 resolver falls back to it when a plan has no `ai.<key>` row.
+- **One answer, in this order.** `getAiFeatureState` (packages/services/src/ai-feature-settings.ts): `platform_off` (the caller's environment switch or usable provider, then the provider kill switch for model features; the AI app switch for connector features when the caller knows it), `not_available_yet` (storage), `turned_off` (admin switch), `not_in_plan` (plan), `daily_limit` (today's count). The service then checks consent, then the spend, attempt and rate limits.
+- **Contexts.** A record proof (the owner's plan and count), staff (never counted), the automatic reading job's system scope with the file owner's account, an owner context a service makes after it has shown ownership (`aiOwnerContext`, not exported from the services index), and an agency member's proof (the agency's plan and count; agency plans carry no AI rules yet, so the registry default applies; no caller until S22).
+- **Gates.** One per entry point: `processAiReading` (before consent; stop reasons FEATURE_OFF and DAILY_LIMIT), `runExtraction` and `runOcr` (a required `feature`: the job passes Automatic Reading, the person's request passes Read with AI), `suggestDocumentKind` and `runClassification`, `explainReadinessGap`, `runInconsistencyCheck`, and every AI app tool call (`runGate`, all modes). A static test fails when an exported service can reach a model call without asking for the feature state.
+- **Counting.** Fixed-window `rate_limit_buckets` rows `ai_feature.<key>`, one per account (or organization) per UTC day, so limits start again at 6 AM Bangladesh time. A model feature is counted inside the reserve transaction after every other check, so cache hits, refusals and fallback attempts are free; the count only rises while under the limit, in one statement. One file read by Automatic Reading counts once (a scan read first counts it). AI App Access is counted as the call starts, so its row is locked before the S21 limit rows and the audit chain in every tool, and given back when the call ends refused. S21 and S20 keep their own buckets and limits exactly.
+- **Off states.** The plain hint replaces the button; earlier suggestions, explanations and flags stay readable and decidable; uploads still queue their reading job; AI apps get a plain refusal (`feature_off` or `access_limit`, recorded in the audit) and are not asked to sign in again, and their connections stay listed and revocable.
+- **Not changed.** `AI_ENABLED` keeps its meaning: it governs only the environment provider on a fresh install (decision O3 is the owner's). `ai_allowance_units` stays display-only for travellers (O5). No migration.
+
+### S28 round 2 (30 Oct 2026)
+
+- **Counting, corrected.** A scan's charge is proof (made only by the charge, registered in the service, never accepted as a copy or a made-up object) bound to the file, person, feature and UTC day, usable once; only it lets a file's details go uncounted. A scan served from the cache counts nothing and gives none. A busy refusal of the details after a counted scan gives the scan's count back, so a retry counts the file once. A call stopped by the kill switch after its count is given back, through one helper used by all five kinds of AI call.
+- **AI App Access.** With no daily limit, the answer given is counted after the call's transaction in a statement of its own, so the count row is never held locked through a call. With a limit, unchanged: counted as the call starts, given back when refused.
+- **Plan rules.** An included AI feature may have no plan limit (the admin's limit still applies).
+
+### S28 round 3 (30 Oct 2026)
+
+- **Counting, replaced.** The in-memory scan charge and the `afterScan` input are removed. A real scan is always counted and never given back. `runExtraction` does not count the details when `ocr_runs` holds a primary run (not served from the cache, not a fallback, not stopped by the kill switch) for the same document version and applicant in the current UTC day or the last 15 minutes. The primary row is written in the same transaction that counts it, and stays when a fallback answers. No migration.
+- **Give-backs.** One shared helper in `rate-limit.ts` gives back to a stored window; a charge is marked given back only after the update, and never twice.
+
+### S28 round 4 (30 Oct 2026)
+
+- **Cover tokens.** The `ocr_runs` inference is removed. A counted scan leaves a single-use cover (`rate_limit_buckets`, action `ai_scan_cover:<feature>:<document version>`, the person, the day window) written with the charge; the details step for the same feature, person and file uses it with one conditional update in today's or yesterday's window, after the feature gate and consent, inside the reserve transaction. Giving back a kill-switched scan removes its cover; giving back a details call that used a cover puts the cover back.
+- **AI App Access.** With no limit, the after-call count is unconditional; a passed limit set mid-call is reported once.

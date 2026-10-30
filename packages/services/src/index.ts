@@ -2103,6 +2103,16 @@ export { type PaymentMode, type PlanAudience, entitlementsSchemaPresent } from '
 export { MODE_CHANGED, PAYMENT_METHOD_OFF, TEST_PAYMENTS_ONLY } from './payments';
 export { countLedgerTestRows } from './ledger-export';
 export { MODE_CHANGED_CODE } from './refunds';
+// S28: AI feature controls. The owner context, the gate and the charge stay inside the services.
+export {
+  AI_FEATURE_WINDOW_MS,
+  type AiFeatureStateOptions,
+  type AiUsageToday,
+  aiFeatureDay,
+  getAiFeatureStates,
+  getAiUsageToday,
+  isAiFeatureRefusal,
+} from './ai-feature-settings';
 export {
   type PaymentPortChoice,
   currencyListWords,

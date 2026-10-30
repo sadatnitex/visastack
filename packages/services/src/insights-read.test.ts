@@ -160,6 +160,7 @@ async function seed() {
   if (!isOk(fromDocument)) throw new Error('document fact');
 
   const run = await runExtraction(db, reader, {
+    feature: 'ai_document_reading',
     actorAccountId: ownerId,
     applicantId,
     documentVersionId: versionId,

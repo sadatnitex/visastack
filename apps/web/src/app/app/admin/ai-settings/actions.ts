@@ -49,7 +49,8 @@ export interface ActionState {
 }
 
 const DENIED: ActionState = { ok: false, message: 'Not authorized.' };
-const AI_SETTINGS_PATH = '/app/admin/ai-settings';
+// The one AI area (S28); the old AI Settings address sends people here.
+const AI_SETTINGS_PATH = '/app/admin/ai';
 // rollbackAiProviderConfig/emergencyDisableAiProviderConfig take no target id
 // -- they always act on "whatever is currently ACTIVE" -- so step-up here is
 // bound to a fixed platform-wide resource, the same convention

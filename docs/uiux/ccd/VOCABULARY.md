@@ -86,3 +86,13 @@ Added 30 Oct 2026 (S29, plans and test payments):
 | Whether people can connect an AI app (platform overview row) | AI App Access: On, AI App Access: Off | "Connector Flag", "MCP Enabled", "OAuth Switch" | **New (S19 step 0)** |
 | One payment provider's row on the platform overview (round 2, replaces the row above) | Online Payments (with several providers: Online Payments in {currency}, for example Online Payments in Bangladeshi Taka); the provider's name is in the detail | "Online Payments: SSLCOMMERZ", "Gateway Adapter", "PSP" | **Changed (S19 step 0 round 2)** |
 | Payments where some methods are live and some in test mode (Billing Rules, status page) | Partly Live | "Mixed Mode", "Live" | **New (S19 step 0 round 2)** |
+
+Added 30 Oct 2026 (S28, AI feature controls):
+
+| Thing | Canonical name | Retire | Status |
+|---|---|---|---|
+| The one admin area for AI | AI Settings (Admin > Settings), sections AI Features, AI Providers, Data Terms, AI Apps | "AI Gateway", "AI Provider Settings" as a page name, "AI Configuration" | **New (S28)** |
+| The AI features (registry names) | Automatic Reading, Read with AI, Document Kind Suggestions, Gap Explanations, Consistency Checks, AI App Access, AI App Suggestions, AI App Original Files | "AI Extraction", "Classification", "Inconsistency Check", "MCP Access", "Connector" | **New (S28)**, extends the S21 row |
+| A person's own AI counts | AI Use Today (Privacy & Consent); badges On, Off, Limit Reached; lines "2 files today", "3 of 10 checks today" | "AI Quota", "Usage Meter", "Tokens" | **New (S28)** |
+| Where an AI button was, while the feature is off | "This AI feature is turned off right now. Everything else works as usual." | "Feature disabled", "AI unavailable (error)" | **New (S28)** |
+| Today's limit used up | "You have reached today's limit for this AI feature. It starts again at 6 AM Bangladesh time." | "Rate limited", "Quota exceeded" | **New (S28)** |

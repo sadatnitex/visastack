@@ -42,7 +42,14 @@ export type RefusalReason =
   | FieldReason
   | PlanAdminReason
   | PaymentModeReason
+  | AiFeatureReason
   | PaymentProviderReason;
+
+/**
+ * Why an AI step was refused because its feature is off (S28): the platform is not running it,
+ * the platform owner turned it off or the plan does not include it, or today's limit is used up.
+ */
+export type AiFeatureReason = 'ai_platform_off' | 'ai_feature_off' | 'ai_daily_limit';
 
 /**
  * Why a plan change was refused (S29): plans cannot change before migration 0107, a plan's period

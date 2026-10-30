@@ -12,7 +12,11 @@ export interface AiFeatureFormState extends FormResult {
 
 /** What turning a feature off does, in the page's own words. */
 export const WHAT_OFF_DOES =
-  'Turning a feature off stops only new use of it. It never removes anything people already have: suggestions waiting for them stay there to accept or skip, and drafts stay readable, copyable and deletable. Everything else in VisaStack keeps working.';
+  'Turning a feature off stops only new use of it. It never removes anything people already have: suggestions waiting for them stay there to accept or skip, earlier readings and explanations stay readable, and drafts stay readable, copyable and deletable. Where its button was, people see one short sentence instead. Everything else in VisaStack keeps working.';
+
+/** How the switches combine (S28), and when a day's count starts again. */
+export const PRECEDENCE_NOTE =
+  'A feature works for a person only when the platform can run it, it is on here, the person’s plan includes it and today’s limit is not used up. A limit here can only lower the plan’s. Each use is counted per UTC day, so limits start again at 6 AM Bangladesh time.';
 
 export const LIMIT_NOTE =
   'Leave Daily Limit per Person empty to use the plan’s limit. A number here can only lower it, never raise it above the plan.';

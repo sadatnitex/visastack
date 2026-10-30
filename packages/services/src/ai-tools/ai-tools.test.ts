@@ -5,7 +5,7 @@ import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
 import { eq, like, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createAiConnection,
   exchangeAiAuthorizationCode,
@@ -17,6 +17,7 @@ import { verifyStepUp } from '../access/step-up-proof';
 import { type AiContextGateway, withAiConnection } from '../access/with-ai-connection';
 import { provisionAccount } from '../accounts';
 import { AI_TOOL_NAMES, type AiConnectionChoices } from '../ai-connection-scopes';
+import { updateAiFeatureSetting } from '../ai-feature-settings';
 import { createApplicant } from '../applicants';
 import { setConsent } from '../consent';
 import type { Db } from '../db';
@@ -30,6 +31,7 @@ import {
   publishPackVersion,
 } from '../packs';
 import { checkPilotAccess } from '../pilot-access';
+import { seedStaffAccount, staffScopeFor } from '../platform-roles.test-support';
 import type { KeyManagementPort } from '../ports';
 import { editFact, registerFieldDefinition } from '../profile';
 import { requiresProtection, resetProtectedFieldKeyCacheForTests } from '../protected-fields';
@@ -1047,5 +1049,154 @@ describe('AI tools: second review', () => {
       expect(outcome.kind).toBe('answered');
     }
     expect(unwraps).toBe(0);
+  });
+});
+
+describe('AI tools: AI App Access, the switch for every call (S28)', () => {
+  async function setAccess(enabled: boolean, dailyLimit: number | null) {
+    const staff = await staffScopeFor(
+      db,
+      await seedStaffAccount(
+        db,
+        'PLATFORM_OWNER',
+        `owner-${randomBytes(4).toString('hex')}@platform.example.com`,
+      ),
+      'AI_FEATURES_MANAGE',
+    );
+    const saved = await updateAiFeatureSetting(db, staff, {
+      feature: 'ai_app_access',
+      enabled,
+      dailyLimit,
+      stepUpSatisfied: true,
+    });
+    if (!isOk(saved)) throw new Error('setting');
+  }
+  async function accessCount(ownerId: string): Promise<number> {
+    const rows = await db
+      .select({ count: schema.rateLimitBuckets.count })
+      .from(schema.rateLimitBuckets)
+      .where(
+        sql`${schema.rateLimitBuckets.subjectId} = ${ownerId} and ${schema.rateLimitBuckets.action} = 'ai_feature.ai_app_access'`,
+      );
+    return rows.reduce((sum, row) => sum + row.count, 0);
+  }
+
+  it('counts answers given, gives refusals back, and refuses plainly when off or used up', async () => {
+    const { ownerId, applicantId, caseA } = await seed();
+    const { token } = await connect(ownerId, applicantId, {
+      ...CASE_A_ONLY,
+      missionId: caseA.missionId,
+    });
+    await served(token, 'list_documents');
+    expect(await accessCount(ownerId)).toBe(1);
+    // A refusal by the tool itself (a section not shared) is not counted.
+    await refused(token, 'get_profile_section', { section: 'finances' });
+    expect(await accessCount(ownerId)).toBe(1);
+
+    // Off: the app is told plainly, the connection is still good (no new sign-in), nothing counted.
+    await setAccess(false, null);
+    const off = await call(token, 'list_documents');
+    expect(off.kind).toBe('answered');
+    expect(off.result.isError).toBe(true);
+    expect(off.result.content[0]?.text).toBe(MESSAGES.accessOff);
+    expect(await accessCount(ownerId)).toBe(1);
+    const denied = (await aiAudit()).filter((row) => row.eventType === 'AI_CONTEXT_DENIED');
+    expect(denied.at(-1)?.reason).toBe('feature_off');
+
+    // On with a limit of two a day: the second answer is the last one today.
+    await setAccess(true, 2);
+    await served(token, 'list_documents');
+    const limited = await call(token, 'list_documents');
+    expect(limited.result.content[0]?.text).toBe(MESSAGES.accessLimit);
+    expect(await accessCount(ownerId)).toBe(2);
+    const last = (await aiAudit()).filter((row) => row.eventType === 'AI_CONTEXT_DENIED').at(-1);
+    expect(last?.reason).toBe('access_limit');
+  });
+
+  /**
+   * Where AI App Access is counted, seen from the database handle: "inside" a write in the call's
+   * transaction (the count row then stays locked until the call ends, so a person's next call
+   * waits on it), "after" a write of its own once the call has ended.
+   */
+  function watched(handle: Db, log: string[], inside = false, failAfter = false): Db {
+    return new Proxy(handle, {
+      get(target, prop, receiver) {
+        const value = Reflect.get(target, prop, receiver);
+        if (prop === 'transaction') {
+          return (work: (tx: Db) => Promise<unknown>, ...rest: unknown[]) =>
+            value.call(target, (tx: Db) => work(watched(tx, log, true, failAfter)), ...rest);
+        }
+        if (prop === 'insert') {
+          return (table: unknown) => {
+            const builder = value.call(target, table);
+            if (table !== schema.rateLimitBuckets) return builder;
+            return new Proxy(builder, {
+              get(b, key) {
+                const member = Reflect.get(b, key);
+                if (key !== 'values') return typeof member === 'function' ? member.bind(b) : member;
+                return (row: { action: string }) => {
+                  if (row.action === 'ai_feature.ai_app_access') {
+                    log.push(inside ? 'inside' : 'after');
+                    if (!inside && failAfter) throw new Error('count could not be written');
+                  }
+                  return member.call(b, row);
+                };
+              },
+            });
+          };
+        }
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    }) as Db;
+  }
+
+  it('gives the answer even when the count after the call cannot be written (round 3)', async () => {
+    const { ownerId, applicantId } = await seed();
+    const { token } = await connect(ownerId, applicantId, { ...CASE_A_ONLY, caseMode: 'NONE' });
+    const log: string[] = [];
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const outcome = await withAiConnection(
+        watched(db, log, false, true),
+        { token, resource: RESOURCE, tool: 'probe', admission: ADMIT, encryption: keys },
+        async (gateway) => (await gateway.compose()).ok,
+        () => ({ kind: 'served', layers: [], cases: 0, values: 0, documents: 0, documentTexts: 0 }),
+      );
+      expect(outcome).toMatchObject({ ok: true, value: true });
+      expect(log).toEqual(['after']);
+      const reported = errors.mock.calls.map((call) => String(call[0])).join('\n');
+      expect(reported).toContain('aiAppAccessCount');
+      expect(reported).not.toContain(token);
+    } finally {
+      errors.mockRestore();
+    }
+    // No failed-call record for an answer that was given.
+    const audit = await aiAudit();
+    expect(audit.filter((row) => row.eventType === 'AI_CONTEXT_SERVED')).toHaveLength(1);
+    expect(audit.filter((row) => row.eventType === 'AI_CONTEXT_DENIED')).toHaveLength(0);
+  });
+
+  it('with no limit, counts after the call and holds no lock while it runs (round 2)', async () => {
+    const { ownerId, applicantId } = await seed();
+    const { token } = await connect(ownerId, applicantId, { ...CASE_A_ONLY, caseMode: 'NONE' });
+    const probe = async (log: string[]) =>
+      withAiConnection(
+        watched(db, log),
+        { token, resource: RESOURCE, tool: 'probe', admission: ADMIT, encryption: keys },
+        async (gateway) => (await gateway.compose()).ok,
+        () => ({ kind: 'served', layers: [], cases: 0, values: 0, documents: 0, documentTexts: 0 }),
+      );
+    // No limit (the default): two calls at once, then the counts.
+    const unlimited: string[] = [];
+    const both = await Promise.all([probe(unlimited), probe(unlimited)]);
+    expect(both.every((outcome) => outcome.ok)).toBe(true);
+    expect(unlimited).toEqual(['after', 'after']);
+    expect(await accessCount(ownerId)).toBe(2);
+    // With a limit, exactly as before: counted as the call starts, inside it.
+    await setAccess(true, 5);
+    const limited: string[] = [];
+    expect((await probe(limited)).ok).toBe(true);
+    expect(limited).toEqual(['inside']);
+    expect(await accessCount(ownerId)).toBe(3);
   });
 });

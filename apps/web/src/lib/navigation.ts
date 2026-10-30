@@ -94,7 +94,7 @@ export function platformTabs(access: {
   return [
     { href: '/app/admin/organizations', label: 'Organizations' },
     { href: '/app/admin/packs', label: 'Rules' },
-    ...(access.ai ? [{ href: '/app/admin/ai-settings', label: 'AI' }] : []),
+    ...(access.ai ? [{ href: '/app/admin/ai', label: 'AI' }] : []),
     { href: '/app/admin', label: 'Operations', exact: true },
     ...(access.privacy ? [{ href: '/app/admin/privacy', label: 'Privacy' }] : []),
     ...(access.audit ? [{ href: '/app/admin/audit', label: 'Audit' }] : []),

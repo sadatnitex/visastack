@@ -1,6 +1,7 @@
+import { aiFeatureOffSentence } from '@visastack/core/ai-features';
 import {
   accountPrincipal,
-  getAiFeatureState,
+  getAiFeatureStates,
   listAiFileCandidates,
   listApplicants,
   listMissions,
@@ -122,21 +123,29 @@ export default async function AuthorizePage({
           { purpose: 'ai_connection' },
         )
       : null;
-    const suggestionsAvailable =
+    // The three AI app features, read once (S28): settings and plan in one pass.
+    const states =
       access?.ok === true
-        ? (await getAiFeatureState(db, 'ai_app_suggestions', { proof: access.value })).available
-        : false;
+        ? await getAiFeatureStates(
+            db,
+            ['ai_app_suggestions', 'ai_app_access', 'ai_app_original_files'],
+            { proof: access.value },
+          )
+        : null;
+    const suggestionsAvailable = states?.ai_app_suggestions.available ?? false;
+    // AI App Access (S28): while it is off the app could connect but read nothing, so say so.
+    const accessOff =
+      states && !states.ai_app_access.available
+        ? `${aiFeatureOffSentence('ai_app_access', states.ai_app_access.reason)} The app can still connect, but it reads nothing from your record until AI App Access works again.`
+        : null;
     // "Original Files" (S20): the record's documents that may be ticked, once the feature exists.
     let files: AiFilesView | undefined;
     let filesInitial: readonly AiFileChoice[] = [];
     if (access?.ok === true && chosen && access.value.actor.kind === 'applicant_owner') {
       const candidates = await listAiFileCandidates(access.value);
       if (candidates.ok && candidates.value.available) {
-        const feature = await getAiFeatureState(db, 'ai_app_original_files', {
-          proof: access.value,
-        });
         files = {
-          available: feature.available,
+          available: states?.ai_app_original_files.available ?? false,
           candidates: candidates.value.documents.map((document) => ({
             documentId: document.documentId,
             referenceCode: document.referenceCode,
@@ -160,7 +169,7 @@ export default async function AuthorizePage({
           }) ?? [];
       }
     }
-    return { records, chosen, cases, suggestionsAvailable, files, filesInitial };
+    return { records, chosen, cases, suggestionsAvailable, files, filesInitial, accessOff };
   });
 
   const appName = request.client.clientName;
@@ -203,6 +212,7 @@ export default async function AuthorizePage({
           <p className="card-body">
             Record: <strong>{view.chosen.name}</strong>
           </p>
+          {view.accessOff ? <p className="notice notice-warn">{view.accessOff}</p> : null}
           <ConsentForm
             request={{
               clientId: request.client.clientId,

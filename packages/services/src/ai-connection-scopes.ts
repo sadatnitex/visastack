@@ -135,6 +135,8 @@ export const AI_DENIAL_REASONS = [
   'not_available',
   'invalid_input',
   'feature_off',
+  // AI App Access (S28): the person's daily limit of requests from AI apps is used up.
+  'access_limit',
   // The file tool (S20).
   'files_not_granted',
   'file_not_chosen',

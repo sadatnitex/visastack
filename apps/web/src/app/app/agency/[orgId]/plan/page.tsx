@@ -177,8 +177,8 @@ export default async function OrgPlanPage({
             </div>
           </article>
 
-          {/* Agencies have no AI features of their own yet (S22, S28): the resolver answers "not
-              applicable" (null), so this section stays away until they do. */}
+          {/* Agencies have no AI features of their own yet (S22): the resolver answers "not
+              applicable" (null), and the section says so plainly (S28). */}
           {data.usage.entitlements.features ? (
             <article className="card u-mt-150">
               <p className="card-kicker">What Your Plan Includes</p>
@@ -195,7 +195,18 @@ export default async function OrgPlanPage({
                 })}
               </div>
             </article>
-          ) : null}
+          ) : (
+            <article className="card u-mt-150" aria-labelledby="agency-ai-features-title">
+              <p className="card-kicker">What Your Plan Includes</p>
+              <h2 className="card-title" id="agency-ai-features-title">
+                AI Features
+              </h2>
+              <p className="card-body">
+                AI features are not part of agency plans yet. Everything in VisaStack works without
+                them, and each person’s own AI use follows VisaStack’s settings.
+              </p>
+            </article>
+          )}
         </>
       )}
     </>

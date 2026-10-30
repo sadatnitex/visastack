@@ -83,7 +83,7 @@ export function workspaceNavigation(
       ],
       tools: [
         { href: '/app/admin/packs', label: 'Rules & Packs' },
-        ...(access.platform.ai ? [{ href: '/app/admin/ai-settings', label: 'AI Settings' }] : []),
+        ...(access.platform.ai ? [{ href: '/app/admin/ai', label: 'AI Settings' }] : []),
         ...(access.platform.privacy
           ? [{ href: '/app/admin/privacy', label: 'Privacy Operations' }]
           : []),

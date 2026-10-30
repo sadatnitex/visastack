@@ -184,6 +184,6 @@ describe('platform navigation (directive Part 9 section 1)', () => {
     expect(onlyCurrent('/app/admin/audit')).toEqual(['Audit']);
     expect(onlyCurrent('/app/admin/packs/p1/diff')).toEqual(['Rules']);
     expect(onlyCurrent('/app/admin/organizations/o1')).toEqual(['Organizations']);
-    expect(onlyCurrent('/app/admin/ai-settings')).toEqual(['AI']);
+    expect(onlyCurrent('/app/admin/ai')).toEqual(['AI']);
   });
 });

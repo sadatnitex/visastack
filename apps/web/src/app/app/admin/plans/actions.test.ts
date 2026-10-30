@@ -1,3 +1,4 @@
+import { AI_FEATURE_KEYS } from '@visastack/core/ai-features';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -190,6 +191,29 @@ describe('saving a plan (S29)', () => {
     });
     const locked = await savePlanAction(INITIAL, form({}));
     expect(locked).toMatchObject({ ok: false, field: 'periodDays', message: 'fixed' });
+  });
+
+  it('saves the whole Traveller Free form as the page fills it: AI features on with no plan limit stay on (S28 round 2)', async () => {
+    // What the Plans page shows for Traveller Free: every AI feature ticked; the six S28 brought
+    // in have no plan limit (empty), AI App Suggestions and AI App Original Files keep 15 and 30.
+    const fields: Record<string, string> = {
+      name: 'Traveller Free (renamed)',
+      price: '',
+      currency: '',
+    };
+    for (const feature of AI_FEATURE_KEYS) {
+      fields[`on.${feature}`] = 'on';
+      fields[`limit.ai.${feature}`] = '';
+    }
+    fields['limit.ai.ai_app_suggestions'] = '15';
+    fields['limit.ai.ai_app_original_files'] = '30';
+    mocks.getPlanLatestPrice.mockResolvedValueOnce({ ok: true, value: null });
+    const result = await savePlanAction(INITIAL, form(fields));
+    expect(result).toMatchObject({ ok: true, message: 'Saved.' });
+    const rules = mocks.savePlan.mock.calls[0]?.[2].draft.rules;
+    expect(rules['ai.ai_automatic_reading']).toEqual({ included: true, limit: null });
+    expect(rules['ai.ai_app_access']).toEqual({ included: true, limit: null });
+    expect(rules['ai.ai_app_suggestions']).toEqual({ included: true, limit: 15 });
   });
 
   it('keeps what was typed across the sign-in check in a signed cookie, never in the address', async () => {

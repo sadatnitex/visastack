@@ -128,17 +128,19 @@ export function planDraftProblem(draft: PlanDraft): PlanRefusal | undefined {
     if (!isEntitlementKey(key) || rule === undefined) {
       return refuse('This plan has a rule VisaStack does not know. Reload the page.');
     }
-    // S29 round 2: an AI feature that is on has a daily limit, from 1 (a feature at 0 a day is
-    // simply off).
+    // S29 round 2: an AI feature's daily limit is from 1 (a feature at 0 a day is simply off).
+    // S28 round 2: an AI feature that is on may have no plan limit (empty): the admin's daily
+    // limit on the AI Features page still applies, so the six features that start with no limit
+    // keep saving.
     if (aiFeatureOfKey(key) !== null && rule.included) {
+      if (rule.limit === null) continue;
       if (
-        rule.limit === null ||
         !Number.isSafeInteger(rule.limit) ||
         rule.limit < AI_FEATURE_LIMIT_MIN ||
         rule.limit > AI_FEATURE_LIMIT_MAX
       ) {
         return refuse(
-          `Enter the daily limit for ${entitlementDefinition(key).name} as a whole number from ${AI_FEATURE_LIMIT_MIN} to ${AI_FEATURE_LIMIT_MAX}.`,
+          `Enter the daily limit for ${entitlementDefinition(key).name} as a whole number from ${AI_FEATURE_LIMIT_MIN} to ${AI_FEATURE_LIMIT_MAX}, or leave it empty for no plan limit.`,
           key,
         );
       }

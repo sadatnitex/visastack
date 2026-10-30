@@ -149,6 +149,27 @@ describe('changing an AI feature', () => {
     expect(await change(false, 10)).toEqual({ ok: true, value: { changed: true } });
     const list = await listAiFeatureSettings(db, staff);
     expect(list.ok && list.value.features).toEqual([
+      // S28: the six AI features that worked before, on by default, counted but not limited.
+      ...(
+        [
+          'ai_automatic_reading',
+          'ai_document_reading',
+          'ai_document_kind',
+          'ai_explanations',
+          'ai_consistency_checks',
+          'ai_app_access',
+        ] as const
+      ).map((feature) =>
+        expect.objectContaining({
+          feature,
+          enabled: true,
+          planIncluded: true,
+          adminDailyLimit: null,
+          planDailyLimit: null,
+          ready: true,
+          updatedAt: null,
+        }),
+      ),
       expect.objectContaining({
         feature: 'ai_app_suggestions',
         name: 'AI App Suggestions',

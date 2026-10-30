@@ -159,10 +159,15 @@ function parseDraft(values: PlanFormValues, storageShown: string | null): Parsed
       rules[aiEntitlementKey(feature)] = { included: false, limit: null };
       continue;
     }
+    // Empty: no plan limit for this feature; the admin's daily limit still applies (S28 round 2).
+    if (text.length === 0) {
+      rules[aiEntitlementKey(feature)] = { included: true, limit: null };
+      continue;
+    }
     const limit = /^\d{1,4}$/.test(text) ? Number(text) : Number.NaN;
     if (!(limit >= AI_FEATURE_LIMIT_MIN && limit <= AI_FEATURE_LIMIT_MAX)) {
       return problem(
-        `Enter the daily limit for ${aiFeatureName(feature)} as a whole number from ${AI_FEATURE_LIMIT_MIN} to ${AI_FEATURE_LIMIT_MAX}.`,
+        `Enter the daily limit for ${aiFeatureName(feature)} as a whole number from ${AI_FEATURE_LIMIT_MIN} to ${AI_FEATURE_LIMIT_MAX}, or leave it empty for no plan limit.`,
         featureLimitField(feature),
       );
     }

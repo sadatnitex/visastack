@@ -1,3 +1,4 @@
+import { type AiFeatureOffReason, aiFeatureOffHint } from '@visastack/core/ai-features';
 import type { AiConnectionList, AiConnectionSummary } from '@visastack/services';
 import {
   AI_CONNECTION_DURATIONS,
@@ -223,6 +224,7 @@ export function AiConnectionsSection({
   returning,
   suggestionsAvailable = false,
   files,
+  accessOff,
 }: {
   readonly applicantId: string;
   readonly list: AiConnectionList;
@@ -237,6 +239,11 @@ export function AiConnectionsSection({
   readonly notice?: 'off' | 'changed';
   /** Whether AI App Suggestions works right now (S21). */
   readonly suggestionsAvailable?: boolean;
+  /**
+   * Set while AI App Access is off for this person (S28): apps cannot read anything, and the
+   * connections stay listed so each one can still be changed or turned off.
+   */
+  readonly accessOff?: AiFeatureOffReason | null;
 }) {
   // While connecting is off the card shows only what can still be acted on, or what just happened.
   if (!connectorOn && list.active.length === 0 && !notice) return null;
@@ -263,6 +270,9 @@ export function AiConnectionsSection({
           change anything in VisaStack. Turning one off stops it straight away.
         </p>
       )}
+      {accessOff !== undefined && list.active.length > 0 ? (
+        <p className="card-body muted">{aiFeatureOffHint(accessOff)}</p>
+      ) : null}
       {notice ? (
         <output className="notice ai-connections-notice">
           {notice === 'off'
