@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   staffPrincipal: vi.fn(),
   getBillingSettings: vi.fn(),
   previewOverdueHandling: vi.fn(),
+  countLedgerTestRows: vi.fn(),
+  paymentMode: vi.fn(),
 }));
 
 vi.mock('../../../../lib/session', () => ({
@@ -19,7 +21,9 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   getBillingSettings: (...args: unknown[]) => mocks.getBillingSettings(...args),
   previewOverdueHandling: (...args: unknown[]) => mocks.previewOverdueHandling(...args),
+  countLedgerTestRows: (...args: unknown[]) => mocks.countLedgerTestRows(...args),
 }));
+vi.mock('../../../../lib/providers', () => ({ paymentMode: () => mocks.paymentMode() }));
 vi.mock('./forms', async () => {
   const { stub } = await import('../../../../lib/next-mocks.test-support');
   return { BillingRulesForm: stub('BillingRulesForm') };
@@ -47,6 +51,8 @@ beforeEach(() => {
     ok: true,
     value: { toGrace: 1, toSuspended: 0 },
   });
+  mocks.countLedgerTestRows.mockResolvedValue({ ok: true, value: 0 });
+  mocks.paymentMode.mockReturnValue(null);
 });
 
 describe('Platform > Billing Rules', () => {
@@ -62,11 +68,23 @@ describe('Platform > Billing Rules', () => {
     expect(text).toContain(
       'With the saved day counts, turning this on today moves 1 agency to Grace and 0 agencies to Suspended.',
     );
-    expect(text).toContain('a traveller who shares records with it also cannot add new files');
+    // Owner decision O13 (S29): travellers keep adding their own files.
+    expect(text).toContain('travellers who share records with it still add their own files');
+    expect(text).toContain('Not Set Up');
     expect(mocks.staffPrincipal.mock.calls[0]?.[2]).toBe('BILLING_SETTINGS_MANAGE');
     // Both reads take the owner's scope.
     expect(mocks.getBillingSettings.mock.calls[0]?.[1]).toEqual({ kind: 'staff' });
     expect(mocks.previewOverdueHandling.mock.calls[0]?.[1]).toEqual({ kind: 'staff' });
+  });
+
+  it('shows test mode and how many test payments the accounting file leaves out (S29)', async () => {
+    mocks.paymentMode.mockReturnValue('TEST');
+    mocks.countLedgerTestRows.mockResolvedValue({ ok: true, value: 2 });
+    const text = textOf(await renderServer(Page({})));
+    expect(text).toContain('Test Payments Only');
+    expect(text).toContain('Only you can make a test payment');
+    expect(text).toContain('This month, 2 test payments are left out of the file.');
+    expect(mocks.staffPrincipal.mock.calls[1]?.[2]).toBe('BILLING_LEDGER_EXPORT');
   });
 
   it('is restricted to the platform owner', async () => {

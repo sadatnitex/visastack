@@ -60,6 +60,7 @@ const work = (overrides: Partial<OrganizationRefundWork> = {}): OrganizationRefu
       createdAt: at,
       paidOn: at,
       refundableMinorUnits: 150000,
+      mode: 'LIVE',
       viaGateway: true,
     },
   ],

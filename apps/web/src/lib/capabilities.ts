@@ -14,7 +14,7 @@ import {
 import { getDeploymentMode } from './deployment-mode';
 import { isClamAvConfigured, isPresent, isSignInConfigured, readEnv } from './env';
 import { runKmsSelfTest } from './kms-self-test';
-import { createKeyManagementPort, isPaymentProviderConfigured } from './providers';
+import { createKeyManagementPort, paymentMode } from './providers';
 import { isPublicBetaOpen } from './public-beta';
 import { reportCapabilityLookupFailure } from './server-error';
 
@@ -128,8 +128,14 @@ export function getPlatformCapabilities(): PlatformCapabilities {
         ? 'available'
         : 'disabled',
     // Available only when a payment provider is chosen AND fully configured (ADR 0020); the
-    // default, with nothing set, stays unconfigured.
-    payments: isPaymentProviderConfigured() ? 'available' : 'unconfigured',
+    // default, with nothing set, stays unconfigured. S29: in the gateway's test mode it works
+    // with limits (only test payments), which the status page words as "Test Payments Only".
+    payments:
+      paymentMode() === 'LIVE'
+        ? 'available'
+        : paymentMode() === 'TEST'
+          ? 'degraded'
+          : 'unconfigured',
     // The AI connector (ADR 0021 section 7): off unless AI_CONNECTOR_ENABLED is exactly "true",
     // the same switch every connector address reads. Turning it on for real people is an owner
     // decision tied to the real-data gate.

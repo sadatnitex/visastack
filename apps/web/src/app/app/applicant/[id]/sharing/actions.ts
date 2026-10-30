@@ -1,6 +1,6 @@
 'use server';
 
-import { PERMISSION_ACTIONS, type PermissionAction } from '@visastack/core';
+import { PERMISSION_ACTIONS, type PermissionAction, switchOn } from '@visastack/core';
 import {
   STEP_UP_ACTIONS,
   accountPrincipal,
@@ -85,7 +85,7 @@ export async function createGrantAction(
 
   const result = await withSession(async ({ db, accountId }) => {
     const recipient = await getAccountByEmail(db, recipientEmail);
-    const invitationsEnabled = process.env[sharingInvitationFlag] === 'true';
+    const invitationsEnabled = switchOn(process.env[sharingInvitationFlag]);
     if (!recipient && !invitationsEnabled) {
       return {
         ok: false,
@@ -233,7 +233,7 @@ export async function expandGrantScopeAction(
 }
 
 export async function revokeSharingInvitationAction(formData: FormData): Promise<void> {
-  if (process.env[sharingInvitationFlag] !== 'true') return;
+  if (!switchOn(process.env[sharingInvitationFlag])) return;
   const id = String(formData.get('invitationId') ?? '');
   const result = await withSession(({ db, accountId }) =>
     revokeSharingInvitation(db, accountId, id),

@@ -1,3 +1,4 @@
+import { switchOn } from '@visastack/core';
 import 'server-only';
 import { AI_OAUTH_SCOPES_SUPPORTED } from '@visastack/services';
 import { resolveBaseUrl } from './base-url';
@@ -10,7 +11,7 @@ import { resolveBaseUrl } from './base-url';
 export function aiConnectorEnabled(
   read: (name: string) => string | undefined = (name) => process.env[name],
 ): boolean {
-  return read('AI_CONNECTOR_ENABLED')?.trim() === 'true';
+  return switchOn(read('AI_CONNECTOR_ENABLED'));
 }
 
 /** The issuer: VisaStack itself, at its canonical address, with no trailing slash. */

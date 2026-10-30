@@ -4,6 +4,7 @@ import { invoiceLedgerReader } from './billing';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { isMissingRelationError } from './missing-relation';
+import { type PaymentMode, ledgerModeColumn } from './plans-schema';
 import { formatReceiptNumber } from './receipts';
 
 /**
@@ -33,6 +34,8 @@ export interface ReceiptView {
   readonly currency: string;
   /** How the money arrived: ONLINE, MANUAL_CLAIM, ADMIN_RECORDED or CREDIT. */
   readonly kind: string;
+  /** S29: TEST for a payment made in the gateway's test mode (shown as "Test Payment"). */
+  readonly mode: 'TEST' | 'LIVE';
   readonly collectedDate: Date;
   readonly issuedAt: Date;
 }
@@ -48,6 +51,7 @@ function viewColumns() {
     amountMinorUnits: schema.paymentReceipts.amountMinorUnits,
     currency: schema.paymentReceipts.currency,
     kind: schema.invoicePayments.kind,
+    mode: ledgerModeColumn(),
     collectedDate: schema.invoicePayments.collectedDate,
     issuedAt: schema.paymentReceipts.issuedAt,
   };
@@ -61,6 +65,7 @@ function toView(row: {
   amountMinorUnits: number;
   currency: string;
   kind: string;
+  mode: PaymentMode;
   collectedDate: Date;
   issuedAt: Date;
 }): ReceiptView {

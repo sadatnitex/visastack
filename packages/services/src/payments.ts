@@ -1267,6 +1267,8 @@ export interface PaymentAttemptView {
   readonly recordedAt: Date | null;
   readonly reasonCode: string | null;
   readonly merchantTranId: string | null;
+  /** S29: TEST for a payment started in the gateway's test mode (shown as "Test Payment"). */
+  readonly mode: PaymentMode;
 }
 
 /** One attempt as a screen shows it: the plain reason code and the VisaStack transaction id for platform staff only. */
@@ -1281,6 +1283,7 @@ export function attemptView(row: PaymentAttempt, platform: boolean): PaymentAtte
     recordedAt: row.recordedAt,
     reasonCode: platform ? row.reasonCode : null,
     merchantTranId: platform ? row.merchantTranId : null,
+    mode: row.mode,
   };
 }
 

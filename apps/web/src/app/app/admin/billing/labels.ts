@@ -45,8 +45,30 @@ export const PAID_IN_FULL =
 export const WHAT_SUSPENDED_DOES =
   'Grace changes nothing for the agency; it is a warning. Suspended pauses adding cases, team members and files for that agency. Nothing is deleted or hidden, and travellers keep every record.';
 
+/** Owner decision O13 (30 Oct 2026, S29): a suspension pauses only the agency's own team. */
 export const TRAVELLER_UPLOADS_NOTE =
-  'While an agency is Suspended, a traveller who shares records with it also cannot add new files. Decide whether that is right before turning this on.';
+  "While an agency is Suspended, travellers who share records with it still add their own files as usual. Only the agency's own team cannot add files until it is Active again.";
+
+/** S29: the gateway's mode, in the words Billing Rules shows it. */
+export const PAYMENT_MODE_WORDS = {
+  TEST: {
+    badge: 'Test Payments Only',
+    tone: 'warning',
+    sentence:
+      'Online payment is in test mode. Only you can make a test payment: it marks the invoice paid, is labelled Test Payment, and is left out of the Monthly Accounting File. Agencies cannot pay online until it is live.',
+  },
+  LIVE: {
+    badge: 'Live',
+    tone: 'success',
+    sentence: 'Online payment takes real money from agencies.',
+  },
+  NONE: {
+    badge: 'Not Set Up',
+    tone: 'neutral',
+    sentence:
+      'Online payment is not set up. Agencies pay another way and report it, and you record it.',
+  },
+} as const;
 
 /** The values as typed, sent back with every reply so the form never loses them. */
 export interface BillingRulesValues {

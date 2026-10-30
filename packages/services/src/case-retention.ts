@@ -1,3 +1,4 @@
+import { switchOn } from '@visastack/core';
 import { and, eq, inArray, isNotNull, isNull, lte, notInArray } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
@@ -184,7 +185,7 @@ function envRaw(
 function caseRetentionPurgeEnabled(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): boolean {
-  return envRaw(env, 'CASE_RETENTION_PURGE_ENABLED') === 'true';
+  return switchOn(envRaw(env, 'CASE_RETENTION_PURGE_ENABLED'));
 }
 
 function caseRetentionPurgeGraceDays(

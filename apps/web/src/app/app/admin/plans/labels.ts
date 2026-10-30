@@ -1,0 +1,89 @@
+import { AI_FEATURES, AI_FEATURE_KEYS, type AiFeatureKey } from '@visastack/core/ai-features';
+import {
+  CAPACITY_ENTITLEMENTS,
+  CAPACITY_KEYS,
+  type CapacityKey,
+  aiEntitlementKey,
+} from '@visastack/core/entitlements';
+import type { FormResult } from '../../../../components/form-feedback';
+
+/**
+ * Words and field names of the Plans page (S29), shared by the page, its forms and its actions.
+ * Browser-safe: no service code.
+ */
+
+/** One megabyte as Storage is typed on this page (the same unit Plan and Usage shows). */
+export const BYTES_PER_MB = 1024 * 1024;
+
+/** The form field of each capacity limit and each AI feature. */
+export const limitField = (key: CapacityKey): string => `limit.${key}`;
+export const featureOnField = (feature: AiFeatureKey): string => `on.${feature}`;
+export const featureLimitField = (feature: AiFeatureKey): string =>
+  `limit.${aiEntitlementKey(feature)}`;
+
+/** Every field a plan form sends, so a reply can carry back exactly what was typed. */
+export function planFieldNames(): string[] {
+  return [
+    'name',
+    'periodDays',
+    'price',
+    'currency',
+    ...CAPACITY_KEYS.map(limitField),
+    ...AI_FEATURE_KEYS.flatMap((f) => [featureOnField(f), featureLimitField(f)]),
+  ];
+}
+
+/** The label of each capacity field, in the vocabulary's names. */
+export function capacityLabel(key: CapacityKey): string {
+  return key === 'storage_bytes' ? 'Storage (MB)' : CAPACITY_ENTITLEMENTS[key].name;
+}
+
+export const UNLIMITED_HINT = 'Leave empty for Unlimited.';
+export const AI_ALLOWANCE_HINT =
+  'Shown on Plan and Usage for now; it does not stop any work yet. Leave empty for Unlimited.';
+export const AI_LIMIT_HINT = 'Uses per person per day. Leave empty for no daily limit.';
+
+/** S29 plan decision: a price change never touches a period already under way. */
+export const PRICE_CHANGE_NOTE =
+  "Applies from each agency's next billing period. Invoices already made keep their amounts.";
+
+export const PERIOD_LOCKED_NOTE =
+  'The billing period is fixed now that an agency has been on this plan.';
+
+export const RETIRE_NOTE =
+  'Retiring a plan means nobody new can be put on it. Agencies already on it keep it, with its limits and price.';
+
+/** What the owner typed (field name to text), sent back with every reply so nothing is lost. */
+export type PlanFormValues = Readonly<Record<string, string>>;
+
+export interface PlanFormState extends FormResult {
+  readonly values?: PlanFormValues;
+  /** Set when the price changed and the change must be confirmed before saving. */
+  readonly pricePreview?: boolean;
+}
+
+export interface RetireFormState extends FormResult {
+  /** Set after the first press: how many agencies keep the plan. */
+  readonly agenciesKeepingIt?: number;
+}
+
+/** "3 Agencies" or "1 Traveller", for the list. */
+export function onItWords(count: number, audience: 'AGENCY' | 'TRAVELLER'): string {
+  const noun = audience === 'TRAVELLER' ? 'Traveller' : 'Agency';
+  if (count === 1) return `1 ${noun}`;
+  return `${count} ${audience === 'TRAVELLER' ? 'Travellers' : 'Agencies'}`;
+}
+
+/** What one AI feature looks like in the list: "On, 15 a Day" or "Off". */
+export function aiFeatureSummary(rule: {
+  readonly included: boolean;
+  readonly limit: number | null;
+}): string {
+  if (!rule.included) return 'Off';
+  return rule.limit === null ? 'On' : `On, ${rule.limit} a Day`;
+}
+
+/** The AI feature names, for the forms. */
+export function aiFeatureName(feature: AiFeatureKey): string {
+  return AI_FEATURES[feature].name;
+}

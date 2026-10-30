@@ -278,6 +278,18 @@ export function readSslcommerzConfig(): SslcommerzConfig | null {
   return { storeId, storePassword, mode };
 }
 
+/**
+ * The gateway's mode (S29): TEST while SSLCOMMERZ_MODE is `sandbox` (a test payment marks a real
+ * invoice paid, so only the platform owner may make one, and it never reaches the accounting
+ * file), LIVE for `live`, null when online payments are not configured. The one reading every
+ * screen uses (Billing Rules, the status page, the platform overview).
+ */
+export function paymentMode(): 'TEST' | 'LIVE' | null {
+  const config = readSslcommerzConfig();
+  if (!config) return null;
+  return config.mode === 'live' ? 'LIVE' : 'TEST';
+}
+
 /** True when online payments are fully configured (the same test `createPaymentPort` applies). */
 export function isPaymentProviderConfigured(): boolean {
   return readSslcommerzConfig() !== null;

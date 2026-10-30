@@ -43,6 +43,16 @@ export const STATE_WORDS: { readonly [S in CapabilityState]: { label: string; to
     disabled: { label: 'Switched Off for Now', tone: 'neutral' },
   };
 
+/**
+ * A capability whose limited state has a more exact name (S29): payments in the gateway's test
+ * mode take only test payments.
+ */
+export const STATE_WORD_OVERRIDES: {
+  readonly [K in keyof PlatformCapabilities]?: { readonly [S in CapabilityState]?: string };
+} = {
+  payments: { degraded: 'Test Payments Only' },
+};
+
 export interface CapabilityRow {
   readonly key: keyof PlatformCapabilities;
   readonly name: string;
@@ -68,7 +78,8 @@ export function capabilityRows(platform: unknown): CapabilityRow[] {
     const name = CAPABILITY_NAMES[key];
     const state = source[key];
     if (name === null || !isState(state)) continue;
-    rows.push({ key, name, ...STATE_WORDS[state] });
+    const label = STATE_WORD_OVERRIDES[key]?.[state] ?? STATE_WORDS[state].label;
+    rows.push({ key, name, label, tone: STATE_WORDS[state].tone });
   }
   return rows;
 }

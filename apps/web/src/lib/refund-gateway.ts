@@ -1,3 +1,4 @@
+import { switchOn } from '@visastack/core';
 import { type RefundingPaymentPort, isRefundingPaymentPort } from '@visastack/services';
 import { withoutPaymentSecrets } from './payment-secrets';
 import { createPaymentPort, isPaymentProviderConfigured } from './providers';
@@ -6,7 +7,7 @@ import { reportServerError } from './server-error';
 /**
  * Which payment gateway, if any, refunds may be sent to and checked with (Small Commercial V1
  * S18). Everything is built; sending refunds from VisaStack is switched on by one value:
- * `PAYMENT_REFUNDS_VIA_GATEWAY=true` (exactly "true"), set once the server's fixed outbound address
+ * `PAYMENT_REFUNDS_VIA_GATEWAY=true` (read by `switchOn`: "true", spaces around it ignored), set once the server's fixed outbound address
  * is registered with SSLCOMMERZ (owner action O18). While it is off, refunds are made in the
  * gateway's merchant panel and recorded in VisaStack.
  *
@@ -20,9 +21,9 @@ export type ReadEnv = (name: string) => string | undefined;
 
 const fromProcess: ReadEnv = (name) => process.env[name];
 
-/** True only for exactly "true". */
+/** True only for "true" (spaces around it ignored; S29 `switchOn`). */
 export function refundsViaGatewayEnabled(readEnv: ReadEnv = fromProcess): boolean {
-  return readEnv(REFUNDS_SWITCH) === 'true';
+  return switchOn(readEnv(REFUNDS_SWITCH));
 }
 
 /** The configured gateway, when it can refund, whatever the switch says (for checking sent refunds). */

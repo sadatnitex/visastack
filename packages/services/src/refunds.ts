@@ -1901,6 +1901,8 @@ export interface RefundableEntryView {
   /** The day the money came in: a refund recorded for it cannot be earlier. */
   readonly paidOn: Date;
   readonly refundableMinorUnits: number;
+  /** S29: TEST for a payment made in the gateway's test mode (shown as "Test Payment"). */
+  readonly mode: PaymentMode;
   /** True when the gateway can be asked to refund it (paid online, with the gateway's payment id). */
   readonly viaGateway: boolean;
 }
@@ -1919,6 +1921,8 @@ export interface HeldPaymentView {
   readonly creditedMinorUnits: number;
   /** The gateway confirmed exactly this amount: it can be applied as a credit or refunded through the gateway. */
   readonly verified: boolean;
+  /** S29: TEST for a payment made in the gateway's test mode (shown as "Test Payment"). */
+  readonly mode: PaymentMode;
   readonly viaGateway: boolean;
 }
 
@@ -2010,7 +2014,7 @@ export async function getOrganizationRefundWork(
 
   const [entryRows, heldRows, requestRows] = await Promise.all([
     db
-      .select({ entry: p, invoiceRef: i.invoiceRef, committed: entryCommitted })
+      .select({ entry: ledgerColumns(), invoiceRef: i.invoiceRef, committed: entryCommitted })
       .from(p)
       .innerJoin(i, eq(i.id, p.invoiceId))
       .where(
@@ -2026,7 +2030,7 @@ export async function getOrganizationRefundWork(
       .offset(offset),
     db
       .select({
-        attempt: a,
+        attempt: attemptColumns(),
         invoiceRef: i.invoiceRef,
         credited: heldCredited,
         committed: heldCommitted,
@@ -2082,6 +2086,7 @@ export async function getOrganizationRefundWork(
       createdAt: row.createdAt,
       paidOn: row.collectedDate,
       refundableMinorUnits: Math.max(0, row.amountMinorUnits - Number(committed)),
+      mode: row.mode,
       viaGateway:
         gateway !== null &&
         row.provider === gateway &&
@@ -2109,6 +2114,7 @@ export async function getOrganizationRefundWork(
         attempt.amountMinorUnits - Number(credited) - Number(committed),
       ),
       verified,
+      mode: attempt.mode,
       viaGateway:
         gateway !== null && verified && attempt.provider === gateway && attempt.bankTranId !== null,
     };

@@ -59,6 +59,7 @@ const attempt = (status: 'REDIRECTED' | 'RECORDED' | 'HELD_FOR_REVIEW' | 'FAILED
   recordedAt: status === 'RECORDED' ? new Date('2026-10-27T10:05:00Z') : null,
   reasonCode: null,
   merchantTranId: null,
+  mode: 'LIVE' as const,
 });
 
 const claim = (status: 'SUBMITTED' | 'APPROVED' | 'REJECTED', withProof = false) => ({
@@ -90,6 +91,7 @@ const receipt = {
   amountMinorUnits: 125050,
   currency: 'BDT',
   kind: 'ONLINE',
+  mode: 'LIVE' as const,
   collectedDate: new Date('2026-10-27T10:05:00Z'),
   issuedAt: new Date('2026-10-27T10:05:00Z'),
 };
@@ -165,6 +167,25 @@ describe('an invoice card on the agency Invoices page', () => {
     expect(html).toContain('Payment Needs a Check');
     expect(html).not.toContain('Pay Online');
     expect(html).not.toContain('I Paid Another Way');
+  });
+
+  it('labels a payment made in the gateway test mode "Test Payment", and a real one not (S29)', () => {
+    const paid = {
+      status: 'PAID' as const,
+      state: 'PAID' as const,
+      collectedAmountMinorUnits: 125050,
+      outstandingMinorUnits: 0,
+    };
+    const test = render(
+      invoice({
+        ...paid,
+        attempts: [{ ...attempt('RECORDED'), mode: 'TEST' as const }],
+        receipts: [{ ...receipt, mode: 'TEST' as const }],
+      }),
+    );
+    expect(test.match(/Test Payment/g)).toHaveLength(2);
+    const live = render(invoice({ ...paid, attempts: [attempt('RECORDED')], receipts: [receipt] }));
+    expect(live).not.toContain('Test Payment');
   });
 
   it('shows a paid invoice with its receipt link and no payment actions', () => {

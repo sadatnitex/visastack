@@ -1,4 +1,4 @@
-import { formatBillingDate, formatMoney } from '@visastack/core';
+import { TEST_PAYMENT_LABEL, formatBillingDate, formatMoney } from '@visastack/core';
 import {
   DUPLICATE_REFERENCE_CODE,
   NEEDS_CHECK_CODE,
@@ -260,7 +260,15 @@ export function RefundsCard({
                 const limitText = formatMoney(held.remainingMinorUnits, held.currency);
                 return (
                   <li key={held.id} className="invoice-list-item invoice-list-item-block">
-                    <span className="row-key">{held.invoiceRef}</span>
+                    <span className="row-key">
+                      {held.invoiceRef}
+                      {held.mode === 'TEST' ? (
+                        <>
+                          {' '}
+                          <StatusBadge tone="warning">{TEST_PAYMENT_LABEL}</StatusBadge>
+                        </>
+                      ) : null}
+                    </span>
                     <span>
                       {formatMoney(held.amountMinorUnits, held.currency)} paid online on{' '}
                       {formatBillingDate(held.createdAt)}. {holdReasonLabel(held.reasonCode)}
@@ -322,7 +330,15 @@ export function RefundsCard({
                 const limitText = formatMoney(entry.refundableMinorUnits, entry.currency);
                 return (
                   <li key={entry.id} className="invoice-list-item invoice-list-item-block">
-                    <span className="row-key">{entry.invoiceRef}</span>
+                    <span className="row-key">
+                      {entry.invoiceRef}
+                      {entry.mode === 'TEST' ? (
+                        <>
+                          {' '}
+                          <StatusBadge tone="warning">{TEST_PAYMENT_LABEL}</StatusBadge>
+                        </>
+                      ) : null}
+                    </span>
                     <span>
                       {receiptKindLabel(entry.kind)},{' '}
                       {formatMoney(entry.amountMinorUnits, entry.currency)} on{' '}

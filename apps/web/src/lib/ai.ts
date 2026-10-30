@@ -1,3 +1,4 @@
+import { switchOn } from '@visastack/core';
 import 'server-only';
 import {
   AnthropicExtractionAdapter,
@@ -68,7 +69,7 @@ function envAiExtractorOptions(): EnvAiExtractorOptions | undefined {
     ...(model ? { model } : {}),
     ...(projectId ? { projectId } : {}),
     ...(reasoningEffort ? { reasoningEffort } : {}),
-    storeResponses: readEnv('OPENAI_STORE_RESPONSES') === 'true',
+    storeResponses: switchOn(readEnv('OPENAI_STORE_RESPONSES')),
   };
 }
 

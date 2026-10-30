@@ -1,4 +1,4 @@
-import { isOk } from '@visastack/core';
+import { isOk, switchOn } from '@visastack/core';
 import { and, eq, isNotNull, isNull, lte } from 'drizzle-orm';
 import { type Db, first, schema } from './db';
 import { requestAccountDeletion } from './deletion';
@@ -141,7 +141,7 @@ const DEFAULT_INACTIVE_ACCOUNT_DELETION_GRACE_DAYS = 30;
 function inactiveAccountDeletionEnabled(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): boolean {
-  return envRaw(env, 'INACTIVE_ACCOUNT_DELETION_ENABLED') === 'true';
+  return switchOn(envRaw(env, 'INACTIVE_ACCOUNT_DELETION_ENABLED'));
 }
 
 function inactiveAccountDeletionGraceDays(

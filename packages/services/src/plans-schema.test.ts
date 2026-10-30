@@ -56,10 +56,9 @@ function unsafeTableReads(source: string): string[] {
       'g',
     );
     for (const match of source.matchAll(plainReturning)) problems.push(match[0].slice(0, 80));
-    if (name.startsWith('schema.')) {
-      const wholeTable = new RegExp(`\\w+\\s*:\\s*${target}\\s*[,}]`, 'g');
-      for (const match of source.matchAll(wholeTable)) problems.push(match[0]);
-    }
+    // A whole table inside a selection (`{ plan: schema.plans }` or `{ entry: p }`).
+    const wholeTable = new RegExp(`\\w+\\s*:\\s*${target}\\s*[,}]`, 'g');
+    for (const match of source.matchAll(wholeTable)) problems.push(match[0]);
   }
   return problems;
 }
@@ -85,6 +84,9 @@ describe('reads of plans, online payments and ledger rows (S29)', () => {
       unsafeTableReads('tx.update(schema.invoicePayments).set({ a: 1 }).where(x).returning();'),
     ).toHaveLength(1);
     expect(unsafeTableReads('db.select({ plan: schema.plans }).from(x)')).toHaveLength(1);
+    expect(
+      unsafeTableReads('const p = schema.invoicePayments;\n db.select({ entry: p, n: 1 }).from(p)'),
+    ).toHaveLength(1);
     expect(unsafeTableReads('db.select(planColumns()).from(schema.plans)')).toEqual([]);
     expect(unsafeTableReads('tx.update(schema.plans).set({}).returning(planColumns());')).toEqual(
       [],

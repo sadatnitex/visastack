@@ -1,4 +1,5 @@
 import {
+  TEST_PAYMENT_LABEL,
   billingDaysUntil,
   formatBillingDate,
   formatBillingDateTime,
@@ -233,6 +234,9 @@ export function InvoiceCard({
                 >
                   {ATTEMPT_STATUS_LABELS[attempt.status]}
                 </StatusBadge>
+                {attempt.mode === 'TEST' ? (
+                  <StatusBadge tone="warning">{TEST_PAYMENT_LABEL}</StatusBadge>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -255,6 +259,9 @@ export function InvoiceCard({
                   {plainAmount(receipt.amountMinorUnits, receipt.currency)} on{' '}
                   {formatBillingDate(receipt.issuedAt)}
                 </span>
+                {receipt.mode === 'TEST' ? (
+                  <StatusBadge tone="warning">{TEST_PAYMENT_LABEL}</StatusBadge>
+                ) : null}
                 <a
                   className="invoice-link"
                   href={`/app/agency/${organizationId}/plan/invoices/receipts/${receipt.id}/pdf`}

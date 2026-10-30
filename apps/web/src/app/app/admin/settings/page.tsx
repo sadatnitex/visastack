@@ -43,6 +43,16 @@ export default async function PlatformSettingsPage() {
         ) : null}
         {access.owner ? (
           <article className="card">
+            <h2 className="card-title">Plans</h2>
+            <p className="card-body">
+              Create plans, set what each includes and what it costs, and retire plans you no longer
+              offer.
+            </p>
+            <Link href="/app/admin/plans">Manage Plans</Link>
+          </article>
+        ) : null}
+        {access.owner ? (
+          <article className="card">
             <h2 className="card-title">Billing Rules</h2>
             <p className="card-body">
               Choose when invoices are due and whether an unpaid invoice moves an agency to Grace

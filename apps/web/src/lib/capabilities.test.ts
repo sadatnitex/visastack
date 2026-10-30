@@ -183,6 +183,9 @@ describe('getPlatformCapabilities', () => {
     setEnv('SSLCOMMERZ_MODE', 'sandbox');
     expect(getPlatformCapabilities().payments).toBe('unconfigured');
     setEnv('PAYMENT_PROVIDER', 'sslcommerz');
+    // S29: the sandbox is the gateway's test mode: only test payments, so working with limits.
+    expect(getPlatformCapabilities().payments).toBe('degraded');
+    setEnv('SSLCOMMERZ_MODE', 'live');
     expect(getPlatformCapabilities().payments).toBe('available');
     unsetEnv('SSLCOMMERZ_MODE');
     expect(getPlatformCapabilities().payments).toBe('unconfigured');
