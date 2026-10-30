@@ -328,8 +328,9 @@ export async function updateDraftAiProviderConfigAction(
     }
     if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
 
-    const updated = await updateDraftAiProviderConfig(db, {
-      actor: actor(accountId, email),
+    const staff = await staffPrincipal(db, actor(accountId, email), 'AI_SETTINGS_MANAGE');
+    if (!staff.ok) return DENIED;
+    const updated = await updateDraftAiProviderConfig(db, staff.value, {
       stepUpSatisfied: true,
       configId,
       encryption,
@@ -367,8 +368,9 @@ export async function deleteDraftAiProviderConfigAction(
     }
     if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
 
-    const deleted = await deleteDraftAiProviderConfig(db, {
-      actor: actor(accountId, email),
+    const staff = await staffPrincipal(db, actor(accountId, email), 'AI_SETTINGS_MANAGE');
+    if (!staff.ok) return DENIED;
+    const deleted = await deleteDraftAiProviderConfig(db, staff.value, {
       stepUpSatisfied: true,
       configId,
     });

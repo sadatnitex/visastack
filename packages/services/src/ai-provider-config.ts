@@ -1,6 +1,7 @@
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
 import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { type StaffScope, staffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -225,7 +226,10 @@ export async function createDraftAiProviderConfig(
 }
 
 export interface UpdateDraftAiProviderConfigInput
-  extends Omit<CreateDraftAiProviderConfigInput, 'provider' | 'apiKey' | 'copyApiKeyFromConfigId'> {
+  extends Omit<
+    CreateDraftAiProviderConfigInput,
+    'actor' | 'provider' | 'apiKey' | 'copyApiKeyFromConfigId'
+  > {
   readonly configId: string;
   /** A replacement key; blank or absent keeps the saved one. */
   readonly apiKey?: string;
@@ -242,9 +246,10 @@ export interface UpdateDraftAiProviderConfigInput
  */
 export async function updateDraftAiProviderConfig(
   db: Db,
+  staff: StaffScope<'AI_SETTINGS_MANAGE'>,
   input: UpdateDraftAiProviderConfigInput,
 ): Promise<Result<AiProviderConfig, ServiceError>> {
-  if (!(await canPerformPlatformAction(db, input.actor, 'AI_SETTINGS_MANAGE'))) {
+  if (staffScopeProblem(staff, 'AI_SETTINGS_MANAGE')) {
     return err(serviceError('forbidden', 'security-admin permission is required'));
   }
   if (!input.stepUpSatisfied) {
@@ -355,7 +360,7 @@ export async function updateDraftAiProviderConfig(
     const termsCleared = protectedKey ? await clearDraftTerms(tx, target.id) : false;
     await appendAuditEvent(tx, {
       eventType: 'AI_PROVIDER_CONFIG_UPDATED',
-      actorAccountId: input.actor.accountId,
+      actorAccountId: staff.accountId,
       method: 'MANUAL',
       result: 'ALLOWED',
       resourceType: 'ai_provider_config',
@@ -390,7 +395,6 @@ async function clearDraftTerms(tx: Db, configId: string): Promise<boolean> {
 }
 
 export interface DeleteDraftAiProviderConfigInput {
-  readonly actor: PlatformAuthInput;
   readonly stepUpSatisfied: boolean;
   readonly configId: string;
 }
@@ -406,9 +410,10 @@ export interface DeleteDraftAiProviderConfigInput {
  */
 export async function deleteDraftAiProviderConfig(
   db: Db,
+  staff: StaffScope<'AI_SETTINGS_MANAGE'>,
   input: DeleteDraftAiProviderConfigInput,
 ): Promise<Result<{ readonly id: string }, ServiceError>> {
-  if (!(await canPerformPlatformAction(db, input.actor, 'AI_SETTINGS_MANAGE'))) {
+  if (staffScopeProblem(staff, 'AI_SETTINGS_MANAGE')) {
     return err(serviceError('forbidden', 'security-admin permission is required'));
   }
   if (!input.stepUpSatisfied) {
@@ -468,7 +473,7 @@ export async function deleteDraftAiProviderConfig(
     await tx.delete(schema.aiProviderConfigs).where(eq(schema.aiProviderConfigs.id, target.id));
     await appendAuditEvent(tx, {
       eventType: 'AI_PROVIDER_CONFIG_DELETED',
-      actorAccountId: input.actor.accountId,
+      actorAccountId: staff.accountId,
       method: 'MANUAL',
       result: 'ALLOWED',
       resourceType: 'ai_provider_config',

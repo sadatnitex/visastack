@@ -5,6 +5,7 @@ import { createMigratedPglite } from '@visastack/db/testing';
 import { desc, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { type StaffScope, staffPrincipal } from './access/principal';
 import { provisionAccount } from './accounts';
 import {
   activateAiProviderConfig,
@@ -946,14 +947,44 @@ describe('getAiProviderConfigForFallback (Part 8 §13 -- an unauthenticated, pla
   });
 });
 
+async function scope(
+  db: Db,
+  actor: Awaited<ReturnType<typeof seedSecurityAdmin>>,
+): Promise<StaffScope<'AI_SETTINGS_MANAGE'>> {
+  const staff = await staffPrincipal(db, actor, 'AI_SETTINGS_MANAGE');
+  if (!staff.ok) throw new Error('staff scope');
+  return staff.value;
+}
+
+/** What a caller without the role would have to pass: not a genuine scope. */
+const NOT_A_SCOPE = {
+  kind: 'staff',
+  accountId: 'x',
+} as unknown as StaffScope<'AI_SETTINGS_MANAGE'>;
+
+/** Edits a draft as the security admin: the scope is fetched for each call. */
+async function editDraft(
+  db: Db,
+  actor: Awaited<ReturnType<typeof seedSecurityAdmin>>,
+  input: Parameters<typeof updateDraftAiProviderConfig>[2],
+) {
+  return updateDraftAiProviderConfig(db, await scope(db, actor), input);
+}
+
+async function deleteDraft(
+  db: Db,
+  actor: Awaited<ReturnType<typeof seedSecurityAdmin>>,
+  input: Parameters<typeof deleteDraftAiProviderConfig>[2],
+) {
+  return deleteDraftAiProviderConfig(db, await scope(db, actor), input);
+}
+
 /** The edit form sends the whole configuration; this is a full edit of a draft from `draftInput`. */
 function editInput(
-  actor: Awaited<ReturnType<typeof seedSecurityAdmin>>,
   configId: string,
-  overrides: Partial<Parameters<typeof updateDraftAiProviderConfig>[1]> = {},
-): Parameters<typeof updateDraftAiProviderConfig>[1] {
+  overrides: Partial<Parameters<typeof updateDraftAiProviderConfig>[2]> = {},
+): Parameters<typeof updateDraftAiProviderConfig>[2] {
   return {
-    actor,
     stepUpSatisfied: true,
     configId,
     encryption,
@@ -992,9 +1023,10 @@ describe('AI provider configuration -- editing a draft in place', () => {
     );
     if (!isOk(draft)) throw new Error('draft');
 
-    const edited = await updateDraftAiProviderConfig(
+    const edited = await editDraft(
       db,
-      editInput(actor, draft.value.id, { reasoningEffort: 'low', notes: 'new notes' }),
+      actor,
+      editInput(draft.value.id, { reasoningEffort: 'low', notes: 'new notes' }),
     );
     expect(isOk(edited)).toBe(true);
     if (!isOk(edited)) return;
@@ -1027,9 +1059,10 @@ describe('AI provider configuration -- editing a draft in place', () => {
     );
     if (!isOk(draft)) throw new Error('draft');
 
-    const edited = await updateDraftAiProviderConfig(
+    const edited = await editDraft(
       db,
-      editInput(actor, draft.value.id, { apiKey: ' sk-new-2222 ' }),
+      actor,
+      editInput(draft.value.id, { apiKey: ' sk-new-2222 ' }),
     );
     if (!isOk(edited)) throw new Error('edit');
     expect(edited.value.apiKeyFingerprint).toBe('...2222');
@@ -1047,7 +1080,7 @@ describe('AI provider configuration -- editing a draft in place', () => {
       maxPagesPerDocument: 10,
     });
     if (!isOk(draft)) throw new Error('draft');
-    const edited = await updateDraftAiProviderConfig(db, editInput(actor, draft.value.id));
+    const edited = await editDraft(db, actor, editInput(draft.value.id));
     if (!isOk(edited)) throw new Error('edit');
     expect(edited.value.reasoningEffort).toBeNull();
     expect(edited.value.maxPagesPerDocument).toBeNull();
@@ -1060,7 +1093,7 @@ describe('AI provider configuration -- editing a draft in place', () => {
     if (!isOk(draft)) throw new Error('draft');
     await activateAiProviderConfig(db, { actor, stepUpSatisfied: true, configId: draft.value.id });
 
-    const edited = await updateDraftAiProviderConfig(db, editInput(actor, draft.value.id));
+    const edited = await editDraft(db, actor, editInput(draft.value.id));
     expect(isErr(edited) && edited.error.code).toBe('invalid');
     const after = await getAiProviderConfigById(db, actor, draft.value.id);
     expect(isOk(after) && after.value.model).toBe('gpt-5.6-terra');
@@ -1069,22 +1102,24 @@ describe('AI provider configuration -- editing a draft in place', () => {
 
   it('refuses a draft as its own fallback, a stranger, and a request without step-up', async () => {
     const actor = await seedSecurityAdmin(db);
-    const stranger = await seedStranger(db);
+    // A stranger cannot obtain the scope at all; a forged one is refused below.
+    expect((await staffPrincipal(db, await seedStranger(db), 'AI_SETTINGS_MANAGE')).ok).toBe(false);
     const draft = await createDraftAiProviderConfig(db, draftInput(actor));
     if (!isOk(draft)) throw new Error('draft');
 
-    const self = await updateDraftAiProviderConfig(
+    const self = await editDraft(
       db,
-      editInput(actor, draft.value.id, {
+      actor,
+      editInput(draft.value.id, {
         fallbackEnabled: true,
         fallbackProviderConfigId: draft.value.id,
       }),
     );
     expect(isErr(self) && self.error.code).toBe('invalid');
-    const denied = await updateDraftAiProviderConfig(db, editInput(stranger, draft.value.id));
+    const denied = await updateDraftAiProviderConfig(db, NOT_A_SCOPE, editInput(draft.value.id));
     expect(isErr(denied) && denied.error.code).toBe('forbidden');
-    const noStepUp = await updateDraftAiProviderConfig(db, {
-      ...editInput(actor, draft.value.id),
+    const noStepUp = await editDraft(db, actor, {
+      ...editInput(draft.value.id),
       stepUpSatisfied: false,
     });
     expect(isErr(noStepUp) && noStepUp.error.code).toBe('step_up_required');
@@ -1176,8 +1211,7 @@ describe('AI provider configuration -- deleting a draft', () => {
       checkedOn: '2026-10-30',
     });
 
-    const deleted = await deleteDraftAiProviderConfig(db, {
-      actor,
+    const deleted = await deleteDraft(db, actor, {
       stepUpSatisfied: true,
       configId: draft.value.id,
     });
@@ -1198,8 +1232,7 @@ describe('AI provider configuration -- deleting a draft', () => {
     if (!isOk(draft)) throw new Error('draft');
     await activateAiProviderConfig(db, { actor, stepUpSatisfied: true, configId: draft.value.id });
 
-    const deleted = await deleteDraftAiProviderConfig(db, {
-      actor,
+    const deleted = await deleteDraft(db, actor, {
       stepUpSatisfied: true,
       configId: draft.value.id,
     });
@@ -1217,8 +1250,7 @@ describe('AI provider configuration -- deleting a draft', () => {
     );
     if (!isOk(user)) throw new Error('user');
 
-    const whileDraft = await deleteDraftAiProviderConfig(db, {
-      actor,
+    const whileDraft = await deleteDraft(db, actor, {
       stepUpSatisfied: true,
       configId: target.value.id,
     });
@@ -1228,8 +1260,7 @@ describe('AI provider configuration -- deleting a draft', () => {
 
     // Once the version using it has run, it is history and can never be changed: say so.
     await activateAiProviderConfig(db, { actor, stepUpSatisfied: true, configId: user.value.id });
-    const afterRun = await deleteDraftAiProviderConfig(db, {
-      actor,
+    const afterRun = await deleteDraft(db, actor, {
       stepUpSatisfied: true,
       configId: target.value.id,
     });
@@ -1241,8 +1272,7 @@ describe('AI provider configuration -- deleting a draft', () => {
     const actor = await seedSecurityAdmin(db);
     const only = await createDraftAiProviderConfig(db, draftInput(actor));
     if (!isOk(only)) throw new Error('draft');
-    const deleted = await deleteDraftAiProviderConfig(db, {
-      actor,
+    const deleted = await deleteDraft(db, actor, {
       stepUpSatisfied: true,
       configId: only.value.id,
     });
@@ -1256,20 +1286,18 @@ describe('AI provider configuration -- deleting a draft', () => {
     const draft = await createDraftAiProviderConfig(db, draftInput(actor));
     if (!isOk(draft)) throw new Error('draft');
 
-    const denied = await deleteDraftAiProviderConfig(db, {
-      actor: stranger,
+    expect((await staffPrincipal(db, stranger, 'AI_SETTINGS_MANAGE')).ok).toBe(false);
+    const denied = await deleteDraftAiProviderConfig(db, NOT_A_SCOPE, {
       stepUpSatisfied: true,
       configId: draft.value.id,
     });
     expect(isErr(denied) && denied.error.code).toBe('forbidden');
-    const noStepUp = await deleteDraftAiProviderConfig(db, {
-      actor,
+    const noStepUp = await deleteDraft(db, actor, {
       stepUpSatisfied: false,
       configId: draft.value.id,
     });
     expect(isErr(noStepUp) && noStepUp.error.code).toBe('step_up_required');
-    const missing = await deleteDraftAiProviderConfig(db, {
-      actor,
+    const missing = await deleteDraft(db, actor, {
       stepUpSatisfied: true,
       configId: '00000000-0000-4000-8000-000000000000',
     });
@@ -1295,10 +1323,10 @@ describe('AI provider configuration -- what editing and revoking protect', () =>
       checkedOn: '2026-10-30',
     });
 
-    await updateDraftAiProviderConfig(db, editInput(actor, draft.value.id));
+    await editDraft(db, actor, editInput(draft.value.id));
     expect(await db.select().from(schema.aiProviderConfigTerms)).toHaveLength(1);
 
-    await updateDraftAiProviderConfig(db, editInput(actor, draft.value.id, { apiKey: 'sk-other' }));
+    await editDraft(db, actor, editInput(draft.value.id, { apiKey: 'sk-other' }));
     expect(await db.select().from(schema.aiProviderConfigTerms)).toHaveLength(0);
     const events = await auditOf(db, 'AI_PROVIDER_CONFIG_UPDATED');
     const flags = events.map((e) => (e.metadata as AuditMetadata).termsCleared).sort();
@@ -1310,10 +1338,7 @@ describe('AI provider configuration -- what editing and revoking protect', () =>
     const draft = await createDraftAiProviderConfig(db, draftInput(actor));
     if (!isOk(draft)) throw new Error('draft');
     await revokeAiProviderConfigKey(db, { actor, stepUpSatisfied: true, configId: draft.value.id });
-    const edited = await updateDraftAiProviderConfig(
-      db,
-      editInput(actor, draft.value.id, { apiKey: 'sk-fresh' }),
-    );
+    const edited = await editDraft(db, actor, editInput(draft.value.id, { apiKey: 'sk-fresh' }));
     expect(isErr(edited) && edited.error.message).toContain('revoked');
   });
 
@@ -1330,15 +1355,13 @@ describe('AI provider configuration -- what editing and revoking protect', () =>
     );
     if (!isOk(primary)) throw new Error('primary');
 
-    expect(isOk(await updateDraftAiProviderConfig(db, editInput(actor, fallback.value.id)))).toBe(
-      true,
-    );
+    expect(isOk(await editDraft(db, actor, editInput(fallback.value.id)))).toBe(true);
     await activateAiProviderConfig(db, {
       actor,
       stepUpSatisfied: true,
       configId: primary.value.id,
     });
-    const edited = await updateDraftAiProviderConfig(db, editInput(actor, fallback.value.id));
+    const edited = await editDraft(db, actor, editInput(fallback.value.id));
     expect(isErr(edited) && edited.error.message).toContain('fallback');
   });
 
