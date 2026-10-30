@@ -41,3 +41,17 @@ export function aiModelOptionsFor(provider: string): readonly AiModelOption[] {
 export function isListedAiModel(provider: string, model: string): boolean {
   return aiModelOptionsFor(provider).some((option) => option.id === model);
 }
+
+/** The reasoning effort levels the settings form offers; an empty value keeps the model's own default. */
+export const REASONING_EFFORT_OPTIONS = [
+  { value: '', label: 'Use Model Default' },
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+] as const;
+
+/** How a saved effort reads on a settings card: the level's label, or the code when it is unknown. */
+export function reasoningEffortLabel(effort: string | null): string {
+  if (effort === null || effort === '') return 'Model Default';
+  return REASONING_EFFORT_OPTIONS.find((o) => o.value === effort)?.label ?? effort;
+}
