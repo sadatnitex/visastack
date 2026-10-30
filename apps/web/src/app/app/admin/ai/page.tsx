@@ -149,9 +149,13 @@ export default async function AiAreaPage() {
       ) : null}
       {data.providers ? (
         <>
+          {/* The data rule comes before the providers: when it pauses AI, that is the first thing
+              to know (#351). The two cards sit side by side where there is room. */}
+          <div className="grid">
+            <DataTermsSection data={data.providers} />
+            <AiAppsSection data={data.providers} />
+          </div>
           <AiProvidersSection data={data.providers} />
-          <DataTermsSection data={data.providers} />
-          <AiAppsSection data={data.providers} />
         </>
       ) : null}
     </section>

@@ -41,7 +41,7 @@ export function AiConnectionsCard({ counts, enabled }: AiConnectionsCardProps) {
           : 'Switched off on this site: no AI app can connect. These are totals for everyone; no one’s own details are shown.'}
       </p>
       {rows ? (
-        <div className="rows">
+        <div className="rows rows-grid">
           {rows.map((row) => (
             <div className="row" key={row.key}>
               <span className="row-key">{row.key}</span>

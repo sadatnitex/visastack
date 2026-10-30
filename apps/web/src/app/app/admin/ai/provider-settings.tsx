@@ -13,31 +13,18 @@ import {
 import { unitsToUsd } from '../../../../lib/ai';
 import { aiConnectorEnabled } from '../../../../lib/ai-connector';
 import { currentAiDataMode } from '../../../../lib/ai-data-rule';
-import { formatTimestamp } from '../../../../lib/format-date';
 import { reportServerError } from '../../../../lib/server-error';
 import { AiConnectionsCard, type AiConnectionsCardProps } from '../ai-settings/ai-connections-card';
-import { DataTermsPanel, TermsRows } from '../ai-settings/data-terms';
+import { ConfigCard } from '../ai-settings/config-card';
+import { DataTermsPanel } from '../ai-settings/data-terms';
 import {
-  ActivateConfigButton,
   type ConfigFormView,
   CreateDraftConfigForm,
-  DeleteDraftButton,
-  EditConfigForm,
   EmergencyDisableButton,
   type FallbackOption,
-  RecordTermsForm,
-  RevokeKeyButton,
   RollbackConfigButton,
-  RunEvaluationButton,
-  TestConnectionButton,
 } from '../ai-settings/forms';
-
-const STATUS_BADGE: Record<AiProviderConfig['status'], { label: string; tone: string }> = {
-  DRAFT: { label: 'Draft', tone: 'badge-neutral' },
-  ACTIVE: { label: 'Active', tone: 'badge-success' },
-  SUPERSEDED: { label: 'Superseded', tone: 'badge-neutral' },
-  DISABLED: { label: 'Disabled', tone: 'badge-danger' },
-};
+import { StickyDetails } from '../ai-settings/sticky-details';
 
 export type AiProviderSettingsData = Awaited<ReturnType<typeof loadAiProviderSettings>>;
 
@@ -147,14 +134,13 @@ function providerForms(data: AiProviderSettingsData) {
       .filter((c) => c.status !== 'DRAFT' && c.fallbackEnabled && c.fallbackProviderConfigId)
       .map((c) => c.fallbackProviderConfigId as string),
   );
-  const formViews = data.history.map((config) => toConfigFormView(config, fallbackFor));
   const fallbackOptions: FallbackOption[] = data.history.map(({ id, status, provider, model }) => ({
     id,
     status,
     provider,
     model,
   }));
-  return { formViews, fallbackOptions };
+  return { fallbackFor, fallbackOptions };
 }
 
 /**
@@ -163,7 +149,27 @@ function providerForms(data: AiProviderSettingsData) {
  * stays in the history as it ran, and Edit as New Draft copies it (#348).
  */
 export function AiProvidersSection({ data }: { readonly data: AiProviderSettingsData }) {
-  const { formViews, fallbackOptions } = providerForms(data);
+  const { fallbackFor, fallbackOptions } = providerForms(data);
+  // One card per version (#351): its facts, its actions and its data terms.
+  const card = (config: AiProviderConfig) => {
+    // Part 8 section 13: the fallback target need not be ACTIVE, so it is looked up by id across
+    // the whole history.
+    const fallbackTarget = config.fallbackEnabled
+      ? data.history.find((c) => c.id === config.fallbackProviderConfigId)
+      : undefined;
+    return (
+      <ConfigCard
+        key={config.id}
+        config={config}
+        formView={toConfigFormView(config, fallbackFor)}
+        fallbackTarget={fallbackTarget}
+        terms={aiProviderTermsFor(data.terms, config.id)}
+        fallbackOptions={fallbackOptions}
+      />
+    );
+  };
+  const drafts = data.history.filter((c) => c.status === 'DRAFT');
+  const earlier = data.history.filter((c) => c.status === 'SUPERSEDED' || c.status === 'DISABLED');
   return (
     <section className="u-mt-150" id="ai-providers" aria-labelledby="ai-providers-title">
       <div className="toolbar">
@@ -191,175 +197,61 @@ export function AiProvidersSection({ data }: { readonly data: AiProviderSettings
         </div>
       ) : null}
 
-      <article className="card u-mb-150">
-        <p className="card-kicker">New Configuration</p>
-        <h3 className="card-title">Create Draft</h3>
-        <p className="card-body u-mb-100">
-          Saving a draft changes nothing for anyone. It is used only once you activate it below. The
-          API key is locked away as soon as you save it and is never shown again: this page shows
-          only its last few characters, so you can tell keys apart.
-        </p>
-        <CreateDraftConfigForm fallbackOptions={fallbackOptions} />
-      </article>
+      {data.active ? (
+        <section aria-labelledby="ai-active-heading">
+          <h3 className="section-heading" id="ai-active-heading">
+            Active Setup
+          </h3>
+          {card(data.active)}
+        </section>
+      ) : null}
 
-      {data.history.length > 0 ? (
-        <div className="field-list">
-          {data.history.map((config, index) => {
-            const badge = STATUS_BADGE[config.status];
-            const formView = formViews[index];
-            const isDraft = config.status === 'DRAFT';
-            const canActivate =
-              config.status === 'DRAFT' &&
-              config.dataPolicyApproved &&
-              config.keyRevokedAt === null;
-            const canRevoke = config.keyRevokedAt === null;
-            // A revoked key is fully retired ("cannot resurrect: revoked
-            // key") -- otherwise testing is useful at every other status:
-            // before activating a DRAFT, or to re-check an ACTIVE/SUPERSEDED/
-            // DISABLED version's credentials still round-trip.
-            const canTest = config.keyRevokedAt === null;
-            // Same eligibility bar as the connection test -- a revoked key
-            // has nothing left to evaluate.
-            const canEvaluate = config.keyRevokedAt === null;
-            // Part 8 §13: the target need not be ACTIVE (it commonly is not
-            // -- the platform's own single-winner invariant means it is
-            // necessarily some other status), so this looks it up by id
-            // across the FULL history list, not just active/eligible rows.
-            const configName = `${config.provider} / ${config.model}`;
-            const fallbackTarget = config.fallbackEnabled
-              ? data.history.find((c) => c.id === config.fallbackProviderConfigId)
-              : undefined;
-            return (
-              <article className="card" key={config.id}>
-                <div className="toolbar u-mb-100">
-                  <h3 className="card-title u-m-0">
-                    {config.provider} / {config.model}
-                  </h3>
-                  <span className={`badge ${badge.tone}`}>{badge.label}</span>
-                </div>
-                <div className="rows">
-                  <div className="row">
-                    <span className="row-key">API Key</span>
-                    <span className="row-val">{config.apiKeyFingerprint}</span>
-                  </div>
-                  {config.reasoningEffort !== null ? (
-                    <div className="row">
-                      <span className="row-key">Reasoning Effort</span>
-                      <span className="row-val">{config.reasoningEffort}</span>
-                    </div>
-                  ) : null}
-                  <div className="row">
-                    <span className="row-key">Data Policy</span>
-                    <span
-                      className={`badge ${config.dataPolicyApproved ? 'badge-success' : 'badge-neutral'}`}
-                    >
-                      {config.dataPolicyApproved ? 'Approved' : 'Not Approved'}
-                    </span>
-                  </div>
-                  <div className="row">
-                    <span className="row-key">Monthly Budget</span>
-                    <span className="row-val">
-                      ${unitsToUsd(config.budgetLimitUnits).toFixed(2)}
-                    </span>
-                  </div>
-                  {config.perDocumentBudgetLimitUnits !== null ? (
-                    <div className="row">
-                      <span className="row-key">Per-Document Budget</span>
-                      <span className="row-val">
-                        ${unitsToUsd(config.perDocumentBudgetLimitUnits).toFixed(2)}
-                      </span>
-                    </div>
-                  ) : null}
-                  {config.maxAttemptsPerDocument !== null ? (
-                    <div className="row">
-                      <span className="row-key">Max attempts / document</span>
-                      <span className="row-val">{config.maxAttemptsPerDocument}</span>
-                    </div>
-                  ) : null}
-                  {config.maxPagesPerDocument !== null ? (
-                    <div className="row">
-                      <span className="row-key">Max pages / document</span>
-                      <span className="row-val">{config.maxPagesPerDocument}</span>
-                    </div>
-                  ) : null}
-                  {config.cacheMaxAgeDays !== null ? (
-                    <div className="row">
-                      <span className="row-key">Cache Max Age</span>
-                      <span className="row-val">{config.cacheMaxAgeDays} days</span>
-                    </div>
-                  ) : null}
-                  {config.maxConcurrentCalls !== null ? (
-                    <div className="row">
-                      <span className="row-key">Max Concurrent Calls</span>
-                      <span className="row-val">{config.maxConcurrentCalls}</span>
-                    </div>
-                  ) : null}
-                  {config.notes !== null && config.notes.length > 0 ? (
-                    <div className="row">
-                      <span className="row-key">Notes</span>
-                      <span className="row-val">{config.notes}</span>
-                    </div>
-                  ) : null}
-                  {config.keyRevokedAt !== null ? (
-                    <div className="row">
-                      <span className="row-key">Key Revoked</span>
-                      <span className="row-val">{formatTimestamp(config.keyRevokedAt)}</span>
-                    </div>
-                  ) : null}
-                  {config.fallbackEnabled ? (
-                    <div className="row">
-                      <span className="row-key">Fallback</span>
-                      <span className="row-val">
-                        {fallbackTarget
-                          ? `${fallbackTarget.provider} / ${fallbackTarget.model}`
-                          : 'Configured target no longer exists'}
-                      </span>
-                    </div>
-                  ) : null}
-                  <TermsRows terms={aiProviderTermsFor(data.terms, config.id)} />
-                  <div className="row">
-                    <span className="row-key">Created</span>
-                    <span className="muted u-fs-085">{formatTimestamp(config.createdAt)}</span>
-                  </div>
-                </div>
-                {canTest || canEvaluate || canActivate || canRevoke || isDraft ? (
-                  <div className="page-actions u-mt-100">
-                    {canTest ? (
-                      <TestConnectionButton configId={config.id} configName={configName} />
-                    ) : null}
-                    {canEvaluate ? (
-                      <RunEvaluationButton configId={config.id} configName={configName} />
-                    ) : null}
-                    {canActivate ? (
-                      <ActivateConfigButton configId={config.id} configName={configName} />
-                    ) : null}
-                    {canRevoke ? (
-                      <RevokeKeyButton configId={config.id} configName={configName} />
-                    ) : null}
-                    {isDraft ? (
-                      <DeleteDraftButton configId={config.id} configName={configName} />
-                    ) : null}
-                  </div>
-                ) : null}
-                {formView ? (
-                  <details className="u-mt-100">
-                    <summary className="muted">
-                      {formView.editableInPlace ? 'Edit' : 'Edit as New Draft'}
-                      <span className="sr-only"> {configName}</span>
-                    </summary>
-                    <EditConfigForm config={formView} fallbackOptions={fallbackOptions} />
-                  </details>
-                ) : null}
-                <details className="u-mt-100">
-                  <summary className="muted">
-                    Record Data Terms<span className="sr-only"> for {configName}</span>
-                  </summary>
-                  <RecordTermsForm configId={config.id} />
-                </details>
-              </article>
-            );
-          })}
-        </div>
+      {drafts.length > 0 ? (
+        <section aria-labelledby="ai-drafts-heading">
+          <h3 className="section-heading" id="ai-drafts-heading">
+            Drafts ({drafts.length})
+          </h3>
+          <div className="stack-sm">{drafts.map(card)}</div>
+        </section>
+      ) : null}
+
+      <section aria-labelledby="ai-new-heading">
+        <h3 className="section-heading" id="ai-new-heading">
+          New Setup
+        </h3>
+        <StickyDetails
+          className="disclosure"
+          initiallyOpen={!data.hasAny}
+          summary={
+            <span>
+              <strong>Create a New Draft</strong>
+              <span className="muted u-fs-085">
+                {' '}
+                Saving a draft changes nothing for anyone until you activate it. The API key is
+                locked away as soon as you save it and never shown again, only its last few
+                characters.
+              </span>
+            </span>
+          }
+        >
+          <div className="disclosure-body">
+            <CreateDraftConfigForm fallbackOptions={fallbackOptions} />
+          </div>
+        </StickyDetails>
+      </section>
+
+      {earlier.length > 0 ? (
+        <section aria-labelledby="ai-earlier-heading">
+          <h3 className="section-heading" id="ai-earlier-heading">
+            Earlier Versions
+          </h3>
+          <details className="disclosure">
+            <summary>
+              Show {earlier.length} earlier {earlier.length === 1 ? 'version' : 'versions'}
+            </summary>
+            <div className="disclosure-body stack-sm">{earlier.map(card)}</div>
+          </details>
+        </section>
       ) : null}
     </section>
   );
