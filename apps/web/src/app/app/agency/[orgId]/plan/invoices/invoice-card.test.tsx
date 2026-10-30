@@ -314,7 +314,7 @@ describe('an invoice card on the agency Invoices page', () => {
     );
     expect(overdue).toContain('<span class="badge badge-danger">Overdue</span>');
     expect(overdue).toContain('It was due on 22 Oct 2026.');
-    expect(overdue).toContain('class="invoice-due invoice-due-danger">22 Oct 2026<');
+    expect(overdue).toContain('class="billing-due-danger">22 Oct 2026<');
     const today = renderToStaticMarkup(
       <InvoiceCard
         invoice={invoice({ dueDate: new Date('2026-10-30T00:00:00Z') })}

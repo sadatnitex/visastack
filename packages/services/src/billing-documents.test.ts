@@ -145,7 +145,7 @@ describe('the invoice document in words (S30)', () => {
       },
     ]);
     expect(doc.notes).toEqual([
-      'Money paid on this invoice was refunded. There is nothing to pay.',
+      'Part of the money paid on this invoice was refunded. There is nothing more to pay on it.',
       'A credit is money from an earlier payment that was counted towards this invoice.',
     ]);
   });

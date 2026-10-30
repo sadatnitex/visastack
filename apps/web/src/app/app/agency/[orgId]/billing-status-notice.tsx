@@ -38,7 +38,7 @@ const COPY: Readonly<
   GRACE: {
     title: 'Your Agency Is in Grace',
     admin:
-      'An invoice is past its due date. Everything still works for now. Paying it keeps adding cases, team members and files open. Nothing is deleted or hidden.',
+      'An invoice is past its due date. Everything still works for now. Pay it so adding cases, team members and files never pauses. Nothing is deleted or hidden.',
     member:
       'An invoice for your agency is past its due date. Everything still works. An owner or admin can see the details.',
   },

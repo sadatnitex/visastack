@@ -45,7 +45,7 @@ Approved by the owner on 2026-10-28 (decision D3). Applies to user-facing words:
 | What a plan includes, on Plan and Usage | the card "What Your Plan Includes" headed Usage; Team Members, New Cases, Open Cases, Storage, AI Allowance | "Entitlements", "Meters", "Active seats", "Concurrent open cases", "Retained storage" | **New (S30)** |
 | Billing notices in the app (their titles) | New Invoice, Invoice Due Soon, Invoice Due Today, Invoice Overdue, Invoice Still Overdue (the 7-day reminder), Your Agency Is in Grace, Your Agency Is Suspended, Your Agency Is Active Again, Refund Made, Credit Applied; every notice opens with the agency's name | the sentence-case titles ("New invoice", "Invoice overdue") | **New (S30)** |
 | Platform staff actions on a plan and an invoice | End Subscription, Cancel Downgrade, Cancel Invoice (an invoice cancelled shows as Cancelled) | "End subscription", "Cancel downgrade", "Void" | **New (S30)** |
-| The platform's Organizations tab on a phone | Organizations, set a little smaller so the whole word fits; the page and menu name do not change | "Organizati...", "Orgs" | **New (S30)** |
+| The platform's Organizations tab on a phone | Organizations, shown whole (on a phone the tabs share the bar by what they hold); the page and menu name do not change | "Organizati...", "Orgs" | **New (S30)** |
 
 Every rename is also an approved change in `apps/web/src/lib/ccd/approved-changes.ts`, so the parity test knows it is intended. Tests that assert an old name (`navigation.test.ts`, `labels.test.ts` and others) change only the expected word, never their strength.
 

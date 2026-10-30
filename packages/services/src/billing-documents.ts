@@ -263,9 +263,13 @@ export function buildInvoiceDocument(facts: InvoiceDocumentFacts, now: Date): Bi
 
   const notes: string[] = [];
   if (facts.status === 'VOID') notes.push('This invoice was cancelled. There is nothing to pay.');
-  else if (wasRefunded)
-    notes.push('Money paid on this invoice was refunded. There is nothing to pay.');
-  else if (owed === 0) notes.push('This invoice is paid in full. Thank you.');
+  else if (wasRefunded) {
+    notes.push(
+      facts.collectedAmountMinorUnits > 0
+        ? 'Part of the money paid on this invoice was refunded. There is nothing more to pay on it.'
+        : 'The money paid on this invoice was refunded. There is nothing to pay.',
+    );
+  } else if (owed === 0) notes.push('This invoice is paid in full. Thank you.');
   else if (stamp.tone === 'overdue') {
     notes.push(
       `This invoice was due on ${formatBillingDate(facts.dueDate)}. Pay ${money(owed)} from Invoices in your VisaStack workspace, online or another way.`,

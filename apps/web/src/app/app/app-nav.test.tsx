@@ -208,7 +208,7 @@ describe('short words on the phone bar (UX-H)', () => {
         const name = link.getAttribute('aria-label') ?? '';
         expect(name.toLowerCase()).toContain(compact.toLowerCase());
         if (compact !== name) shortened.add(`${name} > ${compact}`);
-        // S30: a long label is set smaller so it fits whole instead of being cut.
+        // S30: a long label lets its bar share the width by content, so it shows whole.
         const long = link
           .querySelector('.app-link-compact')
           ?.classList.contains('app-link-compact-long');

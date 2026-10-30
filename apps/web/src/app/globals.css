@@ -10639,7 +10639,7 @@ summary.safe-copy-title {
 
 /* WP-S30 billing screens polish: the centred payment result, invoice due markers and document
    links, the Grace and Suspended notice, the plan change notice, a long phone tab label that
-   fits without being cut, and a compact agency header on a phone (Glance level, ADR 0023). */
+   takes the room it needs instead of being cut, and a compact agency header on a phone (Glance level, ADR 0023). */
 .payment-result-body {
   margin-inline: auto;
 }
@@ -10651,19 +10651,19 @@ summary.safe-copy-title {
 .payment-result .cta-row {
   margin-top: var(--space-5);
 }
-.invoice-badges {
+.billing-badges {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
 }
-.invoice-facts .invoice-due-danger {
+.billing-due-danger {
   color: var(--danger);
 }
-.invoice-facts .invoice-due-warning {
+.billing-due-warning {
   color: var(--warning);
 }
-.invoice-documents {
+.billing-documents {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
@@ -10690,9 +10690,8 @@ summary.safe-copy-title {
   margin: var(--space-3) 0 0;
 }
 @media (max-width: 1023px) {
-  .app-bar .app-link-compact-long {
-    font-size: 0.64rem;
-    letter-spacing: -0.02em;
+  .app-bar > .app-shell-links:has(.app-link-compact-long) {
+    grid-template-columns: repeat(var(--mobile-nav-count, 4), minmax(0, auto));
   }
 }
 @media (max-width: 640px) {

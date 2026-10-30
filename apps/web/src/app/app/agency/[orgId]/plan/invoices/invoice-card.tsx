@@ -89,7 +89,7 @@ export function InvoiceCard({
         <h3 id={headingId} className="invoice-ref">
           {invoice.invoiceRef}
         </h3>
-        <span className="invoice-badges">
+        <span className="billing-badges">
           <StatusBadge tone={INVOICE_STATE_TONES[invoice.state]}>
             {INVOICE_STATE_LABELS[invoice.state]}
           </StatusBadge>
@@ -130,7 +130,7 @@ export function InvoiceCard({
         {refunded ? null : (
           <div>
             <dt>Due</dt>
-            <dd className={due ? `invoice-due invoice-due-${due.tone}` : undefined}>
+            <dd className={due ? `billing-due-${due.tone}` : undefined}>
               {formatBillingDate(invoice.dueDate)}
             </dd>
           </div>
@@ -267,7 +267,7 @@ export function InvoiceCard({
         </section>
       ) : null}
 
-      <div className="invoice-documents">
+      <div className="billing-documents">
         <a
           className="btn btn-secondary"
           href={`/app/agency/${organizationId}/plan/invoices/${invoice.id}/pdf`}

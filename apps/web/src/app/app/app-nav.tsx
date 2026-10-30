@@ -64,8 +64,9 @@ const MOBILE_LABELS: Readonly<Record<string, string>> = {
 
 /**
  * The phone tab bar's label: the short one where there is one, otherwise the full name. A label
- * longer than ten letters ("Organizations") is set a little smaller so it fits whole rather than
- * being cut (S30); it stays the word the page uses, so the label is part of the link's name.
+ * longer than ten letters ("Organizations") marks its bar so the tabs share the width by what
+ * they hold, and the word shows whole rather than cut (S30). It stays the word the page uses, so
+ * the label is part of the link's name, and it keeps the 12px text floor.
  */
 function compactLabel(label: string): string {
   return MOBILE_LABELS[label] ?? label;
