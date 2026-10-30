@@ -6684,3 +6684,33 @@ Fixes from the max code review and the security and accessibility review of `4c4
   | em dash sweep against origin/main | 0 |
 
 - **Not verified.** A browser run; the SSLCOMMERZ sandbox (O6). Review helpers were not rerun in this round.
+
+### 2026-10-30, S19 step 0 round 4: narrower stranded rule, registry refund guard
+
+- **Fixes, `8ff3737e`:**
+  - **Stranded, narrowed.** Only a LIVE, REDIRECTED attempt within `LATE_SUCCESS_WINDOW_MS` whose provider is not configured blocks a new payment. TEST, EXPIRED and CREATED attempts never block, and the daily check still counts them.
+    - `hasStrandedAttempt` is one indexed probe (id only, `limit 1`).
+    - Check Status asks for it (`withStranded`); the page-load refresh runs no extra query.
+    - `listAgencyInvoices` takes the services' resolver (`payments`), and the Invoices page builds one resolver for both.
+  - **Registry refund guard.** A refund port needs the entry's `supportsRefunds` and `isRefundingPaymentPort`: an entry without `supportsRefunds` hands on a payments-only port. The admin refund panel's gateway list (`refundGatewayViews`, and so `servedBy`) has refunding providers only. Round 3's rule is kept: a configured provider that cannot refund gets "refund it another way", and `REFUND_PROVIDER_OFF` is only for a provider that is not configured.
+  - **Own provider first.** `requestRefund` and `retryRefund` check the payment's own provider before the "no refunding gateway" answer, so with SSLCOMMERZ off staff get `REFUND_PROVIDER_OFF`.
+- **Merge `ffa69d4e`.** origin/main `cd2e8153` (#351). Only known-issues conflicted: main's entry first, this branch's after it.
+- **Break-to-red.** 7 proofs, all red, each restored from a cp backup: TEST never blocks; EXPIRED never blocks; registry guard; admin view refunding only; own provider first; one resolver; opt-in.
+- **Verification on `ffa69d4e`.** All passed:
+
+  | Check | Result |
+  |---|---|
+  | lint | pass |
+  | typecheck (after `rm -rf apps/web/.next`) | pass |
+  | core | 188 |
+  | policy | 38 |
+  | db | 55, 1 skipped (existing) |
+  | adapters | 525, 2 skipped (existing) |
+  | services | 2755 |
+  | web | 3875 |
+  | build (3072 MB) | pass |
+  | audit high | pass |
+  | em dash sweep | 0 |
+
+  No timeouts; nothing was rerun.
+- **Not verified.** A browser run; the SSLCOMMERZ sandbox (O6).
