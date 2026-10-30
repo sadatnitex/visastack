@@ -729,6 +729,13 @@
       "when": 1793343810449,
       "tag": "0105_ai_suggestions",
       "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1793351243662,
+      "tag": "0106_ai_connection_documents",
+      "breakpoints": true
     }
   ]
 }
