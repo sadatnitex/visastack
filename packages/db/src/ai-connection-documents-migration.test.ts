@@ -75,7 +75,7 @@ describe('migration 0106: AI app original files', () => {
 
       const pick = (connection: string, document: string, variant: string) =>
         client.query(
-          `insert into ai_connection_documents (connection_id, document_id, variant) values ($1, $2, $3)`,
+          'insert into ai_connection_documents (connection_id, document_id, variant) values ($1, $2, $3)',
           [connection, document, variant],
         );
       await pick(mine.connection, mine.document, 'SAFE_COPY');
@@ -89,7 +89,7 @@ describe('migration 0106: AI app original files', () => {
       );
       await expect(
         client.query(
-          `update ai_connection_documents set document_id = $1 where connection_id = $2`,
+          'update ai_connection_documents set document_id = $1 where connection_id = $2',
           [theirs.document, mine.connection],
         ),
       ).rejects.toThrow(/only name documents of its own record/);

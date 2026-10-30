@@ -1,5 +1,5 @@
 import type { PermissionAction } from '@visastack/core';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { type Db, first, schema } from '../db';
 import { isMissingRelationError } from '../missing-relation';
 import { type StepUpAssuranceFields, verifyStepUpAssurance } from '../step-up';
@@ -151,6 +151,80 @@ export async function stepUpFromAiConnection(
       row.expiresAt?.getTime() ?? Number.POSITIVE_INFINITY,
     );
     return mint(row.accountId, 'EXPORT_PROFILE', row.applicantId, end);
+  } catch (error) {
+    if (isMissingRelationError(error)) return undefined;
+    throw error;
+  }
+}
+
+/**
+ * The standing identity check behind one document the owner ticked as an "Original" under
+ * "Original Files" for an AI connection (S20). The person confirmed who they are on the consent
+ * screen or in Change Access before an Original could be stored, and the stored choice is the
+ * authority from then on, exactly as for Full Document Numbers above.
+ *
+ * Nothing is taken on trust: the connection and the choice are read again here, and a proof is
+ * made only when the connection is live (activated, not turned off, not past its end), its account
+ * still owns the record, the document is on that record, and the document is stored as an
+ * Original for this connection right now. The proof covers exactly `DOWNLOAD_ORIGINAL` on that one
+ * document, for that owner, for one minute (never past the connection's own end). Only the AI gate
+ * (`with-ai-connection.ts`) may call this; a guard test fails on any other caller.
+ */
+export async function stepUpForAiOriginalFile(
+  tx: Db,
+  connectionId: string,
+  documentId: string,
+): Promise<StepUpProof | undefined> {
+  // Always the real time, as in the access gate: a caller-chosen clock could revive an ended connection.
+  const now = Date.now();
+  try {
+    const row = first(
+      await tx
+        .select({
+          accountId: schema.aiConnections.accountId,
+          activatedAt: schema.aiConnections.activatedAt,
+          revokedAt: schema.aiConnections.revokedAt,
+          expiresAt: schema.aiConnections.expiresAt,
+          ownerAccountId: schema.applicants.ownerAccountId,
+          variant: schema.aiConnectionDocuments.variant,
+          documentId: schema.documents.id,
+        })
+        .from(schema.aiConnectionDocuments)
+        .innerJoin(
+          schema.aiConnections,
+          eq(schema.aiConnections.id, schema.aiConnectionDocuments.connectionId),
+        )
+        .innerJoin(schema.applicants, eq(schema.applicants.id, schema.aiConnections.applicantId))
+        .innerJoin(
+          schema.documents,
+          and(
+            eq(schema.documents.id, schema.aiConnectionDocuments.documentId),
+            eq(schema.documents.applicantId, schema.aiConnections.applicantId),
+          ),
+        )
+        .where(
+          and(
+            eq(schema.aiConnectionDocuments.connectionId, connectionId),
+            eq(schema.aiConnectionDocuments.documentId, documentId),
+          ),
+        )
+        .limit(1),
+    );
+    if (
+      !row ||
+      row.variant !== 'ORIGINAL' ||
+      !row.activatedAt ||
+      row.revokedAt ||
+      row.ownerAccountId !== row.accountId ||
+      (row.expiresAt !== null && row.expiresAt.getTime() <= now)
+    ) {
+      return undefined;
+    }
+    const end = Math.min(
+      now + AI_CONNECTION_PROOF_MS,
+      row.expiresAt?.getTime() ?? Number.POSITIVE_INFINITY,
+    );
+    return mint(row.accountId, 'DOWNLOAD_ORIGINAL', row.documentId, end);
   } catch (error) {
     if (isMissingRelationError(error)) return undefined;
     throw error;

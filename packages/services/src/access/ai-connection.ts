@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
 import { and, eq, isNull, sql } from 'drizzle-orm';
+import { storeAiConnectionFiles } from '../ai-connection-files';
 import {
   AI_CONNECTION_LAYERS,
   type AiConnectionChoices,
@@ -263,6 +264,15 @@ export async function createAiConnection(
   if (choices.caseMode === 'ONE' && !choices.missionId) {
     return err(oauthError('invalid_request', 'choose the case to connect'));
   }
+  // An Original under "Original Files" (S20) needs the same fresh identity check for this record.
+  const recordStepUp = StepUpProof.covers(input.stepUp, {
+    accountId: proof.applicant.ownerAccountId ?? '',
+    action: 'EXPORT_PROFILE',
+    resourceId: proof.applicant.id,
+  });
+  if (choices.files?.some((file) => file.variant === 'ORIGINAL') && !recordStepUp) {
+    return err(oauthError('access_denied', 'original files need a fresh identity check'));
+  }
   const now = input.now ?? new Date();
   const tx = proof.tx;
   const ownerAccountId = proof.applicant.ownerAccountId;
@@ -313,6 +323,23 @@ export async function createAiConnection(
       ),
       'ai connection',
     );
+    // "Original Files" (S20) only while AI App Original Files works for this person, and only for
+    // this record's own documents that may be given at all; anything else is dropped.
+    const filesOn =
+      (choices.files?.length ?? 0) > 0 &&
+      (await getAiFeatureState(tx, 'ai_app_original_files', { proof })).available;
+    const files = filesOn
+      ? await storeAiConnectionFiles(proof, tx, {
+          connectionId: connection.id,
+          files: choices.files,
+          documentList: choices.documentList,
+          featureAvailable: true,
+          stepUpSatisfied: recordStepUp,
+        })
+      : null;
+    if (files && !files.ok) {
+      throw new Error('ai connection files could not be stored after their checks passed');
+    }
     const code = await insertToken(tx, {
       connectionId: connection.id,
       kind: 'CODE',
@@ -337,6 +364,10 @@ export async function createAiConnection(
         caseMode: choices.caseMode,
         revealIdentifiers: choices.revealIdentifiers,
         duration: choices.duration,
+        // Counts only, never which documents (S20).
+        ...(files?.ok && files.value.files > 0
+          ? { files: files.value.files, originalFiles: files.value.originals }
+          : {}),
       },
     });
     return ok({ connectionId: connection.id, code });

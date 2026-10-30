@@ -9,13 +9,22 @@ import {
 
 describe('the AI feature registry', () => {
   it('registers AI App Suggestions, off until the platform owner turns it on, 15 a day', () => {
-    expect(AI_FEATURE_KEYS).toEqual(['ai_app_suggestions']);
+    expect(AI_FEATURE_KEYS).toEqual(['ai_app_suggestions', 'ai_app_original_files']);
     expect(AI_FEATURES.ai_app_suggestions).toMatchObject({
       name: 'AI App Suggestions',
       defaultEnabled: false,
       defaultDailyLimit: 15,
     });
     expect(AI_PLAN_TIERS.FREE.ai_app_suggestions).toEqual({ included: true, dailyLimit: 15 });
+  });
+
+  it('registers AI App Original Files (S20), off until the platform owner turns it on, 30 a day', () => {
+    expect(AI_FEATURES.ai_app_original_files).toMatchObject({
+      name: 'AI App Original Files',
+      defaultEnabled: false,
+      defaultDailyLimit: 30,
+    });
+    expect(AI_PLAN_TIERS.FREE.ai_app_original_files).toEqual({ included: true, dailyLimit: 30 });
   });
 
   it('gives every feature a Title Case name, one sentence and a place in every plan', () => {

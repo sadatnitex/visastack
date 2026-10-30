@@ -597,6 +597,8 @@ describe('access gate enforcement ratchet', () => {
       );
     }
     expect(analysis.ownedTableNames.has('accounts')).toBe(false);
+    // S20: the ticked documents of an AI connection are applicant-owned through document_id.
+    expect(analysis.ownedTableNames.has('aiConnectionDocuments')).toBe(true);
     expect(analysis.exportedFunctionIds.has('access/require-access#requireAccess')).toBe(true);
     expect(analysis.violations.has('access/require-access#requireAccess')).toBe(false);
 

@@ -1586,7 +1586,9 @@ export interface ProducedSafeCopy {
  */
 export async function produceSafeCopy(
   proof: AuthorizedApplicant<'DOWNLOAD_REDACTED'>,
-  deps: RedactionDeps,
+  deps: Pick<RedactionDeps, 'storage' | 'renderer'>,
+  /** The purpose the DOCUMENT_ACCESS events record, when not a download (S20: an AI app). */
+  options: { readonly purposes?: DocumentPurposes } = {},
 ): Promise<Result<ProducedSafeCopy, SafeCopyError>> {
   if (!AuthorizedApplicant.isGenuine(proof, 'DOWNLOAD_REDACTED')) {
     return err(serviceError('forbidden', 'access denied'));
@@ -1603,7 +1605,12 @@ export async function produceSafeCopy(
     reason: string,
     refusal: SafeCopyRefusal,
   ): Promise<Result<never, SafeCopyError>> => {
-    await audit(proof, document, { allowed: false, reason, metadata: requested });
+    await audit(proof, document, {
+      allowed: false,
+      reason,
+      metadata: requested,
+      ...(options.purposes ? { purposes: options.purposes } : {}),
+    });
     return err(refusalError(refusal));
   };
 
@@ -1670,6 +1677,7 @@ export async function produceSafeCopy(
       boxCount,
       outputType: made.contentType === 'application/pdf' ? 'pdf' : 'png',
     },
+    ...(options.purposes ? { purposes: options.purposes } : {}),
   });
   return ok({
     bytes: made.bytes,

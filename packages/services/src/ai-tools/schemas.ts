@@ -201,3 +201,15 @@ export const reminderOutputSchema = z.looseObject({
   guidance: z.string(),
   notice: noticeField,
 });
+
+/** `get_document_file` (S20): facts about the file given; the file itself is the embedded resource. */
+export const documentFileOutputSchema = z.looseObject({
+  referenceCode: z.string(),
+  kind: z.string(),
+  variant: z.enum(['safe_copy', 'original']),
+  mimeType: z.enum(['application/pdf', 'image/png', 'image/jpeg']),
+  sizeBytes: z.number(),
+  filename: z.string(),
+  untrusted: z.literal(true),
+  guidance: z.string(),
+});

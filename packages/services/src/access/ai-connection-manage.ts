@@ -1,5 +1,6 @@
 import { type Result, err, ok } from '@visastack/core';
 import { and, count, desc, eq, gt, gte, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
+import { storeAiConnectionFiles } from '../ai-connection-files';
 import {
   type AiCaseMode,
   type AiConnectionChoices,
@@ -402,6 +403,28 @@ export async function changeAiConnection(
         (hadSuggestions ||
           (await getAiFeatureState(tx, 'ai_app_suggestions', { proof })).available);
       const scopes = scopesFromChoices({ ...choices, suggestChanges });
+      // "Original Files" (S20), before anything is written: a new Original needs the same fresh
+      // identity check as Full Document Numbers, and refuses without changing anything. While AI
+      // App Original Files is off, ticked documents can be kept or unticked, never added.
+      const files = await storeAiConnectionFiles(proof, tx, {
+        connectionId: connection.id,
+        files: choices.files,
+        documentList: choices.documentList,
+        featureAvailable: (await getAiFeatureState(tx, 'ai_app_original_files', { proof }))
+          .available,
+        stepUpSatisfied: StepUpProof.covers(input.stepUp, {
+          accountId: owner.accountId,
+          action: 'EXPORT_PROFILE',
+          resourceId: owner.applicantId,
+        }),
+      });
+      if (!files.ok) {
+        return err(
+          files.error === 'step_up_required'
+            ? ({ code: 'step_up_required' } as const)
+            : ({ code: 'not_owner' } as const),
+        );
+      }
       const expiresAt =
         choices.duration === 'keep'
           ? connection.expiresAt
@@ -430,6 +453,10 @@ export async function changeAiConnection(
           caseMode: choices.caseMode,
           revealIdentifiers: choices.revealIdentifiers,
           duration: choices.duration,
+          // Counts only, never which documents (S20).
+          ...(files.value.files > 0
+            ? { files: files.value.files, originalFiles: files.value.originals }
+            : {}),
         },
       });
       return ok({ expiresAt });

@@ -115,6 +115,10 @@ export const RATE_LIMITS = {
   // feature's daily limit (packages/services/src/ai-feature-settings.ts), never more than these.
   AI_WRITE_CONNECTION_DAY: { limit: 15, windowMs: 24 * HOUR_MS },
   AI_WRITE_ACCOUNT_DAY: { limit: 15, windowMs: 24 * HOUR_MS },
+  // Files an AI app receives through "Original Files" (S20, ADR 0021 amendment): 30 a day per
+  // person across all their apps, counted only when a file is actually given. This is the window
+  // and the FREE tier's number; the limit that applies on a call is the AI feature's daily limit.
+  AI_FILE_ACCOUNT_DAY: { limit: 30, windowMs: 24 * HOUR_MS },
   // Failed sign-ins at the AI context address, per network address, charged only when a token is
   // refused. Claude and ChatGPT share a few cloud addresses, so this sits far above an expired
   // token being retried, and far below guessing.

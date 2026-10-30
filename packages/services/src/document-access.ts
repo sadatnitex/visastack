@@ -1,10 +1,12 @@
-import type { PermissionAction } from '@visastack/core';
+import { createHash } from 'node:crypto';
+import { type PermissionAction, type Result, err, ok } from '@visastack/core';
 import { desc, eq } from 'drizzle-orm';
-import { type AuthorizedApplicant, EACH_GRANT } from './access/require-access';
+import { AuthorizedApplicant, EACH_GRANT } from './access/require-access';
 import { appendAuditEvent } from './audit';
 import { first, schema } from './db';
 import { isDocumentVersionUsable } from './documents';
 import { hasActiveOrVerifiedErasureJob } from './erasure';
+import type { StoredBytes } from './storage';
 
 /**
  * Shared steps for the services that make something from one document on request, through a
@@ -139,4 +141,125 @@ export async function latestUsableVersion(proof: DocumentProof): Promise<LatestU
   return usable
     ? { kind: 'usable', version }
     : { kind: 'refused', reason: 'not_yet_safe_to_serve' };
+}
+
+// --- The original file, read whole for an AI app (S20) -----------------------------------------
+
+/** The file types an original is given as: what the uploader accepts as images and PDFs. */
+const ORIGINAL_FILE_TYPES = ['application/pdf', 'image/png', 'image/jpeg'] as const;
+export type OriginalFileType = (typeof ORIGINAL_FILE_TYPES)[number];
+
+/** The first bytes each type must start with, so a mislabelled file is never passed on as one. */
+const SIGNATURES: Readonly<Record<OriginalFileType, readonly number[]>> = {
+  'application/pdf': [0x25, 0x50, 0x44, 0x46],
+  'image/png': [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+  'image/jpeg': [0xff, 0xd8, 0xff],
+};
+
+function isOriginalFileType(value: string): value is OriginalFileType {
+  return (ORIGINAL_FILE_TYPES as readonly string[]).includes(value);
+}
+
+function startsWith(bytes: Uint8Array, signature: readonly number[]): boolean {
+  return signature.every((byte, index) => bytes[index] === byte);
+}
+
+export interface OriginalDocumentFile {
+  readonly bytes: Uint8Array;
+  readonly contentType: OriginalFileType;
+  readonly sizeBytes: number;
+}
+
+/**
+ * Why an original was not given: its latest version is not safe to use yet (`not_ready`), it is
+ * larger than the caller's limit (`too_large`, refused before a byte is read when its size is
+ * recorded), it is not a PDF, PNG or JPEG (`unsupported`), or what was read is missing or does not
+ * match what was stored (`unreadable`).
+ */
+export type OriginalFileRefusal = 'not_ready' | 'too_large' | 'unsupported' | 'unreadable';
+
+/** The purpose a DOCUMENT_ACCESS event records for an original given to an AI app. */
+const AI_ORIGINAL_PURPOSES: DocumentPurposes = Object.freeze({
+  owner: 'ai_connection_original',
+  shared: 'ai_connection_original',
+});
+
+/**
+ * The bytes of the proof's document's latest usable version, for an AI app the owner allowed to
+ * receive the Original (S20). Needs a genuine `DOWNLOAD_ORIGINAL` proof for the owner, which the
+ * access gate gives only with a fresh identity check. Never an older version, never a file whose
+ * scan is not clean, never more than `maxBytes`, and only a PDF, PNG or JPEG whose bytes match
+ * its stored hash and its type. One DOCUMENT_ACCESS event either way, with the outcome, the type
+ * and the size only: never the bytes, the file name, the hash or the storage key.
+ */
+export async function readOriginalDocumentFile(
+  proof: AuthorizedApplicant<'DOWNLOAD_ORIGINAL'>,
+  deps: { readonly storage: { getObject(objectKey: string): Promise<StoredBytes | undefined> } },
+  maxBytes: number,
+): Promise<Result<OriginalDocumentFile, OriginalFileRefusal>> {
+  if (
+    !AuthorizedApplicant.isGenuine(proof, 'DOWNLOAD_ORIGINAL') ||
+    proof.actor.kind !== 'applicant_owner' ||
+    proof.resource.kind !== 'document' ||
+    proof.resource.document.applicantId !== proof.applicant.id
+  ) {
+    return err('unreadable');
+  }
+  const document = proof.resource.document;
+  const requested = { variant: 'original', disposition: 'ai_file' };
+  const refuse = async (
+    reason: string,
+    refusal: OriginalFileRefusal,
+  ): Promise<Result<never, OriginalFileRefusal>> => {
+    await writeDocumentAccessAudit(proof, {
+      documentId: document.id,
+      applicantId: document.applicantId,
+      allowed: false,
+      reason,
+      metadata: requested,
+      purposes: AI_ORIGINAL_PURPOSES,
+    });
+    return err(refusal);
+  };
+  const latest = await latestUsableVersion(proof);
+  if (latest.kind !== 'usable') return refuse(latest.reason, 'not_ready');
+  const version = latest.version;
+  const storageObject = first(
+    await proof.tx
+      .select()
+      .from(schema.storageObjects)
+      .where(eq(schema.storageObjects.id, version.storageObjectId))
+      .limit(1),
+  );
+  if (!storageObject) return refuse('stored_object_missing', 'unreadable');
+  // Refused unread when the recorded size is already too large.
+  if (
+    (version.sizeBytes !== null && version.sizeBytes > maxBytes) ||
+    (storageObject.sizeBytes !== null && storageObject.sizeBytes > maxBytes)
+  ) {
+    return refuse('too_large', 'too_large');
+  }
+  const stored = await deps.storage.getObject(storageObject.objectKey);
+  if (!stored) return refuse('stored_object_missing', 'unreadable');
+  if (stored.bytes.byteLength > maxBytes) return refuse('too_large', 'too_large');
+  const hash = createHash('sha256').update(stored.bytes).digest('hex');
+  const expected = version.sha256 ?? storageObject.contentHash;
+  if (expected !== null && expected !== hash) return refuse('hash_mismatch', 'unreadable');
+  const contentType = stored.contentType.split(';')[0]?.trim().toLowerCase() ?? '';
+  if (!isOriginalFileType(contentType) || !startsWith(stored.bytes, SIGNATURES[contentType])) {
+    return refuse('unsupported_type', 'unsupported');
+  }
+  await writeDocumentAccessAudit(proof, {
+    documentId: document.id,
+    applicantId: document.applicantId,
+    allowed: true,
+    reason: null,
+    metadata: {
+      ...requested,
+      outputType: contentType === 'application/pdf' ? 'pdf' : contentType.slice('image/'.length),
+      sizeBytes: stored.bytes.byteLength,
+    },
+    purposes: AI_ORIGINAL_PURPOSES,
+  });
+  return ok({ bytes: stored.bytes, contentType, sizeBytes: stored.bytes.byteLength });
 }

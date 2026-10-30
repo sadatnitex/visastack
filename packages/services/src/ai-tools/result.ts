@@ -2,10 +2,15 @@ import type { z } from 'zod';
 import type {
   AiCallRecord,
   AiContextGateway,
+  AiFileGateway,
   AiWriteFailure,
   AiWriteGateway,
 } from '../access/with-ai-connection';
-import type { AiKnownToolName, AiSuggestionToolName } from '../ai-connection-scopes';
+import type {
+  AiFileToolName,
+  AiKnownToolName,
+  AiSuggestionToolName,
+} from '../ai-connection-scopes';
 
 /**
  * How every AI tool answers (ADR 0021 sections 6 and 7): plain refusals as tool results, never an
@@ -13,13 +18,39 @@ import type { AiKnownToolName, AiSuggestionToolName } from '../ai-connection-sco
  * answer, met by leaving whole entries out (or shortening one long text), never by cutting JSON.
  */
 
+/** A short text in an answer. */
+export interface AiTextContent {
+  readonly type: 'text';
+  readonly text: string;
+}
+
+/**
+ * A file in an answer (S20, `get_document_file` only): an MCP embedded resource carrying the file
+ * itself as base64, with its type. The address names the document and how it was given; it opens
+ * nothing (the server offers no resources), and it is never a web address or a storage key.
+ */
+export interface AiFileContent {
+  readonly type: 'resource';
+  readonly text?: undefined;
+  readonly resource: {
+    readonly uri: string;
+    readonly mimeType: string;
+    readonly blob: string;
+  };
+}
+
 /** The answer to one tool call, as MCP `tools/call` returns it. No SDK types: it is plain data. */
 export interface AiToolResult {
-  readonly content: readonly { readonly type: 'text'; readonly text: string }[];
+  readonly content: readonly (AiTextContent | AiFileContent)[];
   readonly structuredContent?: Readonly<Record<string, unknown>>;
   readonly isError?: true;
   /** Index signature the MCP SDK's result type requires. */
   readonly [key: string]: unknown;
+}
+
+/** An answer made of text only: every tool's answer except a file given by `get_document_file`. */
+export interface AiTextToolResult extends AiToolResult {
+  readonly content: readonly AiTextContent[];
 }
 
 /** Every tool reads, never changes anything, gives the same answer to the same question, and reaches nothing outside VisaStack. */
@@ -85,10 +116,27 @@ export const MESSAGES = {
     'That document is not one this AI app can see. Use list_documents to see the documents and their references.',
   noCases:
     'Cases are not open to this AI app. The person can change this in VisaStack under Sharing, AI Connections.',
+  // The file tool (S20).
+  filesOff:
+    'This AI app cannot receive files. The person can turn on List of My Documents and tick documents under Original Files in VisaStack under Sharing, AI Connections.',
+  fileNotChosen:
+    'That document is not one the person chose to give this AI app as a file. Use list_documents to see references; the person can tick documents under Original Files in VisaStack under Sharing, AI Connections.',
+  fileProtected:
+    'Passports, identity, money and health documents are protected and are never given to AI apps as files.',
+  safeCopyNotReady:
+    'The Safe Copy of this document is not ready. The original is not shared instead. The person can prepare a Safe Copy on the document’s page in VisaStack.',
+  fileNotReady:
+    'This file cannot be given yet. It may still be being checked for safety. Try again later.',
+  fileTooLarge: 'This file is too large to give to an AI app. The limit is 3 MB.',
+  fileTypeUnsupported: 'Only PDF, PNG and JPEG files can be given to an AI app.',
+  fileLimit:
+    'The person has reached today’s limit of files for AI apps. Nothing was given. Try again tomorrow.',
+  filesNotAvailable: 'Files for AI apps are not available in VisaStack yet.',
+  fileFeatureOff: 'This AI feature is turned off right now. Everything else works as usual.',
 } as const;
 
 /** The plain answer to a suggestion, draft or reminder that was not saved. */
-export function writeRefusal(reason: AiWriteFailure): AiToolResult {
+export function writeRefusal(reason: AiWriteFailure): AiTextToolResult {
   switch (reason) {
     case 'suggestions_not_granted':
       return refusal(MESSAGES.suggestionsOff);
@@ -122,7 +170,7 @@ export function writeRefusal(reason: AiWriteFailure): AiToolResult {
   }
 }
 
-export function refusal(message: string): AiToolResult {
+export function refusal(message: string): AiTextToolResult {
   return { content: [{ type: 'text', text: message }], isError: true };
 }
 
@@ -130,7 +178,7 @@ function bytes(value: unknown): number {
   return Buffer.byteLength(JSON.stringify(value), 'utf8');
 }
 
-function build(summary: string, structured: Record<string, unknown>): AiToolResult {
+function build(summary: string, structured: Record<string, unknown>): AiTextToolResult {
   // The structured answer is also sent as text, as the protocol recommends for apps that only read text.
   return {
     content: [{ type: 'text', text: `${summary}\n\n${JSON.stringify(structured)}` }],
@@ -216,7 +264,7 @@ export function answer(
   summary: string,
   structured: Record<string, unknown>,
   limit: number = AI_RESPONSE_LIMIT_BYTES,
-): AiToolResult {
+): AiTextToolResult {
   const budget = limit - ENVELOPE_BYTES;
   const whole = build(summary, structured);
   if (bytes(whole) <= budget) return whole;
@@ -270,8 +318,26 @@ export interface AiSuggestionToolDefinition<Input extends z.ZodObject = z.ZodObj
   run(gateway: AiWriteGateway, input: z.infer<Input>): Promise<AiToolResult>;
 }
 
-/** Any tool the server lists: one of the five read tools or one of the three suggestion tools. */
-export type AnyAiToolDefinition = AiToolDefinition | AiSuggestionToolDefinition;
+/**
+ * The file tool (S20): read-only, with the file gateway, which gives the file of one document the
+ * person ticked under "Original Files" and nothing else.
+ */
+export interface AiFileToolDefinition<Input extends z.ZodObject = z.ZodObject> {
+  readonly name: AiFileToolName;
+  readonly kind: 'file';
+  readonly title: string;
+  readonly description: string;
+  readonly inputSchema: Input;
+  readonly outputSchema: z.ZodObject;
+  readonly annotations: typeof READ_ONLY_ANNOTATIONS;
+  run(gateway: AiFileGateway, input: z.infer<Input>): Promise<AiToolResult>;
+}
+
+/** Any tool the server lists: a read tool, the file tool or one of the three suggestion tools. */
+export type AnyAiToolDefinition =
+  | AiToolDefinition
+  | AiFileToolDefinition
+  | AiSuggestionToolDefinition;
 
 function listLength(holder: unknown, key: string): number {
   if (typeof holder !== 'object' || holder === null) return 0;
@@ -286,7 +352,8 @@ function listLength(holder: unknown, key: string): number {
  */
 export function describeResult(result: AiToolResult): AiCallRecord {
   if (result.isError) {
-    const text = result.content[0]?.text;
+    const first = result.content[0];
+    const text = first?.type === 'text' ? first.text : undefined;
     return { kind: 'denied', reason: text === MESSAGES.tooLarge ? 'too_large' : 'failed' };
   }
   const body = result.structuredContent ?? {};

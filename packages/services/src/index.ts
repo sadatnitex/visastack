@@ -1998,3 +1998,27 @@ export {
   type RefundingPaymentPort,
   isRefundingPaymentPort,
 } from './ports';
+// S20: AI connector original files ("Original Files", ADR 0021 amendment).
+export {
+  AI_FILE_CHOICES_MAX,
+  AI_FILE_DEFAULT_VARIANT,
+  AI_FILE_TOOL_NAMES,
+  AI_FILE_VARIANTS,
+  type AiFileChoice,
+  type AiFileVariant,
+  isAiFileVariant,
+} from './ai-connection-scopes';
+export {
+  type AiFileCandidate,
+  type AiFileCandidates,
+  aiFilesAvailable,
+  listAiConnectionFiles,
+  listAiFileCandidates,
+} from './ai-connection-files';
+export {
+  AI_FILE_RESPONSE_LIMIT_BYTES,
+  type AiFileDeps,
+  type AiFileFailure,
+  type AiFileGateway,
+  type AiServedFile,
+} from './access/with-ai-connection';
