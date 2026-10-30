@@ -19,8 +19,12 @@ import { AiConnectionsCard, type AiConnectionsCardProps } from '../ai-settings/a
 import { DataTermsPanel, TermsRows } from '../ai-settings/data-terms';
 import {
   ActivateConfigButton,
+  type ConfigFormView,
   CreateDraftConfigForm,
+  DeleteDraftButton,
+  EditConfigForm,
   EmergencyDisableButton,
+  type FallbackOption,
   RecordTermsForm,
   RevokeKeyButton,
   RollbackConfigButton,
@@ -36,6 +40,41 @@ const STATUS_BADGE: Record<AiProviderConfig['status'], { label: string; tone: st
 };
 
 export type AiProviderSettingsData = Awaited<ReturnType<typeof loadAiProviderSettings>>;
+
+/**
+ * What the settings forms may see of a configuration: its settings, never its key material.
+ * `fallbackFor` holds the ids that a version which has run falls back to; those drafts are
+ * copied rather than edited (the service refuses the edit too).
+ */
+function toConfigFormView(
+  config: AiProviderConfig,
+  fallbackFor: ReadonlySet<string>,
+): ConfigFormView {
+  return {
+    id: config.id,
+    status: config.status,
+    provider: config.provider,
+    model: config.model,
+    reasoningEffort: config.reasoningEffort,
+    dataPolicyApproved: config.dataPolicyApproved,
+    budgetUsd: unitsToUsd(config.budgetLimitUnits),
+    perDocumentBudgetUsd:
+      config.perDocumentBudgetLimitUnits === null
+        ? null
+        : unitsToUsd(config.perDocumentBudgetLimitUnits),
+    maxAttemptsPerDocument: config.maxAttemptsPerDocument,
+    maxPagesPerDocument: config.maxPagesPerDocument,
+    cacheMaxAgeDays: config.cacheMaxAgeDays,
+    maxConcurrentCalls: config.maxConcurrentCalls,
+    fallbackEnabled: config.fallbackEnabled,
+    fallbackProviderConfigId: config.fallbackProviderConfigId,
+    notes: config.notes,
+    apiKeyFingerprint: config.apiKeyFingerprint,
+    keyRevoked: config.keyRevokedAt !== null,
+    editableInPlace:
+      config.status === 'DRAFT' && config.keyRevokedAt === null && !fallbackFor.has(config.id),
+  };
+}
 
 /**
  * What the AI Providers, Data Terms and AI Apps sections show (merged into the one AI area by S28
@@ -101,11 +140,30 @@ function ProviderActions({ data }: { readonly data: AiProviderSettingsData }) {
   );
 }
 
+/** The settings each form may see, and the versions a fallback may point at (#348). */
+function providerForms(data: AiProviderSettingsData) {
+  const fallbackFor = new Set(
+    data.history
+      .filter((c) => c.status !== 'DRAFT' && c.fallbackEnabled && c.fallbackProviderConfigId)
+      .map((c) => c.fallbackProviderConfigId as string),
+  );
+  const formViews = data.history.map((config) => toConfigFormView(config, fallbackFor));
+  const fallbackOptions: FallbackOption[] = data.history.map(({ id, status, provider, model }) => ({
+    id,
+    status,
+    provider,
+    model,
+  }));
+  return { formViews, fallbackOptions };
+}
+
 /**
  * AI Providers: configure, activate and roll back the provider that reads documents (Part 8
- * section 5). Every version is a permanent snapshot, never edited in place.
+ * section 5). A draft can be edited or deleted until it is activated; after that each version
+ * stays in the history as it ran, and Edit as New Draft copies it (#348).
  */
 export function AiProvidersSection({ data }: { readonly data: AiProviderSettingsData }) {
+  const { formViews, fallbackOptions } = providerForms(data);
   return (
     <section className="u-mt-150" id="ai-providers" aria-labelledby="ai-providers-title">
       <div className="toolbar">
@@ -114,6 +172,11 @@ export function AiProvidersSection({ data }: { readonly data: AiProviderSettings
         </h2>
         <ProviderActions data={data} />
       </div>
+      <p className="card-body u-mb-100">
+        Configure, activate and roll back the AI provider that reads documents. A draft can be
+        edited or deleted until it is activated. After that, each version stays in the history as it
+        ran; Edit as New Draft copies it.
+      </p>
       {!data.hasAny ? (
         <div className="notice u-mb-150">
           No AI provider has been set up here yet. Reading with AI runs on the deployment’s own
@@ -136,13 +199,15 @@ export function AiProvidersSection({ data }: { readonly data: AiProviderSettings
           The API key is write-only: it is encrypted immediately and never shown again, only a
           masked fingerprint.
         </p>
-        <CreateDraftConfigForm existingConfigs={data.history} />
+        <CreateDraftConfigForm fallbackOptions={fallbackOptions} />
       </article>
 
       {data.history.length > 0 ? (
         <div className="field-list">
-          {data.history.map((config) => {
+          {data.history.map((config, index) => {
             const badge = STATUS_BADGE[config.status];
+            const formView = formViews[index];
+            const isDraft = config.status === 'DRAFT';
             const canActivate =
               config.status === 'DRAFT' &&
               config.dataPolicyApproved &&
@@ -160,6 +225,7 @@ export function AiProvidersSection({ data }: { readonly data: AiProviderSettings
             // -- the platform's own single-winner invariant means it is
             // necessarily some other status), so this looks it up by id
             // across the FULL history list, not just active/eligible rows.
+            const configName = `${config.provider} / ${config.model}`;
             const fallbackTarget = config.fallbackEnabled
               ? data.history.find((c) => c.id === config.fallbackProviderConfigId)
               : undefined;
@@ -256,16 +322,38 @@ export function AiProvidersSection({ data }: { readonly data: AiProviderSettings
                     <span className="muted u-fs-085">{formatTimestamp(config.createdAt)}</span>
                   </div>
                 </div>
-                {canTest || canEvaluate || canActivate || canRevoke ? (
+                {canTest || canEvaluate || canActivate || canRevoke || isDraft ? (
                   <div className="page-actions u-mt-100">
-                    {canTest ? <TestConnectionButton configId={config.id} /> : null}
-                    {canEvaluate ? <RunEvaluationButton configId={config.id} /> : null}
-                    {canActivate ? <ActivateConfigButton configId={config.id} /> : null}
-                    {canRevoke ? <RevokeKeyButton configId={config.id} /> : null}
+                    {canTest ? (
+                      <TestConnectionButton configId={config.id} configName={configName} />
+                    ) : null}
+                    {canEvaluate ? (
+                      <RunEvaluationButton configId={config.id} configName={configName} />
+                    ) : null}
+                    {canActivate ? (
+                      <ActivateConfigButton configId={config.id} configName={configName} />
+                    ) : null}
+                    {canRevoke ? (
+                      <RevokeKeyButton configId={config.id} configName={configName} />
+                    ) : null}
+                    {isDraft ? (
+                      <DeleteDraftButton configId={config.id} configName={configName} />
+                    ) : null}
                   </div>
                 ) : null}
+                {formView ? (
+                  <details className="u-mt-100">
+                    <summary className="muted">
+                      {formView.editableInPlace ? 'Edit' : 'Edit as New Draft'}
+                      <span className="sr-only"> {configName}</span>
+                    </summary>
+                    <EditConfigForm config={formView} fallbackOptions={fallbackOptions} />
+                  </details>
+                ) : null}
                 <details className="u-mt-100">
-                  <summary className="muted">Record Data Terms</summary>
+                  <summary className="muted">
+                    Record Data Terms<span className="sr-only"> for {configName}</span>
+                  </summary>
                   <RecordTermsForm configId={config.id} />
                 </details>
               </article>

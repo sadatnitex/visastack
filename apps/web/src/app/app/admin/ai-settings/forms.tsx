@@ -8,6 +8,7 @@ import {
   type ActionState,
   activateAiProviderConfigAction,
   createDraftAiProviderConfigAction,
+  deleteDraftAiProviderConfigAction,
   emergencyDisableAiProviderConfigAction,
   recordAiProviderTermsAction,
   revokeAiProviderConfigKeyAction,
@@ -15,6 +16,7 @@ import {
   runAiProviderConfigEvaluationAction,
   setAiDataRuleAction,
   testAiProviderConfigAction,
+  updateDraftAiProviderConfigAction,
 } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -40,10 +42,56 @@ const REASONING_EFFORT_OPTIONS = [
   { value: 'high', label: 'High' },
 ] as const;
 
+/** What a settings form may know about one saved configuration: never its key material. */
+export interface ConfigFormView {
+  readonly id: string;
+  readonly status: AiProviderConfig['status'];
+  readonly provider: string;
+  readonly model: string;
+  readonly reasoningEffort: string | null;
+  readonly dataPolicyApproved: boolean;
+  readonly budgetUsd: number;
+  readonly perDocumentBudgetUsd: number | null;
+  readonly maxAttemptsPerDocument: number | null;
+  readonly maxPagesPerDocument: number | null;
+  readonly cacheMaxAgeDays: number | null;
+  readonly maxConcurrentCalls: number | null;
+  readonly fallbackEnabled: boolean;
+  readonly fallbackProviderConfigId: string | null;
+  readonly notes: string | null;
+  readonly apiKeyFingerprint: string;
+  readonly keyRevoked: boolean;
+  /**
+   * False for anything but a draft that may still change: an activated version, a draft whose
+   * key was revoked, or a draft another version that has run falls back to. Those are copied
+   * into a new draft instead.
+   */
+  readonly editableInPlace: boolean;
+}
+
+/** One entry of the fallback list: only what the option shows. */
+export interface FallbackOption {
+  readonly id: string;
+  readonly status: AiProviderConfig['status'];
+  readonly provider: string;
+  readonly model: string;
+}
+
+/** How the key field behaves: a new draft needs one; an edit or a copy may keep the saved one. */
+type KeyMode = 'required' | 'keep' | 'copy';
+
+const KEY_PLACEHOLDER: Record<KeyMode, string> = {
+  required: 'Write-only -- never shown again after saving',
+  keep: 'Leave blank to keep the saved key',
+  copy: 'Leave blank to reuse the saved key',
+};
+
 /**
- * Save a new DRAFT configuration. Has no effect on live traffic until activated.
+ * Every setting of a configuration except the provider, shared by the create, edit and "edit as
+ * new draft" forms. `config` prefills the fields; `idPrefix` keeps ids unique when several forms
+ * are on the page.
  *
- * `existingConfigs` populates the fallback dropdown (Part 8 §13) -- every
+ * `fallbackOptions` populates the fallback dropdown (Part 8 §13) -- every
  * configuration ever created, any status, since a fallback target need not
  * be ACTIVE (it commonly is not: the platform's own single-winner ACTIVE
  * invariant means a fallback target is necessarily some other status, most
@@ -54,78 +102,102 @@ const REASONING_EFFORT_OPTIONS = [
  * same "loose at save time, hard-gated at activation" discipline every
  * other field on this form already follows.
  */
-export function CreateDraftConfigForm({
-  existingConfigs,
+function ConfigSettingsFields({
+  idPrefix,
+  fallbackOptions,
+  config,
+  keyMode,
 }: {
-  readonly existingConfigs: readonly AiProviderConfig[];
+  readonly idPrefix: string;
+  readonly fallbackOptions: readonly FallbackOption[];
+  readonly config?: ConfigFormView;
+  readonly keyMode: KeyMode;
 }) {
-  const [state, formAction, pending] = useActionState(createDraftAiProviderConfigAction, INITIAL);
+  const id = (name: string) => `${idPrefix}-${name}`;
+  const usd = (value: number | null | undefined) =>
+    value === null || value === undefined ? undefined : Number(value.toFixed(2));
   return (
-    <form action={formAction} className="field-list">
+    <>
       <div className="field-row">
-        <label className="field-label" htmlFor="provider">
-          Provider
-        </label>
-        <select id="provider" name="provider" required className="input" defaultValue="openai">
-          {PROVIDER_OPTIONS.map((p) => (
-            <option key={p.value} value={p.value}>
-              {p.label}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor="model">
+        <label className="field-label" htmlFor={id('model')}>
           Model
         </label>
         <input
-          id="model"
+          id={id('model')}
           name="model"
           type="text"
           required
           className="input"
-          placeholder="e.g. gpt-5"
+          placeholder="e.g. gpt-5 or claude-opus-5-5"
+          defaultValue={config?.model}
+          aria-describedby={id('model-hint')}
         />
+        <p id={id('model-hint')} className="field-hint">
+          The exact model ID from the provider, such as claude-opus-5-5, not its display name.
+        </p>
       </div>
       <div className="field-row">
-        <label className="field-label" htmlFor="reasoningEffort">
+        <label className="field-label" htmlFor={id('reasoningEffort')}>
           Reasoning Effort
         </label>
-        <select id="reasoningEffort" name="reasoningEffort" className="input" defaultValue="">
+        <select
+          id={id('reasoningEffort')}
+          name="reasoningEffort"
+          className="input"
+          defaultValue={config?.reasoningEffort ?? ''}
+          aria-describedby={id('reasoningEffort-hint')}
+        >
           {REASONING_EFFORT_OPTIONS.map((r) => (
             <option key={r.value} value={r.value}>
               {r.label}
             </option>
           ))}
         </select>
+        <p id={id('reasoningEffort-hint')} className="field-hint">
+          Lower is faster and cheaper; higher reads more carefully. Keep Use Model Default unless
+          the model supports this setting. Claude models that do not support it skip it.
+        </p>
       </div>
       <div className="field-row">
-        <label className="field-label" htmlFor="apiKey">
+        <label className="field-label" htmlFor={id('apiKey')}>
           API Key
         </label>
         <input
-          id="apiKey"
+          id={id('apiKey')}
           name="apiKey"
           type="password"
-          required
+          required={keyMode === 'required'}
           autoComplete="off"
           className="input"
-          placeholder="Write-only -- never shown again after saving"
+          placeholder={KEY_PLACEHOLDER[keyMode]}
+          aria-describedby={config ? id('apiKey-hint') : undefined}
         />
+        {config ? (
+          <p id={id('apiKey-hint')} className="field-hint">
+            Saved key: {config.apiKeyFingerprint}.
+            {keyMode === 'keep'
+              ? ' A new key clears the data terms recorded for this draft; record them again for the new key.'
+              : ''}
+          </p>
+        ) : null}
       </div>
       <label className="check">
-        <input type="checkbox" name="dataPolicyApproved" />
+        <input
+          type="checkbox"
+          name="dataPolicyApproved"
+          defaultChecked={config?.dataPolicyApproved ?? false}
+        />
         <span>
           I have reviewed and approved this provider&rsquo;s data handling for this configuration
           (Part 8 §5 reviewed data policy -- required before this configuration can be activated).
         </span>
       </label>
       <div className="field-row">
-        <label className="field-label" htmlFor="budgetLimitUsd">
+        <label className="field-label" htmlFor={id('budgetLimitUsd')}>
           Monthly Budget (USD)
         </label>
         <input
-          id="budgetLimitUsd"
+          id={id('budgetLimitUsd')}
           name="budgetLimitUsd"
           type="number"
           min="0.01"
@@ -133,112 +205,163 @@ export function CreateDraftConfigForm({
           required
           className="input"
           placeholder="e.g. 20"
+          defaultValue={usd(config?.budgetUsd)}
         />
       </div>
       <div className="field-row">
-        <label className="field-label" htmlFor="perDocumentBudgetLimitUsd">
+        <label className="field-label" htmlFor={id('perDocumentBudgetLimitUsd')}>
           Per-Document Budget (USD, Optional)
         </label>
         <input
-          id="perDocumentBudgetLimitUsd"
+          id={id('perDocumentBudgetLimitUsd')}
           name="perDocumentBudgetLimitUsd"
           type="number"
           min="0.01"
           step="0.01"
           className="input"
           placeholder="e.g. 0.5"
+          defaultValue={usd(config?.perDocumentBudgetUsd)}
         />
       </div>
       <div className="field-row">
-        <label className="field-label" htmlFor="maxAttemptsPerDocument">
+        <label className="field-label" htmlFor={id('maxAttemptsPerDocument')}>
           Max Attempts per Document (Optional)
         </label>
         <input
-          id="maxAttemptsPerDocument"
+          id={id('maxAttemptsPerDocument')}
           name="maxAttemptsPerDocument"
           type="number"
           min="1"
           step="1"
           className="input"
           placeholder="e.g. 3"
+          defaultValue={config?.maxAttemptsPerDocument ?? undefined}
         />
       </div>
       <div className="field-row">
-        <label className="field-label" htmlFor="maxPagesPerDocument">
+        <label className="field-label" htmlFor={id('maxPagesPerDocument')}>
           Max Pages per Document (Optional)
         </label>
         <input
-          id="maxPagesPerDocument"
+          id={id('maxPagesPerDocument')}
           name="maxPagesPerDocument"
           type="number"
           min="1"
           step="1"
           className="input"
           placeholder="e.g. 25"
+          defaultValue={config?.maxPagesPerDocument ?? undefined}
         />
       </div>
       <div className="field-row">
-        <label className="field-label" htmlFor="cacheMaxAgeDays">
+        <label className="field-label" htmlFor={id('cacheMaxAgeDays')}>
           Cache Max Age, Days (Optional)
         </label>
         <input
-          id="cacheMaxAgeDays"
+          id={id('cacheMaxAgeDays')}
           name="cacheMaxAgeDays"
           type="number"
           min="1"
           step="1"
           className="input"
           placeholder="e.g. 30"
+          defaultValue={config?.cacheMaxAgeDays ?? undefined}
         />
       </div>
       <div className="field-row">
-        <label className="field-label" htmlFor="maxConcurrentCalls">
+        <label className="field-label" htmlFor={id('maxConcurrentCalls')}>
           Max Concurrent Calls (Optional)
         </label>
         <input
-          id="maxConcurrentCalls"
+          id={id('maxConcurrentCalls')}
           name="maxConcurrentCalls"
           type="number"
           min="1"
           step="1"
           className="input"
           placeholder="e.g. 5"
+          defaultValue={config?.maxConcurrentCalls ?? undefined}
         />
       </div>
       <label className="check">
-        <input type="checkbox" name="fallbackEnabled" />
+        <input
+          type="checkbox"
+          name="fallbackEnabled"
+          defaultChecked={config?.fallbackEnabled ?? false}
+        />
         <span>
           Enable cross-provider fallback (Part 8 §13): if this configuration&rsquo;s call times out
           or is rate-limited, automatically retry once against the fallback configuration below.
           Never used after a refusal, an authentication failure, or any other non-recoverable
-          outcome.
+          outcome. The fallback must use a different provider.
         </span>
       </label>
       <div className="field-row">
-        <label className="field-label" htmlFor="fallbackProviderConfigId">
+        <label className="field-label" htmlFor={id('fallbackProviderConfigId')}>
           Fallback Configuration (Optional)
         </label>
         <select
-          id="fallbackProviderConfigId"
+          id={id('fallbackProviderConfigId')}
           name="fallbackProviderConfigId"
           className="input"
-          defaultValue=""
+          defaultValue={config?.fallbackProviderConfigId ?? ''}
         >
           <option value="">None</option>
-          {existingConfigs.map((c) => (
-            <option key={c.id} value={c.id}>
-              {aiProviderLabel(c.provider)}, {c.model}: {aiConfigStatusLabel(c.status)}
+          {fallbackOptions
+            .filter((c) => c.id !== config?.id)
+            .map((c) => (
+              <option key={c.id} value={c.id}>
+                {aiProviderLabel(c.provider)}, {c.model}: {aiConfigStatusLabel(c.status)}
+              </option>
+            ))}
+        </select>
+      </div>
+      <div className="field-row">
+        <label className="field-label" htmlFor={id('notes')}>
+          Notes (Optional)
+        </label>
+        <input
+          id={id('notes')}
+          name="notes"
+          type="text"
+          className="input"
+          placeholder="Internal notes"
+          defaultValue={config?.notes ?? undefined}
+        />
+      </div>
+    </>
+  );
+}
+
+/** Save a new DRAFT configuration. Has no effect on live traffic until activated. */
+export function CreateDraftConfigForm({
+  fallbackOptions,
+}: {
+  readonly fallbackOptions: readonly FallbackOption[];
+}) {
+  const [state, formAction, pending] = useActionState(createDraftAiProviderConfigAction, INITIAL);
+  return (
+    <form action={formAction} className="field-list">
+      <div className="field-row">
+        <label className="field-label" htmlFor="draft-provider">
+          Provider
+        </label>
+        <select
+          id="draft-provider"
+          name="provider"
+          required
+          className="input"
+          defaultValue="openai"
+        >
+          {PROVIDER_OPTIONS.map((p) => (
+            <option key={p.value} value={p.value}>
+              {p.label}
             </option>
           ))}
         </select>
       </div>
+      <ConfigSettingsFields idPrefix="draft" fallbackOptions={fallbackOptions} keyMode="required" />
       <TermsFields idPrefix="draft" optional />
-      <div className="field-row">
-        <label className="field-label" htmlFor="notes">
-          Notes (Optional)
-        </label>
-        <input id="notes" name="notes" type="text" className="input" placeholder="Internal notes" />
-      </div>
       <div>
         <SubmitButton
           pending={pending}
@@ -253,6 +376,100 @@ export function CreateDraftConfigForm({
 }
 
 /**
+ * Edit one saved configuration. A DRAFT has never run, so it is changed in place. Any other
+ * status is part of the record of what the platform ran under, so its settings are copied into a
+ * new draft instead, reusing its saved key unless a new one is entered (a revoked key is never
+ * reused). The provider is fixed here: the key and data terms belong to that provider's account.
+ */
+export function EditConfigForm({
+  config,
+  fallbackOptions,
+}: {
+  readonly config: ConfigFormView;
+  readonly fallbackOptions: readonly FallbackOption[];
+}) {
+  const inPlace = config.editableInPlace;
+  const [state, formAction, pending] = useActionState(
+    inPlace ? updateDraftAiProviderConfigAction : createDraftAiProviderConfigAction,
+    INITIAL,
+  );
+  const keyMode: KeyMode = inPlace ? 'keep' : config.keyRevoked ? 'required' : 'copy';
+  return (
+    <form action={formAction} className="field-list u-mt-100">
+      {inPlace ? (
+        <input type="hidden" name="configId" value={config.id} />
+      ) : (
+        <>
+          <input type="hidden" name="provider" value={config.provider} />
+          {config.keyRevoked ? null : (
+            <input type="hidden" name="copyApiKeyFromConfigId" value={config.id} />
+          )}
+          <p className="card-body">
+            This version stays as it is. Saving creates a new draft with these settings, which you
+            can test and activate.
+          </p>
+        </>
+      )}
+      <div className="row">
+        <span className="row-key">Provider</span>
+        <span className="row-val">{aiProviderLabel(config.provider)}</span>
+      </div>
+      <ConfigSettingsFields
+        idPrefix={`edit-${config.id}`}
+        fallbackOptions={fallbackOptions}
+        config={config}
+        keyMode={keyMode}
+      />
+      <div>
+        <SubmitButton
+          pending={pending}
+          idle={inPlace ? 'Save Changes' : 'Save as New Draft'}
+          busy="Saving…"
+          className="btn btn-primary u-btn-sm"
+        />
+        <StatusMessage state={state} />
+      </div>
+    </form>
+  );
+}
+
+/** Delete a DRAFT with its key and data terms; nothing else can be deleted, only revoked. */
+export function DeleteDraftButton({
+  configId,
+  configName,
+}: {
+  readonly configId: string;
+  /** Names the configuration in the button's accessible name, since every card has one. */
+  readonly configName?: string;
+}) {
+  const [state, formAction, pending] = useActionState(deleteDraftAiProviderConfigAction, INITIAL);
+  return (
+    <form
+      action={formAction}
+      onSubmit={(e) => {
+        if (
+          !window.confirm(
+            'Delete this draft? Its saved key and data terms are removed. This cannot be undone.',
+          )
+        ) {
+          e.preventDefault();
+        }
+      }}
+    >
+      <input type="hidden" name="configId" value={configId} />
+      <SubmitButton
+        pending={pending}
+        idle="Delete Draft"
+        {...(configName ? { label: `Delete Draft for ${configName}` } : {})}
+        busy="Deleting…"
+        className="btn btn-danger u-btn-sm"
+      />
+      <StatusMessage state={state} />
+    </form>
+  );
+}
+
+/**
  * Synthetic connection test (Part 8 §5 / J15's own admin journey: "config
  * OpenAI; test; activate") -- fires a real, minimal call against this
  * configuration's own credentials using fixed synthetic content, never a
@@ -261,7 +478,14 @@ export function CreateDraftConfigForm({
  * activate/rollback/disable/revoke this needs no confirmation dialog -- it
  * changes no configuration state.
  */
-export function TestConnectionButton({ configId }: { readonly configId: string }) {
+export function TestConnectionButton({
+  configId,
+  configName,
+}: {
+  readonly configId: string;
+  /** Names the configuration in the button's accessible name, since every card has one. */
+  readonly configName?: string;
+}) {
   const [state, formAction, pending] = useActionState(testAiProviderConfigAction, INITIAL);
   return (
     <form action={formAction}>
@@ -269,6 +493,7 @@ export function TestConnectionButton({ configId }: { readonly configId: string }
       <SubmitButton
         pending={pending}
         idle="Test Connection"
+        {...(configName ? { label: `Test Connection for ${configName}` } : {})}
         busy="Testing…"
         className="btn btn-secondary u-btn-sm"
       />
@@ -287,7 +512,14 @@ export function TestConnectionButton({ configId }: { readonly configId: string }
  * label names the case count up front, since this makes many more real
  * provider calls than a connection test's single one.
  */
-export function RunEvaluationButton({ configId }: { readonly configId: string }) {
+export function RunEvaluationButton({
+  configId,
+  configName,
+}: {
+  readonly configId: string;
+  /** Names the configuration in the button's accessible name, since every card has one. */
+  readonly configName?: string;
+}) {
   const [state, formAction, pending] = useActionState(runAiProviderConfigEvaluationAction, INITIAL);
   return (
     <form action={formAction}>
@@ -295,6 +527,7 @@ export function RunEvaluationButton({ configId }: { readonly configId: string })
       <SubmitButton
         pending={pending}
         idle="Run Evaluation (13 Cases)"
+        {...(configName ? { label: `Run Evaluation (13 Cases) for ${configName}` } : {})}
         busy="Evaluating…"
         className="btn btn-secondary u-btn-sm"
       />
@@ -303,7 +536,14 @@ export function RunEvaluationButton({ configId }: { readonly configId: string })
   );
 }
 
-export function ActivateConfigButton({ configId }: { readonly configId: string }) {
+export function ActivateConfigButton({
+  configId,
+  configName,
+}: {
+  readonly configId: string;
+  /** Names the configuration in the button's accessible name, since every card has one. */
+  readonly configName?: string;
+}) {
   const [state, formAction, pending] = useActionState(activateAiProviderConfigAction, INITIAL);
   return (
     <form
@@ -322,6 +562,7 @@ export function ActivateConfigButton({ configId }: { readonly configId: string }
       <SubmitButton
         pending={pending}
         idle="Activate"
+        {...(configName ? { label: `Activate for ${configName}` } : {})}
         busy="Activating…"
         className="btn btn-primary u-btn-sm"
       />
@@ -385,7 +626,14 @@ export function EmergencyDisableButton() {
   );
 }
 
-export function RevokeKeyButton({ configId }: { readonly configId: string }) {
+export function RevokeKeyButton({
+  configId,
+  configName,
+}: {
+  readonly configId: string;
+  /** Names the configuration in the button's accessible name, since every card has one. */
+  readonly configName?: string;
+}) {
   const [state, formAction, pending] = useActionState(revokeAiProviderConfigKeyAction, INITIAL);
   return (
     <form
@@ -404,6 +652,7 @@ export function RevokeKeyButton({ configId }: { readonly configId: string }) {
       <SubmitButton
         pending={pending}
         idle="Revoke Key"
+        {...(configName ? { label: `Revoke Key for ${configName}` } : {})}
         busy="Revoking…"
         className="btn btn-danger u-btn-sm"
       />
