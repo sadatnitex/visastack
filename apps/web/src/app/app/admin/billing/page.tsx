@@ -17,7 +17,7 @@ import {
   TRAVELLER_UPLOADS_NOTE,
   WHAT_SUSPENDED_DOES,
   daysAfterDue,
-  previewSentence,
+  savedPreviewSentence,
 } from './labels';
 import { LedgerCard, ledgerProblem } from './ledger-card';
 
@@ -139,9 +139,7 @@ export default async function BillingRulesPage({
             {data.preview ? (
               <>
                 <h3 className="card-title">Before You Turn It On</h3>
-                <p className="card-body">
-                  With the saved day counts: {previewSentence(data.preview)}
-                </p>
+                <p className="card-body">{savedPreviewSentence(data.preview)}</p>
               </>
             ) : null}
           </article>

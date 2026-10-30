@@ -187,7 +187,7 @@ describe('reporting a payment made another way', () => {
     });
     const result = await run({ note: ' paid by the accountant ' });
     expect(result.ok).toBe(true);
-    expect(result.message).toContain('BDT 1250.50');
+    expect(result.message).toContain('BDT\u00a01,250.50');
     expect(result.message).toMatch(/nothing is counted until VisaStack confirms it/);
     const [, ports, input] = mocks.submitManualPaymentClaim.mock.calls[0] ?? [];
     // No file attached, so storage and the scanner are not even set up.

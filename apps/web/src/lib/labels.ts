@@ -71,14 +71,14 @@ export const BILLING_STATUS_LABELS: Readonly<Record<Values<typeof schema.billing
   {
     TRIAL: 'Trial',
     ACTIVE: 'Active',
-    GRACE: 'Grace Period',
+    GRACE: 'Grace',
     SUSPENDED: 'Suspended',
     CLOSED: 'Closed',
   };
 
 export const INVOICE_STATUS_LABELS: Readonly<Record<Values<typeof schema.invoiceStatus>, string>> =
   {
-    OPEN: 'Unpaid',
+    OPEN: 'Open',
     PARTIALLY_PAID: 'Partly Paid',
     PAID: 'Paid',
     VOID: 'Cancelled',

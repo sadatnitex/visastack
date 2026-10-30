@@ -1,4 +1,4 @@
-import { type Result, err, ok } from '@visastack/core';
+import { type Result, err, isIsoCurrencyCode, normalizeCurrencyCode, ok } from '@visastack/core';
 import { and, desc, eq, gte, inArray, isNull, lte, notInArray, sql } from 'drizzle-orm';
 import { isActiveMember, listApplicantsForOrganization } from './agency';
 import { excludingDeterministicRuns } from './ai-run-kinds';
@@ -147,6 +147,10 @@ function validateEntitlementNumbers(input: {
   if (priceSet !== currencySet) {
     return 'priceMinorUnits and currency must be set together, or neither';
   }
+  // S30 (audit M6): a price needs a real currency, or every page showing it would have to guess.
+  if (currencySet && !isIsoCurrencyCode(input.currency ?? '')) {
+    return 'currency must be a three-letter ISO 4217 code, for example BDT';
+  }
   return undefined;
 }
 
@@ -192,7 +196,7 @@ export async function createPlan(
             aiAllowanceUnitsAllowed: input.aiAllowanceUnitsAllowed ?? null,
             ...(input.periodDays !== undefined ? { periodDays: input.periodDays } : {}),
             priceMinorUnits: input.priceMinorUnits ?? null,
-            currency: input.currency ?? null,
+            currency: input.currency ? normalizeCurrencyCode(input.currency) : null,
           })
           .returning(),
       ),
@@ -289,7 +293,10 @@ export async function updatePlan(
     track('aiAllowanceUnitsAllowed', input.aiAllowanceUnitsAllowed);
     track('periodDays', input.periodDays);
     track('priceMinorUnits', input.priceMinorUnits);
-    track('currency', input.currency);
+    track(
+      'currency',
+      typeof input.currency === 'string' ? normalizeCurrencyCode(input.currency) : input.currency,
+    );
 
     if (Object.keys(changes).length === 0) return ok(plan);
 

@@ -816,7 +816,7 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
         return isErr(result) ? result.error.message : 'accepted';
       };
       expect(await message({ amountMinorUnits: 10001 })).toMatch(
-        /more than the BDT 100\.00 still owed/,
+        /more than the BDT\u00a0100\.00 still owed/,
       );
       expect(await message({ currency: 'USD', amountMinorUnits: 100 })).toMatch(
         /invoice is in BDT/,

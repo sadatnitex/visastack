@@ -22,7 +22,7 @@ export function billingHistoryReason(reason: string): string {
   return 'Changed automatically by VisaStack';
 }
 
-/** "Opened as Active", "Grace Period to Suspended". */
+/** "Opened as Active", "Grace to Suspended". */
 export function billingHistoryMove(fromStatus: string | null, toStatus: string): string {
   return fromStatus === null
     ? `Opened as ${billingStatusLabel(toStatus)}`

@@ -1,11 +1,10 @@
+import { formatBillingDate, formatBillingDateTime, formatMoney } from '@visastack/core';
 import { getReceipt } from '@visastack/services';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { PageHeader } from '../../../../../../../../components/ui';
-import { formatDateOnly, formatTimestamp } from '../../../../../../../../lib/format-date';
 import { receiptKindLabel } from '../../../../../../../../lib/invoice-labels';
 import { withSession } from '../../../../../../../../lib/session';
-import { formatPrice } from '../../../../../../../../lib/usage-format';
 
 export const metadata: Metadata = { title: 'Payment Receipt' };
 
@@ -43,6 +42,15 @@ export default async function ReceiptPage({
         title={`Receipt ${receipt.number}`}
         description="VisaStack recorded this payment against your invoice."
         back={{ href: `/app/agency/${orgId}/plan/invoices`, label: 'Invoices' }}
+        actions={
+          <a
+            className="btn btn-secondary"
+            href={`/app/agency/${orgId}/plan/invoices/receipts/${receiptId}/pdf`}
+            download
+          >
+            Download Receipt (PDF)
+          </a>
+        }
         as="h2"
       />
       <article className="card receipt-card">
@@ -61,7 +69,7 @@ export default async function ReceiptPage({
           </div>
           <div>
             <dt>Amount Received</dt>
-            <dd>{formatPrice(receipt.amountMinorUnits, receipt.currency)}</dd>
+            <dd>{formatMoney(receipt.amountMinorUnits, receipt.currency)}</dd>
           </div>
           <div>
             <dt>How It Was Paid</dt>
@@ -69,7 +77,7 @@ export default async function ReceiptPage({
           </div>
           <div>
             <dt>Payment Date</dt>
-            <dd>{formatDateOnly(receipt.collectedDate)}</dd>
+            <dd>{formatBillingDate(receipt.collectedDate)}</dd>
           </div>
           <div>
             <dt>Payment Reference</dt>
@@ -77,7 +85,7 @@ export default async function ReceiptPage({
           </div>
           <div>
             <dt>Receipt Issued</dt>
-            <dd>{formatTimestamp(receipt.issuedAt)}</dd>
+            <dd>{formatBillingDateTime(receipt.issuedAt)}</dd>
           </div>
         </dl>
         <p className="invoice-note">

@@ -1,3 +1,4 @@
+import { currencyDecimals as coreCurrencyDecimals, formatMoney } from '@visastack/core';
 import { MAX_MINOR_UNITS } from './invoice-ledger';
 
 /**
@@ -43,19 +44,10 @@ export function formatMinorUnits(minorUnits: number): string {
 
 /**
  * How many decimal places a currency has (2 for BDT, 0 for JPY, 3 for BHD), from the platform's
- * own currency data. An unknown code is treated as two places, the common case.
+ * own currency data. An unknown code is treated as two places, the common case. One definition,
+ * in @visastack/core (S30).
  */
-export function currencyDecimals(currency: string): number {
-  try {
-    const digits = new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency.trim().toUpperCase(),
-    }).resolvedOptions().maximumFractionDigits;
-    return typeof digits === 'number' && digits >= 0 && digits <= 3 ? digits : 2;
-  } catch {
-    return 2;
-  }
-}
+export const currencyDecimals = coreCurrencyDecimals;
 
 /**
  * Whole minor units from the amount a person typed ("1250.50", "1250"), in a currency with its own
@@ -75,9 +67,10 @@ export function parseAmountForCurrency(text: string, currency: string): number |
   return value;
 }
 
-/** An amount for a sentence or a field: "BDT 1250.50", with the currency's own number of places. */
+/**
+ * An amount for a sentence: "BDT 1,250.50", with the currency's own number of places. The one
+ * money format of @visastack/core (S30), so a message and a screen write an amount the same way.
+ */
 export function formatAmountForCurrency(minorUnits: number, currency: string): string {
-  const code = currency.trim().toUpperCase();
-  const decimals = currencyDecimals(code);
-  return `${code} ${(minorUnits / 10 ** decimals).toFixed(decimals)}`;
+  return formatMoney(minorUnits, currency);
 }

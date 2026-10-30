@@ -1,4 +1,4 @@
-import { type Result, err, ok } from '@visastack/core';
+import { type Result, err, formatBillingDate, ok } from '@visastack/core';
 import { type SQL, and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { type StaffScope, type SystemScope, staffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
@@ -16,6 +16,8 @@ import {
   DAY_MS,
   type OverdueInvoice,
   agencyCode,
+  agencyLine,
+  agencyName,
   billingContacts,
   billingDay,
   databaseNow,
@@ -34,7 +36,6 @@ import { type Db, first, schema } from './db';
 import { serverErrorEvent } from './error-report';
 import type { ServiceError } from './errors';
 import { applyOverdueStatusChange } from './invoice-ledger';
-import { titleDate } from './naming';
 import { enqueueNotificationBothChannels } from './notifications';
 import { formatObservabilityLine } from './observability-format';
 
@@ -455,8 +456,9 @@ async function createCycleInvoice(
           periodStart: periodStart.toISOString(),
         },
       });
-      const due = titleDate(dueDate, BILLING_TIME_ZONE);
+      const due = formatBillingDate(dueDate, BILLING_TIME_ZONE);
       const contacts = await billingContacts(tx, candidate.organization_id);
+      const name = await agencyName(tx, candidate.organization_id);
       for (const accountId of contacts) {
         await enqueueNotificationBothChannels(tx, {
           eventType: 'INVOICE_ISSUED',
@@ -464,8 +466,8 @@ async function createCycleInvoice(
           recipientAccountId: accountId,
           organizationId: candidate.organization_id,
           payload: {
-            subject: 'New invoice',
-            summary: `Invoice ${invoiceRef} is ready. It is due on ${due}.`,
+            subject: 'New Invoice',
+            summary: agencyLine(name, `Invoice ${invoiceRef} is ready. It is due on ${due}.`),
             deepLinkPath: invoicesPath(candidate.organization_id),
           },
         });
@@ -480,30 +482,63 @@ interface ReminderWords {
   readonly subject: string;
   readonly summary: string;
   readonly timing: 'upcoming' | 'today' | 'overdue';
+  /** The email's own heading when it differs from the standard one for its timing. */
+  readonly heading?: string;
+}
+
+export interface ReminderContext {
+  /** The agency's name, which the notice opens with. */
+  readonly agencyName?: string;
+  /** The reminder stage; the 7-day overdue reminder has its own words. */
+  readonly stage?: ReminderStage;
+  /**
+   * The day an unpaid invoice would move the agency to Suspended, when automatic handling is on
+   * and that day is still ahead ("8 Nov 2026"); the 7-day reminder says it, in neutral words.
+   */
+  readonly suspendsOn?: string | null;
 }
 
 /**
  * The words of a reminder from the actual day count: "due today" only on the due day itself;
- * after it, "was due on <day>".
+ * after it, "was due on <day>". The 3-day and 7-day overdue reminders read differently, and the
+ * 7-day one says what happens next when VisaStack moves unpaid agencies automatically. Every
+ * reminder names the agency first and never an amount.
  */
-export function reminderWords(daysUntilDue: number, ref: string, dueDay: string): ReminderWords {
+export function reminderWords(
+  daysUntilDue: number,
+  ref: string,
+  dueDay: string,
+  context: ReminderContext = {},
+): ReminderWords {
+  const line = (sentence: string) => agencyLine(context.agencyName ?? '', sentence);
   if (daysUntilDue > 0) {
     return {
-      subject: 'Invoice due soon',
-      summary: `Invoice ${ref} is due on ${dueDay}.`,
+      subject: 'Invoice Due Soon',
+      summary: line(`Invoice ${ref} is due on ${dueDay}.`),
       timing: 'upcoming',
     };
   }
   if (daysUntilDue === 0) {
     return {
-      subject: 'Invoice due today',
-      summary: `Invoice ${ref} is due today, ${dueDay}.`,
+      subject: 'Invoice Due Today',
+      summary: line(`Invoice ${ref} is due today, ${dueDay}.`),
       timing: 'today',
     };
   }
+  if (context.stage === 'overdue_7') {
+    const next = context.suspendsOn
+      ? ` If it is still unpaid on ${context.suspendsOn}, adding cases, team members and files will pause until it is paid. Nothing is deleted or hidden.`
+      : '';
+    return {
+      subject: 'Invoice Still Overdue',
+      summary: line(`Invoice ${ref} was due on ${dueDay} and is still unpaid a week later.${next}`),
+      timing: 'overdue',
+      heading: 'An invoice is still past its due date',
+    };
+  }
   return {
-    subject: 'Invoice overdue',
-    summary: `Invoice ${ref} was due on ${dueDay} and is still unpaid.`,
+    subject: 'Invoice Overdue',
+    summary: line(`Invoice ${ref} was due on ${dueDay} and is still unpaid.`),
     timing: 'overdue',
   };
 }
@@ -519,6 +554,7 @@ async function queueReminders(
   now: Date,
   budget: Budget,
   noContact: ReturnType<typeof noContactLogger>,
+  policy: OverduePolicy | null,
 ): Promise<{ queued: number; failed: number }> {
   const i = schema.invoices;
   const o = schema.organizations;
@@ -526,6 +562,7 @@ async function queueReminders(
     .select({
       id: i.id,
       organizationId: i.organizationId,
+      organizationName: o.name,
       invoiceRef: i.invoiceRef,
       dueDate: i.dueDate,
     })
@@ -592,10 +629,17 @@ async function queueReminders(
       const written = await db.transaction(async (tx) => {
         const contacts = await billingContacts(tx, invoice.organizationId);
         if (contacts.length === 0) return -1;
+        // What happens next, only when VisaStack moves unpaid agencies automatically and the day
+        // it would is still ahead.
+        const suspendsOn =
+          policy !== null && -daysUntilDue < policy.suspendAfterDays
+            ? formatBillingDate(billingDay(invoice.dueDate, policy.suspendAfterDays))
+            : null;
         const words = reminderWords(
           daysUntilDue,
           invoice.invoiceRef,
-          titleDate(invoice.dueDate, BILLING_TIME_ZONE),
+          formatBillingDate(invoice.dueDate, BILLING_TIME_ZONE),
+          { agencyName: invoice.organizationName, stage, suspendsOn },
         );
         let rows = 0;
         for (const accountId of contacts) {
@@ -610,6 +654,7 @@ async function queueReminders(
               summary: words.summary,
               deepLinkPath: invoicesPath(invoice.organizationId),
               timing: words.timing,
+              ...(words.heading ? { heading: words.heading } : {}),
             },
           });
         }
@@ -830,7 +875,7 @@ export async function runBillingCycle(
 
   // 4. Reminders for the stage each unpaid invoice has reached.
   const reminderBudget = makeBudget(limit, deadline);
-  const reminders = await queueReminders(db, now, reminderBudget, noContact);
+  const reminders = await queueReminders(db, now, reminderBudget, noContact, policy);
   failed += reminders.failed;
 
   return {

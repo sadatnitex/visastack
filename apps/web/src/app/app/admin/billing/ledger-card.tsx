@@ -7,9 +7,9 @@ import { LEDGER_EXPORT_MAX_ROWS } from '@visastack/services';
  */
 
 const REASONS: Readonly<Record<string, string>> = {
-  denied: 'Only the platform owner can download the ledger.',
+  denied: 'Only the platform owner can download the accounting file.',
   month: 'Choose a month, then download again.',
-  too_many: `That month has more than ${LEDGER_EXPORT_MAX_ROWS.toLocaleString('en-US')} ledger rows, more than one file can hold. Nothing was downloaded.`,
+  too_many: `That month has more than ${LEDGER_EXPORT_MAX_ROWS.toLocaleString('en-US')} payments, credits and refunds, more than one file can hold. Nothing was downloaded.`,
   not_configured: 'This needs an extra sign-in check, which is not available here right now.',
 };
 

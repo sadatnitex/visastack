@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
+import { billingStatusLabel } from '../../../../../lib/labels';
 import {
   type ActionState,
   activatePlanAction,
@@ -140,7 +141,7 @@ export function EndSubscriptionButton({ organizationId }: { readonly organizatio
       action={endSubscriptionAction}
       hiddenFields={{ organizationId }}
       promptText="Reason for ending this subscription?"
-      confirmedLabel="End subscription"
+      confirmedLabel="End Subscription"
       pendingLabel="Ending…"
       tone="btn-danger"
     />
@@ -228,7 +229,7 @@ export function CancelDowngradeButton({
       action={cancelScheduledDowngradeAction}
       hiddenFields={{ organizationId, downgradeId }}
       promptText="Reason for cancelling this scheduled downgrade?"
-      confirmedLabel="Cancel downgrade"
+      confirmedLabel="Cancel Downgrade"
       pendingLabel="Cancelling…"
     />
   );
@@ -296,7 +297,7 @@ export function TransitionBillingStatusForm({
           </option>
           {legalStatuses.map((s) => (
             <option key={s} value={s}>
-              {s}
+              {billingStatusLabel(s)}
             </option>
           ))}
         </select>
@@ -372,17 +373,22 @@ export function CreateInvoiceForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="invoice-amount">
-          Invoiced amount (minor units, e.g. cents)
+          Invoiced Amount
         </label>
         <input
           id="invoice-amount"
-          name="invoicedAmountMinorUnits"
-          type="number"
-          min="1"
+          name="invoicedAmount"
+          type="text"
+          inputMode="decimal"
+          autoComplete="off"
           required
           className="input"
-          placeholder="e.g. 150000 for $1,500.00"
+          placeholder="2,500.00"
+          aria-describedby="invoice-amount-hint"
         />
+        <p className="field-hint" id="invoice-amount-hint">
+          In the currency below, as people write it, for example 2,500.00.
+        </p>
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="invoice-currency">
@@ -393,10 +399,16 @@ export function CreateInvoiceForm({
           name="currency"
           type="text"
           required
+          minLength={3}
           maxLength={3}
+          autoCapitalize="characters"
           className="input"
-          placeholder="USD"
+          placeholder="BDT"
+          aria-describedby="invoice-currency-hint"
         />
+        <p className="field-hint" id="invoice-currency-hint">
+          The three-letter currency code, for example BDT.
+        </p>
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="invoice-periodStart">
@@ -455,17 +467,23 @@ export function RecordPaymentForm({
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       <div className="field-row">
         <label className="field-label" htmlFor={`payment-amount-${invoiceId}`}>
-          Payment Amount (Minor Units)
+          Payment Amount
         </label>
+        <input type="hidden" name="invoiceCurrency" value={currency} />
         <input
           id={`payment-amount-${invoiceId}`}
-          name="amountMinorUnits"
-          type="number"
-          min="1"
-          step="1"
+          name="amount"
+          type="text"
+          inputMode="decimal"
+          autoComplete="off"
           required
           className="input"
+          placeholder="2,500.00"
+          aria-describedby={`payment-amount-hint-${invoiceId}`}
         />
+        <p className="field-hint" id={`payment-amount-hint-${invoiceId}`}>
+          In {currency.trim().toUpperCase() || 'the invoice currency'}, for example 2,500.00.
+        </p>
       </div>
       {confirmCurrency ? (
         <div className="field-row">
@@ -547,9 +565,9 @@ export function VoidInvoiceButton({
     <ReasonPromptButton
       action={voidInvoiceAction}
       hiddenFields={{ organizationId, invoiceId }}
-      promptText="Reason for voiding this invoice?"
-      confirmedLabel="Void"
-      pendingLabel="Voiding…"
+      promptText="Why are you cancelling this invoice? Nothing will be owed on it."
+      confirmedLabel="Cancel Invoice"
+      pendingLabel="Cancelling…"
       tone="btn-danger"
     />
   );

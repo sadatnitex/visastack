@@ -4,6 +4,8 @@ import type { StaffScope, SystemScope } from './access/principal';
 import { staffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
 import {
+  agencyLine,
+  agencyName,
   billingContacts,
   billingDay,
   invoiceNotRefundedSql,
@@ -570,6 +572,7 @@ async function auditRefund(
 
 /** Tells the agency's owners and admins, naming the invoice and never an amount. */
 async function noticeRefund(tx: Db, row: RefundRequest, invoiceRef: string): Promise<void> {
+  const name = await agencyName(tx, row.organizationId);
   for (const recipientAccountId of await billingContacts(tx, row.organizationId)) {
     await enqueueNotificationBothChannels(tx, {
       eventType: 'INVOICE_REFUNDED',
@@ -577,8 +580,11 @@ async function noticeRefund(tx: Db, row: RefundRequest, invoiceRef: string): Pro
       recipientAccountId,
       organizationId: row.organizationId,
       payload: {
-        subject: 'Refund made',
-        summary: `A refund was made on invoice ${invoiceRef}. Open your invoices to see what it shows now.`,
+        subject: 'Refund Made',
+        summary: agencyLine(
+          name,
+          `A refund was made on invoice ${invoiceRef}. Open your invoices to see what it shows now.`,
+        ),
         deepLinkPath: invoicesPath(row.organizationId),
       },
     });
@@ -1769,6 +1775,7 @@ export async function applyHeldPaymentCredit(
         ledgerEntryId: applied.value.payment?.id ?? null,
       },
     });
+    const name = await agencyName(tx, attempt.organizationId);
     for (const recipientAccountId of await billingContacts(tx, attempt.organizationId)) {
       await enqueueNotificationBothChannels(tx, {
         eventType: 'INVOICE_CREDIT_APPLIED',
@@ -1776,8 +1783,11 @@ export async function applyHeldPaymentCredit(
         recipientAccountId,
         organizationId: attempt.organizationId,
         payload: {
-          subject: 'Credit applied',
-          summary: `An earlier payment was applied to invoice ${invoice.invoiceRef}. Open your invoices to see what is left to pay.`,
+          subject: 'Credit Applied',
+          summary: agencyLine(
+            name,
+            `An earlier payment was applied to invoice ${invoice.invoiceRef}. Open your invoices to see what is left to pay.`,
+          ),
           deepLinkPath: invoicesPath(attempt.organizationId),
         },
       });

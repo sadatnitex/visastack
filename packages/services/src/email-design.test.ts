@@ -43,6 +43,32 @@ describe('every email', () => {
     );
   });
 
+  it('gives each billing status change its own heading, and the 7-day reminder its own (S30)', () => {
+    const status = (heading?: string) =>
+      notificationEmail({
+        eventType: 'BILLING_STATUS_CHANGED',
+        subject: 'Your Agency Is in Grace',
+        summary: 'Dhaka Visa Desk: invoice INV-1 is 7 days past its due date.',
+        url: `${BASE}/app`,
+        ...(heading ? { heading } : {}),
+      });
+    expect(status('Your agency is in Grace').heading).toBe('Your agency is in Grace');
+    expect(status('Your agency is suspended').heading).toBe('Your agency is suspended');
+    expect(status().heading).toBe('Your billing status has changed');
+    const reminder = {
+      eventType: 'INVOICE_REMINDER',
+      subject: 'Invoice Still Overdue',
+      summary: 'Dhaka Visa Desk: invoice INV-1 was due on 9 Nov 2026.',
+      url: `${BASE}/app`,
+      timing: 'overdue' as const,
+    };
+    expect(notificationEmail(reminder).heading).toBe('An invoice is past its due date');
+    expect(
+      notificationEmail({ ...reminder, heading: 'An invoice is still past its due date' }).heading,
+    ).toBe('An invoice is still past its due date');
+    expect(notificationEmail(reminder).fact).toBe(reminder.summary);
+  });
+
   it('never lets typed text become markup', () => {
     const { html } = renderEmail(
       notificationEmail({

@@ -9,6 +9,7 @@ import { PageHeader } from '../../../../../../components/ui';
 import { createPaymentPort, isPaymentProviderConfigured } from '../../../../../../lib/providers';
 import { reportServerError } from '../../../../../../lib/server-error';
 import { withSession } from '../../../../../../lib/session';
+import { BillingStatusNotice, loadNoticeBillingStatus } from '../../billing-status-notice';
 import { InvoiceCard } from './invoice-card';
 
 export const metadata: Metadata = { title: 'Agency Invoices' };
@@ -77,8 +78,11 @@ export default async function AgencyInvoicesPage({
     if (listed.ok && (await checkOpenPayments(db, accountId, orgId, listed.value))) {
       listed = await listAgencyInvoices(db, { actorAccountId: accountId, organizationId: orgId });
     }
-    return listed.ok ? { invoices: listed.value, allowed: true } : { invoices: [], allowed: false };
+    if (!listed.ok) return { invoices: [], allowed: false, status: null };
+    const status = await loadNoticeBillingStatus(db, accountId, orgId);
+    return { invoices: listed.value, allowed: true, status };
   });
+  const now = new Date();
   const onlineAvailable = isPaymentProviderConfigured();
   // The newest calendar day anywhere on earth (UTC+14), so nobody is stopped from choosing their own today.
   const latestDate = new Date(Date.now() + 14 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -92,6 +96,7 @@ export default async function AgencyInvoicesPage({
         back={{ href: `/app/agency/${orgId}/plan`, label: 'Plan & Usage' }}
         as="h2"
       />
+      <BillingStatusNotice status={data.status} admin organizationId={orgId} showAction={false} />
       {!data.allowed ? (
         <article className="card">
           <p className="card-body">Only owners and admins can see and pay invoices.</p>
@@ -111,6 +116,7 @@ export default async function AgencyInvoicesPage({
               organizationId={orgId}
               onlineAvailable={onlineAvailable}
               latestDate={latestDate}
+              now={now}
             />
           ))}
         </div>

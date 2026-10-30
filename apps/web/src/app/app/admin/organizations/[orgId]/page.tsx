@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { formatBillingDate, formatMoney } from '@visastack/core';
 import {
   type BillingStatus,
   type Invoice,
@@ -30,11 +31,7 @@ import {
   billingHistoryMove,
   billingHistoryReason,
 } from '../../../../../lib/billing-history-labels';
-import {
-  formatDateOnly,
-  formatTimestamp,
-  formatTimestampDate,
-} from '../../../../../lib/format-date';
+import { formatTimestamp } from '../../../../../lib/format-date';
 import { CLAIM_METHOD_LABELS, CLAIM_STATUS_LABELS } from '../../../../../lib/invoice-labels';
 import {
   billingStatusLabel,
@@ -43,12 +40,7 @@ import {
 } from '../../../../../lib/labels';
 import { refundPorts } from '../../../../../lib/refund-gateway';
 import { withSession } from '../../../../../lib/session';
-import {
-  formatMeterValue,
-  formatPrice,
-  meterFraction,
-  meterTone,
-} from '../../../../../lib/usage-format';
+import { formatMeterValue, meterFraction, meterTone } from '../../../../../lib/usage-format';
 import {
   ActivatePlanForm,
   ApproveClaimButton,
@@ -120,12 +112,12 @@ function ClaimQueue({
               <span className="row-key">{claim.invoiceRef}</span>
               <span>
                 {CLAIM_METHOD_LABELS[claim.method]},{' '}
-                {formatPrice(claim.amountMinorUnits, claim.currency)}, paid{' '}
-                {formatDateOnly(claim.paidOn)}. Reference {claim.reference}.
+                {formatMoney(claim.amountMinorUnits, claim.currency)}, paid{' '}
+                {formatBillingDate(claim.paidOn)}. Reference {claim.reference}.
               </span>
               <span className="muted u-fs-085">
                 The invoice still owes{' '}
-                {formatPrice(claim.invoiceOutstandingMinorUnits, claim.currency)}.
+                {formatMoney(claim.invoiceOutstandingMinorUnits, claim.currency)}.
                 {claim.note ? ` Note: ${claim.note}` : ''}
               </span>
               {claim.hasProofFile ? (
@@ -152,9 +144,9 @@ function ClaimQueue({
             {decided.map((claim) => (
               <li key={claim.id} className="invoice-list-item">
                 <span>
-                  {claim.invoiceRef}, {formatPrice(claim.amountMinorUnits, claim.currency)}:{' '}
+                  {claim.invoiceRef}, {formatMoney(claim.amountMinorUnits, claim.currency)}:{' '}
                   {CLAIM_STATUS_LABELS[claim.status]}
-                  {claim.decidedAt ? ` on ${formatTimestampDate(claim.decidedAt)}` : ''}
+                  {claim.decidedAt ? ` on ${formatBillingDate(claim.decidedAt)}` : ''}
                   {claim.decisionReason ? `. Reason: ${claim.decisionReason}` : ''}
                 </span>
               </li>
@@ -167,7 +159,7 @@ function ClaimQueue({
 }
 
 function invoiceAmount(invoice: Invoice): string {
-  return `${formatPrice(invoice.invoicedAmountMinorUnits, invoice.currency)} invoiced, ${formatPrice(invoice.collectedAmountMinorUnits, invoice.currency)} collected`;
+  return `${formatMoney(invoice.invoicedAmountMinorUnits, invoice.currency)} invoiced, ${formatMoney(invoice.collectedAmountMinorUnits, invoice.currency)} collected`;
 }
 
 export default async function AdminOrganizationPage({
@@ -294,7 +286,7 @@ export default async function AdminOrganizationPage({
         <p className="card-body u-mb-100">
           {data.currentPlan
             ? `Currently on ${data.currentPlan.name}.`
-            : 'No plan has been manually activated for this organization -- there is no self-serve checkout.'}
+            : 'No plan is active for this organization yet. Agencies cannot choose a plan themselves: activate one below.'}
         </p>
 
         {data.pendingDowngrade ? (
@@ -313,8 +305,9 @@ export default async function AdminOrganizationPage({
             >
               <span className="row-key">
                 Downgrade to{' '}
-                {data.planById.get(data.pendingDowngrade.toPlanId)?.name ?? 'unknown plan'}{' '}
-                scheduled for {data.pendingDowngrade.effectiveAt.toDateString()}
+                {data.planById.get(data.pendingDowngrade.toPlanId)?.name ??
+                  'a plan that is no longer listed'}{' '}
+                scheduled for {formatBillingDate(data.pendingDowngrade.effectiveAt)}
               </span>
               <span className="muted u-fs-085">{data.pendingDowngrade.reason}</span>
               <div>
@@ -392,7 +385,7 @@ export default async function AdminOrganizationPage({
                   <div className="row" key={h.id}>
                     <span className="row-key">{billingHistoryMove(h.fromStatus, h.toStatus)}</span>
                     <span className="muted u-fs-085">
-                      {formatTimestampDate(h.createdAt)} ·{' '}
+                      {formatBillingDate(h.createdAt)} ·{' '}
                       {h.actorAccountId === null ? 'VisaStack (automatic)' : 'By a person'} ·{' '}
                       {billingHistoryReason(h.reason)}
                     </span>
@@ -428,8 +421,16 @@ export default async function AdminOrganizationPage({
                   </span>
                 </div>
                 <span className="muted u-fs-085">
-                  {invoiceAmount(invoice)} · due {formatDateOnly(invoice.dueDate)}
+                  {invoiceAmount(invoice)} · due {formatBillingDate(invoice.dueDate)}
                 </span>
+                <a
+                  className="invoice-link"
+                  href={`/app/admin/organizations/${orgId}/invoices/${invoice.id}/pdf`}
+                  download
+                >
+                  Download Invoice (PDF)
+                  <span className="sr-only"> {invoice.invoiceRef}</span>
+                </a>
                 {invoice.status === 'OPEN' || invoice.status === 'PARTIALLY_PAID' ? (
                   <div
                     style={{

@@ -417,7 +417,14 @@ describe('recurring period invoices', () => {
           `${w.orgAdminId}:IN_APP`,
         ].sort(),
       );
-      const payload = issued[0]?.payload as { summary: string; deepLinkPath: string };
+      const payload = issued[0]?.payload as {
+        subject: string;
+        summary: string;
+        deepLinkPath: string;
+      };
+      expect(payload.subject).toBe('New Invoice');
+      // S30: the first words name the agency.
+      expect(payload.summary).toMatch(/^Acme [^:]+: invoice /);
       expect(payload.summary).toContain(invoice.invoiceRef);
       expect(payload.summary).not.toMatch(/5000|500000|BDT|5,000/);
       expect(payload.deepLinkPath).toBe(`/app/agency/${w.organizationId}/plan/invoices`);
@@ -601,7 +608,7 @@ describe('reminders', () => {
         n.idempotencyKey.endsWith(':due_0'),
       );
       expect(today?.payload).toMatchObject({
-        subject: 'Invoice due today',
+        subject: 'Invoice Due Today',
         timing: 'today',
         deepLinkPath: `/app/agency/${w.organizationId}/plan/invoices`,
       });
@@ -729,10 +736,18 @@ describe('overdue handling and reactivation', () => {
       expect(grace).toMatchObject({ toStatus: 'GRACE', cause: 'NONPAYMENT' });
       const notes = await notices(db, 'BILLING_STATUS_CHANGED');
       expect(notes).toHaveLength(8);
+      const suspendedNotice = notes.find((n) =>
+        (n.payload as { subject: string }).subject.includes('Suspended'),
+      )?.payload;
+      expect(suspendedNotice).toMatchObject({
+        subject: 'Your Agency Is Suspended',
+        heading: 'Your agency is suspended',
+        deepLinkPath: `/app/agency/${w.organizationId}/plan/invoices`,
+      });
+      expect((suspendedNotice as { summary: string }).summary).toMatch(/^Acme [^:]+: invoice /);
       expect(
-        notes.find((n) => (n.payload as { subject: string }).subject.includes('suspended'))
-          ?.payload,
-      ).toMatchObject({ deepLinkPath: `/app/agency/${w.organizationId}/plan/invoices` });
+        notes.find((n) => (n.payload as { subject: string }).subject.includes('Grace'))?.payload,
+      ).toMatchObject({ subject: 'Your Agency Is in Grace', heading: 'Your agency is in Grace' });
     },
     TEST_TIMEOUT_MS,
   );
@@ -1361,11 +1376,11 @@ describe('round 2: due days, overdue days, overlaps, budgets and notices', () =>
 
   it('says "due today" only on the due day and "was due on" after it', async () => {
     expect(reminderWords(0, 'INV-1', '9 Nov 2026')).toMatchObject({
-      subject: 'Invoice due today',
+      subject: 'Invoice Due Today',
       timing: 'today',
     });
     expect(reminderWords(-1, 'INV-1', '9 Nov 2026')).toMatchObject({
-      subject: 'Invoice overdue',
+      subject: 'Invoice Overdue',
       summary: 'Invoice INV-1 was due on 9 Nov 2026 and is still unpaid.',
       timing: 'overdue',
     });
@@ -1376,8 +1391,41 @@ describe('round 2: due days, overdue days, overlaps, budgets and notices', () =>
     expect(sent.length).toBe(4);
     for (const row of sent) {
       expect(row.idempotencyKey.endsWith(':due_0')).toBe(true);
-      expect(row.payload).toMatchObject({ subject: 'Invoice overdue', timing: 'overdue' });
+      expect(row.payload).toMatchObject({ subject: 'Invoice Overdue', timing: 'overdue' });
     }
+  });
+
+  it('names the agency first, and gives the 3-day and 7-day overdue reminders their own words (S30)', () => {
+    const name = { agencyName: 'Dhaka Visa Desk' };
+    expect(reminderWords(3, 'INV-1', '9 Nov 2026', name)).toEqual({
+      subject: 'Invoice Due Soon',
+      summary: 'Dhaka Visa Desk: invoice INV-1 is due on 9 Nov 2026.',
+      timing: 'upcoming',
+    });
+    const three = reminderWords(-3, 'INV-1', '9 Nov 2026', { ...name, stage: 'overdue_3' });
+    const seven = reminderWords(-7, 'INV-1', '9 Nov 2026', { ...name, stage: 'overdue_7' });
+    expect(three).toEqual({
+      subject: 'Invoice Overdue',
+      summary: 'Dhaka Visa Desk: invoice INV-1 was due on 9 Nov 2026 and is still unpaid.',
+      timing: 'overdue',
+    });
+    expect(seven).toEqual({
+      subject: 'Invoice Still Overdue',
+      summary:
+        'Dhaka Visa Desk: invoice INV-1 was due on 9 Nov 2026 and is still unpaid a week later.',
+      timing: 'overdue',
+      heading: 'An invoice is still past its due date',
+    });
+    // With automatic handling on, the 7-day reminder says what happens next, calmly.
+    const next = reminderWords(-7, 'INV-1', '9 Nov 2026', {
+      ...name,
+      stage: 'overdue_7',
+      suspendsOn: '23 Nov 2026',
+    });
+    expect(next.summary).toBe(
+      'Dhaka Visa Desk: invoice INV-1 was due on 9 Nov 2026 and is still unpaid a week later. If it is still unpaid on 23 Nov 2026, adding cases, team members and files will pause until it is paid. Nothing is deleted or hidden.',
+    );
+    for (const words of [three, seven, next]) expect(words.summary).not.toMatch(/BDT|\d,\d{3}/);
   });
 
   it('counts a reminder only when it was written, and names an agency nobody can be told about once', async () => {

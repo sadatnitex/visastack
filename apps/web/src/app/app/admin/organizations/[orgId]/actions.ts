@@ -1,7 +1,9 @@
 'use server';
 
+import { isIsoCurrencyCode, normalizeCurrencyCode, parseMoney } from '@visastack/core';
 import {
   type BillingStatus,
+  MAX_MINOR_UNITS,
   activateSubscription,
   approveManualPaymentClaim,
   cancelScheduledDowngrade,
@@ -22,6 +24,7 @@ import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { bootstrapAdminEmails, isPlatformOwnerAccount } from '../../../../../lib/admin';
 import { triggerNotificationWorker } from '../../../../../lib/jobs';
+import { invoiceStatusLabel } from '../../../../../lib/labels';
 import { withSession } from '../../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../../lib/step-up';
 
@@ -293,18 +296,24 @@ export async function createInvoiceAction(
   const organizationId = String(formData.get('organizationId') ?? '').trim();
   const planId = String(formData.get('planId') ?? '').trim();
   const invoiceRef = String(formData.get('invoiceRef') ?? '').trim();
-  const invoicedAmountMinorUnits = Number(String(formData.get('invoicedAmountMinorUnits') ?? ''));
-  const currency = String(formData.get('currency') ?? '').trim();
+  const currency = normalizeCurrencyCode(String(formData.get('currency') ?? ''));
+  const invoicedAmountMinorUnits = parseMoney(
+    String(formData.get('invoicedAmount') ?? ''),
+    currency,
+    MAX_MINOR_UNITS,
+  );
   const periodStart = parseDate(formData, 'periodStart');
   const periodEnd = parseDate(formData, 'periodEnd');
   const dueDate = parseDate(formData, 'dueDate');
   if (organizationId.length === 0) return { ok: false, message: 'Missing organization id.' };
   if (planId.length === 0) return { ok: false, message: 'Choose a plan.' };
   if (invoiceRef.length === 0) return { ok: false, message: 'An invoice reference is required.' };
-  if (!Number.isFinite(invoicedAmountMinorUnits) || invoicedAmountMinorUnits <= 0) {
-    return { ok: false, message: 'Invoiced amount must be a positive number.' };
+  if (!isIsoCurrencyCode(currency)) {
+    return { ok: false, message: 'Enter a three-letter currency code, for example BDT.' };
   }
-  if (currency.length === 0) return { ok: false, message: 'Currency is required.' };
+  if (invoicedAmountMinorUnits === null || invoicedAmountMinorUnits <= 0) {
+    return { ok: false, message: 'Enter the invoiced amount above zero, for example 2,500.00.' };
+  }
   if (!periodStart || !periodEnd || !dueDate) {
     return { ok: false, message: 'Period start, period end, and due date are all required.' };
   }
@@ -348,7 +357,11 @@ export async function recordInvoicePaymentAction(
 ): Promise<ActionState> {
   const organizationId = String(formData.get('organizationId') ?? '').trim();
   const invoiceId = String(formData.get('invoiceId') ?? '').trim();
-  const amountMinorUnits = Number(String(formData.get('amountMinorUnits') ?? ''));
+  const amountMinorUnits = parseMoney(
+    String(formData.get('amount') ?? ''),
+    String(formData.get('invoiceCurrency') ?? ''),
+    MAX_MINOR_UNITS,
+  );
   const paymentReference = String(formData.get('paymentReference') ?? '').trim();
   const reason = String(formData.get('reason') ?? '').trim();
   const currency = String(formData.get('currency') ?? '').trim();
@@ -358,8 +371,8 @@ export async function recordInvoicePaymentAction(
   if (idempotencyKey.length === 0) {
     return { ok: false, message: 'This page is out of date. Reload it and try again.' };
   }
-  if (!Number.isInteger(amountMinorUnits) || amountMinorUnits <= 0) {
-    return { ok: false, message: 'Payment amount must be a whole, positive number.' };
+  if (amountMinorUnits === null || amountMinorUnits <= 0) {
+    return { ok: false, message: 'Enter the amount received above zero, for example 2,500.00.' };
   }
   if (paymentReference.length === 0)
     return { ok: false, message: 'A payment reference is required.' };
@@ -389,7 +402,7 @@ export async function recordInvoicePaymentAction(
     if (!recorded.ok) return { ok: false, message: recorded.error.message } satisfies ActionState;
     return {
       ok: true,
-      message: `Payment recorded. Invoice is now ${recorded.value.status}.`,
+      message: `Payment recorded. The invoice is now ${invoiceStatusLabel(recorded.value.status)}.`,
     } satisfies ActionState;
   });
   if (result.ok) revalidatePath(returnPath(organizationId));

@@ -234,6 +234,29 @@ export function agencyCode(organizationId: string): string {
   return organizationId.replace(/-/g, '').slice(0, 8).toUpperCase();
 }
 
+/** The agency's name, which every billing notice opens with (S30). Empty when it is missing. */
+export async function agencyName(tx: Db, organizationId: string): Promise<string> {
+  const row = first(
+    await tx
+      .select({ name: schema.organizations.name })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, organizationId))
+      .limit(1),
+  );
+  return row?.name.trim() ?? '';
+}
+
+/**
+ * A billing notice's first line, naming the agency first (S30): "Dhaka Visa Desk: invoice
+ * INV-7D3F9A2C-20261101 is due on 8 Nov 2026." Without a name it reads as the plain sentence.
+ * Never an amount: billing notices and emails carry none.
+ */
+export function agencyLine(name: string, sentence: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}`;
+  return `${trimmed}: ${sentence.charAt(0).toLowerCase()}${sentence.slice(1)}`;
+}
+
 /** Where billing notices lead: the agency's Invoices page. */
 export function invoicesPath(organizationId: string): string {
   return `/app/agency/${organizationId}/plan/invoices`;

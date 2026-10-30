@@ -807,13 +807,22 @@ function convertedCopyRefusal(
       reason: 'converted copy: larger than the per-file limit',
     };
   }
+  // An agency's plan or billing refusal is typed (S30): the traveller's sentence never names the
+  // agency's billing, and the upload record keeps the accurate cause.
+  if (error.reason === 'billing_suspended' || error.reason === 'limit_reached') {
+    return {
+      message: plainError(error),
+      reason:
+        error.reason === 'billing_suspended'
+          ? 'converted copy: organization billing suspended'
+          : 'converted copy: organization plan storage limit',
+    };
+  }
   const quota = (
     [
       ['applicant has reached', 'applicant evidence limit', true],
       ['account has reached', 'account evidence limit', true],
-      ['plan storage limit', 'organization plan storage limit', true],
       ['platform storage capacity', 'platform capacity', true],
-      ['suspended billing', 'organization billing suspended', false],
     ] as const
   ).find(([phrase]) => text.includes(phrase));
   if (error.code === 'invalid' && quota) {

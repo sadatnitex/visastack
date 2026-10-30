@@ -10593,3 +10593,92 @@ summary.safe-copy-title {
 .verify-other-address[open] > summary {
   margin-bottom: var(--space-2);
 }
+
+/* WP-S30 billing screens polish: the centred payment result, invoice due markers and document
+   links, the Grace and Suspended notice, the plan change notice, a long phone tab label that
+   fits without being cut, and a compact agency header on a phone (Glance level, ADR 0023). */
+.payment-result-body {
+  margin-inline: auto;
+}
+.payment-result-amount {
+  margin-top: var(--space-3);
+  font-weight: 600;
+  color: var(--text);
+}
+.payment-result .cta-row {
+  margin-top: var(--space-5);
+}
+.invoice-badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.invoice-facts .invoice-due-danger {
+  color: var(--danger);
+}
+.invoice-facts .invoice-due-warning {
+  color: var(--warning);
+}
+.invoice-documents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  border-top: 1px solid var(--hairline-soft);
+  padding-top: var(--space-3);
+}
+.billing-status-notice {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+  padding: var(--space-4);
+}
+.billing-status-title {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: 700;
+}
+.billing-status-body {
+  margin: 0;
+  max-width: 62ch;
+}
+.plan-change-notice {
+  margin: var(--space-3) 0 0;
+}
+@media (max-width: 1023px) {
+  .app-bar .app-link-compact-long {
+    font-size: 0.64rem;
+    letter-spacing: -0.02em;
+  }
+}
+@media (max-width: 640px) {
+  .agency-hero {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+  }
+  .agency-hero .agency-mark-lg {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+  .agency-hero .agency-mark-lg .agency-mark-letters {
+    font-size: 1rem;
+  }
+  .agency-hero .page-title {
+    font-size: 1.4rem;
+  }
+  .agency-hero .page-description {
+    display: none;
+  }
+  .agency-hero-attribution {
+    margin-top: var(--space-1);
+  }
+  .agency-hero > .page-actions {
+    grid-column: 2;
+    margin: 0;
+  }
+}

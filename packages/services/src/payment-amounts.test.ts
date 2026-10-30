@@ -92,8 +92,8 @@ describe('payment amounts', () => {
   });
 
   it('writes an amount with the currency code and its own places', () => {
-    expect(formatAmountForCurrency(125050, ' bdt ')).toBe('BDT 1250.50');
-    expect(formatAmountForCurrency(1250, 'JPY')).toBe('JPY 1250');
-    expect(formatAmountForCurrency(1234, 'BHD')).toBe('BHD 1.234');
+    expect(formatAmountForCurrency(125050, ' bdt ')).toBe('BDT\u00a01,250.50');
+    expect(formatAmountForCurrency(1250, 'JPY')).toBe('JPY\u00a01,250');
+    expect(formatAmountForCurrency(1234, 'BHD')).toBe('BHD\u00a01.234');
   });
 });
