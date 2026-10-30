@@ -364,22 +364,25 @@ export async function checkStorageEntitlement(
   const full = async (organizationId: string) =>
     (await inAgency(organizationId)) ? AGENCY_STORAGE_FULL : TRAVELLER_UPLOAD_PAUSED;
   // S29 round 2: a person adding files to their own record is never stopped by any agency's
-  // suspension, even when they also work in that agency.
-  const ownRecord =
-    uploaderAccountId !== undefined &&
-    (
-      await tx
-        .select({ owner: schema.applicants.ownerAccountId })
-        .from(schema.applicants)
-        .where(eq(schema.applicants.id, applicantId))
-        .limit(1)
-    )[0]?.owner === uploaderAccountId;
+  // suspension, even when they also work in that agency. Looked up only when a suspension is in
+  // play, and once (S29 round 3), so an ordinary upload pays nothing for it.
+  let ownRecordAnswer: Promise<boolean> | undefined;
+  const ownRecord = (): Promise<boolean> => {
+    if (uploaderAccountId === undefined) return Promise.resolve(false);
+    ownRecordAnswer ??= tx
+      .select({ owner: schema.applicants.ownerAccountId })
+      .from(schema.applicants)
+      .where(eq(schema.applicants.id, applicantId))
+      .limit(1)
+      .then((rows) => rows[0]?.owner === uploaderAccountId);
+    return ownRecordAnswer;
+  };
   for (const organizationId of organizationIds) {
     const resolved = await resolveEntitlements(tx, { organizationId });
     if (unrestricted(resolved)) continue;
     // Owner decision O13 (30 Oct 2026): a suspension pauses only the agency's own team. A
     // traveller (or another agency's staff) adding files is never stopped by it.
-    if (resolved.gate === 'suspended' && !ownRecord && (await inAgency(organizationId))) {
+    if (resolved.gate === 'suspended' && (await inAgency(organizationId)) && !(await ownRecord())) {
       return err(refusal('billing_suspended', AGENCY_UPLOAD_PAUSED));
     }
     const allowed = resolved.limits.storage_bytes;

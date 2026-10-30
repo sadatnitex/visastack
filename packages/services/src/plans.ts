@@ -326,7 +326,14 @@ export async function updatePlan(
     );
   }
   if (plan.bypassLimits && (input.priceMinorUnits ?? plan.priceMinorUnits ?? 0) > 0) {
-    return err(serviceError('invalid', 'a complimentary plan cannot have a price'));
+    return err(
+      serviceError(
+        'invalid',
+        plan.key === DEFAULT_AGENCY_PLAN_KEY
+          ? DEFAULT_PLAN_PRICE_NEEDED
+          : 'a complimentary plan cannot have a price',
+      ),
+    );
   }
   if (plan.key === DEFAULT_AGENCY_PLAN_KEY && input.priceMinorUnits === null) {
     return err(serviceError('invalid', DEFAULT_PLAN_PRICE_NEEDED));

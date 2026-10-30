@@ -6540,3 +6540,14 @@ Merge with main after S18 (d62b880c), 30 Oct 2026:
   - Accessibility: a polite line and focus on the card heading after a retire; Pay Online only in live mode or for the platform owner, otherwise the test-mode sentence linked to the payment actions; no limits shown for Traveller Free; confirmation steps are fieldsets with legends; the AI daily limit is a text field with a linked, focused error; a limit typed for a feature that is off is refused; the price step shows the old and new price; Storage messages in MB; "1 day"; "test entries"; focus on the "not saved yet" notice after the sign-in check; Complimentary said once.
   - Break-to-red, restored from cp backups: Founding Access free rule, live attempt left open, the switch parsing guard, the own-record upload rule. All went red.
   - Requirements ledger rows appended for COM-01, COM-02, COM-03.
+- S29 round 3 (30 Oct 2026), re-review of round 2:
+  - A sent refund already marked Needs a Check (ledger refused, duplicate reference) keeps its mark and is not recorded again when the gateway's mode changes.
+  - While the gateway is in test mode, live payments take no room in the payment check and are not counted as still waiting; closed live payments are looked at only by the live gateway. A live payment is still never closed because the mode changed.
+  - The "has the plans update run" answer is kept per database connection and shared with its transactions, so a settlement asks nothing more after the first answer; the refund panel's three reads run side by side again.
+  - Recovery runbook: after any restore to a point before a migration, redeploy the app so running copies forget which tables exist (also noted at the cache in code).
+  - Founding Access with a price above 0 gets the same words as an empty price: enter 0 and its currency.
+  - The Plans page writes Storage only when the typed MB differs from the rounded MB it showed, so saving other fields never moves a limit that is not a whole number of MB.
+  - The daily downgrade run keeps going when one downgrade throws, reports it and counts it (the job reply now says how many failed).
+  - "Travellers" on the Plans page counts every account, agency members included, since each uses the traveller plan for its own record.
+  - The own-record lookup on upload runs only when an agency suspension is in play.
+  - Break-to-red, restored from cp backups: kept mark, live payments in the check, probe count (0 after warm-up), Storage rounding, downgrade error, Founding Access words, traveller count. All went red.

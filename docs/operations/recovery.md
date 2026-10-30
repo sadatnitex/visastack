@@ -136,3 +136,7 @@ These are not footnotes. Each one needs a decision and an owner before Part 10's
 Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance. Production uses private R2 storage; database-only encrypted archive recovery is verified, while complete document/key/lifecycle recovery remains open.
 
 Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.
+
+## Restoring to before a migration (S29 round 3, 30 Oct 2026)
+
+After any restore to a point before a migration, redeploy the app so running copies forget which tables exist.

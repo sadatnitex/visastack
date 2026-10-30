@@ -19,6 +19,7 @@ import { isOrgAdmin } from './organizations';
 import {
   type PaymentMode,
   attemptColumns,
+  attemptModeColumn,
   entitlementsSchemaPresent,
   gatewayServesMode,
 } from './plans-schema';
@@ -1045,6 +1046,10 @@ export async function reconcilePaymentAttempts(
           eq(attempts.provider, port.provider),
           eq(attempts.status, 'REDIRECTED'),
           lte(attempts.redirectedAt, redirectedBefore),
+          // S29 round 3: a live payment is left alone while the gateway is in test mode (never
+          // expired, never asked), so it takes no room in the batch either. A test payment open
+          // when the gateway is live is still taken, once, to be closed as expired.
+          port.mode === 'TEST' ? eq(attemptModeColumn(), 'TEST') : undefined,
         ),
       )
       .orderBy(attempts.redirectedAt)
@@ -1060,6 +1065,8 @@ export async function reconcilePaymentAttempts(
                 eq(attempts.provider, port.provider),
                 eq(attempts.status, 'EXPIRED'),
                 gte(attempts.redirectedAt, lateAfter),
+                // Only the gateway's own mode can say a closed payment succeeded late.
+                port.mode === null ? undefined : eq(attemptModeColumn(), port.mode),
               ),
             )
             .orderBy(sql`${attempts.lastCheckedAt} asc nulls first`)

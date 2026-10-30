@@ -22,6 +22,7 @@ import {
   RETIRED_LINE,
   RETIRE_NOTE,
   type RetireFormState,
+  STORAGE_SHOWN_FIELD,
   TRAVELLER_LIMITS_NOTE,
   UNLIMITED_HINT,
   aiFeatureName,
@@ -109,6 +110,13 @@ export function PlanForm({
   return (
     <form ref={form} action={formAction} className="field-list">
       <input type="hidden" name="planId" value={planId ?? ''} />
+      {planId ? (
+        <input
+          type="hidden"
+          name={STORAGE_SHOWN_FIELD}
+          value={initial[limitField('storage_bytes')] ?? ''}
+        />
+      ) : null}
       {retry && state === NO_REPLY ? (
         <output className="notice notice-warn" ref={notSaved} tabIndex={-1}>
           Your change was not saved yet. Check it below and choose Save again.
