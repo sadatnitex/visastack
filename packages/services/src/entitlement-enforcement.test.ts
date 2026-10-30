@@ -10,6 +10,12 @@ import { openBillingAccount, transitionBillingStatus } from './billing';
 import { grantCommercialOverride, revokeCommercialOverride } from './commercial-override';
 import { setConsent } from './consent';
 import type { Db } from './db';
+import {
+  AGENCY_STORAGE_FULL,
+  AGENCY_UPLOAD_PAUSED,
+  INVITEE_CANNOT_JOIN,
+  TRAVELLER_UPLOAD_PAUSED,
+} from './entitlement-enforcement';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { acceptOrganizationInvitation, createOrganizationInvitation } from './invitations';
 import { createMission } from './missions';
@@ -243,7 +249,10 @@ describe('checkSeatEntitlement / checkInvitationEntitlement - seats (COM-02)', (
       role: 'CASE_MANAGER',
     });
     expect(isErr(addedThird)).toBe(true);
-    if (isErr(addedThird)) expect(addedThird.error.message).toContain('seat');
+    if (isErr(addedThird)) {
+      expect(addedThird.error.reason).toBe('limit_reached');
+      expect(addedThird.error.message).toContain('team member');
+    }
   });
 
   it('setMembershipActive refuses to reactivate a deactivated member once the cap is reached, but deactivation itself is never blocked', async () => {
@@ -305,7 +314,10 @@ describe('checkSeatEntitlement / checkInvitationEntitlement - seats (COM-02)', (
       active: true,
     });
     expect(isErr(reactivated)).toBe(true);
-    if (isErr(reactivated)) expect(reactivated.error.message).toContain('seat');
+    if (isErr(reactivated)) {
+      expect(reactivated.error.reason).toBe('limit_reached');
+      expect(reactivated.error.message).toContain('team member');
+    }
   });
 
   it('setMembershipActive re-activating an ALREADY-active membership is a no-op, never blocked even at cap', async () => {
@@ -371,7 +383,11 @@ describe('checkSeatEntitlement / checkInvitationEntitlement - seats (COM-02)', (
       rawToken,
     });
     expect(isErr(accepted)).toBe(true);
-    if (isErr(accepted)) expect(accepted.error.message).toContain('seat');
+    if (isErr(accepted)) {
+      expect(accepted.error.reason).toBe('limit_reached');
+      // The invitee gets their own sentence (S30): nothing about the agency's members or plan.
+      expect(accepted.error.message).toBe(INVITEE_CANNOT_JOIN);
+    }
   });
 
   it('acceptOrganizationInvitation re-confirming an already-active membership succeeds even at cap', async () => {
@@ -490,7 +506,10 @@ describe('checkInvitationEntitlement - invitation minting (COM-02)', () => {
       role: 'CASE_MANAGER',
     });
     expect(isErr(invited)).toBe(true);
-    if (isErr(invited)) expect(invited.error.message).toContain('seat');
+    if (isErr(invited)) {
+      expect(invited.error.reason).toBe('limit_reached');
+      expect(invited.error.message).toContain('open invitations');
+    }
   });
 
   it('re-inviting the same email (superseding a stale pending one) does not double-count against the cap', async () => {
@@ -581,7 +600,10 @@ describe('checkCaseCreationEntitlement - case creation (COM-02)', () => {
       ownerOrganizationId: organizationId,
     });
     expect(isErr(second)).toBe(true);
-    if (isErr(second)) expect(second.error.message).toContain('period');
+    if (isErr(second)) {
+      expect(second.error.reason).toBe('limit_reached');
+      expect(second.error.message).toMatch(/new cases? every \d+ days/);
+    }
   });
 
   it('blocks a new org-owned case once concurrentOpenCasesAllowed is reached, even with casesPerPeriodAllowed headroom to spare', async () => {
@@ -613,7 +635,10 @@ describe('checkCaseCreationEntitlement - case creation (COM-02)', () => {
       ownerOrganizationId: organizationId,
     });
     expect(isErr(second)).toBe(true);
-    if (isErr(second)) expect(second.error.message).toContain('concurrent');
+    if (isErr(second)) {
+      expect(second.error.reason).toBe('limit_reached');
+      expect(second.error.message).toContain('at a time');
+    }
 
     // Closing the first case frees the one concurrent slot.
     if (!isOk(first)) throw new Error('first');
@@ -715,7 +740,10 @@ describe('checkStorageEntitlement - upload storage (COM-02)', () => {
       generousUploadConfig,
     );
     expect(isErr(second)).toBe(true);
-    if (isErr(second)) expect(second.error.message).toContain('plan storage limit');
+    if (isErr(second)) {
+      expect(second.error.reason).toBe('limit_reached');
+      expect(second.error.message).toBe(TRAVELLER_UPLOAD_PAUSED);
+    }
   });
 
   it('checks paid storage limits even when another accessing organization has founding access', async () => {
@@ -877,6 +905,33 @@ describe('suspended billing blocks new paid work (COM-02 + COM-03)', () => {
     expect(isErr(denied)).toBe(true);
   });
 
+  it('tells an invitee only that the agency cannot add people right now while billing is suspended (S30)', async () => {
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'invite-suspended');
+    await suspendOrg(organizationId);
+    const invitee = await provisionAccount(db, { email: 'invitee-suspended@example.com' });
+    if (!isOk(invitee)) throw new Error('provision');
+    const rawToken = generateInvitationToken();
+    await db.insert(schema.organizationInvitations).values({
+      organizationId,
+      email: invitee.value.email,
+      role: 'CASE_MANAGER',
+      tokenHash: hashInvitationToken(rawToken),
+      invitedByAccountId: ownerAccountId,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    });
+    const accepted = await acceptOrganizationInvitation(db, {
+      actorAccountId: invitee.value.id,
+      actorEmail: invitee.value.email,
+      rawToken,
+    });
+    expect(isErr(accepted)).toBe(true);
+    if (isErr(accepted)) {
+      expect(accepted.error.reason).toBe('billing_suspended');
+      expect(accepted.error.message).toBe(INVITEE_CANNOT_JOIN);
+      expect(accepted.error.message).not.toMatch(/invoice|pay|billing|suspend|remove/i);
+    }
+  });
+
   it('blocks addMembership once billing is suspended, even with generous seat headroom to spare', async () => {
     const { organizationId, ownerAccountId } = await seedOrganization(db, 'seats-suspended');
     const plan = await createPlan(db, {
@@ -905,7 +960,12 @@ describe('suspended billing blocks new paid work (COM-02 + COM-03)', () => {
       role: 'CASE_MANAGER',
     });
     expect(isErr(added)).toBe(true);
-    if (isErr(added)) expect(added.error.message).toContain('suspended');
+    if (isErr(added)) {
+      expect(added.error.reason).toBe('billing_suspended');
+      expect(added.error.message).toBe(
+        "Your agency's billing is paused, so adding team members is paused too. Pay the open invoice to continue.",
+      );
+    }
   });
 
   it('blocks createOrganizationInvitation once billing is suspended, even with no plan assigned at all', async () => {
@@ -918,7 +978,10 @@ describe('suspended billing blocks new paid work (COM-02 + COM-03)', () => {
       role: 'CASE_MANAGER',
     });
     expect(isErr(invited)).toBe(true);
-    if (isErr(invited)) expect(invited.error.message).toContain('suspended');
+    if (isErr(invited)) {
+      expect(invited.error.reason).toBe('billing_suspended');
+      expect(invited.error.message).toContain('inviting team members is paused');
+    }
   });
 
   it('blocks createMission (org-owned) once billing is suspended, even with no plan assigned at all', async () => {
@@ -932,7 +995,10 @@ describe('suspended billing blocks new paid work (COM-02 + COM-03)', () => {
       ownerOrganizationId: organizationId,
     });
     expect(isErr(mission)).toBe(true);
-    if (isErr(mission)) expect(mission.error.message).toContain('suspended');
+    if (isErr(mission)) {
+      expect(mission.error.reason).toBe('billing_suspended');
+      expect(mission.error.message).toContain('starting new cases is paused');
+    }
   });
 
   it('blocks reserveUpload once an accessing organization is suspended, even with no plan assigned at all', async () => {
@@ -951,7 +1017,68 @@ describe('suspended billing blocks new paid work (COM-02 + COM-03)', () => {
       generousUploadConfig,
     );
     expect(isErr(result)).toBe(true);
-    if (isErr(result)) expect(result.error.message).toContain('suspended');
+    if (isErr(result)) {
+      expect(result.error.reason).toBe('billing_suspended');
+      // A traveller is never told about an agency's billing (audit M5).
+      expect(result.error.message).toBe(TRAVELLER_UPLOAD_PAUSED);
+      expect(result.error.message).not.toMatch(/billing|suspend|agency's|organization/i);
+    }
+  });
+
+  it('gives agency staff a next step when their own storage is full, and travellers the neutral sentence (S30)', async () => {
+    const traveller = await seedTraveller(db, 'storage-full-staff');
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'storage-full-org');
+    const tightPlan = await createTightPlan(db, owner, { storageBytesAllowed: 1 * MB });
+    await activateSubscription(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      planId: tightPlan.id,
+      reason: 'test',
+    });
+    await grantOrgAccessToApplicant(db, {
+      applicantOwnerAccountId: traveller.accountId,
+      applicantId: traveller.applicantId,
+      organizationId,
+      orgOwnerAccountId: ownerAccountId,
+    });
+    const reserve = (accountId: string) =>
+      reserveUpload(
+        db,
+        { accountId, applicantId: traveller.applicantId, sizeBytes: 2 * MB },
+        generousUploadConfig,
+      );
+    const staff = await reserve(ownerAccountId);
+    expect(isErr(staff) && staff.error).toEqual({
+      code: 'invalid',
+      reason: 'limit_reached',
+      message: AGENCY_STORAGE_FULL,
+    });
+    const own = await reserve(traveller.accountId);
+    expect(isErr(own) && own.error.message).toBe(TRAVELLER_UPLOAD_PAUSED);
+  });
+
+  it('tells someone working in the agency the same pause without "contact your agency" (S30)', async () => {
+    const traveller = await seedTraveller(db, 'storage-suspended-staff');
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'storage-staff-org');
+    await grantOrgAccessToApplicant(db, {
+      applicantOwnerAccountId: traveller.accountId,
+      applicantId: traveller.applicantId,
+      organizationId,
+      orgOwnerAccountId: ownerAccountId,
+    });
+    await suspendOrg(organizationId);
+    const result = await reserveUpload(
+      db,
+      { accountId: ownerAccountId, applicantId: traveller.applicantId, sizeBytes: 1 * MB },
+      generousUploadConfig,
+    );
+    expect(isErr(result) && result.error).toEqual({
+      code: 'invalid',
+      reason: 'billing_suspended',
+      message: AGENCY_UPLOAD_PAUSED,
+    });
+    expect(AGENCY_UPLOAD_PAUSED).not.toMatch(/contact your agency/i);
   });
 
   it('does not block when billing is ACTIVE, not SUSPENDED -- the gate only fires on the real SUSPENDED status', async () => {

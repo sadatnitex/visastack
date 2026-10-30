@@ -126,7 +126,12 @@ async function checkQuotaTiers(
   // every organization with current grant access to this applicant.
   // Reuses the caller's already-held platform-wide lock; no separate one
   // needed.
-  const orgCheck = await checkStorageEntitlement(tx, input.applicantId, addedBytes);
+  const orgCheck = await checkStorageEntitlement(
+    tx,
+    input.applicantId,
+    addedBytes,
+    input.accountId,
+  );
   if (!orgCheck.ok) return err(orgCheck.error);
   return ok(undefined);
 }

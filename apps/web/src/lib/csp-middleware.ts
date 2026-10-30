@@ -2,10 +2,12 @@ import { type NextMiddleware, NextRequest, NextResponse } from 'next/server';
 import {
   CSP_HEADER_ENFORCE,
   CSP_HEADER_REPORT_ONLY,
+  DOCUMENT_DOWNLOAD_POLICY,
   NONCE_REQUEST_HEADER,
   buildContentSecurityPolicy,
   cspHeaderName,
   generateNonce,
+  isDocumentDownloadPath,
   parseFormActionOrigins,
   resolveAppOrigin,
   resolveCspMode,
@@ -79,6 +81,12 @@ export function createCspMiddleware(deps: CspMiddlewareDeps): NextMiddleware {
     }
     if (!response) {
       response = NextResponse.next({ request: { headers: requestHeaders } });
+    }
+    if (isDocumentDownloadPath(request.nextUrl.pathname)) {
+      // A downloaded document keeps the strictest policy, enforced, never the page policy.
+      response.headers.delete(CSP_HEADER_REPORT_ONLY);
+      response.headers.set(CSP_HEADER_ENFORCE, DOCUMENT_DOWNLOAD_POLICY);
+      return response;
     }
     response.headers.set(headerName, policy);
     return response;

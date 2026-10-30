@@ -1,19 +1,20 @@
 'use server';
 
 import { randomUUID } from 'node:crypto';
+import { looksLikeMoney } from '@visastack/core';
 import {
   REFUNDS_UNAVAILABLE,
   RETRY_REFUSED_CODE,
   type RefundOutcome,
   type RefundRequestView,
   type RefundSource,
+  type ServiceError,
   type StaffScope,
   applyHeldPaymentCredit,
   cancelRefund,
   checkRefundsNow,
   confirmUnsentRefund,
   formatAmountForCurrency,
-  parseAmountForCurrency,
   recordManualRefund,
   requestRefund,
   retryRefund,
@@ -21,6 +22,7 @@ import {
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { bootstrapAdminEmails, staffPrincipal } from '../../../../../lib/admin';
+import { moneyFieldOf } from '../../../../../lib/money-fields';
 import {
   REFUNDS_IN_PANEL,
   refundCheckPort,
@@ -214,10 +216,14 @@ function refusal(message: string, code: string, field?: string): Omit<RefundForm
 }
 
 /** Which field a service's day or reference refusal is about. */
-function fieldOf(message: string): string | undefined {
-  if (message.includes('refund day') || message.includes('day the refund')) return 'refundedOn';
-  if (message.includes('refund reference')) return 'reference';
-  if (message.includes('more than') || message.includes('amount')) return 'amount';
+function fieldOf(error: ServiceError): string | undefined {
+  // Amounts by the typed reason (S30); the day and reference refusals carry no reason yet.
+  const money = moneyFieldOf(error.reason);
+  if (money) return money;
+  if (error.message.includes('refund day') || error.message.includes('day the refund')) {
+    return 'refundedOn';
+  }
+  if (error.message.includes('refund reference')) return 'reference';
   return undefined;
 }
 
@@ -232,10 +238,11 @@ export async function requestRefundAction(
   const values = typed(formData, REFUND_FIELDS);
   const organizationId = text(formData, 'organizationId');
   const source = sourceOf(formData);
-  const amount = parseAmountForCurrency(typedValue(values, 'amount'), text(formData, 'currency'));
+  const amount = typedValue(values, 'amount');
   const reason = typedValue(values, 'reason');
   if (!source) return reply({ ok: false, message: STALE }, values);
-  if (amount === null || amount <= 0) {
+  // A cheap shape check before any work; the exact one, in the stored currency, is the service's.
+  if (!looksLikeMoney(amount)) {
     return reply(
       { ok: false, message: 'Enter the amount to refund, for example 1500.00.', field: 'amount' },
       values,
@@ -257,13 +264,12 @@ export async function requestRefundAction(
       const done = await requestRefund(db, gateway, staff, {
         organizationId,
         source,
-        amountMinorUnits: amount,
+        amountText: amount,
         reason,
         idempotencyKey: text(formData, 'idempotencyKey'),
         stepUpSatisfied: true,
       });
-      if (!done.ok)
-        return refusal(done.error.message, done.error.code, fieldOf(done.error.message));
+      if (!done.ok) return refusal(done.error.message, done.error.code, fieldOf(done.error));
       return outcomeMessage(done.value);
     },
   );
@@ -277,12 +283,13 @@ export async function recordManualRefundAction(
   const values = typed(formData, MANUAL_FIELDS);
   const organizationId = text(formData, 'organizationId');
   const source = sourceOf(formData);
-  const amount = parseAmountForCurrency(typedValue(values, 'amount'), text(formData, 'currency'));
+  const amount = typedValue(values, 'amount');
   const reference = typedValue(values, 'reference');
   const refundedOn = dayOf(typedValue(values, 'refundedOn'));
   const reason = typedValue(values, 'reason');
   if (!source) return reply({ ok: false, message: STALE }, values);
-  if (amount === null || amount <= 0) {
+  // A cheap shape check before any work; the exact one, in the stored currency, is the service's.
+  if (!looksLikeMoney(amount)) {
     return reply(
       { ok: false, message: 'Enter the amount refunded, for example 1500.00.', field: 'amount' },
       values,
@@ -318,15 +325,14 @@ export async function recordManualRefundAction(
       const done = await recordManualRefund(db, staff, {
         organizationId,
         source,
-        amountMinorUnits: amount,
+        amountText: amount,
         reference,
         refundedOn,
         reason,
         idempotencyKey: text(formData, 'idempotencyKey'),
         stepUpSatisfied: true,
       });
-      if (!done.ok)
-        return refusal(done.error.message, done.error.code, fieldOf(done.error.message));
+      if (!done.ok) return refusal(done.error.message, done.error.code, fieldOf(done.error));
       return outcomeMessage(done.value);
     },
   );
@@ -444,8 +450,9 @@ export async function confirmUnsentRefundAction(
   const refundRequestId = text(formData, 'refundRequestId');
   const reference = typedValue(values, 'reference');
   const refundedOn = dayOf(typedValue(values, 'refundedOn'));
-  const amount = parseAmountForCurrency(typedValue(values, 'amount'), text(formData, 'currency'));
-  if (amount === null || amount <= 0) {
+  const amount = typedValue(values, 'amount');
+  // A cheap shape check before any work; the exact one, in the stored currency, is the service's.
+  if (!looksLikeMoney(amount)) {
     return reply(
       {
         ok: false,
@@ -480,12 +487,11 @@ export async function confirmUnsentRefundAction(
         organizationId,
         refundRequestId,
         reference,
-        amountMinorUnits: amount,
+        amountText: amount,
         refundedOn,
         stepUpSatisfied: true,
       });
-      if (!done.ok)
-        return refusal(done.error.message, done.error.code, fieldOf(done.error.message));
+      if (!done.ok) return refusal(done.error.message, done.error.code, fieldOf(done.error));
       return {
         ok: true,
         focusId: lineId(done.value.id),

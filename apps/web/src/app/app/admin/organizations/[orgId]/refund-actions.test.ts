@@ -129,15 +129,50 @@ describe('refund actions (S18)', () => {
     });
   });
 
-  it('send the exact amount in minor units with the step-up proved, and say what happens next', async () => {
+  it('send the typed amount with the step-up proved, and say what happens next', async () => {
     const result = await requestRefundAction(INITIAL, form({}));
     expect(result).toMatchObject({ ok: true });
     expect(result.message).toContain('once the gateway confirms');
     expect(mocks.requestRefund.mock.calls[0]?.[3]).toMatchObject({
       organizationId: ORG,
       source: { kind: 'entry', invoicePaymentId: 'e1' },
-      amountMinorUnits: 150000,
+      amountText: '1500.00',
       stepUpSatisfied: true,
+    });
+  });
+
+  it('never let a currency named by the form decide how the amount is read (S30)', async () => {
+    // The service reads "1500.00" in the payment's own stored currency; a tampered field is ignored.
+    mocks.recordManualRefund.mockResolvedValue({
+      ok: true,
+      value: { code: 'recorded', request: { ...REQUEST, method: 'MANUAL', status: 'CONFIRMED' } },
+    });
+    await requestRefundAction(INITIAL, form({ currency: 'JPY' }));
+    await recordManualRefundAction(
+      INITIAL,
+      form({ currency: 'BHD', reference: 'BANK-1', refundedOn: '2026-10-29' }),
+    );
+    // requestRefund(db, port, staff, input) and recordManualRefund(db, staff, input).
+    const inputs = [
+      mocks.requestRefund.mock.calls[0]?.[3],
+      mocks.recordManualRefund.mock.calls[0]?.[2],
+    ] as Record<string, unknown>[];
+    for (const input of inputs) {
+      expect(input).toHaveProperty('amountText', '1500.00');
+      expect(input).not.toHaveProperty('amountMinorUnits');
+      expect(input).not.toHaveProperty('currency');
+    }
+  });
+
+  it("point at the amount from the service's typed reason, not its wording (S30)", async () => {
+    mocks.requestRefund.mockResolvedValue({
+      ok: false,
+      error: { code: 'invalid', reason: 'amount_over_balance', message: 'Too much.' },
+    });
+    expect(await requestRefundAction(INITIAL, form({}))).toMatchObject({
+      ok: false,
+      field: 'amount',
+      message: 'Too much.',
     });
   });
 

@@ -6,6 +6,7 @@ import { useLatestOf } from '../../../../components/latest-result';
 import { TimeZoneSelect } from '../../../../components/time-zone-select';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
+import { plural } from '../../../../lib/plural';
 import {
   type ActionState,
   createAppointmentAction,
@@ -85,7 +86,6 @@ export function TasksPanel({
                 {task.dueDate ? (
                   <span className="muted" style={{ fontSize: 'var(--text-caption)' }}>
                     due {formatDateOnly(task.dueDate)}
-                    {task.dueTimezone ? ` (${task.dueTimezone})` : ''}
                   </span>
                 ) : null}
               </span>
@@ -128,7 +128,7 @@ export function TasksPanel({
       {decided.length > 0 ? (
         <details className="u-mb-100">
           <summary className="muted" style={{ fontSize: 'var(--text-small)', cursor: 'pointer' }}>
-            {decided.length} completed/cancelled
+            {plural(decided.length, 'Task')} Done or Cancelled
           </summary>
           <div className="rows u-mt-050">
             {decided.map((task) => (

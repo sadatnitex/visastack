@@ -1,14 +1,16 @@
-import { getUsageForOrganization } from '@visastack/services';
+import { formatBillingDate, formatMoney } from '@visastack/core';
+import {
+  getPendingDowngradeForOrganization,
+  getUsageForOrganization,
+  listPlans,
+} from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader } from '../../../../../components/ui';
 import { withSession } from '../../../../../lib/session';
-import {
-  formatMeterValue,
-  formatPrice,
-  meterFraction,
-  meterTone,
-} from '../../../../../lib/usage-format';
+import { formatMeterValue, meterFraction, meterTone } from '../../../../../lib/usage-format';
+import { BillingStatusNotice, loadBillingNotice } from '../billing-status-notice';
+import { loadOrgAccess } from '../console-data';
 
 export const metadata: Metadata = { title: 'Agency Usage and Billing' };
 
@@ -38,9 +40,30 @@ export default async function OrgPlanPage({
       actorAccountId: accountId,
       organizationId: orgId,
     });
+    if (!usage.ok) {
+      return {
+        usage: null,
+        error: usage.error.message,
+        admin: false,
+        status: null,
+        downgrade: null,
+      };
+    }
+    // Only after the usage read has shown this person belongs to the agency.
+    const [access, status, pending] = await Promise.all([
+      loadOrgAccess(db, accountId, orgId),
+      loadBillingNotice(db, accountId, orgId),
+      getPendingDowngradeForOrganization(db, orgId),
+    ]);
+    const target = pending
+      ? (await listPlans(db)).find((plan) => plan.id === pending.toPlanId)
+      : undefined;
     return {
-      usage: usage.ok ? usage.value : null,
-      error: usage.ok ? null : usage.error.message,
+      usage: usage.value,
+      error: null,
+      admin: access?.admin === true,
+      status,
+      downgrade: pending ? { on: pending.effectiveAt, planName: target?.name ?? null } : null,
     };
   });
 
@@ -49,7 +72,7 @@ export default async function OrgPlanPage({
       <PageHeader
         eyebrow="Usage &amp; Billing"
         title={<>Plan &amp; Usage</>}
-        description="Every entitlement below is plan configuration, not a hardcoded limit -- each meter names its own definition and what it currently counts."
+        description="Your agency's plan and how much of it is in use. Each limit comes from your plan."
         actions={
           <Link className="btn btn-secondary" href={`/app/agency/${orgId}/plan/invoices`}>
             Invoices
@@ -57,6 +80,8 @@ export default async function OrgPlanPage({
         }
         as="h2"
       />
+
+      <BillingStatusNotice notice={data.status} admin={data.admin} organizationId={orgId} />
 
       {!data.usage ? (
         <article className="card">
@@ -87,15 +112,23 @@ export default async function OrgPlanPage({
               <p className="card-body">
                 Billing period: {data.usage.plan.periodDays} days.{' '}
                 {data.usage.plan.priceMinorUnits !== null && data.usage.plan.currency
-                  ? `Price: ${formatPrice(data.usage.plan.priceMinorUnits, data.usage.plan.currency)}.`
-                  : 'Price not yet configured by a platform owner.'}
+                  ? `Price: ${formatMoney(data.usage.plan.priceMinorUnits, data.usage.plan.currency)}.`
+                  : 'VisaStack has not set a price for this plan yet.'}
               </p>
             )}
+            {data.downgrade ? (
+              <p className="notice plan-change-notice">
+                {data.downgrade.planName
+                  ? `Your plan changes to ${data.downgrade.planName} on ${formatBillingDate(data.downgrade.on)}.`
+                  : `Your plan changes on ${formatBillingDate(data.downgrade.on)}.`}{' '}
+                The new limits apply from that day. Nothing is deleted.
+              </p>
+            ) : null}
           </article>
 
           <article className="card">
-            <p className="card-kicker">Entitlements</p>
-            <h2 className="card-title">Meters</h2>
+            <p className="card-kicker">What Your Plan Includes</p>
+            <h2 className="card-title">Usage</h2>
             <div className="rows u-mt-100">
               {data.usage.meters.map((meter) => (
                 <div key={meter.key} className="u-mb-125">

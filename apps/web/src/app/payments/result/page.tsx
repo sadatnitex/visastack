@@ -1,7 +1,7 @@
+import { formatMoney } from '@visastack/core';
 import {
   type PaymentResultState,
   type PaymentResultView,
-  formatMinorUnits,
   getPaymentResultView,
 } from '@visastack/services';
 import type { Metadata } from 'next';
@@ -75,15 +75,15 @@ export default async function PaymentResultPage({
   const copy = view ? COPY[view.state] : GENERIC;
 
   return (
-    <section className="section container center">
+    <section className="section container center payment-result">
       <h1 className="section-title">{copy.heading}</h1>
-      <p className="section-sub">{copy.body}</p>
+      <p className="section-sub payment-result-body">{copy.body}</p>
       {view ? (
-        <p className="section-sub">
-          Invoice {view.invoiceRef}: {view.currency} {formatMinorUnits(view.amountMinorUnits)}
+        <p className="section-sub payment-result-body payment-result-amount">
+          Invoice {view.invoiceRef}: {formatMoney(view.amountMinorUnits, view.currency)}
         </p>
       ) : null}
-      <div className="cta-row">
+      <div className="cta-row cta-row-center">
         <a className="btn btn-primary" href="/app">
           Go to Workspace
         </a>

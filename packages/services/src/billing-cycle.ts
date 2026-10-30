@@ -1,4 +1,4 @@
-import { type Result, err, ok } from '@visastack/core';
+import { type Result, dayCount, err, formatBillingDate, ok } from '@visastack/core';
 import { type SQL, and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { type StaffScope, type SystemScope, staffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
@@ -16,6 +16,8 @@ import {
   DAY_MS,
   type OverdueInvoice,
   agencyCode,
+  agencyLine,
+  agencyName,
   billingContacts,
   billingDay,
   databaseNow,
@@ -34,7 +36,6 @@ import { type Db, first, schema } from './db';
 import { serverErrorEvent } from './error-report';
 import type { ServiceError } from './errors';
 import { applyOverdueStatusChange } from './invoice-ledger';
-import { titleDate } from './naming';
 import { enqueueNotificationBothChannels } from './notifications';
 import { formatObservabilityLine } from './observability-format';
 
@@ -131,6 +132,53 @@ export interface OverduePolicy {
  * The status change the run would make for one billing account, or null. Pure, so the run and the
  * Billing Rules preview judge an agency by exactly the same rule.
  */
+/**
+ * Whether VisaStack may move this account by itself: it is Active, or in a Grace that VisaStack
+ * set. A status a person set (other than Active) and Suspended are never moved by the run.
+ */
+export function movableAutomatically(standing: BillingStanding): boolean {
+  return (
+    standing.status === 'ACTIVE' || (standing.status === 'GRACE' && standing.cause === 'NONPAYMENT')
+  );
+}
+
+/**
+ * Whether an overdue invoice counts towards an automatic move: a person's last change covers
+ * every invoice that was already overdue when they made it (for example an extension).
+ */
+export function countedAutomatically(
+  standing: BillingStanding,
+  invoice: { readonly dueDate: Date },
+): boolean {
+  if (standing.cause === 'NONPAYMENT' || standing.changedAt === null) return true;
+  return !isOverdue(invoice.dueDate, standing.changedAt);
+}
+
+/**
+ * The day the run would move the agency to Suspended by itself, when that is really ahead: the
+ * rules are on, the agency could be moved by the run (`movableAutomatically`), and the oldest
+ * counted overdue invoice (`countedAutomatically`, the one `automaticStatusChange` judges by) has
+ * not reached the day yet. `invoice` is the one the reminder is about; it counts too. Null
+ * otherwise, so a reminder never warns about a pause that will not happen, or names a later day
+ * than the run will use (S30).
+ */
+export function automaticSuspensionDay(
+  standing: BillingStanding | null,
+  policy: OverduePolicy | null,
+  invoice: { readonly dueDate: Date },
+  now: Date,
+): Date | null {
+  if (policy === null || standing === null) return null;
+  if (!movableAutomatically(standing)) return null;
+  const counted = [...standing.overdue, invoice].filter(
+    (candidate) => isOverdue(candidate.dueDate, now) && countedAutomatically(standing, candidate),
+  );
+  const oldest = counted.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())[0];
+  if (!oldest) return null;
+  if (daysPastDue(oldest.dueDate, now) >= policy.suspendAfterDays) return null;
+  return billingDay(oldest.dueDate, policy.suspendAfterDays);
+}
+
 export function automaticStatusChange(
   standing: BillingStanding,
   policy: OverduePolicy | null,
@@ -151,14 +199,8 @@ export function automaticStatusChange(
     return null;
   }
   if (policy === null) return null;
-  const movable = standing.status === 'ACTIVE' || (standing.status === 'GRACE' && setByVisaStack);
-  if (!movable) return null;
-  // A person's last change covers every invoice that was already overdue when they made it.
-  const changedAt = standing.changedAt;
-  const relevant =
-    setByVisaStack || changedAt === null
-      ? overdue
-      : overdue.filter((invoice) => !isOverdue(invoice.dueDate, changedAt));
+  if (!movableAutomatically(standing)) return null;
+  const relevant = overdue.filter((invoice) => countedAutomatically(standing, invoice));
   const oldest = [...relevant].sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())[0];
   if (!oldest) return null;
   const days = daysPastDue(oldest.dueDate, now);
@@ -455,8 +497,9 @@ async function createCycleInvoice(
           periodStart: periodStart.toISOString(),
         },
       });
-      const due = titleDate(dueDate, BILLING_TIME_ZONE);
+      const due = formatBillingDate(dueDate, BILLING_TIME_ZONE);
       const contacts = await billingContacts(tx, candidate.organization_id);
+      const name = await agencyName(tx, candidate.organization_id);
       for (const accountId of contacts) {
         await enqueueNotificationBothChannels(tx, {
           eventType: 'INVOICE_ISSUED',
@@ -464,8 +507,8 @@ async function createCycleInvoice(
           recipientAccountId: accountId,
           organizationId: candidate.organization_id,
           payload: {
-            subject: 'New invoice',
-            summary: `Invoice ${invoiceRef} is ready. It is due on ${due}.`,
+            subject: 'New Invoice',
+            summary: agencyLine(name, `Invoice ${invoiceRef} is ready. It is due on ${due}.`),
             deepLinkPath: invoicesPath(candidate.organization_id),
           },
         });
@@ -480,30 +523,65 @@ interface ReminderWords {
   readonly subject: string;
   readonly summary: string;
   readonly timing: 'upcoming' | 'today' | 'overdue';
+  /** The email's own heading when it differs from the standard one for its timing. */
+  readonly heading?: string;
+}
+
+export interface ReminderContext {
+  /** The agency's name, which the notice opens with. */
+  readonly agencyName?: string;
+  /** The reminder stage; the 7-day overdue reminder has its own words. */
+  readonly stage?: ReminderStage;
+  /**
+   * The day an unpaid invoice would move the agency to Suspended, when automatic handling is on
+   * and that day is still ahead ("8 Nov 2026"); the 7-day reminder says it, in neutral words.
+   */
+  readonly suspendsOn?: string | null;
 }
 
 /**
  * The words of a reminder from the actual day count: "due today" only on the due day itself;
- * after it, "was due on <day>".
+ * after it, "was due on <day>". The 3-day and 7-day overdue reminders read differently, and the
+ * 7-day one says what happens next when VisaStack moves unpaid agencies automatically. Every
+ * reminder names the agency first and never an amount.
  */
-export function reminderWords(daysUntilDue: number, ref: string, dueDay: string): ReminderWords {
+export function reminderWords(
+  daysUntilDue: number,
+  ref: string,
+  dueDay: string,
+  context: ReminderContext = {},
+): ReminderWords {
+  const line = (sentence: string) => agencyLine(context.agencyName ?? '', sentence);
   if (daysUntilDue > 0) {
     return {
-      subject: 'Invoice due soon',
-      summary: `Invoice ${ref} is due on ${dueDay}.`,
+      subject: 'Invoice Due Soon',
+      summary: line(`Invoice ${ref} is due on ${dueDay}.`),
       timing: 'upcoming',
     };
   }
   if (daysUntilDue === 0) {
     return {
-      subject: 'Invoice due today',
-      summary: `Invoice ${ref} is due today, ${dueDay}.`,
+      subject: 'Invoice Due Today',
+      summary: line(`Invoice ${ref} is due today, ${dueDay}.`),
       timing: 'today',
     };
   }
+  if (context.stage === 'overdue_7') {
+    const next = context.suspendsOn
+      ? ` If it is still unpaid on ${context.suspendsOn}, adding cases, team members and files will pause until it is paid. Nothing is deleted or hidden.`
+      : '';
+    return {
+      subject: 'Invoice Still Overdue',
+      summary: line(
+        `Invoice ${ref} was due on ${dueDay} and is still unpaid ${dayCount(-daysUntilDue)} after its due date.${next}`,
+      ),
+      timing: 'overdue',
+      heading: 'An invoice is still past its due date',
+    };
+  }
   return {
-    subject: 'Invoice overdue',
-    summary: `Invoice ${ref} was due on ${dueDay} and is still unpaid.`,
+    subject: 'Invoice Overdue',
+    summary: line(`Invoice ${ref} was due on ${dueDay} and is still unpaid.`),
     timing: 'overdue',
   };
 }
@@ -514,11 +592,29 @@ function hasBillingContactSql(organizationId: SQL): SQL {
   return sql`exists (select 1 from ${m} where ${m.organizationId} = ${organizationId} and ${m.active} = true and ${m.role} in ('OWNER', 'ADMIN'))`;
 }
 
+/** An agency's billing standing at `now`, read without a lock (for reminder words only). */
+async function standingOf(
+  db: Db,
+  organizationId: string,
+  now: Date,
+): Promise<BillingStanding | null> {
+  const b = schema.billingAccounts;
+  const account = first(
+    await db
+      .select({ id: b.id, organizationId: b.organizationId, status: b.status })
+      .from(b)
+      .where(eq(b.organizationId, organizationId))
+      .limit(1),
+  );
+  return account ? readBillingStanding(db, account, now) : null;
+}
+
 async function queueReminders(
   db: Db,
   now: Date,
   budget: Budget,
   noContact: ReturnType<typeof noContactLogger>,
+  policy: OverduePolicy | null,
 ): Promise<{ queued: number; failed: number }> {
   const i = schema.invoices;
   const o = schema.organizations;
@@ -526,6 +622,7 @@ async function queueReminders(
     .select({
       id: i.id,
       organizationId: i.organizationId,
+      organizationName: o.name,
       invoiceRef: i.invoiceRef,
       dueDate: i.dueDate,
     })
@@ -592,10 +689,23 @@ async function queueReminders(
       const written = await db.transaction(async (tx) => {
         const contacts = await billingContacts(tx, invoice.organizationId);
         if (contacts.length === 0) return -1;
+        // What happens next, only when VisaStack moves unpaid agencies automatically and the day
+        // it would is still ahead.
+        const suspendsOnDay =
+          stage === 'overdue_7' && policy !== null
+            ? automaticSuspensionDay(
+                await standingOf(tx, invoice.organizationId, now),
+                policy,
+                invoice,
+                now,
+              )
+            : null;
+        const suspendsOn = suspendsOnDay ? formatBillingDate(suspendsOnDay) : null;
         const words = reminderWords(
           daysUntilDue,
           invoice.invoiceRef,
-          titleDate(invoice.dueDate, BILLING_TIME_ZONE),
+          formatBillingDate(invoice.dueDate, BILLING_TIME_ZONE),
+          { agencyName: invoice.organizationName, stage, suspendsOn },
         );
         let rows = 0;
         for (const accountId of contacts) {
@@ -610,6 +720,7 @@ async function queueReminders(
               summary: words.summary,
               deepLinkPath: invoicesPath(invoice.organizationId),
               timing: words.timing,
+              ...(words.heading ? { heading: words.heading } : {}),
             },
           });
         }
@@ -830,7 +941,7 @@ export async function runBillingCycle(
 
   // 4. Reminders for the stage each unpaid invoice has reached.
   const reminderBudget = makeBudget(limit, deadline);
-  const reminders = await queueReminders(db, now, reminderBudget, noContact);
+  const reminders = await queueReminders(db, now, reminderBudget, noContact, policy);
   failed += reminders.failed;
 
   return {

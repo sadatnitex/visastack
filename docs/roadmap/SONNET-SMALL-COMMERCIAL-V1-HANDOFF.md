@@ -780,6 +780,7 @@ Generate a migration only after the previous migration is on main.
 | 23a | **S27. Commercial-readiness reconciliation and daily backup: DONE.** Merged as #337 (`47f18e57`); no migration; pruning waits for `BACKUP_PRUNE=on`, the penetration test deferral for O17 | none | none | done |
 | 24 | S24. Commercial acceptance and release reconciliation (WP-V6) | none | O3, O5, O7, O9 to O12, O16, O17 | owner word (never automatic) |
 | 25 | S25. Bangla | none expected | O15 | owner word |
+| 25a | **S30. Billing screens polish and downloadable documents: BUILT** (30 Oct; local branch `s30-wip`, not merged, not live). Invoice and Receipt PDFs, Grace and Suspended notice, downgrade notice, typed plan and billing refusals, one money and date style, billing email wording; see `docs/operations/billing-documents.md` | none | none | owner word |
 
 Note, 29 Oct 2026:
 

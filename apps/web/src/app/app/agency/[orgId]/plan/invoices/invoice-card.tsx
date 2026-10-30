@@ -1,11 +1,13 @@
-import { type AgencyInvoiceView, formatAmountForCurrency } from '@visastack/services';
+import {
+  billingDaysUntil,
+  formatBillingDate,
+  formatBillingDateTime,
+  formatMoney,
+  formatMoneyNumber,
+} from '@visastack/core';
+import type { AgencyInvoiceView } from '@visastack/services';
 import Link from 'next/link';
 import { StatusBadge } from '../../../../../../components/ui';
-import {
-  formatDateOnly,
-  formatTimestamp,
-  formatTimestampDate,
-} from '../../../../../../lib/format-date';
 import {
   ATTEMPT_STATUS_LABELS,
   CLAIM_METHOD_LABELS,
@@ -15,7 +17,6 @@ import {
   INVOICE_STATE_LABELS,
   INVOICE_STATE_TONES,
 } from '../../../../../../lib/invoice-labels';
-import { formatPrice } from '../../../../../../lib/usage-format';
 import {
   CheckStatusButton,
   ClaimForm,
@@ -27,7 +28,23 @@ import {
 const ONLINE_CURRENCY = 'BDT';
 
 function plainAmount(minorUnits: number, currency: string): string {
-  return formatPrice(minorUnits, currency);
+  return formatMoney(minorUnits, currency);
+}
+
+/**
+ * When an unpaid invoice is due, as its own marker beside the state (S30): "Overdue" from the
+ * Bangladesh day after the due date, "Due Today" on the day itself. A word and a mark, never
+ * colour alone. Nothing for an invoice that owes nothing.
+ */
+export function dueMarker(
+  invoice: Pick<AgencyInvoiceView, 'dueDate' | 'outstandingMinorUnits'>,
+  now: Date,
+): { readonly label: 'Overdue' | 'Due Today'; readonly tone: 'danger' | 'warning' } | null {
+  if (invoice.outstandingMinorUnits <= 0) return null;
+  const days = billingDaysUntil(invoice.dueDate, now);
+  if (days < 0) return { label: 'Overdue', tone: 'danger' };
+  if (days === 0) return { label: 'Due Today', tone: 'warning' };
+  return null;
 }
 
 export function InvoiceCard({
@@ -35,12 +52,15 @@ export function InvoiceCard({
   organizationId,
   onlineAvailable,
   latestDate,
+  now = new Date(),
 }: {
   readonly invoice: AgencyInvoiceView;
   readonly organizationId: string;
   readonly onlineAvailable: boolean;
   /** The latest day a payment can have been made (YYYY-MM-DD, anywhere on earth). */
   readonly latestDate: string;
+  /** The moment the page is drawn, for Overdue and Due Today. */
+  readonly now?: Date;
 }) {
   // A refunded invoice is never owed again (S18, D2): it has no Pay button and no report form.
   // Decided from the money itself, not from the state, so a payment held for a check (which
@@ -48,15 +68,19 @@ export function InvoiceCard({
   const refunded = invoice.refundedMinorUnits > 0;
   const open = invoice.status !== 'PAID' && invoice.status !== 'VOID' && !refunded;
   const reported = invoice.state === 'PAYMENT_REPORTED';
-  const canPayOnline =
+  // Whether this invoice can be paid online at all: payments switched on, its currency covered.
+  const onlineOffered =
     open &&
     onlineAvailable &&
     invoice.state !== 'NEEDS_CHECK' &&
     invoice.currency === ONLINE_CURRENCY &&
     invoice.outstandingMinorUnits > 0;
-  const balance = formatAmountForCurrency(invoice.outstandingMinorUnits, invoice.currency)
-    .slice(invoice.currency.length)
-    .trim();
+  // While a payment report waits, paying online could pay twice: the report is checked first.
+  const canPayOnline = onlineOffered && !reported;
+  const balance = formatMoneyNumber(invoice.outstandingMinorUnits, invoice.currency, {
+    grouping: false,
+  });
+  const due = open ? dueMarker(invoice, now) : null;
   const headingId = `invoice-${invoice.id}`;
   const hasOldPayment = invoice.attempts.some((a) => a.status === 'REDIRECTED');
 
@@ -66,13 +90,18 @@ export function InvoiceCard({
         <h3 id={headingId} className="invoice-ref">
           {invoice.invoiceRef}
         </h3>
-        <StatusBadge tone={INVOICE_STATE_TONES[invoice.state]}>
-          {INVOICE_STATE_LABELS[invoice.state]}
-        </StatusBadge>
+        <span className="billing-badges">
+          <StatusBadge tone={INVOICE_STATE_TONES[invoice.state]}>
+            {INVOICE_STATE_LABELS[invoice.state]}
+          </StatusBadge>
+          {due ? <StatusBadge tone={due.tone}>{due.label}</StatusBadge> : null}
+        </span>
       </div>
       <p className="invoice-note">
         {INVOICE_STATE_HINTS[invoice.state]}
         {invoice.partlyPaid && invoice.state === 'OPEN' ? ' Part of it has been paid.' : ''}
+        {due?.label === 'Overdue' ? ` It was due on ${formatBillingDate(invoice.dueDate)}.` : ''}
+        {due?.label === 'Due Today' ? ' It is due today.' : ''}
       </p>
       {invoice.creditMinorUnits > 0 ? (
         <p className="invoice-note">
@@ -102,7 +131,9 @@ export function InvoiceCard({
         {refunded ? null : (
           <div>
             <dt>Due</dt>
-            <dd>{formatDateOnly(invoice.dueDate)}</dd>
+            <dd className={due ? `billing-due-${due.tone}` : undefined}>
+              {formatBillingDate(invoice.dueDate)}
+            </dd>
           </div>
         )}
       </dl>
@@ -113,7 +144,7 @@ export function InvoiceCard({
             <RecentPaymentChoices
               organizationId={organizationId}
               invoiceId={invoice.id}
-              startedAt={formatTimestamp(invoice.recentAttemptStartedAt)}
+              startedAt={formatBillingDateTime(invoice.recentAttemptStartedAt)}
             />
           ) : (
             <>
@@ -127,8 +158,9 @@ export function InvoiceCard({
           )}
           {reported ? (
             <p className="invoice-note">
-              You have a payment report waiting for confirmation. Once it is decided you can report
-              another.
+              {onlineOffered
+                ? 'Payment Reported: we are checking it. Once it is decided you can pay online or report another payment.'
+                : 'Payment Reported: we are checking it. We will update this invoice once it is checked.'}
             </p>
           ) : (
             <ClaimForm
@@ -154,7 +186,7 @@ export function InvoiceCard({
                 <span>
                   {CLAIM_METHOD_LABELS[claim.method]},{' '}
                   {plainAmount(claim.amountMinorUnits, claim.currency)}, paid{' '}
-                  {formatDateOnly(claim.paidOn)}
+                  {formatBillingDate(claim.paidOn)}
                 </span>
                 <StatusBadge tone={CLAIM_STATUS_TONES[claim.status]}>
                   {CLAIM_STATUS_LABELS[claim.status]}
@@ -188,7 +220,7 @@ export function InvoiceCard({
               <li key={attempt.id} className="invoice-list-item">
                 <span>
                   {plainAmount(attempt.amountMinorUnits, attempt.currency)}, started{' '}
-                  {formatTimestamp(attempt.redirectedAt ?? attempt.createdAt)}
+                  {formatBillingDateTime(attempt.redirectedAt ?? attempt.createdAt)}
                 </span>
                 <StatusBadge
                   tone={
@@ -221,13 +253,30 @@ export function InvoiceCard({
                 </Link>
                 <span>
                   {plainAmount(receipt.amountMinorUnits, receipt.currency)} on{' '}
-                  {formatTimestampDate(receipt.issuedAt)}
+                  {formatBillingDate(receipt.issuedAt)}
                 </span>
+                <a
+                  className="invoice-link"
+                  href={`/app/agency/${organizationId}/plan/invoices/receipts/${receipt.id}/pdf`}
+                >
+                  Download Receipt (PDF)
+                  <span className="sr-only"> {receipt.number}</span>
+                </a>
               </li>
             ))}
           </ul>
         </section>
       ) : null}
+
+      <div className="billing-documents">
+        <a
+          className="btn btn-secondary"
+          href={`/app/agency/${organizationId}/plan/invoices/${invoice.id}/pdf`}
+        >
+          Download Invoice (PDF)
+          <span className="sr-only"> {invoice.invoiceRef}</span>
+        </a>
+      </div>
     </article>
   );
 }

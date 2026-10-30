@@ -134,6 +134,8 @@ export interface NotificationPayload {
   readonly sealedInvitationLink?: SealedInvitationLink;
   /** Task and invoice reminders only: whether the due day is ahead, today or past, for the email's heading. */
   readonly timing?: 'upcoming' | 'today' | 'overdue';
+  /** The email's own heading where one event type has several (billing status changes, S30). */
+  readonly heading?: string;
 }
 
 /** Deterministic composition of "event; recipient; channel; threshold where applicable" plus the driving resource, so two different resources of the same event/recipient/channel never collide. */
@@ -602,6 +604,7 @@ async function dispatchOne(
         summary: payload.summary,
         url: `${baseUrl}${path}`,
         ...(payload.timing ? { timing: payload.timing } : {}),
+        ...(payload.heading ? { heading: payload.heading } : {}),
       }),
       { baseUrl, recipient: recipient.email },
     );

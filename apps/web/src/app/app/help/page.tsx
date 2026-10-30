@@ -2,18 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { InstallAppCard } from '../../../components/pwa/install-app-card';
 import { PageHeader } from '../../../components/ui';
+import { supportEmail } from '../../../lib/support-email';
 export const metadata: Metadata = { title: 'Help and Support' };
-
-/**
- * The watched support inbox, when one is set up (`SUPPORT_EMAIL`). Nothing is shown without
- * it: the page never invents an address. Read per request so setting it needs no rebuild.
- */
-const SUPPORT_EMAIL_VAR = 'SUPPORT_EMAIL';
-
-function supportEmail(): string | null {
-  const address = process.env[SUPPORT_EMAIL_VAR]?.trim();
-  return address && /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/.test(address) ? address : null;
-}
 
 export default function HelpPage() {
   const email = supportEmail();

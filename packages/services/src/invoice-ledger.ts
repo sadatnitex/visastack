@@ -1,4 +1,4 @@
-import { type Result, dayCount, err, ok } from '@visastack/core';
+import { type Result, dayCount, err, normalizeCurrencyCode, ok } from '@visastack/core';
 import { and, eq, sql } from 'drizzle-orm';
 import type { SystemScope } from './access/principal';
 import { appendAuditEvent } from './audit';
@@ -10,6 +10,8 @@ import {
 import {
   type AutomaticStatusChange,
   type BillingAccountRow,
+  agencyLine,
+  agencyName,
   billingContacts,
   databaseNow,
   invoiceHasRefundSql,
@@ -85,7 +87,7 @@ export function isUuid(value: string): boolean {
 
 /** An ISO currency code as the ledger compares it: trimmed and upper case. */
 export function normalizeCurrency(raw: string): string {
-  return raw.trim().toUpperCase();
+  return normalizeCurrencyCode(raw);
 }
 
 /** True when the text is a three-letter currency code (before or after normalizing). */
@@ -665,7 +667,15 @@ const STATUS_NOTICE: Readonly<
   ACTIVE: () => 'No invoice is overdue now, so your agency is back to Active.',
 };
 
+/** The in-app title of each status notice (S30: title case, like every other in-app name). */
 const STATUS_SUBJECT: Readonly<Partial<Record<BillingStatus, string>>> = {
+  GRACE: 'Your Agency Is in Grace',
+  SUSPENDED: 'Your Agency Is Suspended',
+  ACTIVE: 'Your Agency Is Active Again',
+};
+
+/** Each status change's own email heading, instead of one heading for all three (S30). */
+const STATUS_HEADING: Readonly<Partial<Record<BillingStatus, string>>> = {
   GRACE: 'Your agency is in Grace',
   SUSPENDED: 'Your agency is suspended',
   ACTIVE: 'Your agency is active again',
@@ -725,9 +735,11 @@ async function writeSystemStatusChange(
     change.daysOverdue,
   );
   const subject = STATUS_SUBJECT[change.toStatus];
+  const heading = STATUS_HEADING[change.toStatus];
   const contacts = await billingContacts(tx, account.organizationId);
   let noticesWritten = 0;
   if (summary && subject) {
+    const line = agencyLine(await agencyName(tx, account.organizationId), summary);
     for (const recipientAccountId of contacts) {
       noticesWritten += await enqueueNotificationBothChannels(tx, {
         eventType: 'BILLING_STATUS_CHANGED',
@@ -735,7 +747,12 @@ async function writeSystemStatusChange(
         recipientAccountId,
         organizationId: account.organizationId,
         threshold: `${change.toStatus}:${noticeKey}`,
-        payload: { subject, summary, deepLinkPath: invoicesPath(account.organizationId) },
+        payload: {
+          subject,
+          summary: line,
+          deepLinkPath: invoicesPath(account.organizationId),
+          ...(heading ? { heading } : {}),
+        },
       });
     }
   }

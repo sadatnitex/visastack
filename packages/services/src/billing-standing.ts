@@ -1,3 +1,4 @@
+import { BILLING_CALENDAR_TIME_ZONE, billingDaysUntil } from '@visastack/core';
 import { type SQL, and, asc, eq, inArray, lt, sql } from 'drizzle-orm';
 import {
   type BillingStatus,
@@ -6,7 +7,7 @@ import {
   newestBillingStatusChange,
 } from './billing-history';
 import { type Db, first, schema } from './db';
-import { localDateDiffInDays, toLocalDateParts } from './notification-sweep';
+import { toLocalDateParts } from './notification-sweep';
 
 /**
  * What the daily billing run, the payment path and the Billing Rules preview all need to judge
@@ -22,7 +23,7 @@ import { localDateDiffInDays, toLocalDateParts } from './notification-sweep';
  */
 
 /** The calendar billing days are counted in. */
-export const BILLING_TIME_ZONE = 'Asia/Dhaka';
+export const BILLING_TIME_ZONE = BILLING_CALENDAR_TIME_ZONE;
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -32,7 +33,9 @@ export const DAY_MS = 24 * 60 * 60 * 1000;
  * stored) reads as that same day in Bangladesh.
  */
 export function daysPastDue(dueDate: Date, now: Date): number {
-  return localDateDiffInDays(dueDate, now, BILLING_TIME_ZONE);
+  // The one day rule (S30): core's billingDaysUntil, which the invoice card's Overdue marker and
+  // the invoice document's stamp use too, so the screens, the documents and the daily run agree.
+  return 0 - billingDaysUntil(dueDate, now);
 }
 
 /** Overdue means from the Bangladesh day after the due date: the due day itself is not overdue. */
@@ -232,6 +235,29 @@ export async function databaseNow(db: Db): Promise<Date> {
  */
 export function agencyCode(organizationId: string): string {
   return organizationId.replace(/-/g, '').slice(0, 8).toUpperCase();
+}
+
+/** The agency's name, which every billing notice opens with (S30). Empty when it is missing. */
+export async function agencyName(tx: Db, organizationId: string): Promise<string> {
+  const row = first(
+    await tx
+      .select({ name: schema.organizations.name })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, organizationId))
+      .limit(1),
+  );
+  return row?.name.trim() ?? '';
+}
+
+/**
+ * A billing notice's first line, naming the agency first (S30): "Dhaka Visa Desk: invoice
+ * INV-7D3F9A2C-20261101 is due on 8 Nov 2026." Without a name it reads as the plain sentence.
+ * Never an amount: billing notices and emails carry none.
+ */
+export function agencyLine(name: string, sentence: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}`;
+  return `${trimmed}: ${sentence.charAt(0).toLowerCase()}${sentence.slice(1)}`;
 }
 
 /** Where billing notices lead: the agency's Invoices page. */

@@ -68,12 +68,10 @@ type Source = { readonly kind: 'entry' | 'held'; readonly id: string };
 function SourceFields({
   organizationId,
   source,
-  currency,
   idempotencyKey,
 }: {
   readonly organizationId: string;
   readonly source: Source;
-  readonly currency: string;
   readonly idempotencyKey: string;
 }) {
   return (
@@ -81,7 +79,6 @@ function SourceFields({
       <input type="hidden" name="organizationId" value={organizationId} />
       <input type="hidden" name="sourceKind" value={source.kind} />
       <input type="hidden" name="sourceId" value={source.id} />
-      <input type="hidden" name="currency" value={currency} />
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
     </>
   );
@@ -166,7 +163,6 @@ export function RefundForm({
       <SourceFields
         organizationId={organizationId}
         source={source}
-        currency={currency}
         idempotencyKey={state.nextKey ?? firstKey}
       />
       <div key={state.nextKey ?? firstKey} className="field-list">
@@ -230,7 +226,6 @@ export function ManualRefundForm({
       <SourceFields
         organizationId={organizationId}
         source={source}
-        currency={currency}
         idempotencyKey={state.nextKey ?? firstKey}
       />
       <div key={state.nextKey ?? firstKey} className="field-list">
@@ -402,7 +397,6 @@ export function ConfirmUnsentRefundForm({
     <form ref={formRef} action={formAction} className="field-list">
       <input type="hidden" name="organizationId" value={organizationId} />
       <input type="hidden" name="refundRequestId" value={refundRequestId} />
-      <input type="hidden" name="currency" value={currency} />
       <div key={state.nextKey ?? 'first'} className="field-list">
         <TextField
           id={`${id}-amount`}
