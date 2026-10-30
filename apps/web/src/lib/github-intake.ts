@@ -1,9 +1,10 @@
 import 'server-only';
+import { isProductionSite } from './hosting';
 
 /** Dispatch only trusted main code; document bytes and URLs never enter the event. */
 export async function dispatchGithubIntake(): Promise<void> {
-  const deployment = 'VERCEL_ENV';
-  if (process.env[deployment] !== 'production')
+  // The production site on Vercel or on the Render fallback (hosting.ts); never a preview.
+  if (!isProductionSite())
     throw new Error('Production document worker cannot be dispatched from this deployment');
   const name = 'GITHUB_INTAKE_DISPATCH_TOKEN';
   const token = process.env[name];

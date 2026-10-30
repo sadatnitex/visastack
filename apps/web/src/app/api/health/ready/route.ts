@@ -72,6 +72,7 @@ export async function GET(): Promise<Response> {
         db: report.db,
         migrations: report.migrations,
         providers: report.providers,
+        hosting: report.hosting,
         capabilities: report.capabilities,
         platform: effectivePlatform,
         ...(commercial ? { commercialReadiness: commercial } : {}),

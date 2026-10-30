@@ -6,6 +6,10 @@ name: Live signed-in check
 # Skips itself when the LIVE_CHECK_EMAIL and LIVE_CHECK_PASSWORD secrets are
 # not set. No report is uploaded, and traces and screenshots are off, so the
 # credentials can never land in a stored file.
+#
+# Load on the live site (30 Oct 2026, after the Vercel Hobby CPU pause): it runs at most once per
+# production deployment, plus any run started by hand. It has no timed schedule, and none should
+# be added; scripts/live-checks.test.mjs fails if one is.
 on:
   deployment_status:
   workflow_dispatch:
@@ -28,11 +32,13 @@ jobs:
     # owner limits to the main branch, so a run from any other branch cannot
     # read them. Production deployment events carry the ref "main".
     environment: live-check
-    # One check at a time, and a new one waits rather than cancelling a check
-    # in progress. At job level, so skipped preview events never touch it.
+    # A newer deployment cancels a check still running for an older one (changed 30 Oct 2026 from
+    # waiting, to spare the live site: the check is read-only, so stopping it part way changes
+    # nothing). The event name is in the group, so a run started by hand and a deployment run
+    # never cancel each other. At job level, so skipped preview events never touch it.
     concurrency:
-      group: live-signed-in-check
-      cancel-in-progress: false
+      group: live-signed-in-check-${{ github.event_name }}
+      cancel-in-progress: true
     env:
       LIVE_CHECK_EMAIL: ${{ secrets.LIVE_CHECK_EMAIL }}
       LIVE_CHECK_PASSWORD: ${{ secrets.LIVE_CHECK_PASSWORD }}

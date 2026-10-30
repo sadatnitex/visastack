@@ -694,6 +694,11 @@ export default async function AdminOperationsPage() {
                         r.providers.valid,
                       ],
                       [
+                        'Hosting settings',
+                        r.hosting.ready ? 'complete' : (r.hosting.problem ?? 'incomplete'),
+                        r.hosting.ready,
+                      ],
+                      [
                         'Sign-in configuration',
                         missingSignIn.length === 0
                           ? 'complete'
