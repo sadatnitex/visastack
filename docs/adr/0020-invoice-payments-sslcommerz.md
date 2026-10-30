@@ -254,3 +254,31 @@ Owner decision O14 (30 Oct 2026): SSLCOMMERZ is the provider; bKash, Rocket and 
 6. **Result links.** Signed with `PAYMENT_RESULT_SIGNING_SECRET` (used as it is when at least 32 characters), else a key derived from `NEON_AUTH_COOKIE_SECRET`, label `visastack.payment-result.v2`; none: the general page. Links signed before this step (store-password key, label v1) are still accepted until they expire; decision O2: remove that acceptance in a later package at least 7 days after this one is live.
 7. **Secrets.** `withoutPaymentSecrets` blanks every registry secret name and the signing secret.
 8. **Switch readings.** No existing switch changes: `PAYMENT_PROVIDER`, `SSLCOMMERZ_*` and `PAYMENT_REFUNDS_VIA_GATEWAY` (exact `true`, still pinned by `launch-switch-parsing.test.ts`) are read as before. Deviation from the plan: refunds stay behind the exact-`true` reading, not `switchOn`, because the pin forbids `switchOn` in refund-gateway.ts.
+
+### S19 step 0, round 2 (30 Oct 2026): review fixes
+
+Supersedes items 3 and 6 above where they differ.
+
+1. **An incomplete provider is never silent.** Each entry reports `missingSettings(env)`: the names of its missing or invalid settings, never their values. A chosen provider with any of them is off. `incompletePaymentProviders(env)` names it, and three places act on it:
+   - readiness (`validateProviderEnv`) fails, naming the provider and each missing setting;
+   - the daily payment check reports it through `reportServerError` and returns `incompleteProviders`, so the cron route answers 503, while the other providers are still asked;
+   - each callback to it reports once per request and still answers 503, or the general result page for the browser.
+   `PAYMENT_PROVIDERS` set but naming nothing (such as `,`) also fails readiness. Building the ports never throws (the failure recorder falls back to the console log).
+2. **Stranded work counts with no provider on.** The daily payment check, the daily refund check, Check Now and Check Status still count open payments and sent refunds whose provider is not configured (`providerNotConfigured`), even when none is configured. Nothing is asked or changed.
+3. **Paying again is blocked while a payment is stranded.** While an open payment's provider is not configured:
+   - the payer is told "Your earlier payment was started with a payment method that is switched off now. Contact us before paying again, so you are not charged twice." (`PAYMENT_METHOD_OFF`);
+   - the card offers neither Pay Online nor Start Another Payment;
+   - `startOnlinePayment` refuses another payment for that invoice, even on purpose (typed `provider_not_configured`).
+4. **Staff are told about stranded refunds.** Check Now tells staff which sent refunds wait on a payment method that is switched off now.
+5. **Fair time budget.** In the daily payment and refund checks, each provider may start gateway calls only within an equal share of the time left (`providerShareDeadline`). A slow earlier provider cannot starve a later one.
+6. **Mixed modes.** `overallPaymentMode` is LIVE only when every configured provider is live, TEST when all are in test mode, MIXED otherwise. In MIXED:
+   - the status page's Payments row is limited and reads Partly Live, with the test-only invoice currencies named in plain words;
+   - Billing Rules shows Partly Live and names those currencies.
+   With one provider the S29 words are unchanged.
+7. **Refund through a provider gone.** `requestRefund` checks that the payment's own provider is configured and can refund before any mode check. When it is not, the refusal is typed `provider_not_configured` (`REFUND_PROVIDER_OFF`). Send Again uses the same refusal.
+8. **Result links (decision O2 closed).** The store-password key is removed: production never had SSLCOMMERZ configured, so no link was ever signed with it, and accepting it only gave whoever holds the store password a forging path. The signing rules are now:
+   - `NEON_AUTH_COOKIE_SECRET` is used only when it is at least 32 characters;
+   - once `PAYMENT_RESULT_SIGNING_SECRET` is set, links signed with the cookie-derived key are still accepted until they expire;
+   - a `PAYMENT_RESULT_SIGNING_SECRET` that is set but shorter than 32 characters fails readiness, naming only the setting.
+9. **One settings parser.** `readSslcommerzConfig`, `SslcommerzConfig`, `isPaymentProviderConfigured` and `createPaymentPort` are deleted (no production caller). The registry contract test also checks that each entry's key equals its port's `provider`.
+10. **Overview wording.** The row label is "Online Payments", like "Document Storage". With several providers each row is "Online Payments in <currency in plain words>". The provider's name is in the detail. Currency names come from the one list in `payment-resolver.ts` (`currencyWords`, `currencyListWords`).

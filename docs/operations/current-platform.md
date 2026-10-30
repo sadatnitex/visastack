@@ -143,3 +143,11 @@ Update 2026-10-30 (S19 step 0, payment provider registry). Two new settings; eve
 | Payment result link signing | `PAYMENT_RESULT_SIGNING_SECRET` (Vercel Production, secret) | Key derived from `NEON_AUTH_COOKIE_SECRET`; with neither, the general result page | Links signed with this secret | Used as it is when at least 32 characters; shorter is not used. Links signed before S19 step 0 are accepted until they expire (removal later, decision O2) |
 
 Callback addresses are `/api/payments/<provider>/ipn` and `/return`; for SSLCOMMERZ they are unchanged. The platform overview shows one "Online Payments: <Name>" row per provider and an "AI App Access" row (On or Off, from `AI_CONNECTOR_ENABLED`). Runbook: "Adding a Payment Provider" in [online-payments.md](online-payments.md).
+
+Update 2026-10-30 (S19 step 0, round 2):
+- Readiness fails when any of these is true. Each message names only the setting or provider, never a value.
+  - A chosen payment provider has settings missing or invalid; the message names the provider and each missing setting.
+  - `PAYMENT_PROVIDERS` is set but names nothing.
+  - `PAYMENT_RESULT_SIGNING_SECRET` is set but shorter than 32 characters.
+- Result links are no longer accepted with the old store-password key (decision O2 closed). The cookie-derived fallback key needs `NEON_AUTH_COOKIE_SECRET` of at least 32 characters.
+- The platform overview row is "Online Payments", with the provider named in its detail.

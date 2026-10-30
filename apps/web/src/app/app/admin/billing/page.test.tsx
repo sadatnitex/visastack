@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   previewOverdueHandling: vi.fn(),
   countLedgerTestRows: vi.fn(),
   paymentMode: vi.fn(),
+  currencies: vi.fn(),
 }));
 
 vi.mock('../../../../lib/session', () => ({
@@ -23,7 +24,10 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   previewOverdueHandling: (...args: unknown[]) => mocks.previewOverdueHandling(...args),
   countLedgerTestRows: (...args: unknown[]) => mocks.countLedgerTestRows(...args),
 }));
-vi.mock('../../../../lib/providers', () => ({ paymentMode: () => mocks.paymentMode() }));
+vi.mock('../../../../lib/providers', () => ({
+  paymentMode: () => mocks.paymentMode(),
+  paymentCurrenciesByMode: () => mocks.currencies(),
+}));
 vi.mock('./forms', async () => {
   const { stub } = await import('../../../../lib/next-mocks.test-support');
   return { BillingRulesForm: stub('BillingRulesForm') };
@@ -85,6 +89,23 @@ describe('Platform > Billing Rules', () => {
     expect(text).toContain('Only you can make a test payment');
     expect(text).toContain('This month, 2 test entries are left out of the file.');
     expect(mocks.staffPrincipal.mock.calls[1]?.[2]).toBe('BILLING_LEDGER_EXPORT');
+  });
+
+  it('never says every payment is real while some invoice currencies are still in test mode (S19 step 0 round 2)', async () => {
+    mocks.paymentMode.mockReturnValue('MIXED');
+    mocks.currencies.mockReturnValue({ live: ['BDT'], test: ['USD', 'EUR'] });
+    const text = textOf(await renderServer(Page({})));
+    expect(text).toContain('Partly Live');
+    expect(text).not.toContain('Online payment takes real money from agencies.');
+    expect(text).toContain('Online payment takes real money for invoices in Bangladeshi taka.');
+    expect(text).toContain(
+      'Invoices in US dollars and euros can still only take test payments: only you can make one',
+    );
+    // Live alone keeps the S29 words.
+    mocks.paymentMode.mockReturnValue('LIVE');
+    const live = textOf(await renderServer(Page({})));
+    expect(live).toContain('Online payment takes real money from agencies.');
+    expect(live).not.toContain('Partly Live');
   });
 
   it('is restricted to the platform owner', async () => {

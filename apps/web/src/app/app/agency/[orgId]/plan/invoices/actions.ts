@@ -4,6 +4,7 @@ import { looksLikeMoney } from '@visastack/core';
 import {
   CLAIM_AMOUNT_PROBLEM,
   type Db,
+  PAYMENT_METHOD_OFF,
   PROOF_FILE_MAX_BYTES,
   type ProofFilePorts,
   formatAmountForCurrency,
@@ -87,14 +88,9 @@ export async function startPaymentAction(
       email,
     }): Promise<InvoiceActionState | { readonly redirectUrl: string }> => {
       // S19 step 0: the service starts the payment on the provider that takes this invoice's
-      // currency, so nothing here names a provider or a currency.
-      let payments: ReturnType<typeof paymentPorts>;
-      try {
-        payments = paymentPorts();
-      } catch {
-        return UNAVAILABLE;
-      }
-      const started = await startOnlinePayment(db, payments, {
+      // currency, so nothing here names a provider or a currency. With none configured it
+      // refuses in plain words.
+      const started = await startOnlinePayment(db, paymentPorts(), {
         actorAccountId: accountId,
         // S29: in the gateway's test mode only the platform owner may start a payment.
         actorEmail: email,
@@ -127,13 +123,7 @@ export async function checkPaymentAction(
   const found = ids(formData);
   if (!found) return NOT_FOUND;
   const result = await withSession(async ({ db, accountId }): Promise<InvoiceActionState> => {
-    let payments: ReturnType<typeof paymentPorts>;
-    try {
-      payments = paymentPorts();
-    } catch {
-      return UNAVAILABLE;
-    }
-    const checked = await refreshInvoicePaymentAttempts(db, payments, {
+    const checked = await refreshInvoicePaymentAttempts(db, paymentPorts(), {
       actorAccountId: accountId,
       organizationId: found.organizationId,
       invoiceId: found.invoiceId,
@@ -141,7 +131,7 @@ export async function checkPaymentAction(
     });
     if (!checked.ok) return { ok: false, message: 'We could not find this invoice.' };
     const summary = checked.value;
-    if (!summary.configured || !summary.available) return UNAVAILABLE;
+    if (!summary.available) return UNAVAILABLE;
     if (summary.recorded > 0) return { ok: true, message: 'Your payment was received. Thank you.' };
     if (summary.held > 0) {
       return {
@@ -149,6 +139,9 @@ export async function checkPaymentAction(
         message: 'Your payment needs a check. VisaStack will contact you.',
       };
     }
+    // S19 step 0 round 2: a payment open with a provider switched off now cannot be checked.
+    if (summary.providerNotConfigured > 0) return { ok: false, message: PAYMENT_METHOD_OFF };
+    if (!summary.configured) return UNAVAILABLE;
     if (summary.unavailable > 0 || summary.stillPending > 0) {
       return {
         ok: true,

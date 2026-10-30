@@ -59,15 +59,6 @@ describe('refunds through the payment gateway (S18, S19 step 0)', () => {
     expect(mocks.ports).toHaveBeenCalledWith({ refundsOnly: true });
   });
 
-  it('turn payment ports that refuse to be made into "no gateway", reported, never a crash', () => {
-    mocks.ports.mockImplementation(() => {
-      throw new Error('PAYMENT_PROVIDER=sslcommerz requires SSLCOMMERZ_STORE_ID');
-    });
-    expect(refundSendPort(on)).toBeNull();
-    expect(refundCheckPort()).toBeNull();
-    expect(mocks.report).toHaveBeenCalled();
-  });
-
   it('build the payment ports once for a page that needs both answers', () => {
     expect(refundPorts(on)).toEqual({ check: gateways, send: gateways });
     expect(mocks.ports).toHaveBeenCalledTimes(1);

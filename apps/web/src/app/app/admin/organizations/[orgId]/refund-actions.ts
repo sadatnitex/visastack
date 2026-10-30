@@ -25,7 +25,7 @@ import { bootstrapAdminEmails, staffPrincipal } from '../../../../../lib/admin';
 import { moneyFieldOf } from '../../../../../lib/money-fields';
 import {
   REFUNDS_IN_PANEL,
-  refundCheckPort,
+  refundCheckPorts,
   refundSendPort,
 } from '../../../../../lib/refund-gateway';
 import { withSession } from '../../../../../lib/session';
@@ -383,19 +383,29 @@ export async function checkRefundsAction(
   formData: FormData,
 ): Promise<RefundFormState> {
   const organizationId = text(formData, 'organizationId');
-  const gateway = refundCheckPort();
-  if (!gateway) {
-    return reply({ ok: false, message: 'The payment gateway is not set up here.' }, {});
-  }
+  // S19 step 0 round 2: asked even with no gateway on, so sent refunds left with a switched-off
+  // payment method are still counted and staff are told.
+  const gateways = refundCheckPorts();
   return asOwner(organizationId, {}, null, async ({ db, staff }) => {
-    const checked = await checkRefundsNow(db, gateway, staff, { organizationId });
+    const checked = await checkRefundsNow(db, gateways, staff, { organizationId });
     if (!checked.ok) return refusal(checked.error.message, checked.error.code);
     const summary = checked.value;
     if (!summary.available) return { ok: false, message: REFUNDS_UNAVAILABLE };
-    if (!summary.configured)
-      return { ok: false, message: 'The payment gateway is not set up here.' };
+    const waiting = summary.providerNotConfigured;
+    const them = waiting === 1 ? 'it' : 'them';
+    const stranded =
+      waiting > 0
+        ? `${plural(waiting, 'sent refund is', 'sent refunds are')} waiting on a payment method that is switched off now, so VisaStack cannot ask about ${them}. Check ${them} in that payment method's own panel, then record what happened.`
+        : null;
+    if (!summary.configured) {
+      return stranded === null
+        ? { ok: false, message: 'The payment gateway is not set up here.' }
+        : { ok: false, message: stranded };
+    }
     if (summary.checked === 0 && summary.leftForLater === 0) {
-      return { ok: true, message: 'No sent refund is waiting.' };
+      return stranded === null
+        ? { ok: true, message: 'No sent refund is waiting.' }
+        : { ok: false, message: stranded };
     }
     if (summary.unavailable > 0 && summary.unavailable === summary.checked) {
       return {
@@ -411,7 +421,10 @@ export async function checkRefundsAction(
       summary.unavailable > 0 ? `${summary.unavailable} could not be asked` : null,
       summary.leftForLater > 0 ? `${summary.leftForLater} left for the next check` : null,
     ].filter((part): part is string => part !== null);
-    return { ok: true, message: `Checked with the payment gateway: ${parts.join(', ')}.` };
+    const done = `Checked with the payment gateway: ${parts.join(', ')}.`;
+    return stranded === null
+      ? { ok: true, message: done }
+      : { ok: false, message: `${done} ${stranded}` };
   });
 }
 

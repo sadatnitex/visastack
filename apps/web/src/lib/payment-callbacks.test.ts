@@ -20,7 +20,7 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./public-db', () => ({ withPublicDb: vi.fn() }));
-vi.mock('./providers', () => ({ paymentPortFor: vi.fn() }));
+vi.mock('./providers', () => ({ paymentPortFor: vi.fn(), incompletePaymentSettings: vi.fn() }));
 
 const get = (record: Readonly<Record<string, string>> | null | undefined, name: string) =>
   record?.[name];
@@ -48,8 +48,21 @@ let logged: string[];
 /** The services take every configured provider; here, SSLCOMMERZ alone, taking taka. */
 const onlyPort = () => paymentPortResolver([{ port, currencies: ['BDT'] }]);
 
-const deps = (override: Partial<{ port: () => PaymentPort | null }> = {}) => ({
+/** SSLCOMMERZ chosen with its mode missing: off, and reported. */
+const INCOMPLETE = {
+  key: 'sslcommerz' as const,
+  name: 'SSLCOMMERZ',
+  missing: ['SSLCOMMERZ_MODE'],
+};
+
+const deps = (
+  override: Partial<{
+    port: () => PaymentPort | null;
+    incomplete: () => typeof INCOMPLETE | null;
+  }> = {},
+) => ({
   port: () => port,
+  incomplete: () => null,
   withDb: <T>(work: (handle: Db) => Promise<T>) => work(db),
   baseUrl: () => BASE,
   ...override,
@@ -366,16 +379,27 @@ describe('the gateway notification address', () => {
       deps({ port: () => new NullPaymentPort() }),
     );
     expect(off.status).toBe(503);
-    const broken = await handleGatewayNotification(
-      ipn(gateway.notification(tran)),
-      SSL,
-      deps({
-        port: () => {
-          throw new Error(`bad configuration ${PASSWORD}`);
-        },
-      }),
-    );
-    expect(broken.status).toBe(503);
+    // Not chosen at all: nothing to report.
+    expect(logged.filter((line) => line.includes('server_error'))).toEqual([]);
+    expect(await ledger()).toHaveLength(0);
+  });
+
+  it('answers 503 and reports once per request when the provider is chosen with incomplete settings (round 2)', async () => {
+    for (const request of [1, 2]) {
+      const answer = await handleGatewayNotification(
+        ipn(gateway.notification(tran)),
+        SSL,
+        deps({ port: () => null, incomplete: () => INCOMPLETE }),
+      );
+      expect(answer.status, String(request)).toBe(503);
+      const reports = logged.filter((line) => line.includes('server_error'));
+      expect(reports, String(request)).toHaveLength(request);
+      expect(reports[request - 1]).toContain('paymentNotification');
+      expect(reports[request - 1]).toContain('sslcommerz');
+      expect(reports[request - 1]).toContain('SSLCOMMERZ_MODE');
+    }
+    expect(logged.join('\n')).not.toContain(PASSWORD);
+    expect(gateway.requests.filter((r) => r.path.includes('validator'))).toHaveLength(0);
     expect(await ledger()).toHaveLength(0);
   });
 
@@ -531,6 +555,16 @@ describe('the browser return address', () => {
     expect(off.status).toBe(303);
     expect(new URL(off.headers.get('location') ?? '').pathname).toBe('/payments/result');
     expect(new URL(off.headers.get('location') ?? '').search).toBe('');
+    // Chosen but incomplete: the payer sees the same neutral page, and it is reported.
+    const incomplete = await handleBrowserReturn(
+      returnRequest({ tran_id: tran }),
+      SSL,
+      deps({ port: () => null, incomplete: () => INCOMPLETE }),
+    );
+    expect(new URL(incomplete.headers.get('location') ?? '').search).toBe('');
+    expect(
+      logged.filter((line) => line.includes('paymentReturn') && line.includes('SSLCOMMERZ_MODE')),
+    ).toHaveLength(1);
     const dbDown = await handleBrowserReturn(returnRequest({ tran_id: tran }), SSL, {
       ...deps(),
       withDb: async () => {

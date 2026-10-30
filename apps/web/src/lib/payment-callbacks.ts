@@ -12,14 +12,16 @@ import {
 import { resolveBaseUrl } from './base-url';
 import { clientAddressFrom, hashedSubject } from './client-address';
 import {
+  type IncompletePaymentProvider,
   PAYMENT_PROVIDERS,
   type PaymentCallback,
   type PaymentProviderKey,
+  incompleteProviderMessage,
   isPaymentProviderKey,
 } from './payment-providers';
 import { signedPaymentResultPath } from './payment-result';
 import { withoutPaymentSecrets } from './payment-secrets';
-import { paymentPortFor } from './providers';
+import { incompletePaymentSettings, paymentPortFor } from './providers';
 import { withPublicDb } from './public-db';
 import { reportServerError } from './server-error';
 
@@ -41,12 +43,19 @@ import { reportServerError } from './server-error';
 export interface PaymentCallbackDeps {
   /** The provider's port when it is configured here; null (or the Null port) when it is not. */
   readonly port: (provider: PaymentProviderKey) => PaymentPort | null;
+  /**
+   * The provider's missing settings when it is chosen but incomplete (so it is off), else null:
+   * a callback reaching it then is reported, never dropped quietly.
+   */
+  readonly incomplete: (provider: PaymentProviderKey) => IncompletePaymentProvider | null;
   readonly withDb: <T>(work: (db: Db) => Promise<T>) => Promise<T>;
   readonly baseUrl: () => string;
 }
 
 const DEFAULT_DEPS: PaymentCallbackDeps = {
   port: paymentPortFor,
+  incomplete: (provider) =>
+    incompletePaymentSettings().find((candidate) => candidate.key === provider) ?? null,
   withDb: withPublicDb,
   baseUrl: resolveBaseUrl,
 };
@@ -80,6 +89,24 @@ async function readCallback(
 }
 
 const notFound = () => new Response('Not found', { status: 404 });
+
+/**
+ * A callback reached a provider that is off. When the owner chose it but left its settings
+ * incomplete, that is reported once for this request (its name and the settings it lacks, never a
+ * value), as a refused port used to be before the registry.
+ */
+function reportIfIncomplete(
+  area: string,
+  provider: PaymentProviderKey,
+  deps: PaymentCallbackDeps,
+): void {
+  const incomplete = deps.incomplete(provider);
+  if (incomplete === null) return;
+  reportServerError(area, new Error(incompleteProviderMessage(incomplete)), {
+    step: 'provider settings incomplete',
+    provider,
+  });
+}
 
 async function withinAddressLimit(db: Db, request: Request): Promise<boolean> {
   const decision = await checkRateLimit(
@@ -116,7 +143,10 @@ export async function handleGatewayNotification(
   if (!isPaymentProviderKey(provider)) return notFound();
   try {
     const port = deps.port(provider);
-    if (!port?.configured) return new Response('Payments are not available', { status: 503 });
+    if (!port?.configured) {
+      reportIfIncomplete('paymentNotification', provider, deps);
+      return new Response('Payments are not available', { status: 503 });
+    }
     const callback = await readCallback(request, provider);
     if (!callback) return new Response('Bad request', { status: 400 });
 
@@ -187,7 +217,10 @@ export async function handleBrowserReturn(
   if (!isPaymentProviderKey(provider)) return notFound();
   try {
     const port = deps.port(provider);
-    if (!port?.configured) return redirectToGenericResult(deps);
+    if (!port?.configured) {
+      reportIfIncomplete('paymentReturn', provider, deps);
+      return redirectToGenericResult(deps);
+    }
     const url = new URL(request.url);
     const callback = request.method === 'POST' ? await readCallback(request, provider) : null;
     const merchantTranId = callback?.merchantTranId ?? url.searchParams.get('t') ?? '';

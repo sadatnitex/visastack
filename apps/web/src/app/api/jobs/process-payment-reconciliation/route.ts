@@ -33,9 +33,12 @@ export async function GET(request: Request): Promise<Response> {
     ('error' in refunds ||
       (refunds.checked > 0 && refunds.unavailable === refunds.checked) ||
       (refunds.checked === 0 && (refunds.leftForLater ?? 0) > 0));
+  // A payment provider chosen with incomplete settings is off: a failed run, so it is seen (S19
+  // step 0 round 2). The other providers were still asked, and their counts are in the answer.
   const stopped =
     'error' in result ||
     !result.available ||
+    (result.incompleteProviders ?? []).length > 0 ||
     (result.checked > 0 && result.unavailable === result.checked) ||
     refundsStopped;
   return Response.json(result, { status: stopped ? 503 : 200 });

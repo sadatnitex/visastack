@@ -14,6 +14,7 @@ vi.mock('@visastack/services', async () => {
     PROOF_FILE_MAX_BYTES: real.PROOF_FILE_MAX_BYTES,
     formatAmountForCurrency: real.formatAmountForCurrency,
     CLAIM_AMOUNT_PROBLEM: real.CLAIM_AMOUNT_PROBLEM,
+    PAYMENT_METHOD_OFF: real.PAYMENT_METHOD_OFF,
     startOnlinePayment: mocks.startOnlinePayment,
     refreshInvoicePaymentAttempts: mocks.refreshInvoicePaymentAttempts,
     submitManualPaymentClaim: mocks.submitManualPaymentClaim,
@@ -113,7 +114,7 @@ describe('starting a payment', () => {
     expect(result.message).toMatch(/Check it before paying again/);
   });
 
-  it('passes on a plain refusal from the service, and says "not available yet" when payments are off', async () => {
+  it('passes on a plain refusal from the service, including the one for a switched-off payment method', async () => {
     mocks.startOnlinePayment.mockResolvedValue({
       ok: false,
       error: { code: 'not_found', message: 'invoice not found' },
@@ -121,16 +122,18 @@ describe('starting a payment', () => {
     expect(
       await startPaymentAction(INITIAL, form({ organizationId: ORG, invoiceId: INVOICE })),
     ).toEqual({ ok: false, message: 'invoice not found' });
-    mocks.paymentPorts.mockImplementation(() => {
-      throw new Error('PAYMENT_PROVIDER=sslcommerz requires SSLCOMMERZ_STORE_PASSWORD');
+    const PAYMENT_METHOD_OFF =
+      'Your earlier payment was started with a payment method that is switched off now. Contact us before paying again, so you are not charged twice.';
+    mocks.startOnlinePayment.mockResolvedValue({
+      ok: false,
+      error: { code: 'invalid', reason: 'provider_not_configured', message: PAYMENT_METHOD_OFF },
     });
-    const off = await startPaymentAction(
-      INITIAL,
-      form({ organizationId: ORG, invoiceId: INVOICE }),
-    );
-    expect(off.message).toBe('Online payment is not available yet. Please try again later.');
-    // The configuration problem is never shown to the person.
-    expect(JSON.stringify(off)).not.toMatch(/SSLCOMMERZ|PASSWORD/);
+    expect(
+      await startPaymentAction(
+        INITIAL,
+        form({ organizationId: ORG, invoiceId: INVOICE, startAnother: 'yes' }),
+      ),
+    ).toEqual({ ok: false, message: PAYMENT_METHOD_OFF });
   });
 });
 
@@ -147,6 +150,7 @@ describe('checking a payment', () => {
       stillPending: 0,
       unavailable: 0,
       awaitingReview: 0,
+      providerNotConfigured: 0,
       ...overrides,
     },
   });
@@ -169,6 +173,30 @@ describe('checking a payment', () => {
     expect((await run()).message).toMatch(/Nothing was charged/);
     mocks.refreshInvoicePaymentAttempts.mockResolvedValue(summary());
     expect((await run()).message).toMatch(/no open payment/);
+  });
+
+  it('tells the payer an earlier payment is open with a payment method switched off now (S19 step 0 round 2)', async () => {
+    const off =
+      'Your earlier payment was started with a payment method that is switched off now. Contact us before paying again, so you are not charged twice.';
+    // Whether other providers are on or none is.
+    for (const configured of [true, false]) {
+      mocks.refreshInvoicePaymentAttempts.mockResolvedValue(
+        summary({ configured, checked: 0, providerNotConfigured: 1 }),
+      );
+      expect(await run(), String(configured)).toEqual({ ok: false, message: off });
+    }
+    // Good news about another payment of the invoice still comes first.
+    mocks.refreshInvoicePaymentAttempts.mockResolvedValue(
+      summary({ recorded: 1, providerNotConfigured: 1 }),
+    );
+    expect((await run()).message).toBe('Your payment was received. Thank you.');
+    // With nothing configured and nothing stranded, online payment is simply not available.
+    mocks.refreshInvoicePaymentAttempts.mockResolvedValue(
+      summary({ configured: false, checked: 0, providerNotConfigured: 0 }),
+    );
+    expect((await run()).message).toBe(
+      'Online payment is not available yet. Please try again later.',
+    );
   });
 
   it('says it cannot find the invoice for a refused reader', async () => {

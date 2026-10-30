@@ -11,8 +11,11 @@ import {
   buildPaymentPorts,
   chosenPaymentProviders,
   configuredPaymentProviders,
+  currenciesByMode,
+  incompletePaymentProviders,
   onlineOffers,
   overallPaymentMode,
+  paymentProvidersSettingProblem,
   unknownListedProviders,
 } from './payment-providers';
 import { paymentSecretNames, withoutPaymentSecrets } from './payment-secrets';
@@ -79,13 +82,24 @@ describe('every registry entry', () => {
     (_key, entry) => {
       expect(entry.secretNames.length).toBeGreaterThan(0);
       const env = fullEnv(entry);
-      expect(entry.isConfigured(env)).toBe(true);
+      expect(entry.missingSettings(env)).toEqual([]);
       expect(entry.mode(env)).toBe('TEST');
-      for (const name of entry.secretNames) {
+      for (const name of [...entry.secretNames, ...entry.settingNames]) {
         const without = { ...env, [name]: '' };
-        expect(entry.isConfigured(without), name).toBe(false);
+        // Each missing setting is named (never its value), and the provider is off.
+        expect(entry.missingSettings(without), name).toEqual([name]);
         expect(entry.mode(without), name).toBeNull();
       }
+    },
+  );
+
+  it.each(entries)(
+    '%s builds a port whose provider is its own key, so payments and refunds find it again',
+    (key, entry) => {
+      const port = entry.create(fullEnv(entry), noFailure);
+      expect(port.provider).toBe(key);
+      expect(port.configured).toBe(true);
+      expect(port.mode).toBe('TEST');
     },
   );
 
@@ -180,7 +194,7 @@ describe('which providers are chosen', () => {
     }
   });
 
-  it('gives one overall mode: live when any provider is live, test when all are in test mode', () => {
+  it('gives one overall mode: live only when every provider is live, mixed when some are not', () => {
     const configured = configuredPaymentProviders({
       PAYMENT_PROVIDER: 'sslcommerz',
       ...sslcommerz(),
@@ -188,7 +202,49 @@ describe('which providers are chosen', () => {
     expect(overallPaymentMode([])).toBeNull();
     expect(overallPaymentMode(configured)).toBe('TEST');
     const live = configured.map((p) => ({ ...p, mode: 'LIVE' as const }));
-    expect(overallPaymentMode([...configured, ...live])).toBe('LIVE');
+    expect(overallPaymentMode(live)).toBe('LIVE');
+    expect(overallPaymentMode([...live, ...live])).toBe('LIVE');
+    expect(overallPaymentMode([...configured, ...configured])).toBe('TEST');
+    expect(overallPaymentMode([...configured, ...live])).toBe('MIXED');
+    expect(overallPaymentMode([...live, ...configured])).toBe('MIXED');
+  });
+
+  it('says which currencies take real money and which only test payments', () => {
+    expect(currenciesByMode({})).toEqual({ live: [], test: [] });
+    const chosen = { PAYMENT_PROVIDERS: 'sslcommerz' };
+    expect(currenciesByMode({ ...chosen, ...sslcommerz('live') })).toEqual({
+      live: ['BDT'],
+      test: [],
+    });
+    expect(currenciesByMode({ ...chosen, ...sslcommerz() })).toEqual({ live: [], test: ['BDT'] });
+  });
+
+  it('names a chosen provider with incomplete settings, and the settings it lacks', () => {
+    expect(incompletePaymentProviders({})).toEqual([]);
+    expect(incompletePaymentProviders(sslcommerz())).toEqual([]);
+    const chosen = { PAYMENT_PROVIDERS: 'sslcommerz' };
+    expect(incompletePaymentProviders({ ...chosen, ...sslcommerz() })).toEqual([]);
+    expect(incompletePaymentProviders({ ...chosen, ...sslcommerz('production') })).toEqual([
+      { key: 'sslcommerz', name: 'SSLCOMMERZ', missing: ['SSLCOMMERZ_MODE'] },
+    ]);
+    expect(incompletePaymentProviders(chosen)).toEqual([
+      {
+        key: 'sslcommerz',
+        name: 'SSLCOMMERZ',
+        missing: ['SSLCOMMERZ_STORE_ID', 'SSLCOMMERZ_STORE_PASSWORD', 'SSLCOMMERZ_MODE'],
+      },
+    ]);
+  });
+
+  it('flags a provider list that names an unknown provider, or nothing at all', () => {
+    for (const fine of [{}, { PAYMENT_PROVIDERS: '' }, { PAYMENT_PROVIDERS: 'none' }]) {
+      expect(paymentProvidersSettingProblem(fine), JSON.stringify(fine)).toBeNull();
+    }
+    expect(paymentProvidersSettingProblem({ PAYMENT_PROVIDERS: ' sslcommerz ' })).toBeNull();
+    expect(paymentProvidersSettingProblem({ PAYMENT_PROVIDERS: ',' })).toMatch(/names no provider/);
+    const unknown = paymentProvidersSettingProblem({ PAYMENT_PROVIDERS: 'sk_live_pasted' });
+    expect(unknown).toMatch(/unsupported PAYMENT_PROVIDERS/);
+    expect(unknown).not.toContain('sk_live_pasted');
   });
 
   it('offers each currency through the earliest configured provider that takes it', () => {

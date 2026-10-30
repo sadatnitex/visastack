@@ -296,3 +296,9 @@ Also still open as written below: O1 (private repository), O3 (paid Vercel and N
 - **New, optional:** `PAYMENT_PROVIDERS=sslcommerz` does the same as today's `PAYMENT_PROVIDER=sslcommerz`. You only need it once there is a second provider.
 - **Adding bKash, Nagad or Rocket directly later** (not built now; only if you decide SSLCOMMERZ's checkout is not enough): ask for a package "add <name> to the payment provider registry". It builds one adapter and one registry entry. Then you: (1) set `PAYMENT_PROVIDERS=sslcommerz,<name>` in Vercel Production; (2) set that provider's settings, starting with its mode as `sandbox`; (3) register `https://vs.obsidianglobal.studio/api/payments/<name>/ipn` and `/return` in its merchant panel; (4) make one small test payment yourself; (5) give your word to switch it to `live`. Full steps: "Adding a Payment Provider" in [online-payments.md](../operations/online-payments.md).
 - **O2 (later package, nothing for you to do):** links to the payment result page signed the old way stop being accepted in a later package, at least 7 days after this one is live. Each link lives one hour, so nobody notices.
+
+## S19 step 0, round 2 (30 Oct 2026)
+
+- **O2 closed, nothing for you to do:** result page links signed with the SSLCOMMERZ store password are no longer accepted at all. SSLCOMMERZ was never set up in production, so no such link exists, and accepting them would only have let whoever holds the store password make one.
+- **If you set `PAYMENT_RESULT_SIGNING_SECRET`, make it at least 32 characters.** A shorter one now makes the readiness check fail until it is fixed.
+- **If you choose a payment provider, set all its settings in the same change.** A provider with a setting missing now makes the readiness check and the daily payment check fail and name the missing setting, instead of quietly staying off.

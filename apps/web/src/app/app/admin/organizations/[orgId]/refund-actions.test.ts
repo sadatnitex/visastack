@@ -28,7 +28,7 @@ vi.mock('../../../../../lib/admin', () => ({
 vi.mock('../../../../../lib/refund-gateway', () => ({
   REFUNDS_IN_PANEL: 'Refunds are made in the merchant panel.',
   refundSendPort: mocks.sendPort,
-  refundCheckPort: () => ({ configured: true, provider: 'sslcommerz' }),
+  refundCheckPorts: () => ({ configured: () => [] }),
 }));
 vi.mock('../../../../../lib/step-up', () => ({
   tryEstablishStepUp: mocks.tryEstablishStepUp,
@@ -234,6 +234,54 @@ describe('refund actions (S18)', () => {
     const mixed = await checkRefundsAction(INITIAL, form({}));
     expect(mixed.message).toContain('1 needs a check, 2 could not be asked');
     expect(mocks.tryEstablishStepUp).not.toHaveBeenCalled();
+  });
+
+  it('tell staff a sent refund is waiting on a payment method switched off now (S19 step 0 round 2)', async () => {
+    const summary = (overrides: Record<string, unknown>) => ({
+      ok: true,
+      value: {
+        available: true,
+        configured: true,
+        checked: 0,
+        confirmed: 0,
+        failed: 0,
+        stillProcessing: 0,
+        unavailable: 0,
+        needsCheck: 0,
+        awaitingCheck: 0,
+        leftForLater: 0,
+        providerNotConfigured: 0,
+        ...overrides,
+      },
+    });
+    // No gateway on at all: the stranded refund is still counted and named.
+    mocks.checkRefundsNow.mockResolvedValue(
+      summary({ configured: false, providerNotConfigured: 1 }),
+    );
+    expect(await checkRefundsAction(INITIAL, form({}))).toMatchObject({
+      ok: false,
+      message:
+        "1 sent refund is waiting on a payment method that is switched off now, so VisaStack cannot ask about it. Check it in that payment method's own panel, then record what happened.",
+    });
+    // Another gateway on, nothing of its own waiting.
+    mocks.checkRefundsNow.mockResolvedValue(summary({ providerNotConfigured: 2 }));
+    expect((await checkRefundsAction(INITIAL, form({}))).message).toBe(
+      "2 sent refunds are waiting on a payment method that is switched off now, so VisaStack cannot ask about them. Check them in that payment method's own panel, then record what happened.",
+    );
+    // Alongside what the gateway that is on answered.
+    mocks.checkRefundsNow.mockResolvedValue(
+      summary({ checked: 1, confirmed: 1, providerNotConfigured: 1 }),
+    );
+    const both = await checkRefundsAction(INITIAL, form({}));
+    expect(both.ok).toBe(false);
+    expect(both.message).toMatch(
+      /^Checked with the payment gateway: 1 refunded\. 1 sent refund is waiting/,
+    );
+    // Nothing on and nothing stranded: the plain "not set up".
+    mocks.checkRefundsNow.mockResolvedValue(summary({ configured: false }));
+    expect((await checkRefundsAction(INITIAL, form({}))).message).toBe(
+      'The payment gateway is not set up here.',
+    );
   });
 
   it('offer only recording a refund made outside VisaStack while the gateway switch is off (S18 round 2)', async () => {

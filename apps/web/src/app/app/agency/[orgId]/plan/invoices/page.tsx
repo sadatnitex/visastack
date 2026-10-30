@@ -8,7 +8,11 @@ import {
 import type { Metadata } from 'next';
 import { PageHeader } from '../../../../../../components/ui';
 import { isPlatformOwnerAccount } from '../../../../../../lib/admin';
-import { type OnlineOffers, onlineOffers } from '../../../../../../lib/payment-providers';
+import {
+  type OnlineOffers,
+  configuredPaymentProviders,
+  onlineOffers,
+} from '../../../../../../lib/payment-providers';
 import { paymentPorts } from '../../../../../../lib/providers';
 import { reportServerError } from '../../../../../../lib/server-error';
 import { withSession } from '../../../../../../lib/session';
@@ -92,6 +96,7 @@ export default async function AgencyInvoicesPage({
 }) {
   const { orgId } = await params;
   const offers = onlineOffers(process.env);
+  const configuredProviders = configuredPaymentProviders(process.env).map((p) => p.key);
 
   const data = await withSession(async ({ db, accountId, email }) => {
     let listed = await listAgencyInvoices(db, { actorAccountId: accountId, organizationId: orgId });
@@ -139,6 +144,7 @@ export default async function AgencyInvoicesPage({
               invoice={invoice}
               organizationId={orgId}
               online={online}
+              configuredProviders={configuredProviders}
               testModeHint={TEST_PAYMENTS_ONLY}
               latestDate={latestDate}
               now={now}

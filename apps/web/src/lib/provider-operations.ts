@@ -1,4 +1,5 @@
 import 'server-only';
+import { currencyListWords } from '@visastack/services';
 import { aiConnectorEnabled } from './ai-connector';
 import { formatFileSize } from './format-size';
 import {
@@ -23,12 +24,30 @@ export interface ProviderOperationsRow {
   readonly detail: string;
 }
 
-/** The label of one payment provider's row (S19 step 0): one row per registry entry. */
-export function onlinePaymentsLabel(entry: Pick<PaymentProviderEntry, 'name'>): string {
-  return `Online Payments: ${entry.name}`;
+/**
+ * The label of one payment provider's row (S19 step 0, worded in round 2): "Online Payments", like
+ * "Document Storage". With several providers each row adds the currencies it takes, in plain
+ * words; the provider's own name is in the detail.
+ */
+export function onlinePaymentsLabel(
+  entry: Pick<PaymentProviderEntry, 'currencies'>,
+  providerCount: number = PAYMENT_PROVIDER_KEYS.length,
+): string {
+  if (providerCount <= 1) return ONLINE_PAYMENTS;
+  return `${ONLINE_PAYMENTS} in ${titleWords(currencyListWords(entry.currencies, 'and'))}`;
 }
 
-const ONLINE_PAYMENTS_PREFIX = 'Online Payments: ';
+const ONLINE_PAYMENTS = 'Online Payments';
+
+/** "Bangladeshi taka and US dollars" as a label: "Bangladeshi Taka and US Dollars". */
+function titleWords(phrase: string): string {
+  return phrase
+    .split(' ')
+    .map((word) => (word === 'and' ? word : `${word.charAt(0).toUpperCase()}${word.slice(1)}`))
+    .join(' ');
+}
+
+type RawRow = Omit<ProviderOperationsRow, 'standing' | 'headline'>;
 
 /** Readings of a payment provider's row. */
 const PAYMENT_READINGS = {
@@ -47,19 +66,18 @@ export function describeProviderOperations(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): ProviderOperationsRow[] {
   const rows = rawRows(input, env);
-  return rows.map((row) => ({ ...row, ...plain(row, input) }));
+  return rows.map((row) => ('standing' in row ? row : { ...row, ...plain(row, input) }));
 }
 
 /**
  * One row per payment provider in the registry, from the one configured answer
  * (`configuredPaymentProviders`): its mode, the currencies it takes, and whether it can refund.
  */
-function paymentRows(
-  env: Readonly<Record<string, string | undefined>>,
-): Omit<ProviderOperationsRow, 'standing' | 'headline'>[] {
+function paymentRows(env: Readonly<Record<string, string | undefined>>): ProviderOperationsRow[] {
   const configured = configuredPaymentProviders(env);
   const chosen = chosenPaymentProviders(env);
-  return PAYMENT_PROVIDER_KEYS.map((key) => {
+  const keys = Object.keys(PAYMENT_PROVIDERS) as (keyof typeof PAYMENT_PROVIDERS)[];
+  return keys.map((key) => {
     const entry: PaymentProviderEntry = PAYMENT_PROVIDERS[key];
     const on = configured.find((provider) => provider.key === key);
     const reading = on
@@ -68,14 +86,15 @@ function paymentRows(
         ? PAYMENT_READINGS.INCOMPLETE
         : PAYMENT_READINGS.OFF;
     return {
-      label: onlinePaymentsLabel(entry),
+      label: onlinePaymentsLabel(entry, keys.length),
       reading,
       source: 'Configuration' as const,
-      detail: `Takes invoices in ${entry.currencies.join(', ')}. ${
+      detail: `Through ${entry.name}, for invoices in ${currencyListWords(entry.currencies, 'and')}. ${
         entry.supportsRefunds
-          ? 'Refunds can be sent through it once refunds through the gateway are switched on.'
+          ? 'Refunds can be sent through it once sending refunds from VisaStack is switched on.'
           : 'Refunds are made in its own panel and recorded here.'
       } Test payments mark invoices paid but are not money: they are labelled Test Payment and left out of the Monthly Accounting File. Only the platform owner can make one. Live payments need the live store settings.`,
+      ...paymentPlain(reading, keys.length > 1 ? currencyListWords(entry.currencies, 'and') : null),
     };
   });
 }
@@ -86,7 +105,7 @@ function rawRows(
     readonly aiCostUnits?: number;
   },
   env: Readonly<Record<string, string | undefined>>,
-): Omit<ProviderOperationsRow, 'standing' | 'headline'>[] {
+): (RawRow | ProviderOperationsRow)[] {
   const read = (name: string) => env[name];
   const configured = (names: readonly string[]) =>
     names.every((name) => Boolean(env[name]?.trim()));
@@ -183,29 +202,34 @@ function rawRows(
   ];
 }
 
-function paymentPlain(row: Omit<ProviderOperationsRow, 'standing' | 'headline'>): {
-  readonly standing: ProviderStatus;
-  readonly headline: string;
-} {
-  const name = row.label.slice(ONLINE_PAYMENTS_PREFIX.length);
-  switch (row.reading) {
+/**
+ * A payment row's standing and headline. With one provider, exactly the S29 sentences; with
+ * several, each says which invoices it is about.
+ */
+function paymentPlain(
+  reading: string,
+  currencies: string | null,
+): { readonly standing: ProviderStatus; readonly headline: string } {
+  const invoices = currencies === null ? 'invoices' : `invoices in ${currencies}`;
+  const payment = currencies === null ? 'Online payment' : `Online payment for ${invoices}`;
+  switch (reading) {
     case PAYMENT_READINGS.LIVE:
       return {
         standing: 'Set Up',
-        headline: `Agencies can pay invoices online with real money through ${name}.`,
+        headline: `Agencies can pay ${invoices} online with real money.`,
       };
     case PAYMENT_READINGS.TEST:
       return {
         standing: 'Set Up',
-        headline: `${name} is in test mode. Only you can make a test payment; agencies cannot pay through it yet.`,
+        headline: `${payment} is in test mode. Only you can make a test payment; agencies cannot pay ${currencies === null ? 'online' : 'those online'} yet.`,
       };
     case PAYMENT_READINGS.INCOMPLETE:
       return {
         standing: 'Not Set Up',
-        headline: `${name} is chosen, but some of its settings are missing, so it is off.`,
+        headline: `${payment} is chosen, but some of its settings are missing, so it is off.`,
       };
     default:
-      return { standing: 'Not Set Up', headline: `Online payment through ${name} is not set up.` };
+      return { standing: 'Not Set Up', headline: `${payment} is not set up.` };
   }
 }
 
@@ -217,7 +241,6 @@ function plain(
     standing: 'Not Measured' as const,
     headline: 'This is not counted here. Check the provider account itself.',
   };
-  if (row.label.startsWith(ONLINE_PAYMENTS_PREFIX)) return paymentPlain(row);
   switch (row.label) {
     case 'Application Email':
       return row.reading === 'Configuration present'

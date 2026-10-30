@@ -24,6 +24,8 @@ export { isPresent, isSignInConfigured } from './env';
 const PAYMENT_CAPABILITY = {
   LIVE: 'available',
   TEST: 'degraded',
+  // S19 step 0 round 2: some providers live and some not is never "available" (all real).
+  MIXED: 'degraded',
   NONE: 'unconfigured',
 } as const satisfies Record<string, CapabilityState>;
 
@@ -137,8 +139,8 @@ export function getPlatformCapabilities(): PlatformCapabilities {
     // Available only when a payment provider is chosen AND fully configured (ADR 0020); the
     // default, with nothing set, stays unconfigured. S29: in the gateway's test mode it works
     // with limits (only test payments), which the status page words as "Test Payments Only".
-    // S19 step 0: across every configured provider (any live one makes it available; all in test
-    // mode is "Test Payments Only"), from the one registry answer.
+    // S19 step 0: across every configured provider (available only when every one is live; all in
+    // test mode is "Test Payments Only"; mixed is limited too), from the one registry answer.
     payments:
       PAYMENT_CAPABILITY[overallPaymentMode(configuredPaymentProviders(process.env)) ?? 'NONE'],
     // The AI connector (ADR 0021 section 7): off unless AI_CONNECTOR_ENABLED is exactly "true",

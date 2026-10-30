@@ -28,6 +28,7 @@ import {
   enqueueNotificationBothChannels,
 } from './notifications';
 import { parseAmountForCurrency } from './payment-amounts';
+import { providerShareDeadline } from './payment-resolver';
 import type { PaymentAttempt } from './payments';
 import {
   type PaymentMode,
@@ -710,6 +711,13 @@ function refundGateways(payments: PaymentPortResolver): RefundingPaymentPort[] {
     .filter((port): port is RefundingPaymentPort => port !== null);
 }
 
+/**
+ * Said to staff when the money was taken with a payment provider that is not configured here any
+ * more, or cannot refund (S19 step 0 round 2): the refund is made in that provider's own panel.
+ */
+export const REFUND_PROVIDER_OFF =
+  "This payment was taken through a payment method that is switched off now, so it cannot be refunded from VisaStack. Refund it in that payment method's own panel, then record it here with Record a Refund Made Outside VisaStack.";
+
 /** The provider the money of a refund source was taken with, when it was taken online. */
 function sourceProvider(source: LockedSource): string | null {
   return source.attempt?.provider ?? (source.kind === 'entry' ? source.entry.provider : null);
@@ -767,9 +775,12 @@ export async function requestRefund(
       const source = await lockSource(tx, input.organizationId, input.source);
       if (!source) return err(serviceError('not_found', 'payment not found'));
       // S19 step 0: the money goes back through the provider it was taken with. A source taken
-      // another way (or with a provider not configured here) is judged against the first
-      // configured gateway, which refuses it below exactly as it always did.
-      const gateway = refundPort(payments.forProvider(sourceProvider(source))) ?? fallback;
+      // another way is judged against the first configured gateway, which refuses it below
+      // exactly as it always did; one taken with a provider not configured here (or one that
+      // cannot refund) is refused before any mode check (round 2).
+      const takenWith = sourceProvider(source);
+      const own = refundPort(payments.forProvider(takenWith));
+      const gateway = own ?? fallback;
       const amount = amountIn(input, sourceIds(source).currency);
       if (amount === null) return err(refusal('amount_invalid', AMOUNT_ABOVE_ZERO));
       // A repeated send is answered from the first request, under the same lock.
@@ -782,6 +793,9 @@ export async function requestRefund(
       }
       const problem = limitProblem(source, amount);
       if (problem) return err(problem);
+      if (takenWith !== null && own === null) {
+        return err(refusal('provider_not_configured', REFUND_PROVIDER_OFF));
+      }
       // S29: money is given back through the gateway mode it was taken in, never the other one: a
       // test payment never reaches the live gateway, and a real one never the test gateway.
       const sourceMode = source.kind === 'held' ? source.attempt.mode : source.entry.mode;
@@ -1024,7 +1038,7 @@ export async function retryRefund(
   // S19 step 0: a refund is sent again only to the provider it was first sent to.
   const gateway = refundPort(payments.forProvider(row.value.provider));
   if (!gateway || row.value.provider !== gateway.provider) {
-    return err(serviceError('invalid', 'This refund belongs to another payment gateway.'));
+    return err(refusal('provider_not_configured', REFUND_PROVIDER_OFF));
   }
   const sourceMode = await refundSourceMode(db, row.value.id);
   if (!gatewayServesMode(gateway, sourceMode)) {
@@ -1536,10 +1550,12 @@ async function checkEveryGateway(
   now: Date,
   deadline: number | null,
 ): Promise<RefundCheckSummary> {
-  let summary = { ...EMPTY_CHECK };
-  for (const gateway of gateways) {
+  let summary: RefundCheckSummary = { ...EMPTY_CHECK, configured: gateways.length > 0 };
+  for (const [index, gateway] of gateways.entries()) {
     const rows = await submittedRequests(db, gateway.provider, organizationId, limit);
-    summary = addChecks(summary, await checkBatch(db, gateway, rows, now, deadline));
+    // Each gateway gets an equal share of the time left, so a slow one cannot starve the next.
+    const share = providerShareDeadline(deadline, index, gateways.length);
+    summary = addChecks(summary, await checkBatch(db, gateway, rows, now, share));
   }
   return {
     ...summary,
@@ -1597,8 +1613,9 @@ export async function reconcileRefunds(
 ): Promise<RefundCheckSummary> {
   if (scope.job !== 'process-payment-reconciliation') throw new Error('wrong job scope');
   if (!(await refundsPresent(db))) return { ...EMPTY_CHECK, available: false };
+  // With no gateway that can refund nothing is asked, but sent refunds are still counted (S19
+  // step 0 round 2), so ones stranded by a provider being switched off stay visible.
   const gateways = refundGateways(payments);
-  if (gateways.length === 0) return { ...EMPTY_CHECK, configured: false };
   const now = options.now ?? new Date();
   const limit = Math.max(1, Math.min(options.limit ?? 50, 200));
   return checkEveryGateway(db, gateways, null, limit, now, options.deadline ?? null);
@@ -1616,7 +1633,6 @@ export async function checkRefundsNow(
   if (!isUuid(input.organizationId)) return err(serviceError('not_found', 'agency not found'));
   if (!(await refundsPresent(db))) return ok({ ...EMPTY_CHECK, available: false });
   const gateways = refundGateways(payments);
-  if (gateways.length === 0) return ok({ ...EMPTY_CHECK, configured: false });
   const now = input.now ?? new Date();
   return ok(await checkEveryGateway(db, gateways, input.organizationId, 20, now, null));
 }

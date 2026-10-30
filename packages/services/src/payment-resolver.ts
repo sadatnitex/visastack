@@ -13,7 +13,7 @@ export interface PaymentPortChoice {
   readonly currencies: readonly string[];
 }
 
-/** How a currency is named in a sentence. Any other code is named by its code. */
+/** How a currency is named in a sentence. Any other code is named by its code. The one list. */
 const CURRENCY_WORDS: Readonly<Record<string, string>> = {
   BDT: 'Bangladeshi taka',
   USD: 'US dollars',
@@ -21,8 +21,23 @@ const CURRENCY_WORDS: Readonly<Record<string, string>> = {
   GBP: 'British pounds',
 };
 
-function currencyWords(code: string): string {
-  return Object.hasOwn(CURRENCY_WORDS, code) ? (CURRENCY_WORDS[code] ?? code) : code;
+/** A currency code in plain words ("Bangladeshi taka"); a code without words stays a code. */
+export function currencyWords(code: string): string {
+  const upper = normalizeCurrencyCode(code);
+  return Object.hasOwn(CURRENCY_WORDS, upper) ? (CURRENCY_WORDS[upper] ?? upper) : upper;
+}
+
+/**
+ * Currency codes as one plain phrase, each named once, in the given order: "Bangladeshi taka",
+ * "Bangladeshi taka or US dollars", "euros, British pounds and US dollars".
+ */
+export function currencyListWords(
+  codes: readonly string[],
+  conjunction: 'or' | 'and' = 'or',
+): string {
+  const words = [...new Set(codes.map(normalizeCurrencyCode))].map(currencyWords);
+  if (words.length <= 1) return words[0] ?? '';
+  return `${words.slice(0, -1).join(', ')} ${conjunction} ${words[words.length - 1] ?? ''}`;
 }
 
 const NOT_AVAILABLE = 'Online payment is not available yet. Please try again later.';
@@ -33,13 +48,8 @@ const NOT_AVAILABLE = 'Online payment is not available yet. Please try again lat
  * Bangladeshi taka can be paid online."
  */
 export function onlineCurrencyRefusal(currencies: readonly string[]): string {
-  const words = [...new Set(currencies.map(normalizeCurrencyCode))].map(currencyWords);
-  if (words.length === 0) return NOT_AVAILABLE;
-  const listed =
-    words.length === 1
-      ? (words[0] ?? '')
-      : `${words.slice(0, -1).join(', ')} or ${words[words.length - 1] ?? ''}`;
-  return `Only invoices in ${listed} can be paid online.`;
+  if (currencies.length === 0) return NOT_AVAILABLE;
+  return `Only invoices in ${currencyListWords(currencies, 'or')} can be paid online.`;
 }
 
 /**
@@ -69,4 +79,20 @@ export function paymentPortResolver(choices: readonly PaymentPortChoice[]): Paym
       provider === null ? null : (usable.find((u) => u.port.provider === provider)?.port ?? null),
     currencyRefusal,
   };
+}
+
+/**
+ * The clock time by which the provider at `index` (of `count`, in order) must stop starting
+ * gateway calls: an equal share of what is left of the run's budget, so a slow or hanging earlier
+ * provider can never use up the time of a later one (S19 step 0 round 2). Null without a budget.
+ */
+export function providerShareDeadline(
+  deadline: number | null,
+  index: number,
+  count: number,
+  now: number = Date.now(),
+): number | null {
+  if (deadline === null) return null;
+  const left = Math.max(0, deadline - now);
+  return now + Math.floor(left / Math.max(1, count - index));
 }

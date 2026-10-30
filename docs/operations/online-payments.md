@@ -73,3 +73,19 @@ Owner steps (after that package is merged):
 4. In the new provider's merchant panel register `https://vs.obsidianglobal.studio/api/payments/<name>/ipn` as the notification address and `https://vs.obsidianglobal.studio/api/payments/<name>/return` as the return address.
 5. Redeploy, then make one small test payment as the platform owner (test mode is owner only). Check: the invoice shows Paid, labelled Test Payment, and the platform overview shows "Online Payments: <Name>" as Test payments only.
 6. Switch to live only with your word: `<NAME>_MODE=live` with the live settings.
+
+## Update 2026-10-30 (S19 step 0, round 2)
+
+- **A provider chosen with settings missing is reported, not quietly off:**
+  - the readiness check fails, naming the provider and each missing setting (never a value);
+  - the daily check answers as a failed run and logs it, while still checking the other providers;
+  - each notification to it is logged and answered 503.
+  `PAYMENT_PROVIDERS` set to nothing usable (such as `,`) also fails readiness.
+- **Stranded payments and refunds stay visible.** A provider is "stranded" when it is switched off while some of its payments or sent refunds are open. The daily check, Check Now and Check Status count those even when no provider is on at all. The payer of such an invoice is told "Your earlier payment was started with a payment method that is switched off now. Contact us before paying again, so you are not charged twice." and is offered no new online payment for that invoice until it is settled. Staff pressing Check Now are told how many sent refunds wait on a payment method that is switched off, and to check them in that method's own panel.
+- **Some providers live, some in test mode:**
+  - Billing Rules shows Partly Live and names the invoice currencies that can still take only test payments;
+  - the status page shows Payments as Partly Live with the same currencies in plain words.
+  It says Live only when every provider is live.
+- **Refunds of a payment taken with a provider that is switched off** are refused before anything else. The refusal says to refund it in that payment method's own panel and record it with Record a Refund Made Outside VisaStack.
+- **Result page links:** only VisaStack's own keys sign them. The old store-password key is gone (decision O2 closed: no such link ever existed, since SSLCOMMERZ was never set up in production). `PAYMENT_RESULT_SIGNING_SECRET` shorter than 32 characters fails readiness. A link made just before you set it keeps working for its hour.
+- **The platform overview** row is "Online Payments" (with several providers, "Online Payments in <currency>"), and its detail names the provider.

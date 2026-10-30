@@ -6,7 +6,7 @@ import {
   formatMoney,
   formatMoneyNumber,
 } from '@visastack/core';
-import type { AgencyInvoiceView } from '@visastack/services';
+import { type AgencyInvoiceView, PAYMENT_METHOD_OFF } from '@visastack/services';
 import Link from 'next/link';
 import { StatusBadge } from '../../../../../../components/ui';
 import {
@@ -63,6 +63,7 @@ export function InvoiceCard({
   invoice,
   organizationId,
   online,
+  configuredProviders,
   testModeHint = null,
   latestDate,
   now = new Date(),
@@ -71,6 +72,8 @@ export function InvoiceCard({
   readonly organizationId: string;
   /** Per invoice currency, what online payment this viewer is offered (from the Invoices page). */
   readonly online: Readonly<Record<string, OnlineOffer>>;
+  /** The payment providers configured now (S19 step 0 round 2), to spot a payment left stranded. */
+  readonly configuredProviders: readonly string[];
   /**
    * S29 round 2: the sentence saying online payment is being tested, shown in place of Pay Online
    * where the invoice's currency is `testing` for this viewer.
@@ -87,11 +90,19 @@ export function InvoiceCard({
   const refunded = invoice.refundedMinorUnits > 0;
   const open = invoice.status !== 'PAID' && invoice.status !== 'VOID' && !refunded;
   const reported = invoice.state === 'PAYMENT_REPORTED';
+  // A payment still open with a provider switched off now: it cannot be checked, so no new one.
+  const stranded = invoice.openPaymentProviders.some(
+    (provider) => provider === null || !configuredProviders.includes(provider),
+  );
   // Whether this invoice can be paid online at all: a provider takes its stored currency, for this
   // viewer, now.
   const offer = offerFor(online, invoice.currency);
   const onlineOffered =
-    open && offer === 'pay' && invoice.state !== 'NEEDS_CHECK' && invoice.outstandingMinorUnits > 0;
+    open &&
+    offer === 'pay' &&
+    !stranded &&
+    invoice.state !== 'NEEDS_CHECK' &&
+    invoice.outstandingMinorUnits > 0;
   // While a payment report waits, paying online could pay twice: the report is checked first.
   const canPayOnline = onlineOffered && !reported;
   const balance = formatMoneyNumber(invoice.outstandingMinorUnits, invoice.currency, {
@@ -167,7 +178,11 @@ export function InvoiceCard({
               {testModeHint}
             </p>
           ) : null}
-          {invoice.recentAttemptStartedAt ? (
+          {stranded ? (
+            // Said instead of any way to pay online (S19 step 0 round 2): nobody can check that
+            // payment, so paying again could charge twice. The sentence Check Status gives.
+            <p className="invoice-note">{PAYMENT_METHOD_OFF}</p>
+          ) : invoice.recentAttemptStartedAt ? (
             <RecentPaymentChoices
               organizationId={organizationId}
               invoiceId={invoice.id}

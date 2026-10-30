@@ -115,9 +115,32 @@ it('has one Online Payments row per payment provider, with its mode, currencies 
     },
   );
   const payments = rows.filter((row) => row.label.startsWith('Online Payments'));
-  expect(payments.map((row) => row.label)).toEqual(['Online Payments: SSLCOMMERZ']);
-  expect(payments[0]).toMatchObject({ reading: 'Test payments only', standing: 'Set Up' });
-  expect(payments[0]?.detail).toContain('Takes invoices in BDT.');
-  expect(payments[0]?.detail).toContain('Refunds can be sent through it');
+  // Round 2: the row is "Online Payments", like "Document Storage"; the provider is in the detail.
+  expect(payments.map((row) => row.label)).toEqual(['Online Payments']);
+  expect(payments[0]).toMatchObject({
+    reading: 'Test payments only',
+    standing: 'Set Up',
+    // Exactly the S29 sentence with one provider.
+    headline:
+      'Online payment is in test mode. Only you can make a test payment; agencies cannot pay online yet.',
+  });
+  expect(payments[0]?.detail).toContain('Through SSLCOMMERZ, for invoices in Bangladeshi taka.');
+  expect(payments[0]?.detail).toContain(
+    'Refunds can be sent through it once sending refunds from VisaStack is switched on.',
+  );
+  expect(payments[0]?.detail).not.toContain('BDT');
+  expect(payments[0]?.detail).not.toContain('gateway are switched on');
   expect(JSON.stringify(rows)).not.toContain('private-marker');
+  const live = describeProviderOperations(
+    {},
+    {
+      PAYMENT_PROVIDER: 'sslcommerz',
+      SSLCOMMERZ_STORE_ID: 'store-1',
+      SSLCOMMERZ_STORE_PASSWORD: 'private-marker',
+      SSLCOMMERZ_MODE: 'live',
+    },
+  ).find((row) => row.label === 'Online Payments');
+  expect(live?.headline).toBe('Agencies can pay invoices online with real money.');
+  const off = describeProviderOperations({}, {}).find((row) => row.label === 'Online Payments');
+  expect(off?.headline).toBe('Online payment is not set up.');
 });

@@ -1,8 +1,6 @@
 import 'server-only';
 import type { PaymentPortResolver } from '@visastack/services';
-import { withoutPaymentSecrets } from './payment-secrets';
 import { paymentPorts } from './providers';
-import { reportServerError } from './server-error';
 
 /**
  * Which payment gateways, if any, refunds may be sent to and checked with (Small Commercial V1
@@ -14,8 +12,8 @@ import { reportServerError } from './server-error';
  * S19 step 0: the answer covers every configured provider that can refund, as the resolver the
  * services take. A refund goes to the provider the payment was taken with, never another one.
  *
- * The ports are never made unguarded: a provider whose settings are incomplete is simply not
- * configured, and anything that still goes wrong gives "no gateway" here, never a broken page.
+ * Building the ports never throws: a provider whose settings are incomplete is not configured (and
+ * the readiness check, the daily check and its callback addresses report it, S19 step 0 round 2).
  */
 
 export const REFUNDS_SWITCH = 'PAYMENT_REFUNDS_VIA_GATEWAY';
@@ -34,13 +32,16 @@ export function refundsViaGatewayEnabled(readEnv: ReadEnv = fromProcess): boolea
  * or null when there is none.
  */
 export function refundCheckPort(): PaymentPortResolver | null {
-  try {
-    const gateways = paymentPorts({ refundsOnly: true });
-    return gateways.configured().length > 0 ? gateways : null;
-  } catch (error) {
-    reportServerError('refund gateway', withoutPaymentSecrets(error), { step: 'payment port' });
-    return null;
-  }
+  const gateways = paymentPorts({ refundsOnly: true });
+  return gateways.configured().length > 0 ? gateways : null;
+}
+
+/**
+ * The gateways that can refund, possibly none (for "Check Now", which still counts sent refunds
+ * no gateway here can be asked about, S19 step 0 round 2).
+ */
+export function refundCheckPorts(): PaymentPortResolver {
+  return paymentPorts({ refundsOnly: true });
 }
 
 /**

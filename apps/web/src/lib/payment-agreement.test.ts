@@ -12,6 +12,8 @@ const ENV_KEYS = [
   'SSLCOMMERZ_STORE_ID',
   'SSLCOMMERZ_STORE_PASSWORD',
   'SSLCOMMERZ_MODE',
+  'OTHERPAY_KEY',
+  'OTHERPAY_MODE',
   'DEPLOYMENT_MODE',
 ] as const;
 const ORIGINAL: Record<string, string | undefined> = {};
@@ -99,13 +101,13 @@ describe('online payments, one answer everywhere', () => {
     for (const [key, value] of Object.entries(env)) process.env[key] = value;
     const { getPlatformCapabilities } = await import('./capabilities');
     const { describeProviderOperations } = await import('./provider-operations');
-    const { isPaymentProviderConfigured, paymentMode, paymentPorts } = await import('./providers');
+    const { incompletePaymentSettings, paymentMode, paymentPorts } = await import('./providers');
     const { onlineOffers } = await import('./payment-providers');
 
     const on = expected === 'LIVE' || expected === 'TEST';
     expect(getPlatformCapabilities().payments).toBe(CAPABILITY[expected]);
     expect(paymentMode()).toBe(on ? expected : null);
-    expect(isPaymentProviderConfigured()).toBe(on);
+    expect(incompletePaymentSettings().length > 0).toBe(expected === 'INCOMPLETE');
     expect(
       paymentPorts()
         .configured()
@@ -115,9 +117,104 @@ describe('online payments, one answer everywhere', () => {
       on ? { BDT: { provider: 'sslcommerz', mode: expected } } : {},
     );
     const row = describeProviderOperations({}, process.env).find(
-      (item) => item.label === 'Online Payments: SSLCOMMERZ',
+      (item) => item.label === 'Online Payments',
     );
     expect(row?.reading).toBe(READING[expected]);
     expect(row?.standing).toBe(on ? 'Set Up' : 'Not Set Up');
+  });
+});
+
+describe('a second provider in another mode (S19 step 0 round 2)', () => {
+  /**
+   * A made-up second registry entry taking US dollars, added for this test only, so every screen's
+   * reading of "some live, some in test mode" is checked against the one registry answer.
+   */
+  async function withOtherPay(run: () => Promise<void>) {
+    const { PAYMENT_PROVIDERS, readFormCallbackFields } = await import('./payment-providers');
+    type Env = Readonly<Record<string, string | undefined>>;
+    const KEY = 'OTHERPAY_KEY';
+    const MODE = 'OTHERPAY_MODE';
+    const modeOf = (env: Env) => {
+      if (!env[KEY]) return null;
+      if (env[MODE] === 'live') return 'LIVE';
+      return env[MODE] === 'sandbox' ? 'TEST' : null;
+    };
+    Reflect.set(PAYMENT_PROVIDERS, 'otherpay', {
+      name: 'OtherPay',
+      currencies: ['USD'],
+      supportsRefunds: false,
+      settingNames: [MODE],
+      secretNames: [KEY],
+      callbackPath: '/api/payments/otherpay',
+      missingSettings: (env: Env) => [
+        ...(env[KEY] ? [] : [KEY]),
+        ...(env[MODE] === 'sandbox' || env[MODE] === 'live' ? [] : [MODE]),
+      ],
+      mode: modeOf,
+      create: (env: Env) => ({
+        configured: true,
+        provider: 'otherpay',
+        mode: modeOf(env),
+        storeId: null,
+      }),
+      readCallback: (input: { contentType: string | null; raw: string }) => {
+        const fields = readFormCallbackFields(input);
+        return fields === null ? null : { fields, merchantTranId: null, valId: null };
+      },
+    });
+    try {
+      await run();
+    } finally {
+      Reflect.deleteProperty(PAYMENT_PROVIDERS, 'otherpay');
+    }
+  }
+
+  it('never says every payment is real while one provider is still in test mode', async () => {
+    await withOtherPay(async () => {
+      Object.assign(process.env, {
+        PAYMENT_PROVIDERS: 'sslcommerz,otherpay',
+        ...STORE,
+        SSLCOMMERZ_MODE: 'live',
+        OTHERPAY_KEY: 'synthetic-key',
+        OTHERPAY_MODE: 'sandbox',
+      });
+      const { getPlatformCapabilities } = await import('./capabilities');
+      const { describeProviderOperations } = await import('./provider-operations');
+      const { paymentMode, paymentCurrenciesByMode } = await import('./providers');
+      const { mixedPaymentsNote } = await import('./payment-providers');
+
+      expect(paymentMode()).toBe('MIXED');
+      expect(getPlatformCapabilities().payments).toBe('degraded');
+      expect(paymentCurrenciesByMode()).toEqual({ live: ['BDT'], test: ['USD'] });
+      expect(mixedPaymentsNote(process.env)).toBe(
+        'Online payment takes real money for invoices in Bangladeshi taka. Invoices in US dollars can only take test payments for now.',
+      );
+
+      // The owner overview: one "Online Payments" row per provider, each named by its currency.
+      const rows = describeProviderOperations({}, process.env).filter((row) =>
+        row.label.startsWith('Online Payments'),
+      );
+      expect(rows.map((row) => [row.label, row.reading])).toEqual([
+        ['Online Payments in Bangladeshi Taka', 'Live payments'],
+        ['Online Payments in US Dollars', 'Test payments only'],
+      ]);
+      expect(rows[0]?.headline).toBe(
+        'Agencies can pay invoices in Bangladeshi taka online with real money.',
+      );
+      expect(rows[1]?.headline).toBe(
+        'Online payment for invoices in US dollars is in test mode. Only you can make a test payment; agencies cannot pay those online yet.',
+      );
+      expect(rows[1]?.detail).toContain('Through OtherPay, for invoices in US dollars.');
+
+      // Both live: LIVE, available, and no note.
+      Object.assign(process.env, { OTHERPAY_MODE: 'live' });
+      expect(paymentMode()).toBe('LIVE');
+      expect(getPlatformCapabilities().payments).toBe('available');
+      expect(mixedPaymentsNote(process.env)).toBeNull();
+      // Both in test mode: TEST, exactly as with one provider.
+      Object.assign(process.env, { SSLCOMMERZ_MODE: 'sandbox', OTHERPAY_MODE: 'sandbox' });
+      expect(paymentMode()).toBe('TEST');
+      expect(mixedPaymentsNote(process.env)).toBeNull();
+    });
   });
 });

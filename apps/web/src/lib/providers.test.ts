@@ -3,9 +3,7 @@ import {
   ConsoleObservabilityPort,
   DeterministicTextExtractor,
   NullEmailPort,
-  NullPaymentPort,
   ResendEmailPort,
-  SslcommerzPaymentPort,
 } from '@visastack/adapters';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -36,6 +34,7 @@ const ENV_KEYS = [
   'SSLCOMMERZ_STORE_ID',
   'SSLCOMMERZ_STORE_PASSWORD',
   'SSLCOMMERZ_MODE',
+  'PAYMENT_RESULT_SIGNING_SECRET',
   'KMS_PROVIDER',
   'KMS_LOCAL_MASTER_KEY_BASE64',
 ] as const;
@@ -136,9 +135,22 @@ describe('PAYMENT_PROVIDERS (S19 step 0)', () => {
     expect(() => validateProviderEnv()).toThrow(/PAYMENT_PROVIDERS/);
     expect(() => validateProviderEnv()).toThrow(/none, sslcommerz/);
     expect(() => validateProviderEnv()).not.toThrow(/sk_live/);
-    for (const fine of ['sslcommerz', ' sslcommerz , none ', 'none', '']) {
+    setEnv('SSLCOMMERZ_STORE_ID', 'store-1');
+    setEnv('SSLCOMMERZ_STORE_PASSWORD', 'synthetic-password');
+    setEnv('SSLCOMMERZ_MODE', 'sandbox');
+    for (const fine of ['sslcommerz', ' sslcommerz , none ', 'none', '', 'none,']) {
       setEnv('PAYMENT_PROVIDERS', fine);
       expect(() => validateProviderEnv(), fine).not.toThrow();
+    }
+  });
+
+  it('rejects a list that is set but names no provider at all, instead of quietly switching payments off (round 2)', async () => {
+    const { validateProviderEnv } = await import('./providers');
+    for (const empty of [',', ' , ,', ',,']) {
+      setEnv('PAYMENT_PROVIDERS', empty);
+      expect(() => validateProviderEnv(), JSON.stringify(empty)).toThrow(
+        /PAYMENT_PROVIDERS is set but names no provider/,
+      );
     }
   });
 
@@ -147,16 +159,71 @@ describe('PAYMENT_PROVIDERS (S19 step 0)', () => {
     setEnv('SSLCOMMERZ_STORE_PASSWORD', 'synthetic-password');
     setEnv('SSLCOMMERZ_MODE', 'live');
     setEnv('PAYMENT_PROVIDERS', 'sslcommerz');
-    const { createPaymentPort, isPaymentProviderConfigured, paymentMode } = await import(
-      './providers'
-    );
-    expect(createPaymentPort()).toBeInstanceOf(SslcommerzPaymentPort);
+    const { paymentMode, paymentPorts } = await import('./providers');
+    expect(paymentPorts().forProvider('sslcommerz')?.mode).toBe('LIVE');
     expect(paymentMode()).toBe('LIVE');
     setEnv('PAYMENT_PROVIDER', 'sslcommerz');
     setEnv('PAYMENT_PROVIDERS', 'none');
-    expect(createPaymentPort()).toBeInstanceOf(NullPaymentPort);
-    expect(isPaymentProviderConfigured()).toBe(false);
+    expect(paymentPorts().configured()).toEqual([]);
     expect(paymentMode()).toBeNull();
+  });
+});
+
+describe('a chosen payment provider with incomplete settings (S19 step 0 round 2)', () => {
+  const configure = (mode = 'sandbox') => {
+    setEnv('PAYMENT_PROVIDER', 'sslcommerz');
+    setEnv('SSLCOMMERZ_STORE_ID', 'store-1');
+    setEnv('SSLCOMMERZ_STORE_PASSWORD', 'synthetic-password');
+    setEnv('SSLCOMMERZ_MODE', mode);
+  };
+
+  it('fails readiness, naming the provider and each missing setting, never a value', async () => {
+    const { validateProviderEnv, paymentPorts, incompletePaymentSettings } = await import(
+      './providers'
+    );
+    for (const missing of ['SSLCOMMERZ_STORE_ID', 'SSLCOMMERZ_STORE_PASSWORD', 'SSLCOMMERZ_MODE']) {
+      configure();
+      unsetEnv(missing);
+      expect(() => validateProviderEnv(), missing).toThrow(
+        new RegExp(`payment provider sslcommerz is chosen .*: ${missing}$`),
+      );
+      expect(() => validateProviderEnv(), missing).not.toThrow(/synthetic-password|store-1/);
+      expect(paymentPorts().configured(), missing).toEqual([]);
+      expect(incompletePaymentSettings(), missing).toEqual([
+        { key: 'sslcommerz', name: 'SSLCOMMERZ', missing: [missing] },
+      ]);
+    }
+    for (const mode of ['', 'production', 'LIVE', 'true', 'sk_live_pasted']) {
+      configure(mode);
+      expect(() => validateProviderEnv(), mode).toThrow(/SSLCOMMERZ_MODE/);
+      if (mode !== '') expect(() => validateProviderEnv(), mode).not.toThrow(new RegExp(mode));
+    }
+    // Through the list as well.
+    configure();
+    unsetEnv('PAYMENT_PROVIDER');
+    setEnv('PAYMENT_PROVIDERS', 'sslcommerz');
+    unsetEnv('SSLCOMMERZ_STORE_PASSWORD');
+    expect(() => validateProviderEnv()).toThrow(/SSLCOMMERZ_STORE_PASSWORD/);
+  });
+
+  it('passes readiness once complete, and with nothing chosen whatever settings are present', async () => {
+    const { validateProviderEnv, incompletePaymentSettings } = await import('./providers');
+    configure('live');
+    expect(() => validateProviderEnv()).not.toThrow();
+    expect(incompletePaymentSettings()).toEqual([]);
+    unsetEnv('PAYMENT_PROVIDER');
+    unsetEnv('SSLCOMMERZ_MODE');
+    expect(() => validateProviderEnv()).not.toThrow();
+    expect(incompletePaymentSettings()).toEqual([]);
+  });
+
+  it('fails readiness when the payment result signing secret is set but too short, without showing it', async () => {
+    const { validateProviderEnv } = await import('./providers');
+    setEnv('PAYMENT_RESULT_SIGNING_SECRET', 'short-pasted-value');
+    expect(() => validateProviderEnv()).toThrow(/PAYMENT_RESULT_SIGNING_SECRET is set but shorter/);
+    expect(() => validateProviderEnv()).not.toThrow(/short-pasted-value/);
+    setEnv('PAYMENT_RESULT_SIGNING_SECRET', 'x'.repeat(32));
+    expect(() => validateProviderEnv()).not.toThrow();
   });
 });
 
@@ -242,26 +309,28 @@ describe('createKeyManagementPort', () => {
   });
 });
 
-describe('createEmailPort / createObservabilityPort / createPaymentPort', () => {
-  it('construct the pilot Null/Console adapters by default', async () => {
-    const { createEmailPort, createObservabilityPort, createPaymentPort } = await import(
-      './providers'
-    );
+describe('createEmailPort / createObservabilityPort / paymentPorts', () => {
+  it('construct the pilot Null/Console adapters by default, and no payment provider', async () => {
+    const { createEmailPort, createObservabilityPort, paymentPorts } = await import('./providers');
     expect(createEmailPort()).toBeInstanceOf(NullEmailPort);
     expect(createObservabilityPort()).toBeInstanceOf(ConsoleObservabilityPort);
-    expect(createPaymentPort()).toBeInstanceOf(NullPaymentPort);
+    expect(paymentPorts().configured()).toEqual([]);
   });
 
   it('reject an unrecognized provider for each', async () => {
     setEnv('EMAIL_PROVIDER', 'sendgrid');
     setEnv('OBSERVABILITY_PROVIDER', 'datadog');
     setEnv('PAYMENT_PROVIDER', 'stripe');
-    const { createEmailPort, createObservabilityPort, createPaymentPort } = await import(
-      './providers'
-    );
+    const { createEmailPort, createObservabilityPort, validateProviderEnv, paymentPorts } =
+      await import('./providers');
     expect(() => createEmailPort()).toThrow(/EMAIL_PROVIDER/);
     expect(() => createObservabilityPort()).toThrow(/OBSERVABILITY_PROVIDER/);
-    expect(() => createPaymentPort()).toThrow(/PAYMENT_PROVIDER/);
+    // Building the payment ports never throws, even beside an unknown observability provider;
+    // the unknown payment provider is the readiness check's to report.
+    expect(paymentPorts().configured()).toEqual([]);
+    unsetEnv('EMAIL_PROVIDER');
+    unsetEnv('OBSERVABILITY_PROVIDER');
+    expect(() => validateProviderEnv()).toThrow(/PAYMENT_PROVIDER/);
   });
 
   describe('online payments (S11)', () => {
@@ -272,56 +341,43 @@ describe('createEmailPort / createObservabilityPort / createPaymentPort', () => 
       setEnv('SSLCOMMERZ_MODE', mode);
     };
 
-    it('stays off with nothing set: the Null port, not configured, no live switch', async () => {
-      const { createPaymentPort, isPaymentProviderConfigured, readSslcommerzConfig } = await import(
-        './providers'
-      );
-      expect(createPaymentPort()).toBeInstanceOf(NullPaymentPort);
-      expect(createPaymentPort().configured).toBe(false);
-      expect(isPaymentProviderConfigured()).toBe(false);
-      expect(readSslcommerzConfig()).toBeNull();
+    it('stays off with nothing set: no port, no mode, no live switch', async () => {
+      const { paymentPorts, paymentMode } = await import('./providers');
+      expect(paymentPorts().configured()).toEqual([]);
+      expect(paymentMode()).toBeNull();
       // Credentials alone, without choosing the provider, switch nothing on.
       setEnv('SSLCOMMERZ_STORE_ID', 'store-1');
       setEnv('SSLCOMMERZ_STORE_PASSWORD', 'synthetic-password');
       setEnv('SSLCOMMERZ_MODE', 'live');
-      expect(createPaymentPort()).toBeInstanceOf(NullPaymentPort);
-      expect(isPaymentProviderConfigured()).toBe(false);
+      expect(paymentPorts().configured()).toEqual([]);
+      expect(paymentMode()).toBeNull();
     });
 
     it('builds the SSLCOMMERZ port only when the provider and all three settings are present', async () => {
       configure();
-      const { createPaymentPort, isPaymentProviderConfigured } = await import('./providers');
-      const port = createPaymentPort();
-      expect(port).toBeInstanceOf(SslcommerzPaymentPort);
-      expect(port.configured).toBe(true);
-      expect(port.provider).toBe('sslcommerz');
-      expect(isPaymentProviderConfigured()).toBe(true);
+      const { paymentPortFor, paymentMode } = await import('./providers');
+      const port = paymentPortFor('sslcommerz');
+      expect(port?.configured).toBe(true);
+      expect(port?.provider).toBe('sslcommerz');
+      expect(paymentMode()).toBe('TEST');
     });
 
-    it('fails closed on a half-set or invalid configuration, never falling back to live or to nothing', async () => {
-      const { createPaymentPort, isPaymentProviderConfigured } = await import('./providers');
+    it('keeps a half-set or invalid configuration off, never falling back to live', async () => {
+      const { paymentPortFor, paymentMode } = await import('./providers');
       for (const missing of [
         'SSLCOMMERZ_STORE_ID',
         'SSLCOMMERZ_STORE_PASSWORD',
         'SSLCOMMERZ_MODE',
       ]) {
-        configure();
+        configure('live');
         unsetEnv(missing);
-        expect(() => createPaymentPort(), missing).toThrow(/PAYMENT_PROVIDER=sslcommerz requires/);
-        expect(isPaymentProviderConfigured(), missing).toBe(false);
+        expect(paymentPortFor('sslcommerz'), missing).toBeNull();
+        expect(paymentMode(), missing).toBeNull();
       }
       for (const mode of ['', 'production', 'LIVE', 'true']) {
         configure(mode);
-        expect(() => createPaymentPort(), mode).toThrow(/requires/);
+        expect(paymentPortFor('sslcommerz'), mode).toBeNull();
       }
-    });
-
-    it('never puts the store password in a thrown message', async () => {
-      configure();
-      unsetEnv('SSLCOMMERZ_MODE');
-      const { createPaymentPort } = await import('./providers');
-      expect(() => createPaymentPort()).toThrow(/requires/);
-      expect(() => createPaymentPort()).not.toThrow(/synthetic-password/);
     });
   });
 

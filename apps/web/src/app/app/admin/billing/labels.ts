@@ -70,6 +70,30 @@ export const PAYMENT_MODE_WORDS = {
   },
 } as const;
 
+/**
+ * S19 step 0 round 2: some payment providers live and some in test mode. The badge never says
+ * Live, and the sentence names the currencies that can still only take test payments.
+ */
+export const MIXED_PAYMENT_MODE = { badge: 'Partly Live', tone: 'warning' } as const;
+
+export function mixedPaymentSentence(
+  currencies: { readonly live: readonly string[]; readonly test: readonly string[] },
+  words: (codes: readonly string[]) => string,
+): string {
+  const parts = [
+    currencies.live.length > 0
+      ? `Online payment takes real money for invoices in ${words(currencies.live)}.`
+      : null,
+    currencies.test.length > 0
+      ? `Invoices in ${words(currencies.test)} can still only take test payments: only you can make one, it marks the invoice paid, is labelled Test Payment, and is left out of the Monthly Accounting File. Agencies cannot pay those invoices online until their payment method is live.`
+      : null,
+    currencies.live.length === 0 || currencies.test.length === 0
+      ? 'One payment method is in a different mode, but no invoice currency is paid through it.'
+      : null,
+  ];
+  return parts.filter((part): part is string => part !== null).join(' ');
+}
+
 /** The values as typed, sent back with every reply so the form never loses them. */
 export interface BillingRulesValues {
   readonly dueDays: string;

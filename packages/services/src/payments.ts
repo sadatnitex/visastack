@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, gte, inArray, lte, notInArray, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, lte, notInArray, or, sql } from 'drizzle-orm';
 import type { SystemScope } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { invoiceLedgerReader } from './billing';
@@ -16,6 +16,7 @@ import {
 } from './invoice-ledger';
 import { isMissingRelationError } from './missing-relation';
 import { isOrgAdmin } from './organizations';
+import { providerShareDeadline } from './payment-resolver';
 import {
   type PaymentMode,
   attemptColumns,
@@ -670,6 +671,14 @@ const NOT_AVAILABLE = 'Online payment is not available yet. Please try again lat
  * What an agency is told while the gateway is in test mode (S29): a test payment would mark a real
  * invoice paid, so only the platform owner may make one.
  */
+/**
+ * Said to the payer while a payment of the invoice is still open with a provider that is not
+ * configured here any more (S19 step 0 round 2): nobody can ask that gateway about it, so a new
+ * payment could charge twice.
+ */
+export const PAYMENT_METHOD_OFF =
+  'Your earlier payment was started with a payment method that is switched off now. Contact us before paying again, so you are not charged twice.';
+
 export const TEST_PAYMENTS_ONLY =
   'Online payment is being tested right now, so it is not open to agencies yet. Nothing was charged. Please pay another way or try again later.';
 const START_FAILED = 'We could not open the payment page. Nothing was charged. Try again.';
@@ -785,6 +794,24 @@ export async function startOnlinePayment(
         // S18 (D2): a refunded invoice is never owed again, so it is never paid again either.
         if (await invoiceHasRefund(tx, locked.id)) {
           return err(serviceError('invalid', REFUNDED_INVOICE_MESSAGE));
+        }
+
+        // S19 step 0 round 2: a payment still open with a provider not configured here cannot be
+        // checked, so no other payment starts for this invoice, even on purpose.
+        const configuredProviders = payments.configured().map((port) => port.provider);
+        const stranded = await tx
+          .select({ id: attempts.id })
+          .from(attempts)
+          .where(
+            and(
+              eq(attempts.invoiceId, locked.id),
+              inArray(attempts.status, ['CREATED', 'REDIRECTED']),
+              or(isNull(attempts.provider), notInArray(attempts.provider, configuredProviders)),
+            ),
+          )
+          .limit(1);
+        if (stranded.length > 0) {
+          return err(refusal('provider_not_configured', PAYMENT_METHOD_OFF));
         }
 
         if (input.startAnother !== true) {
@@ -999,7 +1026,8 @@ async function countAwaitingReview(db: Db): Promise<number> {
 
 /**
  * Open payments (still being opened, sent to a gateway, or closed as expired within the late
- * window) whose provider is not one of `providers`: no gateway here can be asked about them.
+ * window) whose provider is not one of `providers` (with none configured, every open payment): no
+ * gateway here can be asked about them.
  */
 async function countProviderNotConfigured(
   db: Db,
@@ -1013,7 +1041,9 @@ async function countProviderNotConfigured(
     .from(attempts)
     .where(
       and(
-        providers.length === 0 ? undefined : notInArray(attempts.provider, [...providers]),
+        providers.length === 0
+          ? undefined
+          : or(isNull(attempts.provider), notInArray(attempts.provider, [...providers])),
         or(
           inArray(attempts.status, ['CREATED', 'REDIRECTED']),
           and(eq(attempts.status, 'EXPIRED'), gte(attempts.redirectedAt, lateAfter)),
@@ -1046,18 +1076,19 @@ export async function reconcilePaymentAttempts(
 ): Promise<ReconciliationSummary> {
   if (scope.job !== 'process-payment-reconciliation') throw new Error('wrong job scope');
   const ports = payments.configured();
-  if (ports.length === 0) return { ...EMPTY_SUMMARY, configured: false };
   const now = options.now ?? new Date();
   const limit = Math.max(1, Math.min(options.limit ?? 50, 200));
   try {
     // S19 step 0: each provider is asked only about its own payments, in the owner's order, so
-    // one provider being down never stops another from being asked.
-    let summary: ReconciliationSummary = { ...EMPTY_SUMMARY };
-    for (const port of ports) {
+    // one provider being down never stops another from being asked; each gets an equal share of
+    // the time that is left. With none configured nothing is asked, but open payments are still
+    // counted, so payments stranded by a provider being switched off stay visible.
+    let summary: ReconciliationSummary = { ...EMPTY_SUMMARY, configured: ports.length > 0 };
+    for (const [index, port] of ports.entries()) {
       summary = await reconcileProvider(db, port, summary, {
         now,
         limit,
-        deadline: options.deadline ?? null,
+        deadline: providerShareDeadline(options.deadline ?? null, index, ports.length),
       });
     }
     return {
@@ -1273,7 +1304,9 @@ export async function refreshInvoicePaymentAttempts(
 ): Promise<Result<ReconciliationSummary, ServiceError>> {
   const allowed = await readerFor(db, input);
   if (!allowed.ok) return allowed;
-  if (payments.configured().length === 0) return ok({ ...EMPTY_SUMMARY, configured: false });
+  // With no provider configured nothing is asked, but an open payment is still counted as one no
+  // gateway here can be asked about, so the payer is told before paying again.
+  const configured = payments.configured().length > 0;
   const now = input.now ?? new Date();
   const minAge = Math.max(0, input.minAgeMs ?? RECONCILE_MIN_AGE_MS);
   const attempts = schema.paymentAttempts;
@@ -1303,7 +1336,7 @@ export async function refreshInvoicePaymentAttempts(
         eligible,
         'refresh',
         now,
-        EMPTY_SUMMARY,
+        { ...EMPTY_SUMMARY, configured },
         true,
       ),
     );

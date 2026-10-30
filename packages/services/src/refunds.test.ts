@@ -36,8 +36,10 @@ import { submitManualPaymentClaim } from './manual-claims';
 import { createOrganization, reviewOrganization } from './organizations';
 import { paymentPortResolver } from './payment-resolver';
 import {
+  PAYMENT_METHOD_OFF,
   newMerchantTranId,
   reconcilePaymentAttempts,
+  refreshInvoicePaymentAttempts,
   settlePaymentAttempt,
   startOnlinePayment,
 } from './payments';
@@ -50,6 +52,7 @@ import {
   NEEDS_CHECK_CODE,
   REFERENCE_TAKEN,
   REFUNDS_UNAVAILABLE,
+  REFUND_PROVIDER_OFF,
   REFUND_WORK_LIMIT,
   RETRY_REFUSED_CODE,
   RETRY_REFUSED_MESSAGE,
@@ -2072,6 +2075,174 @@ describe('a second payment provider (S19 step 0)', () => {
       expect(isOk(back) && back.value.code).toBe('sent');
       expect(ssl.refundCalls).toHaveLength(1);
       expect(other.refundCalls).toHaveLength(1);
+    },
+    TIMEOUT,
+  );
+
+  /** A dollar invoice paid through the second provider and counted by the daily check. */
+  async function paidInDollars(ref: string, amount = 2_500) {
+    const usd = await invoiceIn(ref, amount, 'USD');
+    await startOn(usd);
+    await age(usd, 20 * 60 * 1000);
+    other.succeed((await attemptOf(usd)).merchantTranId, amount, { currency: 'USD' });
+    await reconcilePaymentAttempts(db, scope(), both);
+    return { invoiceId: usd, entry: await entryOf(w, usd, 'ONLINE') };
+  }
+
+  async function refundIn(entryId: string, amountMinorUnits: number, payments = both) {
+    return requestRefund(db, payments, await scopeOf(w), {
+      organizationId: w.organizationId,
+      source: entrySource(entryId),
+      amountMinorUnits,
+      reason: 'Agency overpaid',
+      idempotencyKey: randomUUID(),
+      stepUpSatisfied: true,
+    });
+  }
+
+  it(
+    'still counts payments and sent refunds stranded by a switched-off provider when no provider is on (round 2)',
+    async () => {
+      const { entry } = await paidInDollars('INV-DOLLAR');
+      const sent = await refundIn(entry.id, 1_000);
+      expect(isOk(sent) && sent.value.code).toBe('sent');
+      const later = await invoiceIn('INV-DOLLAR-2', 2_500, 'USD');
+      await startOn(later);
+      await age(later, 25 * 60 * 60 * 1000);
+      const nothing = paymentPortResolver([]);
+
+      const payments = await reconcilePaymentAttempts(db, scope(), nothing);
+      expect(payments).toMatchObject({ configured: false, checked: 0, providerNotConfigured: 1 });
+      expect((await attemptOf(later)).status).toBe('REDIRECTED');
+      const refunds = await reconcileRefunds(db, scope(), nothing);
+      expect(refunds).toMatchObject({ configured: false, checked: 0, providerNotConfigured: 1 });
+      const now = await checkRefundsNow(db, nothing, await scopeOf(w), {
+        organizationId: w.organizationId,
+      });
+      expect(isOk(now) && now.value).toMatchObject({ configured: false, providerNotConfigured: 1 });
+      expect((await requests(w))[0]?.status).toBe('SUBMITTED');
+      expect(other.refundQueries).toHaveLength(0);
+
+      // Check Status on the invoice says the same, with nothing asked.
+      const checked = await refreshInvoicePaymentAttempts(db, nothing, {
+        actorAccountId: w.orgOwnerId,
+        organizationId: w.organizationId,
+        invoiceId: later,
+        minAgeMs: 0,
+      });
+      expect(isOk(checked) && checked.value).toMatchObject({
+        configured: false,
+        checked: 0,
+        providerNotConfigured: 1,
+      });
+
+      // No other payment starts while it is open, even on purpose, even through a provider that
+      // takes the currency now.
+      const dollarsNow = paymentPortResolver([{ port: ssl, currencies: ['BDT', 'USD'] }]);
+      for (const startAnother of [false, true]) {
+        const again = await startOnlinePayment(db, dollarsNow, {
+          actorAccountId: w.orgOwnerId,
+          invoiceId: later,
+          startAnother,
+          urlFor: () => 'https://vs.example.test/x',
+        });
+        expect(isErr(again) && again.error.reason, String(startAnother)).toBe(
+          'provider_not_configured',
+        );
+        expect(isErr(again) && again.error.message).toBe(PAYMENT_METHOD_OFF);
+      }
+      expect(ssl.checkouts).toHaveLength(0);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'refuses a refund through a provider switched off before any mode check (round 2)',
+    async () => {
+      const { entry } = await paidInDollars('INV-DOLLAR');
+      // Only SSLCOMMERZ is on now, and in test mode: before, the live dollar payment was judged
+      // against it and refused as a test/live mismatch.
+      ssl.mode = 'TEST';
+      const refused = await refundIn(entry.id, 1_000, onePort(ssl));
+      expect(isErr(refused) && refused.error.reason).toBe('provider_not_configured');
+      expect(isErr(refused) && refused.error.message).toBe(REFUND_PROVIDER_OFF);
+      expect(ssl.refundCalls).toHaveLength(0);
+      expect(other.refundCalls).toHaveLength(0);
+      expect(await requests(w)).toHaveLength(0);
+      // A provider that is on but cannot refund is refused the same way.
+      const noRefunds = {
+        configured: true,
+        mode: 'LIVE' as const,
+        provider: 'otherpay',
+        storeId: null,
+        createCheckout: other.createCheckout.bind(other),
+        validatePayment: other.validatePayment.bind(other),
+        queryByMerchantTranId: other.queryByMerchantTranId.bind(other),
+        verifyIpnSignature: other.verifyIpnSignature.bind(other),
+      };
+      const cannot = await refundIn(
+        entry.id,
+        1_000,
+        paymentPortResolver([
+          { port: ssl, currencies: ['BDT'] },
+          { port: noRefunds, currencies: ['USD'] },
+        ]),
+      );
+      expect(isErr(cannot) && cannot.error.reason).toBe('provider_not_configured');
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'gives each provider its own share of the daily check, so a slow first one cannot starve the next (round 2)',
+    async () => {
+      // Four open taka payments through SSLCOMMERZ, whose gateway answers slowly, and one dollar
+      // payment through the second provider.
+      for (let i = 0; i < 4; i++) {
+        const bdt = await invoice(w, `INV-TAKA-${i}`, 10_000);
+        await startOn(bdt);
+        await age(bdt, 20 * 60 * 1000);
+      }
+      const usd = await invoiceIn('INV-DOLLAR', 2_500, 'USD');
+      await startOn(usd);
+      await age(usd, 20 * 60 * 1000);
+      const slow = ssl.queryByMerchantTranId.bind(ssl);
+      ssl.queryByMerchantTranId = async (tran: string) => {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        return slow(tran);
+      };
+      const summary = await reconcilePaymentAttempts(db, scope(), both, {
+        deadline: Date.now() + 1_000,
+      });
+      // SSLCOMMERZ stopped at half the budget; the second provider was still asked.
+      expect(ssl.queryCalls.length).toBeLessThan(4);
+      expect(other.queryCalls).toHaveLength(1);
+      expect(summary.leftForLater).toBe(4 - ssl.queryCalls.length);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'gives each provider its own share of the refund check too (round 2)',
+    async () => {
+      const bdt = await invoice(w, 'INV-TAKA', 50_000);
+      const { entry: taka } = await paidOnline(w, bdt, 50_000);
+      for (let i = 0; i < 4; i++) {
+        const sent = await refundIn(taka.id, 1_000);
+        expect(isOk(sent) && sent.value.code).toBe('sent');
+      }
+      const { entry: dollars } = await paidInDollars('INV-DOLLAR');
+      const sent = await refundIn(dollars.id, 1_000);
+      expect(isOk(sent) && sent.value.code).toBe('sent');
+      const slow = ssl.queryRefund.bind(ssl);
+      ssl.queryRefund = async (ref: string) => {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        return slow(ref);
+      };
+      const summary = await reconcileRefunds(db, scope(), both, { deadline: Date.now() + 1_000 });
+      expect(ssl.refundQueries.length).toBeLessThan(4);
+      expect(other.refundQueries).toHaveLength(1);
+      expect(summary.leftForLater).toBe(4 - ssl.refundQueries.length);
     },
     TIMEOUT,
   );

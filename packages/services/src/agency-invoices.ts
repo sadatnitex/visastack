@@ -93,6 +93,13 @@ export interface AgencyInvoiceView {
   readonly dueDate: Date;
   /** When the payer was last sent to the payment page, if that was recent enough to check first. */
   readonly recentAttemptStartedAt: Date | null;
+  /**
+   * The provider of each payment of this invoice that is still open (being opened, or sent to the
+   * payment page), of any age (S19 step 0 round 2). The page compares them with the providers
+   * configured now: a payment open with one that is switched off cannot be checked, so the payer is
+   * told to contact VisaStack instead of being offered another payment.
+   */
+  readonly openPaymentProviders: readonly (string | null)[];
   /** Newest first, at most five. */
   readonly attempts: readonly PaymentAttemptView[];
   readonly claims: readonly ManualClaimView[];
@@ -199,6 +206,9 @@ export async function listAgencyInvoices(
         periodEnd: invoice.periodEnd,
         dueDate: invoice.dueDate,
         recentAttemptStartedAt: recent ? (recent.redirectedAt ?? recent.createdAt) : null,
+        openPaymentProviders: mine
+          .filter((attempt) => attempt.status === 'CREATED' || attempt.status === 'REDIRECTED')
+          .map((attempt) => attempt.provider),
         attempts: newestFirst(mine)
           .slice(0, ATTEMPTS_SHOWN)
           .map((attempt) => attemptView(attempt, platform)),

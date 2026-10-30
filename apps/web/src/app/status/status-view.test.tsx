@@ -35,6 +35,23 @@ function render(props: Partial<Parameters<typeof StatusView>[0]> = {}) {
 }
 
 describe('the status page', () => {
+  it('says which invoice currencies are still test-only while payments are partly live (S19 step 0 round 2)', () => {
+    const partly: ProbeResult = {
+      ...ready,
+      data: { ...ready.data, platform: { authentication: 'available', payments: 'degraded' } },
+    };
+    const note =
+      'Online payment takes real money for invoices in Bangladeshi taka. Invoices in US dollars can only take test payments for now.';
+    const text = textOf(render({ ready: partly, paymentsNote: note }));
+    expect(text).toContain('Payments Partly Live');
+    expect(text).not.toContain('Test Payments Only');
+    expect(text).toContain(note);
+    // Without a note (all in test mode), the S29 words are kept.
+    const test = textOf(render({ ready: partly }));
+    expect(test).toContain('Test Payments Only');
+    expect(test).not.toContain('Partly Live');
+  });
+
   it('opens with one plain verdict that is announced to screen readers', () => {
     const html = render();
     expect(textOf(html)).toContain('What Works Today');
