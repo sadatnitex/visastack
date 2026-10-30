@@ -8,15 +8,12 @@ import {
 import type { Metadata } from 'next';
 import { PageHeader } from '../../../../../../components/ui';
 import { isPlatformOwnerAccount } from '../../../../../../lib/admin';
-import {
-  createPaymentPort,
-  isPaymentProviderConfigured,
-  paymentMode,
-} from '../../../../../../lib/providers';
+import { type OnlineOffers, onlineOffers } from '../../../../../../lib/payment-providers';
+import { paymentPorts } from '../../../../../../lib/providers';
 import { reportServerError } from '../../../../../../lib/server-error';
 import { withSession } from '../../../../../../lib/session';
 import { BillingStatusNotice, loadBillingNotice } from '../../billing-status-notice';
-import { InvoiceCard } from './invoice-card';
+import { InvoiceCard, type OnlineOffer } from './invoice-card';
 
 export const metadata: Metadata = { title: 'Agency Invoices' };
 
@@ -44,14 +41,15 @@ async function checkOpenPayments(
   organizationId: string,
   invoices: readonly AgencyInvoiceView[],
 ): Promise<boolean> {
-  if (!isPaymentProviderConfigured()) return false;
   const open = invoices.filter(needsGatewayCheck).slice(0, REFRESH_LIMIT);
   if (open.length === 0) return false;
   try {
-    const port = createPaymentPort();
+    // S19 step 0: each payment is asked of the provider it was made with.
+    const payments = paymentPorts();
+    if (payments.configured().length === 0) return false;
     await Promise.all(
       open.map((invoice) =>
-        refreshInvoicePaymentAttempts(db, port, {
+        refreshInvoicePaymentAttempts(db, payments, {
           actorAccountId: accountId,
           organizationId,
           invoiceId: invoice.id,
@@ -66,8 +64,23 @@ async function checkOpenPayments(
 }
 
 /**
+ * What this viewer is offered online, per invoice currency (S19 step 0, from the provider
+ * registry): `pay` where a live provider takes it, or a test-mode one and the viewer is the
+ * platform owner (S29); `testing` where only a test-mode provider takes it and the viewer is
+ * anyone else.
+ */
+function viewerOffers(offers: OnlineOffers, owner: boolean): Readonly<Record<string, OnlineOffer>> {
+  const result: Record<string, OnlineOffer> = Object.create(null) as Record<string, OnlineOffer>;
+  for (const [currency, offer] of Object.entries(offers)) {
+    result[currency] = offer.mode === 'LIVE' || owner ? 'pay' : 'testing';
+  }
+  return result;
+}
+
+/**
  * The agency's Invoices page (S12, ADR 0020), in the Usage and Billing area. Owners and admins see
- * every invoice with its plain state, can pay online (BDT, when payments are switched on) or
+ * every invoice with its plain state, can pay online (in a currency a configured payment provider
+ * takes; with SSLCOMMERZ, taka) or
  * report a payment made another way, and keep their receipts. Everyone else in the agency is
  * told it is for owners and admins. Nothing here counts money: online payments are counted only
  * when the gateway confirms them, and reports only when VisaStack confirms them.
@@ -78,6 +91,7 @@ export default async function AgencyInvoicesPage({
   readonly params: Promise<{ orgId: string }>;
 }) {
   const { orgId } = await params;
+  const offers = onlineOffers(process.env);
 
   const data = await withSession(async ({ db, accountId, email }) => {
     let listed = await listAgencyInvoices(db, { actorAccountId: accountId, organizationId: orgId });
@@ -86,15 +100,14 @@ export default async function AgencyInvoicesPage({
     }
     if (!listed.ok) return { invoices: [], allowed: false, status: null, owner: false };
     const status = await loadBillingNotice(db, accountId, orgId);
-    // S29 round 2: in the gateway's test mode only the platform owner can pay online.
-    const owner =
-      paymentMode() === 'TEST' ? await isPlatformOwnerAccount(db, { accountId, email }) : false;
+    // S29 round 2: in a gateway's test mode only the platform owner can pay online.
+    const owner = Object.values(offers).some((offer) => offer.mode === 'TEST')
+      ? await isPlatformOwnerAccount(db, { accountId, email })
+      : false;
     return { invoices: listed.value, allowed: true, status, owner };
   });
   const now = new Date();
-  const mode = paymentMode();
-  const onlineAvailable = mode === 'LIVE' || (mode === 'TEST' && data.owner);
-  const testModeHint = mode === 'TEST' && !data.owner ? TEST_PAYMENTS_ONLY : null;
+  const online = viewerOffers(offers, data.owner);
   // The newest calendar day anywhere on earth (UTC+14), so nobody is stopped from choosing their own today.
   const latestDate = new Date(Date.now() + 14 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
@@ -125,8 +138,8 @@ export default async function AgencyInvoicesPage({
               key={invoice.id}
               invoice={invoice}
               organizationId={orgId}
-              onlineAvailable={onlineAvailable}
-              testModeHint={testModeHint}
+              online={online}
+              testModeHint={TEST_PAYMENTS_ONLY}
               latestDate={latestDate}
               now={now}
             />

@@ -45,3 +45,31 @@ Added in package S11 (ADR 0020). An agency owner or admin can pay an invoice onl
 ## Not yet verified
 
 The official SSLCOMMERZ v4 documentation could not be reached when this was built. Field names, the signature rule, the validation and query replies and the sandbox and live addresses follow the v4 integration as widely documented, and are exercised against a test double only. Before the sandbox account is used, check them against the official documentation (list in the S11 evidence in known-issues).
+
+## Update 2026-10-30 (S19 step 0): more than one payment provider
+
+Payment providers now come from one registry (`apps/web/src/lib/payment-providers.ts`, ADR 0020 amendment S19 step 0). Today it holds SSLCOMMERZ only, so nothing changes for anyone: the same addresses, the same settings, the same screens. The sentence above "Online payment covers invoices in BDT only" now means "in the currencies the configured providers take" (SSLCOMMERZ: BDT).
+
+- Choosing providers: `PAYMENT_PROVIDERS=sslcommerz` (a comma list, earliest first). Leaving it unset keeps `PAYMENT_PROVIDER=sslcommerz` working exactly as before.
+- Result page link: set `PAYMENT_RESULT_SIGNING_SECRET` (at least 32 characters, a secret) in Vercel Production. Without it the link is signed with a key derived from the sign-in cookie secret, which also works. Links made before this change keep working for their hour.
+- A provider that is switched off while some of its payments are still open: those payments are left exactly as they are (never closed as expired) and counted in the daily check's answer (`providerNotConfigured`). Switch the provider back on, or settle them by hand in its panel and record them.
+
+## Adding a Payment Provider
+
+For a later direct bKash, Nagad or Rocket integration (owner decision O14 keeps them inside SSLCOMMERZ for now), or any other gateway.
+
+Engineering (one package):
+
+1. Write the adapter `packages/adapters/src/payment-<name>.ts` implementing `PaymentPort` (and `RefundingPaymentPort` if it can refund). Money only from its server-to-server validation or query; fixed error text; the mode (`TEST` for its sandbox, `LIVE`) on the port.
+2. Add one entry to `PAYMENT_PROVIDERS` in `apps/web/src/lib/payment-providers.ts`: name, currencies (ISO codes), refunds yes or no, its setting names (including `<NAME>_MODE`, `sandbox` or `live`, no default), its secret names, `callbackPath: '/api/payments/<name>'`, and how to read its callback.
+3. List its settings in `.env.example`. The registry contract test (`payment-providers.test.ts`) fails until the currencies, callback folder, secrets, scrubbing and `.env.example` all agree.
+4. Nothing else changes: the invoice ledger, the services, the Invoices page, the refund panel and the routes (`/api/payments/[provider]/...`) already serve every registry entry.
+
+Owner steps (after that package is merged):
+
+1. In Vercel Production set `PAYMENT_PROVIDERS` to the list in the order you want, for example `sslcommerz,<name>` (SSLCOMMERZ first keeps taka on SSLCOMMERZ).
+2. Set the new provider's settings, `<NAME>_*`, including `<NAME>_MODE=sandbox` first. Secrets only in Vercel, never in a file.
+3. Make sure `PAYMENT_RESULT_SIGNING_SECRET` is set (at least 32 characters).
+4. In the new provider's merchant panel register `https://vs.obsidianglobal.studio/api/payments/<name>/ipn` as the notification address and `https://vs.obsidianglobal.studio/api/payments/<name>/return` as the return address.
+5. Redeploy, then make one small test payment as the platform owner (test mode is owner only). Check: the invoice shows Paid, labelled Test Payment, and the platform overview shows "Online Payments: <Name>" as Test payments only.
+6. Switch to live only with your word: `<NAME>_MODE=live` with the live settings.

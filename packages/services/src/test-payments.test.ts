@@ -17,7 +17,7 @@ import {
   settlePaymentAttempt,
   startOnlinePayment,
 } from './payments';
-import { FakePaymentPort } from './payments.test-support';
+import { FakePaymentPort, onePort } from './payments.test-support';
 import { getPlanByKey } from './plans';
 import { grantPlatformRole } from './platform-roles';
 import {
@@ -109,7 +109,7 @@ describe('test payments (S29)', () => {
   }
 
   const start = (invoiceId: string, actorAccountId: string, email: string) =>
-    startOnlinePayment(db, port, {
+    startOnlinePayment(db, onePort(port), {
       actorAccountId,
       actorEmail: email,
       bootstrapEmails: [],
@@ -240,7 +240,7 @@ describe('test payments (S29)', () => {
       'BILLING_REFUND_MANAGE',
     );
     if (!isOk(scope)) throw new Error('scope');
-    const asked = await requestRefund(db, port, scope.value, {
+    const asked = await requestRefund(db, onePort(port), scope.value, {
       organizationId,
       source: { kind: 'entry', invoicePaymentId: entry.id },
       amountMinorUnits: 1000,
@@ -313,7 +313,7 @@ describe('test payments (S29)', () => {
     );
     if (!isOk(scope)) throw new Error('scope');
     // Sent while the gateway was in test mode.
-    const sent = await requestRefund(db, port, scope.value, {
+    const sent = await requestRefund(db, onePort(port), scope.value, {
       organizationId,
       source: { kind: 'entry', invoicePaymentId: entry.id },
       amountMinorUnits: 1000,
@@ -325,13 +325,12 @@ describe('test payments (S29)', () => {
     // The panel does not offer a gateway refund of a test payment to the live gateway.
     const work = await getOrganizationRefundWork(db, scope.value, {
       organizationId,
-      gatewayProvider: 'sslcommerz',
-      gatewayMode: 'LIVE',
+      gateways: [{ provider: 'sslcommerz', mode: 'LIVE' }],
     });
     expect(isOk(work) && work.value.entries.every((e) => !e.viaGateway)).toBe(true);
     port.mode = 'LIVE';
     for (let run = 0; run < 2; run++) {
-      const checked = await checkRefundsNow(db, port, scope.value, { organizationId });
+      const checked = await checkRefundsNow(db, onePort(port), scope.value, { organizationId });
       expect(isOk(checked) && checked.value.needsCheck).toBe(1);
     }
     expect(port.refundQueries).toHaveLength(0);

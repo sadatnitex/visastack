@@ -24,7 +24,7 @@ import {
   settlePaymentAttempt,
   startOnlinePayment,
 } from './payments';
-import { FakePaymentPort } from './payments.test-support';
+import { FakePaymentPort, onePort } from './payments.test-support';
 import { getPlanByKey } from './plans';
 import { grantPlatformRole } from './platform-roles';
 import type { PaymentPort, PaymentValidation } from './ports';
@@ -115,7 +115,7 @@ describe('online invoice payments (S11)', () => {
   }
 
   async function start(invoiceId: string, overrides: Record<string, unknown> = {}) {
-    return startOnlinePayment(db, port, {
+    return startOnlinePayment(db, onePort(port), {
       actorAccountId: org.ownerAccountId,
       invoiceId,
       urlFor,
@@ -282,7 +282,7 @@ describe('online invoice payments (S11)', () => {
       expect(isErr(usdResult) && usdResult.error.message).toContain('taka');
       const open = await openInvoice('INV-S11-OFF', 5000);
       const unconfigured = { ...port, configured: false } as unknown as PaymentPort;
-      const off = await startOnlinePayment(db, unconfigured, {
+      const off = await startOnlinePayment(db, onePort(unconfigured), {
         actorAccountId: org.ownerAccountId,
         invoiceId: open,
         urlFor,
@@ -815,7 +815,7 @@ describe('online invoice payments (S11)', () => {
       port.succeed(old.tran, 125000);
       port.succeed(fresh.tran, 125000);
       await backdate(old.attempt.id, new Date(Date.now() - 30 * 60 * 1000));
-      const summary = await reconcilePaymentAttempts(db, scope(), port);
+      const summary = await reconcilePaymentAttempts(db, scope(), onePort(port));
       expect(summary).toMatchObject({ available: true, configured: true, checked: 1, recorded: 1 });
       expect((await attemptRow(old.attempt.id))?.status).toBe('RECORDED');
       expect((await attemptRow(fresh.attempt.id))?.status).toBe('REDIRECTED');
@@ -830,7 +830,7 @@ describe('online invoice payments (S11)', () => {
       port.end(stale.tran, 'PENDING');
       await backdate(young.attempt.id, new Date(Date.now() - 23 * 60 * 60 * 1000));
       await backdate(stale.attempt.id, new Date(Date.now() - 25 * 60 * 60 * 1000));
-      const summary = await reconcilePaymentAttempts(db, scope(), port);
+      const summary = await reconcilePaymentAttempts(db, scope(), onePort(port));
       expect(summary).toMatchObject({ checked: 2, closed: 1, stillPending: 1 });
       expect((await attemptRow(young.attempt.id))?.status).toBe('REDIRECTED');
       expect((await attemptRow(stale.attempt.id))?.status).toBe('EXPIRED');
@@ -849,7 +849,7 @@ describe('online invoice payments (S11)', () => {
       }
       await backdate(within.attempt.id, new Date(Date.now() - 3 * 24 * 60 * 60 * 1000));
       await backdate(beyond.attempt.id, new Date(Date.now() - 9 * 24 * 60 * 60 * 1000));
-      const summary = await reconcilePaymentAttempts(db, scope(), port);
+      const summary = await reconcilePaymentAttempts(db, scope(), onePort(port));
       expect(summary.recorded).toBe(1);
       expect((await attemptRow(within.attempt.id))?.status).toBe('RECORDED');
       expect((await attemptRow(beyond.attempt.id))?.status).toBe('EXPIRED');
@@ -878,7 +878,7 @@ describe('online invoice payments (S11)', () => {
       const summary = await reconcilePaymentAttempts(
         db,
         systemScopeForTest('process-payment-reconciliation'),
-        port,
+        onePort(port),
         { limit: 2 },
       );
       expect(summary.recorded).toBe(1);
@@ -903,7 +903,7 @@ describe('online invoice payments (S11)', () => {
       const summary = await reconcilePaymentAttempts(
         db,
         systemScopeForTest('process-payment-reconciliation'),
-        port,
+        onePort(port),
       );
       expect(summary.awaitingReview).toBe(2);
     });
@@ -925,7 +925,7 @@ describe('online invoice payments (S11)', () => {
         })
         .returning();
       if (!attempt) throw new Error('attempt');
-      const summary = await reconcilePaymentAttempts(db, scope(), port);
+      const summary = await reconcilePaymentAttempts(db, scope(), onePort(port));
       expect(summary.closed).toBe(1);
       expect(await attemptRow(attempt.id)).toMatchObject({
         status: 'FAILED',
@@ -942,7 +942,7 @@ describe('online invoice payments (S11)', () => {
         attempts.push(started);
       }
       port.outage = true;
-      const summary = await reconcilePaymentAttempts(db, scope(), port);
+      const summary = await reconcilePaymentAttempts(db, scope(), onePort(port));
       expect(summary).toMatchObject({ unavailable: 3, recorded: 0, checked: 3 });
       expect(await ledger()).toHaveLength(0);
       for (const a of attempts) expect((await attemptRow(a.attempt.id))?.status).toBe('REDIRECTED');
@@ -950,7 +950,7 @@ describe('online invoice payments (S11)', () => {
 
     it('reports an unconfigured provider without touching anything, and refuses the wrong job scope', async () => {
       const unconfigured = { ...port, configured: false } as unknown as PaymentPort;
-      expect(await reconcilePaymentAttempts(db, scope(), unconfigured)).toMatchObject({
+      expect(await reconcilePaymentAttempts(db, scope(), onePort(unconfigured))).toMatchObject({
         configured: false,
         checked: 0,
       });
@@ -958,7 +958,7 @@ describe('online invoice payments (S11)', () => {
         reconcilePaymentAttempts(
           db,
           systemScopeForTest('process-rate-limit-prune') as unknown as ReturnType<typeof scope>,
-          port,
+          onePort(port),
         ),
       ).rejects.toThrow(/wrong job scope/);
     });
@@ -972,9 +972,12 @@ describe('online invoice payments (S11)', () => {
       const { invoiceId, tran, attempt } = await startedAttempt('INV-S11-REFRESH');
       port.succeed(tran, 125000);
       // Too young for the ordinary refresh.
-      const young = await refreshInvoicePaymentAttempts(db, port, { ...admin(), invoiceId });
+      const young = await refreshInvoicePaymentAttempts(db, onePort(port), {
+        ...admin(),
+        invoiceId,
+      });
       expect(isOk(young) && young.value.checked).toBe(0);
-      const checked = await refreshInvoicePaymentAttempts(db, port, {
+      const checked = await refreshInvoicePaymentAttempts(db, onePort(port), {
         ...admin(),
         invoiceId,
         minAgeMs: 0,
@@ -991,7 +994,7 @@ describe('online invoice payments (S11)', () => {
       }
       const rows = await attemptsOf(invoiceId);
       for (const row of rows) port.end(row.merchantTranId, 'PENDING');
-      const result = await refreshInvoicePaymentAttempts(db, port, {
+      const result = await refreshInvoicePaymentAttempts(db, onePort(port), {
         ...admin(),
         invoiceId,
         minAgeMs: 0,
@@ -1006,7 +1009,7 @@ describe('online invoice payments (S11)', () => {
       const otherOrg = await seedOrganization(db, 'other');
       const base = { organizationId: org.organizationId, invoiceId };
       // Not a member at all.
-      const refused = await refreshInvoicePaymentAttempts(db, port, {
+      const refused = await refreshInvoicePaymentAttempts(db, onePort(port), {
         ...base,
         actorAccountId: stranger.value.id,
       });
@@ -1095,10 +1098,10 @@ describe('online invoice payments (S11)', () => {
         await reconcilePaymentAttempts(
           db,
           systemScopeForTest('process-payment-reconciliation'),
-          port,
+          onePort(port),
         ),
       ).toMatchObject({ available: false });
-      const refreshed = await refreshInvoicePaymentAttempts(db, port, {
+      const refreshed = await refreshInvoicePaymentAttempts(db, onePort(port), {
         actorAccountId: org.ownerAccountId,
         organizationId: org.organizationId,
         invoiceId,

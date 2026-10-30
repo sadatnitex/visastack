@@ -134,3 +134,12 @@ Every setting that turns a launch capability on, where it lives and how it is re
 | Backup pruning | `BACKUP_PRUNE` (GitHub repository Actions variable) | Reports only | Prunes old backups | Approved 30 Oct 2026; waiting for the owner to set `on` |
 
 Correction 2026-10-30 (S29 round 2): the launch-switch table above says every switch is read by one rule. That is withdrawn: each switch keeps the reading it had before S29. Exactly `true` (no spaces, lower case): `PAYMENT_REFUNDS_VIA_GATEWAY`, `PERSONAL_SHARING_INVITATIONS_ENABLED`, `CASE_RETENTION_PURGE_ENABLED`, `INACTIVE_ACCOUNT_DELETION_ENABLED`, `COMMERCIAL_READINESS_ATTEST_*`, `AI_ENABLED`, `OPENAI_STORE_RESPONSES`. Spaces around it ignored, then `true`: `AI_CONNECTOR_ENABLED`. `BACKUP_PRUNE` is read by its workflow as `on`. Pinned by `apps/web/src/lib/launch-switch-parsing.test.ts`. Online payment in test mode is shown to agencies as "being tested"; only the platform owner sees Pay Online until the gateway is live.
+
+Update 2026-10-30 (S19 step 0, payment provider registry). Two new settings; every earlier switch keeps its reading (`PAYMENT_PROVIDER` exactly a registry name, `SSLCOMMERZ_*` as before, `PAYMENT_REFUNDS_VIA_GATEWAY` exactly `true`):
+
+| Capability | Switch (where) | Off / not set | On | Notes |
+|---|---|---|---|---|
+| Online payment providers, in order | `PAYMENT_PROVIDERS` (Vercel Production) | `PAYMENT_PROVIDER` decides, exactly as before | The listed providers, earliest first, each once all its own settings are set | Comma list; each name trimmed; empty names ignored; exact lower-case names; repeats once; `none` adds nothing (only `none`: payments off); an unknown name is not used and readiness reports it. Today the only name is `sslcommerz` |
+| Payment result link signing | `PAYMENT_RESULT_SIGNING_SECRET` (Vercel Production, secret) | Key derived from `NEON_AUTH_COOKIE_SECRET`; with neither, the general result page | Links signed with this secret | Used as it is when at least 32 characters; shorter is not used. Links signed before S19 step 0 are accepted until they expire (removal later, decision O2) |
+
+Callback addresses are `/api/payments/<provider>/ipn` and `/return`; for SSLCOMMERZ they are unchanged. The platform overview shows one "Online Payments: <Name>" row per provider and an "AI App Access" row (On or Off, from `AI_CONNECTOR_ENABLED`). Runbook: "Adding a Payment Provider" in [online-payments.md](online-payments.md).

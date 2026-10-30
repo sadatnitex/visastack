@@ -20,7 +20,7 @@ import { paymentUrlFor } from '../../../../../../lib/payment-urls';
 import {
   createImageSanitizer,
   createMalwareScanner,
-  createPaymentPort,
+  paymentPorts,
 } from '../../../../../../lib/providers';
 import { reportServerError } from '../../../../../../lib/server-error';
 import { withSession } from '../../../../../../lib/session';
@@ -86,13 +86,15 @@ export async function startPaymentAction(
       accountId,
       email,
     }): Promise<InvoiceActionState | { readonly redirectUrl: string }> => {
-      let port: ReturnType<typeof createPaymentPort>;
+      // S19 step 0: the service starts the payment on the provider that takes this invoice's
+      // currency, so nothing here names a provider or a currency.
+      let payments: ReturnType<typeof paymentPorts>;
       try {
-        port = createPaymentPort();
+        payments = paymentPorts();
       } catch {
         return UNAVAILABLE;
       }
-      const started = await startOnlinePayment(db, port, {
+      const started = await startOnlinePayment(db, payments, {
         actorAccountId: accountId,
         // S29: in the gateway's test mode only the platform owner may start a payment.
         actorEmail: email,
@@ -125,13 +127,13 @@ export async function checkPaymentAction(
   const found = ids(formData);
   if (!found) return NOT_FOUND;
   const result = await withSession(async ({ db, accountId }): Promise<InvoiceActionState> => {
-    let port: ReturnType<typeof createPaymentPort>;
+    let payments: ReturnType<typeof paymentPorts>;
     try {
-      port = createPaymentPort();
+      payments = paymentPorts();
     } catch {
       return UNAVAILABLE;
     }
-    const checked = await refreshInvoicePaymentAttempts(db, port, {
+    const checked = await refreshInvoicePaymentAttempts(db, payments, {
       actorAccountId: accountId,
       organizationId: found.organizationId,
       invoiceId: found.invoiceId,

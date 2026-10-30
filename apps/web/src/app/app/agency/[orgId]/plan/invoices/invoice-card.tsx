@@ -25,8 +25,19 @@ import {
   RecentPaymentChoices,
 } from './invoice-forms';
 
-/** Online payment covers invoices in this currency only (ADR 0020). Other currencies use the report form. */
-const ONLINE_CURRENCY = 'BDT';
+/**
+ * What online payment an invoice's currency gets for this viewer (S19 step 0): `pay` (Pay Online
+ * is offered), `testing` (only a provider in test mode takes it, so the viewer is told online
+ * payment is being tested). A currency with no entry is paid another way (the report form).
+ */
+export type OnlineOffer = 'pay' | 'testing';
+
+function offerFor(
+  online: Readonly<Record<string, OnlineOffer>>,
+  currency: string,
+): OnlineOffer | null {
+  return Object.hasOwn(online, currency) ? (online[currency] ?? null) : null;
+}
 
 function plainAmount(minorUnits: number, currency: string): string {
   return formatMoney(minorUnits, currency);
@@ -51,17 +62,18 @@ export function dueMarker(
 export function InvoiceCard({
   invoice,
   organizationId,
-  onlineAvailable,
+  online,
   testModeHint = null,
   latestDate,
   now = new Date(),
 }: {
   readonly invoice: AgencyInvoiceView;
   readonly organizationId: string;
-  readonly onlineAvailable: boolean;
+  /** Per invoice currency, what online payment this viewer is offered (from the Invoices page). */
+  readonly online: Readonly<Record<string, OnlineOffer>>;
   /**
-   * S29 round 2: while the gateway is in test mode (and the viewer is not the platform owner) the
-   * sentence saying online payment is being tested; shown in place of Pay Online.
+   * S29 round 2: the sentence saying online payment is being tested, shown in place of Pay Online
+   * where the invoice's currency is `testing` for this viewer.
    */
   readonly testModeHint?: string | null;
   /** The latest day a payment can have been made (YYYY-MM-DD, anywhere on earth). */
@@ -75,13 +87,11 @@ export function InvoiceCard({
   const refunded = invoice.refundedMinorUnits > 0;
   const open = invoice.status !== 'PAID' && invoice.status !== 'VOID' && !refunded;
   const reported = invoice.state === 'PAYMENT_REPORTED';
-  // Whether this invoice can be paid online at all: payments switched on, its currency covered.
+  // Whether this invoice can be paid online at all: a provider takes its stored currency, for this
+  // viewer, now.
+  const offer = offerFor(online, invoice.currency);
   const onlineOffered =
-    open &&
-    onlineAvailable &&
-    invoice.state !== 'NEEDS_CHECK' &&
-    invoice.currency === ONLINE_CURRENCY &&
-    invoice.outstandingMinorUnits > 0;
+    open && offer === 'pay' && invoice.state !== 'NEEDS_CHECK' && invoice.outstandingMinorUnits > 0;
   // While a payment report waits, paying online could pay twice: the report is checked first.
   const canPayOnline = onlineOffered && !reported;
   const balance = formatMoneyNumber(invoice.outstandingMinorUnits, invoice.currency, {
@@ -89,7 +99,7 @@ export function InvoiceCard({
   });
   const due = open ? dueMarker(invoice, now) : null;
   const headingId = `invoice-${invoice.id}`;
-  const showTestHint = testModeHint !== null && invoice.currency === ONLINE_CURRENCY;
+  const showTestHint = testModeHint !== null && offer === 'testing';
   const hasOldPayment = invoice.attempts.some((a) => a.status === 'REDIRECTED');
 
   return (
@@ -168,7 +178,7 @@ export function InvoiceCard({
               {canPayOnline ? (
                 <PayOnlineButton organizationId={organizationId} invoiceId={invoice.id} />
               ) : null}
-              {onlineAvailable && hasOldPayment ? (
+              {offer === 'pay' && hasOldPayment ? (
                 <CheckStatusButton organizationId={organizationId} invoiceId={invoice.id} />
               ) : null}
             </>

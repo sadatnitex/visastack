@@ -205,10 +205,14 @@ export default async function AdminOrganizationPage({
       listCommercialOverridesForOrganization(db, orgId),
     ]);
 
-    // S18: refunds and credits, under the platform owner's own refund scope. The payment port is
+    // S18: refunds and credits, under the platform owner's own refund scope. The payment ports are
     // never made unguarded: an incomplete configuration means "no gateway", never a broken page.
+    // S19 step 0: every gateway refunds may be sent to, each offered only its own payments.
     const { send: sendPort, check: checkPort } = refundPorts();
-    const gatewayProvider = sendPort?.provider ?? null;
+    const gateways = (sendPort?.configured() ?? []).map((port) => ({
+      provider: port.provider,
+      mode: port.mode,
+    }));
     const refundScope = await staffPrincipal(
       db,
       { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
@@ -217,8 +221,7 @@ export default async function AdminOrganizationPage({
     const refundWork = refundScope.ok
       ? await getOrganizationRefundWork(db, refundScope.value, {
           organizationId: orgId,
-          gatewayProvider,
-          gatewayMode: sendPort?.mode ?? null,
+          gateways,
           page: Number.isFinite(refundPage) ? refundPage : 1,
           invoiceRef: asked.refundInvoice ?? null,
         })

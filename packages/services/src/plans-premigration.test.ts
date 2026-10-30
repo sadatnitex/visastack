@@ -17,7 +17,7 @@ import { checkSeatEntitlement } from './entitlement-enforcement';
 import { type ResolvedEntitlements, resolveEntitlements } from './entitlements';
 import { createOrganization } from './organizations';
 import { startOnlinePayment } from './payments';
-import { FakePaymentPort } from './payments.test-support';
+import { FakePaymentPort, onePort } from './payments.test-support';
 import { getUsageForOrganization, listPlans } from './plans';
 import { listPlansForAdmin, savePlan } from './plans-admin';
 import { entitlementsSchemaPresent, ledgerColumns, ledgerModeSql } from './plans-schema';
@@ -189,7 +189,7 @@ describe('before and after migration 0107 (S29)', () => {
 
       // Online payment and plan changes wait for 0107, refused calmly with a typed reason.
       const port = new FakePaymentPort();
-      const started = await startOnlinePayment(db, port, {
+      const started = await startOnlinePayment(db, onePort(port), {
         actorAccountId: agencyOwner.value.id,
         invoiceId: invoice.value.id,
         urlFor: () => 'https://app.example.test/pay',

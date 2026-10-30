@@ -1,17 +1,21 @@
-import { type RefundingPaymentPort, isRefundingPaymentPort } from '@visastack/services';
+import 'server-only';
+import type { PaymentPortResolver } from '@visastack/services';
 import { withoutPaymentSecrets } from './payment-secrets';
-import { createPaymentPort, isPaymentProviderConfigured } from './providers';
+import { paymentPorts } from './providers';
 import { reportServerError } from './server-error';
 
 /**
- * Which payment gateway, if any, refunds may be sent to and checked with (Small Commercial V1
+ * Which payment gateways, if any, refunds may be sent to and checked with (Small Commercial V1
  * S18). Everything is built; sending refunds from VisaStack is switched on by one value:
  * `PAYMENT_REFUNDS_VIA_GATEWAY=true` (exactly "true"), set once the server's fixed outbound address
  * is registered with SSLCOMMERZ (owner action O18). While it is off, refunds are made in the
  * gateway's merchant panel and recorded in VisaStack.
  *
- * The port is never made unguarded: an incomplete payment configuration (which makes
- * `createPaymentPort` throw on purpose) gives "no gateway" here, never a broken page.
+ * S19 step 0: the answer covers every configured provider that can refund, as the resolver the
+ * services take. A refund goes to the provider the payment was taken with, never another one.
+ *
+ * The ports are never made unguarded: a provider whose settings are incomplete is simply not
+ * configured, and anything that still goes wrong gives "no gateway" here, never a broken page.
  */
 
 export const REFUNDS_SWITCH = 'PAYMENT_REFUNDS_VIA_GATEWAY';
@@ -25,12 +29,14 @@ export function refundsViaGatewayEnabled(readEnv: ReadEnv = fromProcess): boolea
   return readEnv(REFUNDS_SWITCH) === 'true';
 }
 
-/** The configured gateway, when it can refund, whatever the switch says (for checking sent refunds). */
-export function refundCheckPort(): RefundingPaymentPort | null {
-  if (!isPaymentProviderConfigured()) return null;
+/**
+ * The configured gateways that can refund, whatever the switch says (for checking sent refunds),
+ * or null when there is none.
+ */
+export function refundCheckPort(): PaymentPortResolver | null {
   try {
-    const port = createPaymentPort();
-    return port.configured && isRefundingPaymentPort(port) ? port : null;
+    const gateways = paymentPorts({ refundsOnly: true });
+    return gateways.configured().length > 0 ? gateways : null;
   } catch (error) {
     reportServerError('refund gateway', withoutPaymentSecrets(error), { step: 'payment port' });
     return null;
@@ -38,21 +44,22 @@ export function refundCheckPort(): RefundingPaymentPort | null {
 }
 
 /**
- * The gateway refunds may be sent to: only with the switch on and a complete configuration. Pass
- * the check port already made for this request, so the payment port is built once.
+ * The gateways refunds may be sent to: only with the switch on and at least one configured
+ * gateway that can refund. Pass the check answer already made for this request, so the ports are
+ * built once.
  */
 export function refundSendPort(
   readEnv: ReadEnv = fromProcess,
-  checkPort: RefundingPaymentPort | null | undefined = undefined,
-): RefundingPaymentPort | null {
+  checkPort: PaymentPortResolver | null | undefined = undefined,
+): PaymentPortResolver | null {
   if (!refundsViaGatewayEnabled(readEnv)) return null;
   return checkPort === undefined ? refundCheckPort() : checkPort;
 }
 
-/** Both answers for one page render, from one payment port. */
+/** Both answers for one page render, from one set of ports. */
 export function refundPorts(readEnv: ReadEnv = fromProcess): {
-  readonly check: RefundingPaymentPort | null;
-  readonly send: RefundingPaymentPort | null;
+  readonly check: PaymentPortResolver | null;
+  readonly send: PaymentPortResolver | null;
 } {
   const check = refundCheckPort();
   return { check, send: refundSendPort(readEnv, check) };

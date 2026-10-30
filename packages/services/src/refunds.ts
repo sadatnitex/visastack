@@ -1,5 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, notInArray, or, sql } from 'drizzle-orm';
 import type { StaffScope, SystemScope } from './access/principal';
 import { staffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
@@ -36,7 +36,12 @@ import {
   ledgerColumns,
   ledgerModeSql,
 } from './plans-schema';
-import { type PaymentPort, type RefundingPaymentPort, isRefundingPaymentPort } from './ports';
+import {
+  type PaymentPort,
+  type PaymentPortResolver,
+  type RefundingPaymentPort,
+  isRefundingPaymentPort,
+} from './ports';
 
 /**
  * Refunds and credits (Small Commercial V1 S18, ADR 0020 Phase 2 and its S18 amendment).
@@ -693,8 +698,21 @@ export interface RequestRefundInput {
   readonly now?: Date;
 }
 
-function refundPort(port: PaymentPort): RefundingPaymentPort | null {
-  return port.configured && isRefundingPaymentPort(port) ? port : null;
+function refundPort(port: PaymentPort | null): RefundingPaymentPort | null {
+  return port?.configured && isRefundingPaymentPort(port) ? port : null;
+}
+
+/** Every configured gateway that can refund, in the owner's order (S19 step 0). */
+function refundGateways(payments: PaymentPortResolver): RefundingPaymentPort[] {
+  return payments
+    .configured()
+    .map(refundPort)
+    .filter((port): port is RefundingPaymentPort => port !== null);
+}
+
+/** The provider the money of a refund source was taken with, when it was taken online. */
+function sourceProvider(source: LockedSource): string | null {
+  return source.attempt?.provider ?? (source.kind === 'entry' ? source.entry.provider : null);
 }
 
 /**
@@ -712,7 +730,7 @@ function modeMismatchMessage(sourceMode: PaymentMode): string {
 
 export async function requestRefund(
   db: Db,
-  port: PaymentPort,
+  payments: PaymentPortResolver,
   staff: StaffScope<'BILLING_REFUND_MANAGE'>,
   input: RequestRefundInput,
 ): Promise<Result<RefundOutcome, ServiceError>> {
@@ -728,8 +746,8 @@ export async function requestRefund(
     return err(serviceError('step_up_required', 'a refund requires reauthentication'));
   }
   if (!(await refundsPresent(db))) return err(serviceError('invalid', REFUNDS_UNAVAILABLE));
-  const gateway = refundPort(port);
-  if (!gateway) {
+  const fallback = refundGateways(payments)[0];
+  if (!fallback) {
     return err(
       serviceError(
         'invalid',
@@ -741,9 +759,17 @@ export async function requestRefund(
 
   const prepared = await inTransaction(
     db,
-    async (tx): Promise<Result<{ row: RefundRequest; replay: boolean }, ServiceError>> => {
+    async (
+      tx,
+    ): Promise<
+      Result<{ row: RefundRequest; replay: boolean; gateway: RefundingPaymentPort }, ServiceError>
+    > => {
       const source = await lockSource(tx, input.organizationId, input.source);
       if (!source) return err(serviceError('not_found', 'payment not found'));
+      // S19 step 0: the money goes back through the provider it was taken with. A source taken
+      // another way (or with a provider not configured here) is judged against the first
+      // configured gateway, which refuses it below exactly as it always did.
+      const gateway = refundPort(payments.forProvider(sourceProvider(source))) ?? fallback;
       const amount = amountIn(input, sourceIds(source).currency);
       if (amount === null) return err(refusal('amount_invalid', AMOUNT_ABOVE_ZERO));
       // A repeated send is answered from the first request, under the same lock.
@@ -752,7 +778,7 @@ export async function requestRefund(
         if (!sameSource(replay, input.source) || replay.amountMinorUnits !== amount) {
           return err(serviceError('invalid', 'This page is out of date. Reload it and try again.'));
         }
-        return ok({ row: replay, replay: true });
+        return ok({ row: replay, replay: true, gateway });
       }
       const problem = limitProblem(source, amount);
       if (problem) return err(problem);
@@ -796,7 +822,7 @@ export async function requestRefund(
         return err(serviceError('invalid', 'This page is out of date. Reload it and try again.'));
       }
       await auditRefund(tx, 'INVOICE_REFUND_REQUESTED', inserted, staff.accountId, {}, reason);
-      return ok({ row: inserted, replay: false });
+      return ok({ row: inserted, replay: false, gateway });
     },
   );
   if (!prepared.ok) return prepared;
@@ -808,7 +834,15 @@ export async function requestRefund(
     });
   }
   return ok(
-    await sendToGateway(db, gateway, prepared.value.row, invoiceRef, staff.accountId, now, 'first'),
+    await sendToGateway(
+      db,
+      prepared.value.gateway,
+      prepared.value.row,
+      invoiceRef,
+      staff.accountId,
+      now,
+      'first',
+    ),
   );
 }
 
@@ -972,7 +1006,7 @@ async function openProviderRequest(
  */
 export async function retryRefund(
   db: Db,
-  port: PaymentPort,
+  payments: PaymentPortResolver,
   staff: StaffScope<'BILLING_REFUND_MANAGE'>,
   input: RefundRequestActionInput,
 ): Promise<Result<RefundOutcome, ServiceError>> {
@@ -982,11 +1016,14 @@ export async function retryRefund(
     return err(serviceError('step_up_required', 'a refund requires reauthentication'));
   }
   if (!(await refundsPresent(db))) return err(serviceError('invalid', REFUNDS_UNAVAILABLE));
-  const gateway = refundPort(port);
-  if (!gateway) return err(serviceError('invalid', 'The payment gateway is not available here.'));
+  if (refundGateways(payments).length === 0) {
+    return err(serviceError('invalid', 'The payment gateway is not available here.'));
+  }
   const row = await openProviderRequest(db, input);
   if (!row.ok) return row;
-  if (row.value.provider !== gateway.provider) {
+  // S19 step 0: a refund is sent again only to the provider it was first sent to.
+  const gateway = refundPort(payments.forProvider(row.value.provider));
+  if (!gateway || row.value.provider !== gateway.provider) {
     return err(serviceError('invalid', 'This refund belongs to another payment gateway.'));
   }
   const sourceMode = await refundSourceMode(db, row.value.id);
@@ -1225,6 +1262,11 @@ export interface RefundCheckSummary {
   readonly awaitingCheck: number;
   /** Sent refunds not asked about because the run's time budget ran out; the next run asks. */
   readonly leftForLater: number;
+  /**
+   * Sent refunds made through a provider that is no longer configured here (S19 step 0): never
+   * asked about or changed, only counted.
+   */
+  readonly providerNotConfigured: number;
 }
 
 const EMPTY_CHECK: RefundCheckSummary = {
@@ -1238,7 +1280,22 @@ const EMPTY_CHECK: RefundCheckSummary = {
   needsCheck: 0,
   awaitingCheck: 0,
   leftForLater: 0,
+  providerNotConfigured: 0,
 };
+
+/** Two parts of one refund check, added together. */
+function addChecks(a: RefundCheckSummary, b: RefundCheckSummary): RefundCheckSummary {
+  return {
+    ...a,
+    checked: a.checked + b.checked,
+    confirmed: a.confirmed + b.confirmed,
+    failed: a.failed + b.failed,
+    stillProcessing: a.stillProcessing + b.stillProcessing,
+    unavailable: a.unavailable + b.unavailable,
+    needsCheck: a.needsCheck + b.needsCheck,
+    leftForLater: a.leftForLater + b.leftForLater,
+  };
+}
 
 type CheckCode = 'confirmed' | 'failed' | 'processing' | 'unavailable' | 'needs_check' | 'skipped';
 
@@ -1444,6 +1501,57 @@ async function countAwaitingCheck(db: Db, organizationId: string | null): Promis
   return rows[0]?.n ?? 0;
 }
 
+/** Sent refunds whose provider is none of `providers`: no gateway here can be asked about them. */
+async function countSubmittedElsewhere(
+  db: Db,
+  providers: readonly string[],
+  organizationId: string | null,
+): Promise<number> {
+  const r = schema.refundRequests;
+  const rows = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(r)
+    .where(
+      and(
+        eq(r.status, 'SUBMITTED'),
+        eq(r.method, 'PROVIDER'),
+        providers.length === 0
+          ? undefined
+          : or(isNull(r.provider), notInArray(r.provider, [...providers])),
+        organizationId === null ? undefined : eq(r.organizationId, organizationId),
+      ),
+    );
+  return rows[0]?.n ?? 0;
+}
+
+/**
+ * The same check for every configured gateway that can refund, each asked only about the refunds
+ * sent through it, in the owner's order, within one time budget (S19 step 0).
+ */
+async function checkEveryGateway(
+  db: Db,
+  gateways: readonly RefundingPaymentPort[],
+  organizationId: string | null,
+  limit: number,
+  now: Date,
+  deadline: number | null,
+): Promise<RefundCheckSummary> {
+  let summary = { ...EMPTY_CHECK };
+  for (const gateway of gateways) {
+    const rows = await submittedRequests(db, gateway.provider, organizationId, limit);
+    summary = addChecks(summary, await checkBatch(db, gateway, rows, now, deadline));
+  }
+  return {
+    ...summary,
+    awaitingCheck: await countAwaitingCheck(db, organizationId),
+    providerNotConfigured: await countSubmittedElsewhere(
+      db,
+      gateways.map((gateway) => gateway.provider),
+      organizationId,
+    ),
+  };
+}
+
 async function submittedRequests(
   db: Db,
   provider: string,
@@ -1479,7 +1587,7 @@ async function submittedRequests(
 export async function reconcileRefunds(
   db: Db,
   scope: SystemScope<'process-payment-reconciliation'>,
-  port: PaymentPort,
+  payments: PaymentPortResolver,
   options: {
     readonly now?: Date;
     readonly limit?: number;
@@ -1489,24 +1597,17 @@ export async function reconcileRefunds(
 ): Promise<RefundCheckSummary> {
   if (scope.job !== 'process-payment-reconciliation') throw new Error('wrong job scope');
   if (!(await refundsPresent(db))) return { ...EMPTY_CHECK, available: false };
-  const gateway = refundPort(port);
-  if (!gateway) return { ...EMPTY_CHECK, configured: false };
+  const gateways = refundGateways(payments);
+  if (gateways.length === 0) return { ...EMPTY_CHECK, configured: false };
   const now = options.now ?? new Date();
   const limit = Math.max(1, Math.min(options.limit ?? 50, 200));
-  const summary = await checkBatch(
-    db,
-    gateway,
-    await submittedRequests(db, gateway.provider, null, limit),
-    now,
-    options.deadline ?? null,
-  );
-  return { ...summary, awaitingCheck: await countAwaitingCheck(db, null) };
+  return checkEveryGateway(db, gateways, null, limit, now, options.deadline ?? null);
 }
 
 /** "Check Now" on one agency's page: the same check, for that agency's sent refunds only. */
 export async function checkRefundsNow(
   db: Db,
-  port: PaymentPort,
+  payments: PaymentPortResolver,
   staff: StaffScope<'BILLING_REFUND_MANAGE'>,
   input: { readonly organizationId: string; readonly now?: Date },
 ): Promise<Result<RefundCheckSummary, ServiceError>> {
@@ -1514,16 +1615,10 @@ export async function checkRefundsNow(
   if (forbidden) return err(forbidden);
   if (!isUuid(input.organizationId)) return err(serviceError('not_found', 'agency not found'));
   if (!(await refundsPresent(db))) return ok({ ...EMPTY_CHECK, available: false });
-  const gateway = refundPort(port);
-  if (!gateway) return ok({ ...EMPTY_CHECK, configured: false });
+  const gateways = refundGateways(payments);
+  if (gateways.length === 0) return ok({ ...EMPTY_CHECK, configured: false });
   const now = input.now ?? new Date();
-  const summary = await checkBatch(
-    db,
-    gateway,
-    await submittedRequests(db, gateway.provider, input.organizationId, 20),
-    now,
-  );
-  return ok({ ...summary, awaitingCheck: await countAwaitingCheck(db, input.organizationId) });
+  return ok(await checkEveryGateway(db, gateways, input.organizationId, 20, now, null));
 }
 
 /**
@@ -1957,14 +2052,20 @@ export interface OrganizationRefundWork {
 export const REFUND_WORK_LIMIT = 25;
 const MAX_PAGE = 1000;
 
+/** A gateway refunds may be sent to here, with its mode (S29) and stored provider name. */
+export interface RefundGatewayView {
+  readonly provider: string;
+  readonly mode: PaymentMode | null;
+}
+
 export interface RefundWorkInput {
   readonly organizationId: string;
-  readonly gatewayProvider: string | null;
   /**
-   * S29: the gateway's mode (TEST or LIVE). A payment is offered for a gateway refund only when it
-   * was taken in this mode. Absent: no payment is offered.
+   * S19 step 0: every gateway refunds may be sent to here (empty when none). A payment is offered
+   * for a gateway refund only through the gateway it was taken with, and only when that gateway
+   * is in the mode (S29: TEST or LIVE) it was taken in.
    */
-  readonly gatewayMode?: PaymentMode | null;
+  readonly gateways: readonly RefundGatewayView[];
   /** 1 (the default) is the newest page; each older page holds the next 25. */
   readonly page?: number;
   /** Only payments on invoices whose reference contains this text (case does not matter). */
@@ -2081,7 +2182,8 @@ export async function getOrganizationRefundWork(
       ? []
       : await db.select(attemptColumns()).from(a).where(inArray(a.id, attemptIds));
   const attemptById = new Map(sourceAttempts.map((row) => [row.id, row]));
-  const gateway = input.gatewayProvider;
+  const servedBy = (provider: string | null, mode: PaymentMode): boolean =>
+    provider !== null && input.gateways.some((g) => g.provider === provider && g.mode === mode);
 
   const entries = pageEntries.map(({ entry: row, invoiceRef, committed }): RefundableEntryView => {
     const attempt = row.sourceId === null ? undefined : attemptById.get(row.sourceId);
@@ -2098,11 +2200,9 @@ export async function getOrganizationRefundWork(
       refundableMinorUnits: Math.max(0, row.amountMinorUnits - Number(committed)),
       mode: row.mode,
       viaGateway:
-        gateway !== null &&
-        input.gatewayMode === row.mode &&
-        row.provider === gateway &&
+        servedBy(row.provider, row.mode) &&
         attempt !== undefined &&
-        attempt.provider === gateway &&
+        attempt.provider === row.provider &&
         attempt.bankTranId !== null,
     };
   });
@@ -2127,11 +2227,7 @@ export async function getOrganizationRefundWork(
       verified,
       mode: attempt.mode,
       viaGateway:
-        gateway !== null &&
-        input.gatewayMode === attempt.mode &&
-        verified &&
-        attempt.provider === gateway &&
-        attempt.bankTranId !== null,
+        servedBy(attempt.provider, attempt.mode) && verified && attempt.bankTranId !== null,
     };
   });
 

@@ -67,8 +67,8 @@ import {
   createKeyManagementPort,
   createMalwareScanner,
   createObservabilityPort,
-  createPaymentPort,
   createStorage,
+  paymentPorts,
 } from './providers';
 import { reportServerError } from './server-error';
 
@@ -871,18 +871,19 @@ export async function triggerPaymentReconciliation(
     });
   });
   try {
-    const port = createPaymentPort();
+    // S19 step 0: every configured provider, each asked only about its own payments and refunds.
+    const payments = paymentPorts();
     const handle = db as unknown as Parameters<typeof reconcilePaymentAttempts>[0];
     // The route may run for 60 seconds: payments get 25 seconds to start gateway calls, then
     // refunds 15 of their own; whatever is left is counted and asked about next run.
-    const payments = await reconcilePaymentAttempts(handle, scope, port, {
+    const checked = await reconcilePaymentAttempts(handle, scope, payments, {
       deadline: Date.now() + PAYMENT_CHECK_BUDGET_MS,
     });
     // S18: refunds the gateway has taken are confirmed in the same daily run. A refund check that
     // fails is reported on its own and never hides the payment counts.
     let refunds: RefundCheckSummary | { readonly error: string };
     try {
-      refunds = await reconcileRefunds(handle, scope, port, {
+      refunds = await reconcileRefunds(handle, scope, paymentPorts({ refundsOnly: true }), {
         deadline: Date.now() + REFUND_CHECK_BUDGET_MS,
       });
       if (refunds.checked === 0 && refunds.leftForLater > 0) {
@@ -898,7 +899,7 @@ export async function triggerPaymentReconciliation(
       });
       refunds = { error: 'failed' };
     }
-    return { ...payments, refunds };
+    return { ...checked, refunds };
   } catch (error) {
     reportServerError('triggerPaymentReconciliation', withoutPaymentSecrets(error), {
       step: 'reconciliation failed',

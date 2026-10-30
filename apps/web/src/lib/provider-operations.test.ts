@@ -89,3 +89,35 @@ it('says a missing sender is not set up instead of calling it set up', () => {
     'Not Measured',
   );
 });
+
+it('shows AI App Access as On only when the connector switch is on (S19 step 0, for S28)', () => {
+  const row = (env: Record<string, string>) =>
+    describeProviderOperations({}, env).find((item) => item.label === 'AI App Access');
+  expect(row({})).toMatchObject({ reading: 'Off', standing: 'Not Set Up' });
+  expect(row({})?.headline).toMatch(/^AI App Access: Off\./);
+  expect(row({ AI_CONNECTOR_ENABLED: 'TRUE' })?.reading).toBe('Off');
+  // Read exactly as the connector itself reads it: spaces around "true" are ignored.
+  expect(row({ AI_CONNECTOR_ENABLED: ' true ' })).toMatchObject({
+    reading: 'On',
+    standing: 'Set Up',
+  });
+  expect(row({ AI_CONNECTOR_ENABLED: 'true' })?.headline).toMatch(/^AI App Access: On\./);
+});
+
+it('has one Online Payments row per payment provider, with its mode, currencies and refunds (S19 step 0)', () => {
+  const rows = describeProviderOperations(
+    {},
+    {
+      PAYMENT_PROVIDERS: 'sslcommerz',
+      SSLCOMMERZ_STORE_ID: 'store-1',
+      SSLCOMMERZ_STORE_PASSWORD: 'private-marker',
+      SSLCOMMERZ_MODE: 'sandbox',
+    },
+  );
+  const payments = rows.filter((row) => row.label.startsWith('Online Payments'));
+  expect(payments.map((row) => row.label)).toEqual(['Online Payments: SSLCOMMERZ']);
+  expect(payments[0]).toMatchObject({ reading: 'Test payments only', standing: 'Set Up' });
+  expect(payments[0]?.detail).toContain('Takes invoices in BDT.');
+  expect(payments[0]?.detail).toContain('Refunds can be sent through it');
+  expect(JSON.stringify(rows)).not.toContain('private-marker');
+});

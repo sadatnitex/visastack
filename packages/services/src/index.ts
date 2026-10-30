@@ -2094,3 +2094,11 @@ export { type PaymentMode, type PlanAudience, entitlementsSchemaPresent } from '
 export { MODE_CHANGED, TEST_PAYMENTS_ONLY } from './payments';
 export { countLedgerTestRows } from './ledger-export';
 export { MODE_CHANGED_CODE } from './refunds';
+export {
+  type PaymentPortChoice,
+  onlineCurrencyRefusal,
+  paymentPortResolver,
+} from './payment-resolver';
+export type { PaymentPortResolver } from './ports';
+export type { PaymentProviderReason } from './errors';
+export type { RefundGatewayView } from './refunds';

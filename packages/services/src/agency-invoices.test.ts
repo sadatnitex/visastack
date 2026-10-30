@@ -29,7 +29,7 @@ import {
 } from './manual-claims';
 import { addMembership, createOrganization, reviewOrganization } from './organizations';
 import { startOnlinePayment } from './payments';
-import { FakePaymentPort } from './payments.test-support';
+import { FakePaymentPort, onePort } from './payments.test-support';
 import { getPlanByKey } from './plans';
 import { grantPlatformRole } from './platform-roles';
 import { RATE_LIMITS } from './rate-limit';
@@ -785,7 +785,7 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
     it('keeps an ordinary member from paying online as well', async () => {
       const invoiceId = await openInvoice(org.organizationId, 'INV-C-ONLINE');
       const port = new FakePaymentPort();
-      const started = await startOnlinePayment(db, port, {
+      const started = await startOnlinePayment(db, onePort(port), {
         actorAccountId: org.memberAccountId,
         invoiceId,
         urlFor: (kind, tran) => `https://app.example.test/pay/${kind}?t=${tran}`,
@@ -1485,7 +1485,7 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
     it('shows a started online payment as Payment Started and a held one as Needs a Check, without gateway identifiers for the agency', async () => {
       const invoiceId = await openInvoice(org.organizationId, 'INV-P-ATTEMPTS', 100000);
       const port = new FakePaymentPort();
-      const started = await startOnlinePayment(db, port, {
+      const started = await startOnlinePayment(db, onePort(port), {
         actorAccountId: org.ownerAccountId,
         invoiceId,
         urlFor: (kind, tran) => `https://app.example.test/pay/${kind}?t=${tran}`,

@@ -1,5 +1,8 @@
+import { paymentPortResolver } from './payment-resolver';
 import {
   type CreateCheckoutInput,
+  type PaymentPort,
+  type PaymentPortResolver,
   PaymentProviderUnavailableError,
   type PaymentValidation,
   type RefundProviderStatus,
@@ -17,7 +20,8 @@ import {
  */
 export class FakePaymentPort implements RefundingPaymentPort {
   readonly configured = true;
-  readonly provider = 'sslcommerz';
+  /** `sslcommerz` unless a test makes a second provider (S19 step 0). */
+  readonly provider: string;
   /** S29: LIVE unless a test sets TEST (in test mode only the platform owner can start a payment). */
   mode: 'TEST' | 'LIVE' = 'LIVE';
   readonly storeId: string | null = 'teststore';
@@ -31,6 +35,10 @@ export class FakePaymentPort implements RefundingPaymentPort {
   readonly byTran = new Map<string, PaymentValidation>();
   /** What the gateway says about each validation id. */
   readonly byVal = new Map<string, PaymentValidation>();
+
+  constructor(provider = 'sslcommerz') {
+    this.provider = provider;
+  }
 
   async createCheckout(input: CreateCheckoutInput) {
     this.checkouts.push(input);
@@ -140,4 +148,15 @@ export class FakePaymentPort implements RefundingPaymentPort {
       storeId: null,
     });
   }
+}
+
+/**
+ * The services take every configured provider at once (S19 step 0). A test of one gateway uses
+ * this: one port taking taka, the only currency SSLCOMMERZ takes.
+ */
+export function onePort(
+  port: PaymentPort,
+  currencies: readonly string[] = ['BDT'],
+): PaymentPortResolver {
+  return paymentPortResolver([{ port, currencies }]);
 }

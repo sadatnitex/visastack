@@ -233,6 +233,24 @@ export function isRefundingPaymentPort(port: PaymentPort): port is RefundingPaym
   );
 }
 
+/**
+ * Every payment provider this deployment has configured, and how to pick one (S19 step 0). The
+ * services never pick a provider by name or by a fixed currency: a payment starts on the provider
+ * that takes the invoice's currency, and a later step (a check, a refund) goes to the provider the
+ * payment or refund itself was made with. Built by `paymentPortResolver` (payment-resolver.ts)
+ * from the web app's provider registry.
+ */
+export interface PaymentPortResolver {
+  /** The configured providers' ports, in the owner's order (an earlier one wins a shared currency). */
+  configured(): readonly PaymentPort[];
+  /** The configured port that takes this currency, or null when none does. */
+  forCurrency(currency: string): PaymentPort | null;
+  /** The configured port of the provider stored with a payment or refund, or null. */
+  forProvider(provider: string | null): PaymentPort | null;
+  /** The plain sentence for an invoice in a currency no configured provider takes. */
+  readonly currencyRefusal: string;
+}
+
 export interface EnqueueJobInput {
   readonly documentVersionId: string;
 }

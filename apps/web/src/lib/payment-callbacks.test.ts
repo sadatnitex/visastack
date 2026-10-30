@@ -10,6 +10,7 @@ import {
   createOrganization,
   getPlanByKey,
   grantPlatformRole,
+  paymentPortResolver,
   provisionAccount,
   reviewOrganization,
   startOnlinePayment,
@@ -19,7 +20,7 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./public-db', () => ({ withPublicDb: vi.fn() }));
-vi.mock('./providers', () => ({ createPaymentPort: vi.fn() }));
+vi.mock('./providers', () => ({ paymentPortFor: vi.fn() }));
 
 const get = (record: Readonly<Record<string, string>> | null | undefined, name: string) =>
   record?.[name];
@@ -28,9 +29,13 @@ const STORE_ID = 'visastacktest001';
 const PASSWORD = 'store-password-that-must-never-leak';
 const BASE = 'https://app.example.test';
 
-const { handleBrowserReturn, handleGatewayNotification, readCallbackForm } = await import(
+const { handleBrowserReturn, handleGatewayNotification, readCallbackBody } = await import(
   './payment-callbacks'
 );
+const { PAYMENT_PROVIDERS } = await import('./payment-providers');
+
+/** The SSLCOMMERZ callback addresses' provider (S19 step 0). */
+const SSL = 'sslcommerz';
 const { verifyPaymentResultParams } = await import('./payment-result');
 
 let db: Db;
@@ -40,7 +45,10 @@ let invoiceId: string;
 let tran: string;
 let logged: string[];
 
-const deps = (override: Partial<{ port: () => PaymentPort }> = {}) => ({
+/** The services take every configured provider; here, SSLCOMMERZ alone, taking taka. */
+const onlyPort = () => paymentPortResolver([{ port, currencies: ['BDT'] }]);
+
+const deps = (override: Partial<{ port: () => PaymentPort | null }> = {}) => ({
   port: () => port,
   withDb: <T>(work: (handle: Db) => Promise<T>) => work(db),
   baseUrl: () => BASE,
@@ -117,7 +125,7 @@ async function seed() {
     role: 'ADMIN',
     active: true,
   });
-  const started = await startOnlinePayment(db, port, {
+  const started = await startOnlinePayment(db, onlyPort(), {
     actorAccountId: platform.value.id,
     actorEmail: platform.value.email,
     bootstrapEmails: [],
@@ -134,6 +142,8 @@ async function seed() {
 
 beforeEach(async () => {
   vi.stubEnv('SSLCOMMERZ_STORE_PASSWORD', PASSWORD);
+  // S19 step 0: result links are signed with VisaStack's own secret, never the store password.
+  vi.stubEnv('PAYMENT_RESULT_SIGNING_SECRET', 'synthetic-result-signing-secret-of-40-chars');
   db = drizzle(await createMigratedPglite(), { schema }) as unknown as Db;
   gateway = new FakeSslcommerzGateway({ storeId: STORE_ID, storePassword: PASSWORD });
   port = new SslcommerzPaymentPort({
@@ -158,14 +168,62 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe('the provider in the address (S19 step 0)', () => {
+  it('is not found for a provider this deployment does not have, before anything is read or asked', async () => {
+    gateway.pay(tran);
+    const asked = vi.fn(() => port);
+    for (const name of ['stripe', 'SSLCOMMERZ', 'constructor', '__proto__', '']) {
+      const notification = await handleGatewayNotification(
+        ipn(gateway.notification(tran)),
+        name,
+        deps({ port: asked }),
+      );
+      expect(notification.status, name).toBe(404);
+      const browser = await handleBrowserReturn(
+        new Request(`${BASE}/api/payments/${name}/return?t=${tran}`),
+        name,
+        deps({ port: asked }),
+      );
+      expect(browser.status, name).toBe(404);
+    }
+    expect(asked).not.toHaveBeenCalled();
+    expect(await ledger()).toHaveLength(0);
+    expect((await attempt())?.status).toBe('REDIRECTED');
+  });
+
+  it('treats a payment started with another provider as unknown, even with a genuine signature', async () => {
+    // The payment was started through another provider: the SSLCOMMERZ address must not settle
+    // it, even though SSLCOMMERZ would report the same transaction as paid.
+    await db
+      .update(schema.paymentAttempts)
+      .set({ provider: 'otherpay' })
+      .where(eq(schema.paymentAttempts.merchantTranId, tran));
+    gateway.pay(tran);
+    const response = await handleGatewayNotification(ipn(gateway.notification(tran)), SSL, deps());
+    expect(response.status).toBe(200);
+    expect(await ledger()).toHaveLength(0);
+    expect((await attempt())?.status).toBe('REDIRECTED');
+    expect(gateway.requests.filter((r) => r.path.includes('validator'))).toHaveLength(0);
+    const audits = await db.select().from(schema.auditEvents);
+    expect(audits.some((a) => a.eventType === 'PAYMENT_CALLBACK_REJECTED')).toBe(true);
+    // The browser coming back through the SSLCOMMERZ address gets the general page, unsigned.
+    const back = await handleBrowserReturn(
+      new Request(`${BASE}/api/payments/sslcommerz/return?t=${tran}`),
+      SSL,
+      deps(),
+    );
+    expect(new URL(back.headers.get('location') ?? '').search).toBe('');
+  });
+});
+
 describe('the gateway notification address', () => {
   it('counts a genuine payment once, however often the gateway repeats the notification', async () => {
     gateway.pay(tran);
-    const first = await handleGatewayNotification(ipn(gateway.notification(tran)), deps());
+    const first = await handleGatewayNotification(ipn(gateway.notification(tran)), SSL, deps());
     expect(first.status).toBe(200);
     expect(await first.json()).toEqual({ received: true });
     for (let i = 0; i < 3; i++) {
-      const again = await handleGatewayNotification(ipn(gateway.notification(tran)), deps());
+      const again = await handleGatewayNotification(ipn(gateway.notification(tran)), SSL, deps());
       expect(again.status).toBe(200);
     }
     const rows = await ledger();
@@ -186,7 +244,7 @@ describe('the gateway notification address', () => {
       stranger.sign({ status: 'VALID', tran_id: tran, val_id: get(good, 'val_id') ?? '' }),
     ];
     for (const form of forgeries) {
-      const response = await handleGatewayNotification(ipn(form), deps());
+      const response = await handleGatewayNotification(ipn(form), SSL, deps());
       expect(response.status).toBe(200);
       expect(await response.json()).toEqual({ received: true });
     }
@@ -208,7 +266,7 @@ describe('the gateway notification address', () => {
       amount: '1250.50',
       currency: 'BDT',
     });
-    const response = await handleGatewayNotification(ipn(claimed), deps());
+    const response = await handleGatewayNotification(ipn(claimed), SSL, deps());
     expect(response.status).toBe(200);
     expect(await ledger()).toHaveLength(0);
     expect((await attempt())?.status).toBe('REDIRECTED');
@@ -218,7 +276,7 @@ describe('the gateway notification address', () => {
   it('does not let a forged failure disturb a payment the gateway shows as made', async () => {
     gateway.pay(tran);
     const failed = gateway.sign({ status: 'FAILED', tran_id: tran, amount: '1250.50' });
-    expect((await handleGatewayNotification(ipn(failed), deps())).status).toBe(200);
+    expect((await handleGatewayNotification(ipn(failed), SSL, deps())).status).toBe(200);
     // The gateway was asked by transaction id and said paid: the payment counts.
     expect((await attempt())?.status).toBe('RECORDED');
     expect(await ledger()).toHaveLength(1);
@@ -236,6 +294,7 @@ describe('the gateway notification address', () => {
       gateway.pay(fresh.tran, overrides);
       const response = await handleGatewayNotification(
         ipn(gateway.notification(fresh.tran)),
+        SSL,
         deps(),
       );
       expect(response.status, name).toBe(200);
@@ -248,12 +307,12 @@ describe('the gateway notification address', () => {
   it('answers 503 so the gateway retries when it cannot be asked, and counts the payment once it can', async () => {
     gateway.pay(tran);
     gateway.setOutage(true);
-    const down = await handleGatewayNotification(ipn(gateway.notification(tran)), deps());
+    const down = await handleGatewayNotification(ipn(gateway.notification(tran)), SSL, deps());
     expect(down.status).toBe(503);
     expect(await ledger()).toHaveLength(0);
     expect((await attempt())?.status).toBe('REDIRECTED');
     gateway.setOutage(false);
-    const retry = await handleGatewayNotification(ipn(gateway.notification(tran)), deps());
+    const retry = await handleGatewayNotification(ipn(gateway.notification(tran)), SSL, deps());
     expect(retry.status).toBe(200);
     expect(await ledger()).toHaveLength(1);
   });
@@ -273,6 +332,7 @@ describe('the gateway notification address', () => {
     gateway.pay(tran);
     const limited = await handleGatewayNotification(
       ipn(gateway.notification(tran), { 'x-forwarded-for': '203.0.113.9, 10.0.0.1' }),
+      SSL,
       deps(),
     );
     expect(limited.status).toBe(429);
@@ -280,6 +340,7 @@ describe('the gateway notification address', () => {
     // Another address is not held back.
     const other = await handleGatewayNotification(
       ipn(gateway.notification(tran), { 'x-forwarded-for': '198.51.100.7' }),
+      SSL,
       deps(),
     );
     expect(other.status).toBe(200);
@@ -292,20 +353,22 @@ describe('the gateway notification address', () => {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ tran_id: tran }),
     });
-    expect((await handleGatewayNotification(wrongType, deps())).status).toBe(400);
+    expect((await handleGatewayNotification(wrongType, SSL, deps())).status).toBe(400);
     const huge = ipn({ tran_id: tran, pad: 'x'.repeat(40_000) });
-    expect((await handleGatewayNotification(huge, deps())).status).toBe(400);
+    expect((await handleGatewayNotification(huge, SSL, deps())).status).toBe(400);
     const manyFields = ipn(
       Object.fromEntries(Array.from({ length: 150 }, (_, i) => [`f${i}`, 'v'])),
     );
-    expect((await handleGatewayNotification(manyFields, deps())).status).toBe(400);
+    expect((await handleGatewayNotification(manyFields, SSL, deps())).status).toBe(400);
     const off = await handleGatewayNotification(
       ipn(gateway.notification(tran)),
+      SSL,
       deps({ port: () => new NullPaymentPort() }),
     );
     expect(off.status).toBe(503);
     const broken = await handleGatewayNotification(
       ipn(gateway.notification(tran)),
+      SSL,
       deps({
         port: () => {
           throw new Error(`bad configuration ${PASSWORD}`);
@@ -322,9 +385,9 @@ describe('the gateway notification address', () => {
       tran_id: 'VSP00000000000000000000000f',
       val_id: 'ABCDEF123456',
     });
-    expect((await handleGatewayNotification(ipn(unknown), deps())).status).toBe(200);
+    expect((await handleGatewayNotification(ipn(unknown), SSL, deps())).status).toBe(200);
     const malformed = gateway.sign({ status: 'VALID', tran_id: "x'; drop table invoices;--" });
-    expect((await handleGatewayNotification(ipn(malformed), deps())).status).toBe(200);
+    expect((await handleGatewayNotification(ipn(malformed), SSL, deps())).status).toBe(200);
     expect(await ledger()).toHaveLength(0);
     const rejected = (await db.select().from(schema.auditEvents)).filter(
       (a) => a.eventType === 'PAYMENT_CALLBACK_REJECTED',
@@ -339,12 +402,12 @@ describe('the gateway notification address', () => {
       gateway.notification(tran),
       { ...gateway.notification(tran), verify_sign: '0'.repeat(32) },
     ]) {
-      const response = await handleGatewayNotification(ipn(form), deps());
+      const response = await handleGatewayNotification(ipn(form), SSL, deps());
       replies.push(await response.text());
     }
     gateway.setOutage(true);
     replies.push(
-      await (await handleGatewayNotification(ipn(gateway.notification(tran)), deps())).text(),
+      await (await handleGatewayNotification(ipn(gateway.notification(tran)), SSL, deps())).text(),
     );
     const audits = JSON.stringify(await db.select().from(schema.auditEvents));
     const everything = [...logged, ...replies, audits].join('\n');
@@ -360,6 +423,7 @@ describe('the browser return address', () => {
   it('records nothing for a browser that only claims success, and sends it to a signed result page', async () => {
     const response = await handleBrowserReturn(
       returnRequest({ status: 'VALID', tran_id: tran, val_id: 'CLAIMED123456', amount: '1250.50' }),
+      SSL,
       deps(),
     );
     expect(response.status).toBe(303);
@@ -383,13 +447,14 @@ describe('the browser return address', () => {
     const paid = gateway.pay(tran);
     const response = await handleBrowserReturn(
       returnRequest({ status: 'VALID', tran_id: tran, val_id: paid.valId ?? '' }),
+      SSL,
       deps(),
     );
     expect(response.status).toBe(303);
     expect(await ledger()).toHaveLength(1);
     expect((await attempt())?.status).toBe('RECORDED');
     // The notification arriving as well changes nothing.
-    await handleGatewayNotification(ipn(gateway.notification(tran)), deps());
+    await handleGatewayNotification(ipn(gateway.notification(tran)), SSL, deps());
     expect(await ledger()).toHaveLength(1);
   });
 
@@ -398,6 +463,7 @@ describe('the browser return address', () => {
       new Request(
         `${BASE}/api/payments/sslcommerz/return?t=${tran}&o=success&status=VALID&amount=1`,
       ),
+      SSL,
       deps(),
     );
     expect(response.status).toBe(303);
@@ -408,6 +474,7 @@ describe('the browser return address', () => {
     for (const id of ['VSP00000000000000000000000f', 'junk', '']) {
       const response = await handleBrowserReturn(
         new Request(`${BASE}/api/payments/sslcommerz/return?t=${encodeURIComponent(id)}`),
+        SSL,
         deps(),
       );
       expect(response.status).toBe(303);
@@ -422,6 +489,7 @@ describe('the browser return address', () => {
       new Request(`https://evil.example/api/payments/sslcommerz/return?t=${tran}`, {
         headers: { host: 'evil.example', 'x-forwarded-host': 'evil.example' },
       }),
+      SSL,
       deps(),
     );
     expect(new URL(response.headers.get('location') ?? '').origin).toBe(BASE);
@@ -444,6 +512,7 @@ describe('the browser return address', () => {
       new Request(`${BASE}/api/payments/sslcommerz/return?t=${tran}`, {
         headers: { 'x-forwarded-for': '203.0.113.50' },
       }),
+      SSL,
       deps(),
     );
     // The payer sees the neutral page, never a bare error; nothing was settled.
@@ -456,12 +525,13 @@ describe('the browser return address', () => {
   it('fails safe when payments are off or the database fails', async () => {
     const off = await handleBrowserReturn(
       returnRequest({ tran_id: tran }),
+      SSL,
       deps({ port: () => new NullPaymentPort() }),
     );
     expect(off.status).toBe(303);
     expect(new URL(off.headers.get('location') ?? '').pathname).toBe('/payments/result');
     expect(new URL(off.headers.get('location') ?? '').search).toBe('');
-    const dbDown = await handleBrowserReturn(returnRequest({ tran_id: tran }), {
+    const dbDown = await handleBrowserReturn(returnRequest({ tran_id: tran }), SSL, {
       ...deps(),
       withDb: async () => {
         throw new Error(`connection string with ${PASSWORD}`);
@@ -480,7 +550,8 @@ describe('reading a callback form', () => {
       headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8' },
       body: 'a=1&a=2&__proto__=x&b=%E2%9C%93',
     });
-    const form = await readCallbackForm(request);
+    const body = await readCallbackBody(request);
+    const form = body === null ? null : PAYMENT_PROVIDERS.sslcommerz.readCallback(body)?.fields;
     expect(get(form, 'a')).toBe('1');
     expect(get(form, 'b')).toBe('✓');
     expect(Object.getPrototypeOf(form)).toBeNull();
@@ -514,7 +585,7 @@ async function freshAttempt(ref: string): Promise<{ invoiceId: string; tran: str
       .from(schema.accounts)
       .where(eq(schema.accounts.email, 'platform@example.com'))
   )[0];
-  const started = await startOnlinePayment(db, port, {
+  const started = await startOnlinePayment(db, onlyPort(), {
     actorAccountId: owner?.id ?? randomUUID(),
     actorEmail: owner?.email ?? '',
     bootstrapEmails: [],

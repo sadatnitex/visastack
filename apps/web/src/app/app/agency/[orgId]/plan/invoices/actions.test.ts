@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
   startOnlinePayment: vi.fn(),
   refreshInvoicePaymentAttempts: vi.fn(),
   submitManualPaymentClaim: vi.fn(),
-  createPaymentPort: vi.fn(),
+  paymentPorts: vi.fn(),
 }));
 
 vi.mock('@visastack/services', async () => {
@@ -29,7 +29,7 @@ vi.mock('../../../../../../lib/base-url', () => ({
   resolveBaseUrl: () => 'https://vs.example.test',
 }));
 vi.mock('../../../../../../lib/providers', () => ({
-  createPaymentPort: mocks.createPaymentPort,
+  paymentPorts: mocks.paymentPorts,
   createMalwareScanner: () => ({ scanner: true }),
   createImageSanitizer: () => ({ images: true }),
 }));
@@ -65,7 +65,9 @@ const claimFields = (overrides: Record<string, string | File> = {}) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.createPaymentPort.mockReturnValue({ configured: true, provider: 'sslcommerz' });
+  mocks.paymentPorts.mockReturnValue({
+    configured: () => [{ configured: true, provider: 'sslcommerz' }],
+  });
 });
 
 describe('starting a payment', () => {
@@ -96,7 +98,9 @@ describe('starting a payment', () => {
       invoiceId: INVOICE,
       startAnother: false,
     });
-    expect(input.urlFor('ipn', 'VSP1')).toBe('https://vs.example.test/api/payments/sslcommerz/ipn');
+    expect(input.urlFor('ipn', 'VSP1', 'sslcommerz')).toBe(
+      'https://vs.example.test/api/payments/sslcommerz/ipn',
+    );
   });
 
   it('asks again on purpose: only an explicit "yes" starts another payment', async () => {
@@ -117,7 +121,7 @@ describe('starting a payment', () => {
     expect(
       await startPaymentAction(INITIAL, form({ organizationId: ORG, invoiceId: INVOICE })),
     ).toEqual({ ok: false, message: 'invoice not found' });
-    mocks.createPaymentPort.mockImplementation(() => {
+    mocks.paymentPorts.mockImplementation(() => {
       throw new Error('PAYMENT_PROVIDER=sslcommerz requires SSLCOMMERZ_STORE_PASSWORD');
     });
     const off = await startPaymentAction(

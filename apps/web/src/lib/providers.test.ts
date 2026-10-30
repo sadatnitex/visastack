@@ -32,6 +32,7 @@ const ENV_KEYS = [
   'RESEND_FROM_ADDRESS',
   'OBSERVABILITY_PROVIDER',
   'PAYMENT_PROVIDER',
+  'PAYMENT_PROVIDERS',
   'SSLCOMMERZ_STORE_ID',
   'SSLCOMMERZ_STORE_PASSWORD',
   'SSLCOMMERZ_MODE',
@@ -125,6 +126,37 @@ describe('validateProviderEnv', () => {
     expect(message).toContain('MALWARE_SCANNER_PROVIDER');
     expect(message).toContain('builtin');
     expect(message).not.toContain('sk_live_accidentally_pasted_secret');
+  });
+});
+
+describe('PAYMENT_PROVIDERS (S19 step 0)', () => {
+  it('rejects a provider name this deployment does not have, without echoing it', async () => {
+    setEnv('PAYMENT_PROVIDERS', 'sslcommerz, sk_live_accidentally_pasted_secret');
+    const { validateProviderEnv } = await import('./providers');
+    expect(() => validateProviderEnv()).toThrow(/PAYMENT_PROVIDERS/);
+    expect(() => validateProviderEnv()).toThrow(/none, sslcommerz/);
+    expect(() => validateProviderEnv()).not.toThrow(/sk_live/);
+    for (const fine of ['sslcommerz', ' sslcommerz , none ', 'none', '']) {
+      setEnv('PAYMENT_PROVIDERS', fine);
+      expect(() => validateProviderEnv(), fine).not.toThrow();
+    }
+  });
+
+  it('chooses SSLCOMMERZ through the list as through the single setting, and "none" turns it off', async () => {
+    setEnv('SSLCOMMERZ_STORE_ID', 'store-1');
+    setEnv('SSLCOMMERZ_STORE_PASSWORD', 'synthetic-password');
+    setEnv('SSLCOMMERZ_MODE', 'live');
+    setEnv('PAYMENT_PROVIDERS', 'sslcommerz');
+    const { createPaymentPort, isPaymentProviderConfigured, paymentMode } = await import(
+      './providers'
+    );
+    expect(createPaymentPort()).toBeInstanceOf(SslcommerzPaymentPort);
+    expect(paymentMode()).toBe('LIVE');
+    setEnv('PAYMENT_PROVIDER', 'sslcommerz');
+    setEnv('PAYMENT_PROVIDERS', 'none');
+    expect(createPaymentPort()).toBeInstanceOf(NullPaymentPort);
+    expect(isPaymentProviderConfigured()).toBe(false);
+    expect(paymentMode()).toBeNull();
   });
 });
 
