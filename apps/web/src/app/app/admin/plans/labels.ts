@@ -59,9 +59,12 @@ export const EDITABLE_CAPACITY_KEYS: readonly CapacityKey[] = CAPACITY_KEYS.filt
 export const TRAVELLER_LIMITS_NOTE =
   'Travellers have no plan limits to set: their uploads follow the platform storage rules.';
 
-/** Agencies have no AI features of their own yet (S22, S28). */
-export const AGENCY_AI_NOTE =
-  'AI features for agencies come in a later update. Traveller AI limits are set on Traveller Free.';
+/** Agency plans decide the agency AI features (S22); the traveller ones are set on Traveller Free. */
+export const AGENCY_AI_NOTE = 'Traveller AI limits are set on Traveller Free.';
+
+/** The daily limit of an agency AI feature: one count for the whole agency (S22). */
+export const AGENCY_AI_LIMIT_HINT =
+  'Uses per agency per day, for all its staff together, from 1 to 1000, while the feature is on. Leave it empty for no plan limit: the daily limit set on the AI Features page still applies.';
 
 /** Said in the card once a plan is retired. */
 export const RETIRED_LINE = 'Retired. Nobody new can be put on this plan.';

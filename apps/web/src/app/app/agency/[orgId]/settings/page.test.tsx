@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   loadOrgAccess: vi.fn(),
   getOrganizationBrandingForDisplay: vi.fn(),
   getPlatformCapabilities: vi.fn(),
+  getOrganizationAiSetting: vi.fn(),
 }));
 
 vi.mock('../../../../../lib/session', () => ({
@@ -25,7 +26,12 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   getOrganizationBrandingForDisplay: (...args: unknown[]) =>
     mocks.getOrganizationBrandingForDisplay(...args),
+  getOrganizationAiSetting: (...args: unknown[]) => mocks.getOrganizationAiSetting(...args),
 }));
+vi.mock('../agency-ai-setting-form', async () => {
+  const { stub } = await import('../../../../../lib/next-mocks.test-support');
+  return { AgencyAiSettingForm: stub('AgencyAiSettingForm') };
+});
 vi.mock('../console-data', () => ({ loadOrgAccess: mocks.loadOrgAccess }));
 vi.mock('../branding-form', async () => {
   const { stub } = await import('../../../../../lib/next-mocks.test-support');
@@ -55,7 +61,19 @@ beforeEach(() => {
     logoUrl: '/api/branding/logo/o1?v=abc',
   });
   mocks.getPlatformCapabilities.mockReturnValue({ bulkExport: 'available' });
+  mocks.getOrganizationAiSetting.mockResolvedValue({ ok: true, value: aiSetting() });
 });
+
+function aiSetting(over: Record<string, unknown> = {}) {
+  return {
+    available: true,
+    enabled: false,
+    updatedAt: null,
+    canChange: true,
+    feature: { feature: 'ai_agency_tools', available: true, reason: null, dailyLimit: 500 },
+    ...over,
+  };
+}
 
 describe('agency Settings', () => {
   it('shows the review policy with its current value', async () => {
@@ -110,5 +128,48 @@ describe('agency Settings', () => {
   it('renders nothing for someone with no role', async () => {
     mocks.loadOrgAccess.mockResolvedValue({ org, admin: false, member: false });
     expect(await renderServer(Page(props))).toBe('');
+  });
+
+  it('shows AI Connections for This Agency to an owner or admin, with the switch (S22)', async () => {
+    const html = await renderServer(Page(props));
+    expect(textOf(html)).toContain('AI Connections for This Agency');
+    expect(textOf(html)).toContain('Off');
+    expect(stubProps(html, 'AgencyAiSettingForm')).toEqual([
+      { organizationId: 'o1', organizationName: 'Dhaka Visa Desk', enabled: false },
+    ]);
+    expect(html).toContain('href="/app/agency/o1/ai-connections"');
+  });
+
+  it('tells everyone else only owners and admins can change it, with no switch (S22)', async () => {
+    mocks.loadOrgAccess.mockResolvedValue({ org, admin: false, member: true });
+    mocks.getOrganizationAiSetting.mockResolvedValue({
+      ok: true,
+      value: aiSetting({ canChange: false, enabled: true }),
+    });
+    const html = await renderServer(Page(props));
+    expect(textOf(html)).toContain('Only owners and admins can change this.');
+    expect(stubProps(html, 'AgencyAiSettingForm')).toEqual([]);
+  });
+
+  it('says it is available after the next update before the migration, and stays calm while the feature is off (S22)', async () => {
+    mocks.getOrganizationAiSetting.mockResolvedValue({
+      ok: true,
+      value: aiSetting({ available: false }),
+    });
+    expect(textOf(await renderServer(Page(props)))).toContain('Available After the Next Update');
+    mocks.getOrganizationAiSetting.mockResolvedValue({
+      ok: true,
+      value: aiSetting({
+        feature: {
+          feature: 'ai_agency_tools',
+          available: false,
+          reason: 'turned_off',
+          dailyLimit: 500,
+        },
+      }),
+    });
+    const text = textOf(await renderServer(Page(props)));
+    expect(text).toContain('Agency AI Tools is turned off right now.');
+    expect(text).toContain('AI Connections for This Agency');
   });
 });

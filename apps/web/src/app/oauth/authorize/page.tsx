@@ -1,9 +1,12 @@
 import { aiFeatureOffSentence } from '@visastack/core/ai-features';
 import {
+  AGENCY_AI_ROLES,
   accountPrincipal,
   getAiFeatureStates,
+  getOrganizationAiSetting,
   listAiFileCandidates,
   listApplicants,
+  listMembershipsForAccount,
   listMissions,
   requireAccess,
 } from '@visastack/services';
@@ -30,6 +33,7 @@ import {
 import { withPublicDb } from '../../../lib/public-db';
 import { withSession } from '../../../lib/session';
 import { AuthShell } from '../../auth/auth-ui';
+import { AgencyConsentForm } from './agency-consent-form';
 import { ConsentForm } from './consent-form';
 
 export const metadata: Metadata = { title: 'Connect an AI App' };
@@ -97,8 +101,37 @@ export default async function AuthorizePage({
   // Set when the person starts from one of their cases: that case is the default choice.
   const caseKey = 'case';
   const caseParam = singleParam(search[caseKey]);
+  // S22: an agency the person runs, chosen from the list below. Re-checked here and again when
+  // the answer arrives; the address only says which agency was picked, never that it may connect.
+  const agencyKey = 'agency';
+  const agencyParam = singleParam(search[agencyKey]);
   const remembered = await rememberedAiFilePicks();
   const view = await withSession(async ({ db, accountId }) => {
+    // Agencies this person may connect an AI app for right now (S22): an active owner or admin
+    // of an active agency whose setting and Agency AI Tools are on.
+    const agencies: { readonly id: string; readonly name: string }[] = [];
+    for (const membership of await listMembershipsForAccount(db, accountId)) {
+      if (
+        !membership.active ||
+        !AGENCY_AI_ROLES.includes(membership.role) ||
+        membership.organization.status !== 'ACTIVE'
+      ) {
+        continue;
+      }
+      const setting = await getOrganizationAiSetting(db, {
+        organizationId: membership.organization.id,
+        accountId,
+      });
+      if (
+        setting.ok &&
+        setting.value.available &&
+        setting.value.enabled &&
+        setting.value.feature.available
+      ) {
+        agencies.push({ id: membership.organization.id, name: membership.organization.name });
+      }
+    }
+    const agency = agencies.find((item) => item.id === agencyParam) ?? null;
     const records = (await listApplicants(db, accountId)).map((row) => ({
       id: row.id,
       name: row.displayName,
@@ -169,7 +202,17 @@ export default async function AuthorizePage({
           }) ?? [];
       }
     }
-    return { records, chosen, cases, suggestionsAvailable, files, filesInitial, accessOff };
+    return {
+      records,
+      chosen,
+      cases,
+      suggestionsAvailable,
+      files,
+      filesInitial,
+      accessOff,
+      agencies,
+      agency,
+    };
   });
 
   const appName = request.client.clientName;
@@ -185,7 +228,23 @@ export default async function AuthorizePage({
           just now.
         </p>
       ) : null}
-      {view.records.length === 0 ? (
+      {view.agency ? (
+        <>
+          <p className="card-body">
+            Agency: <strong>{view.agency.name}</strong>
+          </p>
+          <AgencyConsentForm
+            request={{
+              clientId: request.client.clientId,
+              redirectUri: request.redirectUri,
+              codeChallenge: request.codeChallenge,
+              resource: request.resource,
+              state: request.state,
+            }}
+            agency={view.agency}
+          />
+        </>
+      ) : view.records.length === 0 ? (
         <p className="card-body">You have no records to connect yet. Add one in VisaStack first.</p>
       ) : !view.chosen ? (
         <nav aria-label="Choose a Record">
@@ -235,6 +294,26 @@ export default async function AuthorizePage({
           />
         </>
       )}
+      {!view.agency && view.agencies.length > 0 ? (
+        <nav aria-label="Connect for an Agency">
+          <p className="card-body">Or connect it for an agency you run:</p>
+          <ul className="rows">
+            {view.agencies.map((item) => (
+              <li key={item.id}>
+                <a
+                  className="btn btn-secondary"
+                  href={`/oauth/authorize?${new URLSearchParams({
+                    ...params,
+                    agency: item.id,
+                  }).toString()}`}
+                >
+                  {item.name}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      ) : null}
     </AuthShell>
   );
 }

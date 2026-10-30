@@ -1,6 +1,11 @@
 'use client';
 
-import { AI_FEATURE_LIMIT_MAX, AI_FEATURE_LIMIT_MIN } from '@visastack/core/ai-features';
+import {
+  AI_FEATURE_LIMIT_MAX,
+  AI_FEATURE_LIMIT_MIN,
+  aiDailyLimitLabel,
+  isAiFeatureKey,
+} from '@visastack/core/ai-features';
 import { useActionState, useId, useRef } from 'react';
 import {
   FormMessage,
@@ -69,7 +74,7 @@ export function AiFeatureForm({
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor={`${id}-limit`}>
-            Daily Limit per Person
+            {isAiFeatureKey(feature) ? aiDailyLimitLabel(feature) : 'Daily Limit per Person'}
           </label>
           <input
             id={`${id}-limit`}

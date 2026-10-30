@@ -1,11 +1,13 @@
 import type { PermissionAction, Result } from '@visastack/core';
 import { err, ok } from '@visastack/core';
 import {
+  AI_AGENCY_FEATURE_KEYS,
   AI_FEATURES,
   AI_FEATURE_KEYS,
   AI_FEATURE_LIMIT_MAX,
   AI_FEATURE_LIMIT_MIN,
   AI_PLAN_TIERS,
+  AI_TRAVELLER_FEATURE_KEYS,
   type AiFeatureEntitlement,
   type AiFeatureKey,
   type AiFeatureKind,
@@ -809,7 +811,9 @@ export async function getAiUsageToday(
       ? { kind: 'account', id: subject.accountId }
       : { kind: 'organization', id: subject.organizationId };
   const usage = await usageToday(db, who, now);
-  const resolved = await resolveStates(db, AI_FEATURE_KEYS, who, { ...options, now, usage });
+  // A person sees the traveller features, an agency its own (S22): never the other audience's.
+  const shown = who.kind === 'account' ? AI_TRAVELLER_FEATURE_KEYS : AI_AGENCY_FEATURE_KEYS;
+  const resolved = await resolveStates(db, shown, who, { ...options, now, usage });
   const features: AiUsageToday[] = resolved.map(({ state }) => ({
     feature: state.feature,
     name: AI_FEATURES[state.feature].name,

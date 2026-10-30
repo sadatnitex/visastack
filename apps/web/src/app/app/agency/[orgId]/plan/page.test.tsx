@@ -45,8 +45,10 @@ function usage(entitlements: Record<string, unknown>) {
       entitlements: {
         bypassLimits: false,
         plan: { price: { priceMinorUnits: 250000, currency: 'BDT' }, nextPrice: null },
-        // Agencies have no AI features of their own yet: not applicable.
+        // The traveller AI features are not applicable to an agency.
         features: null,
+        // S22: the agency's own AI features, from its plan.
+        agencyFeatures: { ai_agency_tools: { included: true, dailyLimit: 500 } },
         ...entitlements,
       },
     },
@@ -77,11 +79,12 @@ describe('Plan and Usage (S29)', () => {
     expect(text).toContain('Invoices already made keep their amounts.');
     expect(text).toContain('Team Members and Invitations');
     expect(text).toContain('it does not stop any work');
-    // No AI feature list for an agency until agencies have AI features (round 2); S28 says so
-    // plainly instead of leaving the section out.
+    // The traveller AI features never show for an agency (round 2); since S22 the agency's own
+    // AI feature does, counted for the whole agency.
     expect(text).not.toContain('AI App Suggestions');
     expect(text).not.toContain('Not in Your Plan');
-    expect(text).toContain('AI features are not part of agency plans yet.');
+    expect(text).toContain('Agency AI Tools');
+    expect(text).toContain('Included, up to 500 a day for the whole agency');
   });
 
   it('says Complimentary from the plan flag, not from its key', async () => {

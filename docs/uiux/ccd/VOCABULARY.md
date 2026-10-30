@@ -96,3 +96,14 @@ Added 30 Oct 2026 (S28, AI feature controls):
 | A person's own AI counts | AI Use Today (Privacy & Consent); badges On, Off, Limit Reached; lines "2 files today", "3 of 10 checks today" | "AI Quota", "Usage Meter", "Tokens" | **New (S28)** |
 | Where an AI button was, while the feature is off | "This AI feature is turned off right now. Everything else works as usual." | "Feature disabled", "AI unavailable (error)" | **New (S28)** |
 | Today's limit used up | "You have reached today's limit for this AI feature. It starts again at 6 AM Bangladesh time." | "Rate limited", "Quota exceeded" | **New (S28)** |
+
+Added 31 Oct 2026 (S22, agency AI connectors):
+
+| Thing | Canonical name | Retire | Status |
+|---|---|---|---|
+| The traveller's choice on an agency grant | Let This Agency Use AI Tools on What I Share (checkbox, on the agency's access card and on the invitation-accept page); the line AI Tools Allowed when it is on | "AI_ASSIST", "AI Permission", "Agency AI Access" | **New (S22)** |
+| The agency's own switch | AI Connections for This Agency (agency Settings); buttons Turn On, Turn Off; box I Confirm This Statement for {Agency}; others read "Only owners and admins can change this." | "Org AI Setting", "Agency Connector Flag" | **New (S22)** |
+| The agency's list of connected apps | AI Connections (page title Agency AI Connections; button Manage AI Connections; each row Turn Off) | "Agency MCP Clients", "Org Connections" | **New (S22)** |
+| The AI feature for agencies (registry name) | Agency AI Tools; its limit is the Daily Limit per Agency | "Agency Connector", "Org AI Access" | **New (S22)**, extends the S28 row |
+| An agency AI read in the traveller's Access Log | Agency AI Tools: {Agency} via {app address} | "AI_CONTEXT_SERVED", "Agency AI Context" | **New (S22)** |
+| Before the update that stores agency AI choices | Available After the Next Update | "Migration Pending", "Not Migrated" | **New (S22)** |

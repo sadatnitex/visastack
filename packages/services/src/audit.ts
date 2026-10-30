@@ -189,6 +189,11 @@ export interface ApplicantAuditEvent {
   readonly action: PermissionAction | null;
   readonly result: 'ALLOWED' | 'DENIED' | null;
   readonly occurredAt: Date;
+  /**
+   * An agency AI read of this record (S22): the agency's name and the AI app's address, so the
+   * Access Log can say "Agency AI Tools: {Agency} via {app address}". Null for anything else.
+   */
+  readonly agencyAi: { readonly agencyName: string; readonly appHost: string | null } | null;
 }
 
 /**
@@ -224,11 +229,22 @@ export async function listAuditEventsForApplicant(
       action: schema.auditEvents.action,
       result: schema.auditEvents.result,
       occurredAt: schema.auditEvents.occurredAt,
+      // S22: an agency AI read names its agency and app (ids and an address only in the record).
+      agencyName: sql<
+        string | null
+      >`(select o.name from organizations o where ${schema.auditEvents.metadata}->>'connectionKind' = 'AGENCY' and o.id::text = ${schema.auditEvents.metadata}->>'organizationId')`,
+      agencyAppHost: sql<
+        string | null
+      >`case when ${schema.auditEvents.metadata}->>'connectionKind' = 'AGENCY' then ${schema.auditEvents.metadata}->>'clientHost' end`,
     })
     .from(schema.auditEvents)
     .leftJoin(schema.accounts, eq(schema.accounts.id, schema.auditEvents.actorAccountId))
     .where(eq(schema.auditEvents.applicantId, applicantId))
     .orderBy(desc(schema.auditEvents.seq))
     .limit(limit);
-  return rows.map((r) => ({ ...r, actorEmail: r.actorEmail ?? null }));
+  return rows.map(({ agencyName, agencyAppHost, ...r }) => ({
+    ...r,
+    actorEmail: r.actorEmail ?? null,
+    agencyAi: agencyName ? { agencyName, appHost: agencyAppHost ?? null } : null,
+  }));
 }

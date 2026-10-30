@@ -1,5 +1,11 @@
 import { formatMoney, formatMoneyNumber } from '@visastack/core';
-import { AI_FEATURE_KEYS } from '@visastack/core/ai-features';
+import {
+  AI_AGENCY_FEATURE_KEYS,
+  AI_FEATURES,
+  AI_FEATURE_KEYS,
+  AI_TRAVELLER_FEATURE_KEYS,
+  type AiFeatureKey,
+} from '@visastack/core/ai-features';
 import { CAPACITY_KEYS, aiEntitlementKey } from '@visastack/core/entitlements';
 import { PLANS_UNAVAILABLE, type PlanAdminView, listPlansForAdmin } from '@visastack/services';
 import type { Metadata } from 'next';
@@ -45,11 +51,28 @@ function initialValues(plan: PlanAdminView | null): PlanFormValues {
         : String(key === 'storage_bytes' ? Math.round(limit / BYTES_PER_MB) : limit);
   }
   for (const feature of AI_FEATURE_KEYS) {
-    const rule = plan?.rules[aiEntitlementKey(feature)];
+    const rule = plan ? aiRuleOf(plan, feature) : undefined;
     values[featureOnField(feature)] = rule?.included ? 'on' : '';
     values[featureLimitField(feature)] = rule?.limit === null || !rule ? '' : String(rule.limit);
   }
   return values;
+}
+
+/**
+ * A plan's rule for one AI feature, or what the resolver gives without one: the registry's plan
+ * default (an agency plan has no AI rows until a rule is saved, S22).
+ */
+function aiRuleOf(
+  plan: PlanAdminView,
+  feature: AiFeatureKey,
+): { readonly included: boolean; readonly limit: number | null } {
+  const fallback = AI_FEATURES[feature].planDefault;
+  return (
+    plan.rules[aiEntitlementKey(feature)] ?? {
+      included: fallback.included,
+      limit: fallback.dailyLimit,
+    }
+  );
 }
 
 function priceWords(plan: PlanAdminView): string {
@@ -115,16 +138,14 @@ function PlanCard({
                 <span>{limitWords(plan, key)}</span>
               </div>
             ))}
-        {(plan.audience === 'TRAVELLER' ? AI_FEATURE_KEYS : []).map((feature) => (
-          <div className="row" key={feature}>
-            <span className="row-key">{aiFeatureName(feature)}</span>
-            <span>
-              {aiFeatureSummary(
-                plan.rules[aiEntitlementKey(feature)] ?? { included: false, limit: null },
-              )}
-            </span>
-          </div>
-        ))}
+        {(plan.audience === 'TRAVELLER' ? AI_TRAVELLER_FEATURE_KEYS : AI_AGENCY_FEATURE_KEYS).map(
+          (feature) => (
+            <div className="row" key={feature}>
+              <span className="row-key">{aiFeatureName(feature)}</span>
+              <span>{aiFeatureSummary(aiRuleOf(plan, feature))}</span>
+            </div>
+          ),
+        )}
       </div>
       {available ? (
         <>

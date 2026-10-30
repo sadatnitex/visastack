@@ -1,5 +1,5 @@
 import { formatBillingDate, formatMoney } from '@visastack/core';
-import { AI_FEATURES, AI_FEATURE_KEYS } from '@visastack/core/ai-features';
+import { AI_AGENCY_FEATURE_KEYS, AI_FEATURES, AI_FEATURE_KEYS } from '@visastack/core/ai-features';
 import {
   getPendingDowngradeForOrganization,
   getUsageForOrganization,
@@ -23,6 +23,16 @@ function aiFeatureWords(
   return entitlement.dailyLimit === null
     ? 'Included'
     : `Included, up to ${entitlement.dailyLimit} a day per person`;
+}
+
+/** An agency AI feature's line: counted once for the whole agency (S22). */
+function agencyAiFeatureWords(
+  entitlement: { readonly included: boolean; readonly dailyLimit: number | null } | undefined,
+): string {
+  if (!entitlement?.included) return 'Not in Your Plan';
+  return entitlement.dailyLimit === null
+    ? 'Included'
+    : `Included, up to ${entitlement.dailyLimit} a day for the whole agency`;
 }
 
 export const dynamic = 'force-dynamic';
@@ -177,8 +187,8 @@ export default async function OrgPlanPage({
             </div>
           </article>
 
-          {/* Agencies have no AI features of their own yet (S22): the resolver answers "not
-              applicable" (null), and the section says so plainly (S28). */}
+          {/* The traveller AI features are "not applicable" to an agency (null, S28); its plan
+              decides the agency AI features instead (S22). */}
           {data.usage.entitlements.features ? (
             <article className="card u-mt-150">
               <p className="card-kicker">What Your Plan Includes</p>
@@ -202,9 +212,20 @@ export default async function OrgPlanPage({
                 AI Features
               </h2>
               <p className="card-body">
-                AI features are not part of agency plans yet. Everything in VisaStack works without
-                them, and each person’s own AI use follows VisaStack’s settings.
+                Everything in VisaStack works without AI features, and each person’s own AI use
+                follows VisaStack’s settings.
               </p>
+              {/* S22: the agency features its plan decides, counted for the whole agency. */}
+              <div className="rows">
+                {AI_AGENCY_FEATURE_KEYS.map((feature) => (
+                  <div key={feature} className="row">
+                    <span className="row-key">{AI_FEATURES[feature].name}</span>
+                    <span>
+                      {agencyAiFeatureWords(data.usage?.entitlements.agencyFeatures?.[feature])}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </article>
           )}
         </>

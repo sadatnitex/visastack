@@ -1,10 +1,21 @@
-import { getOrganizationBrandingForDisplay } from '@visastack/services';
+import { aiFeatureOffSentence } from '@visastack/core/ai-features';
+import {
+  type OrganizationAiSetting,
+  getOrganizationAiSetting,
+  getOrganizationBrandingForDisplay,
+} from '@visastack/services';
 import type { Metadata } from 'next';
+import {
+  AGENCY_AI_ADMINS_ONLY,
+  AGENCY_AI_NOT_YET,
+  AGENCY_AI_SETTING_TITLE,
+} from '../../../../../lib/agency-ai';
 import {
   capabilityUnavailableMessage,
   getPlatformCapabilities,
 } from '../../../../../lib/capabilities';
 import { withSession } from '../../../../../lib/session';
+import { AgencyAiSettingForm } from '../agency-ai-setting-form';
 import { BrandingForm } from '../branding-form';
 import { loadOrgAccess } from '../console-data';
 import { RequireDifferentReviewerToggle } from '../require-different-reviewer-toggle';
@@ -29,22 +40,31 @@ export default async function AgencySettingsPage({
   const data = await withSession(async ({ db, accountId }) => {
     const access = await loadOrgAccess(db, accountId, orgId);
     if (!access?.member) return null;
-    if (!access.admin) return { admin: false as const };
+    const aiSetting = await getOrganizationAiSetting(db, { organizationId: orgId, accountId });
+    const ai = aiSetting.ok ? aiSetting.value : null;
+    if (!access.admin) return { admin: false as const, ai };
     const branding = await getOrganizationBrandingForDisplay(db, orgId);
-    return { admin: true as const, org: access.org, branding };
+    return { admin: true as const, org: access.org, branding, ai };
   });
   if (!data) return null;
 
   if (!data.admin) {
     return (
-      <article className="card">
-        <p className="card-body">Settings are limited to this organization's owners and admins.</p>
-      </article>
+      <>
+        <article className="card u-mb-150">
+          <p className="card-body">
+            Settings are limited to this organization's owners and admins.
+          </p>
+        </article>
+        {data.ai ? <AgencyAiCard organizationId={orgId} name={null} ai={data.ai} /> : null}
+      </>
     );
   }
 
   return (
     <>
+      {data.ai ? <AgencyAiCard organizationId={orgId} name={data.org.name} ai={data.ai} /> : null}
+
       <article className="card u-mb-150">
         <p className="card-kicker">Settings</p>
         <h2 className="card-title">Review Policy</h2>
@@ -106,5 +126,69 @@ export default async function AgencySettingsPage({
         )}
       </article>
     </>
+  );
+}
+
+/**
+ * "AI Connections for This Agency" (S22, ADR 0021 S22 amendment). Owners and admins turn it on or
+ * off; everyone else reads where it stands. It stays visible, with a calm note, while Agency AI
+ * Tools is off or the update that stores it has not run.
+ */
+function AgencyAiCard({
+  organizationId,
+  name,
+  ai,
+}: {
+  readonly organizationId: string;
+  /** The agency's name for an owner or admin, who may change it; null for anyone else. */
+  readonly name: string | null;
+  readonly ai: OrganizationAiSetting;
+}) {
+  return (
+    <article className="card u-mb-150" aria-labelledby="agency-ai-title">
+      <p className="card-kicker">AI Tools</p>
+      <h2 className="card-title" id="agency-ai-title">
+        {AGENCY_AI_SETTING_TITLE}
+      </h2>
+      <p className="card-body">
+        When this is on, an owner or admin can connect an AI app, such as ChatGPT or Claude, that
+        reads only what each traveller allowed this agency’s AI tools to read. Off by default.
+      </p>
+      {!ai.available ? (
+        <p className="muted">{AGENCY_AI_NOT_YET}</p>
+      ) : (
+        <>
+          <div className="row">
+            <span className="row-key">Status</span>
+            <span>{ai.enabled ? 'On' : 'Off'}</span>
+          </div>
+          {ai.feature.available ? null : (
+            <p className="notice notice-warn">
+              {aiFeatureOffSentence('ai_agency_tools', ai.feature.reason)} Connected apps read
+              nothing until it works again.
+            </p>
+          )}
+          {ai.canChange && name !== null ? (
+            <>
+              <AgencyAiSettingForm
+                organizationId={organizationId}
+                organizationName={name}
+                enabled={ai.enabled}
+              />
+              <p className="card-body u-mt-100">
+                <a
+                  className="btn btn-secondary"
+                  href={`/app/agency/${organizationId}/ai-connections`}
+                >
+                  Manage AI Connections
+                </a>
+              </p>
+            </>
+          ) : (
+            <p className="muted">{AGENCY_AI_ADMINS_ONLY}</p>
+          )}
+        </>
+      )}
+    </article>
   );
 }

@@ -1,3 +1,4 @@
+import { aiDailyLimitLabel } from '@visastack/core/ai-features';
 import { type AiFeatureSettingView, listAiFeatureSettings } from '@visastack/services';
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
@@ -54,7 +55,7 @@ function Feature({
           </div>
         )}
         <div className="row">
-          <span className="row-key">Daily Limit per Person</span>
+          <span className="row-key">{aiDailyLimitLabel(feature.feature)}</span>
           <span>{limitLine(feature.adminDailyLimit, feature.planDailyLimit)}</span>
         </div>
       </div>

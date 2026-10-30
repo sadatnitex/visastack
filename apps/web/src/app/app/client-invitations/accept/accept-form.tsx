@@ -1,7 +1,8 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useId, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { AGENCY_AI_CHOICE_LABEL, agencyAiTravellerNote } from '../../../../lib/agency-ai';
 import { type ActionState, acceptClientInvitationAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -15,12 +16,16 @@ const INITIAL: ActionState = { ok: true, message: '' };
 export function AcceptClientInvitationForm({
   token,
   applicants,
+  agencyAi,
 }: {
   readonly token: string;
   readonly applicants: readonly { readonly id: string; readonly displayName: string }[];
+  /** S22: offer "Let This Agency Use AI Tools on What I Share", unticked, once it can be stored. */
+  readonly agencyAi?: { readonly agencyName: string };
 }) {
   const [state, formAction, pending] = useActionState(acceptClientInvitationAction, INITIAL);
   const [selection, setSelection] = useState('new');
+  const aiId = useId();
 
   return (
     <form action={formAction} className="field-list">
@@ -65,6 +70,25 @@ export function AcceptClientInvitationForm({
             placeholder="Leave blank to use the name the agency gave"
           />
         </div>
+      ) : null}
+      {agencyAi ? (
+        <fieldset className="fieldset">
+          <legend className="field-label">AI Tools</legend>
+          <div className="checks">
+            <label className="check" htmlFor={`${aiId}-allow`}>
+              <input
+                id={`${aiId}-allow`}
+                type="checkbox"
+                name="allowAgencyAi"
+                aria-describedby={`${aiId}-note`}
+              />
+              <span>{AGENCY_AI_CHOICE_LABEL}</span>
+            </label>
+          </div>
+          <small className="muted" id={`${aiId}-note`}>
+            {agencyAiTravellerNote(agencyAi.agencyName)} You will be asked to confirm it is you.
+          </small>
+        </fieldset>
       ) : null}
       <div>
         <SubmitButton

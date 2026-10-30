@@ -168,6 +168,13 @@ export function isAiFeatureKey(value: string): value is AiFeatureKey {
   return Object.hasOwn(AI_FEATURES, value);
 }
 
+/** How a feature's daily limit is named: per person, or for the whole agency (S22). */
+export function aiDailyLimitLabel(feature: AiFeatureKey): string {
+  return AI_FEATURES[feature].audience === 'agency'
+    ? 'Daily Limit per Agency'
+    : 'Daily Limit per Person';
+}
+
 /** The two ways a person can have a file read: by itself after upload, or on request. */
 export type AiReadingFeature = 'ai_automatic_reading' | 'ai_document_reading';
 

@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   listMissions: vi.fn(),
   listAiDrafts: vi.fn(),
   getAiFeatureStates: vi.fn(),
+  aiAssistAvailable: vi.fn(async () => false),
 }));
 vi.mock('@visastack/services', async (original) => ({
   ...(await original<typeof import('@visastack/services')>()),
@@ -30,6 +31,7 @@ vi.mock('./grant-op-buttons', () => ({ GrantOpButtons: stub('GrantOpButtons') })
 vi.mock('./scope-expansion-form', () => ({ ScopeExpansionForm: stub('ScopeExpansionForm') }));
 vi.mock('./case-exceptions', () => ({ CaseExceptions: stub('CaseExceptions') }));
 vi.mock('./ai-connections', () => ({ AiConnectionsSection: stub('AiConnectionsSection') }));
+vi.mock('./grant-ai-choice', () => ({ GrantAiChoice: stub('GrantAiChoice') }));
 const { default: Page } = await import('./page');
 const render = () => renderServer(Page({ params: Promise.resolve({ id: 'owned' }) }));
 function grant(status: string, id = status) {
@@ -523,5 +525,57 @@ describe('the AI app feature states (S28 round 4)', () => {
   it('reads no feature state when there is nothing to show it for', async () => {
     await render();
     expect(mocks.getAiFeatureStates).not.toHaveBeenCalled();
+  });
+});
+
+describe('agency AI tools on an agency grant (S22)', () => {
+  const agencyGrant = (actions: string[]) => ({
+    ...grant('ACTIVE', 'agency-grant'),
+    recipient: { label: 'Harbor Visas', kind: 'organization' },
+    actions,
+  });
+
+  it('offers the choice once it can be stored, starting from what is stored, and says AI Tools Allowed when on', async () => {
+    mocks.aiAssistAvailable.mockResolvedValue(true);
+    mocks.listAccessForApplicantDetailed.mockResolvedValue({
+      ok: true,
+      value: [agencyGrant(['VIEW_METADATA', 'AI_ASSIST'])],
+    });
+    const html = await render();
+    expect(stubProps(html, 'GrantAiChoice')).toEqual([
+      { applicantId: 'owned', grantId: 'agency-grant', agencyName: 'Harbor Visas', allowed: true },
+    ]);
+    const text = textOf(html);
+    expect(text).toContain('AI Tools Allowed');
+    // The permission sentence never lists it as one more thing the grant allows.
+    expect(text).not.toContain('use ai tools on what i share');
+  });
+
+  it('shows no choice before the update, or for a person', async () => {
+    mocks.aiAssistAvailable.mockResolvedValue(false);
+    mocks.listAccessForApplicantDetailed.mockResolvedValue({
+      ok: true,
+      value: [agencyGrant(['VIEW_METADATA']), grant('ACTIVE', 'person-grant')],
+    });
+    expect(stubProps(await render(), 'GrantAiChoice')).toEqual([]);
+    mocks.aiAssistAvailable.mockResolvedValue(true);
+    expect(stubProps(await render(), 'GrantAiChoice').map((p) => p['grantId'])).toEqual([
+      'agency-grant',
+    ]);
+  });
+
+  it('names the agency and the app in the Access Log', async () => {
+    mocks.listAuditEventsForApplicant.mockResolvedValue([
+      {
+        seq: 9,
+        eventType: 'AI_CONTEXT_SERVED',
+        actorEmail: 'owner@agency.example',
+        action: null,
+        result: 'ALLOWED',
+        occurredAt: new Date('2026-10-30T10:00:00Z'),
+        agencyAi: { agencyName: 'Harbor Visas', appHost: 'claude.ai' },
+      },
+    ]);
+    expect(textOf(await render())).toContain('Agency AI Tools: Harbor Visas via claude.ai');
   });
 });
