@@ -114,7 +114,19 @@ export async function lockBillingAccount(
   );
 }
 
-/** Unpaid invoices of these organizations that are overdue at `now`. */
+/**
+ * True for an invoice that has no refund in its ledger (S18, ADR 0020 S18 amendment D2). A
+ * confirmed refund never makes an invoice owed again: an invoice with any `REFUND` row is left
+ * out of every overdue judgement (status changes, the return to Active, the preview) and of
+ * reminders. If money is genuinely owed again, staff issue a new invoice. The ledger exists since
+ * migration 0094, before every caller's own migration (0103), so this never meets a missing table.
+ */
+export function invoiceNotRefundedSql(invoiceId: SQL): SQL {
+  const p = schema.invoicePayments;
+  return sql`not exists (select 1 from ${p} where ${p.invoiceId} = ${invoiceId} and ${p.kind} = 'REFUND')`;
+}
+
+/** Unpaid invoices of these organizations that are overdue at `now`. Refunded invoices are never overdue (D2). */
 export async function overdueInvoices(
   db: Db,
   organizationIds: readonly string[],
@@ -137,6 +149,7 @@ export async function overdueInvoices(
         inArray(i.organizationId, [...organizationIds]),
         inArray(i.status, ['OPEN', 'PARTIALLY_PAID']),
         lt(i.dueDate, now),
+        invoiceNotRefundedSql(sql`${i.id}`),
       ),
     );
   return rows.filter((row) => isOverdue(row.dueDate, now));

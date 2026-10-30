@@ -7,7 +7,9 @@ import { invoiceLedgerReader } from './billing';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import {
+  REFUNDED_INVOICE_MESSAGE,
   applyInvoiceCollection,
+  invoiceHasRefund,
   invoiceLedgerPresent,
   normalizeCurrency,
   outstandingMinorUnits,
@@ -180,6 +182,8 @@ export type SettlementCode =
   | 'recorded'
   | 'already_recorded'
   | 'held'
+  /** Held money that staff refunded (S18). Final: nothing a gateway says later changes it. */
+  | 'refunded'
   | 'failed'
   | 'cancelled'
   | 'expired'
@@ -216,6 +220,9 @@ export function paymentResultState(status: PaymentAttemptStatus | null): Payment
     case 'EXPIRED':
       return 'not_completed';
     case 'HELD_FOR_REVIEW':
+    // Held money that was refunded (S18): the payer is told to check with VisaStack, never that
+    // the payment was received or that nothing was charged.
+    case 'REFUNDED':
       return 'needs_check';
     default:
       // CREATED, REDIRECTED, VALIDATED, or no attempt found yet: still being confirmed.
@@ -265,6 +272,7 @@ export async function settlePaymentAttempt(
     if (!attempt || attempt.provider !== port.provider) return outcome('unknown_transaction');
     if (attempt.status === 'RECORDED') return outcome('already_recorded', attempt.status);
     if (attempt.status === 'HELD_FOR_REVIEW') return outcome('held', attempt.status);
+    if (attempt.status === 'REFUNDED') return outcome('refunded', attempt.status);
 
     // Each payment may make VisaStack call the gateway only so often, so a stream of callbacks
     // for one real payment cannot be turned into a stream of calls to the gateway.
@@ -335,6 +343,7 @@ async function applyDecision(
     if (!attempt) return outcome('unknown_transaction');
     if (attempt.status === 'RECORDED') return outcome('already_recorded', attempt.status);
     if (attempt.status === 'HELD_FOR_REVIEW') return outcome('held', attempt.status);
+    if (attempt.status === 'REFUNDED') return outcome('refunded', attempt.status);
 
     const touch = {
       lastProviderStatus: providerStatus,
@@ -670,6 +679,10 @@ export async function startOnlinePayment(
         if (amount <= 0) return err(serviceError('invalid', 'This invoice is already paid.'));
         // Without the ledger no payment could be counted safely, so none is started.
         if (!(await invoiceLedgerPresent(tx))) return err(serviceError('invalid', NOT_AVAILABLE));
+        // S18 (D2): a refunded invoice is never owed again, so it is never paid again either.
+        if (await invoiceHasRefund(tx, locked.id)) {
+          return err(serviceError('invalid', REFUNDED_INVOICE_MESSAGE));
+        }
 
         if (input.startAnother !== true) {
           const earlier = await tx
@@ -997,7 +1010,8 @@ async function settleBatch(
   for (const code of codes) {
     if (code === 'recorded' || code === 'already_recorded') recorded++;
     else if (code === 'held') held++;
-    else if (code === 'failed' || code === 'cancelled' || code === 'expired') closed++;
+    else if (code === 'failed' || code === 'cancelled' || code === 'expired' || code === 'refunded')
+      closed++;
     else if (code === 'unavailable') unavailable++;
     else stillPending++;
   }

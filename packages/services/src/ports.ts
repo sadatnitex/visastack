@@ -180,6 +180,54 @@ export interface PaymentPort {
   verifyIpnSignature(form: Readonly<Record<string, string>>): boolean;
 }
 
+/** What VisaStack asks a gateway to refund: part or all of one payment it took. */
+export interface RefundSubmission {
+  /** The gateway's own id of the original payment (SSLCOMMERZ `bank_tran_id`). */
+  readonly bankTranId: string;
+  /** Whole minor units, greater than zero. */
+  readonly amountMinorUnits: number;
+  /**
+   * VisaStack's id for this refund (the refund request id). Sent as the gateway's refund id and
+   * reference, so asking again can only repeat this same refund, never add a second one.
+   */
+  readonly refundId: string;
+  /** A short plain reason. Never personal data. */
+  readonly remarks: string;
+}
+
+export type RefundSubmissionResult =
+  /** The gateway took the refund and named it; it is not refunded until `queryRefund` says so. */
+  | { readonly kind: 'accepted'; readonly refundRefId: string }
+  /** The gateway said no, clearly. A plain fixed code, never the gateway's own text. */
+  | { readonly kind: 'refused'; readonly code: string };
+
+export type RefundProviderStatus = 'REFUNDED' | 'PROCESSING' | 'CANCELLED' | 'UNKNOWN';
+
+export interface RefundStatusReport {
+  readonly status: RefundProviderStatus;
+  /** When the gateway says the money went back, when it says so. */
+  readonly refundedAt: Date | null;
+}
+
+/**
+ * A payment provider that can also refund (ADR 0020 Phase 2, S18). The gateway documents no refund
+ * callback, so a refund is confirmed only by asking (`queryRefund`). Both methods throw
+ * `PaymentProviderUnavailableError` when the gateway cannot be asked or its answer cannot be read:
+ * the caller then decides nothing, and a refund that may have been sent stays counted against the
+ * limit until staff check it.
+ */
+export interface RefundingPaymentPort extends PaymentPort {
+  refund(input: RefundSubmission): Promise<RefundSubmissionResult>;
+  queryRefund(refundRefId: string): Promise<RefundStatusReport>;
+}
+
+export function isRefundingPaymentPort(port: PaymentPort): port is RefundingPaymentPort {
+  return (
+    typeof (port as Partial<RefundingPaymentPort>).refund === 'function' &&
+    typeof (port as Partial<RefundingPaymentPort>).queryRefund === 'function'
+  );
+}
+
 export interface EnqueueJobInput {
   readonly documentVersionId: string;
 }

@@ -30,6 +30,15 @@ export interface FakeGatewayTransaction {
   reportedStoreId: string | null;
 }
 
+/** One refund the fake gateway took (S18). */
+export interface FakeGatewayRefund {
+  readonly refundRefId: string;
+  readonly refundTransId: string;
+  readonly bankTranId: string;
+  readonly amount: string;
+  status: 'processing' | 'refunded' | 'cancelled';
+}
+
 export interface FakeGatewayRequest {
   readonly method: string;
   readonly path: string;
@@ -42,6 +51,10 @@ function md5(value: string): string {
 export class FakeSslcommerzGateway {
   readonly transactions = new Map<string, FakeGatewayTransaction>();
   readonly requests: FakeGatewayRequest[] = [];
+  /** Refunds by VisaStack's refund id (`refund_trans_id`). */
+  readonly refunds = new Map<string, FakeGatewayRefund>();
+  /** The next refund asked for is refused with `status: failed`. */
+  refuseNextRefund = false;
   #outage = false;
   #sequence = 0;
   readonly #options: FakeGatewayOptions;
@@ -75,6 +88,13 @@ export class FakeSslcommerzGateway {
     if (overrides.reportedAmount !== undefined) tx.reportedAmount = overrides.reportedAmount;
     if (overrides.reportedStoreId !== undefined) tx.reportedStoreId = overrides.reportedStoreId;
     return tx;
+  }
+
+  /** The gateway finishes (or cancels) a refund it took. */
+  settleRefund(refundRefId: string, status: 'refunded' | 'cancelled'): void {
+    const refund = [...this.refunds.values()].find((r) => r.refundRefId === refundRefId);
+    if (!refund) throw new Error(`the fake gateway has no refund ${refundRefId}`);
+    refund.status = status;
   }
 
   fail(tranId: string): void {
@@ -182,6 +202,61 @@ export class FakeSslcommerzGateway {
       const tx = [...this.transactions.values()].find((t) => t.valId === valId && valId !== '');
       if (!tx) return json({ status: 'INVALID_TRANSACTION', APIConnect: 'DONE' });
       return json({ ...this.#record(tx), APIConnect: 'DONE' });
+    }
+
+    if (
+      url.pathname === '/validator/api/merchantTransIDvalidationAPI.php' &&
+      params.has('refund_ref_id')
+    ) {
+      const ref = params.get('refund_ref_id') ?? '';
+      const refund = [...this.refunds.values()].find((r) => r.refundRefId === ref);
+      if (!refund) return json({ APIConnect: 'DONE', status: 'invalid_refund_id' });
+      return json({
+        APIConnect: 'DONE',
+        bank_tran_id: refund.bankTranId,
+        refund_ref_id: refund.refundRefId,
+        initiated_on: '2026-10-30 10:00:00',
+        refunded_on: refund.status === 'refunded' ? '2026-10-30 15:30:00' : '',
+        status: refund.status,
+        errorReason: '',
+      });
+    }
+
+    if (
+      url.pathname === '/validator/api/merchantTransIDvalidationAPI.php' &&
+      params.has('refund_amount')
+    ) {
+      const bankTranId = params.get('bank_tran_id') ?? '';
+      const paid = [...this.transactions.values()].find(
+        (t) => t.bankTranId === bankTranId && t.status === 'VALID',
+      );
+      const transId = params.get('refund_trans_id') ?? '';
+      const earlier = this.refunds.get(transId);
+      // The same refund id again: the same refund (how the fake models it; not verified live).
+      if (earlier) {
+        return json({ APIConnect: 'DONE', status: 'success', refund_ref_id: earlier.refundRefId });
+      }
+      if (!paid || this.refuseNextRefund) {
+        this.refuseNextRefund = false;
+        return json({ APIConnect: 'DONE', status: 'failed', errorReason: 'Refund not allowed' });
+      }
+      this.#sequence += 1;
+      const refund: FakeGatewayRefund = {
+        refundRefId: `RR${String(this.#sequence).padStart(10, '0')}`,
+        refundTransId: transId,
+        bankTranId,
+        amount: params.get('refund_amount') ?? '',
+        status: 'processing',
+      };
+      this.refunds.set(transId, refund);
+      return json({
+        APIConnect: 'DONE',
+        bank_tran_id: bankTranId,
+        trans_id: paid.tranId,
+        refund_ref_id: refund.refundRefId,
+        status: 'success',
+        errorReason: '',
+      });
     }
 
     if (url.pathname === '/validator/api/merchantTransIDvalidationAPI.php') {

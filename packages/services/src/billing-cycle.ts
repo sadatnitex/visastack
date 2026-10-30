@@ -19,6 +19,7 @@ import {
   billingDay,
   databaseNow,
   daysPastDue,
+  invoiceNotRefundedSql,
   invoicePeriodOverlaps,
   invoicesPath,
   isOverdue,
@@ -536,6 +537,8 @@ async function queueReminders(
         lte(i.dueDate, new Date(now.getTime() + 5 * DAY_MS)),
         eq(o.status, 'ACTIVE'),
         hasBillingContactSql(sql`${i.organizationId}`),
+        // S18 (D2): a refunded invoice is never chased again.
+        invoiceNotRefundedSql(sql`${i.id}`),
       ),
     )
     .orderBy(asc(i.dueDate), asc(i.id));
@@ -551,6 +554,7 @@ async function queueReminders(
         lte(i.dueDate, new Date(now.getTime() + 5 * DAY_MS)),
         eq(o.status, 'ACTIVE'),
         sql`not ${hasBillingContactSql(sql`${i.organizationId}`)}`,
+        invoiceNotRefundedSql(sql`${i.id}`),
       ),
     );
   for (const row of unreachable) noContact.note(row.organizationId);

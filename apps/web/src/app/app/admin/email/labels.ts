@@ -28,6 +28,8 @@ export const EMAIL_KIND_LABELS: Readonly<Record<string, string>> = {
   INVOICE_ISSUED: 'New Invoice',
   INVOICE_REMINDER: 'Invoice Reminder',
   BILLING_STATUS_CHANGED: 'Billing Status Change',
+  INVOICE_REFUNDED: 'Invoice Refund',
+  INVOICE_CREDIT_APPLIED: 'Credit Applied',
 };
 
 export const OTHER_EMAIL_KIND = 'Other Email';

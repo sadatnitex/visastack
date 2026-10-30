@@ -81,14 +81,23 @@ export type NotificationEventType =
   | 'CASE_RETENTION_NOTICE'
   | 'INVOICE_ISSUED'
   | 'INVOICE_REMINDER'
-  | 'BILLING_STATUS_CHANGED';
+  | 'BILLING_STATUS_CHANGED'
+  | 'INVOICE_REFUNDED'
+  | 'INVOICE_CREDIT_APPLIED';
 
 /**
  * Billing notices (S17): an agency's invoices, reminders and billing status are for its owners
  * and admins only, checked again when each notice is sent, so a member whose role changed in the
  * meantime does not receive one.
  */
-const BILLING_NOTICE_LIST = ['INVOICE_ISSUED', 'INVOICE_REMINDER', 'BILLING_STATUS_CHANGED'];
+const BILLING_NOTICE_LIST = [
+  'INVOICE_ISSUED',
+  'INVOICE_REMINDER',
+  'BILLING_STATUS_CHANGED',
+  // S18: a refund or a credit names the invoice, never an amount; owners and admins only.
+  'INVOICE_REFUNDED',
+  'INVOICE_CREDIT_APPLIED',
+];
 const BILLING_NOTICE_TYPES: ReadonlySet<string> = new Set(BILLING_NOTICE_LIST);
 
 /**

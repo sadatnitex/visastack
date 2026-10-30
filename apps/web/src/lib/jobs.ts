@@ -22,6 +22,7 @@ import {
   type NotificationWorkerResult,
   RATE_LIMITS,
   type ReconciliationSummary,
+  type RefundCheckSummary,
   type SweepResult,
   type SystemScope,
   applyEmailDeliveryEvent,
@@ -34,6 +35,7 @@ import {
   listDueDowngrades,
   pruneExpiredRateLimitBuckets,
   reconcilePaymentAttempts,
+  reconcileRefunds,
   rewrapDataKeys,
   runAccountExportWorker,
   runAiReadingWorker,
@@ -816,7 +818,10 @@ export async function triggerDataKeyRewrap(
  */
 export async function triggerPaymentReconciliation(
   scope: SystemScope<'process-payment-reconciliation'>,
-): Promise<ReconciliationSummary | { readonly error: string }> {
+): Promise<
+  | (ReconciliationSummary & { readonly refunds: RefundCheckSummary | { readonly error: string } })
+  | { readonly error: string }
+> {
   const connectionString = resolveDatabaseUrl(process.env);
   if (!connectionString) return { error: 'not_configured' };
   const { db, pool } = createPooledDb(connectionString);
@@ -828,7 +833,19 @@ export async function triggerPaymentReconciliation(
   try {
     const port = createPaymentPort();
     const handle = db as unknown as Parameters<typeof reconcilePaymentAttempts>[0];
-    return await reconcilePaymentAttempts(handle, scope, port);
+    const payments = await reconcilePaymentAttempts(handle, scope, port);
+    // S18: refunds the gateway has taken are confirmed in the same daily run. A refund check that
+    // fails is reported on its own and never hides the payment counts.
+    let refunds: RefundCheckSummary | { readonly error: string };
+    try {
+      refunds = await reconcileRefunds(handle, scope, port);
+    } catch (error) {
+      reportServerError('triggerPaymentReconciliation', withoutPaymentSecrets(error), {
+        step: 'refund check failed',
+      });
+      refunds = { error: 'failed' };
+    }
+    return { ...payments, refunds };
   } catch (error) {
     reportServerError('triggerPaymentReconciliation', withoutPaymentSecrets(error), {
       step: 'reconciliation failed',

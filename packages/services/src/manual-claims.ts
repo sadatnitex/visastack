@@ -13,7 +13,9 @@ import {
 import type { MalwareScannerPort } from './intake';
 import {
   type CollectionRefusal,
+  REFUNDED_INVOICE_MESSAGE,
   applyInvoiceCollection,
+  invoiceHasRefund,
   isValidMinorUnitAmount,
   normalizeCurrency,
   outstandingMinorUnits,
@@ -603,6 +605,10 @@ export async function submitManualPaymentClaim(
           );
           const problem = invoiceProblem(locked, input.amountMinorUnits, input.currency);
           if (problem) return err(problem);
+          // S18 (D2): a refunded invoice is never owed again, so no payment is reported on it.
+          if (await invoiceHasRefund(tx, locked.id)) {
+            return err(serviceError('invalid', REFUNDED_INVOICE_MESSAGE));
+          }
           const waiting = first(
             await tx
               .select({ id: schema.manualPaymentClaims.id })

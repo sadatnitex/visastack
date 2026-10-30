@@ -49,7 +49,8 @@ import { type PaymentReceipt, issueReceiptForPayment } from './receipts';
  *
  * The ledger is append-only (a database trigger refuses edits and deletes).
  * A correction is a new row with the opposite sign; `REFUND` rows are written
- * by the refund process (S18), not here. Amounts are whole numbers of minor
+ * by the refund process (S18) through `applyInvoiceRefund` below, never by
+ * `applyInvoiceCollection`. Amounts are whole numbers of minor
  * currency units, never fractions, and never above what the 32-bit column can
  * hold.
  *
@@ -204,9 +205,10 @@ export async function invoiceLedgerPresent(db: Db): Promise<boolean> {
   return rows[0]?.present === true;
 }
 
-function auditMethod(kind: CollectionKind): 'MANUAL' | 'API' | 'SYSTEM' {
+function auditMethod(kind: CollectionKind, recordedBy: string | null): 'MANUAL' | 'API' | 'SYSTEM' {
   if (kind === 'ONLINE') return 'API';
-  if (kind === 'CREDIT') return 'SYSTEM';
+  // A credit a person applied (S18 "Apply to Next Invoice") is that person's decision.
+  if (kind === 'CREDIT') return recordedBy === null ? 'SYSTEM' : 'MANUAL';
   return 'MANUAL';
 }
 
@@ -399,7 +401,7 @@ export async function applyInvoiceCollection(
     eventType: 'INVOICE_PAYMENT_RECORDED',
     actorAccountId: input.recordedByAccountId ?? null,
     action: 'MANAGE',
-    method: auditMethod(input.kind),
+    method: auditMethod(input.kind, input.recordedByAccountId ?? null),
     result: 'ALLOWED',
     resourceType: 'invoice',
     resourceId: invoice.id,
@@ -480,6 +482,171 @@ async function findExisting(
     );
   }
   return undefined;
+}
+
+// --- Refunds (S18) ------------------------------------------------------------------------
+
+/** What an agency is told when it tries to pay or report a payment on a refunded invoice (D2). */
+export const REFUNDED_INVOICE_MESSAGE =
+  'This invoice was refunded, so there is nothing to pay on it. If more is owed, VisaStack will send a new invoice.';
+
+/** Whether this invoice has any refund in its ledger (S18, D2: such an invoice is never owed again). */
+export async function invoiceHasRefund(db: Db, invoiceId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: schema.invoicePayments.id })
+    .from(schema.invoicePayments)
+    .where(
+      and(
+        eq(schema.invoicePayments.invoiceId, invoiceId),
+        eq(schema.invoicePayments.kind, 'REFUND'),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
+export interface ApplyInvoiceRefundInput {
+  readonly invoiceId: string;
+  /** The refund request this row comes from: the ledger row's source, so it is written once. */
+  readonly refundRequestId: string;
+  /** Whole minor units, greater than zero: what went back. The ledger row holds it negative. */
+  readonly amountMinorUnits: number;
+  readonly currency: string;
+  /** The gateway and its refund reference, or both null for a refund made outside VisaStack. */
+  readonly provider: string | null;
+  readonly providerTransactionId: string | null;
+  /** A short outside reference. Never personal data. */
+  readonly reference: string;
+  /** When the money went back. */
+  readonly refundedAt: Date;
+  /** The person who recorded a refund made outside VisaStack; null when the gateway confirmed it. */
+  readonly recordedByAccountId: string | null;
+}
+
+export type RefundLedgerRefusalCode =
+  | 'not_found'
+  | 'invalid'
+  | 'currency_mismatch'
+  | 'exceeds_collected'
+  | 'key_conflict';
+
+export interface RefundLedgerOutcome {
+  readonly invoice: Invoice;
+  readonly payment: InvoicePayment;
+  readonly alreadyRecorded: boolean;
+}
+
+/**
+ * Writes one confirmed refund into the ledger, once (S18). Called only by the refund process
+ * (refunds.ts), inside its transaction, when the gateway has confirmed the refund or a platform
+ * owner records one made outside VisaStack. Never before: a refund that is only asked for, sent,
+ * or in progress leaves the ledger untouched.
+ *
+ * The invoice row is locked, the negative `REFUND` row is written (its source is the refund
+ * request, so a second confirmation finds the first and writes nothing), and the invoice's
+ * collected total and status are worked out again from it (`invoiceStatusForTotals`: Paid can
+ * become Partly Paid or Open). The invoice's latest collected date and payment reference keep
+ * meaning "the latest money in", so they do not change. A refund larger than what the invoice
+ * still holds is refused (the database check `0 <= collected` would refuse it too). Writes no
+ * audit record and no notice: the caller (which holds a staff or job scope) audits the refund and
+ * cancels the invoice's queued reminders in the same transaction, after this lock, because a
+ * refunded invoice is never chased (D2).
+ */
+export async function applyInvoiceRefund(
+  tx: Db,
+  input: ApplyInvoiceRefundInput,
+): Promise<
+  Result<RefundLedgerOutcome, { readonly code: RefundLedgerRefusalCode; readonly message: string }>
+> {
+  assertInTransaction(tx);
+  if (!isValidMinorUnitAmount(input.amountMinorUnits) || !isUuid(input.refundRequestId)) {
+    return err({
+      code: 'invalid',
+      message: 'a refund needs a whole, positive amount and its request',
+    });
+  }
+  if ((input.provider === null) !== (input.providerTransactionId === null)) {
+    return err({ code: 'invalid', message: 'a provider and its refund reference go together' });
+  }
+  if (input.reference.trim().length === 0 || Number.isNaN(input.refundedAt.getTime())) {
+    return err({ code: 'invalid', message: 'a refund needs a reference and a date' });
+  }
+  const invoice = first(
+    await tx
+      .select()
+      .from(schema.invoices)
+      .where(eq(schema.invoices.id, input.invoiceId))
+      .limit(1)
+      .for('update'),
+  );
+  if (!invoice) return err({ code: 'not_found', message: 'invoice not found' });
+  const payments = schema.invoicePayments;
+  const existing = first(
+    await tx
+      .select()
+      .from(payments)
+      .where(and(eq(payments.kind, 'REFUND'), eq(payments.sourceId, input.refundRequestId)))
+      .limit(1),
+  );
+  if (existing) {
+    if (
+      existing.invoiceId !== invoice.id ||
+      existing.amountMinorUnits !== -input.amountMinorUnits
+    ) {
+      return err({ code: 'key_conflict', message: 'this refund was already recorded differently' });
+    }
+    return ok({ invoice, payment: existing, alreadyRecorded: true });
+  }
+  if (normalizeCurrency(invoice.currency) !== normalizeCurrency(input.currency)) {
+    return err({ code: 'currency_mismatch', message: 'this refund is in a different currency' });
+  }
+  const newCollected = invoice.collectedAmountMinorUnits - input.amountMinorUnits;
+  if (newCollected < 0) {
+    return err({
+      code: 'exceeds_collected',
+      message: 'this refund is more than the invoice holds',
+    });
+  }
+  const inserted = first(
+    await tx
+      .insert(payments)
+      .values({
+        invoiceId: invoice.id,
+        amountMinorUnits: -input.amountMinorUnits,
+        currency: normalizeCurrency(invoice.currency),
+        kind: 'REFUND',
+        sourceId: input.refundRequestId,
+        provider: input.provider,
+        providerTransactionId: input.providerTransactionId,
+        reference: input.reference.trim().slice(0, 120),
+        collectedDate: input.refundedAt,
+        recordedByAccountId: input.recordedByAccountId,
+      })
+      .onConflictDoNothing()
+      .returning(),
+  );
+  if (!inserted) {
+    return err({ code: 'key_conflict', message: 'this refund reference was already used' });
+  }
+  const updated = required(
+    first(
+      await tx
+        .update(schema.invoices)
+        .set({
+          collectedAmountMinorUnits: newCollected,
+          status: invoiceStatusForTotals(
+            invoice.status,
+            invoice.invoicedAmountMinorUnits,
+            newCollected,
+          ),
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.invoices.id, invoice.id))
+        .returning(),
+    ),
+    'invoice',
+  );
+  return ok({ invoice: updated, payment: inserted, alreadyRecorded: false });
 }
 
 // --- Billing status changes VisaStack makes (S17) -------------------------------------------

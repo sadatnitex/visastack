@@ -1078,6 +1078,8 @@ describe('online invoice payments (S11)', () => {
 
   describe('before migration 0096 (the attempts table is missing)', () => {
     beforeEach(async () => {
+      // Refund requests (S18, migration 0104) point at attempts and cannot exist before 0096 either.
+      await db.execute(sql`drop table refund_requests`);
       await db.execute(sql`drop table payment_attempts`);
     });
 
