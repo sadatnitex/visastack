@@ -53,7 +53,7 @@ beforeEach(() => {
 
 describe('Platform > AI Features', () => {
   it('lists each registered feature with its switch, its limit and what turning it off does', async () => {
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     const text = textOf(html);
     expect(html.match(/<h1/g)).toHaveLength(1);
     expect(text).toContain('AI Features');
@@ -75,14 +75,14 @@ describe('Platform > AI Features', () => {
         features: [{ ...feature, enabled: true, adminDailyLimit: 5, updatedAt: new Date() }],
       },
     });
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain('5 a day (lowered from the plan’s 15)');
     expect(text).toContain('Last changed on');
   });
 
   it('is restricted to the platform owner', async () => {
     mocks.staffPrincipal.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(mocks.listAiFeatureSettings).not.toHaveBeenCalled();
     expect(text).not.toContain('AI App Suggestions');
   });
@@ -92,7 +92,7 @@ describe('Platform > AI Features', () => {
       ok: true,
       value: { available: false, features: [feature] },
     });
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain('every AI feature listed here stays off');
     expect(text).not.toContain('Change AI App Suggestions');
   });

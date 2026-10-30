@@ -78,7 +78,7 @@ export default async function AiFeaturesPage({
   searchParams,
 }: {
   readonly searchParams?: Promise<Record<string, string | string[] | undefined>>;
-} = {}) {
+}) {
   const retry = retryFrom((await searchParams) ?? {});
   const data = await withSession(async ({ db, accountId, email }) => {
     const staff = await staffPrincipal(
