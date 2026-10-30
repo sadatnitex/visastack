@@ -55,6 +55,7 @@ import { listMissions } from './missions';
 import { titleDate } from './naming';
 import { listNotificationsForAccount, runNotificationWorker } from './notifications';
 import { createOrganization, reviewOrganization } from './organizations';
+import { entitlementsSchemaPresent } from './plans-schema';
 import { canPerformPlatformAction, grantPlatformRole } from './platform-roles';
 import type { EmailPort } from './ports';
 import { loadWorkspaceToolbarState } from './workspace-toolbar';
@@ -120,12 +121,29 @@ async function world(db: Db, tag: string, platform?: World): Promise<World> {
     { accountId: orgAdminId, organizationId: org.value.id, role: 'ADMIN', active: true },
     { accountId: caseManagerId, organizationId: org.value.id, role: 'CASE_MANAGER', active: true },
   ]);
-  const plan = (await db.select().from(schema.plans).where(eq(schema.plans.key, 'agency_pro')))[0];
+  const plan = (
+    await db
+      .select({ id: schema.plans.id })
+      .from(schema.plans)
+      .where(eq(schema.plans.key, 'agency_pro'))
+  )[0];
   if (!plan) throw new Error('plan');
   await db
     .update(schema.plans)
     .set({ priceMinorUnits: 500_000, currency: 'BDT' })
     .where(eq(schema.plans.id, plan.id));
+  // S29: invoices use the price in effect when each period started (plan_prices), so the price
+  // is recorded as set long before any period in these tests (once migration 0107 is there).
+  if (await entitlementsSchemaPresent(db))
+    await db
+      .insert(schema.planPrices)
+      .values({
+        planId: plan.id,
+        priceMinorUnits: 500_000,
+        currency: 'BDT',
+        effectiveFrom: new Date('2001-01-01T00:00:00Z'),
+      })
+      .onConflictDoNothing();
   const opened = await openBillingAccount(db, {
     actor,
     stepUpSatisfied: true,
@@ -509,15 +527,21 @@ describe('recurring period invoices', () => {
         .update(schema.organizations)
         .set({ status: 'ACTIVE' })
         .where(eq(schema.organizations.id, other.organizationId));
-      await db
-        .update(schema.plans)
-        .set({ priceMinorUnits: 0 })
-        .where(eq(schema.plans.id, other.planId));
+      // S29: a plan's price is its price history (plan_prices); the price in effect when the
+      // period started decides. Free from before this period started: nothing billed.
+      await db.insert(schema.planPrices).values({
+        planId: other.planId,
+        priceMinorUnits: 0,
+        currency: 'BDT',
+        effectiveFrom: new Date(Date.now() - 300 * DAY),
+      });
       expect((await runBillingCycle(db, scope())).invoicesCreated).toBe(0);
-      await db
-        .update(schema.plans)
-        .set({ priceMinorUnits: 500_000 })
-        .where(eq(schema.plans.id, other.planId));
+      await db.insert(schema.planPrices).values({
+        planId: other.planId,
+        priceMinorUnits: 500_000,
+        currency: 'BDT',
+        effectiveFrom: new Date(Date.now() - 200 * DAY),
+      });
       expect((await runBillingCycle(db, scope())).invoicesCreated).toBe(1);
     },
     TEST_TIMEOUT_MS,
@@ -1175,6 +1199,8 @@ describe('who reads billing status', () => {
       'packages/services/src/billing-standing.ts',
       'packages/services/src/billing.ts',
       'packages/services/src/entitlement-enforcement.ts',
+      // S29: the one entitlement resolver the enforcement reads (override, lifted limits, suspended).
+      'packages/services/src/entitlements.ts',
       'packages/services/src/index.ts',
       'packages/services/src/invoice-ledger.ts',
     ]);

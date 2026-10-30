@@ -41,6 +41,7 @@ import {
   startOnlinePayment,
 } from './payments';
 import { FakePaymentPort } from './payments.test-support';
+import { ledgerColumns } from './plans-schema';
 import { grantPlatformRole } from './platform-roles';
 import {
   AMOUNT_MISMATCH,
@@ -119,7 +120,12 @@ async function world(db: Db, tag: string, platform?: World): Promise<World> {
     role: 'CASE_MANAGER',
     active: true,
   });
-  const plan = (await db.select().from(schema.plans).where(eq(schema.plans.key, 'agency_pro')))[0];
+  const plan = (
+    await db
+      .select({ id: schema.plans.id })
+      .from(schema.plans)
+      .where(eq(schema.plans.key, 'agency_pro'))
+  )[0];
   if (!plan) throw new Error('plan');
   const opened = await openBillingAccount(db, {
     actor,
@@ -251,7 +257,7 @@ async function heldPayment(
 
 async function entryOf(w: World, invoiceId: string, kind: 'ONLINE' | 'ADMIN_RECORDED' | 'CREDIT') {
   const rows = await w.db
-    .select()
+    .select(ledgerColumns())
     .from(schema.invoicePayments)
     .where(
       and(eq(schema.invoicePayments.invoiceId, invoiceId), eq(schema.invoicePayments.kind, kind)),
