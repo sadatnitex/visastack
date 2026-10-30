@@ -1040,8 +1040,11 @@ export {
   type RecordAiProviderConfigTestInput,
   type RevokeAiProviderConfigKeyInput,
   type RollbackAiProviderConfigInput,
+  type DeleteDraftAiProviderConfigInput,
+  type UpdateDraftAiProviderConfigInput,
   activateAiProviderConfig,
   createDraftAiProviderConfig,
+  deleteDraftAiProviderConfig,
   emergencyDisableAiProviderConfig,
   getActiveAiProviderConfig,
   getAiProviderConfigById,
@@ -1054,6 +1057,7 @@ export {
   revealAiProviderApiKey,
   revokeAiProviderConfigKey,
   rollbackAiProviderConfig,
+  updateDraftAiProviderConfig,
 } from './ai-provider-config';
 
 export {

@@ -21,7 +21,10 @@ import { AiConnectionsCard, type AiConnectionsCardProps } from './ai-connections
 import { DataTermsPanel, TermsRows } from './data-terms';
 import {
   ActivateConfigButton,
+  type ConfigFormView,
   CreateDraftConfigForm,
+  DeleteDraftButton,
+  EditConfigForm,
   EmergencyDisableButton,
   RecordTermsForm,
   RevokeKeyButton,
@@ -50,6 +53,32 @@ const STATUS_BADGE: Record<AiProviderConfig['status'], { label: string; tone: st
   SUPERSEDED: { label: 'Superseded', tone: 'badge-neutral' },
   DISABLED: { label: 'Disabled', tone: 'badge-danger' },
 };
+
+/** What the settings forms may see of a configuration: its settings, never its key material. */
+function toConfigFormView(config: AiProviderConfig): ConfigFormView {
+  return {
+    id: config.id,
+    status: config.status,
+    provider: config.provider,
+    model: config.model,
+    reasoningEffort: config.reasoningEffort,
+    dataPolicyApproved: config.dataPolicyApproved,
+    budgetUsd: unitsToUsd(config.budgetLimitUnits),
+    perDocumentBudgetUsd:
+      config.perDocumentBudgetLimitUnits === null
+        ? null
+        : unitsToUsd(config.perDocumentBudgetLimitUnits),
+    maxAttemptsPerDocument: config.maxAttemptsPerDocument,
+    maxPagesPerDocument: config.maxPagesPerDocument,
+    cacheMaxAgeDays: config.cacheMaxAgeDays,
+    maxConcurrentCalls: config.maxConcurrentCalls,
+    fallbackEnabled: config.fallbackEnabled,
+    fallbackProviderConfigId: config.fallbackProviderConfigId,
+    notes: config.notes,
+    apiKeyFingerprint: config.apiKeyFingerprint,
+    keyRevoked: config.keyRevokedAt !== null,
+  };
+}
 
 export default async function AiSettingsPage() {
   const data = await withSession(async ({ db, accountId, email }) => {
@@ -114,6 +143,8 @@ export default async function AiSettingsPage() {
     );
   }
 
+  const formViews = data.history.map(toConfigFormView);
+
   return (
     <section className="section container">
       <div className="u-mb-150">
@@ -124,7 +155,7 @@ export default async function AiSettingsPage() {
       <PageHeader
         eyebrow="Admin · AI Gateway"
         title="AI Provider Settings"
-        description="Configure, activate, and roll back the AI extraction provider (master directive Part 8 §5). Every version below is a permanent, immutable snapshot -- nothing is ever edited in place."
+        description="Configure, activate, and roll back the AI extraction provider (master directive Part 8 §5). A draft can be edited or deleted until it is activated. After that, each version stays in the history as it ran; Edit as New Draft copies it."
         actions={
           data.hasAny ? (
             <div style={{ display: 'flex', gap: '0.6rem' }}>
@@ -169,13 +200,15 @@ export default async function AiSettingsPage() {
           The API key is write-only: it is encrypted immediately and never shown again, only a
           masked fingerprint.
         </p>
-        <CreateDraftConfigForm existingConfigs={data.history} />
+        <CreateDraftConfigForm existingConfigs={formViews} />
       </article>
 
       {data.history.length > 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {data.history.map((config) => {
+          {data.history.map((config, index) => {
             const badge = STATUS_BADGE[config.status];
+            const formView = formViews[index];
+            const isDraft = config.status === 'DRAFT';
             const canActivate =
               config.status === 'DRAFT' &&
               config.dataPolicyApproved &&
@@ -289,7 +322,7 @@ export default async function AiSettingsPage() {
                     <span className="muted u-fs-085">{formatTimestamp(config.createdAt)}</span>
                   </div>
                 </div>
-                {canTest || canEvaluate || canActivate || canRevoke ? (
+                {canTest || canEvaluate || canActivate || canRevoke || isDraft ? (
                   <div
                     style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}
                   >
@@ -297,7 +330,14 @@ export default async function AiSettingsPage() {
                     {canEvaluate ? <RunEvaluationButton configId={config.id} /> : null}
                     {canActivate ? <ActivateConfigButton configId={config.id} /> : null}
                     {canRevoke ? <RevokeKeyButton configId={config.id} /> : null}
+                    {isDraft ? <DeleteDraftButton configId={config.id} /> : null}
                   </div>
+                ) : null}
+                {formView ? (
+                  <details className="u-mt-100">
+                    <summary className="muted">{isDraft ? 'Edit' : 'Edit as New Draft'}</summary>
+                    <EditConfigForm config={formView} existingConfigs={formViews} />
+                  </details>
                 ) : null}
                 <details className="u-mt-100">
                   <summary className="muted">Record Data Terms</summary>

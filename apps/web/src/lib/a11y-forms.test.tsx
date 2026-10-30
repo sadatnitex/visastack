@@ -2,11 +2,11 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { MissionState } from '@visastack/core';
-import type { AiProviderConfig } from '@visastack/services';
 import type { ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 import { describe, expect, it, vi } from 'vitest';
+import type { ConfigFormView } from '../app/app/admin/ai-settings/forms';
 import { axeViolations } from './axe.test-support';
 import {
   fixtureDocumentGroups,
@@ -1420,6 +1420,30 @@ const AGENCY: readonly Case[] = [
   },
 ];
 
+/** A saved AI configuration as the settings forms see it. */
+function aiConfigView(overrides: Partial<ConfigFormView> = {}): ConfigFormView {
+  return {
+    id: 'c1',
+    status: 'DRAFT',
+    provider: 'anthropic',
+    model: 'claude-opus-5-5',
+    reasoningEffort: null,
+    dataPolicyApproved: true,
+    budgetUsd: 100,
+    perDocumentBudgetUsd: null,
+    maxAttemptsPerDocument: 3,
+    maxPagesPerDocument: null,
+    cacheMaxAgeDays: null,
+    maxConcurrentCalls: null,
+    fallbackEnabled: false,
+    fallbackProviderConfigId: null,
+    notes: 'Pilot',
+    apiKeyFingerprint: '...MQAA',
+    keyRevoked: false,
+    ...overrides,
+  };
+}
+
 const ADMIN: readonly Case[] = [
   row('release a legal hold', () => <adminButtons.ReleaseHoldButton holdId={rowId()} />),
   row('retry a job', () => <adminButtons.RetryJobButton jobId={rowId()} />),
@@ -1450,18 +1474,22 @@ const ADMIN: readonly Case[] = [
   {
     name: 'new AI configuration',
     element: () => (
-      <aiSettings.CreateDraftConfigForm
-        existingConfigs={[
-          {
-            id: 'c1',
-            provider: 'openai',
-            model: 'gpt-x',
-            status: 'ACTIVE',
-          } as unknown as AiProviderConfig,
-        ]}
-      />
+      <aiSettings.CreateDraftConfigForm existingConfigs={[aiConfigView({ status: 'ACTIVE' })]} />
     ),
   },
+  row('edit an AI draft', () => {
+    const config = aiConfigView({ id: rowId() });
+    return <aiSettings.EditConfigForm config={config} existingConfigs={[config]} />;
+  }),
+  row('edit an active AI configuration as a new draft', () => {
+    const config = aiConfigView({ id: rowId(), status: 'ACTIVE', reasoningEffort: 'low' });
+    return <aiSettings.EditConfigForm config={config} existingConfigs={[config]} />;
+  }),
+  row('edit a revoked AI configuration as a new draft', () => {
+    const config = aiConfigView({ id: rowId(), status: 'SUPERSEDED', keyRevoked: true });
+    return <aiSettings.EditConfigForm config={config} existingConfigs={[config]} />;
+  }),
+  row('delete an AI draft', () => <aiSettings.DeleteDraftButton configId={rowId()} />),
   {
     name: 'new AI configuration (first one)',
     element: () => <aiSettings.CreateDraftConfigForm existingConfigs={[]} />,
