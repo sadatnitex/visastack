@@ -10633,3 +10633,6 @@ summary.safe-copy-title {
 .ai-app-suggestions .finding-card + .finding-card {
   margin-top: var(--space-3);
 }
+.task-added-by {
+  font-size: var(--text-caption);
+}

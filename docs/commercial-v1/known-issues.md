@@ -6298,3 +6298,60 @@ Owner approved 2026-10-25. Two fixes where the product said something that was n
 - Round 2 (code review max, 15 findings, plus 2 from the security review, all fixed): (1) a late invoice's due day is counted from the later of the period start and the moment it is made, so it is never born overdue (test: paid back to Active, the next period's late invoice keeps the agency Active); (2) admin invoices whose period overlaps a live one for the same plan are refused by the same overlap rule the run uses (`invoicePeriodOverlaps`), index kept as a second layer; (3) one lock order, invoice then billing account then audit chain: a payment locks the account only when it is Grace or Suspended, before its first audit record; checked by a source-order guard test because PGlite runs one transaction at a time; (4) Billing Rules saves a switch-on, or new day counts while on, only after a preview of exactly those values is confirmed, every reply keeps the typed values, and the box appears only next to a preview; (5) overdue means from the Bangladesh day after the due day everywhere (`isOverdue`); (6) run-made due dates are stored as UTC midnight of the Bangladesh day, so notices and pages agree (the admin page now formats due dates the same way); (7) each failure is logged once with step, organization and invoice; (8) returns to Active run first and each step has its own work limit; (9) a change by hand locks the account inside its transaction; (10) "due today" only on the due day; (11) the three billing kinds named on Email Delivery; (12) only written reminders count, and an agency without an owner or admin is logged once (`withoutContacts`); (13) one implementation of a VisaStack status change, private to `invoice-ledger.ts`, reached by the run through `applyOverdueStatusChange` with its job scope (ratchet baseline unchanged); (14) the cause column is read directly once migration 0103 is confirmed; (15) "cause column exists" is cached per handle (only a yes); (16) reading the rules and the preview take the owner's staff scope; (17) in-app billing notices, which were still listed for someone whose Owner or Admin role was removed, are now filtered at read time (list and unread count) by the send-time rule.
 - Round 2 tests: services 18 files, 471 passed (billing cycle 36, 12 new); db 4 files, 29 passed; web 251 files, 2635 passed (Billing Rules action 7, form 2, page 3). Existing fixtures in `billing.test.ts`, `invoice-ledger.test.ts`, `agency-invoices.test.ts`, `payments.test.ts` and `billing-payment-characterization.test.ts` now open each invoice for its own 30-day period (overlaps are refused); assertions unchanged. Lint, typecheck and the em dash sweep green.
 - Round 2 break-to-red proofs, each restored from a cp backup and green again: (1) due from the period start turned the late-invoice test red; (2) matching the exact period start only let the midnight admin invoice through; (4) accepting a ticked box without the previewed values saved blind Grace 0 / Suspend 1; (5) overdue by the exact instant moved an agency on its due day with Grace 0; (8) one shared budget left the return to Active undone; (9) reading the status outside the transaction let two changes at once both start from Active.
+
+### 2026-10-30, S21: AI connector suggestion tools
+
+Built locally on branch s21-wip (from main aaa29e34). Not merged, not live. ADR 0021 amendment of 30 Oct 2026; operations note `docs/operations/ai-suggestion-tools.md`.
+
+- **What was built:**
+  - Three suggestion tools beside the five read tools: `suggest_profile_update` (one profile detail, about the profile itself or about one listed document), `save_draft` (title and plain text, optionally for one case) and `add_reminder` (a task with a due date on one of the person's own open cases).
+  - They work only while the person has ticked "Suggest Changes" for that connection and the platform owner has turned on "AI App Suggestions" in the new Admin, Settings, AI Features page (off by default).
+  - Every write goes through the AI gate's separate write gateway: a second `PROPOSE_EDIT` proof from the access gate (owner only, `ai_connection` purpose), the person's processing consent, the field rules (granted section only; never RESTRICTED, special-category or biometric details; a document number only with Full Document Numbers; one refusal message for all of them), and the daily limits, charged last inside a savepoint.
+  - Suggestions are zero-cost connector runs with one pending proposal, labelled "Suggested by <app> (<address>)". They are kept out of AI counts, spend, attempt limits, "accept all clear details" and the reading stage, and they never stop the automatic reading of a file. Approving one saves it as confirmed by the person, entered by hand, with no source document.
+  - Drafts are on the Sharing page ("Drafts from AI Apps": Show, Copy, Delete). Profile suggestions are on My Profile ("Suggestions from AI Apps"). Reminders show "Added by <app>" on the case and are private to the person.
+  - The reusable AI feature framework: registry in core, `platform_ai_feature_settings`, `getAiFeatureState` (admin switch, migration present, FREE tier entitlement, smaller limit wins).
+- **Migration:** 0104_ai_suggestions (journal idx 102, snapshot 0102):
+  - three new tables (`ai_drafts`, `ai_task_origins`, `platform_ai_feature_settings`);
+  - a document becomes optional on a suggestion and its run only for connector runs (a CHECK on runs, a trigger on suggestions);
+  - no existing table gains a column.
+  - It is re-runnable and was tested twice on the previous head. Code tolerates it missing: the tools say "not available yet", the consent box is shown turned off, the AI Features page says not available yet.
+- **Owner decisions (30 Oct 2026), recorded in the owner actions file:**
+  - 15 writes a day per person across all their apps and all three tools, and 15 per connection. This replaces the plan's 20 per connection and 50 per account.
+  - Tools for person-requested changes only ("Use only when the person explicitly asks for this change." in every tool description and the server instruction; audit `requestedBy: person_via_app`).
+  - AI-added reminders are private to the person. This replaces the plan's "agencies see AI-added reminders on shared cases".
+  - AI App Suggestions is off until the owner turns it on.
+- **Deviations, and why:**
+  - A reminder always needs a case: ADR's "or record" form is not built, because tasks belong to a case.
+  - The private mark on reminders lives in `ai_task_origins` beside `mission_tasks`, not in a column on it. A column would be listed by every existing Drizzle read and write of tasks, which would fail before the migration. A column pointing at the connection would also lose the mark when the connection is removed.
+  - Drafts live in `ai_drafts`, not `generated_outputs`. A draft is not a grounded output.
+  - `save_draft` takes a title instead of the ADR's `kind`.
+  - Raising `RATE_LIMITS` alone does not raise the limit: the plan tier's 15 binds. The break-to-red proof therefore targets the plan limit.
+- **Tests (final run):**
+  - lint: green after formatting fixes;
+  - typecheck: green;
+  - core: all green;
+  - db: migration, schema drift and status, all green;
+  - services: 29 files, 651 tests. The only failure was the reconciliation test's pre-0100 simulation, which now also drops the two S21 tables that reference AI connections; it is green on rerun. A further 6 export, signals and retention files, 91 tests, are green.
+  - web: 341 files, 3456 tests. The only failure was the reading-source label list, now naming the fourth source; it is green on rerun.
+  - `pnpm --filter @visastack/web build` succeeded.
+  - New tests include `suggestion-tools.test.ts` (21, end to end through the real gate), `tool-guard.test.ts`, `ai-feature-settings.test.ts`, `ai-suggestions.test.ts`, the migration test, an automatic-reading test, and web tests for the AI Features page and action, Drafts from AI Apps, Suggestions from AI Apps, "Added by", the consent box turned off and on, and tools/list and the server instruction.
+- **Break-to-red proofs.** Each was restored from a cp backup and is green again:
+  1. writing a fact in the suggestion writer turned "no fact until the person approves" red;
+  2. dropping the layer checks turned the refused-details test red;
+  3. raising the FREE tier's limit turned both daily-limit tests red;
+  4. caching the connection's scope in the gate turned "stops on the very next call after Change Access" red;
+  5. registering add_reminder with destructiveHint true turned the guard red;
+  6. ignoring the admin switch turned both switch tests red;
+  7. letting an app's suggestion count as a reading turned the automatic-reading test red;
+  8. showing AI reminders to agencies turned the tenant test red;
+  9. removing the bulk-accept exclusion turned the bulk test red (after the test was made to look clear);
+  10. removing the trigger from the migration turned the migration test red.
+- **Not verified:**
+  - real Claude and ChatGPT behaviour (their confirmation before a non-read-only call, and how long they keep an older tool list);
+  - next start and Playwright (the lead runs those);
+  - production, which waits for O8 and the owner's switch.
+- **Follow-ups:**
+  - Drafts are not in the account export yet. Mission tasks and AI connections are not either.
+  - A draft the person deleted after a backup point comes back if that backup is restored, until reconciliation replays draft deletions.
+  - An output the person makes themselves can list their own open tasks, including AI reminders, as it does for any task.
+  - S28 wires the other AI features into the framework.

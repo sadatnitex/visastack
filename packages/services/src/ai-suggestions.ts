@@ -497,7 +497,10 @@ export async function listAiDrafts(
   proof: AuthorizedApplicant<'VIEW_METADATA'>,
 ): Promise<AiDraftList> {
   // Owner only: anything else (an agency, a share recipient, a copied proof) gets nothing.
-  if (!AuthorizedApplicant.isGenuine(proof, 'VIEW_METADATA') || proof.actor.kind !== 'applicant_owner') {
+  if (
+    !AuthorizedApplicant.isGenuine(proof, 'VIEW_METADATA') ||
+    proof.actor.kind !== 'applicant_owner'
+  ) {
     return { available: true, drafts: [], more: 0 };
   }
   const tx = proof.tx;

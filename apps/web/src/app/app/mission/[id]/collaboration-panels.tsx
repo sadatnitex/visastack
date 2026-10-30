@@ -80,9 +80,7 @@ export function TasksPanel({
                   </span>
                 ) : null}
                 {task.addedBy ? (
-                  <span className="badge badge-neutral" style={{ fontSize: 'var(--text-caption)' }}>
-                    Added by {task.addedBy}
-                  </span>
+                  <span className="badge badge-neutral task-added-by">Added by {task.addedBy}</span>
                 ) : null}
                 {task.dueDate ? (
                   <span className="muted" style={{ fontSize: 'var(--text-caption)' }}>

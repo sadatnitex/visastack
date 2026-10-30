@@ -774,7 +774,7 @@ Generate a migration only after the previous migration is on main.
 | 18 | S18. Refunds, credits and accounting export | maybe | O8 | owner word |
 | 19 | S19. Second payment provider | yes | O8, O14 | owner word |
 | 20 | S20. AI connector: original files | yes | O8 | owner word |
-| 21 | S21. AI connector: suggestion tools | none | none | owner word |
+| 21 | **S21. AI connector: suggestion tools: IN PROGRESS** (30 Oct; built locally, not merged, not live); migration 0104 (renumbered 0105 if S18 merges first) runs only on the owner's word after the merge; AI App Suggestions stays off until the owner turns it on in AI Features | yes | O8, AI Features switch | owner word |
 | 22 | S22. Agency AI connectors | yes (enum value plus columns) | O8, O10 | owner word |
 | 23 | **S23. Real redaction (ADR 0022): DONE.** Merged as #339 (`07d65797`); migration 0102 applied 29 Oct; live fixes #340 (`db5a52c4`, image library declared in the web app) and #341 (`424e525d`, opaque storage keys; confirmation page remembers the address) | yes | O8 | done |
 | 23a | **S27. Commercial-readiness reconciliation and daily backup: DONE.** Merged as #337 (`47f18e57`); no migration; pruning waits for `BACKUP_PRUNE=on`, the penetration test deferral for O17 | none | none | done |
