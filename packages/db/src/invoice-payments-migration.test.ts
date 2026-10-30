@@ -55,7 +55,9 @@ describe('migration 0094: cash ledger (ADR 0020, S10)', () => {
       const partly = await invoice('INV-MIG-PART', 10000, 4000, 'wire-9');
       const paid = await invoice('INV-MIG-PAID', 7000, 7000);
 
-      await migrate(db, { migrationsFolder });
+      // Up to the migration before 0107 (S29): re-running 0094's own statements below only makes
+      // sense on a ledger without the later mode column; 0107 runs right after that part.
+      await migrate(db, { migrationsFolder: migrationsUpTo('0106_ai_connection_documents') });
 
       const rows = async () =>
         (
@@ -108,6 +110,7 @@ describe('migration 0094: cash ledger (ADR 0020, S10)', () => {
       );
       const topped = (await rows()).filter((r) => r.invoice_id === partly);
       expect(topped.map((r) => r.amount_minor_units).sort()).toEqual([1000, 4000]);
+      await migrate(db, { migrationsFolder });
 
       // Append-only: every edit, delete and truncate is refused with an error.
       await expect(
@@ -124,7 +127,7 @@ describe('migration 0094: cash ledger (ADR 0020, S10)', () => {
       // The database refuses the wrong sign, a missing source and a lone provider id.
       const insert = (columns: string, values: string) =>
         client.query(
-          `insert into invoice_payments (invoice_id, currency, reference, collected_date, ${columns}) values ('${untouched}', 'BDT', 'r', now(), ${values})`,
+          `insert into invoice_payments (invoice_id, currency, reference, collected_date, mode, ${columns}) values ('${untouched}', 'BDT', 'r', now(), 'LIVE', ${values})`,
         );
       await expect(insert('amount_minor_units, kind', `-5, 'ADMIN_RECORDED'`)).rejects.toThrow();
       await expect(insert('amount_minor_units, kind', `0, 'ADMIN_RECORDED'`)).rejects.toThrow();
@@ -137,8 +140,8 @@ describe('migration 0094: cash ledger (ADR 0020, S10)', () => {
         ),
       ).rejects.toThrow();
       await client.query(
-        `insert into invoice_payments (invoice_id, currency, reference, collected_date, amount_minor_units, kind, source_id, provider, provider_transaction_id)
-         values ('${untouched}', 'BDT', 'r', now(), -5, 'REFUND', gen_random_uuid(), null, null)`,
+        `insert into invoice_payments (invoice_id, currency, reference, collected_date, amount_minor_units, kind, source_id, provider, provider_transaction_id, mode)
+         values ('${untouched}', 'BDT', 'r', now(), -5, 'REFUND', gen_random_uuid(), null, null, 'LIVE')`,
       );
     },
     MIGRATION_TIMEOUT_MS,

@@ -52,13 +52,22 @@ describe('migration 0097: agency invoices, claims and receipts (ADR 0020, S12)',
       const invoiceA1 = await invoice(orgA, 'INV-S12-A1');
       const invoiceA2 = await invoice(orgA, 'INV-S12-A2');
       const invoiceB1 = await invoice(orgB, 'INV-S12-B1');
-      const ledger = (invoiceId: string, amount: number, provider?: string) =>
-        one(
-          `insert into invoice_payments (invoice_id, amount_minor_units, currency, kind, reference, collected_date, provider, provider_transaction_id)
+      // Migration 0107 (S29) makes every ledger row say TEST or LIVE; a staff recording is LIVE.
+      const modeColumn = async () =>
+        (
+          await client.query(
+            `select 1 from information_schema.columns where table_name = 'invoice_payments' and column_name = 'mode'`,
+          )
+        ).rows.length > 0;
+      const ledger = async (invoiceId: string, amount: number, provider?: string) => {
+        const mode = (await modeColumn()) ? [', mode', ", 'LIVE'"] : ['', ''];
+        return one(
+          `insert into invoice_payments (invoice_id, amount_minor_units, currency, kind, reference, collected_date, provider, provider_transaction_id${mode[0]})
            values ('${invoiceId}', ${amount}, 'BDT', 'ADMIN_RECORDED', 'wire', now(), ${
              provider ? `'${provider}', '${invoiceId}:${amount}'` : 'null, null'
-           }) returning id`,
+           }${mode[1]}) returning id`,
         );
+      };
       const paymentA1 = await ledger(invoiceA1, 1000);
       await ledger(invoiceA1, 2000, 'opening_balance');
       const paymentA2 = await ledger(invoiceA2, 3000);
