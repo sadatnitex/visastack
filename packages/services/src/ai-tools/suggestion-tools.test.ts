@@ -510,6 +510,16 @@ describe('suggest_profile_update', () => {
       document_reference: passport.reference,
     });
     const [pending] = await listPendingProposals(db, applicantId);
+    // Even if it looked like a clear reading (confident, quoted word for word), it is left to the person.
+    await db
+      .update(schema.fieldProposals)
+      .set({ confidence: 99 })
+      .where(eq(schema.fieldProposals.id, pending?.proposal.id ?? ''));
+    await db.insert(schema.evidenceLocations).values({
+      fieldProposalId: pending?.proposal.id ?? '',
+      snippet: 'Expiry 2031-01-01',
+      verified: true,
+    });
     const bulk = await approveClearProposals(db, {
       actorAccountId: ownerId,
       applicantId,
