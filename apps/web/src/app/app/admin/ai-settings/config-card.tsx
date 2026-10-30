@@ -1,5 +1,6 @@
 import type { AiProviderConfig, AiProviderDataTerms } from '@visastack/services';
 import { unitsToUsd } from '../../../../lib/ai';
+import { reasoningEffortLabel } from '../../../../lib/ai-models';
 import { formatTimestamp } from '../../../../lib/format-date';
 import { aiProviderLabel } from '../../../../lib/labels';
 import { TermsRows } from './data-terms';
@@ -21,8 +22,6 @@ const STATUS_BADGE: Record<AiProviderConfig['status'], { label: string; tone: st
   SUPERSEDED: { label: 'Superseded', tone: 'badge-neutral' },
   DISABLED: { label: 'Disabled', tone: 'badge-danger' },
 };
-
-const EFFORT_TEXT: Record<string, string> = { low: 'Low', medium: 'Medium', high: 'High' };
 
 function usd(units: number): string {
   return `$${unitsToUsd(units).toFixed(2)}`;
@@ -72,19 +71,26 @@ export function ConfigCard({
   const isDraft = config.status === 'DRAFT';
   const keyLive = config.keyRevokedAt === null;
   const canActivate = isDraft && config.dataPolicyApproved && keyLive;
-  const configName = `${config.provider} / ${config.model}`;
+  const configName = `${aiProviderLabel(config.provider)} ${config.model}`;
+  const kickerId = `config-${config.id}-provider`;
   const titleId = `config-${config.id}-title`;
+  const statusId = `config-${config.id}-status`;
 
   return (
-    <article className="card" aria-labelledby={titleId}>
+    // Named by provider, model and status together, so two versions of one model differ.
+    <article className="card" aria-labelledby={`${kickerId} ${titleId} ${statusId}`}>
       <div className="card-head">
         <div>
-          <p className="card-kicker">{aiProviderLabel(config.provider)}</p>
+          <p className="card-kicker" id={kickerId}>
+            {aiProviderLabel(config.provider)}
+          </p>
           <h3 className="card-title mono" id={titleId}>
             {config.model}
           </h3>
         </div>
-        <span className={`badge ${badge.tone}`}>{badge.label}</span>
+        <span className={`badge ${badge.tone}`} id={statusId}>
+          {badge.label}
+        </span>
       </div>
 
       <div className="rows rows-grid">
@@ -99,11 +105,7 @@ export function ConfigCard({
           </span>
         </Fact>
         <Fact label="Monthly Budget">{usd(config.budgetLimitUnits)}</Fact>
-        <Fact label="Reasoning Effort">
-          {config.reasoningEffort === null
-            ? 'Model Default'
-            : (EFFORT_TEXT[config.reasoningEffort] ?? config.reasoningEffort)}
-        </Fact>
+        <Fact label="Reasoning Effort">{reasoningEffortLabel(config.reasoningEffort)}</Fact>
         <Fact label="Fallback">
           {!config.fallbackEnabled
             ? 'Off'

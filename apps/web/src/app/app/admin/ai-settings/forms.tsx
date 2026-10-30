@@ -3,7 +3,11 @@
 import type { AiProviderConfig } from '@visastack/services';
 import { type ReactNode, useActionState, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
-import { OTHER_MODEL, aiModelOptionsFor } from '../../../../lib/ai-models';
+import {
+  OTHER_MODEL,
+  REASONING_EFFORT_OPTIONS,
+  aiModelOptionsFor,
+} from '../../../../lib/ai-models';
 import { aiConfigStatusLabel, aiProviderLabel } from '../../../../lib/labels';
 import {
   type ActionState,
@@ -34,13 +38,6 @@ const PROVIDER_OPTIONS = [
   { value: 'openai', label: 'OpenAI' },
   { value: 'anthropic', label: 'Anthropic (Claude)' },
   { value: 'gemini', label: 'Google Gemini' },
-] as const;
-
-const REASONING_EFFORT_OPTIONS = [
-  { value: '', label: 'Use Model Default' },
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high', label: 'High' },
 ] as const;
 
 /** What a settings form may know about one saved configuration: never its key material. */

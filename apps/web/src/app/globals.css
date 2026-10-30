@@ -4524,18 +4524,12 @@ body:has(.auth-shell) > .footer {
 .admin-summary-metric small {
   color: var(--text-secondary);
 }
-.admin-scorecard {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: 1.5rem;
-}
 .admin-scorecard .row {
   min-width: 0;
   flex-wrap: wrap;
 }
 @media (max-width: 700px) {
-  .admin-operational-summary,
-  .admin-scorecard {
+  .admin-operational-summary {
     grid-template-columns: minmax(0, 1fr);
   }
   .admin-section-navigation {
@@ -10760,7 +10754,7 @@ summary.safe-copy-title {
 }
 @media (min-width: 720px) {
   .rows.rows-grid {
-    grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr));
   }
 }
 .rows-grid > .row {
@@ -10799,7 +10793,8 @@ summary.safe-copy-title {
   border: 1px solid var(--hairline-soft);
   border-radius: var(--radius);
 }
-/* A floated legend is laid out like any heading, so the group title sits inside the box. */
+/* A floated legend is not drawn on the border, so it sits inside the box as the group's first
+   item, like a heading. */
 .form-section > legend {
   float: left;
   width: 100%;
@@ -10807,9 +10802,6 @@ summary.safe-copy-title {
   font-size: var(--text-body);
   font-weight: 650;
   color: var(--text);
-}
-.form-section > legend + * {
-  clear: both;
 }
 @media (max-width: 600px) {
   .form-section {
@@ -10819,11 +10811,6 @@ summary.safe-copy-title {
   .disclosure > .disclosure-body:has(> .form-section) {
     padding: 0 0.75rem 1rem;
   }
-}
-.form-section-note {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: var(--text-small);
 }
 .form-grid {
   display: grid;
@@ -10910,4 +10897,3 @@ summary.safe-copy-title {
   color: var(--text-secondary);
   font-size: var(--text-small);
 }
-

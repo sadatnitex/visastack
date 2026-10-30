@@ -26,6 +26,7 @@ import {
   type FallbackOption,
   RollbackConfigButton,
 } from './forms';
+import { StickyDetails } from './sticky-details';
 
 export const metadata: Metadata = { title: 'AI Settings' };
 
@@ -144,13 +145,33 @@ export default async function AiSettingsPage() {
       .filter((c) => c.status !== 'DRAFT' && c.fallbackEnabled && c.fallbackProviderConfigId)
       .map((c) => c.fallbackProviderConfigId as string),
   );
-  const formViews = data.history.map((config) => toConfigFormView(config, fallbackFor));
   const fallbackOptions: FallbackOption[] = data.history.map(({ id, status, provider, model }) => ({
     id,
     status,
     provider,
     model,
   }));
+
+  const card = (config: AiProviderConfig) => {
+    // Part 8 §13: the target need not be ACTIVE (it commonly is not -- the platform's own
+    // single-winner invariant means it is necessarily some other status), so this looks it up by
+    // id across the FULL history list, not just active/eligible rows.
+    const fallbackTarget = config.fallbackEnabled
+      ? data.history.find((c) => c.id === config.fallbackProviderConfigId)
+      : undefined;
+    return (
+      <ConfigCard
+        key={config.id}
+        config={config}
+        formView={toConfigFormView(config, fallbackFor)}
+        fallbackTarget={fallbackTarget}
+        terms={aiProviderTermsFor(data.terms, config.id)}
+        fallbackOptions={fallbackOptions}
+      />
+    );
+  };
+  const drafts = data.history.filter((c) => c.status === 'DRAFT');
+  const earlier = data.history.filter((c) => c.status === 'SUPERSEDED' || c.status === 'DISABLED');
 
   return (
     <section className="section container">
@@ -188,106 +209,74 @@ export default async function AiSettingsPage() {
         </div>
       ) : null}
 
-      {(() => {
-        const viewsById = new Map(formViews.map((view) => [view.id, view]));
-        const card = (config: AiProviderConfig) => {
-          const formView = viewsById.get(config.id);
-          if (!formView) return null;
-          // Part 8 §13: the target need not be ACTIVE (it commonly is not -- the platform's own
-          // single-winner invariant means it is necessarily some other status), so this looks it
-          // up by id across the FULL history list, not just active/eligible rows.
-          const fallbackTarget = config.fallbackEnabled
-            ? data.history.find((c) => c.id === config.fallbackProviderConfigId)
-            : undefined;
-          return (
-            <ConfigCard
-              key={config.id}
-              config={config}
-              formView={formView}
-              fallbackTarget={fallbackTarget}
-              terms={aiProviderTermsFor(data.terms, config.id)}
-              fallbackOptions={fallbackOptions}
-            />
-          );
-        };
-        const drafts = data.history.filter((c) => c.status === 'DRAFT');
-        const earlier = data.history.filter(
-          (c) => c.status === 'SUPERSEDED' || c.status === 'DISABLED',
-        );
-        return (
-          <>
-            {data.active ? (
-              <section aria-labelledby="ai-active-heading">
-                <h2 className="section-heading" id="ai-active-heading">
-                  Active Setup
-                </h2>
-                {card(data.active)}
-              </section>
-            ) : null}
+      {/* The data rule comes first: when it pauses AI, that is the first thing to know. */}
+      <div className="grid">
+        <DataTermsPanel
+          mode={data.mode}
+          setting={data.setting}
+          termsAvailable={data.terms.available}
+          active={data.active}
+          fallback={data.fallback}
+          termsFor={(configId) => aiProviderTermsFor(data.terms, configId)}
+        />
+        <AiConnectionsCard counts={data.connectionCounts} enabled={aiConnectorEnabled()} />
+      </div>
 
-            {drafts.length > 0 ? (
-              <section aria-labelledby="ai-drafts-heading">
-                <h2 className="section-heading" id="ai-drafts-heading">
-                  Drafts ({drafts.length})
-                </h2>
-                <div className="stack-sm">{drafts.map(card)}</div>
-              </section>
-            ) : null}
+      {data.active ? (
+        <section aria-labelledby="ai-active-heading">
+          <h2 className="section-heading" id="ai-active-heading">
+            Active Setup
+          </h2>
+          {card(data.active)}
+        </section>
+      ) : null}
 
-            <section aria-labelledby="ai-new-heading">
-              <h2 className="section-heading" id="ai-new-heading">
-                New Setup
-              </h2>
-              <details className="disclosure" open={!data.hasAny}>
-                <summary>
-                  <span>
-                    <strong>Create a New Draft</strong>
-                    <span className="muted u-fs-085">
-                      {' '}
-                      Has no effect until activated. The API key is encrypted at once and never
-                      shown again, only its last characters.
-                    </span>
-                  </span>
-                </summary>
-                <div className="disclosure-body">
-                  <CreateDraftConfigForm fallbackOptions={fallbackOptions} />
-                </div>
-              </details>
-            </section>
+      {drafts.length > 0 ? (
+        <section aria-labelledby="ai-drafts-heading">
+          <h2 className="section-heading" id="ai-drafts-heading">
+            Drafts ({drafts.length})
+          </h2>
+          <div className="stack-sm">{drafts.map(card)}</div>
+        </section>
+      ) : null}
 
-            <section aria-labelledby="ai-rules-heading">
-              <h2 className="section-heading" id="ai-rules-heading">
-                Data Rules and AI App Connections
-              </h2>
-              <div className="grid">
-                <DataTermsPanel
-                  mode={data.mode}
-                  setting={data.setting}
-                  termsAvailable={data.terms.available}
-                  active={data.active}
-                  fallback={data.fallback}
-                  termsFor={(configId) => aiProviderTermsFor(data.terms, configId)}
-                />
-                <AiConnectionsCard counts={data.connectionCounts} enabled={aiConnectorEnabled()} />
-              </div>
-            </section>
+      <section aria-labelledby="ai-new-heading">
+        <h2 className="section-heading" id="ai-new-heading">
+          New Setup
+        </h2>
+        <StickyDetails
+          className="disclosure"
+          initiallyOpen={!data.hasAny}
+          summary={
+            <span>
+              <strong>Create a New Draft</strong>
+              <span className="muted u-fs-085">
+                {' '}
+                Has no effect until activated. The API key is encrypted at once and never shown
+                again, only its last characters.
+              </span>
+            </span>
+          }
+        >
+          <div className="disclosure-body">
+            <CreateDraftConfigForm fallbackOptions={fallbackOptions} />
+          </div>
+        </StickyDetails>
+      </section>
 
-            {earlier.length > 0 ? (
-              <section aria-labelledby="ai-earlier-heading">
-                <h2 className="section-heading" id="ai-earlier-heading">
-                  Earlier Versions
-                </h2>
-                <details className="disclosure">
-                  <summary>
-                    Show {earlier.length} earlier {earlier.length === 1 ? 'version' : 'versions'}
-                  </summary>
-                  <div className="disclosure-body stack-sm">{earlier.map(card)}</div>
-                </details>
-              </section>
-            ) : null}
-          </>
-        );
-      })()}
+      {earlier.length > 0 ? (
+        <section aria-labelledby="ai-earlier-heading">
+          <h2 className="section-heading" id="ai-earlier-heading">
+            Earlier Versions
+          </h2>
+          <details className="disclosure">
+            <summary>
+              Show {earlier.length} earlier {earlier.length === 1 ? 'version' : 'versions'}
+            </summary>
+            <div className="disclosure-body stack-sm">{earlier.map(card)}</div>
+          </details>
+        </section>
+      ) : null}
     </section>
   );
 }
