@@ -556,6 +556,8 @@ export interface AcceptedClientInvitation {
   readonly applicantId: string;
   readonly missionId: string;
   readonly organizationId: string;
+  /** The grant to the agency, for the traveller's own next choice on it (S22: AI tools). */
+  readonly grantId: string;
 }
 
 /**
@@ -740,7 +742,12 @@ export async function acceptClientInvitation(
         onceFor: invitation.id,
       });
 
-      return ok({ applicantId, missionId: mission.id, organizationId: invitation.organizationId });
+      return ok({
+        applicantId,
+        missionId: mission.id,
+        organizationId: invitation.organizationId,
+        grantId: grant.id,
+      });
     });
   } catch (error) {
     if (error instanceof ClientInvitationAcceptAborted) return err(error.serviceError);

@@ -20,6 +20,11 @@ export const PERMISSION_ACTIONS = [
   'EXPORT_PROFILE',
   'SHARE',
   'MANAGE',
+  // S22 (ADR 0021 S22 amendment, owner approval 26 Oct 2026): the traveller lets an agency's AI
+  // tools read what that grant already shares. Never implied by any other action, off on every
+  // existing grant, and only ever added by the traveller's own choice on an agency grant. Last,
+  // so the database enum gains it with a plain ADD VALUE.
+  'AI_ASSIST',
 ] as const;
 export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];
 

@@ -1,6 +1,7 @@
 import type { MembershipRole } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
 import { and, eq, ne } from 'drizzle-orm';
+import { endAgencyAiConnectionsOfMember } from './access/agency-ai-connections';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { checkSeatEntitlement } from './entitlement-enforcement';
@@ -540,6 +541,16 @@ export async function setMembershipActive(
       resourceId: updated.id,
       metadata: { organizationId: input.organizationId, targetRole: target.role },
     });
+
+    // S22: a member turned off can no longer use the agency's AI tools (the AI gate refuses them
+    // on the next call); their agency AI connections are also ended, tokens and all.
+    if (!input.active) {
+      await endAgencyAiConnectionsOfMember(tx, {
+        organizationId: input.organizationId,
+        memberAccountId: target.accountId,
+        actorAccountId: input.actorAccountId,
+      });
+    }
 
     // Commercial V1 Part 4 §11: "Removed member may not remain sole owner of
     // active case." A deactivated member no longer passes `isActiveMember`,

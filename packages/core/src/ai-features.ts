@@ -20,6 +20,12 @@
 /** What a feature does with AI: calls a model, or serves an AI app a person connected. */
 export type AiFeatureKind = 'model' | 'connector';
 
+/**
+ * Whose plan and daily count a feature uses: a traveller's own (every feature before S22), or an
+ * agency's, counted once for the whole agency (Agency AI Tools, S22).
+ */
+export type AiFeatureAudience = 'traveller' | 'agency';
+
 /** What one plan gives for one feature. */
 export interface AiFeatureEntitlement {
   readonly included: boolean;
@@ -34,6 +40,7 @@ export interface AiFeatureDefinition {
   /** One plain sentence: what it lets people do. */
   readonly description: string;
   readonly kind: AiFeatureKind;
+  readonly audience: AiFeatureAudience;
   /** What one use is, plural and plain ("files"), for "3 files today". */
   readonly unit: string;
   /** Whether it works before the platform owner has ever saved a choice for it. */
@@ -49,6 +56,7 @@ export const AI_FEATURES = {
     description:
       'Reads each new file by itself after it is uploaded and suggests the details it finds, which the person checks before anything is saved.',
     kind: 'model',
+    audience: 'traveller',
     unit: 'files',
     defaultEnabled: true,
     planDefault: { included: true, dailyLimit: null },
@@ -59,6 +67,7 @@ export const AI_FEATURES = {
     description:
       'Lets a person ask for a file to be read with AI, as a scan or as text, and suggests the details it finds for the person to check.',
     kind: 'model',
+    audience: 'traveller',
     unit: 'files',
     defaultEnabled: true,
     planDefault: { included: true, dailyLimit: null },
@@ -69,6 +78,7 @@ export const AI_FEATURES = {
     description:
       'Suggests what kind of document a file is and a name for it, when VisaStack cannot tell by itself.',
     kind: 'model',
+    audience: 'traveller',
     unit: 'suggestions',
     defaultEnabled: true,
     planDefault: { included: true, dailyLimit: null },
@@ -78,6 +88,7 @@ export const AI_FEATURES = {
     name: 'Gap Explanations',
     description: 'Explains in plain words why something a case needs is still missing.',
     kind: 'model',
+    audience: 'traveller',
     unit: 'explanations',
     defaultEnabled: true,
     planDefault: { included: true, dailyLimit: null },
@@ -88,6 +99,7 @@ export const AI_FEATURES = {
     description:
       'Compares a file with the details the person already confirmed and points out anything that looks different, for the person to check.',
     kind: 'model',
+    audience: 'traveller',
     unit: 'checks',
     defaultEnabled: true,
     planDefault: { included: true, dailyLimit: null },
@@ -98,6 +110,7 @@ export const AI_FEATURES = {
     description:
       'Lets the AI apps people connect read the parts of their record each person chose to share.',
     kind: 'connector',
+    audience: 'traveller',
     unit: 'requests',
     defaultEnabled: true,
     planDefault: { included: true, dailyLimit: null },
@@ -108,6 +121,7 @@ export const AI_FEATURES = {
     description:
       'Lets the AI apps people connect leave suggestions, drafts and reminders that the person reviews in VisaStack, only when the person asks the app for a change.',
     kind: 'connector',
+    audience: 'traveller',
     unit: 'suggestions',
     defaultEnabled: false,
     planDefault: { included: true, dailyLimit: 15 },
@@ -118,15 +132,37 @@ export const AI_FEATURES = {
     description:
       'Lets the AI apps people connect receive the files a person ticked, as a Safe Copy or the original, never passports, identity, money or health documents.',
     kind: 'connector',
+    audience: 'traveller',
     unit: 'files',
     defaultEnabled: false,
     planDefault: { included: true, dailyLimit: 30 },
+  },
+  ai_agency_tools: {
+    key: 'ai_agency_tools',
+    name: 'Agency AI Tools',
+    description:
+      'Lets agency owners and admins connect an AI app that reads only what each traveller allowed that agency’s AI tools to see, never more than the traveller already shares with the agency.',
+    kind: 'connector',
+    audience: 'agency',
+    unit: 'requests',
+    defaultEnabled: false,
+    planDefault: { included: true, dailyLimit: 500 },
   },
 } as const satisfies Readonly<Record<string, AiFeatureDefinition>>;
 
 export type AiFeatureKey = keyof typeof AI_FEATURES;
 
 export const AI_FEATURE_KEYS = Object.keys(AI_FEATURES) as AiFeatureKey[];
+
+/** The features a traveller's own plan decides (every one but the agency's). */
+export const AI_TRAVELLER_FEATURE_KEYS: readonly AiFeatureKey[] = AI_FEATURE_KEYS.filter(
+  (key) => AI_FEATURES[key].audience === 'traveller',
+);
+
+/** The features an agency's plan decides, counted once for the whole agency (S22). */
+export const AI_AGENCY_FEATURE_KEYS: readonly AiFeatureKey[] = AI_FEATURE_KEYS.filter(
+  (key) => AI_FEATURES[key].audience === 'agency',
+);
 
 export function isAiFeatureKey(value: string): value is AiFeatureKey {
   return Object.hasOwn(AI_FEATURES, value);

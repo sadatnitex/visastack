@@ -17,6 +17,7 @@ import {
 import { and, desc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { type StaffScope, SystemScope, staffScopeProblem } from './access/principal';
 import { AuthorizedApplicant } from './access/require-access';
+import { agencyAiAvailable } from './agency-ai-ready';
 import { aiFilesAvailable } from './ai-files-ready';
 import { isAiDispatchAllowed } from './ai-provider-config';
 import { aiSuggestionsAvailable } from './ai-suggestions';
@@ -70,6 +71,12 @@ export interface AiOwnerContext {
 }
 const OWNER_CONTEXTS = new WeakSet<object>();
 
+/** Made only by `aiOrganizationContext`; the module keeps the genuine ones (S22). */
+export interface AiOrganizationContext {
+  readonly organizationId: string;
+}
+const ORGANIZATION_CONTEXTS = new WeakSet<object>();
+
 /**
  * Who is asking:
  * - `proof`: a person's record, through the access gate; the record owner's plan and count apply;
@@ -77,15 +84,18 @@ const OWNER_CONTEXTS = new WeakSet<object>();
  * - `system`: the automatic reading job, for the owner of the file it is reading;
  * - `owner`: a service that has itself shown the account owns the record (`aiOwnerContext`, not
  *   exported from the services index, so the web app cannot make one);
- * - `agency`: an organization member's proof; the agency's plan and count apply (S22 wires the
- *   callers; agency plans carry no AI rows yet, so the registry default applies).
+ * - `agency`: an organization member's proof; the agency's plan and count apply;
+ * - `organization`: an agency a service has itself shown the caller acts for, with a live owner or
+ *   admin membership (`aiOrganizationContext`, not exported from the services index; S22's agency
+ *   AI gate and settings). The agency's plan (`ai.<feature>` rows, S22) and count apply.
  */
 export type AiFeatureContext =
   | { readonly proof: AuthorizedApplicant<PermissionAction> }
   | { readonly staff: StaffScope<'AI_FEATURES_MANAGE'> }
   | { readonly system: SystemScope<'process-ai-reading'>; readonly accountId: string }
   | { readonly owner: AiOwnerContext }
-  | { readonly agency: AuthorizedApplicant<PermissionAction> };
+  | { readonly agency: AuthorizedApplicant<PermissionAction> }
+  | { readonly organization: AiOrganizationContext };
 
 /**
  * The context of an account a service has already shown owns the record it works on (for example
@@ -95,6 +105,18 @@ export function aiOwnerContext(accountId: string): { readonly owner: AiOwnerCont
   const owner: AiOwnerContext = Object.freeze({ accountId });
   OWNER_CONTEXTS.add(owner);
   return { owner };
+}
+
+/**
+ * The context of an agency a service has already shown the caller acts for (S22: a live owner or
+ * admin membership of an active agency). For services only: never exported from the services index.
+ */
+export function aiOrganizationContext(organizationId: string): {
+  readonly organization: AiOrganizationContext;
+} {
+  const organization: AiOrganizationContext = Object.freeze({ organizationId });
+  ORGANIZATION_CONTEXTS.add(organization);
+  return { organization };
 }
 
 /** Whose use is counted and whose plan applies. */
@@ -113,6 +135,7 @@ const FEATURE_READY: Readonly<Record<AiFeatureKey, (db: Db) => Promise<boolean>>
   ai_app_access: always,
   ai_app_suggestions: aiSuggestionsAvailable,
   ai_app_original_files: aiFilesAvailable,
+  ai_agency_tools: agencyAiAvailable,
 };
 
 /**
@@ -165,16 +188,17 @@ export interface AiPlanEntitlement {
  * The AI features a plan includes (S29): read through the one entitlement resolver, so the
  * platform owner sets them on the Plans page. A traveller is on Traveller Free today, which is also
  * the floor everyone keeps; a feature the plan has no row for uses the registry's `planDefault`.
- * An agency's plan carries no AI rules yet (the resolver answers "not applicable"), so the
- * registry default applies until S22 adds them. The caller already passed the access gate; this
- * only decides how much.
+ * An agency's plan decides the agency AI features (S22, Agency AI Tools: its `ai.<feature>` row,
+ * else the registry default); the traveller features keep the registry default for an agency. The
+ * caller already passed the access gate; this only decides how much.
  */
 export async function aiEntitlementFor(
   db: Db,
   subject: EntitlementSubject,
 ): Promise<AiPlanEntitlement> {
   const resolved = await resolveEntitlements(db, subject);
-  return { tier: 'FREE', features: resolved.features ?? AI_PLAN_TIERS.FREE };
+  if (resolved.features) return { tier: 'FREE', features: resolved.features };
+  return { tier: 'FREE', features: { ...AI_PLAN_TIERS.FREE, ...resolved.agencyFeatures } };
 }
 
 interface SavedSetting {
@@ -253,6 +277,11 @@ function contextSubject(context: AiFeatureContext): AiSubject | null | undefined
   if ('owner' in context) {
     return OWNER_CONTEXTS.has(context.owner)
       ? { kind: 'account', id: context.owner.accountId }
+      : undefined;
+  }
+  if ('organization' in context) {
+    return ORGANIZATION_CONTEXTS.has(context.organization)
+      ? { kind: 'organization', id: context.organization.organizationId }
       : undefined;
   }
   return staffScopeProblem(context.staff, 'AI_FEATURES_MANAGE') ? undefined : null;
@@ -388,7 +417,10 @@ async function resolveStates(
     // Each readiness probe caches a "yes" per database handle, so asking again is free.
     else if (!(await FEATURE_READY[feature](db))) state = off(feature, 'not_available_yet');
     else if (!setting.enabled) state = off(feature, 'turned_off', dailyLimit);
-    else if (!entitlement.included) state = off(feature, 'not_in_plan', dailyLimit);
+    // An agency feature works only for an agency (S22): never for a person's own plan or count.
+    else if (AI_FEATURES[feature].audience === 'agency' && subject?.kind !== 'organization') {
+      state = off(feature, 'not_in_plan', dailyLimit);
+    } else if (!entitlement.included) state = off(feature, 'not_in_plan', dailyLimit);
     else if (
       checksLimit &&
       options.alreadyCounted !== true &&

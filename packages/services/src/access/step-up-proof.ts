@@ -138,6 +138,8 @@ export async function stepUpFromAiConnection(
     );
     if (
       !row ||
+      // An agency connection (S22) names no record and never shows full numbers.
+      row.applicantId === null ||
       !row.revealIdentifiers ||
       !row.activatedAt ||
       row.revokedAt ||

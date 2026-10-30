@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 import type {
+  AgencyAiGateway,
   AiCallRecord,
   AiContextGateway,
   AiFileGateway,
@@ -139,6 +140,19 @@ export const MESSAGES = {
     'AI apps cannot read VisaStack right now: this AI feature is turned off. Everything else works as usual, and the person can still use VisaStack directly.',
   accessLimit:
     'The person has reached today’s limit of requests from AI apps. It starts again at 6 AM Bangladesh time. They can still use VisaStack directly.',
+  // Agency AI connections (S22).
+  agencyOff:
+    'This agency’s AI tools are not available right now. An agency owner or admin can check AI Connections for This Agency in VisaStack. Everything else works as usual.',
+  agencyLimit:
+    'This agency has reached today’s limit of requests from AI apps. It starts again at 6 AM Bangladesh time. Staff can still use VisaStack directly.',
+  agencyCaseRequired:
+    'Name one case by its reference, for example C-7K2Q9M. Use list_cases to see the cases you can read.',
+  agencyCaseNotShared:
+    'That case is not open to this agency’s AI tools. Use list_cases to see the cases you can read. Each traveller decides whether the agency’s AI tools may read what they share.',
+  agencyNotShared:
+    'The traveller has not shared this with the agency, so the agency’s AI tools cannot read it.',
+  agencyNoText:
+    'There is no text this agency’s AI tools can read for that document. It may not have been read yet, or the traveller has not shared it with the agency.',
 } as const;
 
 /** The plain answer to a suggestion, draft or reminder that was not saved. */
@@ -339,11 +353,29 @@ export interface AiFileToolDefinition<Input extends z.ZodObject = z.ZodObject> {
   run(gateway: AiFileGateway, input: z.infer<Input>): Promise<AiToolResult>;
 }
 
+/**
+ * One agency tool (S22): read-only, with the agency gateway, which reaches a traveller only
+ * through one case and that traveller's AI grants. Listed only to an agency connection.
+ */
+export interface AgencyAiToolDefinition<Input extends z.ZodObject = z.ZodObject> {
+  readonly name: AiKnownToolName;
+  readonly kind: 'agency';
+  readonly title: string;
+  readonly description: string;
+  readonly inputSchema: Input;
+  readonly outputSchema: z.ZodObject;
+  readonly annotations: typeof READ_ONLY_ANNOTATIONS;
+  run(gateway: AgencyAiGateway, input: z.infer<Input>): Promise<AiToolResult>;
+}
+
 /** Any tool the server lists: a read tool, the file tool or one of the three suggestion tools. */
 export type AnyAiToolDefinition =
   | AiToolDefinition
   | AiFileToolDefinition
   | AiSuggestionToolDefinition;
+
+/** Any tool either kind of connection may be offered (S22 adds the agency tools). */
+export type AnyConnectorToolDefinition = AnyAiToolDefinition | AgencyAiToolDefinition;
 
 function listLength(holder: unknown, key: string): number {
   if (typeof holder !== 'object' || holder === null) return 0;

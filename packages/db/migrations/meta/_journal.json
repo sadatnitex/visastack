@@ -743,6 +743,20 @@
       "when": 1793365866650,
       "tag": "0107_plans_entitlements",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1793401988020,
+      "tag": "0108_ai_assist_permission",
+      "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1793401989020,
+      "tag": "0109_agency_ai_connections",
+      "breakpoints": true
     }
   ]
 }

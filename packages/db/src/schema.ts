@@ -4779,9 +4779,10 @@ export const aiConnections = pgTable(
     accountId: uuid('account_id')
       .notNull()
       .references(() => accounts.id, { onDelete: 'cascade' }),
-    applicantId: uuid('applicant_id')
-      .notNull()
-      .references(() => applicants.id, { onDelete: 'cascade' }),
+    // The person's own record. Null exactly for an agency connection (S22): one row in
+    // ai_connection_agencies names the agency instead, and a trigger in the migration keeps the two
+    // in step (a record, or an agency, never both and never neither).
+    applicantId: uuid('applicant_id').references(() => applicants.id, { onDelete: 'cascade' }),
     clientId: text('client_id').notNull(),
     clientName: text('client_name').notNull(),
     clientHost: text('client_host').notNull(),
@@ -4920,6 +4921,40 @@ export const aiConnectionDocuments = pgTable(
     index('ai_connection_documents_document_idx').on(table.documentId),
     check('ai_connection_documents_variant', sql`${table.variant} in ('SAFE_COPY', 'ORIGINAL')`),
   ],
+);
+
+// An agency's own AI setting (S22, ADR 0021 S22 amendment): "AI Connections for This Agency",
+// turned on by an agency owner or admin. No row means off, and so does a missing table. A separate
+// table rather than a column on organizations, because every read of an organization selects the
+// whole row and would fail before the migration runs.
+export const organizationAiSettings = pgTable('organization_ai_settings', {
+  organizationId: uuid('organization_id')
+    .primaryKey()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+  aiConnectionsEnabled: boolean('ai_connections_enabled').notNull().default(false),
+  updatedByAccountId: uuid('updated_by_account_id').references(() => accounts.id, {
+    onDelete: 'set null',
+  }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// The agency an agency AI connection speaks for (S22). One row per agency connection, beside
+// ai_connections rather than as columns on it (the whole-row reads of ai_connections, D5). The
+// connection's account is the agency owner or admin who connected it; the AI gate reads this row
+// again on every call. A trigger in the migration makes ai_connections.applicant_id null exactly
+// when this row exists.
+export const aiConnectionAgencies = pgTable(
+  'ai_connection_agencies',
+  {
+    connectionId: uuid('connection_id')
+      .primaryKey()
+      .references(() => aiConnections.id, { onDelete: 'cascade' }),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('ai_connection_agencies_organization_idx').on(table.organizationId)],
 );
 
 // The platform owner's switch and daily limit for each AI feature (S21 framework, ADR 0021

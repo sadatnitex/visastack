@@ -2123,3 +2123,43 @@ export {
 export type { PaymentPortResolver } from './ports';
 export type { PaymentProviderReason } from './errors';
 export type { RefundGatewayView } from './refunds';
+// S22: agency AI connectors (ADR 0021 S22 amendment). The scope, the member standing, the
+// organization feature context and the code issuer stay inside the services.
+export { agencyAiAvailable, aiAssistAvailable } from './agency-ai-ready';
+export {
+  AGENCY_AI_CONNECTION_MAX_MS,
+  AGENCY_AI_ROLES,
+  type AgencyAiStandingRefusal,
+} from './access/agency-ai-scope';
+export {
+  AGENCY_AI_CONNECTION_DURATIONS,
+  AGENCY_AI_DEFAULT_DURATION,
+  type AgencyAiConnectionDuration,
+  type AgencyAiConnectionList,
+  type AgencyAiConnectionSummary,
+  type CreateAgencyAiRefusal,
+  createAgencyAiConnection,
+  isAgencyAiConnectionDuration,
+  listAgencyAiConnections,
+  turnOffAgencyAiConnection,
+} from './access/agency-ai-connections';
+export {
+  type OrganizationAiSetting,
+  getOrganizationAiSetting,
+  setOrganizationAiSetting,
+} from './organization-ai-settings';
+export {
+  GRANT_AI_ASSIST_STEP_UP_ACTION,
+  type GrantAiAssistRefusal,
+  grantAllowsAiAssist,
+  setGrantAiAssist,
+} from './grant-ai-assist';
+export {
+  type AgencyAiCaseView,
+  type AgencyAiGateway,
+  type AgencyAiGrantedScope,
+  type AgencyAiNarrowing,
+  withAgencyAiConnection,
+} from './access/with-ai-connection';
+export { AGENCY_AI_TOOLS, aiToolsFor } from './ai-tools';
+export type { AgencyAiToolDefinition, AnyConnectorToolDefinition } from './ai-tools/result';

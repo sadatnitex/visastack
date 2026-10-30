@@ -2,6 +2,7 @@ import {
   type AiAdmission,
   type AiFileDeps,
   type AiGateRequest,
+  withAgencyAiConnection,
   withAiConnection,
   withAiFileConnection,
   withAiSuggestionConnection,
@@ -9,6 +10,7 @@ import {
 import type { Db } from '../db';
 import type { KeyManagementPort } from '../ports';
 import { addReminder } from './add-reminder';
+import { AGENCY_AI_TOOLS } from './agency-tools';
 import { getDocumentFile } from './get-document-file';
 import { getDocumentText } from './get-document-text';
 import { getProfileSection } from './get-profile-section';
@@ -16,8 +18,10 @@ import { listCases } from './list-cases';
 import { listDocuments } from './list-documents';
 import { prepareContext } from './prepare-context';
 import {
+  type AgencyAiToolDefinition,
   type AiToolResult,
   type AnyAiToolDefinition,
+  type AnyConnectorToolDefinition,
   MESSAGES,
   describeResult,
   refusal,
@@ -46,6 +50,19 @@ export const AI_TOOLS = [
 
 export type AiToolName = (typeof AI_TOOLS)[number]['name'];
 
+/**
+ * The tools an agency connection is offered (S22): four read-only tools through the agency gate.
+ * Never listed to a person's own connection, and the person's tools are never listed to an agency.
+ */
+export { AGENCY_AI_TOOLS };
+
+/** The tools a connection of this kind is offered. */
+export function aiToolsFor(kind: 'OWNER' | 'AGENCY'): readonly AnyConnectorToolDefinition[] {
+  return kind === 'AGENCY'
+    ? (AGENCY_AI_TOOLS as readonly AgencyAiToolDefinition[])
+    : (AI_TOOLS as readonly AnyAiToolDefinition[]);
+}
+
 export interface RunAiToolInput {
   readonly token: string;
   readonly resource: string;
@@ -71,7 +88,7 @@ export type AiToolOutcome =
  * Runs one tool for the connection behind the token, with input the MCP layer already checked
  * against the tool's input schema. Never throws.
  */
-export async function runAiTool<Tool extends AnyAiToolDefinition>(
+export async function runAiTool<Tool extends AnyConnectorToolDefinition>(
   db: Db,
   tool: Tool,
   input: Parameters<Tool['run']>[1],
@@ -88,33 +105,52 @@ export async function runAiTool<Tool extends AnyAiToolDefinition>(
       ...(request.now ? { now: request.now } : {}),
     };
     const outcome =
-      tool.kind === 'suggestion'
-        ? await withAiSuggestionConnection(
+      tool.kind === 'agency'
+        ? await withAgencyAiConnection(
             db,
             gate,
             (gateway) => tool.run(gateway, input as never),
             describeResult,
           )
-        : tool.kind === 'file'
-          ? await withAiFileConnection(
+        : tool.kind === 'suggestion'
+          ? await withAiSuggestionConnection(
               db,
               gate,
               (gateway) => tool.run(gateway, input as never),
               describeResult,
             )
-          : await withAiConnection(
-              db,
-              gate,
-              (gateway) => tool.run(gateway, input as never),
-              describeResult,
-            );
+          : tool.kind === 'file'
+            ? await withAiFileConnection(
+                db,
+                gate,
+                (gateway) => tool.run(gateway, input as never),
+                describeResult,
+              )
+            : await withAiConnection(
+                db,
+                gate,
+                (gateway) => tool.run(gateway, input as never),
+                describeResult,
+              );
     if (!outcome.ok) {
+      // An agency whose AI tools are paused (S22): the connection is still good, no new sign-in.
+      if (outcome.error.kind === 'agency_off') {
+        return { kind: 'answered', result: refusal(MESSAGES.agencyOff) };
+      }
       // AI App Access off or used up (S28): the connection is still good, so no new sign-in.
       if (outcome.error.kind === 'feature_off') {
+        const agency = tool.kind === 'agency';
+        const limit = outcome.error.reason === 'access_limit';
         return {
           kind: 'answered',
           result: refusal(
-            outcome.error.reason === 'access_limit' ? MESSAGES.accessLimit : MESSAGES.accessOff,
+            agency
+              ? limit
+                ? MESSAGES.agencyLimit
+                : MESSAGES.agencyOff
+              : limit
+                ? MESSAGES.accessLimit
+                : MESSAGES.accessOff,
           ),
         };
       }
@@ -130,8 +166,10 @@ export {
   AI_RESPONSE_LIMIT_BYTES,
   MESSAGES as AI_TOOL_MESSAGES,
   SUGGESTION_ANNOTATIONS,
+  type AgencyAiToolDefinition,
   type AiFileToolDefinition,
   type AnyAiToolDefinition,
+  type AnyConnectorToolDefinition,
   type AiSuggestionToolDefinition,
   type AiToolDefinition,
   type AiToolResult,

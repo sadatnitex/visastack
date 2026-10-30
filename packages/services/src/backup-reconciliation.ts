@@ -1,5 +1,5 @@
 import { CONSENT_TYPES, type ConsentType, isOk } from '@visastack/core';
-import { and, asc, eq, gt, inArray, isNull, ne } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { AI_CONNECTION_REVOKED_REASON } from './access/ai-connection-manage';
 import { caseExclusionsTablePresent } from './access/grant-scope';
 import { aiFilesAvailable } from './ai-files-ready';
@@ -97,6 +97,8 @@ const RECONCILED_EVENT_TYPES = [
   'AI_CONNECTION_CHANGED',
   'DOCUMENT_REDACTION_SAVED',
   'DOCUMENT_REDACTION_CLEARED',
+  'GRANT_AI_ASSIST_CHANGED',
+  'ORGANIZATION_AI_SETTING_UPDATED',
 ] as const;
 
 type ReconciledEventType = (typeof RECONCILED_EVENT_TYPES)[number];
@@ -122,6 +124,10 @@ export interface ReconciliationCounts {
   readonly aiConnectionsNarrowed: number;
   /** Document versions whose safe copy boxes were set back to the pre-incident branch's (S23). */
   readonly redactionMasksReconciled: number;
+  /** Agency grants whose AI tools the traveller turned off after the restore point, again (S22). */
+  readonly aiAssistRemoved: number;
+  /** Agencies that turned their AI connections off after the restore point, again (S22). */
+  readonly agencyAiSettingsOff: number;
 }
 
 export interface ReconciliationError {
@@ -292,6 +298,52 @@ async function forceAiConnectionRevoked(
   }
 }
 
+/** A boolean in an audit record's metadata, or undefined. */
+function metadataFlag(metadata: unknown, key: string): boolean | undefined {
+  if (typeof metadata !== 'object' || metadata === null) return undefined;
+  const value = Reflect.get(metadata, key);
+  return typeof value === 'boolean' ? value : undefined;
+}
+
+/**
+ * S22: a traveller turned an agency's AI tools off after the restore point; the restored grant
+ * loses `AI_ASSIST` again. Compared as text, so a branch from before migration 0108 (which cannot
+ * hold the permission at all) is left as it is.
+ */
+async function forceAiAssistRemoved(newDb: Db, grantId: string): Promise<boolean> {
+  const rows = await newDb
+    .update(schema.grants)
+    .set({
+      actions: sql`array_remove(${schema.grants.actions}::text[], 'AI_ASSIST')::permission_action[]`,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(eq(schema.grants.id, grantId), sql`'AI_ASSIST' = any(${schema.grants.actions}::text[])`),
+    )
+    .returning({ id: schema.grants.id });
+  return rows.length > 0;
+}
+
+/** S22: an agency turned its AI connections off after the restore point; off again. */
+async function forceAgencyAiSettingOff(newDb: Db, organizationId: string): Promise<boolean> {
+  try {
+    const rows = await newDb
+      .update(schema.organizationAiSettings)
+      .set({ aiConnectionsEnabled: false, updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.organizationAiSettings.organizationId, organizationId),
+          eq(schema.organizationAiSettings.aiConnectionsEnabled, true),
+        ),
+      )
+      .returning({ id: schema.organizationAiSettings.organizationId });
+    return rows.length > 0;
+  } catch (error) {
+    if (isMissingRelationError(error)) return false;
+    throw error;
+  }
+}
+
 type AiConnectionRow = typeof schema.aiConnections.$inferSelect;
 
 /** The earlier of two ends; `null` is "until turned off", which is later than any date. */
@@ -367,7 +419,10 @@ async function forceAiConnectionNarrowed(
           .limit(1)
           .for('update'),
       );
-      if (!restored) return false;
+      // An agency connection (S22) has no record and no choices to narrow; turning it off is the
+      // only change it gets, reconciled with AI_CONNECTION_REVOKED.
+      if (!restored || restored.applicantId === null) return false;
+      const restoredRecord = restored.applicantId;
       const now = new Date();
       const narrowestCases = narrowerCases(restored, source);
       let cases: Pick<AiConnectionRow, 'caseMode' | 'missionId'> = narrowestCases;
@@ -379,7 +434,7 @@ async function forceAiConnectionNarrowed(
             .where(
               and(
                 eq(schema.missions.id, narrowestCases.missionId),
-                eq(schema.missions.applicantId, restored.applicantId),
+                eq(schema.missions.applicantId, restoredRecord),
               ),
             )
             .limit(1),
@@ -996,6 +1051,8 @@ const EVENT_META: Readonly<
   AI_CONNECTION_CHANGED: { counter: 'aiConnectionsNarrowed', resourceType: 'ai_connection' },
   DOCUMENT_REDACTION_SAVED: { counter: 'redactionMasksReconciled', resourceType: 'document' },
   DOCUMENT_REDACTION_CLEARED: { counter: 'redactionMasksReconciled', resourceType: 'document' },
+  GRANT_AI_ASSIST_CHANGED: { counter: 'aiAssistRemoved', resourceType: 'grant' },
+  ORGANIZATION_AI_SETTING_UPDATED: { counter: 'agencyAiSettingsOff', resourceType: 'organization' },
 };
 
 async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<boolean> {
@@ -1035,6 +1092,15 @@ async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<b
     case 'DOCUMENT_REDACTION_SAVED':
     case 'DOCUMENT_REDACTION_CLEARED':
       return forceRedactionMasks(oldDb, newDb, event.metadata);
+    case 'GRANT_AI_ASSIST_CHANGED':
+      // Only a "turned off" narrows; a later "turned on" is the traveller's to make again.
+      return metadataFlag(event.metadata, 'allowed') === false
+        ? forceAiAssistRemoved(newDb, resourceId)
+        : false;
+    case 'ORGANIZATION_AI_SETTING_UPDATED':
+      return metadataFlag(event.metadata, 'after') === false
+        ? forceAgencyAiSettingOff(newDb, resourceId)
+        : false;
     default:
       return false;
   }
@@ -1073,6 +1139,8 @@ export async function reconcileRestoredBranch(
     aiConnectionsRevoked: 0,
     aiConnectionsNarrowed: 0,
     redactionMasksReconciled: 0,
+    aiAssistRemoved: 0,
+    agencyAiSettingsOff: 0,
   };
   const errors: ReconciliationError[] = [];
   const mutableCounts = counts as {
