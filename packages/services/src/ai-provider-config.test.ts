@@ -1438,3 +1438,32 @@ describe('AI provider configuration -- what editing and revoking protect', () =>
     expect(isOk(after) && after.value.keyRevokedAt).not.toBeNull();
   });
 });
+
+describe('AI provider configuration -- the model must be an exact model ID', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('refuses a display name or anything that is not a model ID, on create and on edit, and accepts real IDs', async () => {
+    const actor = await seedSecurityAdmin(db);
+    for (const model of ['Claude 5.5', 'claude opus', 'models/gemini', 'x'.repeat(101)]) {
+      const created = await createDraftAiProviderConfig(db, { ...draftInput(actor), model });
+      expect(isErr(created) && created.error.message).toContain('exact model ID');
+    }
+    for (const model of [
+      'claude-opus-5-5',
+      'gemini-3.8-flash',
+      'gpt-5.6-terra',
+      'ft:gpt-5:org:x',
+    ]) {
+      expect(isOk(await createDraftAiProviderConfig(db, { ...draftInput(actor), model }))).toBe(
+        true,
+      );
+    }
+    const draft = await createDraftAiProviderConfig(db, draftInput(actor));
+    if (!isOk(draft)) throw new Error('draft');
+    const edited = await editDraft(db, actor, editInput(draft.value.id, { model: 'Claude 5.5' }));
+    expect(isErr(edited) && edited.error.message).toContain('exact model ID');
+  });
+});

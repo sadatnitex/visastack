@@ -49,6 +49,13 @@ function fingerprintApiKey(apiKey: string): string {
 
 const LOCK_SQL = sql`select pg_advisory_xact_lock(hashtext('visastack:ai-provider-config'))`;
 
+/**
+ * A provider's model ID: letters, digits and `. _ : @ -`, no spaces or slashes, at most 100
+ * characters. Catches a display name ("Claude 5.5") before it is saved, instead of a 404 from the
+ * provider at Test Connection, and keeps the ID safe to place in a request path (Gemini does).
+ */
+const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,99}$/;
+
 /** The settings checks a draft must pass whether it is being created or edited. */
 function draftSettingsProblem(input: {
   readonly model: string;
@@ -56,7 +63,14 @@ function draftSettingsProblem(input: {
   readonly fallbackEnabled?: boolean;
   readonly fallbackProviderConfigId?: string;
 }): ServiceError | undefined {
-  if (input.model.trim().length === 0) return serviceError('invalid', 'a model is required');
+  const model = input.model.trim();
+  if (model.length === 0) return serviceError('invalid', 'a model is required');
+  if (!MODEL_ID.test(model)) {
+    return serviceError(
+      'invalid',
+      "the model must be the provider's exact model ID, such as claude-opus-5-5, not its display name",
+    );
+  }
   if (!(input.budgetLimitUnits > 0)) {
     return serviceError('invalid', 'a positive budget limit is required');
   }

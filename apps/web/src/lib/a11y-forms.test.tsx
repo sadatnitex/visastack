@@ -1482,6 +1482,10 @@ const ADMIN: readonly Case[] = [
     const config = aiConfigView({ id: rowId() });
     return <aiSettings.EditConfigForm config={config} fallbackOptions={[config]} />;
   }),
+  row('edit an AI draft whose model is not in the list', () => {
+    const config = aiConfigView({ id: rowId(), model: 'claude-future-9' });
+    return <aiSettings.EditConfigForm config={config} fallbackOptions={[config]} />;
+  }),
   row('edit an active AI configuration as a new draft', () => {
     const config = aiConfigView({
       id: rowId(),

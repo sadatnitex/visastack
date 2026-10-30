@@ -1,8 +1,9 @@
 'use client';
 
 import type { AiProviderConfig } from '@visastack/services';
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { OTHER_MODEL, aiModelOptionsFor } from '../../../../lib/ai-models';
 import { aiConfigStatusLabel, aiProviderLabel } from '../../../../lib/labels';
 import {
   type ActionState,
@@ -102,13 +103,85 @@ const KEY_PLACEHOLDER: Record<KeyMode, string> = {
  * same "loose at save time, hard-gated at activation" discipline every
  * other field on this form already follows.
  */
+/**
+ * The model, chosen from the provider's listed model IDs (`lib/ai-models.ts`), or typed under
+ * "Other Model ID" for one not listed yet. A saved model that is not listed opens on "Other" with
+ * its ID filled in. Sends `modelChoice`, and `modelOther` when "Other" is chosen.
+ */
+function ModelPicker({
+  idPrefix,
+  provider,
+  savedModel,
+}: {
+  readonly idPrefix: string;
+  readonly provider: string;
+  readonly savedModel?: string;
+}) {
+  const id = (name: string) => `${idPrefix}-${name}`;
+  const options = aiModelOptionsFor(provider);
+  const savedIsListed = savedModel !== undefined && options.some((o) => o.id === savedModel);
+  const [choice, setChoice] = useState(
+    savedModel === undefined
+      ? (options[0]?.id ?? OTHER_MODEL)
+      : savedIsListed
+        ? savedModel
+        : OTHER_MODEL,
+  );
+  return (
+    <>
+      <div className="field-row">
+        <label className="field-label" htmlFor={id('model')}>
+          Model
+        </label>
+        <select
+          id={id('model')}
+          name="modelChoice"
+          className="input"
+          value={choice}
+          onChange={(e) => setChoice(e.target.value)}
+        >
+          {options.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.label} ({o.id})
+            </option>
+          ))}
+          <option value={OTHER_MODEL}>Other Model ID</option>
+        </select>
+      </div>
+      {choice === OTHER_MODEL ? (
+        <div className="field-row">
+          <label className="field-label" htmlFor={id('modelOther')}>
+            Model ID
+          </label>
+          <input
+            id={id('modelOther')}
+            name="modelOther"
+            type="text"
+            required
+            className="input"
+            placeholder="e.g. claude-opus-5-5"
+            pattern="[A-Za-z0-9][A-Za-z0-9._:@\-]{0,99}"
+            defaultValue={savedIsListed ? undefined : savedModel}
+            aria-describedby={id('modelOther-hint')}
+          />
+          <p id={id('modelOther-hint')} className="field-hint">
+            The provider&rsquo;s exact model ID, with no spaces, not its display name.
+          </p>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 function ConfigSettingsFields({
   idPrefix,
+  provider,
   fallbackOptions,
   config,
   keyMode,
 }: {
   readonly idPrefix: string;
+  readonly provider: string;
   readonly fallbackOptions: readonly FallbackOption[];
   readonly config?: ConfigFormView;
   readonly keyMode: KeyMode;
@@ -118,24 +191,13 @@ function ConfigSettingsFields({
     value === null || value === undefined ? undefined : Number(value.toFixed(2));
   return (
     <>
-      <div className="field-row">
-        <label className="field-label" htmlFor={id('model')}>
-          Model
-        </label>
-        <input
-          id={id('model')}
-          name="model"
-          type="text"
-          required
-          className="input"
-          placeholder="e.g. gpt-5 or claude-opus-5-5"
-          defaultValue={config?.model}
-          aria-describedby={id('model-hint')}
-        />
-        <p id={id('model-hint')} className="field-hint">
-          The exact model ID from the provider, such as claude-opus-5-5, not its display name.
-        </p>
-      </div>
+      <ModelPicker
+        // A new provider starts its own list from the top.
+        key={provider}
+        idPrefix={idPrefix}
+        provider={provider}
+        {...(config ? { savedModel: config.model } : {})}
+      />
       <div className="field-row">
         <label className="field-label" htmlFor={id('reasoningEffort')}>
           Reasoning Effort
@@ -340,6 +402,7 @@ export function CreateDraftConfigForm({
   readonly fallbackOptions: readonly FallbackOption[];
 }) {
   const [state, formAction, pending] = useActionState(createDraftAiProviderConfigAction, INITIAL);
+  const [provider, setProvider] = useState('openai');
   return (
     <form action={formAction} className="field-list">
       <div className="field-row">
@@ -351,7 +414,8 @@ export function CreateDraftConfigForm({
           name="provider"
           required
           className="input"
-          defaultValue="openai"
+          value={provider}
+          onChange={(e) => setProvider(e.target.value)}
         >
           {PROVIDER_OPTIONS.map((p) => (
             <option key={p.value} value={p.value}>
@@ -360,7 +424,12 @@ export function CreateDraftConfigForm({
           ))}
         </select>
       </div>
-      <ConfigSettingsFields idPrefix="draft" fallbackOptions={fallbackOptions} keyMode="required" />
+      <ConfigSettingsFields
+        idPrefix="draft"
+        provider={provider}
+        fallbackOptions={fallbackOptions}
+        keyMode="required"
+      />
       <TermsFields idPrefix="draft" optional />
       <div>
         <SubmitButton
@@ -416,6 +485,7 @@ export function EditConfigForm({
       </div>
       <ConfigSettingsFields
         idPrefix={`edit-${config.id}`}
+        provider={config.provider}
         fallbackOptions={fallbackOptions}
         config={config}
         keyMode={keyMode}

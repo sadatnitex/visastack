@@ -6525,3 +6525,12 @@ Owner report: an Anthropic configuration on `claude-opus-5-5` failed Test Connec
 - Not verified here: a live call to Anthropic (no key in this environment). The owner's Test Connection and Run Evaluation on a 5.5 model are the live check.
 - CodeQL on the pull request (one high alert, "password hash with insufficient computational effort", `packages/db/src/audit.ts:31`): the delete audit record carried the masked key fingerprint, and the audit chain hashes every record's metadata. The record now holds only the provider and model; the test pins that exact metadata. CI on the commit before the fix: every required check passed.
 - Accessibility review follow-up: each card's Test Connection, Run Evaluation, Activate, Revoke Key and Delete Draft buttons now name their configuration in the accessible name (`SubmitButton` label), and the Edit and Record Data Terms disclosures carry it as screen-reader text.
+
+### 2026-10-30, AI Settings: model list
+
+Owner request after #348: a model dropdown so a display name ("Claude 5.5") cannot be saved again.
+
+- The Model field is a list per provider (`apps/web/src/lib/ai-models.ts`): Anthropic's current IDs from its models table (Claude Opus 5.5 first, recommended), and for OpenAI and Gemini only the IDs this platform already runs, so no ID is guessed. "Other Model ID" takes any other exact ID, so a new model needs no code change. A saved model that is not listed opens on "Other" with its ID filled in. Changing the provider on the create form restarts the list.
+- The service refuses a model that is not an exact model ID (letters, digits and `. _ : @ -`, no spaces or slashes, at most 100 characters) on create and edit, with a plain message. Existing rows are not touched.
+- Guards: every listed ID must pass the same rule and be unique per provider, and every configurable provider must have a list; adding a display name to the list turned that test red. Picker states (listed, unlisted) are covered by render and accessibility tests.
+
