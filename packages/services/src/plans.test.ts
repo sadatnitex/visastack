@@ -222,6 +222,48 @@ describe('plans - catalog CRUD (COM-01)', () => {
     expect(events).toHaveLength(1);
   });
 
+  it('refuses a price in a currency that is not a real ISO 4217 code, and stores codes in capitals (S30)', async () => {
+    for (const currency of ['XYZ', 'TK', 'taka', '৳', '12A']) {
+      const made = await createPlan(db, {
+        actor: owner.actor,
+        stepUpSatisfied: true,
+        key: `agency_bad_${currency.length}_${currency.charCodeAt(0)}`,
+        name: 'Agency Bad Currency',
+        priceMinorUnits: 250000,
+        currency,
+      });
+      expect(isErr(made) && made.error.message, currency).toBe(
+        'currency must be a three-letter ISO 4217 code, for example BDT',
+      );
+    }
+    const made = await createPlan(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      key: 'agency_taka',
+      name: 'Agency Taka',
+      priceMinorUnits: 250000,
+      currency: ' bdt ',
+    });
+    if (!isOk(made)) throw new Error('plan');
+    expect(made.value.currency).toBe('BDT');
+    const renamed = await updatePlan(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      planId: made.value.id,
+      priceMinorUnits: 300000,
+      currency: 'XYZ',
+    });
+    expect(isErr(renamed)).toBe(true);
+    const fixed = await updatePlan(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      planId: made.value.id,
+      priceMinorUnits: 300000,
+      currency: 'usd',
+    });
+    expect(isOk(fixed) && fixed.value.currency).toBe('USD');
+  });
+
   it('updatePlan only touches fields explicitly passed, auditing before/after for each changed field', async () => {
     const pro = await getPlanByKey(db, 'agency_pro');
     if (!pro) throw new Error('seed');

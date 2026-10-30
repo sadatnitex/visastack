@@ -1,15 +1,23 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, asc, eq, ne } from 'drizzle-orm';
+import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { isActiveMember } from './agency';
 import { appendAuditEvent } from './audit';
 import {
   type BillingStatusHistoryEntry,
+  billingStatusCausePresent,
   insertBillingStatusHistory,
+  newestBillingStatusChange,
   readBillingStatusHistory,
 } from './billing-history';
-import { invoicePeriodOverlaps, lockBillingAccount, timestampSql } from './billing-standing';
+import {
+  invoiceNotRefundedSql,
+  invoicePeriodOverlaps,
+  lockBillingAccount,
+  overdueInvoices,
+  timestampSql,
+} from './billing-standing';
 import { type Db, first, isUniqueViolation, required, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, refusal, serviceError } from './errors';
 import {
   type CollectionRefusal,
   type InvoicePayment,
@@ -22,6 +30,7 @@ import {
 } from './invoice-ledger';
 import { cancelQueuedNotificationsForResource } from './notifications';
 import { isOrgAdmin } from './organizations';
+import { parseAmountForCurrency } from './payment-amounts';
 import { type PlatformAuthInput, isPlatformOwner } from './platform-roles';
 
 /**
@@ -308,6 +317,71 @@ async function canReadOrganizationBilling(
   return (await organizationBillingReader(db, input)) !== null;
 }
 
+/** What the Grace and Suspended notice needs to know (S30): never an amount. */
+export interface AgencyBillingNotice {
+  readonly status: 'GRACE' | 'SUSPENDED';
+  /** True when a person set the current status (cause MANUAL), not the overdue rules. */
+  readonly setByPerson: boolean;
+  /** True when an invoice is still owed (open or part paid, not cancelled or refunded). */
+  readonly invoiceOwed: boolean;
+  /**
+   * True when an owed invoice is past its due date by the one overdue rule (`overdueInvoices`,
+   * `daysPastDue`), the same one the daily run uses.
+   */
+  readonly invoiceOverdue: boolean;
+}
+
+/**
+ * The agency's Grace or Suspended standing for its notice, or null for any other status or no
+ * billing account. Readable by anyone who belongs to the agency (the same readers as the status
+ * itself); the notice decides what each person is told.
+ */
+export async function getAgencyBillingNotice(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly organizationId: string;
+    readonly now?: Date;
+  },
+): Promise<Result<AgencyBillingNotice | null, ServiceError>> {
+  if (!(await canReadOrganizationBilling(db, input))) {
+    return err(serviceError('forbidden', 'not an active member of this organization'));
+  }
+  const account = first(
+    await db
+      .select({ id: schema.billingAccounts.id, status: schema.billingAccounts.status })
+      .from(schema.billingAccounts)
+      .where(eq(schema.billingAccounts.organizationId, input.organizationId))
+      .limit(1),
+  );
+  if (!account || (account.status !== 'GRACE' && account.status !== 'SUSPENDED')) return ok(null);
+  // Before migration 0103 every status change was a person's.
+  const newest = (await billingStatusCausePresent(db))
+    ? await newestBillingStatusChange(db, account.id)
+    : undefined;
+  const i = schema.invoices;
+  const owed = first(
+    await db
+      .select({ id: i.id })
+      .from(i)
+      .where(
+        and(
+          eq(i.organizationId, input.organizationId),
+          inArray(i.status, ['OPEN', 'PARTIALLY_PAID']),
+          invoiceNotRefundedSql(sql`${i.id}`),
+        ),
+      )
+      .limit(1),
+  );
+  const overdue = await overdueInvoices(db, [input.organizationId], input.now ?? new Date());
+  return ok({
+    status: account.status,
+    setByPerson: newest?.cause !== 'NONPAYMENT',
+    invoiceOwed: owed !== undefined,
+    invoiceOverdue: overdue.length > 0,
+  });
+}
+
 /** An organization's billing account, or `undefined` if none has been opened yet. Active-member-readable, or platform-owner-readable for any organization. */
 export async function getBillingAccountForOrganization(
   db: Db,
@@ -373,7 +447,17 @@ export interface CreateInvoiceInput {
   readonly organizationId: string;
   readonly planId: string;
   readonly periodStart: Date;
-  readonly periodEnd: Date;
+  /**
+   * The moment the period ends, exclusive (the next period starts there): how the daily run
+   * stores every period. Give this or `periodLastDay`.
+   */
+  readonly periodEnd?: Date;
+  /**
+   * The last day of the period as a person types it (a date-only value, UTC midnight of that
+   * day). Stored as the next day, so a period's end is always exclusive (S30). Give this or
+   * `periodEnd`.
+   */
+  readonly periodLastDay?: Date;
   readonly invoiceRef: string;
   readonly invoicedAmountMinorUnits: number;
   readonly currency: string;
@@ -407,8 +491,12 @@ export async function createInvoice(
       serviceError('invalid', 'invoiced amount must be a whole number of minor units in range'),
     );
   }
-  if (input.periodEnd.getTime() <= input.periodStart.getTime()) {
-    return err(serviceError('invalid', 'periodEnd must be after periodStart'));
+  if ((input.periodEnd === undefined) === (input.periodLastDay === undefined)) {
+    return err(serviceError('invalid', 'give the end of the period once'));
+  }
+  const periodEnd = input.periodEnd ?? periodEndAfterLastDay(input.periodLastDay as Date);
+  if (periodEnd.getTime() <= input.periodStart.getTime()) {
+    return err(serviceError('invalid', 'the period must end after it starts'));
   }
 
   const org = first(
@@ -439,7 +527,7 @@ export async function createInvoice(
     return err(serviceError('invalid', 'an invoice with this reference already exists'));
   }
   try {
-    return await insertInvoice(db, input, invoiceRef, currency);
+    return await insertInvoice(db, { ...input, periodEnd }, invoiceRef, currency);
   } catch (error) {
     // Another invoice with this reference or for this period was saved an instant ago.
     if (isUniqueViolation(error)) return err(serviceError('invalid', SAME_PERIOD_MESSAGE));
@@ -450,9 +538,19 @@ export async function createInvoice(
 const SAME_PERIOD_MESSAGE =
   'an invoice with this reference, or for this plan and an overlapping period, already exists';
 
+/**
+ * The exclusive end of a period whose last day a person typed: the start of the next day, as UTC
+ * midnight (how date-only values are stored, and the same Bangladesh day).
+ */
+export function periodEndAfterLastDay(lastDay: Date): Date {
+  return new Date(
+    Date.UTC(lastDay.getUTCFullYear(), lastDay.getUTCMonth(), lastDay.getUTCDate() + 1),
+  );
+}
+
 async function insertInvoice(
   db: Db,
-  input: CreateInvoiceInput,
+  input: CreateInvoiceInput & { readonly periodEnd: Date },
   invoiceRef: string,
   currency: string,
 ): Promise<Result<Invoice, ServiceError>> {
@@ -518,12 +616,21 @@ async function insertInvoice(
   });
 }
 
+/** Why a typed payment amount was refused, as one sentence the form can tie to its amount field. */
+export const RECORD_AMOUNT_PROBLEM = 'Enter the amount received above zero, for example 2,500.00.';
+
 export interface RecordInvoicePaymentInput {
   readonly actor: PlatformAuthInput;
   readonly stepUpSatisfied: boolean;
   readonly invoiceId: string;
-  /** Added to whatever has already been collected on this invoice -- a running total, not a replacement, so multiple partial payments over time accumulate correctly. A whole number of minor units. */
-  readonly amountMinorUnits: number;
+  /** Added to whatever has already been collected on this invoice -- a running total, not a replacement, so multiple partial payments over time accumulate correctly. A whole number of minor units. Give this or `amountText`. */
+  readonly amountMinorUnits?: number;
+  /**
+   * The amount as a person typed it ("2,500.00"), read in the stored invoice's own currency (its
+   * decimal places come from the invoice row, never from the form; S30). Give this or
+   * `amountMinorUnits`.
+   */
+  readonly amountText?: string;
   readonly collectedDate: Date;
   readonly paymentReference: string;
   readonly reason: string;
@@ -550,13 +657,18 @@ export async function recordInvoicePayment(
   if (!input.stepUpSatisfied) {
     return err(serviceError('step_up_required', 'recording a payment requires reauthentication'));
   }
-  if (!Number.isFinite(input.amountMinorUnits) || input.amountMinorUnits <= 0) {
-    return err(serviceError('invalid', 'payment amount must be a positive number'));
+  if ((input.amountMinorUnits === undefined) === (input.amountText === undefined)) {
+    return err(serviceError('invalid', 'give the payment amount once'));
   }
-  if (!isValidMinorUnitAmount(input.amountMinorUnits)) {
-    return err(
-      serviceError('invalid', 'payment amount must be a whole number of minor units in range'),
-    );
+  if (input.amountMinorUnits !== undefined) {
+    if (!Number.isFinite(input.amountMinorUnits) || input.amountMinorUnits <= 0) {
+      return err(serviceError('invalid', 'payment amount must be a positive number'));
+    }
+    if (!isValidMinorUnitAmount(input.amountMinorUnits)) {
+      return err(
+        serviceError('invalid', 'payment amount must be a whole number of minor units in range'),
+      );
+    }
   }
   const paymentReference = input.paymentReference.trim();
   if (paymentReference.length === 0) {
@@ -565,7 +677,7 @@ export async function recordInvoicePayment(
   const reason = input.reason.trim();
   if (reason.length === 0) return err(serviceError('invalid', 'a reason is required'));
   if (input.currency !== undefined && !isCurrencyCode(input.currency)) {
-    return err(serviceError('invalid', 'the currency must be a three-letter code'));
+    return err(refusal('currency_invalid', 'Enter the three-letter currency code you received.'));
   }
   if (input.idempotencyKey !== undefined && !isUuid(input.idempotencyKey)) {
     return err(serviceError('invalid', 'the idempotency key must be a UUID'));
@@ -580,9 +692,16 @@ export async function recordInvoicePayment(
         .limit(1),
     );
     if (!invoice) return err(serviceError('not_found', 'invoice not found'));
+    const amountMinorUnits =
+      input.amountText !== undefined
+        ? parseAmountForCurrency(input.amountText, invoice.currency)
+        : (input.amountMinorUnits ?? null);
+    if (amountMinorUnits === null || amountMinorUnits <= 0) {
+      return err(refusal('amount_invalid', RECORD_AMOUNT_PROBLEM));
+    }
     const applied = await applyInvoiceCollection(tx, {
       invoiceId: input.invoiceId,
-      amountMinorUnits: input.amountMinorUnits,
+      amountMinorUnits,
       // Left out, the invoice's own currency is assumed (as before the ledger).
       currency: input.currency ?? invoice.currency,
       kind: 'ADMIN_RECORDED',
@@ -602,11 +721,21 @@ export async function recordInvoicePayment(
 export const REFUNDED_INVOICE_STAFF_MESSAGE =
   'This invoice has a refund, so a new payment cannot be recorded on it. Issue a new invoice for any amount still owed.';
 
-function refusalToServiceError(refusal: CollectionRefusal): ServiceError {
-  if (refusal.code === 'refunded_invoice') {
+function refusalToServiceError(collection: CollectionRefusal): ServiceError {
+  if (collection.code === 'refunded_invoice') {
     return serviceError('invalid', REFUNDED_INVOICE_STAFF_MESSAGE);
   }
-  return serviceError(refusal.code === 'not_found' ? 'not_found' : 'invalid', refusal.message);
+  // The refusals about a typed field say which one (S30), so the form can point to it.
+  if (collection.code === 'exceeds_outstanding') {
+    return refusal('amount_over_balance', collection.message);
+  }
+  if (collection.code === 'currency_mismatch') {
+    return refusal('currency_mismatch', collection.message);
+  }
+  return serviceError(
+    collection.code === 'not_found' ? 'not_found' : 'invalid',
+    collection.message,
+  );
 }
 
 export interface VoidInvoiceInput {

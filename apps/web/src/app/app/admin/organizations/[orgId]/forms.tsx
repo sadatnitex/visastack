@@ -1,7 +1,13 @@
 'use client';
 
-import { useActionState } from 'react';
-import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
+import { useActionState, useId, useRef } from 'react';
+import {
+  FormMessage,
+  SubmitButton,
+  fieldProblem,
+  useFocusInvalidField,
+} from '../../../../../components/form-feedback';
+import { billingStatusLabel } from '../../../../../lib/labels';
 import {
   type ActionState,
   activatePlanAction,
@@ -20,6 +26,17 @@ import {
 } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
+
+/** A hint id, joined with the form message's id while the problem is about this field. */
+function describedBy(
+  hintId: string,
+  problem: { 'aria-invalid'?: true; 'aria-describedby'?: string },
+): { 'aria-describedby': string; 'aria-invalid'?: true } {
+  return {
+    'aria-describedby': [hintId, problem['aria-describedby']].filter(Boolean).join(' '),
+    ...(problem['aria-invalid'] ? { 'aria-invalid': true as const } : {}),
+  };
+}
 
 function StatusMessage({ state }: { readonly state: ActionState }) {
   return <FormMessage result={state} />;
@@ -140,7 +157,7 @@ export function EndSubscriptionButton({ organizationId }: { readonly organizatio
       action={endSubscriptionAction}
       hiddenFields={{ organizationId }}
       promptText="Reason for ending this subscription?"
-      confirmedLabel="End subscription"
+      confirmedLabel="End Subscription"
       pendingLabel="Ending…"
       tone="btn-danger"
     />
@@ -228,7 +245,7 @@ export function CancelDowngradeButton({
       action={cancelScheduledDowngradeAction}
       hiddenFields={{ organizationId, downgradeId }}
       promptText="Reason for cancelling this scheduled downgrade?"
-      confirmedLabel="Cancel downgrade"
+      confirmedLabel="Cancel Downgrade"
       pendingLabel="Cancelling…"
     />
   );
@@ -296,7 +313,7 @@ export function TransitionBillingStatusForm({
           </option>
           {legalStatuses.map((s) => (
             <option key={s} value={s}>
-              {s}
+              {billingStatusLabel(s)}
             </option>
           ))}
         </select>
@@ -335,8 +352,11 @@ export function CreateInvoiceForm({
   readonly plans: readonly PlanOption[];
 }) {
   const [state, formAction, pending] = useActionState(createInvoiceAction, INITIAL);
+  const formRef = useRef<HTMLFormElement>(null);
+  const messageId = useId();
+  useFocusInvalidField(formRef, state);
   return (
-    <form action={formAction} className="field-list">
+    <form ref={formRef} action={formAction} className="field-list">
       <input type="hidden" name="organizationId" value={organizationId} />
       <div className="field-row">
         <label className="field-label" htmlFor="invoice-planId">
@@ -371,20 +391,6 @@ export function CreateInvoiceForm({
         />
       </div>
       <div className="field-row">
-        <label className="field-label" htmlFor="invoice-amount">
-          Invoiced amount (minor units, e.g. cents)
-        </label>
-        <input
-          id="invoice-amount"
-          name="invoicedAmountMinorUnits"
-          type="number"
-          min="1"
-          required
-          className="input"
-          placeholder="e.g. 150000 for $1,500.00"
-        />
-      </div>
-      <div className="field-row">
         <label className="field-label" htmlFor="invoice-currency">
           Currency
         </label>
@@ -393,10 +399,35 @@ export function CreateInvoiceForm({
           name="currency"
           type="text"
           required
+          minLength={3}
           maxLength={3}
+          autoCapitalize="characters"
           className="input"
-          placeholder="USD"
+          placeholder="BDT"
+          {...describedBy('invoice-currency-hint', fieldProblem(state, 'currency', messageId))}
         />
+        <p className="field-hint" id="invoice-currency-hint">
+          The three-letter currency code, for example BDT.
+        </p>
+      </div>
+      <div className="field-row">
+        <label className="field-label" htmlFor="invoice-amount">
+          Invoiced Amount
+        </label>
+        <input
+          id="invoice-amount"
+          name="invoicedAmount"
+          type="text"
+          inputMode="decimal"
+          autoComplete="off"
+          required
+          className="input"
+          placeholder="2,500.00"
+          {...describedBy('invoice-amount-hint', fieldProblem(state, 'invoicedAmount', messageId))}
+        />
+        <p className="field-hint" id="invoice-amount-hint">
+          In the currency above, for example 2500.00 or 2,500.00.
+        </p>
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="invoice-periodStart">
@@ -405,10 +436,16 @@ export function CreateInvoiceForm({
         <input id="invoice-periodStart" name="periodStart" type="date" required className="input" />
       </div>
       <div className="field-row">
-        <label className="field-label" htmlFor="invoice-periodEnd">
-          Period End
+        <label className="field-label" htmlFor="invoice-periodLastDay">
+          Last Day of the Period
         </label>
-        <input id="invoice-periodEnd" name="periodEnd" type="date" required className="input" />
+        <input
+          id="invoice-periodLastDay"
+          name="periodLastDay"
+          type="date"
+          required
+          className="input"
+        />
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="invoice-dueDate">
@@ -423,7 +460,7 @@ export function CreateInvoiceForm({
           busy="Creating…"
           className="btn btn-primary"
         />
-        <StatusMessage state={state} />
+        <FormMessage id={messageId} result={state} />
       </div>
     </form>
   );
@@ -444,8 +481,12 @@ export function RecordPaymentForm({
 }) {
   const [state, formAction, pending] = useActionState(recordInvoicePaymentAction, INITIAL);
   const confirmCurrency = /^[A-Za-z]{3}$/.test(currency.trim());
+  const formRef = useRef<HTMLFormElement>(null);
+  const messageId = useId();
+  useFocusInvalidField(formRef, state);
   return (
     <form
+      ref={formRef}
       action={formAction}
       className="field-list"
       style={{ maxWidth: '22rem', marginTop: '0.5rem' }}
@@ -455,17 +496,26 @@ export function RecordPaymentForm({
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       <div className="field-row">
         <label className="field-label" htmlFor={`payment-amount-${invoiceId}`}>
-          Payment Amount (Minor Units)
+          Payment Amount
         </label>
         <input
           id={`payment-amount-${invoiceId}`}
-          name="amountMinorUnits"
-          type="number"
-          min="1"
-          step="1"
+          name="amount"
+          type="text"
+          inputMode="decimal"
+          autoComplete="off"
           required
           className="input"
+          placeholder="2,500.00"
+          {...describedBy(
+            `payment-amount-hint-${invoiceId}`,
+            fieldProblem(state, 'amount', messageId),
+          )}
         />
+        <p className="field-hint" id={`payment-amount-hint-${invoiceId}`}>
+          In {currency.trim().toUpperCase() || 'the invoice currency'}, for example 2500.00 or
+          2,500.00.
+        </p>
       </div>
       {confirmCurrency ? (
         <div className="field-row">
@@ -482,6 +532,7 @@ export function RecordPaymentForm({
             autoCapitalize="characters"
             placeholder={`e.g. ${currency.trim().toUpperCase()}`}
             className="input"
+            {...fieldProblem(state, 'currency', messageId)}
           />
         </div>
       ) : null}
@@ -530,7 +581,7 @@ export function RecordPaymentForm({
           busy="Recording…"
           className="btn btn-secondary u-btn-sm"
         />
-        <StatusMessage state={state} />
+        <FormMessage id={messageId} result={state} />
       </div>
     </form>
   );
@@ -547,9 +598,9 @@ export function VoidInvoiceButton({
     <ReasonPromptButton
       action={voidInvoiceAction}
       hiddenFields={{ organizationId, invoiceId }}
-      promptText="Reason for voiding this invoice?"
-      confirmedLabel="Void"
-      pendingLabel="Voiding…"
+      promptText="Why are you cancelling this invoice? Nothing will be owed on it."
+      confirmedLabel="Cancel Invoice"
+      pendingLabel="Cancelling…"
       tone="btn-danger"
     />
   );

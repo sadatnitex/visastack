@@ -291,6 +291,39 @@ test('the live signed-in check keeps its test account secrets to main, after a d
   }
 });
 
+test('the Render fallback jobs stay off until switched on and hold only the cron secret', () => {
+  const safe =
+    "on:\n  schedule:\n    - cron: '0 3 * * *'\n  workflow_dispatch:\njobs:\n  run:\n    if: github.ref == 'refs/heads/main' && vars.CRON_HOST == 'render'\n    steps:\n      - run: call\n        env:\n          CRON_SECRET: ${{ secrets.CRON_SECRET }}\n";
+  const filename = '.github/workflows/render-cron.yml';
+  assert.equal(checkPreviewCredentials(repo({ [filename]: safe })).status, 'passed');
+  for (const bad of [
+    safe.replace(" && vars.CRON_HOST == 'render'", ''),
+    safe.replace("github.ref == 'refs/heads/main' && ", ''),
+    safe.replace('  workflow_dispatch:\n', '  pull_request:\n'),
+    safe.replace('  workflow_dispatch:\n', '  push:\n'),
+    safe.replace('secrets.CRON_SECRET', 'secrets.DATABASE_URL'),
+    `${safe}      - uses: actions/checkout@v4\n`,
+  ]) {
+    assert.equal(checkPreviewCredentials(repo({ [filename]: bad })).status, 'failed');
+  }
+});
+
+test('the Render image is built by hand from main and holds only the deploy hook', () => {
+  const safe =
+    "on:\n  workflow_dispatch:\njobs:\n  image:\n    if: github.ref == 'refs/heads/main'\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          persist-credentials: false\n      - run: hook\n        env:\n          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}\n";
+  const filename = '.github/workflows/render-image.yml';
+  assert.equal(checkPreviewCredentials(repo({ [filename]: safe })).status, 'passed');
+  for (const bad of [
+    safe.replace("    if: github.ref == 'refs/heads/main'\n", ''),
+    safe.replace('          persist-credentials: false\n', ''),
+    safe.replace('  workflow_dispatch:\n', '  push:\n'),
+    safe.replace('  workflow_dispatch:\n', '  pull_request:\n'),
+    safe.replace('secrets.RENDER_DEPLOY_HOOK_URL', 'secrets.CRON_SECRET'),
+  ]) {
+    assert.equal(checkPreviewCredentials(repo({ [filename]: bad })).status, 'failed');
+  }
+});
+
 test('Neon credentialed acceptance requires reviewed manual main code and staging proof', () => {
   const safe =
     "on:\n  workflow_dispatch: {}\njobs:\n  routes:\n    if: github.ref == 'refs/heads/main'\n    env:\n      STAGING_VERCEL_TOKEN: ${{ secrets.STAGING_VERCEL_TOKEN }}\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          persist-credentials: false\n      - run: node scripts/check-staging-target.mjs\n";

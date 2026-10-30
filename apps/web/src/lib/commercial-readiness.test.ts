@@ -57,6 +57,7 @@ const deferEnv = (key: string) =>
 
 const ENV_KEYS = [
   'VERCEL_ENV',
+  'HOSTING_PLATFORM',
   'NEON_AUTH_BASE_URL',
   'NEON_AUTH_COOKIE_SECRET',
   'BLOB_READ_WRITE_TOKEN',
@@ -262,6 +263,17 @@ describe('evaluateCommercialReadiness', () => {
       expect((await gateOf('realMalwareScanner', { scannerEvidenceFresh: true }))?.satisfied).toBe(
         false,
       );
+    });
+
+    it('is satisfied on the Render fallback production site, and hosting stays unsatisfied there', async () => {
+      runner();
+      unsetEnv('VERCEL_ENV');
+      setEnv('HOSTING_PLATFORM', 'render');
+      expect((await gateOf('realMalwareScanner', { scannerEvidenceFresh: true }))?.satisfied).toBe(
+        true,
+      );
+      // A free fallback host is not commercial hosting: that gate still asks for Vercel production.
+      expect((await gateOf('hosting'))?.satisfied).toBe(false);
     });
 
     it('ignores the runner proof when the scanner chosen is the built-in structural one', async () => {

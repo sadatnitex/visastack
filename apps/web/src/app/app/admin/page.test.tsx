@@ -71,6 +71,7 @@ const readiness = {
   db: { connected: true, schemaApplied: true },
   migrations: { checked: true, applied: 83, expected: 84, pending: ['0083_example'] },
   providers: { valid: true },
+  hosting: { ready: true },
   capabilities: { signedBlobStorage: true, asyncIntakeSweep: false },
 };
 

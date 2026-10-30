@@ -60,7 +60,7 @@ describe('Platform > Billing Rules', () => {
       'Paying in full ends a Grace or Suspended status that VisaStack set. A status a person set is never changed automatically.',
     );
     expect(text).toContain(
-      'With the saved day counts: Turning this on today moves 1 agency to Grace and 0 agencies to Suspended.',
+      'With the saved day counts, turning this on today moves 1 agency to Grace and 0 agencies to Suspended.',
     );
     expect(text).toContain('a traveller who shares records with it also cannot add new files');
     expect(mocks.staffPrincipal.mock.calls[0]?.[2]).toBe('BILLING_SETTINGS_MANAGE');

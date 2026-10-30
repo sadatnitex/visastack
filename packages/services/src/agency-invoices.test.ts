@@ -710,6 +710,25 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
     return submitted.value;
   }
 
+  it("reads a typed claim amount in the invoice's own stored currency (S30)", async () => {
+    const yen = await openInvoice(org.organizationId, 'INV-CLAIM-JPY', 10000, 'JPY');
+    // "2,500" is 2500 yen: the decimal places come from the stored invoice, not from a form.
+    const sent = await submit(yen, { amountMinorUnits: undefined, amountText: '2,500' });
+    expect(isOk(sent) && sent.value.amountMinorUnits).toBe(2500);
+    const taka = await openInvoice(org.organizationId, 'INV-CLAIM-BDT', 100000);
+    const bad = await submit(taka, { amountMinorUnits: undefined, amountText: '12.505' });
+    expect(isErr(bad) && bad.error.reason).toBe('amount_invalid');
+    const over = await submit(taka, { amountMinorUnits: undefined, amountText: '1,000.01' });
+    expect(isErr(over) && over.error.reason).toBe('amount_over_balance');
+    // A currency named by the form that is not the invoice's is refused with its own reason.
+    const mismatch = await submit(taka, {
+      amountMinorUnits: undefined,
+      amountText: '10.00',
+      currency: 'USD',
+    });
+    expect(isErr(mismatch) && mismatch.error.reason).toBe('currency_mismatch');
+  });
+
   it('lists only real methods, pinned to the database', async () => {
     const dbMethods = [...schema.manualClaimMethod.enumValues];
     expect([...MANUAL_CLAIM_METHODS]).toEqual(dbMethods);
@@ -816,7 +835,7 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
         return isErr(result) ? result.error.message : 'accepted';
       };
       expect(await message({ amountMinorUnits: 10001 })).toMatch(
-        /more than the BDT 100\.00 still owed/,
+        /more than the BDT\u00a0100\.00 still owed/,
       );
       expect(await message({ currency: 'USD', amountMinorUnits: 100 })).toMatch(
         /invoice is in BDT/,

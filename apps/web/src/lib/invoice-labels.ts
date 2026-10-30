@@ -1,3 +1,4 @@
+import { BILLING_PAYMENT_KIND_LABELS } from '@visastack/core';
 import type {
   InvoicePaymentState,
   ManualClaimMethod,
@@ -118,13 +119,7 @@ export function holdReasonLabel(code: string | null): string {
 }
 
 /** How the money arrived, as the receipt names it. */
-export const RECEIPT_KIND_LABELS: Readonly<Record<string, string>> = {
-  ONLINE: 'Paid Online',
-  MANUAL_CLAIM: 'Reported Payment, Confirmed',
-  ADMIN_RECORDED: 'Recorded by VisaStack',
-  CREDIT: 'Credit',
-  REFUND: 'Refund',
-};
+export const RECEIPT_KIND_LABELS: Readonly<Record<string, string>> = BILLING_PAYMENT_KIND_LABELS;
 
 export function receiptKindLabel(kind: string): string {
   return RECEIPT_KIND_LABELS[kind] ?? 'Payment';

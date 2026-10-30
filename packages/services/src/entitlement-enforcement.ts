@@ -1,10 +1,14 @@
 import { type Result, err, ok } from '@visastack/core';
 import { and, eq, gt, inArray, sql } from 'drizzle-orm';
-import { listApplicantsForOrganization, listOrganizationsWithAccessToApplicant } from './agency';
+import {
+  isActiveMember,
+  listApplicantsForOrganization,
+  listOrganizationsWithAccessToApplicant,
+} from './agency';
 import { isBillingSuspended } from './billing';
 import { isCommercialOverrideActive } from './commercial-override';
 import { type Db, first, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, refusal } from './errors';
 import { hasFoundingAccess } from './founding-access';
 import {
   countActiveSeats,
@@ -13,7 +17,7 @@ import {
   getCurrentPlanForOrganization,
 } from './plans';
 import { recordProductEvent } from './product-events';
-import { getOrganizationEvidenceBytes, mbLabel } from './quotas';
+import { getOrganizationEvidenceBytes } from './quotas';
 
 /**
  * COM-02: quota/entitlement enforcement (Commercial V1 PRD §12 / master
@@ -85,6 +89,35 @@ import { getOrganizationEvidenceBytes, mbLabel } from './quotas';
 type PlanLimit = 'SEATS' | 'INVITATIONS' | 'CASES_PER_PERIOD' | 'OPEN_CASES' | 'STORAGE';
 
 /**
+ * Refusals are typed (S30, audit M5): `reason` says billing_suspended or limit_reached, and the
+ * message is a plain sentence with a next step for the person who sees it. Agency staff are told
+ * about their own agency. A traveller adding files to their own record is never told about an
+ * agency's billing or plan (that is another party's business): they get one neutral sentence,
+ * whichever agency and whichever cause.
+ */
+export const TRAVELLER_UPLOAD_PAUSED =
+  'Adding files to this record is paused right now. Try again later or contact your agency.';
+
+/** For agency staff when their own plan's storage is full: the step that fixes it. */
+export const AGENCY_STORAGE_FULL =
+  "Your agency's storage is full. Remove files that are no longer needed, or ask VisaStack about a larger plan.";
+
+/** The billing pause for someone working in the agency itself, who is never told to contact it. */
+export const AGENCY_UPLOAD_PAUSED =
+  'Adding files to this record is paused right now. Try again later.';
+
+function count(n: number, noun: string): string {
+  return `${n} ${noun}${n === 1 ? '' : 's'}`;
+}
+
+/**
+ * What a person accepting an invitation is told when the agency has no room or its billing is
+ * paused: never the agency's billing, invoices or members, only the next step.
+ */
+export const INVITEE_CANNOT_JOIN =
+  'This agency cannot add new team members right now. Ask the person who invited you to contact VisaStack.';
+
+/**
  * Refuses with `error` and records, for OPS-04's plan-usage learning, that this
  * organization ran into this limit. At most one event per organization, limit
  * and day: the signal is "which organizations are hitting which caps", not how
@@ -138,9 +171,9 @@ export async function checkSeatEntitlement(
   if (await hasFoundingAccess(tx, organizationId)) return ok(undefined);
   if (await isBillingSuspended(tx, organizationId)) {
     return err(
-      serviceError(
-        'invalid',
-        'billing for this organization is suspended; new seats cannot be added until it is resolved',
+      refusal(
+        'billing_suspended',
+        "Your agency's billing is paused, so adding team members is paused too. Pay the open invoice to continue.",
       ),
     );
   }
@@ -152,9 +185,9 @@ export async function checkSeatEntitlement(
       tx,
       organizationId,
       'SEATS',
-      serviceError(
-        'invalid',
-        `this organization's plan allows ${plan.seatsAllowed} active seat${plan.seatsAllowed === 1 ? '' : 's'}, and that limit is already reached`,
+      refusal(
+        'limit_reached',
+        `Your agency's plan allows ${count(plan.seatsAllowed, 'team member')}, and that many are active. Remove someone who no longer needs access, or ask VisaStack about a larger plan.`,
       ),
     );
   }
@@ -197,9 +230,9 @@ export async function checkInvitationEntitlement(
   if (await hasFoundingAccess(tx, organizationId)) return ok(undefined);
   if (await isBillingSuspended(tx, organizationId)) {
     return err(
-      serviceError(
-        'invalid',
-        'billing for this organization is suspended; new invitations cannot be sent until it is resolved',
+      refusal(
+        'billing_suspended',
+        "Your agency's billing is paused, so inviting team members is paused too. Pay the open invoice to continue.",
       ),
     );
   }
@@ -212,9 +245,9 @@ export async function checkInvitationEntitlement(
       tx,
       organizationId,
       'INVITATIONS',
-      serviceError(
-        'invalid',
-        `this organization's plan allows ${plan.seatsAllowed} active seat${plan.seatsAllowed === 1 ? '' : 's'}; active members plus pending invitations have already reached that limit`,
+      refusal(
+        'limit_reached',
+        `Your agency's plan allows ${count(plan.seatsAllowed, 'team member')}, and active members and open invitations already fill it. Cancel an invitation, remove someone who no longer needs access, or ask VisaStack about a larger plan.`,
       ),
     );
   }
@@ -241,9 +274,9 @@ export async function checkCaseCreationEntitlement(
   if (await hasFoundingAccess(tx, organizationId)) return ok(undefined);
   if (await isBillingSuspended(tx, organizationId)) {
     return err(
-      serviceError(
-        'invalid',
-        'billing for this organization is suspended; new cases cannot be created until it is resolved',
+      refusal(
+        'billing_suspended',
+        "Your agency's billing is paused, so starting new cases is paused too. An owner or admin can pay the open invoice to continue.",
       ),
     );
   }
@@ -258,9 +291,9 @@ export async function checkCaseCreationEntitlement(
         tx,
         organizationId,
         'CASES_PER_PERIOD',
-        serviceError(
-          'invalid',
-          `this organization's plan allows ${plan.casesPerPeriodAllowed} new case${plan.casesPerPeriodAllowed === 1 ? '' : 's'} per ${plan.periodDays}-day period, and that limit is already reached`,
+        refusal(
+          'limit_reached',
+          `Your agency's plan allows ${count(plan.casesPerPeriodAllowed, 'new case')} every ${plan.periodDays} days, and they are used. You can start more when the period moves on, or ask VisaStack about a larger plan.`,
         ),
       );
     }
@@ -273,9 +306,9 @@ export async function checkCaseCreationEntitlement(
         tx,
         organizationId,
         'OPEN_CASES',
-        serviceError(
-          'invalid',
-          `this organization's plan allows ${plan.concurrentOpenCasesAllowed} concurrent open case${plan.concurrentOpenCasesAllowed === 1 ? '' : 's'}, and that limit is already reached`,
+        refusal(
+          'limit_reached',
+          `Your agency's plan allows ${count(plan.concurrentOpenCasesAllowed, 'open case')} at a time, and that many are open. Close a finished case, or ask VisaStack about a larger plan.`,
         ),
       );
     }
@@ -318,18 +351,24 @@ export async function checkStorageEntitlement(
   tx: Db,
   applicantId: string,
   additionalBytes: number,
+  uploaderAccountId?: string,
 ): Promise<Result<void, ServiceError>> {
   const organizationIds = await listOrganizationsWithAccessToApplicant(tx, applicantId);
+  // The neutral sentence, chosen by who is adding the file: a member of the refusing agency is
+  // not told to contact their own agency (S30).
+  const inAgency = async (organizationId: string) =>
+    uploaderAccountId !== undefined &&
+    (await isActiveMember(tx, uploaderAccountId, organizationId));
+  const paused = async (organizationId: string) =>
+    (await inAgency(organizationId)) ? AGENCY_UPLOAD_PAUSED : TRAVELLER_UPLOAD_PAUSED;
+  // A full plan is the agency's own to fix: its staff get the next step (S30).
+  const full = async (organizationId: string) =>
+    (await inAgency(organizationId)) ? AGENCY_STORAGE_FULL : TRAVELLER_UPLOAD_PAUSED;
   for (const organizationId of organizationIds) {
     if (await isCommercialOverrideActive(tx, organizationId)) continue;
     if (await hasFoundingAccess(tx, organizationId)) continue;
     if (await isBillingSuspended(tx, organizationId)) {
-      return err(
-        serviceError(
-          'invalid',
-          'an organization with access to this applicant has suspended billing; new uploads cannot be added until it is resolved',
-        ),
-      );
+      return err(refusal('billing_suspended', await paused(organizationId)));
     }
     const plan = await getCurrentPlanForOrganization(tx, organizationId);
     if (!plan || plan.storageBytesAllowed === null) continue;
@@ -340,10 +379,7 @@ export async function checkStorageEntitlement(
         tx,
         organizationId,
         'STORAGE',
-        serviceError(
-          'invalid',
-          `an organization with access to this applicant has reached its ${mbLabel(plan.storageBytesAllowed)} plan storage limit`,
-        ),
+        refusal('limit_reached', await full(organizationId)),
       );
     }
   }

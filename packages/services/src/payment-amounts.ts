@@ -1,3 +1,4 @@
+import { currencyDecimals as coreCurrencyDecimals, formatMoney, parseMoney } from '@visastack/core';
 import { MAX_MINOR_UNITS } from './invoice-ledger';
 
 /**
@@ -43,41 +44,26 @@ export function formatMinorUnits(minorUnits: number): string {
 
 /**
  * How many decimal places a currency has (2 for BDT, 0 for JPY, 3 for BHD), from the platform's
- * own currency data. An unknown code is treated as two places, the common case.
+ * own currency data. An unknown code is treated as two places, the common case. One definition,
+ * in @visastack/core (S30).
  */
-export function currencyDecimals(currency: string): number {
-  try {
-    const digits = new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency.trim().toUpperCase(),
-    }).resolvedOptions().maximumFractionDigits;
-    return typeof digits === 'number' && digits >= 0 && digits <= 3 ? digits : 2;
-  } catch {
-    return 2;
-  }
+export const currencyDecimals = coreCurrencyDecimals;
+
+/**
+ * Whole minor units from the amount a person typed ("2,500.00", "2500", "1250.50"), in a currency
+ * with its own number of decimal places, or null when the text is not a plain, non-negative
+ * amount with no more places than the currency has, or is above what the amount columns hold.
+ * Thousands separators are accepted where they are in the right places (S30), as on every other
+ * billing form. Exact: the core money parser joins the digits as text.
+ */
+export function parseAmountForCurrency(text: string, currency: string): number | null {
+  return parseMoney(text, currency, MAX_MINOR_UNITS);
 }
 
 /**
- * Whole minor units from the amount a person typed ("1250.50", "1250"), in a currency with its own
- * number of decimal places, or null when the text is not a plain, non-negative amount with no
- * more places than the currency has. Digits only: no signs, no thousands separators, no
- * exponents. Exact: the digits are joined as text, never multiplied as floating point.
+ * An amount for a sentence: "BDT 1,250.50", with the currency's own number of places. The one
+ * money format of @visastack/core (S30), so a message and a screen write an amount the same way.
  */
-export function parseAmountForCurrency(text: string, currency: string): number | null {
-  const decimals = currencyDecimals(currency);
-  const match = text.trim().match(/^([0-9]{1,12})(?:\.([0-9]{1,8}))?$/);
-  if (!match) return null;
-  const whole = match[1] ?? '';
-  const fraction = match[2] ?? '';
-  if (fraction.length > decimals && /[1-9]/.test(fraction.slice(decimals))) return null;
-  const value = Number(`${whole}${fraction.slice(0, decimals).padEnd(decimals, '0')}`);
-  if (!Number.isSafeInteger(value) || value > MAX_MINOR_UNITS) return null;
-  return value;
-}
-
-/** An amount for a sentence or a field: "BDT 1250.50", with the currency's own number of places. */
 export function formatAmountForCurrency(minorUnits: number, currency: string): string {
-  const code = currency.trim().toUpperCase();
-  const decimals = currencyDecimals(code);
-  return `${code} ${(minorUnits / 10 ** decimals).toFixed(decimals)}`;
+  return formatMoney(minorUnits, currency);
 }

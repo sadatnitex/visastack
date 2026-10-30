@@ -148,6 +148,7 @@ describe('recordInvoicePayment characterization (pre-ledger behaviour)', () => {
     expect(isErr(over) && over.error).toEqual({
       code: 'invalid',
       message: 'this payment would exceed the invoiced amount',
+      reason: 'amount_over_balance',
     });
     const unknown = await pay('00000000-0000-0000-0000-000000000000', 5);
     expect(isErr(unknown) && unknown.error).toEqual({

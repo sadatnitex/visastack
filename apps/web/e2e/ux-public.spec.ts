@@ -37,15 +37,22 @@ test.describe('responsive layout', () => {
   } as const;
 
   for (const [name, viewport] of Object.entries(viewports)) {
-    test(`landing page has no horizontal overflow at ${name} width`, async ({ page }) => {
-      await page.setViewportSize(viewport);
-      await page.goto('/');
-      const { scrollWidth, clientWidth } = await page.evaluate(() => ({
-        scrollWidth: document.documentElement.scrollWidth,
-        clientWidth: document.documentElement.clientWidth,
-      }));
-      expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
-    });
+    // The phone width is the one layout check in the light post-deployment run (`@live`).
+    test(
+      `landing page has no horizontal overflow at ${name} width`,
+      {
+        tag: name === 'mobile' ? '@live' : [],
+      },
+      async ({ page }) => {
+        await page.setViewportSize(viewport);
+        await page.goto('/');
+        const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+          scrollWidth: document.documentElement.scrollWidth,
+          clientWidth: document.documentElement.clientWidth,
+        }));
+        expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
+      },
+    );
   }
 });
 
@@ -150,12 +157,18 @@ test.describe('language choice', () => {
 });
 
 test.describe('error and not-found states', () => {
-  test('an unknown route renders the styled not-found page, not a bare 404', async ({ page }) => {
-    const response = await page.goto('/this-route-does-not-exist');
-    expect(response?.status()).toBe(404);
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await expect(page.getByRole('link', { name: /workspace|home/i }).first()).toBeVisible();
-  });
+  test(
+    'an unknown route renders the styled not-found page, not a bare 404',
+    {
+      tag: '@live',
+    },
+    async ({ page }) => {
+      const response = await page.goto('/this-route-does-not-exist');
+      expect(response?.status()).toBe(404);
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+      await expect(page.getByRole('link', { name: /workspace|home/i }).first()).toBeVisible();
+    },
+  );
 });
 
 /**

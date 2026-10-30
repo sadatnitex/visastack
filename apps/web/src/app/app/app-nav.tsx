@@ -63,6 +63,16 @@ const MOBILE_LABELS: Readonly<Record<string, string>> = {
 };
 
 /**
+ * The phone tab bar's label: the short one where there is one, otherwise the full name. A label
+ * longer than ten letters ("Organizations") marks its bar so the tabs share the width by what
+ * they hold, and the word shows whole rather than cut (S30). It stays the word the page uses, so
+ * the label is part of the link's name, and it keeps the 12px text floor.
+ */
+function compactLabel(label: string): string {
+  return MOBILE_LABELS[label] ?? label;
+}
+
+/**
  * The signed-in navigation (master directive section 7 "PR 7"; names in `lib/navigation.ts`).
  *
  * On a laptop or larger it is a sidebar listing every destination, with the account
@@ -171,8 +181,11 @@ export function AppNav({
     >
       <Icon name={CONTEXT_ICONS[item.label] ?? ICONS[item.href] ?? 'folder'} size={20} />
       <span className="app-link-label app-link-full">{item.label}</span>
-      <span className="app-link-label app-link-compact" aria-hidden="true">
-        {MOBILE_LABELS[item.label] ?? item.label}
+      <span
+        className={`app-link-label app-link-compact${compactLabel(item.label).length > 10 ? ' app-link-compact-long' : ''}`}
+        aria-hidden="true"
+      >
+        {compactLabel(item.label)}
       </span>
     </Link>
   );

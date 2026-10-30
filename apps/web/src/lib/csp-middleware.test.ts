@@ -317,3 +317,37 @@ describe('what the environment adds to the policy', () => {
     expect(policy.match(/\*/g)).toBeNull();
   });
 });
+
+describe('a downloaded billing document (S30)', () => {
+  const ORG = '11111111-2222-4333-8444-555555555555';
+  const DOC = '66666666-7777-4888-8999-000000000000';
+  const downloads = [
+    `/app/agency/${ORG}/plan/invoices/${DOC}/pdf`,
+    `/app/agency/${ORG}/plan/invoices/receipts/${DOC}/pdf`,
+    `/app/admin/organizations/${ORG}/invoices/${DOC}/pdf`,
+  ];
+
+  it.each(downloads)('keeps the strict document policy, still behind sign-in: %s', async (path) => {
+    for (const env of [{}, { CSP_MODE: 'report-only' }]) {
+      const { handler, calls } = fakeSignIn();
+      const response = await build({ auth: handler, env })(get(path), EVENT);
+      expect(calls).toHaveLength(1);
+      expect(response?.headers.get('content-security-policy')).toBe(
+        "default-src 'none'; sandbox allow-downloads",
+      );
+      expect(response?.headers.get('content-security-policy-report-only')).toBeNull();
+    }
+  });
+
+  it('gives the page policy to the pages beside them', async () => {
+    const { handler } = fakeSignIn();
+    for (const path of [
+      `/app/agency/${ORG}/plan/invoices`,
+      `/app/agency/${ORG}/plan/invoices/receipts/${DOC}`,
+      `/app/agency/${ORG}/plan/invoices/${DOC}/pdf/more`,
+    ]) {
+      const response = await build({ auth: handler })(get(path), EVENT);
+      expect(nonceIn(response?.headers.get('content-security-policy') ?? null)).toBe(NONCE);
+    }
+  });
+});

@@ -13,6 +13,7 @@ import { humanizeCode } from '../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { agree, plural } from '../../../../lib/plural';
 import { withSession } from '../../../../lib/session';
+import { BillingStatusNotice, loadBillingNotice } from './billing-status-notice';
 import { CaseSearchForm, STAGE_LABELS } from './case-search-form';
 import {
   loadApplicants,
@@ -88,15 +89,18 @@ export default async function AgencyDashboardPage({
     // The layout explains the "no role" case; there is nothing to load for it.
     if (!access?.member) return null;
     const members = await loadMembers(db, accountId, orgId, access);
-    const [requests, caseList, unassignedQueue, clients, clientsJoined] = await Promise.all([
-      loadEvidenceRequests(db, accountId, orgId, access, { withFileStates: true }),
-      loadCases(db, accountId, orgId, members),
-      loadUnassignedQueue(db, orgId, access),
-      loadApplicants(db, orgId, access),
-      loadClientsJoined(db, accountId, orgId),
-    ]);
+    const [requests, caseList, unassignedQueue, clients, clientsJoined, billingStatus] =
+      await Promise.all([
+        loadEvidenceRequests(db, accountId, orgId, access, { withFileStates: true }),
+        loadCases(db, accountId, orgId, members),
+        loadUnassignedQueue(db, orgId, access),
+        loadApplicants(db, orgId, access),
+        loadClientsJoined(db, accountId, orgId),
+        loadBillingNotice(db, accountId, orgId),
+      ]);
     return {
       admin: access.admin,
+      billingStatus,
       clientsJoined,
       organizationName: access.org.name ?? null,
       clients,
@@ -290,6 +294,7 @@ export default async function AgencyDashboardPage({
 
   return (
     <DepthScope family="agency-home" depth={depth}>
+      <BillingStatusNotice notice={data.billingStatus} admin={data.admin} organizationId={orgId} />
       <DepthSwitch family="agency-home" initial={depth} copy={depthWords} />
       <section className="agency-reference-metrics" aria-label="Agency overview">
         <Stat

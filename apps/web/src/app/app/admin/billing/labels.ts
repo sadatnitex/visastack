@@ -7,14 +7,19 @@ export function agencies(count: number): string {
   return count === 1 ? '1 agency' : `${count} agencies`;
 }
 
+function movesToday(preview: OverduePreview): string {
+  if (preview.toGrace === 0 && preview.toSuspended === 0) return 'moves no agencies';
+  return `moves ${agencies(preview.toGrace)} to Grace and ${agencies(preview.toSuspended)} to Suspended`;
+}
+
 /** What switching automatic Grace and Suspended on would do today, in one sentence. */
 export function previewSentence(preview: OverduePreview): string {
-  if (preview.toGrace === 0 && preview.toSuspended === 0) {
-    return 'Turning this on today moves no agencies.';
-  }
-  return `Turning this on today moves ${agencies(preview.toGrace)} to Grace and ${agencies(
-    preview.toSuspended,
-  )} to Suspended.`;
+  return `Turning this on today ${movesToday(preview)}.`;
+}
+
+/** The same, for the rules already saved: "With the saved day counts, turning this on today ...". */
+export function savedPreviewSentence(preview: OverduePreview): string {
+  return `With the saved day counts, turning this on today ${movesToday(preview)}.`;
 }
 
 /** The day counts a preview was worked out for, with their units. */
@@ -26,7 +31,7 @@ export function previewDays(preview: OverduePolicy): string {
 
 /** The confirmation, with the counts in the label itself. */
 export function confirmLabel(preview: OverduePreview): string {
-  return `I understand this moves ${agencies(preview.toGrace)} to Grace and ${preview.toSuspended} to Suspended today`;
+  return `I understand this ${movesToday(preview)} today`;
 }
 
 /** A rule's day count after the due date, or that it is not set. */

@@ -1,11 +1,12 @@
 'use server';
 
+import { looksLikeMoney } from '@visastack/core';
 import {
+  CLAIM_AMOUNT_PROBLEM,
   type Db,
   PROOF_FILE_MAX_BYTES,
   type ProofFilePorts,
   formatAmountForCurrency,
-  parseAmountForCurrency,
   refreshInvoicePaymentAttempts,
   startOnlinePayment,
   submitManualPaymentClaim,
@@ -13,6 +14,7 @@ import {
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { resolveBaseUrl } from '../../../../../../lib/base-url';
+import { moneyFieldOf } from '../../../../../../lib/money-fields';
 import { paymentUrlFor } from '../../../../../../lib/payment-urls';
 import {
   createImageSanitizer,
@@ -180,7 +182,6 @@ export async function submitClaimAction(
 ): Promise<InvoiceActionState> {
   const found = ids(formData);
   if (!found) return NOT_FOUND;
-  const currency = text(formData, 'currency');
   const values: ClaimValues = {
     method: text(formData, 'method'),
     reference: text(formData, 'reference'),
@@ -195,10 +196,9 @@ export async function submitClaimAction(
     values,
   });
 
-  const amountMinorUnits = parseAmountForCurrency(values.amount, currency);
-  if (amountMinorUnits === null || amountMinorUnits <= 0) {
-    return refuse('Enter the amount you paid as a plain number, for example 1250.50.', 'amount');
-  }
+  // A cheap shape check before any work; the service reads the amount in the invoice's own
+  // stored currency (S30), never in one a form names.
+  if (!looksLikeMoney(values.amount)) return refuse(CLAIM_AMOUNT_PROBLEM, 'amount');
   const paidOn = paidOnFrom(values.paidOn);
   if (!paidOn) return refuse('Enter the date you paid.', 'paidOn');
 
@@ -214,8 +214,7 @@ export async function submitClaimAction(
       invoiceId: found.invoiceId,
       method: values.method,
       reference: values.reference,
-      amountMinorUnits,
-      currency,
+      amountText: values.amount,
       paidOn,
       ...(values.note.length > 0 ? { note: values.note } : {}),
       ...(hasFile
@@ -227,7 +226,9 @@ export async function submitClaimAction(
           }
         : {}),
     });
-    if (!submitted.ok) return refuse(submitted.error.message);
+    if (!submitted.ok) {
+      return refuse(submitted.error.message, moneyFieldOf(submitted.error.reason));
+    }
     return {
       ok: true,
       message: `Thank you. We have your report of ${formatAmountForCurrency(submitted.value.amountMinorUnits, submitted.value.currency)}. It is waiting for confirmation, and nothing is counted until VisaStack confirms it.`,

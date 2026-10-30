@@ -1,6 +1,7 @@
 import { hasRecentDatabaseBackup } from '@visastack/adapters';
 import { rejectUnauthorizedCron } from '../../../../lib/cron-auth';
 import { readEnv } from '../../../../lib/env';
+import { isProductionSite } from '../../../../lib/hosting';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,8 +13,8 @@ export const maxDuration = 60;
 export async function GET(request: Request): Promise<Response> {
   const denied = rejectUnauthorizedCron(request);
   if (denied) return denied;
-  if (readEnv('VERCEL_ENV') !== 'production')
-    return new Response('Production only', { status: 403 });
+  // The production site on Vercel or on the Render fallback (lib/hosting.ts); never a preview.
+  if (!isProductionSite(readEnv)) return new Response('Production only', { status: 403 });
   const endpoint = readEnv('R2_ENDPOINT_URL');
   const accessKeyId = readEnv('R2_ACCESS_KEY_ID');
   const secretAccessKey = readEnv('R2_SECRET_ACCESS_KEY');
