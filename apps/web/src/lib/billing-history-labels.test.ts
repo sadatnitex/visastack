@@ -27,7 +27,7 @@ describe('billing history wording', () => {
   });
 
   it('names both statuses instead of their stored codes', () => {
-    expect(billingHistoryMove('GRACE', 'SUSPENDED')).toBe('Grace Period to Suspended');
+    expect(billingHistoryMove('GRACE', 'SUSPENDED')).toBe('Grace to Suspended');
     expect(billingHistoryMove(null, 'ACTIVE')).toBe('Opened as Active');
     expect(billingHistoryMove('GRACE', 'SUSPENDED')).not.toMatch(/GRACE|SUSPENDED/);
   });

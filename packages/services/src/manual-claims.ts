@@ -4,7 +4,7 @@ import { and, desc, eq, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { invoiceLedgerReader } from './billing';
 import { type Db, first, required, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, refusal, serviceError } from './errors';
 import {
   type ImageSanitizerPort,
   isAcceptableSanitizedImage,
@@ -22,7 +22,7 @@ import {
 } from './invoice-ledger';
 import { isMissingRelationError } from './missing-relation';
 import { isOrgAdmin } from './organizations';
-import { formatAmountForCurrency } from './payment-amounts';
+import { formatAmountForCurrency, parseAmountForCurrency } from './payment-amounts';
 import { type PlatformAuthInput, isPlatformOwner } from './platform-roles';
 import { RATE_LIMITS, checkRateLimits } from './rate-limit';
 import type { PaymentReceipt } from './receipts';
@@ -438,8 +438,13 @@ export interface SubmitManualClaimInput {
   readonly method: string;
   /** A short outside reference: a transfer id, a bKash transaction id, a cheque number. */
   readonly reference: string;
-  /** Whole minor units, up to what the invoice still owes. */
-  readonly amountMinorUnits: number;
+  /** Whole minor units, up to what the invoice still owes. Give this or `amountText`. */
+  readonly amountMinorUnits?: number;
+  /**
+   * The amount as the person typed it ("1,250.50"), read in the invoice's own stored currency,
+   * never in one the form names (S30). Give this or `amountMinorUnits`.
+   */
+  readonly amountText?: string;
   /** Optional. When given it must be the invoice's currency. */
   readonly currency?: string;
   /** The day the money was sent. */
@@ -481,19 +486,23 @@ function invoiceProblem(
     currency !== undefined &&
     normalizeCurrency(currency) !== normalizeCurrency(invoice.currency)
   ) {
-    return serviceError(
-      'invalid',
+    return refusal(
+      'currency_mismatch',
       `This invoice is in ${normalizeCurrency(invoice.currency)}. Report the payment in ${normalizeCurrency(invoice.currency)}.`,
     );
   }
   if (amountMinorUnits > outstanding) {
-    return serviceError(
-      'invalid',
+    return refusal(
+      'amount_over_balance',
       `The amount is more than the ${money(invoice.currency, outstanding)} still owed on this invoice. Enter the amount you paid, up to ${money(invoice.currency, outstanding)}.`,
     );
   }
   return null;
 }
+
+/** Why a typed claim amount was refused. */
+export const CLAIM_AMOUNT_PROBLEM =
+  'Enter the amount you paid as a plain number, for example 1250.50.';
 
 function inputProblem(input: SubmitManualClaimInput, now: Date): ServiceError | null {
   if (!(MANUAL_CLAIM_METHODS as readonly string[]).includes(input.method)) {
@@ -509,8 +518,11 @@ function inputProblem(input: SubmitManualClaimInput, now: Date): ServiceError | 
   if ((input.note ?? '').trim().length > CLAIM_NOTE_MAX) {
     return serviceError('invalid', `Keep the note under ${CLAIM_NOTE_MAX} characters.`);
   }
-  if (!isValidMinorUnitAmount(input.amountMinorUnits)) {
-    return serviceError('invalid', 'Enter the amount you paid, as a number above zero.');
+  if ((input.amountMinorUnits === undefined) === (input.amountText === undefined)) {
+    return refusal('amount_invalid', CLAIM_AMOUNT_PROBLEM);
+  }
+  if (input.amountMinorUnits !== undefined && !isValidMinorUnitAmount(input.amountMinorUnits)) {
+    return refusal('amount_invalid', CLAIM_AMOUNT_PROBLEM);
   }
   if (Number.isNaN(input.paidOn.getTime())) {
     return serviceError('invalid', 'Enter the date you paid.');
@@ -549,7 +561,14 @@ export async function submitManualPaymentClaim(
       return err(serviceError('not_found', 'invoice not found'));
     }
     if (!(await manualClaimsPresent(db))) return err(serviceError('upstream_error', UNAVAILABLE));
-    const early = invoiceProblem(invoice, input.amountMinorUnits, input.currency);
+    const amount =
+      input.amountText !== undefined
+        ? parseAmountForCurrency(input.amountText, invoice.currency)
+        : (input.amountMinorUnits ?? null);
+    if (amount === null || !isValidMinorUnitAmount(amount)) {
+      return err(refusal('amount_invalid', CLAIM_AMOUNT_PROBLEM));
+    }
+    const early = invoiceProblem(invoice, amount, input.currency);
     if (early) return err(early);
 
     const limited = await checkRateLimits(
@@ -603,7 +622,7 @@ export async function submitManualPaymentClaim(
             ),
             'invoice',
           );
-          const problem = invoiceProblem(locked, input.amountMinorUnits, input.currency);
+          const problem = invoiceProblem(locked, amount, input.currency);
           if (problem) return err(problem);
           // S18 (D2): a refunded invoice is never owed again, so no payment is reported on it.
           if (await invoiceHasRefund(tx, locked.id)) {
@@ -639,7 +658,7 @@ export async function submitManualPaymentClaim(
                   submittedByAccountId: input.actorAccountId,
                   method: input.method as ManualClaimMethod,
                   reference,
-                  amountMinorUnits: input.amountMinorUnits,
+                  amountMinorUnits: amount,
                   currency: normalizeCurrency(locked.currency),
                   paidOn: input.paidOn,
                   note: note.length > 0 ? note : null,

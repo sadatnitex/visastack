@@ -31,11 +31,36 @@ export type ServiceErrorCode =
   /** The caller's view of the world (a revision, checksum, or other precondition) is no longer current - retry against fresh data, this is not a malformed request. */
   | 'stale';
 
+/**
+ * Why a capacity-consuming action was refused (S30, audit M5), for the web layer to choose its
+ * words without reading the message: the agency's billing is suspended, or a plan limit is
+ * reached. The message stays a plain sentence for whoever reads it.
+ */
+export type RefusalReason = 'billing_suspended' | 'limit_reached' | FieldReason;
+
+/**
+ * Why a typed money field was refused (S30), so a form can point to the field at fault without
+ * reading the message: an amount that is not a plain amount in the stored currency, an amount
+ * over what is owed or left, or a currency that does not match the stored one.
+ */
+export type FieldReason =
+  | 'amount_invalid'
+  | 'amount_over_balance'
+  | 'currency_mismatch'
+  | 'currency_invalid';
+
 export interface ServiceError {
   readonly code: ServiceErrorCode;
   readonly message: string;
+  /** Set on plan and billing refusals, and on money-field refusals. */
+  readonly reason?: RefusalReason;
 }
 
 export function serviceError(code: ServiceErrorCode, message: string): ServiceError {
   return { code, message };
+}
+
+/** A typed plan or billing refusal: an `invalid` error that also says why. */
+export function refusal(reason: RefusalReason, message: string): ServiceError {
+  return { code: 'invalid', message, reason };
 }

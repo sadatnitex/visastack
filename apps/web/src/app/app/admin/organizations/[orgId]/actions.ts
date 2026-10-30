@@ -1,7 +1,16 @@
 'use server';
 
 import {
+  formatBillingDate,
+  isIsoCurrencyCode,
+  looksLikeMoney,
+  normalizeCurrencyCode,
+  parseMoney,
+} from '@visastack/core';
+import {
   type BillingStatus,
+  MAX_MINOR_UNITS,
+  RECORD_AMOUNT_PROBLEM,
   activateSubscription,
   approveManualPaymentClaim,
   cancelScheduledDowngrade,
@@ -22,6 +31,8 @@ import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { bootstrapAdminEmails, isPlatformOwnerAccount } from '../../../../../lib/admin';
 import { triggerNotificationWorker } from '../../../../../lib/jobs';
+import { invoiceStatusLabel } from '../../../../../lib/labels';
+import { moneyFieldOf } from '../../../../../lib/money-fields';
 import { withSession } from '../../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../../lib/step-up';
 
@@ -29,6 +40,8 @@ import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../
 export interface ActionState {
   readonly ok: boolean;
   readonly message: string;
+  /** The input the problem is about, so the form can point to it and move focus there. */
+  readonly field?: string;
 }
 
 const DENIED: ActionState = { ok: false, message: 'Not authorized.' };
@@ -150,7 +163,7 @@ export async function scheduleDowngradeAction(
     if (!scheduled.ok) return { ok: false, message: scheduled.error.message } satisfies ActionState;
     return {
       ok: true,
-      message: `Downgrade scheduled for ${scheduled.value.effectiveAt.toDateString()}.`,
+      message: `Downgrade scheduled for ${formatBillingDate(scheduled.value.effectiveAt)}.`,
     } satisfies ActionState;
   });
   if (result.ok) {
@@ -285,6 +298,11 @@ export async function transitionBillingStatusAction(
   return result;
 }
 
+/** The form field a refusal is about, from its typed reason, as part of the answer. */
+function fieldFor(field: string | undefined): { readonly field?: string } {
+  return field ? { field } : {};
+}
+
 /** Issues a new invoice. Platform-owner only, step-up gated. */
 export async function createInvoiceAction(
   _prev: ActionState,
@@ -293,20 +311,37 @@ export async function createInvoiceAction(
   const organizationId = String(formData.get('organizationId') ?? '').trim();
   const planId = String(formData.get('planId') ?? '').trim();
   const invoiceRef = String(formData.get('invoiceRef') ?? '').trim();
-  const invoicedAmountMinorUnits = Number(String(formData.get('invoicedAmountMinorUnits') ?? ''));
-  const currency = String(formData.get('currency') ?? '').trim();
+  const currency = normalizeCurrencyCode(String(formData.get('currency') ?? ''));
+  const invoicedAmountMinorUnits = parseMoney(
+    String(formData.get('invoicedAmount') ?? ''),
+    currency,
+    MAX_MINOR_UNITS,
+  );
   const periodStart = parseDate(formData, 'periodStart');
-  const periodEnd = parseDate(formData, 'periodEnd');
+  const periodLastDay = parseDate(formData, 'periodLastDay');
   const dueDate = parseDate(formData, 'dueDate');
   if (organizationId.length === 0) return { ok: false, message: 'Missing organization id.' };
   if (planId.length === 0) return { ok: false, message: 'Choose a plan.' };
   if (invoiceRef.length === 0) return { ok: false, message: 'An invoice reference is required.' };
-  if (!Number.isFinite(invoicedAmountMinorUnits) || invoicedAmountMinorUnits <= 0) {
-    return { ok: false, message: 'Invoiced amount must be a positive number.' };
+  if (!isIsoCurrencyCode(currency)) {
+    return {
+      ok: false,
+      message: 'Enter a three-letter currency code, for example BDT.',
+      field: 'currency',
+    };
   }
-  if (currency.length === 0) return { ok: false, message: 'Currency is required.' };
-  if (!periodStart || !periodEnd || !dueDate) {
-    return { ok: false, message: 'Period start, period end, and due date are all required.' };
+  if (invoicedAmountMinorUnits === null || invoicedAmountMinorUnits <= 0) {
+    return {
+      ok: false,
+      message: 'Enter the invoiced amount above zero, for example 2,500.00.',
+      field: 'invoicedAmount',
+    };
+  }
+  if (!periodStart || !periodLastDay || !dueDate) {
+    return {
+      ok: false,
+      message: 'Enter the period start, the last day of the period and the due date.',
+    };
   }
 
   const result = await withSession(async ({ db, accountId, email }) => {
@@ -325,7 +360,7 @@ export async function createInvoiceAction(
       organizationId,
       planId,
       periodStart,
-      periodEnd,
+      periodLastDay,
       invoiceRef,
       invoicedAmountMinorUnits,
       currency,
@@ -348,7 +383,9 @@ export async function recordInvoicePaymentAction(
 ): Promise<ActionState> {
   const organizationId = String(formData.get('organizationId') ?? '').trim();
   const invoiceId = String(formData.get('invoiceId') ?? '').trim();
-  const amountMinorUnits = Number(String(formData.get('amountMinorUnits') ?? ''));
+  // Read by the service in the stored invoice's own currency (S30): nothing in the form decides
+  // how many decimal places the amount has.
+  const amountText = String(formData.get('amount') ?? '').trim();
   const paymentReference = String(formData.get('paymentReference') ?? '').trim();
   const reason = String(formData.get('reason') ?? '').trim();
   const currency = String(formData.get('currency') ?? '').trim();
@@ -358,8 +395,14 @@ export async function recordInvoicePaymentAction(
   if (idempotencyKey.length === 0) {
     return { ok: false, message: 'This page is out of date. Reload it and try again.' };
   }
-  if (!Number.isInteger(amountMinorUnits) || amountMinorUnits <= 0) {
-    return { ok: false, message: 'Payment amount must be a whole, positive number.' };
+  // A cheap shape check before any work or sign-in check (the most decimal places any currency
+  // has); the exact check, in the stored invoice currency, stays in the service.
+  if (!looksLikeMoney(amountText)) {
+    return {
+      ok: false,
+      message: RECORD_AMOUNT_PROBLEM,
+      field: 'amount',
+    };
   }
   if (paymentReference.length === 0)
     return { ok: false, message: 'A payment reference is required.' };
@@ -379,17 +422,23 @@ export async function recordInvoicePaymentAction(
       actor: { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
       stepUpSatisfied: true,
       invoiceId,
-      amountMinorUnits,
+      amountText,
       collectedDate,
       paymentReference,
       reason,
       ...(currency.length > 0 ? { currency } : {}),
       idempotencyKey,
     });
-    if (!recorded.ok) return { ok: false, message: recorded.error.message } satisfies ActionState;
+    if (!recorded.ok) {
+      return {
+        ok: false,
+        message: recorded.error.message,
+        ...fieldFor(moneyFieldOf(recorded.error.reason)),
+      } satisfies ActionState;
+    }
     return {
       ok: true,
-      message: `Payment recorded. Invoice is now ${recorded.value.status}.`,
+      message: `Payment recorded. The invoice is now ${invoiceStatusLabel(recorded.value.status)}.`,
     } satisfies ActionState;
   });
   if (result.ok) revalidatePath(returnPath(organizationId));
@@ -464,7 +513,7 @@ export async function grantOverrideAction(
     if (!granted.ok) return { ok: false, message: granted.error.message } satisfies ActionState;
     return {
       ok: true,
-      message: `Override granted until ${granted.value.expiryAt.toDateString()}.`,
+      message: `Override granted until ${formatBillingDate(granted.value.expiryAt)}.`,
     } satisfies ActionState;
   });
   if (result.ok) revalidatePath(returnPath(organizationId));

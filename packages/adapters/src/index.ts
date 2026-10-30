@@ -155,3 +155,4 @@ export {
   type HeicJpegConverterOptions,
   looksLikeHeic,
 } from './heic-converter';
+export { type BillingDocumentIssuer, renderBillingDocumentPdf } from './billing-document-pdf';

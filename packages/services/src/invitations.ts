@@ -4,8 +4,12 @@ import { and, desc, eq, lt, or } from 'drizzle-orm';
 import { getAccountByEmail } from './accounts';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
-import { checkInvitationEntitlement, checkSeatEntitlement } from './entitlement-enforcement';
-import { type ServiceError, serviceError } from './errors';
+import {
+  INVITEE_CANNOT_JOIN,
+  checkInvitationEntitlement,
+  checkSeatEntitlement,
+} from './entitlement-enforcement';
+import { type ServiceError, refusal, serviceError } from './errors';
 import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { enqueueNotificationBothChannels } from './notifications';
@@ -378,7 +382,15 @@ export async function acceptOrganizationInvitation(
     );
     if (!existingMembership?.active) {
       const seatCheck = await checkSeatEntitlement(tx, invitation.organizationId);
-      if (!seatCheck.ok) return err(seatCheck.error);
+      if (!seatCheck.ok) {
+        // The invitee is not part of the agency yet: they get their own sentence (S30), never
+        // the agency's billing state or a step only the agency can take.
+        return err(
+          seatCheck.error.reason
+            ? refusal(seatCheck.error.reason, INVITEE_CANNOT_JOIN)
+            : seatCheck.error,
+        );
+      }
     }
 
     const updated = first(

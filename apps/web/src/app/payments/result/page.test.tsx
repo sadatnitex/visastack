@@ -46,7 +46,7 @@ describe('the payment result page', () => {
       expect(document.querySelectorAll('h1')).toHaveLength(1);
       expect(document.querySelector('h1')?.textContent).toBe(heading);
       expect(document.body.textContent).toContain(phrase);
-      expect(document.body.textContent).toContain('Invoice INV-100: BDT 1250.50');
+      expect(document.body.textContent).toContain('Invoice INV-100: BDT\u00a01,250.50');
       expect(mocks.view.mock.calls[0]?.[1]).toBe(TRAN);
     });
   }

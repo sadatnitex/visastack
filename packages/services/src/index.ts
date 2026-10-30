@@ -60,7 +60,14 @@ export {
   readDocumentProtectionSettings,
   setDocumentProtection,
 } from './document-protection';
-export { type ServiceError, type ServiceErrorCode, serviceError } from './errors';
+export {
+  type FieldReason,
+  type RefusalReason,
+  type ServiceError,
+  type ServiceErrorCode,
+  refusal,
+  serviceError,
+} from './errors';
 
 export {
   type AuditEventInput,
@@ -1168,6 +1175,9 @@ export {
   listBillingStatusHistory,
   listInvoicesForOrganization,
   openBillingAccount,
+  type AgencyBillingNotice,
+  RECORD_AMOUNT_PROBLEM,
+  getAgencyBillingNotice,
   recordInvoicePayment,
   transitionBillingStatus,
   voidInvoice,
@@ -1181,6 +1191,7 @@ export {
 } from './agency-invoices';
 
 export {
+  CLAIM_AMOUNT_PROBLEM,
   CLAIM_NOTE_MAX,
   CLAIM_REASON_MAX,
   CLAIM_REFERENCE_MAX,
@@ -1216,6 +1227,7 @@ export {
   applyInvoiceCollection,
   invoiceLedgerPresent,
   invoiceStatusForTotals,
+  isUuid,
   isValidMinorUnitAmount,
   ledgerTotal,
   outstandingMinorUnits,
@@ -1998,3 +2010,22 @@ export {
   type RefundingPaymentPort,
   isRefundingPaymentPort,
 } from './ports';
+export {
+  type BillingDocument,
+  type BillingDocumentFact,
+  type BillingDocumentKind,
+  type BillingDocumentReader,
+  type BillingDocumentStamp,
+  type BillingDocumentTable,
+  type BillingDocumentTone,
+  type BillingDocumentTotal,
+  type InvoiceDocumentFacts,
+  type InvoiceDocumentPayment,
+  type ReceiptDocumentFacts,
+  billingDocumentFileName,
+  buildInvoiceDocument,
+  buildReceiptDocument,
+  getInvoiceDocument,
+  getReceiptDocument,
+  invoiceDocumentStamp,
+} from './billing-documents';

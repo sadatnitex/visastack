@@ -155,6 +155,8 @@ export interface NotificationEmailInput {
   readonly url: string;
   /** Task and invoice reminders: whether the due day is ahead, today or past. */
   readonly timing?: 'upcoming' | 'today' | 'overdue';
+  /** The heading this one notice asked for (billing status changes, the 7-day reminder; S30). */
+  readonly heading?: string;
 }
 
 interface Copy {
@@ -269,12 +271,13 @@ export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
   },
   INVOICE_REMINDER: {
     eyebrow: 'Your Agency',
-    heading: ({ timing }) =>
-      timing === 'today'
+    heading: ({ timing, heading }) =>
+      heading ??
+      (timing === 'today'
         ? 'An invoice is due today'
         : timing === 'overdue'
           ? 'An invoice is past its due date'
-          : 'An invoice is due soon',
+          : 'An invoice is due soon'),
     why: 'Open your invoices to see it and the ways to pay.',
     action: 'Pay Invoice',
     after:
@@ -282,7 +285,7 @@ export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
   },
   BILLING_STATUS_CHANGED: {
     eyebrow: 'Your Agency',
-    heading: 'Your billing status has changed',
+    heading: ({ heading }) => heading ?? 'Your billing status has changed',
     action: 'Open Invoices',
   },
   INVOICE_REFUNDED: {

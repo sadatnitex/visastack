@@ -1,4 +1,11 @@
-import { type Result, err, ok } from '@visastack/core';
+import {
+  type Result,
+  err,
+  formatBillingDate,
+  isIsoCurrencyCode,
+  normalizeCurrencyCode,
+  ok,
+} from '@visastack/core';
 import { and, desc, eq, gte, inArray, isNull, lte, notInArray, sql } from 'drizzle-orm';
 import { isActiveMember, listApplicantsForOrganization } from './agency';
 import { excludingDeterministicRuns } from './ai-run-kinds';
@@ -147,6 +154,10 @@ function validateEntitlementNumbers(input: {
   if (priceSet !== currencySet) {
     return 'priceMinorUnits and currency must be set together, or neither';
   }
+  // S30 (audit M6): a price needs a real currency, or every page showing it would have to guess.
+  if (currencySet && !isIsoCurrencyCode(input.currency ?? '')) {
+    return 'currency must be a three-letter ISO 4217 code, for example BDT';
+  }
   return undefined;
 }
 
@@ -192,7 +203,7 @@ export async function createPlan(
             aiAllowanceUnitsAllowed: input.aiAllowanceUnitsAllowed ?? null,
             ...(input.periodDays !== undefined ? { periodDays: input.periodDays } : {}),
             priceMinorUnits: input.priceMinorUnits ?? null,
-            currency: input.currency ?? null,
+            currency: input.currency ? normalizeCurrencyCode(input.currency) : null,
           })
           .returning(),
       ),
@@ -289,7 +300,10 @@ export async function updatePlan(
     track('aiAllowanceUnitsAllowed', input.aiAllowanceUnitsAllowed);
     track('periodDays', input.periodDays);
     track('priceMinorUnits', input.priceMinorUnits);
-    track('currency', input.currency);
+    track(
+      'currency',
+      typeof input.currency === 'string' ? normalizeCurrencyCode(input.currency) : input.currency,
+    );
 
     if (Object.keys(changes).length === 0) return ok(plan);
 
@@ -720,7 +734,7 @@ export async function scheduleDowngrade(
           organizationId: input.organizationId,
           payload: {
             subject: 'A plan change is scheduled for your organization',
-            summary: `Your plan will change from ${fromPlan.name} to ${toPlan.name} on ${effectiveAt.toDateString()}.`,
+            summary: `Your plan will change from ${fromPlan.name} to ${toPlan.name} on ${formatBillingDate(effectiveAt)}.`,
             deepLinkPath: `/app/agency/${input.organizationId}/plan`,
           },
         });
@@ -1136,37 +1150,37 @@ export async function getUsageForOrganization(
   const meters: UsageMeter[] = [
     {
       key: 'seats',
-      label: 'Active seats',
-      definition: 'Currently active memberships in this organization.',
+      label: 'Team Members',
+      definition: 'People with an active place in your agency.',
       used: seatsUsed,
       allowed: plan?.seatsAllowed ?? null,
     },
     {
       key: 'casesPerPeriod',
-      label: 'Cases created this period',
-      definition: `Cases attributed to this organization and created in the trailing ${plan?.periodDays ?? 30} days.`,
+      label: 'New Cases',
+      definition: `Cases your agency started in the last ${plan?.periodDays ?? 30} days.`,
       used: casesUsed,
       allowed: plan?.casesPerPeriodAllowed ?? null,
     },
     {
       key: 'concurrentOpenCases',
-      label: 'Concurrent open cases',
-      definition: 'Cases attributed to this organization not yet CLOSED or CANCELLED.',
+      label: 'Open Cases',
+      definition: 'Cases of your agency that are not closed or cancelled yet.',
       used: concurrentUsed,
       allowed: plan?.concurrentOpenCasesAllowed ?? null,
     },
     {
       key: 'storageBytes',
-      label: 'Retained storage',
+      label: 'Storage',
       definition:
-        'Total evidence bytes across every applicant this organization currently has active, accepted access to.',
+        'Files kept for every traveller who currently shares their record with your agency.',
       used: storageUsed,
       allowed: plan?.storageBytesAllowed ?? null,
     },
     {
       key: 'aiAllowanceUnits',
-      label: 'AI allowance',
-      definition: `AI extraction cost units consumed (same unit as the platform-wide AI budget) for applicants this organization has active access to, in the trailing ${plan?.periodDays ?? 30} days.`,
+      label: 'AI Allowance',
+      definition: `Automatic document reading used in the last ${plan?.periodDays ?? 30} days for travellers who share their record with your agency.`,
       used: aiUsed,
       allowed: plan?.aiAllowanceUnitsAllowed ?? null,
     },

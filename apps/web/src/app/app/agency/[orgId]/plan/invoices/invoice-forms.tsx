@@ -145,7 +145,6 @@ export function ClaimForm({
       <form ref={formRef} action={formAction} className="field-list invoice-claim-form">
         <input type="hidden" name="organizationId" value={organizationId} />
         <input type="hidden" name="invoiceId" value={invoiceId} />
-        <input type="hidden" name="currency" value={currency} />
         <p className="invoice-note">
           Tell us about a payment you already made by bank transfer, bKash or cheque. Nothing is
           counted until VisaStack confirms it.

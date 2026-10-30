@@ -1,14 +1,23 @@
+import { currencyDecimals, formatMoney, isIsoCurrencyCode } from '@visastack/core';
 import type { UsageMeter } from '@visastack/services';
 import { mbLabel } from '@visastack/services';
 
-/** Correctly converts an integer count of a currency's smallest unit to a display string, without assuming 2 decimal places (JPY has 0, BHD has 3). */
+/**
+ * An amount with the currency's own symbol where the platform has one ("$100.00", "BDT 2,500.00"),
+ * for visa fees on the rules pages. Billing screens use `formatMoney` (@visastack/core), which
+ * always writes the code. Never throws: an unknown or malformed code falls back to `formatMoney`
+ * ("2,500.00 XYZ"), so a bad code can never break a page (S30).
+ */
 export function formatPrice(priceMinorUnits: number, currency: string): string {
-  const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency });
-  // `maximumFractionDigits` is typed optional (it's unset when significant-digit
-  // rounding is used instead), but 'currency' style always resolves it in
-  // practice; 2 is the correct fallback for the common case if it's ever absent.
-  const divisor = 10 ** (formatter.resolvedOptions().maximumFractionDigits ?? 2);
-  return formatter.format(priceMinorUnits / divisor);
+  const code = currency.trim().toUpperCase();
+  if (!isIsoCurrencyCode(code)) return formatMoney(priceMinorUnits, code);
+  try {
+    const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: code });
+    const decimals = currencyDecimals(code);
+    return formatter.format(priceMinorUnits / 10 ** decimals);
+  } catch {
+    return formatMoney(priceMinorUnits, code);
+  }
 }
 
 export function formatMeterValue(meter: UsageMeter): string {

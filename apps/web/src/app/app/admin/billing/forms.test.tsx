@@ -43,7 +43,9 @@ describe('BillingRulesForm', () => {
     expect(html).toContain(
       'Turning this on today moves 1 agency to Grace and 3 agencies to Suspended. Grace from 1 day after the due date, Suspended from 2 days.',
     );
-    expect(html).toContain('I understand this moves 1 agency to Grace and 3 to Suspended today');
+    expect(html).toContain(
+      'I understand this moves 1 agency to Grace and 3 agencies to Suspended today',
+    );
     expect(html).toContain('name="previewGraceAfterDays" value="1"');
     expect(html).toContain('name="previewSuspendAfterDays" value="2"');
     expect(html).not.toContain('role="alert" class="field-msg field-msg-err">Turning');
