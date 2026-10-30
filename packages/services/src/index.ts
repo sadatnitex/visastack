@@ -1332,6 +1332,7 @@ export {
   RECONCILE_MIN_AGE_MS,
   type InvoicePaymentsReader,
   type PaymentAttempt,
+  type InvoicePaymentCheck,
   type PaymentAttemptView,
   type PaymentAttemptStatus,
   type PaymentResultState,
@@ -1346,6 +1347,7 @@ export {
   type StartedPayment,
   getPaymentResultView,
   isMerchantTranId,
+  isStrandedAttempt,
   getInvoicePaymentAttempts,
   paymentResultState,
   recordRejectedPaymentCallback,
@@ -1972,6 +1974,7 @@ export {
   type HeldPaymentView,
   NO_OPEN_INVOICE_FOR_CREDIT,
   type OrganizationRefundWork,
+  REFUND_PROVIDER_OFF,
   REFUNDS_UNAVAILABLE,
   type RecordManualRefundInput,
   type RefundCheckSummary,
@@ -2097,7 +2100,7 @@ export {
   savePlan,
 } from './plans-admin';
 export { type PaymentMode, type PlanAudience, entitlementsSchemaPresent } from './plans-schema';
-export { MODE_CHANGED, TEST_PAYMENTS_ONLY } from './payments';
+export { MODE_CHANGED, PAYMENT_METHOD_OFF, TEST_PAYMENTS_ONLY } from './payments';
 export { countLedgerTestRows } from './ledger-export';
 export { MODE_CHANGED_CODE } from './refunds';
 // S28: AI feature controls. The owner context, the gate and the charge stay inside the services.
@@ -2110,3 +2113,13 @@ export {
   getAiUsageToday,
   isAiFeatureRefusal,
 } from './ai-feature-settings';
+export {
+  type PaymentPortChoice,
+  currencyListWords,
+  currencyWords,
+  onlineCurrencyRefusal,
+  paymentPortResolver,
+} from './payment-resolver';
+export type { PaymentPortResolver } from './ports';
+export type { PaymentProviderReason } from './errors';
+export type { RefundGatewayView } from './refunds';

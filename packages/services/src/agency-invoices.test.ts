@@ -29,7 +29,7 @@ import {
 } from './manual-claims';
 import { addMembership, createOrganization, reviewOrganization } from './organizations';
 import { startOnlinePayment } from './payments';
-import { FakePaymentPort } from './payments.test-support';
+import { FakePaymentPort, onePort } from './payments.test-support';
 import { getPlanByKey } from './plans';
 import { grantPlatformRole } from './platform-roles';
 import { RATE_LIMITS } from './rate-limit';
@@ -753,6 +753,7 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
       expect(invoice?.collectedAmountMinorUnits).toBe(0);
       expect(invoice?.status).toBe('OPEN');
       const listed = await listAgencyInvoices(db, {
+        payments: onePort(new FakePaymentPort()),
         actorAccountId: org.ownerAccountId,
         organizationId: org.organizationId,
       });
@@ -785,7 +786,7 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
     it('keeps an ordinary member from paying online as well', async () => {
       const invoiceId = await openInvoice(org.organizationId, 'INV-C-ONLINE');
       const port = new FakePaymentPort();
-      const started = await startOnlinePayment(db, port, {
+      const started = await startOnlinePayment(db, onePort(port), {
         actorAccountId: org.memberAccountId,
         invoiceId,
         urlFor: (kind, tran) => `https://app.example.test/pay/${kind}?t=${tran}`,
@@ -793,6 +794,7 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
       expect(isErr(started) && started.error.code).toBe('not_found');
       expect(port.checkouts).toHaveLength(0);
       const seen = await listAgencyInvoices(db, {
+        payments: onePort(new FakePaymentPort()),
         actorAccountId: org.memberAccountId,
         organizationId: org.organizationId,
       });
@@ -898,6 +900,7 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
       });
       expect(isOk(listed) && listed.value).toEqual([]);
       const invoices = await listAgencyInvoices(db, {
+        payments: onePort(new FakePaymentPort()),
         actorAccountId: org.ownerAccountId,
         organizationId: org.organizationId,
       });
@@ -1457,6 +1460,7 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
       void theirs;
 
       const listed = await listAgencyInvoices(db, {
+        payments: onePort(new FakePaymentPort()),
         actorAccountId: org.adminAccountId,
         organizationId: org.organizationId,
       });
@@ -1470,12 +1474,14 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
       expect(listed.value.find((i) => i.invoiceRef === 'INV-P-OPEN')?.state).toBe('OPEN');
       // Platform staff may read any agency's list; the other agency's owner may not read this one.
       const staff = await listAgencyInvoices(db, {
+        payments: onePort(new FakePaymentPort()),
         actorAccountId: platform.accountId,
         actorEmail: platform.email,
         organizationId: org.organizationId,
       });
       expect(isOk(staff)).toBe(true);
       const crossed = await listAgencyInvoices(db, {
+        payments: onePort(new FakePaymentPort()),
         actorAccountId: other.ownerAccountId,
         organizationId: org.organizationId,
       });
@@ -1485,7 +1491,7 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
     it('shows a started online payment as Payment Started and a held one as Needs a Check, without gateway identifiers for the agency', async () => {
       const invoiceId = await openInvoice(org.organizationId, 'INV-P-ATTEMPTS', 100000);
       const port = new FakePaymentPort();
-      const started = await startOnlinePayment(db, port, {
+      const started = await startOnlinePayment(db, onePort(port), {
         actorAccountId: org.ownerAccountId,
         invoiceId,
         urlFor: (kind, tran) => `https://app.example.test/pay/${kind}?t=${tran}`,
@@ -1493,6 +1499,7 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
       expect(isOk(started)).toBe(true);
       const view = async () => {
         const listed = await listAgencyInvoices(db, {
+          payments: onePort(new FakePaymentPort()),
           actorAccountId: org.ownerAccountId,
           organizationId: org.organizationId,
         });

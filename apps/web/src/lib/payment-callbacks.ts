@@ -11,9 +11,17 @@ import {
 } from '@visastack/services';
 import { resolveBaseUrl } from './base-url';
 import { clientAddressFrom, hashedSubject } from './client-address';
+import {
+  type IncompletePaymentProvider,
+  PAYMENT_PROVIDERS,
+  type PaymentCallback,
+  type PaymentProviderKey,
+  incompleteProviderMessage,
+  isPaymentProviderKey,
+} from './payment-providers';
 import { signedPaymentResultPath } from './payment-result';
 import { withoutPaymentSecrets } from './payment-secrets';
-import { createPaymentPort } from './providers';
+import { incompletePaymentSettings, paymentPortFor } from './providers';
 import { withPublicDb } from './public-db';
 import { reportServerError } from './server-error';
 
@@ -25,31 +33,40 @@ import { reportServerError } from './server-error';
  * talked about, bounds how often the address may be used, and hands the payment to
  * `settlePaymentAttempt`, which asks the gateway. What the gateway-facing address answers is
  * deliberately thin (no outcome, no reason): an anonymous caller learns nothing about any payment.
+ *
+ * S19 step 0: each provider has its own pair, `/api/payments/<provider>/ipn` and `/return`. The
+ * provider in the address only chooses which gateway to ask and how to read its callback; a
+ * payment started with another provider is unknown here (`settlePaymentAttempt` matches the
+ * payment's own provider). An address for a provider this deployment does not have is not found.
  */
 
 export interface PaymentCallbackDeps {
-  readonly port: () => PaymentPort;
+  /** The provider's port when it is configured here; null (or the Null port) when it is not. */
+  readonly port: (provider: PaymentProviderKey) => PaymentPort | null;
+  /**
+   * The provider's missing settings when it is chosen but incomplete (so it is off), else null:
+   * a callback reaching it then is reported, never dropped quietly.
+   */
+  readonly incomplete: (provider: PaymentProviderKey) => IncompletePaymentProvider | null;
   readonly withDb: <T>(work: (db: Db) => Promise<T>) => Promise<T>;
   readonly baseUrl: () => string;
 }
 
 const DEFAULT_DEPS: PaymentCallbackDeps = {
-  port: createPaymentPort,
+  port: paymentPortFor,
+  incomplete: (provider) =>
+    incompletePaymentSettings().find((candidate) => candidate.key === provider) ?? null,
   withDb: withPublicDb,
   baseUrl: resolveBaseUrl,
 };
 
 /** A gateway notification is a few dozen short fields; anything bigger is not one. */
 const MAX_BODY_CHARS = 32_768;
-const MAX_FIELDS = 100;
-const MAX_FIELD_CHARS = 2_048;
 
-/** The form fields of a callback, or null when the body is missing, oversize or not a form. */
-export async function readCallbackForm(
+/** A callback's body and its type, or null when it is missing, unreadable or oversize. */
+export async function readCallbackBody(
   request: Request,
-): Promise<Readonly<Record<string, string>> | null> {
-  const type = request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase();
-  if (type !== 'application/x-www-form-urlencoded') return null;
+): Promise<{ readonly contentType: string | null; readonly raw: string } | null> {
   const length = Number(request.headers.get('content-length') ?? '0');
   if (Number.isFinite(length) && length > MAX_BODY_CHARS) return null;
   let raw: string;
@@ -59,21 +76,53 @@ export async function readCallbackForm(
     return null;
   }
   if (raw.length > MAX_BODY_CHARS) return null;
-  const fields: Record<string, string> = Object.create(null) as Record<string, string>;
-  let count = 0;
-  for (const [name, value] of new URLSearchParams(raw)) {
-    if (Object.hasOwn(fields, name)) continue; // the first value of a repeated name wins
-    if (++count > MAX_FIELDS || name.length > 64 || value.length > MAX_FIELD_CHARS) return null;
-    fields[name] = value;
-  }
-  return fields;
+  return { contentType: request.headers.get('content-type'), raw };
 }
 
-function formField(
-  form: Readonly<Record<string, string>> | null,
-  name: string,
-): string | undefined {
-  return form === null ? undefined : form[name];
+/** What a callback to this provider's address names, or null when it is not one of its callbacks. */
+async function readCallback(
+  request: Request,
+  provider: PaymentProviderKey,
+): Promise<PaymentCallback | null> {
+  const body = await readCallbackBody(request);
+  return body === null ? null : PAYMENT_PROVIDERS[provider].readCallback(body);
+}
+
+const notFound = () => new Response('Not found', { status: 404 });
+
+/** At most one report per provider per this long, on each running instance (S19 step 0 round 3). */
+export const INCOMPLETE_REPORT_INTERVAL_MS = 10 * 60 * 1000;
+
+/** When each provider's incomplete settings were last reported on this instance. */
+const lastIncompleteReport = new Map<string, number>();
+
+/** Forgets the reports made so far (tests only). */
+export function forgetIncompleteReports(): void {
+  lastIncompleteReport.clear();
+}
+
+/**
+ * A callback reached a provider that is off. When the owner chose it but left its settings
+ * incomplete, that is reported (its name and the settings it lacks, never a value). These addresses
+ * take anonymous requests before any limit applies, so the report is made at most once per
+ * provider every 10 minutes on each instance: anyone can call, nobody can flood the error log. The
+ * answer itself (503, or the general page) is the same every time.
+ */
+function reportIfIncomplete(
+  area: string,
+  provider: PaymentProviderKey,
+  deps: PaymentCallbackDeps,
+  now: number = Date.now(),
+): void {
+  const incomplete = deps.incomplete(provider);
+  if (incomplete === null) return;
+  const last = lastIncompleteReport.get(provider);
+  if (last !== undefined && now - last < INCOMPLETE_REPORT_INTERVAL_MS) return;
+  lastIncompleteReport.set(provider, now);
+  reportServerError(area, new Error(incompleteProviderMessage(incomplete)), {
+    step: 'provider settings incomplete',
+    provider,
+  });
 }
 
 async function withinAddressLimit(db: Db, request: Request): Promise<boolean> {
@@ -105,30 +154,35 @@ function failureToRetry(outcome: SettlementOutcome): boolean {
  */
 export async function handleGatewayNotification(
   request: Request,
+  provider: string,
   deps: PaymentCallbackDeps = DEFAULT_DEPS,
 ): Promise<Response> {
+  if (!isPaymentProviderKey(provider)) return notFound();
   try {
-    const port = deps.port();
-    if (!port.configured) return new Response('Payments are not available', { status: 503 });
-    const form = await readCallbackForm(request);
-    if (!form) return new Response('Bad request', { status: 400 });
+    const port = deps.port(provider);
+    if (!port?.configured) {
+      reportIfIncomplete('paymentNotification', provider, deps);
+      return new Response('Payments are not available', { status: 503 });
+    }
+    const callback = await readCallback(request, provider);
+    if (!callback) return new Response('Bad request', { status: 400 });
 
     return await deps.withDb(async (db) => {
       if (!(await withinAddressLimit(db, request))) {
         return new Response('Too many requests', { status: 429 });
       }
-      if (!port.verifyIpnSignature(form)) {
+      if (!port.verifyIpnSignature(callback.fields)) {
         await recordRejectedPaymentCallback(db, { reason: 'bad_signature', source: 'ipn' });
         return Response.json({ received: true });
       }
-      const merchantTranId = formField(form, 'tran_id') ?? '';
+      const merchantTranId = callback.merchantTranId ?? '';
       if (!isMerchantTranId(merchantTranId)) {
         await recordRejectedPaymentCallback(db, { reason: 'unknown_transaction', source: 'ipn' });
         return Response.json({ received: true });
       }
       const outcome = await settlePaymentAttempt(db, port, {
         merchantTranId,
-        valId: formField(form, 'val_id') ?? null,
+        valId: callback.valId,
         source: 'ipn',
       });
       if (outcome.code === 'unknown_transaction') {
@@ -174,14 +228,19 @@ function redirectToGenericResult(deps: PaymentCallbackDeps): Response {
  */
 export async function handleBrowserReturn(
   request: Request,
+  provider: string,
   deps: PaymentCallbackDeps = DEFAULT_DEPS,
 ): Promise<Response> {
+  if (!isPaymentProviderKey(provider)) return notFound();
   try {
-    const port = deps.port();
-    if (!port.configured) return redirectToGenericResult(deps);
+    const port = deps.port(provider);
+    if (!port?.configured) {
+      reportIfIncomplete('paymentReturn', provider, deps);
+      return redirectToGenericResult(deps);
+    }
     const url = new URL(request.url);
-    const form = request.method === 'POST' ? await readCallbackForm(request) : null;
-    const merchantTranId = formField(form, 'tran_id') ?? url.searchParams.get('t') ?? '';
+    const callback = request.method === 'POST' ? await readCallback(request, provider) : null;
+    const merchantTranId = callback?.merchantTranId ?? url.searchParams.get('t') ?? '';
     if (!isMerchantTranId(merchantTranId)) return redirectToGenericResult(deps);
 
     return await deps.withDb(async (db) => {
@@ -189,7 +248,7 @@ export async function handleBrowserReturn(
       if (!(await withinAddressLimit(db, request))) return redirectToGenericResult(deps);
       const outcome = await settlePaymentAttempt(db, port, {
         merchantTranId,
-        valId: formField(form, 'val_id') ?? null,
+        valId: callback?.valId ?? null,
         source: 'return',
       });
       if (failureToRetry(outcome)) {

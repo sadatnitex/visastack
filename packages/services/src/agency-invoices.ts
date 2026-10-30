@@ -12,8 +12,10 @@ import {
   type PaymentAttemptView,
   attemptView,
   isRecentAttempt,
+  isStrandedAttempt,
 } from './payments';
 import { attemptColumns } from './plans-schema';
+import type { PaymentPortResolver } from './ports';
 import { type ReceiptView, listReceipts } from './receipt-views';
 
 /**
@@ -93,6 +95,12 @@ export interface AgencyInvoiceView {
   readonly dueDate: Date;
   /** When the payer was last sent to the payment page, if that was recent enough to check first. */
   readonly recentAttemptStartedAt: Date | null;
+  /**
+   * True when a payment of this invoice is stranded (`isStrandedAttempt`, S19 step 0 round 3): the
+   * payer is told to contact VisaStack and is offered no new online payment. The same answer
+   * `startOnlinePayment` and Check Status give.
+   */
+  readonly strandedPayment: boolean;
   /** Newest first, at most five. */
   readonly attempts: readonly PaymentAttemptView[];
   readonly claims: readonly ManualClaimView[];
@@ -119,11 +127,17 @@ export async function listAgencyInvoices(
     readonly actorEmail?: string;
     readonly bootstrapEmails?: readonly string[];
     readonly now?: Date;
+    /**
+     * The payment providers configured now: the same resolver the payment services take (S19 step
+     * 0 round 4), so the Invoices page and the services can never disagree about a stranded payment.
+     */
+    readonly payments: Pick<PaymentPortResolver, 'configured'>;
   },
 ): Promise<Result<AgencyInvoiceView[], ServiceError>> {
   const reader = await invoiceLedgerReader(db, input);
   if (reader === null) return err(serviceError('forbidden', NOT_ALLOWED));
   const now = input.now ?? new Date();
+  const configuredProviders = input.payments.configured().map((port) => port.provider);
 
   const invoices: Invoice[] = await db
     .select()
@@ -199,6 +213,9 @@ export async function listAgencyInvoices(
         periodEnd: invoice.periodEnd,
         dueDate: invoice.dueDate,
         recentAttemptStartedAt: recent ? (recent.redirectedAt ?? recent.createdAt) : null,
+        strandedPayment: mine.some((attempt) =>
+          isStrandedAttempt(attempt, configuredProviders, now),
+        ),
         attempts: newestFirst(mine)
           .slice(0, ATTEMPTS_SHOWN)
           .map((attempt) => attemptView(attempt, platform)),

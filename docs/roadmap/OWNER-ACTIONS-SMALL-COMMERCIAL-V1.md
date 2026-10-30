@@ -289,6 +289,20 @@ Also still open as written below: O1 (private repository), O3 (paid Vercel and N
 - **Backup pruning, approved 30 Oct 2026, waiting for your setting:** set the GitHub repository variable `BACKUP_PRUNE` to `on` (GitHub > Settings > Secrets and variables > Actions > Variables). Tools cannot set Actions variables, so this is yours to do. Until then pruning only reports what it would remove.
 - **Plans page (new):** Admin > Settings > Plans (`/app/admin/plans`), owner only, a fresh sign-in check for every save. Create plans, set limits, AI features and prices, and retire plans. A new price applies from each agency's next billing period. How it works: [plans-and-entitlements.md](../operations/plans-and-entitlements.md).
 
+## S19 step 0: payment provider registry (added 30 Oct 2026)
+
+- **O14, recorded in code:** SSLCOMMERZ is the one provider in the payment provider registry. Cards, bKash, Rocket and Nagad are all paid through its checkout; nothing more to set for them. Nothing changes for agencies or for you today: the same settings, the same SSLCOMMERZ addresses (`/api/payments/sslcommerz/ipn` and `/return`), the same screens.
+- **New, optional now, recommended before going live:** set `PAYMENT_RESULT_SIGNING_SECRET` in Vercel Production to a random value of at least 32 characters (it signs the "your payment" result link). Until you do, the link is signed with a key made from the sign-in cookie secret, which also works.
+- **New, optional:** `PAYMENT_PROVIDERS=sslcommerz` does the same as today's `PAYMENT_PROVIDER=sslcommerz`. You only need it once there is a second provider.
+- **Adding bKash, Nagad or Rocket directly later** (not built now; only if you decide SSLCOMMERZ's checkout is not enough): ask for a package "add <name> to the payment provider registry". It builds one adapter and one registry entry. Then you: (1) set `PAYMENT_PROVIDERS=sslcommerz,<name>` in Vercel Production; (2) set that provider's settings, starting with its mode as `sandbox`; (3) register `https://vs.obsidianglobal.studio/api/payments/<name>/ipn` and `/return` in its merchant panel; (4) make one small test payment yourself; (5) give your word to switch it to `live`. Full steps: "Adding a Payment Provider" in [online-payments.md](../operations/online-payments.md).
+- **O2 (later package, nothing for you to do):** links to the payment result page signed the old way stop being accepted in a later package, at least 7 days after this one is live. Each link lives one hour, so nobody notices.
+
+## S19 step 0, round 2 (30 Oct 2026)
+
+- **O2 closed, nothing for you to do:** result page links signed with the SSLCOMMERZ store password are no longer accepted at all. SSLCOMMERZ was never set up in production, so no such link exists, and accepting them would only have let whoever holds the store password make one.
+- **If you set `PAYMENT_RESULT_SIGNING_SECRET`, make it at least 32 characters.** A shorter one now makes the readiness check fail until it is fixed.
+- **If you choose a payment provider, set all its settings in the same change.** A provider with a setting missing now makes the readiness check and the daily payment check fail and name the missing setting, instead of quietly staying off.
+
 ## S28 owner decisions: AI feature controls (added 30 Oct 2026)
 
 Nothing changes for anyone on deploy: the six AI features that worked before are on, included in the Traveller plan and counted without a limit. No migration. Where: Admin > Settings > AI Settings (`/app/admin/ai`); how it works: [ai-feature-controls.md](../operations/ai-feature-controls.md).

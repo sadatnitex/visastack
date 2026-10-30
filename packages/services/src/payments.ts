@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
+import { type SQL, and, desc, eq, gte, inArray, lte, notInArray, or, sql } from 'drizzle-orm';
 import type { SystemScope } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { invoiceLedgerReader } from './billing';
@@ -16,6 +16,7 @@ import {
 } from './invoice-ledger';
 import { isMissingRelationError } from './missing-relation';
 import { isOrgAdmin } from './organizations';
+import { providerShareDeadline } from './payment-resolver';
 import {
   type PaymentMode,
   attemptColumns,
@@ -24,7 +25,7 @@ import {
   gatewayServesMode,
 } from './plans-schema';
 import { isPlatformOwner } from './platform-roles';
-import type { PaymentPort, PaymentValidation } from './ports';
+import type { PaymentPort, PaymentPortResolver, PaymentValidation } from './ports';
 import { RATE_LIMITS, checkRateLimit, checkRateLimits } from './rate-limit';
 
 /**
@@ -619,8 +620,12 @@ export type PaymentReturnKind = 'success' | 'fail' | 'cancel' | 'ipn';
 export interface StartOnlinePaymentInput {
   readonly actorAccountId: string;
   readonly invoiceId: string;
-  /** The absolute address the gateway should send this payer or its server to. */
-  readonly urlFor: (kind: PaymentReturnKind, merchantTranId: string) => string;
+  /**
+   * The absolute address the gateway should send this payer or its server to. `provider` is the
+   * stored name of the provider the payment starts on (S19 step 0), so each provider gets its own
+   * callback addresses.
+   */
+  readonly urlFor: (kind: PaymentReturnKind, merchantTranId: string, provider: string) => string;
   /** True once the person has seen a recent unfinished payment and still wants a new one. */
   readonly startAnother?: boolean;
   /**
@@ -638,6 +643,7 @@ type PreparedStart =
   | { readonly kind: 'recent'; readonly attemptId: string; readonly startedAt: Date }
   | {
       readonly kind: 'created';
+      readonly port: PaymentPort;
       readonly attempt: PaymentAttempt;
       readonly amount: number;
       readonly invoiceRef: string;
@@ -663,6 +669,88 @@ export function isRecentAttempt(
 const NOT_AVAILABLE = 'Online payment is not available yet. Please try again later.';
 
 /**
+ * Said to the payer while a payment of the invoice is stranded (`isStrandedAttempt`, S19 step 0
+ * rounds 2 and 3): nobody can ask its gateway about it, so a new payment could charge twice.
+ */
+export const PAYMENT_METHOD_OFF =
+  'Your earlier payment was started with a payment method that is switched off now. Contact us before paying again, so you are not charged twice.';
+
+/**
+ * A payment whose money is still uncertain (S19 step 0 round 5): sent to the payment page (still
+ * REDIRECTED, or closed as EXPIRED, for whatever reason) no longer ago than the late-success
+ * window. The daily check's late-success selection is this condition with EXPIRED (it keeps asking
+ * the gateway about those, because they can still succeed late), and a stranded payment is this
+ * condition for a LIVE payment whose provider is switched off. One condition, so the two never
+ * drift apart: `stillUncertainSql` for queries, `isStillUncertain` for rows already read.
+ */
+export function stillUncertainSql(now: Date): SQL {
+  const attempts = schema.paymentAttempts;
+  return and(
+    inArray(attempts.status, ['REDIRECTED', 'EXPIRED']),
+    gte(attempts.redirectedAt, new Date(now.getTime() - LATE_SUCCESS_WINDOW_MS)),
+  ) as SQL;
+}
+
+/** `stillUncertainSql` for a row already read. */
+export function isStillUncertain(
+  attempt: Pick<PaymentAttempt, 'status' | 'redirectedAt'>,
+  now: Date,
+): boolean {
+  return (
+    (attempt.status === 'REDIRECTED' || attempt.status === 'EXPIRED') &&
+    attempt.redirectedAt !== null &&
+    attempt.redirectedAt.getTime() >= now.getTime() - LATE_SUCCESS_WINDOW_MS
+  );
+}
+
+/**
+ * The one definition of a stranded payment (S19 step 0, rounds 3 to 5): a LIVE payment whose money
+ * is still uncertain (`isStillUncertain`: the gateway may have taken real money, and the daily
+ * check would still ask it), made with a provider that is not configured here now, so nobody can
+ * ask. Only such a payment stops a new one. A test payment (no real money), one that never reached
+ * the gateway (CREATED) and one older than the window never block; the daily check still counts
+ * the open ones for staff. A REDIRECTED payment older than the window is still asked once by the
+ * daily check (to close it), but never blocks, so an invoice can never be blocked for good.
+ * `hasStrandedAttempt` is the same rule as one query.
+ */
+export function isStrandedAttempt(
+  attempt: Pick<PaymentAttempt, 'status' | 'redirectedAt' | 'provider' | 'mode'>,
+  configuredProviders: readonly string[],
+  now: Date,
+): boolean {
+  return (
+    attempt.mode === 'LIVE' &&
+    isStillUncertain(attempt, now) &&
+    !configuredProviders.includes(attempt.provider)
+  );
+}
+
+/** Whether any payment of this invoice is stranded (`isStrandedAttempt`), as one indexed probe. */
+async function hasStrandedAttempt(
+  db: Db,
+  invoiceId: string,
+  configuredProviders: readonly string[],
+  now: Date,
+): Promise<boolean> {
+  const attempts = schema.paymentAttempts;
+  const found = await db
+    .select({ id: attempts.id })
+    .from(attempts)
+    .where(
+      and(
+        eq(attempts.invoiceId, invoiceId),
+        eq(attemptModeColumn(), 'LIVE'),
+        stillUncertainSql(now),
+        configuredProviders.length === 0
+          ? undefined
+          : notInArray(attempts.provider, [...configuredProviders]),
+      ),
+    )
+    .limit(1);
+  return found.length > 0;
+}
+
+/**
  * What an agency is told while the gateway is in test mode (S29): a test payment would mark a real
  * invoice paid, so only the platform owner may make one.
  */
@@ -673,18 +761,21 @@ const START_FAILED = 'We could not open the payment page. Nothing was charged. T
 /**
  * Starts paying the whole outstanding balance of one invoice online. Only an owner or admin of
  * the agency the invoice belongs to may do it; anyone else sees "not found", exactly as for an
- * invoice that does not exist. Online payment covers BDT invoices that are open or part paid.
- * If the gateway cannot open a page (or takes longer than 15 seconds) the attempt is closed as
- * failed: the payer never reached the gateway, so no money can have moved.
+ * invoice that does not exist. Online payment covers invoices that are open or part paid, in a
+ * currency a configured provider takes (S19 step 0: the earliest provider in the owner's order that
+ * takes the invoice's currency; with SSLCOMMERZ alone, taka only). If the gateway cannot open a
+ * page (or takes longer than 15 seconds) the attempt is closed as failed: the payer never reached
+ * the gateway, so no money can have moved.
  */
 export async function startOnlinePayment(
   db: Db,
-  port: PaymentPort,
+  payments: PaymentPortResolver,
   input: StartOnlinePaymentInput,
 ): Promise<Result<StartedPayment, ServiceError>> {
-  if (!port.configured || port.mode === null) return err(serviceError('invalid', NOT_AVAILABLE));
+  const offered = payments.configured();
+  const fallback = offered[0];
+  if (fallback === undefined) return err(serviceError('invalid', NOT_AVAILABLE));
   const now = input.now ?? new Date();
-  const mode: PaymentMode = port.mode;
   try {
     // S29: every attempt records its mode, which needs migration 0107.
     if (!(await entitlementsSchemaPresent(db))) return err(serviceError('invalid', NOT_AVAILABLE));
@@ -698,6 +789,14 @@ export async function startOnlinePayment(
     if (!invoice || !(await isOrgAdmin(db, input.actorAccountId, invoice.organizationId))) {
       return err(serviceError('not_found', 'invoice not found'));
     }
+    // The provider that takes this invoice's currency. When none does, the first configured one
+    // answers the test-mode question below, so the order of refusals is the one it always was
+    // (with a single provider, exactly the same); the currency refusal itself comes in the
+    // transaction, after the invoice's own state.
+    const chosen = payments.forCurrency(invoice.currency);
+    const gateMode = (chosen ?? fallback).mode;
+    if (gateMode === null) return err(serviceError('invalid', NOT_AVAILABLE));
+    const mode: PaymentMode = gateMode;
     // A test payment marks a real invoice paid, so in test mode only the platform owner may start
     // one (checked before anything is written or sent).
     if (
@@ -754,10 +853,11 @@ export async function startOnlinePayment(
         if (locked.status !== 'OPEN' && locked.status !== 'PARTIALLY_PAID') {
           return err(serviceError('invalid', 'This invoice cannot be paid online.'));
         }
-        if (normalizeCurrency(locked.currency) !== 'BDT') {
-          return err(
-            serviceError('invalid', 'Only invoices in Bangladeshi taka can be paid online.'),
-          );
+        // Read in the invoice's stored currency, under the lock: the provider must be the one
+        // chosen above (the same currency), or nothing starts.
+        const port = payments.forCurrency(locked.currency);
+        if (port === null || port !== chosen) {
+          return err(refusal('currency_not_offered', payments.currencyRefusal));
         }
         const amount = outstandingMinorUnits(
           locked.invoicedAmountMinorUnits,
@@ -769,6 +869,13 @@ export async function startOnlinePayment(
         // S18 (D2): a refunded invoice is never owed again, so it is never paid again either.
         if (await invoiceHasRefund(tx, locked.id)) {
           return err(serviceError('invalid', REFUNDED_INVOICE_MESSAGE));
+        }
+
+        // S19 step 0: a stranded payment (`isStrandedAttempt`) cannot be checked, so no other
+        // payment starts for this invoice, even on purpose.
+        const configuredProviders = payments.configured().map((port) => port.provider);
+        if (await hasStrandedAttempt(tx, locked.id, configuredProviders, now)) {
+          return err(refusal('provider_not_configured', PAYMENT_METHOD_OFF));
         }
 
         if (input.startAnother !== true) {
@@ -847,6 +954,7 @@ export async function startOnlinePayment(
         });
         return ok({
           kind: 'created',
+          port,
           attempt: row,
           amount,
           invoiceRef: locked.invoiceRef,
@@ -862,7 +970,7 @@ export async function startOnlinePayment(
         startedAt: prepared.value.startedAt,
       });
     }
-    const { attempt: created, amount, invoiceRef, customer } = prepared.value;
+    const { port, attempt: created, amount, invoiceRef, customer } = prepared.value;
 
     let session: Awaited<ReturnType<PaymentPort['createCheckout']>>;
     try {
@@ -874,10 +982,10 @@ export async function startOnlinePayment(
           invoiceRef,
           customer,
           urls: {
-            success: input.urlFor('success', merchantTranId),
-            fail: input.urlFor('fail', merchantTranId),
-            cancel: input.urlFor('cancel', merchantTranId),
-            ipn: input.urlFor('ipn', merchantTranId),
+            success: input.urlFor('success', merchantTranId, port.provider),
+            fail: input.urlFor('fail', merchantTranId, port.provider),
+            cancel: input.urlFor('cancel', merchantTranId, port.provider),
+            ipn: input.urlFor('ipn', merchantTranId, port.provider),
           },
         }),
         input.timeoutMs ?? START_TIMEOUT_MS,
@@ -950,6 +1058,11 @@ export interface ReconciliationSummary {
   readonly awaitingReview: number;
   /** Payments not asked about because the run's time budget ran out; the next run asks. */
   readonly leftForLater: number;
+  /**
+   * Open payments made with a provider that is no longer configured here (S19 step 0). They are
+   * left exactly as they are, never closed or expired, and counted so staff can see them.
+   */
+  readonly providerNotConfigured: number;
 }
 
 const EMPTY_SUMMARY: ReconciliationSummary = {
@@ -963,16 +1076,37 @@ const EMPTY_SUMMARY: ReconciliationSummary = {
   unavailable: 0,
   awaitingReview: 0,
   leftForLater: 0,
+  providerNotConfigured: 0,
 };
 
-async function countAwaitingReview(db: Db, provider: string): Promise<number> {
+/** Held payments of every provider: each one is staff work, whichever gateway it came through. */
+async function countAwaitingReview(db: Db): Promise<number> {
   const rows = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(schema.paymentAttempts)
+    .where(eq(schema.paymentAttempts.status, 'HELD_FOR_REVIEW'));
+  return rows[0]?.n ?? 0;
+}
+
+/**
+ * Open payments (still being opened, sent to a gateway, or closed as expired within the late
+ * window) whose provider is not one of `providers` (with none configured, every open payment): no
+ * gateway here can be asked about them.
+ */
+async function countProviderNotConfigured(
+  db: Db,
+  providers: readonly string[],
+  now: Date,
+): Promise<number> {
+  const attempts = schema.paymentAttempts;
+  const rows = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(attempts)
     .where(
       and(
-        eq(schema.paymentAttempts.provider, provider),
-        eq(schema.paymentAttempts.status, 'HELD_FOR_REVIEW'),
+        providers.length === 0 ? undefined : notInArray(attempts.provider, [...providers]),
+        // Every open payment, and every one whose money is still uncertain (round 5).
+        or(inArray(attempts.status, ['CREATED', 'REDIRECTED']), stillUncertainSql(now)),
       ),
     );
   return rows[0]?.n ?? 0;
@@ -991,7 +1125,7 @@ const MAX_CONSECUTIVE_OUTAGES = 3;
 export async function reconcilePaymentAttempts(
   db: Db,
   scope: SystemScope<'process-payment-reconciliation'>,
-  port: PaymentPort,
+  payments: PaymentPortResolver,
   options: {
     readonly now?: Date;
     readonly limit?: number;
@@ -1000,98 +1134,134 @@ export async function reconcilePaymentAttempts(
   } = {},
 ): Promise<ReconciliationSummary> {
   if (scope.job !== 'process-payment-reconciliation') throw new Error('wrong job scope');
-  if (!port.configured) return { ...EMPTY_SUMMARY, configured: false };
+  const ports = payments.configured();
   const now = options.now ?? new Date();
   const limit = Math.max(1, Math.min(options.limit ?? 50, 200));
-  const attempts = schema.paymentAttempts;
   try {
-    // Attempts that never reached the gateway cannot have been paid.
-    const staleBefore = new Date(now.getTime() - STALE_CREATED_MS);
-    const stale = await db
-      .select(attemptColumns())
-      .from(attempts)
-      .where(
-        and(
-          eq(attempts.provider, port.provider),
-          eq(attempts.status, 'CREATED'),
-          lte(attempts.createdAt, staleBefore),
-        ),
-      )
-      .limit(limit);
-    let closed = 0;
-    for (const attempt of stale) {
-      const moved = await db.transaction(async (tx) => {
-        const rows = await tx
-          .update(attempts)
-          .set({ status: 'FAILED', reasonCode: 'start_incomplete', updatedAt: now })
-          .where(and(eq(attempts.id, attempt.id), eq(attempts.status, 'CREATED')))
-          .returning({ id: attempts.id });
-        if (rows.length > 0)
-          await auditAttemptMove(tx, attempt, 'FAILED', 'reconcile', 'start_incomplete');
-        return rows.length;
+    // S19 step 0: each provider is asked only about its own payments, in the owner's order, so
+    // one provider being down never stops another from being asked; each gets an equal share of
+    // the time that is left. With none configured nothing is asked, but open payments are still
+    // counted, so payments stranded by a provider being switched off stay visible.
+    let summary: ReconciliationSummary = { ...EMPTY_SUMMARY, configured: ports.length > 0 };
+    for (const [index, port] of ports.entries()) {
+      summary = await reconcileProvider(db, port, summary, {
+        now,
+        limit,
+        deadline: providerShareDeadline(options.deadline ?? null, index, ports.length),
       });
-      closed += moved;
     }
-
-    const redirectedBefore = new Date(now.getTime() - RECONCILE_MIN_AGE_MS);
-    const lateAfter = new Date(now.getTime() - LATE_SUCCESS_WINDOW_MS);
-    // Payments still open come first, oldest first. Closed-as-expired ones (which may yet turn out
-    // to have succeeded) take whatever room is left, least recently asked about first, so a pile
-    // of abandoned payments can never crowd out a live one and each is revisited in turn.
-    const open = await db
-      .select(attemptColumns())
-      .from(attempts)
-      .where(
-        and(
-          eq(attempts.provider, port.provider),
-          eq(attempts.status, 'REDIRECTED'),
-          lte(attempts.redirectedAt, redirectedBefore),
-          // S29 round 3: a live payment is left alone while the gateway is in test mode (never
-          // expired, never asked), so it takes no room in the batch either. A test payment open
-          // when the gateway is live is still taken, once, to be closed as expired.
-          port.mode === 'TEST' ? eq(attemptModeColumn(), 'TEST') : undefined,
-        ),
-      )
-      .orderBy(attempts.redirectedAt)
-      .limit(limit);
-    const room = limit - open.length;
-    const expired =
-      room > 0
-        ? await db
-            .select(attemptColumns())
-            .from(attempts)
-            .where(
-              and(
-                eq(attempts.provider, port.provider),
-                eq(attempts.status, 'EXPIRED'),
-                gte(attempts.redirectedAt, lateAfter),
-                // Only the gateway's own mode can say a closed payment succeeded late.
-                port.mode === null ? undefined : eq(attemptModeColumn(), port.mode),
-              ),
-            )
-            .orderBy(sql`${attempts.lastCheckedAt} asc nulls first`)
-            .limit(room)
-        : [];
-    const awaitingReview = await countAwaitingReview(db, port.provider);
-    return await settleBatch(
-      db,
-      port,
-      [...open, ...expired],
-      'reconcile',
-      now,
-      { ...EMPTY_SUMMARY, closed, awaitingReview },
-      false,
-      options.deadline ?? null,
-    );
+    return {
+      ...summary,
+      awaitingReview: await countAwaitingReview(db),
+      providerNotConfigured: await countProviderNotConfigured(
+        db,
+        ports.map((port) => port.provider),
+        now,
+      ),
+    };
   } catch (error) {
-    if (isMissingRelationError(error)) return { ...EMPTY_SUMMARY, available: false };
+    // S19 step 0 round 3: with no provider configured, a table a lagging migration has not made
+    // yet is nothing to do (a quiet run, nothing stranded), never a failed one.
+    if (isMissingRelationError(error)) {
+      return ports.length === 0
+        ? { ...EMPTY_SUMMARY, configured: false }
+        : { ...EMPTY_SUMMARY, available: false };
+    }
     throw error;
   }
 }
 
-async function settleBatch(
+/** One provider's part of the reconciliation, added to `start`. */
+async function reconcileProvider(
   db: Db,
   port: PaymentPort,
+  start: ReconciliationSummary,
+  options: { readonly now: Date; readonly limit: number; readonly deadline: number | null },
+): Promise<ReconciliationSummary> {
+  const { now, limit } = options;
+  const attempts = schema.paymentAttempts;
+  // Attempts that never reached the gateway cannot have been paid.
+  const staleBefore = new Date(now.getTime() - STALE_CREATED_MS);
+  const stale = await db
+    .select(attemptColumns())
+    .from(attempts)
+    .where(
+      and(
+        eq(attempts.provider, port.provider),
+        eq(attempts.status, 'CREATED'),
+        lte(attempts.createdAt, staleBefore),
+      ),
+    )
+    .limit(limit);
+  let closed = 0;
+  for (const attempt of stale) {
+    const moved = await db.transaction(async (tx) => {
+      const rows = await tx
+        .update(attempts)
+        .set({ status: 'FAILED', reasonCode: 'start_incomplete', updatedAt: now })
+        .where(and(eq(attempts.id, attempt.id), eq(attempts.status, 'CREATED')))
+        .returning({ id: attempts.id });
+      if (rows.length > 0)
+        await auditAttemptMove(tx, attempt, 'FAILED', 'reconcile', 'start_incomplete');
+      return rows.length;
+    });
+    closed += moved;
+  }
+
+  const redirectedBefore = new Date(now.getTime() - RECONCILE_MIN_AGE_MS);
+  // Payments still open come first, oldest first. Closed-as-expired ones (which may yet turn out
+  // to have succeeded) take whatever room is left, least recently asked about first, so a pile
+  // of abandoned payments can never crowd out a live one and each is revisited in turn.
+  const open = await db
+    .select(attemptColumns())
+    .from(attempts)
+    .where(
+      and(
+        eq(attempts.provider, port.provider),
+        eq(attempts.status, 'REDIRECTED'),
+        lte(attempts.redirectedAt, redirectedBefore),
+        // S29 round 3: a live payment is left alone while the gateway is in test mode (never
+        // expired, never asked), so it takes no room in the batch either. A test payment open
+        // when the gateway is live is still taken, once, to be closed as expired.
+        port.mode === 'TEST' ? eq(attemptModeColumn(), 'TEST') : undefined,
+      ),
+    )
+    .orderBy(attempts.redirectedAt)
+    .limit(limit);
+  const room = limit - open.length;
+  const expired =
+    room > 0
+      ? await db
+          .select(attemptColumns())
+          .from(attempts)
+          .where(
+            and(
+              eq(attempts.provider, port.provider),
+              eq(attempts.status, 'EXPIRED'),
+              // The late-success selection: the same condition a stranded payment uses (round 5).
+              stillUncertainSql(now),
+              // Only the gateway's own mode can say a closed payment succeeded late.
+              port.mode === null ? undefined : eq(attemptModeColumn(), port.mode),
+            ),
+          )
+          .orderBy(sql`${attempts.lastCheckedAt} asc nulls first`)
+          .limit(room)
+      : [];
+  return settleBatch(
+    db,
+    () => port,
+    [...open, ...expired],
+    'reconcile',
+    now,
+    { ...start, closed: start.closed + closed },
+    false,
+    options.deadline,
+  );
+}
+
+async function settleBatch(
+  db: Db,
+  portOf: (attempt: PaymentAttempt) => PaymentPort | null,
   batch: readonly PaymentAttempt[],
   source: SettlementSource,
   now: Date,
@@ -1099,14 +1269,23 @@ async function settleBatch(
   concurrent = false,
   deadline: number | null = null,
 ): Promise<ReconciliationSummary> {
-  const settleOne = (attempt: PaymentAttempt) =>
-    settlePaymentAttempt(db, port, { merchantTranId: attempt.merchantTranId, source, now });
+  let providerNotConfigured = 0;
+  // A payment whose provider is not configured here is never asked about, closed or expired: it
+  // is counted and left as it is (S19 step 0).
+  const settleOne = async (attempt: PaymentAttempt): Promise<SettlementOutcome | null> => {
+    const port = portOf(attempt);
+    if (port === null) {
+      providerNotConfigured++;
+      return null;
+    }
+    return settlePaymentAttempt(db, port, { merchantTranId: attempt.merchantTranId, source, now });
+  };
   const codes: SettlementCode[] = [];
   let leftForLater = 0;
   if (concurrent) {
     // A person is waiting (an invoice being opened): ask about the few payments together.
     const results = await Promise.all(batch.map(settleOne));
-    codes.push(...results.map((r) => r.code));
+    for (const result of results) if (result !== null) codes.push(result.code);
   } else {
     let outagesInARow = 0;
     for (const [index, attempt] of batch.entries()) {
@@ -1114,7 +1293,9 @@ async function settleBatch(
         leftForLater = batch.length - index;
         break;
       }
-      const { code } = await settleOne(attempt);
+      const settled = await settleOne(attempt);
+      if (settled === null) continue;
+      const { code } = settled;
       codes.push(code);
       outagesInARow = code === 'unavailable' ? outagesInARow + 1 : 0;
       if (outagesInARow >= MAX_CONSECUTIVE_OUTAGES) break;
@@ -1138,6 +1319,7 @@ async function settleBatch(
     stillPending,
     unavailable,
     leftForLater: start.leftForLater + leftForLater,
+    providerNotConfigured: start.providerNotConfigured + providerNotConfigured,
   };
 }
 
@@ -1183,16 +1365,27 @@ async function readerFor(
  * agency's owners and admins, or platform billing staff; anyone else is refused). `minAgeMs`
  * defaults to the reconciliation age; pass 0 for an explicit "Check Status". At most five
  * payments are asked about, together, so opening the invoice waits no longer than one gateway
- * call.
+ * call. Each is asked of the provider it was made with (S19 step 0); one whose provider is no
+ * longer configured is counted and left as it is.
  */
 export async function refreshInvoicePaymentAttempts(
   db: Db,
-  port: PaymentPort,
-  input: InvoicePaymentsReader & { readonly minAgeMs?: number; readonly now?: Date },
-): Promise<Result<ReconciliationSummary, ServiceError>> {
+  payments: PaymentPortResolver,
+  input: InvoicePaymentsReader & {
+    readonly minAgeMs?: number;
+    readonly now?: Date;
+    /**
+     * Also answer whether a payment of the invoice is stranded (Check Status only, S19 step 0
+     * round 4); the page-load check leaves it out and runs no extra query.
+     */
+    readonly withStranded?: boolean;
+  },
+): Promise<Result<InvoicePaymentCheck, ServiceError>> {
   const allowed = await readerFor(db, input);
   if (!allowed.ok) return allowed;
-  if (!port.configured) return ok({ ...EMPTY_SUMMARY, configured: false });
+  // With no provider configured nothing is asked, but an open payment is still counted as one no
+  // gateway here can be asked about, so the payer is told before paying again.
+  const configured = payments.configured().length > 0;
   const now = input.now ?? new Date();
   const minAge = Math.max(0, input.minAgeMs ?? RECONCILE_MIN_AGE_MS);
   const attempts = schema.paymentAttempts;
@@ -1203,7 +1396,6 @@ export async function refreshInvoicePaymentAttempts(
       .where(
         and(
           eq(attempts.invoiceId, allowed.value.invoiceId),
-          eq(attempts.provider, port.provider),
           inArray(attempts.status, ['REDIRECTED', 'EXPIRED']),
         ),
       )
@@ -1216,12 +1408,40 @@ export async function refreshInvoicePaymentAttempts(
         (a.status === 'REDIRECTED' ||
           now.getTime() - a.redirectedAt.getTime() <= LATE_SUCCESS_WINDOW_MS),
     );
-    return ok(await settleBatch(db, port, eligible, 'refresh', now, EMPTY_SUMMARY, true));
+    const summary = await settleBatch(
+      db,
+      (attempt) => payments.forProvider(attempt.provider),
+      eligible,
+      'refresh',
+      now,
+      { ...EMPTY_SUMMARY, configured },
+      true,
+    );
+    const strandedPayment =
+      input.withStranded === true &&
+      (await hasStrandedAttempt(
+        db,
+        allowed.value.invoiceId,
+        payments.configured().map((port) => port.provider),
+        now,
+      ));
+    return ok({ ...summary, strandedPayment });
   } catch (error) {
-    if (isMissingRelationError(error)) return ok({ ...EMPTY_SUMMARY, available: false });
+    if (isMissingRelationError(error)) {
+      return ok({ ...EMPTY_SUMMARY, available: false, strandedPayment: false });
+    }
     throw error;
   }
 }
+
+/** Check Status's answer: the counts, and whether a payment of the invoice is stranded. */
+export type InvoicePaymentCheck = ReconciliationSummary & {
+  /**
+   * `isStrandedAttempt` for any payment of the invoice (the payer must contact VisaStack); false
+   * unless `withStranded` was asked for.
+   */
+  readonly strandedPayment: boolean;
+};
 
 // --- Reading ----------------------------------------------------------------------------------
 

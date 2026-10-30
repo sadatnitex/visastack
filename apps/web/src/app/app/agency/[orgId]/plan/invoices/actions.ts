@@ -4,6 +4,7 @@ import { looksLikeMoney } from '@visastack/core';
 import {
   CLAIM_AMOUNT_PROBLEM,
   type Db,
+  PAYMENT_METHOD_OFF,
   PROOF_FILE_MAX_BYTES,
   type ProofFilePorts,
   formatAmountForCurrency,
@@ -20,7 +21,7 @@ import { paymentUrlFor } from '../../../../../../lib/payment-urls';
 import {
   createImageSanitizer,
   createMalwareScanner,
-  createPaymentPort,
+  paymentPorts,
 } from '../../../../../../lib/providers';
 import { reportServerError } from '../../../../../../lib/server-error';
 import { withSession } from '../../../../../../lib/session';
@@ -86,13 +87,10 @@ export async function startPaymentAction(
       accountId,
       email,
     }): Promise<InvoiceActionState | { readonly redirectUrl: string }> => {
-      let port: ReturnType<typeof createPaymentPort>;
-      try {
-        port = createPaymentPort();
-      } catch {
-        return UNAVAILABLE;
-      }
-      const started = await startOnlinePayment(db, port, {
+      // S19 step 0: the service starts the payment on the provider that takes this invoice's
+      // currency, so nothing here names a provider or a currency. With none configured it
+      // refuses in plain words.
+      const started = await startOnlinePayment(db, paymentPorts(), {
         actorAccountId: accountId,
         // S29: in the gateway's test mode only the platform owner may start a payment.
         actorEmail: email,
@@ -125,21 +123,17 @@ export async function checkPaymentAction(
   const found = ids(formData);
   if (!found) return NOT_FOUND;
   const result = await withSession(async ({ db, accountId }): Promise<InvoiceActionState> => {
-    let port: ReturnType<typeof createPaymentPort>;
-    try {
-      port = createPaymentPort();
-    } catch {
-      return UNAVAILABLE;
-    }
-    const checked = await refreshInvoicePaymentAttempts(db, port, {
+    const checked = await refreshInvoicePaymentAttempts(db, paymentPorts(), {
       actorAccountId: accountId,
       organizationId: found.organizationId,
       invoiceId: found.invoiceId,
       minAgeMs: 0,
+      // Only Check Status asks whether a payment is stranded (S19 step 0 round 4).
+      withStranded: true,
     });
     if (!checked.ok) return { ok: false, message: 'We could not find this invoice.' };
     const summary = checked.value;
-    if (!summary.configured || !summary.available) return UNAVAILABLE;
+    if (!summary.available) return UNAVAILABLE;
     if (summary.recorded > 0) return { ok: true, message: 'Your payment was received. Thank you.' };
     if (summary.held > 0) {
       return {
@@ -147,6 +141,9 @@ export async function checkPaymentAction(
         message: 'Your payment needs a check. VisaStack will contact you.',
       };
     }
+    // S19 step 0: a stranded payment (the service's one definition) cannot be checked.
+    if (summary.strandedPayment) return { ok: false, message: PAYMENT_METHOD_OFF };
+    if (!summary.configured) return UNAVAILABLE;
     if (summary.unavailable > 0 || summary.stillPending > 0) {
       return {
         ok: true,

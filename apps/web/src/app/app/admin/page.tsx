@@ -21,7 +21,6 @@ import { gateStatus } from '../../../lib/commercial-readiness';
 import { getDeploymentMode } from '../../../lib/deployment-mode';
 import { SHIPPED_MIGRATIONS } from '../../../lib/migration-journal';
 import { type ProviderStatus, describeProviderOperations } from '../../../lib/provider-operations';
-import { paymentMode } from '../../../lib/providers';
 import { evaluateReadiness } from '../../../lib/readiness';
 import { withSession } from '../../../lib/session';
 import { staffFactorMode } from '../../../lib/staff-factor';
@@ -200,7 +199,6 @@ export default async function AdminOperationsPage() {
           ? { evidenceBytes: platformEvidenceBytes }
           : {}),
         ...(!failedSections.includes('AI cost') ? { aiCostUnits } : {}),
-        paymentMode: paymentMode(),
       }),
     };
   });

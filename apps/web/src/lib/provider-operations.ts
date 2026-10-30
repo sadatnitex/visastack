@@ -1,5 +1,14 @@
 import 'server-only';
+import { currencyListWords } from '@visastack/services';
+import { aiConnectorEnabled } from './ai-connector';
 import { formatFileSize } from './format-size';
+import {
+  PAYMENT_PROVIDERS,
+  PAYMENT_PROVIDER_KEYS,
+  type PaymentProviderEntry,
+  chosenPaymentProviders,
+  configuredPaymentProviders,
+} from './payment-providers';
 
 /** A plain word for where a service stands. "Set Up" never means "proven to work". */
 export type ProviderStatus = 'Set Up' | 'Not Set Up' | 'Recorded' | 'Not Proven' | 'Not Measured';
@@ -15,28 +24,88 @@ export interface ProviderOperationsRow {
   readonly detail: string;
 }
 
+/**
+ * The label of one payment provider's row (S19 step 0, worded in round 2): "Online Payments", like
+ * "Document Storage". With several providers each row adds the currencies it takes, in plain
+ * words; the provider's own name is in the detail.
+ */
+export function onlinePaymentsLabel(
+  entry: Pick<PaymentProviderEntry, 'currencies'>,
+  providerCount: number = PAYMENT_PROVIDER_KEYS.length,
+): string {
+  if (providerCount <= 1) return ONLINE_PAYMENTS;
+  return `${ONLINE_PAYMENTS} in ${titleWords(currencyListWords(entry.currencies, 'and'))}`;
+}
+
+const ONLINE_PAYMENTS = 'Online Payments';
+
+/** "Bangladeshi taka and US dollars" as a label: "Bangladeshi Taka and US Dollars". */
+function titleWords(phrase: string): string {
+  return phrase
+    .split(' ')
+    .map((word) => (word === 'and' ? word : `${word.charAt(0).toUpperCase()}${word.slice(1)}`))
+    .join(' ');
+}
+
+type RawRow = Omit<ProviderOperationsRow, 'standing' | 'headline'>;
+
+/** Readings of a payment provider's row. */
+const PAYMENT_READINGS = {
+  LIVE: 'Live payments',
+  TEST: 'Test payments only',
+  INCOMPLETE: 'Chosen; settings incomplete',
+  OFF: 'Not configured',
+} as const;
+
 /** Counts describe application records, never a provider's invoice or remaining quota. */
 export function describeProviderOperations(
   input: {
     readonly evidenceBytes?: number;
     readonly aiCostUnits?: number;
-    /** S29: the gateway mode from `paymentMode()` (providers.ts); null when not configured. */
-    readonly paymentMode?: 'TEST' | 'LIVE' | null;
   },
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): ProviderOperationsRow[] {
   const rows = rawRows(input, env);
-  return rows.map((row) => ({ ...row, ...plain(row, input) }));
+  return rows.map((row) => ('standing' in row ? row : { ...row, ...plain(row, input) }));
+}
+
+/**
+ * One row per payment provider in the registry, from the one configured answer
+ * (`configuredPaymentProviders`): its mode, the currencies it takes, and whether it can refund.
+ */
+function paymentRows(env: Readonly<Record<string, string | undefined>>): ProviderOperationsRow[] {
+  const configured = configuredPaymentProviders(env);
+  const chosen = chosenPaymentProviders(env);
+  const keys = PAYMENT_PROVIDER_KEYS;
+  return keys.map((key) => {
+    const entry: PaymentProviderEntry = PAYMENT_PROVIDERS[key];
+    const on = configured.find((provider) => provider.key === key);
+    const reading = on
+      ? PAYMENT_READINGS[on.mode]
+      : chosen.includes(key)
+        ? PAYMENT_READINGS.INCOMPLETE
+        : PAYMENT_READINGS.OFF;
+    return {
+      label: onlinePaymentsLabel(entry, keys.length),
+      reading,
+      source: 'Configuration' as const,
+      detail: `Through ${entry.name}, for invoices in ${currencyListWords(entry.currencies, 'and')}. ${
+        entry.supportsRefunds
+          ? 'Refunds can be sent through it once sending refunds from VisaStack is switched on.'
+          : 'Refunds are made in its own panel and recorded here.'
+      } Test payments mark invoices paid but are not money: they are labelled Test Payment and left out of the Monthly Accounting File. Only the platform owner can make one. Live payments need the live store settings.`,
+      ...paymentPlain(reading, keys.length > 1 ? currencyListWords(entry.currencies, 'and') : null),
+    };
+  });
 }
 
 function rawRows(
   input: {
     readonly evidenceBytes?: number;
     readonly aiCostUnits?: number;
-    readonly paymentMode?: 'TEST' | 'LIVE' | null;
   },
   env: Readonly<Record<string, string | undefined>>,
-): Omit<ProviderOperationsRow, 'standing' | 'headline'>[] {
+): (RawRow | ProviderOperationsRow)[] {
   const read = (name: string) => env[name];
   const configured = (names: readonly string[]) =>
     names.every((name) => Boolean(env[name]?.trim()));
@@ -62,17 +131,13 @@ function rawRows(
       detail:
         'Provider acceptance is different from delivery. Receipt endpoint registration and signed events must also be verified.',
     },
+    ...paymentRows(env),
     {
-      label: 'Online Payments',
-      reading:
-        input.paymentMode === 'LIVE'
-          ? 'Live payments'
-          : input.paymentMode === 'TEST'
-            ? 'Test payments only'
-            : 'Not configured',
+      label: 'AI App Access',
+      reading: aiConnectorEnabled((name) => env[name]) ? 'On' : 'Off',
       source: 'Configuration',
       detail:
-        'Test payments mark invoices paid but are not money: they are labelled Test Payment and left out of the Monthly Accounting File. Only the platform owner can make one. Live payments need the live store settings.',
+        'Whether people can connect an AI app to VisaStack. Each connection still needs the person to approve it, and they can remove it at any time.',
     },
     {
       label: 'Document Storage',
@@ -137,6 +202,37 @@ function rawRows(
   ];
 }
 
+/**
+ * A payment row's standing and headline. With one provider, exactly the S29 sentences; with
+ * several, each says which invoices it is about.
+ */
+function paymentPlain(
+  reading: string,
+  currencies: string | null,
+): { readonly standing: ProviderStatus; readonly headline: string } {
+  const invoices = currencies === null ? 'invoices' : `invoices in ${currencies}`;
+  const payment = currencies === null ? 'Online payment' : `Online payment for ${invoices}`;
+  switch (reading) {
+    case PAYMENT_READINGS.LIVE:
+      return {
+        standing: 'Set Up',
+        headline: `Agencies can pay ${invoices} online with real money.`,
+      };
+    case PAYMENT_READINGS.TEST:
+      return {
+        standing: 'Set Up',
+        headline: `${payment} is in test mode. Only you can make a test payment; agencies cannot pay ${currencies === null ? 'online' : 'those online'} yet.`,
+      };
+    case PAYMENT_READINGS.INCOMPLETE:
+      return {
+        standing: 'Not Set Up',
+        headline: `${payment} is chosen, but some of its settings are missing, so it is off.`,
+      };
+    default:
+      return { standing: 'Not Set Up', headline: `${payment} is not set up.` };
+  }
+}
+
 function plain(
   row: Omit<ProviderOperationsRow, 'standing' | 'headline'>,
   input: { readonly evidenceBytes?: number; readonly aiCostUnits?: number },
@@ -161,19 +257,16 @@ function plain(
               'Receipt checking is switched on. Delivery is unproven until a real receipt arrives.',
           }
         : { standing: 'Not Set Up', headline: 'Delivery receipts are not being checked yet.' };
-    case 'Online Payments':
-      return row.reading === 'Live payments'
+    case 'AI App Access':
+      return row.reading === 'On'
         ? {
             standing: 'Set Up',
-            headline: 'Agencies can pay invoices online with real money.',
+            headline: 'AI App Access: On. People can connect an AI app to their workspace.',
           }
-        : row.reading === 'Test payments only'
-          ? {
-              standing: 'Set Up',
-              headline:
-                'Online payment is in test mode. Only you can make a test payment; agencies cannot pay online yet.',
-            }
-          : { standing: 'Not Set Up', headline: 'Online payment is not set up.' };
+        : {
+            standing: 'Not Set Up',
+            headline: 'AI App Access: Off. No AI app can connect.',
+          };
     case 'Document Storage':
       return row.reading === 'Configuration present'
         ? {

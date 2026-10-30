@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
   startOnlinePayment: vi.fn(),
   refreshInvoicePaymentAttempts: vi.fn(),
   submitManualPaymentClaim: vi.fn(),
-  createPaymentPort: vi.fn(),
+  paymentPorts: vi.fn(),
 }));
 
 vi.mock('@visastack/services', async () => {
@@ -14,6 +14,7 @@ vi.mock('@visastack/services', async () => {
     PROOF_FILE_MAX_BYTES: real.PROOF_FILE_MAX_BYTES,
     formatAmountForCurrency: real.formatAmountForCurrency,
     CLAIM_AMOUNT_PROBLEM: real.CLAIM_AMOUNT_PROBLEM,
+    PAYMENT_METHOD_OFF: real.PAYMENT_METHOD_OFF,
     startOnlinePayment: mocks.startOnlinePayment,
     refreshInvoicePaymentAttempts: mocks.refreshInvoicePaymentAttempts,
     submitManualPaymentClaim: mocks.submitManualPaymentClaim,
@@ -29,7 +30,7 @@ vi.mock('../../../../../../lib/base-url', () => ({
   resolveBaseUrl: () => 'https://vs.example.test',
 }));
 vi.mock('../../../../../../lib/providers', () => ({
-  createPaymentPort: mocks.createPaymentPort,
+  paymentPorts: mocks.paymentPorts,
   createMalwareScanner: () => ({ scanner: true }),
   createImageSanitizer: () => ({ images: true }),
 }));
@@ -65,7 +66,9 @@ const claimFields = (overrides: Record<string, string | File> = {}) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.createPaymentPort.mockReturnValue({ configured: true, provider: 'sslcommerz' });
+  mocks.paymentPorts.mockReturnValue({
+    configured: () => [{ configured: true, provider: 'sslcommerz' }],
+  });
 });
 
 describe('starting a payment', () => {
@@ -96,7 +99,9 @@ describe('starting a payment', () => {
       invoiceId: INVOICE,
       startAnother: false,
     });
-    expect(input.urlFor('ipn', 'VSP1')).toBe('https://vs.example.test/api/payments/sslcommerz/ipn');
+    expect(input.urlFor('ipn', 'VSP1', 'sslcommerz')).toBe(
+      'https://vs.example.test/api/payments/sslcommerz/ipn',
+    );
   });
 
   it('asks again on purpose: only an explicit "yes" starts another payment', async () => {
@@ -109,7 +114,7 @@ describe('starting a payment', () => {
     expect(result.message).toMatch(/Check it before paying again/);
   });
 
-  it('passes on a plain refusal from the service, and says "not available yet" when payments are off', async () => {
+  it('passes on a plain refusal from the service, including the one for a switched-off payment method', async () => {
     mocks.startOnlinePayment.mockResolvedValue({
       ok: false,
       error: { code: 'not_found', message: 'invoice not found' },
@@ -117,16 +122,18 @@ describe('starting a payment', () => {
     expect(
       await startPaymentAction(INITIAL, form({ organizationId: ORG, invoiceId: INVOICE })),
     ).toEqual({ ok: false, message: 'invoice not found' });
-    mocks.createPaymentPort.mockImplementation(() => {
-      throw new Error('PAYMENT_PROVIDER=sslcommerz requires SSLCOMMERZ_STORE_PASSWORD');
+    const PAYMENT_METHOD_OFF =
+      'Your earlier payment was started with a payment method that is switched off now. Contact us before paying again, so you are not charged twice.';
+    mocks.startOnlinePayment.mockResolvedValue({
+      ok: false,
+      error: { code: 'invalid', reason: 'provider_not_configured', message: PAYMENT_METHOD_OFF },
     });
-    const off = await startPaymentAction(
-      INITIAL,
-      form({ organizationId: ORG, invoiceId: INVOICE }),
-    );
-    expect(off.message).toBe('Online payment is not available yet. Please try again later.');
-    // The configuration problem is never shown to the person.
-    expect(JSON.stringify(off)).not.toMatch(/SSLCOMMERZ|PASSWORD/);
+    expect(
+      await startPaymentAction(
+        INITIAL,
+        form({ organizationId: ORG, invoiceId: INVOICE, startAnother: 'yes' }),
+      ),
+    ).toEqual({ ok: false, message: PAYMENT_METHOD_OFF });
   });
 });
 
@@ -143,6 +150,8 @@ describe('checking a payment', () => {
       stillPending: 0,
       unavailable: 0,
       awaitingReview: 0,
+      providerNotConfigured: 0,
+      strandedPayment: false,
       ...overrides,
     },
   });
@@ -165,6 +174,36 @@ describe('checking a payment', () => {
     expect((await run()).message).toMatch(/Nothing was charged/);
     mocks.refreshInvoicePaymentAttempts.mockResolvedValue(summary());
     expect((await run()).message).toMatch(/no open payment/);
+  });
+
+  it('tells the payer an earlier payment is open with a payment method switched off now (S19 step 0 round 2)', async () => {
+    const off =
+      'Your earlier payment was started with a payment method that is switched off now. Contact us before paying again, so you are not charged twice.';
+    // Whether other providers are on or none is.
+    for (const configured of [true, false]) {
+      mocks.refreshInvoicePaymentAttempts.mockResolvedValue(
+        summary({ configured, checked: 0, providerNotConfigured: 1, strandedPayment: true }),
+      );
+      expect(await run(), String(configured)).toEqual({ ok: false, message: off });
+    }
+    // Round 3: only the service's stranded answer counts; an old payment left with a switched-off
+    // provider (counted for staff) does not stop the payer.
+    mocks.refreshInvoicePaymentAttempts.mockResolvedValue(
+      summary({ checked: 0, providerNotConfigured: 1, strandedPayment: false }),
+    );
+    expect((await run()).message).toMatch(/no open payment/);
+    // Good news about another payment of the invoice still comes first.
+    mocks.refreshInvoicePaymentAttempts.mockResolvedValue(
+      summary({ recorded: 1, providerNotConfigured: 1, strandedPayment: true }),
+    );
+    expect((await run()).message).toBe('Your payment was received. Thank you.');
+    // With nothing configured and nothing stranded, online payment is simply not available.
+    mocks.refreshInvoicePaymentAttempts.mockResolvedValue(
+      summary({ configured: false, checked: 0, providerNotConfigured: 0 }),
+    );
+    expect((await run()).message).toBe(
+      'Online payment is not available yet. Please try again later.',
+    );
   });
 
   it('says it cannot find the invoice for a refused reader', async () => {

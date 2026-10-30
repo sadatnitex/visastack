@@ -242,3 +242,75 @@ Not done here: traveller paid subscriptions, enforcing the AI allowance (S28), t
 - **Uploads.** A person adding files to their own record is never stopped by an agency's suspension, even when they work in that agency.
 - **Scope.** `resolveEntitlements` takes no scope proof, so it is not exported from the services index (a test holds this).
 - **Round 3 (30 Oct 2026).** A refund's earlier Needs a Check mark is never overwritten by the mode-change mark. While the gateway is in test mode the payment check selects no live payments (they stay open, never expired by the mode change), and closed payments are rechecked only by their own mode. The plans-update probe answer is kept per connection and shared with its transactions; after a restore to before a migration, the app is redeployed so running copies forget it. "Travellers" counts every account.
+
+
+## Amendment, S19 step 0 (30 Oct 2026): the payment provider registry
+
+Owner decision O14 (30 Oct 2026): SSLCOMMERZ is the provider; bKash, Rocket and Nagad are paid through SSLCOMMERZ's own checkout. This step makes a second provider one registry entry plus its adapter, with no change to the invoice ledger, the services or the pages. No migration (`payment_attempts.provider` and `refund_requests.provider` are free text). Runbook: "Adding a Payment Provider" in `docs/operations/online-payments.md`.
+
+1. **One registry.** `apps/web/src/lib/payment-providers.ts`, `PAYMENT_PROVIDERS`: per provider its screen name, the ISO currencies it takes, whether it can refund, its setting names and secret names, its callback folder `/api/payments/<name>`, its mode (`TEST`, `LIVE`, or none until fully configured; no default), whether it is configured, how to make its port, and how to read its callback. The key is the stored provider name.
+2. **Choice.** `PAYMENT_PROVIDERS`, an ordered comma list (trimmed names, exact lower-case match, repeats count once, `none` adds nothing, unknown names unused and reported by readiness); an earlier provider wins a currency two take. Unset or blank: `PAYMENT_PROVIDER` decides, read exactly as before (decision O1 of the plan: keep the fallback). A chosen provider is on only with all its settings.
+3. **One configured answer.** `configuredPaymentProviders(env)` feeds the status page (any live provider: available; all test: Test Payments Only), the platform overview (one "Online Payments: <Name>" row per entry: mode, currencies, refunds, and "Chosen; settings incomplete"), Billing Rules and the Invoices page (through `paymentMode()` in providers.ts, kept as a thin reading), the callbacks, the daily check and refunds.
+4. **Services take every provider.** `PaymentPortResolver` (ports.ts: `configured()`, `forCurrency`, `forProvider`, `currencyRefusal`), built by `paymentPortResolver` (payment-resolver.ts). A payment starts on the provider that takes the invoice's stored currency; none takes it: typed refusal `currency_not_offered` with a sentence from the registry (with SSLCOMMERZ alone exactly "Only invoices in Bangladeshi taka can be paid online."). The daily check, Check Status and the invoice page's check ask each payment of the provider it was made with, each provider in turn within one time budget; refund request and Send Again go to the provider the money was taken with; the refund check runs per provider. `settlePaymentAttempt` keeps the route's port and still refuses another provider's payment as unknown. A payment or sent refund whose provider is no longer configured is never asked about, closed or expired: it is counted (`providerNotConfigured`).
+5. **Routes.** `/api/payments/[provider]/ipn` and `/return` replace the fixed SSLCOMMERZ folder; the SSLCOMMERZ addresses are unchanged. A provider the registry does not have answers 404 before anything is read; a known but unconfigured one keeps 503 (notification) and the general result page (browser).
+6. **Result links.** Signed with `PAYMENT_RESULT_SIGNING_SECRET` (used as it is when at least 32 characters), else a key derived from `NEON_AUTH_COOKIE_SECRET`, label `visastack.payment-result.v2`; none: the general page. Links signed before this step (store-password key, label v1) are still accepted until they expire; decision O2: remove that acceptance in a later package at least 7 days after this one is live.
+7. **Secrets.** `withoutPaymentSecrets` blanks every registry secret name and the signing secret.
+8. **Switch readings.** No existing switch changes: `PAYMENT_PROVIDER`, `SSLCOMMERZ_*` and `PAYMENT_REFUNDS_VIA_GATEWAY` (exact `true`, still pinned by `launch-switch-parsing.test.ts`) are read as before. Deviation from the plan: refunds stay behind the exact-`true` reading, not `switchOn`, because the pin forbids `switchOn` in refund-gateway.ts.
+
+### S19 step 0, round 2 (30 Oct 2026): review fixes
+
+Supersedes items 3 and 6 above where they differ.
+
+1. **An incomplete provider is never silent.** Each entry reports `missingSettings(env)`: the names of its missing or invalid settings, never their values. A chosen provider with any of them is off. `incompletePaymentProviders(env)` names it, and three places act on it:
+   - readiness (`validateProviderEnv`) fails, naming the provider and each missing setting;
+   - the daily payment check reports it through `reportServerError` and returns `incompleteProviders`, so the cron route answers 503, while the other providers are still asked;
+   - each callback to it reports once per request and still answers 503, or the general result page for the browser.
+   `PAYMENT_PROVIDERS` set but naming nothing (such as `,`) also fails readiness. Building the ports never throws (the failure recorder falls back to the console log).
+2. **Stranded work counts with no provider on.** The daily payment check, the daily refund check, Check Now and Check Status still count open payments and sent refunds whose provider is not configured (`providerNotConfigured`), even when none is configured. Nothing is asked or changed.
+3. **Paying again is blocked while a payment is stranded.** While an open payment's provider is not configured:
+   - the payer is told "Your earlier payment was started with a payment method that is switched off now. Contact us before paying again, so you are not charged twice." (`PAYMENT_METHOD_OFF`);
+   - the card offers neither Pay Online nor Start Another Payment;
+   - `startOnlinePayment` refuses another payment for that invoice, even on purpose (typed `provider_not_configured`).
+4. **Staff are told about stranded refunds.** Check Now tells staff which sent refunds wait on a payment method that is switched off now.
+5. **Fair time budget.** In the daily payment and refund checks, each provider may start gateway calls only within an equal share of the time left (`providerShareDeadline`). A slow earlier provider cannot starve a later one.
+6. **Mixed modes.** `overallPaymentMode` is LIVE only when every configured provider is live, TEST when all are in test mode, MIXED otherwise. In MIXED:
+   - the status page's Payments row is limited and reads Partly Live, with the test-only invoice currencies named in plain words;
+   - Billing Rules shows Partly Live and names those currencies.
+   With one provider the S29 words are unchanged.
+7. **Refund through a provider gone.** `requestRefund` checks that the payment's own provider is configured and can refund before any mode check. When it is not, the refusal is typed `provider_not_configured` (`REFUND_PROVIDER_OFF`). Send Again uses the same refusal.
+8. **Result links (decision O2 closed).** The store-password key is removed: production never had SSLCOMMERZ configured, so no link was ever signed with it, and accepting it only gave whoever holds the store password a forging path. The signing rules are now:
+   - `NEON_AUTH_COOKIE_SECRET` is used only when it is at least 32 characters;
+   - once `PAYMENT_RESULT_SIGNING_SECRET` is set, links signed with the cookie-derived key are still accepted until they expire;
+   - a `PAYMENT_RESULT_SIGNING_SECRET` that is set but shorter than 32 characters fails readiness, naming only the setting.
+9. **One settings parser.** `readSslcommerzConfig`, `SslcommerzConfig`, `isPaymentProviderConfigured` and `createPaymentPort` are deleted (no production caller). The registry contract test also checks that each entry's key equals its port's `provider`.
+10. **Overview wording.** The row label is "Online Payments", like "Document Storage". With several providers each row is "Online Payments in <currency in plain words>". The provider's name is in the detail. Currency names come from the one list in `payment-resolver.ts` (`currencyWords`, `currencyListWords`).
+
+### S19 step 0, round 3 (30 Oct 2026): re-review fixes
+
+1. **One definition of stranded.** `isStrandedAttempt` in payments.ts: a payment sent to the payment page (REDIRECTED, or EXPIRED) within the late-success window (`LATE_SUCCESS_WINDOW_MS`, the one the daily check uses), made with a provider not configured now. All three places use it:
+   - `listAgencyInvoices` (the new required `configuredProviders` input gives `strandedPayment` on each view, which the card reads);
+   - `startOnlinePayment`, which refuses another payment;
+   - Check Status (`refreshInvoicePaymentAttempts` returns `strandedPayment`).
+
+   CREATED attempts and older ones never block. The daily check still counts the open ones.
+2. **Refunds.** `REFUND_PROVIDER_OFF` only when the payment's provider is not configured. A configured provider that cannot refund gets the earlier "cannot be refunded through the payment gateway" refusal. The web passes every configured provider to the refund services, which filter by `isRefundingPaymentPort`, so the `refundsOnly` option is removed.
+3. **Callback reports.** A chosen-but-incomplete provider is reported at most once per provider every 10 minutes per instance (`INCOMPLETE_REPORT_INTERVAL_MS`); the 503 is unchanged.
+4. **Daily check without a provider.** With no provider configured, a missing table is a quiet run (`configured: false`, nothing stranded), never `available: false`.
+5. **Check Now.** When every refund asked about went unanswered, the answer also names the stranded refunds.
+6. **Result-link key.** No change: holding `NEON_AUTH_COOKIE_SECRET` already allows minting sign-in sessions. The runbook says to change `PAYMENT_RESULT_SIGNING_SECRET` only when no payment is in progress.
+
+### S19 step 0, round 4 (30 Oct 2026)
+
+1. **Stranded, narrowed.** Only a LIVE, REDIRECTED attempt within the late-success window, with a provider not configured, is stranded. `isStrandedAttempt` holds the rule, and `hasStrandedAttempt` is the same rule as one indexed probe (id only, `limit 1`). Check Status asks for it with `withStranded`; the page-load refresh runs no extra query. `listAgencyInvoices` takes the same `PaymentPortResolver` the services use (`payments`), and the Invoices page builds that resolver once.
+2. **Registry refund guard.** A provider refunds only when its entry has `supportsRefunds` AND its port passes `isRefundingPaymentPort`. `buildPaymentPorts` hands on a payments-only port for an entry without `supportsRefunds`, and `refundGatewayViews` (the admin refund panel's gateway list, and so `servedBy`) lists refunding ports only.
+3. **Own provider first.** `requestRefund` and `retryRefund` judge the payment's own provider before the "no refunding gateway at all" answer, so a switched-off provider always gets `REFUND_PROVIDER_OFF`.
+
+### S19 step 0, round 5 (30 Oct 2026): correction
+
+One condition, `stillUncertainSql` (`isStillUncertain` for rows already read), now does three jobs:
+
+- It is the daily check's late-success selection (EXPIRED, within `LATE_SUCCESS_WINDOW_MS`).
+- It is the open-payment part of the staff count.
+- With `mode = LIVE` and the provider not configured, it is a stranded payment (`isStrandedAttempt`, and `hasStrandedAttempt` as one indexed probe).
+
+So a LIVE payment closed as EXPIRED inside the window blocks, whatever closed it. Item 1 of round 4 said EXPIRED never blocks; that is superseded. A test fails if the stranded rule and the daily check's selection ever disagree.

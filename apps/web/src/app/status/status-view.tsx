@@ -38,6 +38,7 @@ export function StatusView({
   loading,
   onRefresh,
   versionNotice = null,
+  paymentsNote = null,
 }: {
   readonly live: ProbeResult | null;
   readonly ready: ProbeResult | null;
@@ -49,9 +50,18 @@ export function StatusView({
    * reachable once it has folded away (the footer links to it). Null in commercial mode.
    */
   readonly versionNotice?: VersionNoticeCopy | null;
+  /**
+   * S19 step 0 round 2: while some payment methods take real money and some only test payments,
+   * which invoice currencies are which, in plain words. The Payments row then never reads as
+   * test-only or as all real.
+   */
+  readonly paymentsNote?: string | null;
 }) {
   const verdict = VERDICT_WORDS[verdictOf(live, ready)];
-  const rows = capabilityRows(ready?.data.platform);
+  const rows = capabilityRows(ready?.data.platform).map((row) =>
+    row.key === 'payments' && paymentsNote ? { ...row, label: 'Partly Live' } : row,
+  );
+  const showPaymentsNote = paymentsNote !== null && rows.some((row) => row.key === 'payments');
 
   const usable = rows.filter((row) => row.tone !== 'neutral');
   const notYet = rows.filter((row) => row.tone === 'neutral');
@@ -93,6 +103,7 @@ export function StatusView({
             <article className="card u-mb-125">
               <h2 className="card-title">You Can Use Now</h2>
               {featureList(usable)}
+              {showPaymentsNote ? <p className="muted u-fs-085 u-mt-050">{paymentsNote}</p> : null}
             </article>
           ) : null}
           {notYet.length > 0 ? (

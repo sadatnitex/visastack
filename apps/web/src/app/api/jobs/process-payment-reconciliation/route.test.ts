@@ -114,3 +114,24 @@ it('reads as failed when the refund check crashed or no sent refund could be ask
   });
   expect((await GET(request())).status).toBe(200);
 });
+
+it('reads as failed while a chosen payment provider has incomplete settings (S19 step 0 round 2)', async () => {
+  const counts = {
+    available: true,
+    configured: true,
+    checked: 1,
+    recorded: 1,
+    held: 0,
+    closed: 0,
+    stillPending: 0,
+    unavailable: 0,
+    refunds: { available: true, configured: true, checked: 0, unavailable: 0, leftForLater: 0 },
+  };
+  mocks.reconcile.mockResolvedValue({ ...counts, incompleteProviders: ['sslcommerz'] });
+  const failed = await GET(request());
+  expect(failed.status).toBe(503);
+  // The counts of the providers that were asked are still in the answer.
+  expect(await failed.json()).toMatchObject({ recorded: 1, incompleteProviders: ['sslcommerz'] });
+  mocks.reconcile.mockResolvedValue({ ...counts, incompleteProviders: [] });
+  expect((await GET(request())).status).toBe(200);
+});
