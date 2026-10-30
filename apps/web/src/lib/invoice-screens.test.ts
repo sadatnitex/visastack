@@ -114,11 +114,13 @@ describe('the words of the Invoices page', () => {
 describe('the addresses given to the payment gateway', () => {
   const urlFor = paymentUrlFor('https://vs.example.test/');
   it('stay on this site and carry only the transaction id', () => {
-    expect(urlFor('ipn', 'VSP1')).toBe('https://vs.example.test/api/payments/sslcommerz/ipn');
-    expect(urlFor('success', 'VSP1')).toBe(
+    expect(urlFor('ipn', 'VSP1', 'sslcommerz')).toBe(
+      'https://vs.example.test/api/payments/sslcommerz/ipn',
+    );
+    expect(urlFor('success', 'VSP1', 'sslcommerz')).toBe(
       'https://vs.example.test/api/payments/sslcommerz/return?o=success&t=VSP1',
     );
-    expect(urlFor('fail', 'VSP&x=1')).toBe(
+    expect(urlFor('fail', 'VSP&x=1', 'sslcommerz')).toBe(
       'https://vs.example.test/api/payments/sslcommerz/return?o=fail&t=VSP%26x%3D1',
     );
   });

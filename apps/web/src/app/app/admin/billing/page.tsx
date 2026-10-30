@@ -3,6 +3,7 @@ import {
   type BillingSettings,
   type OverduePreview,
   countLedgerTestRows,
+  currencyListWords,
   dayCount,
   getBillingSettings,
   previewOverdueHandling,
@@ -10,16 +11,18 @@ import {
 import type { Metadata } from 'next';
 import { PageHeader, StatusBadge } from '../../../../components/ui';
 import { bootstrapAdminEmails, staffPrincipal } from '../../../../lib/admin';
-import { paymentMode } from '../../../../lib/providers';
+import { paymentCurrenciesByMode, paymentMode } from '../../../../lib/providers';
 import { withSession } from '../../../../lib/session';
 import { AdminRestricted } from '../admin-restricted';
 import { BillingRulesForm } from './forms';
 import {
+  MIXED_PAYMENT_MODE,
   PAID_IN_FULL,
   PAYMENT_MODE_WORDS,
   TRAVELLER_UPLOADS_NOTE,
   WHAT_SUSPENDED_DOES,
   daysAfterDue,
+  mixedPaymentSentence,
   savedPreviewSentence,
 } from './labels';
 import { LedgerCard, ledgerProblem } from './ledger-card';
@@ -114,7 +117,17 @@ export default async function BillingRulesPage({
     const testRowsLeftOut = counted?.ok ? counted.value : null;
     return { kind: 'ready' as const, settings, preview, testRowsLeftOut };
   });
-  const mode = PAYMENT_MODE_WORDS[paymentMode() ?? 'NONE'];
+  const overall = paymentMode();
+  // S19 step 0 round 2: with some providers live and some not, nothing says every payment is real.
+  const mode =
+    overall === 'MIXED'
+      ? {
+          ...MIXED_PAYMENT_MODE,
+          sentence: mixedPaymentSentence(paymentCurrenciesByMode(), (codes) =>
+            currencyListWords(codes, 'and'),
+          ),
+        }
+      : PAYMENT_MODE_WORDS[overall ?? 'NONE'];
 
   return (
     <section className="section container">

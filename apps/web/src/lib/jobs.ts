@@ -59,6 +59,7 @@ import { createAiReadingPorts } from './ai-reading-ports';
 import { resolveBaseUrl } from './base-url';
 import { dispatchGithubIntake } from './github-intake';
 import { runKmsSelfTest } from './kms-self-test';
+import { incompleteProviderMessage } from './payment-providers';
 import { withoutPaymentSecrets } from './payment-secrets';
 import {
   createContentLimitsChecker,
@@ -67,8 +68,9 @@ import {
   createKeyManagementPort,
   createMalwareScanner,
   createObservabilityPort,
-  createPaymentPort,
   createStorage,
+  incompletePaymentSettings,
+  paymentPorts,
 } from './providers';
 import { reportServerError } from './server-error';
 
@@ -865,13 +867,21 @@ export const REFUND_CHECK_BUDGET_MS = 15_000;
 /**
  * Asks the payment gateway about online payments that have not been confirmed yet (S11, ADR
  * 0020): payments the payer left open, and ones closed as expired that may still have succeeded.
- * Does nothing (and reports `configured: false`) while no payment provider is configured. Returns
- * counts only.
+ * Asks nothing (and reports `configured: false`) while no payment provider is configured, but
+ * still counts open payments and sent refunds no provider here can be asked about. Returns counts
+ * only.
+ *
+ * A provider the owner chose but left with incomplete settings is off. It is reported here (its
+ * name and the settings it lacks, never a value) and named in `incompleteProviders`, which the
+ * route answers as a failed run; the other providers are still asked (S19 step 0 round 2).
  */
 export async function triggerPaymentReconciliation(
   scope: SystemScope<'process-payment-reconciliation'>,
 ): Promise<
-  | (ReconciliationSummary & { readonly refunds: RefundCheckSummary | { readonly error: string } })
+  | (ReconciliationSummary & {
+      readonly refunds: RefundCheckSummary | { readonly error: string };
+      readonly incompleteProviders: readonly string[];
+    })
   | { readonly error: string }
 > {
   const connectionString = resolveDatabaseUrl(process.env);
@@ -883,18 +893,30 @@ export async function triggerPaymentReconciliation(
     });
   });
   try {
-    const port = createPaymentPort();
+    // S19 step 0: every configured provider, each asked only about its own payments and refunds.
+    const incomplete = incompletePaymentSettings();
+    for (const provider of incomplete) {
+      reportServerError(
+        'triggerPaymentReconciliation',
+        new Error(incompleteProviderMessage(provider)),
+        {
+          step: 'provider settings incomplete',
+          provider: provider.key,
+        },
+      );
+    }
+    const payments = paymentPorts();
     const handle = db as unknown as Parameters<typeof reconcilePaymentAttempts>[0];
     // The route may run for 60 seconds: payments get 25 seconds to start gateway calls, then
     // refunds 15 of their own; whatever is left is counted and asked about next run.
-    const payments = await reconcilePaymentAttempts(handle, scope, port, {
+    const checked = await reconcilePaymentAttempts(handle, scope, payments, {
       deadline: Date.now() + PAYMENT_CHECK_BUDGET_MS,
     });
     // S18: refunds the gateway has taken are confirmed in the same daily run. A refund check that
     // fails is reported on its own and never hides the payment counts.
     let refunds: RefundCheckSummary | { readonly error: string };
     try {
-      refunds = await reconcileRefunds(handle, scope, port, {
+      refunds = await reconcileRefunds(handle, scope, payments, {
         deadline: Date.now() + REFUND_CHECK_BUDGET_MS,
       });
       if (refunds.checked === 0 && refunds.leftForLater > 0) {
@@ -910,7 +932,7 @@ export async function triggerPaymentReconciliation(
       });
       refunds = { error: 'failed' };
     }
-    return { ...payments, refunds };
+    return { ...checked, refunds, incompleteProviders: incomplete.map((provider) => provider.key) };
   } catch (error) {
     reportServerError('triggerPaymentReconciliation', withoutPaymentSecrets(error), {
       step: 'reconciliation failed',

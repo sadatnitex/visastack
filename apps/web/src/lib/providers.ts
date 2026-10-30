@@ -9,10 +9,9 @@ import {
   DeterministicTextExtractor,
   LocalEnvelopeKeyProvider,
   NullEmailPort,
-  NullPaymentPort,
+  type PaymentProviderFailure,
   ResendEmailPort,
   SharpImageSanitizer,
-  SslcommerzPaymentPort,
 } from '@visastack/adapters';
 import {
   type BlobStore,
@@ -25,11 +24,26 @@ import {
   type MalwareScannerPort,
   type ObservabilityPort,
   type PaymentPort,
+  type PaymentPortResolver,
   type PreviewRendererPort,
   loadUploadQuotaConfig,
 } from '@visastack/services';
 import { isClamAvConfigured } from './env';
 import { NeonIdentityPort } from './identity-provider';
+import {
+  type IncompletePaymentProvider,
+  type OverallPaymentMode,
+  PAYMENT_PROVIDER_KEYS,
+  type PaymentProviderKey,
+  buildPaymentPorts,
+  configuredPaymentProviders,
+  currenciesByMode,
+  incompletePaymentProviders,
+  incompleteProviderMessage,
+  overallPaymentMode,
+  paymentProvidersSettingProblem,
+} from './payment-providers';
+import { paymentResultSigningProblem } from './payment-result';
 
 /**
  * The central provider registry (master directive §7 "PR 11"): the one place
@@ -70,7 +84,8 @@ const KNOWN_PROVIDERS = {
   JOB_PROVIDER: ['neon'],
   EMAIL_PROVIDER: ['none', 'resend'],
   OBSERVABILITY_PROVIDER: ['console'],
-  PAYMENT_PROVIDER: ['none', 'sslcommerz'],
+  // S19 step 0: every provider in the payment provider registry (today: sslcommerz).
+  PAYMENT_PROVIDER: ['none', ...PAYMENT_PROVIDER_KEYS],
   KMS_PROVIDER: ['local', 'aws_kms'],
 } as const satisfies Record<string, readonly string[]>;
 
@@ -122,6 +137,17 @@ export function validateProviderEnv(): void {
   for (const envVar of Object.keys(KNOWN_PROVIDERS) as readonly KnownProviderVar[]) {
     checkKnownProvider(envVar);
   }
+  // S19 step 0: the ordered list of payment providers. Like the vars above, the message names the
+  // setting and the supported names only, never what was typed.
+  const listProblem = paymentProvidersSettingProblem(process.env);
+  if (listProblem !== null) throw new Error(listProblem);
+  // A chosen provider with incomplete settings is off, and said so here: its name and the names of
+  // the settings it lacks, never a value (S19 step 0 round 2).
+  const incomplete = incompletePaymentProviders(process.env)[0];
+  if (incomplete !== undefined) throw new Error(incompleteProviderMessage(incomplete));
+  // The payment result signing secret, when set, must be long enough to be used.
+  const signing = paymentResultSigningProblem(process.env);
+  if (signing !== null) throw new Error(signing);
 }
 
 /**
@@ -255,74 +281,66 @@ export function createObservabilityPort(): ObservabilityPort {
   return new ConsoleObservabilityPort();
 }
 
-export interface SslcommerzConfig {
-  readonly storeId: string;
-  readonly storePassword: string;
-  readonly mode: 'sandbox' | 'live';
+/**
+ * The payment mode (S29), across every configured provider since S19 step 0: LIVE only when every
+ * one takes real money, TEST while all are in test mode (a test payment marks a real invoice paid,
+ * so only the platform owner may make one, and it never reaches the accounting file), MIXED when
+ * some are live and some are not, null when online payments are not configured. The one reading
+ * every screen uses (Billing Rules, the status page, the platform overview), from
+ * `configuredPaymentProviders` (payment-providers.ts).
+ */
+export function paymentMode(): OverallPaymentMode | null {
+  return overallPaymentMode(configuredPaymentProviders(process.env));
+}
+
+/** The invoice currencies that take real money, and those that take only test payments. */
+export function paymentCurrenciesByMode(): {
+  readonly live: readonly string[];
+  readonly test: readonly string[];
+} {
+  return currenciesByMode(process.env);
+}
+
+/** The chosen payment providers that are off because their settings are incomplete. */
+export function incompletePaymentSettings(): readonly IncompletePaymentProvider[] {
+  return incompletePaymentProviders(process.env);
 }
 
 /**
- * The SSLCOMMERZ settings when `PAYMENT_PROVIDER=sslcommerz` and all three are present and valid
- * (`SSLCOMMERZ_STORE_ID`, `SSLCOMMERZ_STORE_PASSWORD`, and `SSLCOMMERZ_MODE` set to exactly
- * `sandbox` or `live`; there is no default mode, so live is never reached by leaving something
- * out). Null otherwise, including when the provider is not chosen at all. Never throws and never
- * returns or logs the password to anything but the adapter.
+ * Each payment gateway failure, in fixed words, to the operational logs. Never throws, so building
+ * the payment ports never does: an unknown `OBSERVABILITY_PROVIDER` is the readiness check's to
+ * report, and the failures still reach the console log meanwhile.
  */
-export function readSslcommerzConfig(): SslcommerzConfig | null {
-  if (readEnv('PAYMENT_PROVIDER') !== 'sslcommerz') return null;
-  const storeId = readEnv('SSLCOMMERZ_STORE_ID')?.trim() ?? '';
-  const storePassword = readEnv('SSLCOMMERZ_STORE_PASSWORD') ?? '';
-  const mode = readEnv('SSLCOMMERZ_MODE')?.trim();
-  if (storeId === '' || storePassword === '') return null;
-  if (mode !== 'sandbox' && mode !== 'live') return null;
-  return { storeId, storePassword, mode };
-}
-
-/**
- * The gateway's mode (S29): TEST while SSLCOMMERZ_MODE is `sandbox` (a test payment marks a real
- * invoice paid, so only the platform owner may make one, and it never reaches the accounting
- * file), LIVE for `live`, null when online payments are not configured. The one reading every
- * screen uses (Billing Rules, the status page, the platform overview).
- */
-export function paymentMode(): 'TEST' | 'LIVE' | null {
-  const config = readSslcommerzConfig();
-  if (!config) return null;
-  return config.mode === 'live' ? 'LIVE' : 'TEST';
-}
-
-/** True when online payments are fully configured (the same test `createPaymentPort` applies). */
-export function isPaymentProviderConfigured(): boolean {
-  return readSslcommerzConfig() !== null;
-}
-
-/**
- * No payment provider unless `PAYMENT_PROVIDER=sslcommerz` is set with a complete configuration.
- * A half-set configuration fails closed: it is refused loudly, never quietly turned into a
- * payment page that cannot work, and never into the live gateway by default.
- */
-export function createPaymentPort(): PaymentPort {
-  checkKnownProvider('PAYMENT_PROVIDER');
-  if (readEnv('PAYMENT_PROVIDER') === 'sslcommerz') {
-    const config = readSslcommerzConfig();
-    if (!config) {
-      throw new Error(
-        'PAYMENT_PROVIDER=sslcommerz requires SSLCOMMERZ_STORE_ID, SSLCOMMERZ_STORE_PASSWORD and SSLCOMMERZ_MODE (sandbox or live)',
-      );
-    }
-    const observability = createObservabilityPort();
-    return new SslcommerzPaymentPort({
-      ...config,
-      // Fixed words only (which call, and why), so a wrong store setting or mode is visible in the
-      // logs instead of looking like an ordinary outage.
-      onFailure: (event) =>
-        observability.record({
-          name: 'payment_provider_failure',
-          severity: 'warning',
-          metadata: { operation: event.operation, reason: event.reason },
-        }),
-    });
+function paymentFailureRecorder(): (event: PaymentProviderFailure) => void {
+  let observability: ObservabilityPort;
+  try {
+    observability = createObservabilityPort();
+  } catch {
+    observability = new ConsoleObservabilityPort();
   }
-  return new NullPaymentPort();
+  // Fixed words only (which provider call, and why), so a wrong store setting or mode is visible
+  // in the logs instead of looking like an ordinary outage.
+  return (event) =>
+    observability.record({
+      name: 'payment_provider_failure',
+      severity: 'warning',
+      metadata: { operation: event.operation, reason: event.reason },
+    });
+}
+
+/**
+ * Every configured payment provider's port, as the resolver the services take (S19 step 0): a
+ * payment starts on the provider that takes the invoice's currency, and a check or refund goes to
+ * the provider the payment was made with. Empty (nothing can start) when none is configured.
+ */
+export function paymentPorts(): PaymentPortResolver {
+  return buildPaymentPorts(process.env, paymentFailureRecorder());
+}
+
+/** One provider's port when it is chosen and fully configured, else null. Never throws. */
+export function paymentPortFor(provider: PaymentProviderKey): PaymentPort | null {
+  const configured = configuredPaymentProviders(process.env).find((p) => p.key === provider);
+  return configured ? configured.entry.create(process.env, paymentFailureRecorder()) : null;
 }
 
 /**

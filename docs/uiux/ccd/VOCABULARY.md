@@ -82,3 +82,7 @@ Added 30 Oct 2026 (S29, plans and test payments):
 | A plan nobody new can be put on | Retired (status), Offered (status) | "Archived", "Disabled", "Deprecated" | **New (S29)** |
 | A payment made in the gateway's test mode | Test Payment (badge); the mode on Billing Rules and the status page: Test Payments Only, Live, Not Set Up | "Sandbox Payment", "Fake Payment", "Dry Run" | **New (S29)** |
 | A coming price on Plan and Usage | "From {date}, your next billing period, the price is {amount}. Invoices already made keep their amounts." | "Price Change Pending", "Repricing" | **New (S29)** |
+| One payment provider's row on the platform overview | Online Payments: {provider name} (for example Online Payments: SSLCOMMERZ); readings Live payments, Test payments only, Chosen; settings incomplete, Not configured | "Gateway Adapter", "Payment Port", "PSP" | **New (S19 step 0)** |
+| Whether people can connect an AI app (platform overview row) | AI App Access: On, AI App Access: Off | "Connector Flag", "MCP Enabled", "OAuth Switch" | **New (S19 step 0)** |
+| One payment provider's row on the platform overview (round 2, replaces the row above) | Online Payments (with several providers: Online Payments in {currency}, for example Online Payments in Bangladeshi Taka); the provider's name is in the detail | "Online Payments: SSLCOMMERZ", "Gateway Adapter", "PSP" | **Changed (S19 step 0 round 2)** |
+| Payments where some methods are live and some in test mode (Billing Rules, status page) | Partly Live | "Mixed Mode", "Live" | **New (S19 step 0 round 2)** |

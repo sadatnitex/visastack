@@ -32,6 +32,7 @@ function invoice(overrides: Partial<AgencyInvoiceView> = {}): AgencyInvoiceView 
     periodEnd: new Date('2026-10-31T00:00:00Z'),
     dueDate: new Date(Date.now() + 14 * DAY),
     recentAttemptStartedAt: null,
+    strandedPayment: false,
     attempts: [],
     claims: [],
     receipts: [],
@@ -39,12 +40,15 @@ function invoice(overrides: Partial<AgencyInvoiceView> = {}): AgencyInvoiceView 
   };
 }
 
+/** S19 step 0: what the Invoices page offers, per currency; SSLCOMMERZ takes taka. */
+const PAY_BDT = { BDT: 'pay' } as const;
+
 const render = (view: AgencyInvoiceView, onlineAvailable = true) =>
   renderToStaticMarkup(
     <InvoiceCard
       invoice={view}
       organizationId={ORG}
-      onlineAvailable={onlineAvailable}
+      online={onlineAvailable ? PAY_BDT : {}}
       latestDate="2026-10-28"
     />,
   );
@@ -115,6 +119,31 @@ describe('an invoice card on the agency Invoices page', () => {
     expect(usd).toContain('I Paid Another Way');
   });
 
+  it('offers Pay Online by the currencies the payment providers take, not a fixed currency (S19 step 0)', () => {
+    const dollars = invoice({ currency: 'USD' });
+    const offered = renderToStaticMarkup(
+      <InvoiceCard
+        invoice={dollars}
+        organizationId={ORG}
+        online={{ USD: 'pay' }}
+        latestDate="2026-10-28"
+      />,
+    );
+    expect(offered).toContain('Pay Online');
+    const taka = renderToStaticMarkup(
+      <InvoiceCard
+        invoice={invoice()}
+        organizationId={ORG}
+        online={{ USD: 'pay' }}
+        testModeHint="Online payment is being tested right now."
+        latestDate="2026-10-28"
+      />,
+    );
+    expect(taka).not.toContain('Pay Online');
+    expect(taka).not.toContain('being tested');
+    expect(taka).toContain('I Paid Another Way');
+  });
+
   it('shows a recent payment first, with Check Status and Start Another Payment, never a Continue link', () => {
     const html = render(
       invoice({
@@ -129,6 +158,38 @@ describe('an invoice card on the agency Invoices page', () => {
     expect(html).not.toContain('Continue');
     expect(html).not.toContain('>Pay Online<');
     expect(html).toContain('Payment Started');
+  });
+
+  it('offers no new payment while one is open with a provider switched off now, and says why (S19 step 0 round 2)', () => {
+    for (const recent of [new Date(), null]) {
+      const html = render(
+        invoice({
+          state: 'PAYMENT_STARTED',
+          recentAttemptStartedAt: recent,
+          strandedPayment: true,
+          attempts: [attempt('REDIRECTED')],
+        }),
+      );
+      expect(html).toContain(
+        'Your earlier payment was started with a payment method that is switched off now. Contact us before paying again, so you are not charged twice.',
+      );
+      expect(html).not.toContain('Start Another Payment');
+      expect(html).not.toContain('Pay Online');
+      expect(html).not.toContain('Check Status');
+      // Reporting a payment made another way stays possible.
+      expect(html).toContain('I Paid Another Way');
+    }
+    // The same payment open with a provider that is configured gets the usual choices.
+    const usual = render(
+      invoice({
+        state: 'PAYMENT_STARTED',
+        recentAttemptStartedAt: new Date(),
+        strandedPayment: false,
+        attempts: [attempt('REDIRECTED')],
+      }),
+    );
+    expect(usual).toContain('Start Another Payment');
+    expect(usual).not.toContain('switched off now');
   });
 
   it('shows a waiting report as Payment Reported and offers no second report', () => {
@@ -175,7 +236,7 @@ describe('an invoice card on the agency Invoices page', () => {
       <InvoiceCard
         invoice={invoice()}
         organizationId={ORG}
-        onlineAvailable={false}
+        online={{ BDT: 'testing' }}
         testModeHint={hint}
         latestDate="2026-10-30"
       />,
@@ -353,7 +414,7 @@ describe('an invoice card on the agency Invoices page', () => {
       <InvoiceCard
         invoice={invoice({ dueDate: new Date('2026-10-22T00:00:00Z') })}
         organizationId={ORG}
-        onlineAvailable
+        online={PAY_BDT}
         latestDate="2026-10-30"
         now={now}
       />,
@@ -365,7 +426,7 @@ describe('an invoice card on the agency Invoices page', () => {
       <InvoiceCard
         invoice={invoice({ dueDate: new Date('2026-10-30T00:00:00Z') })}
         organizationId={ORG}
-        onlineAvailable
+        online={PAY_BDT}
         latestDate="2026-10-30"
         now={now}
       />,

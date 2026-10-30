@@ -34,13 +34,19 @@ import {
 } from './ledger-export';
 import { submitManualPaymentClaim } from './manual-claims';
 import { createOrganization, reviewOrganization } from './organizations';
+import { paymentPortResolver } from './payment-resolver';
 import {
+  LATE_SUCCESS_WINDOW_MS,
+  MODE_CHANGED,
+  PAYMENT_METHOD_OFF,
+  isStrandedAttempt,
   newMerchantTranId,
   reconcilePaymentAttempts,
+  refreshInvoicePaymentAttempts,
   settlePaymentAttempt,
   startOnlinePayment,
 } from './payments';
-import { FakePaymentPort } from './payments.test-support';
+import { FakePaymentPort, onePort } from './payments.test-support';
 import { ledgerColumns, ledgerModeSql } from './plans-schema';
 import { grantPlatformRole } from './platform-roles';
 import {
@@ -49,6 +55,7 @@ import {
   NEEDS_CHECK_CODE,
   REFERENCE_TAKEN,
   REFUNDS_UNAVAILABLE,
+  REFUND_PROVIDER_OFF,
   REFUND_WORK_LIMIT,
   RETRY_REFUSED_CODE,
   RETRY_REFUSED_MESSAGE,
@@ -66,6 +73,7 @@ import {
 } from './refunds';
 
 const DAY = 24 * 60 * 60 * 1000;
+const HOUR = 60 * 60 * 1000;
 const TIMEOUT = 120_000;
 
 async function freshDb(): Promise<Db> {
@@ -348,7 +356,7 @@ describe('refunds through the gateway (S18)', () => {
       const { entry } = await paidOnline(w, inv, 10_000);
       const staff = await scopeOf(w);
       const ask = (amount: number) =>
-        requestRefund(db, port, staff, {
+        requestRefund(db, onePort(port), staff, {
           organizationId: w.organizationId,
           source: entrySource(entry.id),
           amountMinorUnits: amount,
@@ -389,7 +397,7 @@ describe('refunds through the gateway (S18)', () => {
       const staff = await scopeOf(w);
       const both = await Promise.all(
         [0, 1].map(() =>
-          requestRefund(db, port, staff, {
+          requestRefund(db, onePort(port), staff, {
             organizationId: w.organizationId,
             source: entrySource(entry.id),
             amountMinorUnits: 10_000,
@@ -412,7 +420,7 @@ describe('refunds through the gateway (S18)', () => {
       const { entry } = await paidOnline(w, inv, 10_000);
       const staff = await scopeOf(w);
       const ask = (amount: number) =>
-        requestRefund(db, port, staff, {
+        requestRefund(db, onePort(port), staff, {
           organizationId: w.organizationId,
           source: entrySource(entry.id),
           amountMinorUnits: amount,
@@ -446,7 +454,7 @@ describe('refunds through the gateway (S18)', () => {
 
       // Still processing at the gateway: nothing.
       const scope = systemScopeForTest('process-payment-reconciliation');
-      expect(await reconcileRefunds(db, scope, port)).toMatchObject({
+      expect(await reconcileRefunds(db, scope, onePort(port))).toMatchObject({
         checked: 1,
         stillProcessing: 1,
         confirmed: 0,
@@ -457,7 +465,7 @@ describe('refunds through the gateway (S18)', () => {
       // The gateway confirms: one negative row, the invoice drops to part paid.
       const ref = sent.value.request.reference ?? '';
       port.refundStatus.set(ref, 'REFUNDED');
-      expect(await reconcileRefunds(db, scope, port)).toMatchObject({ confirmed: 1 });
+      expect(await reconcileRefunds(db, scope, onePort(port))).toMatchObject({ confirmed: 1 });
       const rows = await refundRows(w);
       expect(
         rows.map((r) => [
@@ -472,14 +480,14 @@ describe('refunds through the gateway (S18)', () => {
         status: 'PARTIALLY_PAID',
       });
       // Asked again (the daily job and Check Now): still exactly one.
-      expect(await reconcileRefunds(db, scope, port)).toMatchObject({ checked: 0 });
+      expect(await reconcileRefunds(db, scope, onePort(port))).toMatchObject({ checked: 0 });
       expect(
-        isOk(await checkRefundsNow(db, port, staff, { organizationId: w.organizationId })),
+        isOk(await checkRefundsNow(db, onePort(port), staff, { organizationId: w.organizationId })),
       ).toBe(true);
       expect(await refundRows(w)).toHaveLength(1);
 
       // The one whose sending was never confirmed is sent again with the same refund id.
-      const retried = await retryRefund(db, port, staff, {
+      const retried = await retryRefund(db, onePort(port), staff, {
         organizationId: w.organizationId,
         refundRequestId: unknown.value.request.id,
         stepUpSatisfied: true,
@@ -499,7 +507,7 @@ describe('refunds through the gateway (S18)', () => {
       const inv = await invoice(w, 'INV-CANCEL', 10_000);
       const { entry } = await paidOnline(w, inv, 10_000);
       const staff = await scopeOf(w);
-      const sent = await requestRefund(db, port, staff, {
+      const sent = await requestRefund(db, onePort(port), staff, {
         organizationId: w.organizationId,
         source: entrySource(entry.id),
         amountMinorUnits: 10_000,
@@ -509,7 +517,9 @@ describe('refunds through the gateway (S18)', () => {
       });
       if (!isOk(sent)) throw new Error('sent');
       port.refundStatus.set(sent.value.request.reference ?? '', 'CANCELLED');
-      const checked = await checkRefundsNow(db, port, staff, { organizationId: w.organizationId });
+      const checked = await checkRefundsNow(db, onePort(port), staff, {
+        organizationId: w.organizationId,
+      });
       expect(isOk(checked) && checked.value.failed).toBe(1);
       expect((await requests(w))[0]).toMatchObject({
         status: 'FAILED',
@@ -528,7 +538,7 @@ describe('refunds through the gateway (S18)', () => {
       const staff = await scopeOf(w);
       const key = randomUUID();
       const send = () =>
-        requestRefund(db, port, staff, {
+        requestRefund(db, onePort(port), staff, {
           organizationId: w.organizationId,
           source: entrySource(entry.id),
           amountMinorUnits: 2000,
@@ -577,7 +587,7 @@ describe('refunds through the gateway (S18)', () => {
       const inv = await invoice(w, 'INV-HAND', 10_000);
       const entry = await paidByHand(w, inv, 10_000);
       const staff = await scopeOf(w);
-      const viaGateway = await requestRefund(db, port, staff, {
+      const viaGateway = await requestRefund(db, onePort(port), staff, {
         organizationId: w.organizationId,
         source: entrySource(entry.id),
         amountMinorUnits: 1000,
@@ -671,6 +681,7 @@ describe('refunds through the gateway (S18)', () => {
       expect(overdue.map((o) => o.invoiceRef)).toEqual(['INV-UNTOUCHED']);
 
       const listed = await listAgencyInvoices(db, {
+        payments: onePort(new FakePaymentPort()),
         actorAccountId: w.orgOwnerId,
         organizationId: w.organizationId,
       });
@@ -685,7 +696,7 @@ describe('refunds through the gateway (S18)', () => {
       expect(byRef.get('INV-UNTOUCHED')).toMatchObject({ state: 'OPEN', refundedMinorUnits: 0 });
 
       // Neither paying online nor reporting a payment is possible on a refunded invoice.
-      const started = await startOnlinePayment(db, port, {
+      const started = await startOnlinePayment(db, onePort(port), {
         actorAccountId: w.orgOwnerId,
         invoiceId: partly,
         urlFor: (kind, tran) => `https://app.example.test/${kind}?t=${tran}`,
@@ -800,7 +811,7 @@ describe('held payments: refund and Apply to Next Invoice (S18)', () => {
       expect(isErr(online) && online.error.code).toBe('key_conflict');
 
       // What is left can only be refunded, up to what is left.
-      const tooMuch = await requestRefund(db, port, staff, {
+      const tooMuch = await requestRefund(db, onePort(port), staff, {
         organizationId: w.organizationId,
         source: heldSource(held.id),
         amountMinorUnits: 4001,
@@ -809,7 +820,7 @@ describe('held payments: refund and Apply to Next Invoice (S18)', () => {
         stepUpSatisfied: true,
       });
       expect(isErr(tooMuch)).toBe(true);
-      const rest = await requestRefund(db, port, staff, {
+      const rest = await requestRefund(db, onePort(port), staff, {
         organizationId: w.organizationId,
         source: heldSource(held.id),
         amountMinorUnits: 4000,
@@ -819,7 +830,11 @@ describe('held payments: refund and Apply to Next Invoice (S18)', () => {
       });
       if (!isOk(rest)) throw new Error(rest.error.message);
       port.refundStatus.set(rest.value.request.reference ?? '', 'REFUNDED');
-      await reconcileRefunds(db, systemScopeForTest('process-payment-reconciliation'), port);
+      await reconcileRefunds(
+        db,
+        systemScopeForTest('process-payment-reconciliation'),
+        onePort(port),
+      );
       // Held money never was in the ledger, so its refund writes no ledger row; the held payment is closed.
       expect(await refundRows(w)).toHaveLength(0);
       const closed = (
@@ -878,7 +893,7 @@ describe('held payments: refund and Apply to Next Invoice (S18)', () => {
         stepUpSatisfied: true,
       });
       expect(isErr(credit)).toBe(true);
-      const viaGateway = await requestRefund(db, port, staff, {
+      const viaGateway = await requestRefund(db, onePort(port), staff, {
         organizationId: w.organizationId,
         source: heldSource(held.id),
         amountMinorUnits: 10_000,
@@ -1014,7 +1029,7 @@ describe('who may refund (S18)', () => {
         stepUpSatisfied: false,
       });
       expect(isErr(noStepUpCredit) && noStepUpCredit.error.code).toBe('step_up_required');
-      const noStepUpGateway = await requestRefund(db, port, real, {
+      const noStepUpGateway = await requestRefund(db, onePort(port), real, {
         organizationId: w.organizationId,
         source: entrySource(entry.id),
         amountMinorUnits: 100,
@@ -1027,7 +1042,7 @@ describe('who may refund (S18)', () => {
         isErr(
           await getOrganizationRefundWork(db, forged, {
             organizationId: w.organizationId,
-            gatewayProvider: null,
+            gateways: [],
           }),
         ),
       ).toBe(true);
@@ -1178,8 +1193,7 @@ describe('before migration 0104', () => {
       const staff = await scopeOf(w);
       const work = await getOrganizationRefundWork(db, staff, {
         organizationId: w.organizationId,
-        gatewayProvider: 'sslcommerz',
-        gatewayMode: 'LIVE',
+        gateways: [{ provider: 'sslcommerz', mode: 'LIVE' }],
       });
       expect(isOk(work) && work.value.available).toBe(false);
       const manual = await recordManualRefund(db, staff, {
@@ -1193,7 +1207,7 @@ describe('before migration 0104', () => {
         stepUpSatisfied: true,
       });
       expect(isErr(manual) && manual.error.message).toBe(REFUNDS_UNAVAILABLE);
-      const viaGateway = await requestRefund(db, port, staff, {
+      const viaGateway = await requestRefund(db, onePort(port), staff, {
         organizationId: w.organizationId,
         source: entrySource(entry.id),
         amountMinorUnits: 100,
@@ -1203,12 +1217,17 @@ describe('before migration 0104', () => {
       });
       expect(isErr(viaGateway) && viaGateway.error.message).toBe(REFUNDS_UNAVAILABLE);
       expect(
-        await reconcileRefunds(db, systemScopeForTest('process-payment-reconciliation'), port),
+        await reconcileRefunds(
+          db,
+          systemScopeForTest('process-payment-reconciliation'),
+          onePort(port),
+        ),
       ).toMatchObject({
         available: false,
       });
       // The agency's invoices and the overdue rules still read as before.
       const listed = await listAgencyInvoices(db, {
+        payments: onePort(new FakePaymentPort()),
         actorAccountId: w.orgOwnerId,
         organizationId: w.organizationId,
       });
@@ -1302,7 +1321,7 @@ describe('S18 round 2: resends, It Went Through, refunded invoices, durable chec
   });
 
   const ask = async (entryId: string, amount: number) =>
-    requestRefund(db, port, await scopeOf(w), {
+    requestRefund(db, onePort(port), await scopeOf(w), {
       organizationId: w.organizationId,
       source: entrySource(entryId),
       amountMinorUnits: amount,
@@ -1321,7 +1340,7 @@ describe('S18 round 2: resends, It Went Through, refunded invoices, durable chec
       if (!isOk(first)) throw new Error('first');
       expect(first.value.code).toBe('unconfirmed');
       port.refundBehaviour = 'refuse';
-      const again = await retryRefund(db, port, await scopeOf(w), {
+      const again = await retryRefund(db, onePort(port), await scopeOf(w), {
         organizationId: w.organizationId,
         refundRequestId: first.value.request.id,
         stepUpSatisfied: true,
@@ -1391,7 +1410,7 @@ describe('S18 round 2: resends, It Went Through, refunded invoices, durable chec
     async () => {
       const inv = await invoice(w, 'INV-LATE-PAY', 10_000);
       const handEntry = await paidByHand(w, inv, 4000);
-      const started = await startOnlinePayment(db, port, {
+      const started = await startOnlinePayment(db, onePort(port), {
         actorAccountId: w.orgOwnerId,
         invoiceId: inv,
         urlFor: (kind, tran) => `https://app.example.test/${kind}?t=${tran}`,
@@ -1451,8 +1470,7 @@ describe('S18 round 2: resends, It Went Through, refunded invoices, durable chec
       // The held money is verified, so it can go to another invoice or back to the agency.
       const work = await getOrganizationRefundWork(db, await scopeOf(w), {
         organizationId: w.organizationId,
-        gatewayProvider: 'sslcommerz',
-        gatewayMode: 'LIVE',
+        gateways: [{ provider: 'sslcommerz', mode: 'LIVE' }],
       });
       expect(isOk(work) && work.value.held.map((h) => [h.id, h.verified])).toEqual([
         [attempt.id, true],
@@ -1477,8 +1495,8 @@ describe('S18 round 2: resends, It Went Through, refunded invoices, durable chec
         .where(eq(schema.invoices.id, stuckInv));
       port.refundStatus.set(stuck.value.request.reference ?? '', 'REFUNDED');
       const scope = systemScopeForTest('process-payment-reconciliation');
-      expect(await reconcileRefunds(db, scope, port)).toMatchObject({ needsCheck: 1 });
-      expect(await reconcileRefunds(db, scope, port)).toMatchObject({ needsCheck: 1 });
+      expect(await reconcileRefunds(db, scope, onePort(port))).toMatchObject({ needsCheck: 1 });
+      expect(await reconcileRefunds(db, scope, onePort(port))).toMatchObject({ needsCheck: 1 });
       const row = (await requests(w)).find((r) => r.id === stuck.value.request.id);
       expect(row).toMatchObject({ status: 'SUBMITTED', failureCode: NEEDS_CHECK_CODE });
       expect(row?.lastCheckedAt).not.toBeNull();
@@ -1491,11 +1509,12 @@ describe('S18 round 2: resends, It Went Through, refunded invoices, durable chec
       const healthy = await ask(okEntry.id, 1000);
       if (!isOk(healthy)) throw new Error('healthy');
       port.refundStatus.set(healthy.value.request.reference ?? '', 'REFUNDED');
-      expect(await reconcileRefunds(db, scope, port, { limit: 1 })).toMatchObject({ confirmed: 1 });
+      expect(await reconcileRefunds(db, scope, onePort(port), { limit: 1 })).toMatchObject({
+        confirmed: 1,
+      });
       const view = await getOrganizationRefundWork(db, await scopeOf(w), {
         organizationId: w.organizationId,
-        gatewayProvider: 'sslcommerz',
-        gatewayMode: 'LIVE',
+        gateways: [{ provider: 'sslcommerz', mode: 'LIVE' }],
       });
       expect(
         isOk(view) && view.value.requests.find((r) => r.id === stuck.value.request.id)?.failureCode,
@@ -1548,7 +1567,7 @@ describe('S18 round 2: resends, It Went Through, refunded invoices, durable chec
       }
       const work = await getOrganizationRefundWork(db, await scopeOf(w), {
         organizationId: w.organizationId,
-        gatewayProvider: null,
+        gateways: [],
       });
       if (!isOk(work)) throw new Error('work');
       expect(work.value.entries).toHaveLength(REFUND_WORK_LIMIT);
@@ -1558,7 +1577,7 @@ describe('S18 round 2: resends, It Went Through, refunded invoices, durable chec
       // The older payments stay reachable: page 2 holds payment 26 and 27 (the two oldest).
       const older = await getOrganizationRefundWork(db, await scopeOf(w), {
         organizationId: w.organizationId,
-        gatewayProvider: null,
+        gateways: [],
         page: 2,
       });
       if (!isOk(older)) throw new Error('older');
@@ -1569,7 +1588,7 @@ describe('S18 round 2: resends, It Went Through, refunded invoices, durable chec
       await paidByHand(w, other, 5000);
       const found = await getOrganizationRefundWork(db, await scopeOf(w), {
         organizationId: w.organizationId,
-        gatewayProvider: null,
+        gateways: [],
         invoiceRef: 'inv-else',
       });
       expect(isOk(found) && found.value.entries.map((e) => e.invoiceRef)).toEqual(['INV-ELSE']);
@@ -1589,7 +1608,7 @@ describe('S18 round 2: resends, It Went Through, refunded invoices, durable chec
       expect(isOk(done)).toBe(true);
       const after = await getOrganizationRefundWork(db, staff, {
         organizationId: w.organizationId,
-        gatewayProvider: null,
+        gateways: [],
         invoiceRef: 'INV-ELSE',
       });
       expect(isOk(after) && after.value.entries).toEqual([]);
@@ -1606,12 +1625,14 @@ describe('S18 round 2: resends, It Went Through, refunded invoices, durable chec
       if (!isOk(sent)) throw new Error('sent');
       const scope = systemScopeForTest('process-payment-reconciliation');
       const queries = port.refundQueries.length;
-      expect(await reconcileRefunds(db, scope, port, { deadline: Date.now() - 1 })).toMatchObject({
+      expect(
+        await reconcileRefunds(db, scope, onePort(port), { deadline: Date.now() - 1 }),
+      ).toMatchObject({
         checked: 0,
         leftForLater: 1,
       });
       expect(port.refundQueries.length).toBe(queries);
-      const startedPay = await startOnlinePayment(db, port, {
+      const startedPay = await startOnlinePayment(db, onePort(port), {
         actorAccountId: w.orgOwnerId,
         invoiceId: await invoice(w, 'INV-BUDGET-2', 5000),
         urlFor: (kind, tran) => `https://app.example.test/${kind}?t=${tran}`,
@@ -1621,7 +1642,9 @@ describe('S18 round 2: resends, It Went Through, refunded invoices, durable chec
         .update(schema.paymentAttempts)
         .set({ redirectedAt: new Date(Date.now() - 60 * 60 * 1000) })
         .where(eq(schema.paymentAttempts.status, 'REDIRECTED'));
-      const summary = await reconcilePaymentAttempts(db, scope, port, { deadline: Date.now() - 1 });
+      const summary = await reconcilePaymentAttempts(db, scope, onePort(port), {
+        deadline: Date.now() - 1,
+      });
       expect(summary).toMatchObject({ checked: 0, leftForLater: 1 });
     },
     TIMEOUT,
@@ -1639,7 +1662,7 @@ describe('S18 round 3: one panel refund counted once, safe resends, typed panel 
   });
 
   const ask = async (entryId: string, amount: number) =>
-    requestRefund(db, port, await scopeOf(w), {
+    requestRefund(db, onePort(port), await scopeOf(w), {
       organizationId: w.organizationId,
       source: entrySource(entryId),
       amountMinorUnits: amount,
@@ -1717,7 +1740,11 @@ describe('S18 round 3: one panel refund counted once, safe resends, typed panel 
       });
       port.refundStatus.set(gatewayRef, 'REFUNDED');
       expect(
-        await reconcileRefunds(db, systemScopeForTest('process-payment-reconciliation'), port),
+        await reconcileRefunds(
+          db,
+          systemScopeForTest('process-payment-reconciliation'),
+          onePort(port),
+        ),
       ).toMatchObject({ needsCheck: 1, confirmed: 0 });
       const row = (await requests(w)).find((x) => x.id === sent.value.request.id);
       expect(row).toMatchObject({ status: 'SUBMITTED', failureCode: DUPLICATE_REFERENCE_CODE });
@@ -1754,7 +1781,7 @@ describe('S18 round 3: one panel refund counted once, safe resends, typed panel 
       if (!isOk(unsent)) throw new Error('unsent');
       const id = unsent.value.request.id;
       const retry = async (now?: Date) =>
-        retryRefund(db, port, await scopeOf(w), {
+        retryRefund(db, onePort(port), await scopeOf(w), {
           organizationId: w.organizationId,
           refundRequestId: id,
           stepUpSatisfied: true,
@@ -1844,12 +1871,675 @@ describe('S18 round 3: one panel refund counted once, safe resends, typed panel 
       const summary = await reconcileRefunds(
         db,
         systemScopeForTest('process-payment-reconciliation'),
-        port,
+        onePort(port),
         { deadline: Date.now() + 100 },
       );
       expect(summary.checked).toBeGreaterThan(0);
       expect(summary.checked).toBeLessThan(5);
       expect(summary.checked + summary.leftForLater).toBe(5);
+    },
+    TIMEOUT,
+  );
+});
+
+describe('a second payment provider (S19 step 0)', () => {
+  let db: Db;
+  let w: World;
+  let ssl: FakePaymentPort;
+  let other: FakePaymentPort;
+  let both: ReturnType<typeof paymentPortResolver>;
+  const scope = () => systemScopeForTest('process-payment-reconciliation');
+  beforeEach(async () => {
+    db = await freshDb();
+    w = await world(db, 'second');
+    ssl = new FakePaymentPort();
+    other = new FakePaymentPort('otherpay');
+    // SSLCOMMERZ takes taka; a made-up second provider takes US dollars.
+    both = paymentPortResolver([
+      { port: ssl, currencies: ['BDT'] },
+      { port: other, currencies: ['USD'] },
+    ]);
+  });
+
+  async function invoiceIn(ref: string, amount: number, currency: string) {
+    const start = new Date(Date.UTC(2020, 0, 1) + periodSeq++ * 40 * DAY);
+    const made = await createInvoice(db, {
+      actor: w.actor,
+      stepUpSatisfied: true,
+      organizationId: w.organizationId,
+      planId: w.planId,
+      periodStart: start,
+      periodEnd: new Date(start.getTime() + 30 * DAY),
+      invoiceRef: ref,
+      invoicedAmountMinorUnits: amount,
+      currency,
+      dueDate: new Date(Date.now() + 14 * DAY),
+    });
+    if (!isOk(made)) throw new Error(`invoice: ${made.error.message}`);
+    return made.value.id;
+  }
+
+  const addresses: string[] = [];
+  async function startOn(invoiceId: string, payments = both) {
+    return startOnlinePayment(db, payments, {
+      actorAccountId: w.orgOwnerId,
+      invoiceId,
+      urlFor: (kind, tran, provider) => {
+        addresses.push(`${provider}:${kind}`);
+        return `https://vs.example.test/api/payments/${provider}/${kind}?t=${tran}`;
+      },
+    });
+  }
+
+  async function attemptOf(invoiceId: string) {
+    const rows = await db
+      .select()
+      .from(schema.paymentAttempts)
+      .where(eq(schema.paymentAttempts.invoiceId, invoiceId));
+    const row = rows[0];
+    if (!row) throw new Error('attempt');
+    return row;
+  }
+
+  /** Makes a started payment old enough for the daily check to ask about it. */
+  async function age(invoiceId: string, ms: number) {
+    const at = new Date(Date.now() - ms);
+    await db
+      .update(schema.paymentAttempts)
+      .set({ createdAt: at, redirectedAt: at })
+      .where(eq(schema.paymentAttempts.invoiceId, invoiceId));
+  }
+
+  it(
+    'starts each invoice on the provider that takes its currency, and refuses a currency none takes',
+    async () => {
+      const bdt = await invoice(w, 'INV-TAKA', 10_000);
+      const usd = await invoiceIn('INV-DOLLAR', 2_500, 'USD');
+      const eur = await invoiceIn('INV-EURO', 2_500, 'EUR');
+
+      const dollars = await startOn(usd);
+      expect(isOk(dollars) && dollars.value.kind).toBe('redirect');
+      expect(other.checkouts).toHaveLength(1);
+      expect(other.checkouts[0]).toMatchObject({ amountMinorUnits: 2_500, currency: 'USD' });
+      expect(ssl.checkouts).toHaveLength(0);
+      expect((await attemptOf(usd)).provider).toBe('otherpay');
+
+      const taka = await startOn(bdt);
+      expect(isOk(taka) && taka.value.kind).toBe('redirect');
+      expect(ssl.checkouts).toHaveLength(1);
+      expect((await attemptOf(bdt)).provider).toBe('sslcommerz');
+      // Each payment's gateway is given its own provider's addresses.
+      expect(addresses).toContain('otherpay:ipn');
+      expect(addresses).toContain('sslcommerz:ipn');
+
+      const euros = await startOn(eur);
+      expect(isErr(euros) && euros.error.reason).toBe('currency_not_offered');
+      expect(isErr(euros) && euros.error.message).toBe(
+        'Only invoices in Bangladeshi taka or US dollars can be paid online.',
+      );
+      const none = await db
+        .select()
+        .from(schema.paymentAttempts)
+        .where(eq(schema.paymentAttempts.invoiceId, eur));
+      expect(none).toHaveLength(0);
+
+      // With SSLCOMMERZ alone, a dollar invoice gets exactly the sentence it always got.
+      const alone = await startOn(await invoiceIn('INV-DOLLAR-2', 2_500, 'USD'), onePort(ssl));
+      expect(isErr(alone) && alone.error.message).toBe(
+        'Only invoices in Bangladeshi taka can be paid online.',
+      );
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'checks each payment with its own provider, and leaves one whose provider is gone as it is',
+    async () => {
+      const bdt = await invoice(w, 'INV-TAKA', 10_000);
+      const usd = await invoiceIn('INV-DOLLAR', 2_500, 'USD');
+      await startOn(bdt);
+      await startOn(usd);
+      await age(bdt, 20 * 60 * 1000);
+      await age(usd, 20 * 60 * 1000);
+      const bdtTran = (await attemptOf(bdt)).merchantTranId;
+      const usdTran = (await attemptOf(usd)).merchantTranId;
+      ssl.succeed(bdtTran, 10_000);
+      other.succeed(usdTran, 2_500, { currency: 'USD' });
+
+      const summary = await reconcilePaymentAttempts(db, scope(), both);
+      expect(summary).toMatchObject({ recorded: 2, providerNotConfigured: 0 });
+      expect(ssl.queryCalls).toEqual([bdtTran]);
+      expect(other.queryCalls).toEqual([usdTran]);
+      const online = await db
+        .select()
+        .from(schema.invoicePayments)
+        .where(eq(schema.invoicePayments.invoiceId, usd));
+      expect(online).toMatchObject([{ currency: 'USD', provider: 'otherpay' }]);
+
+      // The second provider is switched off while one of its payments is still open, and older
+      // than the 24 hours after which an open payment would be closed: it is counted, never
+      // closed, and no gateway is asked about it.
+      const later = await invoiceIn('INV-DOLLAR-2', 2_500, 'USD');
+      await startOn(later);
+      await age(later, 25 * 60 * 60 * 1000);
+      const left = await reconcilePaymentAttempts(db, scope(), onePort(ssl));
+      expect(left).toMatchObject({ checked: 0, providerNotConfigured: 1 });
+      expect((await attemptOf(later)).status).toBe('REDIRECTED');
+      expect(other.queryCalls).toEqual([usdTran]);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'refunds through the provider the payment was taken with, and checks it there',
+    async () => {
+      const usd = await invoiceIn('INV-DOLLAR', 2_500, 'USD');
+      await startOn(usd);
+      await age(usd, 20 * 60 * 1000);
+      const tran = (await attemptOf(usd)).merchantTranId;
+      other.succeed(tran, 2_500, { currency: 'USD' });
+      await reconcilePaymentAttempts(db, scope(), both);
+      const entry = await entryOf(w, usd, 'ONLINE');
+      const staff = await scopeOf(w);
+
+      // The refund amount is read in the payment's own currency.
+      const sent = await requestRefund(db, both, staff, {
+        organizationId: w.organizationId,
+        source: entrySource(entry.id),
+        amountText: '10.00',
+        reason: 'Agency overpaid',
+        idempotencyKey: randomUUID(),
+        stepUpSatisfied: true,
+      });
+      expect(isOk(sent) && sent.value.code).toBe('sent');
+      expect(other.refundCalls).toHaveLength(1);
+      expect(other.refundCalls[0]?.amountMinorUnits).toBe(1_000);
+      expect(ssl.refundCalls).toHaveLength(0);
+      expect((await requests(w))[0]?.provider).toBe('otherpay');
+
+      // The daily check asks only that provider; without it the refund is counted and left.
+      const checked = await reconcileRefunds(db, scope(), both);
+      expect(checked).toMatchObject({ checked: 1, providerNotConfigured: 0 });
+      expect(other.refundQueries).toHaveLength(1);
+      expect(ssl.refundQueries).toHaveLength(0);
+      const without = await reconcileRefunds(db, scope(), onePort(ssl));
+      expect(without).toMatchObject({ checked: 0, providerNotConfigured: 1 });
+      expect(other.refundQueries).toHaveLength(1);
+      expect((await requests(w))[0]?.status).toBe('SUBMITTED');
+
+      // A taka payment taken through SSLCOMMERZ still goes back through SSLCOMMERZ.
+      const bdt = await invoice(w, 'INV-TAKA', 10_000);
+      const { entry: taka } = await paidOnline(w, bdt, 10_000);
+      const back = await requestRefund(db, both, staff, {
+        organizationId: w.organizationId,
+        source: entrySource(taka.id),
+        amountMinorUnits: 5_000,
+        reason: 'Agency overpaid',
+        idempotencyKey: randomUUID(),
+        stepUpSatisfied: true,
+      });
+      expect(isOk(back) && back.value.code).toBe('sent');
+      expect(ssl.refundCalls).toHaveLength(1);
+      expect(other.refundCalls).toHaveLength(1);
+    },
+    TIMEOUT,
+  );
+
+  /** A dollar invoice paid through the second provider and counted by the daily check. */
+  async function paidInDollars(ref: string, amount = 2_500) {
+    const usd = await invoiceIn(ref, amount, 'USD');
+    await startOn(usd);
+    await age(usd, 20 * 60 * 1000);
+    other.succeed((await attemptOf(usd)).merchantTranId, amount, { currency: 'USD' });
+    await reconcilePaymentAttempts(db, scope(), both);
+    return { invoiceId: usd, entry: await entryOf(w, usd, 'ONLINE') };
+  }
+
+  async function refundIn(entryId: string, amountMinorUnits: number, payments = both) {
+    return requestRefund(db, payments, await scopeOf(w), {
+      organizationId: w.organizationId,
+      source: entrySource(entryId),
+      amountMinorUnits,
+      reason: 'Agency overpaid',
+      idempotencyKey: randomUUID(),
+      stepUpSatisfied: true,
+    });
+  }
+
+  it(
+    'still counts payments and sent refunds stranded by a switched-off provider when no provider is on (round 2)',
+    async () => {
+      const { entry } = await paidInDollars('INV-DOLLAR');
+      const sent = await refundIn(entry.id, 1_000);
+      expect(isOk(sent) && sent.value.code).toBe('sent');
+      const later = await invoiceIn('INV-DOLLAR-2', 2_500, 'USD');
+      await startOn(later);
+      await age(later, 25 * 60 * 60 * 1000);
+      const nothing = paymentPortResolver([]);
+
+      const payments = await reconcilePaymentAttempts(db, scope(), nothing);
+      expect(payments).toMatchObject({ configured: false, checked: 0, providerNotConfigured: 1 });
+      expect((await attemptOf(later)).status).toBe('REDIRECTED');
+      const refunds = await reconcileRefunds(db, scope(), nothing);
+      expect(refunds).toMatchObject({ configured: false, checked: 0, providerNotConfigured: 1 });
+      const now = await checkRefundsNow(db, nothing, await scopeOf(w), {
+        organizationId: w.organizationId,
+      });
+      expect(isOk(now) && now.value).toMatchObject({ configured: false, providerNotConfigured: 1 });
+      expect((await requests(w))[0]?.status).toBe('SUBMITTED');
+      expect(other.refundQueries).toHaveLength(0);
+
+      // Check Status on the invoice says the same, with nothing asked.
+      const checked = await refreshInvoicePaymentAttempts(db, nothing, {
+        actorAccountId: w.orgOwnerId,
+        organizationId: w.organizationId,
+        invoiceId: later,
+        minAgeMs: 0,
+      });
+      expect(isOk(checked) && checked.value).toMatchObject({
+        configured: false,
+        checked: 0,
+        providerNotConfigured: 1,
+      });
+
+      // No other payment starts while it is open, even on purpose, even through a provider that
+      // takes the currency now.
+      const dollarsNow = paymentPortResolver([{ port: ssl, currencies: ['BDT', 'USD'] }]);
+      for (const startAnother of [false, true]) {
+        const again = await startOnlinePayment(db, dollarsNow, {
+          actorAccountId: w.orgOwnerId,
+          invoiceId: later,
+          startAnother,
+          urlFor: () => 'https://vs.example.test/x',
+        });
+        expect(isErr(again) && again.error.reason, String(startAnother)).toBe(
+          'provider_not_configured',
+        );
+        expect(isErr(again) && again.error.message).toBe(PAYMENT_METHOD_OFF);
+      }
+      expect(ssl.checkouts).toHaveLength(0);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'refuses a refund through a provider switched off before any mode check (round 2)',
+    async () => {
+      const { entry } = await paidInDollars('INV-DOLLAR');
+      // Only SSLCOMMERZ is on now, and in test mode: before, the live dollar payment was judged
+      // against it and refused as a test/live mismatch.
+      ssl.mode = 'TEST';
+      const refused = await refundIn(entry.id, 1_000, onePort(ssl));
+      expect(isErr(refused) && refused.error.reason).toBe('provider_not_configured');
+      expect(isErr(refused) && refused.error.message).toBe(REFUND_PROVIDER_OFF);
+      expect(ssl.refundCalls).toHaveLength(0);
+      expect(other.refundCalls).toHaveLength(0);
+      expect(await requests(w)).toHaveLength(0);
+      // Round 3: a provider that is on but cannot refund is not "switched off": it gets the
+      // plain "refund it another way" refusal, and nothing is sent.
+      const noRefunds = {
+        configured: true,
+        mode: 'LIVE' as const,
+        provider: 'otherpay',
+        storeId: null,
+        createCheckout: other.createCheckout.bind(other),
+        validatePayment: other.validatePayment.bind(other),
+        queryByMerchantTranId: other.queryByMerchantTranId.bind(other),
+        verifyIpnSignature: other.verifyIpnSignature.bind(other),
+      };
+      const cannot = await refundIn(
+        entry.id,
+        1_000,
+        paymentPortResolver([
+          { port: ssl, currencies: ['BDT'] },
+          { port: noRefunds, currencies: ['USD'] },
+        ]),
+      );
+      expect(isErr(cannot) && cannot.error.reason).toBeUndefined();
+      expect(isErr(cannot) && cannot.error.message).toBe(
+        'This payment cannot be refunded through the payment gateway. Refund it another way, then record it here.',
+      );
+      expect(ssl.refundCalls).toHaveLength(0);
+      expect(await requests(w)).toHaveLength(0);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'gives the switched-off guidance first, even when no gateway left can refund (round 4)',
+    async () => {
+      const bdt = await invoice(w, 'INV-TAKA-OFF', 10_000);
+      const { entry: taka } = await paidOnline(w, bdt, 10_000);
+      // A send whose outcome was never confirmed, so it can be sent again.
+      ssl.refundBehaviour = 'throw';
+      const unsent = await refundIn(taka.id, 1_000);
+      if (!isOk(unsent)) throw new Error('unsent');
+      const payOnly = {
+        configured: true,
+        mode: 'LIVE' as const,
+        provider: 'otherpay',
+        storeId: null,
+        createCheckout: other.createCheckout.bind(other),
+        validatePayment: other.validatePayment.bind(other),
+        queryByMerchantTranId: other.queryByMerchantTranId.bind(other),
+        verifyIpnSignature: other.verifyIpnSignature.bind(other),
+      };
+      // SSLCOMMERZ, the only provider that can refund, is switched off.
+      for (const left of [
+        paymentPortResolver([]),
+        paymentPortResolver([{ port: payOnly, currencies: ['USD'] }]),
+      ]) {
+        const asked = await refundIn(taka.id, 1_000, left);
+        expect(isErr(asked) && asked.error.message).toBe(REFUND_PROVIDER_OFF);
+        const again = await retryRefund(db, left, await scopeOf(w), {
+          organizationId: w.organizationId,
+          refundRequestId: unsent.value.request.id,
+          stepUpSatisfied: true,
+        });
+        expect(isErr(again) && again.error.message).toBe(REFUND_PROVIDER_OFF);
+      }
+      expect(REFUND_PROVIDER_OFF).toContain("Refund it in that payment method's own panel");
+      expect(REFUND_PROVIDER_OFF).toContain('Record a Refund Made Outside VisaStack');
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'gives each provider its own share of the daily check, so a slow first one cannot starve the next (round 2)',
+    async () => {
+      // Four open taka payments through SSLCOMMERZ, whose gateway answers slowly, and one dollar
+      // payment through the second provider.
+      for (let i = 0; i < 4; i++) {
+        const bdt = await invoice(w, `INV-TAKA-${i}`, 10_000);
+        await startOn(bdt);
+        await age(bdt, 20 * 60 * 1000);
+      }
+      const usd = await invoiceIn('INV-DOLLAR', 2_500, 'USD');
+      await startOn(usd);
+      await age(usd, 20 * 60 * 1000);
+      const slow = ssl.queryByMerchantTranId.bind(ssl);
+      ssl.queryByMerchantTranId = async (tran: string) => {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        return slow(tran);
+      };
+      const summary = await reconcilePaymentAttempts(db, scope(), both, {
+        deadline: Date.now() + 1_000,
+      });
+      // SSLCOMMERZ stopped at half the budget; the second provider was still asked.
+      expect(ssl.queryCalls.length).toBeLessThan(4);
+      expect(other.queryCalls).toHaveLength(1);
+      expect(summary.leftForLater).toBe(4 - ssl.queryCalls.length);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'gives each provider its own share of the refund check too (round 2)',
+    async () => {
+      const bdt = await invoice(w, 'INV-TAKA', 50_000);
+      const { entry: taka } = await paidOnline(w, bdt, 50_000);
+      for (let i = 0; i < 4; i++) {
+        const sent = await refundIn(taka.id, 1_000);
+        expect(isOk(sent) && sent.value.code).toBe('sent');
+      }
+      const { entry: dollars } = await paidInDollars('INV-DOLLAR');
+      const sent = await refundIn(dollars.id, 1_000);
+      expect(isOk(sent) && sent.value.code).toBe('sent');
+      const slow = ssl.queryRefund.bind(ssl);
+      ssl.queryRefund = async (ref: string) => {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        return slow(ref);
+      };
+      const summary = await reconcileRefunds(db, scope(), both, { deadline: Date.now() + 1_000 });
+      expect(ssl.refundQueries.length).toBeLessThan(4);
+      expect(other.refundQueries).toHaveLength(1);
+      expect(summary.leftForLater).toBe(4 - ssl.refundQueries.length);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'agrees everywhere on a stranded payment: only a live payment whose money is still uncertain blocks (rounds 3 to 5)',
+    async () => {
+      // The second provider is still listed but its port is not usable, so the resolver drops it:
+      // the Invoices page, Check Status and a new payment all read that same resolver.
+      other.configured = false;
+      const dollarsNow = paymentPortResolver([
+        { port: ssl, currencies: ['BDT', 'USD'] },
+        { port: other, currencies: ['USD'] },
+      ]);
+      expect(dollarsNow.configured().map((port) => port.provider)).toEqual(['sslcommerz']);
+      type Case = {
+        provider: string;
+        status: 'CREATED' | 'REDIRECTED' | 'EXPIRED';
+        mode: 'TEST' | 'LIVE';
+        agoMs: number | null;
+      };
+      const cases: readonly (readonly [string, Case, boolean])[] = [
+        [
+          'live, sent an hour ago, provider off',
+          { provider: 'otherpay', status: 'REDIRECTED', mode: 'LIVE', agoMs: HOUR },
+          true,
+        ],
+        [
+          'test payment, sent an hour ago, provider off',
+          { provider: 'otherpay', status: 'REDIRECTED', mode: 'TEST', agoMs: HOUR },
+          false,
+        ],
+        // Round 5: the daily check still asks about this one (it can succeed late), so it blocks.
+        [
+          'live, closed as expired 3 days ago, provider off',
+          { provider: 'otherpay', status: 'EXPIRED', mode: 'LIVE', agoMs: 3 * DAY },
+          true,
+        ],
+        [
+          'live, closed as expired beyond the late window, provider off',
+          {
+            provider: 'otherpay',
+            status: 'EXPIRED',
+            mode: 'LIVE',
+            agoMs: LATE_SUCCESS_WINDOW_MS + HOUR,
+          },
+          false,
+        ],
+        [
+          'live, sent beyond the late window, provider off',
+          {
+            provider: 'otherpay',
+            status: 'REDIRECTED',
+            mode: 'LIVE',
+            agoMs: LATE_SUCCESS_WINDOW_MS + HOUR,
+          },
+          false,
+        ],
+        [
+          'never reached the gateway, provider off',
+          { provider: 'otherpay', status: 'CREATED', mode: 'LIVE', agoMs: null },
+          false,
+        ],
+        [
+          'live, sent an hour ago, provider on',
+          { provider: 'sslcommerz', status: 'REDIRECTED', mode: 'LIVE', agoMs: HOUR },
+          false,
+        ],
+      ];
+      let n = 0;
+      for (const [name, attempt, stranded] of cases) {
+        const invoiceId = await invoiceIn(`INV-STRAND-${n++}`, 2_500, 'USD');
+        const at = attempt.agoMs === null ? null : new Date(Date.now() - attempt.agoMs);
+        await db.insert(schema.paymentAttempts).values({
+          mode: attempt.mode,
+          invoiceId,
+          organizationId: w.organizationId,
+          provider: attempt.provider,
+          merchantTranId: newMerchantTranId(),
+          amountMinorUnits: 2_500,
+          currency: 'USD',
+          status: attempt.status,
+          createdAt: at ?? new Date(),
+          redirectedAt: at,
+        });
+
+        // The Invoices page.
+        const listed = await listAgencyInvoices(db, {
+          payments: dollarsNow,
+          actorAccountId: w.orgOwnerId,
+          organizationId: w.organizationId,
+        });
+        if (!isOk(listed)) throw new Error('list');
+        const view = listed.value.find((item) => item.id === invoiceId);
+        expect(view?.strandedPayment, name).toBe(stranded);
+        // Check Status.
+        const checked = await refreshInvoicePaymentAttempts(db, dollarsNow, {
+          actorAccountId: w.orgOwnerId,
+          organizationId: w.organizationId,
+          invoiceId,
+          minAgeMs: 0,
+          withStranded: true,
+        });
+        expect(isOk(checked) && checked.value.strandedPayment, name).toBe(stranded);
+        // The page-load check does not ask.
+        const pageLoad = await refreshInvoicePaymentAttempts(db, dollarsNow, {
+          actorAccountId: w.orgOwnerId,
+          organizationId: w.organizationId,
+          invoiceId,
+        });
+        expect(isOk(pageLoad) && pageLoad.value.strandedPayment, name).toBe(false);
+        // Starting another payment, on purpose.
+        const again = await startOnlinePayment(db, dollarsNow, {
+          actorAccountId: w.orgOwnerId,
+          invoiceId,
+          startAnother: true,
+          urlFor: () => 'https://vs.example.test/x',
+        });
+        expect(isErr(again) && again.error.reason === 'provider_not_configured', name).toBe(
+          stranded,
+        );
+        if (!stranded) expect(isOk(again), name).toBe(true);
+      }
+
+      // Older payments of the switched-off provider never block, but the daily check still counts
+      // the open ones for staff.
+      const daily = await reconcilePaymentAttempts(db, scope(), dollarsNow);
+      expect(daily.providerNotConfigured).toBeGreaterThanOrEqual(4);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'blocks a new payment while a live payment the 24-hour job closed may still succeed late, with its provider off (round 5)',
+    async () => {
+      const usd = await invoiceIn('INV-LATE', 2_500, 'USD');
+      await startOn(usd);
+      // Unconfirmed after 24 hours: the daily check closes it as expired.
+      await age(usd, 25 * 60 * 60 * 1000);
+      await reconcilePaymentAttempts(db, scope(), both);
+      expect((await attemptOf(usd)).status).toBe('EXPIRED');
+      // Three days later the second provider is switched off.
+      await age(usd, 3 * DAY);
+      const dollarsNow = paymentPortResolver([{ port: ssl, currencies: ['BDT', 'USD'] }]);
+      const again = await startOnlinePayment(db, dollarsNow, {
+        actorAccountId: w.orgOwnerId,
+        invoiceId: usd,
+        startAnother: true,
+        urlFor: () => 'https://vs.example.test/x',
+      });
+      expect(isErr(again) && again.error.reason).toBe('provider_not_configured');
+      expect(isErr(again) && again.error.message).toBe(PAYMENT_METHOD_OFF);
+      expect(ssl.checkouts).toHaveLength(0);
+      const checked = await refreshInvoicePaymentAttempts(db, dollarsNow, {
+        actorAccountId: w.orgOwnerId,
+        organizationId: w.organizationId,
+        invoiceId: usd,
+        minAgeMs: 0,
+        withStranded: true,
+      });
+      expect(isOk(checked) && checked.value.strandedPayment).toBe(true);
+      // Once it is older than the window the daily check stops asking, and it stops blocking.
+      await age(usd, LATE_SUCCESS_WINDOW_MS + HOUR);
+      const later = await startOnlinePayment(db, dollarsNow, {
+        actorAccountId: w.orgOwnerId,
+        invoiceId: usd,
+        startAnother: true,
+        urlFor: () => 'https://vs.example.test/x',
+      });
+      expect(isOk(later)).toBe(true);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'never lets the stranded rule and the daily check disagree about which live payments are still uncertain (round 5)',
+    async () => {
+      type Fixture = {
+        status: 'CREATED' | 'REDIRECTED' | 'EXPIRED' | 'FAILED' | 'CANCELLED';
+        reasonCode: string | null;
+        agoMs: number;
+      };
+      // Every live payment state the daily check could meet, at ages inside and beyond the window
+      // (all older than its 15-minute minimum). A REDIRECTED payment older than the window is
+      // asked once to be closed, never as a late success, so it is left out of the comparison.
+      const fixtures: Fixture[] = [];
+      for (const agoMs of [
+        HOUR,
+        2 * DAY,
+        LATE_SUCCESS_WINDOW_MS - HOUR,
+        LATE_SUCCESS_WINDOW_MS + HOUR,
+      ]) {
+        for (const [status, reasonCode] of [
+          ['CREATED', null],
+          ['EXPIRED', 'expired'],
+          ['EXPIRED', 'gateway_expired'],
+          ['EXPIRED', MODE_CHANGED],
+          ['FAILED', 'gateway_failed'],
+          ['CANCELLED', 'gateway_cancelled'],
+        ] as const) {
+          fixtures.push({ status, reasonCode, agoMs });
+        }
+        if (agoMs <= LATE_SUCCESS_WINDOW_MS) {
+          fixtures.push({ status: 'REDIRECTED', reasonCode: null, agoMs });
+        }
+      }
+      const trans = new Map<string, Fixture>();
+      let n = 0;
+      for (const fixture of fixtures) {
+        const invoiceId = await invoiceIn(`INV-DRIFT-${n++}`, 2_500, 'USD');
+        const merchantTranId = newMerchantTranId();
+        const at = new Date(Date.now() - fixture.agoMs);
+        await db.insert(schema.paymentAttempts).values({
+          mode: 'LIVE',
+          invoiceId,
+          organizationId: w.organizationId,
+          provider: 'otherpay',
+          merchantTranId,
+          amountMinorUnits: 2_500,
+          currency: 'USD',
+          status: fixture.status,
+          reasonCode: fixture.reasonCode,
+          createdAt: at,
+          redirectedAt: fixture.status === 'CREATED' ? null : at,
+        });
+        trans.set(merchantTranId, fixture);
+      }
+      const now = new Date();
+      // With the provider switched off: which of them are stranded.
+      const rows = await db
+        .select()
+        .from(schema.paymentAttempts)
+        .where(eq(schema.paymentAttempts.provider, 'otherpay'));
+      const stranded = new Set(
+        rows
+          .filter((row) => isStrandedAttempt(row, ['sslcommerz'], now))
+          .map((row) => row.merchantTranId),
+      );
+      // With it on and live: which of them the daily check asks the gateway about.
+      other.mode = 'LIVE';
+      await reconcilePaymentAttempts(db, scope(), both, { now, limit: 200 });
+      const asked = new Set(other.queryCalls);
+      for (const [tran, fixture] of trans) {
+        expect(stranded.has(tran), JSON.stringify(fixture)).toBe(asked.has(tran));
+      }
+      expect(stranded.size).toBeGreaterThan(0);
     },
     TIMEOUT,
   );

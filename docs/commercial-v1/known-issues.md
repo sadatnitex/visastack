@@ -6583,3 +6583,144 @@ Owner report: long, plain, full-width fields and read-outs are hard to follow (l
 - Checks: the web tests (lib, admin, components: 2,430) passed after the change, including the accessibility and title-case guards. Looked at with the page's own captured markup at desktop and phone widths.
 - Phase 2 (after owner review): organisations, plans, packs, billing, privacy and access admin pages, then the profile editor, case and agency pages that share the same pattern.
 
+### 2026-10-30, S19 step 0: payment provider registry
+
+- Built on local branch `s19s0-wip` (not merged, not live) from S29's final tree (`4c4f2063`). No migration. ADR 0020 amendment "S19 step 0"; runbook "Adding a Payment Provider" in `docs/operations/online-payments.md`; switch table appended to `docs/operations/current-platform.md`; owner actions and handoff section M note appended.
+- Registry `apps/web/src/lib/payment-providers.ts` (`PAYMENT_PROVIDERS`, SSLCOMMERZ only, O14): name, ISO currencies, refunds, setting and secret names, callback folder, mode (no default), configured, port, callback reader. `PAYMENT_PROVIDERS` (ordered, trimmed, exact names, `none` adds nothing, unknown names unused and refused by readiness) with the `PAYMENT_PROVIDER` fallback read exactly as before. `configuredPaymentProviders` is the one answer for the status page, the platform overview (one "Online Payments: <Name>" row per entry, plus the "AI App Access" On/Off row for S28), Billing Rules, the Invoices page, callbacks, the daily check and refunds; `paymentMode()`, `isPaymentProviderConfigured()`, `createPaymentPort()` and `readSslcommerzConfig()` stay in providers.ts as readings of it.
+- Services take `PaymentPortResolver` (ports.ts, built by `paymentPortResolver` in payment-resolver.ts): start by the invoice's stored currency (typed `currency_not_offered`, sentence from the registry, exactly today's with SSLCOMMERZ alone); reconcile, Check Status, the page's check, refund request, Send Again, the refund check and Check Now all by the payment's or refund's own provider; a payment or sent refund of a provider no longer configured is counted (`providerNotConfigured`) and never asked about, closed or expired. `settlePaymentAttempt` keeps the route's port and its provider match. Held payments awaiting review are now counted across every provider. `getOrganizationRefundWork` takes `gateways` (provider and mode each) instead of one provider and mode.
+- Routes `/api/payments/[provider]/ipn` and `/return` replace the fixed SSLCOMMERZ folder (same addresses); unknown provider 404 before anything is read; known but unconfigured keeps 503 and the general result page. Result links: `PAYMENT_RESULT_SIGNING_SECRET` (32 characters or more) or a key from `NEON_AUTH_COOKIE_SECRET`, label v2; old store-password links (v1) accepted until expiry (O2: remove in a later package, 7 days or more after this is live). `withoutPaymentSecrets` scrubs every registry secret and the signing secret.
+- Invoices page: per-currency offers from the registry (`pay`, or `testing` for anyone but the platform owner while only a test-mode provider takes the currency), replacing the fixed BDT constant on the card.
+- Deviations: `PAYMENT_REFUNDS_VIA_GATEWAY` keeps its exact-`true` reading (the S29 pin forbids `switchOn` in refund-gateway.ts), not `switchOn` as the plan said. `refundCheckPort`/`refundSendPort` keep their names and now return the resolver. A half-set provider is now quietly off at the callback (503) instead of a thrown and logged configuration error; the platform overview shows it as "Chosen; settings incomplete".
+- Tests: registry contract (ISO currencies, callback folder and routes, secrets listed, scrubbed and in .env.example, refunds flag), exact SSLCOMMERZ addresses, list parsing table, unknown provider 404, cross-provider IPN refused as unknown with a genuine signature, legacy link verifies, no secret and no cookie secret gives no link, a fake second provider in USD end to end (start, reconcile, refund, refund check, removed provider counted and left), one-answer table across the status page, overview, providers.ts and offers, resolver unit tests, overview rows. Existing tests changed only to pass the provider set (`onePort(port)`), the provider in callback calls, the new signing secret, and `gateways` for refund work; none weakened. The S18 "gateway that cannot refund is ignored" case moved from refund-gateway.test.ts to payment-providers.test.ts.
+- Break-to-red, each restored from a cp backup: entry without secrets; password not listed as a secret; callback segment renamed; unknown provider not refused; cross-provider provider check dropped; legacy link no longer accepted; store password still signing; capabilities disagreeing; start on the first provider whatever the currency; currency check under the lock skipped; every provider's payments asked of one gateway; removed provider's payments not counted; refund through the first gateway; reconcile only the first provider. All went red.
+- `invoice-ledger.ts` unchanged. Not verified: a browser run of the Invoices page and the platform overview; the SSLCOMMERZ sandbox (O6); `/code-review` and `/security-review` not run in this helper package (lead's step).
+
+### 2026-10-30, S19 step 0 round 2: review fixes
+
+Fixes from the max code review and the security and accessibility review of `4c4f2063..cffdf4b9`. Committed on local branch `s19s0-wip` as `301ce811`; not merged, not live. Main had not moved (`70370f22`). No migration.
+
+- **Incomplete provider alarm.** A chosen provider with missing or invalid settings now:
+  - fails readiness, naming the provider and each missing setting (never a value);
+  - fails the daily payment check: reported through `reportServerError`, `incompleteProviders` in the answer, cron route 503, other providers still asked;
+  - is reported once per callback request (IPN 503; browser goes to the general page).
+
+  `PAYMENT_PROVIDERS` set to nothing usable (such as `,`) fails readiness. Building the ports can no longer throw, so the tests that made `paymentPorts` throw were removed or rewritten.
+- **Stranded work.** Open payments and sent refunds whose provider is not configured are counted (`providerNotConfigured`) by the daily payment and refund checks, Check Now and Check Status, also with no provider on. The payer gets a plain sentence, and the card offers neither Pay Online nor Start Another Payment. `startOnlinePayment` refuses another payment for that invoice even on purpose (typed `provider_not_configured`). Staff Check Now names the waiting refunds.
+- **Time budget.** Each provider gets an equal share of what is left (`providerShareDeadline`, payment-resolver.ts), for payments and for refunds.
+- **Mixed modes.** `overallPaymentMode` is LIVE only when every provider is live, otherwise TEST or MIXED. For MIXED:
+  - capability: limited;
+  - Billing Rules and the status page: Partly Live, naming the test-only currencies in plain words.
+
+  The single-provider S29 words are unchanged.
+- **Refunds.** `requestRefund` refuses a payment whose own provider is not configured or cannot refund before any mode check (`provider_not_configured`, `REFUND_PROVIDER_OFF`). Send Again uses the same refusal.
+- **Result links.** Decision O2 is closed: the store-password key is removed, since no such link ever existed in production. The cookie secret has a 32-character minimum. Cookie-signed links still verify after `PAYMENT_RESULT_SIGNING_SECRET` is set. A short `PAYMENT_RESULT_SIGNING_SECRET` fails readiness, naming only the setting.
+- **Other.**
+  - `readSslcommerzConfig`, `SslcommerzConfig`, `isPaymentProviderConfigured` and `createPaymentPort` are deleted (no production caller).
+  - The contract test checks that each entry's key equals its port's `provider`.
+  - The overview row is "Online Payments" (with several providers: "Online Payments in <currency>"). The provider name is in the detail; currency names come from `currencyWords` and `currencyListWords` in payment-resolver.ts; the refund wording now says "once sending refunds from VisaStack is switched on".
+- **Break-to-red.** 23 proofs, each restored from a cp backup, and all went red:
+  - readiness: incomplete provider; empty list;
+  - daily check report; cron 503; IPN report;
+  - stranded payments and refunds with none on;
+  - Check Status sentence; card; service refusal; Check Now sentence;
+  - fair share for payments; fair share for refunds;
+  - overall mode; Billing Rules; status page;
+  - refund before the mode check;
+  - store-password key; cookie minimum; cookie link after the switch; short secret;
+  - key equals port provider; overview label.
+- **Verification on `301ce811`.** All passed:
+
+  | Check | Result |
+  |---|---|
+  | lint | pass |
+  | typecheck (after `rm -rf apps/web/.next`) | pass |
+  | core | 188 |
+  | policy | 38 |
+  | db | 55, 1 skipped (existing) |
+  | adapters | 525, 2 skipped (existing) |
+  | services | 2747 |
+  | web | 3864 |
+  | web build (`NODE_OPTIONS=--max-old-space-size=3072`) | pass |
+  | `pnpm audit --prod --audit-level high` | pass |
+  | em dash sweep | 0 |
+
+- **Not verified.**
+  - A browser run of the Invoices card, Billing Rules and the status page.
+  - The SSLCOMMERZ sandbox (O6).
+  - The status page's note is read when the page is built: it is not marked dynamic, like its version notice, so a payment setting change shows there after a redeploy.
+  - `/code-review` and `/security-review` were not rerun in this helper round.
+
+### 2026-10-30, S19 step 0 round 3: merge of main and re-review fixes
+
+- **Merge.** `0665963f` merges origin/main `ed38503c` (S29 #349, squash) and #350 into `s19s0-wip`. S29 files take main's final round-3 version, with this branch's S19 changes replayed on top; docs keep main's text with this branch's entries after it. S29 round 3 is intact:
+  - `markModeChanged` keeps earlier marks;
+  - the reconcile queries skip other-mode attempts, now inside the per-provider query;
+  - the per-connection schema cache;
+  - `executeDueDowngrades` per-item catch.
+  The S29 round 3 tests that passed a single port now pass `onePort(port)`.
+- **Fixes, `7c7bb9a0`:**
+  - **Stranded payment, one definition.** `isStrandedAttempt` counts only a REDIRECTED or EXPIRED attempt within `LATE_SUCCESS_WINDOW_MS` whose provider is not configured. CREATED and older attempts never block, and the daily check still counts them. `strandedPayment` comes from it on `AgencyInvoiceView` (new required `configuredProviders` input) and on Check Status; `startOnlinePayment` uses it too.
+  - **Refunds.** `REFUND_PROVIDER_OFF` is given only when the provider is not configured. A configured provider that cannot refund gets the earlier "refund it another way" refusal. The refund services now get every configured provider, and `refundsOnly` is removed.
+  - **Callback reports.** At most once per provider per 10 minutes per instance; the answer stays 503.
+  - **No provider and no table.** The daily check is a quiet run (`configured: false`, nothing stranded).
+  - **Check Now.** The answer when every refund was unreachable also names the stranded refunds.
+  - **Tidying.** Doc comments fixed, `readSslcommerz` without the redundant clause, `PAYMENT_PROVIDER_KEYS` in the overview, the `isNull` branch for the NOT NULL attempts provider column removed.
+  - **Runbook.** Change `PAYMENT_RESULT_SIGNING_SECRET` only when no payment is in progress. The result-link key itself is unchanged, by decision.
+- **Break-to-red.** 7 proofs, all red, each restored from a cp backup: late window; CREATED; list definition; report throttle; off vs cannot refund; quiet run; unreachable plus stranded. The agreement test covers six attempt cases across the list, Check Status and start.
+- **Verification on `7c7bb9a0`.** All passed:
+
+  | Check | Result |
+  |---|---|
+  | lint | pass |
+  | typecheck (after `rm -rf apps/web/.next`) | pass |
+  | core | 188 |
+  | policy | 38 |
+  | db | 55, 1 skipped (existing) |
+  | adapters | 525, 2 skipped (existing) |
+  | services | 2754 |
+  | web | 3873 |
+  | build (3072 MB) | pass |
+  | audit high | pass |
+  | em dash sweep against origin/main | 0 |
+
+- **Not verified.** A browser run; the SSLCOMMERZ sandbox (O6). Review helpers were not rerun in this round.
+
+### 2026-10-30, S19 step 0 round 4: narrower stranded rule, registry refund guard
+
+- **Fixes, `8ff3737e`:**
+  - **Stranded, narrowed.** Only a LIVE, REDIRECTED attempt within `LATE_SUCCESS_WINDOW_MS` whose provider is not configured blocks a new payment. TEST, EXPIRED and CREATED attempts never block, and the daily check still counts them.
+    - `hasStrandedAttempt` is one indexed probe (id only, `limit 1`).
+    - Check Status asks for it (`withStranded`); the page-load refresh runs no extra query.
+    - `listAgencyInvoices` takes the services' resolver (`payments`), and the Invoices page builds one resolver for both.
+  - **Registry refund guard.** A refund port needs the entry's `supportsRefunds` and `isRefundingPaymentPort`: an entry without `supportsRefunds` hands on a payments-only port. The admin refund panel's gateway list (`refundGatewayViews`, and so `servedBy`) has refunding providers only. Round 3's rule is kept: a configured provider that cannot refund gets "refund it another way", and `REFUND_PROVIDER_OFF` is only for a provider that is not configured.
+  - **Own provider first.** `requestRefund` and `retryRefund` check the payment's own provider before the "no refunding gateway" answer, so with SSLCOMMERZ off staff get `REFUND_PROVIDER_OFF`.
+- **Merge `ffa69d4e`.** origin/main `cd2e8153` (#351). Only known-issues conflicted: main's entry first, this branch's after it.
+- **Break-to-red.** 7 proofs, all red, each restored from a cp backup: TEST never blocks; EXPIRED never blocks; registry guard; admin view refunding only; own provider first; one resolver; opt-in.
+- **Verification on `ffa69d4e`.** All passed:
+
+  | Check | Result |
+  |---|---|
+  | lint | pass |
+  | typecheck (after `rm -rf apps/web/.next`) | pass |
+  | core | 188 |
+  | policy | 38 |
+  | db | 55, 1 skipped (existing) |
+  | adapters | 525, 2 skipped (existing) |
+  | services | 2755 |
+  | web | 3875 |
+  | build (3072 MB) | pass |
+  | audit high | pass |
+  | em dash sweep | 0 |
+
+  No timeouts; nothing was rerun.
+- **Not verified.** A browser run; the SSLCOMMERZ sandbox (O6).
+
+### 2026-10-30, S19 step 0 round 5: stranded matches the daily check (`e2c7ca4b`)
+
+- **Correction.** A LIVE payment closed as EXPIRED inside the late-success window now blocks a new payment while its provider is off. Round 4 said EXPIRED never blocks; that was wrong, because the daily check keeps asking about such payments. The late-success selection, the staff count and the stranded probe now share one condition (`stillUncertainSql` / `isStillUncertain`). TEST and CREATED payments, and anything older than the window, never block.
+- **Tests.**
+  - The 24-hour job's EXPIRED payment, 3 days on with its provider off, blocks a new payment, and Check Status reports it stranded. Once it is older than the window, it stops blocking.
+  - A drift test runs the daily check over a fixture set and fails if it disagrees with the stranded rule. A REDIRECTED payment older than the window is asked once (to be closed) and deliberately does not block, so it is left out of that comparison.
+- **Break-to-red.** 3 proofs, all red.
+- **Verification.** All passed: lint, typecheck (after `rm -rf apps/web/.next`), all suites (services 2757, web 3875), build (3072 MB), audit, em dash sweep 0.
+- **Merge.** Main had not moved past `cd2e8153`, so there was no merge.

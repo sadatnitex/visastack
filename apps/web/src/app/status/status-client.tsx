@@ -25,7 +25,12 @@ async function probe(path: string): Promise<ProbeResult> {
 
 export function StatusClient({
   versionNotice = null,
-}: { readonly versionNotice?: VersionNoticeCopy | null } = {}) {
+  paymentsNote = null,
+}: {
+  readonly versionNotice?: VersionNoticeCopy | null;
+  /** Decided on the server (S19 step 0 round 2): which currencies take only test payments. */
+  readonly paymentsNote?: string | null;
+} = {}) {
   const [live, setLive] = useState<ProbeResult | null>(null);
   const [ready, setReady] = useState<ProbeResult | null>(null);
   const [updatedAt, setUpdatedAt] = useState<string>('');
@@ -65,6 +70,7 @@ export function StatusClient({
       loading={loading}
       onRefresh={() => void refresh()}
       versionNotice={versionNotice}
+      paymentsNote={paymentsNote}
     />
   );
 }

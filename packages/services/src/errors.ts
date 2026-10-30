@@ -41,7 +41,8 @@ export type RefusalReason =
   | 'limit_reached'
   | FieldReason
   | PlanAdminReason
-  | PaymentModeReason;
+  | PaymentModeReason
+  | PaymentProviderReason;
 
 /**
  * Why a plan change was refused (S29): plans cannot change before migration 0107, a plan's period
@@ -55,6 +56,13 @@ export type PlanAdminReason = 'plans_unavailable' | 'period_locked' | 'retire_bl
  * gateway.
  */
 export type PaymentModeReason = 'test_mode_owner_only' | 'test_payment_live_gateway';
+
+/**
+ * Why a payment step was refused because of which providers are configured (S19 step 0): no
+ * configured provider takes the invoice's currency, or the payment's own provider is not
+ * configured here any more (round 2), so it can be neither checked nor refunded from VisaStack.
+ */
+export type PaymentProviderReason = 'currency_not_offered' | 'provider_not_configured';
 
 /**
  * Why a typed money field was refused (S30), so a form can point to the field at fault without
