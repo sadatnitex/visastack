@@ -50,7 +50,10 @@ async function readBack(bytes: Uint8Array): Promise<{ text: string; pages: numbe
     originalName: 'document.pdf',
   });
   if (!outcome.ok) throw new Error(outcome.message);
-  return { text: outcome.result.text.replace(/\s+/g, ' ').trim(), pages: outcome.result.pageCount ?? 0 };
+  return {
+    text: outcome.result.text.replace(/\s+/g, ' ').trim(),
+    pages: outcome.result.pageCount ?? 0,
+  };
 }
 
 function facts(overrides: Partial<InvoiceDocumentFacts> = {}): InvoiceDocumentFacts {
