@@ -61,6 +61,7 @@ export {
   setDocumentProtection,
 } from './document-protection';
 export {
+  type FieldReason,
   type RefusalReason,
   type ServiceError,
   type ServiceErrorCode,
@@ -1190,6 +1191,7 @@ export {
 } from './agency-invoices';
 
 export {
+  CLAIM_AMOUNT_PROBLEM,
   CLAIM_NOTE_MAX,
   CLAIM_REASON_MAX,
   CLAIM_REFERENCE_MAX,

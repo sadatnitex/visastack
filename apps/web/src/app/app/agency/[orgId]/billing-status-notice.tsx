@@ -32,7 +32,15 @@ interface Words {
  * about invoices. Members never get money detail.
  */
 export function billingNoticeWords(notice: AgencyBillingNotice, admin: boolean): Words {
-  const fromAnInvoice = !notice.setByPerson && notice.invoiceOwed;
+  // Past-due words only for an invoice that is overdue by the one rule the daily run uses.
+  const fromAnInvoice = !notice.setByPerson && notice.invoiceOverdue;
+  if (!notice.setByPerson && !notice.invoiceOverdue) {
+    // VisaStack moved the agency, and nothing is overdue now: the daily check moves it back.
+    return {
+      title: 'Your Payment Is In',
+      body: 'Thank you, your payment is in. Your agency returns to Active at the next daily check.',
+    };
+  }
   if (notice.status === 'GRACE') {
     if (!fromAnInvoice) {
       return {
@@ -59,6 +67,12 @@ export function billingNoticeWords(notice: AgencyBillingNotice, admin: boolean):
       ? 'An invoice is still unpaid, so adding cases, team members and files is paused until it is paid. Everything already here still works: open cases, records and documents. Nothing is deleted or hidden.'
       : 'Adding cases, team members and files is paused for your agency. Everything already here still works, and nothing is deleted or hidden. An owner or admin can resolve it.',
   };
+}
+
+/** Pay Invoice is offered while an invoice is owed, but never once the overdue one is paid. */
+function offersPayment(notice: AgencyBillingNotice): boolean {
+  if (!notice.invoiceOwed) return false;
+  return notice.setByPerson || notice.invoiceOverdue;
 }
 
 /**
@@ -93,7 +107,7 @@ export function BillingStatusNotice({
         {words.title}
       </h2>
       <p className="billing-status-body">{words.body}</p>
-      {admin && showAction && notice.invoiceOwed ? (
+      {admin && showAction && offersPayment(notice) ? (
         <Link className="btn btn-primary" href={`/app/agency/${organizationId}/plan/invoices`}>
           Pay Invoice
         </Link>

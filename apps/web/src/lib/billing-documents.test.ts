@@ -79,6 +79,10 @@ describe('the agency invoice PDF route', () => {
     );
     expect(response.headers.get('Cache-Control')).toBe('private, no-store');
     expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
+    // Nothing may load or run, but the file may still download (S30 round 3).
+    expect(response.headers.get('Content-Security-Policy')).toBe(
+      "default-src 'none'; sandbox allow-downloads",
+    );
     expect(response.headers.get('Content-Length')).toBe('5');
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(PDF);
   });

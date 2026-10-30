@@ -45,3 +45,10 @@ The PDF asks readers to show its title (for example "Invoice INV-...") in the wi
 3. On the platform page, Download Invoice (PDF) under any invoice.
 
 No migration and no new environment variable are needed.
+
+## Update, 30 Oct 2026 (S30 round 3)
+
+- The document policy is now `default-src 'none'; sandbox allow-downloads`, on the routes and in the middleware override. Checked in Chromium 153 (headless, through Playwright) against a local server sending exactly these headers: a plain link to the file fires the download and the saved file starts with `%PDF-`. The same check without `allow-downloads` downloaded too in that build; the token is kept so a browser that enforces the rule still downloads.
+- A period typed on the platform's Create Invoice form is its last day ("Last Day of the Period"); the service stores the next day, so every stored period end is exclusive, the same as the daily run's, and reads back as typed.
+- Typed amounts on every billing form (recorded payments, refunds, It Went Through, I Paid Another Way) are read by the services in the stored invoice's or payment's own currency. The forms only check the shape first, and a refusal names its field through a typed reason.
+

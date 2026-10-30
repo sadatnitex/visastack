@@ -41,7 +41,7 @@ export const CSP_HEADER_REPORT_ONLY = 'Content-Security-Policy-Report-Only';
  * routes set it themselves, and the middleware gives those addresses the same policy instead of
  * the page policy, so the stricter one holds whichever header Next.js keeps.
  */
-export const DOCUMENT_DOWNLOAD_POLICY = "default-src 'none'; sandbox";
+export const DOCUMENT_DOWNLOAD_POLICY = "default-src 'none'; sandbox allow-downloads";
 
 const DOCUMENT_DOWNLOAD_PATH =
   /^\/app\/(?:agency\/[^/]+\/plan\/invoices\/(?:receipts\/)?[^/]+|admin\/organizations\/[^/]+\/invoices\/[^/]+)\/pdf\/?$/;

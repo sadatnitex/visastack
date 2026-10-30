@@ -27,7 +27,11 @@ import {
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { describe, expect, it } from 'vitest';
-import { BILLING_DOCUMENT_LAYOUT, renderBillingDocumentPdf } from './billing-document-pdf';
+import {
+  BILLING_DOCUMENT_LAYOUT,
+  onceRetryingFailures,
+  renderBillingDocumentPdf,
+} from './billing-document-pdf';
 import { DeterministicTextExtractor } from './text-extraction';
 
 const NOW = new Date('2026-10-30T08:05:00Z');
@@ -236,6 +240,21 @@ describe('the billing document PDF (S30)', () => {
       ),
     );
     expect(text).toContain('???? Visa Desk');
+  });
+});
+
+describe('loading the fonts once (S30)', () => {
+  it('keeps a success, and retries after a failure instead of failing for good', async () => {
+    let calls = 0;
+    const load = onceRetryingFailures(async () => {
+      calls += 1;
+      if (calls === 1) throw new Error('font module unavailable');
+      return 'fonts';
+    });
+    await expect(load()).rejects.toThrow('font module unavailable');
+    expect(await load()).toBe('fonts');
+    expect(await load()).toBe('fonts');
+    expect(calls).toBe(2);
   });
 });
 

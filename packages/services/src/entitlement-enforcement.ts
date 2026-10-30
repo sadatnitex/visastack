@@ -98,7 +98,11 @@ type PlanLimit = 'SEATS' | 'INVITATIONS' | 'CASES_PER_PERIOD' | 'OPEN_CASES' | '
 export const TRAVELLER_UPLOAD_PAUSED =
   'Adding files to this record is paused right now. Try again later or contact your agency.';
 
-/** The same refusal for someone working in the agency itself, who is never told to contact it. */
+/** For agency staff when their own plan's storage is full: the step that fixes it. */
+export const AGENCY_STORAGE_FULL =
+  "Your agency's storage is full. Remove files that are no longer needed, or ask VisaStack about a larger plan.";
+
+/** The billing pause for someone working in the agency itself, who is never told to contact it. */
 export const AGENCY_UPLOAD_PAUSED =
   'Adding files to this record is paused right now. Try again later.';
 
@@ -352,10 +356,14 @@ export async function checkStorageEntitlement(
   const organizationIds = await listOrganizationsWithAccessToApplicant(tx, applicantId);
   // The neutral sentence, chosen by who is adding the file: a member of the refusing agency is
   // not told to contact their own agency (S30).
+  const inAgency = async (organizationId: string) =>
+    uploaderAccountId !== undefined &&
+    (await isActiveMember(tx, uploaderAccountId, organizationId));
   const paused = async (organizationId: string) =>
-    uploaderAccountId !== undefined && (await isActiveMember(tx, uploaderAccountId, organizationId))
-      ? AGENCY_UPLOAD_PAUSED
-      : TRAVELLER_UPLOAD_PAUSED;
+    (await inAgency(organizationId)) ? AGENCY_UPLOAD_PAUSED : TRAVELLER_UPLOAD_PAUSED;
+  // A full plan is the agency's own to fix: its staff get the next step (S30).
+  const full = async (organizationId: string) =>
+    (await inAgency(organizationId)) ? AGENCY_STORAGE_FULL : TRAVELLER_UPLOAD_PAUSED;
   for (const organizationId of organizationIds) {
     if (await isCommercialOverrideActive(tx, organizationId)) continue;
     if (await hasFoundingAccess(tx, organizationId)) continue;
@@ -371,7 +379,7 @@ export async function checkStorageEntitlement(
         tx,
         organizationId,
         'STORAGE',
-        refusal('limit_reached', await paused(organizationId)),
+        refusal('limit_reached', await full(organizationId)),
       );
     }
   }

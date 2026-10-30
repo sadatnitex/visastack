@@ -89,17 +89,29 @@ interface Fonts {
   readonly supported: ReadonlySet<number>;
 }
 
-/** The decoded font files, decoded once per server instance. */
-let fontFiles: Promise<{ readonly regular: Uint8Array; readonly semibold: Uint8Array }> | null =
-  null;
+/**
+ * A loader that runs once and keeps its answer, but forgets a failure: if loading fails, the
+ * cached promise is cleared before the error goes on, so the next call tries again instead of
+ * failing for the life of the server instance (S30).
+ */
+export function onceRetryingFailures<T>(load: () => Promise<T>): () => Promise<T> {
+  let cached: Promise<T> | null = null;
+  return () => {
+    cached ??= load().catch((error: unknown) => {
+      cached = null;
+      throw error;
+    });
+    return cached;
+  };
+}
 
-function loadFontFiles(): Promise<{ readonly regular: Uint8Array; readonly semibold: Uint8Array }> {
-  fontFiles ??= import('./billing-document-fonts').then((fonts) => ({
+/** The decoded font files, decoded once per server instance. */
+const loadFontFiles = onceRetryingFailures(() =>
+  import('./billing-document-fonts').then((fonts) => ({
     regular: base64Bytes(fonts.INTER_REGULAR_TTF_BASE64),
     semibold: base64Bytes(fonts.INTER_SEMIBOLD_TTF_BASE64),
-  }));
-  return fontFiles;
-}
+  })),
+);
 
 function base64Bytes(text: string): Uint8Array {
   return Uint8Array.from(Buffer.from(text, 'base64'));

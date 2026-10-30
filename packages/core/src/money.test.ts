@@ -4,6 +4,7 @@ import {
   formatMoney,
   formatMoneyNumber,
   isIsoCurrencyCode,
+  looksLikeMoney,
   normalizeCurrencyCode,
   parseMoney,
 } from './money';
@@ -95,6 +96,14 @@ describe('money (S30)', () => {
       [1234, 'BHD'],
     ] as const) {
       expect(parseMoney(formatMoneyNumber(amount, currency), currency)).toBe(amount);
+    }
+  });
+
+  it('checks the shape of a typed amount before any currency is known (S30)', () => {
+    for (const good of ['2,500.00', '2500', '1.234', '0.5'])
+      expect(looksLikeMoney(good), good).toBe(true);
+    for (const bad of ['', '0', '0.000', 'abc', '-5', '1.2345', '12,50', '1e3']) {
+      expect(looksLikeMoney(bad), bad).toBe(false);
     }
   });
 });

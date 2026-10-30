@@ -3,6 +3,7 @@
 import {
   formatBillingDate,
   isIsoCurrencyCode,
+  looksLikeMoney,
   normalizeCurrencyCode,
   parseMoney,
 } from '@visastack/core';
@@ -31,6 +32,7 @@ import { after } from 'next/server';
 import { bootstrapAdminEmails, isPlatformOwnerAccount } from '../../../../../lib/admin';
 import { triggerNotificationWorker } from '../../../../../lib/jobs';
 import { invoiceStatusLabel } from '../../../../../lib/labels';
+import { moneyFieldOf } from '../../../../../lib/money-fields';
 import { withSession } from '../../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../../lib/step-up';
 
@@ -296,6 +298,11 @@ export async function transitionBillingStatusAction(
   return result;
 }
 
+/** The form field a refusal is about, from its typed reason, as part of the answer. */
+function fieldFor(field: string | undefined): { readonly field?: string } {
+  return field ? { field } : {};
+}
+
 /** Issues a new invoice. Platform-owner only, step-up gated. */
 export async function createInvoiceAction(
   _prev: ActionState,
@@ -311,7 +318,7 @@ export async function createInvoiceAction(
     MAX_MINOR_UNITS,
   );
   const periodStart = parseDate(formData, 'periodStart');
-  const periodEnd = parseDate(formData, 'periodEnd');
+  const periodLastDay = parseDate(formData, 'periodLastDay');
   const dueDate = parseDate(formData, 'dueDate');
   if (organizationId.length === 0) return { ok: false, message: 'Missing organization id.' };
   if (planId.length === 0) return { ok: false, message: 'Choose a plan.' };
@@ -330,8 +337,11 @@ export async function createInvoiceAction(
       field: 'invoicedAmount',
     };
   }
-  if (!periodStart || !periodEnd || !dueDate) {
-    return { ok: false, message: 'Period start, period end, and due date are all required.' };
+  if (!periodStart || !periodLastDay || !dueDate) {
+    return {
+      ok: false,
+      message: 'Enter the period start, the last day of the period and the due date.',
+    };
   }
 
   const result = await withSession(async ({ db, accountId, email }) => {
@@ -350,7 +360,7 @@ export async function createInvoiceAction(
       organizationId,
       planId,
       periodStart,
-      periodEnd,
+      periodLastDay,
       invoiceRef,
       invoicedAmountMinorUnits,
       currency,
@@ -385,7 +395,9 @@ export async function recordInvoicePaymentAction(
   if (idempotencyKey.length === 0) {
     return { ok: false, message: 'This page is out of date. Reload it and try again.' };
   }
-  if (amountText.length === 0) {
+  // A cheap shape check before any work or sign-in check (the most decimal places any currency
+  // has); the exact check, in the stored invoice currency, stays in the service.
+  if (!looksLikeMoney(amountText)) {
     return {
       ok: false,
       message: RECORD_AMOUNT_PROBLEM,
@@ -421,7 +433,7 @@ export async function recordInvoicePaymentAction(
       return {
         ok: false,
         message: recorded.error.message,
-        ...(recorded.error.message === RECORD_AMOUNT_PROBLEM ? { field: 'amount' } : {}),
+        ...fieldFor(moneyFieldOf(recorded.error.reason)),
       } satisfies ActionState;
     }
     return {

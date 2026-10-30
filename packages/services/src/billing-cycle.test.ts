@@ -1429,6 +1429,36 @@ describe('round 2: due days, overdue days, overlaps, budgets and notices', () =>
     for (const words of [three, seven, next]) expect(words.summary).not.toMatch(/BDT|\d,\d{3}/);
   });
 
+  it('names the day the run would use: the oldest counted overdue invoice, not the one reminded about (S30)', () => {
+    const policy = { graceAfterDays: 7, suspendAfterDays: 14 };
+    const now = new Date('2026-10-28T06:00:00Z');
+    const a = { invoiceId: 'a', invoiceRef: 'INV-A', dueDate: new Date('2026-10-16T00:00:00Z') };
+    const b = { invoiceId: 'b', invoiceRef: 'INV-B', dueDate: new Date('2026-10-21T00:00:00Z') };
+    const standing: BillingStanding = {
+      status: 'GRACE',
+      cause: 'NONPAYMENT',
+      changedAt: new Date('2026-10-23T00:00:00Z'),
+      overdue: [a, b],
+    };
+    // A is 12 days overdue and B 7: the run suspends on A's day 14, 30 Oct, not B's (4 Nov).
+    expect(automaticSuspensionDay(standing, policy, b, now)).toEqual(
+      new Date('2026-10-30T00:00:00Z'),
+    );
+    expect(automaticSuspensionDay(standing, policy, b, now)).toEqual(
+      automaticSuspensionDay(standing, policy, a, now),
+    );
+    // A person's change after A fell overdue covers A: only B counts then.
+    const extended: BillingStanding = {
+      ...standing,
+      status: 'ACTIVE',
+      cause: 'MANUAL',
+      changedAt: new Date('2026-10-19T00:00:00Z'),
+    };
+    expect(automaticSuspensionDay(extended, policy, b, now)).toEqual(
+      new Date('2026-11-04T00:00:00Z'),
+    );
+  });
+
   it('uses the real day count in the 7-day reminder (S30)', () => {
     const ten = reminderWords(-10, 'INV-1', '9 Nov 2026', { stage: 'overdue_7' });
     expect(ten.summary).toBe(

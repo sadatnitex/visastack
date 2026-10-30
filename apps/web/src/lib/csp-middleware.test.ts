@@ -332,7 +332,9 @@ describe('a downloaded billing document (S30)', () => {
       const { handler, calls } = fakeSignIn();
       const response = await build({ auth: handler, env })(get(path), EVENT);
       expect(calls).toHaveLength(1);
-      expect(response?.headers.get('content-security-policy')).toBe("default-src 'none'; sandbox");
+      expect(response?.headers.get('content-security-policy')).toBe(
+        "default-src 'none'; sandbox allow-downloads",
+      );
       expect(response?.headers.get('content-security-policy-report-only')).toBeNull();
     }
   });

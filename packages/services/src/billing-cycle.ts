@@ -155,10 +155,12 @@ export function countedAutomatically(
 }
 
 /**
- * The day an unpaid invoice would move the agency to Suspended by itself, when that is really
- * ahead: the rules are on, the agency could be moved by the run (`movableAutomatically`), the
- * invoice counts (`countedAutomatically`) and the day has not come yet. Null otherwise, so a
- * reminder never warns about a pause that will not happen (S30). Same parts as the run itself.
+ * The day the run would move the agency to Suspended by itself, when that is really ahead: the
+ * rules are on, the agency could be moved by the run (`movableAutomatically`), and the oldest
+ * counted overdue invoice (`countedAutomatically`, the one `automaticStatusChange` judges by) has
+ * not reached the day yet. `invoice` is the one the reminder is about; it counts too. Null
+ * otherwise, so a reminder never warns about a pause that will not happen, or names a later day
+ * than the run will use (S30).
  */
 export function automaticSuspensionDay(
   standing: BillingStanding | null,
@@ -167,9 +169,14 @@ export function automaticSuspensionDay(
   now: Date,
 ): Date | null {
   if (policy === null || standing === null) return null;
-  if (!movableAutomatically(standing) || !countedAutomatically(standing, invoice)) return null;
-  if (daysPastDue(invoice.dueDate, now) >= policy.suspendAfterDays) return null;
-  return billingDay(invoice.dueDate, policy.suspendAfterDays);
+  if (!movableAutomatically(standing)) return null;
+  const counted = [...standing.overdue, invoice].filter(
+    (candidate) => isOverdue(candidate.dueDate, now) && countedAutomatically(standing, candidate),
+  );
+  const oldest = counted.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())[0];
+  if (!oldest) return null;
+  if (daysPastDue(oldest.dueDate, now) >= policy.suspendAfterDays) return null;
+  return billingDay(oldest.dueDate, policy.suspendAfterDays);
 }
 
 export function automaticStatusChange(

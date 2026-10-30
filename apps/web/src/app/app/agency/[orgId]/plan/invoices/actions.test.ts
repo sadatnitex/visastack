@@ -13,7 +13,7 @@ vi.mock('@visastack/services', async () => {
   return {
     PROOF_FILE_MAX_BYTES: real.PROOF_FILE_MAX_BYTES,
     formatAmountForCurrency: real.formatAmountForCurrency,
-    parseAmountForCurrency: real.parseAmountForCurrency,
+    CLAIM_AMOUNT_PROBLEM: real.CLAIM_AMOUNT_PROBLEM,
     startOnlinePayment: mocks.startOnlinePayment,
     refreshInvoicePaymentAttempts: mocks.refreshInvoicePaymentAttempts,
     submitManualPaymentClaim: mocks.submitManualPaymentClaim,
@@ -180,7 +180,7 @@ describe('reporting a payment made another way', () => {
   const run = (fields: Record<string, string | File> = {}) =>
     submitClaimAction(INITIAL, form(claimFields(fields)));
 
-  it('reads the amount exactly in the invoice currency and sends the report as this person', async () => {
+  it('sends the typed amount, to be read in the invoice currency, as this person', async () => {
     mocks.submitManualPaymentClaim.mockResolvedValue({
       ok: true,
       value: { amountMinorUnits: 125050, currency: 'BDT' },
@@ -197,17 +197,20 @@ describe('reporting a payment made another way', () => {
       invoiceId: INVOICE,
       method: 'BANK_TRANSFER',
       reference: 'TRX-1',
-      amountMinorUnits: 125050,
-      currency: 'BDT',
+      amountText: '1250.50',
       note: 'paid by the accountant',
     });
+    // The amount is read by the service in the invoice's own stored currency (S30).
+    expect(input).not.toHaveProperty('amountMinorUnits');
+    expect(input).not.toHaveProperty('currency');
     expect(input.paidOn.toISOString()).toBe('2026-10-25T00:00:00.000Z');
     expect(input.proofFile).toBeUndefined();
   });
 
   it('names the field at fault for a bad amount, a bad date and a file that is too big, before any work', async () => {
-    // Separators in the right places are read since S30 ("1,250"); misplaced ones are not.
-    for (const amount of ['', 'abc', '-5', '12.505', '12,50', '0']) {
+    // Separators in the right places are read since S30 ("1,250"); misplaced ones are not. More
+    // places than any currency has fail here; places the invoice currency lacks fail in the service.
+    for (const amount of ['', 'abc', '-5', '12.5051', '12,50', '0']) {
       expect(await run({ amount }), amount).toMatchObject({ ok: false, field: 'amount' });
     }
     expect(await run({ paidOn: '25/10/2026' })).toMatchObject({ ok: false, field: 'paidOn' });
@@ -217,6 +220,25 @@ describe('reporting a payment made another way', () => {
     });
     expect(await run({ proof: big })).toMatchObject({ ok: false, field: 'proof' });
     expect(mocks.submitManualPaymentClaim).not.toHaveBeenCalled();
+  });
+
+  it("points at the amount or the currency from the service's typed reason, and ignores a tampered currency (S30)", async () => {
+    mocks.submitManualPaymentClaim.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'invalid', reason: 'amount_invalid', message: 'Enter the amount you paid.' },
+    });
+    expect(await run({ amount: '12.505', currency: 'BHD' })).toMatchObject({
+      ok: false,
+      field: 'amount',
+    });
+    const input = mocks.submitManualPaymentClaim.mock.calls[0]?.[2];
+    expect(input).toMatchObject({ amountText: '12.505' });
+    expect(input).not.toHaveProperty('currency');
+    mocks.submitManualPaymentClaim.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'invalid', reason: 'amount_over_balance', message: 'More than owed.' },
+    });
+    expect(await run()).toMatchObject({ ok: false, field: 'amount' });
   });
 
   it('gives back what was typed (not the file) with every refusal, so the form can keep it', async () => {

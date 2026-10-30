@@ -436,10 +436,16 @@ export function CreateInvoiceForm({
         <input id="invoice-periodStart" name="periodStart" type="date" required className="input" />
       </div>
       <div className="field-row">
-        <label className="field-label" htmlFor="invoice-periodEnd">
-          Period End
+        <label className="field-label" htmlFor="invoice-periodLastDay">
+          Last Day of the Period
         </label>
-        <input id="invoice-periodEnd" name="periodEnd" type="date" required className="input" />
+        <input
+          id="invoice-periodLastDay"
+          name="periodLastDay"
+          type="date"
+          required
+          className="input"
+        />
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="invoice-dueDate">

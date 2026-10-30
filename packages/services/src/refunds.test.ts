@@ -537,6 +537,32 @@ describe('refunds through the gateway (S18)', () => {
     TIMEOUT,
   );
 
+  it("reads a typed refund amount in the payment's own stored currency, with a typed reason (S30)", async () => {
+    const inv = await invoice(w, 'INV-TYPED-REFUND', 10_000);
+    const entry = await paidByHand(w, inv, 10_000);
+    const staff = await scopeOf(w);
+    const record = (amountText: string) =>
+      recordManualRefund(db, staff, {
+        organizationId: w.organizationId,
+        source: entrySource(entry.id),
+        amountText,
+        reference: `BANK-${amountText}`,
+        refundedOn: new Date(),
+        reason: 'Typed',
+        idempotencyKey: randomUUID(),
+        stepUpSatisfied: true,
+      });
+    // More places than BDT has, nonsense, and more than was paid are refused with their reason.
+    const bad = await record('1.005');
+    expect(isErr(bad) && bad.error.reason).toBe('amount_invalid');
+    const over = await record('100.01');
+    expect(isErr(over) && over.error.reason).toBe('amount_over_balance');
+    // "25.00" is 2500 minor units in BDT, whatever a form might have said the currency was.
+    const done = await record('25.00');
+    expect(isOk(done)).toBe(true);
+    expect((await refundRows(w, inv)).map((r) => r.amountMinorUnits)).toEqual([-2500]);
+  });
+
   it(
     'refunds a payment typed in by hand only outside VisaStack, then records it with its reference',
     async () => {

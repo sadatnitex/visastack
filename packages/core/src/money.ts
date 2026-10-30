@@ -123,11 +123,27 @@ export function parseMoney(
   currency: string,
   max: number = Number.MAX_SAFE_INTEGER,
 ): number | null {
+  return parseWithDecimals(text, currencyDecimals(currency), max);
+}
+
+/** The most decimal places any currency has (BHD, JOD, KWD, OMR, TND). */
+export const MAX_CURRENCY_DECIMALS = 3;
+
+/**
+ * Whether typed text could be an amount above zero in some currency: digits, separators in the
+ * right places, at most three decimal places. A cheap check a form can make before any work; the
+ * exact check against the stored currency's own decimal places stays in the service (S30).
+ */
+export function looksLikeMoney(text: string): boolean {
+  const value = parseWithDecimals(text, MAX_CURRENCY_DECIMALS, Number.MAX_SAFE_INTEGER);
+  return value !== null && value > 0;
+}
+
+function parseWithDecimals(text: string, decimals: number, max: number): number | null {
   const match = text.trim().match(TYPED_AMOUNT);
   if (!match) return null;
   const whole = (match[1] ?? '').replace(/,/g, '');
   const fraction = match[2] ?? '';
-  const decimals = currencyDecimals(currency);
   if (fraction.length > decimals && /[1-9]/.test(fraction.slice(decimals))) return null;
   if (whole.length > 15) return null;
   const value = Number(`${whole}${fraction.slice(0, decimals).padEnd(decimals, '0')}`);

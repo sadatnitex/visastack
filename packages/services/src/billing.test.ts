@@ -1,4 +1,4 @@
-import { isErr, isOk } from '@visastack/core';
+import { formatBillingPeriod, isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
 import { eq } from 'drizzle-orm';
@@ -656,6 +656,54 @@ describe('invoices -- issue, collect, void (COM-03)', () => {
     expect(isErr(emptyRef)).toBe(true);
   });
 
+  it('stores a typed last day as an exclusive end, so the period reads back as typed (S30)', async () => {
+    const made = await createInvoice(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      planId,
+      periodStart: new Date('2027-11-01'),
+      periodLastDay: new Date('2027-11-30'),
+      invoiceRef: 'INV-LAST-DAY',
+      invoicedAmountMinorUnits: 1000,
+      currency: 'BDT',
+      dueDate: new Date('2027-12-08'),
+    });
+    if (!isOk(made)) throw new Error('invoice');
+    expect(made.value.periodEnd.toISOString()).toBe('2027-12-01T00:00:00.000Z');
+    expect(formatBillingPeriod(made.value.periodStart, made.value.periodEnd)).toBe(
+      '1 Nov 2027 to 30 Nov 2027',
+    );
+    // The next period, starting the day after the typed last day, only touches it.
+    const next = await createInvoice(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      planId,
+      periodStart: new Date('2027-12-01'),
+      periodLastDay: new Date('2027-12-31'),
+      invoiceRef: 'INV-LAST-DAY-2',
+      invoicedAmountMinorUnits: 1000,
+      currency: 'BDT',
+      dueDate: new Date('2028-01-08'),
+    });
+    expect(isOk(next)).toBe(true);
+    // A period ending on its own first day is one day long, and one ending before it is refused.
+    const oneDay = await createInvoice(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      planId,
+      periodStart: new Date('2028-02-01'),
+      periodLastDay: new Date('2028-01-31'),
+      invoiceRef: 'INV-LAST-DAY-3',
+      invoicedAmountMinorUnits: 1000,
+      currency: 'BDT',
+      dueDate: new Date('2028-02-08'),
+    });
+    expect(isErr(oneDay)).toBe(true);
+  });
+
   it('tells the status notice whether a person set the status and whether anything is owed (S30)', async () => {
     const reader = { actorAccountId: ownerAccountId, organizationId };
     expect(await getAgencyBillingNotice(db, reader)).toEqual({ ok: true, value: null });
@@ -678,7 +726,7 @@ describe('invoices -- issue, collect, void (COM-03)', () => {
     if (!isOk(moved)) throw new Error('move');
     expect(await getAgencyBillingNotice(db, reader)).toEqual({
       ok: true,
-      value: { status: 'SUSPENDED', setByPerson: true, invoiceOwed: false },
+      value: { status: 'SUSPENDED', setByPerson: true, invoiceOwed: false, invoiceOverdue: false },
     });
     const { periodStart, periodEnd, dueDate } = periodDates();
     const made = await createInvoice(db, {
@@ -695,7 +743,16 @@ describe('invoices -- issue, collect, void (COM-03)', () => {
     });
     if (!isOk(made)) throw new Error('invoice');
     const notice = await getAgencyBillingNotice(db, reader);
-    expect(isOk(notice) && notice.value?.invoiceOwed).toBe(true);
+    expect(isOk(notice) && notice.value).toMatchObject({
+      invoiceOwed: true,
+      invoiceOverdue: false,
+    });
+    // The same invoice, judged the Bangladesh day after its due date: overdue.
+    const later = await getAgencyBillingNotice(db, {
+      ...reader,
+      now: new Date(dueDate.getTime() + 2 * 24 * 60 * 60 * 1000),
+    });
+    expect(isOk(later) && later.value).toMatchObject({ invoiceOwed: true, invoiceOverdue: true });
     const stranger = await seedStranger(db, 'notice');
     expect(
       isErr(await getAgencyBillingNotice(db, { actorAccountId: stranger, organizationId })),

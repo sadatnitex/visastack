@@ -11,6 +11,7 @@ import { grantCommercialOverride, revokeCommercialOverride } from './commercial-
 import { setConsent } from './consent';
 import type { Db } from './db';
 import {
+  AGENCY_STORAGE_FULL,
   AGENCY_UPLOAD_PAUSED,
   INVITEE_CANNOT_JOIN,
   TRAVELLER_UPLOAD_PAUSED,
@@ -1022,6 +1023,39 @@ describe('suspended billing blocks new paid work (COM-02 + COM-03)', () => {
       expect(result.error.message).toBe(TRAVELLER_UPLOAD_PAUSED);
       expect(result.error.message).not.toMatch(/billing|suspend|agency's|organization/i);
     }
+  });
+
+  it('gives agency staff a next step when their own storage is full, and travellers the neutral sentence (S30)', async () => {
+    const traveller = await seedTraveller(db, 'storage-full-staff');
+    const { organizationId, ownerAccountId } = await seedOrganization(db, 'storage-full-org');
+    const tightPlan = await createTightPlan(db, owner, { storageBytesAllowed: 1 * MB });
+    await activateSubscription(db, {
+      actor: owner.actor,
+      stepUpSatisfied: true,
+      organizationId,
+      planId: tightPlan.id,
+      reason: 'test',
+    });
+    await grantOrgAccessToApplicant(db, {
+      applicantOwnerAccountId: traveller.accountId,
+      applicantId: traveller.applicantId,
+      organizationId,
+      orgOwnerAccountId: ownerAccountId,
+    });
+    const reserve = (accountId: string) =>
+      reserveUpload(
+        db,
+        { accountId, applicantId: traveller.applicantId, sizeBytes: 2 * MB },
+        generousUploadConfig,
+      );
+    const staff = await reserve(ownerAccountId);
+    expect(isErr(staff) && staff.error).toEqual({
+      code: 'invalid',
+      reason: 'limit_reached',
+      message: AGENCY_STORAGE_FULL,
+    });
+    const own = await reserve(traveller.accountId);
+    expect(isErr(own) && own.error.message).toBe(TRAVELLER_UPLOAD_PAUSED);
   });
 
   it('tells someone working in the agency the same pause without "contact your agency" (S30)', async () => {

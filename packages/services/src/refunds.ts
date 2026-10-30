@@ -12,7 +12,7 @@ import {
   invoicesPath,
 } from './billing-standing';
 import { type Db, first, required, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, refusal, serviceError } from './errors';
 import {
   type InvoicePayment,
   applyInvoiceCollection,
@@ -26,6 +26,7 @@ import {
   cancelQueuedNotificationsForResource,
   enqueueNotificationBothChannels,
 } from './notifications';
+import { parseAmountForCurrency } from './payment-amounts';
 import type { PaymentAttempt } from './payments';
 import { type PaymentPort, type RefundingPaymentPort, isRefundingPaymentPort } from './ports';
 
@@ -387,6 +388,31 @@ async function lockSource(
 }
 
 /** Why this source cannot give back this amount, or null. */
+interface AmountInput {
+  readonly amountMinorUnits?: number;
+  readonly amountText?: string;
+}
+
+const AMOUNT_ABOVE_ZERO = 'Enter an amount above zero.';
+
+/** Whether exactly one amount was given and, when given in minor units, it is a valid one. */
+function amountGiven(input: AmountInput): boolean {
+  if ((input.amountMinorUnits === undefined) === (input.amountText === undefined)) return false;
+  return input.amountMinorUnits === undefined || isValidMinorUnitAmount(input.amountMinorUnits);
+}
+
+/**
+ * The amount in minor units: as given, or typed and read in the stored currency (of the payment
+ * or the refund request), never in one a form names (S30). Null when it is not a valid amount.
+ */
+function amountIn(input: AmountInput, storedCurrency: string): number | null {
+  const amount =
+    input.amountText !== undefined
+      ? parseAmountForCurrency(input.amountText, storedCurrency)
+      : (input.amountMinorUnits ?? null);
+  return amount !== null && isValidMinorUnitAmount(amount) ? amount : null;
+}
+
 function limitProblem(source: LockedSource, amount: number): ServiceError | null {
   if (source.kind === 'entry') {
     if (source.entry.kind === 'REFUND') {
@@ -396,8 +422,8 @@ function limitProblem(source: LockedSource, amount: number): ServiceError | null
       return serviceError('invalid', 'This invoice is cancelled.');
     }
     if (amount > source.refundable) {
-      return serviceError(
-        'invalid',
+      return refusal(
+        'amount_over_balance',
         source.refundable === 0
           ? 'Everything from this payment has already been refunded or is being refunded.'
           : 'This is more than can still be refunded from this payment.',
@@ -409,8 +435,8 @@ function limitProblem(source: LockedSource, amount: number): ServiceError | null
     return serviceError('invalid', 'This payment no longer needs a check.');
   }
   if (amount > source.remaining) {
-    return serviceError(
-      'invalid',
+    return refusal(
+      'amount_over_balance',
       source.remaining === 0
         ? 'Everything from this payment has already been credited or refunded.'
         : 'This is more than is left of this payment.',
@@ -642,7 +668,10 @@ async function closeHeldIfSettled(
 export interface RequestRefundInput {
   readonly organizationId: string;
   readonly source: RefundSource;
-  readonly amountMinorUnits: number;
+  /** Give this or `amountText`. */
+  readonly amountMinorUnits?: number;
+  /** The amount as staff typed it ("1,500.00"), read in the stored payment's own currency (S30). */
+  readonly amountText?: string;
   readonly reason: string;
   /** From the form, one per intended refund: sending the form twice makes one request. */
   readonly idempotencyKey: string;
@@ -669,9 +698,7 @@ export async function requestRefund(
   const forbidden = denied(staff);
   if (forbidden) return err(forbidden);
   const reason = cleanText(input.reason, MAX_REASON);
-  if (!isValidMinorUnitAmount(input.amountMinorUnits)) {
-    return err(serviceError('invalid', 'Enter an amount above zero.'));
-  }
+  if (!amountGiven(input)) return err(refusal('amount_invalid', AMOUNT_ABOVE_ZERO));
   if (!reason) return err(serviceError('invalid', 'Give a reason, up to 500 characters.'));
   if (!isUuid(input.idempotencyKey) || !isUuid(input.organizationId)) {
     return err(serviceError('invalid', 'This page is out of date. Reload it and try again.'));
@@ -696,18 +723,17 @@ export async function requestRefund(
     async (tx): Promise<Result<{ row: RefundRequest; replay: boolean }, ServiceError>> => {
       const source = await lockSource(tx, input.organizationId, input.source);
       if (!source) return err(serviceError('not_found', 'payment not found'));
+      const amount = amountIn(input, sourceIds(source).currency);
+      if (amount === null) return err(refusal('amount_invalid', AMOUNT_ABOVE_ZERO));
       // A repeated send is answered from the first request, under the same lock.
       const replay = await byIdempotencyKey(tx, input.idempotencyKey);
       if (replay) {
-        if (
-          !sameSource(replay, input.source) ||
-          replay.amountMinorUnits !== input.amountMinorUnits
-        ) {
+        if (!sameSource(replay, input.source) || replay.amountMinorUnits !== amount) {
           return err(serviceError('invalid', 'This page is out of date. Reload it and try again.'));
         }
         return ok({ row: replay, replay: true });
       }
-      const problem = limitProblem(source, input.amountMinorUnits);
+      const problem = limitProblem(source, amount);
       if (problem) return err(problem);
       const bankTranId = providerTarget(source, gateway.provider);
       if (!bankTranId) {
@@ -727,7 +753,7 @@ export async function requestRefund(
             ...ids,
             method: 'PROVIDER',
             status: 'REQUESTED',
-            amountMinorUnits: input.amountMinorUnits,
+            amountMinorUnits: amount,
             provider: gateway.provider,
             bankTranId,
             idempotencyKey: input.idempotencyKey,
@@ -1036,8 +1062,10 @@ export async function cancelRefund(
 export interface ConfirmUnsentRefundInput extends RefundRequestActionInput {
   /** The refund reference the merchant panel shows. */
   readonly reference: string;
-  /** The amount the merchant panel shows, typed by staff: it must equal the request's amount. */
-  readonly amountMinorUnits: number;
+  /** The amount the merchant panel shows: it must equal the request's amount. Give this or `amountText`. */
+  readonly amountMinorUnits?: number;
+  /** The same amount as staff typed it, read in the request's own stored currency (S30). */
+  readonly amountText?: string;
   /** The day the panel says the refund was made. */
   readonly refundedOn: Date;
 }
@@ -1072,8 +1100,11 @@ export async function confirmUnsentRefund(
   const tooEarly = refundDayProblem(input.refundedOn, seen.value.createdAt, now);
   if (tooEarly) return err(tooEarly);
   // The request's amount never changes (the guard trigger); a different panel amount is another refund.
-  if (input.amountMinorUnits !== seen.value.amountMinorUnits) {
-    return err(serviceError('invalid', AMOUNT_MISMATCH));
+  if (!amountGiven(input)) return err(refusal('amount_invalid', AMOUNT_ABOVE_ZERO));
+  const typed = amountIn(input, normalizeCurrency(seen.value.currency));
+  if (typed === null) return err(refusal('amount_invalid', AMOUNT_ABOVE_ZERO));
+  if (typed !== seen.value.amountMinorUnits) {
+    return err(refusal('amount_invalid', AMOUNT_MISMATCH));
   }
   const done = await inReferenceTransaction(
     db,
@@ -1478,7 +1509,10 @@ function paymentDay(source: LockedSource): Date {
 export interface RecordManualRefundInput {
   readonly organizationId: string;
   readonly source: RefundSource;
-  readonly amountMinorUnits: number;
+  /** Give this or `amountText`. */
+  readonly amountMinorUnits?: number;
+  /** The amount as staff typed it ("1,500.00"), read in the stored payment's own currency (S30). */
+  readonly amountText?: string;
   /** The outside reference: a bank transfer id, or the gateway panel's refund reference. */
   readonly reference: string;
   /** When the money went back. Not in the future. */
@@ -1504,9 +1538,7 @@ export async function recordManualRefund(
   const reason = cleanText(input.reason, MAX_REASON);
   const reference = cleanText(input.reference, MAX_REFERENCE);
   const now = input.now ?? new Date();
-  if (!isValidMinorUnitAmount(input.amountMinorUnits)) {
-    return err(serviceError('invalid', 'Enter an amount above zero.'));
-  }
+  if (!amountGiven(input)) return err(refusal('amount_invalid', AMOUNT_ABOVE_ZERO));
   if (!reference)
     return err(serviceError('invalid', 'Enter the refund reference, up to 120 characters.'));
   if (!reason) return err(serviceError('invalid', 'Give a reason, up to 500 characters.'));
@@ -1525,17 +1557,16 @@ export async function recordManualRefund(
     async (tx): Promise<Result<{ row: RefundRequest; replay: boolean }, ServiceError>> => {
       const source = await lockSource(tx, input.organizationId, input.source);
       if (!source) return err(serviceError('not_found', 'payment not found'));
+      const amount = amountIn(input, sourceIds(source).currency);
+      if (amount === null) return err(refusal('amount_invalid', AMOUNT_ABOVE_ZERO));
       const replay = await byIdempotencyKey(tx, input.idempotencyKey);
       if (replay) {
-        if (
-          !sameSource(replay, input.source) ||
-          replay.amountMinorUnits !== input.amountMinorUnits
-        ) {
+        if (!sameSource(replay, input.source) || replay.amountMinorUnits !== amount) {
           return err(serviceError('invalid', 'This page is out of date. Reload it and try again.'));
         }
         return ok({ row: replay, replay: true });
       }
-      const problem = limitProblem(source, input.amountMinorUnits);
+      const problem = limitProblem(source, amount);
       if (problem) return err(problem);
       // Never before the money came in (the payment's own day, in Bangladesh time).
       const tooEarly = refundDayProblem(input.refundedOn, paymentDay(source), now);
@@ -1552,7 +1583,7 @@ export async function recordManualRefund(
             ...ids,
             method: 'MANUAL',
             status: 'CONFIRMED',
-            amountMinorUnits: input.amountMinorUnits,
+            amountMinorUnits: amount,
             provider: null,
             idempotencyKey: input.idempotencyKey,
             reason,

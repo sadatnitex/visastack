@@ -36,12 +36,23 @@ export type ServiceErrorCode =
  * words without reading the message: the agency's billing is suspended, or a plan limit is
  * reached. The message stays a plain sentence for whoever reads it.
  */
-export type RefusalReason = 'billing_suspended' | 'limit_reached';
+export type RefusalReason = 'billing_suspended' | 'limit_reached' | FieldReason;
+
+/**
+ * Why a typed money field was refused (S30), so a form can point to the field at fault without
+ * reading the message: an amount that is not a plain amount in the stored currency, an amount
+ * over what is owed or left, or a currency that does not match the stored one.
+ */
+export type FieldReason =
+  | 'amount_invalid'
+  | 'amount_over_balance'
+  | 'currency_mismatch'
+  | 'currency_invalid';
 
 export interface ServiceError {
   readonly code: ServiceErrorCode;
   readonly message: string;
-  /** Set on plan and billing refusals only. */
+  /** Set on plan and billing refusals, and on money-field refusals. */
   readonly reason?: RefusalReason;
 }
 

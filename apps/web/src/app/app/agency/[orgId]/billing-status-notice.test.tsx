@@ -15,6 +15,7 @@ const notice = (overrides: Partial<AgencyBillingNotice> = {}): AgencyBillingNoti
   status: 'GRACE',
   setByPerson: false,
   invoiceOwed: true,
+  invoiceOverdue: true,
   ...overrides,
 });
 const render = (value: AgencyBillingNotice | null, admin: boolean, showAction = true) =>
@@ -50,7 +51,7 @@ describe('the Grace and Suspended notice (S30, audit M4)', () => {
   it('never claims an unpaid invoice when a person set the status or nothing is owed', () => {
     const held = [
       notice({ status: 'SUSPENDED', setByPerson: true }),
-      notice({ status: 'SUSPENDED', invoiceOwed: false }),
+      notice({ status: 'SUSPENDED', setByPerson: true, invoiceOwed: false, invoiceOverdue: false }),
     ];
     for (const value of held) {
       for (const admin of [true, false]) {
@@ -62,7 +63,10 @@ describe('the Grace and Suspended notice (S30, audit M4)', () => {
         expect(html).not.toMatch(/invoice is|unpaid|past its due date/i);
       }
     }
-    const grace = render(notice({ setByPerson: true, invoiceOwed: false }), true);
+    const grace = render(
+      notice({ setByPerson: true, invoiceOwed: false, invoiceOverdue: false }),
+      true,
+    );
     expect(grace).toContain('needs attention');
     expect(grace).not.toMatch(/unpaid|past its due date/i);
   });
@@ -71,7 +75,25 @@ describe('the Grace and Suspended notice (S30, audit M4)', () => {
     expect(render(notice({ status: 'SUSPENDED', setByPerson: true }), true)).toContain(
       'Pay Invoice',
     );
-    expect(render(notice({ invoiceOwed: false }), true)).not.toContain('Pay Invoice');
+    expect(
+      render(notice({ setByPerson: true, invoiceOwed: false, invoiceOverdue: false }), true),
+    ).not.toContain('Pay Invoice');
+  });
+
+  it('thanks the agency once nothing is overdue, while the daily check has not moved it back', () => {
+    for (const status of ['GRACE', 'SUSPENDED'] as const) {
+      for (const owed of [true, false]) {
+        for (const admin of [true, false]) {
+          const html = render(notice({ status, invoiceOwed: owed, invoiceOverdue: false }), admin);
+          expect(html).toContain('Your Payment Is In');
+          expect(html).toContain(
+            'Thank you, your payment is in. Your agency returns to Active at the next daily check.',
+          );
+          expect(html).not.toContain('Pay Invoice');
+          expect(html).not.toMatch(/past its due date|unpaid|paused/i);
+        }
+      }
+    }
   });
 
   it('gives a member the short version with no money detail and no payment action', () => {
