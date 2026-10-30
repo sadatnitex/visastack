@@ -2,20 +2,25 @@
 
 import { passesThresholds, runEvaluationSuite } from '@visastack/adapters';
 import {
+  type AiProviderDataTerms,
   type AiProviderTier,
   type AiTrainingAnswer,
   type PlatformAuthInput,
   type RecordAiProviderDataTermsInput,
   activateAiProviderConfig,
+  aiProviderTermsFor,
   createDraftAiProviderConfig,
+  deleteDraftAiProviderConfig,
   emergencyDisableAiProviderConfig,
   getAiProviderConfigById,
+  loadAiProviderDataTerms,
   recordAiProviderConfigEvaluation,
   recordAiProviderConfigTest,
   recordAiProviderDataTerms,
   revokeAiProviderConfigKey,
   rollbackAiProviderConfig,
   setAiDataRuleSetting,
+  updateDraftAiProviderConfig,
   validateAiProviderDataTerms,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
@@ -121,34 +126,115 @@ function parseTermsFields(formData: FormData): TermsFields | string | undefined 
   return problem ? `${problem.charAt(0).toUpperCase()}${problem.slice(1)}.` : fields;
 }
 
-/** Save a new DRAFT AI provider configuration. Has no effect on live traffic until activated. Security-admin + step-up gated (Part 8 §5). */
+/** The configuration settings every draft form sends (create, edit, and edit as new draft). */
+interface ConfigFields {
+  readonly model: string;
+  readonly apiKey: string;
+  readonly reasoningEffort: string;
+  readonly dataPolicyApproved: boolean;
+  readonly notes: string;
+  readonly budgetLimitUsd: number;
+  readonly perDocumentBudgetLimitUsd: number | undefined;
+  readonly maxAttemptsPerDocument: number | undefined;
+  readonly maxPagesPerDocument: number | undefined;
+  readonly cacheMaxAgeDays: number | undefined;
+  readonly maxConcurrentCalls: number | undefined;
+  readonly fallbackEnabled: boolean;
+  readonly fallbackProviderConfigId: string;
+}
+
+/** Reads the shared settings, or a message naming what is missing. The key is checked by each caller. */
+function parseConfigFields(formData: FormData): ConfigFields | string {
+  const model = String(formData.get('model') ?? '').trim();
+  const budgetLimitUsd = parsePositiveNumber(formData.get('budgetLimitUsd'));
+  const fallbackEnabled = formData.get('fallbackEnabled') === 'on';
+  const fallbackProviderConfigId = String(formData.get('fallbackProviderConfigId') ?? '').trim();
+  if (model.length === 0) return 'Enter a model.';
+  if (budgetLimitUsd === undefined) return 'Enter a positive monthly budget in USD.';
+  if (fallbackEnabled && fallbackProviderConfigId.length === 0) {
+    return 'Choose a fallback configuration to enable fallback.';
+  }
+  return {
+    model,
+    apiKey: String(formData.get('apiKey') ?? '').trim(),
+    reasoningEffort: String(formData.get('reasoningEffort') ?? '').trim(),
+    dataPolicyApproved: formData.get('dataPolicyApproved') === 'on',
+    notes: String(formData.get('notes') ?? '').trim(),
+    budgetLimitUsd,
+    perDocumentBudgetLimitUsd: parsePositiveNumber(formData.get('perDocumentBudgetLimitUsd')),
+    maxAttemptsPerDocument: parsePositiveInt(formData.get('maxAttemptsPerDocument')),
+    maxPagesPerDocument: parsePositiveInt(formData.get('maxPagesPerDocument')),
+    cacheMaxAgeDays: parsePositiveInt(formData.get('cacheMaxAgeDays')),
+    maxConcurrentCalls: parsePositiveInt(formData.get('maxConcurrentCalls')),
+    fallbackEnabled,
+    fallbackProviderConfigId,
+  };
+}
+
+/** The service's settings input for parsed fields; optional settings left blank are omitted. */
+function configSettings(fields: ConfigFields) {
+  return {
+    model: fields.model,
+    dataPolicyApproved: fields.dataPolicyApproved,
+    budgetLimitUnits: usdToUnits(fields.budgetLimitUsd),
+    ...(fields.reasoningEffort ? { reasoningEffort: fields.reasoningEffort } : {}),
+    ...(fields.perDocumentBudgetLimitUsd !== undefined
+      ? { perDocumentBudgetLimitUnits: usdToUnits(fields.perDocumentBudgetLimitUsd) }
+      : {}),
+    ...(fields.maxAttemptsPerDocument !== undefined
+      ? { maxAttemptsPerDocument: fields.maxAttemptsPerDocument }
+      : {}),
+    ...(fields.maxPagesPerDocument !== undefined
+      ? { maxPagesPerDocument: fields.maxPagesPerDocument }
+      : {}),
+    ...(fields.cacheMaxAgeDays !== undefined ? { cacheMaxAgeDays: fields.cacheMaxAgeDays } : {}),
+    ...(fields.maxConcurrentCalls !== undefined
+      ? { maxConcurrentCalls: fields.maxConcurrentCalls }
+      : {}),
+    ...(fields.fallbackEnabled ? { fallbackEnabled: true } : {}),
+    ...(fields.fallbackProviderConfigId
+      ? { fallbackProviderConfigId: fields.fallbackProviderConfigId }
+      : {}),
+    ...(fields.notes ? { notes: fields.notes } : {}),
+  };
+}
+
+/** The recorded terms of a configuration as fields to record again, or undefined when none are recorded. */
+function carriedTerms(terms: AiProviderDataTerms): TermsFields | undefined {
+  if (!terms.recorded || terms.tier === 'UNKNOWN' || terms.checkedOn === null) return undefined;
+  return {
+    tier: terms.tier,
+    trainsOnInputs: terms.trainsOnInputs,
+    checkedOn: terms.checkedOn,
+    ...(terms.retentionDays !== null ? { retentionDays: terms.retentionDays } : {}),
+    ...(terms.region ? { region: terms.region } : {}),
+    ...(terms.termsUrl ? { termsUrl: terms.termsUrl } : {}),
+    ...(terms.notes ? { notes: terms.notes } : {}),
+  };
+}
+
+const ENCRYPTION_NOT_CONFIGURED: ActionState = {
+  ok: false,
+  message:
+    'Encryption is not configured in this environment (set up the key service or the local key).',
+};
+
+/**
+ * Save a new DRAFT AI provider configuration. Has no effect on live traffic until activated.
+ * Security-admin + step-up gated (Part 8 §5). With `copyApiKeyFromConfigId` ("Edit as New
+ * Draft") the key may be left blank and the saved key of that configuration is reused.
+ */
 export async function createDraftAiProviderConfigAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   const provider = String(formData.get('provider') ?? '').trim();
-  const model = String(formData.get('model') ?? '').trim();
-  const apiKey = String(formData.get('apiKey') ?? '').trim();
-  const reasoningEffort = String(formData.get('reasoningEffort') ?? '').trim();
-  const dataPolicyApproved = formData.get('dataPolicyApproved') === 'on';
-  const notes = String(formData.get('notes') ?? '').trim();
-  const budgetLimitUsd = parsePositiveNumber(formData.get('budgetLimitUsd'));
-  const perDocumentBudgetLimitUsd = parsePositiveNumber(formData.get('perDocumentBudgetLimitUsd'));
-  const maxAttemptsPerDocument = parsePositiveInt(formData.get('maxAttemptsPerDocument'));
-  const maxPagesPerDocument = parsePositiveInt(formData.get('maxPagesPerDocument'));
-  const cacheMaxAgeDays = parsePositiveInt(formData.get('cacheMaxAgeDays'));
-  const maxConcurrentCalls = parsePositiveInt(formData.get('maxConcurrentCalls'));
-  const fallbackEnabled = formData.get('fallbackEnabled') === 'on';
-  const fallbackProviderConfigId = String(formData.get('fallbackProviderConfigId') ?? '').trim();
-
+  const copyApiKeyFromConfigId = String(formData.get('copyApiKeyFromConfigId') ?? '').trim();
   if (provider.length === 0) return { ok: false, message: 'Choose a provider.' };
-  if (model.length === 0) return { ok: false, message: 'Enter a model.' };
-  if (apiKey.length === 0) return { ok: false, message: 'Enter an API key.' };
-  if (budgetLimitUsd === undefined) {
-    return { ok: false, message: 'Enter a positive monthly budget in USD.' };
-  }
-  if (fallbackEnabled && fallbackProviderConfigId.length === 0) {
-    return { ok: false, message: 'Choose a fallback configuration to enable fallback.' };
+  const fields = parseConfigFields(formData);
+  if (typeof fields === 'string') return { ok: false, message: fields };
+  if (fields.apiKey.length === 0 && copyApiKeyFromConfigId.length === 0) {
+    return { ok: false, message: 'Enter an API key.' };
   }
   const terms = parseTermsFields(formData);
   if (typeof terms === 'string') return { ok: false, message: terms };
@@ -158,13 +244,7 @@ export async function createDraftAiProviderConfigAction(
       return DENIED;
     }
     const encryption = createKeyManagementPort();
-    if (!encryption) {
-      return {
-        ok: false,
-        message:
-          'Encryption is not configured in this environment (set up the key service or the local key).',
-      } satisfies ActionState;
-    }
+    if (!encryption) return ENCRYPTION_NOT_CONFIGURED;
     const stepUp = await tryEstablishStepUp(
       { accountId, action: 'AI_SETTINGS_CREATE_DRAFT', resourceId: 'new' },
       AI_SETTINGS_PATH,
@@ -178,43 +258,124 @@ export async function createDraftAiProviderConfigAction(
       actor: actor(accountId, email),
       stepUpSatisfied: true,
       provider,
-      model,
-      apiKey,
+      apiKey: fields.apiKey,
+      ...(copyApiKeyFromConfigId ? { copyApiKeyFromConfigId } : {}),
       encryption,
-      dataPolicyApproved,
-      budgetLimitUnits: usdToUnits(budgetLimitUsd),
-      ...(reasoningEffort ? { reasoningEffort } : {}),
-      ...(perDocumentBudgetLimitUsd !== undefined
-        ? { perDocumentBudgetLimitUnits: usdToUnits(perDocumentBudgetLimitUsd) }
-        : {}),
-      ...(maxAttemptsPerDocument !== undefined ? { maxAttemptsPerDocument } : {}),
-      ...(maxPagesPerDocument !== undefined ? { maxPagesPerDocument } : {}),
-      ...(cacheMaxAgeDays !== undefined ? { cacheMaxAgeDays } : {}),
-      ...(maxConcurrentCalls !== undefined ? { maxConcurrentCalls } : {}),
-      ...(fallbackEnabled ? { fallbackEnabled: true } : {}),
-      ...(fallbackProviderConfigId ? { fallbackProviderConfigId } : {}),
-      ...(notes ? { notes } : {}),
+      ...configSettings(fields),
     });
     if (!draft.ok) return { ok: false, message: draft.error.message } satisfies ActionState;
-    if (terms) {
+    // A reused key is the same provider account, so the terms recorded for it still describe
+    // it: they are recorded again for the new draft, through the same checks and audit.
+    const carried =
+      !terms && copyApiKeyFromConfigId && !fields.apiKey
+        ? carriedTerms(
+            aiProviderTermsFor(
+              await loadAiProviderDataTerms(db, [copyApiKeyFromConfigId]),
+              copyApiKeyFromConfigId,
+            ),
+          )
+        : undefined;
+    const termsToRecord = terms ?? carried;
+    if (termsToRecord) {
       const staff = await staffPrincipal(db, actor(accountId, email), 'AI_SETTINGS_MANAGE');
       if (!staff.ok) return DENIED;
       const recorded = await recordAiProviderDataTerms(db, staff.value, {
         stepUpSatisfied: true,
         configId: draft.value.id,
-        ...terms,
+        ...termsToRecord,
       });
       if (!recorded.ok) {
         return {
           ok: true,
-          message: `Draft configuration created (${provider} / ${model}), but its data terms were not saved: ${recorded.error.message}.`,
+          message: `Draft configuration created (${provider} / ${fields.model}), but its data terms were not saved: ${recorded.error.message}.`,
         } satisfies ActionState;
       }
     }
     return {
       ok: true,
-      message: `Draft configuration created (${provider} / ${model}).`,
+      message: `Draft configuration created (${provider} / ${fields.model}).`,
     } satisfies ActionState;
+  });
+  if (result.ok) settingsChanged();
+  return result;
+}
+
+/**
+ * Edit a DRAFT in place (only a draft: it has never run). The form sends the whole
+ * configuration; a blank key keeps the saved one. Security-admin + step-up gated.
+ */
+export async function updateDraftAiProviderConfigAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const configId = String(formData.get('configId') ?? '').trim();
+  if (configId.length === 0) return { ok: false, message: 'Missing configuration id.' };
+  const fields = parseConfigFields(formData);
+  if (typeof fields === 'string') return { ok: false, message: fields };
+
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'AI_SETTINGS_MANAGE'))) {
+      return DENIED;
+    }
+    const encryption = createKeyManagementPort();
+    if (!encryption) return ENCRYPTION_NOT_CONFIGURED;
+    const stepUp = await tryEstablishStepUp(
+      { accountId, action: 'AI_SETTINGS_EDIT_DRAFT', resourceId: configId },
+      AI_SETTINGS_PATH,
+    );
+    if (stepUp.kind === 'not_configured') {
+      return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
+    }
+    if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
+
+    const staff = await staffPrincipal(db, actor(accountId, email), 'AI_SETTINGS_MANAGE');
+    if (!staff.ok) return DENIED;
+    const updated = await updateDraftAiProviderConfig(db, staff.value, {
+      stepUpSatisfied: true,
+      configId,
+      encryption,
+      ...(fields.apiKey ? { apiKey: fields.apiKey } : {}),
+      ...configSettings(fields),
+    });
+    if (!updated.ok) return { ok: false, message: updated.error.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: `Draft saved (${updated.value.provider} / ${updated.value.model}).`,
+    } satisfies ActionState;
+  });
+  if (result.ok) settingsChanged();
+  return result;
+}
+
+/** Delete a DRAFT with its encrypted key and data terms. Security-admin + step-up gated. */
+export async function deleteDraftAiProviderConfigAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const configId = String(formData.get('configId') ?? '').trim();
+  if (configId.length === 0) return { ok: false, message: 'Missing configuration id.' };
+
+  const result = await withSession(async ({ db, accountId, email }) => {
+    if (!(await hasPlatformPermission(db, { accountId, email }, 'AI_SETTINGS_MANAGE'))) {
+      return DENIED;
+    }
+    const stepUp = await tryEstablishStepUp(
+      { accountId, action: 'AI_SETTINGS_DELETE_DRAFT', resourceId: configId },
+      AI_SETTINGS_PATH,
+    );
+    if (stepUp.kind === 'not_configured') {
+      return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
+    }
+    if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
+
+    const staff = await staffPrincipal(db, actor(accountId, email), 'AI_SETTINGS_MANAGE');
+    if (!staff.ok) return DENIED;
+    const deleted = await deleteDraftAiProviderConfig(db, staff.value, {
+      stepUpSatisfied: true,
+      configId,
+    });
+    if (!deleted.ok) return { ok: false, message: deleted.error.message } satisfies ActionState;
+    return { ok: true, message: 'Draft deleted.' } satisfies ActionState;
   });
   if (result.ok) settingsChanged();
   return result;
@@ -337,10 +498,13 @@ export async function revokeAiProviderConfigKeyAction(
     }
     if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
 
+    // With the key service, every other configuration holding the same key is revoked too.
+    const encryption = createKeyManagementPort();
     const revoked = await revokeAiProviderConfigKey(db, {
       actor: actor(accountId, email),
       stepUpSatisfied: true,
       configId,
+      ...(encryption ? { encryption } : {}),
     });
     if (!revoked.ok) return { ok: false, message: revoked.error.message } satisfies ActionState;
     return { ok: true, message: 'API key revoked.' } satisfies ActionState;
@@ -386,13 +550,7 @@ export async function testAiProviderConfigAction(
     if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
 
     const encryption = createKeyManagementPort();
-    if (!encryption) {
-      return {
-        ok: false,
-        message:
-          'Encryption is not configured in this environment (set up the key service or the local key).',
-      } satisfies ActionState;
-    }
+    if (!encryption) return ENCRYPTION_NOT_CONFIGURED;
     const adapter = await resolveTestAdapter(db, encryption, config.value);
     if (!adapter) {
       return {
@@ -459,13 +617,7 @@ export async function runAiProviderConfigEvaluationAction(
     if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
 
     const encryption = createKeyManagementPort();
-    if (!encryption) {
-      return {
-        ok: false,
-        message:
-          'Encryption is not configured in this environment (set up the key service or the local key).',
-      } satisfies ActionState;
-    }
+    if (!encryption) return ENCRYPTION_NOT_CONFIGURED;
     const adapter = await resolveTestAdapter(db, encryption, config.value);
     if (!adapter) {
       return {

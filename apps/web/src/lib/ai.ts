@@ -401,7 +401,12 @@ function buildOcrAdapterForConfig(config: AiProviderConfig, apiKey: string): AiO
     case 'openai':
       return new OpenAiOcrAdapter({ apiKey, model: config.model, storeResponses: false });
     case 'anthropic':
-      return new AnthropicOcrAdapter({ apiKey, model: config.model, storeResponses: false });
+      return new AnthropicOcrAdapter({
+        apiKey,
+        model: config.model,
+        ...(config.reasoningEffort ? { reasoningEffort: config.reasoningEffort } : {}),
+        storeResponses: false,
+      });
     case 'gemini':
       return new GeminiOcrAdapter({ apiKey, model: config.model, storeResponses: false });
     default:

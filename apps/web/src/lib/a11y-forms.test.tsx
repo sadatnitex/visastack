@@ -2,11 +2,11 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { MissionState } from '@visastack/core';
-import type { AiProviderConfig } from '@visastack/services';
 import type { ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 import { describe, expect, it, vi } from 'vitest';
+import type { ConfigFormView } from '../app/app/admin/ai-settings/forms';
 import { axeViolations } from './axe.test-support';
 import {
   fixtureDocumentGroups,
@@ -1420,6 +1420,31 @@ const AGENCY: readonly Case[] = [
   },
 ];
 
+/** A saved AI configuration as the settings forms see it. */
+function aiConfigView(overrides: Partial<ConfigFormView> = {}): ConfigFormView {
+  return {
+    id: 'c1',
+    status: 'DRAFT',
+    provider: 'anthropic',
+    model: 'claude-opus-5-5',
+    reasoningEffort: null,
+    dataPolicyApproved: true,
+    budgetUsd: 100,
+    perDocumentBudgetUsd: null,
+    maxAttemptsPerDocument: 3,
+    maxPagesPerDocument: null,
+    cacheMaxAgeDays: null,
+    maxConcurrentCalls: null,
+    fallbackEnabled: false,
+    fallbackProviderConfigId: null,
+    notes: 'Pilot',
+    apiKeyFingerprint: '...MQAA',
+    keyRevoked: false,
+    editableInPlace: true,
+    ...overrides,
+  };
+}
+
 const ADMIN: readonly Case[] = [
   row('release a legal hold', () => <adminButtons.ReleaseHoldButton holdId={rowId()} />),
   row('retry a job', () => <adminButtons.RetryJobButton jobId={rowId()} />),
@@ -1450,28 +1475,52 @@ const ADMIN: readonly Case[] = [
   {
     name: 'new AI configuration',
     element: () => (
-      <aiSettings.CreateDraftConfigForm
-        existingConfigs={[
-          {
-            id: 'c1',
-            provider: 'openai',
-            model: 'gpt-x',
-            status: 'ACTIVE',
-          } as unknown as AiProviderConfig,
-        ]}
-      />
+      <aiSettings.CreateDraftConfigForm fallbackOptions={[aiConfigView({ status: 'ACTIVE' })]} />
     ),
   },
+  row('edit an AI draft', () => {
+    const config = aiConfigView({ id: rowId() });
+    return <aiSettings.EditConfigForm config={config} fallbackOptions={[config]} />;
+  }),
+  row('edit an active AI configuration as a new draft', () => {
+    const config = aiConfigView({
+      id: rowId(),
+      status: 'ACTIVE',
+      reasoningEffort: 'low',
+      editableInPlace: false,
+    });
+    return <aiSettings.EditConfigForm config={config} fallbackOptions={[config]} />;
+  }),
+  row('edit a revoked AI configuration as a new draft', () => {
+    const config = aiConfigView({
+      id: rowId(),
+      status: 'SUPERSEDED',
+      keyRevoked: true,
+      editableInPlace: false,
+    });
+    return <aiSettings.EditConfigForm config={config} fallbackOptions={[config]} />;
+  }),
+  row('delete an AI draft', () => (
+    <aiSettings.DeleteDraftButton configId={rowId()} configName="anthropic / claude-opus-5-5" />
+  )),
   {
     name: 'new AI configuration (first one)',
-    element: () => <aiSettings.CreateDraftConfigForm existingConfigs={[]} />,
+    element: () => <aiSettings.CreateDraftConfigForm fallbackOptions={[]} />,
   },
-  row('test an AI connection', () => <aiSettings.TestConnectionButton configId={rowId()} />),
-  row('run an AI evaluation', () => <aiSettings.RunEvaluationButton configId={rowId()} />),
-  row('activate an AI configuration', () => <aiSettings.ActivateConfigButton configId={rowId()} />),
+  row('test an AI connection', () => (
+    <aiSettings.TestConnectionButton configId={rowId()} configName="anthropic / claude-opus-5-5" />
+  )),
+  row('run an AI evaluation', () => (
+    <aiSettings.RunEvaluationButton configId={rowId()} configName="anthropic / claude-opus-5-5" />
+  )),
+  row('activate an AI configuration', () => (
+    <aiSettings.ActivateConfigButton configId={rowId()} configName="anthropic / claude-opus-5-5" />
+  )),
   { name: 'roll back the AI configuration', element: () => <aiSettings.RollbackConfigButton /> },
   { name: 'switch AI off in an emergency', element: () => <aiSettings.EmergencyDisableButton /> },
-  row('revoke an AI key', () => <aiSettings.RevokeKeyButton configId={rowId()} />),
+  row('revoke an AI key', () => (
+    <aiSettings.RevokeKeyButton configId={rowId()} configName="anthropic / claude-opus-5-5" />
+  )),
   row('record AI provider data terms', () => <aiSettings.RecordTermsForm configId={rowId()} />),
   {
     name: 'turn the AI data setting on',
