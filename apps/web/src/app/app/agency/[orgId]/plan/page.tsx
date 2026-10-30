@@ -122,7 +122,10 @@ export default async function OrgPlanPage({
               <>
                 <p className="card-body">
                   Billing period:{' '}
-                  {data.usage.plan.periodDays === 1 ? '1 day' : `${data.usage.plan.periodDays} days`}.{' '}
+                  {data.usage.plan.periodDays === 1
+                    ? '1 day'
+                    : `${data.usage.plan.periodDays} days`}
+                  .{' '}
                   {data.usage.entitlements.plan?.price
                     ? `Price: ${formatMoney(data.usage.entitlements.plan.price.priceMinorUnits, data.usage.entitlements.plan.price.currency)}.`
                     : 'VisaStack has not set a price for this plan yet.'}

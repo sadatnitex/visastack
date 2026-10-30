@@ -147,9 +147,8 @@ export function InvoiceCard({
       </dl>
 
       {open ? (
-        <div
+        <section
           className="invoice-actions"
-          role="group"
           aria-label={`Pay ${invoice.invoiceRef}`}
           {...(showTestHint ? { 'aria-describedby': `${headingId}-test-mode` } : {})}
         >
@@ -189,7 +188,7 @@ export function InvoiceCard({
               latestDate={latestDate}
             />
           )}
-        </div>
+        </section>
       ) : null}
 
       {invoice.claims.length > 0 ? (
