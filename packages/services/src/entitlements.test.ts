@@ -1,7 +1,7 @@
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { staffPrincipal } from './access/principal';
@@ -324,6 +324,17 @@ describe('the entitlement resolver and the Plans page (S29)', () => {
       if (!isOk(listed)) throw new Error('list');
       const traveller = listed.value.plans.find((p) => p.key === 'traveller_free');
       expect(traveller?.audience).toBe('TRAVELLER');
+      // Every account is counted, agency members too: each uses this plan for its own record.
+      const [everyone] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.accounts);
+      expect(traveller?.onIt).toBe(everyone?.n);
+      const { agencyOwner } = await agency('traveller-count');
+      const after = await listPlansForAdmin(db, scope);
+      if (!isOk(after)) throw new Error('list');
+      const counted = after.value.plans.find((p) => p.key === 'traveller_free');
+      expect(counted?.onIt).toBe((everyone?.n ?? 0) + 2);
+      expect((await resolveEntitlements(db, { accountId: agencyOwner })).plan?.key).toBe(
+        'traveller_free',
+      );
       expect(traveller?.rules['ai.ai_app_suggestions']).toEqual({ included: true, limit: 15 });
       const saved = await savePlan(db, scope, {
         planId: traveller?.id ?? '',
@@ -533,6 +544,26 @@ describe('the entitlement resolver and the Plans page (S29)', () => {
         currency: null,
       });
       expect(isErr(older) && older.error.message).toBe(DEFAULT_PLAN_PRICE_NEEDED);
+      // A price above 0 gets the same words, never "leave it empty" (round 3).
+      const priced = await savePlan(db, scope, {
+        planId: founding.id,
+        draft: {
+          name: founding.name,
+          periodDays: founding.periodDays,
+          price: { priceMinorUnits: 500, currency: 'USD' },
+          rules: {},
+        },
+        stepUpSatisfied: true,
+      });
+      expect(isErr(priced) && priced.error.message).toBe(DEFAULT_PLAN_PRICE_NEEDED);
+      const olderPriced = await updatePlan(db, {
+        actor: actor(),
+        stepUpSatisfied: true,
+        planId: founding.id,
+        priceMinorUnits: 500,
+        currency: 'USD',
+      });
+      expect(isErr(olderPriced) && olderPriced.error.message).toBe(DEFAULT_PLAN_PRICE_NEEDED);
     },
     TIMEOUT,
   );

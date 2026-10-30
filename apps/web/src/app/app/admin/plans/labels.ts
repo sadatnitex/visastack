@@ -21,6 +21,13 @@ export const featureOnField = (feature: AiFeatureKey): string => `on.${feature}`
 export const featureLimitField = (feature: AiFeatureKey): string =>
   `limit.${aiEntitlementKey(feature)}`;
 
+/**
+ * The Storage the form showed, in whole MB (S29 round 3). Storage is shown rounded, so a saved
+ * plan's Storage is written only when the typed value differs from it: saving other fields never
+ * moves a limit that is not a whole number of MB.
+ */
+export const STORAGE_SHOWN_FIELD = 'shown.storage_bytes';
+
 /** Every field a plan form sends, so a reply can carry back exactly what was typed. */
 export function planFieldNames(): string[] {
   return [

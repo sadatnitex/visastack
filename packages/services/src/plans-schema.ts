@@ -27,16 +27,33 @@ import { type Db, first, schema } from './db';
 export type PaymentMode = (typeof schema.paymentMode.enumValues)[number];
 export type PlanAudience = (typeof schema.planAudience.enumValues)[number];
 
-/** Handles already seen with migration 0107 complete. Only a "yes" is kept (see billing-history.ts). */
+/**
+ * Database connections already seen with migration 0107 complete. Only a "yes" is kept (see
+ * billing-history.ts). The key is the connection's query builder, which a connection shares with
+ * every transaction opened on it (S29 round 3): so once a request has its answer, the ledger reads
+ * and writes inside its transactions and row locks ask nothing more.
+ */
 const seen = new WeakMap<object, true>();
 
 /**
  * Databases (by a hash of their connection string) already seen with migration 0107 complete,
  * for the whole process (S29 round 2): migrations are additive, so a "yes" stays true; a "no" is
  * never kept, because the migration may run at any moment. A handle whose connection string
- * cannot be read (an in-memory test database, a transaction) uses the per-handle record above.
+ * cannot be read (an in-memory test database, a transaction) uses the per-connection record above.
+ *
+ * After any restore to a point before a migration, redeploy the app so running copies forget which
+ * tables exist: a remembered "yes" would otherwise outlive the restore that took the tables away.
  */
 const seenConnections = new Set<string>();
+
+/**
+ * What a handle's answer is kept against: the query builder a connection shares with every
+ * transaction opened on it (and nested transactions), or the handle itself when it has none.
+ */
+function cacheOwner(db: Db): object {
+  const dialect = (db as unknown as { dialect?: unknown }).dialect;
+  return typeof dialect === 'object' && dialect !== null ? dialect : db;
+}
 
 /** A stable key for the database behind a handle, or null when it cannot be read. */
 function connectionKey(db: Db): string | null {
@@ -53,7 +70,8 @@ function connectionKey(db: Db): string | null {
  * required (its last column change), which also means every earlier statement ran. Never raises.
  */
 export async function entitlementsSchemaPresent(db: Db): Promise<boolean> {
-  if (seen.has(db)) return true;
+  const owner = cacheOwner(db);
+  if (seen.has(owner)) return true;
   const key = connectionKey(db);
   if (key !== null && seenConnections.has(key)) return true;
   const rows = await db
@@ -63,7 +81,7 @@ export async function entitlementsSchemaPresent(db: Db): Promise<boolean> {
     .from(sql`(select 1) as probe`);
   const present = rows[0]?.present === true;
   if (present) {
-    seen.set(db, true);
+    seen.set(owner, true);
     if (key !== null) seenConnections.add(key);
   }
   return present;

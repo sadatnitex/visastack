@@ -42,6 +42,7 @@ import {
   type PlanFormState,
   type PlanFormValues,
   type RetireFormState,
+  STORAGE_SHOWN_FIELD,
   aiFeatureName,
   featureLimitField,
   featureOnField,
@@ -84,8 +85,12 @@ function formField(field: string | undefined): string | undefined {
 
 type Parsed = { readonly draft: PlanDraft } | { readonly problem: FormResult };
 
-/** Reads the typed values into a draft, or the first problem, pointing at its field. */
-function parseDraft(values: PlanFormValues): Parsed {
+/**
+ * Reads the typed values into a draft, or the first problem, pointing at its field. `storageShown`
+ * is the Storage a saved plan's form showed (rounded to whole MB): typed back unchanged, the
+ * stored Storage is left exactly as it is.
+ */
+function parseDraft(values: PlanFormValues, storageShown: string | null): Parsed {
   const read = (name: string): string => values[name] ?? '';
   const problem = (message: string, field: string): Parsed => ({
     problem: { ok: false, message, field },
@@ -124,6 +129,7 @@ function parseDraft(values: PlanFormValues): Parsed {
       continue;
     }
     if (key === 'storage_bytes') {
+      if (text === storageShown) continue;
       if (!/^\d{1,10}$/.test(text) || Number(text) > STORAGE_MB_MAX) {
         return problem(
           `Enter Storage in MB as a whole number up to ${STORAGE_MB_MAX.toLocaleString('en-US')}, or leave it empty for Unlimited.`,
@@ -204,7 +210,11 @@ export async function savePlanAction(
     ...extra,
   });
   if (planId !== undefined && !ID.test(planId)) return reply(NOT_FOUND);
-  const parsed = parseDraft(values);
+  const shown = formData.get(STORAGE_SHOWN_FIELD);
+  const parsed = parseDraft(
+    values,
+    planId !== undefined && typeof shown === 'string' ? shown.trim() : null,
+  );
   if ('problem' in parsed) return reply(parsed.problem);
   const { draft } = parsed;
 

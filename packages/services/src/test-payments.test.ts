@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { staffPrincipal } from './access/principal';
+import { systemScopeForTest } from './access/system-scope.test-support';
 import { provisionAccount } from './accounts';
 import { createInvoice, recordInvoicePayment } from './billing';
 import type { Db } from './db';
@@ -14,6 +15,7 @@ import { createOrganization, reviewOrganization } from './organizations';
 import {
   MODE_CHANGED,
   TEST_PAYMENTS_ONLY,
+  reconcilePaymentAttempts,
   settlePaymentAttempt,
   startOnlinePayment,
 } from './payments';
@@ -36,8 +38,18 @@ import {
 const DAY = 24 * 60 * 60 * 1000;
 const urlFor = (kind: string, tran: string) => `https://app.example.test/pay/${kind}?t=${tran}`;
 
+/** How often the "has migration 0107 run" question reached the database (S29 round 3). */
+let schemaProbes = 0;
+
 async function freshDb(): Promise<Db> {
-  return drizzle(await createMigratedPglite(), { schema }) as unknown as Db;
+  return drizzle(await createMigratedPglite(), {
+    schema,
+    logger: {
+      logQuery: (query: string) => {
+        if (query.includes("to_regclass('plan_prices')")) schemaProbes++;
+      },
+    },
+  }) as unknown as Db;
 }
 
 async function account(db: Db, email: string): Promise<string> {
@@ -342,5 +354,104 @@ describe('test payments (S29)', () => {
       .from(schema.auditEvents)
       .where(eq(schema.auditEvents.eventType, 'INVOICE_REFUND_NEEDS_CHECK'));
     expect(marks).toHaveLength(1);
+  });
+
+  it('keeps an earlier Needs a Check mark when the mode changes, and does not record it again (round 3)', async () => {
+    const { invoiceId } = await paidTestPayment('INV-S29-KEEP-MARK');
+    const [entry] = await db
+      .select()
+      .from(schema.invoicePayments)
+      .where(eq(schema.invoicePayments.invoiceId, invoiceId));
+    if (!entry) throw new Error('entry');
+    const scope = await staffPrincipal(
+      db,
+      { accountId: ownerId, email: ownerEmail, bootstrapEmails: [] },
+      'BILLING_REFUND_MANAGE',
+    );
+    if (!isOk(scope)) throw new Error('scope');
+    const sent = await requestRefund(db, port, scope.value, {
+      organizationId,
+      source: { kind: 'entry', invoicePaymentId: entry.id },
+      amountMinorUnits: 1000,
+      reason: 'Test refund',
+      idempotencyKey: randomUUID(),
+      stepUpSatisfied: true,
+    });
+    expect(isOk(sent)).toBe(true);
+    // An earlier check already marked it (the ledger refused the refund row).
+    await db.update(schema.refundRequests).set({ failureCode: 'ledger_refused' });
+    const marksBefore = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'INVOICE_REFUND_NEEDS_CHECK'));
+    port.mode = 'LIVE';
+    const checked = await checkRefundsNow(db, port, scope.value, { organizationId });
+    expect(isOk(checked) && checked.value.needsCheck).toBe(1);
+    const [request] = await db.select().from(schema.refundRequests);
+    expect(request?.failureCode).toBe('ledger_refused');
+    const marksAfter = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'INVOICE_REFUND_NEEDS_CHECK'));
+    expect(marksAfter).toHaveLength(marksBefore.length);
+    expect(port.refundQueries).toHaveLength(0);
+  });
+
+  it('gives live payments no room in the check while the gateway is in test mode (round 3)', async () => {
+    port.mode = 'LIVE';
+    const liveIds: string[] = [];
+    for (const ref of ['INV-S29-LIVE-A', 'INV-S29-LIVE-B', 'INV-S29-LIVE-C']) {
+      const invoiceId = await openInvoice(ref);
+      expect(isOk(await start(invoiceId, agencyOwnerId, 'agency-owner-s29@acme.example.com'))).toBe(
+        true,
+      );
+      liveIds.push(invoiceId);
+    }
+    // One live payment was already closed as expired (it could still turn out paid, live only).
+    const [closedLive] = await attemptsOf(liveIds[2] ?? '');
+    if (!closedLive) throw new Error('attempt');
+    await db
+      .update(schema.paymentAttempts)
+      .set({ status: 'EXPIRED', reasonCode: 'expired' })
+      .where(eq(schema.paymentAttempts.id, closedLive.id));
+    port.mode = 'TEST';
+    const testInvoice = await openInvoice('INV-S29-TEST-LATE');
+    expect(isOk(await start(testInvoice, ownerId, ownerEmail))).toBe(true);
+    const [testAttempt] = await attemptsOf(testInvoice);
+    if (!testAttempt) throw new Error('attempt');
+    port.succeed(testAttempt.merchantTranId, 5000);
+    const summary = await reconcilePaymentAttempts(
+      db,
+      systemScopeForTest('process-payment-reconciliation'),
+      port,
+      { now: new Date(Date.now() + 60 * 60 * 1000), limit: 2 },
+    );
+    expect(summary.recorded).toBe(1);
+    expect(summary.stillPending).toBe(0);
+    const [paid] = await attemptsOf(testInvoice);
+    expect(paid?.status).toBe('RECORDED');
+    for (const invoiceId of liveIds) {
+      const [live] = await attemptsOf(invoiceId);
+      expect(live?.reasonCode === null || live?.reasonCode === 'expired').toBe(true);
+    }
+    const [stillLive] = await attemptsOf(liveIds[0] ?? '');
+    expect(stillLive?.status).toBe('REDIRECTED');
+  });
+
+  it('asks whether the plans tables exist once, not inside every settlement (round 3)', async () => {
+    await paidTestPayment('INV-S29-WARM');
+    const invoiceId = await openInvoice('INV-S29-PROBES');
+    expect(isOk(await start(invoiceId, ownerId, ownerEmail))).toBe(true);
+    const [attempt] = await attemptsOf(invoiceId);
+    if (!attempt) throw new Error('attempt');
+    const paid = port.succeed(attempt.merchantTranId, 5000);
+    schemaProbes = 0;
+    const settled = await settlePaymentAttempt(db, port, {
+      merchantTranId: attempt.merchantTranId,
+      valId: paid.valId,
+      source: 'ipn',
+    });
+    expect(settled.code).toBe('recorded');
+    expect(schemaProbes).toBe(0);
   });
 });

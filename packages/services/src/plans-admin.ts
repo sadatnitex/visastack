@@ -456,16 +456,12 @@ export async function listPlansForAdmin(
   return ok({ available, plans: views });
 }
 
-/** Accounts that are travellers only: no active place in any agency (S29 round 2). */
+/**
+ * Accounts on the traveller plan: every account, because each one uses it for its own record,
+ * agency members included (S29 round 3; the resolver gives every account this plan).
+ */
 async function travellerCount(db: Db): Promise<number> {
-  const row = first(
-    await db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(schema.accounts)
-      .where(
-        sql`not exists (select 1 from memberships m where m.account_id = ${schema.accounts.id} and m.active)`,
-      ),
-  );
+  const row = first(await db.select({ n: sql<number>`count(*)::int` }).from(schema.accounts));
   return row?.n ?? 0;
 }
 
@@ -609,7 +605,16 @@ export async function savePlan(
         input.draft.price !== null &&
         input.draft.price.priceMinorUnits > 0
       ) {
-        return err(refuse('A complimentary plan has no price. Leave the price empty.', 'price'));
+        // The plan every new agency starts on keeps a price of 0, so it says so rather than
+        // "leave it empty", which it would then refuse (S29 round 3).
+        return err(
+          refuse(
+            plan.key === DEFAULT_AGENCY_PLAN_KEY
+              ? DEFAULT_PLAN_PRICE_NEEDED
+              : 'A complimentary plan has no price. Leave the price empty.',
+            'price',
+          ),
+        );
       }
       if (plan.key === DEFAULT_AGENCY_PLAN_KEY && input.draft.price === null) {
         return err(refuse(DEFAULT_PLAN_PRICE_NEEDED, 'price'));
