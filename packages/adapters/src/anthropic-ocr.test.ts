@@ -15,20 +15,19 @@ const VALID_INPUT = {
 };
 
 describe('AnthropicOcrAdapter', () => {
-  it('parses a well-formed forced tool-use response into text + review issues', async () => {
+  it('parses a well-formed JSON-outputs answer (after any thinking) into text + review issues', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       jsonResponse(200, {
         id: 'msg_abc123',
-        stop_reason: 'tool_use',
+        stop_reason: 'end_turn',
         content: [
+          { type: 'thinking', thinking: '', signature: 'sig' },
           {
-            type: 'tool_use',
-            id: 'toolu_1',
-            name: 'submit_ocr_result',
-            input: {
+            type: 'text',
+            text: JSON.stringify({
               text: 'PASSPORT\nSurname: ERIKSSON\nGiven Names: ANNA MARIA',
               reviewIssues: [],
-            },
+            }),
           },
         ],
         usage: { input_tokens: 30, output_tokens: 12 },
@@ -55,7 +54,12 @@ describe('AnthropicOcrAdapter', () => {
     expect(url).toBe('https://api.anthropic.com/v1/messages');
     const body = JSON.parse(requestInit.body as string);
     expect(body.model).toBe('claude-sonnet-5');
-    expect(body.tool_choice).toEqual({ type: 'tool', name: 'submit_ocr_result' });
+    expect(body.tool_choice).toBeUndefined();
+    expect(body.tools).toBeUndefined();
+    expect(body.max_tokens).toBe(16_000);
+    expect(body.output_config.format.type).toBe('json_schema');
+    expect(body.output_config.format.schema.additionalProperties).toBe(false);
+    expect(body.output_config.effort).toBeUndefined();
     const userContent = body.messages[0].content;
     expect(userContent[0]).toEqual({
       type: 'image',
@@ -69,8 +73,8 @@ describe('AnthropicOcrAdapter', () => {
   it('honours an explicit model and maxTokens override', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       jsonResponse(200, {
-        stop_reason: 'tool_use',
-        content: [{ type: 'tool_use', input: { text: '', reviewIssues: [] } }],
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text: JSON.stringify({ text: '', reviewIssues: [] }) }],
         usage: { input_tokens: 1, output_tokens: 1 },
       }),
     );
@@ -91,8 +95,8 @@ describe('AnthropicOcrAdapter', () => {
   it('accepts but does not act on storeResponses -- no equivalent exists on this provider', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       jsonResponse(200, {
-        stop_reason: 'tool_use',
-        content: [{ type: 'tool_use', input: { text: '', reviewIssues: [] } }],
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text: JSON.stringify({ text: '', reviewIssues: [] }) }],
         usage: { input_tokens: 1, output_tokens: 1 },
       }),
     );
@@ -108,17 +112,17 @@ describe('AnthropicOcrAdapter', () => {
     expect(body.store).toBeUndefined();
   });
 
-  it('reports every review issue the model names, filtering out anything outside the known set', async () => {
+  it('reports every review issue the model names, whatever its capitalization, filtering out anything outside the known set', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       jsonResponse(200, {
-        stop_reason: 'tool_use',
+        stop_reason: 'end_turn',
         content: [
           {
-            type: 'tool_use',
-            input: {
+            type: 'text',
+            text: JSON.stringify({
               text: 'partial text',
-              reviewIssues: ['low_quality', 'ambiguous_date', 'not_a_real_issue'],
-            },
+              reviewIssues: ['low_quality', 'AMBIGUOUS_DATE', 'not_a_real_issue'],
+            }),
           },
         ],
         usage: { input_tokens: 1, output_tokens: 1 },
@@ -168,11 +172,11 @@ describe('AnthropicOcrAdapter', () => {
     expect(outcome.code).toBe('invalid_response');
   });
 
-  it('reports invalid_response when the tool_use input has no "text" field', async () => {
+  it('reports invalid_response when the answer has no "text" field', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       jsonResponse(200, {
-        stop_reason: 'tool_use',
-        content: [{ type: 'tool_use', input: { reviewIssues: [] } }],
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text: JSON.stringify({ reviewIssues: [] }) }],
         usage: { input_tokens: 1, output_tokens: 1 },
       }),
     );
@@ -228,7 +232,7 @@ describe('AnthropicOcrAdapter', () => {
     expect(outcome.message).toContain('cannot process');
   });
 
-  it('reports refused when tool_choice forced the tool but the model produced only text (declined to comply)', async () => {
+  it('reports invalid_response when the answer text is not JSON', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       jsonResponse(200, {
         stop_reason: 'end_turn',
@@ -239,16 +243,15 @@ describe('AnthropicOcrAdapter', () => {
     const outcome = await adapter.performOcr(VALID_INPUT);
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
-    expect(outcome.code).toBe('refused');
-    expect(outcome.message).toContain('not able');
+    expect(outcome.code).toBe('invalid_response');
   });
 
-  it('reports truncated (never trusts a partial tool_use as complete) when stop_reason is max_tokens', async () => {
+  it('reports truncated (never trusts a partial answer as complete) when stop_reason is max_tokens', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       jsonResponse(200, {
         stop_reason: 'max_tokens',
-        content: [{ type: 'tool_use', input: { text: 'partial', reviewIssues: [] } }],
-        usage: { input_tokens: 500, output_tokens: 4096 },
+        content: [{ type: 'text', text: '{"text":"partial","reviewIssues":[]}' }],
+        usage: { input_tokens: 500, output_tokens: 16000 },
       }),
     );
     const adapter = new AnthropicOcrAdapter({ apiKey: 'sk-ant-test', fetchImpl });
@@ -262,8 +265,8 @@ describe('AnthropicOcrAdapter', () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       jsonResponse(200, {
         id: 'msg_xyz789',
-        stop_reason: 'tool_use',
-        content: [{ type: 'tool_use', input: { text: 'hello', reviewIssues: [] } }],
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text: JSON.stringify({ text: 'hello', reviewIssues: [] }) }],
         usage: { input_tokens: 100, output_tokens: 50 },
       }),
     );
@@ -284,7 +287,40 @@ describe('AnthropicOcrAdapter', () => {
     expect(adapter.cacheKeyComponents()).toEqual({
       provider: 'anthropic',
       model: 'claude-opus-5-5',
-      promptVersion: '2026-09-28-v1',
+      promptVersion: '2026-10-30-v1',
     });
+  });
+
+  it('sends the chosen reasoning effort to a model that takes it, and keys the cache on it', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text: JSON.stringify({ text: '', reviewIssues: [] }) }],
+      }),
+    );
+    const adapter = new AnthropicOcrAdapter({
+      apiKey: 'sk-ant-test',
+      model: 'claude-sonnet-5-5',
+      reasoningEffort: 'low',
+      fetchImpl,
+    });
+    await adapter.performOcr(VALID_INPUT);
+    const [, requestInit] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(requestInit.body as string).output_config.effort).toBe('low');
+    expect(adapter.cacheKeyComponents()).toEqual({
+      provider: 'anthropic',
+      model: 'claude-sonnet-5-5',
+      promptVersion: '2026-10-30-v1',
+      reasoningEffort: 'low',
+    });
+  });
+
+  it('sends no effort to a model that refuses one, and leaves it out of the cache key', () => {
+    const adapter = new AnthropicOcrAdapter({
+      apiKey: 'sk-ant-test',
+      model: 'claude-haiku-4-5',
+      reasoningEffort: 'high',
+    });
+    expect(adapter.cacheKeyComponents().reasoningEffort).toBeUndefined();
   });
 });

@@ -5,10 +5,12 @@ import { createMigratedPglite } from '@visastack/db/testing';
 import { desc, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { type StaffScope, staffPrincipal } from './access/principal';
 import { provisionAccount } from './accounts';
 import {
   activateAiProviderConfig,
   createDraftAiProviderConfig,
+  deleteDraftAiProviderConfig,
   emergencyDisableAiProviderConfig,
   getActiveAiProviderConfig,
   getAiProviderConfigById,
@@ -20,6 +22,7 @@ import {
   revealAiProviderApiKey,
   revokeAiProviderConfigKey,
   rollbackAiProviderConfig,
+  updateDraftAiProviderConfig,
 } from './ai-provider-config';
 import type { Db } from './db';
 import { grantPlatformRole } from './platform-roles';
@@ -941,5 +944,497 @@ describe('getAiProviderConfigForFallback (Part 8 §13 -- an unauthenticated, pla
   it('returns undefined for a non-existent id', async () => {
     const found = await getAiProviderConfigForFallback(db, '00000000-0000-0000-0000-000000000000');
     expect(found).toBeUndefined();
+  });
+});
+
+async function scope(
+  db: Db,
+  actor: Awaited<ReturnType<typeof seedSecurityAdmin>>,
+): Promise<StaffScope<'AI_SETTINGS_MANAGE'>> {
+  const staff = await staffPrincipal(db, actor, 'AI_SETTINGS_MANAGE');
+  if (!staff.ok) throw new Error('staff scope');
+  return staff.value;
+}
+
+/** What a caller without the role would have to pass: not a genuine scope. */
+const NOT_A_SCOPE = {
+  kind: 'staff',
+  accountId: 'x',
+} as unknown as StaffScope<'AI_SETTINGS_MANAGE'>;
+
+/** Edits a draft as the security admin: the scope is fetched for each call. */
+async function editDraft(
+  db: Db,
+  actor: Awaited<ReturnType<typeof seedSecurityAdmin>>,
+  input: Parameters<typeof updateDraftAiProviderConfig>[2],
+) {
+  return updateDraftAiProviderConfig(db, await scope(db, actor), input);
+}
+
+async function deleteDraft(
+  db: Db,
+  actor: Awaited<ReturnType<typeof seedSecurityAdmin>>,
+  input: Parameters<typeof deleteDraftAiProviderConfig>[2],
+) {
+  return deleteDraftAiProviderConfig(db, await scope(db, actor), input);
+}
+
+/** The edit form sends the whole configuration; this is a full edit of a draft from `draftInput`. */
+function editInput(
+  configId: string,
+  overrides: Partial<Parameters<typeof updateDraftAiProviderConfig>[2]> = {},
+): Parameters<typeof updateDraftAiProviderConfig>[2] {
+  return {
+    stepUpSatisfied: true,
+    configId,
+    encryption,
+    model: 'claude-opus-5-5',
+    dataPolicyApproved: true,
+    budgetLimitUnits: 3_000_000,
+    ...overrides,
+  };
+}
+
+/** The audit metadata fields these tests read. */
+interface AuditMetadata {
+  readonly changed?: unknown;
+  readonly keyReplaced?: unknown;
+  readonly keyCopiedFromConfigId?: unknown;
+  readonly termsCleared?: unknown;
+  readonly sameKeyAsConfigId?: unknown;
+}
+
+async function auditOf(db: Db, eventType: string) {
+  return db.select().from(schema.auditEvents).where(eq(schema.auditEvents.eventType, eventType));
+}
+
+describe('AI provider configuration -- editing a draft in place', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('changes the settings, keeps the saved key when none is entered, and audits what changed without values', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const draft = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, { provider: 'anthropic', apiKey: 'sk-ant-keep-1111', notes: 'old' }),
+    );
+    if (!isOk(draft)) throw new Error('draft');
+
+    const edited = await editDraft(
+      db,
+      actor,
+      editInput(draft.value.id, { reasoningEffort: 'low', notes: 'new notes' }),
+    );
+    expect(isOk(edited)).toBe(true);
+    if (!isOk(edited)) return;
+    expect(edited.value.id).toBe(draft.value.id);
+    expect(edited.value.status).toBe('DRAFT');
+    expect(edited.value.provider).toBe('anthropic');
+    expect(edited.value.model).toBe('claude-opus-5-5');
+    expect(edited.value.reasoningEffort).toBe('low');
+    expect(edited.value.budgetLimitUnits).toBe(3_000_000);
+    expect(edited.value.notes).toBe('new notes');
+    expect(edited.value.apiKeyFingerprint).toBe('...1111');
+    expect(await revealAiProviderApiKey(db, encryption, edited.value)).toBe('sk-ant-keep-1111');
+
+    const [event] = await auditOf(db, 'AI_PROVIDER_CONFIG_UPDATED');
+    expect(event?.resourceId).toBe(draft.value.id);
+    const metadata = event?.metadata as AuditMetadata;
+    expect(metadata.keyReplaced).toBe(false);
+    expect(metadata.changed).toEqual(
+      expect.arrayContaining(['model', 'budgetLimitUnits', 'reasoningEffort', 'notes']),
+    );
+    expect(JSON.stringify(metadata)).not.toContain('sk-ant');
+    expect(JSON.stringify(metadata)).not.toContain('new notes');
+  });
+
+  it('replaces the key when a new one is entered, encrypted for the same row', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const draft = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, { apiKey: 'sk-old-1111' }),
+    );
+    if (!isOk(draft)) throw new Error('draft');
+
+    const edited = await editDraft(
+      db,
+      actor,
+      editInput(draft.value.id, { apiKey: ' sk-new-2222 ' }),
+    );
+    if (!isOk(edited)) throw new Error('edit');
+    expect(edited.value.apiKeyFingerprint).toBe('...2222');
+    expect(await revealAiProviderApiKey(db, encryption, edited.value)).toBe('sk-new-2222');
+    const [event] = await auditOf(db, 'AI_PROVIDER_CONFIG_UPDATED');
+    expect((event?.metadata as AuditMetadata).keyReplaced).toBe(true);
+    expect(JSON.stringify(event?.metadata)).not.toContain('sk-new');
+  });
+
+  it('clears an optional setting left blank, since the form sends the whole configuration', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const draft = await createDraftAiProviderConfig(db, {
+      ...draftInput(actor, { notes: 'to clear' }),
+      reasoningEffort: 'high',
+      maxPagesPerDocument: 10,
+    });
+    if (!isOk(draft)) throw new Error('draft');
+    const edited = await editDraft(db, actor, editInput(draft.value.id));
+    if (!isOk(edited)) throw new Error('edit');
+    expect(edited.value.reasoningEffort).toBeNull();
+    expect(edited.value.maxPagesPerDocument).toBeNull();
+    expect(edited.value.notes).toBeNull();
+  });
+
+  it('refuses to edit anything but a draft, leaving the record of what ran untouched', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const draft = await createDraftAiProviderConfig(db, draftInput(actor));
+    if (!isOk(draft)) throw new Error('draft');
+    await activateAiProviderConfig(db, { actor, stepUpSatisfied: true, configId: draft.value.id });
+
+    const edited = await editDraft(db, actor, editInput(draft.value.id));
+    expect(isErr(edited) && edited.error.code).toBe('invalid');
+    const after = await getAiProviderConfigById(db, actor, draft.value.id);
+    expect(isOk(after) && after.value.model).toBe('gpt-5.6-terra');
+    expect(await auditOf(db, 'AI_PROVIDER_CONFIG_UPDATED')).toHaveLength(0);
+  });
+
+  it('refuses a draft as its own fallback, a stranger, and a request without step-up', async () => {
+    const actor = await seedSecurityAdmin(db);
+    // A stranger cannot obtain the scope at all; a forged one is refused below.
+    expect((await staffPrincipal(db, await seedStranger(db), 'AI_SETTINGS_MANAGE')).ok).toBe(false);
+    const draft = await createDraftAiProviderConfig(db, draftInput(actor));
+    if (!isOk(draft)) throw new Error('draft');
+
+    const self = await editDraft(
+      db,
+      actor,
+      editInput(draft.value.id, {
+        fallbackEnabled: true,
+        fallbackProviderConfigId: draft.value.id,
+      }),
+    );
+    expect(isErr(self) && self.error.code).toBe('invalid');
+    const denied = await updateDraftAiProviderConfig(db, NOT_A_SCOPE, editInput(draft.value.id));
+    expect(isErr(denied) && denied.error.code).toBe('forbidden');
+    const noStepUp = await editDraft(db, actor, {
+      ...editInput(draft.value.id),
+      stepUpSatisfied: false,
+    });
+    expect(isErr(noStepUp) && noStepUp.error.code).toBe('step_up_required');
+  });
+});
+
+describe('AI provider configuration -- Edit as New Draft (reusing a saved key)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('copies the key of an active configuration into a new draft, encrypted again for the new row', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const source = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, { provider: 'anthropic', apiKey: 'sk-ant-copy-3333' }),
+    );
+    if (!isOk(source)) throw new Error('source');
+    await activateAiProviderConfig(db, { actor, stepUpSatisfied: true, configId: source.value.id });
+
+    const copy = await createDraftAiProviderConfig(db, {
+      ...draftInput(actor, { provider: 'anthropic', apiKey: '' }),
+      model: 'claude-opus-5-5',
+      copyApiKeyFromConfigId: source.value.id,
+    });
+    expect(isOk(copy)).toBe(true);
+    if (!isOk(copy)) return;
+    expect(copy.value.id).not.toBe(source.value.id);
+    expect(copy.value.status).toBe('DRAFT');
+    expect(copy.value.apiKeyFingerprint).toBe('...3333');
+    expect(await revealAiProviderApiKey(db, encryption, copy.value)).toBe('sk-ant-copy-3333');
+    expect(
+      Buffer.from(copy.value.apiKeyCiphertext).equals(Buffer.from(source.value.apiKeyCiphertext)),
+    ).toBe(false);
+
+    const events = await auditOf(db, 'AI_PROVIDER_CONFIG_CREATED');
+    const copied = events.find((e) => e.resourceId === copy.value.id);
+    expect((copied?.metadata as AuditMetadata).keyCopiedFromConfigId).toBe(source.value.id);
+    // The source is part of the record and stays exactly as it was.
+    const after = await getAiProviderConfigById(db, actor, source.value.id);
+    expect(isOk(after) && after.value.status).toBe('ACTIVE');
+  });
+
+  it('refuses to reuse a revoked key or a key from another provider', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const source = await createDraftAiProviderConfig(db, draftInput(actor, { provider: 'openai' }));
+    if (!isOk(source)) throw new Error('source');
+
+    const crossProvider = await createDraftAiProviderConfig(db, {
+      ...draftInput(actor, { provider: 'anthropic', apiKey: '' }),
+      copyApiKeyFromConfigId: source.value.id,
+    });
+    expect(isErr(crossProvider) && crossProvider.error.code).toBe('invalid');
+
+    await revokeAiProviderConfigKey(db, {
+      actor,
+      stepUpSatisfied: true,
+      configId: source.value.id,
+    });
+    const revoked = await createDraftAiProviderConfig(db, {
+      ...draftInput(actor, { provider: 'openai', apiKey: '' }),
+      copyApiKeyFromConfigId: source.value.id,
+    });
+    expect(isErr(revoked) && revoked.error.code).toBe('invalid');
+    expect(await auditOf(db, 'AI_PROVIDER_CONFIG_CREATED')).toHaveLength(1);
+  });
+});
+
+describe('AI provider configuration -- deleting a draft', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('deletes a draft with its key and data terms, and audits the deletion with nothing derived from the key', async () => {
+    const actor = await seedSecurityAdmin(db);
+    await createDraftAiProviderConfig(db, draftInput(actor, { apiKey: 'sk-kept-5555' }));
+    const draft = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, { apiKey: 'sk-gone-4444' }),
+    );
+    if (!isOk(draft)) throw new Error('draft');
+    await db.insert(schema.aiProviderConfigTerms).values({
+      configId: draft.value.id,
+      tier: 'PAID',
+      trainsOnInputs: 'NO',
+      termsUrl: 'https://example.com/terms',
+      checkedOn: '2026-10-30',
+    });
+
+    const deleted = await deleteDraft(db, actor, {
+      stepUpSatisfied: true,
+      configId: draft.value.id,
+    });
+    expect(isOk(deleted)).toBe(true);
+    const lookup = await getAiProviderConfigById(db, actor, draft.value.id);
+    expect(isErr(lookup) && lookup.error.code).toBe('not_found');
+    expect(await db.select().from(schema.aiProviderConfigTerms)).toHaveLength(0);
+
+    const [event] = await auditOf(db, 'AI_PROVIDER_CONFIG_DELETED');
+    expect(event?.resourceId).toBe(draft.value.id);
+    expect(event?.metadata).toEqual({ provider: 'openai', model: 'gpt-5.6-terra' });
+    expect(JSON.stringify(event?.metadata)).not.toContain('sk-gone');
+  });
+
+  it('refuses to delete anything but a draft', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const draft = await createDraftAiProviderConfig(db, draftInput(actor));
+    if (!isOk(draft)) throw new Error('draft');
+    await activateAiProviderConfig(db, { actor, stepUpSatisfied: true, configId: draft.value.id });
+
+    const deleted = await deleteDraft(db, actor, {
+      stepUpSatisfied: true,
+      configId: draft.value.id,
+    });
+    expect(isErr(deleted) && deleted.error.code).toBe('invalid');
+    expect(isOk(await getAiProviderConfigById(db, actor, draft.value.id))).toBe(true);
+  });
+
+  it('refuses while another configuration names the draft as its fallback', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const target = await createDraftAiProviderConfig(db, draftInput(actor, { provider: 'gemini' }));
+    if (!isOk(target)) throw new Error('target');
+    const user = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, { fallbackEnabled: true, fallbackProviderConfigId: target.value.id }),
+    );
+    if (!isOk(user)) throw new Error('user');
+
+    const whileDraft = await deleteDraft(db, actor, {
+      stepUpSatisfied: true,
+      configId: target.value.id,
+    });
+    expect(isErr(whileDraft) && whileDraft.error.message).toContain(
+      'change or delete that draft first',
+    );
+
+    // Once the version using it has run, it is history and can never be changed: say so.
+    await activateAiProviderConfig(db, { actor, stepUpSatisfied: true, configId: user.value.id });
+    const afterRun = await deleteDraft(db, actor, {
+      stepUpSatisfied: true,
+      configId: target.value.id,
+    });
+    expect(isErr(afterRun) && afterRun.error.message).toContain('stays in the history');
+    expect(isOk(await getAiProviderConfigById(db, actor, target.value.id))).toBe(true);
+  });
+
+  it('refuses to delete the only saved configuration, which would hand reading back to the deployment settings', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const only = await createDraftAiProviderConfig(db, draftInput(actor));
+    if (!isOk(only)) throw new Error('draft');
+    const deleted = await deleteDraft(db, actor, {
+      stepUpSatisfied: true,
+      configId: only.value.id,
+    });
+    expect(isErr(deleted) && deleted.error.message).toContain('only saved configuration');
+    expect(await isAiDispatchAllowed(db)).toBe(false);
+  });
+
+  it('refuses a stranger and a request without step-up, and reports a missing draft', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const stranger = await seedStranger(db);
+    const draft = await createDraftAiProviderConfig(db, draftInput(actor));
+    if (!isOk(draft)) throw new Error('draft');
+
+    expect((await staffPrincipal(db, stranger, 'AI_SETTINGS_MANAGE')).ok).toBe(false);
+    const denied = await deleteDraftAiProviderConfig(db, NOT_A_SCOPE, {
+      stepUpSatisfied: true,
+      configId: draft.value.id,
+    });
+    expect(isErr(denied) && denied.error.code).toBe('forbidden');
+    const noStepUp = await deleteDraft(db, actor, {
+      stepUpSatisfied: false,
+      configId: draft.value.id,
+    });
+    expect(isErr(noStepUp) && noStepUp.error.code).toBe('step_up_required');
+    const missing = await deleteDraft(db, actor, {
+      stepUpSatisfied: true,
+      configId: '00000000-0000-4000-8000-000000000000',
+    });
+    expect(isErr(missing) && missing.error.code).toBe('not_found');
+  });
+});
+
+describe('AI provider configuration -- what editing and revoking protect', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('clears the draft data terms when its key is replaced, since a new key may be another account', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const draft = await createDraftAiProviderConfig(db, draftInput(actor));
+    if (!isOk(draft)) throw new Error('draft');
+    await db.insert(schema.aiProviderConfigTerms).values({
+      configId: draft.value.id,
+      tier: 'PAID',
+      trainsOnInputs: 'NO',
+      termsUrl: 'https://example.com/terms',
+      checkedOn: '2026-10-30',
+    });
+
+    await editDraft(db, actor, editInput(draft.value.id));
+    expect(await db.select().from(schema.aiProviderConfigTerms)).toHaveLength(1);
+
+    await editDraft(db, actor, editInput(draft.value.id, { apiKey: 'sk-other' }));
+    expect(await db.select().from(schema.aiProviderConfigTerms)).toHaveLength(0);
+    const events = await auditOf(db, 'AI_PROVIDER_CONFIG_UPDATED');
+    const flags = events.map((e) => (e.metadata as AuditMetadata).termsCleared).sort();
+    expect(flags).toEqual([false, true]);
+  });
+
+  it('refuses to edit a draft whose key was revoked', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const draft = await createDraftAiProviderConfig(db, draftInput(actor));
+    if (!isOk(draft)) throw new Error('draft');
+    await revokeAiProviderConfigKey(db, { actor, stepUpSatisfied: true, configId: draft.value.id });
+    const edited = await editDraft(db, actor, editInput(draft.value.id, { apiKey: 'sk-fresh' }));
+    expect(isErr(edited) && edited.error.message).toContain('revoked');
+  });
+
+  it('refuses to edit a draft that a version which has run falls back to, but allows it while only drafts point at it', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const fallback = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, { provider: 'anthropic' }),
+    );
+    if (!isOk(fallback)) throw new Error('fallback');
+    const primary = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, { fallbackEnabled: true, fallbackProviderConfigId: fallback.value.id }),
+    );
+    if (!isOk(primary)) throw new Error('primary');
+
+    expect(isOk(await editDraft(db, actor, editInput(fallback.value.id)))).toBe(true);
+    await activateAiProviderConfig(db, {
+      actor,
+      stepUpSatisfied: true,
+      configId: primary.value.id,
+    });
+    const edited = await editDraft(db, actor, editInput(fallback.value.id));
+    expect(isErr(edited) && edited.error.message).toContain('fallback');
+  });
+
+  it('revokes every copy of a key with it, disabling an active copy, and leaves other keys alone', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const original = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, { provider: 'anthropic', apiKey: 'sk-ant-shared-7777' }),
+    );
+    if (!isOk(original)) throw new Error('original');
+    const copy = await createDraftAiProviderConfig(db, {
+      ...draftInput(actor, { provider: 'anthropic', apiKey: '' }),
+      copyApiKeyFromConfigId: original.value.id,
+    });
+    if (!isOk(copy)) throw new Error('copy');
+    // Same last four characters, different key: must not be revoked.
+    const lookalike = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, { provider: 'anthropic', apiKey: 'sk-ant-other-7777' }),
+    );
+    if (!isOk(lookalike)) throw new Error('lookalike');
+    await activateAiProviderConfig(db, { actor, stepUpSatisfied: true, configId: copy.value.id });
+
+    const revoked = await revokeAiProviderConfigKey(db, {
+      actor,
+      stepUpSatisfied: true,
+      configId: original.value.id,
+      encryption,
+    });
+    expect(isOk(revoked)).toBe(true);
+    const read = async (id: string) => {
+      const row = await getAiProviderConfigById(db, actor, id);
+      if (!isOk(row)) throw new Error('read');
+      return row.value;
+    };
+    expect((await read(original.value.id)).keyRevokedAt).not.toBeNull();
+    const copyAfter = await read(copy.value.id);
+    expect(copyAfter.keyRevokedAt).not.toBeNull();
+    expect(copyAfter.status).toBe('DISABLED');
+    expect((await read(lookalike.value.id)).keyRevokedAt).toBeNull();
+
+    const events = await auditOf(db, 'AI_PROVIDER_CONFIG_KEY_REVOKED');
+    const forCopy = events.find((e) => e.resourceId === copy.value.id);
+    expect((forCopy?.metadata as AuditMetadata).sameKeyAsConfigId).toBe(original.value.id);
+  });
+
+  it('asking again on an already-revoked key still catches a copy of it', async () => {
+    const actor = await seedSecurityAdmin(db);
+    const original = await createDraftAiProviderConfig(
+      db,
+      draftInput(actor, { apiKey: 'sk-x-8888' }),
+    );
+    if (!isOk(original)) throw new Error('original');
+    const copy = await createDraftAiProviderConfig(db, {
+      ...draftInput(actor, { apiKey: '' }),
+      copyApiKeyFromConfigId: original.value.id,
+    });
+    if (!isOk(copy)) throw new Error('copy');
+    // A revoke without the key service revokes only that row.
+    await revokeAiProviderConfigKey(db, {
+      actor,
+      stepUpSatisfied: true,
+      configId: original.value.id,
+    });
+    const before = await getAiProviderConfigById(db, actor, copy.value.id);
+    expect(isOk(before) && before.value.keyRevokedAt).toBeNull();
+
+    await revokeAiProviderConfigKey(db, {
+      actor,
+      stepUpSatisfied: true,
+      configId: original.value.id,
+      encryption,
+    });
+    const after = await getAiProviderConfigById(db, actor, copy.value.id);
+    expect(isOk(after) && after.value.keyRevokedAt).not.toBeNull();
   });
 });
