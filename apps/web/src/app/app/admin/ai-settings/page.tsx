@@ -247,6 +247,7 @@ export default async function AiSettingsPage() {
             // -- the platform's own single-winner invariant means it is
             // necessarily some other status), so this looks it up by id
             // across the FULL history list, not just active/eligible rows.
+            const configName = `${config.provider} / ${config.model}`;
             const fallbackTarget = config.fallbackEnabled
               ? data.history.find((c) => c.id === config.fallbackProviderConfigId)
               : undefined;
@@ -347,23 +348,36 @@ export default async function AiSettingsPage() {
                   <div
                     style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}
                   >
-                    {canTest ? <TestConnectionButton configId={config.id} /> : null}
-                    {canEvaluate ? <RunEvaluationButton configId={config.id} /> : null}
-                    {canActivate ? <ActivateConfigButton configId={config.id} /> : null}
-                    {canRevoke ? <RevokeKeyButton configId={config.id} /> : null}
-                    {isDraft ? <DeleteDraftButton configId={config.id} /> : null}
+                    {canTest ? (
+                      <TestConnectionButton configId={config.id} configName={configName} />
+                    ) : null}
+                    {canEvaluate ? (
+                      <RunEvaluationButton configId={config.id} configName={configName} />
+                    ) : null}
+                    {canActivate ? (
+                      <ActivateConfigButton configId={config.id} configName={configName} />
+                    ) : null}
+                    {canRevoke ? (
+                      <RevokeKeyButton configId={config.id} configName={configName} />
+                    ) : null}
+                    {isDraft ? (
+                      <DeleteDraftButton configId={config.id} configName={configName} />
+                    ) : null}
                   </div>
                 ) : null}
                 {formView ? (
                   <details className="u-mt-100">
                     <summary className="muted">
                       {formView.editableInPlace ? 'Edit' : 'Edit as New Draft'}
+                      <span className="sr-only"> {configName}</span>
                     </summary>
                     <EditConfigForm config={formView} fallbackOptions={fallbackOptions} />
                   </details>
                 ) : null}
                 <details className="u-mt-100">
-                  <summary className="muted">Record Data Terms</summary>
+                  <summary className="muted">
+                    Record Data Terms<span className="sr-only"> for {configName}</span>
+                  </summary>
                   <RecordTermsForm configId={config.id} />
                 </details>
               </article>

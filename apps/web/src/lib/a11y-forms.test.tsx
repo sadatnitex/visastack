@@ -1500,17 +1500,27 @@ const ADMIN: readonly Case[] = [
     });
     return <aiSettings.EditConfigForm config={config} fallbackOptions={[config]} />;
   }),
-  row('delete an AI draft', () => <aiSettings.DeleteDraftButton configId={rowId()} />),
+  row('delete an AI draft', () => (
+    <aiSettings.DeleteDraftButton configId={rowId()} configName="anthropic / claude-opus-5-5" />
+  )),
   {
     name: 'new AI configuration (first one)',
     element: () => <aiSettings.CreateDraftConfigForm fallbackOptions={[]} />,
   },
-  row('test an AI connection', () => <aiSettings.TestConnectionButton configId={rowId()} />),
-  row('run an AI evaluation', () => <aiSettings.RunEvaluationButton configId={rowId()} />),
-  row('activate an AI configuration', () => <aiSettings.ActivateConfigButton configId={rowId()} />),
+  row('test an AI connection', () => (
+    <aiSettings.TestConnectionButton configId={rowId()} configName="anthropic / claude-opus-5-5" />
+  )),
+  row('run an AI evaluation', () => (
+    <aiSettings.RunEvaluationButton configId={rowId()} configName="anthropic / claude-opus-5-5" />
+  )),
+  row('activate an AI configuration', () => (
+    <aiSettings.ActivateConfigButton configId={rowId()} configName="anthropic / claude-opus-5-5" />
+  )),
   { name: 'roll back the AI configuration', element: () => <aiSettings.RollbackConfigButton /> },
   { name: 'switch AI off in an emergency', element: () => <aiSettings.EmergencyDisableButton /> },
-  row('revoke an AI key', () => <aiSettings.RevokeKeyButton configId={rowId()} />),
+  row('revoke an AI key', () => (
+    <aiSettings.RevokeKeyButton configId={rowId()} configName="anthropic / claude-opus-5-5" />
+  )),
   row('record AI provider data terms', () => <aiSettings.RecordTermsForm configId={rowId()} />),
   {
     name: 'turn the AI data setting on',

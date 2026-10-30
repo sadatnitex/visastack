@@ -434,7 +434,14 @@ export function EditConfigForm({
 }
 
 /** Delete a DRAFT with its key and data terms; nothing else can be deleted, only revoked. */
-export function DeleteDraftButton({ configId }: { readonly configId: string }) {
+export function DeleteDraftButton({
+  configId,
+  configName,
+}: {
+  readonly configId: string;
+  /** Names the configuration in the button's accessible name, since every card has one. */
+  readonly configName?: string;
+}) {
   const [state, formAction, pending] = useActionState(deleteDraftAiProviderConfigAction, INITIAL);
   return (
     <form
@@ -453,6 +460,7 @@ export function DeleteDraftButton({ configId }: { readonly configId: string }) {
       <SubmitButton
         pending={pending}
         idle="Delete Draft"
+        {...(configName ? { label: `Delete Draft for ${configName}` } : {})}
         busy="Deleting…"
         className="btn btn-danger u-btn-sm"
       />
@@ -470,7 +478,14 @@ export function DeleteDraftButton({ configId }: { readonly configId: string }) {
  * activate/rollback/disable/revoke this needs no confirmation dialog -- it
  * changes no configuration state.
  */
-export function TestConnectionButton({ configId }: { readonly configId: string }) {
+export function TestConnectionButton({
+  configId,
+  configName,
+}: {
+  readonly configId: string;
+  /** Names the configuration in the button's accessible name, since every card has one. */
+  readonly configName?: string;
+}) {
   const [state, formAction, pending] = useActionState(testAiProviderConfigAction, INITIAL);
   return (
     <form action={formAction}>
@@ -478,6 +493,7 @@ export function TestConnectionButton({ configId }: { readonly configId: string }
       <SubmitButton
         pending={pending}
         idle="Test Connection"
+        {...(configName ? { label: `Test Connection for ${configName}` } : {})}
         busy="Testing…"
         className="btn btn-secondary u-btn-sm"
       />
@@ -496,7 +512,14 @@ export function TestConnectionButton({ configId }: { readonly configId: string }
  * label names the case count up front, since this makes many more real
  * provider calls than a connection test's single one.
  */
-export function RunEvaluationButton({ configId }: { readonly configId: string }) {
+export function RunEvaluationButton({
+  configId,
+  configName,
+}: {
+  readonly configId: string;
+  /** Names the configuration in the button's accessible name, since every card has one. */
+  readonly configName?: string;
+}) {
   const [state, formAction, pending] = useActionState(runAiProviderConfigEvaluationAction, INITIAL);
   return (
     <form action={formAction}>
@@ -504,6 +527,7 @@ export function RunEvaluationButton({ configId }: { readonly configId: string })
       <SubmitButton
         pending={pending}
         idle="Run Evaluation (13 Cases)"
+        {...(configName ? { label: `Run Evaluation (13 Cases) for ${configName}` } : {})}
         busy="Evaluating…"
         className="btn btn-secondary u-btn-sm"
       />
@@ -512,7 +536,14 @@ export function RunEvaluationButton({ configId }: { readonly configId: string })
   );
 }
 
-export function ActivateConfigButton({ configId }: { readonly configId: string }) {
+export function ActivateConfigButton({
+  configId,
+  configName,
+}: {
+  readonly configId: string;
+  /** Names the configuration in the button's accessible name, since every card has one. */
+  readonly configName?: string;
+}) {
   const [state, formAction, pending] = useActionState(activateAiProviderConfigAction, INITIAL);
   return (
     <form
@@ -531,6 +562,7 @@ export function ActivateConfigButton({ configId }: { readonly configId: string }
       <SubmitButton
         pending={pending}
         idle="Activate"
+        {...(configName ? { label: `Activate for ${configName}` } : {})}
         busy="Activating…"
         className="btn btn-primary u-btn-sm"
       />
@@ -594,7 +626,14 @@ export function EmergencyDisableButton() {
   );
 }
 
-export function RevokeKeyButton({ configId }: { readonly configId: string }) {
+export function RevokeKeyButton({
+  configId,
+  configName,
+}: {
+  readonly configId: string;
+  /** Names the configuration in the button's accessible name, since every card has one. */
+  readonly configName?: string;
+}) {
   const [state, formAction, pending] = useActionState(revokeAiProviderConfigKeyAction, INITIAL);
   return (
     <form
@@ -613,6 +652,7 @@ export function RevokeKeyButton({ configId }: { readonly configId: string }) {
       <SubmitButton
         pending={pending}
         idle="Revoke Key"
+        {...(configName ? { label: `Revoke Key for ${configName}` } : {})}
         busy="Revoking…"
         className="btn btn-danger u-btn-sm"
       />
