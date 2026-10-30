@@ -102,3 +102,7 @@ Owner steps (after that package is merged):
 
 - A payer is stopped from paying online again only by a **live** payment that was sent to the payment page in the last 7 days with a payment method that is switched off now, because that gateway may have taken real money. Test payments, payments closed as expired (abandoned checkouts) and payments that never reached the payment page never stop anyone. The daily check still counts them for staff.
 - Refund through the Gateway is offered only for a payment method that can refund. When SSLCOMMERZ is switched off, refunding one of its payments says to refund it in SSLCOMMERZ's own panel and record it with Record a Refund Made Outside VisaStack, even if no other payment method can refund.
+
+## Update 2026-10-30 (S19 step 0, round 5): correction to round 4
+
+A live payment closed as expired in the last 7 days also stops the payer from paying online again while its payment method is switched off. The daily check keeps asking about such payments, because they can still succeed late, so paying again could charge twice. In plain terms, a payment blocks when it is live, was sent to the payment page in the last 7 days, is still open or was closed as expired, and its payment method is switched off. Test payments, payments that never reached the payment page, and anything older than 7 days never block.

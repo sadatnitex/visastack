@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, gte, inArray, lte, notInArray, or, sql } from 'drizzle-orm';
+import { type SQL, and, desc, eq, gte, inArray, lte, notInArray, or, sql } from 'drizzle-orm';
 import type { SystemScope } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { invoiceLedgerReader } from './billing';
@@ -676,23 +676,53 @@ export const PAYMENT_METHOD_OFF =
   'Your earlier payment was started with a payment method that is switched off now. Contact us before paying again, so you are not charged twice.';
 
 /**
- * The one definition of a stranded payment (S19 step 0, narrowed in round 4): a LIVE payment whose
- * payer was sent to the payment page (REDIRECTED) within the late-success window the daily check
- * uses, made with a provider that is not configured here now. The gateway may have taken real
- * money and nobody can ask it, so only such a payment stops a new one. A test payment (no real
- * money), one closed as expired (an abandoned checkout, closed by the gateway or the daily job), one
- * that never reached the gateway (CREATED) and one older than the window never block; the daily
- * check still counts the open ones for staff. `hasStrandedAttempt` is the same rule as one query.
+ * A payment whose money is still uncertain (S19 step 0 round 5): sent to the payment page (still
+ * REDIRECTED, or closed as EXPIRED, for whatever reason) no longer ago than the late-success
+ * window. The daily check's late-success selection is this condition with EXPIRED (it keeps asking
+ * the gateway about those, because they can still succeed late), and a stranded payment is this
+ * condition for a LIVE payment whose provider is switched off. One condition, so the two never
+ * drift apart: `stillUncertainSql` for queries, `isStillUncertain` for rows already read.
+ */
+export function stillUncertainSql(now: Date): SQL {
+  const attempts = schema.paymentAttempts;
+  return and(
+    inArray(attempts.status, ['REDIRECTED', 'EXPIRED']),
+    gte(attempts.redirectedAt, new Date(now.getTime() - LATE_SUCCESS_WINDOW_MS)),
+  ) as SQL;
+}
+
+/** `stillUncertainSql` for a row already read. */
+export function isStillUncertain(
+  attempt: Pick<PaymentAttempt, 'status' | 'redirectedAt'>,
+  now: Date,
+): boolean {
+  return (
+    (attempt.status === 'REDIRECTED' || attempt.status === 'EXPIRED') &&
+    attempt.redirectedAt !== null &&
+    attempt.redirectedAt.getTime() >= now.getTime() - LATE_SUCCESS_WINDOW_MS
+  );
+}
+
+/**
+ * The one definition of a stranded payment (S19 step 0, rounds 3 to 5): a LIVE payment whose money
+ * is still uncertain (`isStillUncertain`: the gateway may have taken real money, and the daily
+ * check would still ask it), made with a provider that is not configured here now, so nobody can
+ * ask. Only such a payment stops a new one. A test payment (no real money), one that never reached
+ * the gateway (CREATED) and one older than the window never block; the daily check still counts
+ * the open ones for staff. A REDIRECTED payment older than the window is still asked once by the
+ * daily check (to close it), but never blocks, so an invoice can never be blocked for good.
+ * `hasStrandedAttempt` is the same rule as one query.
  */
 export function isStrandedAttempt(
   attempt: Pick<PaymentAttempt, 'status' | 'redirectedAt' | 'provider' | 'mode'>,
   configuredProviders: readonly string[],
   now: Date,
 ): boolean {
-  if (attempt.mode !== 'LIVE' || attempt.status !== 'REDIRECTED') return false;
-  if (attempt.redirectedAt === null) return false;
-  if (attempt.redirectedAt.getTime() < now.getTime() - LATE_SUCCESS_WINDOW_MS) return false;
-  return !configuredProviders.includes(attempt.provider);
+  return (
+    attempt.mode === 'LIVE' &&
+    isStillUncertain(attempt, now) &&
+    !configuredProviders.includes(attempt.provider)
+  );
 }
 
 /** Whether any payment of this invoice is stranded (`isStrandedAttempt`), as one indexed probe. */
@@ -709,9 +739,8 @@ async function hasStrandedAttempt(
     .where(
       and(
         eq(attempts.invoiceId, invoiceId),
-        eq(attempts.status, 'REDIRECTED'),
         eq(attemptModeColumn(), 'LIVE'),
-        gte(attempts.redirectedAt, new Date(now.getTime() - LATE_SUCCESS_WINDOW_MS)),
+        stillUncertainSql(now),
         configuredProviders.length === 0
           ? undefined
           : notInArray(attempts.provider, [...configuredProviders]),
@@ -1070,17 +1099,14 @@ async function countProviderNotConfigured(
   now: Date,
 ): Promise<number> {
   const attempts = schema.paymentAttempts;
-  const lateAfter = new Date(now.getTime() - LATE_SUCCESS_WINDOW_MS);
   const rows = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(attempts)
     .where(
       and(
         providers.length === 0 ? undefined : notInArray(attempts.provider, [...providers]),
-        or(
-          inArray(attempts.status, ['CREATED', 'REDIRECTED']),
-          and(eq(attempts.status, 'EXPIRED'), gte(attempts.redirectedAt, lateAfter)),
-        ),
+        // Every open payment, and every one whose money is still uncertain (round 5).
+        or(inArray(attempts.status, ['CREATED', 'REDIRECTED']), stillUncertainSql(now)),
       ),
     );
   return rows[0]?.n ?? 0;
@@ -1183,7 +1209,6 @@ async function reconcileProvider(
   }
 
   const redirectedBefore = new Date(now.getTime() - RECONCILE_MIN_AGE_MS);
-  const lateAfter = new Date(now.getTime() - LATE_SUCCESS_WINDOW_MS);
   // Payments still open come first, oldest first. Closed-as-expired ones (which may yet turn out
   // to have succeeded) take whatever room is left, least recently asked about first, so a pile
   // of abandoned payments can never crowd out a live one and each is revisited in turn.
@@ -1213,7 +1238,8 @@ async function reconcileProvider(
             and(
               eq(attempts.provider, port.provider),
               eq(attempts.status, 'EXPIRED'),
-              gte(attempts.redirectedAt, lateAfter),
+              // The late-success selection: the same condition a stranded payment uses (round 5).
+              stillUncertainSql(now),
               // Only the gateway's own mode can say a closed payment succeeded late.
               port.mode === null ? undefined : eq(attemptModeColumn(), port.mode),
             ),

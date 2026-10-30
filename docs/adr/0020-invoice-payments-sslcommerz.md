@@ -304,3 +304,13 @@ Supersedes items 3 and 6 above where they differ.
 1. **Stranded, narrowed.** Only a LIVE, REDIRECTED attempt within the late-success window, with a provider not configured, is stranded. `isStrandedAttempt` holds the rule, and `hasStrandedAttempt` is the same rule as one indexed probe (id only, `limit 1`). Check Status asks for it with `withStranded`; the page-load refresh runs no extra query. `listAgencyInvoices` takes the same `PaymentPortResolver` the services use (`payments`), and the Invoices page builds that resolver once.
 2. **Registry refund guard.** A provider refunds only when its entry has `supportsRefunds` AND its port passes `isRefundingPaymentPort`. `buildPaymentPorts` hands on a payments-only port for an entry without `supportsRefunds`, and `refundGatewayViews` (the admin refund panel's gateway list, and so `servedBy`) lists refunding ports only.
 3. **Own provider first.** `requestRefund` and `retryRefund` judge the payment's own provider before the "no refunding gateway at all" answer, so a switched-off provider always gets `REFUND_PROVIDER_OFF`.
+
+### S19 step 0, round 5 (30 Oct 2026): correction
+
+One condition, `stillUncertainSql` (`isStillUncertain` for rows already read), now does three jobs:
+
+- It is the daily check's late-success selection (EXPIRED, within `LATE_SUCCESS_WINDOW_MS`).
+- It is the open-payment part of the staff count.
+- With `mode = LIVE` and the provider not configured, it is a stranded payment (`isStrandedAttempt`, and `hasStrandedAttempt` as one indexed probe).
+
+So a LIVE payment closed as EXPIRED inside the window blocks, whatever closed it. Item 1 of round 4 said EXPIRED never blocks; that is superseded. A test fails if the stranded rule and the daily check's selection ever disagree.

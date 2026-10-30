@@ -37,7 +37,9 @@ import { createOrganization, reviewOrganization } from './organizations';
 import { paymentPortResolver } from './payment-resolver';
 import {
   LATE_SUCCESS_WINDOW_MS,
+  MODE_CHANGED,
   PAYMENT_METHOD_OFF,
+  isStrandedAttempt,
   newMerchantTranId,
   reconcilePaymentAttempts,
   refreshInvoicePaymentAttempts,
@@ -2297,7 +2299,7 @@ describe('a second payment provider (S19 step 0)', () => {
   );
 
   it(
-    'agrees everywhere on a stranded payment: only a live payment sent to the page within the late window blocks (rounds 3 and 4)',
+    'agrees everywhere on a stranded payment: only a live payment whose money is still uncertain blocks (rounds 3 to 5)',
     async () => {
       // The second provider is still listed but its port is not usable, so the resolver drops it:
       // the Invoices page, Check Status and a new payment all read that same resolver.
@@ -2324,9 +2326,20 @@ describe('a second payment provider (S19 step 0)', () => {
           { provider: 'otherpay', status: 'REDIRECTED', mode: 'TEST', agoMs: HOUR },
           false,
         ],
+        // Round 5: the daily check still asks about this one (it can succeed late), so it blocks.
         [
           'live, closed as expired 3 days ago, provider off',
           { provider: 'otherpay', status: 'EXPIRED', mode: 'LIVE', agoMs: 3 * DAY },
+          true,
+        ],
+        [
+          'live, closed as expired beyond the late window, provider off',
+          {
+            provider: 'otherpay',
+            status: 'EXPIRED',
+            mode: 'LIVE',
+            agoMs: LATE_SUCCESS_WINDOW_MS + HOUR,
+          },
           false,
         ],
         [
@@ -2409,6 +2422,124 @@ describe('a second payment provider (S19 step 0)', () => {
       // the open ones for staff.
       const daily = await reconcilePaymentAttempts(db, scope(), dollarsNow);
       expect(daily.providerNotConfigured).toBeGreaterThanOrEqual(4);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'blocks a new payment while a live payment the 24-hour job closed may still succeed late, with its provider off (round 5)',
+    async () => {
+      const usd = await invoiceIn('INV-LATE', 2_500, 'USD');
+      await startOn(usd);
+      // Unconfirmed after 24 hours: the daily check closes it as expired.
+      await age(usd, 25 * 60 * 60 * 1000);
+      await reconcilePaymentAttempts(db, scope(), both);
+      expect((await attemptOf(usd)).status).toBe('EXPIRED');
+      // Three days later the second provider is switched off.
+      await age(usd, 3 * DAY);
+      const dollarsNow = paymentPortResolver([{ port: ssl, currencies: ['BDT', 'USD'] }]);
+      const again = await startOnlinePayment(db, dollarsNow, {
+        actorAccountId: w.orgOwnerId,
+        invoiceId: usd,
+        startAnother: true,
+        urlFor: () => 'https://vs.example.test/x',
+      });
+      expect(isErr(again) && again.error.reason).toBe('provider_not_configured');
+      expect(isErr(again) && again.error.message).toBe(PAYMENT_METHOD_OFF);
+      expect(ssl.checkouts).toHaveLength(0);
+      const checked = await refreshInvoicePaymentAttempts(db, dollarsNow, {
+        actorAccountId: w.orgOwnerId,
+        organizationId: w.organizationId,
+        invoiceId: usd,
+        minAgeMs: 0,
+        withStranded: true,
+      });
+      expect(isOk(checked) && checked.value.strandedPayment).toBe(true);
+      // Once it is older than the window the daily check stops asking, and it stops blocking.
+      await age(usd, LATE_SUCCESS_WINDOW_MS + HOUR);
+      const later = await startOnlinePayment(db, dollarsNow, {
+        actorAccountId: w.orgOwnerId,
+        invoiceId: usd,
+        startAnother: true,
+        urlFor: () => 'https://vs.example.test/x',
+      });
+      expect(isOk(later)).toBe(true);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'never lets the stranded rule and the daily check disagree about which live payments are still uncertain (round 5)',
+    async () => {
+      type Fixture = {
+        status: 'CREATED' | 'REDIRECTED' | 'EXPIRED' | 'FAILED' | 'CANCELLED';
+        reasonCode: string | null;
+        agoMs: number;
+      };
+      // Every live payment state the daily check could meet, at ages inside and beyond the window
+      // (all older than its 15-minute minimum). A REDIRECTED payment older than the window is
+      // asked once to be closed, never as a late success, so it is left out of the comparison.
+      const fixtures: Fixture[] = [];
+      for (const agoMs of [
+        HOUR,
+        2 * DAY,
+        LATE_SUCCESS_WINDOW_MS - HOUR,
+        LATE_SUCCESS_WINDOW_MS + HOUR,
+      ]) {
+        for (const [status, reasonCode] of [
+          ['CREATED', null],
+          ['EXPIRED', 'expired'],
+          ['EXPIRED', 'gateway_expired'],
+          ['EXPIRED', MODE_CHANGED],
+          ['FAILED', 'gateway_failed'],
+          ['CANCELLED', 'gateway_cancelled'],
+        ] as const) {
+          fixtures.push({ status, reasonCode, agoMs });
+        }
+        if (agoMs <= LATE_SUCCESS_WINDOW_MS) {
+          fixtures.push({ status: 'REDIRECTED', reasonCode: null, agoMs });
+        }
+      }
+      const trans = new Map<string, Fixture>();
+      let n = 0;
+      for (const fixture of fixtures) {
+        const invoiceId = await invoiceIn(`INV-DRIFT-${n++}`, 2_500, 'USD');
+        const merchantTranId = newMerchantTranId();
+        const at = new Date(Date.now() - fixture.agoMs);
+        await db.insert(schema.paymentAttempts).values({
+          mode: 'LIVE',
+          invoiceId,
+          organizationId: w.organizationId,
+          provider: 'otherpay',
+          merchantTranId,
+          amountMinorUnits: 2_500,
+          currency: 'USD',
+          status: fixture.status,
+          reasonCode: fixture.reasonCode,
+          createdAt: at,
+          redirectedAt: fixture.status === 'CREATED' ? null : at,
+        });
+        trans.set(merchantTranId, fixture);
+      }
+      const now = new Date();
+      // With the provider switched off: which of them are stranded.
+      const rows = await db
+        .select()
+        .from(schema.paymentAttempts)
+        .where(eq(schema.paymentAttempts.provider, 'otherpay'));
+      const stranded = new Set(
+        rows
+          .filter((row) => isStrandedAttempt(row, ['sslcommerz'], now))
+          .map((row) => row.merchantTranId),
+      );
+      // With it on and live: which of them the daily check asks the gateway about.
+      other.mode = 'LIVE';
+      await reconcilePaymentAttempts(db, scope(), both, { now, limit: 200 });
+      const asked = new Set(other.queryCalls);
+      for (const [tran, fixture] of trans) {
+        expect(stranded.has(tran), JSON.stringify(fixture)).toBe(asked.has(tran));
+      }
+      expect(stranded.size).toBeGreaterThan(0);
     },
     TIMEOUT,
   );
