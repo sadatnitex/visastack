@@ -1,5 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
-import { desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { invoiceLedgerReader } from './billing';
 import { type Db, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -31,6 +31,8 @@ import { type ReceiptView, listReceipts } from './receipt-views';
  * - Payment Reported: a payment report is waiting for a platform admin.
  * - Payment Started: an online payment page was opened a few minutes ago.
  * - Open: nothing is under way. Part paid is still open, with a smaller balance.
+ * - Refunded, Partly Refunded (S18): money went back from this invoice. A refunded invoice is
+ *   never owed again (ADR 0020 S18 amendment D2): no balance is shown and it cannot be paid.
  */
 
 export type InvoicePaymentState =
@@ -39,6 +41,8 @@ export type InvoicePaymentState =
   | 'PAYMENT_REPORTED'
   | 'PAID'
   | 'NEEDS_CHECK'
+  | 'REFUNDED'
+  | 'PARTLY_REFUNDED'
   | 'VOID';
 
 export interface StateFacts {
@@ -46,6 +50,8 @@ export interface StateFacts {
   readonly attempts: readonly Pick<PaymentAttempt, 'status' | 'createdAt' | 'redirectedAt'>[];
   readonly waitingClaim: boolean;
   readonly now: Date;
+  /** What went back from this invoice (S18), in minor units. Zero when nothing did. */
+  readonly refundedMinorUnits?: number;
 }
 
 /** The one place the plain state is decided. A void invoice ignores everything else; money held for a check outranks Paid. */
@@ -54,6 +60,10 @@ export function deriveInvoicePaymentState(facts: StateFacts): InvoicePaymentStat
   // Money the gateway confirmed but VisaStack did not count outranks Paid: an invoice paid another
   // way that also took an online payment has cash that needs sorting out, and the agency is told.
   if (facts.attempts.some((attempt) => attempt.status === 'HELD_FOR_REVIEW')) return 'NEEDS_CHECK';
+  // A refund outranks every payment state: the invoice is never owed again (D2).
+  if ((facts.refundedMinorUnits ?? 0) > 0) {
+    return facts.status === 'OPEN' ? 'REFUNDED' : 'PARTLY_REFUNDED';
+  }
   if (facts.status === 'PAID') return 'PAID';
   if (facts.waitingClaim) return 'PAYMENT_REPORTED';
   if (facts.attempts.some((attempt) => isRecentAttempt(attempt, facts.now))) {
@@ -71,7 +81,12 @@ export interface AgencyInvoiceView {
   readonly partlyPaid: boolean;
   readonly invoicedAmountMinorUnits: number;
   readonly collectedAmountMinorUnits: number;
+  /** What is still owed. Zero for a refunded invoice, which is never owed again (D2). */
   readonly outstandingMinorUnits: number;
+  /** What went back from this invoice (S18). */
+  readonly refundedMinorUnits: number;
+  /** What was counted from an earlier payment ("Credit from an earlier payment", S18). */
+  readonly creditMinorUnits: number;
   readonly periodStart: Date;
   readonly periodEnd: Date;
   readonly dueDate: Date;
@@ -129,6 +144,22 @@ export async function listAgencyInvoices(
   } catch (error) {
     if (!isMissingRelationError(error)) throw error;
   }
+  // Refunds and credits per invoice, from the ledger (since migration 0094).
+  const refunded = new Map<string, number>();
+  const credited = new Map<string, number>();
+  try {
+    const p = schema.invoicePayments;
+    const rows = await db
+      .select({ invoiceId: p.invoiceId, kind: p.kind, amountMinorUnits: p.amountMinorUnits })
+      .from(p)
+      .where(and(inArray(p.invoiceId, ids), inArray(p.kind, ['REFUND', 'CREDIT'])));
+    for (const row of rows) {
+      const into = row.kind === 'REFUND' ? refunded : credited;
+      into.set(row.invoiceId, (into.get(row.invoiceId) ?? 0) + Math.abs(row.amountMinorUnits));
+    }
+  } catch (error) {
+    if (!isMissingRelationError(error)) throw error;
+  }
   const claims = await listManualClaims(db, input);
   const receipts = await listReceipts(db, { ...input, invoiceIds: ids });
 
@@ -142,7 +173,9 @@ export async function listAgencyInvoices(
         attempts: mine,
         waitingClaim: myClaims.some((claim) => claim.status === 'SUBMITTED'),
         now,
+        refundedMinorUnits: refunded.get(invoice.id) ?? 0,
       });
+      const wasRefunded = (refunded.get(invoice.id) ?? 0) > 0;
       const recent = mine.find((attempt) => isRecentAttempt(attempt, now));
       return {
         id: invoice.id,
@@ -153,10 +186,14 @@ export async function listAgencyInvoices(
         partlyPaid: invoice.status === 'PARTIALLY_PAID',
         invoicedAmountMinorUnits: invoice.invoicedAmountMinorUnits,
         collectedAmountMinorUnits: invoice.collectedAmountMinorUnits,
-        outstandingMinorUnits: outstandingMinorUnits(
-          invoice.invoicedAmountMinorUnits,
-          invoice.collectedAmountMinorUnits,
-        ),
+        outstandingMinorUnits: wasRefunded
+          ? 0
+          : outstandingMinorUnits(
+              invoice.invoicedAmountMinorUnits,
+              invoice.collectedAmountMinorUnits,
+            ),
+        refundedMinorUnits: refunded.get(invoice.id) ?? 0,
+        creditMinorUnits: credited.get(invoice.id) ?? 0,
         periodStart: invoice.periodStart,
         periodEnd: invoice.periodEnd,
         dueDate: invoice.dueDate,

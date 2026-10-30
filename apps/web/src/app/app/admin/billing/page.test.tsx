@@ -51,7 +51,7 @@ beforeEach(() => {
 
 describe('Platform > Billing Rules', () => {
   it('shows the rules, what each status does, and who switching on would move today', async () => {
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     const text = textOf(html);
     expect(html.match(/<h1/g)).toHaveLength(1);
     expect(text).toContain('Billing Rules');
@@ -71,7 +71,7 @@ describe('Platform > Billing Rules', () => {
 
   it('is restricted to the platform owner', async () => {
     mocks.staffPrincipal.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(mocks.getBillingSettings).not.toHaveBeenCalled();
     expect(textOf(html)).not.toContain('Change the Rules');
   });
@@ -81,8 +81,31 @@ describe('Platform > Billing Rules', () => {
       ok: true,
       value: { ...settings, available: false },
     });
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain('VisaStack creates no invoices on its own');
     expect(text).not.toContain('Change the Rules');
+  });
+
+  it('offers the monthly accounting file, also before the rules are available, and says why a download was refused (S18)', async () => {
+    const html = await renderServer(Page({}));
+    expect(textOf(html)).toContain('Monthly Accounting File');
+    expect(html).toContain('action="/app/admin/billing/ledger"');
+    expect(html).toContain('Download Accounting File (CSV)');
+    expect(html.match(/<h1/g)).toHaveLength(1);
+    mocks.getBillingSettings.mockResolvedValue({
+      ok: true,
+      value: { ...settings, available: false },
+    });
+    const refused = textOf(
+      await renderServer(Page({ searchParams: Promise.resolve({ ledger: 'too_many' }) })),
+    );
+    expect(refused).toContain('Download Accounting File (CSV)');
+    expect(refused).toContain('more than one file can hold');
+    const refusedHtml = await renderServer(
+      Page({ searchParams: Promise.resolve({ ledger: 'month' }) }),
+    );
+    expect(refusedHtml).toContain('aria-describedby="ledger-month-hint ledger-problem"');
+    mocks.staffPrincipal.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
+    expect(textOf(await renderServer(Page({})))).not.toContain('Download Accounting File (CSV)');
   });
 });

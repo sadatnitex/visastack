@@ -443,4 +443,121 @@ describe('SslcommerzPaymentPort', () => {
       expect(port.verifyIpnSignature({ ...signed, verify_key: `tran_id,${many}` })).toBe(false);
     });
   });
+
+  describe('refunds (S18)', () => {
+    const REFUND_ID = '0b5f3c2e-8a41-4d6e-9f10-2a3b4c5d6e7f';
+
+    async function paid(amount = 150000) {
+      const built = build();
+      await built.port.createCheckout(checkout(TRAN, amount));
+      const tx = built.gateway.pay(TRAN);
+      return { ...built, bankTranId: tx.bankTranId ?? '' };
+    }
+
+    it('sends the exact amount as decimal text with VisaStack refund id, and reads the refund reference', async () => {
+      const { port, gateway, urls, bankTranId } = await paid();
+      const answer = await port.refund({
+        bankTranId,
+        amountMinorUnits: 150000,
+        refundId: REFUND_ID,
+        remarks: 'Agency overpaid\nby mistake',
+      });
+      expect(answer.kind).toBe('accepted');
+      const sent = new URL(urls.at(-1) ?? '');
+      expect(sent.pathname).toBe('/validator/api/merchantTransIDvalidationAPI.php');
+      expect(sent.searchParams.get('refund_amount')).toBe('1500.00');
+      expect(sent.searchParams.get('refund_trans_id')).toBe(REFUND_ID);
+      expect(sent.searchParams.get('refe_id')).toBe(REFUND_ID);
+      expect(sent.searchParams.get('bank_tran_id')).toBe(bankTranId);
+      expect(sent.searchParams.get('refund_remarks')).toBe('Agency overpaid by mistake');
+      expect(gateway.refunds.get(REFUND_ID)?.amount).toBe('1500.00');
+      // The same refund id again names the same refund, never a second one.
+      const again = await port.refund({
+        bankTranId,
+        amountMinorUnits: 150000,
+        refundId: REFUND_ID,
+        remarks: 'Agency overpaid',
+      });
+      expect(again).toEqual(answer);
+      expect(gateway.refunds.size).toBe(1);
+    });
+
+    it('reads a clear refusal as a refusal and anything unclear as no answer', async () => {
+      const { port, gateway, bankTranId } = await paid();
+      gateway.refuseNextRefund = true;
+      expect(
+        await port.refund({ bankTranId, amountMinorUnits: 100, refundId: REFUND_ID, remarks: 'x' }),
+      ).toEqual({ kind: 'refused', code: 'provider_refused' });
+      for (const body of [
+        { APIConnect: 'INVALID_REQUEST' },
+        { APIConnect: 'DONE', status: 'success' },
+        { APIConnect: 'DONE', status: 'weird', refund_ref_id: 'RR123456' },
+        'not json',
+      ]) {
+        const { port: odd } = build({ fetch: replyWith(body) });
+        await messageOf(
+          odd.refund({ bankTranId, amountMinorUnits: 100, refundId: REFUND_ID, remarks: 'x' }),
+        );
+      }
+      // A malformed request is never sent at all.
+      const { port: local, urls } = build();
+      expect(
+        await local.refund({
+          bankTranId: 'a b',
+          amountMinorUnits: 100,
+          refundId: REFUND_ID,
+          remarks: 'x',
+        }),
+      ).toEqual({ kind: 'refused', code: 'invalid_request' });
+      expect(urls).toEqual([]);
+    });
+
+    it('confirms a refund only when the gateway says refunded, for that refund', async () => {
+      const { port, gateway, bankTranId } = await paid();
+      const answer = await port.refund({
+        bankTranId,
+        amountMinorUnits: 5000,
+        refundId: REFUND_ID,
+        remarks: 'Partial refund',
+      });
+      if (answer.kind !== 'accepted') throw new Error('accepted');
+      expect(await port.queryRefund(answer.refundRefId)).toEqual({
+        status: 'PROCESSING',
+        refundedAt: null,
+      });
+      gateway.settleRefund(answer.refundRefId, 'refunded');
+      const done = await port.queryRefund(answer.refundRefId);
+      expect(done.status).toBe('REFUNDED');
+      // 15:30 in Bangladesh is 09:30 UTC.
+      expect(done.refundedAt?.toISOString()).toBe('2026-10-30T09:30:00.000Z');
+      gateway.settleRefund(answer.refundRefId, 'cancelled');
+      expect((await port.queryRefund(answer.refundRefId)).status).toBe('CANCELLED');
+      const { port: other } = build({
+        fetch: replyWith({ APIConnect: 'DONE', status: 'refunded', refund_ref_id: 'RR999999' }),
+      });
+      expect((await other.queryRefund(answer.refundRefId)).status).toBe('UNKNOWN');
+    });
+
+    it('never puts the store password in a refund failure or the failure hook', async () => {
+      const events: PaymentProviderFailure[] = [];
+      const down = build({ onFailure: (e) => events.push(e) });
+      down.gateway.setOutage(true);
+      const messages = [
+        await messageOf(
+          down.port.refund({
+            bankTranId: 'BANK1',
+            amountMinorUnits: 1,
+            refundId: REFUND_ID,
+            remarks: 'x',
+          }),
+        ),
+        await messageOf(down.port.queryRefund('RR00000001')),
+      ];
+      expect(events).toEqual([
+        { operation: 'refund', reason: 'unreachable' },
+        { operation: 'refund_query', reason: 'unreachable' },
+      ]);
+      expect(JSON.stringify({ messages, events })).not.toContain(PASSWORD);
+    });
+  });
 });

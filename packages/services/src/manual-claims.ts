@@ -13,7 +13,9 @@ import {
 import type { MalwareScannerPort } from './intake';
 import {
   type CollectionRefusal,
+  REFUNDED_INVOICE_MESSAGE,
   applyInvoiceCollection,
+  invoiceHasRefund,
   isValidMinorUnitAmount,
   normalizeCurrency,
   outstandingMinorUnits,
@@ -603,6 +605,10 @@ export async function submitManualPaymentClaim(
           );
           const problem = invoiceProblem(locked, input.amountMinorUnits, input.currency);
           if (problem) return err(problem);
+          // S18 (D2): a refunded invoice is never owed again, so no payment is reported on it.
+          if (await invoiceHasRefund(tx, locked.id)) {
+            return err(serviceError('invalid', REFUNDED_INVOICE_MESSAGE));
+          }
           const waiting = first(
             await tx
               .select({ id: schema.manualPaymentClaims.id })
@@ -716,6 +722,8 @@ function refusalMessage(refusal: CollectionRefusal, claim: ManualPaymentClaim): 
       return 'This invoice was cancelled, so nothing can be recorded against it. Reject this report.';
     case 'currency_mismatch':
       return 'This report is in a different currency from the invoice. Reject it.';
+    case 'refunded_invoice':
+      return 'This invoice was refunded, so nothing more is owed on it and nothing can be counted against it. Reject this report, or issue a new invoice if money is owed.';
     case 'unavailable':
       return 'Recording payments is not available yet. Please try again later.';
     default:

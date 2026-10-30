@@ -1,8 +1,12 @@
 import {
   type CreateCheckoutInput,
-  type PaymentPort,
   PaymentProviderUnavailableError,
   type PaymentValidation,
+  type RefundProviderStatus,
+  type RefundStatusReport,
+  type RefundSubmission,
+  type RefundSubmissionResult,
+  type RefundingPaymentPort,
 } from './ports';
 
 /**
@@ -11,7 +15,7 @@ import {
  * has set up, can be made unreachable, and counts every call, so a test can prove the service
  * asked the gateway (and did not just believe a callback).
  */
-export class FakePaymentPort implements PaymentPort {
+export class FakePaymentPort implements RefundingPaymentPort {
   readonly configured = true;
   readonly provider = 'sslcommerz';
   readonly storeId: string | null = 'teststore';
@@ -72,6 +76,31 @@ export class FakePaymentPort implements PaymentPort {
 
   verifyIpnSignature(): boolean {
     return this.signatureValid;
+  }
+
+  // --- Refunds (S18) ---
+  readonly refundCalls: RefundSubmission[] = [];
+  readonly refundQueries: string[] = [];
+  /** How the next refund calls are answered. */
+  refundBehaviour: 'accept' | 'refuse' | 'throw' = 'accept';
+  /** What the gateway says about each refund reference. */
+  readonly refundStatus = new Map<string, RefundProviderStatus>();
+  refundQueryOutage = false;
+
+  async refund(input: RefundSubmission): Promise<RefundSubmissionResult> {
+    this.refundCalls.push(input);
+    if (this.refundBehaviour === 'throw') throw new PaymentProviderUnavailableError();
+    if (this.refundBehaviour === 'refuse') return { kind: 'refused', code: 'provider_refused' };
+    const refundRefId = `RR${input.refundId.replace(/-/g, '').slice(0, 12)}`;
+    if (!this.refundStatus.has(refundRefId)) this.refundStatus.set(refundRefId, 'PROCESSING');
+    return { kind: 'accepted', refundRefId };
+  }
+
+  async queryRefund(refundRefId: string): Promise<RefundStatusReport> {
+    this.refundQueries.push(refundRefId);
+    if (this.refundQueryOutage) throw new PaymentProviderUnavailableError();
+    const status = this.refundStatus.get(refundRefId) ?? 'UNKNOWN';
+    return { status, refundedAt: status === 'REFUNDED' ? new Date('2026-10-30T09:30:00Z') : null };
   }
 
   /** The gateway reports a successful payment for a transaction (and under its validation id). */

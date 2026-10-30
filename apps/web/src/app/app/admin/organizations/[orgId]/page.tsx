@@ -7,6 +7,7 @@ import {
   getBillingAccountForOrganization,
   getCurrentPlanForOrganization,
   getOrganization,
+  getOrganizationRefundWork,
   getPendingDowngradeForOrganization,
   getUsageForOrganization,
   legalBillingTransitions,
@@ -20,7 +21,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PageHeader } from '../../../../../components/ui';
-import { bootstrapAdminEmails, isPlatformOwnerAccount } from '../../../../../lib/admin';
+import {
+  bootstrapAdminEmails,
+  isPlatformOwnerAccount,
+  staffPrincipal,
+} from '../../../../../lib/admin';
 import {
   billingHistoryMove,
   billingHistoryReason,
@@ -36,6 +41,7 @@ import {
   invoiceStatusLabel,
   organizationStatusLabel,
 } from '../../../../../lib/labels';
+import { refundPorts } from '../../../../../lib/refund-gateway';
 import { withSession } from '../../../../../lib/session';
 import {
   formatMeterValue,
@@ -58,6 +64,7 @@ import {
   TransitionBillingStatusForm,
   VoidInvoiceButton,
 } from './forms';
+import { RefundsCard } from './refund-panel';
 
 export const metadata: Metadata = { title: 'Organization' };
 
@@ -165,10 +172,14 @@ function invoiceAmount(invoice: Invoice): string {
 
 export default async function AdminOrganizationPage({
   params,
+  searchParams,
 }: {
   readonly params: Promise<{ orgId: string }>;
+  readonly searchParams?: Promise<{ refundPage?: string; refundInvoice?: string }>;
 }) {
   const { orgId } = await params;
+  const asked = (await searchParams) ?? {};
+  const refundPage = Number.parseInt(asked.refundPage ?? '1', 10);
 
   const data = await withSession(async ({ db, accountId, email }) => {
     if (!(await isPlatformOwnerAccount(db, { accountId, email }))) return { owner: false as const };
@@ -203,6 +214,24 @@ export default async function AdminOrganizationPage({
       listCommercialOverridesForOrganization(db, orgId),
     ]);
 
+    // S18: refunds and credits, under the platform owner's own refund scope. The payment port is
+    // never made unguarded: an incomplete configuration means "no gateway", never a broken page.
+    const { send: sendPort, check: checkPort } = refundPorts();
+    const gatewayProvider = sendPort?.provider ?? null;
+    const refundScope = await staffPrincipal(
+      db,
+      { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
+      'BILLING_REFUND_MANAGE',
+    );
+    const refundWork = refundScope.ok
+      ? await getOrganizationRefundWork(db, refundScope.value, {
+          organizationId: orgId,
+          gatewayProvider,
+          page: Number.isFinite(refundPage) ? refundPage : 1,
+          invoiceRef: asked.refundInvoice ?? null,
+        })
+      : undefined;
+
     return {
       owner: true as const,
       org,
@@ -216,6 +245,14 @@ export default async function AdminOrganizationPage({
       invoices: invoices.ok ? invoices.value : [],
       claims: claims.ok ? claims.value : [],
       overrides,
+      refundWork: refundWork?.ok ? refundWork.value : undefined,
+      // The page is the platform owner's already, so the refund scope fails only while this
+      // sign-in has not entered its authenticator code.
+      refundProblem: refundScope.ok
+        ? undefined
+        : 'Refunds and credits need your authenticator code first. Enter it, then open this page again.',
+      gatewayAvailable: sendPort !== null,
+      checkAvailable: checkPort !== null,
     };
   });
 
@@ -428,6 +465,20 @@ export default async function AdminOrganizationPage({
         </p>
         <ClaimQueue organizationId={orgId} claims={data.claims} />
       </article>
+
+      <RefundsCard
+        organizationId={orgId}
+        work={data.refundWork}
+        gatewayAvailable={data.gatewayAvailable}
+        checkAvailable={data.checkAvailable}
+        latestDate={new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Asia/Dhaka',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        }).format(new Date())}
+        {...(data.refundProblem ? { problem: data.refundProblem } : {})}
+      />
 
       <article className="card">
         <p className="card-kicker">Commerce</p>

@@ -285,6 +285,18 @@ export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
     heading: 'Your billing status has changed',
     action: 'Open Invoices',
   },
+  INVOICE_REFUNDED: {
+    eyebrow: 'Your Agency',
+    heading: 'A refund was made on an invoice',
+    why: 'Open your invoices to see the refund and what the invoice shows now.',
+    action: 'Open Invoices',
+  },
+  INVOICE_CREDIT_APPLIED: {
+    eyebrow: 'Your Agency',
+    heading: 'An earlier payment was applied to an invoice',
+    why: 'Money you paid before was counted towards this invoice. Open your invoices to see what is left to pay.',
+    action: 'Open Invoices',
+  },
   LEGAL_HOLD_REVIEW_REMINDER: {
     eyebrow: 'Platform',
     heading: 'A legal hold is due for review',
