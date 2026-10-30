@@ -6564,3 +6564,58 @@ Owner report: an Anthropic configuration on `claude-opus-5-5` failed Test Connec
 - Tests: registry contract (ISO currencies, callback folder and routes, secrets listed, scrubbed and in .env.example, refunds flag), exact SSLCOMMERZ addresses, list parsing table, unknown provider 404, cross-provider IPN refused as unknown with a genuine signature, legacy link verifies, no secret and no cookie secret gives no link, a fake second provider in USD end to end (start, reconcile, refund, refund check, removed provider counted and left), one-answer table across the status page, overview, providers.ts and offers, resolver unit tests, overview rows. Existing tests changed only to pass the provider set (`onePort(port)`), the provider in callback calls, the new signing secret, and `gateways` for refund work; none weakened. The S18 "gateway that cannot refund is ignored" case moved from refund-gateway.test.ts to payment-providers.test.ts.
 - Break-to-red, each restored from a cp backup: entry without secrets; password not listed as a secret; callback segment renamed; unknown provider not refused; cross-provider provider check dropped; legacy link no longer accepted; store password still signing; capabilities disagreeing; start on the first provider whatever the currency; currency check under the lock skipped; every provider's payments asked of one gateway; removed provider's payments not counted; refund through the first gateway; reconcile only the first provider. All went red.
 - `invoice-ledger.ts` unchanged. Not verified: a browser run of the Invoices page and the platform overview; the SSLCOMMERZ sandbox (O6); `/code-review` and `/security-review` not run in this helper package (lead's step).
+
+### 2026-10-30, S19 step 0 round 2: review fixes
+
+Fixes from the max code review and the security and accessibility review of `4c4f2063..cffdf4b9`. Committed on local branch `s19s0-wip` as `301ce811`; not merged, not live. Main had not moved (`70370f22`). No migration.
+
+- **Incomplete provider alarm.** A chosen provider with missing or invalid settings now:
+  - fails readiness, naming the provider and each missing setting (never a value);
+  - fails the daily payment check: reported through `reportServerError`, `incompleteProviders` in the answer, cron route 503, other providers still asked;
+  - is reported once per callback request (IPN 503; browser goes to the general page).
+
+  `PAYMENT_PROVIDERS` set to nothing usable (such as `,`) fails readiness. Building the ports can no longer throw, so the tests that made `paymentPorts` throw were removed or rewritten.
+- **Stranded work.** Open payments and sent refunds whose provider is not configured are counted (`providerNotConfigured`) by the daily payment and refund checks, Check Now and Check Status, also with no provider on. The payer gets a plain sentence, and the card offers neither Pay Online nor Start Another Payment. `startOnlinePayment` refuses another payment for that invoice even on purpose (typed `provider_not_configured`). Staff Check Now names the waiting refunds.
+- **Time budget.** Each provider gets an equal share of what is left (`providerShareDeadline`, payment-resolver.ts), for payments and for refunds.
+- **Mixed modes.** `overallPaymentMode` is LIVE only when every provider is live, otherwise TEST or MIXED. For MIXED:
+  - capability: limited;
+  - Billing Rules and the status page: Partly Live, naming the test-only currencies in plain words.
+
+  The single-provider S29 words are unchanged.
+- **Refunds.** `requestRefund` refuses a payment whose own provider is not configured or cannot refund before any mode check (`provider_not_configured`, `REFUND_PROVIDER_OFF`). Send Again uses the same refusal.
+- **Result links.** Decision O2 is closed: the store-password key is removed, since no such link ever existed in production. The cookie secret has a 32-character minimum. Cookie-signed links still verify after `PAYMENT_RESULT_SIGNING_SECRET` is set. A short `PAYMENT_RESULT_SIGNING_SECRET` fails readiness, naming only the setting.
+- **Other.**
+  - `readSslcommerzConfig`, `SslcommerzConfig`, `isPaymentProviderConfigured` and `createPaymentPort` are deleted (no production caller).
+  - The contract test checks that each entry's key equals its port's `provider`.
+  - The overview row is "Online Payments" (with several providers: "Online Payments in <currency>"). The provider name is in the detail; currency names come from `currencyWords` and `currencyListWords` in payment-resolver.ts; the refund wording now says "once sending refunds from VisaStack is switched on".
+- **Break-to-red.** 23 proofs, each restored from a cp backup, and all went red:
+  - readiness: incomplete provider; empty list;
+  - daily check report; cron 503; IPN report;
+  - stranded payments and refunds with none on;
+  - Check Status sentence; card; service refusal; Check Now sentence;
+  - fair share for payments; fair share for refunds;
+  - overall mode; Billing Rules; status page;
+  - refund before the mode check;
+  - store-password key; cookie minimum; cookie link after the switch; short secret;
+  - key equals port provider; overview label.
+- **Verification on `301ce811`.** All passed:
+
+  | Check | Result |
+  |---|---|
+  | lint | pass |
+  | typecheck (after `rm -rf apps/web/.next`) | pass |
+  | core | 188 |
+  | policy | 38 |
+  | db | 55, 1 skipped (existing) |
+  | adapters | 525, 2 skipped (existing) |
+  | services | 2747 |
+  | web | 3864 |
+  | web build (`NODE_OPTIONS=--max-old-space-size=3072`) | pass |
+  | `pnpm audit --prod --audit-level high` | pass |
+  | em dash sweep | 0 |
+
+- **Not verified.**
+  - A browser run of the Invoices card, Billing Rules and the status page.
+  - The SSLCOMMERZ sandbox (O6).
+  - The status page's note is read when the page is built: it is not marked dynamic, like its version notice, so a payment setting change shows there after a redeploy.
+  - `/code-review` and `/security-review` were not rerun in this helper round.
