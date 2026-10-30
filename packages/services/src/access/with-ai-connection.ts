@@ -30,7 +30,7 @@ import {
 import { appendAuditEvent } from '../audit';
 import { hasConsent } from '../consent';
 import { type Db, first, schema } from '../db';
-import { readOriginalDocumentFile } from '../document-access';
+import { readOriginalDocumentFile, writeDocumentAccessAudit } from '../document-access';
 import type { KeyManagementPort } from '../ports';
 import {
   aiContextDayKey,
@@ -39,13 +39,7 @@ import {
   recordProductEvent,
 } from '../product-events';
 import { RATE_LIMITS, checkRateLimit, checkRateLimits, isRateLimitReached } from '../rate-limit';
-import {
-  type RedactionDeps,
-  type SafeCopyState,
-  getSafeCopyState,
-  isSafeCopyReady,
-  produceSafeCopy,
-} from '../redaction';
+import { type RedactionDeps, produceSafeCopy } from '../redaction';
 import {
   type CaseSelection,
   type SelectedOutput,
@@ -1079,7 +1073,14 @@ interface FileContext {
 
 /** Carries a refused file out of its savepoint, so the access and the count are rolled back. */
 class FileAborted extends Error {
-  constructor(readonly reason: AiFileFailure) {
+  constructor(
+    readonly reason: AiFileFailure,
+    /** A refused Safe Copy's DENIED access record, written again outside the savepoint. */
+    readonly denied?: {
+      readonly proof: AuthorizedApplicant<'DOWNLOAD_REDACTED'>;
+      readonly reason: string;
+    },
+  ) {
     super('ai file refused');
   }
 }
@@ -1200,19 +1201,21 @@ function fileReader(context: FileContext): AiFileGateway['file'] {
               purpose: AI_CONNECTION_PURPOSE,
             });
             if (!ownerAccess(access, connection.applicantId)) throw new FileAborted('failed');
-            // Ready first, read only: a copy that is not ready never uses the owner's hourly
-            // Safe Copy limit.
-            const state = await getSafeCopyState(access.value);
-            if (!state.ok) throw new FileAborted('failed');
-            if (!isSafeCopyReady(state.value)) {
-              throw new FileAborted(safeCopyStateFailure(state.value));
-            }
+            // A copy that is not ready is refused before the owner's hourly limit is counted.
             const copy = await produceSafeCopy(access.value, deps, {
               purposes: AI_SAFE_COPY_PURPOSES,
               disposition: 'ai_file',
             });
-            // Any refusal rolls the savepoint back, the limit's count with it: nothing was given.
-            if (!copy.ok) throw new FileAborted(safeCopyFailure(copy.error));
+            // Any refusal rolls the savepoint back, a count with it; its DENIED access record is
+            // written again below, outside the savepoint, as for an Original.
+            if (!copy.ok) {
+              throw new FileAborted(
+                safeCopyFailure(copy.error),
+                copy.error.auditReason !== undefined
+                  ? { proof: access.value, reason: copy.error.auditReason }
+                  : undefined,
+              );
+            }
             file = { bytes: copy.value.bytes, mimeType: copy.value.contentType };
           } else {
             const stepUp = await stepUpForAiOriginalFile(
@@ -1248,8 +1251,23 @@ function fileReader(context: FileContext): AiFileGateway['file'] {
           return outcome;
         });
     } catch (error) {
-      if (error instanceof FileAborted) return fail(error.reason);
-      throw error;
+      if (!(error instanceof FileAborted)) throw error;
+      if (error.denied) {
+        // The refused Safe Copy's own record, with the fields `produceSafeCopy` writes.
+        await writeDocumentAccessAudit(
+          error.denied.proof,
+          {
+            documentId: chosen.documentId,
+            applicantId: connection.applicantId,
+            allowed: false,
+            reason: error.denied.reason,
+            metadata: { variant: 'redacted', disposition: 'ai_file' },
+            purposes: AI_SAFE_COPY_PURPOSES,
+          },
+          tx,
+        );
+      }
+      return fail(error.reason);
     }
 
     context.served({
@@ -1284,13 +1302,6 @@ function ownerAccess<A extends 'DOWNLOAD_REDACTED' | 'DOWNLOAD_ORIGINAL'>(
 }
 
 /** A Safe Copy that was not made, as the app is told. Never a fallback to the original. */
-/** A Safe Copy whose state says it cannot be given now. */
-function safeCopyStateFailure(state: SafeCopyState): AiFileFailure {
-  if (state === 'UNSUPPORTED') return 'file_type_unsupported';
-  if (state === 'TOO_LARGE') return 'file_too_large';
-  return 'safe_copy_not_ready';
-}
-
 function safeCopyFailure(error: {
   readonly code: string;
   readonly refusal?: string;

@@ -3,7 +3,7 @@ import { type PermissionAction, type Result, err, ok } from '@visastack/core';
 import { desc, eq } from 'drizzle-orm';
 import { AuthorizedApplicant, EACH_GRANT } from './access/require-access';
 import { appendAuditEvent } from './audit';
-import { first, schema } from './db';
+import { type Db, first, schema } from './db';
 import { isDocumentVersionUsable } from './documents';
 import { hasActiveOrVerifiedErasureJob } from './erasure';
 import type { StoredBytes } from './storage';
@@ -83,13 +83,18 @@ export interface DocumentAccessEvent {
   readonly purposes: DocumentPurposes;
 }
 
-/** One DOCUMENT_ACCESS event for the proof's action: what was asked for and the outcome. */
+/**
+ * One DOCUMENT_ACCESS event for the proof's action: what was asked for and the outcome. `db`, when
+ * given, is where it is written instead of the proof's own transaction: for a refusal recorded
+ * after the savepoint the proof was made in was undone (S20).
+ */
 export async function writeDocumentAccessAudit(
   proof: DocumentProof,
   event: DocumentAccessEvent,
+  db: Db = proof.tx,
 ): Promise<void> {
   const who = documentAuditActor(proof);
-  await proof.tx.transaction(async (tx) => {
+  await db.transaction(async (tx) => {
     await appendAuditEvent(tx, {
       eventType: 'DOCUMENT_ACCESS',
       actorAccountId: who.actorAccountId,

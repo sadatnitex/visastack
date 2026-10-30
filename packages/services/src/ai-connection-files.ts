@@ -16,6 +16,7 @@ import {
 } from './ai-connection-scopes';
 import { aiFilesAvailable } from './ai-files-ready';
 import { type Db, schema } from './db';
+import { documentsLeavingByErasure } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { isSafeCopyReady, listRedactionStates } from './redaction';
 import { referenceCodesFor } from './reference-codes';
@@ -98,9 +99,15 @@ interface EligibleDocument {
   readonly versionId: string;
 }
 
-/** Safety results and processing states that end a version for good: never listed. */
+/** Safety results and processing states of a version that cannot be given: never listed. */
 const FAILED_SAFETY: ReadonlySet<string> = new Set(['QUARANTINED', 'FAILED']);
-const FAILED_PROCESSING: ReadonlySet<string> = new Set(['QUARANTINED', 'FAILED', 'REJECTED']);
+// The states the reading screen groups as needing the person (document-reading-state.ts).
+const FAILED_PROCESSING: ReadonlySet<string> = new Set([
+  'QUARANTINED',
+  'NEEDS_ATTENTION',
+  'FAILED',
+  'REJECTED',
+]);
 
 function isListableVersion(version: {
   readonly safetyStatus: string;
@@ -112,32 +119,27 @@ function isListableVersion(version: {
 }
 
 /**
- * The documents among `documentIds` with any version queued for erasure (a job in any state: the
- * file is meant to go). One query on the jobs table by storage object, private to this module.
- */
-async function erasurePending(db: Db, documentIds: readonly string[]): Promise<Set<string>> {
-  if (documentIds.length === 0) return new Set();
-  const rows = await db
-    .selectDistinct({ documentId: schema.documentVersions.documentId })
-    .from(schema.documentVersions)
-    .innerJoin(
-      schema.erasureJobs,
-      eq(schema.erasureJobs.storageObjectId, schema.documentVersions.storageObjectId),
-    )
-    .where(inArray(schema.documentVersions.documentId, [...documentIds]));
-  return new Set(rows.map((row) => row.documentId));
-}
-
-/**
- * Whether a ticked document is queued for erasure, for the AI gate: such a document is answered
- * as not chosen, never "try again later". Owner proof for the document's own record only.
+ * Whether a ticked document's file is leaving by erasure, for the AI gate: such a document is
+ * answered as not chosen, never "try again later". The document must be on the proof's own record;
+ * any other is refused (answered as leaving).
  */
 export async function aiFileErasurePending(
   proof: AuthorizedApplicant<'VIEW_METADATA'>,
   documentId: string,
 ): Promise<boolean> {
   if (!ownerProof(proof)) return true;
-  return (await erasurePending(proof.tx, [documentId])).has(documentId);
+  const own = await proof.tx
+    .select({ id: schema.documents.id })
+    .from(schema.documents)
+    .where(
+      and(
+        eq(schema.documents.id, documentId),
+        eq(schema.documents.applicantId, proof.applicant.id),
+      ),
+    )
+    .limit(1);
+  if (own.length === 0) return true;
+  return (await documentsLeavingByErasure(proof, [documentId])).has(documentId);
 }
 
 /**
@@ -148,9 +150,10 @@ export async function aiFileErasurePending(
  */
 async function eligibleDocuments(
   db: Db,
-  applicantId: string,
+  proof: AuthorizedApplicant<'VIEW_METADATA'>,
   only?: readonly string[],
 ): Promise<EligibleDocument[]> {
+  const applicantId = proof.applicant.id;
   if (only !== undefined && only.length === 0) return [];
   const documents = await db
     .select({ id: schema.documents.id, docType: schema.documents.docType })
@@ -189,9 +192,10 @@ async function eligibleDocuments(
   for (const version of versions) {
     if (!latest.has(version.documentId)) latest.set(version.documentId, version);
   }
-  const erasing = await erasurePending(
-    db,
+  const erasing = await documentsLeavingByErasure(
+    proof,
     open.map((row) => row.id),
+    db,
   );
   const eligible: EligibleDocument[] = [];
   for (const row of open) {
@@ -217,7 +221,7 @@ export async function listAiFileCandidates(
   if (!ownerProof(proof)) return err(serviceError('forbidden', 'access denied'));
   const db = proof.tx;
   if (!(await aiFilesAvailable(db))) return ok({ available: false, documents: [] });
-  const eligible = await eligibleDocuments(db, proof.applicant.id);
+  const eligible = await eligibleDocuments(db, proof);
   if (eligible.length === 0) return ok({ available: true, documents: [] });
   const states = await listRedactionStates(
     proof,
@@ -377,7 +381,7 @@ export async function storeAiConnectionFiles(
     (
       await eligibleDocuments(
         db,
-        proof.applicant.id,
+        proof,
         wanted.map((file) => file.documentId),
       )
     ).map((row) => row.documentId),

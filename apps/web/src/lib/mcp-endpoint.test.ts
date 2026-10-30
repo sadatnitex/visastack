@@ -529,26 +529,29 @@ describe('the AI context address: files (S20)', () => {
 });
 
 describe('the AI context address: file settings built only for the file tool (S20 round 2)', () => {
-  it('lists tools and answers other tools with storage settings missing; the file tool refuses plainly', async () => {
-    const files = vi.fn(() => {
-      throw new Error('BLOB_SIGNING_SECRET is not configured');
-    });
-    const listed = await handleMcpPost(post(LIST), { ...deps(), files });
-    const body = (await listed.json()) as { result: { tools: { name: string }[] } };
-    expect(body.result.tools.map((t) => t.name)).toContain('get_document_file');
-    await handleMcpPost(post(callTool('list_cases')), { ...deps(), files });
-    expect(files).not.toHaveBeenCalled();
-    expect(mocks.run).toHaveBeenCalledTimes(1);
+  it('lists tools and answers other tools with storage settings missing; the file tool says not available', async () => {
+    vi.stubEnv('BLOB_SIGNING_SECRET', '');
+    try {
+      const { buildAiFileDeps } = await import('./mcp-endpoint');
+      expect(() => buildAiFileDeps({} as never)).toThrow(/BLOB_SIGNING_SECRET/);
+      const files = vi.fn((db: Parameters<typeof buildAiFileDeps>[0]) => buildAiFileDeps(db));
+      const listed = await handleMcpPost(post(LIST), { ...deps(), files });
+      const body = (await listed.json()) as { result: { tools: { name: string }[] } };
+      expect(body.result.tools.map((t) => t.name)).toContain('get_document_file');
+      await handleMcpPost(post(callTool('list_cases')), { ...deps(), files });
+      expect(files).not.toHaveBeenCalled();
 
-    const refused = await handleMcpPost(
-      post(callTool('get_document_file', { document_reference: 'D-7K2Q9M' })),
-      { ...deps(), files },
-    );
-    const text = await refused.text();
-    expect(files).toHaveBeenCalledTimes(1);
-    expect(text).toContain('could not prepare this');
-    expect(text).not.toContain('BLOB_SIGNING_SECRET');
-    expect(mocks.run).toHaveBeenCalledTimes(1);
+      await handleMcpPost(post(callTool('get_document_file', { document_reference: 'D-7K2Q9M' })), {
+        ...deps(),
+        files,
+      });
+      expect(files).toHaveBeenCalledTimes(1);
+      // The gate answers "not available" without files; a missing setting is not a server error.
+      expect(mocks.run.mock.calls[1]?.[3]).not.toHaveProperty('files');
+      expect(mocks.report).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('gives the larger limit by the tool definition’s kind, which only the file tool has', async () => {

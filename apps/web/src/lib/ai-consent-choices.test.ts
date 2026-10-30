@@ -262,4 +262,17 @@ describe('Original Files choices (S20)', () => {
       files: [{ documentId: A, variant: 'SAFE_COPY' }],
     });
   });
+
+  it('without scripts: reads the Original of a ticked box, and ignores a choice for an unticked one', () => {
+    expect(
+      browser.parseAiFileChoices(
+        form({
+          files_present: '1',
+          file: [A],
+          [`file_variant_${A}`]: 'ORIGINAL',
+          [`file_variant_${B}`]: 'ORIGINAL',
+        }),
+      ),
+    ).toEqual([{ documentId: A, variant: 'ORIGINAL' }]);
+  });
 });

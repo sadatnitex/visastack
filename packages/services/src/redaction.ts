@@ -119,6 +119,8 @@ export type SafeCopyRefusal =
 
 export interface SafeCopyError extends ServiceError {
   readonly refusal?: SafeCopyRefusal;
+  /** The reason its DENIED access record holds (S20: written again when a savepoint is undone). */
+  readonly auditReason?: string;
 }
 
 export interface RedactionDeps {
@@ -1601,8 +1603,6 @@ export async function produceSafeCopy(
   if (document.applicantId !== proof.applicant.id) {
     return err(serviceError('forbidden', 'access denied'));
   }
-  const limited = await withinLimit(proof, 'SAFE_COPY');
-  if (!limited.ok) return limited;
   const requested = { variant: 'redacted', disposition: options.disposition ?? 'download' };
   const refuse = async (
     reason: string,
@@ -1614,7 +1614,7 @@ export async function produceSafeCopy(
       metadata: requested,
       ...(options.purposes ? { purposes: options.purposes } : {}),
     });
-    return err(refusalError(refusal));
+    return err({ ...refusalError(refusal), auditReason: reason });
   };
 
   const db = proof.tx;
@@ -1627,6 +1627,9 @@ export async function produceSafeCopy(
   if (!marked || !isSafeCopyReady(state)) {
     return refuse(state === 'PREPARING' ? 'still_preparing' : 'not_prepared', 'not_prepared');
   }
+  // Counted only for a copy that is ready: a request for one that is not never uses the limit.
+  const limited = await withinLimit(proof, 'SAFE_COPY');
+  if (!limited.ok) return limited;
 
   const ids = marked.pages.flatMap((page) =>
     page.row.renderedStorageObjectId ? [page.row.renderedStorageObjectId] : [],

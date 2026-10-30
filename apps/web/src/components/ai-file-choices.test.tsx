@@ -95,19 +95,11 @@ describe('Original Files: what assistive technology hears (S20 round 2)', () => 
   const textOf = (html: string, id: string) =>
     html.match(new RegExp(`id="${id}"[^>]*>([^<]*)<`))?.[1] ?? '';
 
-  it('keeps the two ways closed until Share This File is ticked, and says why', () => {
+  it('without scripts keeps both ways open, so an Original can be chosen on a ticked box', () => {
     const html = render();
-    const safe = input(html, VISA, 'SAFE_COPY');
-    const original = input(html, VISA, 'ORIGINAL');
-    expect(safe).toContain('disabled');
-    expect(original).toContain('disabled');
-    const hint = describedBy(safe).find((id) => textOf(html, id).startsWith('Tick Share'));
-    expect(hint).toBeDefined();
-    expect(describedBy(original)).toContain(hint);
-    const ticked = render({ initial: [{ documentId: VISA, variant: 'SAFE_COPY' }] });
-    expect(input(ticked, VISA, 'SAFE_COPY')).not.toContain('disabled');
-    expect(input(ticked, VISA, 'ORIGINAL')).not.toContain('disabled');
-    expect(ticked.match(/Tick Share This File first/g)).toHaveLength(1);
+    expect(input(html, VISA, 'SAFE_COPY')).not.toContain('disabled');
+    expect(input(html, VISA, 'ORIGINAL')).not.toContain('disabled');
+    expect(html).not.toContain('Tick Share This File first');
   });
 
   it('links every control the switch turned off to the sentence that says so', () => {

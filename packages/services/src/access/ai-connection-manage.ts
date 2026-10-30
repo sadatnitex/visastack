@@ -433,9 +433,13 @@ export async function changeAiConnection(
         if (!(error instanceof FilesUndone)) throw error;
         files = error.result;
       }
+      // A refusal the person can act on comes first: never a sign-in check for a change that
+      // would still be refused after it.
+      if (!files.ok && files.error !== 'step_up_required')
+        return err({ code: 'not_owner' } as const);
       const checks = [
         ...(needsFullNumbers ? (['full_numbers'] as const) : []),
-        ...(!files.ok && files.error === 'step_up_required' ? (['original_files'] as const) : []),
+        ...(!files.ok ? (['original_files'] as const) : []),
       ];
       if (checks.length > 0) return err({ code: 'step_up_required', needs: checks } as const);
       if (!files.ok) return err({ code: 'not_owner' } as const);

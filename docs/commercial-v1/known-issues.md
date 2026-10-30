@@ -6493,3 +6493,14 @@ Merge with main after S18 (d62b880c), 30 Oct 2026:
   - originals without a recorded hash or size are never read;
   - disabled file controls are described by the off sentence, the two ways open only once a file is ticked, file errors mark each box, the not-ready note is linked from the box, and one sentence names both checks.
   - Break-to-red: saving only non-empty choices, ignoring the request binding, charging before readiness, and dropping the gate's erasure check each turned their test red, restored from cp backups.
+- **Review round 3 (30 Oct 2026).** 10 items fixed:
+  - a refused Safe Copy keeps its DENIED access record, written after the savepoint is undone;
+  - the hourly Safe Copy limit is counted only for a ready copy, for downloads and AI apps alike;
+  - a version still being read answers "not ready", and versions needing the person are not listed;
+  - erasure uses the product's own rule plus queued jobs (held or failed jobs without a deletion attempt leave the file in place), and the per-document check refuses another record's document;
+  - the two ways work without scripts;
+  - missing storage settings answer "not available" without a server error;
+  - actionable refusals come before a sign-in check;
+  - comments sit above their own functions.
+  - Break-to-red: dropping the outer DENIED record, listing NEEDS_ATTENTION, and counting before readiness each turned their test red, restored from cp backups.
+

@@ -398,3 +398,12 @@ Appended for S20. It records how the "Original documents (S20)" extension above 
 - **Change Access.** When Full Document Numbers and an Original are both new, one sentence names both, and nothing is changed until the check is passed.
 - **Screens.** Safe Copy and Original stay closed until Share This File is ticked, with a sentence saying so; every control the switch turned off is described by that sentence; on a file error each box is marked invalid and points at the message; the not-ready note is linked from the box too.
 - The migration's owner action has its own ID, **O8-S20**.
+
+### Review round 3 (30 Oct 2026)
+
+- **Safe Copy refusals.** `produceSafeCopy` now counts the owner's hourly Safe Copy limit only after its own readiness checks, so neither a person's download nor an AI app's request is charged for a copy that is not ready; the AI path's extra state read is gone. A Safe Copy refused after counting (for example a stored page drawing missing) rolls its savepoint back and its DENIED access record is written again in the call's own transaction with the same fields, so a Safe Copy and an Original leave the same trail. A latest version not yet servable (scanning, normalising, reading again) answers `file_not_ready`.
+- **What may be listed.** Versions whose reading needs the person (NEEDS_ATTENTION, FAILED, REJECTED, quarantined) are not listed. Erasure follows the product's own rule (`erasureInProgressOrBytesGone`, now also used by a gated `documentsLeavingByErasure` in `erasure.ts`), plus jobs still queued: a held or failed job without a deletion attempt leaves the file in place, exactly as every read path treats it. The erasure check for one document refuses a document of another record.
+- **Without scripts.** Safe Copy and Original are rendered open and are closed only once the page runs in the browser, while the box is unticked; the server ignores a choice for an unticked document, and the boxes are read again when the form is reset.
+- **The route.** Incomplete storage settings make the file tool answer "not available" (recorded by the gate), not a server error; other errors are still reported.
+- **Change Access.** A refusal the person can act on is returned before any sign-in check is asked for.
+

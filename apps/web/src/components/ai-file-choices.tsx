@@ -1,7 +1,7 @@
 'use client';
 
 import { AI_FEATURE_OFF_HINT } from '@visastack/core/ai-features';
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import {
   AI_FILE_FIELD,
   AI_FILE_PRESENT_FIELD,
@@ -60,10 +60,32 @@ export function AiFileChoices({
   const offId = `${id}-files-off`;
   const originalNoteId = `${id}-files-original`;
   const ticked = new Map(initial.map((file) => [file.documentId, file.variant] as const));
-  // Which boxes are ticked now: the two ways of giving a file open only for a ticked document.
+  // Which boxes are ticked now. The two ways of giving a file are closed for an unticked document
+  // only once the page is running in the browser: without scripts they stay open, and the server
+  // ignores a choice for a document whose box is not ticked.
   const [shared, setShared] = useState<ReadonlySet<string>>(
     () => new Set(initial.map((file) => file.documentId)),
   );
+  const [running, setRunning] = useState(false);
+  const groupRef = useRef<HTMLFieldSetElement>(null);
+  useEffect(() => {
+    setRunning(true);
+    const group = groupRef.current;
+    const form = group?.form;
+    if (!group || !form) return;
+    // When the form is reset after an answer, start again from the boxes as the form shows them.
+    const reseed = () =>
+      window.setTimeout(() => {
+        const ticked = Array.from(
+          group.querySelectorAll<HTMLInputElement>(`input[name="${AI_FILE_FIELD}"]`),
+        )
+          .filter((box) => box.checked)
+          .map((box) => box.value);
+        setShared(new Set(ticked));
+      }, 0);
+    form.addEventListener('reset', reseed);
+    return () => form.removeEventListener('reset', reseed);
+  }, []);
   const fileError = invalid?.field === 'file' ? invalid.messageId : undefined;
   const ids = (...parts: (string | false | undefined)[]) =>
     parts.filter((part): part is string => typeof part === 'string').join(' ') || undefined;
@@ -81,7 +103,7 @@ export function AiFileChoices({
     ...(invalid?.field === 'file' ? [invalid.messageId] : []),
   ].join(' ');
   return (
-    <fieldset className="fieldset ai-file-choices" aria-describedby={describedBy}>
+    <fieldset ref={groupRef} className="fieldset ai-file-choices" aria-describedby={describedBy}>
       <legend className="field-label">{AI_ORIGINAL_FILES_LABEL}</legend>
       <input type="hidden" name={AI_FILE_PRESENT_FIELD} value="1" />
       <p className="muted u-fs-075 u-m-0 ai-consent-warning" id={noteId}>
@@ -113,7 +135,7 @@ export function AiFileChoices({
               const originalOpen = available || was === 'ORIGINAL';
               const startsTicked = chosen !== undefined && boxOpen;
               const startsOriginal = chosen === 'ORIGINAL' && originalOpen;
-              const isShared = boxOpen && shared.has(document.documentId);
+              const isShared = boxOpen && (!running || shared.has(document.documentId));
               const name = document.referenceCode
                 ? `${document.kind} (${document.referenceCode})`
                 : document.kind;

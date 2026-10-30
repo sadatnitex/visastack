@@ -12,14 +12,18 @@ import { EACH_GRANT, requireAccess } from '../access/require-access';
 import { verifyStepUp } from '../access/step-up-proof';
 import { AI_FILE_RESPONSE_LIMIT_BYTES, type AiFileDeps } from '../access/with-ai-connection';
 import { provisionAccount } from '../accounts';
-import { listAiConnectionFiles, listAiFileCandidates } from '../ai-connection-files';
+import {
+  aiFileErasurePending,
+  listAiConnectionFiles,
+  listAiFileCandidates,
+} from '../ai-connection-files';
 import type { AiConnectionChoices, AiFileChoice } from '../ai-connection-scopes';
 import { createApplicant } from '../applicants';
 import { setConsent } from '../consent';
 import type { Db } from '../db';
 import { addDocumentVersion, registerDocument } from '../documents';
 import type { SafeCopyRendererPort } from '../preview-rendering';
-import { prepareSafeCopyPage, saveRedactionMasks } from '../redaction';
+import { prepareSafeCopyPage, produceSafeCopy, saveRedactionMasks } from '../redaction';
 import { referenceCodesFor } from '../reference-codes';
 import { issueStepUpAssurance } from '../step-up';
 import type { StoredBytes } from '../storage';
@@ -911,5 +915,169 @@ describe('S20 round 2', () => {
       .where(eq(schema.storageObjects.id, objectId));
     expect(await refused(token, visa.reference)).toBe(MESSAGES.failed);
     expect(reads).toEqual([]);
+  });
+});
+
+describe('S20 round 3', () => {
+  async function storageObjectOf(versionId: string) {
+    const [row] = await db
+      .select({ id: schema.documentVersions.storageObjectId })
+      .from(schema.documentVersions)
+      .where(eq(schema.documentVersions.id, versionId));
+    if (!row) throw new Error('version');
+    return row.id;
+  }
+  const safeCopyBucket = (ownerId: string) =>
+    db
+      .select()
+      .from(schema.rateLimitBuckets)
+      .where(
+        and(
+          eq(schema.rateLimitBuckets.subjectId, ownerId),
+          eq(schema.rateLimitBuckets.action, 'safe_copy'),
+        ),
+      );
+  const deniedAccess = (documentId: string) =>
+    db
+      .select()
+      .from(schema.auditEvents)
+      .where(
+        and(
+          eq(schema.auditEvents.eventType, 'DOCUMENT_ACCESS'),
+          eq(schema.auditEvents.resourceId, documentId),
+          eq(schema.auditEvents.action, 'DOWNLOAD_REDACTED'),
+          eq(schema.auditEvents.result, 'DENIED'),
+        ),
+      );
+
+  it('a Safe Copy refused after it was counted keeps its DENIED access record, and no count', async () => {
+    const { ownerId, applicantId } = await person('missing@example.com');
+    const visa = await document(ownerId, applicantId, 'VISA');
+    await prepareSafeCopy(ownerId, visa.documentId, visa.versionId);
+    const { token } = await connect(ownerId, applicantId, [{ documentId: visa.documentId }]);
+    // The stored page drawing is gone.
+    for (const key of [...objects.keys()]) if (key.startsWith('safe-copy-')) objects.delete(key);
+    expect(await refused(token, visa.reference)).toBe(MESSAGES.safeCopyNotReady);
+    const denied = await deniedAccess(visa.documentId);
+    expect(denied).toHaveLength(1);
+    expect(denied[0]?.reason).toBe('stored_page_missing');
+    expect(denied[0]?.metadata).toEqual({
+      variant: 'redacted',
+      disposition: 'ai_file',
+      purpose: 'ai_connection_safe_copy',
+    });
+    expect(await safeCopyBucket(ownerId)).toEqual([]);
+  });
+
+  it('answers "not ready" for a Safe Copy while its latest version is being read again', async () => {
+    const { ownerId, applicantId } = await person('reread-copy@example.com');
+    const visa = await document(ownerId, applicantId, 'VISA');
+    await prepareSafeCopy(ownerId, visa.documentId, visa.versionId);
+    const { token } = await connect(ownerId, applicantId, [{ documentId: visa.documentId }]);
+    for (const state of ['NORMALIZING', 'EXTRACTING'] as const) {
+      await db
+        .update(schema.documentVersions)
+        .set({ processingStatus: state })
+        .where(eq(schema.documentVersions.id, visa.versionId));
+      expect(await refused(token, visa.reference)).toBe(MESSAGES.fileNotReady);
+      expect(await lastDenial()).toBe('file_not_ready');
+    }
+  });
+
+  it('never lists a document whose reading needs the person', async () => {
+    const { ownerId, applicantId } = await person('attention@example.com');
+    const visa = await document(ownerId, applicantId, 'VISA');
+    for (const state of ['NEEDS_ATTENTION', 'FAILED', 'REJECTED'] as const) {
+      await db
+        .update(schema.documentVersions)
+        .set({ processingStatus: state })
+        .where(eq(schema.documentVersions.id, visa.versionId));
+      const listed = await listAiFileCandidates(
+        await gate(ownerId, 'VIEW_METADATA', { applicantId }),
+      );
+      expect(listed.ok && listed.value.documents, state).toEqual([]);
+    }
+  });
+
+  it('treats a held or failed erasure as the rest of the product does: the file is still there', async () => {
+    const { ownerId, applicantId } = await person('hold@example.com');
+    const visa = await document(ownerId, applicantId, 'VISA');
+    await prepareSafeCopy(ownerId, visa.documentId, visa.versionId);
+    const { token } = await connect(ownerId, applicantId, [{ documentId: visa.documentId }]);
+    const objectId = await storageObjectOf(visa.versionId);
+    const [job] = await db
+      .insert(schema.erasureJobs)
+      .values({
+        reason: 'RETENTION_PURGE',
+        bucket: 'CLEAN',
+        objectKey: visa.objectKey,
+        storageObjectId: objectId,
+        status: 'BLOCKED_BY_HOLD',
+      })
+      .returning({ id: schema.erasureJobs.id });
+    const proof = await gate(ownerId, 'VIEW_METADATA', { applicantId });
+    const listed = async () => {
+      const result = await listAiFileCandidates(proof);
+      return result.ok ? result.value.documents.map((d) => d.documentId) : null;
+    };
+    expect(await listed()).toEqual([visa.documentId]);
+    await given(token, visa.reference);
+    await db
+      .update(schema.erasureJobs)
+      .set({ status: 'FAILED' })
+      .where(eq(schema.erasureJobs.id, job?.id ?? ''));
+    expect(await listed()).toEqual([visa.documentId]);
+    // Once a deletion was attempted, the file is leaving, as everywhere else.
+    await db
+      .update(schema.erasureJobs)
+      .set({ deletionAttemptedAt: new Date() })
+      .where(eq(schema.erasureJobs.id, job?.id ?? ''));
+    expect(await listed()).toEqual([]);
+    expect(await refused(token, visa.reference)).toBe(MESSAGES.fileNotChosen);
+  });
+
+  it('a person’s own Safe Copy download is not counted when the copy is not ready', async () => {
+    const { ownerId, applicantId } = await person('download@example.com');
+    const visa = await document(ownerId, applicantId, 'VISA');
+    const proof = await requireAccess(
+      db,
+      accountPrincipal(ownerId),
+      'DOWNLOAD_REDACTED',
+      { documentId: visa.documentId },
+      { purpose: EACH_GRANT },
+    );
+    if (!isOk(proof)) throw new Error('proof');
+    const copy = await produceSafeCopy(proof.value, deps());
+    expect(!copy.ok && copy.error.refusal).toBe('not_prepared');
+    expect(await safeCopyBucket(ownerId)).toEqual([]);
+  });
+
+  it('asks about erasure only for a document on the proof’s own record', async () => {
+    const mine = await person('mine-erasure@example.com');
+    const theirs = await person('theirs-erasure@example.com');
+    const visa = await document(theirs.ownerId, theirs.applicantId, 'VISA');
+    const proof = await gate(mine.ownerId, 'VIEW_METADATA', { applicantId: mine.applicantId });
+    expect(await aiFileErasurePending(proof, visa.documentId)).toBe(true);
+    const own = await document(mine.ownerId, mine.applicantId, 'VISA');
+    expect(await aiFileErasurePending(proof, own.documentId)).toBe(false);
+  });
+
+  it('returns a refusal the person can act on before asking for a sign-in check', async () => {
+    const { ownerId, applicantId } = await person('order@example.com');
+    const { connectionId } = await connect(ownerId, applicantId, []);
+    const changed = await changeAiConnection(
+      await gate(ownerId, 'VIEW_METADATA', { applicantId }),
+      {
+        connectionId,
+        choices: {
+          ...BASE,
+          caseMode: 'ONE',
+          missionId: randomUUID(),
+          revealIdentifiers: true,
+          duration: 'keep',
+        },
+      },
+    );
+    expect(!changed.ok && changed.error.code).toBe('case_not_on_record');
   });
 });

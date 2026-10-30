@@ -75,8 +75,16 @@ const defaults: McpEndpointDeps = {
   admission: async (db, account) =>
     (await checkPilotAccess(db, { email: account.email, workosUserId: null })).allowed,
   now: () => new Date(),
-  files: (db) => ({ storage: createStorage(db), renderer: createSafeCopyRenderer() }),
+  files: buildAiFileDeps,
 };
+
+/**
+ * The private storage and the Safe Copy renderer for `get_document_file`, from this deployment's
+ * settings. Throws when the storage settings are incomplete.
+ */
+export function buildAiFileDeps(db: Db): AiFileDeps {
+  return { storage: createStorage(db), renderer: createSafeCopyRenderer() };
+}
 
 /** The most a request body may carry. Tool inputs are a few short fields. */
 export const MCP_MAX_REQUEST_BYTES = 64 * 1024;
@@ -244,8 +252,17 @@ function buildServer(
       async (input: unknown) => {
         let result: AiToolResult;
         try {
-          // Storage and the renderer exist only for the file tool, built when it is called.
-          const files = tool.kind === 'file' ? context.files() : undefined;
+          // Storage and the renderer exist only for the file tool, built when it is called. Building
+          // them only reads settings: incomplete settings mean files are not available here, which
+          // the tool answers plainly and the gate records; they are not a server error.
+          let files: AiFileDeps | undefined;
+          if (tool.kind === 'file') {
+            try {
+              files = context.files();
+            } catch {
+              files = undefined;
+            }
+          }
           const outcome = await runAiTool(db, tool, input as never, {
             token: context.token,
             resource: context.resource,
