@@ -56,6 +56,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # The browser download and its system packages need little processor time, so they install
+      # while the app builds instead of after it. The step "Install Playwright Chromium" below
+      # waits for this and fails if it failed.
+      - name: Start installing Playwright Chromium
+        working-directory: apps/web
+        run: |
+          ( npx playwright install --with-deps chromium > "$RUNNER_TEMP/playwright-install.log" 2>&1
+            echo $? > "$RUNNER_TEMP/playwright-install.exit" ) &
+
       - name: Build the web app
         run: pnpm --filter @visastack/web build
 
@@ -86,8 +95,17 @@ jobs:
         run: SMOKE_BASE_URL=http://localhost:3100 node scripts/smoke.mjs
 
       - name: Install Playwright Chromium
-        working-directory: apps/web
-        run: npx playwright install --with-deps chromium
+        run: |
+          for i in $(seq 1 300); do
+            [ -f "$RUNNER_TEMP/playwright-install.exit" ] && break
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/playwright-install.log" || true
+          if [ ! -f "$RUNNER_TEMP/playwright-install.exit" ]; then
+            echo "The Playwright Chromium install did not finish within 5 minutes."
+            exit 1
+          fi
+          exit "$(cat "$RUNNER_TEMP/playwright-install.exit")"
 
       - name: Run the no-secret Playwright checks
         working-directory: apps/web
