@@ -699,6 +699,8 @@ export {
 export { isHttpUrl, safeHttpUrl } from './external-url';
 
 export {
+  CASE_TRAVEL_END_KEY,
+  CASE_TRAVEL_START_KEY,
   type EvaluationContext,
   type RuleCondition,
   type RuleConditionResult,
