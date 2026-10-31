@@ -34,10 +34,8 @@ const PENDING = '00000000-0000-4000-8000-0000000000a1';
 const ACTIVE = '00000000-0000-4000-8000-0000000000a2';
 const CLOSED = '00000000-0000-4000-8000-0000000000a3';
 
-const render = (withdrawal?: string) =>
-  renderServer(
-    AgencyPage({ searchParams: Promise.resolve(withdrawal === undefined ? {} : { withdrawal }) }),
-  );
+const render = (query: Record<string, string> = {}) =>
+  renderServer(AgencyPage({ searchParams: Promise.resolve(query) }));
 
 const withdrawForms = (html: string) =>
   [...html.matchAll(/name="organizationId" value="([^"]+)"/g)].map((match) => match[1]);
@@ -90,12 +88,22 @@ describe('Withdraw Application on the Agencies page', () => {
   });
 
   it('says what happened after a withdrawal, as a polite status', async () => {
-    mocks.listMembershipsForAccount.mockResolvedValue([]);
-    const done = await render('done');
+    mocks.listMembershipsForAccount.mockResolvedValue([
+      membership(CLOSED, 'CLOSED', 'OWNER', false),
+    ]);
+    const done = await render({ withdrawn: CLOSED });
     expect(done).toMatch(/<output class="lc-g3-withdrawal-status">Application withdrawn\./);
-    const refused = textOf(await render('refused'));
+    const refused = textOf(await render({ withdrawal: 'refused' }));
     expect(refused).toContain('This application could not be withdrawn.');
-    const unknown = await render('anything-else');
+    const unknown = await render({ withdrawal: 'anything-else' });
     expect(unknown).not.toContain('<output');
+  });
+
+  it('never claims a withdrawal the list does not confirm', async () => {
+    mocks.listMembershipsForAccount.mockResolvedValue([
+      membership(PENDING, 'PENDING_VERIFICATION'),
+    ]);
+    expect(await render({ withdrawn: PENDING })).not.toContain('Application withdrawn');
+    expect(await render({ withdrawn: CLOSED })).not.toContain('Application withdrawn');
   });
 });

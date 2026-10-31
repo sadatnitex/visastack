@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   }),
 }));
 vi.mock('@visastack/services', () => ({
+  isUuid: (value: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value),
   createOrganization: mocks.createOrganization,
   withdrawOrganizationApplication: mocks.withdrawOrganizationApplication,
 }));
@@ -37,7 +39,7 @@ describe('withdrawOrganizationApplicationAction', () => {
   it('asks the service as the signed-in account and reports success', async () => {
     mocks.withdrawOrganizationApplication.mockResolvedValue({ ok: true, value: { id: ORG } });
     await expect(withdrawOrganizationApplicationAction(form(ORG))).rejects.toThrow(
-      'REDIRECT /app/agency?withdrawal=done',
+      `REDIRECT /app/agency?withdrawn=${ORG}`,
     );
     expect(mocks.withdrawOrganizationApplication).toHaveBeenCalledWith(
       { tag: 'db' },

@@ -1,7 +1,8 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
+import { agencyAiAvailable } from '../../agency-ai-ready';
 import { appendAuditEvent } from '../../audit';
-import { type Db, first, schema } from '../../db';
+import { type Db, first, required, schema } from '../../db';
 import { type ServiceError, serviceError } from '../../errors';
 import { type Organization, endMembershipInTx } from '../../organizations';
 
@@ -24,7 +25,9 @@ import { type Organization, endMembershipInTx } from '../../organizations';
  *
  * Race safety: the organization row is locked first, so a concurrent withdrawal waits and then
  * sees CLOSED; `reviewOrganization` updates only a row still PENDING_VERIFICATION, so a review
- * that read the row before this commit cannot reopen it. Audit metadata holds counts only.
+ * that read the row before this commit cannot reopen it; `setMembershipActive` re-checks under a
+ * shared lock on the same row, so no member is switched back on afterwards. Audit metadata holds
+ * counts only.
  */
 export async function withdrawOrganizationApplication(
   db: Db,
@@ -61,24 +64,38 @@ export async function withdrawOrganizationApplication(
       );
     }
 
-    const now = new Date();
-    const closed = first(
+    // Every agency AI connection of this organization is locked before anything is audited, so
+    // this transaction keeps the documented order (connection rows first, the audit chain last)
+    // across the whole loop below, not only for its first member.
+    if (await agencyAiAvailable(tx)) {
       await tx
-        .update(schema.organizations)
-        .set({ status: 'CLOSED', updatedAt: now })
+        .select({ id: schema.aiConnections.id })
+        .from(schema.aiConnectionAgencies)
+        .innerJoin(
+          schema.aiConnections,
+          eq(schema.aiConnections.id, schema.aiConnectionAgencies.connectionId),
+        )
         .where(
           and(
-            eq(schema.organizations.id, input.organizationId),
-            eq(schema.organizations.status, 'PENDING_VERIFICATION'),
+            eq(schema.aiConnectionAgencies.organizationId, input.organizationId),
+            isNull(schema.aiConnections.revokedAt),
           ),
         )
-        .returning(),
-    );
-    if (!closed) {
-      return err(
-        serviceError('invalid', 'only an application waiting for review can be withdrawn'),
-      );
+        .for('update', { of: schema.aiConnections });
     }
+
+    // The row lock above makes the status check final: no other change can land in between.
+    const now = new Date();
+    const closed = required(
+      first(
+        await tx
+          .update(schema.organizations)
+          .set({ status: 'CLOSED', updatedAt: now })
+          .where(eq(schema.organizations.id, input.organizationId))
+          .returning(),
+      ),
+      'organization',
+    );
 
     const activeMemberships = await tx
       .select({

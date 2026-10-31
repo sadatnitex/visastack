@@ -19,12 +19,11 @@ const ORG_STATUS: Record<string, { label: string; tone: string }> = {
   CLOSED: { label: 'Closed', tone: 'badge-neutral' },
 };
 
-/** What the page says after a withdrawal, read from the address the action returns to. */
-const WITHDRAWAL_MESSAGES: Record<string, string> = {
-  done: 'Application withdrawn. It will not be reviewed. You can apply again at any time.',
-  refused:
-    'This application could not be withdrawn. It may already have been reviewed. Its current status is shown below.',
-};
+/** What the page says after a withdrawal. Success is shown only when the list confirms it. */
+const WITHDRAWN_MESSAGE =
+  'Application withdrawn. It will not be reviewed. You can apply again at any time.';
+const REFUSED_MESSAGE =
+  'This application could not be withdrawn. It may already have been reviewed. Its current status is shown below.';
 
 /** Only an active owner of an application still waiting for review is offered the withdrawal. */
 function mayWithdraw(m: OrgMembershipView): boolean {
@@ -34,14 +33,25 @@ function mayWithdraw(m: OrgMembershipView): boolean {
 export default async function AgencyPage({
   searchParams,
 }: {
-  readonly searchParams?: Promise<{ readonly withdrawal?: string | string[] }>;
+  readonly searchParams?: Promise<{
+    readonly withdrawn?: string | string[];
+    readonly withdrawal?: string | string[];
+  }>;
 }) {
   const query = (await searchParams) ?? {};
-  const withdrawal = typeof query.withdrawal === 'string' ? query.withdrawal : undefined;
-  const withdrawalMessage = withdrawal ? WITHDRAWAL_MESSAGES[withdrawal] : undefined;
   const orgs = await withSession(async ({ db, accountId }) =>
     listMembershipsForAccount(db, accountId),
   );
+  // A link cannot claim a withdrawal that did not happen: the named agency must be in this
+  // person's own list and closed.
+  const withdrawnConfirmed =
+    typeof query.withdrawn === 'string' &&
+    orgs.some((m) => m.organization.id === query.withdrawn && m.organization.status === 'CLOSED');
+  const withdrawalMessage = withdrawnConfirmed
+    ? WITHDRAWN_MESSAGE
+    : query.withdrawal === 'refused'
+      ? REFUSED_MESSAGE
+      : undefined;
 
   return (
     <section className="section container">

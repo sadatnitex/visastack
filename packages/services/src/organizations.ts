@@ -208,7 +208,7 @@ export async function reviewOrganization(
   );
   if (!org) return err(serviceError('not_found', 'organization not found'));
   if (org.status !== 'PENDING_VERIFICATION') {
-    return err(serviceError('invalid', 'only a PENDING_VERIFICATION org can be reviewed'));
+    return err(serviceError('invalid', 'This application is no longer waiting for review.'));
   }
   if (await isMember(db, input.reviewerAccountId, input.organizationId)) {
     return err(serviceError('forbidden', 'an organization cannot verify itself'));
@@ -228,7 +228,7 @@ export async function reviewOrganization(
         .returning(),
     );
     if (!updated) {
-      return err(serviceError('invalid', 'only a PENDING_VERIFICATION org can be reviewed'));
+      return err(serviceError('invalid', 'This application is no longer waiting for review.'));
     }
     await appendAuditEvent(tx, {
       eventType: 'ORGANIZATION_REVIEWED',
@@ -484,6 +484,31 @@ export async function setMembershipActive(
   }
 
   return db.transaction(async (tx) => {
+    // Re-checked under a shared lock on the organization row: an owner withdrawing the
+    // application (which locks that row for update and ends every membership) either finishes
+    // first, and this sees the actor's membership ended and the organization CLOSED, or waits.
+    const lockedOrg = first(
+      await tx
+        .select({ status: schema.organizations.status })
+        .from(schema.organizations)
+        .where(eq(schema.organizations.id, input.organizationId))
+        .for('share'),
+    );
+    if (!lockedOrg) return err(serviceError('not_found', 'organization not found'));
+    const lockedActor = first(
+      await tx
+        .select({ role: schema.memberships.role, active: schema.memberships.active })
+        .from(schema.memberships)
+        .where(eq(schema.memberships.id, actorMembership.id))
+        .limit(1),
+    );
+    if (!lockedActor?.active || (lockedActor.role !== 'OWNER' && lockedActor.role !== 'ADMIN')) {
+      return err(serviceError('forbidden', 'only an org OWNER/ADMIN can change memberships'));
+    }
+    if (input.active && lockedOrg.status === 'CLOSED') {
+      return err(serviceError('invalid', 'a closed organization cannot take members back'));
+    }
+
     // Only a genuine false -> true transition consumes a new seat; a
     // redundant "activate an already-active member" call is a no-op that
     // must never be blocked by a full org.

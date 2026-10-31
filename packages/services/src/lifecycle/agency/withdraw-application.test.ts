@@ -13,6 +13,7 @@ import {
   isOrgAdmin,
   listAllOrganizations,
   reviewOrganization,
+  setMembershipActive,
   suspendOrganization,
   terminateOrganization,
 } from '../../organizations';
@@ -360,5 +361,60 @@ describe('withdrawOrganizationApplication', () => {
     expect(isOk(review)).toBe(false);
     expect(await statusOf(db, orgId)).toBe('CLOSED');
     expect(await auditOf(db, 'ORGANIZATION_REVIEWED')).toHaveLength(0);
+  });
+
+  it('an admin who passed the role check before the withdrawal cannot switch a member back on', async () => {
+    const orgId = await pendingOrg(db, ownerId);
+    const adminId = await account(db, 'admin@agency.example');
+    const memberId = await account(db, 'member@agency.example');
+    await addMembership(db, {
+      actorAccountId: ownerId,
+      organizationId: orgId,
+      accountId: adminId,
+      role: 'ADMIN',
+    });
+    const member = await addMembership(db, {
+      actorAccountId: ownerId,
+      organizationId: orgId,
+      accountId: memberId,
+      role: 'CASE_MANAGER',
+    });
+    if (!isOk(member)) throw new Error('expected membership');
+    await setMembershipActive(db, {
+      actorAccountId: adminId,
+      organizationId: orgId,
+      membershipId: member.value.id,
+      active: false,
+    });
+    // The withdrawal commits between the admin's checks and the admin's write.
+    const racing = new Proxy(db, {
+      get(target, property, receiver) {
+        if (property === 'transaction') {
+          return async (run: Parameters<Db['transaction']>[0]) => {
+            const withdrawn = await withdrawOrganizationApplication(target, {
+              actorAccountId: ownerId,
+              organizationId: orgId,
+            });
+            expect(isOk(withdrawn)).toBe(true);
+            return target.transaction(run);
+          };
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const reactivated = await setMembershipActive(racing, {
+      actorAccountId: adminId,
+      organizationId: orgId,
+      membershipId: member.value.id,
+      active: true,
+    });
+    expect(isOk(reactivated)).toBe(false);
+    const active = await db
+      .select()
+      .from(schema.memberships)
+      .where(
+        and(eq(schema.memberships.organizationId, orgId), eq(schema.memberships.active, true)),
+      );
+    expect(active).toHaveLength(0);
   });
 });
