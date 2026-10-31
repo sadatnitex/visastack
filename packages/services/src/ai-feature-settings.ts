@@ -541,7 +541,14 @@ async function addOne(db: Db, subjectId: string, action: string, window: Date): 
 export async function chargeAiFeatureUse(
   db: Db,
   gate: AiFeatureGate,
-  options: { readonly now?: Date } = {},
+  options: {
+    readonly now?: Date;
+    /**
+     * Counted with no limit outside any transaction (Agency AI Tools, S22 round 5): report a
+     * limit saved meanwhile and now passed, once per subject and day.
+     */
+    readonly reportOverage?: boolean;
+  } = {},
 ): Promise<AiFeatureCharge | null> {
   if (gate.subject === null || !countedHere(gate.feature)) {
     return Object.freeze({ feature: gate.feature, counted: false });
@@ -561,6 +568,15 @@ export async function chargeAiFeatureUse(
     })
     .returning({ count: bucket.count });
   if (rows.length === 0) return null;
+  if (limit === null && options.reportOverage === true) {
+    // Counted with no limit: a limit saved while the call started may now be passed; reported
+    // once per subject and day, never failing the count it follows.
+    try {
+      await reportOverageOnce(db, gate.feature, gate.subject.id, rows[0]?.count ?? 0, window);
+    } catch (error) {
+      console.error(formatObservabilityLine(serverErrorEvent('aiFeatureOverage', error)));
+    }
+  }
   const charge: AiFeatureCharge = Object.freeze({ feature: gate.feature, counted: true });
   CHARGES.set(charge, {
     subjectId: gate.subject.id,
@@ -745,14 +761,29 @@ export async function countAiUseAfterCall(
   if (gate.subject === null || !countedHere(gate.feature)) return;
   const window = windowStart(now);
   const count = await addOne(db, gate.subject.id, usageAction(gate.feature), window);
-  const limit = await savedDailyLimit(db, gate.feature);
+  await reportOverageOnce(db, gate.feature, gate.subject.id, count, window);
+}
+
+/**
+ * When a count taken with no daily limit is past a limit the platform owner saved meanwhile,
+ * reports the overage at most once per subject, feature and day: a marker row in the same bucket
+ * table, written only by the first report.
+ */
+async function reportOverageOnce(
+  db: Db,
+  feature: AiFeatureKey,
+  subjectId: string,
+  count: number,
+  window: Date,
+): Promise<void> {
+  const limit = await savedDailyLimit(db, feature);
   if (limit === null || count <= limit) return;
   const bucket = schema.rateLimitBuckets;
   const first = await db
     .insert(bucket)
     .values({
-      subjectId: gate.subject.id,
-      action: `ai_feature_overage:${gate.feature}`,
+      subjectId,
+      action: `ai_feature_overage:${feature}`,
       windowStart: window,
       count: 1,
     })
@@ -764,7 +795,7 @@ export async function countAiUseAfterCall(
       serverErrorEvent(
         'aiFeatureOverage',
         new Error('answers were counted past a daily limit set while they ran'),
-        { feature: gate.feature },
+        { feature },
       ),
     ),
   );

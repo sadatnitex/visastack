@@ -154,6 +154,8 @@ export const AI_DENIAL_REASONS = [
   'agency_connection_expired',
   // The connection was turned off by an owner or admin of the agency (S22 round 4).
   'agency_turned_off',
+  // The member's account is no longer admitted (suspended or locked), seen inside the work (round 5).
+  'agency_account_not_admitted',
   // The member personally owns the traveller's record: never read through the agency.
   'agency_own_record',
   // An agency tool named no case: every agency read is through one case.

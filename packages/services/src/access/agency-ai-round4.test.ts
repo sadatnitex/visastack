@@ -198,6 +198,11 @@ describe('S22 round 4: standing changed during a call', () => {
       expect(said(outcome.result)).not.toContain(GIVEN);
       expect(await events('AI_CONTEXT_SERVED')).toHaveLength(0);
       expect(await todayCount(a.organizationId)).toBe(0);
+      // Round 5: recorded with its reason.
+      const denied = await events('AI_CONTEXT_DENIED');
+      expect(denied.map((e) => Reflect.get(Object(e.metadata), 'reason'))).toEqual([
+        'agency_account_not_admitted',
+      ]);
     } finally {
       ADMITTED.suspended = false;
     }
@@ -221,7 +226,10 @@ describe('S22 round 4: the last-used touch never waits', () => {
     // PGlite has one connection, so a lock held by another call cannot be staged here; the
     // statement itself is checked: the touch locks the row only if no one holds it, else skips.
     const touch = statements.find((q) => q.startsWith('update "ai_connections"'));
-    expect(touch).toContain('for update skip locked');
+    // Round 5 pins the clause: NO KEY UPDATE, which does not conflict with the KEY SHARE locks of
+    // rows pointing at the connection; FOR UPDATE would.
+    expect(touch).toContain('for no key update skip locked');
+    expect(touch).not.toMatch(/for update skip locked/);
     const [row] = await logged
       .select({ lastUsedAt: schema.aiConnections.lastUsedAt })
       .from(schema.aiConnections)

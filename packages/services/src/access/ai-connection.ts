@@ -678,7 +678,10 @@ export async function resolveAiAccessToken(
     if (stale) {
       // Never waits (S22 round 4): an agency call holds a shared lock on this row for its work,
       // so the touch updates the row only when it can be locked at once, and otherwise skips this
-      // time. Other calls on the same connection never queue behind a call in progress.
+      // time. Other calls on the same connection never queue behind a call in progress. The lock
+      // is NO KEY UPDATE (round 5), the one an update that leaves the key alone takes: it does
+      // not conflict with the KEY SHARE locks taken by rows that point at this connection (drafts,
+      // task origins, tokens, ticked files), so it never blocks or deadlocks those writes.
       const unlocked = db
         .select({ id: schema.aiConnections.id })
         .from(schema.aiConnections)
@@ -688,7 +691,7 @@ export async function resolveAiAccessToken(
             sql`(${schema.aiConnections.lastUsedAt} is null or ${schema.aiConnections.lastUsedAt} <= ${new Date(now.getTime() - LAST_USED_WRITE_GAP_MS).toISOString()}::timestamptz)`,
           ),
         )
-        .for('update', { skipLocked: true });
+        .for('no key update', { skipLocked: true });
       await db
         .update(schema.aiConnections)
         .set({ lastUsedAt: now })

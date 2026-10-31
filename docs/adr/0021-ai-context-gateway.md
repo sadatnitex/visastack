@@ -540,3 +540,9 @@ An agency connection is offered four read-only tools, and only these (`aiToolsFo
 - **True reason, and the account again.** The re-check inside the work checks the account's admission (the same rule as the first checks), then the member, the agency, billing and the setting, and only then the connection's own end; a connection turned off is recorded with the reason stored when it was (`agency_turned_off`, a new denial reason, or `agency_member_ended`).
 - **No queue on the last-used time.** The once-a-minute last-used write locks the row only if it is free (`FOR UPDATE SKIP LOCKED`) and otherwise skips that time, so calls on one connection never wait behind a call in progress. Ending connections still waits for a read in progress.
 - **Turn-off times only on live connections.** Ending connections marks only those not already past their own end or their 30 days; the others keep no turn-off time and get no record, so the ended list shows the true order.
+
+### S22 round 5 (31 Oct 2026, review of round 4)
+
+- **Last-used lock.** The touch takes `FOR NO KEY UPDATE SKIP LOCKED`, which does not conflict with the key-share locks that rows pointing at a connection take (drafts, task origins, tokens, ticked files).
+- **Re-check order.** Inside the work: the connection's own end first (turned off, with its stored reason, then past its end or 30 days), then the account's admission (read only, writing nothing), then member, agency, billing and setting. Every refusal there is recorded with a reason; an account no longer admitted is `agency_account_not_admitted` (a new denial reason).
+- **Counting with no limit.** With no daily limit, a count that cannot be written is reported (`aiAgencyToolsCount`) and the call goes ahead with nothing to give back; with a limit it still fails closed. A limit the platform owner saved while a call started with none is reported once per agency and day, with S28's overage marker (`aiFeatureOverage`).

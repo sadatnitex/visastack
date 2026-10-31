@@ -71,6 +71,7 @@ import {
   AGENCY_AI_REVOKED_ROLE_CHANGED,
 } from './agency-ai-connections';
 import {
+  AGENCY_AI_CONNECTION_MAX_MS,
   type AgencyAiMember,
   agencyAiCaseIdFor,
   checkAgencyAiStanding,
@@ -405,6 +406,8 @@ async function admitted(
   accountId: string,
   admission: AiAdmission,
   now: Date,
+  /** `read_only` (S22 round 5): the re-check inside an agency call's work writes nothing. */
+  mode: 'touch' | 'read_only' = 'touch',
 ): Promise<boolean> {
   const account = first(
     await tx
@@ -418,6 +421,7 @@ async function admitted(
       .limit(1),
   );
   if (!account || !(await admission(tx, { accountId, email: account.email }))) return false;
+  if (mode === 'read_only') return true;
   if (
     account.inactivityNoticeSentAt !== null ||
     now.getTime() - account.lastActiveAt.getTime() >= ACTIVITY_GAP_MS
@@ -1704,6 +1708,11 @@ type AgencyOpened =
   | { readonly kind: 'unauthorized'; readonly reason: AiDenialReason | null }
   | { readonly kind: 'agency_off'; readonly reason: AiDenialReason };
 
+/** The re-check inside the work (S22 round 5): every refusal has a reason, so each is recorded. */
+type AgencyRechecked =
+  | { readonly kind: 'open'; readonly member: AgencyAiMember }
+  | { readonly kind: 'unauthorized' | 'agency_off'; readonly reason: AiDenialReason };
+
 /**
  * An agency connection's standing for this call (S22): the member's account admitted, then the
  * member's live standing (`checkAgencyAiStanding`). A member who left or a connection past 30
@@ -1769,7 +1778,7 @@ async function recheckAgencyStanding(
   connection: ResolvedAiConnection,
   admission: AiAdmission,
   now: Date,
-): Promise<AgencyOpened> {
+): Promise<AgencyRechecked> {
   const row = first(
     await tx
       .select({
@@ -1786,12 +1795,22 @@ async function recheckAgencyStanding(
   if (!row || connection.kind !== 'AGENCY' || connection.organizationId === null) {
     return { kind: 'unauthorized', reason: 'agency_connection_expired' };
   }
-  // The account first, by the same rule as the first checks (round 4): suspended or locked stops.
-  if (!(await admitted(tx, connection.accountId, admission, now))) {
-    return { kind: 'unauthorized', reason: null };
+  // The connection's own end first (round 5): turned off, with the reason stored when it was
+  // (whoever turned it off, and whatever else changed with it), then past its end or 30 days.
+  if (row.revokedAt !== null) {
+    return { kind: 'unauthorized', reason: agencyRevokedReason(row.revokedReason) };
   }
-  // Then the member and the agency, before the connection's own end (round 4), so a member removed
-  // during the call is recorded as such even though their connection was ended with them.
+  if (
+    (row.expiresAt !== null && row.expiresAt.getTime() <= now.getTime()) ||
+    now.getTime() - row.createdAt.getTime() > AGENCY_AI_CONNECTION_MAX_MS
+  ) {
+    return { kind: 'unauthorized', reason: 'agency_connection_expired' };
+  }
+  // Then the account, by the same rule as the first checks but writing nothing (round 5).
+  if (!(await admitted(tx, connection.accountId, admission, now, 'read_only'))) {
+    return { kind: 'unauthorized', reason: 'agency_account_not_admitted' };
+  }
+  // Then the member, the agency, its billing and its setting.
   const standing = await checkAgencyAiStanding(tx, {
     connectionId: connection.connectionId,
     organizationId: connection.organizationId,
@@ -1799,19 +1818,12 @@ async function recheckAgencyStanding(
     connectionCreatedAt: row.createdAt,
     now,
   });
-  if (!standing.ok && standing.error !== 'agency_connection_expired') {
-    const reason = standing.error;
-    if (reason === 'agency_member_ended') return { kind: 'unauthorized', reason };
-    return { kind: 'agency_off', reason };
+  if (standing.ok) return { kind: 'open', member: standing.value };
+  const reason = standing.error;
+  if (reason === 'agency_member_ended' || reason === 'agency_connection_expired') {
+    return { kind: 'unauthorized', reason };
   }
-  // Turned off: the reason stored when it was, else plainly ended.
-  if (row.revokedAt !== null) {
-    return { kind: 'unauthorized', reason: agencyRevokedReason(row.revokedReason) };
-  }
-  if (!standing.ok || (row.expiresAt !== null && row.expiresAt.getTime() <= now.getTime())) {
-    return { kind: 'unauthorized', reason: 'agency_connection_expired' };
-  }
-  return { kind: 'open', member: standing.value };
+  return { kind: 'agency_off', reason };
 }
 
 /** The audit reason for an agency connection that was turned off, from the reason it stored. */
@@ -1955,10 +1967,17 @@ export async function withAgencyAiConnection<T>(
   const limited = access.dailyLimit !== null;
   let charge: AiFeatureCharge | null;
   try {
-    charge = await chargeAiFeatureUse(db, access, { now });
+    charge = await chargeAiFeatureUse(db, access, { now, reportOverage: true });
   } catch (error) {
-    await auditFailedCall(db, base, request.tool);
-    throw error;
+    // With a limit the count decides whether the call may run, so it fails closed. With none
+    // (round 5), as on a person's own connection, a count that cannot be written is reported once
+    // and the call goes ahead, with nothing to give back.
+    if (limited) {
+      await auditFailedCall(db, base, request.tool);
+      throw error;
+    }
+    console.error(formatObservabilityLine(serverErrorEvent('aiAgencyToolsCount', error)));
+    charge = null;
   }
   if (limited && !charge) {
     await db.transaction((tx) => auditDenied(tx, base, request.tool, 'access_limit', { now }));
@@ -1985,7 +2004,7 @@ export async function withAgencyAiConnection<T>(
       // First, the standing again, under a lock on the connection (S22 round 3).
       const again = await recheckAgencyStanding(tx, connection, request.admission, new Date());
       if (again.kind !== 'open') {
-        if (again.reason) await auditDenied(tx, base, request.tool, again.reason, { now });
+        await auditDenied(tx, base, request.tool, again.reason, { now });
         return {
           kind: 'refused',
           refusal:
