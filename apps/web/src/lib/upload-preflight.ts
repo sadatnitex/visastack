@@ -21,17 +21,29 @@ export function uploadLimitBytes(quota: { readonly maxUploadBytes: number }): nu
 /** The types stored as they are: the same list the upload form checks (upload-rules.ts). */
 const TYPES: ReadonlySet<string> = new Set(STORED_UPLOAD_TYPES);
 
-/** Admission to private quarantine, never an antivirus verdict. */
+/**
+ * Admission to private quarantine, never an antivirus verdict. PDFs are admitted with the built-in
+ * checks too (owner decision, ADR 0024): the scan record says their content is unverified until a
+ * real scanner is switched on. An unrecognized provider name is not a reason to admit.
+ */
 export function permitsPdfAdmission(provider: string | undefined): boolean {
-  return provider === 'clamav' || provider === 'github_clamav';
+  return (
+    provider === undefined ||
+    provider === '' ||
+    provider === 'builtin' ||
+    provider === 'clamav' ||
+    provider === 'github_clamav'
+  );
 }
 
 /**
- * Whether PDF files can be added in this deployment: only when a virus scanner that reads PDFs is
- * set up. The one place the upload form, the upload route and the upload action ask.
+ * Whether PDF files can be added in this deployment. `PDF_UPLOADS=off` is the owner's kill switch.
+ * The one place the upload form, the upload route and the upload action ask.
  */
 export function pdfUploadsAccepted(): boolean {
-  return permitsPdfAdmission(readEnv('MALWARE_SCANNER_PROVIDER'));
+  return (
+    readEnv('PDF_UPLOADS') !== 'off' && permitsPdfAdmission(readEnv('MALWARE_SCANNER_PROVIDER'))
+  );
 }
 
 export function validateUploadBytes(

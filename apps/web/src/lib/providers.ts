@@ -202,7 +202,9 @@ export function createMalwareScanner(blobStore: BlobStore): MalwareScannerPort {
       ...(maxAgeHoursRaw ? { maxSignatureAgeMs: Number(maxAgeHoursRaw) * 60 * 60 * 1000 } : {}),
     });
   }
-  return new BasicSafetyScanner({ blobStore });
+  // No antivirus yet (owner decision, ADR 0024): structural checks, and PDFs are admitted with the
+  // scan record saying their content is unverified. PDF_UPLOADS=off is the kill switch.
+  return new BasicSafetyScanner({ blobStore, allowPdf: readEnv('PDF_UPLOADS') !== 'off' });
 }
 
 /**

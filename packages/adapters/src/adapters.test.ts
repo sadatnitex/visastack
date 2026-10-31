@@ -229,6 +229,29 @@ describe('BasicSafetyScanner', () => {
     expect(benignResult.detail).toContain('cannot be established');
   });
 
+  it('admits a PDF only when the owner opted in, records that its content is unverified, and still refuses a spoofed one', async () => {
+    const open = new BasicSafetyScanner({ blobStore: storage, allowPdf: true });
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'opted-in-pdf',
+      contentType: 'application/pdf',
+      bytes: PDF,
+    });
+    await storage.putObject({
+      bucket: 'QUARANTINE',
+      objectKey: 'spoofed-pdf',
+      contentType: 'application/pdf',
+      bytes: new TextEncoder().encode('MZ-not-a-pdf'),
+    });
+    const admitted = await open.scan({ bucket: 'QUARANTINE', objectKey: 'opted-in-pdf' });
+    expect(admitted.safe).toBe(true);
+    expect(admitted.detail).toContain('content unverified');
+    expect((await open.scan({ bucket: 'QUARANTINE', objectKey: 'spoofed-pdf' })).safe).toBe(false);
+    expect((await scanner.scan({ bucket: 'QUARANTINE', objectKey: 'opted-in-pdf' })).safe).toBe(
+      false,
+    );
+  });
+
   it('rejects a shebang script even though it is otherwise plain text', async () => {
     await storage.putObject({
       bucket: 'QUARANTINE',

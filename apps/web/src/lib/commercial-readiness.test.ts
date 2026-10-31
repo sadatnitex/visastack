@@ -441,9 +441,28 @@ describe('owner deferrals', () => {
     ];
   }
 
-  it('allows exactly one deferrable gate: the external penetration test, under register H01', async () => {
+  it('allows exactly two deferrable gates: the external penetration test (H01) and the virus scanner (H20)', async () => {
     const { DEFERRABLE_GATES } = await import('./commercial-readiness');
-    expect([...DEFERRABLE_GATES]).toEqual([['externalPenetrationTest', 'H01']]);
+    expect([...DEFERRABLE_GATES]).toEqual([
+      ['externalPenetrationTest', 'H01'],
+      ['realMalwareScanner', 'H20'],
+    ]);
+  });
+
+  it('defers the virus scanner with exactly H20, and a wrong id or an unset variable does not count', async () => {
+    const { evaluateOperationalReadiness } = await import('./commercial-readiness');
+    const find = () =>
+      evaluateOperationalReadiness(input(true)).gates.find((g) => g.key === 'realMalwareScanner');
+    unsetEnv('MALWARE_SCANNER_PROVIDER');
+    unsetEnv(deferEnv('realMalwareScanner'));
+    expect(find()?.satisfied).toBe(false);
+    setEnv(deferEnv('realMalwareScanner'), 'H01');
+    expect(find()?.satisfied).toBe(false);
+    expect(find()?.deferral).toMatchObject({ status: 'not_deferred' });
+    setEnv(deferEnv('realMalwareScanner'), 'H20');
+    expect(find()?.satisfied).toBe(true);
+    expect(find()?.deferral).toMatchObject({ status: 'deferred' });
+    unsetEnv(deferEnv('realMalwareScanner'));
   });
 
   it('names the deferral variable after the gate key', async () => {
@@ -529,8 +548,8 @@ describe('owner deferrals', () => {
       const keys = [...new Set(baseline.map((g) => g.key))].filter(
         (key) => !DEFERRABLE_GATES.has(key),
       );
-      expect(keys.length).toBeGreaterThan(20);
-      for (const value of ['H01', 'true', ...keys]) {
+      expect(keys.length).toBeGreaterThan(19);
+      for (const value of ['H01', 'H20', 'true', ...keys]) {
         for (const key of keys) setEnv(deferEnv(key), value);
         const deferred = await everyGate(databaseReady);
         for (const key of keys) unsetEnv(deferEnv(key));

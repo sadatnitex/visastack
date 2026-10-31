@@ -18,7 +18,7 @@ import {
  * itself. The one exception is narrow and owner-only: a gate in
  * `DEFERRABLE_GATES` may be deferred under its named register entry (S27,
  * see `applyOwnerDeferral` below), and that allowlist holds the external
- * penetration test alone.
+ * penetration test and the virus scanner alone.
  *
  * Two kinds of gate:
  *  - LIVE: computed from real, current signals (env presence, configured
@@ -192,11 +192,12 @@ function attested(gateKey: AttestedGateKey): boolean {
 /**
  * The only gates an owner may defer, each with the register entry
  * (docs/roadmap/DEFERRED-COMMERCIAL-HARDENING.md) that records the decision. It holds the
- * external penetration test (H01) and nothing else; a guard test pins it and proves no
- * other gate can be deferred.
+ * external penetration test (H01) and the virus scanner (H20, owner decision of 31 Oct 2026,
+ * ADR 0024) and nothing else; a guard test pins it and proves no other gate can be deferred.
  */
 export const DEFERRABLE_GATES: ReadonlyMap<string, string> = new Map([
   ['externalPenetrationTest', 'H01'],
+  ['realMalwareScanner', 'H20'],
 ]);
 
 /** `externalPenetrationTest` -> `COMMERCIAL_READINESS_DEFER_EXTERNAL_PENETRATION_TEST`. */
