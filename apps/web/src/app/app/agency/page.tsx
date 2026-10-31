@@ -1,6 +1,7 @@
 import { type OrgMembershipView, listMembershipsForAccount } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import type { ReactElement } from 'react';
 import { EmptyState, PageHeader } from '../../../components/ui';
 import { humanizeCode } from '../../../lib/format-code';
 import { withSession } from '../../../lib/session';
@@ -30,14 +31,19 @@ function mayWithdraw(m: OrgMembershipView): boolean {
   return m.active && m.role === 'OWNER' && m.organization.status === 'PENDING_VERIFICATION';
 }
 
-export default async function AgencyPage({
-  searchParams,
-}: {
+interface AgencyPageProps {
   readonly searchParams?: Promise<{
     readonly withdrawn?: string | string[];
     readonly withdrawal?: string | string[];
   }>;
-}) {
+}
+
+// Two signatures: the route always passes props, while whole-page checks render it bare.
+export default async function AgencyPage(): Promise<ReactElement>;
+export default async function AgencyPage(props: AgencyPageProps): Promise<ReactElement>;
+export default async function AgencyPage({
+  searchParams,
+}: AgencyPageProps = {}): Promise<ReactElement> {
   const query = (await searchParams) ?? {};
   const orgs = await withSession(async ({ db, accountId }) =>
     listMembershipsForAccount(db, accountId),
