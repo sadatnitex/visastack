@@ -44,7 +44,15 @@ export type RefusalReason =
   | PaymentModeReason
   | AiFeatureReason
   | PaymentProviderReason
-  | PersonBillingReason;
+  | PersonBillingReason
+  | StorageLimitReason;
+
+/**
+ * Which storage limit of a record's owner refused an upload (ADR 0025 section 12.2), so the web
+ * layer can tell whether a paid plan would give more room without reading the message: the room
+ * for one person's record, or for the owner's whole account.
+ */
+export type StorageLimitReason = 'person_storage_limit' | 'account_storage_limit';
 
 /**
  * Why a traveller cannot buy or pay for a paid plan right now (ADR 0025): selling is switched off,

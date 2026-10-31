@@ -6,11 +6,16 @@
  * lets the form show how far each one has got and give each its own result.
  */
 
+import { type UpgradeLineKind, isUpgradeLineKind } from '../components/upgrade-line';
+
 export type UploadOutcome =
   /** The server added it; `title` is the name it is listed under. */
   | { readonly kind: 'added'; readonly message: string; readonly title: string | null }
-  /** The server answered no, with its reason. */
-  | { readonly kind: 'refused'; readonly message: string }
+  /**
+   * The server answered no, with its reason, and the line to add when a paid plan would give more
+   * room (ADR 0025 section 12.2).
+   */
+  | { readonly kind: 'refused'; readonly message: string; readonly upgrade?: UpgradeLineKind }
   /** No usable answer came back: the file may or may not have arrived. */
   | { readonly kind: 'unknown' };
 
@@ -81,12 +86,18 @@ export function readAnswer(status: number, body: string): UploadOutcome {
     return { kind: 'unknown' };
   }
   if (typeof parsed !== 'object' || parsed === null) return { kind: 'unknown' };
-  const { message, title } = parsed as { message?: unknown; title?: unknown };
+  const { message, title, upgrade } = parsed as {
+    message?: unknown;
+    title?: unknown;
+    upgrade?: unknown;
+  };
   if (typeof message !== 'string') return { kind: 'unknown' };
   if (status === 201) {
     return { kind: 'added', message, title: typeof title === 'string' ? title : null };
   }
-  if (status >= 400 && status < 500) return { kind: 'refused', message };
+  if (status >= 400 && status < 500) {
+    return { kind: 'refused', message, ...(isUpgradeLineKind(upgrade) ? { upgrade } : {}) };
+  }
   // A server error says nothing certain about whether the file was kept.
   return { kind: 'unknown' };
 }

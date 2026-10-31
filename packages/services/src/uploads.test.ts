@@ -782,6 +782,8 @@ describe('reserveUpload - storage limits belong to the record owner (ADR 0025)',
     expect(isErr(over) && over.error.message).toBe(
       "the record owner's account has reached its evidence limit",
     );
+    // Typed, so the web layer can tell which room ran short without reading the words.
+    expect(isErr(over) && over.error.reason).toBe('account_storage_limit');
     // The owner is told the number.
     const ownOver = await reserveUpload(
       db,
@@ -789,6 +791,8 @@ describe('reserveUpload - storage limits belong to the record owner (ADR 0025)',
       roomy,
     );
     expect(isErr(ownOver) && ownOver.error.message).toMatch(/this account has reached its 20 MB/);
+    expect(isErr(ownOver) && ownOver.error.code).toBe('invalid');
+    expect(isErr(ownOver) && ownOver.error.reason).toBe('account_storage_limit');
 
     // The contributor's own 18 MB never counts against the owner's record.
     const fits = await reserveUpload(
@@ -825,6 +829,8 @@ describe('reserveUpload - storage limits belong to the record owner (ADR 0025)',
       tightConfig,
     );
     expect(isErr(before) && before.error.message).toMatch(/this applicant has reached its 10 MB/);
+    expect(isErr(before) && before.error.code).toBe('invalid');
+    expect(isErr(before) && before.error.reason).toBe('person_storage_limit');
 
     const [plan] = await db
       .insert(schema.plans)

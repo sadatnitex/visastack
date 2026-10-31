@@ -48,6 +48,7 @@ import {
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
+import type { UpgradeLineKind } from '../../../../components/upgrade-line';
 import {
   resolveAiClassifier,
   resolveAiExtractor,
@@ -68,6 +69,7 @@ import {
   documentAddedLine,
   documentTypeSavedLine,
 } from '../../../../lib/success-lines';
+import { upgradeLineForRefusal } from '../../../../lib/upgrade-offer';
 import {
   pdfUploadsAccepted,
   prepareUploadBytes,
@@ -86,6 +88,8 @@ export interface ActionState {
   readonly field?: string;
   /** An added document's title ("Passport, Nazmus"), for an upload list to show. */
   readonly title?: string;
+  /** The plain line after a refusal a paid plan would help with (ADR 0025 section 12.2). */
+  readonly upgrade?: UpgradeLineKind;
 }
 
 /** Variable-keyed env read (satisfies both TS index-signature and Biome rules). */
@@ -195,7 +199,7 @@ export async function uploadDocumentAction(
 
   const declaredType = file.type || 'application/octet-stream';
 
-  const result = await withSession(async ({ db, accountId }) => {
+  const result = await withSession(async ({ db, accountId, self }) => {
     if (!(await assertOwned(db, accountId, applicantId))) {
       return { ok: false, message: 'Not authorized.' } satisfies ActionState;
     }
@@ -206,7 +210,12 @@ export async function uploadDocumentAction(
       quotaConfig,
     );
     if (!reservation.ok) {
-      return { ok: false, message: reservation.error.message } satisfies ActionState;
+      // The record's owner, for themselves (checked above): the line when a paid plan would help.
+      return {
+        ok: false,
+        message: reservation.error.message,
+        ...(await upgradeLineForRefusal(db, self, reservation.error)),
+      } satisfies ActionState;
     }
     let intent = reservation.value;
     // Opaque key only — never the applicant id, email, or filename (§10).
@@ -230,7 +239,7 @@ export async function uploadDocumentAction(
     // job must never delete the blob out from under it.
     const outcome = await (async (): Promise<
       | { ok: true; version: RegisteredDocumentWithVersion; convertedFrom: 'HEIC' | null }
-      | { ok: false; message: string }
+      | { ok: false; message: string; refusal?: ServiceError }
     > => {
       try {
         const sent = new Uint8Array(await file.arrayBuffer());
@@ -281,7 +290,7 @@ export async function uploadDocumentAction(
           if (!grown.ok) {
             const refusal = convertedCopyRefusal(grown.error, quotaConfig.maxUploadBytes);
             await failUpload(db, intent.id, refusal.reason);
-            return { ok: false, message: refusal.message };
+            return { ok: false, message: refusal.message, refusal: grown.error };
           }
           intent = grown.value;
         }
@@ -359,7 +368,13 @@ export async function uploadDocumentAction(
       }
     })();
 
-    if (!outcome.ok) return { ok: false, message: outcome.message } satisfies ActionState;
+    if (!outcome.ok) {
+      return {
+        ok: false,
+        message: outcome.message,
+        ...(outcome.refusal ? await upgradeLineForRefusal(db, self, outcome.refusal) : {}),
+      } satisfies ActionState;
+    }
 
     // Processing runs off the request path (master directive §5 — DB-backed
     // low-volume jobs, not a synchronous in-request scan): the job row is the
@@ -543,7 +558,7 @@ export async function runAiExtractionAction(
   const applicantId = String(formData.get('applicantId') ?? '');
   const documentVersionId = String(formData.get('documentVersionId') ?? '');
 
-  const result = await withSession(async ({ db, accountId }) => {
+  const result = await withSession(async ({ db, accountId, self }) => {
     if (!(await assertOwned(db, accountId, applicantId))) {
       return { ok: false, message: 'Not authorized.' } satisfies ActionState;
     }
@@ -575,7 +590,13 @@ export async function runAiExtractionAction(
       killSwitchCheck: () => isAiDispatchAllowed(db),
       ...(resolved.fallback ? { fallback: resolved.fallback } : {}),
     });
-    if (!run.ok) return { ok: false, message: readingRefusal(run.error) } satisfies ActionState;
+    if (!run.ok) {
+      return {
+        ok: false,
+        message: readingRefusal(run.error),
+        ...(await upgradeLineForRefusal(db, self, run.error, 'ai_document_reading')),
+      } satisfies ActionState;
+    }
     // Only after a reading that worked, so a failing provider is never asked twice against this
     // document's budget: the same reading also says what kind of document this is and suggests
     // a name (owner request 2026-10-25). Its own failure never hides the details read above.
@@ -662,7 +683,7 @@ export async function runOcrAction(_prev: ActionState, formData: FormData): Prom
   const applicantId = String(formData.get('applicantId') ?? '');
   const documentVersionId = String(formData.get('documentVersionId') ?? '');
 
-  const result = await withSession(async ({ db, accountId }) => {
+  const result = await withSession(async ({ db, accountId, self }) => {
     if (!(await assertOwned(db, accountId, applicantId))) {
       return { ok: false, message: 'Not authorized.' } satisfies ActionState;
     }
@@ -698,7 +719,13 @@ export async function runOcrAction(_prev: ActionState, formData: FormData): Prom
       killSwitchCheck: () => isAiDispatchAllowed(db),
       ...(resolved.fallback ? { fallback: resolved.fallback } : {}),
     });
-    if (!run.ok) return { ok: false, message: readingRefusal(run.error) } satisfies ActionState;
+    if (!run.ok) {
+      return {
+        ok: false,
+        message: readingRefusal(run.error),
+        ...(await upgradeLineForRefusal(db, self, run.error, 'ai_document_reading')),
+      } satisfies ActionState;
+    }
     const issueCount = run.value.ocrRun.reviewIssues?.length ?? 0;
     return {
       ok: true,
@@ -727,12 +754,20 @@ export async function runClassificationAction(
   const applicantId = String(formData.get('applicantId') ?? '');
   const documentVersionId = String(formData.get('documentVersionId') ?? '');
 
-  const result = await withSession(async ({ db, accountId }) => {
+  const result = await withSession(async ({ db, accountId, self }) => {
     const kind = await suggestKindWithAi(db, accountId, applicantId, documentVersionId);
     if (!kind) {
       return { ok: false, message: 'AI classification is not configured.' } satisfies ActionState;
     }
-    if (!kind.ok) return { ok: false, message: plainError(kind.error) } satisfies ActionState;
+    if (!kind.ok) {
+      // The access gate lets more than the owner ask; the line is for the owner alone.
+      const owner = await assertOwned(db, accountId, applicantId);
+      return {
+        ok: false,
+        message: plainError(kind.error),
+        ...(owner ? await upgradeLineForRefusal(db, self, kind.error, 'ai_document_kind') : {}),
+      } satisfies ActionState;
+    }
     return { ok: true, message: KIND_ANSWERS[kind.value.status] } satisfies ActionState;
   });
 
@@ -1136,7 +1171,7 @@ export async function runInconsistencyCheckAction(
   const applicantId = String(formData.get('applicantId') ?? '');
   const documentVersionId = String(formData.get('documentVersionId') ?? '');
 
-  const result = await withSession(async ({ db, accountId }) => {
+  const result = await withSession(async ({ db, accountId, self }) => {
     if (!(await assertOwned(db, accountId, applicantId))) {
       return { ok: false, message: 'Not authorized.' } satisfies ActionState;
     }
@@ -1167,7 +1202,13 @@ export async function runInconsistencyCheckAction(
       maxConcurrentCalls: resolved.limits.maxConcurrentCalls,
       killSwitchCheck: () => isAiDispatchAllowed(db),
     });
-    if (!run.ok) return { ok: false, message: run.error.message } satisfies ActionState;
+    if (!run.ok) {
+      return {
+        ok: false,
+        message: run.error.message,
+        ...(await upgradeLineForRefusal(db, self, run.error, 'ai_consistency_checks')),
+      } satisfies ActionState;
+    }
     return {
       ok: true,
       message:

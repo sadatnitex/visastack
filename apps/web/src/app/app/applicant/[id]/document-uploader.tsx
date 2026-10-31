@@ -3,6 +3,7 @@
 import { isOtherDocumentType } from '@visastack/core';
 import { useRouter } from 'next/navigation';
 import { type DragEvent, useCallback, useEffect, useId, useRef, useState } from 'react';
+import { UpgradeLine, type UpgradeLineKind } from '../../../../components/upgrade-line';
 import { type UploadOutcome, sendDocumentFile } from '../../../../lib/document-upload-client';
 import { formatFileSize } from '../../../../lib/format-size';
 import type { ChoiceGroup } from '../../../../lib/master-profile-types';
@@ -39,6 +40,8 @@ interface UploadItem {
   readonly message: string;
   /** The name the document is listed under, once added. */
   readonly title: string | null;
+  /** The line after a refusal a paid plan would help with (ADR 0025 section 12.2). */
+  readonly upgrade: UpgradeLineKind | null;
 }
 
 const ACTIVE: ReadonlySet<ItemStatus> = new Set(['waiting', 'sending', 'checking']);
@@ -85,7 +88,9 @@ function outcomeToItem(outcome: UploadOutcome): Partial<UploadItem> {
   if (outcome.kind === 'added') {
     return { status: 'added', message: outcome.message, title: outcome.title };
   }
-  if (outcome.kind === 'refused') return { status: 'refused', message: outcome.message };
+  if (outcome.kind === 'refused') {
+    return { status: 'refused', message: outcome.message, upgrade: outcome.upgrade ?? null };
+  }
   return { status: 'unknown', message: '' };
 }
 
@@ -154,6 +159,7 @@ export function DocumentUploader({
         subject,
         progress: 0,
         title: null,
+        upgrade: null,
       };
       if (index >= MAX_FILES_AT_ONCE) {
         return {
@@ -398,13 +404,26 @@ export function DocumentUploader({
                     </span>
                   ) : null}
                   {statusLine(item)}
+                  {item.status === 'refused' && item.upgrade ? (
+                    <>
+                      {' '}
+                      <UpgradeLine kind={item.upgrade} />
+                    </>
+                  ) : null}
                 </p>
                 {RETRYABLE.has(item.status) ? (
                   <button
                     type="button"
                     className="btn btn-secondary"
                     aria-label={`Try Again: ${item.name}`}
-                    onClick={() => update(item.id, { status: 'waiting', progress: 0, message: '' })}
+                    onClick={() =>
+                      update(item.id, {
+                        status: 'waiting',
+                        progress: 0,
+                        message: '',
+                        upgrade: null,
+                      })
+                    }
                   >
                     Try Again
                   </button>

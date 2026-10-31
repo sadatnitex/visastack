@@ -4,7 +4,7 @@ import { and, eq, gt, lt, sql } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access';
 import { type Db, first, required, schema } from './db';
 import { checkStorageEntitlement } from './entitlement-enforcement';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, refusal, serviceError } from './errors';
 import type { ObservabilityPort } from './ports';
 import {
   type UploadQuotaConfig,
@@ -124,8 +124,8 @@ async function checkQuotaTiers(
   const applicantCommitted = await getApplicantEvidenceBytes(tx, input.applicantId);
   if (applicantCommitted + applicantReserved + addedBytes > limits.personBytes) {
     return err(
-      serviceError(
-        'invalid',
+      refusal(
+        'person_storage_limit',
         `this applicant has reached its ${mbLabel(limits.personBytes)} evidence limit`,
       ),
     );
@@ -135,8 +135,8 @@ async function checkQuotaTiers(
   const accountCommitted = await getAccountEvidenceBytes(tx, owner.id);
   if (accountCommitted + accountReserved + addedBytes > limits.accountBytes) {
     return err(
-      serviceError(
-        'invalid',
+      refusal(
+        'account_storage_limit',
         isOwner
           ? `this account has reached its ${mbLabel(limits.accountBytes)} evidence limit`
           : "the record owner's account has reached its evidence limit",

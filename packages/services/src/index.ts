@@ -68,6 +68,7 @@ export {
   type RefusalReason,
   type ServiceError,
   type ServiceErrorCode,
+  type StorageLimitReason,
   refusal,
   serviceError,
 } from './errors';
@@ -1512,6 +1513,13 @@ export {
   type TravellerPlanSummary,
   travellerPlansEnabled,
 } from './traveller-plan';
+// ADR 0025 section 12.2: a paid plan offered at the moment of need, only when it would help.
+export {
+  type UpgradeContext,
+  type UpgradeShortfall,
+  upgradeHelps,
+  upgradeWouldHelp,
+} from './upgrade-offer';
 // ADR 0025 T3: a traveller buys and pays for their own paid plan (SelfScope from withSession).
 export {
   ALREADY_COVERED,

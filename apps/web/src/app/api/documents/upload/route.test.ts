@@ -43,6 +43,14 @@ describe('authenticated raw document upload', () => {
     expect((await POST(large)).status).toBe(413);
     expect(session).not.toHaveBeenCalled();
   });
+  it('passes the upgrade line on with a refusal only (ADR 0025)', async () => {
+    upload.mockResolvedValueOnce({ ok: false, message: 'Full.', upgrade: 'storage' });
+    const refused = await POST(request());
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toEqual({ message: 'Full.', upgrade: 'storage' });
+    upload.mockResolvedValueOnce({ ok: false, message: 'Full.' });
+    expect(await (await POST(request())).json()).toEqual({ message: 'Full.' });
+  });
   it('checks ownership before processing the body or invoking the upload action', async () => {
     applicant.mockResolvedValue({ ownerAccountId: 'other' });
     expect((await POST(request())).status).toBe(403);

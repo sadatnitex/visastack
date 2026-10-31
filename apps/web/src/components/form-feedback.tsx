@@ -1,6 +1,7 @@
 'use client';
 
 import { type CSSProperties, type ReactNode, type RefObject, useEffect } from 'react';
+import { UpgradeLine, type UpgradeLineKind } from './upgrade-line';
 
 /**
  * Shared pieces that make a form say what happened to everyone, not only to people
@@ -14,6 +15,11 @@ export interface FormResult {
   readonly ok: boolean;
   readonly message: string;
   readonly field?: string;
+  /**
+   * A refusal a paid plan would help with (ADR 0025 section 12.2): its one plain line, a link to
+   * Plan & Usage, is said after the refusal's own words. Set by the server only when it would help.
+   */
+  readonly upgrade?: UpgradeLineKind;
 }
 
 export const NO_RESULT: FormResult = { ok: true, message: '' };
@@ -115,6 +121,12 @@ export function FormMessage({
       </output>
       <p id={id} role="alert" className={`field-msg field-msg-err${hidden}`} style={style}>
         {failed && !working ? result.message : ''}
+        {failed && !working && result.upgrade ? (
+          <>
+            {' '}
+            <UpgradeLine kind={result.upgrade} />
+          </>
+        ) : null}
       </p>
     </>
   );
