@@ -183,6 +183,13 @@ describe("a person's own Billing History (ADR 0025 T5)", () => {
       receipts: [],
     });
     expect(await hasOwnBilling(db, self(alice))).toBe(true);
+    // A day later the unpaid purchase can no longer be paid, and says so (T4).
+    const later = await listOwnBilling(db, self(alice), { now: new Date(Date.now() + 2 * DAY_MS) });
+    if (!later.ok) throw new Error('history');
+    expect(later.value.find((p) => p.invoiceRef === older.invoiceRef)).toMatchObject({
+      status: 'cancelled',
+      statusLabel: 'Not Paid',
+    });
   });
 
   it('offers a refund for 7 days after paying, and not after (ADR 0025 D8)', async () => {

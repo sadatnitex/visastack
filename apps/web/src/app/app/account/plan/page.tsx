@@ -14,6 +14,7 @@ import {
   getOwnPurchase,
   getOwnRenewal,
   getTravellerPlanSummary,
+  hasOwnBilling,
   listApplicants,
   listTravellerPlansForSale,
   loadUploadQuotaConfig,
@@ -312,9 +313,11 @@ export default async function TravellerPlanPage({
         : null;
     // Renewing (T4): the person's current paid plan and its renewal, while selling is on.
     const renewal = selling ? await getOwnRenewal(db, self) : null;
-    return { summary, aiUsage, profiles, quota, limits, catalogue, purchase, renewal };
+    // Billing History (T5): linked once there is something of theirs to show, switch or not.
+    const billing = await hasOwnBilling(db, self);
+    return { summary, aiUsage, profiles, quota, limits, catalogue, purchase, renewal, billing };
   });
-  const { summary, aiUsage, profiles, quota, limits, catalogue, purchase, renewal } = data;
+  const { summary, aiUsage, profiles, quota, limits, catalogue, purchase, renewal, billing } = data;
   const now = new Date();
   // Inside the grace week after a paid period, renewing it is the next step, not a new purchase.
   const waitingPlan =
@@ -357,9 +360,16 @@ export default async function TravellerPlanPage({
         title={<>Plan &amp; Usage</>}
         description="Your plan, what it includes and how much of it you have used."
         actions={
-          <Link className="btn btn-secondary" href="/app/account">
-            Your Account
-          </Link>
+          <>
+            {billing ? (
+              <Link className="btn btn-secondary" href={`${PLAN_PATH}/billing`}>
+                Billing History
+              </Link>
+            ) : null}
+            <Link className="btn btn-secondary" href="/app/account">
+              Your Account
+            </Link>
+          </>
         }
       />
 

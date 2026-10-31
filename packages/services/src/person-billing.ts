@@ -45,7 +45,7 @@ export const RENEWAL_GRACE_DAYS = 7;
 const RENEWAL_GRACE_MS = RENEWAL_GRACE_DAYS * DAY_MS;
 
 /** The short code a person's invoices and receipts carry instead of a name (ADR 0025 D14). */
-function referenceCode(accountId: string, length = 8): string {
+export function referenceCode(accountId: string, length = 8): string {
   return accountId.replace(/-/g, '').slice(0, length).toUpperCase();
 }
 
@@ -238,6 +238,19 @@ export async function startPersonCheckout(
   });
 }
 
+/**
+ * Whether a person's invoice is still inside the time it can be paid in. A renewal (T4) is linked
+ * to the plan it renews: from when it is made until the grace week after the paid period ends. A
+ * purchase, for a day. Billing History says "Not Paid" for one past it.
+ */
+export function personInvoiceInTime(
+  invoice: { readonly subscriptionId: string | null; readonly periodStart: Date },
+  now: Date,
+): boolean {
+  const payableFor = invoice.subscriptionId !== null ? RENEWAL_GRACE_MS : REUSE_OPEN_INVOICE_MS;
+  return invoice.periodStart.getTime() > now.getTime() - payableFor;
+}
+
 /** Said when a purchase is too old to pay: its period would already be partly over. */
 export const PURCHASE_EXPIRED = 'This purchase has expired. Start it again on Plan & Usage.';
 
@@ -270,11 +283,8 @@ export async function payablePersonInvoice(
       .limit(1),
   );
   if (!invoice) return err(serviceError('not_found', 'invoice not found'));
-  // A renewal (T4) is linked to the plan it renews: payable from when it is made until the grace
-  // week after the paid period ends, while that plan is still theirs. A purchase, for a day.
   const renewal = invoice.subscriptionId !== null;
-  const payableFor = renewal ? RENEWAL_GRACE_MS : REUSE_OPEN_INVOICE_MS;
-  if (invoice.periodStart.getTime() <= input.now.getTime() - payableFor) {
+  if (!personInvoiceInTime(invoice, input.now)) {
     return err(refusal('purchase_expired', PURCHASE_EXPIRED));
   }
   if (invoice.subscriptionId !== null) {

@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   catalogue: vi.fn(),
   purchase: vi.fn(),
   renewal: vi.fn(),
+  billing: vi.fn(),
 }));
 
 vi.mock('../../../../lib/session', () => ({
@@ -29,6 +30,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   listTravellerPlansForSale: (...args: unknown[]) => mocks.catalogue(...args),
   getOwnPurchase: (...args: unknown[]) => mocks.purchase(...args),
   getOwnRenewal: (...args: unknown[]) => mocks.renewal(...args),
+  hasOwnBilling: (...args: unknown[]) => mocks.billing(...args),
 }));
 vi.mock('./plan-forms', async () => {
   const { stub } = await import('../../../../lib/next-mocks.test-support');
@@ -61,6 +63,7 @@ const feature = (overrides: Record<string, unknown>) => ({
 beforeEach(() => {
   navigationState.pathname = '/app/account/plan';
   mocks.renewal.mockResolvedValue(null);
+  mocks.billing.mockResolvedValue(false);
   mocks.summary.mockResolvedValue({
     plan: { key: 'traveller_free', name: 'Traveller Free' },
     // The plan's own rules, apart from whether each feature works right now.
@@ -217,6 +220,15 @@ describe('Plan & Usage for a traveller', () => {
     const text = textOf(await renderServer(Page({})));
     expect(text).toContain('Your Plan');
     expect(text).toContain('Nothing stored yet.');
+  });
+
+  it('links to Billing History once there is a purchase of theirs to show, and not before', async () => {
+    expect(await renderServer(Page({}))).not.toContain('href="/app/account/plan/billing"');
+    mocks.billing.mockResolvedValue(true);
+    const html = await renderServer(Page({}));
+    expect(html).toContain('href="/app/account/plan/billing"');
+    expect(textOf(html)).toContain('Billing History');
+    expect(mocks.billing.mock.calls[1]?.[1]).toEqual({ kind: 'self' });
   });
 
   it('passes the automated accessibility rules', async () => {

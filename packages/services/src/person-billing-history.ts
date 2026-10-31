@@ -14,6 +14,7 @@ import { invoiceHasRefundSql } from './billing-standing';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { isUuid, normalizeCurrency } from './invoice-ledger';
+import { personInvoiceInTime, referenceCode } from './person-billing';
 import { personInvoices, personPaymentReceipts } from './person-billing-tables';
 import { formatReceiptNumber } from './receipts';
 import { personBillingPresent } from './traveller-billing';
@@ -60,7 +61,7 @@ export interface OwnPurchaseView {
   readonly amountMinorUnits: number;
   readonly currency: string;
   readonly status: OwnPurchaseStatus;
-  /** Paid, Waiting for Payment, Cancelled, Refunded or Partly Refunded. */
+  /** Paid, Waiting for Payment, Not Paid, Cancelled, Refunded or Partly Refunded. */
   readonly statusLabel: string;
   readonly periodStart: Date;
   readonly periodEnd: Date;
@@ -77,16 +78,14 @@ export interface OwnPurchaseView {
   readonly receipts: readonly OwnReceiptView[];
 }
 
+/** A purchase or renewal left unpaid past the time it could be paid in. */
+const NOT_PAID = 'Not Paid';
+
 function statusOf(tone: BillingDocumentTone): OwnPurchaseStatus {
   if (tone === 'paid') return 'paid';
   if (tone === 'refunded') return 'refunded';
   if (tone === 'cancelled') return 'cancelled';
   return 'waiting';
-}
-
-/** The short code a person's documents carry instead of a name (ADR 0025 D14, owner decision 4). */
-function referenceCode(accountId: string): string {
-  return accountId.replace(/-/g, '').slice(0, 8).toUpperCase();
 }
 
 const refundedSql = () => sql<boolean>`${invoiceHasRefundSql(sql`${personInvoices.id}`)}`;
@@ -135,6 +134,7 @@ export async function listOwnBilling(
       collectedAmountMinorUnits: i.collectedAmountMinorUnits,
       currency: i.currency,
       status: i.status,
+      subscriptionId: i.subscriptionId,
       periodStart: i.periodStart,
       periodEnd: i.periodEnd,
       collectedDate: i.collectedDate,
@@ -194,7 +194,14 @@ export async function listOwnBilling(
         collectedAmountMinorUnits: row.collectedAmountMinorUnits,
         refunded,
       });
-      const status = statusOf(stamp.tone);
+      // An unpaid purchase past the time it could be paid in is not waiting any more (T4).
+      const lapsed =
+        stamp.tone !== 'paid' &&
+        stamp.tone !== 'refunded' &&
+        stamp.tone !== 'cancelled' &&
+        row.collectedAmountMinorUnits === 0 &&
+        !personInvoiceInTime(row, now);
+      const status = lapsed ? 'cancelled' : statusOf(stamp.tone);
       const money = ledger.filter((entry) => entry.invoiceId === row.id && entry.kind !== 'REFUND');
       const testPayment = money.length > 0 && money.every((entry) => entry.mode === 'TEST');
       const paidAt = status === 'paid' ? row.collectedDate : null;
@@ -211,7 +218,7 @@ export async function listOwnBilling(
         amountMinorUnits: row.amountMinorUnits,
         currency: normalizeCurrency(row.currency),
         status,
-        statusLabel: stamp.label,
+        statusLabel: lapsed ? NOT_PAID : stamp.label,
         periodStart: row.periodStart,
         periodEnd: row.periodEnd,
         paidAt,
