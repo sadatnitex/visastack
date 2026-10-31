@@ -11,7 +11,8 @@ import {
   aiEntitlementKey,
   isEntitlementKey,
 } from '@visastack/core/entitlements';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull, lte, sql } from 'drizzle-orm';
+import { invoiceNotRefundedSql } from './billing-standing';
 import { type Db, first, schema } from './db';
 import { type PlanAudience, entitlementsSchemaPresent, planColumns } from './plans-schema';
 
@@ -26,8 +27,11 @@ import { type PlanAudience, entitlementsSchemaPresent, planColumns } from './pla
  * 3. the agency's billing being Suspended (new work is paused);
  * 4. the plan's own limits. No plan at all means no limits, never zero (COM-02's rule).
  *
- * An agency is read with one joined query in the caller's transaction. A traveller has no
- * subscription yet: every traveller is on the traveller plan (`traveller_free`) as data. Before
+ * An agency is read with one joined query in the caller's transaction. A traveller is on a paid
+ * traveller plan only while a paid, unrefunded invoice for their current subscription covers now
+ * (ADR 0025): access follows money that has arrived, so no late or failed job can give more than
+ * was paid for, and a lapse or a refund takes effect here before any job runs. Otherwise every
+ * traveller is on the traveller plan (`traveller_free`) as data. Before
  * migration 0107 the limits come from the plan's old columns and the AI features from the
  * built-in FREE tier, which is exactly what 0107 copies into `plan_entitlements`.
  */
@@ -58,6 +62,17 @@ export interface ResolvedPlan {
 
 export type EntitlementGate = 'override' | 'bypass' | 'suspended' | 'plan';
 
+export interface TravellerStorageRules {
+  readonly accountBytes: number | null;
+  readonly personBytes: number | null;
+}
+
+/** The plan rule names for a traveller plan's storage (migration 0111). */
+export const TRAVELLER_STORAGE_KEYS = {
+  account: 'account_storage_bytes',
+  person: 'person_storage_bytes',
+} as const;
+
 export interface ResolvedEntitlements {
   readonly plan: ResolvedPlan | null;
   readonly billingStatus: 'TRIAL' | 'ACTIVE' | 'GRACE' | 'SUSPENDED' | 'CLOSED' | null;
@@ -79,8 +94,16 @@ export interface ResolvedEntitlements {
    */
   readonly agencyFeatures: Readonly<Partial<Record<AiFeatureKey, AiFeatureEntitlement>>> | null;
   readonly gate: EntitlementGate;
-  /** When the current billing period started (agencies with a plan only). */
+  /** When the current billing period started (agencies with a plan, and a traveller's paid period). */
   readonly periodStart: Date | null;
+  /** When a traveller's paid period ends (null on Traveller Free and for agencies). */
+  readonly periodEnd: Date | null;
+  /**
+   * A traveller plan's own storage rules (ADR 0025), in bytes: the whole account and each person
+   * kept. Null in either means the plan sets none, so the deployment's upload settings apply.
+   * Null for agencies.
+   */
+  readonly travellerStorage: TravellerStorageRules | null;
   /** Whether the rows came from `plan_entitlements` (after 0107) or the old plan columns. */
   readonly source: 'entitlements' | 'columns';
 }
@@ -288,7 +311,7 @@ export async function resolveEntitlements(
   const present = await entitlementsSchemaPresent(db);
   if ('organizationId' in subject)
     return resolveForOrganization(db, subject.organizationId, now, present);
-  return resolveForTraveller(db, now, present);
+  return resolveForTraveller(db, subject.accountId, now, present);
 }
 
 async function resolveForOrganization(
@@ -336,6 +359,8 @@ async function resolveForOrganization(
       agencyFeatures: agencyOnly(AI_PLAN_TIERS.FREE),
       gate,
       periodStart: null,
+      periodEnd: null,
+      travellerStorage: null,
       source: present ? 'entitlements' : 'columns',
     };
   }
@@ -355,45 +380,113 @@ async function resolveForOrganization(
     agencyFeatures: agencyOnly(rules ? rules.features : AI_PLAN_TIERS.FREE),
     gate,
     periodStart,
+    periodEnd: null,
+    travellerStorage: null,
     source: present ? 'entitlements' : 'columns',
+  };
+}
+
+/**
+ * The paid traveller plan covering `accountId` at `now`, if any (ADR 0025): the person's current
+ * subscription on a traveller plan, and a paid invoice of that subscription and plan, never
+ * refunded, whose period holds `now`. A retired plan still covers a period already paid for.
+ */
+async function coveringPaidPeriod(
+  db: Db,
+  accountId: string,
+  now: Date,
+): Promise<{ planId: string; periodStart: Date; periodEnd: Date } | undefined> {
+  const s = schema.subscriptions;
+  const i = schema.invoices;
+  const p = schema.plans;
+  return first(
+    await db
+      .select({ planId: s.planId, periodStart: i.periodStart, periodEnd: i.periodEnd })
+      .from(s)
+      .innerJoin(p, and(eq(p.id, s.planId), eq(p.audience, 'TRAVELLER')))
+      .innerJoin(
+        i,
+        and(
+          eq(i.subscriptionId, s.id),
+          eq(i.payerAccountId, accountId),
+          eq(i.planId, s.planId),
+          eq(i.status, 'PAID'),
+          lte(i.periodStart, now),
+          gt(i.periodEnd, now),
+          invoiceNotRefundedSql(sql`${i.id}`),
+        ),
+      )
+      .where(and(eq(s.payerAccountId, accountId), isNull(s.endedAt)))
+      .orderBy(desc(i.periodEnd))
+      .limit(1),
+  );
+}
+
+/** A traveller plan's storage rules from its rows; a rule that is not included allows nothing. */
+function travellerStorageOf(rows: readonly EntitlementRow[]): TravellerStorageRules {
+  const rule = (key: string): number | null => {
+    const row = rows.find((r) => r.key === key);
+    if (!row) return null;
+    return row.included ? limitOf(row.limit) : 0;
+  };
+  return {
+    accountBytes: rule(TRAVELLER_STORAGE_KEYS.account),
+    personBytes: rule(TRAVELLER_STORAGE_KEYS.person),
   };
 }
 
 async function resolveForTraveller(
   db: Db,
+  accountId: string | null,
   now: Date,
   present: boolean,
 ): Promise<ResolvedEntitlements> {
-  const row = first(
-    await db
+  const paid =
+    present && accountId !== null ? await coveringPaidPeriod(db, accountId, now) : undefined;
+  const select = () =>
+    db
       .select({
         plan: planColumns(),
         entitlements: entitlementRowsSql(present),
         prices: priceRowsSql(present),
       })
-      .from(schema.plans)
-      .where(eq(schema.plans.key, TRAVELLER_PLAN_KEY))
-      .limit(1),
-  );
+      .from(schema.plans);
+  // The paid plan's own row, or Traveller Free when nothing paid covers now (or the paid plan's
+  // row has gone, which a plan with subscriptions never does).
+  const row =
+    (paid ? first(await select().where(eq(schema.plans.id, paid.planId)).limit(1)) : undefined) ??
+    first(await select().where(eq(schema.plans.key, TRAVELLER_PLAN_KEY)).limit(1));
+  const covered = paid !== undefined && row?.plan.id === paid.planId;
   const base = {
     billingStatus: null,
     agencyFeatures: null,
     override: null,
     bypassLimits: false,
     gate: 'plan' as const,
-    periodStart: null,
+    periodStart: covered ? paid.periodStart : null,
+    periodEnd: covered ? paid.periodEnd : null,
     source: present ? ('entitlements' as const) : ('columns' as const),
   };
-  if (!row) return { ...base, plan: null, limits: NO_LIMITS, features: freeTier() };
+  if (!row) {
+    return { ...base, plan: null, limits: NO_LIMITS, features: freeTier(), travellerStorage: null };
+  }
   const plan = row.plan as PlanRow;
   const rules = present
     ? fromRows(plan, row.entitlements ?? [])
     : { limits: columnLimits(plan), features: freeTier() };
   return {
     ...base,
-    plan: resolvedPlan(plan, present ? (row.prices ?? []) : null, null, now),
+    plan: resolvedPlan(
+      plan,
+      present ? (row.prices ?? []) : null,
+      covered ? paid.periodStart : null,
+      now,
+    ),
     limits: rules.limits,
     features: rules.features,
+    travellerStorage: present
+      ? travellerStorageOf(row.entitlements ?? [])
+      : { accountBytes: null, personBytes: null },
   };
 }
 
