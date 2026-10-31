@@ -1,6 +1,6 @@
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { assignShards, loadShardWeights } from './vitest-shards';
+import BalancedShardSequencer, { assignShards, loadShardWeights } from './vitest-shards';
+import config from './vitest.config';
 
 const paths = Array.from(
   { length: 40 },
@@ -48,7 +48,6 @@ describe('balanced service test shards', () => {
     const list = loadShardWeights();
     expect(Object.keys(list).length).toBeGreaterThan(100);
     for (const value of Object.values(list)) expect(value).toBeGreaterThan(0);
-    const config = readFileSync(new URL('./vitest.config.ts', import.meta.url), 'utf8');
-    expect(config).toMatch(/sequencer: BalancedShardSequencer/);
+    expect(config.test?.sequence?.sequencer).toBe(BalancedShardSequencer);
   });
 });

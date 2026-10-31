@@ -6,13 +6,15 @@ import { BaseSequencer, type TestSpecification } from 'vitest/node';
  * Splits the service tests into CI shards by how long each file takes, not by file name.
  *
  * Vitest's own split gives every shard the same number of files, picked by a hash of the name. The
- * service files differ a lot in length, so on 31 Oct 2026 the six shards took between 101 and 270
- * seconds and every pull request waited for the slowest one. Here the files are handed out
- * longest first, each to the shard with the least work so far.
+ * service files differ a lot in length: with the timings measured on 31 Oct 2026 its six shards
+ * carried 264 to 519 seconds of work each, and every pull request waited for the slowest one. Here
+ * the files are handed out longest first, each to the shard with the least work so far (371 to 380
+ * seconds each with the same timings).
  *
  * Every file lands in exactly one shard, so nothing is ever skipped. A file missing from the
- * timing list (a new test) counts as an average file. A stale list only makes the shards less even;
- * it can never drop or repeat a test. Refresh the list with `node scripts/agent/shard-weights.mjs`.
+ * timing list (a new test) counts as the mean file, which leans heavy on purpose. A stale list only
+ * makes the shards less even; it can never drop or repeat a test. Refresh the list with
+ * `node scripts/agent/shard-weights.mjs` (see that script).
  */
 
 /** Milliseconds per test file, relative to this package (for example "src/audit.test.ts"). */
@@ -29,29 +31,24 @@ export function assignShards(
   count: number,
 ): string[][] {
   if (!Number.isInteger(count) || count < 1) throw new Error(`invalid shard count ${count}`);
-  const known = Object.values(weights)
-    .filter((value) => Number.isFinite(value) && value > 0)
-    .sort((a, b) => a - b);
-  const average = known.length > 0 ? (known[Math.floor(known.length / 2)] ?? 1) : 1;
-  const weightOf = (path: string) => {
-    const value = weights[path];
-    return value !== undefined && Number.isFinite(value) && value > 0 ? value : average;
-  };
+  const usable = (value: number | undefined): value is number =>
+    value !== undefined && Number.isFinite(value) && value > 0;
+  const known = Object.values(weights).filter(usable);
+  const mean = known.length > 0 ? known.reduce((sum, value) => sum + value, 0) / known.length : 1;
   const files = [...new Set(paths)]
-    .map((path) => ({ path, weight: weightOf(path) }))
+    .map((path) => {
+      const value = weights[path];
+      return { path, weight: usable(value) ? value : mean };
+    })
     .sort((a, b) => b.weight - a.weight || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
-  const shards = Array.from({ length: count }, () => ({ load: 0, paths: [] as string[] }));
+  const loads = new Array<number>(count).fill(0);
+  const shards = Array.from({ length: count }, () => [] as string[]);
   for (const file of files) {
-    let lightest = 0;
-    for (let i = 1; i < count; i += 1) {
-      if ((shards[i]?.load ?? 0) < (shards[lightest]?.load ?? 0)) lightest = i;
-    }
-    const target = shards[lightest];
-    if (!target) throw new Error('shard missing');
-    target.paths.push(file.path);
-    target.load += file.weight;
+    const lightest = loads.indexOf(Math.min(...loads));
+    loads[lightest] = (loads[lightest] ?? 0) + file.weight;
+    shards[lightest]?.push(file.path);
   }
-  return shards.map((shard) => shard.paths);
+  return shards;
 }
 
 export default class BalancedShardSequencer extends BaseSequencer {
@@ -59,11 +56,12 @@ export default class BalancedShardSequencer extends BaseSequencer {
     const { config } = this.ctx;
     const shard = config.shard;
     if (!shard) return files;
-    const pathOf = (spec: TestSpecification) =>
-      relative(config.root, spec.moduleId).split(sep).join('/');
-    const mine = new Set(
-      assignShards(files.map(pathOf), loadShardWeights(), shard.count)[shard.index - 1] ?? [],
+    const pathOf = new Map(
+      files.map((spec) => [spec, relative(config.root, spec.moduleId).split(sep).join('/')]),
     );
-    return files.filter((spec) => mine.has(pathOf(spec)));
+    const mine = new Set(
+      assignShards([...pathOf.values()], loadShardWeights(), shard.count)[shard.index - 1] ?? [],
+    );
+    return files.filter((spec) => mine.has(pathOf.get(spec) ?? ''));
   }
 }
