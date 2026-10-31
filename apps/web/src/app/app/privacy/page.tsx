@@ -1,8 +1,6 @@
 import type { ConsentType } from '@visastack/core';
 import { AI_DAY_BOUNDARY_NOTE } from '@visastack/core/ai-features';
 import {
-  type AiUsageToday,
-  getAiUsageToday,
   getDeletionImpactSummary,
   getPendingDeletion,
   listAccountExportJobsForAccount,
@@ -14,13 +12,10 @@ import Link from 'next/link';
 import { DepthScope, atLevel } from '../../../components/depth';
 import { DepthSwitch } from '../../../components/depth-switch';
 import { EmptyState, PageHeader } from '../../../components/ui';
-import { resolveAiExtractionAvailability } from '../../../lib/ai';
-import { aiConnectorEnabled } from '../../../lib/ai-connector';
+import { readAiUsage, usageBadge, usageLine } from '../../../lib/ai-usage';
 import { depthCopyFor } from '../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../lib/ccd/depth.server';
 import { consentName } from '../../../lib/labels';
-import { createKeyManagementPort } from '../../../lib/providers';
-import { reportServerError } from '../../../lib/server-error';
 import { withSession } from '../../../lib/session';
 import { DeletionPanel } from './deletion-panel';
 import { LargeExportPanel } from './large-export-panel';
@@ -37,45 +32,6 @@ const CONSENT_LABELS: Record<ConsentType, string> = {
   MARKETING: consentName('MARKETING'),
   ISSUER_CONTACT: consentName('ISSUER_CONTACT'),
 };
-
-/** "2 files today", "1 file today" or "3 of 10 checks today" (S28). */
-function usageLine(feature: AiUsageToday): string {
-  const noun = feature.used === 1 ? feature.unit.replace(/s$/, '') : feature.unit;
-  return feature.dailyLimit === null
-    ? `${feature.used} ${noun} today`
-    : `${feature.used} of ${feature.dailyLimit} ${feature.unit} today`;
-}
-
-/** The badge beside each AI feature: on, off, or today's limit used up. */
-function usageBadge(feature: AiUsageToday): { readonly label: string; readonly tone: string } {
-  if (feature.available) return { label: 'On', tone: 'badge-success' };
-  if (feature.reason === 'daily_limit') return { label: 'Limit Reached', tone: 'badge-warning' };
-  return { label: 'Off', tone: 'badge-neutral' };
-}
-
-/**
- * How much of each AI feature the person used today (S28). Never fails the page: if it cannot be
- * read the card is left out, and nothing else changes.
- */
-async function readAiUsage(
-  db: Parameters<typeof getAiUsageToday>[0],
-  accountId: string,
-): Promise<readonly AiUsageToday[] | null> {
-  try {
-    const model =
-      (await resolveAiExtractionAvailability(db, createKeyManagementPort() !== undefined)) ===
-      'available';
-    const usage = await getAiUsageToday(
-      db,
-      { accountId },
-      { platform: { model, connector: aiConnectorEnabled() } },
-    );
-    return usage.features;
-  } catch (error) {
-    reportServerError('aiUsageToday', error);
-    return null;
-  }
-}
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString(undefined, {

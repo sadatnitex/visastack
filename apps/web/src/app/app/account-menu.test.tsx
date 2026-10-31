@@ -106,7 +106,7 @@ describe('account menu structure', () => {
     expect(panel().querySelector('.account-menu-email')).toBeNull();
     expect(panel().querySelector('.account-menu-chip')).toBeNull();
     expect(panel().querySelector('.account-menu-plan a')?.getAttribute('href')).toBe(
-      '/app/account',
+      '/app/account/plan',
     );
   });
 

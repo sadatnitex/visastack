@@ -270,7 +270,7 @@ export function AccountMenu({
               <span className="account-menu-chip">{plan.name}</span>
             </p>
           ) : null}
-          <Link className="account-menu-plan-link" href={plan?.href ?? '/app/account'}>
+          <Link className="account-menu-plan-link" href={plan?.href ?? '/app/account/plan'}>
             View Plan
             <Icon name="chevron" size={16} />
           </Link>

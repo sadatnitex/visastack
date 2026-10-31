@@ -1495,6 +1495,11 @@ export {
   type WorkspaceSearchResult,
 } from './workspace-search';
 export { loadWorkspaceToolbarState, type WorkspaceToolbarState } from './workspace-toolbar';
+export {
+  getTravellerPlanSummary,
+  type TravellerPlanSummary,
+  type TravellerProfileStorage,
+} from './traveller-plan';
 
 export { type PlatformOverview, getPlatformOverview } from './platform-overview';
 

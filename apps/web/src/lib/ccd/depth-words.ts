@@ -79,6 +79,7 @@ export const DEPTH_WORDS = {
   'depth.account.nothingMore': 'nothing more on this screen',
   'depth.account.part.photo': 'your photo',
   'depth.account.part.language': 'language',
+  'depth.account.part.plan': 'your plan',
   'depth.account.part.privacy': 'privacy',
   'depth.account.part.whatsapp': 'WhatsApp',
   'depth.account.part.roles': 'the other areas you can open',
