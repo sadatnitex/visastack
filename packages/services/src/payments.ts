@@ -805,232 +805,306 @@ export async function startOnlinePayment(
     if (!invoice || !(await isOrgAdmin(db, input.actorAccountId, invoice.organizationId))) {
       return err(serviceError('not_found', 'invoice not found'));
     }
-    // The provider that takes this invoice's currency. When none does, the first configured one
-    // answers the test-mode question below, so the order of refusals is the one it always was
-    // (with a single provider, exactly the same); the currency refusal itself comes in the
-    // transaction, after the invoice's own state.
-    const chosen = payments.forCurrency(invoice.currency);
-    const gateMode = (chosen ?? fallback).mode;
-    if (gateMode === null) return err(serviceError('invalid', NOT_AVAILABLE));
-    const mode: PaymentMode = gateMode;
-    // A test payment marks a real invoice paid, so in test mode only the platform owner may start
-    // one (checked before anything is written or sent).
-    if (
-      mode === 'TEST' &&
-      !(await isPlatformOwner(db, {
-        accountId: input.actorAccountId,
-        email: input.actorEmail ?? '',
-        bootstrapEmails: input.bootstrapEmails ?? [],
-      }))
-    ) {
-      return err(refusal('test_mode_owner_only', TEST_PAYMENTS_ONLY));
-    }
-
-    // The person first, then the agency: once a person is refused they cannot spend the rest of
-    // the agency's allowance by trying again.
-    const limited = await checkRateLimits(
+    return await openInvoicePayment(
       db,
-      [
-        {
-          input: { subjectId: input.actorAccountId, action: 'payments.start', label: 'payment' },
-          config: RATE_LIMITS.PAYMENT_START,
-        },
-        {
-          input: {
-            subjectId: invoice.organizationId,
-            action: 'payments.start_org',
-            label: 'payment',
-          },
+      payments,
+      { id: invoice.id, currency: invoice.currency },
+      {
+        payerLimit: {
+          subjectId: invoice.organizationId,
+          action: 'payments.start_org',
           config: RATE_LIMITS.PAYMENT_START_ORG,
         },
-      ],
-      now,
-    );
-    if (!limited.allowed) return err(serviceError('rate_limited', limited.reason));
-
-    // The invoice row is locked while the balance, the recent-payment check and the new attempt
-    // are settled, so two clicks arriving together cannot both start a payment.
-    const attempts = schema.paymentAttempts;
-    const merchantTranId = newMerchantTranId();
-    const prepared = await db.transaction(
-      async (tx): Promise<Result<PreparedStart, ServiceError>> => {
-        const locked = first(
-          await tx
-            .select()
-            .from(schema.invoices)
-            .where(eq(schema.invoices.id, invoice.id))
-            .limit(1)
-            .for('update'),
-        );
-        if (!locked) return err(serviceError('not_found', 'invoice not found'));
-        if (locked.status === 'PAID') {
-          return err(serviceError('invalid', 'This invoice is already paid.'));
-        }
-        if (locked.status !== 'OPEN' && locked.status !== 'PARTIALLY_PAID') {
-          return err(serviceError('invalid', 'This invoice cannot be paid online.'));
-        }
-        // Read in the invoice's stored currency, under the lock: the provider must be the one
-        // chosen above (the same currency), or nothing starts.
-        const port = payments.forCurrency(locked.currency);
-        if (port === null || port !== chosen) {
-          return err(refusal('currency_not_offered', payments.currencyRefusal));
-        }
-        const amount = outstandingMinorUnits(
-          locked.invoicedAmountMinorUnits,
-          locked.collectedAmountMinorUnits,
-        );
-        if (amount <= 0) return err(serviceError('invalid', 'This invoice is already paid.'));
-        // Without the ledger no payment could be counted safely, so none is started.
-        if (!(await invoiceLedgerPresent(tx))) return err(serviceError('invalid', NOT_AVAILABLE));
-        // S18 (D2): a refunded invoice is never owed again, so it is never paid again either.
-        if (await invoiceHasRefund(tx, locked.id)) {
-          return err(serviceError('invalid', REFUNDED_INVOICE_MESSAGE));
-        }
-
-        // S19 step 0: a stranded payment (`isStrandedAttempt`) cannot be checked, so no other
-        // payment starts for this invoice, even on purpose.
-        const configuredProviders = payments.configured().map((port) => port.provider);
-        if (await hasStrandedAttempt(tx, locked.id, configuredProviders, now)) {
-          return err(refusal('provider_not_configured', PAYMENT_METHOD_OFF));
-        }
-
-        if (input.startAnother !== true) {
-          const earlier = await tx
-            .select(attemptColumns())
-            .from(attempts)
-            .where(
-              and(
-                eq(attempts.invoiceId, locked.id),
-                inArray(attempts.status, ['CREATED', 'REDIRECTED']),
-              ),
-            )
-            .orderBy(desc(attempts.createdAt))
-            .limit(5);
-          const recent = earlier.find((a) => isRecentAttempt(a, now));
-          if (recent) {
-            return ok({
-              kind: 'recent',
-              attemptId: recent.id,
-              startedAt: recent.redirectedAt ?? recent.createdAt,
-            });
-          }
-        }
-
-        const payer = first(
-          await tx
-            .select({ email: schema.accounts.email })
-            .from(schema.accounts)
-            .where(eq(schema.accounts.id, input.actorAccountId))
-            .limit(1),
-        );
-        const organization = first(
-          await tx
-            .select({ name: schema.organizations.name })
-            .from(schema.organizations)
-            .where(eq(schema.organizations.id, locked.organizationId))
-            .limit(1),
-        );
-        if (!payer || !organization) return err(serviceError('not_found', 'invoice not found'));
-
-        const row = required(
+        audit: { organizationId: invoice.organizationId },
+        customerName: async (tx) =>
           first(
             await tx
-              .insert(attempts)
-              .values({
-                invoiceId: locked.id,
-                organizationId: locked.organizationId,
-                provider: port.provider,
-                merchantTranId,
-                amountMinorUnits: amount,
-                currency: normalizeCurrency(locked.currency),
-                status: 'CREATED',
-                mode,
-                initiatedByAccountId: input.actorAccountId,
-              })
-              .returning(attemptColumns()),
+              .select({ name: schema.organizations.name })
+              .from(schema.organizations)
+              .where(eq(schema.organizations.id, invoice.organizationId))
+              .limit(1),
+          )?.name ?? null,
+        insertAttempt: async (tx, values) =>
+          required(
+            first(
+              await tx
+                .insert(schema.paymentAttempts)
+                .values({ ...values, organizationId: invoice.organizationId })
+                .returning(attemptColumns()),
+            ),
+            'payment attempt',
           ),
-          'payment attempt',
-        );
-        await appendAuditEvent(tx, {
-          eventType: 'PAYMENT_ATTEMPT_STARTED',
-          actorAccountId: input.actorAccountId,
-          action: 'MANAGE',
-          method: 'MANUAL',
-          result: 'ALLOWED',
-          resourceType: 'payment_attempt',
-          resourceId: row.id,
-          metadata: {
-            invoiceId: locked.id,
-            organizationId: locked.organizationId,
-            provider: port.provider,
-            amountMinorUnits: amount,
-            currency: normalizeCurrency(locked.currency),
-            mode,
-          },
-        });
-        return ok({
-          kind: 'created',
-          port,
-          attempt: row,
-          amount,
-          invoiceRef: locked.invoiceRef,
-          customer: { name: organization.name, email: payer.email },
-        });
       },
+      { ...input, now },
+      fallback,
     );
-    if (!prepared.ok) return prepared;
-    if (prepared.value.kind === 'recent') {
-      return ok({
-        kind: 'recent_attempt',
-        attemptId: prepared.value.attemptId,
-        startedAt: prepared.value.startedAt,
-      });
-    }
-    const { port, attempt: created, amount, invoiceRef, customer } = prepared.value;
-
-    let session: Awaited<ReturnType<PaymentPort['createCheckout']>>;
-    try {
-      session = await withTimeout(
-        port.createCheckout({
-          merchantTranId,
-          amountMinorUnits: amount,
-          currency: created.currency,
-          invoiceRef,
-          customer,
-          urls: {
-            success: input.urlFor('success', merchantTranId, port.provider),
-            fail: input.urlFor('fail', merchantTranId, port.provider),
-            cancel: input.urlFor('cancel', merchantTranId, port.provider),
-            ipn: input.urlFor('ipn', merchantTranId, port.provider),
-          },
-        }),
-        input.timeoutMs ?? START_TIMEOUT_MS,
-      );
-    } catch {
-      await db.transaction(async (tx) => {
-        await tx
-          .update(attempts)
-          .set({ status: 'FAILED', reasonCode: 'start_failed', updatedAt: now })
-          .where(and(eq(attempts.id, created.id), eq(attempts.status, 'CREATED')));
-        await auditAttemptMove(tx, created, 'FAILED', 'start', 'start_failed');
-      });
-      return err(serviceError('upstream_error', START_FAILED));
-    }
-
-    await db
-      .update(attempts)
-      .set({
-        status: 'REDIRECTED',
-        providerSessionKey: session.sessionKey,
-        redirectedAt: now,
-        updatedAt: now,
-      })
-      .where(and(eq(attempts.id, created.id), eq(attempts.status, 'CREATED')));
-    return ok({ kind: 'redirect', attemptId: created.id, redirectUrl: session.redirectUrl });
   } catch (error) {
     if (isMissingRelationError(error)) return err(serviceError('invalid', NOT_AVAILABLE));
     throw error;
   }
+}
+
+/** The columns of a new payment attempt that do not name its payer (ADR 0025). */
+export interface NewAttemptValues {
+  readonly invoiceId: string;
+  readonly provider: string;
+  readonly merchantTranId: string;
+  readonly amountMinorUnits: number;
+  readonly currency: string;
+  readonly status: 'CREATED';
+  readonly mode: PaymentMode;
+  readonly initiatedByAccountId: string;
+}
+
+/**
+ * Who pays an invoice online, for `openInvoicePayment` (ADR 0025): an agency or a person. The
+ * caller has already found the invoice and checked that this payer may pay it; this says how the
+ * payer is limited, named, recorded and audited.
+ */
+export interface InvoicePaymentPayer {
+  /** A second start allowance after the person's own (an agency's); none for a person. */
+  readonly payerLimit: {
+    readonly subjectId: string;
+    readonly action: string;
+    readonly config: (typeof RATE_LIMITS)[keyof typeof RATE_LIMITS];
+  } | null;
+  /** Ids added to the audit record of the start (never a name or an email). */
+  readonly audit: Readonly<Record<string, string>>;
+  /** The name the payment page shows, read under the invoice lock; null reads as not found. */
+  readonly customerName: (tx: Db) => Promise<string | null>;
+  /** Writes the attempt row with its payer. */
+  readonly insertAttempt: (tx: Db, values: NewAttemptValues) => Promise<PaymentAttempt>;
+}
+
+/**
+ * Opens an online payment for an invoice the caller has already found and authorized, for an agency
+ * (`startOnlinePayment`) or a person (`startPersonPayment`): the provider for its currency, the
+ * test-mode rule, the start allowances, then under the invoice lock its balance, a recent or
+ * stranded payment and the new attempt, then the payment page. The refusals come in that order,
+ * as they always have.
+ */
+export async function openInvoicePayment(
+  db: Db,
+  payments: PaymentPortResolver,
+  invoice: { readonly id: string; readonly currency: string },
+  payer: InvoicePaymentPayer,
+  input: StartOnlinePaymentInput & { readonly now: Date },
+  fallback: PaymentPort,
+): Promise<Result<StartedPayment, ServiceError>> {
+  const now = input.now;
+  // The provider that takes this invoice's currency. When none does, the first configured one
+  // answers the test-mode question below, so the order of refusals is the one it always was
+  // (with a single provider, exactly the same); the currency refusal itself comes in the
+  // transaction, after the invoice's own state.
+  const chosen = payments.forCurrency(invoice.currency);
+  const gateMode = (chosen ?? fallback).mode;
+  if (gateMode === null) return err(serviceError('invalid', NOT_AVAILABLE));
+  const mode: PaymentMode = gateMode;
+  // A test payment marks a real invoice paid, so in test mode only the platform owner may start
+  // one (checked before anything is written or sent).
+  if (
+    mode === 'TEST' &&
+    !(await isPlatformOwner(db, {
+      accountId: input.actorAccountId,
+      email: input.actorEmail ?? '',
+      bootstrapEmails: input.bootstrapEmails ?? [],
+    }))
+  ) {
+    return err(refusal('test_mode_owner_only', TEST_PAYMENTS_ONLY));
+  }
+
+  // The person first, then the agency: once a person is refused they cannot spend the rest of
+  // the agency's allowance by trying again.
+  const limited = await checkRateLimits(
+    db,
+    [
+      {
+        input: { subjectId: input.actorAccountId, action: 'payments.start', label: 'payment' },
+        config: RATE_LIMITS.PAYMENT_START,
+      },
+      ...(payer.payerLimit
+        ? [
+            {
+              input: {
+                subjectId: payer.payerLimit.subjectId,
+                action: payer.payerLimit.action,
+                label: 'payment',
+              },
+              config: payer.payerLimit.config,
+            },
+          ]
+        : []),
+    ],
+    now,
+  );
+  if (!limited.allowed) return err(serviceError('rate_limited', limited.reason));
+
+  // The invoice row is locked while the balance, the recent-payment check and the new attempt
+  // are settled, so two clicks arriving together cannot both start a payment.
+  const attempts = schema.paymentAttempts;
+  const merchantTranId = newMerchantTranId();
+  const prepared = await db.transaction(
+    async (tx): Promise<Result<PreparedStart, ServiceError>> => {
+      const locked = first(
+        await tx
+          .select()
+          .from(schema.invoices)
+          .where(eq(schema.invoices.id, invoice.id))
+          .limit(1)
+          .for('update'),
+      );
+      if (!locked) return err(serviceError('not_found', 'invoice not found'));
+      if (locked.status === 'PAID') {
+        return err(serviceError('invalid', 'This invoice is already paid.'));
+      }
+      if (locked.status !== 'OPEN' && locked.status !== 'PARTIALLY_PAID') {
+        return err(serviceError('invalid', 'This invoice cannot be paid online.'));
+      }
+      // Read in the invoice's stored currency, under the lock: the provider must be the one
+      // chosen above (the same currency), or nothing starts.
+      const port = payments.forCurrency(locked.currency);
+      if (port === null || port !== chosen) {
+        return err(refusal('currency_not_offered', payments.currencyRefusal));
+      }
+      const amount = outstandingMinorUnits(
+        locked.invoicedAmountMinorUnits,
+        locked.collectedAmountMinorUnits,
+      );
+      if (amount <= 0) return err(serviceError('invalid', 'This invoice is already paid.'));
+      // Without the ledger no payment could be counted safely, so none is started.
+      if (!(await invoiceLedgerPresent(tx))) return err(serviceError('invalid', NOT_AVAILABLE));
+      // S18 (D2): a refunded invoice is never owed again, so it is never paid again either.
+      if (await invoiceHasRefund(tx, locked.id)) {
+        return err(serviceError('invalid', REFUNDED_INVOICE_MESSAGE));
+      }
+
+      // S19 step 0: a stranded payment (`isStrandedAttempt`) cannot be checked, so no other
+      // payment starts for this invoice, even on purpose.
+      const configuredProviders = payments.configured().map((port) => port.provider);
+      if (await hasStrandedAttempt(tx, locked.id, configuredProviders, now)) {
+        return err(refusal('provider_not_configured', PAYMENT_METHOD_OFF));
+      }
+
+      if (input.startAnother !== true) {
+        const earlier = await tx
+          .select(attemptColumns())
+          .from(attempts)
+          .where(
+            and(
+              eq(attempts.invoiceId, locked.id),
+              inArray(attempts.status, ['CREATED', 'REDIRECTED']),
+            ),
+          )
+          .orderBy(desc(attempts.createdAt))
+          .limit(5);
+        const recent = earlier.find((a) => isRecentAttempt(a, now));
+        if (recent) {
+          return ok({
+            kind: 'recent',
+            attemptId: recent.id,
+            startedAt: recent.redirectedAt ?? recent.createdAt,
+          });
+        }
+      }
+
+      const actor = first(
+        await tx
+          .select({ email: schema.accounts.email })
+          .from(schema.accounts)
+          .where(eq(schema.accounts.id, input.actorAccountId))
+          .limit(1),
+      );
+      const customerName = await payer.customerName(tx);
+      if (!actor || customerName === null) {
+        return err(serviceError('not_found', 'invoice not found'));
+      }
+
+      const row = await payer.insertAttempt(tx, {
+        invoiceId: locked.id,
+        provider: port.provider,
+        merchantTranId,
+        amountMinorUnits: amount,
+        currency: normalizeCurrency(locked.currency),
+        status: 'CREATED',
+        mode,
+        initiatedByAccountId: input.actorAccountId,
+      });
+      await appendAuditEvent(tx, {
+        eventType: 'PAYMENT_ATTEMPT_STARTED',
+        actorAccountId: input.actorAccountId,
+        action: 'MANAGE',
+        method: 'MANUAL',
+        result: 'ALLOWED',
+        resourceType: 'payment_attempt',
+        resourceId: row.id,
+        metadata: {
+          invoiceId: locked.id,
+          ...payer.audit,
+          provider: port.provider,
+          amountMinorUnits: amount,
+          currency: normalizeCurrency(locked.currency),
+          mode,
+        },
+      });
+      return ok({
+        kind: 'created',
+        port,
+        attempt: row,
+        amount,
+        invoiceRef: locked.invoiceRef,
+        customer: { name: customerName, email: actor.email },
+      });
+    },
+  );
+  if (!prepared.ok) return prepared;
+  if (prepared.value.kind === 'recent') {
+    return ok({
+      kind: 'recent_attempt',
+      attemptId: prepared.value.attemptId,
+      startedAt: prepared.value.startedAt,
+    });
+  }
+  const { port, attempt: created, amount, invoiceRef, customer } = prepared.value;
+
+  let session: Awaited<ReturnType<PaymentPort['createCheckout']>>;
+  try {
+    session = await withTimeout(
+      port.createCheckout({
+        merchantTranId,
+        amountMinorUnits: amount,
+        currency: created.currency,
+        invoiceRef,
+        customer,
+        urls: {
+          success: input.urlFor('success', merchantTranId, port.provider),
+          fail: input.urlFor('fail', merchantTranId, port.provider),
+          cancel: input.urlFor('cancel', merchantTranId, port.provider),
+          ipn: input.urlFor('ipn', merchantTranId, port.provider),
+        },
+      }),
+      input.timeoutMs ?? START_TIMEOUT_MS,
+    );
+  } catch {
+    await db.transaction(async (tx) => {
+      await tx
+        .update(attempts)
+        .set({ status: 'FAILED', reasonCode: 'start_failed', updatedAt: now })
+        .where(and(eq(attempts.id, created.id), eq(attempts.status, 'CREATED')));
+      await auditAttemptMove(tx, created, 'FAILED', 'start', 'start_failed');
+    });
+    return err(serviceError('upstream_error', START_FAILED));
+  }
+
+  await db
+    .update(attempts)
+    .set({
+      status: 'REDIRECTED',
+      providerSessionKey: session.sessionKey,
+      redirectedAt: now,
+      updatedAt: now,
+    })
+    .where(and(eq(attempts.id, created.id), eq(attempts.status, 'CREATED')));
+  return ok({ kind: 'redirect', attemptId: created.id, redirectUrl: session.redirectUrl });
 }
 
 /**
