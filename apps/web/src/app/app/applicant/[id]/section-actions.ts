@@ -170,7 +170,8 @@ function markRefusal(code: string): string {
     return 'Turn on \u201cLet VisaStack Process My Details\u201d on Home first.';
   }
   if (code === 'not_found') return 'This detail is no longer here. Reload the page.';
-  if (code === 'encryption_unavailable') return 'Protected details cannot be changed right now.';
+  if (code === 'encryption_unavailable')
+    return 'Protected details cannot be changed right now. Try again in a few minutes.';
   if (code === 'invalid') return 'This detail cannot be marked. Reload the page and try again.';
   return 'This could not be saved. Try again.';
 }
@@ -182,7 +183,9 @@ export async function markNotCurrentAction(
 ): Promise<ActionState> {
   const applicantId = text(formData, 'applicantId');
   const factId = text(formData, 'factId');
-  if (factId === '') return { ok: false, message: 'Choose a detail first.' };
+  if (factId === '') {
+    return { ok: false, message: 'This detail could not be found. Reload the page and try again.' };
+  }
   const result = await withSession(async ({ db, accountId }) => {
     const gate = await requireAccess(
       db,
@@ -212,7 +215,7 @@ export async function markEndedAction(
   const repeatingRecordKey = text(formData, 'repeatingRecordKey');
   const endedText = text(formData, 'endedOn');
   if (recordGroupKey === '' || repeatingRecordKey === '') {
-    return { ok: false, message: 'Choose an entry first.' };
+    return { ok: false, message: 'This entry could not be found. Reload the page and try again.' };
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(endedText)) {
     return { ok: false, message: 'Enter the date it ended.', field: 'endedOn' };

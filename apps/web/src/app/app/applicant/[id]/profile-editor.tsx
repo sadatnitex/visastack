@@ -423,89 +423,129 @@ function isCurrentValue(current: ProfileValue | undefined): boolean {
   return Boolean(current.value || current.status);
 }
 
-/** "No Longer Current" for one saved value. Reversible by entering a new value. */
+/** Today as YYYY-MM-DD in the viewer's own time zone, the latest day an entry can have ended. */
+function localToday(): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+/**
+ * "No Longer Current" for one saved value, or the note once it is marked. It stays mounted across
+ * the change, so the result is still announced and focus moves to the detail's own input, ready
+ * for a new value. Reversible by entering a new value.
+ */
 function NotCurrentControl({
   applicantId,
   field,
-  factId,
+  current,
 }: {
   readonly applicantId: string;
   readonly field: EditorFieldDef;
-  readonly factId: string;
+  readonly current: ProfileValue;
 }) {
   const [state, formAction, pending] = useActionState(markNotCurrentAction, INITIAL);
   const messageId = useId();
+  useEffect(() => {
+    if (state.ok && state.message !== '') document.getElementById(`f-${field.key}`)?.focus();
+  }, [state, field.key]);
+  const marked = current.status === 'STALE' && !current.value;
   return (
-    <form action={formAction} className="profile-lifecycle-mark">
-      <input type="hidden" name="applicantId" value={applicantId} />
-      <input type="hidden" name="factId" value={factId} />
-      <SubmitButton
-        pending={pending}
-        idle="No Longer Current"
-        busy="Saving…"
-        className="btn btn-secondary btn-compact"
-        label={`No Longer Current: ${field.label}`}
-      />
+    <div className="profile-lifecycle-mark">
+      {marked ? (
+        <p className="muted u-fs-075-m0">
+          You marked this No Longer Current. Enter a new value above when you have one.
+        </p>
+      ) : (
+        <form action={formAction}>
+          <input type="hidden" name="applicantId" value={applicantId} />
+          <input type="hidden" name="factId" value={current.factId} />
+          <SubmitButton
+            pending={pending}
+            idle="No Longer Current"
+            busy="Saving…"
+            className="btn btn-secondary btn-compact"
+            label={`No Longer Current: ${field.label}`}
+          />
+        </form>
+      )}
       <FormMessage id={messageId} result={state} />
-    </form>
+    </div>
   );
 }
 
-/** "Ended" for one saved entry of a list, or the note that it ended. */
+/**
+ * "Ended" for one saved entry of a list, or the note that it ended. It stays mounted across the
+ * change, so the result is announced and focus moves to the note. `position` tells identical
+ * entries apart for a screen reader ("Address 2").
+ */
 function RecordEndState({
   applicantId,
   group,
   recordKey,
   endedOn,
+  position,
 }: {
   readonly applicantId: string;
   readonly group: EditorGroup;
   readonly recordKey: string;
   readonly endedOn: string | undefined;
+  readonly position: number;
 }) {
   const [state, formAction, pending] = useActionState(markEndedAction, INITIAL);
   const formRef = useRef<HTMLFormElement>(null);
+  const noteRef = useRef<HTMLDivElement>(null);
   const messageId = useId();
   const dateId = useId();
   useFocusInvalidField(formRef, state);
-  if (endedOn) {
-    return (
-      <div className="profile-record-ended">
-        <span className="badge badge-neutral">Ended</span>
-        <p className="muted u-fs-075-m0">
-          Ended on {formatDateOnly(endedOn)}. Its details stay on file. Save a change below to make
-          it current again.
-        </p>
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (state.ok && state.message !== '') noteRef.current?.focus();
+  }, [state]);
+  const name = `${group.label} ${position}`;
   return (
-    <details className="profile-record-end">
-      <summary className="muted">This {group.label} Ended</summary>
-      <form ref={formRef} action={formAction} className="field-control">
-        <input type="hidden" name="applicantId" value={applicantId} />
-        <input type="hidden" name="recordGroupKey" value={group.key} />
-        <input type="hidden" name="repeatingRecordKey" value={recordKey} />
-        <label className="field-label" htmlFor={dateId}>
-          Date It Ended
-        </label>
-        <input
-          id={dateId}
-          type="date"
-          name="endedOn"
-          className="input"
-          required
-          {...fieldProblem(state, 'endedOn', messageId)}
-        />
-        <SubmitButton
-          pending={pending}
-          idle="Mark as Ended"
-          busy="Saving…"
-          className="btn btn-secondary btn-compact"
-        />
-      </form>
+    <>
+      {endedOn ? (
+        <div ref={noteRef} tabIndex={-1} className="profile-record-ended">
+          <span className="badge badge-neutral">Ended</span>
+          <p className="muted u-fs-075-m0">
+            Ended on {formatDateOnly(endedOn)}. Its details stay on file. Save a change below to
+            make it current again.
+          </p>
+        </div>
+      ) : (
+        <details className="profile-record-end">
+          <summary className="muted">
+            This {group.label} Ended ({position})
+          </summary>
+          <form ref={formRef} action={formAction} className="field-control">
+            <input type="hidden" name="applicantId" value={applicantId} />
+            <input type="hidden" name="recordGroupKey" value={group.key} />
+            <input type="hidden" name="repeatingRecordKey" value={recordKey} />
+            <label className="field-label" htmlFor={dateId}>
+              Date It Ended
+            </label>
+            <input
+              id={dateId}
+              type="date"
+              name="endedOn"
+              className="input"
+              required
+              max={localToday()}
+              suppressHydrationWarning
+              {...fieldProblem(state, 'endedOn', messageId)}
+            />
+            <SubmitButton
+              pending={pending}
+              idle="Mark as Ended"
+              busy="Saving…"
+              className="btn btn-secondary btn-compact"
+              label={`Mark as Ended: ${name}`}
+            />
+          </form>
+        </details>
+      )}
       <FormMessage id={messageId} result={state} />
-    </details>
+    </>
   );
 }
 
@@ -548,7 +588,7 @@ function RepeatingGroup({ applicantId, group, repeatingValues, assurance }: Repe
         </p>
       ) : (
         <div className="profile-group-records">
-          {recordKeys.map((recordKey) => (
+          {recordKeys.map((recordKey, index) => (
             <div key={recordKey} className="field-list profile-group-record">
               {savedKeys.has(recordKey) ? (
                 <RecordEndState
@@ -556,6 +596,7 @@ function RepeatingGroup({ applicantId, group, repeatingValues, assurance }: Repe
                   group={group}
                   recordKey={recordKey}
                   endedOn={ended.get(recordKey)}
+                  position={index + 1}
                 />
               ) : null}
               {group.fields.map((field) => (
@@ -591,7 +632,7 @@ function matchesSearch(label: string, search: string): boolean {
 
 function displayValue(field: EditorFieldDef, current: ProfileValue | undefined): string {
   const value = current?.value;
-  if (!value && current?.status === 'STALE') return 'No longer current';
+  if (!value && current?.status === 'STALE') return 'No Longer Current';
   if (!value) {
     return current?.status && field.sensitivity !== 'STANDARD'
       ? 'Protected detail'
@@ -770,13 +811,8 @@ function SingleField({
       ) : (
         <p className="muted">{field.label}: marked as not applying to you.</p>
       )}
-      {applies && current && hasValue ? (
-        <NotCurrentControl applicantId={applicantId} field={field} factId={current.factId} />
-      ) : null}
-      {applies && current?.status === 'STALE' && !current.value ? (
-        <p className="muted u-fs-075-m0">
-          You said this is no longer current. Enter a new value above when you have one.
-        </p>
+      {applies && current && (hasValue || current.status === 'STALE') ? (
+        <NotCurrentControl applicantId={applicantId} field={field} current={current} />
       ) : null}
       {(hasValue && applies) || field.optional ? null : (
         <ExemptionToggle

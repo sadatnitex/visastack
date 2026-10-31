@@ -694,7 +694,7 @@ describe('No Longer Current and Ended (LC-G1)', () => {
   function notCurrentForms() {
     return [
       ...container.querySelectorAll<HTMLFormElement>(
-        '#section-identity_basics .profile-lifecycle-mark',
+        '#section-identity_basics .profile-lifecycle-mark form',
       ),
     ];
   }
@@ -714,9 +714,12 @@ describe('No Longer Current and Ended (LC-G1)', () => {
   it('shows a value marked no longer current as such, offers "does not apply" again, and no second mark', () => {
     render({ values: { [key]: { factId: 'f1', value: null, status: 'STALE' } } });
     const section = container.querySelector('#section-identity_basics');
-    expect(section?.textContent).toContain('No longer current');
-    expect(section?.textContent).toContain('No Longer Current');
-    expect(section?.textContent).toContain('Enter a new value above when you have one.');
+    expect(section?.querySelector('.profile-read-summary dd')?.textContent).toBe(
+      'No Longer Current',
+    );
+    expect(section?.textContent).toContain(
+      'You marked this No Longer Current. Enter a new value above when you have one.',
+    );
     expect(section?.textContent).not.toContain('Protected detail');
     expect(notCurrentForms()).toHaveLength(0);
     const exempt = [...(section?.querySelectorAll<HTMLFormElement>('.profile-exempt') ?? [])].map(
@@ -738,6 +741,11 @@ describe('No Longer Current and Ended (LC-G1)', () => {
     expect(data.get('repeatingRecordKey')).toBe('existing-record');
     const date = forms[0]?.querySelector<HTMLInputElement>('input[name="endedOn"]');
     expect(date?.type).toBe('date');
+    expect(date?.max).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    const button = forms[0]?.querySelector('button');
+    expect(button?.getAttribute('aria-label')).toBe(
+      'Mark as Ended: Historical / Additional Passport 1',
+    );
     expect(date?.id && forms[0]?.querySelector(`label[for="${date.id}"]`)?.textContent).toBe(
       'Date It Ended',
     );
