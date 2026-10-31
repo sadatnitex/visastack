@@ -35,7 +35,12 @@ import {
 } from '../../profile';
 import { resetProtectedFieldKeyCacheForTests } from '../../protected-fields';
 import { acceptGrant, createGrant } from '../../sharing';
-import { listEndedRecords, markFactNotCurrent, markRecordEnded } from './profile-lifecycle';
+import {
+  isAllowedEndDate,
+  listEndedRecords,
+  markFactNotCurrent,
+  markRecordEnded,
+} from './profile-lifecycle';
 
 async function freshDb(): Promise<Db> {
   const client = await createMigratedPglite();
@@ -418,7 +423,8 @@ describe('LC-G1 No Longer Current and Ended', () => {
         repeatingRecordKey: recordKey,
         endedOn: past,
       });
-      expect(isErr(wrong) && wrong.error.code).toBe('invalid');
+      // Answers exactly like an unknown entry: none of this record's details carry that key.
+      expect(isErr(wrong) && wrong.error.code).toBe('not_found');
     }
     const missing = await markRecordEnded(access, {
       recordGroupKey: groupKey,
@@ -486,30 +492,36 @@ describe('LC-G1 No Longer Current and Ended', () => {
 
     // A protected single value marked no longer current holds nothing to encrypt; a new value
     // entered afterwards is encrypted again.
-    const marked = await markFactNotCurrent(access, { factId: saved.fact.id });
-    expect(isOk(marked)).toBe(true);
-    await save(db, {
+    await registerFieldDefinition(db, {
+      key: 'passport_number',
+      dataType: 'string',
+      sensitivity: 'RESTRICTED',
+    });
+    const single = await save(db, {
       ...owner,
-      fieldKey: firstGroupField,
-      value: 'Y7654321',
-      repeatingRecordKey: recordKey,
+      fieldKey: 'passport_number',
+      value: 'P1111111',
       encryption,
     });
+    const marked = await markFactNotCurrent(access, { factId: single.fact.id });
+    expect(isOk(marked)).toBe(true);
+    await save(db, { ...owner, fieldKey: 'passport_number', value: 'P2222222', encryption });
     const latest = (
       await db
         .select()
         .from(schema.factVersions)
-        .where(eq(schema.factVersions.factId, saved.fact.id))
+        .where(eq(schema.factVersions.factId, single.fact.id))
         .orderBy(asc(schema.factVersions.createdAt))
     ).map((row) => [row.value === null, row.valueCiphertext === null, row.status]);
     expect(latest).toEqual([
       [true, false, 'APPLICANT_CONFIRMED'],
-      [true, false, 'APPLICANT_CONFIRMED'],
       [true, true, 'STALE'],
       [true, false, 'APPLICANT_CONFIRMED'],
     ]);
-    const [again] = await listApplicantProfile(db, owner.applicantId, encryption);
-    expect(again?.value).toBe('Y7654321');
+    const again = (await listApplicantProfile(db, owner.applicantId, encryption)).find(
+      (entry) => entry.fieldKey === 'passport_number',
+    );
+    expect(again?.value).toBe('P2222222');
   });
 
   it('behaves the same with the lifecycle tables missing and present (G1 reads none of them)', async () => {
@@ -540,5 +552,109 @@ describe('LC-G1 No Longer Current and Ended', () => {
       });
       expect(isOk(ended)).toBe(true);
     }
+  });
+
+  it('rolls every detail back when one detail of the entry cannot be read', async () => {
+    await db
+      .update(schema.fieldDefinitions)
+      .set({ sensitivity: 'RESTRICTED' })
+      .where(eq(schema.fieldDefinitions.key, secondGroupField));
+    const encryption = fakeKeyManagementPort();
+    const recordKey = randomUUID();
+    const a = await save(db, {
+      ...owner,
+      fieldKey: firstGroupField,
+      value: 'Old street',
+      repeatingRecordKey: recordKey,
+    });
+    const b = await save(db, {
+      ...owner,
+      fieldKey: secondGroupField,
+      value: 'X1234567',
+      repeatingRecordKey: recordKey,
+      encryption,
+    });
+    // Tamper with the protected detail so it can no longer be read back.
+    await db
+      .update(schema.factVersions)
+      .set({ valueNonce: Buffer.alloc(12, 1) })
+      .where(eq(schema.factVersions.id, b.version.id));
+    const access = await editAccess(db, owner.accountId, owner.applicantId);
+    const ended = await markRecordEnded(access, {
+      recordGroupKey: groupKey,
+      repeatingRecordKey: recordKey,
+      endedOn: new Date('2025-01-01'),
+      encryption,
+    });
+    expect(isErr(ended) && ended.error.code).toBe('invalid');
+    expect(await listFactHistory(db, a.fact.id)).toHaveLength(1);
+    expect(await listFactHistory(db, b.fact.id)).toHaveLength(1);
+    const audit = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'FACT_MARKED_NOT_CURRENT'));
+    expect(audit).toHaveLength(0);
+  });
+
+  it("ends only the record's own details, never another record's fact sharing the key", async () => {
+    const strayKey = MODULE_FIELDS.find(
+      (field) => field.group && field.group !== groupKey && !groupFieldKeys.includes(field.key),
+    )?.key;
+    if (!strayKey) throw new Error('no second repeating record in the catalogue');
+    await registerFieldDefinition(db, { key: strayKey, dataType: 'string', repeating: true });
+    const recordKey = randomUUID();
+    await save(db, {
+      ...owner,
+      fieldKey: firstGroupField,
+      value: 'A',
+      repeatingRecordKey: recordKey,
+    });
+    const stray = await save(db, {
+      ...owner,
+      fieldKey: strayKey,
+      value: 'B',
+      repeatingRecordKey: recordKey,
+    });
+    const access = await editAccess(db, owner.accountId, owner.applicantId);
+    const ended = await markRecordEnded(access, {
+      recordGroupKey: groupKey,
+      repeatingRecordKey: recordKey,
+      endedOn: new Date('2025-01-01'),
+    });
+    expect(isOk(ended) && ended.value.versionsWritten).toBe(1);
+    expect(await listFactHistory(db, stray.fact.id)).toHaveLength(1);
+  });
+
+  it('refuses No Longer Current on a detail of a list entry (an entry ends as a whole)', async () => {
+    const recordKey = randomUUID();
+    const saved = await save(db, {
+      ...owner,
+      fieldKey: firstGroupField,
+      value: 'A',
+      repeatingRecordKey: recordKey,
+    });
+    const access = await editAccess(db, owner.accountId, owner.applicantId);
+    const marked = await markFactNotCurrent(access, { factId: saved.fact.id });
+    expect(isErr(marked) && marked.error.code).toBe('invalid');
+    expect(await listFactHistory(db, saved.fact.id)).toHaveLength(1);
+  });
+
+  it("accepts today in the person's own time zone and refuses a later day", () => {
+    // 19:00 UTC on 31 Oct is already 1 Nov in Dhaka (UTC+6).
+    const now = new Date('2026-10-31T19:00:00.000Z');
+    expect(isAllowedEndDate(new Date('2026-11-01T00:00:00.000Z'), now)).toBe(true);
+    expect(isAllowedEndDate(new Date('2026-10-31T00:00:00.000Z'), now)).toBe(true);
+    expect(isAllowedEndDate(new Date('2026-11-03T00:00:00.000Z'), now)).toBe(false);
+    expect(isAllowedEndDate(new Date('not a date'), now)).toBe(false);
+  });
+
+  it('refuses a copied proof and reads nothing for one', async () => {
+    const saved = await save(db, { ...owner, fieldKey: 'nationality', value: 'Bangladeshi' });
+    const real = await editAccess(db, owner.accountId, owner.applicantId);
+    const copy = { ...real, actor: real.actor, applicant: real.applicant, tx: real.tx } as never;
+    const marked = await markFactNotCurrent(copy, { factId: saved.fact.id });
+    expect(isErr(marked) && marked.error.code).toBe('forbidden');
+    expect(await listFactHistory(db, saved.fact.id)).toHaveLength(1);
+    expect((await listEndedRecords(copy)).size).toBe(0);
   });
 });

@@ -194,6 +194,7 @@ export {
   type MarkFactNotCurrentResult,
   type MarkRecordEndedInput,
   type MarkRecordEndedResult,
+  isAllowedEndDate,
   listEndedRecords,
   markFactNotCurrent,
   markRecordEnded,

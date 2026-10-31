@@ -20,6 +20,7 @@ vi.mock('@visastack/services', () => ({
   editFact: mocks.editFact,
   registerFieldDefinition: mocks.registerFieldDefinition,
   accountPrincipal: (accountId: string) => ({ kind: 'account', accountId }),
+  isAllowedEndDate: (date: Date) => date.getTime() < Date.parse('2900-01-01'),
   requireAccess: mocks.requireAccess,
   markFactNotCurrent: mocks.markFactNotCurrent,
   markRecordEnded: mocks.markRecordEnded,
@@ -315,10 +316,6 @@ describe('No Longer Current and Ended (LC-G1)', () => {
     );
     expect(missing).toEqual({ ok: false, message: 'Enter the date it ended.', field: 'endedOn' });
     expect(mocks.requireAccess).not.toHaveBeenCalled();
-    mocks.markRecordEnded.mockResolvedValue({
-      ok: false,
-      error: { code: 'invalid', message: 'the end date cannot be in the future' },
-    });
     const future = await markEndedAction(
       initial,
       form({
@@ -333,5 +330,6 @@ describe('No Longer Current and Ended (LC-G1)', () => {
       message: 'The end date cannot be in the future.',
       field: 'endedOn',
     });
+    expect(mocks.markRecordEnded).not.toHaveBeenCalled();
   });
 });

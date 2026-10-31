@@ -7,6 +7,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -1348,7 +1349,7 @@ export function ProfileEditor({
       document.getElementById(`profile-tab-${target.key}`)?.focus();
     }
   }
-  const ended = new Map(Object.entries(endedRecords ?? {}));
+  const ended = useMemo(() => new Map(Object.entries(endedRecords ?? {})), [endedRecords]);
   return (
     <EndedRecordsContext.Provider value={ended}>
       <div ref={editor} id="profile-editor" tabIndex={-1}>

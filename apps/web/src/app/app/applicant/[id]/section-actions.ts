@@ -9,6 +9,7 @@ import {
 import {
   accountPrincipal,
   editFact,
+  isAllowedEndDate,
   listMissions,
   markFactNotCurrent,
   markRecordEnded,
@@ -170,6 +171,7 @@ function markRefusal(code: string): string {
   }
   if (code === 'not_found') return 'This detail is no longer here. Reload the page.';
   if (code === 'encryption_unavailable') return 'Protected details cannot be changed right now.';
+  if (code === 'invalid') return 'This detail cannot be marked. Reload the page and try again.';
   return 'This could not be saved. Try again.';
 }
 
@@ -219,6 +221,9 @@ export async function markEndedAction(
   if (Number.isNaN(endedOn.getTime())) {
     return { ok: false, message: 'Enter a valid date.', field: 'endedOn' };
   }
+  if (!isAllowedEndDate(endedOn)) {
+    return { ok: false, message: 'The end date cannot be in the future.', field: 'endedOn' };
+  }
   const result = await withSession(async ({ db, accountId }) => {
     const gate = await requireAccess(
       db,
@@ -236,12 +241,7 @@ export async function markEndedAction(
       ...(encryption ? { encryption } : {}),
     });
   });
-  if (!result.ok) {
-    if (result.error.code === 'invalid' && result.error.message.includes('future')) {
-      return { ok: false, message: 'The end date cannot be in the future.', field: 'endedOn' };
-    }
-    return { ok: false, message: markRefusal(result.error.code) };
-  }
+  if (!result.ok) return { ok: false, message: markRefusal(result.error.code) };
   refresh(applicantId);
   return { ok: true, message: 'Marked as ended. Its details stay on file.' };
 }
