@@ -251,4 +251,18 @@ describe('upgradeHelps (the decision Plan & Usage shares)', () => {
     expect(upgradeHelps({ ...base, covered: true }, { ...AI, limitNow: 15 })).toBe(false);
     expect(upgradeHelps({ ...base, offers: [] }, { ...AI, limitNow: 15 })).toBe(false);
   });
+
+  it("never promises more than the platform owner's own cap allows", () => {
+    const planFive = {
+      ...base,
+      features: { ai_app_suggestions: { included: true, dailyLimit: 5 } },
+    } as unknown as Parameters<typeof upgradeHelps>[0];
+    // The owner capped it at 3: the plan's 5 and the paid plan's 100 both stop at 3.
+    expect(upgradeHelps(planFive, { ...AI, adminCap: 3 })).toBe(false);
+    // Plan & Usage passes the limit in force: below the plan's own, it is the owner's cap.
+    expect(upgradeHelps(planFive, { ...AI, limitNow: 3 })).toBe(false);
+    // A cap above the person's limit still leaves room a paid plan gives.
+    expect(upgradeHelps(planFive, { ...AI, adminCap: 50 })).toBe(true);
+    expect(upgradeHelps(planFive, AI)).toBe(true);
+  });
 });

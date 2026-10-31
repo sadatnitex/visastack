@@ -253,6 +253,15 @@ async function savedSettings(
   return settings;
 }
 
+/**
+ * The daily limit the platform owner set for `feature` on the AI Features page, or null when they
+ * set none. Reads only that setting, nothing about anyone (ADR 0025 T6: an upgrade line never
+ * promises a higher limit than the owner's own cap allows).
+ */
+export async function aiAdminDailyLimit(db: Db, feature: AiFeatureKey): Promise<number | null> {
+  return (await savedSetting(db, feature)).dailyLimit;
+}
+
 /** The saved switch for one feature, or its default. */
 async function savedSetting(db: Db, feature: AiFeatureKey): Promise<SavedSetting> {
   return (await savedSettings(db, [feature])).get(feature) ?? standardSetting(feature);

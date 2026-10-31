@@ -5,6 +5,8 @@ import {
   type SelfScope,
   type ServiceError,
   type UpgradeShortfall,
+  selfScopeProblem,
+  travellerPlansEnabled,
   upgradeWouldHelp,
 } from '@visastack/services';
 import type { UpgradeLineKind } from '../components/upgrade-line';
@@ -35,10 +37,20 @@ export async function upgradeLineForRefusal(
   self: SelfScope,
   error: ServiceError,
   aiFeature?: AiFeatureKey,
+  options: {
+    /**
+     * Where the access gate lets more than the owner ask: whether this person owns the record.
+     * Asked only when a line could be shown (selling on, a refusal a plan could lift), and a
+     * failed read means no line.
+     */
+    readonly isOwner?: () => Promise<boolean>;
+  } = {},
 ): Promise<{ readonly upgrade?: UpgradeLineKind }> {
+  if (selfScopeProblem(self)) return {};
   const shortfall = shortfallOf(error, aiFeature);
-  if (!shortfall) return {};
+  if (!shortfall || !travellerPlansEnabled()) return {};
   try {
+    if (options.isOwner && !(await options.isOwner())) return {};
     if (!(await upgradeWouldHelp(db, self, shortfall))) return {};
   } catch (failure) {
     reportServerError('upgradeLine', failure);

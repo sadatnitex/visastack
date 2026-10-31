@@ -449,4 +449,112 @@ describe("a traveller's full refund, recorded by the platform owner (ADR 0025 T6
     );
     expect(audit[0]?.metadata.outsideRefundWindow).toBe(true);
   });
+
+  it('cancels the waiting renewal and its reminders when the refund ends the plan', async () => {
+    const invoiceId = await buy(alice);
+    const end = new Date(Date.now() + 5 * DAY);
+    await db
+      .update(personInvoices)
+      .set({ periodStart: new Date(end.getTime() - 30 * DAY), periodEnd: end })
+      .where(eq(personInvoices.id, invoiceId));
+    await runBillingCycle(db, systemScopeForTest('process-billing-cycle'), { now: new Date() });
+    const [renewal] = await db
+      .select({ id: personInvoices.id })
+      .from(personInvoices)
+      .where(and(eq(personInvoices.payerAccountId, alice), eq(personInvoices.periodStart, end)));
+    if (!renewal) throw new Error('renewal');
+    const staff = await ownerScope();
+    const done = await recordPersonRefund(
+      db,
+      staff,
+      refundOf({ kind: 'entry', invoicePaymentId: (await entryOf(invoiceId)).id }),
+    );
+    expect(isOk(done)).toBe(true);
+    const [after] = await db
+      .select({ status: personInvoices.status })
+      .from(personInvoices)
+      .where(eq(personInvoices.id, renewal.id));
+    expect(after?.status).toBe('VOID');
+    const queued = await rows<{ n: number }>(
+      sql`select count(*)::int as n from notifications where resource_id = ${renewal.id} and status = 'QUEUED'`,
+    );
+    expect(queued[0]?.n).toBe(0);
+    const [sub] = await db
+      .select({ endedAt: personSubscriptions.endedAt })
+      .from(personSubscriptions)
+      .where(eq(personSubscriptions.payerAccountId, alice));
+    expect(sub?.endedAt).not.toBeNull();
+    const [notice] = await rows<{ payload: { summary: string } }>(
+      sql`select payload from notifications where event_type = 'PERSON_REFUND_RECORDED' limit 1`,
+    );
+    expect(notice?.payload.summary).toContain('Your paid plan has ended');
+  });
+
+  it('keeps the plan while a renewal is being paid, so that payment still buys its period', async () => {
+    const invoiceId = await buy(alice);
+    const end = new Date(Date.now() + 5 * DAY);
+    await db
+      .update(personInvoices)
+      .set({ periodStart: new Date(end.getTime() - 30 * DAY), periodEnd: end })
+      .where(eq(personInvoices.id, invoiceId));
+    await runBillingCycle(db, systemScopeForTest('process-billing-cycle'), { now: new Date() });
+    const [renewal] = await db
+      .select({ id: personInvoices.id })
+      .from(personInvoices)
+      .where(and(eq(personInvoices.payerAccountId, alice), eq(personInvoices.periodStart, end)));
+    if (!renewal) throw new Error('renewal');
+    // The person is at the payment page for the renewal.
+    const started = await startPersonPayment(db, onePort(port), self(alice), {
+      invoiceId: renewal.id,
+      urlFor,
+      startAnother: false,
+    });
+    if (!isOk(started) || started.value.kind !== 'redirect') throw new Error('start');
+    const staff = await ownerScope();
+    expect(
+      isOk(
+        await recordPersonRefund(
+          db,
+          staff,
+          refundOf({ kind: 'entry', invoicePaymentId: (await entryOf(invoiceId)).id }),
+        ),
+      ),
+    ).toBe(true);
+    const [kept] = await db
+      .select({ endedAt: personSubscriptions.endedAt, renews: personSubscriptions.renews })
+      .from(personSubscriptions)
+      .where(eq(personSubscriptions.payerAccountId, alice));
+    expect(kept).toEqual({ endedAt: null, renews: false });
+    // The payment completes: it is recorded and covers its own period.
+    const [attempt] = await db
+      .select()
+      .from(personPaymentAttempts)
+      .where(eq(personPaymentAttempts.id, started.value.attemptId));
+    if (!attempt) throw new Error('attempt');
+    const paid = port.succeed(attempt.merchantTranId, attempt.amountMinorUnits);
+    const settled = await settlePaymentAttempt(db, port, {
+      merchantTranId: attempt.merchantTranId,
+      valId: paid.valId,
+      source: 'ipn',
+    });
+    expect(settled.code).toBe('recorded');
+    const covered = await coveringPaidPeriod(db, alice, new Date(end.getTime() + DAY));
+    expect(covered?.periodStart.getTime()).toBe(end.getTime());
+  });
+
+  it('labels a purchase a renewal only when it follows an earlier period of the plan', async () => {
+    const invoiceId = await buy(alice);
+    const end = new Date(Date.now() + 5 * DAY);
+    await db
+      .update(personInvoices)
+      .set({ periodStart: new Date(end.getTime() - 30 * DAY), periodEnd: end })
+      .where(eq(personInvoices.id, invoiceId));
+    await runBillingCycle(db, systemScopeForTest('process-billing-cycle'), { now: new Date() });
+    const staff = await ownerScope();
+    const found = await getTravellerBilling(db, staff, { code: referenceCode(alice) });
+    if (!isOk(found)) throw new Error('lookup');
+    const byRenewal = new Map(found.value.people[0]?.invoices.map((i) => [i.id, i.renewal]));
+    expect(byRenewal.get(invoiceId)).toBe(false);
+    expect([...byRenewal.values()].filter(Boolean)).toHaveLength(1);
+  });
 });

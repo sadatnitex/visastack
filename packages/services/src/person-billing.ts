@@ -1,6 +1,12 @@
 import { type Result, billingDaysUntil, err, formatBillingDate, ok } from '@visastack/core';
 import { and, desc, eq, inArray, isNotNull, isNull, lte, ne, sql } from 'drizzle-orm';
-import { type SelfScope, type SystemScope, selfScopeProblem } from './access/principal';
+import {
+  type SelfScope,
+  type StaffScope,
+  type SystemScope,
+  selfScopeProblem,
+  staffScopeProblem,
+} from './access/principal';
 import { appendAuditEvent } from './audit';
 import { invoiceHasRefundSql } from './billing-standing';
 import { type Db, first, required, schema } from './db';
@@ -906,9 +912,16 @@ export async function processPersonRenewal(
     if (!state) return nothing;
 
     if (now.getTime() >= state.paidUntil.getTime() + RENEWAL_GRACE_MS) {
-      const renewal = state.renewal;
-      if (renewal?.status === 'OPEN' && (await paymentOnTheWay(tx, renewal.id))) return nothing;
-      await lapsePlan(tx, accountId, state, now);
+      // Never while a payment on any open renewal of the plan is on its way (it may yet cover).
+      const open = locked.filter((row) => row.subscriptionId === state.subscriptionId);
+      for (const row of open) if (await paymentOnTheWay(tx, row.id)) return nothing;
+      await lapsePlan(
+        tx,
+        accountId,
+        state,
+        open.map((row) => row.id),
+        now,
+      );
       return { ...nothing, lapsed: true };
     }
     if (!input.selling || !state.renews || !state.renewable) return nothing;
@@ -961,13 +974,19 @@ async function queueRenewalReminder(
 }
 
 /** Ends the person's plan after the grace week: cancels the unpaid renewal, tells them. */
-async function lapsePlan(tx: Db, accountId: string, state: RenewalState, now: Date): Promise<void> {
+async function lapsePlan(
+  tx: Db,
+  accountId: string,
+  state: RenewalState,
+  openRenewals: readonly string[],
+  now: Date,
+): Promise<void> {
   const s = personSubscriptions;
   await tx.update(s).set({ endedAt: now }).where(eq(s.id, state.subscriptionId));
   let cancelled = 0;
-  if (state.renewal?.status === 'OPEN') {
-    if (await voidUnpaidRenewal(tx, state.renewal.id, now)) cancelled++;
-    await cancelQueuedNotificationsForResource(tx, state.renewal.id);
+  for (const id of openRenewals) {
+    if (await voidUnpaidRenewal(tx, id, now)) cancelled++;
+    await cancelQueuedNotificationsForResource(tx, id);
   }
   await appendAuditEvent(tx, {
     eventType: 'PERSON_PLAN_LAPSED',
@@ -993,4 +1012,121 @@ async function lapsePlan(tx: Db, accountId: string, state: RenewalState, now: Da
       deepLinkPath: PLAN_PATH,
     },
   });
+}
+
+// --- A traveller's refund and their plan (ADR 0025 T6) -------------------------------------------
+//
+// The refund (refunds.ts `recordPersonRefund`) takes these locks and settles the plan with the
+// same rules and lock order as the daily run and Stop Renewing, never a copy of them.
+
+function refundStaffProblem(staff: StaffScope<'BILLING_REFUND_MANAGE'>): void {
+  // A programmer fault: the refund checks the scope first.
+  if (staffScopeProblem(staff, 'BILLING_REFUND_MANAGE')) {
+    throw new Error('a traveller refund needs the platform owner');
+  }
+}
+
+/**
+ * After a refund's own source is locked and before it writes: the person's open renewal invoices,
+ * then their billing lock, the order every person billing step takes.
+ */
+export async function lockForPersonRefund(
+  tx: Db,
+  staff: StaffScope<'BILLING_REFUND_MANAGE'>,
+  accountId: string,
+): Promise<void> {
+  refundStaffProblem(staff);
+  await lockOwnRenewals(tx, accountId);
+}
+
+/** What a refund did to the person's plan, for the words they are told. */
+export type PlanAfterRefund = 'unchanged' | 'renewing_stopped' | 'plan_ended';
+
+/**
+ * After a person's payment was refunded, in the refund's transaction and under the locks above.
+ * The money no longer pays for that period (the resolver ignores refunded invoices). When nothing
+ * else of the plan is paid for now or later, and no payment on its renewal is on its way, the plan
+ * ends now (D8: it ends when the refund is recorded). Otherwise it keeps what is paid (or being
+ * paid) and stops renewing (owner decision). Either way an unpaid renewal is cancelled with its
+ * reminders; one being paid is left to finish, and the daily run settles it.
+ */
+export async function settlePlanAfterRefund(
+  tx: Db,
+  staff: StaffScope<'BILLING_REFUND_MANAGE'>,
+  input: { readonly accountId: string; readonly invoiceId: string; readonly now: Date },
+): Promise<PlanAfterRefund> {
+  refundStaffProblem(staff);
+  const { accountId, invoiceId, now } = input;
+  const i = personInvoices;
+  const s = personSubscriptions;
+  const refunded = first(
+    await tx
+      .select({ subscriptionId: i.subscriptionId })
+      .from(i)
+      .where(and(eq(i.id, invoiceId), eq(i.payerAccountId, accountId)))
+      .limit(1),
+  );
+  const subscriptionId = refunded?.subscriptionId ?? null;
+  if (subscriptionId === null) return 'unchanged';
+  const current = first(
+    await tx
+      .select({ id: s.id })
+      .from(s)
+      .where(and(eq(s.id, subscriptionId), eq(s.payerAccountId, accountId), isNull(s.endedAt)))
+      .limit(1),
+  );
+  if (!current) return 'unchanged';
+  const stillPaid = first(
+    await tx
+      .select({ id: i.id })
+      .from(i)
+      .where(
+        and(
+          eq(i.subscriptionId, subscriptionId),
+          eq(i.payerAccountId, accountId),
+          eq(i.status, 'PAID'),
+          sql`${i.periodEnd} > ${now.toISOString()}::timestamptz`,
+          sql`not ${invoiceHasRefundSql(sql`${i.id}`)}`,
+        ),
+      )
+      .limit(1),
+  );
+  const open = await tx
+    .select({ id: i.id })
+    .from(i)
+    .where(
+      and(
+        eq(i.subscriptionId, subscriptionId),
+        eq(i.payerAccountId, accountId),
+        eq(i.status, 'OPEN'),
+        sql`not ${invoiceHasRefundSql(sql`${i.id}`)}`,
+      ),
+    );
+  let beingPaid = false;
+  let cancelled = 0;
+  for (const renewal of open) {
+    if (await paymentOnTheWay(tx, renewal.id)) {
+      beingPaid = true;
+      continue;
+    }
+    if (await voidUnpaidRenewal(tx, renewal.id, now)) cancelled++;
+    await cancelQueuedNotificationsForResource(tx, renewal.id);
+  }
+  const outcome: PlanAfterRefund = stillPaid || beingPaid ? 'renewing_stopped' : 'plan_ended';
+  if (outcome === 'plan_ended') {
+    await tx.update(s).set({ endedAt: now }).where(eq(s.id, subscriptionId));
+  } else {
+    await tx.update(s).set({ renews: false }).where(eq(s.id, subscriptionId));
+  }
+  await appendAuditEvent(tx, {
+    eventType: 'PERSON_PLAN_REFUNDED',
+    actorAccountId: staff.accountId,
+    action: 'MANAGE',
+    method: 'MANUAL',
+    result: 'ALLOWED',
+    resourceType: 'subscription',
+    resourceId: subscriptionId,
+    metadata: { invoiceId, outcome, cancelledInvoices: cancelled, renewalBeingPaid: beingPaid },
+  });
+  return outcome;
 }

@@ -4,6 +4,7 @@ import {
   type AiFeatureKey,
 } from '@visastack/core/ai-features';
 import { type SelfScope, selfScopeProblem } from './access/principal';
+import { aiAdminDailyLimit } from './ai-feature-settings';
 import type { Db } from './db';
 import type { TravellerStorageRules } from './entitlements';
 import { getOwnRenewal } from './person-billing';
@@ -26,10 +27,13 @@ export type UpgradeShortfall =
       readonly kind: 'ai';
       readonly feature: AiFeatureKey;
       /**
-       * The limit in force when the feature stopped, used only where the person's plan has no rule
-       * of its own for the feature (Plan & Usage passes it from today's use).
+       * The limit in force when the feature stopped (Plan & Usage passes it from today's use):
+       * used where the person's plan has no rule of its own, and, when it is below the plan's own
+       * limit, as the platform owner's cap.
        */
       readonly limitNow?: number | null;
+      /** The daily limit the platform owner set for the feature, when known (null: none). */
+      readonly adminCap?: number | null;
     };
 
 /** Everything the upgrade decision reads, so Plan & Usage can decide from what it already has. */
@@ -55,8 +59,9 @@ export interface UpgradeContext {
  * while selling is on, a plan is on sale and nothing paid covers today, and only when some plan on
  * sale gives more of what ran short. For storage that is a higher limit, counting the upload
  * setting a plan follows when it sets none; for an AI feature, the feature included with no daily
- * limit or a higher one than the person has now. When the person's plan already sets no limit for
- * the feature, the limit reached is not the plan's, so no plan lifts it.
+ * limit or a higher one than the person has now, both counted under the platform owner's own cap
+ * (which no plan lifts). Where the person's plan sets no limit for the feature, Plan & Usage passes
+ * the limit in force (`limitNow`); a refusal passes none, so no line is offered then.
  */
 export function upgradeHelps(context: UpgradeContext, shortfall: UpgradeShortfall): boolean {
   if (!context.selling || context.covered || context.offers.length === 0) return false;
@@ -75,11 +80,22 @@ export function upgradeHelps(context: UpgradeContext, shortfall: UpgradeShortfal
           limits.personBytes,
       );
     case 'ai': {
-      const now = context.features?.[shortfall.feature]?.dailyLimit ?? shortfall.limitNow ?? null;
-      if (now === null) return false;
+      const planNow = context.features?.[shortfall.feature]?.dailyLimit ?? null;
+      const reached = planNow ?? shortfall.limitNow ?? null;
+      if (reached === null) return false;
+      // The platform owner's cap stays whatever plan they buy, so a plan helps only above it.
+      const limitNow = shortfall.limitNow ?? null;
+      const cap =
+        shortfall.adminCap ??
+        (limitNow !== null && planNow !== null && limitNow < planNow ? limitNow : null);
+      const capped = (limit: number | null) =>
+        limit === null ? cap : cap === null ? limit : Math.min(limit, cap);
+      const now = capped(reached) ?? reached;
       return context.offers.some((offer) => {
         const rule = offer.features[shortfall.feature];
-        return rule?.included === true && (rule.dailyLimit === null || rule.dailyLimit > now);
+        if (rule?.included !== true) return false;
+        const after = capped(rule.dailyLimit);
+        return after === null || after > now;
       });
     }
   }
@@ -102,9 +118,12 @@ export async function upgradeWouldHelp(
   const now = options.now ?? new Date();
   const catalogue = await listTravellerPlansForSale(db, now);
   if (catalogue.offers.length === 0) return false;
-  const [summary, renewal] = await Promise.all([
+  const [summary, renewal, adminCap] = await Promise.all([
     getTravellerPlanSummary(db, { actorAccountId: self.accountId, now }),
     getOwnRenewal(db, self, { now }),
+    shortfall.kind === 'ai' && shortfall.adminCap === undefined
+      ? aiAdminDailyLimit(db, shortfall.feature)
+      : Promise.resolve(undefined),
   ]);
   const renewalWaiting =
     renewal?.renews === true &&
@@ -120,6 +139,6 @@ export async function upgradeWouldHelp(
       features: summary.features ?? AI_PLAN_TIERS.FREE,
       quota: loadUploadQuotaConfig(),
     },
-    shortfall,
+    shortfall.kind === 'ai' && adminCap !== undefined ? { ...shortfall, adminCap } : shortfall,
   );
 }

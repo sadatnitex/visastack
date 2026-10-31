@@ -184,28 +184,33 @@ async function billingOf(db: Db, payer: string, now: Date): Promise<TravellerBil
     .orderBy(desc(i.createdAt), desc(i.id))
     .limit(PER_PERSON_LIMIT);
   const refOf = new Map(invoices.map((row) => [row.id, row.invoiceRef]));
+  // A renewal follows on from an earlier period of the same plan (every paid purchase is linked
+  // to its subscription too, so the link alone does not tell them apart).
+  const periodEnds = new Set(
+    invoices.map((row) => `${row.subscriptionId}:${row.periodEnd.getTime()}`),
+  );
   const ids = invoices.map((row) => row.id);
 
   const r = personRefundRequests;
-  const requests =
-    ids.length === 0
-      ? []
-      : await db
-          .select({
-            id: r.id,
-            invoiceId: r.invoiceId,
-            invoicePaymentId: r.invoicePaymentId,
-            paymentAttemptId: r.paymentAttemptId,
-            amountMinorUnits: r.amountMinorUnits,
-            currency: r.currency,
-            status: r.status,
-            reference: r.reference,
-            providerRefundedAt: r.providerRefundedAt,
-            createdAt: r.createdAt,
-          })
-          .from(r)
-          .where(and(eq(r.payerAccountId, payer), inArray(r.invoiceId, ids)))
-          .orderBy(desc(r.createdAt));
+  const requests = await db
+    .select({
+      id: r.id,
+      invoiceId: r.invoiceId,
+      invoiceRef: i.invoiceRef,
+      invoicePaymentId: r.invoicePaymentId,
+      paymentAttemptId: r.paymentAttemptId,
+      amountMinorUnits: r.amountMinorUnits,
+      currency: r.currency,
+      status: r.status,
+      reference: r.reference,
+      providerRefundedAt: r.providerRefundedAt,
+      createdAt: r.createdAt,
+    })
+    .from(r)
+    .innerJoin(i, eq(i.id, r.invoiceId))
+    .where(eq(r.payerAccountId, payer))
+    .orderBy(desc(r.createdAt))
+    .limit(PER_PERSON_LIMIT * 2);
 
   const p = schema.invoicePayments;
   // Read only for invoices already proven to be this person's: the ledger has no payer column.
@@ -236,8 +241,10 @@ async function billingOf(db: Db, payer: string, now: Date): Promise<TravellerBil
       reasonCode: a.reasonCode,
       createdAt: a.createdAt,
       redirectedAt: a.redirectedAt,
+      invoiceRef: i.invoiceRef,
     })
     .from(a)
+    .innerJoin(i, eq(i.id, a.invoiceId))
     .where(and(eq(a.payerAccountId, payer), eq(a.status, 'HELD_FOR_REVIEW')))
     .orderBy(desc(a.createdAt))
     .limit(PER_PERSON_LIMIT);
@@ -281,7 +288,9 @@ async function billingOf(db: Db, payer: string, now: Date): Promise<TravellerBil
       }).label,
       periodStart: row.periodStart,
       periodEnd: row.periodEnd,
-      renewal: row.subscriptionId !== null,
+      renewal:
+        row.subscriptionId !== null &&
+        periodEnds.has(`${row.subscriptionId}:${row.periodStart.getTime()}`),
     })),
     payments: entries
       .filter((entry) => entry.kind !== 'REFUND')
@@ -303,7 +312,7 @@ async function billingOf(db: Db, payer: string, now: Date): Promise<TravellerBil
       })),
     held: held.map((row) => ({
       id: row.id,
-      invoiceRef: refOf.get(row.invoiceId) ?? '',
+      invoiceRef: row.invoiceRef,
       amountMinorUnits: row.amountMinorUnits,
       remainingMinorUnits: heldRemainingMinorUnits(
         row.amountMinorUnits,
@@ -321,7 +330,7 @@ async function billingOf(db: Db, payer: string, now: Date): Promise<TravellerBil
     })),
     refunds: requests.map((row) => ({
       id: row.id,
-      invoiceRef: refOf.get(row.invoiceId) ?? '',
+      invoiceRef: row.invoiceRef,
       amountMinorUnits: row.amountMinorUnits,
       currency: row.currency,
       status: row.status,

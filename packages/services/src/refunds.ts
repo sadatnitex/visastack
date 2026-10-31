@@ -9,7 +9,6 @@ import {
   agencyName,
   billingContacts,
   billingDay,
-  invoiceHasRefundSql,
   invoiceNotRefundedSql,
   invoicesPath,
 } from './billing-standing';
@@ -21,7 +20,6 @@ import {
   applyInvoiceRefund,
   isUuid,
   isValidMinorUnitAmount,
-  lockPersonBilling,
   normalizeCurrency,
   outstandingMinorUnits,
   refundSourceMode,
@@ -33,12 +31,12 @@ import {
 import { parseAmountForCurrency } from './payment-amounts';
 import { providerShareDeadline } from './payment-resolver';
 import type { PaymentAttempt } from './payments';
+import { type PlanAfterRefund, lockForPersonRefund, settlePlanAfterRefund } from './person-billing';
 import { PERSON_REFUND_WINDOW_DAYS } from './person-billing-history';
 import {
   personInvoices,
   personPaymentAttempts,
   personRefundRequests,
-  personSubscriptions,
 } from './person-billing-tables';
 import {
   type PaymentMode,
@@ -544,7 +542,8 @@ async function referenceTaken(
     .from(r)
     .where(
       and(
-        eq(r.organizationId, organizationId),
+        // This agency's refunds, and every traveller's (ADR 0025 T6): one merchant panel.
+        or(eq(r.organizationId, organizationId), isNull(r.organizationId)),
         exceptRequestId === null ? undefined : sql`${r.id} <> ${exceptRequestId}`,
         sql`(lower(btrim(coalesce(${r.providerRefundId}, ''))) = ${wanted} or (${r.method} = 'MANUAL' and lower(btrim(coalesce(${r.reference}, ''))) = ${wanted}))`,
       ),
@@ -2310,27 +2309,6 @@ export async function getOrganizationRefundWork(
   });
 }
 
-/**
- * The payer column's name, built from its parts: the probe below reads a function's body text,
- * never a person's row, so it stays outside the payer column tripwire of the access ratchet
- * (PERSON_ROW_TEXT in access/enforcement.test.ts), which is for code that reads person rows.
- */
-const GUARD_PAYER_COLUMN = ['payer', 'account', 'id'].join('_');
-
-/**
- * Whether migration 0112 has run (ADR 0025 T6): the refund guard function then checks a person's
- * own refunds too, so its body names the payer column. Reads only that function's body text from
- * the database catalogue, never a refund or billing row. For the platform readiness detail.
- */
-export async function personRefundGuardPresent(db: Db): Promise<boolean> {
-  const rows = await db
-    .select({
-      present: sql<boolean>`exists (select 1 from pg_proc f join pg_namespace n on n.oid = f.pronamespace where n.nspname = current_schema() and f.proname = 'visastack_refund_requests_guard' and position(${GUARD_PAYER_COLUMN}::text in f.prosrc) > 0)`,
-    })
-    .from(sql`(select 1) as probe`);
-  return rows[0]?.present === true;
-}
-
 // --- A person's refund (ADR 0025, T6) ---------------------------------------------------------
 //
 // D8: a traveller's full refund on request within 7 days of payment, made by the platform owner
@@ -2341,6 +2319,21 @@ export async function personRefundGuardPresent(db: Db): Promise<boolean> {
 // the invoice's own payer (the database checks this too, migration 0112); and refunding the period
 // that covers today ends their plan at once. Lock order, as the recording's: the held payment or
 // the invoice, the request, the person's billing lock, the audit chain.
+
+/**
+ * Whether migration 0112 has run in full (ADR 0025 T6): the refund guard keeps an open refund's
+ * payer fixed (its body names the payer column) and the insert check that a refund names its
+ * invoice's payer exists. Reads only the database catalogue, never a refund or billing row. For
+ * recording a traveller's refund and the platform readiness detail.
+ */
+export async function personRefundGuardPresent(db: Db): Promise<boolean> {
+  const rows = await db
+    .select({
+      present: sql<boolean>`exists (select 1 from pg_proc f join pg_namespace n on n.oid = f.pronamespace where n.nspname = current_schema() and f.proname = 'visastack_refund_requests_guard' and position('payer_account_id' in f.prosrc) > 0) and exists (select 1 from pg_trigger t where t.tgname = 'refund_requests_payer_matches' and t.tgrelid = to_regclass('refund_requests'))`,
+    })
+    .from(sql`(select 1) as probe`);
+  return rows[0]?.present === true;
+}
 
 /** Said before migration 0112 has run: nothing is written. */
 export const PERSON_REFUNDS_UNAVAILABLE = 'Refunds for travellers are not available yet.';
@@ -2368,14 +2361,19 @@ async function lockPersonSource(
         .for('update'),
     );
     if (!attempt) return null;
+    // The refund names the invoice's payer (migration 0112 checks it), who paid this attempt.
     const owner = first(
       await tx
-        .select({ payer: personPaymentAttempts.payerAccountId })
+        .select({
+          payer: personInvoices.payerAccountId,
+          paidBy: personPaymentAttempts.payerAccountId,
+        })
         .from(personPaymentAttempts)
+        .innerJoin(personInvoices, eq(personInvoices.id, personPaymentAttempts.invoiceId))
         .where(eq(personPaymentAttempts.id, attempt.id))
         .limit(1),
     );
-    if (!owner?.payer) return null;
+    if (!owner?.payer || owner.payer !== owner.paidBy) return null;
     const credit = await creditFrom(tx, attempt.id);
     const credited = credit?.amountMinorUnits ?? 0;
     return {
@@ -2553,11 +2551,17 @@ export async function recordPersonRefund(
       }
       const tooEarly = refundDayProblem(input.refundedOn, paymentDay(source), now);
       if (tooEarly) return err(tooEarly);
+      // One panel refund reaches the ledger once: the same reference is checked one at a time.
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${`visastack:refund-reference:${reference.trim().toLowerCase()}`}))`,
+      );
       if (await referenceTakenAnywhere(tx, reference)) {
         return err(serviceError('invalid', REFERENCE_TAKEN));
       }
-      await lockPersonBilling(tx, payer);
+      // The person's open renewals, then their billing lock: the order every other step takes.
+      await lockForPersonRefund(tx, staff, payer);
       const ids = sourceIds(source);
+      let plan: PlanAfterRefund = 'unchanged';
       const row = first(
         await tx
           .insert(personRefundRequests)
@@ -2601,7 +2605,11 @@ export async function recordPersonRefund(
           );
         }
         await cancelQueuedNotificationsForResource(tx, source.invoice.id);
-        await endPersonPlanAfterRefund(tx, payer, source.invoice.id, staff.accountId, now);
+        plan = await settlePlanAfterRefund(tx, staff, {
+          accountId: payer,
+          invoiceId: source.invoice.id,
+          now,
+        });
       } else {
         await closeHeldIfSettled(tx, source.attempt, staff.accountId, now);
       }
@@ -2633,7 +2641,11 @@ export async function recordPersonRefund(
         recipientAccountId: payer,
         payload: {
           subject: 'Refund Made',
-          summary: `A refund was made on your purchase ${await invoiceRefOf(tx, ids.invoiceId)}. It can take a few days to reach you.`,
+          summary: `A refund was made on your purchase ${await invoiceRefOf(tx, ids.invoiceId)}. It can take a few days to reach you.${
+            plan === 'plan_ended'
+              ? ' Your paid plan has ended, so you are on Traveller Free again. Everything you stored is kept.'
+              : ''
+          }`,
           deepLinkPath: '/app/account/plan/billing',
         },
       });
@@ -2647,92 +2659,4 @@ export async function recordPersonRefund(
     },
   );
   return done;
-}
-
-/**
- * After a person's payment was refunded, inside the same transaction and the person's lock: the
- * money no longer pays for that period (the resolver already ignores refunded invoices). When no
- * other paid, unrefunded period of the plan covers now or later, the plan ends now (D8: it ends
- * when the refund is recorded). When one does (a renewal paid ahead was refunded, or an earlier
- * period), the plan keeps that period but stops renewing (owner decision). Either way the renewal
- * waiting to be paid is cancelled with its reminders, unless a payment on it is on its way.
- */
-async function endPersonPlanAfterRefund(
-  tx: Db,
-  payer: string,
-  invoiceId: string,
-  actorAccountId: string,
-  now: Date,
-): Promise<void> {
-  const i = personInvoices;
-  const s = personSubscriptions;
-  const refunded = first(
-    await tx
-      .select({ subscriptionId: i.subscriptionId })
-      .from(i)
-      .where(eq(i.id, invoiceId))
-      .limit(1),
-  );
-  const subscriptionId = refunded?.subscriptionId ?? null;
-  if (subscriptionId === null) return;
-  const current = first(
-    await tx
-      .select({ id: s.id })
-      .from(s)
-      .where(and(eq(s.id, subscriptionId), eq(s.payerAccountId, payer), isNull(s.endedAt)))
-      .limit(1)
-      .for('update'),
-  );
-  if (!current) return;
-  const stillPaid = first(
-    await tx
-      .select({ id: i.id })
-      .from(i)
-      .where(
-        and(
-          eq(i.subscriptionId, subscriptionId),
-          eq(i.payerAccountId, payer),
-          eq(i.status, 'PAID'),
-          sql`${i.periodEnd} > ${now.toISOString()}::timestamptz`,
-          sql`not ${invoiceHasRefundSql(sql`${i.id}`)}`,
-        ),
-      )
-      .limit(1),
-  );
-  if (stillPaid) {
-    await tx.update(s).set({ renews: false }).where(eq(s.id, subscriptionId));
-  } else {
-    await tx.update(s).set({ endedAt: now }).where(eq(s.id, subscriptionId));
-  }
-  const open = await tx
-    .select({ id: i.id })
-    .from(i)
-    .where(
-      and(
-        eq(i.subscriptionId, subscriptionId),
-        eq(i.payerAccountId, payer),
-        eq(i.status, 'OPEN'),
-        eq(i.collectedAmountMinorUnits, 0),
-        sql`not ${invoiceHasRefundSql(sql`${i.id}`)}`,
-        sql`not exists (select 1 from payment_attempts pa where pa.invoice_id = ${i.id} and pa.status in ('CREATED', 'REDIRECTED', 'VALIDATED'))`,
-      ),
-    );
-  for (const renewal of open) {
-    await tx.update(i).set({ status: 'VOID', updatedAt: now }).where(eq(i.id, renewal.id));
-    await cancelQueuedNotificationsForResource(tx, renewal.id);
-  }
-  await appendAuditEvent(tx, {
-    eventType: 'PERSON_PLAN_REFUNDED',
-    actorAccountId,
-    action: 'MANAGE',
-    method: 'MANUAL',
-    result: 'ALLOWED',
-    resourceType: 'subscription',
-    resourceId: subscriptionId,
-    metadata: {
-      invoiceId,
-      outcome: stillPaid ? 'renewing_stopped' : 'plan_ended',
-      cancelledInvoices: open.length,
-    },
-  });
 }

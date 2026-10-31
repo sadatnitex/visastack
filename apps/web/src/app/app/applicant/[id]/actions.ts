@@ -760,12 +760,14 @@ export async function runClassificationAction(
       return { ok: false, message: 'AI classification is not configured.' } satisfies ActionState;
     }
     if (!kind.ok) {
-      // The access gate lets more than the owner ask; the line is for the owner alone.
-      const owner = await assertOwned(db, accountId, applicantId);
+      // The access gate lets more than the owner ask; the line is for the owner alone, checked
+      // only when a line could be shown.
       return {
         ok: false,
         message: plainError(kind.error),
-        ...(owner ? await upgradeLineForRefusal(db, self, kind.error, 'ai_document_kind') : {}),
+        ...(await upgradeLineForRefusal(db, self, kind.error, 'ai_document_kind', {
+          isOwner: () => assertOwned(db, accountId, applicantId),
+        })),
       } satisfies ActionState;
     }
     return { ok: true, message: KIND_ANSWERS[kind.value.status] } satisfies ActionState;
