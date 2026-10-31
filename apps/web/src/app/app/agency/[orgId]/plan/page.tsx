@@ -193,13 +193,13 @@ export default async function OrgPlanPage({
             <article className="card u-mt-150">
               <p className="card-kicker">What Your Plan Includes</p>
               <h2 className="card-title">AI Features</h2>
-              <div className="rows">
+              <div className="rows rows-grid">
                 {AI_FEATURE_KEYS.map((feature) => {
                   const included = data.usage?.entitlements.features?.[feature];
                   return (
                     <div key={feature} className="row">
                       <span className="row-key">{AI_FEATURES[feature].name}</span>
-                      <span>{aiFeatureWords(included)}</span>
+                      <span className="row-val">{aiFeatureWords(included)}</span>
                     </div>
                   );
                 })}
@@ -216,11 +216,11 @@ export default async function OrgPlanPage({
                 follows VisaStack’s settings.
               </p>
               {/* S22: the agency features its plan decides, counted for the whole agency. */}
-              <div className="rows">
+              <div className="rows rows-grid">
                 {AI_AGENCY_FEATURE_KEYS.map((feature) => (
                   <div key={feature} className="row">
                     <span className="row-key">{AI_FEATURES[feature].name}</span>
-                    <span>
+                    <span className="row-val">
                       {agencyAiFeatureWords(data.usage?.entitlements.agencyFeatures?.[feature])}
                     </span>
                   </div>

@@ -149,106 +149,108 @@ export function ClaimForm({
           Tell us about a payment you already made by bank transfer, bKash or cheque. Nothing is
           counted until VisaStack confirms it.
         </p>
-        <div className="field-row">
-          <label className="field-label" htmlFor={`${base}-method`}>
-            How You Paid
-          </label>
-          {/* The key makes the list start again from what was kept: a list does not take a new default by itself. */}
-          <select
-            key={kept.method ?? 'first'}
-            id={`${base}-method`}
-            name="method"
-            className="input"
-            required
-            defaultValue={kept.method ?? 'BANK_TRANSFER'}
-            {...fieldProblem(state, 'method', messageId)}
-          >
-            {Object.entries(CLAIM_METHOD_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="field-row">
-          <label className="field-label" htmlFor={`${base}-reference`}>
-            Payment Reference
-          </label>
-          <input
-            id={`${base}-reference`}
-            name="reference"
-            type="text"
-            className="input"
-            required
-            maxLength={120}
-            autoComplete="off"
-            defaultValue={kept.reference ?? ''}
-            {...fieldProblem(state, 'reference', messageId)}
-          />
-          <p className="invoice-hint">A transfer id, bKash transaction id or cheque number.</p>
-        </div>
-        <div className="field-row">
-          <label className="field-label" htmlFor={`${base}-amount`}>
-            {`Amount Paid (${currency})`}
-          </label>
-          <input
-            id={`${base}-amount`}
-            name="amount"
-            type="text"
-            inputMode="decimal"
-            className="input"
-            required
-            defaultValue={kept.amount ?? balance}
-            autoComplete="off"
-            {...fieldProblem(state, 'amount', messageId)}
-          />
-        </div>
-        <div className="field-row">
-          <label className="field-label" htmlFor={`${base}-paid-on`}>
-            Date Paid
-          </label>
-          <input
-            id={`${base}-paid-on`}
-            name="paidOn"
-            type="date"
-            className="input"
-            required
-            max={latestDate}
-            defaultValue={kept.paidOn ?? ''}
-            {...fieldProblem(state, 'paidOn', messageId)}
-          />
-        </div>
-        <div className="field-row">
-          <label className="field-label" htmlFor={`${base}-note`}>
-            Note (Optional)
-          </label>
-          <textarea
-            id={`${base}-note`}
-            name="note"
-            className="input"
-            rows={2}
-            maxLength={500}
-            defaultValue={kept.note ?? ''}
-            {...fieldProblem(state, 'note', messageId)}
-          />
-        </div>
-        <div className="field-row">
-          <label className="field-label" htmlFor={`${base}-proof`}>
-            Proof of Payment (Optional)
-          </label>
-          <input
-            id={`${base}-proof`}
-            name="proof"
-            type="file"
-            className="input"
-            accept="application/pdf,image/jpeg,image/png"
-            {...fieldProblem(state, 'proof', messageId)}
-          />
-          <p className="invoice-hint">
-            A photo or screenshot (JPEG or PNG) or a PDF, under 4 MB. Only your owners and admins
-            and VisaStack staff can open it. If you report again after an error, choose the file
-            again.
-          </p>
+        <div className="form-grid">
+          <div className="field-row">
+            <label className="field-label" htmlFor={`${base}-method`}>
+              How You Paid
+            </label>
+            {/* The key makes the list start again from what was kept: a list does not take a new default by itself. */}
+            <select
+              key={kept.method ?? 'first'}
+              id={`${base}-method`}
+              name="method"
+              className="input"
+              required
+              defaultValue={kept.method ?? 'BANK_TRANSFER'}
+              {...fieldProblem(state, 'method', messageId)}
+            >
+              {Object.entries(CLAIM_METHOD_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field-row">
+            <label className="field-label" htmlFor={`${base}-reference`}>
+              Payment Reference
+            </label>
+            <input
+              id={`${base}-reference`}
+              name="reference"
+              type="text"
+              className="input"
+              required
+              maxLength={120}
+              autoComplete="off"
+              defaultValue={kept.reference ?? ''}
+              {...fieldProblem(state, 'reference', messageId)}
+            />
+            <p className="invoice-hint">A transfer id, bKash transaction id or cheque number.</p>
+          </div>
+          <div className="field-row">
+            <label className="field-label" htmlFor={`${base}-amount`}>
+              {`Amount Paid (${currency})`}
+            </label>
+            <input
+              id={`${base}-amount`}
+              name="amount"
+              type="text"
+              inputMode="decimal"
+              className="input"
+              required
+              defaultValue={kept.amount ?? balance}
+              autoComplete="off"
+              {...fieldProblem(state, 'amount', messageId)}
+            />
+          </div>
+          <div className="field-row">
+            <label className="field-label" htmlFor={`${base}-paid-on`}>
+              Date Paid
+            </label>
+            <input
+              id={`${base}-paid-on`}
+              name="paidOn"
+              type="date"
+              className="input"
+              required
+              max={latestDate}
+              defaultValue={kept.paidOn ?? ''}
+              {...fieldProblem(state, 'paidOn', messageId)}
+            />
+          </div>
+          <div className="field-row field-wide">
+            <label className="field-label" htmlFor={`${base}-note`}>
+              Note (Optional)
+            </label>
+            <textarea
+              id={`${base}-note`}
+              name="note"
+              className="input"
+              rows={2}
+              maxLength={500}
+              defaultValue={kept.note ?? ''}
+              {...fieldProblem(state, 'note', messageId)}
+            />
+          </div>
+          <div className="field-row field-wide">
+            <label className="field-label" htmlFor={`${base}-proof`}>
+              Proof of Payment (Optional)
+            </label>
+            <input
+              id={`${base}-proof`}
+              name="proof"
+              type="file"
+              className="input"
+              accept="application/pdf,image/jpeg,image/png"
+              {...fieldProblem(state, 'proof', messageId)}
+            />
+            <p className="invoice-hint">
+              A photo or screenshot (JPEG or PNG) or a PDF, under 4 MB. Only your owners and admins
+              and VisaStack staff can open it. If you report again after an error, choose the file
+              again.
+            </p>
+          </div>
         </div>
         <SubmitButton pending={pending} idle="Report This Payment" busy="Sending Your Report" />
         <FormMessage
