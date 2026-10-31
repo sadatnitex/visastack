@@ -24,7 +24,15 @@ if (!input) {
   process.exit(2);
 }
 const report = JSON.parse(readFileSync(input, 'utf8'));
-const weights = existsSync(listPath) ? JSON.parse(readFileSync(listPath, 'utf8')) : {};
+function readList() {
+  try {
+    return JSON.parse(readFileSync(listPath, 'utf8'));
+  } catch (error) {
+    if (error?.code === 'ENOENT') return {};
+    throw error;
+  }
+}
+const weights = readList();
 let updated = 0;
 let ignored = 0;
 for (const file of report.testResults ?? []) {
