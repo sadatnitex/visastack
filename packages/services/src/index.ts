@@ -1131,6 +1131,7 @@ export {
   getPlatformEvidenceBytes,
   loadUploadQuotaConfig,
   mbLabel,
+  storageLimitsForOwner,
 } from './quotas';
 
 export {

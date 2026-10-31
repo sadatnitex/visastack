@@ -13,6 +13,7 @@ import {
   getPlatformEvidenceBytes,
   loadUploadQuotaConfig,
   mbLabel,
+  storageLimitsForOwner,
 } from './quotas';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
 import type { BlobStore } from './storage';
@@ -64,6 +65,23 @@ async function activeReservedBytesFor(
   return Number(rows[0]?.total ?? 0);
 }
 
+/** Bytes reserved by uploads in progress to any record `ownerAccountId` owns, whoever uploads. */
+async function activeReservedBytesForOwner(db: Db, ownerAccountId: string): Promise<number> {
+  const u = schema.uploadIntents;
+  const rows = await db
+    .select({ total: sql<string>`coalesce(sum(${u.reservedBytes}), 0)` })
+    .from(u)
+    .innerJoin(schema.applicants, eq(schema.applicants.id, u.applicantId))
+    .where(
+      and(
+        eq(schema.applicants.ownerAccountId, ownerAccountId),
+        eq(u.status, 'RESERVED'),
+        gt(u.expiresAt, sql`now()`),
+      ),
+    );
+  return Number(rows[0]?.total ?? 0);
+}
+
 async function activePlatformReservedBytes(db: Db): Promise<number> {
   const rows = await db
     .select({ total: sql<string>`coalesce(sum(${schema.uploadIntents.reservedBytes}), 0)` })
@@ -88,24 +106,37 @@ async function checkQuotaTiers(
   addedBytes: number,
   config: UploadQuotaConfig,
 ): Promise<Result<void, ServiceError>> {
+  // ADR 0025: both limits belong to the record's owner (their plan, else the upload settings), and
+  // the account total is the owner's, whoever uploads (a contributor uploads into someone else's
+  // record; their own records do not count, and this one always does).
+  const owner = first(
+    await tx
+      .select({ id: schema.applicants.ownerAccountId })
+      .from(schema.applicants)
+      .where(eq(schema.applicants.id, input.applicantId))
+      .limit(1),
+  );
+  if (!owner) return err(serviceError('not_found', 'applicant not found'));
+  const limits = await storageLimitsForOwner(tx, owner.id, config);
+
   const applicantReserved = await activeReservedBytesFor(tx, 'applicantId', input.applicantId);
   const applicantCommitted = await getApplicantEvidenceBytes(tx, input.applicantId);
-  if (applicantCommitted + applicantReserved + addedBytes > config.maxApplicantEvidenceBytes) {
+  if (applicantCommitted + applicantReserved + addedBytes > limits.personBytes) {
     return err(
       serviceError(
         'invalid',
-        `this applicant has reached its ${mbLabel(config.maxApplicantEvidenceBytes)} evidence limit`,
+        `this applicant has reached its ${mbLabel(limits.personBytes)} evidence limit`,
       ),
     );
   }
 
-  const accountReserved = await activeReservedBytesFor(tx, 'accountId', input.accountId);
-  const accountCommitted = await getAccountEvidenceBytes(tx, input.accountId);
-  if (accountCommitted + accountReserved + addedBytes > config.maxAccountEvidenceBytes) {
+  const accountReserved = await activeReservedBytesForOwner(tx, owner.id);
+  const accountCommitted = await getAccountEvidenceBytes(tx, owner.id);
+  if (accountCommitted + accountReserved + addedBytes > limits.accountBytes) {
     return err(
       serviceError(
         'invalid',
-        `this account has reached its ${mbLabel(config.maxAccountEvidenceBytes)} evidence limit`,
+        `this account has reached its ${mbLabel(limits.accountBytes)} evidence limit`,
       ),
     );
   }
