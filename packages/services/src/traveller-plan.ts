@@ -9,6 +9,7 @@ import {
   travellerRulesOf,
 } from './entitlements';
 import { entitlementsSchemaPresent } from './plans-schema';
+import { personBillingPresent } from './traveller-billing';
 
 export interface TravellerPlanSummary {
   /** The plan every traveller is on (Traveller Free), or null when no plan row exists. */
@@ -98,7 +99,10 @@ export async function listTravellerPlansForSale(
   db: Db,
   now: Date = new Date(),
 ): Promise<TravellerPlanCatalogue> {
-  if (!(await entitlementsSchemaPresent(db))) return { free: null, offers: [] };
+  // Nothing is on sale before the person billing migrations (0110, 0111): checkout would refuse.
+  if (!(await entitlementsSchemaPresent(db)) || !(await personBillingPresent(db))) {
+    return { free: null, offers: [] };
+  }
   const p = schema.plans;
   const plans = await db
     .select({ id: p.id, key: p.key, name: p.name, periodDays: p.periodDays })

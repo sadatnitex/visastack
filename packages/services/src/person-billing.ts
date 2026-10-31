@@ -300,6 +300,8 @@ export interface PersonPurchase {
   readonly planName: string;
   readonly amountMinorUnits: number;
   readonly currency: string;
+  /** When the period starts: the moment of checkout (a purchase is reused for a day). */
+  readonly periodStart: Date;
   readonly periodEnd: Date;
 }
 
@@ -314,6 +316,8 @@ export async function getOwnPurchase(
   input: { readonly invoiceId: string; readonly now?: Date },
 ): Promise<PersonPurchase | null> {
   if (selfScopeProblem(self)) return null;
+  // Before migrations 0110 and 0111 there is no purchase to show.
+  if (!(await personBillingPresent(db))) return null;
   const now = input.now ?? new Date();
   const payable = await payablePersonInvoice(db, self, { invoiceId: input.invoiceId, now });
   if (!payable.ok) return null;
@@ -327,6 +331,7 @@ export async function getOwnPurchase(
         planName: schema.plans.name,
         amountMinorUnits: i.invoicedAmountMinorUnits,
         currency: i.currency,
+        periodStart: i.periodStart,
         periodEnd: i.periodEnd,
       })
       .from(i)
@@ -341,6 +346,7 @@ export async function getOwnPurchase(
     planName: row.planName,
     amountMinorUnits: row.amountMinorUnits,
     currency: row.currency,
+    periodStart: row.periodStart,
     periodEnd: row.periodEnd,
   };
 }

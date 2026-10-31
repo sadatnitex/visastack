@@ -43,7 +43,7 @@ describe('buying a paid plan (ADR 0025 T3c)', () => {
   it("makes the purchase with the session's own scope and shows it to confirm", async () => {
     mocks.checkout.mockResolvedValue({ ok: true, value: { invoiceId: INVOICE } });
     await expect(buyPlanAction(INITIAL, form({ planId: PLAN }))).rejects.toThrow(
-      `NEXT_REDIRECT:/app/account/plan?purchase=${INVOICE}#confirm-purchase`,
+      `NEXT_REDIRECT:/app/account/plan?purchase=${INVOICE}#confirm-purchase-title`,
     );
     expect(mocks.checkout.mock.calls[0]?.[1]).toBe(SELF);
     expect(mocks.checkout.mock.calls[0]?.[2]).toEqual({ planId: PLAN });
@@ -86,6 +86,16 @@ describe('buying a paid plan (ADR 0025 T3c)', () => {
     });
     const recent = await payPurchaseAction(INITIAL, form({ invoiceId: INVOICE }));
     expect(recent.message).toContain('you do not need to pay again');
+    expect(recent.recent).toBe(true);
+    // Start Another Payment sends startAnother.
+    mocks.pay.mockResolvedValueOnce({
+      ok: true,
+      value: { kind: 'redirect', attemptId: 'b', redirectUrl: 'https://sandbox.example/pay2' },
+    });
+    await expect(
+      payPurchaseAction(recent, form({ invoiceId: INVOICE, startAnother: 'yes' })),
+    ).rejects.toThrow('NEXT_REDIRECT:https://sandbox.example/pay2');
+    expect(mocks.pay.mock.calls[1]?.[3]).toMatchObject({ startAnother: true });
     mocks.pay.mockResolvedValueOnce({
       ok: false,
       error: { code: 'not_found', message: 'invoice not found' },
@@ -94,5 +104,33 @@ describe('buying a paid plan (ADR 0025 T3c)', () => {
       ok: false,
       message: 'We could not find this purchase. Start it again below.',
     });
+  });
+
+  it("puts refusals in a traveller's words, never an agency's", async () => {
+    mocks.pay.mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: 'invalid',
+        message: 'Online payment is not open to agencies yet.',
+        reason: 'test_mode_owner_only',
+      },
+    });
+    const testMode = await payPurchaseAction(INITIAL, form({ invoiceId: INVOICE }));
+    expect(testMode.message).toContain('still being tested');
+    expect(testMode.message).not.toMatch(/agenc/i);
+    mocks.pay.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'invalid', message: 'This invoice is already paid.' },
+    });
+    expect((await payPurchaseAction(INITIAL, form({ invoiceId: INVOICE }))).message).toBe(
+      'This purchase is already paid.',
+    );
+    mocks.checkout.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'not_found', message: 'account not found' },
+    });
+    expect((await buyPlanAction(INITIAL, form({ planId: PLAN }))).message).toBe(
+      'This plan is not for sale.',
+    );
   });
 });

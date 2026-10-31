@@ -1,6 +1,6 @@
 'use server';
 
-import { startPersonCheckout, startPersonPayment } from '@visastack/services';
+import { type ServiceError, startPersonCheckout, startPersonPayment } from '@visastack/services';
 import { redirect } from 'next/navigation';
 import type { FormResult } from '../../../../components/form-feedback';
 import { bootstrapAdminEmails } from '../../../../lib/admin-emails';
@@ -23,6 +23,47 @@ const NO_PURCHASE: FormResult = {
   message: 'We could not find this purchase. Start it again below.',
 };
 
+/** What a Pay form gets back: `recent` offers Start Another Payment. */
+export interface PayPurchaseState extends FormResult {
+  readonly recent?: true;
+}
+
+/** The refusals whose own words are written for a traveller (person-billing.ts, payments.ts). */
+const PERSON_REASONS = new Set([
+  'selling_off',
+  'already_covered',
+  'plan_not_for_sale',
+  'purchase_expired',
+  'currency_not_offered',
+  'provider_not_configured',
+]);
+
+/**
+ * A refusal in a traveller's words. The refusals written for them pass through; the rest (the
+ * shared payment opening words some for agency invoices) are put plainly.
+ */
+function personWords(error: ServiceError): FormResult {
+  if (error.reason !== undefined && PERSON_REASONS.has(error.reason)) {
+    return { ok: false, message: error.message };
+  }
+  if (error.reason === 'test_mode_owner_only') {
+    return {
+      ok: false,
+      message:
+        'Paying for a plan is still being tested, so it is not open yet. Nothing was charged, and your plan stays as it is.',
+    };
+  }
+  if (error.code === 'rate_limited') return { ok: false, message: error.message };
+  if (error.code === 'not_found') return NO_PURCHASE;
+  if (/already paid/i.test(error.message)) {
+    return { ok: false, message: 'This purchase is already paid.' };
+  }
+  return {
+    ok: false,
+    message: 'This purchase cannot be paid right now. Please try again in a few minutes.',
+  };
+}
+
 function text(formData: FormData, name: string): string {
   const value = formData.get(name);
   return typeof value === 'string' ? value.trim() : '';
@@ -35,26 +76,27 @@ export async function buyPlanAction(_prev: FormResult, formData: FormData): Prom
   const outcome = await withSession(
     async ({ db, self }): Promise<FormResult | { readonly invoiceId: string }> => {
       const made = await startPersonCheckout(db, self, { planId });
-      if (!made.ok) return { ok: false, message: made.error.message };
+      if (!made.ok) return made.error.code === 'not_found' ? NOT_FOUND : personWords(made.error);
       return { invoiceId: made.value.invoiceId };
     },
   );
   if ('invoiceId' in outcome) {
-    redirect(`${PLAN_PATH}?purchase=${outcome.invoiceId}#confirm-purchase`);
+    // The heading itself: the router moves focus to the element the address names.
+    redirect(`${PLAN_PATH}?purchase=${outcome.invoiceId}#confirm-purchase-title`);
   }
   return outcome;
 }
 
 /** "Pay with bKash, Nagad, Rocket or Card": opens the payment page for the confirmed purchase. */
 export async function payPurchaseAction(
-  _prev: FormResult,
+  _prev: PayPurchaseState,
   formData: FormData,
-): Promise<FormResult> {
+): Promise<PayPurchaseState> {
   const invoiceId = text(formData, 'invoiceId');
   if (!ID.test(invoiceId)) return NO_PURCHASE;
   const startAnother = text(formData, 'startAnother') === 'yes';
   const outcome = await withSession(
-    async ({ db, self, email }): Promise<FormResult | { readonly redirectUrl: string }> => {
+    async ({ db, self, email }): Promise<PayPurchaseState | { readonly redirectUrl: string }> => {
       const started = await startPersonPayment(db, paymentPorts(), self, {
         invoiceId,
         urlFor: paymentUrlFor(resolveBaseUrl()),
@@ -63,16 +105,13 @@ export async function payPurchaseAction(
         actorEmail: email,
         bootstrapEmails: bootstrapAdminEmails(),
       });
-      if (!started.ok) {
-        return started.error.code === 'not_found'
-          ? NO_PURCHASE
-          : { ok: false, message: started.error.message };
-      }
+      if (!started.ok) return personWords(started.error);
       if (started.value.kind === 'recent_attempt') {
         return {
           ok: true,
+          recent: true,
           message:
-            'You started paying for this a few minutes ago. If you were charged, you do not need to pay again. Wait a minute, then reload this page.',
+            'You started paying for this a few minutes ago. If you were charged, you do not need to pay again: it shows here within a few minutes. If the payment page did not open or you closed it, start another payment.',
         };
       }
       return { redirectUrl: started.value.redirectUrl };

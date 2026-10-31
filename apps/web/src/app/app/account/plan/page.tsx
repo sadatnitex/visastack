@@ -150,7 +150,7 @@ function ComparePlans({
       </div>
       {covered ? (
         <p className="card-body u-mt-100">
-          Your paid plan covers today. You can buy again when it is about to end.
+          Your paid plan covers today. You can buy again when it ends.
         </p>
       ) : (
         <div className="page-actions u-mt-100">
@@ -164,7 +164,14 @@ function ComparePlans({
 }
 
 /** The purchase made with Get, to check before the payment page opens. */
-function ConfirmPurchase({ purchase }: { readonly purchase: PersonPurchase | null }) {
+function ConfirmPurchase({
+  purchase,
+  canBuy,
+}: {
+  readonly purchase: PersonPurchase | null;
+  /** Whether a Get button is shown below (a plan on sale, none covering today). */
+  readonly canBuy: boolean;
+}) {
   return (
     <article
       className="card u-mt-150"
@@ -189,6 +196,12 @@ function ConfirmPurchase({ purchase }: { readonly purchase: PersonPurchase | nul
               </span>
             </div>
             <div className="row">
+              <span className="row-key">Covers You From</span>
+              <span className="row-val">
+                {formatBillingDate(purchase.periodStart, BILLING_TIME_ZONE)}
+              </span>
+            </div>
+            <div className="row">
               <span className="row-key">Covers You Until</span>
               <span className="row-val">{lastDay(purchase.periodEnd)}</span>
             </div>
@@ -207,8 +220,8 @@ function ConfirmPurchase({ purchase }: { readonly purchase: PersonPurchase | nul
         </>
       ) : (
         <p className="card-body">
-          This purchase can no longer be paid. It may already be paid, or more than a day old. Start
-          it again below.
+          This purchase can no longer be paid. It may already be paid, or be more than a day old.
+          {canBuy ? ' You can start it again below.' : ''}
         </p>
       )}
     </article>
@@ -264,11 +277,31 @@ export default async function TravellerPlanPage({
   const offered = catalogue !== null && catalogue.offers.length > 0;
   // ADR 0025 section 12.2: offered at the moment of need, once, never nagged: when a daily AI limit
   // is reached or storage is mostly used, and only while a plan is on sale and none covers today.
+  // Each line only when a plan on sale really gives more of what ran short: its own limit, or the
+  // upload setting it follows, above the one this person has now.
   const canUpgrade = offered && summary.paidUntil === null;
+  const offers = catalogue?.offers ?? [];
+  const moreAccountRoom = offers.some(
+    (offer) => (offer.storage.accountBytes ?? quota.maxAccountEvidenceBytes) > limits.accountBytes,
+  );
+  const morePersonRoom = offers.some(
+    (offer) => (offer.storage.personBytes ?? quota.maxApplicantEvidenceBytes) > limits.personBytes,
+  );
   const storageTight =
-    usedBytes >= limits.accountBytes * 0.8 ||
-    profiles.some((profile) => profile.usedBytes >= limits.personBytes * 0.8);
-  const aiLimitReached = aiUsage?.some((feature) => feature.reason === 'daily_limit') ?? false;
+    (moreAccountRoom && usedBytes >= limits.accountBytes * 0.8) ||
+    (morePersonRoom && profiles.some((profile) => profile.usedBytes >= limits.personBytes * 0.8));
+  const aiLimitReached =
+    aiUsage?.some((feature) => {
+      if (feature.reason !== 'daily_limit') return false;
+      const now = summary.features?.[feature.feature]?.dailyLimit ?? feature.dailyLimit;
+      return offers.some((offer) => {
+        const rule = offer.features[feature.feature];
+        return (
+          rule?.included === true &&
+          (rule.dailyLimit === null || (now !== null && rule.dailyLimit > now))
+        );
+      });
+    }) ?? false;
 
   return (
     <section className="section container">
@@ -351,7 +384,9 @@ export default async function TravellerPlanPage({
         </article>
       </div>
 
-      {selling && purchaseParam !== null ? <ConfirmPurchase purchase={purchase} /> : null}
+      {selling && purchaseParam !== null ? (
+        <ConfirmPurchase purchase={purchase} canBuy={offered && summary.paidUntil === null} />
+      ) : null}
       {offered && catalogue ? (
         <ComparePlans
           catalogue={catalogue}

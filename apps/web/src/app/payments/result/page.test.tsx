@@ -112,7 +112,7 @@ describe('the payment result page', () => {
     expect(document.querySelector('a.btn-primary')?.getAttribute('href')).toBe('/app/account/plan');
   });
 
-  it('checks again by itself, with no script, while a payment is still being confirmed', async () => {
+  it('offers Check Again on the same signed address while a payment is still being confirmed, never reloading by itself', async () => {
     mocks.signed.mockReturnValue(true);
     mocks.view.mockResolvedValue({
       state: 'confirming',
@@ -122,10 +122,11 @@ describe('the payment result page', () => {
       payer: 'organization',
     });
     const confirming = await render({ t: TRAN, x: '9999999999', s: 'sig' });
-    expect(confirming.querySelector('meta[http-equiv="refresh"]')?.getAttribute('content')).toBe(
-      '15',
+    expect(confirming.querySelector('meta[http-equiv="refresh"]')).toBeNull();
+    const again = [...confirming.querySelectorAll('a')].find(
+      (a) => a.textContent === 'Check Again',
     );
-    expect(confirming.querySelectorAll('script')).toHaveLength(0);
+    expect(again?.getAttribute('href')).toBe(`/payments/result?t=${TRAN}&x=9999999999&s=sig`);
     mocks.view.mockResolvedValue({
       state: 'received',
       invoiceRef: 'INV-100',
@@ -134,7 +135,9 @@ describe('the payment result page', () => {
       payer: 'organization',
     });
     const received = await render({ t: TRAN, x: '9999999999', s: 'sig' });
-    expect(received.querySelector('meta[http-equiv="refresh"]')).toBeNull();
+    expect([...received.querySelectorAll('a')].some((a) => a.textContent === 'Check Again')).toBe(
+      false,
+    );
     expect(received.querySelector('a.btn-primary')?.getAttribute('href')).toBe('/app');
   });
 });

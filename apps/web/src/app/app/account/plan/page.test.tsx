@@ -269,19 +269,34 @@ describe('buying a paid plan on Plan & Usage (ADR 0025 T3c)', () => {
     ]);
   });
 
-  it('points to the plans once, where a daily limit is reached or storage is mostly used', async () => {
-    mocks.bytes = { a1: 45 * MB, a2: 2 * MB };
-    const text = textOf(await renderServer(Page({})));
-    expect(text).toContain(
+  it('points to the plans once, only where a plan on sale gives more of what ran short', async () => {
+    // The whole account is 85% used and Plus gives the account 500 MB: the storage line shows.
+    mocks.bytes = { a1: 45 * MB, a2: 40 * MB };
+    const tight = textOf(await renderServer(Page({})));
+    expect(tight).toContain(
       'Running out of room? A paid plan gives you more storage. Compare Plans',
     );
-    // The default AI use has App Suggestions at its limit.
-    expect(text).toContain(
+    // App Suggestions is at its limit of 15 and Plus allows 60 a day.
+    expect(tight).toContain(
       'Reached a daily limit? A paid plan gives you higher daily limits. Compare Plans',
     );
+    // One person is 90% used, but Plus keeps the same per-person limit: no promise of more room.
+    mocks.bytes = { a1: 45 * MB, a2: 2 * MB };
+    const personOnly = textOf(await renderServer(Page({})));
+    expect(personOnly).not.toContain('Running out of room?');
+    // A plan whose limit for the feature that ran out is no higher: no AI line.
+    mocks.catalogue.mockResolvedValue({
+      ...catalogue,
+      offers: [
+        {
+          ...plus,
+          features: { ...plus.features, ai_app_suggestions: { included: true, dailyLimit: 15 } },
+        },
+      ],
+    });
+    expect(textOf(await renderServer(Page({})))).not.toContain('Reached a daily limit?');
     vi.stubEnv('TRAVELLER_PLANS_ENABLED', 'false');
-    const off = textOf(await renderServer(Page({})));
-    expect(off).not.toContain('Compare Plans');
+    expect(textOf(await renderServer(Page({})))).not.toContain('Compare Plans');
   });
 
   it('offers nothing to buy while a paid period covers today', async () => {
@@ -303,7 +318,9 @@ describe('buying a paid plan on Plan & Usage (ADR 0025 T3c)', () => {
       planName: 'Traveller Plus',
       amountMinorUnits: 49900,
       currency: 'BDT',
-      periodEnd: new Date('2026-12-01T00:00:00Z'),
+      periodStart: new Date('2026-11-01T10:00:00Z'),
+      // Midnight in Dhaka on 1 Dec: the last covered day is 30 Nov.
+      periodEnd: new Date('2026-11-30T18:00:00Z'),
     });
     const html = await renderServer(
       Page({ searchParams: Promise.resolve({ purchase: '00000000-0000-4000-8000-0000000000bb' }) }),
@@ -312,6 +329,9 @@ describe('buying a paid plan on Plan & Usage (ADR 0025 T3c)', () => {
     expect(text).toContain('Confirm Your Purchase');
     expect(text).toContain('Plan Traveller Plus Price BDT 499.00');
     expect(text).toContain('Reference TP-ABCDEF12-1');
+    expect(text).toMatch(/Covers You From 1 Nov 2026/);
+    expect(text).toMatch(/Covers You Until 30 Nov 2026/);
+    expect(html).toContain('id="confirm-purchase-title"');
     expect(text).toContain('No automatic charge.');
     expect(mocks.purchase.mock.calls[0]?.[2]).toEqual({
       invoiceId: '00000000-0000-4000-8000-0000000000bb',
@@ -330,6 +350,7 @@ describe('buying a paid plan on Plan & Usage (ADR 0025 T3c)', () => {
       ),
     );
     expect(gone).toContain('This purchase can no longer be paid.');
+    expect(gone).toContain('You can start it again below.');
     mocks.purchase.mockClear();
     await renderServer(Page({ searchParams: Promise.resolve({ purchase: 'not-an-id' }) }));
     expect(mocks.purchase).not.toHaveBeenCalled();
@@ -357,6 +378,7 @@ describe('buying a paid plan on Plan & Usage (ADR 0025 T3c)', () => {
       planName: 'Traveller Plus',
       amountMinorUnits: 49900,
       currency: 'BDT',
+      periodStart: new Date('2026-11-01T10:00:00Z'),
       periodEnd: new Date('2026-12-01T00:00:00Z'),
     });
     expect(

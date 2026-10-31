@@ -24,7 +24,7 @@ const COPY: Readonly<Record<PaymentResultState, ResultCopy>> = {
   },
   confirming: {
     heading: 'We Are Confirming Your Payment',
-    body: 'Your payment is still being confirmed. This usually takes a minute, and this page checks again by itself. If you were charged, you do not need to pay again.',
+    body: 'Your payment is still being confirmed. This usually takes a minute: choose Check Again in a moment. If you were charged, you do not need to pay again.',
   },
   not_completed: {
     heading: 'Payment Not Completed',
@@ -36,9 +36,6 @@ const COPY: Readonly<Record<PaymentResultState, ResultCopy>> = {
   },
 };
 
-/** How often a payment still being confirmed is checked again, without any script. */
-const CONFIRMING_REFRESH_SECONDS = 15;
-
 /** A traveller's own plan purchase (ADR 0025): the way back is Plan & Usage, not an invoice. */
 const PERSON_NOT_COMPLETED: ResultCopy = {
   heading: 'Payment Not Completed',
@@ -47,7 +44,7 @@ const PERSON_NOT_COMPLETED: ResultCopy = {
 
 const GENERIC: ResultCopy = {
   heading: 'This Payment Link Is No Longer Available',
-  body: 'The link may have expired. Open your invoices to see the latest state of your payment.',
+  body: 'The link may have expired. Open VisaStack to see the latest state of your payment.',
 };
 
 async function loadView(merchantTranId: string): Promise<PaymentResultView | null> {
@@ -90,10 +87,6 @@ export default async function PaymentResultPage({
 
   return (
     <section className="section container center payment-result">
-      {view?.state === 'confirming' ? (
-        // React places this in the page head: the page reloads itself until the payment is decided.
-        <meta httpEquiv="refresh" content={String(CONFIRMING_REFRESH_SECONDS)} />
-      ) : null}
       <h1 className="section-title">{copy.heading}</h1>
       <p className="section-sub payment-result-body">{copy.body}</p>
       {view ? (
@@ -103,6 +96,16 @@ export default async function PaymentResultPage({
         </p>
       ) : null}
       <div className="cta-row cta-row-center">
+        {view?.state === 'confirming' && params.t && params.x && params.s ? (
+          // The same signed address again, when the person chooses (a page that reloads itself
+          // restarts a screen reader every time, WCAG 2.2.1).
+          <a
+            className="btn btn-secondary"
+            href={`/payments/result?${new URLSearchParams({ t: params.t, x: params.x, s: params.s }).toString()}`}
+          >
+            Check Again
+          </a>
+        ) : null}
         {person ? (
           <a className="btn btn-primary" href="/app/account/plan">
             Go to Plan &amp; Usage
