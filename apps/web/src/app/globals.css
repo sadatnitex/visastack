@@ -8180,8 +8180,11 @@ summary.visa-photo-title {
   font-weight: 600;
 }
 .invoice-claim-form {
-  max-width: 28rem;
+  max-width: 44rem;
   padding-bottom: var(--space-4);
+}
+.invoice-field-error {
+  margin-top: var(--space-1);
 }
 .invoice-section {
   display: grid;
