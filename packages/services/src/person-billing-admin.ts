@@ -53,7 +53,7 @@ export function travellerLookup(
   | { readonly kind: 'reference'; readonly invoiceRef: string }
   | null {
   const text = raw.trim();
-  const reference = /^TP-([0-9A-F]{8,32})-(\d{1,6})$/i.exec(text);
+  const reference = text.match(/^TP-([0-9A-F]{8,32})-(\d{1,6})$/i);
   if (reference) return { kind: 'reference', invoiceRef: text.toUpperCase() };
   const hex = text.replace(/[\s-]/g, '').toLowerCase();
   return /^[0-9a-f]{8,32}$/.test(hex) ? { kind: 'code', hex } : null;
