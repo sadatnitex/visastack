@@ -6,6 +6,7 @@ import {
   type NewestBillingStatusChange,
   newestBillingStatusChange,
 } from './billing-history';
+import { asOrganizationRow } from './billing-payer';
 import { type Db, first, schema } from './db';
 import { toLocalDateParts } from './notification-sweep';
 
@@ -163,7 +164,10 @@ export async function overdueInvoices(
         invoiceNotRefundedSql(sql`${i.id}`),
       ),
     );
-  return rows.filter((row) => isOverdue(row.dueDate, now));
+  // Filtered on organization_id above, so every row is an organization's (ADR 0025).
+  return rows
+    .filter((row) => isOverdue(row.dueDate, now))
+    .map((row) => asOrganizationRow(row, 'overdueInvoices'));
 }
 
 /**

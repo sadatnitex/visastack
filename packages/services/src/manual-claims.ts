@@ -557,7 +557,13 @@ export async function submitManualPaymentClaim(
         .where(eq(schema.invoices.id, input.invoiceId))
         .limit(1),
     );
-    if (!invoice || !(await isOrgAdmin(db, input.actorAccountId, invoice.organizationId))) {
+    // A person's own invoice is paid online only (ADR 0025 D13): there is no report to make.
+    const organizationId = invoice?.organizationId ?? null;
+    if (
+      !invoice ||
+      organizationId === null ||
+      !(await isOrgAdmin(db, input.actorAccountId, organizationId))
+    ) {
       return err(serviceError('not_found', 'invoice not found'));
     }
     if (!(await manualClaimsPresent(db))) return err(serviceError('upstream_error', UNAVAILABLE));
@@ -580,7 +586,7 @@ export async function submitManualPaymentClaim(
         },
         {
           input: {
-            subjectId: invoice.organizationId,
+            subjectId: organizationId,
             action: 'billing.claim_org',
             label: 'report',
           },
@@ -654,7 +660,7 @@ export async function submitManualPaymentClaim(
                 .insert(schema.manualPaymentClaims)
                 .values({
                   invoiceId: locked.id,
-                  organizationId: locked.organizationId,
+                  organizationId,
                   submittedByAccountId: input.actorAccountId,
                   method: input.method as ManualClaimMethod,
                   reference,
@@ -670,7 +676,7 @@ export async function submitManualPaymentClaim(
           if (proof) {
             await tx.insert(schema.billingReceipts).values({
               claimId: claim.id,
-              organizationId: locked.organizationId,
+              organizationId,
               storageObjectId: proof.storageObjectId,
               contentType: proof.contentType,
               sizeBytes: proof.sizeBytes,
@@ -686,7 +692,7 @@ export async function submitManualPaymentClaim(
             resourceType: 'manual_payment_claim',
             resourceId: claim.id,
             metadata: {
-              organizationId: locked.organizationId,
+              organizationId,
               invoiceId: locked.id,
               method: claim.method,
               amountMinorUnits: claim.amountMinorUnits,

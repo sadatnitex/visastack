@@ -127,6 +127,7 @@ export function attemptColumns() {
     id: a.id,
     invoiceId: a.invoiceId,
     organizationId: a.organizationId,
+    payerAccountId: a.payerAccountId,
     provider: a.provider,
     merchantTranId: a.merchantTranId,
     amountMinorUnits: a.amountMinorUnits,

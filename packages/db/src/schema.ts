@@ -3619,11 +3619,11 @@ export const planEntitlements = pgTable(
     primaryKey({ columns: [table.planId, table.key] }),
     check(
       'plan_entitlements_key_shape',
-      sql`${table.key} ~ '^(seats|invitations|cases_per_period|open_cases|storage_bytes|ai_allowance_units|ai\\.[a-z][a-z0-9_]{0,62})$'`,
+      sql`${table.key} ~ '^(seats|invitations|cases_per_period|open_cases|storage_bytes|account_storage_bytes|person_storage_bytes|ai_allowance_units|ai\\.[a-z][a-z0-9_]{0,62})$'`,
     ),
     check(
       'plan_entitlements_per_matches_key',
-      sql`(${table.key} in ('seats', 'invitations', 'open_cases') and ${table.per} = 'CONCURRENT') or (${table.key} in ('cases_per_period', 'ai_allowance_units') and ${table.per} = 'PERIOD') or (${table.key} = 'storage_bytes' and ${table.per} = 'TOTAL') or (${table.key} like 'ai.%' and ${table.per} = 'DAY')`,
+      sql`(${table.key} in ('seats', 'invitations', 'open_cases') and ${table.per} = 'CONCURRENT') or (${table.key} in ('cases_per_period', 'ai_allowance_units') and ${table.per} = 'PERIOD') or (${table.key} in ('storage_bytes', 'account_storage_bytes', 'person_storage_bytes') and ${table.per} = 'TOTAL') or (${table.key} like 'ai.%' and ${table.per} = 'DAY')`,
     ),
     check(
       'plan_entitlements_limit_nonnegative',
@@ -3685,9 +3685,15 @@ export const subscriptions = pgTable(
   'subscriptions',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    organizationId: uuid('organization_id')
-      .notNull()
-      .references(() => organizations.id, { onDelete: 'cascade' }),
+    // ADR 0025 (migration 0110): a subscription belongs to an organization or to a person (a
+    // traveller paying for themselves), never both. Every agency query filters on
+    // organization_id, which a person's row never matches.
+    organizationId: uuid('organization_id').references(() => organizations.id, {
+      onDelete: 'cascade',
+    }),
+    payerAccountId: uuid('payer_account_id').references(() => accounts.id, {
+      onDelete: 'cascade',
+    }),
     planId: uuid('plan_id')
       .notNull()
       .references(() => plans.id),
@@ -3697,14 +3703,28 @@ export const subscriptions = pgTable(
     // does both atomically) -- a "plan change" is always real history, never
     // an overwritten row.
     endedAt: timestamp('ended_at', { withTimezone: true }),
-    assignedByAccountId: uuid('assigned_by_account_id')
-      .notNull()
-      .references(() => accounts.id),
+    // Who assigned it. Required on an organization's subscription (unchanged); empty on a person's
+    // own purchase, so it never stands in the way of that person deleting their account.
+    assignedByAccountId: uuid('assigned_by_account_id').references(() => accounts.id),
     reason: text('reason').notNull(),
+    // ADR 0025: whether a person's paid plan gets a renewal invoice before it ends.
+    renews: boolean('renews').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('subscriptions_organization_idx').on(table.organizationId),
+    check(
+      'subscriptions_one_payer',
+      sql`num_nonnulls(${table.organizationId}, ${table.payerAccountId}) = 1`,
+    ),
+    check(
+      'subscriptions_organization_assigned',
+      sql`${table.organizationId} is null or ${table.assignedByAccountId} is not null`,
+    ),
+    uniqueIndex('subscriptions_one_current_per_person')
+      .on(table.payerAccountId)
+      .where(sql`${table.endedAt} is null`),
+    index('subscriptions_payer_idx').on(table.payerAccountId),
     // At most one CURRENT subscription per organization -- the database
     // itself makes "the" current plan unambiguous, never a query-time
     // ORDER BY/LIMIT 1 guess across concurrent activations.
@@ -3960,9 +3980,17 @@ export const invoices = pgTable(
   'invoices',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    organizationId: uuid('organization_id')
-      .notNull()
-      .references(() => organizations.id, { onDelete: 'cascade' }),
+    // ADR 0025 (migration 0110): billed to an organization or to a person, never both. A person's
+    // money rows keep payer_account_id without a foreign key (the ledger's rule): they outlive
+    // the account they were for.
+    organizationId: uuid('organization_id').references(() => organizations.id, {
+      onDelete: 'cascade',
+    }),
+    payerAccountId: uuid('payer_account_id'),
+    // The person's subscription this invoice pays for (persons only).
+    subscriptionId: uuid('subscription_id').references(() => subscriptions.id, {
+      onDelete: 'set null',
+    }),
     planId: uuid('plan_id')
       .notNull()
       .references(() => plans.id),
@@ -3992,6 +4020,17 @@ export const invoices = pgTable(
     uniqueIndex('invoices_org_plan_period_unique')
       .on(table.organizationId, table.planId, table.periodStart)
       .where(sql`${table.status} <> 'VOID'`),
+    check(
+      'invoices_one_payer',
+      sql`num_nonnulls(${table.organizationId}, ${table.payerAccountId}) = 1`,
+    ),
+    uniqueIndex('invoices_person_plan_period_unique')
+      .on(table.payerAccountId, table.planId, table.periodStart)
+      .where(sql`${table.status} <> 'VOID'`),
+    index('invoices_person_paid_period_idx')
+      .on(table.payerAccountId, table.periodEnd)
+      .where(sql`${table.status} = 'PAID' and ${table.payerAccountId} is not null`),
+    index('invoices_subscription_idx').on(table.subscriptionId),
     // S17: reminders and overdue checks look only at invoices still owed, by due date.
     index('invoices_open_due_idx')
       .on(table.dueDate)
@@ -4459,9 +4498,11 @@ export const paymentAttempts = pgTable(
     invoiceId: uuid('invoice_id')
       .notNull()
       .references(() => invoices.id, { onDelete: 'restrict' }),
-    organizationId: uuid('organization_id')
-      .notNull()
-      .references(() => organizations.id, { onDelete: 'restrict' }),
+    // ADR 0025 (migration 0110): an organization or a person pays, never both.
+    organizationId: uuid('organization_id').references(() => organizations.id, {
+      onDelete: 'restrict',
+    }),
+    payerAccountId: uuid('payer_account_id'),
     provider: text('provider').notNull(),
     merchantTranId: text('merchant_tran_id').notNull(),
     amountMinorUnits: integer('amount_minor_units').notNull(),
@@ -4498,6 +4539,11 @@ export const paymentAttempts = pgTable(
       'payment_attempts_held_has_reason',
       sql`${table.status} <> 'HELD_FOR_REVIEW' or ${table.reasonCode} is not null`,
     ),
+    check(
+      'payment_attempts_one_payer',
+      sql`num_nonnulls(${table.organizationId}, ${table.payerAccountId}) = 1`,
+    ),
+    index('payment_attempts_payer_idx').on(table.payerAccountId),
   ],
 );
 
@@ -4528,9 +4574,11 @@ export const refundRequests = pgTable(
   'refund_requests',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    organizationId: uuid('organization_id')
-      .notNull()
-      .references(() => organizations.id, { onDelete: 'restrict' }),
+    // ADR 0025 (migration 0110): an organization or a person pays, never both.
+    organizationId: uuid('organization_id').references(() => organizations.id, {
+      onDelete: 'restrict',
+    }),
+    payerAccountId: uuid('payer_account_id'),
     invoiceId: uuid('invoice_id')
       .notNull()
       .references(() => invoices.id, { onDelete: 'restrict' }),
@@ -4590,6 +4638,11 @@ export const refundRequests = pgTable(
       'refund_requests_failed_code',
       sql`${table.status} <> 'FAILED' or ${table.failureCode} is not null`,
     ),
+    check(
+      'refund_requests_one_payer',
+      sql`num_nonnulls(${table.organizationId}, ${table.payerAccountId}) = 1`,
+    ),
+    index('refund_requests_payer_idx').on(table.payerAccountId),
   ],
 );
 
@@ -4720,13 +4773,26 @@ export const paymentReceiptCounters = pgTable(
   (table) => [check('payment_receipt_counters_not_negative', sql`${table.lastNumber} >= 0`)],
 );
 
+// ADR 0025 (migration 0110): each person's receipts are numbered 1, 2, 3 on their own. Kept
+// without a foreign key, like the receipts it numbers.
+export const personReceiptCounters = pgTable(
+  'person_receipt_counters',
+  {
+    accountId: uuid('account_id').primaryKey(),
+    lastNumber: integer('last_number').notNull().default(0),
+  },
+  (table) => [check('person_receipt_counters_not_negative', sql`${table.lastNumber} >= 0`)],
+);
+
 export const paymentReceipts = pgTable(
   'payment_receipts',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    organizationId: uuid('organization_id')
-      .notNull()
-      .references(() => organizations.id, { onDelete: 'restrict' }),
+    // ADR 0025 (migration 0110): an organization or a person pays, never both.
+    organizationId: uuid('organization_id').references(() => organizations.id, {
+      onDelete: 'restrict',
+    }),
+    payerAccountId: uuid('payer_account_id'),
     invoiceId: uuid('invoice_id')
       .notNull()
       .references(() => invoices.id, { onDelete: 'restrict' }),
@@ -4744,6 +4810,11 @@ export const paymentReceipts = pgTable(
     unique('payment_receipts_org_number_unique').on(table.organizationId, table.receiptNumber),
     check('payment_receipts_number_positive', sql`${table.receiptNumber} > 0`),
     check('payment_receipts_amount_positive', sql`${table.amountMinorUnits} > 0`),
+    check(
+      'payment_receipts_one_payer',
+      sql`num_nonnulls(${table.organizationId}, ${table.payerAccountId}) = 1`,
+    ),
+    unique('payment_receipts_person_number_unique').on(table.payerAccountId, table.receiptNumber),
   ],
 );
 

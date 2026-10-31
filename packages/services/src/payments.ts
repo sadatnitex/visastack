@@ -786,7 +786,13 @@ export async function startOnlinePayment(
         .where(eq(schema.invoices.id, input.invoiceId))
         .limit(1),
     );
-    if (!invoice || !(await isOrgAdmin(db, input.actorAccountId, invoice.organizationId))) {
+    // A person's own invoice (ADR 0025) is paid through the person checkout (T3), never here.
+    const organizationId = invoice?.organizationId ?? null;
+    if (
+      !invoice ||
+      organizationId === null ||
+      !(await isOrgAdmin(db, input.actorAccountId, organizationId))
+    ) {
       return err(serviceError('not_found', 'invoice not found'));
     }
     // The provider that takes this invoice's currency. When none does, the first configured one
@@ -821,7 +827,7 @@ export async function startOnlinePayment(
         },
         {
           input: {
-            subjectId: invoice.organizationId,
+            subjectId: organizationId,
             action: 'payments.start_org',
             label: 'payment',
           },
@@ -911,7 +917,7 @@ export async function startOnlinePayment(
           await tx
             .select({ name: schema.organizations.name })
             .from(schema.organizations)
-            .where(eq(schema.organizations.id, locked.organizationId))
+            .where(eq(schema.organizations.id, organizationId))
             .limit(1),
         );
         if (!payer || !organization) return err(serviceError('not_found', 'invoice not found'));
@@ -922,7 +928,7 @@ export async function startOnlinePayment(
               .insert(attempts)
               .values({
                 invoiceId: locked.id,
-                organizationId: locked.organizationId,
+                organizationId,
                 provider: port.provider,
                 merchantTranId,
                 amountMinorUnits: amount,
@@ -945,7 +951,7 @@ export async function startOnlinePayment(
           resourceId: row.id,
           metadata: {
             invoiceId: locked.id,
-            organizationId: locked.organizationId,
+            organizationId,
             provider: port.provider,
             amountMinorUnits: amount,
             currency: normalizeCurrency(locked.currency),
