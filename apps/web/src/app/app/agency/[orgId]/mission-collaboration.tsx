@@ -379,7 +379,7 @@ export function MissionCollaboration({
           </div>
         )}
         <FormMessage result={taskFrom === 'add' ? NO_RESULT : taskStatus} />
-        <form action={taskCreateAction} className="stack-sm form-narrow">
+        <form action={taskCreateAction} className="field-list form-narrow">
           <input type="hidden" name="organizationId" value={organizationId} />
           <input type="hidden" name="missionId" value={missionId} />
           <div className="form-grid">
@@ -447,7 +447,7 @@ export function MissionCollaboration({
               />
             </div>
           </div>
-          <div className="page-actions">
+          <div>
             <SubmitButton
               pending={taskCreatePending}
               idle="Add"
@@ -522,7 +522,7 @@ export function MissionCollaboration({
           </div>
         )}
         <FormMessage result={appointmentFrom === 'add' ? NO_RESULT : appointmentStatus} />
-        <form action={apptCreateAction} className="stack-sm form-narrow">
+        <form action={apptCreateAction} className="field-list form-narrow">
           <input type="hidden" name="organizationId" value={organizationId} />
           <input type="hidden" name="missionId" value={missionId} />
           <div className="form-grid">
@@ -569,10 +569,10 @@ export function MissionCollaboration({
             <div className="field-row">
               {/* The list carries its own name ("Time Zone") and its own id, so this caption is
                   only seen, not read out a second time. */}
-              <span className="field-label" aria-hidden="true">
+              <label className="field-label" htmlFor={`${uid}-appt-timezone`}>
                 Time Zone
-              </span>
-              <TimeZoneSelect name="timezone" />
+              </label>
+              <TimeZoneSelect id={`${uid}-appt-timezone`} name="timezone" />
             </div>
             <div className="field-row">
               <label className="field-label" htmlFor={`${uid}-appt-place`}>
@@ -583,7 +583,6 @@ export function MissionCollaboration({
                 name="place"
                 type="text"
                 className="input"
-                placeholder="Place"
                 aria-label="Place"
               />
             </div>
@@ -596,12 +595,11 @@ export function MissionCollaboration({
                 name="channel"
                 type="text"
                 className="input"
-                placeholder="Channel"
                 aria-label="Channel"
               />
             </div>
           </div>
-          <div className="page-actions">
+          <div>
             <SubmitButton
               pending={apptCreatePending}
               idle="Schedule"
@@ -646,7 +644,7 @@ export function MissionCollaboration({
             ))}
           </div>
         )}
-        <form action={noteAction} className="stack-sm form-narrow">
+        <form action={noteAction} className="field-list form-narrow">
           <input type="hidden" name="organizationId" value={organizationId} />
           <input type="hidden" name="missionId" value={missionId} />
           <div className="form-grid">
@@ -684,7 +682,7 @@ export function MissionCollaboration({
               </select>
             </div>
           </div>
-          <div className="page-actions">
+          <div>
             <SubmitButton
               pending={notePending}
               idle="Add"
@@ -735,7 +733,7 @@ export function MissionCollaboration({
             </div>
           )}
           {viewerAssigned ? (
-            <form action={decisionAction} className="stack-sm form-narrow">
+            <form action={decisionAction} className="field-list form-narrow">
               <input type="hidden" name="organizationId" value={organizationId} />
               <input type="hidden" name="missionId" value={missionId} />
               <div className="form-grid">
@@ -778,19 +776,18 @@ export function MissionCollaboration({
                 </div>
                 <div className="field-row">
                   <label className="field-label" htmlFor={`${uid}-decision-reason`}>
-                    Reason
+                    Reason (Optional)
                   </label>
                   <input
                     id={`${uid}-decision-reason`}
                     name="reason"
                     type="text"
                     className="input"
-                    placeholder="Reason (Optional)"
                     aria-label="Decision reason"
                   />
                 </div>
               </div>
-              <div className="page-actions">
+              <div>
                 <SubmitButton
                   pending={decisionPending}
                   idle="Record"
@@ -845,7 +842,7 @@ export function MissionCollaboration({
               ))}
             </div>
           )}
-          <form action={issuerAction} className="stack-sm form-narrow">
+          <form action={issuerAction} className="field-list form-narrow">
             <input type="hidden" name="organizationId" value={organizationId} />
             <input type="hidden" name="missionId" value={missionId} />
             <input type="hidden" name="applicantId" value={applicantId} />
@@ -881,7 +878,7 @@ export function MissionCollaboration({
                   name="issuerIdentity"
                   type="text"
                   className="input"
-                  placeholder="Issuer (e.g. HM Passport Office)"
+                  placeholder="e.g. HM Passport Office"
                   aria-label="Issuer identity"
                   required
                 />
@@ -895,7 +892,7 @@ export function MissionCollaboration({
                   name="contactMethod"
                   type="text"
                   className="input"
-                  placeholder="Contact method (e.g. phone: +44...)"
+                  placeholder="e.g. phone: +44..."
                   aria-label="Contact method"
                   required
                 />
@@ -942,7 +939,7 @@ export function MissionCollaboration({
                 />
               </div>
             </div>
-            <div className="page-actions">
+            <div>
               <SubmitButton
                 pending={issuerPending}
                 idle="Record Confirmation"

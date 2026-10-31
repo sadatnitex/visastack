@@ -16,20 +16,18 @@ export function AssignComplaintForm({ complaintId }: { readonly complaintId: str
   return (
     <form action={formAction} className="field-list form-compact">
       <input type="hidden" name="complaintId" value={complaintId} />
-      <div className="form-grid">
-        <div className="field-row">
-          <label className="field-label" htmlFor={ownerId}>
-            Assignee Email
-          </label>
-          <input
-            id={ownerId}
-            name="ownerEmail"
-            type="email"
-            required
-            className="input"
-            placeholder="person@example.com"
-          />
-        </div>
+      <div className="field-row">
+        <label className="field-label" htmlFor={ownerId}>
+          Assignee Email
+        </label>
+        <input
+          id={ownerId}
+          name="ownerEmail"
+          type="email"
+          required
+          className="input"
+          placeholder="person@example.com"
+        />
       </div>
       <div>
         <SubmitButton

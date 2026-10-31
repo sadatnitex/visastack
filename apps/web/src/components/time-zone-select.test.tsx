@@ -103,6 +103,28 @@ describe('TimeZoneSelect', () => {
     expect(select.getAttribute('aria-label')).toBe('Appointment Time Zone');
   });
 
+  it('takes its name from a visible label when one points at it', () => {
+    deviceZone('UTC');
+    const select = mount({ id: 'appt-zone' });
+    expect(select.id).toBe('appt-zone');
+    expect(select.hasAttribute('aria-label')).toBe(false);
+  });
+
+  it('shows its starting zone again when the form is reset after a save', async () => {
+    deviceZone('Asia/Dhaka');
+    const select = mount();
+    act(() => {
+      select.value = 'Europe/Paris';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(select.value).toBe('Europe/Paris');
+    await act(async () => {
+      select.form?.reset();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(select.value).toBe('Asia/Dhaka');
+  });
+
   it('passes the automated accessibility rules', async () => {
     deviceZone('Asia/Dhaka');
     mount();

@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useId, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import type { ChoiceGroup } from '../../../../lib/master-profile-types';
 import { type ActionState, requestEvidenceAction } from './actions';
@@ -35,13 +35,14 @@ export function RequestEvidenceForm({
   const [state, formAction, pending] = useActionState(requestEvidenceAction, INITIAL);
   const [kind, setKind] = useState<'FIELD' | 'DOCUMENT'>('FIELD');
   const [documentChoice, setDocumentChoice] = useState('');
+  const missionHintId = useId();
 
   return (
     <form
       action={formAction}
       className="field-list form-narrow"
-      // React resets the form after a request is sent; the choice lists return to their defaults,
-      // so the detail or document field below follows them.
+      // React resets the form after every send, accepted or refused; the choice lists return to
+      // their defaults, so the detail or document field below follows them.
       onReset={() => {
         setKind('FIELD');
         setDocumentChoice('');
@@ -80,7 +81,7 @@ export function RequestEvidenceForm({
               name="missionId"
               className="input"
               defaultValue=""
-              aria-describedby="missionId-hint"
+              aria-describedby={missionHintId}
             >
               <option value="">Whole Traveller Record (Default)</option>
               {missions.map((m) => (
@@ -89,7 +90,7 @@ export function RequestEvidenceForm({
                 </option>
               ))}
             </select>
-            <small className="muted" id="missionId-hint">
+            <small className="muted" id={missionHintId}>
               Only needed if this organization's access is limited to one case.
             </small>
           </div>
