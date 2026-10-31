@@ -115,37 +115,81 @@ describe('migration 0111: traveller plan rules (ADR 0025, T2)', () => {
   );
 });
 
-describe('the billing tables match what the code declares (ADR 0025 section 13)', () => {
+/**
+ * What migration 0110 added that schema.ts does not declare yet (ADR 0025 section 13: the database
+ * gains person payers first, and code reads them with plain SQL until the agency billing paths are
+ * moved). Each table's columns, checks and indexes must equal schema.ts plus exactly these.
+ */
+const PERSON_PAYER_EXTRAS: Record<
+  string,
+  { columns: Record<string, boolean>; checks: string[]; indexes: string[] }
+> = {
+  subscriptions: {
+    columns: { organization_id: true, payer_account_id: true, renews: false },
+    checks: ['subscriptions_one_payer'],
+    indexes: ['subscriptions_one_current_per_person', 'subscriptions_payer_idx'],
+  },
+  invoices: {
+    columns: { organization_id: true, payer_account_id: true, subscription_id: true },
+    checks: ['invoices_one_payer'],
+    indexes: [
+      'invoices_person_plan_period_unique',
+      'invoices_person_paid_period_idx',
+      'invoices_subscription_idx',
+    ],
+  },
+  payment_attempts: {
+    columns: { organization_id: true, payer_account_id: true },
+    checks: ['payment_attempts_one_payer'],
+    indexes: ['payment_attempts_payer_idx'],
+  },
+  refund_requests: {
+    columns: { organization_id: true, payer_account_id: true },
+    checks: ['refund_requests_one_payer'],
+    indexes: ['refund_requests_payer_idx'],
+  },
+  payment_receipts: {
+    columns: { organization_id: true, payer_account_id: true },
+    checks: ['payment_receipts_one_payer'],
+    indexes: ['payment_receipts_person_number_unique'],
+  },
+};
+
+describe('the billing tables are what the code declares plus the documented person-payer additions', () => {
   const tables = [
     schema.subscriptions,
     schema.invoices,
     schema.paymentAttempts,
     schema.refundRequests,
     schema.paymentReceipts,
-    schema.personReceiptCounters,
   ];
 
   it(
-    'has every declared column with the declared nullability, every declared check and index, and nothing more',
+    'has exactly the declared and documented column names and nullability, check names and index names',
     async () => {
       const client = await createMigratedPglite();
       try {
         for (const table of tables) {
           const config = getTableConfig(table);
+          const extras = PERSON_PAYER_EXTRAS[config.name];
+          if (!extras) throw new Error(`no documented additions for ${config.name}`);
           const columns = await client.query<{ column_name: string; is_nullable: string }>(
             `select column_name, is_nullable from information_schema.columns where table_schema = 'public' and table_name = '${config.name}'`,
           );
           const actual = Object.fromEntries(
             columns.rows.map((c) => [c.column_name, c.is_nullable === 'YES']),
           );
-          const declared = Object.fromEntries(config.columns.map((c) => [c.name, !c.notNull]));
+          const declared = {
+            ...Object.fromEntries(config.columns.map((c) => [c.name, !c.notNull])),
+            ...extras.columns,
+          };
           expect(actual, `${config.name} columns`).toEqual(declared);
 
           const checks = await client.query<{ conname: string }>(
             `select conname from pg_constraint where conrelid = '${config.name}'::regclass and contype = 'c'`,
           );
           expect(checks.rows.map((c) => c.conname).sort(), `${config.name} checks`).toEqual(
-            config.checks.map((c) => c.name).sort(),
+            [...config.checks.map((c) => c.name), ...extras.checks].sort(),
           );
 
           const indexes = await client.query<{ indexname: string }>(
@@ -156,11 +200,20 @@ describe('the billing tables match what the code declares (ADR 0025 section 13)'
             ...config.uniqueConstraints.map((u) => u.getName()),
             ...config.columns.filter((c) => c.isUnique).map((c) => c.uniqueName ?? ''),
             `${config.name}_pkey`,
+            ...extras.indexes,
           ];
           expect(indexes.rows.map((i) => i.indexname).sort(), `${config.name} indexes`).toEqual(
             [...new Set(declaredIndexes)].sort(),
           );
         }
+
+        const counters = await client.query<{ column_name: string; is_nullable: string }>(
+          `select column_name, is_nullable from information_schema.columns where table_schema = 'public' and table_name = 'person_receipt_counters' order by column_name`,
+        );
+        expect(counters.rows).toEqual([
+          { column_name: 'account_id', is_nullable: 'NO' },
+          { column_name: 'last_number', is_nullable: 'NO' },
+        ]);
       } finally {
         await client.close();
       }

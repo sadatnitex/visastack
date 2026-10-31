@@ -1,7 +1,7 @@
 import { inArray, sql } from 'drizzle-orm';
 import { listApplicantsForOrganization } from './agency';
 import { type Db, schema } from './db';
-import { resolveEntitlements } from './entitlements';
+import { type TravellerStorageRules, travellerStorageRulesFor } from './entitlements';
 
 /**
  * Application-level upload quotas (master directive §10 — Release B).
@@ -179,6 +179,17 @@ export async function getPlatformEvidenceBytes(db: Db): Promise<number> {
 // PLUS every other still-active reservation, then reserves this one, all
 // before any bytes are written (master directive §7 "PR 6").
 
+/** The storage limits a traveller plan's rules give: each rule, else the deployment's upload setting. */
+export function storageLimitsFrom(
+  rules: TravellerStorageRules | null,
+  config: UploadQuotaConfig,
+): { readonly accountBytes: number; readonly personBytes: number } {
+  return {
+    accountBytes: rules?.accountBytes ?? config.maxAccountEvidenceBytes,
+    personBytes: rules?.personBytes ?? config.maxApplicantEvidenceBytes,
+  };
+}
+
 /**
  * The storage limits that apply to `ownerAccountId`'s records (ADR 0025): the traveller plan's own
  * rules when it has them (a paid plan covering now, or Traveller Free), else the deployment's
@@ -189,9 +200,5 @@ export async function storageLimitsForOwner(
   ownerAccountId: string,
   config: UploadQuotaConfig,
 ): Promise<{ readonly accountBytes: number; readonly personBytes: number }> {
-  const rules = (await resolveEntitlements(db, { accountId: ownerAccountId })).travellerStorage;
-  return {
-    accountBytes: rules?.accountBytes ?? config.maxAccountEvidenceBytes,
-    personBytes: rules?.personBytes ?? config.maxApplicantEvidenceBytes,
-  };
+  return storageLimitsFrom(await travellerStorageRulesFor(db, ownerAccountId), config);
 }

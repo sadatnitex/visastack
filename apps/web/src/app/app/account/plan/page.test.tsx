@@ -7,7 +7,6 @@ const mocks = vi.hoisted(() => ({
   aiUsage: vi.fn(),
   applicants: vi.fn(),
   bytes: {} as Record<string, number>,
-  limits: vi.fn(),
 }));
 
 vi.mock('../../../../lib/session', () => ({
@@ -19,7 +18,6 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   getTravellerPlanSummary: (...args: unknown[]) => mocks.summary(...args),
   listApplicants: (...args: unknown[]) => mocks.applicants(...args),
   getApplicantEvidenceBytes: async (_db: unknown, id: string) => mocks.bytes[id] ?? 0,
-  storageLimitsForOwner: (...args: unknown[]) => mocks.limits(...args),
 }));
 vi.mock('../../../../lib/ai-usage', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../../lib/ai-usage')>()),
@@ -53,13 +51,15 @@ beforeEach(() => {
       ai_explanations: { included: true, dailyLimit: null },
       ai_document_kind: { included: true, dailyLimit: 10 },
     },
+    paidUntil: null,
+    // Traveller Free sets no storage rules of its own: the upload settings apply.
+    storage: { accountBytes: null, personBytes: null },
   });
   mocks.applicants.mockResolvedValue([
     { id: 'a1', displayName: 'Rahim Uddin' },
     { id: 'a2', displayName: 'Ayesha Uddin' },
   ]);
   mocks.bytes = { a1: 10 * MB, a2: 2 * MB };
-  mocks.limits.mockResolvedValue({ accountBytes: 100 * MB, personBytes: 50 * MB });
   mocks.aiUsage.mockResolvedValue([
     feature({}),
     feature({
@@ -129,12 +129,17 @@ describe('Plan & Usage for a traveller', () => {
   });
 
   it('measures storage against this account’s own limits, which its plan can raise', async () => {
-    mocks.limits.mockResolvedValue({ accountBytes: 500 * MB, personBytes: 200 * MB });
+    mocks.summary.mockResolvedValue({
+      plan: { key: 'traveller_plus', name: 'Traveller Plus' },
+      features: null,
+      paidUntil: new Date('2026-12-12T06:00:00Z'),
+      storage: { accountBytes: 500 * MB, personBytes: null },
+    });
     const text = textOf(await renderServer(Page()));
     expect(text).toContain('Your Whole Account 12 MB of 500 MB used');
-    expect(text).toContain('Rahim Uddin 10 MB of 200 MB used');
-    expect(text).toContain('Each person you keep a record for can hold up to 200 MB.');
-    expect(mocks.limits.mock.calls[0]?.[1]).toBe('acct-1');
+    // A rule the plan leaves open falls back to the upload setting.
+    expect(text).toContain('Rahim Uddin 10 MB of 50 MB used');
+    expect(text).toContain('Each person you keep a record for can hold up to 50 MB.');
   });
 
   it('says how long a paid plan is paid for, instead of the beta offer', async () => {
@@ -142,6 +147,7 @@ describe('Plan & Usage for a traveller', () => {
       plan: { key: 'traveller_plus', name: 'Traveller Plus' },
       features: null,
       paidUntil: new Date('2026-12-12T06:00:00Z'),
+      storage: null,
     });
     const text = textOf(await renderServer(Page()));
     expect(text).toContain('Traveller Plus');
@@ -168,7 +174,7 @@ describe('Plan & Usage for a traveller', () => {
   });
 
   it('falls back to the feature state when the plan has no rules to read', async () => {
-    mocks.summary.mockResolvedValue({ plan: null, features: null });
+    mocks.summary.mockResolvedValue({ plan: null, features: null, paidUntil: null, storage: null });
     mocks.applicants.mockResolvedValue([]);
     mocks.aiUsage.mockResolvedValue([
       feature({ name: 'Automatic Reading', available: false, reason: 'not_in_plan' }),
@@ -186,7 +192,7 @@ describe('Plan & Usage for a traveller', () => {
   });
 
   it('says nothing is stored yet for a new account', async () => {
-    mocks.summary.mockResolvedValue({ plan: null, features: null });
+    mocks.summary.mockResolvedValue({ plan: null, features: null, paidUntil: null, storage: null });
     mocks.applicants.mockResolvedValue([]);
     const text = textOf(await renderServer(Page()));
     expect(text).toContain('Your Plan');

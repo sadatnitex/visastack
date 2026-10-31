@@ -47,17 +47,13 @@ async function lockUploadQuota(tx: Db): Promise<void> {
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext('visastack:upload-quota'))`);
 }
 
-async function activeReservedBytesFor(
-  db: Db,
-  column: 'accountId' | 'applicantId',
-  id: string,
-): Promise<number> {
+async function activeReservedBytesForApplicant(db: Db, applicantId: string): Promise<number> {
   const rows = await db
     .select({ total: sql<string>`coalesce(sum(${schema.uploadIntents.reservedBytes}), 0)` })
     .from(schema.uploadIntents)
     .where(
       and(
-        eq(schema.uploadIntents[column], id),
+        eq(schema.uploadIntents.applicantId, applicantId),
         eq(schema.uploadIntents.status, 'RESERVED'),
         gt(schema.uploadIntents.expiresAt, sql`now()`),
       ),
@@ -118,8 +114,13 @@ async function checkQuotaTiers(
   );
   if (!owner) return err(serviceError('not_found', 'applicant not found'));
   const limits = await storageLimitsForOwner(tx, owner.id, config);
+  // This record's own room is shown to anyone who may open it (the Documents page meter). The
+  // owner's whole-account limit is theirs: someone uploading into another person's record is told
+  // only that it is full (the web layer matches on "applicant has reached" and "account has
+  // reached").
+  const isOwner = owner.id === input.accountId;
 
-  const applicantReserved = await activeReservedBytesFor(tx, 'applicantId', input.applicantId);
+  const applicantReserved = await activeReservedBytesForApplicant(tx, input.applicantId);
   const applicantCommitted = await getApplicantEvidenceBytes(tx, input.applicantId);
   if (applicantCommitted + applicantReserved + addedBytes > limits.personBytes) {
     return err(
@@ -136,7 +137,9 @@ async function checkQuotaTiers(
     return err(
       serviceError(
         'invalid',
-        `this account has reached its ${mbLabel(limits.accountBytes)} evidence limit`,
+        isOwner
+          ? `this account has reached its ${mbLabel(limits.accountBytes)} evidence limit`
+          : "the record owner's account has reached its evidence limit",
       ),
     );
   }

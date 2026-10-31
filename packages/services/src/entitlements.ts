@@ -11,10 +11,10 @@ import {
   aiEntitlementKey,
   isEntitlementKey,
 } from '@visastack/core/entitlements';
-import { and, desc, eq, gt, isNull, lte, sql } from 'drizzle-orm';
-import { invoiceNotRefundedSql } from './billing-standing';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { type Db, first, schema } from './db';
 import { type PlanAudience, entitlementsSchemaPresent, planColumns } from './plans-schema';
+import { coveringPaidPeriod } from './traveller-billing';
 
 /**
  * The one answer to "what may this agency or traveller use right now" (S29, ADR 0020 S29
@@ -386,42 +386,6 @@ async function resolveForOrganization(
   };
 }
 
-/**
- * The paid traveller plan covering `accountId` at `now`, if any (ADR 0025): the person's current
- * subscription on a traveller plan, and a paid invoice of that subscription and plan, never
- * refunded, whose period holds `now`. A retired plan still covers a period already paid for.
- */
-async function coveringPaidPeriod(
-  db: Db,
-  accountId: string,
-  now: Date,
-): Promise<{ planId: string; periodStart: Date; periodEnd: Date } | undefined> {
-  const s = schema.subscriptions;
-  const i = schema.invoices;
-  const p = schema.plans;
-  return first(
-    await db
-      .select({ planId: s.planId, periodStart: i.periodStart, periodEnd: i.periodEnd })
-      .from(s)
-      .innerJoin(p, and(eq(p.id, s.planId), eq(p.audience, 'TRAVELLER')))
-      .innerJoin(
-        i,
-        and(
-          eq(i.subscriptionId, s.id),
-          eq(i.payerAccountId, accountId),
-          eq(i.planId, s.planId),
-          eq(i.status, 'PAID'),
-          lte(i.periodStart, now),
-          gt(i.periodEnd, now),
-          invoiceNotRefundedSql(sql`${i.id}`),
-        ),
-      )
-      .where(and(eq(s.payerAccountId, accountId), isNull(s.endedAt)))
-      .orderBy(desc(i.periodEnd))
-      .limit(1),
-  );
-}
-
 /** A traveller plan's storage rules from its rows; a rule that is not included allows nothing. */
 function travellerStorageOf(rows: readonly EntitlementRow[]): TravellerStorageRules {
   const rule = (key: string): number | null => {
@@ -433,6 +397,33 @@ function travellerStorageOf(rows: readonly EntitlementRow[]): TravellerStorageRu
     accountBytes: rule(TRAVELLER_STORAGE_KEYS.account),
     personBytes: rule(TRAVELLER_STORAGE_KEYS.person),
   };
+}
+
+/**
+ * Only a traveller plan's storage rules for `accountId` (ADR 0025): the paid traveller plan
+ * covering now, else Traveller Free. The same answer as `resolveEntitlements(...).travellerStorage`,
+ * read with two small queries for the upload check, which runs under the platform-wide upload lock.
+ */
+export async function travellerStorageRulesFor(
+  db: Db,
+  accountId: string,
+  now: Date = new Date(),
+): Promise<TravellerStorageRules> {
+  if (!(await entitlementsSchemaPresent(db))) return { accountBytes: null, personBytes: null };
+  const paid = await coveringPaidPeriod(db, accountId, now);
+  const e = schema.planEntitlements;
+  const p = schema.plans;
+  const rows = await db
+    .select({ key: e.key, included: e.included, limit: sql<string | null>`${e.limitValue}::text` })
+    .from(e)
+    .innerJoin(p, eq(p.id, e.planId))
+    .where(
+      and(
+        paid ? eq(p.id, paid.planId) : eq(p.key, TRAVELLER_PLAN_KEY),
+        sql`${e.key} in (${TRAVELLER_STORAGE_KEYS.account}, ${TRAVELLER_STORAGE_KEYS.person})`,
+      ),
+    );
+  return travellerStorageOf(rows);
 }
 
 async function resolveForTraveller(

@@ -3,7 +3,6 @@ import { and, asc, desc, eq, inArray, isNull, notInArray, or, sql } from 'drizzl
 import type { StaffScope, SystemScope } from './access/principal';
 import { staffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
-import { organizationOf } from './billing-payer';
 import {
   agencyLine,
   agencyName,
@@ -619,23 +618,20 @@ async function auditRefund(
 
 /** Tells the agency's owners and admins, naming the invoice and never an amount. */
 async function noticeRefund(tx: Db, row: RefundRequest, invoiceRef: string): Promise<void> {
-  const name = await agencyName(tx, organizationOf(row, 'refund notice'));
-  for (const recipientAccountId of await billingContacts(
-    tx,
-    organizationOf(row, 'refund notice'),
-  )) {
+  const name = await agencyName(tx, row.organizationId);
+  for (const recipientAccountId of await billingContacts(tx, row.organizationId)) {
     await enqueueNotificationBothChannels(tx, {
       eventType: 'INVOICE_REFUNDED',
       resourceId: row.id,
       recipientAccountId,
-      organizationId: organizationOf(row, 'refund notice'),
+      organizationId: row.organizationId,
       payload: {
         subject: 'Refund Made',
         summary: agencyLine(
           name,
           `A refund was made on invoice ${invoiceRef}. Open your invoices to see what it shows now.`,
         ),
-        deepLinkPath: invoicesPath(organizationOf(row, 'refund notice')),
+        deepLinkPath: invoicesPath(row.organizationId),
       },
     });
   }
@@ -970,14 +966,7 @@ async function sendToGateway(
     }
     // A refund reference already behind another refund of this agency (by the gateway or recorded
     // by hand) is never taken on: the request stays waiting, for a person to check.
-    if (
-      await referenceTaken(
-        tx,
-        organizationOf(locked, 'refund reference check'),
-        answer.refundRefId,
-        locked.id,
-      )
-    ) {
+    if (await referenceTaken(tx, locked.organizationId, answer.refundRefId, locked.id)) {
       return unconfirmed();
     }
     const sent = required(
@@ -1137,11 +1126,7 @@ export async function cancelRefund(
   const done = await inTransaction(db, async (tx): Promise<Result<RefundRequest, ServiceError>> => {
     // Lock order: a held payment first, then the request.
     if (seen.value.paymentAttemptId !== null) {
-      await lockAttempt(
-        tx,
-        organizationOf(seen.value, 'refund cancel'),
-        seen.value.paymentAttemptId,
-      );
+      await lockAttempt(tx, seen.value.organizationId, seen.value.paymentAttemptId);
     }
     const r = schema.refundRequests;
     const locked = first(
@@ -1220,11 +1205,7 @@ export async function confirmUnsentRefund(
       // Lock order: the held payment, then the request, then (inside the ledger write) the invoice.
       const attempt =
         seen.value.paymentAttemptId !== null
-          ? await lockAttempt(
-              tx,
-              organizationOf(seen.value, 'manual refund confirm'),
-              seen.value.paymentAttemptId,
-            )
+          ? await lockAttempt(tx, seen.value.organizationId, seen.value.paymentAttemptId)
           : undefined;
       const r = schema.refundRequests;
       const locked = first(
@@ -1233,14 +1214,7 @@ export async function confirmUnsentRefund(
       if (!locked || locked.status !== 'REQUESTED') {
         return err(serviceError('invalid', 'This refund changed meanwhile. Reload the page.'));
       }
-      if (
-        await referenceTaken(
-          tx,
-          organizationOf(locked, 'manual refund confirm'),
-          reference,
-          locked.id,
-        )
-      ) {
+      if (await referenceTaken(tx, locked.organizationId, reference, locked.id)) {
         return err(serviceError('invalid', REFERENCE_TAKEN));
       }
       if (locked.invoicePaymentId !== null) {
@@ -1414,7 +1388,7 @@ async function confirmOne(
     // Lock order: the held payment, then the request, then (inside the ledger write) the invoice.
     const attempt =
       seen.paymentAttemptId !== null
-        ? await lockAttempt(tx, organizationOf(seen, 'refund status check'), seen.paymentAttemptId)
+        ? await lockAttempt(tx, seen.organizationId, seen.paymentAttemptId)
         : undefined;
     const locked = first(await tx.select().from(r).where(eq(r.id, seen.id)).limit(1).for('update'));
     if (!locked || locked.status !== 'SUBMITTED') return ok('skipped');
@@ -1461,14 +1435,7 @@ async function confirmOne(
     };
     // The gateway's refund reference is already behind another refund of this agency (recorded by
     // hand from the panel, say): counting it again would refund the same money twice in the ledger.
-    if (
-      await referenceTaken(
-        tx,
-        organizationOf(locked, 'refund status check'),
-        providerRefundId,
-        locked.id,
-      )
-    ) {
+    if (await referenceTaken(tx, locked.organizationId, providerRefundId, locked.id)) {
       return ok(await needsCheck(DUPLICATE_REFERENCE_CODE, {}));
     }
     if (locked.invoicePaymentId !== null) {
@@ -1950,7 +1917,7 @@ export async function applyHeldPaymentCredit(
       );
     }
     const currency = normalizeCurrency(attempt.currency);
-    const candidates = await creditTargets(tx, organizationOf(attempt, 'held credit'), currency);
+    const candidates = await creditTargets(tx, attempt.organizationId, currency);
     const chosen =
       target === null ? candidates[0] : candidates.find((invoice) => invoice.id === target);
     if (!chosen) {
@@ -2022,23 +1989,20 @@ export async function applyHeldPaymentCredit(
         ledgerEntryId: applied.value.payment?.id ?? null,
       },
     });
-    const name = await agencyName(tx, organizationOf(attempt, 'held credit'));
-    for (const recipientAccountId of await billingContacts(
-      tx,
-      organizationOf(attempt, 'held credit'),
-    )) {
+    const name = await agencyName(tx, attempt.organizationId);
+    for (const recipientAccountId of await billingContacts(tx, attempt.organizationId)) {
       await enqueueNotificationBothChannels(tx, {
         eventType: 'INVOICE_CREDIT_APPLIED',
         resourceId: attempt.id,
         recipientAccountId,
-        organizationId: organizationOf(attempt, 'held credit'),
+        organizationId: attempt.organizationId,
         payload: {
           subject: 'Credit Applied',
           summary: agencyLine(
             name,
             `An earlier payment was applied to invoice ${invoice.invoiceRef}. Open your invoices to see what is left to pay.`,
           ),
-          deepLinkPath: invoicesPath(organizationOf(attempt, 'held credit')),
+          deepLinkPath: invoicesPath(attempt.organizationId),
         },
       });
     }

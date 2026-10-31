@@ -1,7 +1,7 @@
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { type AuthorizedApplicant, accountPrincipal, requireAccess } from './access';
@@ -778,7 +778,17 @@ describe('reserveUpload - storage limits belong to the record owner (ADR 0025)',
       { accountId: contributor.accountId, applicantId: owner.applicantId, sizeBytes: 6 * MB },
       roomy,
     );
-    expect(isErr(over) && over.error.message).toMatch(/this account has reached its 20 MB/);
+    // Told the record is full, never the owner's own limit.
+    expect(isErr(over) && over.error.message).toBe(
+      "the record owner's account has reached its evidence limit",
+    );
+    // The owner is told the number.
+    const ownOver = await reserveUpload(
+      db,
+      { accountId: owner.accountId, applicantId: owner.applicantId, sizeBytes: 6 * MB },
+      roomy,
+    );
+    expect(isErr(ownOver) && ownOver.error.message).toMatch(/this account has reached its 20 MB/);
 
     // The contributor's own 18 MB never counts against the owner's record.
     const fits = await reserveUpload(
@@ -837,25 +847,23 @@ describe('reserveUpload - storage limits belong to the record owner (ADR 0025)',
         per: 'TOTAL',
       },
     ]);
-    const [sub] = await db
-      .insert(schema.subscriptions)
-      .values({ payerAccountId: owner.accountId, planId: plan.id, reason: 'Bought Traveller Plus' })
-      .returning({ id: schema.subscriptions.id });
+    // Person payer columns are written with plain SQL until schema.ts declares them (ADR 0025).
+    const sub = (
+      (await db.execute(sql`
+        insert into subscriptions (payer_account_id, plan_id, reason)
+        values (${owner.accountId}::uuid, ${plan.id}::uuid, 'Bought Traveller Plus') returning id`)) as unknown as {
+        rows: { id: string }[];
+      }
+    ).rows[0];
     if (!sub) throw new Error('subscription insert failed');
     const now = Date.now();
-    await db.insert(schema.invoices).values({
-      payerAccountId: owner.accountId,
-      subscriptionId: sub.id,
-      planId: plan.id,
-      periodStart: new Date(now - 24 * 60 * 60 * 1000),
-      periodEnd: new Date(now + 29 * 24 * 60 * 60 * 1000),
-      invoiceRef: 'INV-P-STORAGE',
-      invoicedAmountMinorUnits: 49900,
-      collectedAmountMinorUnits: 49900,
-      currency: 'BDT',
-      dueDate: new Date(now),
-      status: 'PAID',
-    });
+    const start = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+    const end = new Date(now + 29 * 24 * 60 * 60 * 1000).toISOString();
+    await db.execute(sql`
+      insert into invoices (payer_account_id, subscription_id, plan_id, period_start, period_end,
+        invoice_ref, invoiced_amount_minor_units, collected_amount_minor_units, currency, due_date, status)
+      values (${owner.accountId}::uuid, ${sub.id}::uuid, ${plan.id}::uuid, ${start}::timestamptz,
+        ${end}::timestamptz, 'INV-P-STORAGE', 49900, 49900, 'BDT', ${start}::timestamptz, 'PAID')`);
 
     const after = await reserveUpload(
       db,

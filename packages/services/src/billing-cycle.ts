@@ -647,8 +647,7 @@ async function queueReminders(
   const open = await db
     .select({
       id: i.id,
-      // Read through the join, so it is always an organization's invoice (ADR 0025).
-      organizationId: o.id,
+      organizationId: i.organizationId,
       organizationName: o.name,
       invoiceRef: i.invoiceRef,
       dueDate: i.dueDate,
@@ -669,7 +668,7 @@ async function queueReminders(
     .orderBy(asc(i.dueDate), asc(i.id));
   // Agencies left out because nobody can be told: one cheap read, logged once each per run.
   const unreachable = await db
-    .selectDistinct({ organizationId: o.id })
+    .selectDistinct({ organizationId: i.organizationId })
     .from(i)
     .innerJoin(o, eq(o.id, i.organizationId))
     .where(

@@ -39,6 +39,6 @@ What people notice: between the merge and the run, readiness reports the databas
 Run outside the nightly backup, with the owner's go-ahead for this run (O8). After running, both must hold:
 
 ```sql
-select count(*) from drizzle.__drizzle_migrations where created_at = 1793437743943;   -- 1 (0111 recorded)
+select count(*) from drizzle.__drizzle_migrations where created_at = 1793441322837;   -- 1 (0111 recorded)
 select count(*) from pg_constraint where conname = 'subscriptions_organization_assigned' and convalidated;   -- 1
 ```

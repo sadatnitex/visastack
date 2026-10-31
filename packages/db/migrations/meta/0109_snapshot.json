@@ -1,5 +1,5 @@
 {
-  "id": "90b07629-8145-4854-901e-5b2bed608923",
+  "id": "a01d7dd9-60b0-4e6e-b229-f3ff93ba515a",
   "prevId": "af141995-b750-48b4-a5c6-7b9a872b8732",
   "version": "7",
   "dialect": "postgresql",
@@ -8324,19 +8324,7 @@
           "name": "organization_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": false
-        },
-        "payer_account_id": {
-          "name": "payer_account_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "subscription_id": {
-          "name": "subscription_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "plan_id": {
           "name": "plan_id",
@@ -8466,71 +8454,6 @@
           "method": "btree",
           "with": {}
         },
-        "invoices_person_plan_period_unique": {
-          "name": "invoices_person_plan_period_unique",
-          "columns": [
-            {
-              "expression": "payer_account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "plan_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "period_start",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"invoices\".\"status\" <> 'VOID'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "invoices_person_paid_period_idx": {
-          "name": "invoices_person_paid_period_idx",
-          "columns": [
-            {
-              "expression": "payer_account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "period_end",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"invoices\".\"status\" = 'PAID' and \"invoices\".\"payer_account_id\" is not null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "invoices_subscription_idx": {
-          "name": "invoices_subscription_idx",
-          "columns": [
-            {
-              "expression": "subscription_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "invoices_open_due_idx": {
           "name": "invoices_open_due_idx",
           "columns": [
@@ -8558,15 +8481,6 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "invoices_subscription_id_subscriptions_id_fk": {
-          "name": "invoices_subscription_id_subscriptions_id_fk",
-          "tableFrom": "invoices",
-          "tableTo": "subscriptions",
-          "columnsFrom": ["subscription_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
         "invoices_plan_id_plans_id_fk": {
           "name": "invoices_plan_id_plans_id_fk",
           "tableFrom": "invoices",
@@ -8587,10 +8501,6 @@
       },
       "policies": {},
       "checkConstraints": {
-        "invoices_one_payer": {
-          "name": "invoices_one_payer",
-          "value": "num_nonnulls(\"invoices\".\"organization_id\", \"invoices\".\"payer_account_id\") = 1"
-        },
         "invoices_period_order": {
           "name": "invoices_period_order",
           "value": "\"invoices\".\"period_end\" > \"invoices\".\"period_start\""
@@ -11635,13 +11545,7 @@
           "name": "organization_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": false
-        },
-        "payer_account_id": {
-          "name": "payer_account_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "provider": {
           "name": "provider",
@@ -11793,21 +11697,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "payment_attempts_payer_idx": {
-          "name": "payment_attempts_payer_idx",
-          "columns": [
-            {
-              "expression": "payer_account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -11856,10 +11745,6 @@
         "payment_attempts_held_has_reason": {
           "name": "payment_attempts_held_has_reason",
           "value": "\"payment_attempts\".\"status\" <> 'HELD_FOR_REVIEW' or \"payment_attempts\".\"reason_code\" is not null"
-        },
-        "payment_attempts_one_payer": {
-          "name": "payment_attempts_one_payer",
-          "value": "num_nonnulls(\"payment_attempts\".\"organization_id\", \"payment_attempts\".\"payer_account_id\") = 1"
         }
       },
       "isRLSEnabled": false
@@ -11920,13 +11805,7 @@
           "name": "organization_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": false
-        },
-        "payer_account_id": {
-          "name": "payer_account_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "invoice_id": {
           "name": "invoice_id",
@@ -12023,11 +11902,6 @@
           "name": "payment_receipts_org_number_unique",
           "nullsNotDistinct": false,
           "columns": ["organization_id", "receipt_number"]
-        },
-        "payment_receipts_person_number_unique": {
-          "name": "payment_receipts_person_number_unique",
-          "nullsNotDistinct": false,
-          "columns": ["payer_account_id", "receipt_number"]
         }
       },
       "policies": {},
@@ -12039,41 +11913,6 @@
         "payment_receipts_amount_positive": {
           "name": "payment_receipts_amount_positive",
           "value": "\"payment_receipts\".\"amount_minor_units\" > 0"
-        },
-        "payment_receipts_one_payer": {
-          "name": "payment_receipts_one_payer",
-          "value": "num_nonnulls(\"payment_receipts\".\"organization_id\", \"payment_receipts\".\"payer_account_id\") = 1"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.person_receipt_counters": {
-      "name": "person_receipt_counters",
-      "schema": "",
-      "columns": {
-        "account_id": {
-          "name": "account_id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "last_number": {
-          "name": "last_number",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "person_receipt_counters_not_negative": {
-          "name": "person_receipt_counters_not_negative",
-          "value": "\"person_receipt_counters\".\"last_number\" >= 0"
         }
       },
       "isRLSEnabled": false
@@ -13730,13 +13569,7 @@
           "name": "organization_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": false
-        },
-        "payer_account_id": {
-          "name": "payer_account_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "invoice_id": {
           "name": "invoice_id",
@@ -13922,21 +13755,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "refund_requests_payer_idx": {
-          "name": "refund_requests_payer_idx",
-          "columns": [
-            {
-              "expression": "payer_account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -14023,10 +13841,6 @@
         "refund_requests_failed_code": {
           "name": "refund_requests_failed_code",
           "value": "\"refund_requests\".\"status\" <> 'FAILED' or \"refund_requests\".\"failure_code\" is not null"
-        },
-        "refund_requests_one_payer": {
-          "name": "refund_requests_one_payer",
-          "value": "num_nonnulls(\"refund_requests\".\"organization_id\", \"refund_requests\".\"payer_account_id\") = 1"
         }
       },
       "isRLSEnabled": false
@@ -14876,13 +14690,7 @@
           "name": "organization_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": false
-        },
-        "payer_account_id": {
-          "name": "payer_account_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "plan_id": {
           "name": "plan_id",
@@ -14915,13 +14723,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "renews": {
-          "name": "renews",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -14936,37 +14737,6 @@
           "columns": [
             {
               "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "subscriptions_one_current_per_person": {
-          "name": "subscriptions_one_current_per_person",
-          "columns": [
-            {
-              "expression": "payer_account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"subscriptions\".\"ended_at\" is null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "subscriptions_payer_idx": {
-          "name": "subscriptions_payer_idx",
-          "columns": [
-            {
-              "expression": "payer_account_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -15004,15 +14774,6 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "subscriptions_payer_account_id_accounts_id_fk": {
-          "name": "subscriptions_payer_account_id_accounts_id_fk",
-          "tableFrom": "subscriptions",
-          "tableTo": "accounts",
-          "columnsFrom": ["payer_account_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
         "subscriptions_plan_id_plans_id_fk": {
           "name": "subscriptions_plan_id_plans_id_fk",
           "tableFrom": "subscriptions",
@@ -15036,10 +14797,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "subscriptions_one_payer": {
-          "name": "subscriptions_one_payer",
-          "value": "num_nonnulls(\"subscriptions\".\"organization_id\", \"subscriptions\".\"payer_account_id\") = 1"
-        },
         "subscriptions_organization_assigned": {
           "name": "subscriptions_organization_assigned",
           "value": "\"subscriptions\".\"organization_id\" is null or \"subscriptions\".\"assigned_by_account_id\" is not null"

@@ -1,12 +1,13 @@
 import { isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import type { Db } from './db';
-import { TRAVELLER_PLAN_KEY, resolveEntitlements } from './entitlements';
+import { TRAVELLER_PLAN_KEY, resolveEntitlements, travellerStorageRulesFor } from './entitlements';
+import { getTravellerPlanSummary } from './traveller-plan';
 
 /**
  * ADR 0025, T2: a traveller is on a paid traveller plan only while a paid, unrefunded invoice of
@@ -67,27 +68,26 @@ async function bought(
   planId: string,
   invoice: { start: Date; status?: 'PAID' | 'OPEN'; payer?: string },
 ): Promise<{ subscriptionId: string; invoiceId: string }> {
-  const [sub] = await db
-    .insert(schema.subscriptions)
-    .values({ payerAccountId: accountId, planId, reason: 'Bought Traveller Plus' })
-    .returning({ id: schema.subscriptions.id });
+  // Person payer columns are read and written with plain SQL until schema.ts declares them (ADR 0025).
+  const sub = (
+    (await db.execute(sql`
+      insert into subscriptions (payer_account_id, plan_id, reason)
+      values (${accountId}::uuid, ${planId}::uuid, 'Bought Traveller Plus')
+      returning id`)) as unknown as { rows: { id: string }[] }
+  ).rows[0];
   if (!sub) throw new Error('subscription insert failed');
-  const [inv] = await db
-    .insert(schema.invoices)
-    .values({
-      payerAccountId: invoice.payer ?? accountId,
-      subscriptionId: sub.id,
-      planId,
-      periodStart: invoice.start,
-      periodEnd: new Date(invoice.start.getTime() + 30 * DAY),
-      invoiceRef: `INV-P-${++refs}`,
-      invoicedAmountMinorUnits: 49900,
-      collectedAmountMinorUnits: invoice.status === 'OPEN' ? 0 : 49900,
-      currency: 'BDT',
-      dueDate: invoice.start,
-      status: invoice.status ?? 'PAID',
-    })
-    .returning({ id: schema.invoices.id });
+  const start = invoice.start.toISOString();
+  const end = new Date(invoice.start.getTime() + 30 * DAY).toISOString();
+  const status = invoice.status ?? 'PAID';
+  const inv = (
+    (await db.execute(sql`
+      insert into invoices (payer_account_id, subscription_id, plan_id, period_start, period_end,
+        invoice_ref, invoiced_amount_minor_units, collected_amount_minor_units, currency, due_date, status)
+      values (${invoice.payer ?? accountId}::uuid, ${sub.id}::uuid, ${planId}::uuid, ${start}::timestamptz,
+        ${end}::timestamptz, ${`INV-P-${++refs}`}, 49900, ${status === 'OPEN' ? 0 : 49900}, 'BDT',
+        ${start}::timestamptz, ${status})
+      returning id`)) as unknown as { rows: { id: string }[] }
+  ).rows[0];
   if (!inv) throw new Error('invoice insert failed');
   return { subscriptionId: sub.id, invoiceId: inv.id };
 }
@@ -168,6 +168,23 @@ describe('a traveller’s plan follows money that has arrived (ADR 0025)', () =>
       const resolved = await resolveEntitlements(db, { accountId: person }, NOW);
       expect(resolved.plan?.key, person).toBe(TRAVELLER_PLAN_KEY);
     }
+  });
+
+  it('tells Plan & Usage the last covered moment and the storage rules, matching the upload check', async () => {
+    const person = await account('summary@example.com');
+    const plan = await plusPlan();
+    await bought(person, plan, { start: new Date(NOW.getTime() - 10 * DAY) });
+    const summary = await getTravellerPlanSummary(db, { actorAccountId: person, now: NOW });
+    expect(summary.plan?.key).toBe('traveller_plus');
+    // The period's end is exclusive: the last covered moment is one millisecond before it.
+    expect(summary.paidUntil).toEqual(new Date(NOW.getTime() + 20 * DAY - 1));
+    expect(summary.storage).toEqual({ accountBytes: 500_000_000, personBytes: 200_000_000 });
+    expect(await travellerStorageRulesFor(db, person, NOW)).toEqual(summary.storage);
+
+    const free = await account('summary-free@example.com');
+    const freeSummary = await getTravellerPlanSummary(db, { actorAccountId: free, now: NOW });
+    expect(freeSummary.paidUntil).toBeNull();
+    expect(await travellerStorageRulesFor(db, free, NOW)).toEqual(freeSummary.storage);
   });
 
   it('keeps a period already paid for after the plan is retired', async () => {

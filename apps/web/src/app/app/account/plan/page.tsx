@@ -7,7 +7,7 @@ import {
   listApplicants,
   loadUploadQuotaConfig,
   mbLabel,
-  storageLimitsForOwner,
+  storageLimitsFrom,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -21,12 +21,13 @@ export const metadata: Metadata = { title: 'Plan & Usage' };
 export const dynamic = 'force-dynamic';
 
 /**
- * Plan & Usage for a traveller (owner request 2026-10-31): the plan every traveller is on, what it
- * includes, and how much of it is used. Read-only. Travellers have one plan (Traveller Free;
- * Founding Access is complimentary, PRODUCT-CONTRACT) and no paid plans, so there is nothing to
+ * Plan & Usage for a traveller (owner request 2026-10-31): the plan this traveller is on (a paid
+ * traveller plan while a paid period covers now, else Traveller Free, ADR 0025), what it includes,
+ * and how much of it is used. Read-only: no paid plan is offered yet, so there is nothing to
  * choose here. The AI rules and today's use come from the same reader as Privacy & Consent; the
- * storage limits are the upload limits that apply to every traveller. The plan's capacity limits
- * (seats, cases) are agency limits and are not enforced on travellers, so none are shown.
+ * storage limits are the ones uploads are judged by (the plan's storage rules, else the upload
+ * settings). The plan's capacity limits (seats, cases) are agency limits and are not enforced on
+ * travellers, so none are shown.
  */
 export default async function TravellerPlanPage() {
   const data = await withSession(async ({ db, accountId }) => {
@@ -45,7 +46,7 @@ export default async function TravellerPlanPage() {
     );
     const quota = loadUploadQuotaConfig();
     // This account's limits: its plan's storage rules, else the upload settings (ADR 0025).
-    const limits = await storageLimitsForOwner(db, accountId, quota);
+    const limits = storageLimitsFrom(summary.storage, quota);
     return { summary, aiUsage, profiles, quota, limits };
   });
   const { summary, aiUsage, profiles, quota, limits } = data;

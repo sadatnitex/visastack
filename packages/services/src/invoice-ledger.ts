@@ -306,12 +306,6 @@ export async function applyInvoiceCollection(
       .for('update'),
   );
   if (!invoice) return refuse('not_found', 'invoice not found');
-  // A person's invoice (ADR 0025) is recorded once person payments exist (T3); until then it is
-  // refused here rather than receipted or reactivated as an organization's.
-  const organizationId = invoice.organizationId;
-  if (organizationId === null) {
-    return refuse('unavailable', "a person's invoice cannot be recorded yet");
-  }
 
   const ledgerPresent = await invoiceLedgerPresent(tx);
   if (!ledgerPresent && input.kind !== 'ADMIN_RECORDED') {
@@ -337,7 +331,7 @@ export async function applyInvoiceCollection(
       // A recording made before the receipt tables existed gets its receipt on its first replay.
       const issued = await issueReceiptForPayment(tx, {
         payment: existing,
-        organizationId,
+        organizationId: invoice.organizationId,
       });
       return ok({
         invoice,
@@ -375,7 +369,7 @@ export async function applyInvoiceCollection(
   // the audit chain. The billing account is locked here, always, before the first audit append
   // below. Callers must not append audit events in this transaction before calling this function
   // (none does).
-  const restorable = await lockRestorableAccount(tx, organizationId);
+  const restorable = await lockRestorableAccount(tx, invoice.organizationId);
 
   let payment: InvoicePayment | null = null;
   if (ledgerPresent) {
@@ -426,7 +420,7 @@ export async function applyInvoiceCollection(
     resourceId: invoice.id,
     reason: input.reason ?? null,
     metadata: {
-      organizationId,
+      organizationId: invoice.organizationId,
       amountMinorUnits: input.amountMinorUnits,
       newCollectedAmountMinorUnits: newCollected,
       newStatus,
@@ -441,11 +435,13 @@ export async function applyInvoiceCollection(
   await recordProductEvent(tx, {
     eventType: 'CASH_COLLECTED',
     accountId: null,
-    organizationId,
+    organizationId: invoice.organizationId,
     dimension: invoice.currency.trim().toUpperCase(),
     metricValue: input.amountMinorUnits,
   });
-  const issued = payment ? await issueReceiptForPayment(tx, { payment, organizationId }) : null;
+  const issued = payment
+    ? await issueReceiptForPayment(tx, { payment, organizationId: invoice.organizationId })
+    : null;
   // S17: a paid invoice's queued reminders never go out, and paying everything that was overdue
   // ends a Grace or Suspended status VisaStack set, in this same transaction (so a rollback undoes
   // both).
