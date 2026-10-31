@@ -36,10 +36,12 @@ Any read-site migration (A1, A2, B, E do those), any action component, any job r
 
 ## Status (lane fills in)
 
-- Started on main:
-- PR / merged SHA:
-- Migration number:
-- Checks seen green:
-- Live / hidden until migration:
-- Not verified:
+- Started on main: ad4522378b84d3d51011f5caef0fd9eb595acca6
+- PR / merged SHA: none yet (work in progress pushed to `claude/lc-f-foundation`, no PR)
+- Migration number: 0113 (`0113_resource_lifecycle`, journal idx 111), free on main ad452237; recheck before merge
+- Checks seen green: none yet (local only: migration test and schema drift test pass; the receipt guard was broken once and its tests went red)
+- Live / hidden until migration: nothing shipped yet
+- Not verified: services foundation tests, guard test, screen pieces (not written yet)
 - Blocked:
+  - 31 Oct 2026. Adding the frozen erasure reason `DOCUMENT_REMOVAL` (section 3.1) breaks the typecheck of `apps/web/src/app/app/admin/privacy/page.tsx`: its `ERASURE_REASON_LABELS` map is `satisfies Record<ErasureJobReason, string>`, so every reason must have a label. That file is outside `allowlists/F.txt` and inside `app/admin/privacy/**`, which PROGRAMME 5.3 gives to WP-SB7. The fix is one line in that map, `DOCUMENT_REMOVAL: 'Document Removal',`, and it must land in the same pull request as the enum value (added earlier, the `satisfies` check refuses an unknown key; added later, main does not compile). Proposed answer: add that one file to `allowlists/F.txt` for this single line, with WP-SB7 told that it will merge main and keep the line. No other file names the reason type exhaustively (checked with a repository search).
+  - Not blocking, for the coordinator to confirm: the access ratchet (`access/enforcement.test.ts`) requires every exported function that touches a person's records to take an access gate as a direct parameter, and the brief forbids baseline entries. So the section 3.2 functions keep their names and leading parameters and take one more, last: `getDocumentLifecycle(db, documentId, access)`, `getDocumentLifecycles(db, documentIds, access)`, `openDeletionReceipt(tx, input, access)`, `advanceDeletionReceipt(tx, id, next, patch, access)`, `enqueueDocumentRemoval(tx, input, access)`, where `access` is an `AuthorizedApplicant`, a `SystemScope` or a `StaffScope`; `listDeletionReceipts(access, { db, applicantId })` takes the owner's proof or a fresh `APPLICANT_DIRECTORY_VIEW` staff scope. The four conditions read nothing and take no parameter; callers add them only when `lifecycleTablesPresent(db)` is true.

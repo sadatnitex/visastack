@@ -122,6 +122,9 @@ export const erasureJobReason = pgEnum('erasure_job_reason', [
   // S23: a prepared safe copy page whose boxes changed or were removed (or whose document went).
   // Its row is already gone or cleared; the worker deletes and verifies the bytes.
   'SAFE_COPY_REMOVAL',
+  // Resource lifecycle (LC-F): a deleted duplicate whose 30 days in Recently Deleted ran out, or a
+  // file support approved for removal. Takes the same document-row path as RETENTION_PURGE.
+  'DOCUMENT_REMOVAL',
 ]);
 export const erasureJobStatus = pgEnum('erasure_job_status', [
   'PENDING',
@@ -5080,6 +5083,247 @@ export const redactionMasks = pgTable(
     check(
       'redaction_masks_boxes_shape',
       sql`case when jsonb_typeof(${table.boxes}) = 'array' then jsonb_array_length(${table.boxes}) <= 200 else false end`,
+    ),
+  ],
+);
+
+// --- Resource lifecycle (LC-F, docs/architecture/resource-lifecycle-contract.md) ---------------
+// Archive, Recently Deleted, support-reviewed removal and the removal record. Additive: every
+// table is new and code reads them only after `lifecycleTablesPresent` says all four exist, so a
+// database before this migration behaves exactly as before. No column holds a name, a title, a
+// document number, typed text, a file or a raw hash.
+export const LIFECYCLE_DELETE_PATHS = ['DUPLICATE', 'REQUEST'] as const;
+export const REMOVAL_REQUEST_REASONS = [
+  'WRONG_PERSON',
+  'UPLOADED_BY_MISTAKE',
+  'NO_LONGER_NEEDED',
+  'PRIVACY_CONCERN',
+  'OTHER',
+] as const;
+export const REMOVAL_REQUEST_STATUSES = [
+  'PENDING',
+  'APPROVED',
+  'DECLINED',
+  'CANCELLED',
+  'COMPLETED',
+] as const;
+export const REMOVAL_DECISION_CODES = [
+  'APPROVED',
+  'LEGAL_HOLD',
+  'FINISHED_CASE_RECORD',
+  'AGENCY_REQUEST_ANSWER',
+  'RETENTION_REQUIRED',
+  'OTHER',
+] as const;
+export const DELETION_RECEIPT_SUBJECT_KINDS = ['DOCUMENT', 'TRAVELLER'] as const;
+export const DELETION_RECEIPT_UPLOADER_ROLES = [
+  'OWNER',
+  'AGENCY_MEMBER',
+  'CONTRIBUTOR',
+  'SYSTEM',
+] as const;
+export const DELETION_RECEIPT_PATHS = ['DUPLICATE', 'REQUEST', 'EMPTY_TRAVELLER'] as const;
+export const DELETION_RECEIPT_STATUSES = [
+  'SCHEDULED',
+  'RESTORED',
+  'REMOVING',
+  'REMOVED',
+  'BLOCKED',
+] as const;
+
+/** What a removal changed, counted by the zod schema in packages/services (lifecycle/foundation). */
+export interface DeletionReceiptEffects {
+  readonly casesSwitched?: readonly string[];
+  readonly casesFlagged?: readonly string[];
+  readonly acknowledgementsReset?: number;
+  readonly sharesAffected?: number;
+  readonly aiChoicesMoved?: number;
+  readonly aiChoicesRemoved?: number;
+  readonly agencyRequestsAffected?: readonly string[];
+  readonly bytesFreed?: number;
+}
+
+// One row per removal: kept as the person's Removal Record. A database trigger (migration
+// 0113) refuses edits except a forward status move, the approver, the verified time and new
+// effect keys, and refuses deletes except when the person's whole record goes.
+export const deletionReceipts = pgTable(
+  'deletion_receipts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    subjectKind: text('subject_kind', { enum: DELETION_RECEIPT_SUBJECT_KINDS }).notNull(),
+    subjectCode: text('subject_code').notNull(),
+    documentKind: text('document_kind'),
+    uploadedAt: timestamp('uploaded_at', { withTimezone: true }),
+    uploadedByRole: text('uploaded_by_role', { enum: DELETION_RECEIPT_UPLOADER_ROLES }),
+    path: text('path', { enum: DELETION_RECEIPT_PATHS }).notNull(),
+    requestedByAccountId: uuid('requested_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    approvedByAccountId: uuid('approved_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    requestedAt: timestamp('requested_at', { withTimezone: true }).notNull(),
+    scheduledFor: timestamp('scheduled_for', { withTimezone: true }),
+    verifiedGoneAt: timestamp('verified_gone_at', { withTimezone: true }),
+    status: text('status', { enum: DELETION_RECEIPT_STATUSES }).notNull(),
+    effects: jsonb('effects').$type<DeletionReceiptEffects>().notNull().default(sql`'{}'::jsonb`),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('deletion_receipts_applicant_idx').on(table.applicantId, table.createdAt),
+    index('deletion_receipts_requested_by_idx').on(table.requestedByAccountId),
+    index('deletion_receipts_approved_by_idx').on(table.approvedByAccountId),
+    check(
+      'deletion_receipts_subject_kind_known',
+      sql`${table.subjectKind} in ('DOCUMENT', 'TRAVELLER')`,
+    ),
+    check(
+      'deletion_receipts_subject_code_shape',
+      sql`${table.subjectCode} ~ '^[DP]-[0-9A-HJKMNP-TV-Z]{6,8}$'`,
+    ),
+    check(
+      'deletion_receipts_uploaded_by_role_known',
+      sql`${table.uploadedByRole} is null or ${table.uploadedByRole} in ('OWNER', 'AGENCY_MEMBER', 'CONTRIBUTOR', 'SYSTEM')`,
+    ),
+    check(
+      'deletion_receipts_path_known',
+      sql`${table.path} in ('DUPLICATE', 'REQUEST', 'EMPTY_TRAVELLER')`,
+    ),
+    check(
+      'deletion_receipts_status_known',
+      sql`${table.status} in ('SCHEDULED', 'RESTORED', 'REMOVING', 'REMOVED', 'BLOCKED')`,
+    ),
+    check('deletion_receipts_effects_object', sql`jsonb_typeof(${table.effects}) = 'object'`),
+  ],
+);
+
+// One row per document that has ever been archived or deleted. No row means Current.
+export const documentLifecycle = pgTable(
+  'document_lifecycle',
+  {
+    documentId: uuid('document_id')
+      .primaryKey()
+      .references(() => documents.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+    archivedByAccountId: uuid('archived_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+    deletedByAccountId: uuid('deleted_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    deletePath: text('delete_path', { enum: LIFECYCLE_DELETE_PATHS }),
+    purgeAfter: timestamp('purge_after', { withTimezone: true }),
+    receiptId: uuid('receipt_id').references(() => deletionReceipts.id, { onDelete: 'set null' }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('document_lifecycle_applicant_idx').on(table.applicantId),
+    index('document_lifecycle_purge_after_idx')
+      .on(table.purgeAfter)
+      .where(sql`${table.deletedAt} is not null`),
+    index('document_lifecycle_archived_by_idx').on(table.archivedByAccountId),
+    index('document_lifecycle_deleted_by_idx').on(table.deletedByAccountId),
+    index('document_lifecycle_receipt_idx').on(table.receiptId),
+    check(
+      'document_lifecycle_delete_path_known',
+      sql`${table.deletePath} is null or ${table.deletePath} in ('DUPLICATE', 'REQUEST')`,
+    ),
+    check(
+      'document_lifecycle_deleted_together',
+      sql`(${table.deletedAt} is null) = (${table.deletePath} is null) and (${table.deletedAt} is null) = (${table.purgeAfter} is null)`,
+    ),
+  ],
+);
+
+// One row per traveller record that has ever been archived or deleted. No row means Current.
+export const applicantLifecycle = pgTable(
+  'applicant_lifecycle',
+  {
+    applicantId: uuid('applicant_id')
+      .primaryKey()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+    archivedByAccountId: uuid('archived_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+    deletedByAccountId: uuid('deleted_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    purgeAfter: timestamp('purge_after', { withTimezone: true }),
+    receiptId: uuid('receipt_id').references(() => deletionReceipts.id, { onDelete: 'set null' }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('applicant_lifecycle_purge_after_idx')
+      .on(table.purgeAfter)
+      .where(sql`${table.deletedAt} is not null`),
+    index('applicant_lifecycle_archived_by_idx').on(table.archivedByAccountId),
+    index('applicant_lifecycle_deleted_by_idx').on(table.deletedByAccountId),
+    index('applicant_lifecycle_receipt_idx').on(table.receiptId),
+    check(
+      'applicant_lifecycle_deleted_together',
+      sql`(${table.deletedAt} is null) = (${table.purgeAfter} is null)`,
+    ),
+  ],
+);
+
+// A person asking support to remove a unique file (owner decision D1). No free-text column: a
+// typed note can hold personal data.
+export const documentRemovalRequests = pgTable(
+  'document_removal_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    documentId: uuid('document_id').references(() => documents.id, { onDelete: 'set null' }),
+    documentCode: text('document_code').notNull(),
+    reason: text('reason', { enum: REMOVAL_REQUEST_REASONS }).notNull(),
+    status: text('status', { enum: REMOVAL_REQUEST_STATUSES }).notNull(),
+    requestedByAccountId: uuid('requested_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    requestedAt: timestamp('requested_at', { withTimezone: true }).notNull(),
+    decidedByAccountId: uuid('decided_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    decisionCode: text('decision_code', { enum: REMOVAL_DECISION_CODES }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    receiptId: uuid('receipt_id').references(() => deletionReceipts.id, { onDelete: 'set null' }),
+  },
+  (table) => [
+    index('document_removal_requests_applicant_idx').on(table.applicantId),
+    index('document_removal_requests_status_idx').on(table.status, table.requestedAt),
+    index('document_removal_requests_requested_by_idx').on(table.requestedByAccountId),
+    index('document_removal_requests_decided_by_idx').on(table.decidedByAccountId),
+    index('document_removal_requests_receipt_idx').on(table.receiptId),
+    uniqueIndex('document_removal_requests_one_pending')
+      .on(table.documentId)
+      .where(sql`${table.status} = 'PENDING'`),
+    check(
+      'document_removal_requests_code_shape',
+      sql`${table.documentCode} ~ '^D-[0-9A-HJKMNP-TV-Z]{6,8}$'`,
+    ),
+    check(
+      'document_removal_requests_reason_known',
+      sql`${table.reason} in ('WRONG_PERSON', 'UPLOADED_BY_MISTAKE', 'NO_LONGER_NEEDED', 'PRIVACY_CONCERN', 'OTHER')`,
+    ),
+    check(
+      'document_removal_requests_status_known',
+      sql`${table.status} in ('PENDING', 'APPROVED', 'DECLINED', 'CANCELLED', 'COMPLETED')`,
+    ),
+    check(
+      'document_removal_requests_decision_known',
+      sql`${table.decisionCode} is null or ${table.decisionCode} in ('APPROVED', 'LEGAL_HOLD', 'FINISHED_CASE_RECORD', 'AGENCY_REQUEST_ANSWER', 'RETENTION_REQUIRED', 'OTHER')`,
     ),
   ],
 );
