@@ -212,7 +212,7 @@ describe('the upload form', () => {
       applicantId: 'a1',
       limitBytes: 4 * 1024 * 1024,
       limitLabel: '4 MB',
-      pdfAccepted: false,
+      pdfAccepted: true,
       virusScanning: false,
     });
 
@@ -225,12 +225,14 @@ describe('the upload form', () => {
     expect(tight).toMatchObject({ limitBytes: 2 * 1024 * 1024, limitLabel: '2 MB' });
   });
 
-  it('offers PDF only when a real virus scanner admits it', async () => {
+  it('offers PDF on the built-in checks, and stops offering it when the owner switches PDF uploads off', async () => {
     mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [] });
-    vi.stubEnv('MALWARE_SCANNER_PROVIDER', 'clamav');
     try {
-      const [uploader] = stubProps<{ pdfAccepted: boolean }>(await render(), 'DocumentUploader');
-      expect(uploader?.pdfAccepted).toBe(true);
+      const [on] = stubProps<{ pdfAccepted: boolean }>(await render(), 'DocumentUploader');
+      expect(on?.pdfAccepted).toBe(true);
+      vi.stubEnv('PDF_UPLOADS', 'off');
+      const [off] = stubProps<{ pdfAccepted: boolean }>(await render(), 'DocumentUploader');
+      expect(off?.pdfAccepted).toBe(false);
     } finally {
       vi.unstubAllEnvs();
     }

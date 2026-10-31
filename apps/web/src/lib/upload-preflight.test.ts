@@ -25,9 +25,19 @@ describe('upload preflight', () => {
     vi.stubEnv('MALWARE_SCANNER_PROVIDER', 'github_clamav');
     expect(pdfUploadsAccepted()).toBe(true);
     vi.stubEnv('MALWARE_SCANNER_PROVIDER', 'builtin');
-    expect(pdfUploadsAccepted()).toBe(false);
+    expect(pdfUploadsAccepted()).toBe(true);
     vi.stubEnv('MALWARE_SCANNER_PROVIDER', '');
-    expect(pdfUploadsAccepted()).toBe(false);
+    expect(pdfUploadsAccepted()).toBe(true);
+  });
+
+  it('lets the owner switch PDF uploads off without a deployment change', () => {
+    vi.stubEnv('MALWARE_SCANNER_PROVIDER', 'builtin');
+    for (const off of ['off', 'OFF', ' false ', '0', 'no']) {
+      vi.stubEnv('PDF_UPLOADS', off);
+      expect(pdfUploadsAccepted(), off).toBe(false);
+    }
+    vi.stubEnv('PDF_UPLOADS', 'on');
+    expect(pdfUploadsAccepted()).toBe(true);
   });
 
   it('checks the bytes against the same list of types the upload form uses', async () => {
@@ -50,8 +60,8 @@ describe('upload preflight', () => {
     }
   });
 
-  it('admits PDF to quarantine only for known real scan paths; signature spoofing still fails', () => {
-    for (const provider of ['clamav', 'github_clamav']) {
+  it('admits PDF to quarantine on the built-in checks too; signature spoofing still fails', () => {
+    for (const provider of [undefined, '', 'builtin', 'clamav', 'github_clamav']) {
       expect(permitsPdfAdmission(provider)).toBe(true);
       expect(
         validateUploadBytes(
@@ -68,8 +78,7 @@ describe('upload preflight', () => {
         ),
       ).toBe(false);
     }
-    for (const provider of [undefined, '', 'builtin', 'unknown'])
-      expect(permitsPdfAdmission(provider)).toBe(false);
+    expect(permitsPdfAdmission('unknown')).toBe(false);
   });
   it('rejects mismatched MIME, truncated signatures and executables', () => {
     expect(validateUploadBytes(png, 'image/png', false)).toBe(true);

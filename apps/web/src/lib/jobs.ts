@@ -114,7 +114,7 @@ export async function triggerIntakeWorker(
   try {
     const handle = db as unknown as Parameters<typeof runIntakeWorker>[0];
     const storage = createStorage(handle);
-    const scanner = createMalwareScanner(storage);
+    const scanner = createMalwareScanner(storage, { allowPdf: true });
     const extractor = createDocumentConverter(storage);
     const contentLimits = createContentLimitsChecker(storage);
     return await runIntakeWorker(handle, scanner, extractor, contentLimits, {
