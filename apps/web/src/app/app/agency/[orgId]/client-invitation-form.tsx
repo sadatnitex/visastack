@@ -31,62 +31,64 @@ export function ClientInvitationForm({
   }
 
   return (
-    <form action={formAction} className="field-list">
+    <form action={formAction} className="field-list form-narrow">
       <input type="hidden" name="organizationId" value={organizationId} />
-      <div className="field-row">
-        <label className="field-label" htmlFor="displayName">
-          Traveller Name
-        </label>
-        <input
-          id="displayName"
-          name="displayName"
-          type="text"
-          required
-          className="input"
-          placeholder="Jane Traveller"
-        />
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor="contactDestination">
-          Client Email Address
-        </label>
-        <input
-          id="contactDestination"
-          name="contactDestination"
-          type="email"
-          autoComplete="off"
-          aria-describedby="contactDestination-hint"
-          required
-          className="input"
-          placeholder="jane@example.com"
-        />
-        <p id="contactDestination-hint" className="disclosure-hint">
-          Only someone signed in with this email address can accept the invitation.
-        </p>
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor="requestedRoute">
-          Requested Route (Optional)
-        </label>
-        <input
-          id="requestedRoute"
-          name="requestedRoute"
-          type="text"
-          className="input"
-          placeholder="US B1/B2 business visa"
-        />
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor="caseOwnerAccountId">
-          Case Owner
-        </label>
-        <select id="caseOwnerAccountId" name="caseOwnerAccountId" className="input" required>
-          {activeMembers.map((m) => (
-            <option key={m.accountId} value={m.accountId}>
-              {m.email}
-            </option>
-          ))}
-        </select>
+      <div className="form-grid">
+        <div className="field-row">
+          <label className="field-label" htmlFor="displayName">
+            Traveller Name
+          </label>
+          <input
+            id="displayName"
+            name="displayName"
+            type="text"
+            required
+            className="input"
+            placeholder="Jane Traveller"
+          />
+        </div>
+        <div className="field-row">
+          <label className="field-label" htmlFor="contactDestination">
+            Client Email Address
+          </label>
+          <input
+            id="contactDestination"
+            name="contactDestination"
+            type="email"
+            autoComplete="off"
+            aria-describedby="contactDestination-hint"
+            required
+            className="input"
+            placeholder="jane@example.com"
+          />
+          <p id="contactDestination-hint" className="disclosure-hint">
+            Only someone signed in with this email address can accept the invitation.
+          </p>
+        </div>
+        <div className="field-row">
+          <label className="field-label" htmlFor="requestedRoute">
+            Requested Route (Optional)
+          </label>
+          <input
+            id="requestedRoute"
+            name="requestedRoute"
+            type="text"
+            className="input"
+            placeholder="US B1/B2 business visa"
+          />
+        </div>
+        <div className="field-row">
+          <label className="field-label" htmlFor="caseOwnerAccountId">
+            Case Owner
+          </label>
+          <select id="caseOwnerAccountId" name="caseOwnerAccountId" className="input" required>
+            {activeMembers.map((m) => (
+              <option key={m.accountId} value={m.accountId}>
+                {m.email}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
       <div>
         <SubmitButton
