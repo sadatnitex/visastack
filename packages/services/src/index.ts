@@ -1506,9 +1506,22 @@ export {
 export { loadWorkspaceToolbarState, type WorkspaceToolbarState } from './workspace-toolbar';
 export {
   getTravellerPlanSummary,
+  listTravellerPlansForSale,
+  type TravellerPlanCatalogue,
+  type TravellerPlanOffer,
   type TravellerPlanSummary,
   travellerPlansEnabled,
 } from './traveller-plan';
+// ADR 0025 T3: a traveller buys and pays for their own paid plan (SelfScope from withSession).
+export {
+  ALREADY_COVERED,
+  PERSON_SELLING_OFF,
+  PURCHASE_EXPIRED,
+  type PersonCheckout,
+  type PersonPurchase,
+  getOwnPurchase,
+  startPersonCheckout,
+} from './person-billing';
 
 export { type PlatformOverview, getPlatformOverview } from './platform-overview';
 
@@ -2116,7 +2129,13 @@ export {
   savePlan,
 } from './plans-admin';
 export { type PaymentMode, type PlanAudience, entitlementsSchemaPresent } from './plans-schema';
-export { MODE_CHANGED, PAYMENT_METHOD_OFF, TEST_PAYMENTS_ONLY } from './payments';
+export {
+  MODE_CHANGED,
+  PAYMENT_METHOD_OFF,
+  type StartPersonPaymentInput,
+  TEST_PAYMENTS_ONLY,
+  startPersonPayment,
+} from './payments';
 export { countLedgerTestRows } from './ledger-export';
 export { MODE_CHANGED_CODE } from './refunds';
 // S28: AI feature controls. The owner context, the gate and the charge stay inside the services.

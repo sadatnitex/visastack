@@ -24,7 +24,7 @@ const COPY: Readonly<Record<PaymentResultState, ResultCopy>> = {
   },
   confirming: {
     heading: 'We Are Confirming Your Payment',
-    body: 'Your payment is still being confirmed. This usually takes a minute. Refresh this page shortly. If you were charged, you do not need to pay again.',
+    body: 'Your payment is still being confirmed. This usually takes a minute: choose Check Again in a moment. If you were charged, you do not need to pay again.',
   },
   not_completed: {
     heading: 'Payment Not Completed',
@@ -36,9 +36,15 @@ const COPY: Readonly<Record<PaymentResultState, ResultCopy>> = {
   },
 };
 
+/** A traveller's own plan purchase (ADR 0025): the way back is Plan & Usage, not an invoice. */
+const PERSON_NOT_COMPLETED: ResultCopy = {
+  heading: 'Payment Not Completed',
+  body: 'Nothing was charged. You can go back to Plan & Usage and try again.',
+};
+
 const GENERIC: ResultCopy = {
   heading: 'This Payment Link Is No Longer Available',
-  body: 'The link may have expired. Open your invoices to see the latest state of your payment.',
+  body: 'The link may have expired. Open VisaStack to see the latest state of your payment.',
 };
 
 async function loadView(merchantTranId: string): Promise<PaymentResultView | null> {
@@ -72,7 +78,12 @@ export default async function PaymentResultPage({
   const params = { t: one(raw, 't'), x: one(raw, 'x'), s: one(raw, 's') };
   const signed = verifyPaymentResultParams(params);
   const view = signed && params.t ? await loadView(params.t) : null;
-  const copy = view ? COPY[view.state] : GENERIC;
+  const person = view?.payer === 'person';
+  const copy = view
+    ? person && view.state === 'not_completed'
+      ? PERSON_NOT_COMPLETED
+      : COPY[view.state]
+    : GENERIC;
 
   return (
     <section className="section container center payment-result">
@@ -80,13 +91,30 @@ export default async function PaymentResultPage({
       <p className="section-sub payment-result-body">{copy.body}</p>
       {view ? (
         <p className="section-sub payment-result-body payment-result-amount">
-          Invoice {view.invoiceRef}: {formatMoney(view.amountMinorUnits, view.currency)}
+          {person ? 'Purchase' : 'Invoice'} {view.invoiceRef}:{' '}
+          {formatMoney(view.amountMinorUnits, view.currency)}
         </p>
       ) : null}
       <div className="cta-row cta-row-center">
-        <a className="btn btn-primary" href="/app">
-          Go to Workspace
-        </a>
+        {view?.state === 'confirming' && params.t && params.x && params.s ? (
+          // The same signed address again, when the person chooses (a page that reloads itself
+          // restarts a screen reader every time, WCAG 2.2.1).
+          <a
+            className="btn btn-secondary"
+            href={`/payments/result?${new URLSearchParams({ t: params.t, x: params.x, s: params.s }).toString()}`}
+          >
+            Check Again
+          </a>
+        ) : null}
+        {person ? (
+          <a className="btn btn-primary" href="/app/account/plan">
+            Go to Plan &amp; Usage
+          </a>
+        ) : (
+          <a className="btn btn-primary" href="/app">
+            Go to Workspace
+          </a>
+        )}
       </div>
     </section>
   );

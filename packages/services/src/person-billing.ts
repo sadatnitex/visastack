@@ -293,6 +293,64 @@ export async function payablePersonInvoice(
   return ok({ id: invoice.id, currency: invoice.currency });
 }
 
+/** The person's own purchase waiting to be paid, as the confirmation card on Plan & Usage shows it. */
+export interface PersonPurchase {
+  readonly invoiceId: string;
+  readonly invoiceRef: string;
+  readonly planName: string;
+  readonly amountMinorUnits: number;
+  readonly currency: string;
+  /** When the period starts: the moment of checkout (a purchase is reused for a day). */
+  readonly periodStart: Date;
+  readonly periodEnd: Date;
+}
+
+/**
+ * The signed-in person's own purchase `invoiceId`, if it can still be paid now (the same rules as
+ * `payablePersonInvoice`, and still open): what the confirmation card shows before the payment
+ * page. Another person's invoice, a paid or old one, reads as nothing.
+ */
+export async function getOwnPurchase(
+  db: Db,
+  self: SelfScope,
+  input: { readonly invoiceId: string; readonly now?: Date },
+): Promise<PersonPurchase | null> {
+  if (selfScopeProblem(self)) return null;
+  // Before migrations 0110 and 0111 there is no purchase to show.
+  if (!(await personBillingPresent(db))) return null;
+  const now = input.now ?? new Date();
+  const payable = await payablePersonInvoice(db, self, { invoiceId: input.invoiceId, now });
+  if (!payable.ok) return null;
+  const i = personInvoices;
+  const row = first(
+    await db
+      .select({
+        invoiceId: i.id,
+        invoiceRef: i.invoiceRef,
+        status: i.status,
+        planName: schema.plans.name,
+        amountMinorUnits: i.invoicedAmountMinorUnits,
+        currency: i.currency,
+        periodStart: i.periodStart,
+        periodEnd: i.periodEnd,
+      })
+      .from(i)
+      .innerJoin(schema.plans, eq(schema.plans.id, i.planId))
+      .where(and(eq(i.id, payable.value.id), eq(i.payerAccountId, self.accountId)))
+      .limit(1),
+  );
+  if (!row || row.status !== 'OPEN') return null;
+  return {
+    invoiceId: row.invoiceId,
+    invoiceRef: row.invoiceRef,
+    planName: row.planName,
+    amountMinorUnits: row.amountMinorUnits,
+    currency: row.currency,
+    periodStart: row.periodStart,
+    periodEnd: row.periodEnd,
+  };
+}
+
 /**
  * Writes a payment attempt paid by the signed-in person, for `startPersonPayment`. The row is read
  * back as an agency attempt reads (the same columns, with no organization).

@@ -101,6 +101,7 @@ const protectionForms = await import('../app/app/admin/document-protection/forms
 const billingRulesForms = await import('../app/app/admin/billing/forms');
 const aiFeatureForms = await import('../app/app/admin/ai/forms');
 const planForms = await import('../app/app/admin/plans/forms');
+const travellerPlanForms = await import('../app/app/account/plan/plan-forms');
 const aiDraftForms = await import('../app/app/applicant/[id]/sharing/ai-drafts');
 const aiConsentForms = await import('../app/oauth/authorize/consent-form');
 const agencyConsentForms = await import('../app/oauth/authorize/agency-consent-form');
@@ -1584,6 +1585,21 @@ const ADMIN: readonly Case[] = [
         ]}
         more={0}
       />
+    ),
+  },
+  {
+    name: 'get a paid traveller plan (ADR 0025 T3c)',
+    element: () => (
+      <travellerPlanForms.BuyPlanForm
+        planId="00000000-0000-4000-8000-0000000000aa"
+        planName="Traveller Plus"
+      />
+    ),
+  },
+  {
+    name: 'pay for a traveller plan purchase (ADR 0025 T3c)',
+    element: () => (
+      <travellerPlanForms.PayPurchaseForm invoiceId="00000000-0000-4000-8000-0000000000bb" />
     ),
   },
   {

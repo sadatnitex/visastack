@@ -185,6 +185,12 @@ function fromRows(
     const row = byKey.get(key);
     if (row) limits[key] = row.included ? limitOf(row.limit) : 0;
   }
+  return { limits, features: featuresOf(rows) };
+}
+
+/** Each AI feature's rule from a plan's rows; a feature with no row is the built-in FREE tier. */
+function featuresOf(rows: readonly EntitlementRow[]): Record<AiFeatureKey, AiFeatureEntitlement> {
+  const byKey = new Map(rows.filter((r) => isEntitlementKey(r.key)).map((r) => [r.key, r]));
   const features = {} as Record<AiFeatureKey, AiFeatureEntitlement>;
   for (const feature of AI_FEATURE_KEYS) {
     const row = byKey.get(aiEntitlementKey(feature));
@@ -192,7 +198,25 @@ function fromRows(
       ? { included: row.included, dailyLimit: row.included ? limitOf(row.limit) : null }
       : AI_PLAN_TIERS.FREE[feature];
   }
-  return { limits, features };
+  return features;
+}
+
+/**
+ * A traveller plan's own rules from its rule rows, exactly as the resolver reads them for a
+ * person on it (ADR 0025): each AI feature and the two storage rules. For showing plans side by
+ * side before anyone buys one.
+ */
+export function travellerRulesOf(
+  rows: readonly {
+    readonly key: string;
+    readonly included: boolean;
+    readonly limit: string | null;
+  }[],
+): {
+  readonly features: Readonly<Record<AiFeatureKey, AiFeatureEntitlement>>;
+  readonly storage: TravellerStorageRules;
+} {
+  return { features: featuresOf(rows), storage: travellerStorageOf(rows) };
 }
 
 function freeTier(): Record<AiFeatureKey, AiFeatureEntitlement> {
