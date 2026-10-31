@@ -38,6 +38,11 @@ import type { ServiceError } from './errors';
 import { applyOverdueStatusChange } from './invoice-ledger';
 import { enqueueNotificationBothChannels } from './notifications';
 import { formatObservabilityLine } from './observability-format';
+import {
+  NO_PERSON_RENEWALS,
+  type PersonRenewalSummary,
+  runPersonRenewals,
+} from './person-renewals';
 import { entitlementsSchemaPresent } from './plans-schema';
 
 export {
@@ -313,6 +318,8 @@ export interface BillingCycleSummary {
   readonly failed: number;
   /** True when the run stopped at a time or work limit with work left for the next run. */
   readonly stoppedEarly: boolean;
+  /** The person step (ADR 0025 T4): renewals, their reminders and lapses. Its failures are in `failed` too. */
+  readonly travellerPlans: PersonRenewalSummary;
 }
 
 export interface RunBillingCycleOptions {
@@ -865,6 +872,7 @@ const EMPTY: BillingCycleSummary = {
   withoutContacts: 0,
   failed: 0,
   stoppedEarly: false,
+  travellerPlans: NO_PERSON_RENEWALS,
 };
 
 /** The daily billing run. See the module comment for what each step does. Counts only. */
@@ -970,6 +978,15 @@ export async function runBillingCycle(
   const reminders = await queueReminders(db, now, reminderBudget, noContact, policy);
   failed += reminders.failed;
 
+  // 5. A person's paid traveller plan: renewal invoices, their reminders, and lapses (T4).
+  const personBudget = makeBudget(limit, deadline);
+  const travellerPlans = await runPersonRenewals(db, scope, {
+    now,
+    limit,
+    deadline: () => !personBudget.take(),
+  });
+  failed += travellerPlans.failed;
+
   return {
     available: true,
     overdueHandlingEnabled: policy !== null,
@@ -984,6 +1001,8 @@ export async function runBillingCycle(
       returnBudget.stopped() ||
       invoiceBudget.stopped() ||
       moveBudget.stopped() ||
-      reminderBudget.stopped(),
+      reminderBudget.stopped() ||
+      personBudget.stopped(),
+    travellerPlans,
   };
 }

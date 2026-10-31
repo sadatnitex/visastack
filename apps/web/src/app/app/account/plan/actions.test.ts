@@ -3,13 +3,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   checkout: vi.fn(),
   pay: vi.fn(),
+  renewal: vi.fn(),
+  revalidate: vi.fn(),
 }));
 const SELF = { kind: 'self', accountId: 'acct-1' };
 vi.mock('@visastack/services', async (load) => ({
   ...(await load<typeof import('@visastack/services')>()),
   startPersonCheckout: mocks.checkout,
   startPersonPayment: mocks.pay,
+  setPlanRenewal: mocks.renewal,
 }));
+vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidate }));
 vi.mock('../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
     fn({ db: {}, accountId: 'acct-1', email: 'traveller@example.com', self: SELF }),
@@ -23,7 +27,7 @@ vi.mock('next/navigation', () => ({
     throw new Error(`NEXT_REDIRECT:${to}`);
   },
 }));
-import { buyPlanAction, payPurchaseAction } from './actions';
+import { buyPlanAction, payPurchaseAction, setRenewalAction } from './actions';
 
 const PLAN = '00000000-0000-4000-8000-0000000000aa';
 const INVOICE = '00000000-0000-4000-8000-0000000000bb';
@@ -132,5 +136,35 @@ describe('buying a paid plan (ADR 0025 T3c)', () => {
     expect((await buyPlanAction(INITIAL, form({ planId: PLAN }))).message).toBe(
       'This plan is not for sale.',
     );
+  });
+});
+
+describe('Stop Renewing and Keep Renewing (ADR 0025 T4)', () => {
+  it("changes only the session's own plan, and says what happens next", async () => {
+    mocks.renewal.mockResolvedValue({ ok: true, value: { renews: false } });
+    const stopped = await setRenewalAction(INITIAL, form({ renews: 'no' }));
+    expect(mocks.renewal.mock.calls[0]?.[1]).toBe(SELF);
+    expect(mocks.renewal.mock.calls[0]?.[2]).toEqual({ renews: false });
+    expect(stopped).toEqual({
+      ok: true,
+      message: 'Renewing is off. Your plan still covers you until it ends, and nothing is charged.',
+    });
+    expect(mocks.revalidate).toHaveBeenCalledWith('/app/account/plan');
+    mocks.renewal.mockResolvedValue({ ok: true, value: { renews: true } });
+    expect((await setRenewalAction(INITIAL, form({ renews: 'yes' }))).ok).toBe(true);
+    expect(mocks.renewal.mock.calls[1]?.[2]).toEqual({ renews: true });
+  });
+
+  it('refuses a choice that is not one of the two, and words a missing plan plainly', async () => {
+    expect((await setRenewalAction(INITIAL, form({ renews: 'maybe' }))).ok).toBe(false);
+    expect(mocks.renewal).not.toHaveBeenCalled();
+    mocks.renewal.mockResolvedValue({
+      ok: false,
+      error: { code: 'not_found', message: 'no paid plan' },
+    });
+    expect(await setRenewalAction(INITIAL, form({ renews: 'no' }))).toEqual({
+      ok: false,
+      message: 'You have no paid plan to renew.',
+    });
   });
 });

@@ -16,6 +16,7 @@ import {
   sql,
 } from 'drizzle-orm';
 import { orgCaseRecordVisibleSql, withCaseExclusions } from './access/grant-scope';
+import { type SelfScope, selfScopeProblem } from './access/principal';
 import { type Db, first, schema } from './db';
 import { notificationEmail, renderEmail } from './email-design';
 import { type ServiceError, serviceError } from './errors';
@@ -83,7 +84,10 @@ export type NotificationEventType =
   | 'INVOICE_REMINDER'
   | 'BILLING_STATUS_CHANGED'
   | 'INVOICE_REFUNDED'
-  | 'INVOICE_CREDIT_APPLIED';
+  | 'INVOICE_CREDIT_APPLIED'
+  // ADR 0025 T4: a person's own paid plan; for that person only (no agency, no case).
+  | 'PERSON_PLAN_RENEWAL_DUE'
+  | 'PERSON_PLAN_ENDED';
 
 /**
  * Billing notices (S17): an agency's invoices, reminders and billing status are for its owners
@@ -243,6 +247,34 @@ export async function cancelQueuedNotificationsForResource(
       ),
     )
     .returning({ id: schema.notifications.id });
+  return { cancelled: updated.length };
+}
+
+/**
+ * The signed-in person's own still-queued notices about `resourceIds`, cancelled: Stop Renewing
+ * silences the reminders about their renewal (ADR 0025 T4). Only notices addressed to the scope's
+ * own account are touched, nothing is read back; sent ones stay as they are.
+ */
+export async function cancelOwnQueuedNotifications(
+  tx: Db,
+  self: SelfScope,
+  resourceIds: readonly string[],
+): Promise<{ readonly cancelled: number }> {
+  // A programmer fault: callers check the scope first.
+  if (selfScopeProblem(self)) throw new Error('cancelOwnQueuedNotifications needs a fresh scope');
+  if (resourceIds.length === 0) return { cancelled: 0 };
+  const n = schema.notifications;
+  const updated = await tx
+    .update(n)
+    .set({ status: 'CANCELLED' })
+    .where(
+      and(
+        eq(n.recipientAccountId, self.accountId),
+        inArray(n.resourceId, [...resourceIds]),
+        eq(n.status, 'QUEUED'),
+      ),
+    )
+    .returning({ id: n.id });
   return { cancelled: updated.length };
 }
 

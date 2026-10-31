@@ -30,6 +30,7 @@ const counts = {
   returnedToActive: 0,
   failed: 0,
   stoppedEarly: false,
+  travellerPlans: { renewalInvoicesCreated: 0, remindersQueued: 0, lapsed: 0, failed: 0 },
 };
 
 it('fails closed without a scheduler secret, and refuses unsigned requests', async () => {
@@ -68,5 +69,14 @@ it('does not read as finished when it could not start, before migration 0103, or
   expect((await GET(request())).status).toBe(503);
   mocks.run.mockResolvedValue({ ...counts, failed: 1 });
   expect((await GET(request())).status).toBe(200);
-  expect(mocks.after).toHaveBeenCalledTimes(2);
+  // A person's renewal made while every agency step failed is still work done (ADR 0025 T4).
+  mocks.run.mockResolvedValue({
+    ...counts,
+    invoicesCreated: 0,
+    remindersQueued: 0,
+    failed: 2,
+    travellerPlans: { renewalInvoicesCreated: 1, remindersQueued: 0, lapsed: 0, failed: 0 },
+  });
+  expect((await GET(request())).status).toBe(200);
+  expect(mocks.after).toHaveBeenCalledTimes(3);
 });

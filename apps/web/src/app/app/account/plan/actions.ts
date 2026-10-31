@@ -1,6 +1,12 @@
 'use server';
 
-import { type ServiceError, startPersonCheckout, startPersonPayment } from '@visastack/services';
+import {
+  type ServiceError,
+  setPlanRenewal,
+  startPersonCheckout,
+  startPersonPayment,
+} from '@visastack/services';
+import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import type { FormResult } from '../../../../components/form-feedback';
 import { bootstrapAdminEmails } from '../../../../lib/admin-emails';
@@ -119,4 +125,33 @@ export async function payPurchaseAction(
   );
   if ('redirectUrl' in outcome) redirect(outcome.redirectUrl);
   return outcome;
+}
+
+/**
+ * "Stop Renewing" or "Keep Renewing" the person's own paid plan (ADR 0025 T4). Stopping cancels the
+ * renewal waiting to be paid and its reminders; the paid period still covers them until it ends.
+ */
+export async function setRenewalAction(_prev: FormResult, formData: FormData): Promise<FormResult> {
+  const choice = text(formData, 'renews');
+  if (choice !== 'yes' && choice !== 'no') {
+    return { ok: false, message: 'Choose Stop Renewing or Keep Renewing.' };
+  }
+  const renews = choice === 'yes';
+  const outcome = await withSession(({ db, self }) => setPlanRenewal(db, self, { renews }));
+  if (!outcome.ok) {
+    return {
+      ok: false,
+      message:
+        outcome.error.code === 'not_found'
+          ? 'You have no paid plan to renew.'
+          : 'This could not be changed right now. Please try again in a few minutes.',
+    };
+  }
+  revalidatePath(PLAN_PATH);
+  return {
+    ok: true,
+    message: renews
+      ? 'Renewing is on again. We remind you 7 days before your plan ends.'
+      : 'Renewing is off. Your plan still covers you until it ends, and nothing is charged.',
+  };
 }

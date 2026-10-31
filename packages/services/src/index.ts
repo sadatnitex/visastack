@@ -1518,10 +1518,16 @@ export {
   PERSON_SELLING_OFF,
   PURCHASE_EXPIRED,
   type PersonCheckout,
+  type OwnRenewal,
   type PersonPurchase,
+  RENEWAL_GRACE_DAYS,
   getOwnPurchase,
+  getOwnRenewal,
+  setPlanRenewal,
   startPersonCheckout,
 } from './person-billing';
+// ADR 0025 T4: the daily run's person step (renewals, reminders, lapses).
+export type { PersonRenewalSummary } from './person-renewals';
 
 export { type PlatformOverview, getPlatformOverview } from './platform-overview';
 

@@ -1122,7 +1122,10 @@ async function completePersonCollection(
   },
 ): Promise<void> {
   await issuePersonReceipt(tx, input);
-  if (input.paid) await activatePersonPeriod(tx, input);
+  if (!input.paid) return;
+  await activatePersonPeriod(tx, input);
+  // A renewal paid before its reminder went out: the reminder is not sent (T4).
+  await cancelQueuedNotificationsForResource(tx, input.invoiceId);
 }
 
 async function issuePersonReceipt(

@@ -141,6 +141,8 @@ describe('the words of every email', () => {
         'INVOICE_REMINDER',
         'LEGAL_HOLD_REVIEW_REMINDER',
         'MISSION_STATUS_CHANGED',
+        'PERSON_PLAN_ENDED',
+        'PERSON_PLAN_RENEWAL_DUE',
         'PLATFORM_ROLE_GRANTED',
         'PLATFORM_ROLE_REVOKED',
         'SHARING_INVITATION_CREATED',
