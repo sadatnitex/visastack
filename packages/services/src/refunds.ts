@@ -2545,7 +2545,8 @@ export async function recordPersonRefund(
       }
       // Full refunds only: all that is left of the payment, exactly as the page showed it.
       const amount = source.kind === 'entry' ? source.refundable : source.remaining;
-      const problem = limitProblem(source, amount);
+      // Nothing left (already refunded, or on its way back): said plainly, never "out of date".
+      const problem = limitProblem(source, Math.max(amount, 1));
       if (problem) return err(problem);
       if (amount !== input.expectedAmountMinorUnits) {
         return err(serviceError('invalid', OUT_OF_DATE));
