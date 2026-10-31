@@ -144,7 +144,9 @@ function person(overrides: Record<string, unknown> = {}) {
         reasonCode: 'already_covered',
         since: new Date('2026-10-30T10:00:00Z'),
         paidOn: new Date('2026-10-30T10:00:00Z'),
-        refundWindowEndsAt: new Date(new Date('2026-10-30T10:00:00Z').getTime() + 7 * 24 * 60 * 60 * 1000),
+        refundWindowEndsAt: new Date(
+          new Date('2026-10-30T10:00:00Z').getTime() + 7 * 24 * 60 * 60 * 1000,
+        ),
       },
       {
         ...secrets,
@@ -156,7 +158,9 @@ function person(overrides: Record<string, unknown> = {}) {
         reasonCode: 'period_over',
         since: new Date('2026-10-30T11:00:00Z'),
         paidOn: new Date('2026-10-30T11:00:00Z'),
-        refundWindowEndsAt: new Date(new Date('2026-10-30T11:00:00Z').getTime() + 7 * 24 * 60 * 60 * 1000),
+        refundWindowEndsAt: new Date(
+          new Date('2026-10-30T11:00:00Z').getTime() + 7 * 24 * 60 * 60 * 1000,
+        ),
       },
     ],
     refunds: [
