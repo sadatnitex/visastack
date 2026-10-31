@@ -1619,6 +1619,8 @@ export interface PaymentResultView {
   readonly invoiceRef: string;
   readonly amountMinorUnits: number;
   readonly currency: string;
+  /** Who paid (ADR 0025): an agency's invoice, or a person's own plan purchase. */
+  readonly payer: 'organization' | 'person';
 }
 
 /**
@@ -1639,6 +1641,8 @@ export async function getPaymentResultView(
           amountMinorUnits: schema.paymentAttempts.amountMinorUnits,
           currency: schema.paymentAttempts.currency,
           invoiceRef: schema.invoices.invoiceRef,
+          // A person's own attempt has no organization (ADR 0025).
+          agency: sql<boolean>`${schema.paymentAttempts.organizationId} is not null`,
         })
         .from(schema.paymentAttempts)
         .innerJoin(schema.invoices, eq(schema.invoices.id, schema.paymentAttempts.invoiceId))
@@ -1651,6 +1655,7 @@ export async function getPaymentResultView(
       invoiceRef: row.invoiceRef,
       amountMinorUnits: row.amountMinorUnits,
       currency: row.currency,
+      payer: row.agency ? 'organization' : 'person',
     };
   } catch (error) {
     if (isMissingRelationError(error)) return null;

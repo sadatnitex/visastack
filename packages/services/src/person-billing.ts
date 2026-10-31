@@ -232,6 +232,8 @@ export async function ownPersonInvoice(
 export function personAttemptWriter(
   self: SelfScope,
 ): (tx: Db, values: NewAttemptValues) => Promise<PaymentAttempt> {
+  // A programmer fault: callers check the scope first (startPersonPayment does).
+  if (selfScopeProblem(self)) throw new Error('personAttemptWriter needs a genuine, fresh scope');
   const accountId = self.accountId;
   return async (tx, values) =>
     required(

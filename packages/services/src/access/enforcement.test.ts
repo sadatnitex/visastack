@@ -880,3 +880,53 @@ describe('person billing ratchet (ADR 0025)', () => {
     }
   }, 180_000);
 });
+
+describe('functions taking a SelfScope (ADR 0025)', () => {
+  it('check the scope first and take no other account id', () => {
+    const { program } = programOnce();
+    const checker = program.getTypeChecker();
+    const selfDecls = gateDeclarations(program, checker, ['SelfScope']);
+    const found: string[] = [];
+    const problems: string[] = [];
+    for (const sf of program.getSourceFiles()) {
+      const fileName = real(sf.fileName);
+      if (sf.isDeclarationFile || !fileName.startsWith(srcDir + path.sep) || isTestFile(fileName)) {
+        continue;
+      }
+      if (fileName.startsWith(accessDir + path.sep)) continue;
+      for (const [name, shape] of exportedFunctions(checker, sf)) {
+        for (const fn of shape.fns) {
+          const selfParams = fn.parameters.filter((p) =>
+            isGateType(checker.getTypeAtLocation(p), selfDecls),
+          );
+          if (selfParams.length === 0) continue;
+          const id = `${moduleId(fileName)}#${name}`;
+          found.push(id);
+          if (!/\bselfScopeProblem\(/.test(fn.body?.getText() ?? '')) {
+            problems.push(`${id} does not call selfScopeProblem`);
+          }
+          // No other parameter (or property of one) names an account: the scope says whose rows.
+          for (const p of fn.parameters) {
+            if (selfParams.includes(p)) continue;
+            if (/accountid/i.test(p.name.getText()))
+              problems.push(`${id} takes ${p.name.getText()}`);
+            for (const prop of checker.getTypeAtLocation(p).getProperties()) {
+              if (/accountid/i.test(prop.getName())) {
+                problems.push(`${id} takes ${p.name.getText()}.${prop.getName()}`);
+              }
+            }
+          }
+        }
+      }
+    }
+    // Guard the scan itself: the person billing functions are found.
+    expect(found).toEqual(
+      expect.arrayContaining([
+        'person-billing#startPersonCheckout',
+        'payments#startPersonPayment',
+        'person-billing#ownPersonInvoice',
+      ]),
+    );
+    expect(problems).toEqual([]);
+  }, 180_000);
+});
