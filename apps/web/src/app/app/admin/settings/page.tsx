@@ -59,6 +59,9 @@ export default async function PlatformSettingsPage() {
               and then Suspended.
             </p>
             <Link href="/app/admin/billing">Manage Billing Rules</Link>
+            <p>
+              <Link href="/app/admin/billing/travellers">Open Traveller Billing</Link>
+            </p>
           </article>
         ) : null}
         {access.owner ? (
