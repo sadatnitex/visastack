@@ -29,7 +29,7 @@ import {
 import { isMissingRelationError } from './missing-relation';
 import { isOrgAdmin } from './organizations';
 import { providerShareDeadline } from './payment-resolver';
-import { PERSON_SELLING_OFF, ownPersonInvoice, personAttemptWriter } from './person-billing';
+import { PERSON_SELLING_OFF, payablePersonInvoice, personAttemptWriter } from './person-billing';
 import {
   type PaymentMode,
   attemptColumns,
@@ -525,9 +525,14 @@ async function applyDecision(
           // S18 (D2): the invoice was refunded meanwhile and is never owed again.
           return hold('invoice_refunded', []);
         case 'already_covered':
-          // ADR 0025: a person paid for a period another paid invoice of theirs already covers
-          // (two tabs, two payments). Kept for a refund or a credit, never counted twice.
+          // ADR 0025: a person paid for a period another paid invoice of theirs already covers (two
+          // purchase invoices, both paid). Never counted twice; a person's held money is refunded
+          // through the refund work of package T6 (a credit is for agencies only).
           return hold('already_covered', []);
+        case 'period_over':
+          // ADR 0025: the purchase's period ended before the money arrived; nothing is sold for a
+          // time already past. Kept for a refund (T6).
+          return hold('period_over', []);
         case 'currency_mismatch':
           return hold('mismatch', ['currency']);
         case 'key_conflict':
@@ -882,8 +887,9 @@ export async function startPersonPayment(
   const now = input.now ?? new Date();
   try {
     if (!(await personBillingPresent(db))) return err(serviceError('invalid', NOT_AVAILABLE));
-    const invoice = await ownPersonInvoice(db, self, input.invoiceId);
-    if (!invoice) return err(serviceError('not_found', 'invoice not found'));
+    const payable = await payablePersonInvoice(db, self, { invoiceId: input.invoiceId, now });
+    if (!payable.ok) return payable;
+    const invoice = payable.value;
     const accountId = self.accountId;
     return await openInvoicePayment(
       db,

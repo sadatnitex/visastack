@@ -106,6 +106,7 @@ export const HOLD_REASON_LABELS: Readonly<Record<string, string>> = {
   invoice_void: 'The invoice was cancelled.',
   invoice_refunded: 'The invoice was refunded, so nothing more is owed on it.',
   already_covered: 'A paid period already covered this time, so the payment was kept for a refund.',
+  period_over: 'The period this payment was for had already ended, so it was kept for a refund.',
   risky_payment: 'The gateway flagged the payment as risky.',
   risk_unknown: 'The gateway did not say whether the payment was risky.',
   mismatch: 'What the gateway reported did not match this payment.',

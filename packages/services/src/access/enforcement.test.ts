@@ -751,13 +751,31 @@ function ratchet(
 const PERSON_ROW_TEXT =
   /payer_account_id|payerAccountId|person_receipt_counters|organization_id"?\s+is\s+null/i;
 
+/**
+ * The private person section of the recording module: the payer column may be named only below
+ * this line of invoice-ledger.ts (its agency code above it may not).
+ */
+const LEDGER_PERSON_SECTION = "// --- A person's own invoice (ADR 0025, T3b)";
+
 /** Service and web files outside PAYER_COLUMN_MODULES that match PERSON_ROW_TEXT. Tests left out. */
 function payerColumnUsers(): string[] {
-  const allowed = new Set(PAYER_COLUMN_MODULES.map((m) => path.join(srcDir, `${m}.ts`)));
+  const ledger = path.join(srcDir, 'invoice-ledger.ts');
+  const allowed = new Set(
+    PAYER_COLUMN_MODULES.filter((m) => m !== 'invoice-ledger').map((m) =>
+      path.join(srcDir, `${m}.ts`),
+    ),
+  );
+  const checkedText = (file: string): string => {
+    const text = readFileSync(file, 'utf8');
+    if (file !== ledger) return text;
+    const at = text.indexOf(LEDGER_PERSON_SECTION);
+    if (at < 0) throw new Error('invoice-ledger.ts has lost its person section marker');
+    return text.slice(0, at);
+  };
   return [...sourceFilesUnder(srcDir), ...sourceFilesUnder(webSrcDir)]
     .map(real)
     .filter((file) => !isTestFile(file) && !/\.test\.tsx$/.test(file) && !allowed.has(file))
-    .filter((file) => PERSON_ROW_TEXT.test(readFileSync(file, 'utf8')))
+    .filter((file) => PERSON_ROW_TEXT.test(checkedText(file)))
     .map((file) => path.relative(repoDir, file).replace(/\\/g, '/'))
     .sort();
 }
@@ -795,6 +813,11 @@ describe('access gate enforcement ratchet', () => {
       analysis.selfScopeUsers,
       'only withSession (apps/web/src/lib/session.ts) may use selfPrincipal',
     ).toEqual([]);
+    for (const id of SELF_SAFE_CALLS) {
+      expect(analysis.exportedFunctionIds.has(id), `${id} is listed but no longer exists`).toBe(
+        true,
+      );
+    }
 
     const duplicates = baseline.filter((entry, i) => baseline.indexOf(entry) !== i);
     expect(duplicates, 'duplicate baseline entries').toEqual([]);
@@ -902,19 +925,39 @@ describe('functions taking a SelfScope (ADR 0025)', () => {
           if (selfParams.length === 0) continue;
           const id = `${moduleId(fileName)}#${name}`;
           found.push(id);
-          if (!/\bselfScopeProblem\(/.test(fn.body?.getText() ?? '')) {
-            problems.push(`${id} does not call selfScopeProblem`);
-          }
-          // No other parameter (or property of one) names an account: the scope says whose rows.
-          for (const p of fn.parameters) {
-            if (selfParams.includes(p)) continue;
-            if (/accountid/i.test(p.name.getText()))
-              problems.push(`${id} takes ${p.name.getText()}`);
-            for (const prop of checker.getTypeAtLocation(p).getProperties()) {
-              if (/accountid/i.test(prop.getName())) {
-                problems.push(`${id} takes ${p.name.getText()}.${prop.getName()}`);
+          // A real call of selfScopeProblem on the scope parameter itself (not text in a comment).
+          const selfNames = new Set(selfParams.map((p) => p.name.getText()));
+          let checks = false;
+          const visit = (node: ts.Node) => {
+            if (
+              ts.isCallExpression(node) &&
+              ts.isIdentifier(node.expression) &&
+              node.expression.text === 'selfScopeProblem' &&
+              node.arguments.some((a) => ts.isIdentifier(a) && selfNames.has(a.text))
+            ) {
+              checks = true;
+            }
+            ts.forEachChild(node, visit);
+          };
+          if (fn.body) visit(fn.body);
+          if (!checks) problems.push(`${id} does not call selfScopeProblem on its scope`);
+          // No other parameter, or property of one (two levels deep), names a person: the scope
+          // says whose rows.
+          const PERSON_ID = /(account|payer|person|owner|user)_?id/i;
+          const props = (type: ts.Type, prefix: string, depth: number): void => {
+            for (const prop of type.getProperties()) {
+              const label = `${prefix}.${prop.getName()}`;
+              if (PERSON_ID.test(prop.getName())) problems.push(`${id} takes ${label}`);
+              if (depth > 0) {
+                const decl = prop.valueDeclaration ?? prop.declarations?.[0];
+                if (decl) props(checker.getTypeOfSymbolAtLocation(prop, decl), label, depth - 1);
               }
             }
+          };
+          for (const p of fn.parameters) {
+            if (selfParams.includes(p)) continue;
+            if (PERSON_ID.test(p.name.getText())) problems.push(`${id} takes ${p.name.getText()}`);
+            props(checker.getTypeAtLocation(p), p.name.getText(), 1);
           }
         }
       }
@@ -924,7 +967,7 @@ describe('functions taking a SelfScope (ADR 0025)', () => {
       expect.arrayContaining([
         'person-billing#startPersonCheckout',
         'payments#startPersonPayment',
-        'person-billing#ownPersonInvoice',
+        'person-billing#payablePersonInvoice',
       ]),
     );
     expect(problems).toEqual([]);

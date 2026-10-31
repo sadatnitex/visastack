@@ -26,6 +26,7 @@ import {
 } from './notifications';
 import {
   personInvoices,
+  personPaymentAttempts,
   personPaymentReceipts,
   personReceiptCounters,
   personSubscriptions,
@@ -39,6 +40,7 @@ import {
 } from './plans-schema';
 import { recordProductEvent } from './product-events';
 import { type PaymentReceipt, issueReceiptForPayment } from './receipts';
+import { coveringPaidPeriod } from './traveller-billing';
 
 /**
  * The cash ledger and the one recording function (Small Commercial V1 S10,
@@ -153,6 +155,8 @@ export type CollectionRefusalCode =
   | 'refunded_invoice'
   /** ADR 0025: a person's invoice for a period another paid invoice of theirs already covers. */
   | 'already_covered'
+  /** ADR 0025: a person's invoice whose period is over: never paid for a time already past. */
+  | 'period_over'
   | 'unavailable';
 
 export interface CollectionRefusal {
@@ -345,12 +349,13 @@ export async function applyInvoiceCollection(
       if (invoice.organizationId === null) {
         const person = await personPayerOf(tx, invoice.id);
         if (person === null) return refuse('not_found', 'invoice not found');
+        await lockPersonBilling(tx, person);
         await completePersonCollection(tx, {
           invoiceId: invoice.id,
-          payerAccountId: person,
+          payer: person,
           payment: existing,
           paid: invoice.status === 'PAID',
-          now: new Date(),
+          now: input.collectedDate,
         });
         return ok({
           invoice,
@@ -404,11 +409,23 @@ export async function applyInvoiceCollection(
     if (personPayer === null) return refuse('not_found', 'invoice not found');
     const refused = await checkPersonCollection(tx, {
       invoiceId: invoice.id,
-      payerAccountId: personPayer,
+      payer: personPayer,
       online: input.kind === 'ONLINE',
+      sourceId,
+      provider,
+      now: input.collectedDate,
     });
     if (refused === 'online_only') {
       return refuse('invalid', "A traveller's own invoice is paid online only.");
+    }
+    if (refused === 'unverified') {
+      return refuse(
+        'invalid',
+        "this payment is not one of the payer's own payments on this invoice",
+      );
+    }
+    if (refused === 'period_over') {
+      return refuse('period_over', 'the period this invoice is for is over');
     }
     if (refused === 'already_covered') {
       return refuse('already_covered', 'a paid period already covers this invoice');
@@ -501,10 +518,10 @@ export async function applyInvoiceCollection(
   if (payment && personPayer !== null) {
     await completePersonCollection(tx, {
       invoiceId: invoice.id,
-      payerAccountId: personPayer,
+      payer: personPayer,
       payment,
       paid: newStatus === 'PAID',
-      now: new Date(),
+      now: input.collectedDate,
     });
   }
   // S17: a paid invoice's queued reminders never go out, and paying everything that was overdue
@@ -984,9 +1001,10 @@ async function restoreBillingAfterPayment(
 // --- A person's own invoice (ADR 0025, T3b) ----------------------------------------------------
 //
 // The person steps of this one recording function, private to it: each acts only on the locked
-// invoice's own payer, never on an id a caller chose. Lock order: the payment attempt, the invoice,
-// this person's billing lock (in the agency billing account's place), their subscription, their
-// receipt counter, then the audit chain.
+// invoice's own payer, never on an id a caller chose. Lock order, as the code takes them: the
+// payment attempt, the invoice, this person's billing lock (in the agency billing account's place),
+// the audit chain (the payment's own audit record), their receipt counter, their subscription.
+// Checkout takes only the person's billing lock, before any audit record.
 
 /** This person's billing lock: checkout, recording and their subscription take turns on it. */
 export async function lockPersonBilling(tx: Db, accountId: string): Promise<void> {
@@ -1007,38 +1025,70 @@ async function personPayerOf(tx: Db, invoiceId: string): Promise<string | null> 
   return row?.payer ?? null;
 }
 
-type PersonCollectionRefusal = 'online_only' | 'already_covered';
+type PersonCollectionRefusal = 'online_only' | 'unverified' | 'period_over' | 'already_covered';
 
 /**
- * Before money is recorded on a person's invoice, under the invoice lock: a person pays online
- * only (D13), and money for a period another paid, unrefunded invoice of theirs already covers is
- * held, never counted twice. Takes the person's billing lock, which the recording keeps until it
- * commits.
+ * Before money is recorded on a person's invoice, under the invoice lock, so a person is never
+ * charged for less than they pay for:
+ * - they pay online only (D13), and the money is one of their own payment attempts on this
+ *   invoice, through the provider that reports it;
+ * - the invoice's period is not over (a period already past is never sold);
+ * - no other paid, unrefunded invoice of theirs covers any of the same time, and no paid period of
+ *   another plan covers them now (their current plan is never ended while paid for).
+ * Takes the person's billing lock, which the recording keeps until it commits.
  */
 async function checkPersonCollection(
   tx: Db,
-  input: { readonly invoiceId: string; readonly payerAccountId: string; readonly online: boolean },
+  input: {
+    readonly invoiceId: string;
+    readonly payer: string;
+    readonly online: boolean;
+    readonly sourceId: string | null;
+    readonly provider: string | null;
+    readonly now: Date;
+  },
 ): Promise<PersonCollectionRefusal | null> {
   if (!input.online) return 'online_only';
-  await lockPersonBilling(tx, input.payerAccountId);
+  await lockPersonBilling(tx, input.payer);
+  if (input.sourceId === null || input.provider === null || !isUuid(input.sourceId)) {
+    return 'unverified';
+  }
+  const ownAttempt = first(
+    await tx
+      .select({ id: personPaymentAttempts.id })
+      .from(personPaymentAttempts)
+      .where(
+        and(
+          eq(personPaymentAttempts.id, input.sourceId),
+          eq(personPaymentAttempts.invoiceId, input.invoiceId),
+          eq(personPaymentAttempts.payerAccountId, input.payer),
+          eq(personPaymentAttempts.provider, input.provider),
+        ),
+      )
+      .limit(1),
+  );
+  if (!ownAttempt) return 'unverified';
   const i = personInvoices;
   const own = required(
     first(
       await tx
-        .select({ start: i.periodStart, end: i.periodEnd })
+        .select({ start: i.periodStart, end: i.periodEnd, planId: i.planId })
         .from(i)
         .where(eq(i.id, input.invoiceId))
         .limit(1),
     ),
     'person invoice',
   );
+  if (own.end.getTime() <= input.now.getTime()) return 'period_over';
+  const coveredNow = await coveringPaidPeriod(tx, input.payer, input.now);
+  if (coveredNow && coveredNow.planId !== own.planId) return 'already_covered';
   const overlapping = first(
     await tx
       .select({ id: i.id })
       .from(i)
       .where(
         and(
-          eq(i.payerAccountId, input.payerAccountId),
+          eq(i.payerAccountId, input.payer),
           ne(i.id, input.invoiceId),
           eq(i.status, 'PAID'),
           sql`${i.periodStart} < ${own.end.toISOString()}::timestamptz`,
@@ -1061,7 +1111,7 @@ async function completePersonCollection(
   tx: Db,
   input: {
     readonly invoiceId: string;
-    readonly payerAccountId: string;
+    readonly payer: string;
     readonly payment: {
       readonly id: string;
       readonly amountMinorUnits: number;
@@ -1079,7 +1129,7 @@ async function issuePersonReceipt(
   tx: Db,
   input: {
     readonly invoiceId: string;
-    readonly payerAccountId: string;
+    readonly payer: string;
     readonly payment: {
       readonly id: string;
       readonly amountMinorUnits: number;
@@ -1094,12 +1144,12 @@ async function issuePersonReceipt(
   );
   if (existing) return;
   const c = personReceiptCounters;
-  const highest = sql`coalesce((select max(pr.receipt_number) from payment_receipts pr where pr.payer_account_id = ${input.payerAccountId}::uuid), 0)`;
+  const highest = sql`coalesce((select max(pr.receipt_number) from payment_receipts pr where pr.payer_account_id = ${input.payer}::uuid), 0)`;
   const counter = required(
     first(
       await tx
         .insert(c)
-        .values({ accountId: input.payerAccountId, lastNumber: sql`${highest} + 1` })
+        .values({ accountId: input.payer, lastNumber: sql`${highest} + 1` })
         .onConflictDoUpdate({
           target: c.accountId,
           set: { lastNumber: sql`greatest(${c.lastNumber}, ${highest}) + 1` },
@@ -1114,7 +1164,7 @@ async function issuePersonReceipt(
         .insert(r)
         .values({
           organizationId: null,
-          payerAccountId: input.payerAccountId,
+          payerAccountId: input.payer,
           invoiceId: input.invoiceId,
           invoicePaymentId: input.payment.id,
           receiptNumber: counter.lastNumber,
@@ -1146,7 +1196,7 @@ async function issuePersonReceipt(
 
 async function activatePersonPeriod(
   tx: Db,
-  input: { readonly invoiceId: string; readonly payerAccountId: string; readonly now: Date },
+  input: { readonly invoiceId: string; readonly payer: string; readonly now: Date },
 ): Promise<void> {
   const i = personInvoices;
   const s = personSubscriptions;
@@ -1171,7 +1221,7 @@ async function activatePersonPeriod(
     await tx
       .select({ id: s.id, planId: s.planId })
       .from(s)
-      .where(and(eq(s.payerAccountId, input.payerAccountId), isNull(s.endedAt)))
+      .where(and(eq(s.payerAccountId, input.payer), isNull(s.endedAt)))
       .limit(1)
       .for('update'),
   );
@@ -1200,7 +1250,7 @@ async function activatePersonPeriod(
           .insert(s)
           .values({
             organizationId: null,
-            payerAccountId: input.payerAccountId,
+            payerAccountId: input.payer,
             planId: invoice.planId,
             startedAt: invoice.periodStart,
             assignedByAccountId: null,

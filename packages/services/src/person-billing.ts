@@ -37,8 +37,8 @@ const REUSE_OPEN_INVOICE_MS = 24 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** The short code a person's invoices and receipts carry instead of a name (ADR 0025 D14). */
-function referenceCode(accountId: string): string {
-  return accountId.replace(/-/g, '').slice(0, 8).toUpperCase();
+function referenceCode(accountId: string, length = 8): string {
+  return accountId.replace(/-/g, '').slice(0, length).toUpperCase();
 }
 
 export interface PersonCheckout {
@@ -162,7 +162,25 @@ export async function startPersonCheckout(
         .from(i)
         .where(eq(i.payerAccountId, accountId)),
     );
-    const invoiceRef = `TP-${referenceCode(accountId)}-${(count?.n ?? 0) + 1}`;
+    // References are unique across every invoice; two accounts can share the short code, so a
+    // longer one is used when the short one is taken (D14: still never a name or an email).
+    const number = (count?.n ?? 0) + 1;
+    let invoiceRef = '';
+    for (const length of [8, 12, 16, 32]) {
+      const candidate = `TP-${referenceCode(accountId, length)}-${number}`;
+      const taken = first(
+        await tx
+          .select({ id: schema.invoices.id })
+          .from(schema.invoices)
+          .where(eq(schema.invoices.invoiceRef, candidate))
+          .limit(1),
+      );
+      if (!taken) {
+        invoiceRef = candidate;
+        break;
+      }
+    }
+    if (invoiceRef === '') throw new Error('no free invoice reference for this person');
     const created = required(
       first(
         await tx
@@ -204,25 +222,75 @@ export async function startPersonCheckout(
   });
 }
 
+/** Said when a purchase is too old to pay: its period would already be partly over. */
+export const PURCHASE_EXPIRED = 'This purchase has expired. Start it again on Plan & Usage.';
+
 /**
- * The signed-in person's own invoice, for paying it online: an invoice whose payer is anyone else
- * reads as not found.
+ * The signed-in person's own purchase invoice, if it can be paid online now: another person's
+ * invoice reads as not found; a purchase made more than a day ago, for a plan no longer offered, or
+ * for time a paid period already covers is refused before any payment page opens (the recording
+ * holds such money too, as a second line). The amount stays the one agreed at checkout.
  */
-export async function ownPersonInvoice(
+export async function payablePersonInvoice(
   db: Db,
   self: SelfScope,
-  invoiceId: string,
-): Promise<{ readonly id: string; readonly currency: string } | undefined> {
-  if (selfScopeProblem(self)) return undefined;
-  return first(
+  input: { readonly invoiceId: string; readonly now: Date },
+): Promise<Result<{ readonly id: string; readonly currency: string }, ServiceError>> {
+  const denied = selfScopeProblem(self);
+  if (denied) return err(denied);
+  const i = personInvoices;
+  const invoice = first(
     await db
-      .select({ id: personInvoices.id, currency: personInvoices.currency })
-      .from(personInvoices)
+      .select({
+        id: i.id,
+        currency: i.currency,
+        planId: i.planId,
+        periodStart: i.periodStart,
+        periodEnd: i.periodEnd,
+      })
+      .from(i)
+      .where(and(eq(i.id, input.invoiceId), eq(i.payerAccountId, self.accountId)))
+      .limit(1),
+  );
+  if (!invoice) return err(serviceError('not_found', 'invoice not found'));
+  if (invoice.periodStart.getTime() <= input.now.getTime() - REUSE_OPEN_INVOICE_MS) {
+    return err(refusal('purchase_expired', PURCHASE_EXPIRED));
+  }
+  const offered = first(
+    await db
+      .select({ id: schema.plans.id })
+      .from(schema.plans)
       .where(
-        and(eq(personInvoices.id, invoiceId), eq(personInvoices.payerAccountId, self.accountId)),
+        and(
+          eq(schema.plans.id, invoice.planId),
+          eq(schema.plans.active, true),
+          ne(schema.plans.key, TRAVELLER_PLAN_KEY),
+        ),
       )
       .limit(1),
   );
+  if (!offered) return err(refusal('plan_not_for_sale', 'This plan is not for sale.'));
+  if (await coveringPaidPeriod(db, self.accountId, input.now)) {
+    return err(refusal('already_covered', ALREADY_COVERED));
+  }
+  const overlapping = first(
+    await db
+      .select({ id: i.id })
+      .from(i)
+      .where(
+        and(
+          eq(i.payerAccountId, self.accountId),
+          ne(i.id, invoice.id),
+          eq(i.status, 'PAID'),
+          sql`${i.periodStart} < ${invoice.periodEnd.toISOString()}::timestamptz`,
+          sql`${i.periodEnd} > ${invoice.periodStart.toISOString()}::timestamptz`,
+          sql`not ${invoiceHasRefundSql(sql`${i.id}`)}`,
+        ),
+      )
+      .limit(1),
+  );
+  if (overlapping) return err(refusal('already_covered', ALREADY_COVERED));
+  return ok({ id: invoice.id, currency: invoice.currency });
 }
 
 /**

@@ -119,6 +119,7 @@ const VERIFIED_HOLD_REASONS: ReadonlySet<string> = new Set([
   'invoice_refunded',
   // ADR 0025: a person paid for a period another paid invoice of theirs already covered.
   'already_covered',
+  'period_over',
   'risky_payment',
   'risk_unknown',
 ]);
