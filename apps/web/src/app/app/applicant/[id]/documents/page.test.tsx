@@ -42,6 +42,15 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   loadUploadQuotaConfig: mocks.loadUploadQuotaConfig,
   referenceCodesFor: mocks.referenceCodesFor,
   getApplicantEvidenceBytes: async () => 0,
+  // No plan storage rules here: the owner's limits are the upload settings.
+  storageLimitsForOwner: async (
+    _db: unknown,
+    _owner: string,
+    config: { maxAccountEvidenceBytes: number; maxApplicantEvidenceBytes: number },
+  ) => ({
+    accountBytes: config.maxAccountEvidenceBytes,
+    personBytes: config.maxApplicantEvidenceBytes,
+  }),
   getLatestOcrRun: async () => undefined,
   listIssuerVerificationsForDocument: async () => [],
   listPendingDocumentTypeProposals: async () => [],

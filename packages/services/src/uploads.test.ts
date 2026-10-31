@@ -1,7 +1,7 @@
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { type AuthorizedApplicant, accountPrincipal, requireAccess } from './access';
@@ -757,5 +757,119 @@ describe('growUploadReservation - a converted copy larger than the file sent (UX
     );
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.error.message).toContain('upload limit');
+  });
+});
+
+describe('reserveUpload - storage limits belong to the record owner (ADR 0025)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  const roomy = { ...tightConfig, maxApplicantEvidenceBytes: 50 * MB };
+
+  it('counts a contributor’s upload against the owner’s account, never the contributor’s own', async () => {
+    const owner = await seedApplicantWithEvidence(db, 'owner@example.com', [8 * MB, 8 * MB]);
+    const contributor = await seedApplicantWithEvidence(db, 'helper@example.com', [18 * MB]);
+
+    // The owner holds 16 MB of a 20 MB account: 6 MB more is refused, whoever uploads it.
+    const over = await reserveUpload(
+      db,
+      { accountId: contributor.accountId, applicantId: owner.applicantId, sizeBytes: 6 * MB },
+      roomy,
+    );
+    // Told the record is full, never the owner's own limit.
+    expect(isErr(over) && over.error.message).toBe(
+      "the record owner's account has reached its evidence limit",
+    );
+    // The owner is told the number.
+    const ownOver = await reserveUpload(
+      db,
+      { accountId: owner.accountId, applicantId: owner.applicantId, sizeBytes: 6 * MB },
+      roomy,
+    );
+    expect(isErr(ownOver) && ownOver.error.message).toMatch(/this account has reached its 20 MB/);
+
+    // The contributor's own 18 MB never counts against the owner's record.
+    const fits = await reserveUpload(
+      db,
+      { accountId: contributor.accountId, applicantId: owner.applicantId, sizeBytes: 3 * MB },
+      roomy,
+    );
+    expect(isOk(fits)).toBe(true);
+  });
+
+  it('counts uploads in progress to any of the owner’s records, whoever started them', async () => {
+    const owner = await seedApplicantWithEvidence(db, 'busy@example.com', [10 * MB]);
+    const contributor = await seedApplicantWithEvidence(db, 'busy-helper@example.com', []);
+    const first = await reserveUpload(
+      db,
+      { accountId: contributor.accountId, applicantId: owner.applicantId, sizeBytes: 8 * MB },
+      roomy,
+    );
+    expect(isOk(first)).toBe(true);
+    const second = await reserveUpload(
+      db,
+      { accountId: owner.accountId, applicantId: owner.applicantId, sizeBytes: 3 * MB },
+      roomy,
+    );
+    expect(isErr(second) && second.error.message).toMatch(/this account has reached/);
+  });
+
+  it('uses the storage rules of a paid traveller plan covering the owner now', async () => {
+    const owner = await seedApplicantWithEvidence(db, 'plus-owner@example.com', [9 * MB]);
+    // Under the 10 MB per-person setting, 5 MB more is refused.
+    const before = await reserveUpload(
+      db,
+      { accountId: owner.accountId, applicantId: owner.applicantId, sizeBytes: 5 * MB },
+      tightConfig,
+    );
+    expect(isErr(before) && before.error.message).toMatch(/this applicant has reached its 10 MB/);
+
+    const [plan] = await db
+      .insert(schema.plans)
+      .values({ key: 'traveller_plus', name: 'Traveller Plus', audience: 'TRAVELLER' })
+      .returning({ id: schema.plans.id });
+    if (!plan) throw new Error('plan insert failed');
+    await db.insert(schema.planEntitlements).values([
+      {
+        planId: plan.id,
+        key: 'account_storage_bytes',
+        included: true,
+        limitValue: 60 * MB,
+        per: 'TOTAL',
+      },
+      {
+        planId: plan.id,
+        key: 'person_storage_bytes',
+        included: true,
+        limitValue: 30 * MB,
+        per: 'TOTAL',
+      },
+    ]);
+    // Person payer columns are written with plain SQL until schema.ts declares them (ADR 0025).
+    const sub = (
+      (await db.execute(sql`
+        insert into subscriptions (payer_account_id, plan_id, reason)
+        values (${owner.accountId}::uuid, ${plan.id}::uuid, 'Bought Traveller Plus') returning id`)) as unknown as {
+        rows: { id: string }[];
+      }
+    ).rows[0];
+    if (!sub) throw new Error('subscription insert failed');
+    const now = Date.now();
+    const start = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+    const end = new Date(now + 29 * 24 * 60 * 60 * 1000).toISOString();
+    await db.execute(sql`
+      insert into invoices (payer_account_id, subscription_id, plan_id, period_start, period_end,
+        invoice_ref, invoiced_amount_minor_units, collected_amount_minor_units, currency, due_date, status)
+      values (${owner.accountId}::uuid, ${sub.id}::uuid, ${plan.id}::uuid, ${start}::timestamptz,
+        ${end}::timestamptz, 'INV-P-STORAGE', 49900, 49900, 'BDT', ${start}::timestamptz, 'PAID')`);
+
+    const after = await reserveUpload(
+      db,
+      { accountId: owner.accountId, applicantId: owner.applicantId, sizeBytes: 5 * MB },
+      tightConfig,
+    );
+    expect(isOk(after)).toBe(true);
   });
 });

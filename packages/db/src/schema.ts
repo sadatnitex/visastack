@@ -3619,11 +3619,11 @@ export const planEntitlements = pgTable(
     primaryKey({ columns: [table.planId, table.key] }),
     check(
       'plan_entitlements_key_shape',
-      sql`${table.key} ~ '^(seats|invitations|cases_per_period|open_cases|storage_bytes|ai_allowance_units|ai\\.[a-z][a-z0-9_]{0,62})$'`,
+      sql`${table.key} ~ '^(seats|invitations|cases_per_period|open_cases|storage_bytes|account_storage_bytes|person_storage_bytes|ai_allowance_units|ai\\.[a-z][a-z0-9_]{0,62})$'`,
     ),
     check(
       'plan_entitlements_per_matches_key',
-      sql`(${table.key} in ('seats', 'invitations', 'open_cases') and ${table.per} = 'CONCURRENT') or (${table.key} in ('cases_per_period', 'ai_allowance_units') and ${table.per} = 'PERIOD') or (${table.key} = 'storage_bytes' and ${table.per} = 'TOTAL') or (${table.key} like 'ai.%' and ${table.per} = 'DAY')`,
+      sql`(${table.key} in ('seats', 'invitations', 'open_cases') and ${table.per} = 'CONCURRENT') or (${table.key} in ('cases_per_period', 'ai_allowance_units') and ${table.per} = 'PERIOD') or (${table.key} in ('storage_bytes', 'account_storage_bytes', 'person_storage_bytes') and ${table.per} = 'TOTAL') or (${table.key} like 'ai.%' and ${table.per} = 'DAY')`,
     ),
     check(
       'plan_entitlements_limit_nonnegative',
@@ -3697,14 +3697,20 @@ export const subscriptions = pgTable(
     // does both atomically) -- a "plan change" is always real history, never
     // an overwritten row.
     endedAt: timestamp('ended_at', { withTimezone: true }),
-    assignedByAccountId: uuid('assigned_by_account_id')
-      .notNull()
-      .references(() => accounts.id),
+    // Who assigned it: always set on an organization's subscription. Migration 0111 (ADR 0025)
+    // lets it be empty only on a person's own purchase, whose columns migration 0110 added and
+    // the person billing code reads directly (traveller-billing.ts), so it never blocks that
+    // person deleting their own account.
+    assignedByAccountId: uuid('assigned_by_account_id').references(() => accounts.id),
     reason: text('reason').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('subscriptions_organization_idx').on(table.organizationId),
+    check(
+      'subscriptions_organization_assigned',
+      sql`${table.organizationId} is null or ${table.assignedByAccountId} is not null`,
+    ),
     // At most one CURRENT subscription per organization -- the database
     // itself makes "the" current plan unambiguous, never a query-time
     // ORDER BY/LIMIT 1 guess across concurrent activations.

@@ -1,10 +1,13 @@
+import { formatBillingDate } from '@visastack/core';
 import { AI_DAY_BOUNDARY_NOTE } from '@visastack/core/ai-features';
 import {
+  BILLING_TIME_ZONE,
   getApplicantEvidenceBytes,
   getTravellerPlanSummary,
   listApplicants,
   loadUploadQuotaConfig,
   mbLabel,
+  storageLimitsFrom,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -18,12 +21,13 @@ export const metadata: Metadata = { title: 'Plan & Usage' };
 export const dynamic = 'force-dynamic';
 
 /**
- * Plan & Usage for a traveller (owner request 2026-10-31): the plan every traveller is on, what it
- * includes, and how much of it is used. Read-only. Travellers have one plan (Traveller Free;
- * Founding Access is complimentary, PRODUCT-CONTRACT) and no paid plans, so there is nothing to
+ * Plan & Usage for a traveller (owner request 2026-10-31): the plan this traveller is on (a paid
+ * traveller plan while a paid period covers now, else Traveller Free, ADR 0025), what it includes,
+ * and how much of it is used. Read-only: no paid plan is offered yet, so there is nothing to
  * choose here. The AI rules and today's use come from the same reader as Privacy & Consent; the
- * storage limits are the upload limits that apply to every traveller. The plan's capacity limits
- * (seats, cases) are agency limits and are not enforced on travellers, so none are shown.
+ * storage limits are the ones uploads are judged by (the plan's storage rules, else the upload
+ * settings). The plan's capacity limits (seats, cases) are agency limits and are not enforced on
+ * travellers, so none are shown.
  */
 export default async function TravellerPlanPage() {
   const data = await withSession(async ({ db, accountId }) => {
@@ -40,10 +44,12 @@ export default async function TravellerPlanPage() {
         usedBytes: await getApplicantEvidenceBytes(db, applicant.id),
       })),
     );
-    return { summary, aiUsage, profiles };
+    const quota = loadUploadQuotaConfig();
+    // This account's limits: its plan's storage rules, else the upload settings (ADR 0025).
+    const limits = storageLimitsFrom(summary.storage, quota);
+    return { summary, aiUsage, profiles, quota, limits };
   });
-  const quota = loadUploadQuotaConfig();
-  const { summary, aiUsage, profiles } = data;
+  const { summary, aiUsage, profiles, quota, limits } = data;
   const usedBytes = profiles.reduce((total, profile) => total + profile.usedBytes, 0);
 
   return (
@@ -65,13 +71,23 @@ export default async function TravellerPlanPage() {
           <h2 className="card-title" id="current-plan-title">
             {summary.plan?.name ?? 'Your Plan'}
           </h2>
-          <p className="card-body">
-            Complimentary during public beta. No payment method is required. Fair-use safeguards and
-            your privacy permissions still apply.
-          </p>
-          <p className="card-body u-mt-100">
-            There are no paid plans for travellers, so there is nothing to choose or upgrade.
-          </p>
+          {summary.paidUntil ? (
+            <p className="card-body">
+              Paid until {formatBillingDate(summary.paidUntil, BILLING_TIME_ZONE)}. Fair-use
+              safeguards and your privacy permissions still apply.
+            </p>
+          ) : (
+            <>
+              <p className="card-body">
+                Complimentary during public beta. No payment method is required. Fair-use safeguards
+                and your privacy permissions still apply.
+              </p>
+              <p className="card-body u-mt-100">
+                Paid plans for travellers are not offered yet, so there is nothing to choose or
+                upgrade.
+              </p>
+            </>
+          )}
         </article>
 
         <article className="card" aria-labelledby="storage-title">
@@ -87,14 +103,14 @@ export default async function TravellerPlanPage() {
             <UsageMeter
               label="Your Whole Account"
               usedBytes={usedBytes}
-              limitBytes={quota.maxAccountEvidenceBytes}
+              limitBytes={limits.accountBytes}
             />
             {profiles.map((profile) => (
               <UsageMeter
                 key={profile.applicantId}
                 label={profile.displayName}
                 usedBytes={profile.usedBytes}
-                limitBytes={quota.maxApplicantEvidenceBytes}
+                limitBytes={limits.personBytes}
               />
             ))}
           </div>
@@ -102,9 +118,9 @@ export default async function TravellerPlanPage() {
             <p className="muted u-fs-085">Nothing stored yet.</p>
           ) : (
             <p className="muted u-fs-085">
-              Each person you keep a record for can hold up to{' '}
-              {mbLabel(quota.maxApplicantEvidenceBytes)}. When you share a record with an agency,
-              that agency's own plan can also limit what more can be added to it.
+              Each person you keep a record for can hold up to {mbLabel(limits.personBytes)}. When
+              you share a record with an agency, that agency's own plan can also limit what more can
+              be added to it.
             </p>
           )}
         </article>

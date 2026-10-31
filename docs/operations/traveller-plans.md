@@ -29,3 +29,16 @@ And `/api/health/ready` answers `ready` again.
 If a run stops part way, run it again: every statement can be repeated.
 
 Package T2 (the code that uses these columns) is merged only after this has run in production.
+
+## Migration 0111 (package T2)
+
+What it does: lets a person's own purchase record no assigning account (so it never blocks deleting their own account), while a database rule keeps it required on every organization's subscription; and adds two plan rules for traveller storage (the whole account, and each person kept).
+
+What people notice: between the merge and the run, readiness reports the database as behind. After the run, nothing: no paid traveller plan can exist until T2b.
+
+Run outside the nightly backup, with the owner's go-ahead for this run (O8). After running, both must hold:
+
+```sql
+select count(*) from drizzle.__drizzle_migrations where created_at = 1793441322837;   -- 1 (0111 recorded)
+select count(*) from pg_constraint where conname = 'subscriptions_organization_assigned' and convalidated;   -- 1
+```

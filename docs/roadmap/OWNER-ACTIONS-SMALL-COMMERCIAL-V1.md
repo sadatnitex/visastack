@@ -332,3 +332,7 @@ Design: `docs/adr/0025-paid-traveller-plans.md`. Decided 31 Oct 2026: the owner 
 ## Paid traveller plans T1: O8 for migration 0110 (added 31 Oct 2026)
 
 Given 31 Oct 2026: the owner asked for migration 0110 to run after the T1 pull request merges (runbook: `docs/operations/traveller-plans.md`). It only adds; nothing changes for anyone once it has run. Between the merge and the run, readiness reports the database as behind. T2 waits for it. Migration numbers follow merge order: if the payment provider package (S19) reaches main first with its own migration, T1's is renumbered before merging.
+
+## Paid traveller plans T2: O8 for migration 0111 (added 31 Oct 2026)
+
+After the T2 pull request merges, migration 0111 needs the owner's go-ahead for its run (runbook: `docs/operations/traveller-plans.md`). It only relaxes "who assigned it" for a person's own purchase (agency subscriptions keep it required) and adds two traveller storage plan rules. Nothing changes for anyone once it has run.
