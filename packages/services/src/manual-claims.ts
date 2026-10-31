@@ -169,9 +169,7 @@ async function scanAndStoreProof(
     });
     const stored = await ports.storage.getObject(quarantineKey);
     if (!stored || sha256Hex(stored.bytes) !== sha256) {
-      return err(
-        refusal('claim_proof_invalid', 'The file did not upload correctly. Please try again.'),
-      );
+      return err(serviceError('invalid', 'The file did not upload correctly. Please try again.'));
     }
     const scan = await ports.scanner.scan({ bucket: 'QUARANTINE', objectKey: quarantineKey });
     if (!scan.safe) {
@@ -203,8 +201,8 @@ async function scanAndStoreProof(
       } catch (error) {
         return isImageTooLargeError(error)
           ? err(
-              serviceError(
-                'invalid',
+              refusal(
+                'claim_proof_invalid',
                 'This image is too large after cleaning. Try a smaller photo or screenshot.',
               ),
             )
@@ -233,9 +231,7 @@ async function scanAndStoreProof(
     const copy = await ports.storage.getObject(cleanKey);
     if (!copy || sha256Hex(copy.bytes) !== keptSha256) {
       await discardObject(db, ports.storage, 'CLEAN', clean);
-      return err(
-        refusal('claim_proof_invalid', 'The file did not save correctly. Please try again.'),
-      );
+      return err(serviceError('invalid', 'The file did not save correctly. Please try again.'));
     }
     return ok({
       storageObjectId: cleanId,

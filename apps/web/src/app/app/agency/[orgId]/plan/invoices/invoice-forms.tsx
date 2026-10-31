@@ -2,6 +2,7 @@
 
 import { useActionState, useId, useRef } from 'react';
 import {
+  FieldError,
   FormMessage,
   SubmitButton,
   fieldProblem,
@@ -16,6 +17,7 @@ import {
   startPaymentAction,
   submitClaimAction,
 } from './actions';
+import { isClaimField } from './claim-fields';
 
 const INITIAL: InvoiceActionState = { ok: true, message: '' };
 
@@ -142,16 +144,11 @@ export function ClaimForm({
   const kept: Partial<ClaimValues> = state.values ?? {};
   const referenceHintId = `${base}-reference-hint`;
   const proofHintId = `${base}-proof-hint`;
-  // A refusal about one field is shown again right under that field, so it is seen where the fix
-  // is made. That copy is hidden from screen readers, which hear the alert under the button and
-  // the field's own description; the alert is then kept for them only, so it is not seen twice.
-  const refusedField = isFailure(state) && !pending ? state.field : undefined;
-  const besideField = (field: keyof ClaimValues | 'proof') =>
-    refusedField === field ? (
-      <p className="field-msg field-msg-err invoice-field-error" aria-hidden="true">
-        {state.message}
-      </p>
-    ) : null;
+  // While a new report is sending the fields drop the old refusal; the alert says it is sending.
+  const shown = pending ? INITIAL : state;
+  // The refusal shows under its own field when the form has that field; the alert under the
+  // button is then kept for screen readers only, so it is seen once.
+  const beside = isFailure(shown) && isClaimField(shown.field);
   return (
     <details className="invoice-claim" open={state.values !== undefined ? true : undefined}>
       <summary className="invoice-claim-summary">I Paid Another Way</summary>
@@ -175,7 +172,7 @@ export function ClaimForm({
               className="input"
               required
               defaultValue={kept.method ?? 'BANK_TRANSFER'}
-              {...fieldProblem(state, 'method', messageId)}
+              {...fieldProblem(shown, 'method', messageId)}
             >
               {Object.entries(CLAIM_METHOD_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>
@@ -183,7 +180,7 @@ export function ClaimForm({
                 </option>
               ))}
             </select>
-            {besideField('method')}
+            <FieldError result={shown} field="method" className="invoice-field-error" />
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor={`${base}-reference`}>
@@ -198,9 +195,9 @@ export function ClaimForm({
               maxLength={120}
               autoComplete="off"
               defaultValue={kept.reference ?? ''}
-              {...fieldProblem(state, 'reference', messageId, referenceHintId)}
+              {...fieldProblem(shown, 'reference', messageId, referenceHintId)}
             />
-            {besideField('reference')}
+            <FieldError result={shown} field="reference" className="invoice-field-error" />
             <p className="invoice-hint" id={referenceHintId}>
               A transfer id, bKash transaction id or cheque number.
             </p>
@@ -218,9 +215,9 @@ export function ClaimForm({
               required
               defaultValue={kept.amount ?? balance}
               autoComplete="off"
-              {...fieldProblem(state, 'amount', messageId)}
+              {...fieldProblem(shown, 'amount', messageId)}
             />
-            {besideField('amount')}
+            <FieldError result={shown} field="amount" className="invoice-field-error" />
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor={`${base}-paid-on`}>
@@ -234,9 +231,9 @@ export function ClaimForm({
               required
               max={latestDate}
               defaultValue={kept.paidOn ?? ''}
-              {...fieldProblem(state, 'paidOn', messageId)}
+              {...fieldProblem(shown, 'paidOn', messageId)}
             />
-            {besideField('paidOn')}
+            <FieldError result={shown} field="paidOn" className="invoice-field-error" />
           </div>
           <div className="field-row field-wide">
             <label className="field-label" htmlFor={`${base}-note`}>
@@ -249,9 +246,9 @@ export function ClaimForm({
               rows={2}
               maxLength={500}
               defaultValue={kept.note ?? ''}
-              {...fieldProblem(state, 'note', messageId)}
+              {...fieldProblem(shown, 'note', messageId)}
             />
-            {besideField('note')}
+            <FieldError result={shown} field="note" className="invoice-field-error" />
           </div>
           <div className="field-row field-wide">
             <label className="field-label" htmlFor={`${base}-proof`}>
@@ -263,9 +260,9 @@ export function ClaimForm({
               type="file"
               className="input"
               accept="application/pdf,image/jpeg,image/png"
-              {...fieldProblem(state, 'proof', messageId, proofHintId)}
+              {...fieldProblem(shown, 'proof', messageId, proofHintId)}
             />
-            {besideField('proof')}
+            <FieldError result={shown} field="proof" className="invoice-field-error" />
             <p className="invoice-hint" id={proofHintId}>
               A photo or screenshot (JPEG or PNG) or a PDF, under 4 MB. Only your owners and admins
               and VisaStack staff can open it. If you report again after an error, choose the file
@@ -274,14 +271,13 @@ export function ClaimForm({
           </div>
         </div>
         <SubmitButton pending={pending} idle="Report This Payment" busy="Sending Your Report" />
-        <div className={refusedField ? 'sr-only' : undefined}>
-          <FormMessage
-            id={messageId}
-            result={state}
-            pending={pending}
-            pendingText="Sending your report."
-          />
-        </div>
+        <FormMessage
+          id={messageId}
+          result={state}
+          pending={pending}
+          pendingText="Sending your report."
+          visuallyHidden={beside}
+        />
       </form>
     </details>
   );

@@ -1371,6 +1371,7 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
         }),
       );
       expect(isErr(result) && result.error.message).toMatch(/too large after cleaning/);
+      expect(isErr(result) && result.error.reason).toBe('claim_proof_invalid');
       expect(storage.objects.size).toBe(0);
     });
 

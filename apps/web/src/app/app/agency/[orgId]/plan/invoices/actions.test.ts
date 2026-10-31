@@ -300,6 +300,12 @@ describe('reporting a payment made another way', () => {
       error: { code: 'invalid', message: 'This invoice was cancelled. There is nothing to pay.' },
     });
     expect(await run()).not.toHaveProperty('field');
+    // A currency the report form does not show: the message stays under the button.
+    mocks.submitManualPaymentClaim.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'invalid', reason: 'currency_mismatch', message: 'The invoice is in BDT.' },
+    });
+    expect(await run()).not.toHaveProperty('field');
   });
 
   it('gives back what was typed (not the file) with every refusal, so the form can keep it', async () => {

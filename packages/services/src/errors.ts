@@ -72,7 +72,8 @@ export type PaymentModeReason = 'test_mode_owner_only' | 'test_payment_live_gate
 export type PaymentProviderReason = 'currency_not_offered' | 'provider_not_configured';
 
 /**
- * Why a typed money field was refused (S30), so a form can point to the field at fault without
+ * Why a typed form field was refused (S30, and the payment report fields), so a form can point to
+ * the field at fault without
  * reading the message: an amount that is not a plain amount in the stored currency, an amount
  * over what is owed or left, or a currency that does not match the stored one.
  */
@@ -98,7 +99,7 @@ export type ClaimFieldReason =
 export interface ServiceError {
   readonly code: ServiceErrorCode;
   readonly message: string;
-  /** Set on plan and billing refusals, and on money-field refusals. */
+  /** Set on plan and billing refusals, and on typed field refusals (money fields, payment report fields). */
   readonly reason?: RefusalReason;
 }
 

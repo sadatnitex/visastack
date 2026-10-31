@@ -93,26 +93,53 @@ export function FormMessage({
   pending = false,
   pendingText,
   style,
+  visuallyHidden = false,
 }: {
   readonly id?: string;
   readonly result: FormResult;
   readonly pending?: boolean;
   readonly pendingText?: string;
   readonly style?: CSSProperties;
+  /** Kept for screen readers only, while the same message is shown beside its field (`FieldError`). */
+  readonly visuallyHidden?: boolean;
 }) {
   const failed = isFailure(result);
   const working = pending && pendingText !== undefined;
   const status = working ? pendingText : failed ? '' : result.message;
   const tone = result.ok ? 'field-msg-ok' : 'field-msg-err';
+  const hidden = visuallyHidden ? ' sr-only' : '';
   return (
     <>
-      <output className={`field-msg ${working ? '' : tone}`.trim()} style={style}>
+      <output className={`field-msg ${working ? '' : tone}${hidden}`.trim()} style={style}>
         {status}
       </output>
-      <p id={id} role="alert" className="field-msg field-msg-err" style={style}>
+      <p id={id} role="alert" className={`field-msg field-msg-err${hidden}`} style={style}>
         {failed && !working ? result.message : ''}
       </p>
     </>
+  );
+}
+
+/**
+ * A refusal shown again right under the field it is about, so it is seen where the fix is made.
+ * Hidden from screen readers, which already hear it through the field (`fieldProblem`) and the
+ * form's alert; give that `FormMessage` `visuallyHidden` while this shows, so it is seen once.
+ * Pass the result as the fields see it (empty while a new attempt is sending).
+ */
+export function FieldError({
+  result,
+  field,
+  className,
+}: {
+  readonly result: FormResult;
+  readonly field: string;
+  readonly className?: string;
+}) {
+  if (!isFailure(result) || result.field !== field) return null;
+  return (
+    <p className={`field-msg field-msg-err${className ? ` ${className}` : ''}`} aria-hidden="true">
+      {result.message}
+    </p>
   );
 }
 
