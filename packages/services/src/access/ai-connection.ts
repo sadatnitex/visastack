@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { storeAiConnectionFiles } from '../ai-connection-files';
 import {
   AI_CONNECTION_LAYERS,
@@ -676,15 +676,23 @@ export async function resolveAiAccessToken(
       !connection.lastUsedAt ||
       now.getTime() - connection.lastUsedAt.getTime() >= LAST_USED_WRITE_GAP_MS;
     if (stale) {
-      await db
-        .update(schema.aiConnections)
-        .set({ lastUsedAt: now })
+      // Never waits (S22 round 4): an agency call holds a shared lock on this row for its work,
+      // so the touch updates the row only when it can be locked at once, and otherwise skips this
+      // time. Other calls on the same connection never queue behind a call in progress.
+      const unlocked = db
+        .select({ id: schema.aiConnections.id })
+        .from(schema.aiConnections)
         .where(
           and(
             eq(schema.aiConnections.id, connection.id),
             sql`(${schema.aiConnections.lastUsedAt} is null or ${schema.aiConnections.lastUsedAt} <= ${new Date(now.getTime() - LAST_USED_WRITE_GAP_MS).toISOString()}::timestamptz)`,
           ),
-        );
+        )
+        .for('update', { skipLocked: true });
+      await db
+        .update(schema.aiConnections)
+        .set({ lastUsedAt: now })
+        .where(inArray(schema.aiConnections.id, unlocked));
     }
     return {
       connectionId: connection.id,

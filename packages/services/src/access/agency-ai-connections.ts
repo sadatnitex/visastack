@@ -304,6 +304,8 @@ async function endConnections(
         isNull(schema.aiConnectionTokens.revokedAt),
       ),
     );
+  // Only a connection still live is marked turned off (round 4): one already past its own end
+  // or its 30 days keeps no turn-off time, so the ended list shows when each really ended.
   const ended = await tx
     .update(schema.aiConnections)
     .set({ revokedAt: input.now, revokedReason: input.reason })
@@ -311,6 +313,11 @@ async function endConnections(
       and(
         inArray(schema.aiConnections.id, [...input.connectionIds]),
         isNull(schema.aiConnections.revokedAt),
+        gt(
+          schema.aiConnections.createdAt,
+          new Date(input.now.getTime() - AGENCY_AI_CONNECTION_MAX_MS),
+        ),
+        or(isNull(schema.aiConnections.expiresAt), gt(schema.aiConnections.expiresAt, input.now)),
       ),
     )
     .returning({

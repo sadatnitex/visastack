@@ -66,6 +66,11 @@ import {
   listSelectableCases,
 } from '../selected-output';
 import {
+  AGENCY_AI_REVOKED_BY_AGENCY,
+  AGENCY_AI_REVOKED_MEMBER_ENDED,
+  AGENCY_AI_REVOKED_ROLE_CHANGED,
+} from './agency-ai-connections';
+import {
   type AgencyAiMember,
   agencyAiCaseIdFor,
   checkAgencyAiStanding,
@@ -1762,12 +1767,14 @@ async function giveBackQuietly(db: Db, charge: AiFeatureCharge | null): Promise<
 async function recheckAgencyStanding(
   tx: Db,
   connection: ResolvedAiConnection,
+  admission: AiAdmission,
   now: Date,
 ): Promise<AgencyOpened> {
   const row = first(
     await tx
       .select({
         revokedAt: schema.aiConnections.revokedAt,
+        revokedReason: schema.aiConnections.revokedReason,
         expiresAt: schema.aiConnections.expiresAt,
         createdAt: schema.aiConnections.createdAt,
       })
@@ -1776,14 +1783,15 @@ async function recheckAgencyStanding(
       .limit(1)
       .for('share'),
   );
-  if (
-    !row ||
-    row.revokedAt !== null ||
-    (row.expiresAt !== null && row.expiresAt.getTime() <= now.getTime()) ||
-    connection.organizationId === null
-  ) {
+  if (!row || connection.kind !== 'AGENCY' || connection.organizationId === null) {
     return { kind: 'unauthorized', reason: 'agency_connection_expired' };
   }
+  // The account first, by the same rule as the first checks (round 4): suspended or locked stops.
+  if (!(await admitted(tx, connection.accountId, admission, now))) {
+    return { kind: 'unauthorized', reason: null };
+  }
+  // Then the member and the agency, before the connection's own end (round 4), so a member removed
+  // during the call is recorded as such even though their connection was ended with them.
   const standing = await checkAgencyAiStanding(tx, {
     connectionId: connection.connectionId,
     organizationId: connection.organizationId,
@@ -1791,12 +1799,28 @@ async function recheckAgencyStanding(
     connectionCreatedAt: row.createdAt,
     now,
   });
-  if (standing.ok) return { kind: 'open', member: standing.value };
-  const reason = standing.error;
-  if (reason === 'agency_member_ended' || reason === 'agency_connection_expired') {
-    return { kind: 'unauthorized', reason };
+  if (!standing.ok && standing.error !== 'agency_connection_expired') {
+    const reason = standing.error;
+    if (reason === 'agency_member_ended') return { kind: 'unauthorized', reason };
+    return { kind: 'agency_off', reason };
   }
-  return { kind: 'agency_off', reason };
+  // Turned off: the reason stored when it was, else plainly ended.
+  if (row.revokedAt !== null) {
+    return { kind: 'unauthorized', reason: agencyRevokedReason(row.revokedReason) };
+  }
+  if (!standing.ok || (row.expiresAt !== null && row.expiresAt.getTime() <= now.getTime())) {
+    return { kind: 'unauthorized', reason: 'agency_connection_expired' };
+  }
+  return { kind: 'open', member: standing.value };
+}
+
+/** The audit reason for an agency connection that was turned off, from the reason it stored. */
+function agencyRevokedReason(stored: string | null): AiDenialReason {
+  if (stored === AGENCY_AI_REVOKED_BY_AGENCY) return 'agency_turned_off';
+  if (stored === AGENCY_AI_REVOKED_MEMBER_ENDED || stored === AGENCY_AI_REVOKED_ROLE_CHANGED) {
+    return 'agency_member_ended';
+  }
+  return 'agency_connection_expired';
 }
 
 /** The audit target of one traveller an agency call reached. */
@@ -1847,7 +1871,8 @@ export async function withAgencyAiConnection<T>(
   const now = request.now ?? new Date();
 
   // Known once the token resolved to an agency connection, so a failure from then on is recorded.
-  let known: AuditTarget | null = null;
+  // A holder the compiler does not narrow: it is filled inside the transaction's callback.
+  const known: { target: AuditTarget | null } = { target: null };
   // 1. The checks, in a short transaction of their own.
   let prepared: AgencyPrepared;
   try {
@@ -1888,7 +1913,7 @@ export async function withAgencyAiConnection<T>(
         agency: { organizationId: connection.organizationId, grantIds: [] },
         callId,
       };
-      known = base;
+      known.target = base;
       const opened = await openAgencyConnection(tx, connection, request.admission, new Date());
       if (opened.kind !== 'open') {
         if (opened.reason) await auditDenied(tx, base, request.tool, opened.reason, { now });
@@ -1918,17 +1943,19 @@ export async function withAgencyAiConnection<T>(
       } as const;
     });
   } catch (error) {
-    if (known) await auditFailedCall(db, known, request.tool);
+    if (known.target !== null) await auditFailedCall(db, known.target, request.tool);
     throw error;
   }
   if (prepared.kind === 'refused') return err(prepared.refusal);
   const { connection, member, base, access } = prepared;
 
-  // 2. The day's count: one conditional statement, only while under the limit.
+  // 2. The day's count: one conditional statement, only while under the limit. Every agency call
+  // is counted here, with or without a limit (round 4), so the count a call took is known exactly
+  // and is what a refusal, a failure or a withheld answer gives back.
   const limited = access.dailyLimit !== null;
   let charge: AiFeatureCharge | null;
   try {
-    charge = limited ? await chargeAiFeatureUse(db, access, { now }) : null;
+    charge = await chargeAiFeatureUse(db, access, { now });
   } catch (error) {
     await auditFailedCall(db, base, request.tool);
     throw error;
@@ -1956,7 +1983,7 @@ export async function withAgencyAiConnection<T>(
   try {
     outcome = await db.transaction(async (tx) => {
       // First, the standing again, under a lock on the connection (S22 round 3).
-      const again = await recheckAgencyStanding(tx, connection, new Date());
+      const again = await recheckAgencyStanding(tx, connection, request.admission, new Date());
       if (again.kind !== 'open') {
         if (again.reason) await auditDenied(tx, base, request.tool, again.reason, { now });
         return {
@@ -2116,8 +2143,9 @@ export async function withAgencyAiConnection<T>(
             ...(composed ? { notGranted: notGrantedTotal } : {}),
             ...agencyMetadata(target),
             callId,
-            // The day this call was counted on, so an answer withheld later is given back there.
-            countDay: aiFeatureDay(now).from.toISOString(),
+            // The day this call was counted on, only when it was (round 4), so an answer withheld
+            // later gives back exactly what this call took.
+            ...(charge?.counted ? { countDay: aiFeatureDay(now).from.toISOString() } : {}),
           },
         });
       }
@@ -2141,14 +2169,6 @@ export async function withAgencyAiConnection<T>(
     await giveBackQuietly(db, charge);
     return err(outcome.refusal);
   }
-  if (outcome.denied) {
-    await giveBackQuietly(db, charge);
-  } else if (!limited) {
-    try {
-      await countAiUseAfterCall(db, access, now);
-    } catch (error) {
-      console.error(formatObservabilityLine(serverErrorEvent('aiAgencyToolsCount', error)));
-    }
-  }
+  if (outcome.denied) await giveBackQuietly(db, charge);
   return ok(outcome.value);
 }

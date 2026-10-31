@@ -48,7 +48,10 @@ describe('the ticked-files cookie', () => {
       JSON.stringify({ p: APPLICANT, t: 'consent', f: [`O${DOC}`], a: 'acct-1', x: 9e9 }),
     ).toString('base64url');
     expect(decodeAiFilePicks(`${forged}.${signature}`, consent)).toBeNull();
-    expect(decodeAiFilePicks(`${payload}.x${signature?.slice(1)}`, consent)).toBeNull();
+    // Change the first character for certain: the signature depends on the time, so it can
+    // itself start with the replacement character, and replacing it with itself changes nothing.
+    const changed = signature?.startsWith('x') ? 'y' : 'x';
+    expect(decodeAiFilePicks(`${payload}.${changed}${signature?.slice(1)}`, consent)).toBeNull();
     expect(decodeAiFilePicks(undefined, consent)).toBeNull();
     vi.stubEnv('NEON_AUTH_COOKIE_SECRET', 'other'.repeat(13));
     expect(decodeAiFilePicks(value, consent)).toBeNull();

@@ -152,6 +152,8 @@ export const AI_DENIAL_REASONS = [
   'agency_billing_suspended',
   'agency_setting_off',
   'agency_connection_expired',
+  // The connection was turned off by an owner or admin of the agency (S22 round 4).
+  'agency_turned_off',
   // The member personally owns the traveller's record: never read through the agency.
   'agency_own_record',
   // An agency tool named no case: every agency read is through one case.

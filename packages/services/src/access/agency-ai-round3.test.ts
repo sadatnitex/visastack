@@ -148,8 +148,9 @@ describe('S22 round 3: the standing is checked again inside the work', () => {
     expect(await events('AI_CONTEXT_SERVED')).toHaveLength(0);
     const denied = await events('AI_CONTEXT_DENIED');
     expect(denied).toHaveLength(1);
+    // Round 4: recorded with the reason stored when it was turned off.
     expect(denied[0]?.metadata).toMatchObject({
-      reason: 'agency_connection_expired',
+      reason: 'agency_turned_off',
       organizationId: a.organizationId,
     });
     // The charge is given back.
