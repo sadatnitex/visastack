@@ -45,6 +45,7 @@ export default async function AccountPage() {
   const browseParts = [
     data.photo ? depthWord('depth.account.part.photo') : null,
     LANGUAGE_CHOICE_ENABLED ? depthWord('depth.account.part.language') : null,
+    depthWord('depth.account.part.plan'),
     depthWord('depth.account.part.privacy'),
   ].filter((part): part is string => part !== null);
   const everythingParts = [
@@ -109,6 +110,17 @@ export default async function AccountPage() {
               </form>
             </article>
           ) : null}
+
+          <article className="card" {...atLevel('browse')}>
+            <p className="card-kicker">Plan</p>
+            <h2 className="card-title">Plan &amp; Usage</h2>
+            <p className="card-body u-mb-125">
+              Your plan, what it includes and how much of it you have used.
+            </p>
+            <Link href="/app/account/plan" className="btn btn-secondary">
+              Open Plan &amp; Usage
+            </Link>
+          </article>
 
           <article className="card" {...atLevel('browse')}>
             <p className="card-kicker">Data Rights</p>

@@ -64,7 +64,7 @@ export function WorkspaceRecordToolbar({
     ? state?.agencyPlans.find((item) => item.organizationId === selectedOrg)
     : state?.personalPlan;
   const planLabel = plan?.key === 'agency_founding_access' ? 'Founding Access' : plan?.name;
-  const planHref = selectedOrg ? `/app/agency/${selectedOrg}/plan` : '/app/account';
+  const planHref = selectedOrg ? `/app/agency/${selectedOrg}/plan` : '/app/account/plan';
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: route changes close transient controls
   useEffect(() => {
@@ -267,7 +267,7 @@ export function WorkspaceRecordToolbar({
         email={accountEmail}
         plan={
           state?.personalPlan && !staff
-            ? { name: state.personalPlan.name, href: '/app/account' }
+            ? { name: state.personalPlan.name, href: '/app/account/plan' }
             : null
         }
         signOut={signOut}
