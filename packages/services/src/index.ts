@@ -2204,3 +2204,14 @@ export {
 } from './access/with-ai-connection';
 export { AGENCY_AI_TOOLS, aiToolsFor, isAgencyToolCall } from './ai-tools';
 export type { AgencyAiToolDefinition, AnyConnectorToolDefinition } from './ai-tools/result';
+// ADR 0025 T5: a person's own Billing History (purchases, receipts and their PDFs).
+export {
+  type OwnPurchaseStatus,
+  type OwnPurchaseView,
+  type OwnReceiptView,
+  PERSON_REFUND_WINDOW_DAYS,
+  hasOwnBilling,
+  listOwnBilling,
+  ownInvoiceDocument,
+  ownReceiptDocument,
+} from './person-billing-history';

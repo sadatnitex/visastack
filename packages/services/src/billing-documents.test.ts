@@ -10,12 +10,16 @@ import { createApplicant } from './applicants';
 import { createInvoice } from './billing';
 import {
   type InvoiceDocumentFacts,
+  type PersonInvoiceDocumentFacts,
   billingDocumentFileName,
   buildInvoiceDocument,
+  buildPersonInvoiceDocument,
+  buildPersonReceiptDocument,
   buildReceiptDocument,
   getInvoiceDocument,
   getReceiptDocument,
   invoiceDocumentStamp,
+  personInvoiceDocumentStamp,
 } from './billing-documents';
 import { setConsent } from './consent';
 import type { Db } from './db';
@@ -222,6 +226,124 @@ describe('the invoice document in words (S30)', () => {
       value: `BDT${NBSP}2,500.00`,
       strong: true,
     });
+  });
+});
+
+describe("a person's own documents in words (ADR 0025 T5)", () => {
+  const payer = { referenceCode: 'A1B2C3D4', email: 'rahim@example.test' };
+  const personFacts = (
+    overrides: Partial<PersonInvoiceDocumentFacts> = {},
+  ): PersonInvoiceDocumentFacts => ({
+    invoiceRef: 'TP-A1B2C3D4-1',
+    status: 'PAID',
+    currency: 'BDT',
+    invoicedAmountMinorUnits: 49900,
+    collectedAmountMinorUnits: 49900,
+    issuedAt: new Date('2026-11-01T04:00:00Z'),
+    periodStart: new Date('2026-11-01T04:00:00Z'),
+    periodEnd: new Date('2026-12-01T04:00:00Z'),
+    planName: 'Traveller Plus',
+    paidAt: new Date('2026-11-01T04:10:00Z'),
+    payer,
+    payments: [
+      {
+        kind: 'ONLINE',
+        amountMinorUnits: 49900,
+        collectedDate: new Date('2026-11-01T04:10:00Z'),
+        reference: 'VAL-9',
+        receiptNumber: 1,
+      },
+    ],
+    ...overrides,
+  });
+
+  it('bills the person by reference code and address, never as an agency, with nothing owed', () => {
+    const doc = buildPersonInvoiceDocument(personFacts(), NOW);
+    expect(doc.billedTo).toEqual({
+      name: 'rahim@example.test',
+      lines: ['Reference Code A1B2C3D4'],
+    });
+    expect(doc.stamp).toEqual({ label: 'Paid', tone: 'paid' });
+    expect(doc.facts.map((f) => f.label)).toEqual([
+      'Invoice Number',
+      'Issue Date',
+      'Paid On',
+      'Period',
+    ]);
+    expect(doc.totals).toEqual([
+      { label: 'Plan Price', value: `BDT${NBSP}499.00` },
+      { label: 'Paid', value: `BDT${NBSP}499.00`, strong: true },
+    ]);
+    expect(JSON.stringify(doc)).not.toMatch(/Agency|Still Owed|Due Date|Overdue|workspace/);
+  });
+
+  it('never stamps an unpaid person invoice Overdue, however old', () => {
+    const doc = buildPersonInvoiceDocument(
+      personFacts({ status: 'OPEN', collectedAmountMinorUnits: 0, paidAt: null, payments: [] }),
+      new Date('2027-06-01T00:00:00Z'),
+    );
+    expect(doc.stamp).toEqual({ label: 'Waiting for Payment', tone: 'open' });
+    expect(doc.notes[0]).toContain('you owe nothing');
+    expect(
+      personInvoiceDocumentStamp({ status: 'VOID', collectedAmountMinorUnits: 0, refunded: false }),
+    ).toEqual({ label: 'Cancelled', tone: 'cancelled' });
+  });
+
+  it('shows a refund and what was kept', () => {
+    const doc = buildPersonInvoiceDocument(
+      personFacts({
+        collectedAmountMinorUnits: 0,
+        payments: [
+          ...personFacts().payments,
+          {
+            kind: 'REFUND',
+            amountMinorUnits: -49900,
+            collectedDate: new Date('2026-11-03T00:00:00Z'),
+            reference: 'RF-1',
+            receiptNumber: null,
+          },
+        ],
+      }),
+      NOW,
+    );
+    expect(doc.stamp).toEqual({ label: 'Refunded', tone: 'refunded' });
+    expect(doc.totals.map((t) => t.label)).toEqual([
+      'Plan Price',
+      'Refunded',
+      'Kept After Refunds',
+    ]);
+    expect(doc.facts.map((f) => f.label)).toContain('Paid On');
+  });
+
+  it("makes a person's receipt exactly like an agency's apart from who paid", () => {
+    const core = {
+      receiptNumber: 1,
+      kind: 'ONLINE' as const,
+      amountMinorUnits: 49900,
+      currency: 'BDT',
+      collectedDate: new Date('2026-11-01T04:10:00Z'),
+      issuedAt: new Date('2026-11-01T04:10:00Z'),
+      reference: 'VAL-9',
+      invoiceRef: 'TP-A1B2C3D4-1',
+      invoicedAmountMinorUnits: 49900,
+      periodStart: new Date('2026-11-01T04:00:00Z'),
+      periodEnd: new Date('2026-12-01T04:00:00Z'),
+      planName: 'Traveller Plus',
+    };
+    const person = buildPersonReceiptDocument({ ...core, payer }, NOW);
+    const agency = buildReceiptDocument(
+      { ...core, organizationId: ORG_ID, organizationName: 'Dhaka Visa Desk', billingEmail: null },
+      NOW,
+    );
+    expect(person.billedTo).toEqual({
+      name: 'rahim@example.test',
+      lines: ['Reference Code A1B2C3D4'],
+    });
+    expect({ ...person, billedTo: null }).toEqual({ ...agency, billedTo: null });
+    // After the account is gone, the receipt says so instead of naming anyone.
+    expect(
+      buildPersonReceiptDocument({ ...core, payer: { ...payer, email: null } }, NOW).billedTo.name,
+    ).toBe('Deleted Account');
   });
 });
 

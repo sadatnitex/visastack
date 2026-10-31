@@ -62,6 +62,7 @@ const PAYER_COLUMN_MODULES = [
   'person-billing-tables',
   'traveller-billing',
   'person-billing',
+  'person-billing-history',
   'invoice-ledger',
   // T4: the daily run's person step reads current subscriptions in plain SQL.
   'person-renewals',

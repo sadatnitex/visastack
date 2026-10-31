@@ -37,6 +37,11 @@ import { formatReceiptNumber } from './receipts';
  * What a document holds: the agency's name and short code, the address billing notices go to,
  * the plan, amounts, dates, ledger references and receipt numbers. Never a traveller, a case, a
  * document, a staff account or anything secret.
+ *
+ * A person's own invoice and receipt (ADR 0025, T5) are built here too, from facts that
+ * `person-billing-history.ts` reads for the signed-in person only: the same page with the payer
+ * shown by reference code and their own address, and never an "Overdue" or "Still Owed", since a
+ * traveller never owes money.
  */
 
 export type BillingDocumentKind = 'invoice' | 'receipt';
@@ -214,30 +219,12 @@ export function invoiceDocumentStamp(
   return { label: 'Open', tone: 'open' };
 }
 
-/** The invoice document, in words. Pure: the same facts and moment always give the same document. */
-export function buildInvoiceDocument(facts: InvoiceDocumentFacts, now: Date): BillingDocument {
-  const money = (minor: number) => formatMoney(minor, facts.currency);
-  const stamp = invoiceDocumentStamp(facts, now);
-  const refunds = facts.payments.filter((p) => p.kind === 'REFUND');
-  const received = facts.payments.filter((p) => p.kind !== 'REFUND');
-  const refundedMinorUnits = refunds.reduce((sum, p) => sum + Math.abs(p.amountMinorUnits), 0);
-  const wasRefunded = refundedMinorUnits > 0;
-  // A refunded invoice is never owed again (ADR 0020, S18 amendment D2).
-  const owed =
-    wasRefunded || facts.status === 'VOID'
-      ? 0
-      : outstandingMinorUnits(facts.invoicedAmountMinorUnits, facts.collectedAmountMinorUnits);
-
-  const totals: BillingDocumentTotal[] = [
-    { label: 'Invoiced', value: money(facts.invoicedAmountMinorUnits) },
-    {
-      label: wasRefunded ? 'Kept After Refunds' : 'Paid So Far',
-      value: money(facts.collectedAmountMinorUnits),
-    },
-    ...(wasRefunded ? [{ label: 'Refunded', value: money(refundedMinorUnits) }] : []),
-    { label: 'Still Owed', value: money(owed), strong: true },
-  ];
-
+/** Payments received, then refunds, as document tables; an empty one is left out. */
+function ledgerSections(
+  received: readonly InvoiceDocumentPayment[],
+  refunds: readonly InvoiceDocumentPayment[],
+  money: (minor: number) => string,
+): BillingDocumentTable[] {
   const sections: BillingDocumentTable[] = [];
   if (received.length > 0) {
     sections.push({
@@ -263,6 +250,34 @@ export function buildInvoiceDocument(facts: InvoiceDocumentFacts, now: Date): Bi
       ]),
     });
   }
+  return sections;
+}
+
+/** The invoice document, in words. Pure: the same facts and moment always give the same document. */
+export function buildInvoiceDocument(facts: InvoiceDocumentFacts, now: Date): BillingDocument {
+  const money = (minor: number) => formatMoney(minor, facts.currency);
+  const stamp = invoiceDocumentStamp(facts, now);
+  const refunds = facts.payments.filter((p) => p.kind === 'REFUND');
+  const received = facts.payments.filter((p) => p.kind !== 'REFUND');
+  const refundedMinorUnits = refunds.reduce((sum, p) => sum + Math.abs(p.amountMinorUnits), 0);
+  const wasRefunded = refundedMinorUnits > 0;
+  // A refunded invoice is never owed again (ADR 0020, S18 amendment D2).
+  const owed =
+    wasRefunded || facts.status === 'VOID'
+      ? 0
+      : outstandingMinorUnits(facts.invoicedAmountMinorUnits, facts.collectedAmountMinorUnits);
+
+  const totals: BillingDocumentTotal[] = [
+    { label: 'Invoiced', value: money(facts.invoicedAmountMinorUnits) },
+    {
+      label: wasRefunded ? 'Kept After Refunds' : 'Paid So Far',
+      value: money(facts.collectedAmountMinorUnits),
+    },
+    ...(wasRefunded ? [{ label: 'Refunded', value: money(refundedMinorUnits) }] : []),
+    { label: 'Still Owed', value: money(owed), strong: true },
+  ];
+
+  const sections = ledgerSections(received, refunds, money);
 
   const notes: string[] = [];
   if (facts.status === 'VOID') notes.push('This invoice was cancelled. There is nothing to pay.');
@@ -321,6 +336,20 @@ export function buildInvoiceDocument(facts: InvoiceDocumentFacts, now: Date): Bi
 
 /** The receipt document, in words. Pure. */
 export function buildReceiptDocument(facts: ReceiptDocumentFacts, now: Date): BillingDocument {
+  return receiptDocument(facts, billedTo(facts), now);
+}
+
+/** What any receipt shows apart from who paid. */
+type ReceiptDocumentCore = Omit<
+  ReceiptDocumentFacts,
+  'organizationId' | 'organizationName' | 'billingEmail'
+>;
+
+function receiptDocument(
+  facts: ReceiptDocumentCore,
+  payer: BillingDocument['billedTo'],
+  now: Date,
+): BillingDocument {
   const money = (minor: number) => formatMoney(minor, facts.currency);
   const number = formatReceiptNumber(facts.receiptNumber);
   return {
@@ -338,7 +367,7 @@ export function buildReceiptDocument(facts: ReceiptDocumentFacts, now: Date): Bi
         ? [{ label: 'Payment Type', value: `${TEST_PAYMENT_LABEL}, not money received` }]
         : []),
     ],
-    billedTo: billedTo(facts),
+    billedTo: payer,
     items: {
       heading: 'Payment',
       columns: ['How It Was Paid', 'Payment Reference', 'Amount'],
@@ -368,6 +397,143 @@ export function buildReceiptDocument(facts: ReceiptDocumentFacts, now: Date): Bi
     ],
     generatedAt: formatBillingDateTime(now),
   };
+}
+
+// --- A person's own documents (ADR 0025, T5) --------------------------------------------------
+
+/**
+ * Who paid, on a person's own invoice or receipt. The stored rows name the payer only by account
+ * (D14); the address is read when the document is made (ADR 0025 section 7) and is the one the
+ * person signs in with. Nothing else about them is shown.
+ */
+export interface PersonPayer {
+  /** The short code their invoices carry (the first 8 hex of the account id, upper case). */
+  readonly referenceCode: string;
+  /** Their sign-in address now, or null when the account no longer exists. */
+  readonly email: string | null;
+}
+
+/** What a person's own invoice document is made from. */
+export interface PersonInvoiceDocumentFacts {
+  readonly invoiceRef: string;
+  readonly status: InvoiceDocumentFacts['status'];
+  readonly currency: string;
+  readonly invoicedAmountMinorUnits: number;
+  readonly collectedAmountMinorUnits: number;
+  readonly issuedAt: Date;
+  readonly periodStart: Date;
+  readonly periodEnd: Date;
+  readonly planName: string;
+  /** When the invoice was paid in full, if it was. */
+  readonly paidAt: Date | null;
+  readonly payer: PersonPayer;
+  readonly payments: readonly InvoiceDocumentPayment[];
+}
+
+/** What a person's own receipt document is made from. */
+export type PersonReceiptDocumentFacts = ReceiptDocumentCore & { readonly payer: PersonPayer };
+
+function personBilledTo(payer: PersonPayer): BillingDocument['billedTo'] {
+  return {
+    name: payer.email ?? 'Deleted Account',
+    lines: [`Reference Code ${payer.referenceCode}`],
+  };
+}
+
+/**
+ * The stamp of a person's own invoice. A traveller never owes money (ADR 0025 D4), so an unpaid
+ * invoice is never "Overdue": it waits for a payment they may or may not make. The Billing
+ * History page shows the same word.
+ */
+export function personInvoiceDocumentStamp(facts: {
+  readonly status: InvoiceDocumentFacts['status'];
+  readonly collectedAmountMinorUnits: number;
+  readonly refunded: boolean;
+}): BillingDocumentStamp {
+  if (facts.status === 'VOID') return { label: 'Cancelled', tone: 'cancelled' };
+  if (facts.refunded) {
+    return facts.collectedAmountMinorUnits > 0
+      ? { label: 'Partly Refunded', tone: 'refunded' }
+      : { label: 'Refunded', tone: 'refunded' };
+  }
+  if (facts.status === 'PAID') return { label: 'Paid', tone: 'paid' };
+  return { label: 'Waiting for Payment', tone: 'open' };
+}
+
+/** A person's own invoice document, in words. Pure. */
+export function buildPersonInvoiceDocument(
+  facts: PersonInvoiceDocumentFacts,
+  now: Date,
+): BillingDocument {
+  const money = (minor: number) => formatMoney(minor, facts.currency);
+  const refunds = facts.payments.filter((p) => p.kind === 'REFUND');
+  const received = facts.payments.filter((p) => p.kind !== 'REFUND');
+  const refundedMinorUnits = refunds.reduce((sum, p) => sum + Math.abs(p.amountMinorUnits), 0);
+  const wasRefunded = refundedMinorUnits > 0;
+  const stamp = personInvoiceDocumentStamp({ ...facts, refunded: wasRefunded });
+
+  const notes: string[] = [];
+  if (facts.status === 'VOID') notes.push('This invoice was cancelled. There is nothing to pay.');
+  else if (wasRefunded) {
+    notes.push(
+      facts.collectedAmountMinorUnits > 0
+        ? 'Part of the money paid on this invoice was refunded. There is nothing more to pay on it.'
+        : 'The money paid on this invoice was refunded. There is nothing to pay.',
+    );
+  } else if (facts.status === 'PAID') notes.push('This invoice is paid in full. Thank you.');
+  else {
+    notes.push(
+      'This invoice is not paid yet, and you owe nothing. The plan covers you only once it is paid online, from Plan & Usage in VisaStack.',
+    );
+  }
+
+  return {
+    kind: 'invoice',
+    title: 'Invoice',
+    number: facts.invoiceRef,
+    fileName: billingDocumentFileName('invoice', facts.invoiceRef),
+    stamp,
+    facts: [
+      { label: 'Invoice Number', value: facts.invoiceRef },
+      { label: 'Issue Date', value: formatBillingDate(facts.issuedAt) },
+      ...(facts.paidAt && facts.status === 'PAID'
+        ? [{ label: 'Paid On', value: formatBillingDate(facts.paidAt) }]
+        : []),
+      { label: 'Period', value: formatBillingPeriod(facts.periodStart, facts.periodEnd) },
+    ],
+    billedTo: personBilledTo(facts.payer),
+    items: {
+      heading: 'Plan',
+      columns: ['Description', 'Period', 'Amount'],
+      rows: [
+        [
+          facts.planName,
+          formatBillingPeriod(facts.periodStart, facts.periodEnd),
+          money(facts.invoicedAmountMinorUnits),
+        ],
+      ],
+    },
+    totals: [
+      { label: 'Plan Price', value: money(facts.invoicedAmountMinorUnits) },
+      ...(wasRefunded ? [{ label: 'Refunded', value: money(refundedMinorUnits) }] : []),
+      {
+        label: wasRefunded ? 'Kept After Refunds' : 'Paid',
+        value: money(facts.collectedAmountMinorUnits),
+        strong: true,
+      },
+    ],
+    sections: ledgerSections(received, refunds, money),
+    notes,
+    generatedAt: formatBillingDateTime(now),
+  };
+}
+
+/** A person's own receipt document, in words: an agency's receipt apart from who paid. Pure. */
+export function buildPersonReceiptDocument(
+  facts: PersonReceiptDocumentFacts,
+  now: Date,
+): BillingDocument {
+  return receiptDocument(facts, personBilledTo(facts.payer), now);
 }
 
 // --- Reading ----------------------------------------------------------------------------------
