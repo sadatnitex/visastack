@@ -1,6 +1,6 @@
-# ADR 0024: Paid traveller plans
+# ADR 0025: Paid traveller plans
 
-Status: Proposed (31 Oct 2026). Design only. Nothing here is built. Build starts on the owner's word, after the decisions in section 2.
+Status: Accepted (31 Oct 2026; the owner chose the recommended defaults D1 to D14). Design only: nothing is built yet. Build follows the packages in section 10, each behind the off switch.
 
 Amends: ADR 0020 scope ("Travellers have no invoices in V1", line 23; "Traveller subscriptions are not built", S29 note).
 
@@ -109,3 +109,54 @@ Rejected: separate traveller billing tables (a second catalog, forbidden by the 
 - VAT on consumer sales (H16): live selling waits for the accountant.
 - SSLCOMMERZ refund details are not yet checked against its live documentation; live refunds need a fixed outbound address (O18).
 - Open: agencies paying for a traveller's Plus (the payer model allows a third payer kind later); a yearly length; a free Plus grant from support (commercial overrides are organization-only today).
+
+## 12. Practices adopted (global subscription standards, Bangladesh and South Asia context)
+
+Each item below is part of the design and lands in the package named. Facts marked "verify" come from secondary sources and are confirmed with the provider, the accountant or the lawyer before live selling.
+
+### 12.1 Entitlements and money correctness (global standard)
+
+- **Entitlements apart from billing.** The resolver is the one source of truth for what a person gets; every feature asks it, never billing tables directly. Access follows money that has actually arrived (section 4), so no job or outage can grant unpaid access. (T2)
+- **Idempotency everywhere money moves.** Every start, notification, return and reconciliation carries a key; the one recording function writes a payment exactly once (ADR 0020). Tests replay, duplicate and reorder notifications. (T3)
+- **Append-only money records.** Invoices, payments, refunds and receipts are never edited in place; corrections are new rows. Invoice and receipt numbers are gap-free per series. (T1, T3)
+- **Price locked for the paid period.** A price change applies from the next period only, with at least 30 days' notice to people who renew; the period already paid is never repriced. (T2, T4)
+- **Expand, then contract.** Migration 0110 only adds columns and checks (added unvalidated, then validated), so the running version and the next one both work during deploy. (T1)
+- **Kill switch and test mode.** `TRAVELLER_PLANS_ENABLED` stops selling at once without touching periods already paid; test mode lets only the platform owner pay. (T3)
+- **Daily reconciliation.** Every person payment is matched against the provider each day; anything unmatched becomes a "Needs a Check" item for the owner (the existing rule). (T3, T6)
+
+### 12.2 Fair, transparent selling (global standard, no dark patterns)
+
+- **Final price shown up front**, in BDT, in the shared money style, VAT included once the business is VAT-registered (D7). No surprise fees at the last step. (T3, T5)
+- **One-tap Stop Renewing**, as easy as buying, with access kept until the period ends (the "click to cancel" standard). No confirm-shaming wording, no pre-ticked extras. (T4)
+- **Upgrade offered at the moment of need, not nagged.** When a person reaches a daily AI limit or a storage limit, the message they already see adds one plain line: what Plus would give and a link to Plan & Usage. No pop-ups, no repeated prompts, never during a task. (T3)
+- **Reminders that respect people:** 7, 3 and 0 days before the end, in the app and by email, and on WhatsApp only for people who connected it. No reminders after someone stops renewing. (T4)
+- **Refunds without friction:** a request link on Billing History; the 7-day full refund is honoured without questions. (T5, T6)
+
+### 12.3 Bangladesh and South Asia context
+
+- **Mobile wallets first.** Most people here pay with bKash, Nagad or Rocket rather than cards. The SSLCOMMERZ hosted page offers wallets, cards and internet banking (verify the exact list on the live merchant account), so the checkout says "Pay with bKash, Nagad, Rocket or card" in plain words and is built phone-first. (T3)
+- **Prepaid, like a data pack.** Card-on-file auto-charging is uncommon and SSLCOMMERZ is pay by link, so Plus is sold as a prepaid period that never charges by itself, with reminders before it ends. People already understand this model from mobile data and talk-time packs. (T3, T4)
+- **Episodic need.** People prepare visa files a few times a year, around travel seasons, not every month. Recommended after launch, when there is data: a 90-day "Travel Season" length with no renewal, alongside the 30-day period. Added as a second plan row; no code change beyond T2. (later, T8)
+- **Wallet redirects fail often on weak networks.** The OTP and app-switch steps of wallet payments time out more than card payments. The design already confirms payments from the provider's notification and the daily reconciliation, not from the person's browser returning; the result page shows "Confirming" and checks again by itself, and "I paid but it does not show" leads to a support request with the payment reference filled in. (T3)
+- **Light pages on slow phones.** The comparison and checkout screens load no extra scripts or images, work on 3G and small screens, and keep every tap target at least 44px. (T3, T5)
+- **Prices people recognise.** Round local price points are common (for example ending in 99 or 49); the owner picks the number. Shown in BDT with the currency code, the platform's money style. (D3)
+- **One payer for the household.** Plus covers every person the account keeps (D6), matching how families here usually have one person handle travel paperwork.
+- **VAT and VAT invoices.** Digital services in Bangladesh are reported to carry the 15% standard VAT, and VAT-registered sellers issue VAT invoices in the NBR's format (Mushak 6.3) (verify both with the accountant, D7). The design keeps prices VAT-inclusive and adds a VAT line and the registration number to receipts behind a separate switch, only when the accountant confirms. (later, T8)
+- **Auto-debit later, by choice.** bKash offers tokenized agreements that let a customer authorise repeat charges (third-party client libraries describe an agreement then charge flow; verify with bKash's official merchant documentation and a sandbox). The provider registry from S19 is the place for it. If added, it is strictly opt-in, cancellable in one tap, and the prepaid option stays. (later, T8)
+- **Bangla.** All new wording is written so it can be translated, but Bangla itself stays deferred until the owner says so (owner rule).
+
+### 12.4 Measuring it (privacy-safe)
+
+- Counted without personal data: Plan & Usage views, Get Traveller Plus taps, checkouts started, payments confirmed, renewals, lapses, stops and refunds, by day. From these: conversion, renewal rate and refund rate on the admin overview. No per-person tracking, no third-party analytics. (T6)
+- Health signals: checkout success rate, time to confirmation, stuck "Confirming" payments, and reconciliation mismatches, each with an alert threshold the owner sets. (T6)
+
+### 12.5 Added package
+
+| Order | Package | Scope | Migration | Owner gate | Acceptance |
+|---|---|---|---|---|---|
+| 9 | T8. After launch | Travel Season 90-day length (plan row only); VAT line and Mushak 6.3 fields on receipts behind their own switch; opt-in bKash auto-debit through the provider registry | only if VAT fields need columns | accountant (VAT), bKash merchant approval, owner | VAT shown only when switched on; auto-debit never starts without an explicit agreement and stops in one tap |
+
+### 12.6 Coordination
+
+- Another session builds the payment provider packages (S19 onward). Migration numbers are taken in merge order: whichever of S19 or T1 reaches main first uses 0110, and the other regenerates its migration on top (the handoff's rule: a migration is generated only after the previous one is on main).
+- T1 touches the billing tables S19 also touches. T1 starts only when no S19 branch with billing table changes is open, or after agreeing the order with the owner.

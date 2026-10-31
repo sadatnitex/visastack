@@ -327,4 +327,4 @@ Nothing changes for anyone on deploy: Agency AI Tools is off, every agency's set
 
 ## Paid traveller plans: decisions before build (added 31 Oct 2026)
 
-Design: `docs/adr/0024-paid-traveller-plans.md` (Proposed; nothing built). Before package T1 starts, the owner decides D1 to D14 in its section 2. Each has a recommended default; saying "use the defaults" is enough to start. The ones that cannot be defaulted away: the Plus price (set on the Plans page), the accountant's VAT answer before live selling (D7), the lawyer's review of the sale, renewal and refund wording (D12), and the "go live" word after O6.
+Design: `docs/adr/0025-paid-traveller-plans.md`. Decided 31 Oct 2026: the owner chose the recommended defaults D1 to D14 ("use the defaults"). The ones that cannot be defaulted away: the Plus price (set on the Plans page), the accountant's VAT answer before live selling (D7), the lawyer's review of the sale, renewal and refund wording (D12), and the "go live" word after O6.
