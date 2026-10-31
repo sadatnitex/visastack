@@ -320,6 +320,45 @@ describe('saving a traveller plan (ADR 0025 T2b)', () => {
     expect(mocks.getPlanLatestPrice).not.toHaveBeenCalled();
   });
 
+  it('saves an unchanged BDT price without asking to confirm it, and reads any posted currency as BDT', async () => {
+    mocks.getPlanLatestPrice.mockResolvedValueOnce({
+      ok: true,
+      value: { priceMinorUnits: 49900, currency: 'BDT' },
+    });
+    // What the form shows for a saved BDT 499 price (no grouping), sent back unchanged.
+    const unchanged = await savePlanAction(
+      INITIAL,
+      travellerForm({ planId: PLAN, price: '499.00', currency: 'USD' }),
+    );
+    expect(unchanged.pricePreview).toBeUndefined();
+    expect(mocks.savePlan.mock.calls[0]?.[2].draft.price).toEqual({
+      priceMinorUnits: 49900,
+      currency: 'BDT',
+    });
+  });
+
+  it('points a refusal about a switched-off AI feature at its box', async () => {
+    mocks.savePlan.mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: 'invalid',
+        message: 'Traveller Plus must give at least what Traveller Free gives.',
+        field: 'ai.ai_app_suggestions',
+      },
+    });
+    const off = await savePlanAction(INITIAL, travellerForm({ 'limit.ai.ai_app_suggestions': '' }));
+    expect(off).toMatchObject({ ok: false, field: 'on.ai_app_suggestions' });
+    mocks.savePlan.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'invalid', message: 'Too low.', field: 'ai.ai_app_suggestions' },
+    });
+    const low = await savePlanAction(
+      INITIAL,
+      travellerForm({ 'on.ai_app_suggestions': 'on', 'limit.ai.ai_app_suggestions': '2' }),
+    );
+    expect(low).toMatchObject({ ok: false, field: 'limit.ai.ai_app_suggestions' });
+  });
+
   it('reads an empty amount as no price, whatever currency is posted', async () => {
     await savePlanAction(INITIAL, travellerForm({ price: '', currency: 'USD' }));
     expect(mocks.savePlan.mock.calls[0]?.[2].draft.price).toBeNull();

@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { staffPrincipal } from './access/principal';
 import { provisionAccount } from './accounts';
 import type { Db } from './db';
-import { TRAVELLER_PLAN_KEY } from './entitlements';
+import { TRAVELLER_PLAN_KEY, resolveEntitlements } from './entitlements';
 import {
   type PlanDraft,
   listPlansForAdmin,
@@ -96,6 +96,30 @@ async function freePlanId(): Promise<string> {
     .where(eq(schema.plans.key, TRAVELLER_PLAN_KEY));
   if (!row) throw new Error('Traveller Free missing');
   return row.id;
+}
+
+const DAY = 24 * 60 * 60 * 1000;
+let refs = 0;
+/**
+ * A person's own subscription to `planId`, written as T3's checkout will (plain SQL until T3, ADR
+ * 0025), with a paid invoice covering now unless `paid` is false.
+ */
+async function bought(accountId: string, planId: string, paid = true): Promise<void> {
+  const sub = (
+    (await db.execute(sql`
+      insert into subscriptions (payer_account_id, plan_id, reason)
+      values (${accountId}::uuid, ${planId}::uuid, 'Bought Traveller Plus') returning id`)) as unknown as {
+      rows: { id: string }[];
+    }
+  ).rows[0];
+  if (!sub || !paid) return;
+  const start = new Date(Date.now() - DAY).toISOString();
+  const end = new Date(Date.now() + 29 * DAY).toISOString();
+  await db.execute(sql`
+    insert into invoices (payer_account_id, subscription_id, plan_id, period_start, period_end,
+      invoice_ref, invoiced_amount_minor_units, collected_amount_minor_units, currency, due_date, status)
+    values (${accountId}::uuid, ${sub.id}::uuid, ${planId}::uuid, ${start}::timestamptz,
+      ${end}::timestamptz, ${`INV-T2B-${++refs}`}, 49900, 49900, 'BDT', ${start}::timestamptz, 'PAID')`);
 }
 
 async function rulesOf(planId: string): Promise<Partial<Record<EntitlementKey, number | null>>> {
@@ -230,6 +254,17 @@ describe('a paid traveller plan never gives less than Traveller Free (ADR 0025 D
     expect(isErr(lower) && lower.error.field).toBe(LIMITED_KEY);
   });
 
+  it('refuses a daily limit on a feature that has none on Traveller Free', async () => {
+    const unlimited = AI_TRAVELLER_FEATURE_KEYS.find(
+      (f) => AI_PLAN_TIERS.FREE[f].included && AI_PLAN_TIERS.FREE[f].dailyLimit === null,
+    );
+    if (!unlimited) throw new Error('expected a traveller AI feature with no limit on Free');
+    const saved = await createPlus({
+      rules: { ...plus().rules, [aiEntitlementKey(unlimited)]: { included: true, limit: 500 } },
+    });
+    expect(isErr(saved) && saved.error.message).toMatch(/has no daily limit on Traveller Free/);
+  });
+
   it('refuses a change to an existing paid plan that would put it below Free', async () => {
     const saved = await createPlus();
     if (!isOk(saved)) throw new Error(saved.error.message);
@@ -273,6 +308,38 @@ describe('a paid traveller plan never gives less than Traveller Free (ADR 0025 D
     expect(isOk(retired)).toBe(true);
     expect(isOk(await raise(FREE_LIMIT * 4 + 1))).toBe(true);
   });
+
+  it('still compares a retired paid plan that someone is on, since it keeps covering them', async () => {
+    const saved = await createPlus();
+    if (!isOk(saved)) throw new Error(saved.error.message);
+    await bought(await account('kept@example.com'), saved.value.planId);
+    expect(
+      isOk(
+        await retirePlan(db, await scope(), { planId: saved.value.planId, stepUpSatisfied: true }),
+      ),
+    ).toBe(true);
+    const above = await savePlan(db, await scope(), {
+      planId: await freePlanId(),
+      draft: {
+        name: 'Traveller Free',
+        periodDays: 30,
+        price: null,
+        rules: { [LIMITED_KEY]: { included: true, limit: FREE_LIMIT * 4 + 1 } },
+      },
+      stepUpSatisfied: true,
+    });
+    expect(isErr(above) && above.error.message).toMatch(/would then give less than Traveller Free/);
+  });
+
+  it('gives the person it covers its price, so later steps can bill for it', async () => {
+    const saved = await createPlus();
+    if (!isOk(saved)) throw new Error(saved.error.message);
+    const person = await account('priced@example.com');
+    await bought(person, saved.value.planId);
+    const resolved = await resolveEntitlements(db, { accountId: person });
+    expect(resolved.plan?.key).toMatch(/^traveller_traveller_plus_/);
+    expect(resolved.plan?.price).toEqual({ priceMinorUnits: 49_900, currency: 'BDT' });
+  });
 });
 
 describe('Traveller Free on the Plans page (ADR 0025 D10)', () => {
@@ -296,6 +363,18 @@ describe('Traveller Free on the Plans page (ADR 0025 D10)', () => {
     });
     expect(isErr(storage) && storage.error.message).toMatch(/follows the upload settings/);
     expect(await rulesOf(free)).not.toHaveProperty('account_storage_bytes');
+    // Sent back exactly as the page lists it (following the settings), it changes nothing.
+    const same = await savePlan(db, await scope(), {
+      planId: free,
+      draft: {
+        ...base,
+        price: null,
+        rules: { person_storage_bytes: { included: true, limit: null } },
+      },
+      stepUpSatisfied: true,
+    });
+    expect(isOk(same)).toBe(true);
+    expect(await rulesOf(free)).not.toHaveProperty('person_storage_bytes');
     const retired = await retirePlan(db, await scope(), { planId: free, stepUpSatisfied: true });
     expect(isErr(retired) && retired.error.message).toMatch(/cannot be retired/);
   });
@@ -303,12 +382,9 @@ describe('Traveller Free on the Plans page (ADR 0025 D10)', () => {
   it('counts every account except the people on a paid traveller plan', async () => {
     const saved = await createPlus();
     if (!isOk(saved)) throw new Error(saved.error.message);
-    const buyer = await account('buyer@example.com');
-    await account('free@example.com');
-    // A person's own subscription, written as T3's checkout will (plain SQL until T3, ADR 0025).
-    await db.execute(sql`
-      insert into subscriptions (payer_account_id, plan_id, reason)
-      values (${buyer}::uuid, ${saved.value.planId}::uuid, 'Bought Traveller Plus')`);
+    await bought(await account('buyer@example.com'), saved.value.planId);
+    // Not counted: a subscription whose period is not paid (the resolver gives this person Free).
+    await bought(await account('unpaid@example.com'), saved.value.planId, false);
     const listed = await listPlansForAdmin(db, await scope());
     if (!isOk(listed)) throw new Error('list');
     const accounts = (await db.select({ id: schema.accounts.id }).from(schema.accounts)).length;
@@ -316,10 +392,10 @@ describe('Traveller Free on the Plans page (ADR 0025 D10)', () => {
     const plusView = listed.value.plans.find((p) => p.id === saved.value.planId);
     expect(plusView?.onIt).toBe(1);
     expect(freeView?.onIt).toBe(accounts - 1);
-    // Someone has been on it: its period is fixed, and retiring keeps the person on it.
+    // Someone has been on it: its period is fixed, and retiring keeps both subscriptions.
     expect(plusView?.periodLocked).toBe(true);
     const preview = await previewPlanRetire(db, await scope(), saved.value.planId);
-    expect(isOk(preview) && preview.value.agenciesOnIt).toBe(1);
+    expect(isOk(preview) && preview.value.agenciesOnIt).toBe(2);
     const period = await savePlan(db, await scope(), {
       planId: saved.value.planId,
       draft: { ...plus(), periodDays: 90 },

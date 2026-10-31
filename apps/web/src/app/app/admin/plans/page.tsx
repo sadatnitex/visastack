@@ -92,6 +92,28 @@ function initialValues(plan: PlanAdminView | null): PlanFormValues {
 }
 
 /**
+ * What the New Traveller Plan form starts with: no name or price, and Traveller Free's own AI
+ * rules, so a plan saved as it first appears gives at least what Free gives (ADR 0025 D1).
+ */
+function newTravellerValues(free: PlanAdminView | undefined): PlanFormValues {
+  const values: Record<string, string> = {
+    ...initialValues(null),
+    currency: TRAVELLER_PLAN_CURRENCY,
+  };
+  for (const feature of AI_FEATURE_KEYS) {
+    const rule = free
+      ? aiRuleOf(free, feature)
+      : {
+          included: AI_FEATURES[feature].planDefault.included,
+          limit: AI_FEATURES[feature].planDefault.dailyLimit,
+        };
+    values[featureOnField(feature)] = rule.included ? 'on' : '';
+    values[featureLimitField(feature)] = rule.limit === null ? '' : String(rule.limit);
+  }
+  return values;
+}
+
+/**
  * A plan's rule for one AI feature, or what the resolver gives without one: the registry's plan
  * default (an agency plan has no AI rows until a rule is saved, S22).
  */
@@ -357,7 +379,7 @@ export default async function PlansPage() {
                 </p>
                 <PlanForm
                   planName="New Traveller Plan"
-                  initial={{ ...initialValues(null), currency: TRAVELLER_PLAN_CURRENCY }}
+                  initial={newTravellerValues(data.plans.find((p) => p.key === TRAVELLER_PLAN_KEY))}
                   periodLocked={false}
                   kind="traveller"
                   uploadDefaults={data.uploadDefaults}

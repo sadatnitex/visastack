@@ -75,14 +75,22 @@ function typedValues(formData: FormData): Record<string, string> {
 /** The largest Storage in MB a plan can hold. */
 const STORAGE_MB_MAX = Math.floor(Number.MAX_SAFE_INTEGER / BYTES_PER_MB);
 
-/** The form field a service refusal points at. */
-function formField(field: string | undefined): string | undefined {
+/**
+ * The form field a service refusal points at. A refusal about an AI feature points at its box when
+ * the feature was sent switched off (the fix is to switch it on), else at its daily limit.
+ */
+function formField(field: string | undefined, values: PlanFormValues): string | undefined {
   if (field === undefined) return undefined;
   if (field === 'name' || field === 'periodDays' || field === 'price' || field === 'currency') {
     return field;
   }
   const feature = aiFeatureOfKey(field);
-  if (feature !== null) return featureLimitField(feature);
+  if (feature !== null) {
+    return values[featureLimitField(feature)] !== undefined &&
+      values[featureOnField(feature)] !== 'on'
+      ? featureOnField(feature)
+      : featureLimitField(feature);
+  }
   return `limit.${field}`;
 }
 
@@ -319,7 +327,7 @@ export async function savePlanAction(
     if (!result.ok) {
       if (result.error.code === 'forbidden') return reply(DENIED);
       if (result.error.code === 'not_found') return reply(NOT_FOUND);
-      const field = formField(result.error.field);
+      const field = formField(result.error.field, values);
       return reply({
         ok: false,
         message: result.error.message,

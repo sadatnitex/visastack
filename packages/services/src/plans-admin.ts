@@ -20,7 +20,7 @@ import {
   isTravellerStorageKey,
   planEntitlementKeys,
 } from '@visastack/core/entitlements';
-import { and, count, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, count, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import type { StaffScope } from './access/principal';
 import { staffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
@@ -29,7 +29,7 @@ import { TRAVELLER_PLAN_KEY } from './entitlements';
 import { type ServiceError, refusal, serviceError } from './errors';
 import { type PlanAudience, entitlementsSchemaPresent, planColumns } from './plans-schema';
 import { BYTES_PER_MB, type UploadQuotaConfig, loadUploadQuotaConfig } from './quotas';
-import { peopleOnPaidTravellerPlans } from './traveller-billing';
+import { paidTravellerCoverage } from './traveller-billing';
 
 /**
  * The Plans page (S29, ADR 0020 S29 amendment, audit M1): the platform owner creates plans, sets
@@ -451,11 +451,12 @@ export async function listPlansForAdmin(
       );
     }
   }
-  // Every account is on Traveller Free except the people a paid traveller plan covers (ADR 0025).
-  const travellers = Math.max(
-    0,
-    (await travellerCount(db)) - (await peopleOnPaidTravellerPlans(db)),
-  );
+  // A paid traveller plan counts the people it covers now, by the resolver's own rule, and every
+  // other account is on Traveller Free (ADR 0025).
+  const covered = await paidTravellerCoverage(db, new Date());
+  let coveredTotal = 0;
+  for (const n of covered.values()) coveredTotal += n;
+  const travellers = Math.max(0, (await travellerCount(db)) - coveredTotal);
   const views: PlanAdminView[] = [];
   for (const row of plans) {
     const plan = row.plan;
@@ -486,7 +487,12 @@ export async function listPlansForAdmin(
       periodDays: plan.periodDays,
       price,
       rules,
-      onIt: plan.key === TRAVELLER_PLAN_KEY ? travellers : row.onIt,
+      onIt:
+        plan.key === TRAVELLER_PLAN_KEY
+          ? travellers
+          : plan.audience === 'TRAVELLER'
+            ? (covered.get(plan.id) ?? 0)
+            : row.onIt,
       periodLocked: row.ever > 0,
       retireBlocked: retireBlock(plan),
     });
@@ -623,7 +629,8 @@ function storageBytes(
 }
 
 function mbWords(bytes: number): string {
-  return `${Math.floor(bytes / BYTES_PER_MB).toLocaleString('en-US')} MB`;
+  // Rounded as the Plans page shows storage, so a refusal and the page name the same number.
+  return `${Math.round(bytes / BYTES_PER_MB).toLocaleString('en-US')} MB`;
 }
 
 /**
@@ -673,7 +680,11 @@ function lessThanFree(
   return undefined;
 }
 
-/** Traveller Free's name and rules, read in the caller's transaction. */
+/**
+ * Traveller Free's name and rules, read in the caller's transaction with its row locked: a save of
+ * Free locks the same row, so the two checks queue and neither reads the other's old rules (a
+ * paid plan's save locks that plan, then Free; a save of Free locks only Free).
+ */
 async function travellerFreePlan(
   tx: Db,
 ): Promise<{ readonly id: string; readonly name: string; readonly rules: Partial<Rules> } | null> {
@@ -682,14 +693,16 @@ async function travellerFreePlan(
       .select({ id: schema.plans.id, name: schema.plans.name })
       .from(schema.plans)
       .where(eq(schema.plans.key, TRAVELLER_PLAN_KEY))
-      .limit(1),
+      .limit(1)
+      .for('update'),
   );
   return row ? { ...row, rules: await currentRules(tx, row.id) } : null;
 }
 
 /**
  * Whether a traveller plan's rules, once saved, keep every paid traveller plan at or above
- * Traveller Free: a paid plan is compared with Free, and Free with every active paid plan.
+ * Traveller Free: a paid plan is compared with Free, and Free with every paid plan that is offered
+ * or still has someone on it (a retired plan keeps covering a period already paid for).
  */
 async function travellerFloorProblem(
   tx: Db,
@@ -705,7 +718,15 @@ async function travellerFloorProblem(
     const paid = await tx
       .select({ id: schema.plans.id, name: schema.plans.name })
       .from(schema.plans)
-      .where(and(eq(schema.plans.audience, 'TRAVELLER'), eq(schema.plans.active, true)));
+      .where(
+        and(
+          eq(schema.plans.audience, 'TRAVELLER'),
+          or(
+            eq(schema.plans.active, true),
+            sql`exists (select 1 from subscriptions c where c.plan_id = "plans"."id" and c.ended_at is null)`,
+          ),
+        ),
+      );
     for (const plan of paid) {
       if (plan.id === saving.id) continue;
       const problem = lessThanFree(
@@ -836,12 +857,26 @@ export async function savePlan(
       }
       const foreign = foreignKeyProblem(plan.audience, input.draft.rules);
       if (foreign) return err(foreign);
+      // Traveller Free never stores a storage rule (D10): one sent back unchanged is left out.
+      const draftRules: Partial<Rules> =
+        plan.key === TRAVELLER_PLAN_KEY
+          ? Object.fromEntries(
+              Object.entries(input.draft.rules).filter(([k]) => !isTravellerStorageKey(k)),
+            )
+          : input.draft.rules;
       if (plan.audience === 'TRAVELLER') {
         const priceProblem = travellerPriceProblem(plan.key, input.draft.price);
         if (priceProblem) return err(priceProblem);
         if (plan.key === TRAVELLER_PLAN_KEY) {
-          // D10: Traveller Free stays as it is; its storage follows the upload settings.
-          const storage = TRAVELLER_STORAGE_KEYS.find((k) => input.draft.rules[k] !== undefined);
+          // D10: Traveller Free stays as it is; its storage follows the upload settings. A rule sent
+          // back exactly as Free has it now changes nothing, so only a different one is refused.
+          const stored = await currentRules(tx, plan.id);
+          const storage = TRAVELLER_STORAGE_KEYS.find((k) => {
+            const sent = input.draft.rules[k];
+            if (sent === undefined) return false;
+            const now = travellerRule(stored, k);
+            return sent.included !== now.included || sent.limit !== now.limit;
+          });
           if (storage) {
             return err(
               refuse(
@@ -855,7 +890,7 @@ export async function savePlan(
           id: plan.id,
           key: plan.key,
           name,
-          rules: { ...(await currentRules(tx, plan.id)), ...input.draft.rules },
+          rules: { ...(await currentRules(tx, plan.id)), ...draftRules },
         });
         if (floor) return err(floor);
       }
@@ -898,7 +933,7 @@ export async function savePlan(
       const ruleChanges = await writePlanRules(
         tx,
         plan.id,
-        withInvitationsFollowingSeats(input.draft.rules),
+        withInvitationsFollowingSeats(draftRules),
         now,
       );
       const priceChange = await writePlanPrice(tx, plan.id, input.draft.price, {

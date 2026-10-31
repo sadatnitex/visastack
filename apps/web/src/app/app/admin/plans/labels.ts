@@ -110,6 +110,8 @@ export const AGENCY_AI_LIMIT_HINT =
 
 /** Said in the card once a plan is retired. */
 export const RETIRED_LINE = 'Retired. Nobody new can be put on this plan.';
+export const TRAVELLER_RETIRED_LINE =
+  'Retired. Nobody new can buy this plan; people on it keep it until the period they paid for ends.';
 export const AI_ALLOWANCE_HINT =
   'Shown on Plan and Usage for now; it does not stop any work yet. Leave empty for Unlimited.';
 export const AI_LIMIT_HINT =

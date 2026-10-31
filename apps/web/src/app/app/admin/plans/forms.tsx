@@ -32,6 +32,7 @@ import {
   TRAVELLER_PERIOD_LOCKED_NOTE,
   TRAVELLER_PRICE_CHANGE_STEP,
   TRAVELLER_PRICE_NOTE,
+  TRAVELLER_RETIRED_LINE,
   TRAVELLER_RETIRE_NOTE,
   UNLIMITED_HINT,
   aiFeatureName,
@@ -296,6 +297,9 @@ export function PlanForm({
                       type="checkbox"
                       name={featureOnField(feature)}
                       defaultChecked={value(featureOnField(feature)) === 'on'}
+                      {...(problem(featureOnField(feature))['aria-invalid']
+                        ? { 'aria-invalid': true as const, 'aria-describedby': messageId }
+                        : {})}
                     />
                     <span>{aiFeatureName(feature)}</span>
                   </label>
@@ -398,7 +402,11 @@ export function RetirePlanForm({
   const messageId = `${id}-message`;
   const keeping = state.agenciesKeepingIt;
   if (retired || (state.ok && state.retired)) {
-    return <output className="notice">{RETIRED_LINE}</output>;
+    return (
+      <output className="notice">
+        {audience === 'TRAVELLER' ? TRAVELLER_RETIRED_LINE : RETIRED_LINE}
+      </output>
+    );
   }
   return (
     <form ref={form} action={formAction} className="field-list">

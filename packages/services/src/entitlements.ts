@@ -284,11 +284,13 @@ function gateOf(override: boolean, bypass: boolean, suspended: boolean): Entitle
   return 'plan';
 }
 
+// Both subqueries name "plans"."id" with its table: in a select from plans alone Drizzle writes a
+// column without its table, and inside `from plan_prices pp` a bare "id" would be the price's own.
 function entitlementRowsSql(present: boolean) {
   return present
     ? sql<
         EntitlementRow[] | null
-      >`(select json_agg(json_build_object('key', e.key, 'included', e.included, 'limit', e.limit_value::text)) from plan_entitlements e where e.plan_id = ${schema.plans.id})`
+      >`(select json_agg(json_build_object('key', e.key, 'included', e.included, 'limit', e.limit_value::text)) from plan_entitlements e where e.plan_id = "plans"."id")`
     : sql<null>`null`;
 }
 
@@ -296,7 +298,7 @@ function priceRowsSql(present: boolean) {
   return present
     ? sql<
         PriceRow[] | null
-      >`(select json_agg(json_build_object('price', pp.price_minor_units, 'currency', pp.currency, 'from', pp.effective_from)) from plan_prices pp where pp.plan_id = ${schema.plans.id})`
+      >`(select json_agg(json_build_object('price', pp.price_minor_units, 'currency', pp.currency, 'from', pp.effective_from)) from plan_prices pp where pp.plan_id = "plans"."id")`
     : sql<null>`null`;
 }
 

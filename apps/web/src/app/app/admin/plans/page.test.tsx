@@ -1,7 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { navigationState, renderServer, textOf } from '../../../../lib/next-mocks.test-support';
+import {
+  navigationState,
+  renderServer,
+  stubProps,
+  textOf,
+} from '../../../../lib/next-mocks.test-support';
 
-const mocks = vi.hoisted(() => ({ staffPrincipal: vi.fn(), listPlansForAdmin: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  staffPrincipal: vi.fn(),
+  listPlansForAdmin: vi.fn(),
+  retry: vi.fn(),
+}));
 
 vi.mock('../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
@@ -16,6 +25,10 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   listPlansForAdmin: (...args: unknown[]) => mocks.listPlansForAdmin(...args),
 }));
 vi.mock('next/headers', () => ({ cookies: async () => ({ get: () => undefined }) }));
+vi.mock('../../../../lib/plan-form-retry', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../../lib/plan-form-retry')>()),
+  decodePlanFormRetry: (...args: unknown[]) => mocks.retry(...args),
+}));
 vi.mock('./forms', async () => {
   const { stub } = await import('../../../../lib/next-mocks.test-support');
   return { PlanForm: stub('PlanForm'), RetirePlanForm: stub('RetirePlanForm') };
@@ -52,6 +65,7 @@ const plan = (overrides: Record<string, unknown>) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.retry.mockReturnValue(null);
   navigationState.pathname = '/app/admin/plans';
   mocks.staffPrincipal.mockResolvedValue({ ok: true, value: { kind: 'staff' } });
   mocks.listPlansForAdmin.mockResolvedValue({
@@ -108,6 +122,65 @@ describe('Platform > Plans (S29)', () => {
       'Traveller Free follows the upload settings for storage: 100 MB for the whole account and 50 MB per person.',
     );
     expect(mocks.staffPrincipal.mock.calls[0]?.[2]).toBe('PLANS_MANAGE');
+  });
+
+  it('starts the New Traveller Plan form from Traveller Free, so it can be saved as it appears', async () => {
+    const html = await renderServer(Page());
+    const forms = stubProps<{ planName: string; kind: string; initial: Record<string, string> }>(
+      html,
+      'PlanForm',
+    );
+    const traveller = forms.find((f) => f.planName === 'New Traveller Plan');
+    expect(traveller?.kind).toBe('traveller');
+    expect(traveller?.initial).toMatchObject({
+      name: '',
+      price: '',
+      periodDays: '30',
+      'on.ai_app_suggestions': 'on',
+      'limit.ai.ai_app_suggestions': '15',
+      'on.ai_app_original_files': '',
+      'limit.account_storage_bytes': '',
+    });
+    expect(forms.find((f) => f.planName === 'New Agency Plan')?.kind).toBe('agency');
+  });
+
+  it('gives typed values back only to the form they came from', async () => {
+    mocks.retry.mockReturnValue({ form: 'new-traveller', fields: { name: 'Traveller Plus' } });
+    const forms = stubProps<{ planName: string; retry?: Record<string, string> }>(
+      await renderServer(Page()),
+      'PlanForm',
+    );
+    expect(forms.find((f) => f.planName === 'New Traveller Plan')?.retry).toEqual({
+      name: 'Traveller Plus',
+    });
+    for (const other of forms.filter((f) => f.planName !== 'New Traveller Plan')) {
+      expect(other.retry, other.planName).toBeUndefined();
+    }
+  });
+
+  it('shows a retired paid traveller plan as retired, without the not-sold note', async () => {
+    mocks.listPlansForAdmin.mockResolvedValue({
+      ok: true,
+      value: {
+        available: true,
+        plans: [
+          plan({
+            id: '00000000-0000-4000-8000-000000000005',
+            key: 'traveller_old_plus_abc123',
+            name: 'Old Plus',
+            audience: 'TRAVELLER',
+            active: false,
+            retireBlocked: 'retired',
+            rules: {},
+          }),
+        ],
+      },
+    });
+    const html = await renderServer(Page());
+    const text = textOf(html);
+    expect(text).toContain('Retired');
+    expect(text).not.toContain('Not Sold Yet');
+    expect(stubProps<{ audience: string }>(html, 'RetirePlanForm')[0]?.audience).toBe('TRAVELLER');
   });
 
   it('shows a paid traveller plan with its BDT price, storage and AI rules, as not sold yet (ADR 0025)', async () => {

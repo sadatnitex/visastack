@@ -82,19 +82,30 @@ export async function coveringPaidPeriod(
 }
 
 /**
- * People on a paid traveller plan now: accounts with a current subscription of their own on a
- * traveller plan (ADR 0025). Zero before migration 0110. For the Plans page, which counts
- * everyone else as on Traveller Free.
+ * People a paid traveller plan covers now, by plan: the same rule as `coveringPaidPeriod` (their
+ * current subscription, and a paid, unrefunded invoice of it whose period holds `now`), so the
+ * Plans page counts exactly who gets each plan. Empty before migration 0110.
  */
-export async function peopleOnPaidTravellerPlans(db: Db): Promise<number> {
-  if (!(await personBillingPresent(db))) return 0;
-  const rows = await db.execute<{ n: number }>(
-    sql`select count(distinct s.payer_account_id)::int as n
+export async function paidTravellerCoverage(db: Db, now: Date): Promise<Map<string, number>> {
+  if (!(await personBillingPresent(db))) return new Map();
+  const refunded: SQL = invoiceHasRefundSql(sql`i.id`);
+  const rows = await db.execute<{ plan_id: string; n: number }>(
+    sql`select s.plan_id, count(distinct s.payer_account_id)::int as n
       from subscriptions s
-      join plans p on p.id = s.plan_id and p.audience = 'TRAVELLER'
-      where s.payer_account_id is not null and s.ended_at is null`,
+      join plans p on p.id = s.plan_id and p.audience = 'TRAVELLER' and p.key <> 'traveller_free'
+      where s.payer_account_id is not null and s.ended_at is null
+        and exists (select 1 from invoices i
+          where i.subscription_id = s.id and i.payer_account_id = s.payer_account_id
+            and i.plan_id = s.plan_id and i.status = 'PAID'
+            and i.period_start <= ${now.toISOString()}::timestamptz
+            and i.period_end > ${now.toISOString()}::timestamptz
+            and not ${refunded})
+      group by s.plan_id`,
   );
   const list = Array.isArray(rows) ? rows : (rows as { rows?: unknown[] }).rows;
-  const row = (list ?? [])[0] as { n: number | string } | undefined;
-  return Number(row?.n ?? 0);
+  const counts = new Map<string, number>();
+  for (const row of (list ?? []) as { plan_id: string; n: number | string }[]) {
+    counts.set(row.plan_id, Number(row.n));
+  }
+  return counts;
 }
