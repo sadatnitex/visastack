@@ -474,6 +474,7 @@ export {
   suspendOrganization,
   terminateOrganization,
 } from './organizations';
+export { withdrawOrganizationApplication } from './lifecycle/agency/withdraw-application';
 
 export {
   ALLOWED_LOGO_CONTENT_TYPES,

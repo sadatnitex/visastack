@@ -1,9 +1,10 @@
-import { listMembershipsForAccount } from '@visastack/services';
+import { type OrgMembershipView, listMembershipsForAccount } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { EmptyState, PageHeader } from '../../../components/ui';
 import { humanizeCode } from '../../../lib/format-code';
 import { withSession } from '../../../lib/session';
+import { withdrawOrganizationApplicationAction } from './actions';
 import { CreateOrgForm } from './create-org-form';
 
 export const metadata: Metadata = { title: 'Agencies' };
@@ -15,9 +16,29 @@ const ORG_STATUS: Record<string, { label: string; tone: string }> = {
   ACTIVE: { label: 'Active', tone: 'badge-success' },
   REJECTED: { label: 'Rejected', tone: 'badge-danger' },
   SUSPENDED: { label: 'Suspended', tone: 'badge-danger' },
+  CLOSED: { label: 'Closed', tone: 'badge-neutral' },
 };
 
-export default async function AgencyPage() {
+/** What the page says after a withdrawal, read from the address the action returns to. */
+const WITHDRAWAL_MESSAGES: Record<string, string> = {
+  done: 'Application withdrawn. It will not be reviewed. You can apply again at any time.',
+  refused:
+    'This application could not be withdrawn. It may already have been reviewed. Its current status is shown below.',
+};
+
+/** Only an active owner of an application still waiting for review is offered the withdrawal. */
+function mayWithdraw(m: OrgMembershipView): boolean {
+  return m.active && m.role === 'OWNER' && m.organization.status === 'PENDING_VERIFICATION';
+}
+
+export default async function AgencyPage({
+  searchParams,
+}: {
+  readonly searchParams?: Promise<{ readonly withdrawal?: string | string[] }>;
+}) {
+  const query = (await searchParams) ?? {};
+  const withdrawal = typeof query.withdrawal === 'string' ? query.withdrawal : undefined;
+  const withdrawalMessage = withdrawal ? WITHDRAWAL_MESSAGES[withdrawal] : undefined;
   const orgs = await withSession(async ({ db, accountId }) =>
     listMembershipsForAccount(db, accountId),
   );
@@ -29,6 +50,10 @@ export default async function AgencyPage() {
         title="Organizations"
         description="Agencies collaborate on cases and request evidence. Membership never grants record access on its own - access is always an accepted grant."
       />
+
+      {withdrawalMessage ? (
+        <output className="lc-g3-withdrawal-status">{withdrawalMessage}</output>
+      ) : null}
 
       <div className="grid">
         <article className="card">
@@ -46,7 +71,7 @@ export default async function AgencyPage() {
                   label: humanizeCode(m.organization.status),
                   tone: 'badge-neutral',
                 };
-                return (
+                const link = (
                   <Link
                     className="row row-link"
                     key={m.organization.id}
@@ -68,6 +93,36 @@ export default async function AgencyPage() {
                       </span>
                     </span>
                   </Link>
+                );
+                if (!mayWithdraw(m)) return link;
+                const confirmId = `withdraw-${m.organization.id}`;
+                return (
+                  <div className="lc-g3-org" key={m.organization.id}>
+                    {link}
+                    <details className="lc-g3-withdraw">
+                      <summary className="btn btn-secondary lc-g3-withdraw-open">
+                        Withdraw Application
+                      </summary>
+                      <form
+                        action={withdrawOrganizationApplicationAction}
+                        className="lc-g3-confirm"
+                      >
+                        <input type="hidden" name="organizationId" value={m.organization.id} />
+                        <p id={confirmId} className="lc-g3-confirm-text">
+                          Withdraw the application for {m.organization.name}? It will no longer be
+                          reviewed, and anyone you added to it loses access. You can apply again at
+                          any time.
+                        </p>
+                        <button
+                          type="submit"
+                          className="btn btn-danger"
+                          aria-describedby={confirmId}
+                        >
+                          Withdraw Application
+                        </button>
+                      </form>
+                    </details>
+                  </div>
                 );
               })}
             </div>

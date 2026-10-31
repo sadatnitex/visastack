@@ -214,16 +214,22 @@ export async function reviewOrganization(
     return err(serviceError('forbidden', 'an organization cannot verify itself'));
   }
   return db.transaction(async (tx) => {
-    const updated = required(
-      first(
-        await tx
-          .update(schema.organizations)
-          .set({ status: input.decision, updatedAt: new Date() })
-          .where(eq(schema.organizations.id, input.organizationId))
-          .returning(),
-      ),
-      'organization',
+    const updated = first(
+      await tx
+        .update(schema.organizations)
+        .set({ status: input.decision, updatedAt: new Date() })
+        // Compare-and-set: an application withdrawn after the read above stays withdrawn.
+        .where(
+          and(
+            eq(schema.organizations.id, input.organizationId),
+            eq(schema.organizations.status, 'PENDING_VERIFICATION'),
+          ),
+        )
+        .returning(),
     );
+    if (!updated) {
+      return err(serviceError('invalid', 'only a PENDING_VERIFICATION org can be reviewed'));
+    }
     await appendAuditEvent(tx, {
       eventType: 'ORGANIZATION_REVIEWED',
       actorAccountId: input.reviewerAccountId,
@@ -517,9 +523,19 @@ export async function setMembershipActive(
       }
     }
 
+    if (!input.active) {
+      return endMembershipInTx(tx, {
+        actorAccountId: input.actorAccountId,
+        organizationId: input.organizationId,
+        membershipId: input.membershipId,
+        memberAccountId: target.accountId,
+        targetRole: target.role,
+      });
+    }
+
     const rows = await tx
       .update(schema.memberships)
-      .set({ active: input.active, updatedAt: new Date() })
+      .set({ active: true, updatedAt: new Date() })
       .where(
         and(
           eq(schema.memberships.id, input.membershipId),
@@ -531,23 +547,8 @@ export async function setMembershipActive(
     if (!updated) {
       return err(serviceError('not_found', 'membership no longer exists in this organization'));
     }
-
-    // S22: a member turned off can no longer use the agency's AI tools (the AI gate refuses them
-    // on the next call); their agency AI connections are also ended, tokens and all. Only after
-    // the membership change itself succeeded (round 3), so a membership that vanished ends
-    // nothing, and before this transaction's own audit record, so the audit chain is taken last,
-    // as in the AI gate.
-    if (!input.active) {
-      await endAgencyAiConnectionsOfMember(tx, {
-        organizationId: input.organizationId,
-        memberAccountId: target.accountId,
-        actorAccountId: input.actorAccountId,
-        reason: 'member_removed',
-      });
-    }
-
     await appendAuditEvent(tx, {
-      eventType: input.active ? 'MEMBERSHIP_ACTIVATED' : 'MEMBERSHIP_DEACTIVATED',
+      eventType: 'MEMBERSHIP_ACTIVATED',
       actorAccountId: input.actorAccountId,
       action: 'MANAGE',
       method: 'MANUAL',
@@ -556,64 +557,119 @@ export async function setMembershipActive(
       resourceId: updated.id,
       metadata: { organizationId: input.organizationId, targetRole: target.role },
     });
-
-    // Commercial V1 Part 4 §11: "Removed member may not remain sole owner of
-    // active case." A deactivated member no longer passes `isActiveMember`,
-    // so leaving them as a mission's only assignment would quietly strand
-    // that case with an assignee who can no longer act on it. Unassign them
-    // from every such mission (active, not CLOSED/CANCELLED) where they were
-    // the SOLE assignee -- never where a co-assignee remains, since that
-    // case still has a working assignee -- landing each one in the
-    // "reassignment queue" (`agency.ts`'s `listUnassignedActiveMissions`)
-    // rather than blocking the deactivation itself on a hand-off first.
-    if (!input.active) {
-      const ownMissionAssignments = await tx
-        .select({ id: schema.assignments.id, missionId: schema.assignments.missionId })
-        .from(schema.assignments)
-        .where(
-          and(
-            eq(schema.assignments.organizationId, input.organizationId),
-            eq(schema.assignments.memberAccountId, target.accountId),
-          ),
-        );
-      for (const assignment of ownMissionAssignments) {
-        const coAssignees = await tx
-          .select({ id: schema.assignments.id })
-          .from(schema.assignments)
-          .where(
-            and(
-              eq(schema.assignments.organizationId, input.organizationId),
-              eq(schema.assignments.missionId, assignment.missionId),
-              ne(schema.assignments.id, assignment.id),
-            ),
-          )
-          .limit(1);
-        if (coAssignees.length > 0) continue;
-        const mission = first(
-          await tx
-            .select({ state: schema.missions.state })
-            .from(schema.missions)
-            .where(eq(schema.missions.id, assignment.missionId))
-            .limit(1),
-        );
-        if (!mission || mission.state === 'CLOSED' || mission.state === 'CANCELLED') continue;
-        await tx.delete(schema.assignments).where(eq(schema.assignments.id, assignment.id));
-        await appendAuditEvent(tx, {
-          eventType: 'MEMBER_UNASSIGNED',
-          actorAccountId: input.actorAccountId,
-          method: 'MANUAL',
-          result: 'ALLOWED',
-          missionId: assignment.missionId,
-          resourceType: 'assignment',
-          resourceId: assignment.id,
-          reason: 'sole_assignee_deactivated',
-          metadata: { organizationId: input.organizationId, memberAccountId: target.accountId },
-        });
-      }
-    }
-
     return ok(updated);
   });
+}
+
+/**
+ * Ends one membership inside the caller's transaction: the single path every deactivation takes
+ * (`setMembershipActive`, and an owner withdrawing a pending application). The caller has already
+ * decided the change is allowed (role and last-owner rules belong to the caller). It turns the
+ * membership off, ends the member's agency AI connections, records MEMBERSHIP_DEACTIVATED and
+ * unassigns the member from every open case where they were the only assignee.
+ */
+export async function endMembershipInTx(
+  tx: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly organizationId: string;
+    readonly membershipId: string;
+    readonly memberAccountId: string;
+    readonly targetRole: MembershipRole;
+  },
+): Promise<Result<Membership, ServiceError>> {
+  const rows = await tx
+    .update(schema.memberships)
+    .set({ active: false, updatedAt: new Date() })
+    .where(
+      and(
+        eq(schema.memberships.id, input.membershipId),
+        eq(schema.memberships.organizationId, input.organizationId),
+      ),
+    )
+    .returning();
+  const updated = first(rows);
+  if (!updated) {
+    return err(serviceError('not_found', 'membership no longer exists in this organization'));
+  }
+
+  // S22: a member turned off can no longer use the agency's AI tools (the AI gate refuses them
+  // on the next call); their agency AI connections are also ended, tokens and all. Only after
+  // the membership change itself succeeded (round 3), so a membership that vanished ends
+  // nothing, and before this transaction's own audit record, so the audit chain is taken last,
+  // as in the AI gate.
+  await endAgencyAiConnectionsOfMember(tx, {
+    organizationId: input.organizationId,
+    memberAccountId: input.memberAccountId,
+    actorAccountId: input.actorAccountId,
+    reason: 'member_removed',
+  });
+
+  await appendAuditEvent(tx, {
+    eventType: 'MEMBERSHIP_DEACTIVATED',
+    actorAccountId: input.actorAccountId,
+    action: 'MANAGE',
+    method: 'MANUAL',
+    result: 'ALLOWED',
+    resourceType: 'membership',
+    resourceId: updated.id,
+    metadata: { organizationId: input.organizationId, targetRole: input.targetRole },
+  });
+
+  // Commercial V1 Part 4 §11: "Removed member may not remain sole owner of
+  // active case." A deactivated member no longer passes `isActiveMember`,
+  // so leaving them as a mission's only assignment would quietly strand
+  // that case with an assignee who can no longer act on it. Unassign them
+  // from every such mission (active, not CLOSED/CANCELLED) where they were
+  // the SOLE assignee -- never where a co-assignee remains, since that
+  // case still has a working assignee -- landing each one in the
+  // "reassignment queue" (`agency.ts`'s `listUnassignedActiveMissions`)
+  // rather than blocking the deactivation itself on a hand-off first.
+  const ownMissionAssignments = await tx
+    .select({ id: schema.assignments.id, missionId: schema.assignments.missionId })
+    .from(schema.assignments)
+    .where(
+      and(
+        eq(schema.assignments.organizationId, input.organizationId),
+        eq(schema.assignments.memberAccountId, input.memberAccountId),
+      ),
+    );
+  for (const assignment of ownMissionAssignments) {
+    const coAssignees = await tx
+      .select({ id: schema.assignments.id })
+      .from(schema.assignments)
+      .where(
+        and(
+          eq(schema.assignments.organizationId, input.organizationId),
+          eq(schema.assignments.missionId, assignment.missionId),
+          ne(schema.assignments.id, assignment.id),
+        ),
+      )
+      .limit(1);
+    if (coAssignees.length > 0) continue;
+    const mission = first(
+      await tx
+        .select({ state: schema.missions.state })
+        .from(schema.missions)
+        .where(eq(schema.missions.id, assignment.missionId))
+        .limit(1),
+    );
+    if (!mission || mission.state === 'CLOSED' || mission.state === 'CANCELLED') continue;
+    await tx.delete(schema.assignments).where(eq(schema.assignments.id, assignment.id));
+    await appendAuditEvent(tx, {
+      eventType: 'MEMBER_UNASSIGNED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      missionId: assignment.missionId,
+      resourceType: 'assignment',
+      resourceId: assignment.id,
+      reason: 'sole_assignee_deactivated',
+      metadata: { organizationId: input.organizationId, memberAccountId: input.memberAccountId },
+    });
+  }
+
+  return ok(updated);
 }
 
 /**
