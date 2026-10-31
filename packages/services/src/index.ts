@@ -2037,7 +2037,27 @@ export {
   recordManualRefund,
   requestRefund,
   retryRefund,
+  // ADR 0025 T6: a traveller's refund, recorded by the platform owner.
+  PERSON_REFUNDS_UNAVAILABLE,
+  type PersonRefundOutcome,
+  type PersonRefundSource,
+  type RecordPersonRefundInput,
+  recordPersonRefund,
 } from './refunds';
+// ADR 0025 T6: the platform owner's Traveller Billing view.
+export {
+  TRAVELLER_NEEDS_CHECK_LIMIT,
+  type TravellerBilling,
+  type TravellerBillingResult,
+  type TravellerHeldView,
+  type TravellerInvoiceView,
+  type TravellerNeedsCheckItem,
+  type TravellerPaymentView,
+  type TravellerRefundView,
+  getTravellerBilling,
+  listTravellerNeedsCheck,
+  travellerLookup,
+} from './person-billing-admin';
 export {
   LEDGER_CSV_COLUMNS,
   LEDGER_EXPORT_MAX_ROWS,

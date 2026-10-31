@@ -143,6 +143,7 @@ describe('the words of every email', () => {
         'MISSION_STATUS_CHANGED',
         'PERSON_PLAN_ENDED',
         'PERSON_PLAN_RENEWAL_DUE',
+        'PERSON_REFUND_RECORDED',
         'PLATFORM_ROLE_GRANTED',
         'PLATFORM_ROLE_REVOKED',
         'SHARING_INVITATION_CREATED',

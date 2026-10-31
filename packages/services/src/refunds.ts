@@ -4,10 +4,12 @@ import type { StaffScope, SystemScope } from './access/principal';
 import { staffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
 import {
+  DAY_MS,
   agencyLine,
   agencyName,
   billingContacts,
   billingDay,
+  invoiceHasRefundSql,
   invoiceNotRefundedSql,
   invoicesPath,
 } from './billing-standing';
@@ -19,6 +21,7 @@ import {
   applyInvoiceRefund,
   isUuid,
   isValidMinorUnitAmount,
+  lockPersonBilling,
   normalizeCurrency,
   outstandingMinorUnits,
   refundSourceMode,
@@ -30,6 +33,13 @@ import {
 import { parseAmountForCurrency } from './payment-amounts';
 import { providerShareDeadline } from './payment-resolver';
 import type { PaymentAttempt } from './payments';
+import { PERSON_REFUND_WINDOW_DAYS } from './person-billing-history';
+import {
+  personInvoices,
+  personPaymentAttempts,
+  personRefundRequests,
+  personSubscriptions,
+} from './person-billing-tables';
 import {
   type PaymentMode,
   attemptColumns,
@@ -43,6 +53,7 @@ import {
   type RefundingPaymentPort,
   isRefundingPaymentPort,
 } from './ports';
+import { personBillingPresent } from './traveller-billing';
 
 /**
  * Refunds and credits (Small Commercial V1 S18, ADR 0020 Phase 2 and its S18 amendment).
@@ -2318,4 +2329,409 @@ export async function personRefundGuardPresent(db: Db): Promise<boolean> {
     })
     .from(sql`(select 1) as probe`);
   return rows[0]?.present === true;
+}
+
+// --- A person's refund (ADR 0025, T6) ---------------------------------------------------------
+//
+// D8: a traveller's full refund on request within 7 days of payment, made by the platform owner
+// in the gateway panel and recorded here (O18 option 3). The same rules as an agency's refund
+// recorded outside VisaStack (limits, refund day, panel reference, replays, the one ledger
+// function, held payments closed when nothing is left), with the payer a person: the amount is
+// never typed (always all that is left of the payment, as the page showed it); the refund names
+// the invoice's own payer (the database checks this too, migration 0112); and refunding the period
+// that covers today ends their plan at once. Lock order, as the recording's: the held payment or
+// the invoice, the request, the person's billing lock, the audit chain.
+
+/** Said before migration 0112 has run: nothing is written. */
+export const PERSON_REFUNDS_UNAVAILABLE = 'Refunds for travellers are not available yet.';
+const OUT_OF_DATE = 'This page is out of date. Reload it and try again.';
+
+/** A person's money, located without naming any agency. */
+export type PersonRefundSource =
+  | { readonly kind: 'entry'; readonly invoicePaymentId: string }
+  | { readonly kind: 'held'; readonly paymentAttemptId: string };
+
+/** The source of a person's refund, locked, with the person who paid, or null if not a person's. */
+async function lockPersonSource(
+  tx: Db,
+  source: PersonRefundSource,
+): Promise<{ readonly locked: LockedSource; readonly payer: string } | null> {
+  if (source.kind === 'held') {
+    if (!isUuid(source.paymentAttemptId)) return null;
+    const a = schema.paymentAttempts;
+    const attempt = first(
+      await tx
+        .select(attemptColumns())
+        .from(a)
+        .where(and(eq(a.id, source.paymentAttemptId), isNull(a.organizationId)))
+        .limit(1)
+        .for('update'),
+    );
+    if (!attempt) return null;
+    const owner = first(
+      await tx
+        .select({ payer: personPaymentAttempts.payerAccountId })
+        .from(personPaymentAttempts)
+        .where(eq(personPaymentAttempts.id, attempt.id))
+        .limit(1),
+    );
+    if (!owner?.payer) return null;
+    const credit = await creditFrom(tx, attempt.id);
+    const credited = credit?.amountMinorUnits ?? 0;
+    return {
+      payer: owner.payer,
+      locked: {
+        kind: 'held',
+        attempt,
+        credited,
+        remaining: heldRemainingMinorUnits(
+          attempt.amountMinorUnits,
+          credited,
+          await requestsFor(tx, source),
+        ),
+      },
+    };
+  }
+  if (!isUuid(source.invoicePaymentId)) return null;
+  const p = schema.invoicePayments;
+  const entry = first(
+    await tx
+      .select(ledgerColumns(await ledgerModeSql(tx)))
+      .from(p)
+      .where(eq(p.id, source.invoicePaymentId))
+      .limit(1),
+  );
+  if (!entry) return null;
+  const invoice = first(
+    await tx
+      .select()
+      .from(schema.invoices)
+      .where(and(eq(schema.invoices.id, entry.invoiceId), isNull(schema.invoices.organizationId)))
+      .limit(1)
+      .for('update'),
+  );
+  if (!invoice) return null;
+  const owner = first(
+    await tx
+      .select({ payer: personInvoices.payerAccountId })
+      .from(personInvoices)
+      .where(eq(personInvoices.id, invoice.id))
+      .limit(1),
+  );
+  if (!owner?.payer) return null;
+  const attempt =
+    entry.kind === 'ONLINE' && entry.sourceId !== null
+      ? (first(
+          await tx
+            .select(attemptColumns())
+            .from(schema.paymentAttempts)
+            .where(eq(schema.paymentAttempts.id, entry.sourceId))
+            .limit(1),
+        ) ?? null)
+      : null;
+  return {
+    payer: owner.payer,
+    locked: {
+      kind: 'entry',
+      entry,
+      invoice,
+      attempt,
+      refundable: entryRefundableMinorUnits(entry.amountMinorUnits, await requestsFor(tx, source)),
+    },
+  };
+}
+
+/** Whether a panel reference is already behind any refund, an agency's or a person's: one panel. */
+async function referenceTakenAnywhere(tx: Db, reference: string): Promise<boolean> {
+  const r = schema.refundRequests;
+  const wanted = reference.trim().toLowerCase();
+  const rows = await tx
+    .select({ id: r.id })
+    .from(r)
+    .where(
+      sql`(lower(btrim(coalesce(${r.providerRefundId}, ''))) = ${wanted} or (${r.method} = 'MANUAL' and lower(btrim(coalesce(${r.reference}, ''))) = ${wanted}))`,
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
+/** Whether recording a person's refund can be done here: migrations 0104, 0110, 0111 and 0112. */
+async function personRefundsReady(db: Db): Promise<boolean> {
+  return (
+    (await refundsPresent(db)) &&
+    (await personBillingPresent(db)) &&
+    (await personRefundGuardPresent(db))
+  );
+}
+
+/** The payment would be refunded later than the 7 days the person was promised (D8). */
+function outsideRefundWindow(source: LockedSource, now: Date): boolean {
+  return now.getTime() - paymentDay(source).getTime() > PERSON_REFUND_WINDOW_DAYS * DAY_MS;
+}
+
+export interface RecordPersonRefundInput {
+  readonly source: PersonRefundSource;
+  /** What the page showed would go back; anything else means the page is out of date. */
+  readonly expectedAmountMinorUnits: number;
+  /** The refund reference from the gateway panel. */
+  readonly reference: string;
+  /** When the money went back. Not in the future, not before it came in. */
+  readonly refundedOn: Date;
+  readonly reason: string;
+  readonly idempotencyKey: string;
+  readonly stepUpSatisfied: boolean;
+  readonly now?: Date;
+}
+
+export interface PersonRefundOutcome {
+  readonly code: 'recorded' | 'already_recorded';
+  readonly refundId: string;
+  readonly amountMinorUnits: number;
+  readonly currency: string;
+  /** Recorded more than 7 days after the payment: allowed, shown and audited (owner decision). */
+  readonly outsideWindow: boolean;
+}
+
+/**
+ * Records a traveller's refund made in the gateway panel: the confirmed request naming the
+ * person, the ledger row for counted money (the one ledger function), and the end of the plan it
+ * paid for; or, for held money, the held payment closed. Platform owner only, with a fresh
+ * sign-in. Sent twice with the same key, it records once.
+ */
+export async function recordPersonRefund(
+  db: Db,
+  staff: StaffScope<'BILLING_REFUND_MANAGE'>,
+  input: RecordPersonRefundInput,
+): Promise<Result<PersonRefundOutcome, ServiceError>> {
+  const forbidden = denied(staff);
+  if (forbidden) return err(forbidden);
+  const reason = cleanText(input.reason, MAX_REASON);
+  const reference = cleanText(input.reference, MAX_REFERENCE);
+  const now = input.now ?? new Date();
+  if (!reference)
+    return err(serviceError('invalid', 'Enter the refund reference, up to 120 characters.'));
+  if (!reason) return err(serviceError('invalid', 'Give a reason, up to 500 characters.'));
+  const notLater = refundDayProblem(input.refundedOn, null, now);
+  if (notLater) return err(notLater);
+  if (
+    !isUuid(input.idempotencyKey) ||
+    !Number.isSafeInteger(input.expectedAmountMinorUnits) ||
+    input.expectedAmountMinorUnits <= 0
+  ) {
+    return err(serviceError('invalid', OUT_OF_DATE));
+  }
+  if (!input.stepUpSatisfied) {
+    return err(serviceError('step_up_required', 'recording a refund requires reauthentication'));
+  }
+  if (!(await personRefundsReady(db)))
+    return err(serviceError('invalid', PERSON_REFUNDS_UNAVAILABLE));
+
+  const done = await inReferenceTransaction(
+    db,
+    async (tx): Promise<Result<PersonRefundOutcome, ServiceError>> => {
+      const found = await lockPersonSource(tx, input.source);
+      if (!found) return err(serviceError('not_found', 'payment not found'));
+      const { locked: source, payer } = found;
+      const replay = await byIdempotencyKey(tx, input.idempotencyKey);
+      if (replay) {
+        if (!sameSource(replay, input.source)) return err(serviceError('invalid', OUT_OF_DATE));
+        return ok({
+          code: 'already_recorded',
+          refundId: replay.id,
+          amountMinorUnits: replay.amountMinorUnits,
+          currency: replay.currency,
+          outsideWindow: outsideRefundWindow(source, replay.createdAt),
+        });
+      }
+      // Full refunds only: all that is left of the payment, exactly as the page showed it.
+      const amount = source.kind === 'entry' ? source.refundable : source.remaining;
+      const problem = limitProblem(source, amount);
+      if (problem) return err(problem);
+      if (amount !== input.expectedAmountMinorUnits) {
+        return err(serviceError('invalid', OUT_OF_DATE));
+      }
+      const tooEarly = refundDayProblem(input.refundedOn, paymentDay(source), now);
+      if (tooEarly) return err(tooEarly);
+      if (await referenceTakenAnywhere(tx, reference)) {
+        return err(serviceError('invalid', REFERENCE_TAKEN));
+      }
+      await lockPersonBilling(tx, payer);
+      const ids = sourceIds(source);
+      const row = first(
+        await tx
+          .insert(personRefundRequests)
+          .values({
+            organizationId: null,
+            payerAccountId: payer,
+            ...ids,
+            method: 'MANUAL',
+            status: 'CONFIRMED',
+            amountMinorUnits: amount,
+            provider: null,
+            idempotencyKey: input.idempotencyKey,
+            reason,
+            reference,
+            requestedByAccountId: staff.accountId,
+            providerRefundedAt: input.refundedOn,
+            confirmedAt: now,
+            closedAt: now,
+            createdAt: now,
+            updatedAt: now,
+          })
+          .onConflictDoNothing()
+          .returning({ id: personRefundRequests.id, currency: personRefundRequests.currency }),
+      );
+      if (!row) return err(serviceError('invalid', OUT_OF_DATE));
+      if (source.kind === 'entry') {
+        const written = await applyInvoiceRefund(tx, {
+          invoiceId: source.invoice.id,
+          refundRequestId: row.id,
+          amountMinorUnits: amount,
+          currency: row.currency,
+          provider: null,
+          providerTransactionId: null,
+          reference,
+          refundedAt: input.refundedOn,
+          recordedByAccountId: staff.accountId,
+        });
+        if (!written.ok) {
+          return err(
+            serviceError('invalid', 'This refund could not be recorded against the invoice.'),
+          );
+        }
+        await cancelQueuedNotificationsForResource(tx, source.invoice.id);
+        await endPersonPlanAfterRefund(tx, payer, source.invoice.id, staff.accountId, now);
+      } else {
+        await closeHeldIfSettled(tx, source.attempt, staff.accountId, now);
+      }
+      const outsideWindow = outsideRefundWindow(source, now);
+      await appendAuditEvent(tx, {
+        eventType: 'INVOICE_REFUND_RECORDED',
+        actorAccountId: staff.accountId,
+        action: 'MANAGE',
+        method: 'MANUAL',
+        result: 'ALLOWED',
+        resourceType: 'refund_request',
+        resourceId: row.id,
+        reason,
+        metadata: {
+          payerKind: 'person',
+          invoiceId: ids.invoiceId,
+          invoicePaymentId: ids.invoicePaymentId,
+          paymentAttemptId: ids.paymentAttemptId,
+          method: 'MANUAL',
+          status: 'CONFIRMED',
+          amountMinorUnits: amount,
+          currency: row.currency,
+          outsideRefundWindow: outsideWindow,
+        },
+      });
+      await enqueueNotificationBothChannels(tx, {
+        eventType: 'PERSON_REFUND_RECORDED',
+        resourceId: row.id,
+        recipientAccountId: payer,
+        payload: {
+          subject: 'Refund Made',
+          summary: `A refund was made on your purchase ${await invoiceRefOf(tx, ids.invoiceId)}. It can take a few days to reach you.`,
+          deepLinkPath: '/app/account/plan/billing',
+        },
+      });
+      return ok({
+        code: 'recorded',
+        refundId: row.id,
+        amountMinorUnits: amount,
+        currency: row.currency,
+        outsideWindow,
+      });
+    },
+  );
+  return done;
+}
+
+/**
+ * After a person's payment was refunded, inside the same transaction and the person's lock: the
+ * money no longer pays for that period (the resolver already ignores refunded invoices). When no
+ * other paid, unrefunded period of the plan covers now or later, the plan ends now (D8: it ends
+ * when the refund is recorded). When one does (a renewal paid ahead was refunded, or an earlier
+ * period), the plan keeps that period but stops renewing (owner decision). Either way the renewal
+ * waiting to be paid is cancelled with its reminders, unless a payment on it is on its way.
+ */
+async function endPersonPlanAfterRefund(
+  tx: Db,
+  payer: string,
+  invoiceId: string,
+  actorAccountId: string,
+  now: Date,
+): Promise<void> {
+  const i = personInvoices;
+  const s = personSubscriptions;
+  const refunded = first(
+    await tx
+      .select({ subscriptionId: i.subscriptionId })
+      .from(i)
+      .where(eq(i.id, invoiceId))
+      .limit(1),
+  );
+  const subscriptionId = refunded?.subscriptionId ?? null;
+  if (subscriptionId === null) return;
+  const current = first(
+    await tx
+      .select({ id: s.id })
+      .from(s)
+      .where(and(eq(s.id, subscriptionId), eq(s.payerAccountId, payer), isNull(s.endedAt)))
+      .limit(1)
+      .for('update'),
+  );
+  if (!current) return;
+  const stillPaid = first(
+    await tx
+      .select({ id: i.id })
+      .from(i)
+      .where(
+        and(
+          eq(i.subscriptionId, subscriptionId),
+          eq(i.payerAccountId, payer),
+          eq(i.status, 'PAID'),
+          sql`${i.periodEnd} > ${now.toISOString()}::timestamptz`,
+          sql`not ${invoiceHasRefundSql(sql`${i.id}`)}`,
+        ),
+      )
+      .limit(1),
+  );
+  if (stillPaid) {
+    await tx.update(s).set({ renews: false }).where(eq(s.id, subscriptionId));
+  } else {
+    await tx.update(s).set({ endedAt: now }).where(eq(s.id, subscriptionId));
+  }
+  const open = await tx
+    .select({ id: i.id })
+    .from(i)
+    .where(
+      and(
+        eq(i.subscriptionId, subscriptionId),
+        eq(i.payerAccountId, payer),
+        eq(i.status, 'OPEN'),
+        eq(i.collectedAmountMinorUnits, 0),
+        sql`not ${invoiceHasRefundSql(sql`${i.id}`)}`,
+        sql`not exists (select 1 from payment_attempts pa where pa.invoice_id = ${i.id} and pa.status in ('CREATED', 'REDIRECTED', 'VALIDATED'))`,
+      ),
+    );
+  for (const renewal of open) {
+    await tx.update(i).set({ status: 'VOID', updatedAt: now }).where(eq(i.id, renewal.id));
+    await cancelQueuedNotificationsForResource(tx, renewal.id);
+  }
+  await appendAuditEvent(tx, {
+    eventType: 'PERSON_PLAN_REFUNDED',
+    actorAccountId,
+    action: 'MANAGE',
+    method: 'MANUAL',
+    result: 'ALLOWED',
+    resourceType: 'subscription',
+    resourceId: subscriptionId,
+    metadata: {
+      invoiceId,
+      outcome: stillPaid ? 'renewing_stopped' : 'plan_ended',
+      cancelledInvoices: open.length,
+    },
+  });
 }

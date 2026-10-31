@@ -87,7 +87,9 @@ export type NotificationEventType =
   | 'INVOICE_CREDIT_APPLIED'
   // ADR 0025 T4: a person's own paid plan; for that person only (no agency, no case).
   | 'PERSON_PLAN_RENEWAL_DUE'
-  | 'PERSON_PLAN_ENDED';
+  | 'PERSON_PLAN_ENDED'
+  // ADR 0025 T6: a refund of the person's own purchase was made; no amount.
+  | 'PERSON_REFUND_RECORDED';
 
 /**
  * Billing notices (S17): an agency's invoices, reminders and billing status are for its owners

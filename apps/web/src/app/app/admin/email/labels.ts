@@ -32,6 +32,7 @@ export const EMAIL_KIND_LABELS: Readonly<Record<string, string>> = {
   INVOICE_CREDIT_APPLIED: 'Credit Applied',
   PERSON_PLAN_RENEWAL_DUE: 'Plan Renewal Reminder',
   PERSON_PLAN_ENDED: 'Paid Plan Ended',
+  PERSON_REFUND_RECORDED: 'Traveller Refund',
 };
 
 export const OTHER_EMAIL_KIND = 'Other Email';
