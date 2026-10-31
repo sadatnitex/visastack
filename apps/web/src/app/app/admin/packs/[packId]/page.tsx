@@ -123,8 +123,8 @@ export default async function PackDetailPage({
             const isWithdrawn = version.status === 'WITHDRAWN';
             return (
               <article className="card" key={version.id}>
-                <div className="toolbar" style={{ marginBottom: '1rem', alignItems: 'center' }}>
-                  <h2 className="card-title u-m-0">Version {version.version}</h2>
+                <div className="card-head">
+                  <h2 className="card-title">Version {version.version}</h2>
                   <span className={`badge ${badge.tone}`}>{badge.label}</span>
                 </div>
 
@@ -295,8 +295,8 @@ export default async function PackDetailPage({
                         <p className="card-kicker" style={{ marginBottom: '0.5rem' }}>
                           RUL-06 · Public Trust Lite
                         </p>
-                        <div className="rows" style={{ marginBottom: '0.75rem' }}>
-                          <div className="row">
+                        <div className="rows rows-grid" style={{ marginBottom: '0.75rem' }}>
+                          <div className="row row-wide">
                             <span className="row-key">Route Description</span>
                             <span className="row-val">{version.routeDescription ?? 'Not set'}</span>
                           </div>

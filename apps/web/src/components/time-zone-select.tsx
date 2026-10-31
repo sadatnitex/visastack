@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import {
   COMMON_TIME_ZONES,
   type TimeZoneGroups,
@@ -18,20 +18,25 @@ import {
  * its offset, and picks this device's zone unless the person already chose one.
  */
 export function TimeZoneSelect({
+  id: givenId,
   name,
   label = 'Time Zone',
   defaultValue,
   required = true,
   className,
 }: {
+  /** Set when a visible `<label htmlFor>` names the control; `label` is then not used. */
+  id?: string;
   name: string;
-  /** The accessible name of the control. */
+  /** The accessible name of the control when no visible label points at it. */
   label?: string;
   defaultValue?: string;
   required?: boolean;
   className?: string;
 }) {
-  const id = useId();
+  const ownId = useId();
+  const id = givenId ?? ownId;
+  const select = useRef<HTMLSelectElement>(null);
   const [value, setValue] = useState(defaultValue ?? '');
   const [full, setFull] = useState<TimeZoneGroups | null>(null);
 
@@ -41,11 +46,27 @@ export function TimeZoneSelect({
     if (!defaultValue && device) setValue((current) => current || device);
   }, [defaultValue]);
 
+  // React resets a form after its action runs, which puts the list back on its first option while
+  // the chosen zone stays in state; show the starting zone again so screen and state agree.
+  useEffect(() => {
+    const form = select.current?.form;
+    if (!form) return;
+    const restore = () =>
+      window.setTimeout(() => {
+        const start = defaultValue || deviceTimeZone() || '';
+        setValue(start);
+        if (select.current) select.current.value = start;
+      });
+    form.addEventListener('reset', restore);
+    return () => form.removeEventListener('reset', restore);
+  }, [defaultValue]);
+
   return (
     <select
+      ref={select}
       id={id}
       name={name}
-      aria-label={label}
+      aria-label={givenId ? undefined : label}
       className={`input tz-select${className ? ` ${className}` : ''}`}
       required={required}
       value={value}

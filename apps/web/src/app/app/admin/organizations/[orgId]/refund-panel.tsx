@@ -186,7 +186,7 @@ function RefundPaging({
       <form
         method="get"
         action={`/app/admin/organizations/${organizationId}`}
-        className="field-list"
+        className="field-list form-narrow"
       >
         <div className="field-row">
           <label className="field-label" htmlFor="refund-invoice-search">

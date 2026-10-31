@@ -35,22 +35,24 @@ export default async function WhatsAppPage() {
           <article className="card">
             <p className="card-kicker">Connected</p>
             <h2 className="card-title">Your WhatsApp Is Connected</h2>
-            <div className="rows u-mt-050">
+            <div className="rows rows-grid u-mt-050">
               {connection.maskedNumber ? (
                 <p className="row">
                   <span className="row-key">Number</span>
-                  <span>{connection.maskedNumber}</span>
+                  <span className="row-val">{connection.maskedNumber}</span>
                 </p>
               ) : null}
               {connection.connectedAt ? (
                 <p className="row">
                   <span className="row-key">Connected On</span>
-                  <span>{formatDateOnly(connection.connectedAt)}</span>
+                  <span className="row-val">{formatDateOnly(connection.connectedAt)}</span>
                 </p>
               ) : null}
               <p className="row">
                 <span className="row-key">Messages</span>
-                <span>{connection.messagesOff ? 'Off (send START to turn them on)' : 'On'}</span>
+                <span className="row-val">
+                  {connection.messagesOff ? 'Off (send START to turn them on)' : 'On'}
+                </span>
               </p>
             </div>
             <p className="card-body u-mt-050">

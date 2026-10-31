@@ -108,7 +108,7 @@ export function PlanForm({
     </div>
   );
   return (
-    <form ref={form} action={formAction} className="field-list">
+    <form ref={form} action={formAction} className="field-list form-narrow">
       <input type="hidden" name="planId" value={planId ?? ''} />
       {planId ? (
         <input
@@ -123,67 +123,74 @@ export function PlanForm({
         </output>
       ) : null}
       <div key={JSON.stringify(values)} className="field-list">
-        <div className="field-row">
-          <label className="field-label" htmlFor={`${id}-name`}>
-            Plan Name
-          </label>
-          <input
-            id={`${id}-name`}
-            type="text"
-            className="input"
-            maxLength={80}
-            {...input('name')}
-          />
-        </div>
-        {traveller ? (
-          <input type="hidden" name="periodDays" value={value('periodDays')} />
-        ) : (
-          <div className="field-row">
-            <label className="field-label" htmlFor={`${id}-period`}>
-              Billing Period (Days)
-            </label>
-            <input
-              id={`${id}-period`}
-              type="text"
-              inputMode="numeric"
-              className="input"
-              readOnly={periodLocked}
-              {...input('periodDays', periodLocked ? `${id}-period-hint` : undefined)}
-            />
-            {periodLocked ? (
-              <small className="muted" id={`${id}-period-hint`}>
-                {PERIOD_LOCKED_NOTE}
-              </small>
-            ) : null}
-          </div>
-        )}
-        {traveller ? null : (
-          <fieldset className="fieldset">
-            <legend className="field-label">Price per Billing Period</legend>
+        <fieldset className="form-section">
+          <legend>Plan Details</legend>
+          <div className="form-grid">
             <div className="field-row">
-              <label className="field-label" htmlFor={`${id}-price`}>
-                Amount
+              <label className="field-label" htmlFor={`${id}-name`}>
+                Plan Name
               </label>
               <input
-                id={`${id}-price`}
+                id={`${id}-name`}
                 type="text"
-                inputMode="decimal"
                 className="input"
-                {...input('price', `${id}-price-hint`)}
+                maxLength={80}
+                {...input('name')}
               />
             </div>
-            <div className="field-row">
-              <label className="field-label" htmlFor={`${id}-currency`}>
-                Currency
-              </label>
-              <input
-                id={`${id}-currency`}
-                type="text"
-                className="input"
-                maxLength={3}
-                autoCapitalize="characters"
-                {...input('currency', `${id}-price-hint`)}
-              />
+            {traveller ? (
+              <input type="hidden" name="periodDays" value={value('periodDays')} />
+            ) : (
+              <div className="field-row">
+                <label className="field-label" htmlFor={`${id}-period`}>
+                  Billing Period (Days)
+                </label>
+                <input
+                  id={`${id}-period`}
+                  type="text"
+                  inputMode="numeric"
+                  className="input"
+                  readOnly={periodLocked}
+                  {...input('periodDays', periodLocked ? `${id}-period-hint` : undefined)}
+                />
+                {periodLocked ? (
+                  <small className="muted" id={`${id}-period-hint`}>
+                    {PERIOD_LOCKED_NOTE}
+                  </small>
+                ) : null}
+              </div>
+            )}
+          </div>
+        </fieldset>
+        {traveller ? null : (
+          <fieldset className="form-section">
+            <legend>Price per Billing Period</legend>
+            <div className="form-grid">
+              <div className="field-row">
+                <label className="field-label" htmlFor={`${id}-price`}>
+                  Amount
+                </label>
+                <input
+                  id={`${id}-price`}
+                  type="text"
+                  inputMode="decimal"
+                  className="input"
+                  {...input('price', `${id}-price-hint`)}
+                />
+              </div>
+              <div className="field-row">
+                <label className="field-label" htmlFor={`${id}-currency`}>
+                  Currency
+                </label>
+                <input
+                  id={`${id}-currency`}
+                  type="text"
+                  className="input"
+                  maxLength={3}
+                  autoCapitalize="characters"
+                  {...input('currency', `${id}-price-hint`)}
+                />
+              </div>
             </div>
             <small className="muted" id={`${id}-price-hint`}>
               Leave both empty for a plan with no price. {planId ? PRICE_CHANGE_NOTE : ''}
@@ -193,42 +200,44 @@ export function PlanForm({
         {traveller ? (
           <p className="muted u-fs-085">{TRAVELLER_LIMITS_NOTE}</p>
         ) : (
-          <fieldset className="fieldset">
-            <legend className="field-label">Limits</legend>
-            {EDITABLE_CAPACITY_KEYS.map(capacity)}
+          <fieldset className="form-section">
+            <legend>Limits</legend>
+            <div className="form-grid">{EDITABLE_CAPACITY_KEYS.map(capacity)}</div>
           </fieldset>
         )}
         {traveller ? (
-          <fieldset className="fieldset">
-            <legend className="field-label">AI Features</legend>
-            {AI_FEATURE_KEYS.map((feature) => (
-              <div className="field-row" key={feature}>
-                <div className="checks">
-                  <label className="check" htmlFor={`${id}-${feature}-on`}>
-                    <input
-                      id={`${id}-${feature}-on`}
-                      type="checkbox"
-                      name={featureOnField(feature)}
-                      defaultChecked={value(featureOnField(feature)) === 'on'}
-                    />
-                    <span>{aiFeatureName(feature)}</span>
+          <fieldset className="form-section">
+            <legend>AI Features</legend>
+            <div className="form-grid">
+              {AI_FEATURE_KEYS.map((feature) => (
+                <div className="field-row" key={feature}>
+                  <div className="checks">
+                    <label className="check" htmlFor={`${id}-${feature}-on`}>
+                      <input
+                        id={`${id}-${feature}-on`}
+                        type="checkbox"
+                        name={featureOnField(feature)}
+                        defaultChecked={value(featureOnField(feature)) === 'on'}
+                      />
+                      <span>{aiFeatureName(feature)}</span>
+                    </label>
+                  </div>
+                  <label className="field-label" htmlFor={`${id}-${feature}-limit`}>
+                    Daily Limit per Person: {aiFeatureName(feature)}
                   </label>
+                  <input
+                    id={`${id}-${feature}-limit`}
+                    type="text"
+                    inputMode="numeric"
+                    className="input"
+                    {...input(featureLimitField(feature), `${id}-${feature}-hint`)}
+                  />
+                  <small className="muted" id={`${id}-${feature}-hint`}>
+                    {AI_LIMIT_HINT}
+                  </small>
                 </div>
-                <label className="field-label" htmlFor={`${id}-${feature}-limit`}>
-                  Daily Limit per Person: {aiFeatureName(feature)}
-                </label>
-                <input
-                  id={`${id}-${feature}-limit`}
-                  type="text"
-                  inputMode="numeric"
-                  className="input"
-                  {...input(featureLimitField(feature), `${id}-${feature}-hint`)}
-                />
-                <small className="muted" id={`${id}-${feature}-hint`}>
-                  {AI_LIMIT_HINT}
-                </small>
-              </div>
-            ))}
+              ))}
+            </div>
           </fieldset>
         ) : (
           <p className="muted u-fs-085">{AGENCY_AI_NOTE}</p>

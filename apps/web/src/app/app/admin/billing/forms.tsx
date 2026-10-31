@@ -63,7 +63,7 @@ export function BillingRulesForm({
   };
 
   return (
-    <form ref={form} action={formAction} className="field-list">
+    <form ref={form} action={formAction} className="field-list form-narrow">
       {/* A reply with other values or a new preview draws the fields again from what was sent
           back, so the browser's reset after a reply never empties what was typed. */}
       <RulesFields
@@ -109,125 +109,144 @@ function RulesFields({
   }, [newPreview]);
   return (
     <>
-      <div className="field-row">
-        <label className="field-label" htmlFor={`${id}-due`}>
-          Payment Due After (Days)
-        </label>
-        <input
-          id={`${id}-due`}
-          name="dueDays"
-          type="number"
-          inputMode="numeric"
-          min={1}
-          max={60}
-          step={1}
-          required
-          className="input"
-          defaultValue={values.dueDays}
-          {...described([`${id}-due-hint`], fieldProblem(state, 'dueDays', messageId))}
-        />
-        <p id={`${id}-due-hint`} className="muted u-fs-085">
-          Counted from the day each billing period starts, or from the day the invoice is made if
-          that is later.
-        </p>
-      </div>
-
-      <fieldset className="fieldset">
-        <legend className="field-label">
-          Move Unpaid Agencies to Grace and Suspended Automatically
-        </legend>
-        <label className="check">
-          <input
-            type="radio"
-            name="overdueHandling"
-            value="off"
-            defaultChecked={!on}
-            onChange={() => setOn(false)}
-          />
-          Off
-        </label>
-        <label className="check">
-          <input
-            type="radio"
-            name="overdueHandling"
-            value="on"
-            defaultChecked={on}
-            onChange={() => setOn(true)}
-          />
-          On
-        </label>
+      <fieldset className="form-section">
+        <legend>Due Date</legend>
+        <div className="form-grid">
+          <div className="field-row">
+            <label className="field-label" htmlFor={`${id}-due`}>
+              Payment Due After (Days)
+            </label>
+            <input
+              id={`${id}-due`}
+              name="dueDays"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={60}
+              step={1}
+              required
+              className="input"
+              defaultValue={values.dueDays}
+              {...described([`${id}-due-hint`], fieldProblem(state, 'dueDays', messageId))}
+            />
+            <p id={`${id}-due-hint`} className="muted u-fs-085">
+              Counted from the day each billing period starts, or from the day the invoice is made
+              if that is later.
+            </p>
+          </div>
+        </div>
       </fieldset>
 
-      <div className="field-row">
-        <label className="field-label" htmlFor={`${id}-grace`}>
-          Move to Grace (Days After the Due Date)
-        </label>
-        <input
-          id={`${id}-grace`}
-          name="graceAfterDays"
-          type="number"
-          inputMode="numeric"
-          min={1}
-          max={364}
-          step={1}
-          className="input"
-          defaultValue={values.graceAfterDays}
-          required={on}
-          aria-required={on ? true : undefined}
-          {...described([graceHint, bothHint], fieldProblem(state, 'graceAfterDays', messageId))}
-        />
-        <p id={graceHint} className="muted u-fs-085">
-          1 means the day after the due date. Used only when this is On.
-        </p>
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor={`${id}-suspend`}>
-          Suspend (Days After the Due Date)
-        </label>
-        <input
-          id={`${id}-suspend`}
-          name="suspendAfterDays"
-          type="number"
-          inputMode="numeric"
-          min={2}
-          max={365}
-          step={1}
-          className="input"
-          defaultValue={values.suspendAfterDays}
-          required={on}
-          aria-required={on ? true : undefined}
-          {...described(
-            [suspendHint, bothHint],
-            fieldProblem(state, 'suspendAfterDays', messageId),
-          )}
-        />
-        <p id={suspendHint} className="muted u-fs-085">
-          Later than Grace, so 2 or more. Used only when this is On.
-        </p>
-        <p id={bothHint} className="muted u-fs-085">
-          Leave both day counts empty while you have not decided.
-        </p>
-      </div>
+      <fieldset className="form-section">
+        <legend>Unpaid Invoices</legend>
+        <div className="form-grid">
+          <div className="field-wide">
+            <fieldset className="fieldset">
+              <legend className="field-label">
+                Move Unpaid Agencies to Grace and Suspended Automatically
+              </legend>
+              <label className="check">
+                <input
+                  type="radio"
+                  name="overdueHandling"
+                  value="off"
+                  defaultChecked={!on}
+                  onChange={() => setOn(false)}
+                />
+                Off
+              </label>
+              <label className="check">
+                <input
+                  type="radio"
+                  name="overdueHandling"
+                  value="on"
+                  defaultChecked={on}
+                  onChange={() => setOn(true)}
+                />
+                On
+              </label>
+            </fieldset>
+          </div>
 
-      {preview ? (
-        <div className="field-row">
-          <output id={previewId} className="notice notice-warn">
-            {previewSentence(preview)} {previewDays(preview)}
-          </output>
-          <input type="hidden" name="previewGraceAfterDays" value={preview.graceAfterDays} />
-          <input type="hidden" name="previewSuspendAfterDays" value={preview.suspendAfterDays} />
-          <label className="check">
+          <div className="field-row">
+            <label className="field-label" htmlFor={`${id}-grace`}>
+              Move to Grace (Days After the Due Date)
+            </label>
             <input
-              ref={confirmBox}
-              type="checkbox"
-              name="confirmed"
-              value="yes"
-              {...described([previewId], fieldProblem(state, 'confirmed', messageId))}
+              id={`${id}-grace`}
+              name="graceAfterDays"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={364}
+              step={1}
+              className="input"
+              defaultValue={values.graceAfterDays}
+              required={on}
+              aria-required={on ? true : undefined}
+              {...described(
+                [graceHint, bothHint],
+                fieldProblem(state, 'graceAfterDays', messageId),
+              )}
             />
-            {confirmLabel(preview)}
-          </label>
+            <p id={graceHint} className="muted u-fs-085">
+              1 means the day after the due date. Used only when this is On.
+            </p>
+          </div>
+          <div className="field-row">
+            <label className="field-label" htmlFor={`${id}-suspend`}>
+              Suspend (Days After the Due Date)
+            </label>
+            <input
+              id={`${id}-suspend`}
+              name="suspendAfterDays"
+              type="number"
+              inputMode="numeric"
+              min={2}
+              max={365}
+              step={1}
+              className="input"
+              defaultValue={values.suspendAfterDays}
+              required={on}
+              aria-required={on ? true : undefined}
+              {...described(
+                [suspendHint, bothHint],
+                fieldProblem(state, 'suspendAfterDays', messageId),
+              )}
+            />
+            <p id={suspendHint} className="muted u-fs-085">
+              Later than Grace, so 2 or more. Used only when this is On.
+            </p>
+            <p id={bothHint} className="muted u-fs-085">
+              Leave both day counts empty while you have not decided.
+            </p>
+          </div>
+
+          {preview ? (
+            <div className="field-row field-wide">
+              <output id={previewId} className="notice notice-warn">
+                {previewSentence(preview)} {previewDays(preview)}
+              </output>
+              <input type="hidden" name="previewGraceAfterDays" value={preview.graceAfterDays} />
+              <input
+                type="hidden"
+                name="previewSuspendAfterDays"
+                value={preview.suspendAfterDays}
+              />
+              <label className="check">
+                <input
+                  ref={confirmBox}
+                  type="checkbox"
+                  name="confirmed"
+                  value="yes"
+                  {...described([previewId], fieldProblem(state, 'confirmed', messageId))}
+                />
+                {confirmLabel(preview)}
+              </label>
+            </div>
+          ) : null}
         </div>
-      ) : null}
+      </fieldset>
     </>
   );
 }

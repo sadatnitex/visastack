@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useId } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import {
   type ActionState,
@@ -12,28 +12,32 @@ const INITIAL: ActionState = { ok: true, message: '' };
 
 export function AssignComplaintForm({ complaintId }: { readonly complaintId: string }) {
   const [state, formAction, pending] = useActionState(assignComplaintOwnerAction, INITIAL);
+  const ownerId = `${useId()}-owner`;
   return (
-    <form
-      action={formAction}
-      style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}
-    >
+    <form action={formAction} className="field-list form-compact">
       <input type="hidden" name="complaintId" value={complaintId} />
-      <input
-        name="ownerEmail"
-        type="email"
-        required
-        className="input"
-        aria-label="Email of the person to assign to"
-        placeholder="assign to email"
-        style={{ maxWidth: '14rem' }}
-      />
-      <SubmitButton
-        pending={pending}
-        idle="Assign"
-        busy="Assigning…"
-        className="btn btn-secondary"
-      />
-      <FormMessage result={state} />
+      <div className="field-row">
+        <label className="field-label" htmlFor={ownerId}>
+          Assignee Email
+        </label>
+        <input
+          id={ownerId}
+          name="ownerEmail"
+          type="email"
+          required
+          className="input"
+          placeholder="person@example.com"
+        />
+      </div>
+      <div>
+        <SubmitButton
+          pending={pending}
+          idle="Assign"
+          busy="Assigning…"
+          className="btn btn-secondary"
+        />
+        <FormMessage result={state} />
+      </div>
     </form>
   );
 }
@@ -51,52 +55,50 @@ export function UpdateComplaintStatusForm({
   readonly currentStatus: string;
 }) {
   const [state, formAction, pending] = useActionState(updateComplaintStatusAction, INITIAL);
+  const id = useId();
   const options = NEXT_STATUSES[currentStatus] ?? [];
   if (options.length === 0) return null;
   return (
-    <form
-      action={formAction}
-      style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}
-    >
+    <form action={formAction} className="field-list form-compact">
       <input type="hidden" name="complaintId" value={complaintId} />
-      <select
-        name="status"
-        aria-label="Move the complaint to"
-        className="input"
-        defaultValue=""
-        required
-        style={{ maxWidth: '10rem' }}
-      >
-        <option value="" disabled>
-          Move to…
-        </option>
-        {options.map((s) => (
-          <option key={s} value={s}>
-            {s}
-          </option>
-        ))}
-      </select>
-      <input
-        name="resolution"
-        type="text"
-        className="input"
-        aria-label="Resolution (if resolving)"
-        placeholder="resolution (if resolving)"
-      />
-      <input
-        name="note"
-        type="text"
-        className="input"
-        aria-label="Note (optional)"
-        placeholder="note (optional)"
-      />
-      <SubmitButton
-        pending={pending}
-        idle="Update"
-        busy="Updating…"
-        className="btn btn-secondary"
-      />
-      <FormMessage result={state} />
+      <div className="form-grid">
+        <div className="field-row">
+          <label className="field-label" htmlFor={`${id}-status`}>
+            Move To
+          </label>
+          <select id={`${id}-status`} name="status" className="input" defaultValue="" required>
+            <option value="" disabled>
+              Choose a status…
+            </option>
+            {options.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field-row">
+          <label className="field-label" htmlFor={`${id}-resolution`}>
+            Resolution (If Resolving)
+          </label>
+          <input id={`${id}-resolution`} name="resolution" type="text" className="input" />
+        </div>
+        <div className="field-row field-wide">
+          <label className="field-label" htmlFor={`${id}-note`}>
+            Note (Optional)
+          </label>
+          <input id={`${id}-note`} name="note" type="text" className="input" />
+        </div>
+      </div>
+      <div>
+        <SubmitButton
+          pending={pending}
+          idle="Update"
+          busy="Updating…"
+          className="btn btn-secondary"
+        />
+        <FormMessage result={state} />
+      </div>
     </form>
   );
 }

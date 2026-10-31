@@ -107,7 +107,7 @@ export default async function AdminComplaintsPage() {
                   {c.ownerAccountId ? ` · Assigned to ${c.ownerAccountId}` : ' · Unassigned'}
                 </p>
                 {!TERMINAL_STATUSES.has(c.status) ? (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
+                  <div className="stack-sm">
                     <AssignComplaintForm complaintId={c.id} />
                     <UpdateComplaintStatusForm complaintId={c.id} currentStatus={c.status} />
                   </div>

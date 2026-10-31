@@ -35,7 +35,7 @@ export function ConnectSignInForm({
     return <FormMessage id={messageId} result={state} />;
   }
   return (
-    <form action={formAction} className="field-list">
+    <form action={formAction} className="field-list form-compact">
       <input type="hidden" name="accountId" value={accountId} />
       <div className="field-row">
         <label className="field-label" htmlFor={reasonId}>

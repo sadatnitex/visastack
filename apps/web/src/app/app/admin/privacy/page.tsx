@@ -102,7 +102,7 @@ export default async function AdminPrivacyPage() {
                   auto-purged.
                 </p>
               ) : (
-                <div className="rows u-mb-125">
+                <div className="rows rows-grid u-mb-125">
                   {data.policies.map((p) => (
                     <div className="row" key={p.id}>
                       <span className="row-key">{documentTypeLabel(p.docType)}</span>

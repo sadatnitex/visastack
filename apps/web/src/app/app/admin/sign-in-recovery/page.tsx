@@ -58,11 +58,20 @@ export default async function SignInRecoveryPage() {
           {result.value.map((request) => (
             <article className="card" key={request.accountId}>
               <h2 className="card-title">{request.email}</h2>
-              <p className="card-body">
-                Account made {formatTimestampDate(request.joinedAt)}, last used{' '}
-                {formatTimestampDate(request.lastActiveAt)}. New sign-in tried{' '}
-                {formatTimestampDate(request.requestedAt)}.
-              </p>
+              <div className="rows rows-grid u-mb-100">
+                <p className="row">
+                  <span className="row-key">Account Made</span>
+                  <span className="row-val">{formatTimestampDate(request.joinedAt)}</span>
+                </p>
+                <p className="row">
+                  <span className="row-key">Last Used</span>
+                  <span className="row-val">{formatTimestampDate(request.lastActiveAt)}</span>
+                </p>
+                <p className="row">
+                  <span className="row-key">New Sign-In Tried</span>
+                  <span className="row-val">{formatTimestampDate(request.requestedAt)}</span>
+                </p>
+              </div>
               {request.ambiguous ? (
                 <p className="notice notice-warn">
                   More than one new sign-in tried to reach this account in the last{' '}
