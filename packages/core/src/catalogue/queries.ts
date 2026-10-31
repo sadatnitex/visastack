@@ -2,7 +2,13 @@ import { CATALOGUE_FIELDS } from './fields';
 import { LEGACY_FIELD_SNAPSHOT } from './legacy';
 import { CATALOGUE_MODULES } from './modules';
 import { CATALOGUE_PURPOSES } from './purposes';
-import type { CatalogueField, CataloguePurpose, FieldRole, LayerKey } from './types';
+import type {
+  CatalogueField,
+  CatalogueModule,
+  CataloguePurpose,
+  FieldRole,
+  LayerKey,
+} from './types';
 
 /** Every field key that is live today or added by the catalogue. */
 export const ALL_FIELD_KEYS: ReadonlySet<string> = new Set([
@@ -120,4 +126,21 @@ export function knownFieldOptions(): readonly KnownFieldOption[] {
       label: field.label,
     })),
   ];
+}
+
+/**
+ * Whether a section is suggested for a purpose family, given the countries of the person's own
+ * cases for that family (two-letter codes; empty when they have none or none name a country).
+ * A section about particular countries is suggested only for those countries once a case names
+ * one; otherwise it is suggested for the whole family, as before.
+ */
+export function isModuleSuggested(
+  module: Pick<CatalogueModule, 'suggestedFor' | 'suggestedForCountries'>,
+  family: string,
+  caseCountries: ReadonlySet<string>,
+): boolean {
+  if (!(module.suggestedFor ?? []).some((candidate) => candidate === family)) return false;
+  const countries = module.suggestedForCountries;
+  if (!countries || caseCountries.size === 0) return true;
+  return countries.some((code) => caseCountries.has(code));
 }

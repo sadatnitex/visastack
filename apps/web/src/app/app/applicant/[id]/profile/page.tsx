@@ -10,6 +10,7 @@ import {
   listApplicantAssurance,
   listApplicantProfile,
   listDocumentsDetailed,
+  listMissions,
   listPendingAppSuggestions,
   requireAccess,
 } from '@visastack/services';
@@ -21,6 +22,7 @@ import { DepthSwitch } from '../../../../../components/depth-switch';
 import { initialsOf } from '../../../../../components/profile-photo/crop';
 import { ProfilePhotoControl } from '../../../../../components/profile-photo/profile-photo-control';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
+import { caseCountriesForFamily } from '../../../../../lib/case-choices';
 import { depthCopyFor } from '../../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
 import { confirmedValues, findingViewModel } from '../../../../../lib/document-findings';
@@ -122,6 +124,13 @@ export default async function ApplicantProfilePage({
         if (kind) uploadedDocumentTypes.set(kind, (uploadedDocumentTypes.get(kind) ?? 0) + 1);
       }
     }
+    // The countries of this person's own cases for the chosen purpose, so the suggestions name
+    // only the country sections those cases are about.
+    const cases = suggestFor !== null ? await listMissions(db, accountId, id) : null;
+    const caseCountries =
+      suggestFor !== null && cases?.ok
+        ? caseCountriesForFamily(cases.value, suggestFor)
+        : new Set<string>();
     const pending = fromApps.pending;
     // Compared with the profile only when there is something to compare, with protected values
     // read on the server first (as Documents does), so an identical value is never a difference.
@@ -143,6 +152,7 @@ export default async function ApplicantProfilePage({
       coreGranted,
       sectionChoices,
       uploadedDocumentTypes,
+      caseCountries,
       // EVI-05: per-fact assurance is owner-only, same as the profile
       // itself. A denial here (a caller who somehow isn't the owner) just
       // means no breakdown renders, never a page error.
@@ -198,6 +208,7 @@ export default async function ApplicantProfilePage({
     noneDeclared: data.sectionChoices.noneDeclared,
     suggestFor,
     uploadedDocumentTypes: data.uploadedDocumentTypes,
+    caseCountries: data.caseCountries,
   });
   const completeness = view.percent;
   const { essentials } = view;

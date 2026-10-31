@@ -6885,3 +6885,9 @@ Owner approval ("go phase 2") after phase 1 (#351). Same pattern and opt-in styl
 - Guard proved: with the end-date reserved name removed the new readiness test failed (a saved fact stood in for the case date), and passed again once restored.
 - Not built, on purpose: stored "SEVIS status" or "fees paid" values (they go stale), a profile allergy field, a trip-legs table.
 - Not verified: which readiness conditions exist in the production database (none are seeded), and yellow fever rules per country (need official citations).
+
+## 2026-10-31: Study suggestions follow the case destination (no migration)
+
+- The case destination was already a listed country on the new-case form, so no form or database change. The three Study country sections (United States, United Kingdom and Ireland, Australia and New Zealand) now carry their country codes. When a person has a Study case that names a country, only the matching section is suggested; with no such case, all three are suggested as before. The suggestion list and the Open Suggested Sections button share one rule.
+- Guard proved: with the country check removed the profile and catalogue tests failed, and passed again once restored.
+- Not verified: how the profile screen reads on production with a real Study case (needs a signed-in check).

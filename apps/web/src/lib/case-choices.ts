@@ -196,6 +196,21 @@ export function travellerMatchTerms(coverage: TravellerCoverage): TravellerMatch
   };
 }
 
+/** The picker purpose (and its family) a saved purpose names, by label or key, or null. */
+function purposeNamed(
+  text: string,
+): { readonly option: CasePurposeOption; readonly family: PurposeFamilyKey } | null {
+  const wanted = packMatchKey(text);
+  if (wanted.length === 0) return null;
+  for (const group of casePurposeGroups()) {
+    const option = group.options.find(
+      (item) => packMatchKey(item.label) === wanted || packMatchKey(item.key) === wanted,
+    );
+    if (option) return { option, family: group.family };
+  }
+  return null;
+}
+
 /**
  * The country and purpose a saved case names, as checklist match terms, or null when it names no
  * country or no purpose. A case started from the pickers saved the country's name and the
@@ -209,12 +224,28 @@ export function savedCaseMatchTerms(
   const reason = purpose?.trim() ?? '';
   if (place.length === 0 || reason.length === 0) return null;
   const country = countryNamed(place);
-  const wanted = packMatchKey(reason);
-  const option = casePurposeGroups()
-    .flatMap((group) => group.options)
-    .find((item) => packMatchKey(item.label) === wanted || packMatchKey(item.key) === wanted);
+  const option = purposeNamed(reason)?.option;
   return {
     country: country ? countryMatchTerms(country) : [place],
     purpose: option ? purposeMatchTerms(option) : [reason],
   };
+}
+
+/**
+ * The countries (two-letter codes) of a person's own cases for one purpose family. A case counts
+ * only when its purpose is one the picker offers under that family and its destination names a
+ * country; an older case with other words is left out, so it never narrows a suggestion. The
+ * profile uses this to suggest only the country sections the person's cases are about.
+ */
+export function caseCountriesForFamily(
+  cases: readonly { readonly destination: string | null; readonly purpose: string | null }[],
+  family: string,
+): ReadonlySet<string> {
+  const codes = new Set<string>();
+  for (const saved of cases) {
+    if (purposeNamed(saved.purpose?.trim() ?? '')?.family !== family) continue;
+    const country = countryNamed(saved.destination ?? '');
+    if (country) codes.add(country.iso2);
+  }
+  return codes;
 }

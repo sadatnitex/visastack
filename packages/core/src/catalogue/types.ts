@@ -231,6 +231,13 @@ export interface CatalogueModule {
   readonly legacyGroups?: readonly string[];
   /** Purpose families this section is suggested for. A suggestion only, never a requirement. */
   readonly suggestedFor?: readonly PurposeFamilyKey[];
+  /**
+   * Two-letter codes of the countries this section is about. When the person has a case for a
+   * purpose family this section is suggested for, and every such case names a country, the
+   * section is suggested only if one of those countries is listed here. With no such case, it is
+   * suggested as usual. A suggestion only, never a requirement.
+   */
+  readonly suggestedForCountries?: readonly string[];
 }
 
 export const DOCUMENT_GROUP_KEYS = [
