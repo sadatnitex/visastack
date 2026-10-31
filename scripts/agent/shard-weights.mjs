@@ -29,4 +29,4 @@ for (const file of report.testResults ?? []) {
 }
 const sorted = Object.fromEntries(Object.entries(weights).sort(([a], [b]) => (a < b ? -1 : 1)));
 writeFileSync(join(services, 'shard-weights.json'), `${JSON.stringify(sorted, null, 2)}\n`);
-console.log(`${Object.keys(sorted).length} files written to packages/services/shard-weights.json`);
+console.info(`${Object.keys(sorted).length} files written to packages/services/shard-weights.json`);

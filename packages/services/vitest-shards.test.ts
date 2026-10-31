@@ -2,7 +2,10 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { assignShards, loadShardWeights } from './vitest-shards';
 
-const paths = Array.from({ length: 40 }, (_, i) => `src/file-${String(i).padStart(2, '0')}.test.ts`);
+const paths = Array.from(
+  { length: 40 },
+  (_, i) => `src/file-${String(i).padStart(2, '0')}.test.ts`,
+);
 const weights = Object.fromEntries(paths.map((path, i) => [path, ((i * 7919) % 97) * 100 + 50]));
 
 describe('balanced service test shards', () => {
