@@ -160,3 +160,8 @@ Each item below is part of the design and lands in the package named. Facts mark
 
 - Another session builds the payment provider packages (S19 onward). Migration numbers are taken in merge order: whichever of S19 or T1 reaches main first uses 0110, and the other regenerates its migration on top (the handoff's rule: a migration is generated only after the previous one is on main).
 - T1 touches the billing tables S19 also touches. T1 starts only when no S19 branch with billing table changes is open, or after agreeing the order with the owner.
+
+## 13. Delivery notes
+
+- **T1, database first (31 Oct 2026).** Drizzle names every declared column in each insert and in each plain select, so code that declares the payer columns fails on a database without them. Making every billing read and write tolerate a missing column (the 0107 pattern) would change about forty places in the money code that the payment provider packages (S19 onward) also change. T1 therefore ships migration 0110 alone: the database gains the payer columns, checks and indexes, and `schema.ts` (with its snapshot, `0108_snapshot.json`) does not declare them yet, so today's code reads and writes exactly as before on either side of the migration. The migration only adds, and every existing row is an organization's, so it is safe for the running code.
+- **T2 starts only after 0110 has run in production.** T2 declares the columns in `schema.ts`; `db:generate` then writes a migration whose statements 0110 already made, written with `IF NOT EXISTS` so it changes nothing where 0110 ran. Because the columns are guaranteed to exist by then, T2's code needs no missing-column fallbacks. `SelfScope` and its ratchet rule move to T2, where the first code touching the payer columns appears.
