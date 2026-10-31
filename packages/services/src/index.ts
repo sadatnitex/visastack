@@ -701,6 +701,8 @@ export {
 
 export { isHttpUrl, safeHttpUrl } from './external-url';
 
+export { computeTripChecks } from './trip-checks';
+
 export {
   CASE_TRAVEL_END_KEY,
   CASE_TRAVEL_START_KEY,
