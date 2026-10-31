@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from '../../../../lib/axe.test-support';
 import { navigationState, renderServer, textOf } from '../../../../lib/next-mocks.test-support';
 
-const mocks = vi.hoisted(() => ({ summary: vi.fn(), aiUsage: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  summary: vi.fn(),
+  aiUsage: vi.fn(),
+  applicants: vi.fn(),
+  bytes: {} as Record<string, number>,
+}));
 
 vi.mock('../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
@@ -11,6 +16,8 @@ vi.mock('../../../../lib/session', () => ({
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   getTravellerPlanSummary: (...args: unknown[]) => mocks.summary(...args),
+  listApplicants: (...args: unknown[]) => mocks.applicants(...args),
+  getApplicantEvidenceBytes: async (_db: unknown, id: string) => mocks.bytes[id] ?? 0,
 }));
 vi.mock('../../../../lib/ai-usage', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../../lib/ai-usage')>()),
@@ -44,12 +51,12 @@ beforeEach(() => {
       ai_explanations: { included: true, dailyLimit: null },
       ai_document_kind: { included: true, dailyLimit: 10 },
     },
-    usedBytes: 12 * MB,
-    profiles: [
-      { applicantId: 'a1', displayName: 'Rahim Uddin', usedBytes: 10 * MB },
-      { applicantId: 'a2', displayName: 'Ayesha Uddin', usedBytes: 2 * MB },
-    ],
   });
+  mocks.applicants.mockResolvedValue([
+    { id: 'a1', displayName: 'Rahim Uddin' },
+    { id: 'a2', displayName: 'Ayesha Uddin' },
+  ]);
+  mocks.bytes = { a1: 10 * MB, a2: 2 * MB };
   mocks.aiUsage.mockResolvedValue([
     feature({}),
     feature({
@@ -105,6 +112,8 @@ describe('Plan & Usage for a traveller', () => {
     const rest = text.replace('so there is nothing to choose or upgrade', '');
     expect(rest).not.toMatch(/upgrade|\bbdt\b|\busd\b|\bpay\b|payment step|price/i);
     expect(mocks.summary).toHaveBeenCalledWith({}, { actorAccountId: 'acct-1' });
+    // Storage reads only the signed-in account's own profiles.
+    expect(mocks.applicants).toHaveBeenCalledWith({}, 'acct-1');
   });
 
   it('shows storage for the whole account and for each person, against the upload limits', async () => {
@@ -134,7 +143,8 @@ describe('Plan & Usage for a traveller', () => {
   });
 
   it('falls back to the feature state when the plan has no rules to read', async () => {
-    mocks.summary.mockResolvedValue({ plan: null, features: null, usedBytes: 0, profiles: [] });
+    mocks.summary.mockResolvedValue({ plan: null, features: null });
+    mocks.applicants.mockResolvedValue([]);
     mocks.aiUsage.mockResolvedValue([
       feature({ name: 'Automatic Reading', available: false, reason: 'not_in_plan' }),
     ]);
@@ -151,7 +161,8 @@ describe('Plan & Usage for a traveller', () => {
   });
 
   it('says nothing is stored yet for a new account', async () => {
-    mocks.summary.mockResolvedValue({ plan: null, features: null, usedBytes: 0, profiles: [] });
+    mocks.summary.mockResolvedValue({ plan: null, features: null });
+    mocks.applicants.mockResolvedValue([]);
     const text = textOf(await renderServer(Page()));
     expect(text).toContain('Your Plan');
     expect(text).toContain('Nothing stored yet.');

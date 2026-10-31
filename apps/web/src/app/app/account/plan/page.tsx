@@ -1,5 +1,11 @@
 import { AI_DAY_BOUNDARY_NOTE } from '@visastack/core/ai-features';
-import { getTravellerPlanSummary, loadUploadQuotaConfig, mbLabel } from '@visastack/services';
+import {
+  getApplicantEvidenceBytes,
+  getTravellerPlanSummary,
+  listApplicants,
+  loadUploadQuotaConfig,
+  mbLabel,
+} from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader } from '../../../../components/ui';
@@ -21,14 +27,24 @@ export const dynamic = 'force-dynamic';
  */
 export default async function TravellerPlanPage() {
   const data = await withSession(async ({ db, accountId }) => {
-    const [summary, aiUsage] = await Promise.all([
+    const [summary, aiUsage, owned] = await Promise.all([
       getTravellerPlanSummary(db, { actorAccountId: accountId }),
       readAiUsage(db, accountId),
+      listApplicants(db, accountId),
     ]);
-    return { summary, aiUsage };
+    // Only the profiles this account owns, counted exactly as the upload limits count them.
+    const profiles = await Promise.all(
+      owned.map(async (applicant) => ({
+        applicantId: applicant.id,
+        displayName: applicant.displayName,
+        usedBytes: await getApplicantEvidenceBytes(db, applicant.id),
+      })),
+    );
+    return { summary, aiUsage, profiles };
   });
   const quota = loadUploadQuotaConfig();
-  const { summary, aiUsage } = data;
+  const { summary, aiUsage, profiles } = data;
+  const usedBytes = profiles.reduce((total, profile) => total + profile.usedBytes, 0);
 
   return (
     <section className="section container">
@@ -70,10 +86,10 @@ export default async function TravellerPlanPage() {
           <div className="stack-sm u-mb-125">
             <UsageMeter
               label="Your Whole Account"
-              usedBytes={summary.usedBytes}
+              usedBytes={usedBytes}
               limitBytes={quota.maxAccountEvidenceBytes}
             />
-            {summary.profiles.map((profile) => (
+            {profiles.map((profile) => (
               <UsageMeter
                 key={profile.applicantId}
                 label={profile.displayName}
@@ -82,7 +98,7 @@ export default async function TravellerPlanPage() {
               />
             ))}
           </div>
-          {summary.profiles.length === 0 ? (
+          {profiles.length === 0 ? (
             <p className="muted u-fs-085">Nothing stored yet.</p>
           ) : (
             <p className="muted u-fs-085">

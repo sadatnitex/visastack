@@ -130,43 +130,6 @@ export async function getAccountEvidenceBytes(db: Db, accountId: string): Promis
 }
 
 /**
- * Evidence bytes for each applicant one account owns, with its name, oldest first: the same count
- * as `getApplicantEvidenceBytes` for each, and together `getAccountEvidenceBytes`, in one query.
- * For showing a traveller their own storage (Plan & Usage); the upload limits use the two above.
- */
-export async function listOwnedApplicantEvidenceBytes(
-  db: Db,
-  accountId: string,
-): Promise<
-  readonly {
-    readonly applicantId: string;
-    readonly displayName: string;
-    readonly usedBytes: number;
-  }[]
-> {
-  const rows = await db
-    .select({
-      applicantId: schema.applicants.id,
-      displayName: schema.applicants.displayName,
-      total: sql<string>`coalesce(sum(${schema.documentVersions.sizeBytes}), 0)`,
-    })
-    .from(schema.applicants)
-    .leftJoin(schema.documents, sql`${schema.documents.applicantId} = ${schema.applicants.id}`)
-    .leftJoin(
-      schema.documentVersions,
-      sql`${schema.documentVersions.documentId} = ${schema.documents.id}`,
-    )
-    .where(sql`${schema.applicants.ownerAccountId} = ${accountId}`)
-    .groupBy(schema.applicants.id)
-    .orderBy(schema.applicants.createdAt, schema.applicants.id);
-  return rows.map((row) => ({
-    applicantId: row.applicantId,
-    displayName: row.displayName,
-    usedBytes: Number(row.total),
-  }));
-}
-
-/**
  * Total evidence bytes across every applicant this organization currently
  * has real (active, accepted, current) access to -- COM-01's "total
  * retained storage" plan entitlement. Deliberately reuses
