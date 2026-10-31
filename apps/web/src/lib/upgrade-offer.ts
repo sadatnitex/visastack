@@ -5,7 +5,6 @@ import {
   type SelfScope,
   type ServiceError,
   type UpgradeShortfall,
-  selfScopeProblem,
   travellerPlansEnabled,
   upgradeWouldHelp,
 } from '@visastack/services';
@@ -46,7 +45,6 @@ export async function upgradeLineForRefusal(
     readonly isOwner?: () => Promise<boolean>;
   } = {},
 ): Promise<{ readonly upgrade?: UpgradeLineKind }> {
-  if (selfScopeProblem(self)) return {};
   const shortfall = shortfallOf(error, aiFeature);
   if (!shortfall || !travellerPlansEnabled()) return {};
   try {

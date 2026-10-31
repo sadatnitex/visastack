@@ -1,6 +1,6 @@
 import { MADE_UP_HEIC_SMALL } from '@visastack/adapters/testing';
 import { AI_FEATURE_LIMIT_HINT } from '@visastack/core/ai-features';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * ADR 0025 section 12.2: the upgrade line after a refusal. It is added only for the record's owner
@@ -129,6 +129,8 @@ function onDocument(): FormData {
 }
 
 beforeEach(() => {
+  // The line is only ever offered while paid plans are on sale (ADR 0025 12.2).
+  vi.stubEnv('TRAVELLER_PLANS_ENABLED', 'true');
   vi.clearAllMocks();
   mocks.getApplicant.mockResolvedValue({ id: 'a-1', ownerAccountId: 'owner-1' });
   mocks.requireAccess.mockResolvedValue({ ok: true, value: { proof: 'owner of a-1' } });
@@ -374,4 +376,8 @@ describe('Gap Explanations refused for its daily limit on a case', () => {
     expect(await ask()).toEqual({ ok: false, message: 'case not found' });
     expect(mocks.upgradeWouldHelp).not.toHaveBeenCalled();
   });
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
