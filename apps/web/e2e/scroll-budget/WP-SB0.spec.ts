@@ -104,9 +104,18 @@ test.describe('WP-SB0 parts with worst-case data', () => {
   });
 
   test('the sticky bar stays in reach and never covers the last field', async ({ page }) => {
+    // The site scrolls smoothly unless reduced motion is asked for; ask, so each position read
+    // after a focus or scroll is the final one.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await renderFixture(page, FIXTURE, { view: 'sticky', count: 30 });
     await page.setViewportSize(VIEWPORTS.phone);
     const bar = page.getByRole('group', { name: 'Save This Form' });
+    /** How far the field's bottom edge reaches past the top of the bar (0 or less is clear). */
+    const overlap = (selector: string) => async () => {
+      const field = await page.locator(selector).boundingBox();
+      const barBox = await bar.boundingBox();
+      return (field?.y ?? 0) + (field?.height ?? 0) - (barBox?.y ?? 0);
+    };
     // Mid-form: the bar is pinned to the bottom of the screen.
     await page.locator('#field-10').scrollIntoViewIfNeeded();
     const pinned = await bar.boundingBox();
@@ -117,9 +126,7 @@ test.describe('WP-SB0 parts with worst-case data', () => {
     expect(pinned?.y ?? 0).toBeGreaterThan(VIEWPORTS.phone.height / 2);
     // Keyboard to the last field: it is fully above the bar.
     await page.locator('#field-29').focus();
-    const last = await page.locator('#field-29').boundingBox();
-    const barNow = await bar.boundingBox();
-    expect((last?.y ?? 0) + (last?.height ?? 0)).toBeLessThanOrEqual(barNow?.y ?? 0);
+    await expect.poll(overlap('#field-29')).toBeLessThanOrEqual(0);
     // Tabbing down the form from the top: every field the keyboard reaches is above the bar,
     // with the note making the bar as tall as it gets on a phone.
     await page.evaluate(() => window.scrollTo(0, 0));
@@ -127,17 +134,11 @@ test.describe('WP-SB0 parts with worst-case data', () => {
     for (let n = 1; n < 30; n += 1) {
       await page.keyboard.press('Tab');
       await expect(page.locator(`#field-${n}`)).toBeFocused();
-      const field = await page.locator(`#field-${n}`).boundingBox();
-      const barBox = await bar.boundingBox();
-      expect((field?.y ?? 0) + (field?.height ?? 0), `field ${n}`).toBeLessThanOrEqual(
-        barBox?.y ?? 0,
-      );
+      await expect.poll(overlap(`#field-${n}`), { message: `field ${n}` }).toBeLessThanOrEqual(0);
     }
     // At the very end the bar sits after the last field, in the flow.
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-    const end = await page.locator('#field-29').boundingBox();
-    const barEnd = await bar.boundingBox();
-    expect((end?.y ?? 0) + (end?.height ?? 0)).toBeLessThanOrEqual(barEnd?.y ?? 0);
+    await expect.poll(overlap('#field-29')).toBeLessThanOrEqual(0);
     await expectWithinBudget(page, { screens: 3, viewport: 'phone' });
     await noSeriousAxe(page);
   });
