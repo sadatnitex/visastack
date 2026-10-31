@@ -90,9 +90,39 @@ export type CapacityKey = keyof typeof CAPACITY_ENTITLEMENTS;
 
 export const CAPACITY_KEYS = Object.keys(CAPACITY_ENTITLEMENTS) as CapacityKey[];
 
+/**
+ * A traveller plan's storage rules (ADR 0025, migration 0111), apart from the agency capacity keys:
+ * they belong to traveller plans only. A rule with no limit follows the upload settings, never
+ * Unlimited, and the platform-wide storage stop always applies.
+ */
+export const TRAVELLER_STORAGE_ENTITLEMENTS = {
+  account_storage_bytes: {
+    key: 'account_storage_bytes',
+    name: 'Storage for the Whole Account',
+    unit: 'bytes',
+    per: 'TOTAL',
+    definition: 'Files kept for every person the account keeps a record for.',
+    shownOnly: false,
+  },
+  person_storage_bytes: {
+    key: 'person_storage_bytes',
+    name: 'Storage per Person',
+    unit: 'bytes',
+    per: 'TOTAL',
+    definition: 'Files kept for one person the account keeps a record for.',
+    shownOnly: false,
+  },
+} as const satisfies Readonly<Record<string, EntitlementDefinition>>;
+
+export type TravellerStorageKey = keyof typeof TRAVELLER_STORAGE_ENTITLEMENTS;
+
+export const TRAVELLER_STORAGE_KEYS = Object.keys(
+  TRAVELLER_STORAGE_ENTITLEMENTS,
+) as TravellerStorageKey[];
+
 export type AiEntitlementKey = `ai.${AiFeatureKey}`;
 
-export type EntitlementKey = CapacityKey | AiEntitlementKey;
+export type EntitlementKey = CapacityKey | TravellerStorageKey | AiEntitlementKey;
 
 /** The entitlement key of an AI feature: `ai.<feature>`. */
 export function aiEntitlementKey(feature: AiFeatureKey): AiEntitlementKey {
@@ -110,14 +140,19 @@ export function isCapacityKey(key: string): key is CapacityKey {
   return Object.hasOwn(CAPACITY_ENTITLEMENTS, key);
 }
 
+export function isTravellerStorageKey(key: string): key is TravellerStorageKey {
+  return Object.hasOwn(TRAVELLER_STORAGE_ENTITLEMENTS, key);
+}
+
 /** A key this registry defines (any other text is refused before it reaches the database). */
 export function isEntitlementKey(key: string): key is EntitlementKey {
-  return isCapacityKey(key) || aiFeatureOfKey(key) !== null;
+  return isCapacityKey(key) || isTravellerStorageKey(key) || aiFeatureOfKey(key) !== null;
 }
 
 /** The definition of any registered key. */
 export function entitlementDefinition(key: EntitlementKey): EntitlementDefinition {
   if (isCapacityKey(key)) return CAPACITY_ENTITLEMENTS[key];
+  if (isTravellerStorageKey(key)) return TRAVELLER_STORAGE_ENTITLEMENTS[key];
   const feature = aiFeatureOfKey(key) as AiFeatureKey;
   return {
     key,
@@ -129,9 +164,22 @@ export function entitlementDefinition(key: EntitlementKey): EntitlementDefinitio
   };
 }
 
-/** Every registered key in the order screens list them: capacity first, then AI features. */
+/**
+ * The agency plan keys in the order screens list them: capacity first, then AI features. Traveller
+ * storage keys are not among them; `planEntitlementKeys` gives the keys of either kind of plan.
+ */
 export function entitlementKeys(): EntitlementKey[] {
   return [...CAPACITY_KEYS, ...AI_FEATURE_KEYS.map(aiEntitlementKey)];
+}
+
+/**
+ * The keys a plan of `audience` carries, in screen order: an agency plan has the capacity keys,
+ * a traveller plan the traveller storage keys, and both have every AI feature key (a feature of
+ * the other audience reads as off).
+ */
+export function planEntitlementKeys(audience: 'AGENCY' | 'TRAVELLER'): EntitlementKey[] {
+  const ai = AI_FEATURE_KEYS.map(aiEntitlementKey);
+  return audience === 'TRAVELLER' ? [...TRAVELLER_STORAGE_KEYS, ...ai] : [...CAPACITY_KEYS, ...ai];
 }
 
 /** A definition with the plan's period length filled in. */

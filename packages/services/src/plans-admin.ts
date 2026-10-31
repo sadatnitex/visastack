@@ -4,18 +4,23 @@ import {
   AI_FEATURE_LIMIT_MAX,
   AI_FEATURE_LIMIT_MIN,
   AI_PLAN_TIERS,
+  AI_TRAVELLER_FEATURE_KEYS,
 } from '@visastack/core/ai-features';
 import {
   CAPACITY_KEYS,
   type CapacityKey,
   type EntitlementKey,
+  TRAVELLER_STORAGE_KEYS,
+  type TravellerStorageKey,
+  aiEntitlementKey,
   aiFeatureOfKey,
   entitlementDefinition,
-  entitlementKeys,
   isCapacityKey,
   isEntitlementKey,
+  isTravellerStorageKey,
+  planEntitlementKeys,
 } from '@visastack/core/entitlements';
-import { and, count, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, count, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import type { StaffScope } from './access/principal';
 import { staffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
@@ -23,6 +28,8 @@ import { type Db, first, isUniqueViolation, schema } from './db';
 import { TRAVELLER_PLAN_KEY } from './entitlements';
 import { type ServiceError, refusal, serviceError } from './errors';
 import { type PlanAudience, entitlementsSchemaPresent, planColumns } from './plans-schema';
+import { BYTES_PER_MB, type UploadQuotaConfig, loadUploadQuotaConfig } from './quotas';
+import { paidTravellerCoverage } from './traveller-billing';
 
 /**
  * The Plans page (S29, ADR 0020 S29 amendment, audit M1): the platform owner creates plans, sets
@@ -91,7 +98,7 @@ function refuse(message: string, field?: PlanField): PlanRefusal {
 }
 
 function limitMax(key: EntitlementKey): number {
-  if (key === 'storage_bytes') return Number.MAX_SAFE_INTEGER;
+  if (key === 'storage_bytes' || isTravellerStorageKey(key)) return Number.MAX_SAFE_INTEGER;
   if (aiFeatureOfKey(key) !== null) return AI_FEATURE_LIMIT_MAX;
   return INT_COLUMN_MAX;
 }
@@ -142,6 +149,22 @@ export function planDraftProblem(draft: PlanDraft): PlanRefusal | undefined {
       ) {
         return refuse(
           `Enter the daily limit for ${entitlementDefinition(key).name} as a whole number from ${AI_FEATURE_LIMIT_MIN} to ${AI_FEATURE_LIMIT_MAX}, or leave it empty for no plan limit.`,
+          key,
+        );
+      }
+      continue;
+    }
+    // ADR 0025: a traveller storage rule is always on; empty follows the upload settings, and 0
+    // would stop every upload, so it is at least 1 byte (the form asks for whole MB).
+    if (isTravellerStorageKey(key)) {
+      const name = entitlementDefinition(key).name;
+      if (!rule.included) return refuse(`${name} cannot be switched off.`, key);
+      if (
+        rule.limit !== null &&
+        (!Number.isSafeInteger(rule.limit) || rule.limit < 1 || rule.limit > limitMax(key))
+      ) {
+        return refuse(
+          `Enter ${name} in MB as a whole number of 1 or more, or leave it empty to follow the upload settings.`,
           key,
         );
       }
@@ -338,11 +361,17 @@ export interface PlanAdminView {
   readonly periodDays: number;
   /** The newest price (what an agency's next period will cost). */
   readonly price: PlanPriceInput | null;
-  /** Every registry key, with what the plan says (a key with no row reads as on, no limit). */
-  readonly rules: Readonly<Rules>;
-  /** Agencies on it now; for the traveller plan, every account. */
+  /**
+   * Every key a plan of its audience carries (`planEntitlementKeys`), with what the plan says (a
+   * key with no row reads as on, no limit).
+   */
+  readonly rules: Readonly<Partial<Rules>>;
+  /**
+   * Agencies on it now; for a paid traveller plan, people on it now; for Traveller Free, every
+   * other account.
+   */
   readonly onIt: number;
-  /** Whether any agency has ever been on it (its period length is then fixed). */
+  /** Whether anyone has ever been on it (its period length is then fixed). */
   readonly periodLocked: boolean;
   /** Why it cannot be retired, or null when it can. */
   readonly retireBlocked: 'traveller' | 'default' | 'retired' | null;
@@ -386,8 +415,10 @@ export async function listPlansForAdmin(
   const plans = await db
     .select({
       plan: planColumns(),
-      onIt: sql<number>`(select count(*)::int from subscriptions c where c.plan_id = ${schema.plans.id} and c.ended_at is null)`,
-      ever: sql<number>`(select count(*)::int from subscriptions e where e.plan_id = ${schema.plans.id})`,
+      // Written with the table name: in a select list Drizzle names a column without its table,
+      // and inside these subqueries a bare "id" would be the subscription's own id.
+      onIt: sql<number>`(select count(*)::int from subscriptions c where c.plan_id = "plans"."id" and c.ended_at is null)`,
+      ever: sql<number>`(select count(*)::int from subscriptions e where e.plan_id = "plans"."id")`,
     })
     .from(schema.plans)
     .orderBy(desc(schema.plans.createdAt));
@@ -420,14 +451,19 @@ export async function listPlansForAdmin(
       );
     }
   }
-  const travellers = await travellerCount(db);
+  // A paid traveller plan counts the people it covers now, by the resolver's own rule, and every
+  // other account is on Traveller Free (ADR 0025).
+  const covered = await paidTravellerCoverage(db, new Date());
+  let coveredTotal = 0;
+  for (const n of covered.values()) coveredTotal += n;
+  const travellers = Math.max(0, (await travellerCount(db)) - coveredTotal);
   const views: PlanAdminView[] = [];
   for (const row of plans) {
     const plan = row.plan;
-    const rules = {} as Rules;
+    const rules: Partial<Rules> = {};
     const stored = storedRules.get(plan.id) ?? {};
     const fromColumns = rulesFromColumns(plan);
-    for (const key of entitlementKeys()) {
+    for (const key of planEntitlementKeys(plan.audience)) {
       rules[key] =
         stored[key] ??
         (available
@@ -451,7 +487,12 @@ export async function listPlansForAdmin(
       periodDays: plan.periodDays,
       price,
       rules,
-      onIt: plan.key === TRAVELLER_PLAN_KEY ? travellers : row.onIt,
+      onIt:
+        plan.key === TRAVELLER_PLAN_KEY
+          ? travellers
+          : plan.audience === 'TRAVELLER'
+            ? (covered.get(plan.id) ?? 0)
+            : row.onIt,
       periodLocked: row.ever > 0,
       retireBlocked: retireBlock(plan),
     });
@@ -460,8 +501,8 @@ export async function listPlansForAdmin(
 }
 
 /**
- * Accounts on the traveller plan: every account, because each one uses it for its own record,
- * agency members included (S29 round 3; the resolver gives every account this plan).
+ * Every account: each one uses a traveller plan for its own record, agency members included (S29
+ * round 3; the resolver gives every account Traveller Free unless a paid traveller plan covers it).
  */
 async function travellerCount(db: Db): Promise<number> {
   const row = first(await db.select({ n: sql<number>`count(*)::int` }).from(schema.accounts));
@@ -504,6 +545,8 @@ export async function getPlanLatestPrice(
 export interface SavePlanInput {
   /** Absent: a new plan. */
   readonly planId?: string;
+  /** Who a new plan is for (default agencies). An existing plan keeps its own. */
+  readonly audience?: PlanAudience;
   readonly draft: PlanDraft;
   readonly stepUpSatisfied: boolean;
   readonly now?: Date;
@@ -513,12 +556,15 @@ export interface SavedPlan {
   readonly planId: string;
   readonly created: boolean;
   readonly changed: boolean;
-  /** Set when the price changed: it applies from each agency's next billing period. */
+  /**
+   * Set when the price changed: for an agency plan it applies from each agency's next billing
+   * period; for a traveller plan, to purchases from now (a period already paid is never repriced).
+   */
   readonly priceChanged: boolean;
 }
 
 /** A plan key nobody types: from the name, with a short random end so two names never clash. */
-function newPlanKey(name: string): string {
+function newPlanKey(name: string, audience: PlanAudience): string {
   const slug = name
     .toLowerCase()
     .normalize('NFKD')
@@ -526,13 +572,183 @@ function newPlanKey(name: string): string {
     .replace(/^_+|_+$/g, '')
     .slice(0, 40);
   const tail = crypto.randomUUID().replace(/-/g, '').slice(0, 6);
-  return `agency_${slug.length > 0 ? slug : 'plan'}_${tail}`;
+  const prefix = audience === 'TRAVELLER' ? 'traveller' : 'agency';
+  return `${prefix}_${slug.length > 0 ? slug : 'plan'}_${tail}`;
+}
+
+/** The only currency a traveller plan is sold in (ADR 0025 D3: online payment is BDT only). */
+export const TRAVELLER_PLAN_CURRENCY = 'BDT';
+
+/** A rule a plan of `audience` never carries: refused rather than written (ADR 0025). */
+function foreignKeyProblem(
+  audience: PlanAudience,
+  rules: Readonly<Partial<Rules>>,
+): PlanRefusal | undefined {
+  for (const key of Object.keys(rules)) {
+    if (audience === 'TRAVELLER' ? isCapacityKey(key) : isTravellerStorageKey(key)) {
+      return refuse('This plan has a rule VisaStack does not know. Reload the page.');
+    }
+  }
+  return undefined;
+}
+
+/** A traveller plan's price: none on Traveller Free; else none (not sold) or more than 0, in BDT. */
+function travellerPriceProblem(
+  planKey: string | null,
+  price: PlanPriceInput | null,
+): PlanRefusal | undefined {
+  if (price === null) return undefined;
+  if (planKey === TRAVELLER_PLAN_KEY) return refuse('The traveller plan has no price.', 'price');
+  if (normalizeCurrencyCode(price.currency) !== TRAVELLER_PLAN_CURRENCY) {
+    return refuse(`Traveller plans are sold in ${TRAVELLER_PLAN_CURRENCY} only.`, 'currency');
+  }
+  if (price.priceMinorUnits <= 0) {
+    return refuse(
+      'A traveller plan sold for 0 is the same as Traveller Free. Enter a price, or leave it empty until you are ready to sell it.',
+      'price',
+    );
+  }
+  return undefined;
+}
+
+/** A traveller rule as it reads: the stored rule, else the built-in one. */
+function travellerRule(rules: Readonly<Partial<Rules>>, key: EntitlementKey): PlanRuleInput {
+  return rules[key] ?? standardRule(key, 'TRAVELLER');
+}
+
+/** A traveller storage rule in bytes: its limit, else the upload setting it follows. */
+function storageBytes(
+  rule: PlanRuleInput,
+  key: TravellerStorageKey,
+  config: UploadQuotaConfig,
+): number {
+  if (rule.limit !== null) return rule.limit;
+  return key === 'account_storage_bytes'
+    ? config.maxAccountEvidenceBytes
+    : config.maxApplicantEvidenceBytes;
+}
+
+function mbWords(bytes: number): string {
+  // Rounded as the Plans page shows storage, so a refusal and the page name the same number.
+  return `${Math.round(bytes / BYTES_PER_MB).toLocaleString('en-US')} MB`;
+}
+
+/**
+ * The first rule where the paid traveller plan `paid` gives less than Traveller Free `free`, worded
+ * for the owner, or undefined (ADR 0025 D1: a paid plan sells more room, never less). `side` says
+ * which plan is being saved, so the message names what to change.
+ */
+function lessThanFree(
+  paid: { readonly name: string; readonly rules: Readonly<Partial<Rules>> },
+  free: { readonly name: string; readonly rules: Readonly<Partial<Rules>> },
+  side: 'paid' | 'free',
+  config: UploadQuotaConfig,
+): PlanRefusal | undefined {
+  const say = (what: string, key: EntitlementKey): PlanRefusal =>
+    refuse(
+      side === 'paid'
+        ? `${paid.name} must give at least what ${free.name} gives. ${what}`
+        : `${paid.name} would then give less than ${free.name}. ${what} Raise ${paid.name} first.`,
+      key,
+    );
+  for (const key of TRAVELLER_STORAGE_KEYS) {
+    const paidBytes = storageBytes(travellerRule(paid.rules, key), key, config);
+    const freeBytes = storageBytes(travellerRule(free.rules, key), key, config);
+    if (paidBytes < freeBytes) {
+      return say(
+        `${entitlementDefinition(key).name} is ${mbWords(freeBytes)} on ${free.name}.`,
+        key,
+      );
+    }
+  }
+  for (const feature of AI_TRAVELLER_FEATURE_KEYS) {
+    const key = aiEntitlementKey(feature);
+    const name = AI_FEATURES[feature].name;
+    const p = travellerRule(paid.rules, key);
+    const f = travellerRule(free.rules, key);
+    if (!f.included) continue;
+    if (!p.included) return say(`${name} is on in ${free.name}.`, key);
+    if (p.limit !== null && (f.limit === null || p.limit < f.limit)) {
+      return say(
+        f.limit === null
+          ? `${name} has no daily limit on ${free.name}.`
+          : `${name} is up to ${f.limit} a day on ${free.name}.`,
+        key,
+      );
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Traveller Free's name and rules, read in the caller's transaction with its row locked: a save of
+ * Free locks the same row, so the two checks queue and neither reads the other's old rules (a
+ * paid plan's save locks that plan, then Free; a save of Free locks only Free).
+ */
+async function travellerFreePlan(
+  tx: Db,
+): Promise<{ readonly id: string; readonly name: string; readonly rules: Partial<Rules> } | null> {
+  const row = first(
+    await tx
+      .select({ id: schema.plans.id, name: schema.plans.name })
+      .from(schema.plans)
+      .where(eq(schema.plans.key, TRAVELLER_PLAN_KEY))
+      .limit(1)
+      .for('update'),
+  );
+  return row ? { ...row, rules: await currentRules(tx, row.id) } : null;
+}
+
+/**
+ * Whether a traveller plan's rules, once saved, keep every paid traveller plan at or above
+ * Traveller Free: a paid plan is compared with Free, and Free with every paid plan that is offered
+ * or still has someone on it (a retired plan keeps covering a period already paid for).
+ */
+async function travellerFloorProblem(
+  tx: Db,
+  saving: {
+    readonly id: string | null;
+    readonly key: string | null;
+    readonly name: string;
+    readonly rules: Readonly<Partial<Rules>>;
+  },
+): Promise<PlanRefusal | undefined> {
+  const config = loadUploadQuotaConfig();
+  if (saving.key === TRAVELLER_PLAN_KEY) {
+    const paid = await tx
+      .select({ id: schema.plans.id, name: schema.plans.name })
+      .from(schema.plans)
+      .where(
+        and(
+          eq(schema.plans.audience, 'TRAVELLER'),
+          or(
+            eq(schema.plans.active, true),
+            sql`exists (select 1 from subscriptions c where c.plan_id = "plans"."id" and c.ended_at is null)`,
+          ),
+        ),
+      );
+    for (const plan of paid) {
+      if (plan.id === saving.id) continue;
+      const problem = lessThanFree(
+        { name: plan.name, rules: await currentRules(tx, plan.id) },
+        { name: saving.name, rules: saving.rules },
+        'free',
+        config,
+      );
+      if (problem) return problem;
+    }
+    return undefined;
+  }
+  const free = await travellerFreePlan(tx);
+  if (!free) return undefined;
+  return lessThanFree({ name: saving.name, rules: saving.rules }, free, 'paid', config);
 }
 
 /**
  * Creates a plan or saves an existing one: its name, period, price and rules. Owner only, with a
- * fresh sign-in check, after migration 0107. A new plan is an agency plan; the traveller plan is
- * Traveller Free. Audited (PLAN_CREATED or PLAN_UPDATED with each change before and after, and
+ * fresh sign-in check, after migration 0107. A new plan is for agencies unless `audience` says
+ * travellers (ADR 0025): a traveller plan is priced in BDT or not sold, carries storage and AI
+ * rules only, and never gives less than Traveller Free, which stays unpriced. Audited (PLAN_CREATED or PLAN_UPDATED with each change before and after, and
  * PLAN_PRICE_CHANGED for a new price).
  */
 export async function savePlan(
@@ -555,23 +771,34 @@ export async function savePlan(
   try {
     return await db.transaction(async (tx): Promise<Result<SavedPlan, PlanRefusal>> => {
       if (input.planId === undefined) {
-        const key = newPlanKey(name);
+        const audience: PlanAudience = input.audience === 'TRAVELLER' ? 'TRAVELLER' : 'AGENCY';
+        const foreign = foreignKeyProblem(audience, input.draft.rules);
+        if (foreign) return err(foreign);
+        if (audience === 'TRAVELLER') {
+          const priceProblem = travellerPriceProblem(null, input.draft.price);
+          if (priceProblem) return err(priceProblem);
+        }
+        const key = newPlanKey(name, audience);
+        const given = withInvitationsFollowingSeats(input.draft.rules);
+        const rules: Partial<Rules> = {};
+        for (const k of planEntitlementKeys(audience)) {
+          rules[k] = given[k] ?? standardRule(k, audience);
+        }
+        if (audience === 'TRAVELLER') {
+          const floor = await travellerFloorProblem(tx, { id: null, key, name, rules });
+          if (floor) return err(floor);
+        }
         const [created] = await tx
           .insert(schema.plans)
           .values({
             key,
             name,
             periodDays: input.draft.periodDays,
-            audience: 'AGENCY',
+            audience,
             bypassLimits: false,
           })
           .returning({ id: schema.plans.id });
         if (!created) throw new Error('expected the new plan to be returned');
-        const given = withInvitationsFollowingSeats(input.draft.rules);
-        const rules: Partial<Rules> = {};
-        for (const k of entitlementKeys()) {
-          rules[k] = given[k] ?? standardRule(k, 'AGENCY');
-        }
         await writePlanRules(tx, created.id, rules, now);
         await writePlanPrice(tx, created.id, input.draft.price, {
           effectiveFrom: PLAN_PRICE_FROM_START,
@@ -588,7 +815,13 @@ export async function savePlan(
           resourceId: created.id,
           metadata: {
             key,
-            after: { name, periodDays: input.draft.periodDays, price: input.draft.price, rules },
+            after: {
+              name,
+              audience,
+              periodDays: input.draft.periodDays,
+              price: input.draft.price,
+              rules,
+            },
           },
         });
         return ok({ planId: created.id, created: true, changed: true, priceChanged: false });
@@ -622,8 +855,44 @@ export async function savePlan(
       if (plan.key === DEFAULT_AGENCY_PLAN_KEY && input.draft.price === null) {
         return err(refuse(DEFAULT_PLAN_PRICE_NEEDED, 'price'));
       }
-      if (plan.audience === 'TRAVELLER' && input.draft.price !== null) {
-        return err(refuse('The traveller plan has no price.', 'price'));
+      const foreign = foreignKeyProblem(plan.audience, input.draft.rules);
+      if (foreign) return err(foreign);
+      // Traveller Free never stores a storage rule (D10): one sent back unchanged is left out.
+      const draftRules: Partial<Rules> =
+        plan.key === TRAVELLER_PLAN_KEY
+          ? Object.fromEntries(
+              Object.entries(input.draft.rules).filter(([k]) => !isTravellerStorageKey(k)),
+            )
+          : input.draft.rules;
+      if (plan.audience === 'TRAVELLER') {
+        const priceProblem = travellerPriceProblem(plan.key, input.draft.price);
+        if (priceProblem) return err(priceProblem);
+        if (plan.key === TRAVELLER_PLAN_KEY) {
+          // D10: Traveller Free stays as it is; its storage follows the upload settings. A rule sent
+          // back exactly as Free has it now changes nothing, so only a different one is refused.
+          const stored = await currentRules(tx, plan.id);
+          const storage = TRAVELLER_STORAGE_KEYS.find((k) => {
+            const sent = input.draft.rules[k];
+            if (sent === undefined) return false;
+            const now = travellerRule(stored, k);
+            return sent.included !== now.included || sent.limit !== now.limit;
+          });
+          if (storage) {
+            return err(
+              refuse(
+                'Traveller Free follows the upload settings for storage. Set more storage on a paid traveller plan.',
+                storage,
+              ),
+            );
+          }
+        }
+        const floor = await travellerFloorProblem(tx, {
+          id: plan.id,
+          key: plan.key,
+          name,
+          rules: { ...(await currentRules(tx, plan.id)), ...draftRules },
+        });
+        if (floor) return err(floor);
       }
       const changes: {
         name?: { readonly before: string; readonly after: string };
@@ -645,7 +914,9 @@ export async function savePlan(
           return err({
             ...refusal(
               'period_locked',
-              'The billing period cannot change once an agency has been on this plan. Make a new plan instead.',
+              plan.audience === 'TRAVELLER'
+                ? 'The period cannot change once someone has been on this plan. Make a new plan instead.'
+                : 'The billing period cannot change once an agency has been on this plan. Make a new plan instead.',
             ),
             field: 'periodDays',
           });
@@ -662,7 +933,7 @@ export async function savePlan(
       const ruleChanges = await writePlanRules(
         tx,
         plan.id,
-        withInvitationsFollowingSeats(input.draft.rules),
+        withInvitationsFollowingSeats(draftRules),
         now,
       );
       const priceChange = await writePlanPrice(tx, plan.id, input.draft.price, {

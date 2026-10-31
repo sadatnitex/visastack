@@ -9,6 +9,8 @@ import {
 import {
   CAPACITY_KEYS,
   type EntitlementKey,
+  TRAVELLER_STORAGE_ENTITLEMENTS,
+  TRAVELLER_STORAGE_KEYS,
   aiEntitlementKey,
   aiFeatureOfKey,
 } from '@visastack/core/entitlements';
@@ -17,6 +19,7 @@ import {
   PLAN_PRICE_MAX_MINOR_UNITS,
   type PlanDraft,
   type PlanRuleInput,
+  TRAVELLER_PLAN_CURRENCY,
   getPlanLatestPrice,
   pendingDowngradesSentence,
   previewPlanRetire,
@@ -42,12 +45,12 @@ import {
   type PlanFormState,
   type PlanFormValues,
   type RetireFormState,
-  STORAGE_SHOWN_FIELD,
   aiFeatureName,
   featureLimitField,
   featureOnField,
   limitField,
   planFieldNames,
+  shownField,
 } from './labels';
 
 const PLANS_PATH = PLAN_FORM_RETRY_PATH;
@@ -72,25 +75,43 @@ function typedValues(formData: FormData): Record<string, string> {
 /** The largest Storage in MB a plan can hold. */
 const STORAGE_MB_MAX = Math.floor(Number.MAX_SAFE_INTEGER / BYTES_PER_MB);
 
-/** The form field a service refusal points at. */
-function formField(field: string | undefined): string | undefined {
+/**
+ * The form field a service refusal points at. A refusal about an AI feature points at its box when
+ * the feature was sent switched off (the fix is to switch it on), else at its daily limit.
+ */
+function formField(field: string | undefined, values: PlanFormValues): string | undefined {
   if (field === undefined) return undefined;
   if (field === 'name' || field === 'periodDays' || field === 'price' || field === 'currency') {
     return field;
   }
   const feature = aiFeatureOfKey(field);
-  if (feature !== null) return featureLimitField(feature);
+  if (feature !== null) {
+    return values[featureLimitField(feature)] !== undefined &&
+      values[featureOnField(feature)] !== 'on'
+      ? featureOnField(feature)
+      : featureLimitField(feature);
+  }
   return `limit.${field}`;
 }
 
 type Parsed = { readonly draft: PlanDraft } | { readonly problem: FormResult };
 
+/** Who a form's plan is for, as its hidden field says (wording and a new plan's kind only). */
+function audienceOf(formData: FormData): 'AGENCY' | 'TRAVELLER' {
+  return formData.get('audience') === 'TRAVELLER' ? 'TRAVELLER' : 'AGENCY';
+}
+
 /**
- * Reads the typed values into a draft, or the first problem, pointing at its field. `storageShown`
- * is the Storage a saved plan's form showed (rounded to whole MB): typed back unchanged, the
- * stored Storage is left exactly as it is.
+ * Reads the typed values into a draft, or the first problem, pointing at its field. `shown` holds
+ * each storage field a saved plan's form showed (rounded to whole MB): typed back unchanged, the
+ * stored value is left exactly as it is. A traveller plan's price is typed as an amount in BDT
+ * only (`fixedCurrency`); an empty amount is no price.
  */
-function parseDraft(values: PlanFormValues, storageShown: string | null): Parsed {
+function parseDraft(
+  values: PlanFormValues,
+  shown: Readonly<Record<string, string>>,
+  fixedCurrency: string | null,
+): Parsed {
   const read = (name: string): string => values[name] ?? '';
   const problem = (message: string, field: string): Parsed => ({
     problem: { ok: false, message, field },
@@ -103,9 +124,9 @@ function parseDraft(values: PlanFormValues, storageShown: string | null): Parsed
     );
   }
   const amount = read('price');
-  const currencyText = read('currency');
+  const currencyText = fixedCurrency ?? read('currency');
   let price: PlanDraft['price'] = null;
-  if (amount.length > 0 || currencyText.length > 0) {
+  if (amount.length > 0 || (fixedCurrency === null && currencyText.length > 0)) {
     if (!isIsoCurrencyCode(currencyText)) {
       return problem('Enter a three-letter currency code, for example BDT.', 'currency');
     }
@@ -129,7 +150,7 @@ function parseDraft(values: PlanFormValues, storageShown: string | null): Parsed
       continue;
     }
     if (key === 'storage_bytes') {
-      if (text === storageShown) continue;
+      if (text === shown[key]) continue;
       if (!/^\d{1,10}$/.test(text) || Number(text) > STORAGE_MB_MAX) {
         return problem(
           `Enter Storage in MB as a whole number up to ${STORAGE_MB_MAX.toLocaleString('en-US')}, or leave it empty for Unlimited.`,
@@ -143,6 +164,23 @@ function parseDraft(values: PlanFormValues, storageShown: string | null): Parsed
       return problem('Enter a whole number, or leave it empty for Unlimited.', limitField(key));
     }
     rules[key] = { included: true, limit: Number(text) };
+  }
+  // ADR 0025: a traveller plan's storage, in whole MB; empty follows the upload settings.
+  for (const key of TRAVELLER_STORAGE_KEYS) {
+    const text = values[limitField(key)];
+    if (text === undefined) continue;
+    if (text.length === 0) {
+      rules[key] = { included: true, limit: null };
+      continue;
+    }
+    if (text === shown[key]) continue;
+    if (!/^\d{1,10}$/.test(text) || Number(text) < 1 || Number(text) > STORAGE_MB_MAX) {
+      return problem(
+        `Enter ${TRAVELLER_STORAGE_ENTITLEMENTS[key].name} in MB as a whole number from 1 to ${STORAGE_MB_MAX.toLocaleString('en-US')}, or leave it empty to follow the upload settings.`,
+        limitField(key),
+      );
+    }
+    rules[key] = { included: true, limit: Number(text) * BYTES_PER_MB };
   }
   for (const feature of AI_FEATURE_KEYS) {
     const text = values[featureLimitField(feature)];
@@ -210,11 +248,17 @@ export async function savePlanAction(
     ...extra,
   });
   if (planId !== undefined && !ID.test(planId)) return reply(NOT_FOUND);
-  const shown = formData.get(STORAGE_SHOWN_FIELD);
-  const parsed = parseDraft(
-    values,
-    planId !== undefined && typeof shown === 'string' ? shown.trim() : null,
-  );
+  const audience = audienceOf(formData);
+  const shown: Record<string, string> = {};
+  if (planId !== undefined) {
+    for (const key of ['storage_bytes', ...TRAVELLER_STORAGE_KEYS] as const) {
+      const text = formData.get(shownField(key));
+      if (typeof text === 'string') shown[key] = text.trim();
+    }
+  }
+  // The traveller plans that can be sold take their price in BDT only; Traveller Free has none.
+  const fixedCurrency = formData.get('fixedCurrency') === 'yes' ? TRAVELLER_PLAN_CURRENCY : null;
+  const parsed = parseDraft(values, shown, fixedCurrency);
   if ('problem' in parsed) return reply(parsed.problem);
   const { draft } = parsed;
 
@@ -256,7 +300,10 @@ export async function savePlanAction(
           : reply({ ok: true, message: '' }, { pricePreview });
       }
     }
-    const input = { ...(planId !== undefined ? { planId } : {}), draft };
+    const input = {
+      ...(planId !== undefined ? { planId } : { audience }),
+      draft,
+    };
     let result = await savePlan(db, staff.value, { ...input, stepUpSatisfied: false });
     if (!result.ok && result.error.code === 'step_up_required') {
       const stepUp = await tryEstablishStepUp(
@@ -268,7 +315,11 @@ export async function savePlanAction(
       }
       if (stepUp.kind === 'reauth_required') {
         // What was typed comes back after the sign-in check, to save again.
-        await rememberTyped(accountId, planId ?? 'new', values);
+        await rememberTyped(
+          accountId,
+          planId ?? (audience === 'TRAVELLER' ? 'new-traveller' : 'new'),
+          values,
+        );
         redirect(stepUp.reauthUrl);
       }
       result = await savePlan(db, staff.value, { ...input, stepUpSatisfied: true });
@@ -276,7 +327,7 @@ export async function savePlanAction(
     if (!result.ok) {
       if (result.error.code === 'forbidden') return reply(DENIED);
       if (result.error.code === 'not_found') return reply(NOT_FOUND);
-      const field = formField(result.error.field);
+      const field = formField(result.error.field, values);
       return reply({
         ok: false,
         message: result.error.message,
@@ -287,7 +338,13 @@ export async function savePlanAction(
     revalidatePath(PLANS_PATH);
     if (result.value.created) {
       // A new plan is listed above; the New Plan form starts empty again.
-      return { ok: true, message: `Saved. ${draft.name.trim()} can now be given to agencies.` };
+      return {
+        ok: true,
+        message:
+          audience === 'TRAVELLER'
+            ? `Saved. ${draft.name.trim()} is ready, and travellers can buy it once buying is switched on.`
+            : `Saved. ${draft.name.trim()} can now be given to agencies.`,
+      };
     }
     if (!result.value.changed) {
       return reply({ ok: true, message: 'Nothing to change. This plan is already set this way.' });
@@ -295,7 +352,9 @@ export async function savePlanAction(
     return reply({
       ok: true,
       message: result.value.priceChanged
-        ? "Saved. The new price applies from each agency's next billing period."
+        ? audience === 'TRAVELLER'
+          ? 'Saved. The new price applies to purchases from now.'
+          : "Saved. The new price applies from each agency's next billing period."
         : 'Saved.',
     });
   });
@@ -353,13 +412,24 @@ export async function retirePlanAction(
       return { ok: false, message: result.error.message };
     }
     revalidatePath(PLANS_PATH);
+    const keeping = result.value.agenciesKeepingIt;
+    if (audienceOf(formData) === 'TRAVELLER') {
+      return {
+        ok: true,
+        retired: true,
+        message:
+          keeping === 0
+            ? 'Retired. Nobody new can buy this plan.'
+            : `Retired. Nobody new can buy this plan; ${keeping === 1 ? '1 person keeps it' : `${keeping} people keep it`} until the period they paid for ends.`,
+      };
+    }
     return {
       ok: true,
       retired: true,
       message:
-        result.value.agenciesKeepingIt === 0
+        keeping === 0
           ? 'Retired. Nobody new can be put on this plan.'
-          : `Retired. Nobody new can be put on this plan; ${result.value.agenciesKeepingIt === 1 ? '1 agency keeps it' : `${result.value.agenciesKeepingIt} agencies keep it`}.`,
+          : `Retired. Nobody new can be put on this plan; ${keeping === 1 ? '1 agency keeps it' : `${keeping} agencies keep it`}.`,
     };
   });
 }

@@ -275,3 +275,148 @@ describe('retiring a plan (S29)', () => {
     expect(mocks.retirePlan).not.toHaveBeenCalled();
   });
 });
+
+describe('saving a traveller plan (ADR 0025 T2b)', () => {
+  /** What the New Traveller Plan form sends: an amount in BDT, storage in MB, no currency box. */
+  function travellerForm(fields: Record<string, string>): FormData {
+    const data = new FormData();
+    const base = {
+      planId: '',
+      audience: 'TRAVELLER',
+      fixedCurrency: 'yes',
+      name: 'Traveller Plus',
+      periodDays: '30',
+      price: '499',
+      'limit.account_storage_bytes': '500',
+      'limit.person_storage_bytes': '',
+    };
+    for (const [key, value] of Object.entries({ ...base, ...fields })) data.set(key, value);
+    return data;
+  }
+
+  it('creates a traveller plan with its price in BDT and its storage in MB', async () => {
+    mocks.savePlan.mockResolvedValueOnce({
+      ok: true,
+      value: { planId: PLAN, created: true, changed: true, priceChanged: false },
+    });
+    const result = await savePlanAction(INITIAL, travellerForm({}));
+    expect(result).toMatchObject({
+      ok: true,
+      message:
+        'Saved. Traveller Plus is ready, and travellers can buy it once buying is switched on.',
+    });
+    const input = mocks.savePlan.mock.calls[0]?.[2];
+    expect(input.audience).toBe('TRAVELLER');
+    expect(input.planId).toBeUndefined();
+    expect(input.draft.price).toEqual({ priceMinorUnits: 49900, currency: 'BDT' });
+    expect(input.draft.rules.account_storage_bytes).toEqual({
+      included: true,
+      limit: 500 * 1024 * 1024,
+    });
+    // Empty follows the upload settings.
+    expect(input.draft.rules.person_storage_bytes).toEqual({ included: true, limit: null });
+    expect(input.draft.rules.seats).toBeUndefined();
+    // No price check against a plan that does not exist yet.
+    expect(mocks.getPlanLatestPrice).not.toHaveBeenCalled();
+  });
+
+  it('saves an unchanged BDT price without asking to confirm it, and reads any posted currency as BDT', async () => {
+    mocks.getPlanLatestPrice.mockResolvedValueOnce({
+      ok: true,
+      value: { priceMinorUnits: 49900, currency: 'BDT' },
+    });
+    // What the form shows for a saved BDT 499 price (no grouping), sent back unchanged.
+    const unchanged = await savePlanAction(
+      INITIAL,
+      travellerForm({ planId: PLAN, price: '499.00', currency: 'USD' }),
+    );
+    expect(unchanged.pricePreview).toBeUndefined();
+    expect(mocks.savePlan.mock.calls[0]?.[2].draft.price).toEqual({
+      priceMinorUnits: 49900,
+      currency: 'BDT',
+    });
+  });
+
+  it('points a refusal about a switched-off AI feature at its box', async () => {
+    mocks.savePlan.mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: 'invalid',
+        message: 'Traveller Plus must give at least what Traveller Free gives.',
+        field: 'ai.ai_app_suggestions',
+      },
+    });
+    const off = await savePlanAction(INITIAL, travellerForm({ 'limit.ai.ai_app_suggestions': '' }));
+    expect(off).toMatchObject({ ok: false, field: 'on.ai_app_suggestions' });
+    mocks.savePlan.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'invalid', message: 'Too low.', field: 'ai.ai_app_suggestions' },
+    });
+    const low = await savePlanAction(
+      INITIAL,
+      travellerForm({ 'on.ai_app_suggestions': 'on', 'limit.ai.ai_app_suggestions': '2' }),
+    );
+    expect(low).toMatchObject({ ok: false, field: 'limit.ai.ai_app_suggestions' });
+  });
+
+  it('reads an empty amount as no price, whatever currency is posted', async () => {
+    await savePlanAction(INITIAL, travellerForm({ price: '', currency: 'USD' }));
+    expect(mocks.savePlan.mock.calls[0]?.[2].draft.price).toBeNull();
+  });
+
+  it('refuses storage of 0 or not a whole number of MB, pointing at the field', async () => {
+    for (const typed of ['0', '1.5', 'lots']) {
+      const result = await savePlanAction(
+        INITIAL,
+        travellerForm({ 'limit.person_storage_bytes': typed }),
+      );
+      expect(result, typed).toMatchObject({ ok: false, field: 'limit.person_storage_bytes' });
+      expect(result.message, typed).toMatch(/Storage per Person in MB as a whole number from 1/);
+    }
+    expect(mocks.savePlan).not.toHaveBeenCalled();
+  });
+
+  it('leaves a traveller storage rule as stored when its rounded value comes back unchanged', async () => {
+    await savePlanAction(
+      INITIAL,
+      travellerForm({
+        planId: PLAN,
+        'limit.account_storage_bytes': '500',
+        'shown.account_storage_bytes': '500',
+      }),
+    );
+    expect(mocks.savePlan.mock.calls[0]?.[2].draft.rules.account_storage_bytes).toBeUndefined();
+  });
+
+  it('keeps what was typed for the New Traveller Plan form across the fresh sign-in check', async () => {
+    mocks.savePlan.mockResolvedValueOnce(stepUpNeeded);
+    mocks.tryEstablishStepUp.mockResolvedValueOnce({
+      kind: 'reauth_required',
+      reauthUrl: '/auth/reauth',
+    });
+    await expect(savePlanAction(INITIAL, travellerForm({}))).rejects.toThrow('NEXT_REDIRECT');
+    const kept = decodePlanFormRetry(jar.get(PLAN_FORM_RETRY_COOKIE)?.value, 'synthetic-owner');
+    expect(kept?.form).toBe('new-traveller');
+    expect(kept?.fields['limit.account_storage_bytes']).toBe('500');
+  });
+
+  it('says a traveller plan keeps its people until their paid period ends when retired', async () => {
+    mocks.previewPlanRetire.mockResolvedValue({
+      ok: true,
+      value: { agenciesOnIt: 1, pendingDowngrades: 0 },
+    });
+    mocks.retirePlan.mockResolvedValue({ ok: true, value: { agenciesKeepingIt: 1 } });
+    const data = new FormData();
+    data.set('planId', PLAN);
+    data.set('audience', 'TRAVELLER');
+    data.set('retirePreviewed', 'yes');
+    data.set('confirmRetire', 'yes');
+    const done = await retirePlanAction(INITIAL, data);
+    expect(done).toMatchObject({
+      ok: true,
+      retired: true,
+      message:
+        'Retired. Nobody new can buy this plan; 1 person keeps it until the period they paid for ends.',
+    });
+  });
+});
