@@ -1,14 +1,15 @@
 import { type TripCheck, evaluateTripChecks, tripChecksApply } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { and, eq, inArray } from 'drizzle-orm';
-import type { Db } from './db';
+import { AuthorizedApplicant } from './access/require-access';
 import { isFactStatusEligible } from './missions';
 
 /**
  * The trip date checks for one case (see core `evaluateTripChecks`): the case's own dates against
- * the passport expiry and any travel insurance record on the traveller's profile. Read only. The
- * caller proves the person may see the case first, as it does for readiness, and passes the case
- * it already loaded, so nothing is read twice. It reads only the three profile fields it needs.
+ * the passport expiry and any travel insurance record on the traveller's profile. Read only.
+ * It takes the access proof for the case (so it can only run for someone the gate has cleared) and
+ * answers for the case's owner alone, because a passport date is profile detail, not case metadata.
+ * It reads only the three profile fields it needs.
  */
 
 const PASSPORT_EXPIRY_KEY = 'passport_expiry';
@@ -16,32 +17,32 @@ const INSURANCE_FROM_KEY = 'travel_insurance_valid_from';
 const INSURANCE_UNTIL_KEY = 'travel_insurance_valid_until';
 const KEYS = [PASSPORT_EXPIRY_KEY, INSURANCE_FROM_KEY, INSURANCE_UNTIL_KEY];
 
-export interface TripCheckCase {
-  readonly applicantId: string;
-  readonly state: string;
-  readonly travelStartDate: Date | null;
-  readonly travelEndDate: Date | null;
-  readonly targetDeadline: Date | null;
-}
-
 /**
  * A saved date is stored as YYYY-MM-DD (a full timestamp is read by its date). Anything else, or a
  * day that does not exist such as 31 February, counts as not recorded and is never guessed.
  */
 function parseSavedDate(value: string | null): Date | null {
-  const match = value ? /^(\d{4}-\d{2}-\d{2})(?:$|T)/.exec(value) : null;
-  if (!match?.[1]) return null;
-  const parsed = new Date(`${match[1]}T00:00:00Z`);
-  return Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== match[1]
+  if (!value || !/^\d{4}-\d{2}-\d{2}(?:$|T)/.test(value)) return null;
+  const day = value.slice(0, 10);
+  const parsed = new Date(`${day}T00:00:00Z`);
+  return Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== day
     ? null
     : parsed;
 }
 
 export async function computeTripChecks(
-  db: Db,
-  mission: TripCheckCase,
+  proof: AuthorizedApplicant<'VIEW_METADATA'>,
   now: Date = new Date(),
 ): Promise<readonly TripCheck[]> {
+  if (
+    !AuthorizedApplicant.isGenuine(proof, 'VIEW_METADATA') ||
+    proof.actor.kind !== 'applicant_owner' ||
+    proof.resource.kind !== 'mission'
+  ) {
+    return [];
+  }
+  const mission = proof.resource.mission;
+  const db = proof.tx;
   // Nothing to compare without a trip date, and nothing to act on once the case is handed in.
   if (!tripChecksApply(mission.state)) return [];
   if (!mission.travelStartDate && !mission.travelEndDate) return [];

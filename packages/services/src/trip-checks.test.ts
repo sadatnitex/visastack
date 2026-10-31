@@ -4,6 +4,8 @@ import { createMigratedPglite } from '@visastack/db/testing';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { accountPrincipal } from './access';
+import { requireAccess } from './access/require-access';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
@@ -84,11 +86,24 @@ describe('computeTripChecks', () => {
 
   const now = new Date('2026-10-31T10:00:00Z');
 
+  /** The checks as the case page asks for them: through the owner's access proof for the case. */
+  async function run(seeded: { accountId: string }, missionId: string) {
+    const gate = await requireAccess(
+      db,
+      accountPrincipal(seeded.accountId),
+      'VIEW_METADATA',
+      { missionId },
+      { purpose: 'self' },
+    );
+    if (!isOk(gate)) throw new Error('gate');
+    return computeTripChecks(gate.value, now);
+  }
+
   it('reads the case dates and the profile passport expiry', async () => {
     const seeded = await seed(db);
     const mission = await newCase(seeded, { start: '2027-03-10', end: '2027-03-24' });
     await saveFact(seeded, 'passport_expiry', '2027-03-01');
-    const result = await computeTripChecks(db, mission, now);
+    const result = await run(seeded, mission.id);
     const passport = result.find((check) => check.key === 'passport_validity');
     expect(passport?.level).toBe('problem');
   });
@@ -97,8 +112,8 @@ describe('computeTripChecks', () => {
     const seeded = await seed(db);
     const withDates = await newCase(seeded, { start: '2027-03-10', end: '2027-03-24' });
     const noDates = await newCase(seeded, {});
-    const a = await computeTripChecks(db, withDates, now);
-    const b = await computeTripChecks(db, noDates, now);
+    const a = await run(seeded, withDates.id);
+    const b = await run(seeded, noDates.id);
     expect(a.map((check) => check.level)).toEqual(['unknown']);
     expect(b).toEqual([]);
   });
@@ -111,11 +126,11 @@ describe('computeTripChecks', () => {
     await saveFact(seeded, 'travel_insurance_valid_until', '2027-03-17', 'p1');
     await saveFact(seeded, 'travel_insurance_valid_from', '2027-03-18', 'p2');
     await saveFact(seeded, 'travel_insurance_valid_until', '2027-03-24', 'p2');
-    const split = await computeTripChecks(db, mission, now);
+    const split = await run(seeded, mission.id);
     expect(split.find((check) => check.key === 'insurance_cover')?.level).toBe('check');
 
     await saveFact(seeded, 'travel_insurance_valid_until', '2027-03-25', 'p1');
-    const covered = await computeTripChecks(db, mission, now);
+    const covered = await run(seeded, mission.id);
     expect(covered.find((check) => check.key === 'insurance_cover')?.level).toBe('ok');
   });
 
@@ -123,9 +138,10 @@ describe('computeTripChecks', () => {
     const seeded = await seed(db);
     const mission = await newCase(seeded, { start: '2027-03-10', end: '2027-03-24' });
     await saveFact(seeded, 'passport_expiry', '2027-03-01');
-    expect(await computeTripChecks(db, mission, now)).not.toEqual([]);
-    for (const state of ['SUBMITTED', 'CLOSED', 'CANCELLED']) {
-      expect(await computeTripChecks(db, { ...mission, state }, now)).toEqual([]);
+    expect(await run(seeded, mission.id)).not.toEqual([]);
+    for (const state of ['SUBMITTED', 'CLOSED', 'CANCELLED'] as const) {
+      await db.update(schema.missions).set({ state }).where(eq(schema.missions.id, mission.id));
+      expect(await run(seeded, mission.id)).toEqual([]);
     }
   });
 
@@ -133,13 +149,13 @@ describe('computeTripChecks', () => {
     const seeded = await seed(db);
     const mission = await newCase(seeded, { start: '2027-03-10', end: '2027-03-24' });
     await saveFact(seeded, 'passport_expiry', '2027-02-31');
-    const impossible = await computeTripChecks(db, mission, now);
+    const impossible = await run(seeded, mission.id);
     expect(impossible.find((check) => check.key === 'passport_validity')?.level).toBe('unknown');
     await saveFact(seeded, 'passport_expiry', '2027-03-10abc');
-    const malformed = await computeTripChecks(db, mission, now);
+    const malformed = await run(seeded, mission.id);
     expect(malformed.find((check) => check.key === 'passport_validity')?.level).toBe('unknown');
     await saveFact(seeded, 'passport_expiry', '2031-05-05');
-    const fine = await computeTripChecks(db, mission, now);
+    const fine = await run(seeded, mission.id);
     expect(fine.find((check) => check.key === 'passport_validity')?.level).toBe('ok');
   });
 });

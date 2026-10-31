@@ -338,7 +338,20 @@ export default async function MissionPage({
       listComplaintsForMission(db, accountId, mission.id),
       listFeedbackForMission(db, accountId, mission.id),
       isExplanationConfigured(db),
-      computeTripChecks(db, mission).catch(() => null),
+      // The date checks read the traveller's profile, so they run through the access gate for the
+      // owner of this case. A refusal or an error shows a plain message, never a made-up result.
+      // A case with no travel date, or one already handed in, needs no gate call at all.
+      tripChecksApply(mission.state) && (mission.travelStartDate || mission.travelEndDate)
+        ? requireAccess(
+            db,
+            accountPrincipal(accountId),
+            'VIEW_METADATA',
+            { missionId: mission.id },
+            { purpose: 'self' },
+          )
+            .then((gate) => (gate.ok ? computeTripChecks(gate.value) : null))
+            .catch(() => null)
+        : Promise.resolve([]),
     ]);
     const complaintList = complaints.ok ? complaints.value : [];
     const complaintEventsById = new Map(
