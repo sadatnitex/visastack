@@ -48,63 +48,61 @@ export function CaseSearchForm({
   const hasFilters =
     query.length > 0 || stage.length > 0 || destination.length > 0 || assignee.length > 0;
   return (
-    <form
-      action={`/app/agency/${orgId}`}
-      method="get"
-      style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', alignItems: 'flex-end' }}
-    >
-      <div className="field-row" style={{ flex: '1 1 14rem' }}>
-        <label className="field-label" htmlFor="q">
-          Search
-        </label>
-        <input
-          id="q"
-          name="q"
-          type="text"
-          defaultValue={query}
-          className="input"
-          placeholder="Client name, case title, or case ID"
-        />
+    <form action={`/app/agency/${orgId}`} method="get" className="field-list">
+      <div className="form-grid">
+        <div className="field-row">
+          <label className="field-label" htmlFor="q">
+            Search
+          </label>
+          <input
+            id="q"
+            name="q"
+            type="text"
+            defaultValue={query}
+            className="input"
+            placeholder="Client name, case title, or case ID"
+          />
+        </div>
+        <div className="field-row">
+          <label className="field-label" htmlFor="stage">
+            Stage
+          </label>
+          <select id="stage" name="stage" defaultValue={stage} className="input">
+            <option value="">Any Stage</option>
+            {Object.entries(STAGE_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field-row">
+          <label className="field-label" htmlFor="destination">
+            Destination
+          </label>
+          <input
+            id="destination"
+            name="destination"
+            type="text"
+            defaultValue={destination}
+            className="input"
+          />
+        </div>
+        <div className="field-row">
+          <label className="field-label" htmlFor="assignee">
+            Assignee
+          </label>
+          <select id="assignee" name="assignee" defaultValue={assignee} className="input">
+            <option value="">Anyone</option>
+            {members.map((m) => (
+              <option key={m.accountId} value={m.accountId}>
+                {m.email}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
-      <div className="field-row" style={{ flex: '1 1 10rem' }}>
-        <label className="field-label" htmlFor="stage">
-          Stage
-        </label>
-        <select id="stage" name="stage" defaultValue={stage} className="input">
-          <option value="">Any Stage</option>
-          {Object.entries(STAGE_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="field-row" style={{ flex: '1 1 10rem' }}>
-        <label className="field-label" htmlFor="destination">
-          Destination
-        </label>
-        <input
-          id="destination"
-          name="destination"
-          type="text"
-          defaultValue={destination}
-          className="input"
-        />
-      </div>
-      <div className="field-row" style={{ flex: '1 1 10rem' }}>
-        <label className="field-label" htmlFor="assignee">
-          Assignee
-        </label>
-        <select id="assignee" name="assignee" defaultValue={assignee} className="input">
-          <option value="">Anyone</option>
-          {members.map((m) => (
-            <option key={m.accountId} value={m.accountId}>
-              {m.email}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
+      <div className="page-actions">
         <button type="submit" className="btn btn-secondary">
           Search
         </button>

@@ -51,7 +51,7 @@ export function AiFeatureForm({
       dailyLimit: adminDailyLimit === null ? '' : String(adminDailyLimit),
     };
   return (
-    <form ref={form} action={formAction} className="field-list">
+    <form ref={form} action={formAction} className="field-list form-narrow">
       <input type="hidden" name="feature" value={feature} />
       {/* Drawn again from what was sent back, so the browser's reset never empties it. */}
       {retry && state === NO_REPLY ? (
@@ -61,45 +61,47 @@ export function AiFeatureForm({
       ) : null}
       <fieldset className="fieldset" key={JSON.stringify(values)}>
         <legend className="field-label">{name}</legend>
-        <div className="checks">
-          <label className="check" htmlFor={`${id}-enabled`}>
+        <div className="form-grid">
+          <div className="checks">
+            <label className="check" htmlFor={`${id}-enabled`}>
+              <input
+                id={`${id}-enabled`}
+                type="checkbox"
+                name="enabled"
+                defaultChecked={values.enabled}
+              />
+              <span>On for Everyone</span>
+            </label>
+          </div>
+          <div className="field-row">
+            <label className="field-label" htmlFor={`${id}-limit`}>
+              {isAiFeatureKey(feature) ? aiDailyLimitLabel(feature) : 'Daily Limit per Person'}
+            </label>
             <input
-              id={`${id}-enabled`}
-              type="checkbox"
-              name="enabled"
-              defaultChecked={values.enabled}
+              id={`${id}-limit`}
+              name="dailyLimit"
+              type="number"
+              inputMode="numeric"
+              min={AI_FEATURE_LIMIT_MIN}
+              max={AI_FEATURE_LIMIT_MAX}
+              step={1}
+              className="input"
+              defaultValue={values.dailyLimit}
+              placeholder={planDailyLimit === null ? '' : String(planDailyLimit)}
+              aria-describedby={[
+                `${id}-limit-hint`,
+                fieldProblem(state, 'dailyLimit', messageId)['aria-describedby'],
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              {...(fieldProblem(state, 'dailyLimit', messageId)['aria-invalid']
+                ? { 'aria-invalid': true as const }
+                : {})}
             />
-            <span>On for Everyone</span>
-          </label>
-        </div>
-        <div className="field-row">
-          <label className="field-label" htmlFor={`${id}-limit`}>
-            {isAiFeatureKey(feature) ? aiDailyLimitLabel(feature) : 'Daily Limit per Person'}
-          </label>
-          <input
-            id={`${id}-limit`}
-            name="dailyLimit"
-            type="number"
-            inputMode="numeric"
-            min={AI_FEATURE_LIMIT_MIN}
-            max={AI_FEATURE_LIMIT_MAX}
-            step={1}
-            className="input"
-            defaultValue={values.dailyLimit}
-            placeholder={planDailyLimit === null ? '' : String(planDailyLimit)}
-            aria-describedby={[
-              `${id}-limit-hint`,
-              fieldProblem(state, 'dailyLimit', messageId)['aria-describedby'],
-            ]
-              .filter(Boolean)
-              .join(' ')}
-            {...(fieldProblem(state, 'dailyLimit', messageId)['aria-invalid']
-              ? { 'aria-invalid': true as const }
-              : {})}
-          />
-          <small className="muted" id={`${id}-limit-hint`}>
-            {LIMIT_NOTE}
-          </small>
+            <small className="muted" id={`${id}-limit-hint`}>
+              {LIMIT_NOTE}
+            </small>
+          </div>
         </div>
       </fieldset>
       <div className="page-actions">

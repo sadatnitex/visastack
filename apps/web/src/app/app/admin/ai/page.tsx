@@ -41,22 +41,26 @@ function Feature({
         {feature.name}
       </h3>
       <p className="card-body">{feature.description}</p>
-      <div className="rows">
+      <div className="rows rows-grid u-mb-100">
         <div className="row">
           <span className="row-key">Now</span>
-          <StatusBadge tone={feature.enabled ? 'success' : 'neutral'}>
-            {feature.enabled ? 'On' : 'Off'}
-          </StatusBadge>
+          <span className="row-val">
+            <StatusBadge tone={feature.enabled ? 'success' : 'neutral'}>
+              {feature.enabled ? 'On' : 'Off'}
+            </StatusBadge>
+          </span>
         </div>
         {feature.planIncluded ? null : (
           <div className="row">
             <span className="row-key">Plan</span>
-            <span>Not in the Traveller Plan</span>
+            <span className="row-val">Not in the Traveller Plan</span>
           </div>
         )}
         <div className="row">
           <span className="row-key">{aiDailyLimitLabel(feature.feature)}</span>
-          <span>{limitLine(feature.adminDailyLimit, feature.planDailyLimit)}</span>
+          <span className="row-val">
+            {limitLine(feature.adminDailyLimit, feature.planDailyLimit)}
+          </span>
         </div>
       </div>
       <p className="muted u-fs-085">

@@ -8216,6 +8216,10 @@ summary.visa-photo-title {
   border-radius: var(--radius-sm);
   padding: var(--space-3);
 }
+/* A disclosure inside an invoice's box spans the box, so the form it opens can use columns. */
+.invoice-list-item-block > .disclosure {
+  justify-self: stretch;
+}
 .invoice-link {
   display: inline-flex;
   align-items: center;
@@ -10814,7 +10818,8 @@ summary.safe-copy-title {
 }
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  /* auto-fill keeps empty columns, so a lone field takes one column instead of the whole row. */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
   gap: var(--space-4) var(--space-5);
   align-items: start;
 }
@@ -10896,4 +10901,18 @@ summary.safe-copy-title {
   min-width: 0;
   color: var(--text-secondary);
   font-size: var(--text-small);
+}
+/* An action bar inside a list row, which already has its own divider: no second line above it. */
+.action-bar.action-bar-flush {
+  margin-top: var(--space-3);
+  padding-top: 0;
+  border-top: none;
+}
+/* A card that spans every column of a .grid (a wide form among narrow cards). */
+.grid > .grid-span-all {
+  grid-column: 1 / -1;
+}
+/* A small form inside a list row (a payment on one invoice): columns, but kept compact. */
+.form-compact {
+  max-width: 44rem;
 }

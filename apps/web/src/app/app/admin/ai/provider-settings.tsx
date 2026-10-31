@@ -10,6 +10,7 @@ import {
   loadAiDataRuleSetting,
   loadAiProviderDataTerms,
 } from '@visastack/services';
+import { StickyDetails } from '../../../../components/sticky-details';
 import { unitsToUsd } from '../../../../lib/ai';
 import { aiConnectorEnabled } from '../../../../lib/ai-connector';
 import { currentAiDataMode } from '../../../../lib/ai-data-rule';
@@ -24,7 +25,6 @@ import {
   type FallbackOption,
   RollbackConfigButton,
 } from '../ai-settings/forms';
-import { StickyDetails } from '../ai-settings/sticky-details';
 
 export type AiProviderSettingsData = Awaited<ReturnType<typeof loadAiProviderSettings>>;
 

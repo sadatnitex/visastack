@@ -81,4 +81,18 @@ describe('RequestEvidenceForm document choice', () => {
     expect(typed.type).toBe('text');
     expect(typed.required).toBe(true);
   });
+
+  it('goes back to asking for a detail when the form is reset after sending', async () => {
+    const host = await mount();
+    await change(host.querySelector('#kind') as HTMLSelectElement, 'DOCUMENT');
+    await change(host.querySelector('#key') as HTMLSelectElement, '__other__');
+    // React resets a form once its action has run; the lists must follow the reset.
+    await act(async () => {
+      (host.querySelector('form') as HTMLFormElement).reset();
+    });
+    expect((host.querySelector('#kind') as HTMLSelectElement).value).toBe('FIELD');
+    expect(host.querySelector('label[for="key"]')?.textContent).toBe('Which detail?');
+    expect(host.querySelector('#key')?.getAttribute('name')).toBe('key');
+    expect(host.querySelector('#otherDocument')).toBeNull();
+  });
 });

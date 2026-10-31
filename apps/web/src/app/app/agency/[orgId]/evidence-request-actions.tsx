@@ -120,6 +120,8 @@ export function EvidenceRequestActions({
       {reasonOutcome ? (
         <form
           action={decideAction}
+          // A sentence-long reason beside its button, kept to a readable width on a wide row.
+          className="form-compact"
           style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}
         >
           <input type="hidden" name="organizationId" value={organizationId} />

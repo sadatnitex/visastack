@@ -10,7 +10,7 @@ export function CreateOrgForm() {
   const [state, formAction, pending] = useActionState(createOrganizationAction, INITIAL);
 
   return (
-    <form action={formAction} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+    <form action={formAction} className="stack-sm form-compact">
       <input
         name="name"
         type="text"

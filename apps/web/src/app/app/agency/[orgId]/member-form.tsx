@@ -17,30 +17,32 @@ export function AddMemberForm({
 }) {
   const [state, formAction, pending] = useActionState(addMemberAction, INITIAL);
   return (
-    <form action={formAction} className="field-list">
+    <form action={formAction} className="field-list form-narrow">
       <input type="hidden" name="organizationId" value={organizationId} />
-      <div className="field-row">
-        <label className="field-label" htmlFor="memberEmail">
-          Member Email
-        </label>
-        <input
-          id="memberEmail"
-          name="memberEmail"
-          type="email"
-          required
-          className="input"
-          placeholder="teammate@example.com"
-        />
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor="role">
-          Role
-        </label>
-        <select id="role" name="role" className="input" defaultValue="REVIEWER">
-          <option value="ADMIN">Admin</option>
-          <option value="CASE_MANAGER">Case Manager</option>
-          <option value="REVIEWER">Reviewer</option>
-        </select>
+      <div className="form-grid">
+        <div className="field-row">
+          <label className="field-label" htmlFor="memberEmail">
+            Member Email
+          </label>
+          <input
+            id="memberEmail"
+            name="memberEmail"
+            type="email"
+            required
+            className="input"
+            placeholder="teammate@example.com"
+          />
+        </div>
+        <div className="field-row">
+          <label className="field-label" htmlFor="role">
+            Role
+          </label>
+          <select id="role" name="role" className="input" defaultValue="REVIEWER">
+            <option value="ADMIN">Admin</option>
+            <option value="CASE_MANAGER">Case Manager</option>
+            <option value="REVIEWER">Reviewer</option>
+          </select>
+        </div>
       </div>
       <div>
         <SubmitButton

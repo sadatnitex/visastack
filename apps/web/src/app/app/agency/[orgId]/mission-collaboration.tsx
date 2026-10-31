@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useId } from 'react';
 import { atLevel, revealAt } from '../../../../components/depth';
 import { FormMessage, NO_RESULT, SubmitButton } from '../../../../components/form-feedback';
 import { useLatestOf } from '../../../../components/latest-result';
@@ -185,6 +185,8 @@ export function MissionCollaboration({
     add: apptCreateState,
     decide: apptDecideState,
   });
+  // Each case on the page has its own copy of these forms, so every field id is made per copy.
+  const uid = useId();
   const assignedAccountIds = new Set(assignments.map((a) => a.memberAccountId));
   const assignableMembers = members.filter((m) => !assignedAccountIds.has(m.accountId));
   const memberEmailByAccountId = new Map(members.map((m) => [m.accountId, m.email] as const));
@@ -377,43 +379,82 @@ export function MissionCollaboration({
           </div>
         )}
         <FormMessage result={taskFrom === 'add' ? NO_RESULT : taskStatus} />
-        <form
-          action={taskCreateAction}
-          style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}
-        >
+        <form action={taskCreateAction} className="field-list form-narrow">
           <input type="hidden" name="organizationId" value={organizationId} />
           <input type="hidden" name="missionId" value={missionId} />
-          <input
-            name="description"
-            type="text"
-            className="input"
-            placeholder="Add a task…"
-            aria-label="Task description"
-            required
-            style={{ flex: 1, minWidth: '9rem' }}
-          />
-          <select name="assigneeAccountId" className="input" defaultValue="" aria-label="Assignee">
-            <option value="">Unassigned</option>
-            {members.map((m) => (
-              <option key={m.accountId} value={m.accountId}>
-                {m.email}
-              </option>
-            ))}
-          </select>
-          <select name="priority" className="input" defaultValue="NORMAL" aria-label="Priority">
-            {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-          <input name="dueDate" type="date" className="input" aria-label="Due Date (Optional)" />
-          <SubmitButton
-            pending={taskCreatePending}
-            idle="Add"
-            busy="Adding…"
-            className="btn btn-secondary u-btn-sm"
-          />
+          <div className="form-grid">
+            <div className="field-row field-wide">
+              <label className="field-label" htmlFor={`${uid}-task-description`}>
+                Task Description
+              </label>
+              <input
+                id={`${uid}-task-description`}
+                name="description"
+                type="text"
+                className="input"
+                placeholder="Add a task…"
+                aria-label="Task description"
+                required
+              />
+            </div>
+            <div className="field-row">
+              <label className="field-label" htmlFor={`${uid}-task-assignee`}>
+                Assignee
+              </label>
+              <select
+                id={`${uid}-task-assignee`}
+                name="assigneeAccountId"
+                className="input"
+                defaultValue=""
+                aria-label="Assignee"
+              >
+                <option value="">Unassigned</option>
+                {members.map((m) => (
+                  <option key={m.accountId} value={m.accountId}>
+                    {m.email}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field-row">
+              <label className="field-label" htmlFor={`${uid}-task-priority`}>
+                Priority
+              </label>
+              <select
+                id={`${uid}-task-priority`}
+                name="priority"
+                className="input"
+                defaultValue="NORMAL"
+                aria-label="Priority"
+              >
+                {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field-row">
+              <label className="field-label" htmlFor={`${uid}-task-due`}>
+                Due Date (Optional)
+              </label>
+              <input
+                id={`${uid}-task-due`}
+                name="dueDate"
+                type="date"
+                className="input"
+                aria-label="Due Date (Optional)"
+              />
+            </div>
+          </div>
+          <div>
+            <SubmitButton
+              pending={taskCreatePending}
+              idle="Add"
+              busy="Adding…"
+              className="btn btn-secondary u-btn-sm"
+            />
+          </div>
         </form>
         <FormMessage result={taskFrom === 'add' ? taskStatus : NO_RESULT} />
       </div>
@@ -481,44 +522,91 @@ export function MissionCollaboration({
           </div>
         )}
         <FormMessage result={appointmentFrom === 'add' ? NO_RESULT : appointmentStatus} />
-        <form
-          action={apptCreateAction}
-          style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}
-        >
+        <form action={apptCreateAction} className="field-list form-narrow">
           <input type="hidden" name="organizationId" value={organizationId} />
           <input type="hidden" name="missionId" value={missionId} />
-          <input
-            name="title"
-            type="text"
-            className="input"
-            placeholder="e.g. Visa interview prep call"
-            aria-label="Appointment title"
-            required
-            style={{ flex: 1, minWidth: '9rem' }}
-          />
-          <input name="localDate" type="date" className="input" aria-label="Date" required />
-          <input name="localTime" type="time" className="input" aria-label="Time" required />
-          <TimeZoneSelect name="timezone" />
-          <input
-            name="place"
-            type="text"
-            className="input"
-            placeholder="Place"
-            aria-label="Place"
-          />
-          <input
-            name="channel"
-            type="text"
-            className="input"
-            placeholder="Channel"
-            aria-label="Channel"
-          />
-          <SubmitButton
-            pending={apptCreatePending}
-            idle="Schedule"
-            busy="Scheduling…"
-            className="btn btn-secondary u-btn-sm"
-          />
+          <div className="form-grid">
+            <div className="field-row field-wide">
+              <label className="field-label" htmlFor={`${uid}-appt-title`}>
+                Appointment Title
+              </label>
+              <input
+                id={`${uid}-appt-title`}
+                name="title"
+                type="text"
+                className="input"
+                placeholder="e.g. Visa interview prep call"
+                aria-label="Appointment title"
+                required
+              />
+            </div>
+            <div className="field-row">
+              <label className="field-label" htmlFor={`${uid}-appt-date`}>
+                Date
+              </label>
+              <input
+                id={`${uid}-appt-date`}
+                name="localDate"
+                type="date"
+                className="input"
+                aria-label="Date"
+                required
+              />
+            </div>
+            <div className="field-row">
+              <label className="field-label" htmlFor={`${uid}-appt-time`}>
+                Time
+              </label>
+              <input
+                id={`${uid}-appt-time`}
+                name="localTime"
+                type="time"
+                className="input"
+                aria-label="Time"
+                required
+              />
+            </div>
+            <div className="field-row">
+              {/* The list carries its own name ("Time Zone") and its own id, so this caption is
+                  only seen, not read out a second time. */}
+              <label className="field-label" htmlFor={`${uid}-appt-timezone`}>
+                Time Zone
+              </label>
+              <TimeZoneSelect id={`${uid}-appt-timezone`} name="timezone" />
+            </div>
+            <div className="field-row">
+              <label className="field-label" htmlFor={`${uid}-appt-place`}>
+                Place
+              </label>
+              <input
+                id={`${uid}-appt-place`}
+                name="place"
+                type="text"
+                className="input"
+                aria-label="Place"
+              />
+            </div>
+            <div className="field-row">
+              <label className="field-label" htmlFor={`${uid}-appt-channel`}>
+                Channel
+              </label>
+              <input
+                id={`${uid}-appt-channel`}
+                name="channel"
+                type="text"
+                className="input"
+                aria-label="Channel"
+              />
+            </div>
+          </div>
+          <div>
+            <SubmitButton
+              pending={apptCreatePending}
+              idle="Schedule"
+              busy="Scheduling…"
+              className="btn btn-secondary u-btn-sm"
+            />
+          </div>
         </form>
         <FormMessage result={appointmentFrom === 'add' ? appointmentStatus : NO_RESULT} />
       </div>
@@ -556,37 +644,52 @@ export function MissionCollaboration({
             ))}
           </div>
         )}
-        <form action={noteAction} style={{ display: 'flex', gap: '0.5rem' }}>
+        <form action={noteAction} className="field-list form-narrow">
           <input type="hidden" name="organizationId" value={organizationId} />
           <input type="hidden" name="missionId" value={missionId} />
-          <input
-            name="body"
-            type="text"
-            className="input"
-            placeholder="Add a case note…"
-            aria-label="Case note"
-            required
-          />
-          <select
-            name="visibility"
-            className="input"
-            required
-            defaultValue=""
-            aria-label="Note visibility"
-            style={{ maxWidth: '11rem' }}
-          >
-            <option value="" disabled>
-              Visibility…
-            </option>
-            <option value="AGENCY_INTERNAL">Internal (This Org Only)</option>
-            <option value="TRAVELLER_SHARED">Shared with Traveller</option>
-          </select>
-          <SubmitButton
-            pending={notePending}
-            idle="Add"
-            busy="Adding…"
-            className="btn btn-secondary u-btn-sm"
-          />
+          <div className="form-grid">
+            <div className="field-row field-wide">
+              <label className="field-label" htmlFor={`${uid}-note-body`}>
+                Case Note
+              </label>
+              <input
+                id={`${uid}-note-body`}
+                name="body"
+                type="text"
+                className="input"
+                placeholder="Add a case note…"
+                aria-label="Case note"
+                required
+              />
+            </div>
+            <div className="field-row">
+              <label className="field-label" htmlFor={`${uid}-note-visibility`}>
+                Visibility
+              </label>
+              <select
+                id={`${uid}-note-visibility`}
+                name="visibility"
+                className="input"
+                required
+                defaultValue=""
+                aria-label="Note visibility"
+              >
+                <option value="" disabled>
+                  Visibility…
+                </option>
+                <option value="AGENCY_INTERNAL">Internal (This Org Only)</option>
+                <option value="TRAVELLER_SHARED">Shared with Traveller</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <SubmitButton
+              pending={notePending}
+              idle="Add"
+              busy="Adding…"
+              className="btn btn-secondary u-btn-sm"
+            />
+          </div>
         </form>
         <FormMessage result={noteState} />
       </div>
@@ -630,50 +733,68 @@ export function MissionCollaboration({
             </div>
           )}
           {viewerAssigned ? (
-            <form
-              action={decisionAction}
-              style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}
-            >
+            <form action={decisionAction} className="field-list form-narrow">
               <input type="hidden" name="organizationId" value={organizationId} />
               <input type="hidden" name="missionId" value={missionId} />
-              <select
-                name="packRequirementId"
-                aria-label="Requirement"
-                className="input"
-                required
-                defaultValue=""
-              >
-                <option value="" disabled>
-                  Requirement…
-                </option>
-                {requirements.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                name="outcome"
-                aria-label="Decision"
-                className="input"
-                defaultValue="ACCEPTED"
-              >
-                <option value="ACCEPTED">Accept</option>
-                <option value="REJECTED">Reject</option>
-              </select>
-              <input
-                name="reason"
-                type="text"
-                className="input"
-                placeholder="Reason (Optional)"
-                aria-label="Decision reason"
-              />
-              <SubmitButton
-                pending={decisionPending}
-                idle="Record"
-                busy="Recording…"
-                className="btn btn-secondary u-btn-sm"
-              />
+              <div className="form-grid">
+                <div className="field-row">
+                  <label className="field-label" htmlFor={`${uid}-decision-requirement`}>
+                    Requirement
+                  </label>
+                  <select
+                    id={`${uid}-decision-requirement`}
+                    name="packRequirementId"
+                    aria-label="Requirement"
+                    className="input"
+                    required
+                    defaultValue=""
+                  >
+                    <option value="" disabled>
+                      Requirement…
+                    </option>
+                    {requirements.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field-row">
+                  <label className="field-label" htmlFor={`${uid}-decision-outcome`}>
+                    Decision
+                  </label>
+                  <select
+                    id={`${uid}-decision-outcome`}
+                    name="outcome"
+                    aria-label="Decision"
+                    className="input"
+                    defaultValue="ACCEPTED"
+                  >
+                    <option value="ACCEPTED">Accept</option>
+                    <option value="REJECTED">Reject</option>
+                  </select>
+                </div>
+                <div className="field-row">
+                  <label className="field-label" htmlFor={`${uid}-decision-reason`}>
+                    Reason (Optional)
+                  </label>
+                  <input
+                    id={`${uid}-decision-reason`}
+                    name="reason"
+                    type="text"
+                    className="input"
+                    aria-label="Decision reason"
+                  />
+                </div>
+              </div>
+              <div>
+                <SubmitButton
+                  pending={decisionPending}
+                  idle="Record"
+                  busy="Recording…"
+                  className="btn btn-secondary u-btn-sm"
+                />
+              </div>
             </form>
           ) : (
             <p className="muted" style={{ fontSize: 'var(--text-caption)' }}>
@@ -721,71 +842,111 @@ export function MissionCollaboration({
               ))}
             </div>
           )}
-          <form action={issuerAction} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <form action={issuerAction} className="field-list form-narrow">
             <input type="hidden" name="organizationId" value={organizationId} />
             <input type="hidden" name="missionId" value={missionId} />
             <input type="hidden" name="applicantId" value={applicantId} />
-            <select
-              name="packRequirementId"
-              className="input"
-              required
-              defaultValue=""
-              aria-label="Requirement this confirmation covers"
-            >
-              <option value="" disabled>
-                Requirement…
-              </option>
-              {requirements.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
-            <input
-              name="issuerIdentity"
-              type="text"
-              className="input"
-              placeholder="Issuer (e.g. HM Passport Office)"
-              aria-label="Issuer identity"
-              required
-            />
-            <input
-              name="contactMethod"
-              type="text"
-              className="input"
-              placeholder="Contact method (e.g. phone: +44...)"
-              aria-label="Contact method"
-              required
-            />
-            <input
-              name="exactClaim"
-              type="text"
-              className="input"
-              placeholder="Exact claim confirmed"
-              aria-label="Exact claim"
-              required
-            />
-            <input
-              name="response"
-              type="text"
-              className="input"
-              placeholder="Issuer's response"
-              aria-label="Issuer response"
-              required
-            />
-            <input
-              name="validUntil"
-              type="date"
-              className="input"
-              aria-label="Valid until"
-              required
-            />
-            <SubmitButton
-              pending={issuerPending}
-              idle="Record Confirmation"
-              busy="Recording…"
-              className="btn btn-secondary u-btn-sm"
-            />
+            <div className="form-grid">
+              <div className="field-row">
+                <label className="field-label" htmlFor={`${uid}-issuer-requirement`}>
+                  Requirement
+                </label>
+                <select
+                  id={`${uid}-issuer-requirement`}
+                  name="packRequirementId"
+                  className="input"
+                  required
+                  defaultValue=""
+                  aria-label="Requirement this confirmation covers"
+                >
+                  <option value="" disabled>
+                    Requirement…
+                  </option>
+                  {requirements.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field-row">
+                <label className="field-label" htmlFor={`${uid}-issuer-identity`}>
+                  Issuer
+                </label>
+                <input
+                  id={`${uid}-issuer-identity`}
+                  name="issuerIdentity"
+                  type="text"
+                  className="input"
+                  placeholder="e.g. HM Passport Office"
+                  aria-label="Issuer identity"
+                  required
+                />
+              </div>
+              <div className="field-row">
+                <label className="field-label" htmlFor={`${uid}-issuer-contact`}>
+                  Contact Method
+                </label>
+                <input
+                  id={`${uid}-issuer-contact`}
+                  name="contactMethod"
+                  type="text"
+                  className="input"
+                  placeholder="e.g. phone: +44..."
+                  aria-label="Contact method"
+                  required
+                />
+              </div>
+              <div className="field-row">
+                <label className="field-label" htmlFor={`${uid}-issuer-claim`}>
+                  Exact Claim
+                </label>
+                <input
+                  id={`${uid}-issuer-claim`}
+                  name="exactClaim"
+                  type="text"
+                  className="input"
+                  placeholder="Exact claim confirmed"
+                  aria-label="Exact claim"
+                  required
+                />
+              </div>
+              <div className="field-row">
+                <label className="field-label" htmlFor={`${uid}-issuer-response`}>
+                  Issuer Response
+                </label>
+                <input
+                  id={`${uid}-issuer-response`}
+                  name="response"
+                  type="text"
+                  className="input"
+                  placeholder="Issuer's response"
+                  aria-label="Issuer response"
+                  required
+                />
+              </div>
+              <div className="field-row">
+                <label className="field-label" htmlFor={`${uid}-issuer-valid-until`}>
+                  Valid Until
+                </label>
+                <input
+                  id={`${uid}-issuer-valid-until`}
+                  name="validUntil"
+                  type="date"
+                  className="input"
+                  aria-label="Valid until"
+                  required
+                />
+              </div>
+            </div>
+            <div>
+              <SubmitButton
+                pending={issuerPending}
+                idle="Record Confirmation"
+                busy="Recording…"
+                className="btn btn-secondary u-btn-sm"
+              />
+            </div>
           </form>
           <p className="muted" style={{ fontSize: 'var(--text-caption)', marginTop: '0.35rem' }}>
             Requires evidence already selected for that requirement; a staff checkbox alone is never
