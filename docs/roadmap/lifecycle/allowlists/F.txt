@@ -1,0 +1,23 @@
+# LC-F Foundation. One glob per line. See ../PROGRAMME.md section 5.
+packages/db/src/schema.ts
+packages/db/src/*.test.ts
+packages/db/migrations/*_resource_lifecycle.sql
+packages/db/migrations/meta/**
+packages/services/src/lifecycle/foundation/**
+packages/services/src/erasure.ts
+packages/services/src/erasure.test.ts
+packages/services/src/backup-reconciliation.ts
+packages/services/src/backup-reconciliation.test.ts
+packages/services/src/product-events.ts
+packages/services/src/product-events.test.ts
+packages/services/src/index.ts
+apps/web/src/app/app/applicant/[id]/documents/page.tsx
+apps/web/src/app/app/applicant/[id]/documents/page.test.tsx
+apps/web/src/app/app/applicant/[id]/documents/manage/*.tsx
+apps/web/src/app/app/applicant/[id]/documents/manage/*.ts
+apps/web/src/components/lifecycle/**
+apps/web/src/app/globals.css
+apps/web/src/lib/vocabulary.test.ts
+docs/architecture/resource-lifecycle-contract.md
+docs/uiux/ccd/VOCABULARY.md
+docs/roadmap/lifecycle/lanes/F.md

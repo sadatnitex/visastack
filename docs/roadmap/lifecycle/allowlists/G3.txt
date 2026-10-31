@@ -1,0 +1,11 @@
+# LC-G3 Withdraw a pending agency application (wave 0).
+packages/services/src/lifecycle/agency/**
+packages/services/src/organizations.ts
+packages/services/src/organizations.test.ts
+packages/services/src/index.ts
+apps/web/src/app/app/agency/page.tsx
+apps/web/src/app/app/agency/page.test.tsx
+apps/web/src/app/app/agency/actions.ts
+apps/web/src/app/app/agency/actions.test.ts
+apps/web/src/app/globals.css
+docs/roadmap/lifecycle/lanes/G3.md

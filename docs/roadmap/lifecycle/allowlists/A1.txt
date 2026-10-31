@@ -1,0 +1,10 @@
+# LC-A1 Archive and readiness.
+packages/services/src/lifecycle/archive/**
+packages/services/src/lifecycle/foundation/read-baseline/A1.json
+packages/services/src/missions.ts
+packages/services/src/missions.test.ts
+packages/services/src/index.ts
+apps/web/src/app/app/applicant/[id]/documents/manage/archive/**
+apps/web/src/app/app/applicant/[id]/documents/manage/registry.tsx
+apps/web/src/app/globals.css
+docs/roadmap/lifecycle/lanes/A1.md

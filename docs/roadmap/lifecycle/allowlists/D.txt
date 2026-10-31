@@ -1,0 +1,15 @@
+# LC-D Removal requests (behind DOCUMENT_REMOVAL_REQUESTS, default off).
+packages/services/src/lifecycle/removal-requests/**
+packages/services/src/index.ts
+apps/web/src/app/app/applicant/[id]/documents/manage/request/**
+apps/web/src/app/app/applicant/[id]/documents/manage/registry.tsx
+apps/web/src/app/api/jobs/process-notification-sweeps/**
+apps/web/src/lib/lifecycle-jobs/removal-alerts.ts
+apps/web/src/lib/lifecycle-jobs/removal-alerts.test.ts
+apps/web/src/lib/env.ts
+apps/web/src/lib/env.test.ts
+apps/web/src/app/globals.css
+docs/roadmap/lifecycle/lanes/D.md
+apps/web/src/app/app/admin/removals/**
+apps/web/src/lib/navigation.ts
+apps/web/src/lib/navigation.test.ts

@@ -1,0 +1,14 @@
+# LC-B Replace and renewal.
+packages/services/src/lifecycle/replace/**
+packages/services/src/lifecycle/foundation/read-baseline/B.json
+packages/services/src/wallet.ts
+packages/services/src/wallet.test.ts
+packages/services/src/notification-sweep.ts
+packages/services/src/notification-sweep.test.ts
+packages/services/src/email-design.ts
+packages/services/src/email-design.test.ts
+packages/services/src/index.ts
+apps/web/src/app/app/applicant/[id]/documents/manage/replace/**
+apps/web/src/app/app/applicant/[id]/documents/manage/registry.tsx
+apps/web/src/app/globals.css
+docs/roadmap/lifecycle/lanes/B.md

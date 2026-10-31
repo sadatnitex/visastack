@@ -1,0 +1,3 @@
+# LC-Z Integration (wave 2, runs alone after every other lane has merged, so it may touch any file
+# a lane owned, only to fix an integration defect it names in its report; plus the central docs).
+**
