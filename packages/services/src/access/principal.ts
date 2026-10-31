@@ -115,14 +115,21 @@ export class StaffScope<A extends PlatformAction> {
   readonly accountId: string;
   /** The one platform action the live role check covered. */
   readonly platformAction: A;
-  readonly verifiedAt: Date;
+  // Kept as a number in a private field: a Date is mutable, so a caller could otherwise move a
+  // frozen scope's check time forward and make an old scope look fresh.
+  readonly #verifiedAtMs: number;
 
   private constructor(accountId: string, platformAction: A, verifiedAt: Date) {
     if (!mintingStaffScope) throw new Error('a StaffScope can only be made by staffPrincipal()');
     this.accountId = accountId;
     this.platformAction = platformAction;
-    this.verifiedAt = verifiedAt;
+    this.#verifiedAtMs = verifiedAt.getTime();
     Object.freeze(this);
+  }
+
+  /** When the live role check ran (a copy: changing it changes nothing). */
+  get verifiedAt(): Date {
+    return new Date(this.#verifiedAtMs);
   }
 
   /** Run-time check that `value` is a genuine scope, not a copy. */
@@ -155,13 +162,19 @@ export class SelfScope {
   readonly #brand = 'SelfScope';
   readonly kind = 'self' as const;
   readonly accountId: string;
-  readonly verifiedAt: Date;
+  // A number in a private field, as in StaffScope: the check time cannot be moved.
+  readonly #verifiedAtMs: number;
 
   private constructor(accountId: string, verifiedAt: Date) {
     if (!mintingSelfScope) throw new Error('a SelfScope can only be made by selfPrincipal()');
     this.accountId = accountId;
-    this.verifiedAt = verifiedAt;
+    this.#verifiedAtMs = verifiedAt.getTime();
     Object.freeze(this);
+  }
+
+  /** When the session minted it (a copy: changing it changes nothing). */
+  get verifiedAt(): Date {
+    return new Date(this.#verifiedAtMs);
   }
 
   /** Run-time check that `value` is a genuine scope, not a copy. */
@@ -235,11 +248,12 @@ export function staffScopeProblem(
   staff: unknown,
   action: PlatformAction,
 ): ServiceError | undefined {
-  if (
-    !StaffScope.isGenuine(staff) ||
-    staff.platformAction !== action ||
-    Date.now() - staff.verifiedAt.getTime() > STAFF_SCOPE_MAX_AGE_MS
-  ) {
+  if (!StaffScope.isGenuine(staff) || staff.platformAction !== action) {
+    return serviceError('forbidden', 'this account does not hold the platform role required');
+  }
+  // Fresh means checked in the last few minutes, never in the future.
+  const age = Date.now() - staff.verifiedAt.getTime();
+  if (!(age >= 0 && age <= STAFF_SCOPE_MAX_AGE_MS)) {
     return serviceError('forbidden', 'this account does not hold the platform role required');
   }
   return undefined;
@@ -267,10 +281,9 @@ const SELF_SCOPE_MAX_AGE_MS = 5 * 60 * 1000;
  * time.
  */
 export function selfScopeProblem(self: unknown): ServiceError | undefined {
-  if (
-    !SelfScope.isGenuine(self) ||
-    Date.now() - self.verifiedAt.getTime() > SELF_SCOPE_MAX_AGE_MS
-  ) {
+  const age = SelfScope.isGenuine(self) ? Date.now() - self.verifiedAt.getTime() : Number.NaN;
+  // Fresh means minted in the last few minutes, never in the future.
+  if (!(age >= 0 && age <= SELF_SCOPE_MAX_AGE_MS)) {
     return serviceError('forbidden', 'this request is not signed in as the account it names');
   }
   return undefined;

@@ -2,7 +2,7 @@ import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   SYSTEM_JOBS,
   SelfScope,
@@ -69,14 +69,25 @@ describe('gate values cannot be forged', () => {
     const Ctor = SelfScope as unknown as new (id: string, at: Date) => unknown;
     expect(() => new Ctor('x', new Date())).toThrow(/selfPrincipal/);
     expect(() => selfPrincipal('')).toThrow(/signed-in account/);
-    // Minted for one request: an old one is refused.
+    // Minted for one request: an old one is refused, and moving its time does not revive it.
     const real = Date.now;
     try {
       Date.now = () => real() + 6 * 60 * 1000;
       expect(selfScopeProblem(self)?.code).toBe('forbidden');
+      self.verifiedAt.setTime(Date.now());
+      expect(selfScopeProblem(self)?.code).toBe('forbidden');
     } finally {
       Date.now = real;
     }
+    // One minted with a clock ahead of now is not fresh either.
+    let ahead: ReturnType<typeof selfPrincipal>;
+    try {
+      vi.useFakeTimers({ now: Date.now() + 60 * 60 * 1000 });
+      ahead = selfPrincipal('00000000-0000-4000-8000-000000000002');
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(selfScopeProblem(ahead)?.code).toBe('forbidden');
   });
 
   it('SYSTEM_JOBS matches the job routes in apps/web/src/app/api/jobs', () => {

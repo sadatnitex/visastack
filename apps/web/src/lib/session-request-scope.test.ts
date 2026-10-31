@@ -71,6 +71,8 @@ vi.mock('@visastack/services', () => ({
   releaseInvitationClaim: h.release,
   attributeInvitation: h.attribute,
   touchAccountActivity: h.touch,
+  // ADR 0025: withSession mints the signed-in person's scope for every callback.
+  selfPrincipal: (accountId: string) => ({ kind: 'self', accountId }),
 }));
 vi.mock('./pilot-access', () => ({ checkPilotAccess: h.checkPilotAccess }));
 vi.mock('./server-error', () => ({ reportServerError: h.report }));

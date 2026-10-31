@@ -547,20 +547,42 @@ function systemScopeUsers(serviceFiles: readonly string[]): string[] {
   return users.sort();
 }
 
+const repoDir = realpathSync(path.resolve(servicesDir, '../..'));
+/** Folders never holding code that runs: dependencies, build output, docs. */
+const NOT_CODE = new Set(['node_modules', '.next', '.turbo', '.git', 'dist', 'coverage', 'docs']);
+
+/** Every code file of the repository (any package or app, scripts and tests included). */
+function codeFilesOfRepo(): string[] {
+  const files: string[] = [];
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (NOT_CODE.has(entry.name)) continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (/\.(ts|tsx|js|mjs|cjs)$/.test(entry.name)) files.push(full);
+    }
+  };
+  walk(repoDir);
+  return files;
+}
+
 /**
- * Files outside access/ and apps/web/src/lib/session.ts that mention `selfPrincipal`. Plain text on
- * purpose, as above; the services index re-exports it and is the one allowed exception.
+ * Code files anywhere in the repository (every package and app, scripts included) that mention
+ * `selfPrincipal`, other than access/, the services index that re-exports it, and
+ * apps/web/src/lib/session.ts. Plain text on purpose, as above. Tests are left out: a test may
+ * stand in for it, and tests never run in production.
  */
-function selfScopeUsers(serviceFiles: readonly string[]): string[] {
+function selfScopeUsers(): string[] {
   const indexFile = path.join(srcDir, 'index.ts');
   const sessionFile = path.join(webSrcDir, 'lib', 'session.ts');
   const users: string[] = [];
-  for (const file of [...serviceFiles.map(real), ...sourceFilesUnder(webSrcDir)]) {
+  for (const file of codeFilesOfRepo().map(real)) {
     if (file.startsWith(accessDir + path.sep) || file === indexFile || file === sessionFile) {
       continue;
     }
+    if (/\.test\.(ts|tsx)$|\.test-support\.ts$|\.test-d\.ts$/.test(file)) continue;
     if (/\bselfPrincipal\b/.test(readFileSync(file, 'utf8'))) {
-      users.push(path.relative(path.resolve(servicesDir, '../..'), file).replace(/\\/g, '/'));
+      users.push(path.relative(repoDir, file).replace(/\\/g, '/'));
     }
   }
   return users.sort();
@@ -582,7 +604,7 @@ function analyse(): Analysis {
     ...ratchet(program, checker, tables, gateDecls),
     ownedTableNames: tables.names,
     systemScopeUsers: systemScopeUsers(configFileNames),
-    selfScopeUsers: selfScopeUsers(configFileNames),
+    selfScopeUsers: selfScopeUsers(),
   };
 }
 
@@ -669,16 +691,22 @@ function ratchet(
 }
 
 /**
- * Service files outside PAYER_COLUMN_MODULES that name the 0110 payer column in text (plain SQL the
- * type-based ratchet cannot see). Tests are left out.
+ * Code a person's billing rows could be reached through without the declarations: the 0110 payer
+ * column, the person receipt counters, or a filter on an empty organization, named in text (plain
+ * SQL the type-based ratchet cannot see). A tripwire, not a boundary: by-id lookups of the shared
+ * tables are covered by the agency guards and their tests (person-billing-isolation.test.ts).
  */
+const PERSON_ROW_TEXT =
+  /payer_account_id|payerAccountId|person_receipt_counters|organization_id"?\s+is\s+null/i;
+
+/** Service and web files outside PAYER_COLUMN_MODULES that match PERSON_ROW_TEXT. Tests left out. */
 function payerColumnUsers(): string[] {
   const allowed = new Set(PAYER_COLUMN_MODULES.map((m) => path.join(srcDir, `${m}.ts`)));
-  return sourceFilesUnder(srcDir)
+  return [...sourceFilesUnder(srcDir), ...sourceFilesUnder(webSrcDir)]
     .map(real)
-    .filter((file) => !isTestFile(file) && !allowed.has(file))
-    .filter((file) => /payer_account_id|payerAccountId/.test(readFileSync(file, 'utf8')))
-    .map((file) => path.relative(srcDir, file).replace(/\\/g, '/'))
+    .filter((file) => !isTestFile(file) && !/\.test\.tsx$/.test(file) && !allowed.has(file))
+    .filter((file) => PERSON_ROW_TEXT.test(readFileSync(file, 'utf8')))
+    .map((file) => path.relative(repoDir, file).replace(/\\/g, '/'))
     .sort();
 }
 
@@ -782,6 +810,16 @@ describe('person billing ratchet (ADR 0025)', () => {
     }
     for (const id of Object.keys(PERSON_EXCEPTIONS)) {
       expect(exportedFunctionIds.has(id), `${id} is listed but no longer exists`).toBe(true);
+    }
+    // An exception that now takes a gate is removed from the list, as the baseline only shrinks.
+    for (const [name, shape] of exportedFunctions(
+      checker,
+      sourceFileAt(program, real(path.join(srcDir, 'traveller-billing.ts'))),
+    )) {
+      const id = `traveller-billing#${name}`;
+      if (!Object.hasOwn(PERSON_EXCEPTIONS, id)) continue;
+      const gated = !shape.opaque && complies(checker, shape.fns, personGates);
+      expect(gated, `${id} now takes a gate: remove it from PERSON_EXCEPTIONS`).toBe(false);
     }
   }, 180_000);
 });

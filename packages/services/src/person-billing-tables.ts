@@ -8,7 +8,8 @@ import { boolean, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg
  * Why a second declaration: `schema.ts` does not declare the 0110 columns yet (ADR 0025 section
  * 13), because Drizzle names every declared column in each insert and plain select, and the agency
  * billing code must keep working on the older databases its tests build. These declarations are
- * used only by person billing code, only after `personBillingPresent` says 0110 has run, and are
+ * used only by person billing code, only after `personBillingPresent` says migrations 0110 and
+ * 0111 have run (0111 lets a person's own subscription have no assigning account), and are
  * never exported from `@visastack/db` (drizzle-kit reads `schema.ts` only, so they never produce
  * a migration).
  *
@@ -126,13 +127,3 @@ export const personReceiptCounters = pgTable('person_receipt_counters', {
   accountId: uuid('account_id').primaryKey(),
   lastNumber: integer('last_number').notNull().default(0),
 });
-
-/** Every person billing table, for the drift test and the access ratchet. */
-export const PERSON_BILLING_TABLES = [
-  personSubscriptions,
-  personInvoices,
-  personPaymentAttempts,
-  personRefundRequests,
-  personPaymentReceipts,
-  personReceiptCounters,
-] as const;
