@@ -1,6 +1,8 @@
 import type { MembershipRole } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
 import { and, desc, eq, lt, or } from 'drizzle-orm';
+import { endAgencyAiConnectionsOfMember } from './access/agency-ai-connections';
+import { AGENCY_AI_ROLES } from './access/agency-ai-scope';
 import { getAccountByEmail } from './accounts';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
@@ -435,6 +437,16 @@ export async function acceptOrganizationInvitation(
       ),
       'membership',
     );
+    // S22: accepting an invitation for a role other than owner or admin takes the member out of
+    // the agency's AI tools; their agency AI connections end here, before the audit chain is taken.
+    if (!AGENCY_AI_ROLES.includes(membership.role)) {
+      await endAgencyAiConnectionsOfMember(tx, {
+        organizationId: invitation.organizationId,
+        memberAccountId: input.actorAccountId,
+        actorAccountId: input.actorAccountId,
+        reason: 'role_changed',
+      });
+    }
     await appendAuditEvent(tx, {
       eventType: 'ORGANIZATION_INVITATION_ACCEPTED',
       actorAccountId: input.actorAccountId,

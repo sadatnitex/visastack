@@ -1,5 +1,6 @@
 'use client';
 
+import type { AgencyAiConnectionDuration } from '@visastack/services';
 import { useActionState, useId, useRef } from 'react';
 import {
   FormMessage,
@@ -8,11 +9,7 @@ import {
   isFailure,
   useFocusInvalidField,
 } from '../../../components/form-feedback';
-import {
-  AGENCY_AI_DURATIONS,
-  AGENCY_AI_DURATION_LABELS,
-  agencyAiConsentSentence,
-} from '../../../lib/agency-ai';
+import { AGENCY_AI_DURATION_LABELS, agencyAiConsentSentence } from '../../../lib/agency-ai';
 import { answerAgencyAiConsentAction } from './agency-actions';
 
 export interface AgencyConsentFormProps {
@@ -25,6 +22,8 @@ export interface AgencyConsentFormProps {
     readonly state: string | null;
   };
   readonly agency: { readonly id: string; readonly name: string };
+  /** The services' default length, chosen to start with. */
+  readonly defaultDuration: AgencyAiConnectionDuration;
 }
 
 /**
@@ -32,7 +31,7 @@ export interface AgencyConsentFormProps {
  * chosen here: each traveller decides that on their own grant to the agency. Only how long it may
  * read is chosen, at most 30 days.
  */
-export function AgencyConsentForm({ request, agency }: AgencyConsentFormProps) {
+export function AgencyConsentForm({ request, agency, defaultDuration }: AgencyConsentFormProps) {
   const [state, formAction, pending] = useActionState(answerAgencyAiConsentAction, NO_RESULT);
   const id = useId();
   const messageId = `${id}-message`;
@@ -56,13 +55,13 @@ export function AgencyConsentForm({ request, agency }: AgencyConsentFormProps) {
           id={`${id}-duration`}
           name="duration"
           className="input"
-          defaultValue="30d"
+          defaultValue={defaultDuration}
           aria-invalid={invalid || undefined}
           aria-describedby={invalid ? messageId : undefined}
         >
-          {AGENCY_AI_DURATIONS.map((duration) => (
+          {Object.entries(AGENCY_AI_DURATION_LABELS).map(([duration, label]) => (
             <option key={duration} value={duration}>
-              {AGENCY_AI_DURATION_LABELS[duration]}
+              {label}
             </option>
           ))}
         </select>

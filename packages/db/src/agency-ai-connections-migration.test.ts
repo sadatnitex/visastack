@@ -142,15 +142,24 @@ describe('migrations 0108 and 0109: agency AI connectors', () => {
           agency,
         ]),
       ).rejects.toThrow(/either a record or an agency/);
-      // Removing only the agency row of a connection that stays: refused.
+      // The agency row never moves to another connection or agency.
+      const second = await agencyConnection(true);
       await expect(
-        client.query('delete from ai_connection_agencies where connection_id = $1', [agency]),
-      ).rejects.toThrow(/either a record or an agency/);
+        client.query(
+          'update ai_connection_agencies set connection_id = $1 where connection_id = $2',
+          [existing, second],
+        ),
+      ).rejects.toThrow(/keeps its connection and its agency/);
+      // Removing the agency row removes its connection with it.
+      await client.query('delete from ai_connection_agencies where connection_id = $1', [agency]);
+      expect(
+        (await client.query('select id from ai_connections where id = $1', [agency])).rows,
+      ).toHaveLength(0);
       // Removing the connection takes its agency row with it.
-      await client.query(`delete from ai_connections where id = '${agency}'`);
+      await client.query(`delete from ai_connections where id = '${second}'`);
       expect((await client.query('select * from ai_connection_agencies')).rows).toHaveLength(0);
 
-      // The agency setting: off unless written, removed with the agency.
+      // The agency setting: off unless written.
       await client.query('insert into organization_ai_settings (organization_id) values ($1)', [
         organization,
       ]);
@@ -158,15 +167,30 @@ describe('migrations 0108 and 0109: agency AI connectors', () => {
         'select ai_connections_enabled from organization_ai_settings',
       );
       expect(setting.rows[0]?.ai_connections_enabled).toBe(false);
-      await client.query(`delete from ai_connections where id = '${existing}'`);
+
+      // Removing an agency with a live agency connection works, and the connection goes with it.
+      const live = await agencyConnection(true);
+      await client.query(
+        `insert into ai_connection_tokens (connection_id, kind, token_hash, family_id, resource, expires_at)
+         values ($1, 'ACCESS', 'hash-agency', gen_random_uuid(), 'https://vs.example.test/mcp', now() + interval '1 hour')`,
+        [live],
+      );
       await client.query('delete from grants');
       await client.query(`delete from organizations where id = '${organization}'`);
+      expect(
+        (await client.query('select id from ai_connections where id = $1', [live])).rows,
+      ).toHaveLength(0);
+      expect((await client.query('select * from ai_connection_tokens')).rows).toHaveLength(0);
       expect((await client.query('select * from organization_ai_settings')).rows).toHaveLength(0);
+      // The connection written before keeps its record.
+      expect(
+        (await client.query('select id from ai_connections where id = $1', [existing])).rows,
+      ).toHaveLength(1);
 
       const triggers = await client.query<{ count: number }>(
-        `select count(*)::int as count from pg_trigger where tgname in ('ai_connections_kind_guard', 'ai_connection_agencies_kind_guard')`,
+        `select count(*)::int as count from pg_trigger where tgname in ('ai_connections_kind_guard', 'ai_connection_agencies_kind_guard', 'ai_connection_agencies_removed', 'ai_connection_agencies_fixed')`,
       );
-      expect(triggers.rows[0]?.count).toBe(2);
+      expect(triggers.rows[0]?.count).toBe(4);
     },
     MIGRATION_TIMEOUT_MS,
   );

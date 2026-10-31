@@ -1,3 +1,5 @@
+import type { AgencyAiConnectionDuration } from '@visastack/services';
+
 /**
  * The words of agency AI connections (S22, ADR 0021 S22 amendment), in one place, browser-safe.
  *
@@ -12,9 +14,13 @@ export const AGENCY_AI_CHOICE_LABEL = 'Let This Agency Use AI Tools on What I Sh
 /** The line on an agency grant card when the choice is on. */
 export const AGENCY_AI_ALLOWED_LINE = 'AI Tools Allowed';
 
-/** O10 draft: what the traveller reads beside the choice. */
+/**
+ * O10 draft: what the traveller reads beside the choice. Round 2: the promise about numbers is only
+ * what is enforced (identifiers saved in the profile are shortened, restricted document types are
+ * never read, files are never sent); a number written in another document's text is not masked.
+ */
 export function agencyAiTravellerNote(agencyName: string): string {
-  return `When this is on, staff at ${agencyName} can ask an AI app they choose, such as ChatGPT or Claude, to read what you already share with ${agencyName}, to help with your cases. It reads nothing more. ${agencyName} runs that app under its own agreement with the app’s provider and is responsible for how that provider handles your information. Full document numbers and files are never sent to it. Turn this off at any time; it stops the next request.`;
+  return `When this is on, staff at ${agencyName} can ask an AI app they choose, such as ChatGPT or Claude, to read what you already share with ${agencyName}, to help with your cases. It reads nothing more. ${agencyName} runs that app under its own agreement with the app’s provider and is responsible for how that provider handles your information. Files are never sent to it. The text of passport, ID, money and health documents is never read, and the ID numbers saved in your profile are shortened wherever they appear. Turn this off at any time; it stops the next request.`;
 }
 
 /** The agency setting's name, as the agency's Settings page shows it. */
@@ -31,24 +37,21 @@ export const AGENCY_AI_ADMINS_ONLY = 'Only owners and admins can change this.';
 /** While the update that stores agency AI choices has not run. */
 export const AGENCY_AI_NOT_YET = 'Available After the Next Update';
 
-/** How long an agency connection may last (decision D4: never more than 30 days). */
-export const AGENCY_AI_DURATIONS = ['1h', '24h', '7d', '30d'] as const;
-export type AgencyAiDuration = (typeof AGENCY_AI_DURATIONS)[number];
-
-export const AGENCY_AI_DURATION_LABELS: Readonly<Record<AgencyAiDuration, string>> = {
+/**
+ * How each agency connection length reads (decision D4: never more than 30 days). The lengths
+ * themselves are the services' list (`AGENCY_AI_CONNECTION_DURATIONS`); this keeps only their
+ * words, keyed by the services' own type, so there is no second list to fall out of step.
+ */
+export const AGENCY_AI_DURATION_LABELS: Readonly<Record<AgencyAiConnectionDuration, string>> = {
   '1h': '1 Hour',
   '24h': '24 Hours',
   '7d': '7 Days',
   '30d': '30 Days',
 };
 
-export function isAgencyAiDuration(value: unknown): value is AgencyAiDuration {
-  return (AGENCY_AI_DURATIONS as readonly unknown[]).includes(value);
-}
-
 /** The consent screen's sentence for an agency connection. */
 export function agencyAiConsentSentence(agencyName: string): string {
-  return `For each case you can see at ${agencyName}, this app can read only what that case’s traveller allowed ${agencyName}’s AI tools to read. It cannot change anything in VisaStack. Full document numbers and files are never given to it. It works for at most 30 days, then you connect it again, and any owner or admin can turn it off at any time.`;
+  return `For each case you can see at ${agencyName}, this app can read only what that case’s traveller allowed ${agencyName}’s AI tools to read. It cannot change anything in VisaStack. Files are never given to it, the text of passport, ID, money and health documents is never read, and the ID numbers saved in a traveller’s profile are shortened wherever they appear. It works for at most 30 days, then you connect it again, and any owner or admin can turn it off at any time.`;
 }
 
 /** The Access Log line of an agency AI read on a traveller's record. */

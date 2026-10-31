@@ -517,6 +517,18 @@ export async function setMembershipActive(
       }
     }
 
+    // S22: a member turned off can no longer use the agency's AI tools (the AI gate refuses them
+    // on the next call); their agency AI connections are also ended, tokens and all. Before this
+    // transaction's own audit record, so the audit chain is taken last, as in the AI gate.
+    if (!input.active) {
+      await endAgencyAiConnectionsOfMember(tx, {
+        organizationId: input.organizationId,
+        memberAccountId: target.accountId,
+        actorAccountId: input.actorAccountId,
+        reason: 'member_removed',
+      });
+    }
+
     const rows = await tx
       .update(schema.memberships)
       .set({ active: input.active, updatedAt: new Date() })
@@ -541,16 +553,6 @@ export async function setMembershipActive(
       resourceId: updated.id,
       metadata: { organizationId: input.organizationId, targetRole: target.role },
     });
-
-    // S22: a member turned off can no longer use the agency's AI tools (the AI gate refuses them
-    // on the next call); their agency AI connections are also ended, tokens and all.
-    if (!input.active) {
-      await endAgencyAiConnectionsOfMember(tx, {
-        organizationId: input.organizationId,
-        memberAccountId: target.accountId,
-        actorAccountId: input.actorAccountId,
-      });
-    }
 
     // Commercial V1 Part 4 §11: "Removed member may not remain sole owner of
     // active case." A deactivated member no longer passes `isActiveMember`,

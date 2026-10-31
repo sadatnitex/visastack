@@ -86,7 +86,8 @@ export function AcceptClientInvitationForm({
             </label>
           </div>
           <small className="muted" id={`${aiId}-note`}>
-            {agencyAiTravellerNote(agencyAi.agencyName)} You will be asked to confirm it is you.
+            {agencyAiTravellerNote(agencyAi.agencyName)} If your sign-in is not recent, you will
+            confirm it is you, then tick this again on Sharing.
           </small>
         </fieldset>
       ) : null}

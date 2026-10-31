@@ -86,7 +86,7 @@ export const agencyPrepareContext: AgencyAiToolDefinition<typeof prepareInput> =
   kind: 'agency',
   title: 'Prepare Case Context',
   description:
-    'Gives a compact summary of one case and what its traveller allowed this agency’s AI tools to read: the case, readiness, profile details with where each came from, documents and expiry dates. Every value says whether it is confirmed, suggested or out of date. Full document numbers are never given.',
+    'Gives a compact summary of one case and what its traveller allowed this agency’s AI tools to read: the case, readiness, profile details with where each came from, documents and expiry dates. Every value says whether it is confirmed, suggested or out of date. ID numbers saved in the profile are shortened wherever they appear, and files are never given.',
   inputSchema: prepareInput,
   outputSchema: contextOutputSchema,
   annotations: READ_ONLY_ANNOTATIONS,
@@ -203,7 +203,9 @@ export const agencyGetDocumentText: AgencyAiToolDefinition<typeof documentTextIn
         gateway.denied('document_protected');
         return refusal(MESSAGES.documentProtected);
       }
-      gateway.denied(output.omitted.not_granted > 0 ? 'document_not_shared' : 'no_text');
+      // One answer whether the document has no text or is not shared: nothing about what the
+      // traveller withheld reaches the app (the composer gives no count of it for agencies).
+      gateway.denied('no_text');
       return refusal(MESSAGES.agencyNoText);
     }
     const summary = `Text read from ${read.kind} ${documentReference}${read.truncated ? ' (shortened to the limit)' : ''}. ${GUIDANCE}`;

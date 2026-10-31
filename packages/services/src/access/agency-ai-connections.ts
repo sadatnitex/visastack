@@ -1,5 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { type SQL, and, desc, eq, gt, inArray, isNotNull, isNull, not, or } from 'drizzle-orm';
 import { agencyAiAvailable } from '../agency-ai-ready';
 import {
   AI_CONNECTION_LAYERS,
@@ -41,6 +41,7 @@ export function isAgencyAiConnectionDuration(value: unknown): value is AgencyAiC
 /** The revoked reasons an agency connection can carry. */
 export const AGENCY_AI_REVOKED_BY_AGENCY = 'turned off by agency';
 export const AGENCY_AI_REVOKED_MEMBER_ENDED = 'agency member removed';
+export const AGENCY_AI_REVOKED_ROLE_CHANGED = 'agency member no longer owner or admin';
 
 /** Why an agency connection could not be made. */
 export type CreateAgencyAiRefusal =
@@ -170,8 +171,8 @@ export interface AgencyAiConnectionList {
   readonly connections: readonly AgencyAiConnectionSummary[];
 }
 
-/** How many of the agency's connections the page lists, newest first. */
-export const AGENCY_AI_LIST_LIMIT = 50;
+/** How many recently ended connections the page also lists, newest first. */
+export const AGENCY_AI_ENDED_LIST_LIMIT = 10;
 
 /** Whether this account is an active owner or admin of the agency, read live. */
 async function agencyAdmin(tx: Db, organizationId: string, accountId: string): Promise<boolean> {
@@ -197,7 +198,10 @@ function endOf(row: { readonly createdAt: Date; readonly expiresAt: Date | null 
 
 /**
  * The agency's AI connections, every owner's and admin's (decision D1: owners and admins see all,
- * each with Turn Off). Only an active owner or admin may list them; anyone else gets `forbidden`.
+ * each with Turn Off). Every live connection is listed (finished connecting, not turned off, not
+ * past its end or its 30 days), so none can ever fall off the page; the ten most recently ended
+ * follow. A consent never finished read nothing and is not listed. Only an active owner or admin
+ * may list them; anyone else gets `forbidden`.
  */
 export async function listAgencyAiConnections(
   db: Db,
@@ -206,45 +210,58 @@ export async function listAgencyAiConnections(
   if (!(await agencyAdmin(db, input.organizationId, input.accountId))) return err('forbidden');
   if (!(await agencyAiAvailable(db))) return ok({ available: false, connections: [] });
   const now = input.now ?? new Date();
-  const rows = await db
-    .select({
-      id: schema.aiConnections.id,
-      clientName: schema.aiConnections.clientName,
-      clientHost: schema.aiConnections.clientHost,
-      email: schema.accounts.email,
-      createdAt: schema.aiConnections.createdAt,
-      expiresAt: schema.aiConnections.expiresAt,
-      revokedAt: schema.aiConnections.revokedAt,
-      activatedAt: schema.aiConnections.activatedAt,
-      lastUsedAt: schema.aiConnections.lastUsedAt,
-    })
-    .from(schema.aiConnectionAgencies)
-    .innerJoin(
-      schema.aiConnections,
-      eq(schema.aiConnections.id, schema.aiConnectionAgencies.connectionId),
-    )
-    .innerJoin(schema.accounts, eq(schema.accounts.id, schema.aiConnections.accountId))
-    .where(eq(schema.aiConnectionAgencies.organizationId, input.organizationId))
-    .orderBy(desc(schema.aiConnections.createdAt), desc(schema.aiConnections.id))
-    .limit(AGENCY_AI_LIST_LIMIT);
+  const c = schema.aiConnections;
+  const oldestLive = new Date(now.getTime() - AGENCY_AI_CONNECTION_MAX_MS);
+  const live = and(
+    isNull(c.revokedAt),
+    gt(c.createdAt, oldestLive),
+    or(isNull(c.expiresAt), gt(c.expiresAt, now)),
+  );
+  const select = (where: SQL | undefined, limit: number | null) => {
+    const query = db
+      .select({
+        id: c.id,
+        clientName: c.clientName,
+        clientHost: c.clientHost,
+        email: schema.accounts.email,
+        createdAt: c.createdAt,
+        expiresAt: c.expiresAt,
+        revokedAt: c.revokedAt,
+        lastUsedAt: c.lastUsedAt,
+      })
+      .from(schema.aiConnectionAgencies)
+      .innerJoin(c, eq(c.id, schema.aiConnectionAgencies.connectionId))
+      .innerJoin(schema.accounts, eq(schema.accounts.id, c.accountId))
+      .where(
+        and(
+          eq(schema.aiConnectionAgencies.organizationId, input.organizationId),
+          isNotNull(c.activatedAt),
+          where,
+        ),
+      )
+      .orderBy(desc(c.createdAt), desc(c.id));
+    return limit === null ? query : query.limit(limit);
+  };
+  const [liveRows, endedRows] = await Promise.all([
+    select(live, null),
+    select(not(live as SQL), AGENCY_AI_ENDED_LIST_LIMIT),
+  ]);
+  const summary = (row: (typeof liveRows)[number], isLive: boolean): AgencyAiConnectionSummary => ({
+    id: row.id,
+    clientName: row.clientName,
+    clientHost: row.clientHost,
+    connectedBy: row.email,
+    createdAt: row.createdAt,
+    endsAt: endOf(row),
+    lastUsedAt: row.lastUsedAt,
+    live: isLive,
+  });
   return ok({
     available: true,
-    connections: rows
-      // A consent never finished leaves a connection that never read anything: not listed.
-      .filter((row) => row.activatedAt !== null)
-      .map((row) => {
-        const endsAt = endOf(row);
-        return {
-          id: row.id,
-          clientName: row.clientName,
-          clientHost: row.clientHost,
-          connectedBy: row.email,
-          createdAt: row.createdAt,
-          endsAt,
-          lastUsedAt: row.lastUsedAt,
-          live: row.revokedAt === null && endsAt.getTime() > now.getTime(),
-        };
-      }),
+    connections: [
+      ...liveRows.map((row) => summary(row, true)),
+      ...endedRows.map((row) => summary(row, false)),
+    ],
   });
 }
 
@@ -256,7 +273,10 @@ async function endConnections(
     readonly actorAccountId: string;
     readonly connectionIds: readonly string[];
     readonly reason: string;
-    readonly auditReason: 'agency_turned_off' | 'agency_member_removed';
+    readonly auditReason:
+      | 'agency_turned_off'
+      | 'agency_member_removed'
+      | 'agency_member_role_changed';
     readonly now: Date;
   },
 ): Promise<number> {
@@ -370,6 +390,8 @@ export async function endAgencyAiConnectionsOfMember(
     readonly organizationId: string;
     readonly memberAccountId: string;
     readonly actorAccountId: string;
+    /** Turned off or removed, or (S22 round 2) moved out of owner and admin. */
+    readonly reason: 'member_removed' | 'role_changed';
   },
 ): Promise<number> {
   if (!(await agencyAiAvailable(tx))) return 0;
@@ -391,8 +413,12 @@ export async function endAgencyAiConnectionsOfMember(
     organizationId: input.organizationId,
     actorAccountId: input.actorAccountId,
     connectionIds: rows.map((row) => row.id),
-    reason: AGENCY_AI_REVOKED_MEMBER_ENDED,
-    auditReason: 'agency_member_removed',
+    reason:
+      input.reason === 'role_changed'
+        ? AGENCY_AI_REVOKED_ROLE_CHANGED
+        : AGENCY_AI_REVOKED_MEMBER_ENDED,
+    auditReason:
+      input.reason === 'role_changed' ? 'agency_member_role_changed' : 'agency_member_removed',
     now: new Date(),
   });
 }

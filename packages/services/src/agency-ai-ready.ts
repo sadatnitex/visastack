@@ -42,7 +42,7 @@ export async function agencyAiAvailable(db: Db): Promise<boolean> {
         ${ASSIST_PRESENT}
         and to_regclass('organization_ai_settings') is not null
         and to_regclass('ai_connection_agencies') is not null
-        and exists (select 1 from pg_trigger where tgname = 'ai_connection_agencies_kind_guard')
+        and exists (select 1 from pg_trigger where tgname = 'ai_connection_agencies_fixed')
       )`,
     })
     .from(sql`(select 1) as probe`);

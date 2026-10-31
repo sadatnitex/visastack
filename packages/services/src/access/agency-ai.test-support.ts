@@ -18,7 +18,7 @@ import { assignReferenceCode, referenceCodesFor } from '../reference-codes';
 import { acceptGrant, createGrant } from '../sharing';
 import { issueStepUpAssurance } from '../step-up';
 import { createAgencyAiConnection } from './agency-ai-connections';
-import { exchangeAiAuthorizationCode } from './ai-connection';
+import { createAiConnection, exchangeAiAuthorizationCode } from './ai-connection';
 import { setOrganizationAiSetting } from './organization-ai-settings';
 import { accountPrincipal } from './principal';
 import { requireAccess } from './require-access';
@@ -284,6 +284,44 @@ export async function connectAgency(
   });
   if (!isOk(tokens)) throw new Error(tokens.error.description);
   return { token: tokens.value.access_token, connectionId: created.value.connectionId };
+}
+
+/** A person's own AI connection to their record (the owner kind), for refusal tests. */
+export async function connectOwner(db: Db, ownerId: string, applicantId: string): Promise<string> {
+  const proof = await requireAccess(
+    db,
+    accountPrincipal(ownerId),
+    'VIEW_METADATA',
+    { applicantId },
+    { purpose: 'ai_connection' },
+  );
+  if (!isOk(proof)) throw new Error('owner proof');
+  const verifier = randomBytes(32).toString('base64url');
+  const challenge = createHash('sha256').update(verifier, 'ascii').digest('base64url');
+  const created = await createAiConnection(proof.value, {
+    client: AGENCY_CLIENT,
+    choices: {
+      layers: ['identity'],
+      caseMode: 'NONE',
+      documentList: false,
+      documentText: false,
+      revealIdentifiers: false,
+      duration: '30d',
+    },
+    codeChallenge: challenge,
+    redirectUri: AGENCY_REDIRECT,
+    resource: AGENCY_RESOURCE,
+  });
+  if (!isOk(created)) throw new Error(created.error.description);
+  const tokens = await exchangeAiAuthorizationCode(db, {
+    code: created.value.code,
+    codeVerifier: verifier,
+    clientId: AGENCY_CLIENT.clientId,
+    redirectUri: AGENCY_REDIRECT,
+    resource: AGENCY_RESOURCE,
+  });
+  if (!isOk(tokens)) throw new Error(tokens.error.description);
+  return tokens.value.access_token;
 }
 
 type AgencyToolName = (typeof AGENCY_AI_TOOLS)[number]['name'];

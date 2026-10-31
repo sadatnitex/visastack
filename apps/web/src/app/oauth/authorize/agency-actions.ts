@@ -1,9 +1,12 @@
 'use server';
 
-import { type CreateAgencyAiRefusal, createAgencyAiConnection } from '@visastack/services';
+import {
+  type CreateAgencyAiRefusal,
+  createAgencyAiConnection,
+  isAgencyAiConnectionDuration,
+} from '@visastack/services';
 import { redirect } from 'next/navigation';
 import type { FormResult } from '../../../components/form-feedback';
-import { isAgencyAiDuration } from '../../../lib/agency-ai';
 import { aiConnectorEnabled } from '../../../lib/ai-connector';
 import { authorizationResponseUrl, checkAuthorizeRequest } from '../../../lib/oauth-authorize';
 import { withPublicDb } from '../../../lib/public-db';
@@ -75,7 +78,7 @@ export async function answerAgencyAiConsentAction(
     return { ok: false, message: 'Choose the agency to connect.' };
   }
   const duration = text(formData, 'duration');
-  if (!isAgencyAiDuration(duration)) {
+  if (!isAgencyAiConnectionDuration(duration)) {
     return { ok: false, message: REFUSED.invalid_request, field: 'duration' };
   }
   const outcome = await withSession(({ db, accountId }) =>

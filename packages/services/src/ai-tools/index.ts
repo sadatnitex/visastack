@@ -72,6 +72,8 @@ export interface RunAiToolInput {
   /** The private storage and Safe Copy renderer, for the file tool (S20). */
   readonly files?: AiFileDeps;
   readonly now?: Date;
+  /** One id for every audit record of this call (S22), so a withheld answer can name it. */
+  readonly callId?: string;
 }
 
 export type AiToolOutcome =
@@ -103,6 +105,7 @@ export async function runAiTool<Tool extends AnyConnectorToolDefinition>(
       ...(request.encryption ? { encryption: request.encryption } : {}),
       ...(request.files ? { files: request.files } : {}),
       ...(request.now ? { now: request.now } : {}),
+      ...(request.callId ? { callId: request.callId } : {}),
     };
     const outcome =
       tool.kind === 'agency'

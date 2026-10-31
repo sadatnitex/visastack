@@ -69,15 +69,12 @@ export default async function AgencyAiConnectionsPage({
                       : 'Not used yet.'}
                   </span>
                 </span>
-                {connection.live ? (
-                  <AgencyAiTurnOff
-                    organizationId={orgId}
-                    connectionId={connection.id}
-                    appLabel={label}
-                  />
-                ) : (
-                  <span className="badge badge-neutral">Ended</span>
-                )}
+                <AgencyAiTurnOff
+                  organizationId={orgId}
+                  connectionId={connection.id}
+                  appLabel={label}
+                  live={connection.live}
+                />
               </li>
             );
           })}

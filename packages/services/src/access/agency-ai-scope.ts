@@ -16,14 +16,14 @@ import {
   type Resource as PolicyResource,
   authorize,
 } from '@visastack/policy';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 import { listVisibleMissionsForMember } from '../agency';
 import { agencyAiAvailable } from '../agency-ai-ready';
 import { type Db, first, schema } from '../db';
 import { resolveEntitlements } from '../entitlements';
 import { findReferenceEntity, referenceCodesFor } from '../reference-codes';
 import { documentCategory, toPolicyGrant } from '../sharing';
-import { loadCaseExclusions } from './grant-scope';
+import { loadCaseExclusions, withCaseExclusions } from './grant-scope';
 import { accountPrincipal } from './principal';
 import { type AuthorizedApplicant, EACH_GRANT, requireAccess } from './require-access';
 
@@ -190,15 +190,18 @@ interface AiGrant {
  */
 async function loadAiGrants(
   tx: Db,
-  applicantId: string,
+  applicantIds: readonly string[],
   member: AgencyAiMember,
-): Promise<AiGrant[]> {
+): Promise<Map<string, AiGrant[]>> {
+  const byApplicant = new Map<string, AiGrant[]>();
+  if (applicantIds.length === 0) return byApplicant;
+  // One query for every traveller, and one for their exceptions.
   const rows = await tx
     .select()
     .from(schema.grants)
     .where(
       and(
-        eq(schema.grants.applicantId, applicantId),
+        inArray(schema.grants.applicantId, [...new Set(applicantIds)]),
         eq(schema.grants.recipientOrganizationId, member.organizationId),
         // As text, so this reads the same before the enum value exists (it then matches nothing).
         sql`${AI_ASSIST_ACTION} = any(${schema.grants.actions}::text[])`,
@@ -211,10 +214,12 @@ async function loadAiGrants(
       (row.actions as readonly string[]).includes('VIEW_METADATA'),
   );
   const exclusions = await loadCaseExclusions(tx, { grantIds: forMember.map((row) => row.id) });
-  return forMember.map((row) => ({
-    id: row.id,
-    policy: toPolicyGrant(row, exclusions.get(row.id)),
-  }));
+  for (const row of forMember) {
+    const list = byApplicant.get(row.applicantId) ?? [];
+    list.push({ id: row.id, policy: toPolicyGrant(row, exclusions.get(row.id)) });
+    byApplicant.set(row.applicantId, list);
+  }
+  return byApplicant;
 }
 
 let minting = false;
@@ -336,16 +341,46 @@ export class AgencyAiScope {
   }
 }
 
-/** The case ids of `applicantId` this member can see in the agency's own views. */
-async function visibleCasesOf(
-  tx: Db,
-  member: AgencyAiMember,
-  applicantId: string,
-): Promise<Set<string>> {
-  const visible = await listVisibleMissionsForMember(tx, member.organizationId, member.accountId);
-  return new Set(
-    visible.missions.filter((m) => m.applicantId === applicantId).map((m) => m.missionId),
+/**
+ * Whether the member sees this one case in the agency's own views, checked directly (the same rule
+ * as `listVisibleMissionsForMember`, for one case): an active, accepted, unexpired grant to the
+ * agency reaches it (per-case exceptions included), and a member who is not an owner or admin is
+ * also assigned to it.
+ */
+async function memberSeesCase(tx: Db, member: AgencyAiMember, missionId: string): Promise<boolean> {
+  const now = new Date();
+  const covered = await withCaseExclusions(tx, (covers) =>
+    tx
+      .select({ id: schema.grants.id })
+      .from(schema.grants)
+      .innerJoin(schema.missions, eq(schema.missions.applicantId, schema.grants.applicantId))
+      .where(
+        and(
+          eq(schema.missions.id, missionId),
+          eq(schema.grants.recipientOrganizationId, member.organizationId),
+          eq(schema.grants.status, 'ACTIVE'),
+          isNotNull(schema.grants.acceptedAt),
+          lte(schema.grants.startAt, now),
+          or(isNull(schema.grants.expiryAt), gt(schema.grants.expiryAt, now)),
+          covers(schema.missions.id),
+        ),
+      )
+      .limit(1),
   );
+  if (covered.length === 0) return false;
+  if (AGENCY_AI_ROLES.includes(member.role)) return true;
+  const assigned = await tx
+    .select({ id: schema.assignments.id })
+    .from(schema.assignments)
+    .where(
+      and(
+        eq(schema.assignments.organizationId, member.organizationId),
+        eq(schema.assignments.memberAccountId, member.accountId),
+        eq(schema.assignments.missionId, missionId),
+      ),
+    )
+    .limit(1);
+  return assigned.length > 0;
 }
 
 /**
@@ -386,11 +421,17 @@ export async function openAgencyAiScope(
     return err('case_not_shared');
   }
   const applicantId = proof.applicant.id;
-  const [grants, visibleCases] = await Promise.all([
-    loadAiGrants(tx, applicantId, member),
-    visibleCasesOf(tx, member, applicantId),
+  const [grants, sees] = await Promise.all([
+    loadAiGrants(tx, [applicantId], member),
+    memberSeesCase(tx, member, input.missionId),
   ]);
-  const scope = mint({ member, applicantId, grants, visibleCases, now: input.now });
+  const scope = mint({
+    member,
+    applicantId,
+    grants: grants.get(applicantId) ?? [],
+    visibleCases: new Set(sees ? [input.missionId] : []),
+    now: input.now,
+  });
   if (!scope.caseAllowed(input.missionId)) return err('case_not_shared');
   return ok({ scope, proof });
 }
@@ -441,9 +482,14 @@ export async function listAgencyAiCases(
     owners.filter((row) => row.owner === member.accountId).map((row) => row.id),
   );
   const reachable: ((typeof visible.missions)[number] & { grantIds: readonly string[] })[] = [];
+  const allGrants = await loadAiGrants(
+    tx,
+    [...byApplicant.keys()].filter((id) => !ownedByMember.has(id)),
+    member,
+  );
   for (const [applicantId, missions] of byApplicant) {
     if (ownedByMember.has(applicantId)) continue;
-    const grants = await loadAiGrants(tx, applicantId, member);
+    const grants = allGrants.get(applicantId) ?? [];
     if (grants.length === 0) continue;
     const scope = mint({
       member,

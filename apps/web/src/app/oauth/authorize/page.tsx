@@ -1,5 +1,6 @@
 import { aiFeatureOffSentence } from '@visastack/core/ai-features';
 import {
+  AGENCY_AI_DEFAULT_DURATION,
   AGENCY_AI_ROLES,
   accountPrincipal,
   getAiFeatureStates,
@@ -242,6 +243,7 @@ export default async function AuthorizePage({
               state: request.state,
             }}
             agency={view.agency}
+            defaultDuration={AGENCY_AI_DEFAULT_DURATION}
           />
         </>
       ) : view.records.length === 0 ? (

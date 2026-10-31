@@ -650,7 +650,7 @@ export async function buildAgencySelectedOutput(
     return err(serviceError('forbidden', 'only an agency AI call within its scope can read this'));
   }
   const { stepUp: _stepUp, ...rest } = options as SelectedOutputOptions;
-  return composeOutput(
+  const built = await composeOutput(
     { proof, agency: scope },
     {
       ...selection,
@@ -659,6 +659,10 @@ export async function buildAgencySelectedOutput(
     },
     rest,
   );
+  if (!built.ok) return built;
+  // The app never learns how much the traveller did not share with the agency (S22 round 2):
+  // what no AI grant covers is left out without a count.
+  return ok({ ...built.value, omitted: { ...built.value.omitted, not_granted: 0 } });
 }
 
 async function composeOutput(

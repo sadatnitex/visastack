@@ -1287,7 +1287,12 @@ const AGENCY: readonly Case[] = [
     <AgencyAiSettingForm organizationId="o1" organizationName="Harbor Visas" enabled />
   )),
   row('turn off an agency AI app', () => (
-    <AgencyAiTurnOff organizationId="o1" connectionId={rowId()} appLabel="Claude (claude.ai)" />
+    <AgencyAiTurnOff
+      organizationId="o1"
+      connectionId={rowId()}
+      appLabel="Claude (claude.ai)"
+      live
+    />
   )),
   row('require a different reviewer (on)', () => (
     <RequireDifferentReviewerToggle organizationId="o1" required />
@@ -1679,6 +1684,7 @@ const ADMIN: readonly Case[] = [
           state: 'abc',
         }}
         agency={{ id: rowId(), name: 'Harbor Visas' }}
+        defaultDuration="30d"
       />
     )),
     fields: ['duration'],

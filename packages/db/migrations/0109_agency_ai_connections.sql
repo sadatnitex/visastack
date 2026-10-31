@@ -53,8 +53,7 @@ ALTER TABLE "ai_connections" ALTER COLUMN "applicant_id" DROP NOT NULL;
 --> statement-breakpoint
 -- A connection names a record or an agency, never both and never neither: applicant_id is null
 -- exactly when an ai_connection_agencies row exists. Checked at the end of the transaction, so a
--- connection and its agency row can be written one after the other; removing only the agency row
--- of a connection that stays is refused too.
+-- connection and its agency row can be written one after the other.
 CREATE OR REPLACE FUNCTION "visastack_ai_connection_kind_guard"() RETURNS trigger
 LANGUAGE plpgsql AS $fn$
 DECLARE
@@ -94,3 +93,36 @@ DROP TRIGGER IF EXISTS "ai_connection_agencies_kind_guard" ON "ai_connection_age
 CREATE CONSTRAINT TRIGGER "ai_connection_agencies_kind_guard" AFTER INSERT OR UPDATE OR DELETE ON "ai_connection_agencies"
 	DEFERRABLE INITIALLY DEFERRED
 	FOR EACH ROW EXECUTE FUNCTION "visastack_ai_connection_kind_guard"();
+--> statement-breakpoint
+-- An agency connection belongs to its agency: removing its agency row (directly, or when the
+-- agency itself is removed) removes the connection too, at once, before the check above runs.
+CREATE OR REPLACE FUNCTION "visastack_ai_connection_agency_removed"() RETURNS trigger
+LANGUAGE plpgsql AS $fn$
+BEGIN
+	DELETE FROM "ai_connections" c WHERE c."id" = OLD."connection_id" AND c."applicant_id" IS NULL;
+	RETURN NULL;
+END
+$fn$;
+--> statement-breakpoint
+DROP TRIGGER IF EXISTS "ai_connection_agencies_removed" ON "ai_connection_agencies";
+--> statement-breakpoint
+CREATE TRIGGER "ai_connection_agencies_removed" AFTER DELETE ON "ai_connection_agencies"
+	FOR EACH ROW EXECUTE FUNCTION "visastack_ai_connection_agency_removed"();
+--> statement-breakpoint
+-- An agency row never moves to another connection or another agency.
+CREATE OR REPLACE FUNCTION "visastack_ai_connection_agency_fixed"() RETURNS trigger
+LANGUAGE plpgsql AS $fn$
+BEGIN
+	IF NEW."connection_id" IS DISTINCT FROM OLD."connection_id"
+		OR NEW."organization_id" IS DISTINCT FROM OLD."organization_id" THEN
+		RAISE EXCEPTION 'an agency connection keeps its connection and its agency'
+			USING ERRCODE = 'check_violation';
+	END IF;
+	RETURN NEW;
+END
+$fn$;
+--> statement-breakpoint
+DROP TRIGGER IF EXISTS "ai_connection_agencies_fixed" ON "ai_connection_agencies";
+--> statement-breakpoint
+CREATE TRIGGER "ai_connection_agencies_fixed" BEFORE UPDATE ON "ai_connection_agencies"
+	FOR EACH ROW EXECUTE FUNCTION "visastack_ai_connection_agency_fixed"();
