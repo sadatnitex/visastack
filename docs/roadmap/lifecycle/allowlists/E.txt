@@ -1,0 +1,17 @@
+# LC-E Travellers.
+packages/services/src/lifecycle/travellers/**
+packages/services/src/lifecycle/foundation/read-baseline/E.json
+packages/services/src/applicants.ts
+packages/services/src/applicants.test.ts
+packages/services/src/index.ts
+apps/web/src/lib/profile-photos.ts
+apps/web/src/lib/profile-photos.test.ts
+apps/web/src/app/app/applicants/**
+apps/web/src/app/app/applicant/[id]/page.tsx
+apps/web/src/app/app/applicant/[id]/page.test.tsx
+apps/web/src/app/app/applicant/[id]/traveller-manage/**
+apps/web/src/app/api/jobs/process-deletions/**
+apps/web/src/lib/lifecycle-jobs/traveller-purge.ts
+apps/web/src/lib/lifecycle-jobs/traveller-purge.test.ts
+apps/web/src/app/globals.css
+docs/roadmap/lifecycle/lanes/E.md

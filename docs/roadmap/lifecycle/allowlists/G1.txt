@@ -1,0 +1,14 @@
+# LC-G1 Profile: No Longer Current and Ended (wave 0, no new tables).
+packages/services/src/lifecycle/profile/**
+packages/services/src/profile.ts
+packages/services/src/profile.test.ts
+packages/services/src/profile-sections.ts
+packages/services/src/profile-sections.test.ts
+packages/services/src/index.ts
+apps/web/src/app/app/applicant/[id]/profile-editor.tsx
+apps/web/src/app/app/applicant/[id]/profile-editor.test.tsx
+apps/web/src/app/app/applicant/[id]/section-actions.ts
+apps/web/src/app/app/applicant/[id]/section-actions.test.ts
+apps/web/src/app/app/applicant/[id]/profile/**
+apps/web/src/app/globals.css
+docs/roadmap/lifecycle/lanes/G1.md

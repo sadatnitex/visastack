@@ -1,0 +1,5 @@
+# LC-G2 Active Cases and Past Cases (wave 0, presentation only).
+apps/web/src/app/app/applicant/[id]/missions/page.tsx
+apps/web/src/app/app/applicant/[id]/missions/page.test.tsx
+apps/web/src/app/globals.css
+docs/roadmap/lifecycle/lanes/G2.md

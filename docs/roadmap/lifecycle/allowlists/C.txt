@@ -1,0 +1,17 @@
+# LC-C Duplicates, Recently Deleted, Removal Records, Tidy Up.
+packages/services/src/lifecycle/duplicates/**
+packages/services/src/lifecycle/recently-deleted/**
+packages/services/src/index.ts
+apps/web/src/app/app/applicant/[id]/documents/manage/delete/**
+apps/web/src/app/app/applicant/[id]/documents/manage/registry.tsx
+apps/web/src/app/app/applicant/[id]/actions.ts
+apps/web/src/app/app/applicant/[id]/actions.test.ts
+apps/web/src/app/app/applicant/[id]/document-uploader.tsx
+apps/web/src/app/app/applicant/[id]/document-uploader.test.tsx
+apps/web/src/app/app/applicant/[id]/history/**
+apps/web/src/app/app/(home)/**
+apps/web/src/app/api/jobs/process-erasure/**
+apps/web/src/lib/lifecycle-jobs/purge.ts
+apps/web/src/lib/lifecycle-jobs/purge.test.ts
+apps/web/src/app/globals.css
+docs/roadmap/lifecycle/lanes/C.md
